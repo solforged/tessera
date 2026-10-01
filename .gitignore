@@ -1,5 +1,9 @@
 /target/
 /web/node_modules/
 /web/dist/
+/spikes/editor/node_modules/
+/spikes/editor/*/node_modules/
+/spikes/editor/*/dist/
+/spikes/editor/results/profiles/
 # Local development notebooks.
 /.tessera/
