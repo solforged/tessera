@@ -31,7 +31,7 @@ pub fn save(dir: &Path, results: &Path, size: usize, corpus: &Corpus, stamp: u12
             &mut plans,
             &format!("page_targets_{rows}"),
             format!(
-                "SELECT DISTINCT {COLUMNS} FROM blocks s JOIN links l ON l.source_id = s.id JOIN blocks b ON b.id = l.target_id WHERE s.page_id = ?1 AND s.deletion_id IS NULL AND b.deletion_id IS NULL AND b.page_id != ?1 ORDER BY b.id"
+                "WITH targets(id) AS (SELECT l.target_id FROM blocks s JOIN links l ON l.source_id = s.id JOIN blocks t ON t.id = l.target_id WHERE s.page_id = ?1 AND s.deletion_id IS NULL AND t.page_id != ?1 UNION SELECT m.type_id FROM blocks s JOIN memberships m ON m.block_id = s.id WHERE s.page_id = ?1 AND s.deletion_id IS NULL) SELECT {COLUMNS} FROM targets t JOIN blocks b ON b.id = t.id WHERE b.deletion_id IS NULL ORDER BY b.id"
             ),
             vec![json!(id)],
         )?;
@@ -73,6 +73,33 @@ pub fn save(dir: &Path, results: &Path, size: usize, corpus: &Corpus, stamp: u12
             vec![json!(matched), json!(30)],
         )?;
     }
+    capture(
+        &connection,
+        &mut plans,
+        "page_by_title",
+        format!(
+            "SELECT {COLUMNS} FROM blocks b WHERE b.kind = 'page' AND b.deletion_id IS NULL AND b.title_key = ?1"
+        ),
+        vec![json!("page 00000")],
+    )?;
+    let type_id = corpus
+        .model
+        .blocks
+        .values()
+        .find(|block| block.text == "Page 00000")
+        .unwrap()
+        .id
+        .clone();
+    capture(
+        &connection,
+        &mut plans,
+        "members",
+        format!(
+            "SELECT {COLUMNS}, {} FROM memberships m JOIN blocks b ON b.id = m.block_id JOIN blocks p ON p.id = b.page_id JOIN blocks t ON t.id = m.type_id WHERE m.type_id = ?1 AND b.deletion_id IS NULL AND p.deletion_id IS NULL AND t.deletion_id IS NULL ORDER BY m.block_id LIMIT ?2",
+            COLUMNS.replace("b.", "p.")
+        ),
+        vec![json!(type_id), json!(100)],
+    )?;
     std::fs::write(
         results.join(format!("plans-{size}-{stamp}.json")),
         serde_json::to_vec_pretty(

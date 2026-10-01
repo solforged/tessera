@@ -1,4 +1,4 @@
-//! The loopback service that owns one notebook. Browser windows, the CLI and
+//! The loopback HTTP and WebSocket service that owns one notebook. Browser windows, the CLI and
 //! agents reach the notebook only through its operation API.
 
 mod assets;
@@ -15,14 +15,17 @@ use axum::{
     extract::{
         DefaultBodyLimit, Path, Query, State,
         rejection::{JsonRejection, PathRejection, QueryRejection},
+        ws::{Message, WebSocket, WebSocketUpgrade},
     },
     middleware,
+    response::Response,
     routing::{get, post},
 };
 use serde::Deserialize;
 use tessera_core::{
-    Backlink, Batch, Block, Change, Committed, Notebook, NotebookInfo, PageView, SearchHit,
+    Backlink, Batch, Block, BlockInPage, ChangeEvent, Committed, Notebook, NotebookInfo, PageView,
 };
+use tokio::sync::broadcast;
 
 use crate::error::ApiError;
 pub use crate::security::validate_dev_origin;
@@ -43,6 +46,7 @@ pub struct Config {
 pub(crate) struct AppState {
     notebook: Arc<Mutex<Notebook>>,
     assets: Option<Arc<PathBuf>>,
+    changes: broadcast::Sender<i64>,
 }
 
 /// Build the HTTP router. `port` must be the port the listener actually bound,
@@ -57,17 +61,21 @@ pub fn router(
     let state = AppState {
         notebook: Arc::new(Mutex::new(notebook)),
         assets: assets.map(Arc::new),
+        changes: broadcast::channel(256).0,
     };
     Ok(Router::new()
         .route("/api/notebook", get(notebook_info))
         .route("/api/roots", get(roots))
         .route("/api/pages/{id}", get(page))
+        .route("/api/pages/by-title/{title}", get(page_by_title))
         .route("/api/journal/{date}", get(journal))
         .route("/api/blocks/{id}", get(block))
         .route("/api/blocks/{id}/backlinks", get(backlinks))
+        .route("/api/types/{id}/members", get(members))
         .route("/api/complete", get(complete))
         .route("/api/search", get(search))
         .route("/api/changes", get(changes))
+        .route("/api/changes/stream", get(change_stream))
         .route("/api/batches", post(apply))
         .method_not_allowed_fallback(|| async { ApiError::method_not_allowed() })
         .fallback(assets::serve)
@@ -145,6 +153,23 @@ async fn page(
         .map(Json)
 }
 
+async fn page_by_title(
+    State(state): State<AppState>,
+    path: Result<Path<String>, PathRejection>,
+) -> Result<Json<Block>, ApiError> {
+    let Path(title) = path.map_err(ApiError::from)?;
+    run(&state, move |notebook| {
+        notebook
+            .page_by_title(&title)?
+            .ok_or(tessera_core::Error::NotFound {
+                id: title,
+                op_index: None,
+            })
+    })
+    .await
+    .map(Json)
+}
+
 async fn journal(
     State(state): State<AppState>,
     path: Result<Path<String>, PathRejection>,
@@ -184,6 +209,18 @@ async fn backlinks(
         .map(Json)
 }
 
+async fn members(
+    State(state): State<AppState>,
+    path: Result<Path<String>, PathRejection>,
+    query: Result<Query<Limit>, QueryRejection>,
+) -> Result<Json<Vec<BlockInPage>>, ApiError> {
+    let Path(id) = path.map_err(ApiError::from)?;
+    let Query(query) = query.map_err(ApiError::from)?;
+    run(&state, move |notebook| notebook.members(&id, query.limit))
+        .await
+        .map(Json)
+}
+
 async fn complete(
     State(state): State<AppState>,
     query: Result<Query<TextQuery>, QueryRejection>,
@@ -199,7 +236,7 @@ async fn complete(
 async fn search(
     State(state): State<AppState>,
     query: Result<Query<TextQuery>, QueryRejection>,
-) -> Result<Json<Vec<SearchHit>>, ApiError> {
+) -> Result<Json<Vec<BlockInPage>>, ApiError> {
     let Query(query) = query.map_err(ApiError::from)?;
     run(&state, move |notebook| {
         notebook.search(&query.q, query.limit)
@@ -211,7 +248,7 @@ async fn search(
 async fn changes(
     State(state): State<AppState>,
     query: Result<Query<ChangesQuery>, QueryRejection>,
-) -> Result<Json<Vec<Change>>, ApiError> {
+) -> Result<Json<Vec<ChangeEvent>>, ApiError> {
     let Query(query) = query.map_err(ApiError::from)?;
     run(&state, move |notebook| {
         notebook.changes_since(query.after, query.limit)
@@ -220,14 +257,93 @@ async fn changes(
     .map(Json)
 }
 
+#[derive(Deserialize)]
+struct StreamQuery {
+    #[serde(default)]
+    after: i64,
+}
+
+async fn change_stream(
+    State(state): State<AppState>,
+    query: Result<Query<StreamQuery>, QueryRejection>,
+    upgrade: WebSocketUpgrade,
+) -> Result<Response, ApiError> {
+    let Query(query) = query.map_err(ApiError::from)?;
+    // Subscribe before reading history. A commit in either phase is observed
+    // by history, the receiver, or both; the cursor removes the overlap.
+    let receiver = state.changes.subscribe();
+    Ok(upgrade.on_upgrade(move |socket| stream_changes(socket, state, receiver, query.after)))
+}
+
+async fn catch_up(socket: &mut WebSocket, state: &AppState, after: &mut i64) -> Result<(), ()> {
+    loop {
+        let cursor = *after;
+        let changes = run(state, move |notebook| notebook.changes_since(cursor, 100))
+            .await
+            .map_err(|_| ())?;
+        if changes.is_empty() {
+            return Ok(());
+        }
+        for change in changes {
+            if change.seq > *after {
+                let text = serde_json::to_string(&change).map_err(|_| ())?;
+                socket
+                    .send(Message::Text(text.into()))
+                    .await
+                    .map_err(|_| ())?;
+                *after = change.seq;
+            }
+        }
+    }
+}
+
+async fn stream_changes(
+    mut socket: WebSocket,
+    state: AppState,
+    mut receiver: broadcast::Receiver<i64>,
+    mut after: i64,
+) {
+    if catch_up(&mut socket, &state, &mut after).await.is_err() {
+        return;
+    }
+    loop {
+        tokio::select! {
+            notification = receiver.recv() => {
+                match notification {
+                    Ok(seq) if seq <= after => continue,
+                    Err(broadcast::error::RecvError::Closed) => return,
+                    // A slow consumer may overflow notifications, never history.
+                    Ok(_) | Err(broadcast::error::RecvError::Lagged(_)) => {}
+                }
+                if catch_up(&mut socket, &state, &mut after).await.is_err() {
+                    return;
+                }
+            }
+            message = socket.recv() => {
+                if matches!(message, None | Some(Err(_)) | Some(Ok(Message::Close(_)))) {
+                    return;
+                }
+            }
+        }
+    }
+}
+
 async fn apply(
     State(state): State<AppState>,
     body: Result<Json<Batch>, JsonRejection>,
 ) -> Result<Json<Committed>, ApiError> {
     let Json(batch) = body.map_err(ApiError::from)?;
-    run(&state, move |notebook| notebook.apply(&batch))
-        .await
-        .map(Json)
+    let changes = state.changes.clone();
+    run(&state, move |notebook| {
+        let committed = notebook.apply(&batch)?;
+        if !committed.replayed {
+            // Publish while the writer lock is still held, in commit order.
+            let _ = changes.send(committed.seq);
+        }
+        Ok(committed)
+    })
+    .await
+    .map(Json)
 }
 
 /// Run a notebook operation off the async runtime.

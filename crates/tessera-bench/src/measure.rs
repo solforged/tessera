@@ -3,9 +3,11 @@ use std::time::Instant;
 
 use anyhow::{Result, ensure};
 use serde::Serialize;
-use tessera_core::{Backlink, Block, Change, Notebook, Operation, PageView, SearchHit};
+use tessera_core::{
+    Backlink, Block, BlockInPage, BlockKind, ChangeEvent, Notebook, Operation, PageView, Revision,
+};
 
-use crate::corpus::{Corpus, Model, batch, id, references};
+use crate::corpus::{Corpus, Expected, Model, batch, id, references};
 use crate::http::Http;
 
 /// Which statistic a measurement's pass/fail compares against its budget.
@@ -100,6 +102,7 @@ impl Recorder {
                 "commit_move",
                 "commit_delete",
                 "commit_restore",
+                "commit_tag_auto_create",
             ] {
                 let small = self
                     .rows
@@ -237,7 +240,7 @@ pub async fn queries(corpus: &Corpus, dir: &Path, recorder: &mut Recorder) -> Re
         let mut times = Vec::new();
         for _ in 0..recorder.runs {
             let start = Instant::now();
-            let result: Vec<SearchHit> =
+            let result: Vec<BlockInPage> =
                 http.get(&format!("/api/search?q={query}&limit=30")).await?;
             times.push(elapsed(start));
             check_search(model, &result, &expected)?;
@@ -248,7 +251,11 @@ pub async fn queries(corpus: &Corpus, dir: &Path, recorder: &mut Recorder) -> Re
     let target = model
         .blocks
         .values()
-        .find_map(|block| references(&block.text).into_iter().next())
+        .find_map(|block| {
+            references(&block.text)
+                .into_iter()
+                .find(|target| model.blocks.contains_key(target))
+        })
         .unwrap();
     for target in [target.clone(), id(recorder.seed, recorder.size + 1)] {
         let expected = model.backlink_ids(&target, 100);
@@ -270,6 +277,47 @@ pub async fn queries(corpus: &Corpus, dir: &Path, recorder: &mut Recorder) -> Re
             check_backlinks(model, &result, &expected)?;
         }
         recorder.record("http", &format!("backlinks:{target}"), None, times, None);
+    }
+    let type_id = model
+        .blocks
+        .values()
+        .find(|block| block.text == "Page 00000")
+        .unwrap()
+        .id
+        .clone();
+    let expected_members: Vec<_> = model
+        .blocks
+        .values()
+        .filter(|block| !block.deleted && block.text.contains("#[[Page 00000]]"))
+        .take(100)
+        .map(|block| block.id.clone())
+        .collect();
+    for transport in ["core", "http"] {
+        let mut title_times = Vec::new();
+        let mut member_times = Vec::new();
+        for _ in 0..recorder.runs {
+            let start = Instant::now();
+            let root = if transport == "core" {
+                notebook.page_by_title("PAGE 00000")?.unwrap()
+            } else {
+                http.get::<Block>("/api/pages/by-title/PAGE%2000000")
+                    .await?
+            };
+            title_times.push(elapsed(start));
+            model.check_block(&root)?;
+            ensure!(root.id == type_id, "title lookup mismatch");
+            let start = Instant::now();
+            let members = if transport == "core" {
+                notebook.members(&type_id, 100)?
+            } else {
+                http.get::<Vec<BlockInPage>>(&format!("/api/types/{type_id}/members?limit=100"))
+                    .await?
+            };
+            member_times.push(elapsed(start));
+            check_search(model, &members, &expected_members)?;
+        }
+        recorder.record(transport, "page_by_title", None, title_times, None);
+        recorder.record(transport, "members", None, member_times, None);
     }
     for after in [
         0,
@@ -293,7 +341,7 @@ pub async fn queries(corpus: &Corpus, dir: &Path, recorder: &mut Recorder) -> Re
         let mut times = Vec::new();
         for _ in 0..recorder.runs {
             let start = Instant::now();
-            let result: Vec<Change> = http
+            let result: Vec<ChangeEvent> = http
                 .get(&format!("/api/changes?after={after}&limit=100"))
                 .await?;
             times.push(elapsed(start));
@@ -321,7 +369,7 @@ fn check_blocks(model: &Model, blocks: &[Block], ids: &[String]) -> Result<()> {
     Ok(())
 }
 
-fn check_search(model: &Model, hits: &[SearchHit], ids: &[String]) -> Result<()> {
+fn check_search(model: &Model, hits: &[BlockInPage], ids: &[String]) -> Result<()> {
     ensure!(
         hits.iter().map(|hit| &hit.block.id).eq(ids.iter()),
         "search differs from naive scan: {:?} != {ids:?}",
@@ -374,7 +422,15 @@ pub async fn commits(
         let target = corpus.model.children[page_id].last().unwrap().clone();
         let original = model.blocks[&target].text.clone();
         let destination = corpus.model.children[page_id].first().unwrap().clone();
-        for operation in ["edit_text", "insert", "split", "move", "delete", "restore"] {
+        for operation in [
+            "edit_text",
+            "insert",
+            "split",
+            "move",
+            "delete",
+            "restore",
+            "tag_auto_create",
+        ] {
             let mut times = Vec::new();
             for run in 0..recorder.runs {
                 let mut deletion = None;
@@ -405,11 +461,16 @@ pub async fn commits(
                         base_revision: revision,
                         text: format!("{original} edit{run}"),
                     },
+                    "tag_auto_create" => Operation::EditText {
+                        id: target.clone(),
+                        base_revision: revision,
+                        text: format!("{original} #bench_type_{serial}"),
+                    },
                     "insert" => Operation::Insert {
                         id: new_id.clone(),
                         parent_id: page_id.clone(),
                         after: Some(target.clone()),
-                        text: "benchmark insertion".into(),
+                        text: "benchmark insertion #[[Page 00000]]".into(),
                         heading: None,
                     },
                     "split" => {
@@ -494,13 +555,67 @@ async fn apply(
     op: Operation,
 ) -> Result<(tessera_core::Committed, f64)> {
     let batch = batch(vec![op]);
-    let revisions = model.apply_model(&batch)?;
+    let new_type = match &batch.operations[0] {
+        Operation::EditText { text, .. } => text.split_whitespace().find_map(|word| {
+            word.strip_prefix("#bench_type_")
+                .map(|suffix| format!("bench_type_{suffix}"))
+        }),
+        _ => None,
+    };
+    let mut revisions = model.apply_model(&batch)?;
     let start = Instant::now();
     let committed = match http {
         Some(http) => http.apply(&batch).await?,
         None => notebook.apply(&batch)?,
     };
     let ms = elapsed(start);
+    if let Some(title) = new_type {
+        ensure!(
+            committed.revisions.len() == 2,
+            "tag creation must touch its source and type page"
+        );
+        let generated = &committed.revisions[1];
+        ensure!(
+            generated.id.parse::<ulid::Ulid>()?.to_string() == generated.id,
+            "generated page ID is not canonical"
+        );
+        let root = notebook
+            .page_by_title(&title)?
+            .ok_or_else(|| anyhow::anyhow!("missing generated type page"))?;
+        ensure!(
+            root.id == generated.id,
+            "generated type differs from committed revision"
+        );
+        model.blocks.insert(
+            root.id.clone(),
+            Expected {
+                id: root.id.clone(),
+                kind: BlockKind::Page,
+                parent: None,
+                page: root.id.clone(),
+                text: title,
+                heading: None,
+                archived: false,
+                revision: 1,
+                deleted: false,
+            },
+        );
+        model.children.insert(root.id.clone(), Vec::new());
+        model.check_block(&root)?;
+        revisions.push(Revision {
+            id: root.id.clone(),
+            revision: 1,
+        });
+        let change = model.changes.last_mut().unwrap();
+        change.1.clone_from(&revisions);
+        change.2.push(root.id.clone());
+        change.2.sort_unstable();
+        let members = notebook.members(&root.id, 2)?;
+        ensure!(
+            members.len() == 1 && members[0].block.id == revisions[0].id,
+            "generated type membership mismatch"
+        );
+    }
     model.check_commit(&committed, &revisions)?;
     Ok((committed, ms))
 }

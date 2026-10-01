@@ -355,7 +355,9 @@ fn agents_receive_identical_conflicts_validation_and_attribution() {
     let changes = nb.changes_since(result.seq - 1, 1).unwrap();
     assert_eq!(changes[0].actor, request.actor);
     assert_eq!(changes[0].reason, request.reason);
-    assert_eq!(changes[0].revisions, result.revisions);
+    assert_eq!(changes[0].blocks, vec![nb.block(&id(10)).unwrap()]);
+    assert!(changes[0].removed.is_empty());
+    assert!(changes[0].restructured_pages.is_empty());
     assert!(matches!(
         nb.apply(&request).unwrap_err(),
         Error::Conflict {
@@ -669,7 +671,10 @@ fn no_op_changes_do_not_bump_block_revisions_and_history_pages_by_change() {
     assert!(no_op.revisions.is_empty());
     assert_eq!(nb.block(&id(10)).unwrap().revision, 1);
     let changes = nb.changes_since(0, 1).unwrap();
-    assert_eq!(changes[0].revisions.len(), 2);
+    assert_eq!(
+        changes[0].blocks,
+        vec![nb.block(&id(1)).unwrap(), nb.block(&id(10)).unwrap()]
+    );
     assert_eq!(
         nb.changes_since(changes[0].seq, 1).unwrap()[0].seq,
         no_op.seq
