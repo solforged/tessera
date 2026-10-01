@@ -33,6 +33,21 @@ jobs:
       - name: Test
         run: cargo test --workspace --locked
 
+  bench:
+    name: stage 0 backend budgets
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Rust
+        run: rustup show active-toolchain || rustup toolchain install
+
+      - name: Run 50k correctness and budgets
+        run: cargo run --release --locked -p tessera-bench -- --root "${{ runner.temp }}/tessera-bench" --sizes 50000 --fail-on-budget
+
   web:
     name: web
     runs-on: ubuntu-latest
