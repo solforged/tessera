@@ -1,0 +1,22 @@
+[package]
+name = "tessera-service"
+description = "Loopback HTTP service that owns a Tessera notebook"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+tessera-core.workspace = true
+anyhow.workspace = true
+axum.workspace = true
+serde.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+tempfile.workspace = true
+tower.workspace = true
+
+[lints]
+workspace = true

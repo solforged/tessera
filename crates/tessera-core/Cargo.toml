@@ -1,0 +1,19 @@
+[package]
+name = "tessera-core"
+description = "Domain model, migrations and transactional operations for Tessera notebooks"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+rusqlite.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+ulid.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true
