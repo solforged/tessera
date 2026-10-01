@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/tessera-core", "crates/tessera-service", "crates/tessera-cli"]
+members = ["crates/tessera-core", "crates/tessera-service", "crates/tessera-cli", "crates/tessera-bench"]
 
 [workspace.package]
 version = "0.1.0"
@@ -16,6 +16,7 @@ axum = "0.8"
 clap = { version = "4", features = ["derive", "env"] }
 dirs = "7"
 rusqlite = { version = "0.40", features = ["bundled"] }
+reqwest = { version = "0.13", default-features = false, features = ["json"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.11"
