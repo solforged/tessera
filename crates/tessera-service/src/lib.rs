@@ -12,11 +12,17 @@ use std::sync::{Arc, Mutex};
 use anyhow::Context;
 use axum::{
     Json, Router,
-    extract::{DefaultBodyLimit, State},
+    extract::{
+        DefaultBodyLimit, Path, Query, State,
+        rejection::{JsonRejection, PathRejection, QueryRejection},
+    },
     middleware,
-    routing::get,
+    routing::{get, post},
 };
-use tessera_core::{Notebook, NotebookInfo};
+use serde::Deserialize;
+use tessera_core::{
+    Backlink, Batch, Block, Change, Committed, Notebook, NotebookInfo, PageView, SearchHit,
+};
 
 use crate::error::ApiError;
 pub use crate::security::validate_dev_origin;
@@ -54,6 +60,15 @@ pub fn router(
     };
     Ok(Router::new()
         .route("/api/notebook", get(notebook_info))
+        .route("/api/roots", get(roots))
+        .route("/api/pages/{id}", get(page))
+        .route("/api/journal/{date}", get(journal))
+        .route("/api/blocks/{id}", get(block))
+        .route("/api/blocks/{id}/backlinks", get(backlinks))
+        .route("/api/complete", get(complete))
+        .route("/api/search", get(search))
+        .route("/api/changes", get(changes))
+        .route("/api/batches", post(apply))
         .method_not_allowed_fallback(|| async { ApiError::method_not_allowed() })
         .fallback(assets::serve)
         .layer(DefaultBodyLimit::max(2 * 1024 * 1024))
@@ -89,6 +104,130 @@ pub async fn serve(config: Config) -> anyhow::Result<()> {
 
 async fn notebook_info(State(state): State<AppState>) -> Result<Json<NotebookInfo>, ApiError> {
     run(&state, |notebook| notebook.info()).await.map(Json)
+}
+
+#[derive(Deserialize)]
+struct Limit {
+    #[serde(default = "default_limit")]
+    limit: usize,
+}
+
+fn default_limit() -> usize {
+    50
+}
+
+#[derive(Deserialize)]
+struct TextQuery {
+    q: String,
+    #[serde(default = "default_limit")]
+    limit: usize,
+}
+
+#[derive(Deserialize)]
+struct ChangesQuery {
+    #[serde(default)]
+    after: i64,
+    #[serde(default = "default_limit")]
+    limit: usize,
+}
+
+async fn roots(State(state): State<AppState>) -> Result<Json<Vec<Block>>, ApiError> {
+    run(&state, |notebook| notebook.roots()).await.map(Json)
+}
+
+async fn page(
+    State(state): State<AppState>,
+    path: Result<Path<String>, PathRejection>,
+) -> Result<Json<PageView>, ApiError> {
+    let Path(id) = path.map_err(ApiError::from)?;
+    run(&state, move |notebook| notebook.page(&id))
+        .await
+        .map(Json)
+}
+
+async fn journal(
+    State(state): State<AppState>,
+    path: Result<Path<String>, PathRejection>,
+) -> Result<Json<Block>, ApiError> {
+    let Path(date) = path.map_err(ApiError::from)?;
+    run(&state, move |notebook| {
+        notebook
+            .journal(&date)?
+            .ok_or(tessera_core::Error::NotFound {
+                id: date,
+                op_index: None,
+            })
+    })
+    .await
+    .map(Json)
+}
+
+async fn block(
+    State(state): State<AppState>,
+    path: Result<Path<String>, PathRejection>,
+) -> Result<Json<Block>, ApiError> {
+    let Path(id) = path.map_err(ApiError::from)?;
+    run(&state, move |notebook| notebook.block(&id))
+        .await
+        .map(Json)
+}
+
+async fn backlinks(
+    State(state): State<AppState>,
+    path: Result<Path<String>, PathRejection>,
+    query: Result<Query<Limit>, QueryRejection>,
+) -> Result<Json<Vec<Backlink>>, ApiError> {
+    let Path(id) = path.map_err(ApiError::from)?;
+    let Query(query) = query.map_err(ApiError::from)?;
+    run(&state, move |notebook| notebook.backlinks(&id, query.limit))
+        .await
+        .map(Json)
+}
+
+async fn complete(
+    State(state): State<AppState>,
+    query: Result<Query<TextQuery>, QueryRejection>,
+) -> Result<Json<Vec<Block>>, ApiError> {
+    let Query(query) = query.map_err(ApiError::from)?;
+    run(&state, move |notebook| {
+        notebook.complete(&query.q, query.limit)
+    })
+    .await
+    .map(Json)
+}
+
+async fn search(
+    State(state): State<AppState>,
+    query: Result<Query<TextQuery>, QueryRejection>,
+) -> Result<Json<Vec<SearchHit>>, ApiError> {
+    let Query(query) = query.map_err(ApiError::from)?;
+    run(&state, move |notebook| {
+        notebook.search(&query.q, query.limit)
+    })
+    .await
+    .map(Json)
+}
+
+async fn changes(
+    State(state): State<AppState>,
+    query: Result<Query<ChangesQuery>, QueryRejection>,
+) -> Result<Json<Vec<Change>>, ApiError> {
+    let Query(query) = query.map_err(ApiError::from)?;
+    run(&state, move |notebook| {
+        notebook.changes_since(query.after, query.limit)
+    })
+    .await
+    .map(Json)
+}
+
+async fn apply(
+    State(state): State<AppState>,
+    body: Result<Json<Batch>, JsonRejection>,
+) -> Result<Json<Committed>, ApiError> {
+    let Json(batch) = body.map_err(ApiError::from)?;
+    run(&state, move |notebook| notebook.apply(&batch))
+        .await
+        .map(Json)
 }
 
 /// Run a notebook operation off the async runtime.
