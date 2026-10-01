@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{Result, ensure};
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use corpus::Corpus;
 use measure::{Measurement, Recorder};
 
@@ -25,8 +25,27 @@ struct Args {
     runs: usize,
     #[arg(long)]
     force: bool,
-    #[arg(long)]
-    fail_on_budget: bool,
+    /// Exit nonzero on missed checks. `budgets` fails on any miss and is the
+    /// gate on a named device; `scaling` fails only on the no-per-row-work
+    /// checks, for shared CI runners where absolute latency is not meaningful.
+    /// Correctness failures always exit nonzero.
+    #[arg(long, value_enum)]
+    fail_on: Option<FailOn>,
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+enum FailOn {
+    Budgets,
+    Scaling,
+}
+
+impl FailOn {
+    fn flag(self) -> &'static str {
+        match self {
+            Self::Budgets => " --fail-on budgets",
+            Self::Scaling => " --fail-on scaling",
+        }
+    }
 }
 
 #[tokio::main]
@@ -99,22 +118,25 @@ async fn main() -> Result<()> {
     let misses = all.iter().filter(|row| !row.passed).collect::<Vec<_>>();
     for row in &misses {
         eprintln!(
-            "MISS {} {} {} rows={:?}: p95 {:.3} ms > {:.3} ms",
+            "MISS {} {} {} rows={:?}: {} {:.3} ms > {:.3} ms",
             row.size,
             row.transport,
             row.operation,
             row.page_rows,
-            row.p95_ms,
+            if row.is_scaling() { "median" } else { "p95" },
+            row.checked_ms(),
             row.budget_ms.unwrap()
         );
     }
-    if args.fail_on_budget {
-        ensure!(
-            misses.is_empty(),
-            "{} performance budgets missed; see summary and query plans",
-            misses.len()
-        );
-    }
+    let failing = match args.fail_on {
+        None => 0,
+        Some(FailOn::Budgets) => misses.len(),
+        Some(FailOn::Scaling) => misses.iter().filter(|row| row.is_scaling()).count(),
+    };
+    ensure!(
+        failing == 0,
+        "{failing} performance checks missed; see summary and query plans"
+    );
     Ok(())
 }
 
@@ -126,7 +148,7 @@ fn summary(
     stamp: u128,
 ) -> Result<()> {
     let mut text = format!(
-        "# Backend benchmark results\n\nCommand: `cargo run --release -p tessera-bench -- --root {} --sizes {} --seed {} --runs {}{}{}`\n\nRelease build, {} {}. Each measured result passed an independent generator-model check. Cold means a fresh connection, not an evicted OS cache. HTTP includes real loopback TCP and JSON. These are backend page loads, not rendered viewport timings.\n\nJSONL: `{}`. Query plans: `plans-<size>-{stamp}.json`. Median is p50; p95 uses nearest rank. Backlinks have no specified stage 0 latency budget. Changes use the 100 ms cross-window visibility ceiling as a query ceiling, not an end-to-end propagation claim.\n\n| Blocks | Transport | Operation | Page rows | Median ms | p95 ms | Budget ms | Result |\n|---:|---|---|---:|---:|---:|---:|---|\n",
+        "# Backend benchmark results\n\nCommand: `cargo run --release -p tessera-bench -- --root {} --sizes {} --seed {} --runs {}{}{}`\n\nRelease build, {} {}. Each measured result passed an independent generator-model check. Cold means a fresh connection, not an evicted OS cache. HTTP includes real loopback TCP and JSON. These are backend page loads, not rendered viewport timings.\n\nJSONL: `{}`. Query plans: `plans-<size>-{stamp}.json`. Median is p50; p95 uses nearest rank. Budgets compare p95. No-per-row-work rows compare the 10,000-row page's median against twice the 100-row page's median plus 1 ms. Backlinks have no specified stage 0 latency budget. Changes use the 100 ms cross-window visibility ceiling as a query ceiling, not an end-to-end propagation claim.\n\n| Blocks | Transport | Operation | Page rows | Median ms | p95 ms | Budget ms | Result |\n|---:|---|---|---:|---:|---:|---:|---|\n",
         args.root.display(),
         args.sizes
             .iter()
@@ -136,11 +158,7 @@ fn summary(
         args.seed,
         args.runs,
         if args.force { " --force" } else { "" },
-        if args.fail_on_budget {
-            " --fail-on-budget"
-        } else {
-            ""
-        },
+        args.fail_on.map_or("", FailOn::flag),
         std::env::consts::OS,
         std::env::consts::ARCH,
         output.display()

@@ -34,7 +34,7 @@ jobs:
         run: cargo test --workspace --locked
 
   bench:
-    name: stage 0 backend budgets
+    name: backend correctness and scaling
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -45,8 +45,10 @@ jobs:
       - name: Install Rust
         run: rustup show active-toolchain || rustup toolchain install
 
-      - name: Run 50k correctness and budgets
-        run: cargo run --release --locked -p tessera-bench -- --root "${{ runner.temp }}/tessera-bench" --sizes 50000 --fail-on-budget
+      # Absolute budgets are for named devices; shared runners report them
+      # but gate only on correctness and the no-per-row-work checks.
+      - name: Run 50k correctness and scaling
+        run: cargo run --release --locked -p tessera-bench -- --root "${{ runner.temp }}/tessera-bench" --sizes 50000 --fail-on scaling
 
   web:
     name: web
