@@ -16,7 +16,7 @@ pub const DATABASE_FILE: &str = "notebook.db";
 /// gets the same rules.
 pub struct Notebook {
     dir: PathBuf,
-    conn: Connection,
+    pub(crate) conn: Connection,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -73,7 +73,7 @@ impl Notebook {
     }
 }
 
-fn now_ms() -> i64 {
+pub(crate) fn now_ms() -> i64 {
     let elapsed = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("system clock is after 1970");
