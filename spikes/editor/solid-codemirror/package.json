@@ -1,0 +1,22 @@
+{
+  "name": "@spike/solid-codemirror",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build"
+  },
+  "dependencies": {
+    "@codemirror/commands": "latest",
+    "@codemirror/state": "latest",
+    "@codemirror/view": "latest",
+    "@replit/codemirror-vim": "latest",
+    "@spike/shared": "workspace:*",
+    "solid-js": "latest"
+  },
+  "devDependencies": {
+    "typescript": "latest",
+    "vite": "latest",
+    "vite-plugin-solid": "latest"
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "tessera-editor-spike",
+  "private": true,
+  "type": "module",
+  "workspaces": ["shared", "runner", "react-codemirror", "solid-codemirror", "prosemirror"]
+}

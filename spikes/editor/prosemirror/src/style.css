@@ -1,0 +1,13 @@
+:root { color-scheme: dark; font: 15px/24px system-ui, sans-serif; color: #d7dce5; background: #111318; }
+body { margin: 0; }
+header { max-width: 960px; margin: 20px auto 12px; padding: 0 8px; display: flex; gap: 20px; align-items: baseline; }
+h1 { font: 600 17px/24px system-ui, sans-serif; margin: 0; }
+#status { font-size: 12px; color: #8b95a7; }
+#editor { max-width: 960px; margin: 0 auto 80px; }
+.ProseMirror { outline: none; white-space: pre-wrap; overflow-wrap: anywhere; }
+.outline-row { position: relative; padding: 3px 8px 3px calc(28px + var(--depth) * 24px); min-height: 24px; }
+.outline-row::before { content: '•'; position: absolute; left: calc(8px + var(--depth) * 24px); width: 20px; color: #657189; pointer-events: none; }
+.reference-source { font-size: 0; color: transparent; }
+.reference { color: #91b9ff; background: #182332; border-radius: 3px; padding: 0 2px; }
+::selection { background: #334d72; }
+@media (max-width: 600px) { header { display: block; } }

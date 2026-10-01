@@ -1,0 +1,19 @@
+:root { color-scheme: dark; font: 15px/24px system-ui, sans-serif; background: #111318; color: #d7dce5; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+main { max-width: 960px; margin: 0 auto; padding: 24px 16px 60vh; }
+header { display: flex; align-items: baseline; gap: 24px; margin-bottom: 24px; color: #8c96a8; }
+h1 { font-size: 18px; color: #d7dce5; }
+.row { display: flex; align-items: flex-start; padding: 3px 8px; border-radius: 4px; }
+.row.active { background: #1b202a; }
+.row.selected { background: #26374c; }
+.bullet { flex: 0 0 20px; color: #7f8ba0; }
+.content { flex: 1; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; outline: none; min-height: 24px; }
+.reference { color: #91b9ff; background: #1c2c42; border-radius: 3px; padding: 0 2px; }
+.cm-editor { font: inherit; background: transparent; }
+.cm-editor.cm-focused { outline: none; }
+.cm-scroller { font-family: inherit; overflow: visible; }
+.cm-content { padding: 0 !important; caret-color: #d7dce5; }
+.cm-line { padding: 0 !important; }
+.cm-cursor { border-left-color: #d7dce5; }
+.cm-selectionBackground { background: #364968 !important; }
