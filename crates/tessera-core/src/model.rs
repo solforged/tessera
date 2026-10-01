@@ -163,8 +163,8 @@ pub struct PageView {
     pub root: Block,
     /// Live descendants in preorder, including archived ones (flagged).
     pub rows: Vec<Row>,
-    /// Live blocks outside this page that its rows reference, so references
-    /// render their target's current text. A missing target is unresolved.
+    /// Live blocks outside this page that its rows reference, and the pages
+    /// named by its tags. A missing reference target is unresolved.
     pub targets: Vec<Block>,
 }
 
@@ -175,17 +175,22 @@ pub struct Backlink {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SearchHit {
+pub struct BlockInPage {
     pub block: Block,
     pub page: Block,
 }
 
 /// One committed batch, for clients catching up after `seq`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Change {
+pub struct ChangeEvent {
     pub seq: i64,
     pub actor: Actor,
     pub reason: Option<String>,
     pub created_at: i64,
-    pub revisions: Vec<Revision>,
+    /// Current live state, not a historical snapshot.
+    pub blocks: Vec<Block>,
+    /// Touched IDs that are no longer live.
+    pub removed: Vec<String>,
+    /// Pages whose order or nesting changed, recorded when the batch applied.
+    pub restructured_pages: Vec<String>,
 }

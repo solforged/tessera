@@ -1,6 +1,6 @@
 use rusqlite::{Connection, OptionalExtension};
 
-use crate::{Block, BlockKind, Error, Result};
+use crate::{Block, BlockKind, Error, Result, Revision};
 
 // Keep joined reads and single-block lookups in the same positional contract,
 // without allocating SQL strings on each call.
@@ -149,17 +149,101 @@ pub(crate) fn derive_links(conn: &Connection, id: &str, text: &str) -> Result<()
     let mut rest = text;
     let mut occurrence = 0;
     while let Some(start) = rest.find("[[") {
+        let prefix = &rest[..start];
+        let is_tag = prefix.strip_suffix('#').is_some_and(|before| {
+            before
+                .chars()
+                .next_back()
+                .is_none_or(|ch| !ch.is_alphanumeric() && ch != '_')
+        });
         rest = &rest[start + 2..];
         let Some(end) = rest.find("]]") else { break };
         let reference = &rest[..end];
         let (target, alias) = reference
             .split_once('|')
             .map_or((reference, None), |(target, alias)| (target, Some(alias)));
-        if validate_id(target).is_ok() {
+        if !is_tag && validate_id(target).is_ok() {
             insert.execute(rusqlite::params![id, occurrence, target, alias])?;
             occurrence += 1;
         }
         rest = &rest[end + 2..];
     }
     Ok(())
+}
+
+/// Borrow tag names directly from authored text, without a regex or token copies.
+pub(crate) fn tag_names(text: &str) -> impl Iterator<Item = &str> {
+    let mut cursor = 0;
+    std::iter::from_fn(move || {
+        while let Some(relative) = text[cursor..].find('#') {
+            let start = cursor + relative;
+            cursor = start + 1;
+            if text[..start]
+                .chars()
+                .next_back()
+                .is_some_and(|ch| ch.is_alphanumeric() || ch == '_')
+            {
+                continue;
+            }
+            let rest = &text[cursor..];
+            if let Some(rest) = rest.strip_prefix("[[") {
+                let Some(end) = rest.find("]]") else { continue };
+                cursor += 2 + end + 2;
+                let title = rest[..end].trim();
+                if !title.is_empty() && !title.contains(['[', ']']) {
+                    return Some(title);
+                }
+                continue;
+            }
+            let end = rest
+                .find(|ch: char| !ch.is_alphanumeric() && !matches!(ch, '-' | '_' | '/'))
+                .unwrap_or(rest.len());
+            cursor += end;
+            if end != 0 {
+                return Some(&rest[..end]);
+            }
+        }
+        None
+    })
+}
+
+pub(crate) fn derive_memberships(
+    conn: &Connection,
+    id: &str,
+    text: &str,
+    now: i64,
+) -> Result<Vec<Revision>> {
+    conn.prepare_cached("DELETE FROM memberships WHERE block_id = ?1")?
+        .execute([id])?;
+    let mut created = Vec::new();
+    for title in tag_names(text) {
+        let title_key = title.to_lowercase();
+        let existing: Option<String> = conn
+            .prepare_cached(
+                "SELECT id FROM blocks WHERE kind = 'page' AND deletion_id IS NULL AND title_key = ?1",
+            )?
+            .query_row([&title_key], |row| row.get(0))
+            .optional()?;
+        let type_id = if let Some(id) = existing {
+            id
+        } else {
+            let id = ulid::Ulid::generate().to_string();
+            conn.prepare_cached(
+                "INSERT INTO blocks(id, kind, page_id, ordinal, text, title_key, revision, created_at, updated_at)
+                 VALUES (?1, 'page', ?1, 1024, ?2, ?3, 1, ?4, ?4)",
+            )?
+            .execute(rusqlite::params![id, title, title_key, now])?;
+            derive_links(conn, &id, title)?;
+            created.push(Revision {
+                id: id.clone(),
+                revision: 1,
+            });
+            id
+        };
+        conn.prepare_cached(
+            "INSERT OR IGNORE INTO memberships(block_id, type_id) VALUES (?1, ?2)",
+        )?
+        .execute(rusqlite::params![id, type_id])?;
+    }
+    Ok(created)
 }

@@ -12,7 +12,7 @@ mod storage;
 pub use error::{Error, Result};
 pub use migrate::SCHEMA_VERSION;
 pub use model::{
-    Actor, Backlink, Batch, Block, BlockKind, Change, Committed, Operation, PageView, Revision,
-    Row, SearchHit,
+    Actor, Backlink, Batch, Block, BlockInPage, BlockKind, ChangeEvent, Committed, Operation,
+    PageView, Revision, Row,
 };
 pub use notebook::{DATABASE_FILE, Notebook, NotebookInfo};

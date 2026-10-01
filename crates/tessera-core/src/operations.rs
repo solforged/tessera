@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Write;
 
 use rusqlite::{OptionalExtension, Transaction, TransactionBehavior, params};
@@ -6,7 +6,8 @@ use sha2::{Digest, Sha256};
 
 use crate::notebook::now_ms;
 use crate::storage::{
-    Stored, derive_links, not_found, stored, validate_id, validate_text, validation,
+    Stored, derive_links, derive_memberships, not_found, stored, validate_id, validate_text,
+    validation,
 };
 use crate::{Batch, BlockKind, Committed, Error, Notebook, Operation, Result, Revision};
 
@@ -64,12 +65,16 @@ impl Notebook {
             revisions: Vec::new(),
             positions: HashMap::new(),
             deletions: Vec::new(),
+            restructured_pages: HashSet::new(),
         };
         for (index, operation) in batch.operations.iter().enumerate() {
             engine
                 .operation(operation, index)
                 .map_err(|error| indexed(error, index))?;
         }
+        engine.derive_tags()?;
+        let mut restructured_pages: Vec<_> = engine.restructured_pages.into_iter().collect();
+        restructured_pages.sort_unstable();
         let committed = Committed {
             seq,
             revisions: engine.revisions,
@@ -89,10 +94,11 @@ impl Notebook {
         }
         drop(insert);
         tx.execute(
-            "UPDATE changes SET committed = ?1 WHERE seq = ?2",
+            "UPDATE changes SET committed = ?1, restructured_pages = ?3 WHERE seq = ?2",
             params![
                 serde_json::to_string(&committed).expect("result serializes"),
-                seq
+                seq,
+                serde_json::to_string(&restructured_pages).expect("page IDs serialize")
             ],
         )?;
         tx.commit()?;
@@ -128,8 +134,9 @@ struct Engine<'a, 'conn> {
     now: i64,
     seq: i64,
     revisions: Vec<Revision>,
-    positions: HashMap<String, usize>,
+    positions: HashMap<String, (usize, bool)>,
     deletions: Vec<String>,
+    restructured_pages: HashSet<String>,
 }
 
 struct NewBlock<'a> {
@@ -145,14 +152,47 @@ struct NewBlock<'a> {
 impl Engine<'_, '_> {
     fn touch(&mut self, id: &str, revision: i64) {
         if let Some(position) = self.positions.get(id) {
-            self.revisions[*position].revision = revision;
+            self.revisions[position.0].revision = revision;
         } else {
-            self.positions.insert(id.to_owned(), self.revisions.len());
+            self.positions
+                .insert(id.to_owned(), (self.revisions.len(), false));
             self.revisions.push(Revision {
                 id: id.to_owned(),
                 revision,
             });
         }
+    }
+
+    fn tags_changed(&mut self, id: &str) {
+        self.positions.get_mut(id).expect("touched block").1 = true;
+    }
+
+    /// Resolve against the final live titles, so an explicitly-created page
+    /// later in the batch wins over automatic creation.
+    fn derive_tags(&mut self) -> Result<()> {
+        let mut position = 0;
+        while position < self.revisions.len() {
+            let id = &self.revisions[position].id;
+            if self.positions[id].1 {
+                let text: Option<String> = self
+                    .tx
+                    .prepare_cached(
+                        "SELECT text FROM blocks WHERE id = ?1 AND deletion_id IS NULL",
+                    )?
+                    .query_row([id], |row| row.get(0))
+                    .optional()?;
+                if let Some(text) = text {
+                    let created = derive_memberships(self.tx, id, &text, self.now)?;
+                    for revision in created {
+                        self.touch(&revision.id, revision.revision);
+                        self.tags_changed(&revision.id);
+                        self.restructured_pages.insert(revision.id);
+                    }
+                }
+            }
+            position += 1;
+        }
+        Ok(())
     }
 
     fn live(&self, id: &str) -> Result<Stored> {
@@ -225,6 +265,8 @@ impl Engine<'_, '_> {
         )?.execute(params![id, kind, parent, page, ordinal, text, title_key, heading, self.now])?;
         derive_links(self.tx, id, text)?;
         self.touch(id, 1);
+        self.tags_changed(id);
+        self.restructured_pages.insert(page.to_owned());
         Ok(())
     }
 
@@ -239,6 +281,7 @@ impl Engine<'_, '_> {
         )?.execute(params![text, title_key, self.now, current.block.id])?;
         derive_links(self.tx, &current.block.id, text)?;
         self.touch(&current.block.id, current.block.revision + 1);
+        self.tags_changed(&current.block.id);
         Ok(())
     }
 
@@ -266,6 +309,8 @@ impl Engine<'_, '_> {
     }
 
     fn delete(&mut self, id: &str) -> Result<()> {
+        let page = self.live(id)?.block.page_id;
+        self.restructured_pages.insert(page);
         let event = self.event()?;
         for (id, revision, deletion) in self.subtree(id)? {
             if deletion.is_none() {
@@ -288,6 +333,8 @@ impl Engine<'_, '_> {
         if let Some(parent) = &current.block.parent_id {
             self.live(parent)?;
         }
+        self.restructured_pages
+            .insert(current.block.page_id.clone());
         // Parent-first order also rejects restoring beneath an independently deleted ancestor.
         for (id, revision, deletion) in self.subtree(&current.block.id)? {
             if deletion.as_deref() == Some(event) {
@@ -300,6 +347,7 @@ impl Engine<'_, '_> {
                     "UPDATE blocks SET deletion_id = NULL, ordinal = ?1, revision = revision + 1, updated_at = ?2 WHERE id = ?3",
                 )?.execute(params![ordinal, self.now, id])?;
                 self.touch(&id, revision + 1);
+                self.tags_changed(&id);
             }
         }
         Ok(())
@@ -433,6 +481,9 @@ impl Engine<'_, '_> {
             return Ok(());
         }
         let ordinal = self.ordinal(parent_id, after, Some(&current.block.id))?;
+        self.restructured_pages
+            .insert(current.block.page_id.clone());
+        self.restructured_pages.insert(parent.block.page_id.clone());
         self.tx.prepare_cached(
             "UPDATE blocks SET parent_id = ?1, page_id = ?2, ordinal = ?3, revision = revision + 1,
              updated_at = ?4 WHERE id = ?5",

@@ -6,11 +6,11 @@ use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tessera_core::{
-    Actor, Batch, Block, BlockKind, Change, Committed, Notebook, Operation, PageView, Revision,
-    SCHEMA_VERSION,
+    Actor, Batch, Block, BlockKind, ChangeEvent, Committed, Notebook, Operation, PageView,
+    Revision, SCHEMA_VERSION,
 };
 
-const GENERATOR_VERSION: u32 = 2;
+const GENERATOR_VERSION: u32 = 3;
 const CHUNK: usize = 256;
 
 #[derive(Clone, Debug, Serialize)]
@@ -30,7 +30,7 @@ pub struct Expected {
 pub struct Model {
     pub blocks: BTreeMap<String, Expected>,
     pub children: BTreeMap<String, Vec<String>>,
-    pub changes: Vec<(i64, Vec<Revision>)>,
+    pub changes: Vec<(i64, Vec<Revision>, Vec<String>)>,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq)]
@@ -137,7 +137,7 @@ impl Corpus {
                 } else {
                     [2, 8, 24, 80, 240][random as usize % 5]
                 };
-                let mut text = format!("needle{index:06} cobalt ");
+                let mut text = format!("needle{index:06} cobalt #[[Page 00000]] ");
                 text.push_str(&"outline reading context ".repeat(words));
                 if row + 1 != rows && index % 8 == 0 {
                     let target = id(seed, (random as usize % index).min(index - 1));
@@ -384,7 +384,26 @@ impl Model {
 
     pub fn apply_model(&mut self, batch: &Batch) -> Result<Vec<Revision>> {
         let mut touched = Vec::new();
+        let mut pages = BTreeSet::new();
         for op in &batch.operations {
+            match op {
+                Operation::CreatePage { id, .. } | Operation::CreateJournal { id, .. } => {
+                    pages.insert(id.clone());
+                }
+                Operation::Insert { parent_id, .. } => {
+                    pages.insert(self.blocks[parent_id].page.clone());
+                }
+                Operation::Split { id, .. }
+                | Operation::Delete { id, .. }
+                | Operation::Restore { id, .. } => {
+                    pages.insert(self.blocks[id].page.clone());
+                }
+                Operation::Move { id, parent_id, .. } => {
+                    pages.insert(self.blocks[id].page.clone());
+                    pages.insert(self.blocks[parent_id].page.clone());
+                }
+                _ => {}
+            }
             for id in self.operation(op)? {
                 if !touched.contains(&id) {
                     touched.push(id);
@@ -398,8 +417,11 @@ impl Model {
                 id,
             })
             .collect::<Vec<_>>();
-        self.changes
-            .push((self.changes.len() as i64 + 1, revisions.clone()));
+        self.changes.push((
+            self.changes.len() as i64 + 1,
+            revisions.clone(),
+            pages.into_iter().collect(),
+        ));
         Ok(revisions)
     }
 
@@ -474,6 +496,38 @@ impl Model {
                     targets.insert(target);
                 }
             }
+        }
+        if page
+            .rows
+            .iter()
+            .any(|row| row.block.text.contains("#[[Page 00000]]"))
+        {
+            let type_page = self
+                .blocks
+                .values()
+                .find(|block| {
+                    !block.deleted && block.kind == BlockKind::Page && block.text == "Page 00000"
+                })
+                .context("benchmark type page")?;
+            targets.insert(type_page.id.clone());
+        }
+        for title in page
+            .rows
+            .iter()
+            .flat_map(|row| row.block.text.split_whitespace())
+            .filter_map(|word| {
+                word.strip_prefix("#bench_type_")
+                    .map(|suffix| format!("bench_type_{suffix}"))
+            })
+        {
+            let type_page = self
+                .blocks
+                .values()
+                .find(|block| {
+                    !block.deleted && block.kind == BlockKind::Page && block.text == title
+                })
+                .context("generated benchmark type page")?;
+            targets.insert(type_page.id.clone());
         }
         let actual = page
             .targets
@@ -567,22 +621,35 @@ impl Model {
             .collect()
     }
 
-    pub fn check_changes(&self, changes: &[Change], after: i64, limit: usize) -> Result<()> {
+    pub fn check_changes(&self, changes: &[ChangeEvent], after: i64, limit: usize) -> Result<()> {
         let expected = self
             .changes
             .iter()
-            .filter(|(seq, _)| *seq > after)
+            .filter(|(seq, _, _)| *seq > after)
             .take(limit)
             .collect::<Vec<_>>();
         ensure!(changes.len() == expected.len(), "changes count mismatch");
-        for (change, (seq, revisions)) in changes.iter().zip(expected) {
+        for (change, (seq, revisions, pages)) in changes.iter().zip(expected) {
+            let live = revisions
+                .iter()
+                .filter(|revision| !self.blocks[&revision.id].deleted)
+                .map(|revision| &revision.id);
+            let removed = revisions
+                .iter()
+                .filter(|revision| self.blocks[&revision.id].deleted)
+                .map(|revision| &revision.id);
             ensure!(
                 change.seq == *seq
-                    && change.revisions == *revisions
+                    && change.blocks.iter().map(|block| &block.id).eq(live)
+                    && change.removed.iter().eq(removed)
+                    && change.restructured_pages == *pages
                     && change.actor == batch(Vec::new()).actor
                     && change.reason == batch(Vec::new()).reason,
                 "change history mismatch"
             );
+            for block in &change.blocks {
+                self.check_block(block)?;
+            }
         }
         Ok(())
     }

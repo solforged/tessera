@@ -5,7 +5,7 @@ use rusqlite::{OptionalExtension, params};
 use crate::storage::{
     block_at, block_columns, not_found, stored, validate_date, validate_id, validation,
 };
-use crate::{Backlink, Block, Change, Notebook, PageView, Result, Revision, Row, SearchHit};
+use crate::{Backlink, Block, BlockInPage, ChangeEvent, Notebook, PageView, Result, Row};
 
 fn sql_limit(limit: usize) -> i64 {
     i64::try_from(limit).unwrap_or(i64::MAX)
@@ -90,12 +90,17 @@ impl Notebook {
         let targets = self
             .conn
             .prepare_cached(concat!(
-                "SELECT DISTINCT ",
+                "WITH targets(id) AS (
+                 SELECT l.target_id FROM blocks s JOIN links l ON l.source_id = s.id
+                 JOIN blocks t ON t.id = l.target_id
+                 WHERE s.page_id = ?1 AND s.deletion_id IS NULL AND t.page_id != ?1
+                 UNION
+                 SELECT m.type_id FROM blocks s JOIN memberships m ON m.block_id = s.id
+                 WHERE s.page_id = ?1 AND s.deletion_id IS NULL
+             ) SELECT ",
                 block_columns!("b"),
-                " FROM blocks s
-             JOIN links l ON l.source_id = s.id JOIN blocks b ON b.id = l.target_id
-             WHERE s.page_id = ?1 AND s.deletion_id IS NULL
-               AND b.deletion_id IS NULL AND b.page_id != ?1 ORDER BY b.id"
+                " FROM targets t JOIN blocks b ON b.id = t.id
+                 WHERE b.deletion_id IS NULL ORDER BY b.id"
             ))?
             .query_map([id], |row| block_at(row, 0))?
             .collect::<rusqlite::Result<Vec<_>>>()?;
@@ -133,6 +138,37 @@ impl Notebook {
             ))?
             .query_row([date], |row| block_at(row, 0))
             .optional()?)
+    }
+
+    /// Resolve a live named page by its Unicode-lowercase title.
+    pub fn page_by_title(&self, title: &str) -> Result<Option<Block>> {
+        Ok(self.conn.prepare_cached(concat!(
+            "SELECT ", block_columns!("b"),
+            " FROM blocks b WHERE b.kind = 'page' AND b.deletion_id IS NULL AND b.title_key = ?1"
+        ))?.query_row([title.to_lowercase()], |row| block_at(row, 0)).optional()?)
+    }
+
+    /// Distinct live tagged blocks, with their current source page.
+    pub fn members(&self, type_id: &str, limit: usize) -> Result<Vec<BlockInPage>> {
+        validate_id(type_id)?;
+        let mut statement = self.conn.prepare_cached(concat!(
+            "SELECT ",
+            block_columns!("b"),
+            ", ",
+            block_columns!("p"),
+            " FROM memberships m JOIN blocks b ON b.id = m.block_id
+             JOIN blocks p ON p.id = b.page_id JOIN blocks t ON t.id = m.type_id
+             WHERE m.type_id = ?1 AND b.deletion_id IS NULL AND p.deletion_id IS NULL
+               AND t.deletion_id IS NULL ORDER BY m.block_id LIMIT ?2"
+        ))?;
+        Ok(statement
+            .query_map(params![type_id, sql_limit(limit)], |row| {
+                Ok(BlockInPage {
+                    block: block_at(row, 0)?,
+                    page: block_at(row, 10)?,
+                })
+            })?
+            .collect::<rusqlite::Result<_>>()?)
     }
 
     /// Distinct live sources, rather than one backlink per occurrence.
@@ -226,7 +262,7 @@ impl Notebook {
         Ok(result)
     }
 
-    pub fn search(&self, query: &str, limit: usize) -> Result<Vec<SearchHit>> {
+    pub fn search(&self, query: &str, limit: usize) -> Result<Vec<BlockInPage>> {
         let matched = fts_query(query);
         if matched.is_empty() || limit == 0 {
             return Ok(Vec::new());
@@ -246,7 +282,7 @@ impl Notebook {
         ))?;
         Ok(statement
             .query_map(params![matched, sql_limit(limit)], |row| {
-                Ok(SearchHit {
+                Ok(BlockInPage {
                     block: block_at(row, 0)?,
                     page: block_at(row, 10)?,
                 })
@@ -254,36 +290,43 @@ impl Notebook {
             .collect::<rusqlite::Result<_>>()?)
     }
 
-    pub fn changes_since(&self, seq: i64, limit: usize) -> Result<Vec<Change>> {
-        let mut statement = self.conn.prepare_cached(
-            "SELECT c.seq, c.actor, c.reason, c.created_at, r.block_id, r.revision
+    pub fn changes_since(&self, seq: i64, limit: usize) -> Result<Vec<ChangeEvent>> {
+        let mut statement = self.conn.prepare_cached(concat!(
+            "SELECT c.seq, c.actor, c.reason, c.created_at, c.restructured_pages, r.block_id, ",
+            block_columns!("b"),
+            ", b.deletion_id
              FROM (SELECT * FROM changes WHERE seq > ?1 ORDER BY seq LIMIT ?2) c
-             LEFT JOIN change_revisions r ON r.change_seq = c.seq ORDER BY c.seq, r.position",
-        )?;
+             LEFT JOIN change_revisions r ON r.change_seq = c.seq
+             LEFT JOIN blocks b ON b.id = r.block_id ORDER BY c.seq, r.position",
+        ))?;
         let mut cursor = statement.query(params![seq, sql_limit(limit)])?;
-        let mut changes: Vec<Change> = Vec::new();
+        let mut changes: Vec<ChangeEvent> = Vec::new();
         while let Some(row) = cursor.next()? {
             let seq = row.get(0)?;
             if changes.last().is_none_or(|change| change.seq != seq) {
                 let actor: String = row.get(1)?;
-                changes.push(Change {
+                let pages: String = row.get(4)?;
+                changes.push(ChangeEvent {
                     seq,
                     actor: serde_json::from_str(&actor)
                         .map_err(|error| validation(format!("invalid stored actor: {error}")))?,
                     reason: row.get(2)?,
                     created_at: row.get(3)?,
-                    revisions: Vec::new(),
+                    blocks: Vec::new(),
+                    removed: Vec::new(),
+                    restructured_pages: serde_json::from_str(&pages)
+                        .map_err(|error| validation(format!("invalid stored pages: {error}")))?,
                 });
             }
-            if let Some(id) = row.get::<_, Option<String>>(4)? {
-                changes
-                    .last_mut()
-                    .expect("change exists")
-                    .revisions
-                    .push(Revision {
-                        id,
-                        revision: row.get(5)?,
-                    });
+            if let Some(id) = row.get::<_, Option<String>>(5)? {
+                let change = changes.last_mut().expect("change exists");
+                if row.get::<_, Option<String>>(6)?.is_none()
+                    || row.get::<_, Option<String>>(16)?.is_some()
+                {
+                    change.removed.push(id);
+                } else {
+                    change.blocks.push(block_at(row, 6)?);
+                }
             }
         }
         Ok(changes)
