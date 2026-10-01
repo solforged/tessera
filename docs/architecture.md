@@ -65,8 +65,8 @@ A stale operation fails without writing. Clean remote changes merge into the loc
 ## Why not the alternatives
 
 - **WASM with SQLite in the browser:** the notebook would live in origin-private storage, out of reach of the CLI, agents and ordinary backups.
-- **Solid, Svelte or signals:** finer-grained updates, but per-block subscriptions in React reach the same boundary. Solid is the challenger in the editor spike.
-- **ProseMirror or Lexical as one big editor:** better cross-block text selection, but large-document cost and outline-aware Vim are unproven. ProseMirror is the challenger in the editor spike.
+- **Solid, Svelte or signals:** finer-grained updates, but per-block subscriptions in React reach a similar boundary. In spike 2, Solid's list updates were cheaper than React's at 10,000 mounted rows; the two are compared again with windowing in spike 3.
+- **ProseMirror or Lexical as one big editor:** better cross-block text selection, but no usable outline-aware Vim. In spike 2, ProseMirror matched CodeMirror on IME, undo and cross-block selection and failed only on Vim.
 - **Canvas rendering:** would mean rebuilding selection, IME and accessibility.
 - **Go or another rewrite language:** no measured benefit; the prototype's slowness was algorithmic.
 
@@ -76,6 +76,8 @@ A stale operation fails without writing. Clean remote changes merge into the loc
 crates/tessera-core      domain model, migrations, operations
 crates/tessera-service   HTTP and WebSocket service
 crates/tessera-cli       command line
+crates/tessera-bench     corpus generator and backend budget checks
 web/                     React editor
+spikes/editor/           editor prototypes and their measurement runner
 docs/                    design documents
 ```

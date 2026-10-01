@@ -2,7 +2,7 @@
 
 Tessera is a local-first outline workstation for notes, questions, evidence, tasks and study. You write in an outline of small addressable blocks. Each block is one tile; pages, journals, agendas, investigations and review sessions are different ways of arranging the same tiles.
 
-Status: early scaffold. The service opens a notebook and the browser shows it; the editor itself comes next, following the [roadmap](docs/roadmap.md).
+Status: foundations. The core stores an outline with revision-checked, attributed operations; the service exposes it over HTTP; a benchmark checks the performance budgets on 50,000-block notebooks. Editor prototypes live in `spikes/`. The daily outline editor comes next, following the [roadmap](docs/roadmap.md).
 
 ## What it is for
 
@@ -46,7 +46,7 @@ For live reloading, run the service with `--dev-origin http://127.0.0.1:5173` an
 
 The service binds to loopback only and rejects other hosts and browser origins. `tessera info` prints the notebook's identity as JSON.
 
-Checks: `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`, and `bun run --cwd web build`.
+Checks: `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`, and `bun run --cwd web build`. Backend budgets: `cargo run --release -p tessera-bench -- --root /tmp/tessera-bench --fail-on budgets`.
 
 ## Acknowledgments
 

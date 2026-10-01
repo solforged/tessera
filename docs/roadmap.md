@@ -5,11 +5,13 @@ Each stage ends with an exit test: a real task done in the running app. Stages a
 ## 0. Foundations
 
 - One vocabulary and a first schema from the [domain model](domain-model.md).
-- The invariants in [lessons](lessons.md) as executable tests before features.
+- The block-level invariants in [lessons](lessons.md) as executable tests before features. Invariants for a capability, such as card progress or accepted assessments, are written first in the stage that adds it.
 - Corpus generator and benchmark harness with the [performance](performance.md) budgets.
 - Spike 1 (backend operations) and spike 2 (editor), which settle the core read path and the editor stack.
 
 Exit: a 10,000-block page loads within budget and single-block operations commit within budget, in tests.
+
+Status: done. Spike 1 passed. Spike 2 chose CodeMirror over ProseMirror; React versus Solid is decided in spike 3, since mounted DOM size, not the framework, dominates structural edits.
 
 ## 1. Daily outline
 
