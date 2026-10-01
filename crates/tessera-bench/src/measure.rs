@@ -8,6 +8,16 @@ use tessera_core::{Backlink, Block, Change, Notebook, Operation, PageView, Searc
 use crate::corpus::{Corpus, Model, batch, id, references};
 use crate::http::Http;
 
+/// Which statistic a measurement's pass/fail compares against its budget.
+#[derive(Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Statistic {
+    P95,
+    /// Scaling checks compare medians: a p95 over 31 runs is the second
+    /// slowest sample, which one slow fsync on a shared disk decides.
+    Median,
+}
+
 #[derive(Serialize)]
 pub struct Measurement {
     pub size: usize,
@@ -20,7 +30,22 @@ pub struct Measurement {
     pub median_ms: f64,
     pub p95_ms: f64,
     pub budget_ms: Option<f64>,
+    pub checks: Statistic,
     pub passed: bool,
+}
+
+impl Measurement {
+    /// The value compared against the budget.
+    pub fn checked_ms(&self) -> f64 {
+        match self.checks {
+            Statistic::P95 => self.p95_ms,
+            Statistic::Median => self.median_ms,
+        }
+    }
+
+    pub fn is_scaling(&self) -> bool {
+        self.checks == Statistic::Median
+    }
 }
 
 pub struct Recorder {
@@ -58,6 +83,7 @@ impl Recorder {
             median_ms,
             p95_ms,
             budget_ms,
+            checks: Statistic::P95,
             passed: budget_ms.is_none_or(|budget| p95_ms <= budget),
         });
     }
@@ -93,7 +119,7 @@ impl Recorder {
                             && row.page_rows == Some(10000)
                     })
                     .ok_or_else(|| anyhow::anyhow!("missing large-page measurement"))?;
-                let limit = 2.0 * small.p95_ms + 1.0;
+                let limit = 2.0 * small.median_ms + 1.0;
                 self.rows.push(Measurement {
                     size: self.size,
                     seed: self.seed,
@@ -105,7 +131,8 @@ impl Recorder {
                     median_ms: large.median_ms,
                     p95_ms: large.p95_ms,
                     budget_ms: Some(limit),
-                    passed: large.p95_ms <= limit,
+                    checks: Statistic::Median,
+                    passed: large.median_ms <= limit,
                 });
             }
         }
