@@ -46,3 +46,35 @@ fn refuses_a_notebook_from_a_newer_schema_without_touching_it() {
         .unwrap();
     assert_eq!(version, SCHEMA_VERSION + 1);
 }
+
+#[test]
+fn migrating_the_first_schema_preserves_identity_and_enables_outline_operations() {
+    let dir = tempfile::tempdir().unwrap();
+    let conn = rusqlite::Connection::open(dir.path().join(DATABASE_FILE)).unwrap();
+    conn.execute_batch(include_str!("../migrations/001_notebook.sql"))
+        .unwrap();
+    let notebook_id = ulid::Ulid::from(1u128).to_string();
+    conn.execute(
+        "INSERT INTO notebook(singleton, id, created_at) VALUES (1, ?1, 123)",
+        [&notebook_id],
+    )
+    .unwrap();
+    conn.pragma_update(None, "user_version", 1).unwrap();
+    drop(conn);
+    let mut notebook = Notebook::open(dir.path()).unwrap();
+    assert_eq!(notebook.info().unwrap().id, notebook_id);
+    assert_eq!(notebook.info().unwrap().created_at, 123);
+    let page_id = ulid::Ulid::from(2u128).to_string();
+    notebook
+        .apply(&tessera_core::Batch {
+            actor: tessera_core::Actor::Person,
+            reason: None,
+            idempotency_key: None,
+            operations: vec![tessera_core::Operation::CreatePage {
+                id: page_id.clone(),
+                title: "Migrated page".into(),
+            }],
+        })
+        .unwrap();
+    assert_eq!(notebook.page(&page_id).unwrap().root.text, "Migrated page");
+}

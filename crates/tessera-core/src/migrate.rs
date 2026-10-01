@@ -4,7 +4,10 @@ use crate::error::{Error, Result};
 
 /// Ordered schema migrations. Version N is the Nth entry; never edit or
 /// reorder a released entry, only append.
-const MIGRATIONS: &[&str] = &[include_str!("../migrations/001_notebook.sql")];
+const MIGRATIONS: &[&str] = &[
+    include_str!("../migrations/001_notebook.sql"),
+    include_str!("../migrations/002_outline.sql"),
+];
 
 pub const SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
 
