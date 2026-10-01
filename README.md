@@ -2,7 +2,7 @@
 
 Tessera is a local-first outline workstation for notes, questions, evidence, tasks and study. You write in an outline of small addressable blocks. Each block is one tile; pages, journals, agendas, investigations and review sessions are different ways of arranging the same tiles.
 
-Status: design. No application code exists yet. This repository starts from a design written after several months of prototyping, so the first commits are documents.
+Status: early scaffold. The service opens a notebook and the browser shows it; the editor itself comes next, following the [roadmap](docs/roadmap.md).
 
 ## What it is for
 
@@ -30,6 +30,24 @@ Status: design. No application code exists yet. This repository starts from a de
 - [Performance](docs/performance.md): budgets, the measured baseline and the spikes that decide the stack.
 - [Roadmap](docs/roadmap.md): build order and exit criteria.
 
+## Development
+
+Requires Rust (stable) and Bun.
+
+```sh
+bun install --cwd web
+bun run --cwd web build
+cargo run -p tessera-cli -- --notebook .tessera/dev serve --assets web/dist
+```
+
+Open <http://127.0.0.1:4318>. Without `--notebook` (or `TESSERA_NOTEBOOK`), the notebook lives in the platform data directory under `tessera/notebook`. A missing notebook is created; an existing one is never overwritten.
+
+For live reloading, run the service with `--dev-origin http://127.0.0.1:5173` and `bun run --cwd web dev` in a second terminal, then open <http://127.0.0.1:5173>.
+
+The service binds to loopback only and rejects other hosts and browser origins. `tessera info` prints the notebook's identity as JSON.
+
+Checks: `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`, and `bun run --cwd web build`.
+
 ## Acknowledgments
 
 Tessera borrows ideas from tools and thinkers its author admires:
@@ -41,4 +59,4 @@ Tessera borrows ideas from tools and thinkers its author admires:
 
 ## License
 
-To be decided before the first code commit.
+[MIT](LICENSE).
