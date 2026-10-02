@@ -92,6 +92,62 @@ describe('real notebook operations and recovery', () => {
     expect((await api.fields()).fields.find(field => field.id === id)?.kind).toBe('number');
     doc.release();
   });
+
+  test('manual types persist through outbox recovery, undo, redo, and remote rename', async () => {
+    const session = `manual-types-${++serial}`;
+    const instance = await client(session);
+    const title = `Manual type ${++serial}`;
+    const { id, doc, first } = await page(instance, 'Reading');
+    success(doc.addType(first, title));
+    expect(doc.block(first)?.manual_types).toEqual([title]);
+    await instance.flush();
+    expect((await api.page(id)).rows[0]!.manual_types).toEqual([title]);
+    doc.undo();
+    expect(doc.block(first)?.manual_types).toEqual([]);
+    await instance.flush();
+    expect((await api.page(id)).rows[0]!.manual_types).toEqual([]);
+    doc.redo();
+    await instance.flush();
+    success(doc.removeType(first, title));
+    await instance.flush();
+    doc.undo();
+    await instance.flush();
+    expect((await api.page(id)).rows[0]!.manual_types).toEqual([title]);
+    await instance.dispose();
+    const recovered = await client(session);
+    const reopened = recovered.open(id);
+    await eventually(() => reopened.status() === 'ready', 'manual types page did not reopen');
+    expect(reopened.block(first)?.manual_types).toEqual([title]);
+    const type = await api.pageByTitle(title);
+    await api.submit({ actor: { kind: 'person' }, operations: [{ op: 'edit_text', id: type.id, base_revision: type.revision, text: `${title} renamed` }] });
+    await eventually(() => reopened.block(first)?.manual_types[0] === `${title} renamed`, 'remote rename did not refresh manual types');
+    success(reopened.removeType(first, `${title} renamed`));
+    await recovered.flush();
+    expect((await api.page(id)).rows[0]!.manual_types).toEqual([]);
+  });
+
+  test('offline manual membership replays once and survives a later text edit', async () => {
+    const session = `offline-manual-types-${++serial}`;
+    const instance = await client(session);
+    const { id, doc, first } = await page(instance, '#Book');
+    globalThis.fetch = Object.assign(async (): Promise<Response> => { throw new TypeError('Browser offline'); }, { preconnect: actualFetch.preconnect });
+    try {
+      success(doc.addType(first, 'Book'));
+      await instance.flush();
+      await instance.dispose();
+      const recovered = await client(session);
+      const reopened = recovered.open(id);
+      await eventually(() => reopened.status() === 'ready', 'offline manual types page did not reopen');
+      expect(reopened.block(first)?.manual_types).toEqual(['Book']);
+      success(reopened.edit({ kind: 'text', id: first, text: 'Reading' }));
+      globalThis.fetch = actualFetch;
+      recovered.retry();
+      await recovered.flush();
+      expect((await api.page(id)).rows[0]!.manual_types).toEqual(['Book']);
+      expect((await api.page(id)).rows[0]!.block.text).toBe('Reading');
+      expect(recovered.queuedChanges()).toBe(0);
+    } finally { globalThis.fetch = actualFetch; }
+  });
   test('offline page creation accepts durable IDs, publishes a provisional root, and reopens it after reload', async () => {
     const session = `offline-create-${++serial}`;
     const instance = await client(session);

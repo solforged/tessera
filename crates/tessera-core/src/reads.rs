@@ -90,6 +90,18 @@ impl Notebook {
             }
         }
         let root = root.ok_or_else(|| not_found(id))?;
+        let mut manual_types: HashMap<String, Vec<String>> = HashMap::new();
+        let mut memberships = self.conn.prepare_cached(
+            "SELECT m.block_id, m.title FROM memberships m JOIN blocks b ON b.id = m.block_id
+             WHERE b.page_id = ?1 AND b.deletion_id IS NULL AND m.manual = 1
+             ORDER BY m.block_id, m.title_key",
+        )?;
+        for row in memberships.query_map([id], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })? {
+            let (id, title) = row?;
+            manual_types.entry(id).or_default().push(title);
+        }
         let mut rows = Vec::with_capacity(capacity);
         let mut stack = Vec::new();
         if let Some(children) = children.remove(id) {
@@ -99,7 +111,12 @@ impl Notebook {
             if let Some(children) = children.remove(&block.id) {
                 stack.extend(children.into_iter().rev().map(|block| (block, depth + 1)));
             }
-            rows.push(Row { block, depth });
+            let manual_types = manual_types.remove(&block.id).unwrap_or_default();
+            rows.push(Row {
+                block,
+                depth,
+                manual_types,
+            });
         }
         let targets = self
             .conn
@@ -167,7 +184,7 @@ impl Notebook {
         validate_id(type_id)?;
         let mut statement = self.conn.prepare_cached(concat!(
             hidden_blocks!(),
-            "SELECT ",
+            "SELECT DISTINCT ",
             block_columns!("b"),
             ", ",
             block_columns!("p"),

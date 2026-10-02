@@ -977,3 +977,265 @@ fn simultaneous_unicode_renames_resolve_context_sensitive_lowercase_titles() {
     assert!(nb.page_by_title("ΟΣ").unwrap().is_none());
     assert!(nb.page_by_title("ΚΥΚΛΟΣ").unwrap().is_none());
 }
+
+fn add_type(value: u128, revision: i64, title: &str) -> Operation {
+    Operation::AddType {
+        id: id(value),
+        base_revision: revision,
+        title: title.into(),
+    }
+}
+
+fn remove_type(value: u128, revision: i64, title: &str) -> Operation {
+    Operation::RemoveType {
+        id: id(value),
+        base_revision: revision,
+        title: title.into(),
+    }
+}
+
+#[test]
+fn manual_membership_add_remove_is_revisioned_and_preserves_authored_title() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut nb = Notebook::open(dir.path()).unwrap();
+    apply(&mut nb, vec![page(1, "Notes"), insert(10, 1, "Reading")]);
+    let receipt = apply(&mut nb, vec![add_type(10, 1, "BÖÖK shelf")]);
+    let target = nb.page_by_title("böök shelf").unwrap().unwrap();
+    assert!(receipt.revisions.contains(&Revision {
+        id: id(10),
+        revision: 2
+    }));
+    assert!(receipt.revisions.contains(&Revision {
+        id: target.id.clone(),
+        revision: 1
+    }));
+    let view = nb.page(&id(1)).unwrap();
+    assert_eq!(view.rows[0].manual_types, vec!["BÖÖK shelf"]);
+    assert_eq!(view.targets[0].id, target.id);
+    assert_eq!(nb.members(&target.id, 10).unwrap()[0].block.id, id(10));
+    apply(&mut nb, vec![add_type(10, 2, "böök SHELF")]);
+    assert_eq!(
+        nb.page(&id(1)).unwrap().rows[0].manual_types,
+        vec!["BÖÖK shelf"]
+    );
+    let receipt = apply(&mut nb, vec![remove_type(10, 3, "böök shelf")]);
+    assert_eq!(
+        receipt.revisions,
+        vec![Revision {
+            id: id(10),
+            revision: 4
+        }]
+    );
+    assert!(nb.page(&id(1)).unwrap().rows[0].manual_types.is_empty());
+    assert!(nb.members(&target.id, 10).unwrap().is_empty());
+    assert_eq!(nb.block(&id(10)).unwrap().text, "Reading");
+}
+
+#[test]
+fn manual_and_text_memberships_count_once_and_either_keeps_the_block() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut nb = Notebook::open(dir.path()).unwrap();
+    apply(
+        &mut nb,
+        vec![
+            page(1, "Notes"),
+            page(2, "Book"),
+            insert(10, 1, "#book"),
+            add_type(10, 1, "Book"),
+        ],
+    );
+    assert_eq!(
+        nb.members(&id(2), 10)
+            .unwrap()
+            .iter()
+            .map(|hit| hit.block.id.clone())
+            .collect::<Vec<_>>(),
+        vec![id(10)]
+    );
+    assert_eq!(nb.type_info(&id(2)).unwrap().members, 1);
+    let query = tessera_core::Query {
+        r#type: Some(id(2)),
+        text: None,
+        filters: vec![],
+        sort: vec![],
+        limit: None,
+    };
+    assert_eq!(nb.query(&query).unwrap().total, 1);
+    apply(&mut nb, vec![edit(10, 2, "No tag")]);
+    assert_eq!(nb.members(&id(2), 10).unwrap()[0].block.text, "No tag");
+    apply(
+        &mut nb,
+        vec![edit(10, 3, "#book"), remove_type(10, 4, "Book")],
+    );
+    assert_eq!(nb.members(&id(2), 10).unwrap()[0].block.text, "#book");
+    assert!(nb.page(&id(1)).unwrap().rows[0].manual_types.is_empty());
+}
+
+#[test]
+fn removing_text_only_membership_and_stale_manual_writes_are_rejected() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut nb = Notebook::open(dir.path()).unwrap();
+    apply(&mut nb, vec![page(1, "Notes"), insert(10, 1, "#Book")]);
+    for (operation, conflict) in [
+        (remove_type(10, 1, "Book"), false),
+        (add_type(10, 0, "Book"), true),
+    ] {
+        let error = nb
+            .apply(&Batch {
+                actor: Actor::Person,
+                reason: None,
+                idempotency_key: None,
+                operations: vec![operation],
+            })
+            .unwrap_err();
+        assert_eq!(
+            matches!(error, tessera_core::Error::Conflict { .. }),
+            conflict
+        );
+        if !conflict {
+            assert!(matches!(error, tessera_core::Error::Validation { .. }));
+        }
+    }
+    assert_eq!(nb.block(&id(10)).unwrap().revision, 1);
+    assert!(nb.page(&id(1)).unwrap().rows[0].manual_types.is_empty());
+    apply(&mut nb, vec![add_type(10, 1, "Book")]);
+    assert!(matches!(
+        nb.apply(&Batch {
+            actor: Actor::Person,
+            reason: None,
+            idempotency_key: None,
+            operations: vec![remove_type(10, 1, "Book")]
+        }),
+        Err(tessera_core::Error::Conflict { .. })
+    ));
+    assert_eq!(nb.page(&id(1)).unwrap().rows[0].manual_types, vec!["Book"]);
+}
+
+#[test]
+fn manual_membership_follows_type_rename_without_changing_block_text() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut nb = Notebook::open(dir.path()).unwrap();
+    apply(
+        &mut nb,
+        vec![
+            page(1, "Notes"),
+            page(2, "Book"),
+            page(3, "Film"),
+            insert(10, 1, "Reading"),
+            add_type(10, 1, "BOOK"),
+            add_type(10, 2, "film"),
+        ],
+    );
+    let receipt = apply(&mut nb, vec![edit(2, 1, "Novel"), edit(3, 1, "Book")]);
+    assert_eq!(
+        nb.page(&id(1)).unwrap().rows[0].manual_types,
+        vec!["Book", "Novel"]
+    );
+    assert_eq!(nb.block(&id(10)).unwrap().text, "Reading");
+    assert!(receipt.text_rewrites.is_empty());
+    assert!(receipt.revisions.contains(&Revision {
+        id: id(10),
+        revision: 4
+    }));
+    assert_eq!(nb.members(&id(2), 10).unwrap()[0].block.id, id(10));
+    assert_eq!(nb.members(&id(3), 10).unwrap()[0].block.id, id(10));
+    assert!(
+        nb.changes_since(receipt.seq - 1, 1).unwrap()[0]
+            .restructured_pages
+            .contains(&id(1))
+    );
+    apply(&mut nb, vec![remove_type(10, 4, "Novel")]);
+    assert!(nb.members(&id(2), 10).unwrap().is_empty());
+}
+
+#[test]
+fn manual_membership_survives_subtree_tombstone_and_restore() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut nb = Notebook::open(dir.path()).unwrap();
+    apply(
+        &mut nb,
+        vec![
+            page(1, "Notes"),
+            page(2, "Book"),
+            insert(10, 1, "Parent"),
+            insert(11, 10, "Reading"),
+            add_type(11, 1, "Book"),
+        ],
+    );
+    let receipt = apply(&mut nb, vec![delete(10, 1)]);
+    assert!(nb.members(&id(2), 10).unwrap().is_empty());
+    apply(&mut nb, vec![restore(10, 2, &receipt.deletions[0])]);
+    assert_eq!(nb.members(&id(2), 10).unwrap()[0].block.id, id(11));
+    assert_eq!(nb.page(&id(1)).unwrap().rows[1].manual_types, vec!["Book"]);
+}
+
+#[test]
+fn manual_membership_uses_explicit_later_page_and_validates_tag_titles() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut nb = Notebook::open(dir.path()).unwrap();
+    apply(
+        &mut nb,
+        vec![
+            page(1, "Notes"),
+            insert(10, 1, "Reading"),
+            add_type(10, 1, "Book"),
+            page(2, "BOOK"),
+        ],
+    );
+    assert_eq!(nb.members(&id(2), 10).unwrap()[0].block.id, id(10));
+    for title in ["", " Book", "Book ", "[Book]", "Book\nshelf"] {
+        assert!(matches!(
+            nb.apply(&Batch {
+                actor: Actor::Person,
+                reason: None,
+                idempotency_key: None,
+                operations: vec![add_type(10, 2, title)]
+            }),
+            Err(tessera_core::Error::Validation { .. })
+        ));
+    }
+    assert_eq!(nb.block(&id(10)).unwrap().revision, 2);
+}
+
+#[test]
+fn manual_membership_migration_retains_authored_text_tags_and_unresolved_titles() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut nb = Notebook::open(dir.path()).unwrap();
+    apply(
+        &mut nb,
+        vec![
+            page(1, "Notes"),
+            page(2, "Book"),
+            insert(10, 1, "#BOOK #[[Long Title]]"),
+        ],
+    );
+    apply(&mut nb, vec![delete(2, 1)]);
+    drop(nb);
+    let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
+    conn.execute_batch(
+        "ALTER TABLE memberships RENAME TO modern_memberships;
+         DROP INDEX memberships_type;
+         DROP INDEX memberships_title;
+         CREATE TABLE memberships (block_id TEXT NOT NULL REFERENCES blocks(id), title_key TEXT NOT NULL, type_id TEXT REFERENCES blocks(id), PRIMARY KEY(block_id, title_key)) STRICT;
+         INSERT INTO memberships SELECT block_id, title_key, type_id FROM modern_memberships;
+         DROP TABLE modern_memberships;
+         CREATE INDEX memberships_type ON memberships(type_id, block_id);
+         CREATE INDEX memberships_title ON memberships(title_key, block_id);
+         PRAGMA user_version = 6;",
+    ).unwrap();
+    drop(conn);
+    let nb = Notebook::open(dir.path()).unwrap();
+    assert!(nb.page_by_title("Book").unwrap().is_none());
+    assert!(nb.page(&id(1)).unwrap().rows[0].manual_types.is_empty());
+    let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
+    let titles = conn
+        .prepare("SELECT title, manual FROM memberships WHERE block_id = ?1 ORDER BY title_key")
+        .unwrap()
+        .query_map([id(10)], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+        })
+        .unwrap()
+        .collect::<rusqlite::Result<Vec<_>>>()
+        .unwrap();
+    assert_eq!(titles, vec![("BOOK".into(), 0), ("Long Title".into(), 0)]);
+}

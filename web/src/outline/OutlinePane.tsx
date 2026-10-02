@@ -16,9 +16,11 @@ import { Popup } from '../ui/Popup';
 import { BlockBreadcrumb, BlockText, offsetAtPoint, textTokens } from './BlockText';
 import { PaneEditor } from './editor';
 import { orderedRange, selectedText, selectionIds, selectionRoots, visibleIds } from './visibility';
+import { completeReferences } from './completion';
+import { TypePill } from './references';
 import './outline.css';
 
-interface Completion { from: number; to: number; query: string }
+interface Completion { from: number; to: number; query: string; manual?: { blockId: string; anchor: HTMLElement } }
 interface MenuState { anchor: HTMLElement; items: MenuItem[]; label: string }
 interface RowRange { anchor: string; head: string }
 type CompletionRow = { kind: 'block'; block: Block } | { kind: 'field'; field: FieldDefinition };
@@ -578,6 +580,7 @@ function Pane(props: OutlinePaneProps) {
   }
 
   function updateCompletion(text: string, at: Caret) {
+    if (completion()?.manual) return;
     const prefix = text.slice(0, at.offset);
     const from = prefix.lastIndexOf('[[');
     if (from < 0 || prefix.slice(from + 2).includes(']') || prefix[from - 1] === '#' || prefix.slice(from + 2).includes('\n')) { setCompletion(null); return; }
@@ -585,12 +588,18 @@ function Pane(props: OutlinePaneProps) {
     if (completion()?.query !== next.query) setCompletionIndex(0);
     setCompletion(next);
   }
-  const [matches] = createResource(() => completion()?.query, query => api.complete(query));
+  const [matches] = createResource(() => {
+    const state = completion();
+    return state ? { query: state.query, manual: !!state.manual } : false;
+  }, async state => state.manual
+    ? completeReferences(props.notebook, state.query, [])
+    : { rows: await api.complete(state.query), canCreate: false });
   const completionRows = createMemo<CompletionRow[]>(() => {
     const query = completion()?.query.toLowerCase() ?? '';
+    if (completion()?.manual) return (matches.error ? [] : matches()?.rows ?? []).filter(block => block.kind === 'page').map(block => ({ kind: 'block', block }));
     const matchingFields = definitions().filter(field => field.name.toLowerCase().includes(query));
     const byId = new Map(matchingFields.map(field => [field.id, field]));
-    const rows: CompletionRow[] = (matches.error ? [] : matches() ?? []).map(block => {
+    const rows: CompletionRow[] = (matches.error ? [] : matches()?.rows ?? []).map(block => {
       const field = byId.get(block.id);
       byId.delete(block.id);
       return field ? { kind: 'field', field } : { kind: 'block', block };
@@ -598,7 +607,8 @@ function Pane(props: OutlinePaneProps) {
     for (const field of byId.values()) rows.push({ kind: 'field', field });
     return rows;
   });
-  const canCreate = createMemo(() => !!completion()?.query.trim() && !matches.loading && !matches.error && !fields.loading && !fields.error && completionRows().length === 0);
+  const canCreate = createMemo(() => !!completion()?.query.trim() && !matches.loading && !matches.error
+    && (completion()?.manual ? !!matches()?.canCreate : !fields.loading && !fields.error && completionRows().length === 0));
   createEffect(() => {
     completionIndex();
     completionRows();
@@ -617,6 +627,17 @@ function Pane(props: OutlinePaneProps) {
   }
   async function chooseCompletion(index = completionIndex()) {
     const row = completionRows()[index];
+    const state = completion();
+    if (state?.manual) {
+      if (matches.loading || matches.error) return;
+      const title = row?.kind === 'block' ? row.block.text : canCreate() ? state.query.trim() : null;
+      if (title) {
+        const result = doc.addType(state.manual.blockId, title);
+        if (!result.ok) setMessage(result.reason);
+        setCompletion(null);
+      }
+      return;
+    }
     if (row?.kind === 'field') { insertReference(row.field.id); return; }
     if (matches.loading || matches.error) return;
     if (row) { insertReference(row.block.id); return; }
@@ -626,6 +647,8 @@ function Pane(props: OutlinePaneProps) {
     }
   }
   function completionAnchor(): DOMRect | null {
+    const manual = completion()?.manual;
+    if (manual) return manual.anchor.getBoundingClientRect();
     const rect = editor?.view.coordsAtPos(editor.view.state.selection.main.head);
     return rect ? new DOMRect(rect.left, rect.top, Math.max(1, rect.right - rect.left), rect.bottom - rect.top) : null;
   }
@@ -710,7 +733,10 @@ function Pane(props: OutlinePaneProps) {
   const unregister = props.commands.register(commands);
   function blockMenu(id: string, anchor: HTMLElement) {
     if (!selectedSet().has(id)) rowFocus(id);
-    setMenu({ anchor, label: 'Block actions', items: commands.filter(command => command.section !== 'Page').map(command => ({ label: command.title, shortcut: command.keys?.[0], disabledReason: command.disabledReason?.(), danger: command.id.endsWith('.delete'), action: command.run })) });
+    setMenu({ anchor, label: 'Block actions', items: [
+      { label: 'Add type…', action: () => { setCompletionIndex(0); setCompletion({ from: 0, to: 0, query: '', manual: { blockId: id, anchor } }); } },
+      ...commands.filter(command => command.section !== 'Page').map(command => ({ label: command.title, shortcut: command.keys?.[0], disabledReason: command.disabledReason?.(), danger: command.id.endsWith('.delete'), action: command.run })),
+    ] });
   }
 
   function selectedOffsets(id: string): [number, number] | null {
@@ -931,6 +957,7 @@ function Pane(props: OutlinePaneProps) {
         <Show when={field() && editing() === id()}><Icon name="field" class="field-entry-icon" /></Show>
         <div class="editor-host" classList={{ 'host-active': editing() === id() }} ref={host => attach(id(), host)} />
         <Show when={editing() !== id()}><div class="static-text"><BlockText text={block()?.text ?? ''} field={field()} notebook={props.notebook} onOpen={props.onOpen} onReferenceMenu={referenceMenu} selection={selectedOffsets(id())} /><Show when={!block()?.text}><span class="empty-block">Empty block</span></Show></div></Show>
+        <For each={block()?.manual_types ?? []}>{title => <TypePill title={title} notebook={props.notebook} onOpen={props.onOpen} onRemove={() => { const result = doc.removeType(id(), title); if (!result.ok) setMessage(result.reason); }} />}</For>
         <Show when={block()?.archived}><span class="archive-badge">Archived</span> <button class="text-button" type="button" onClick={() => apply({ kind: 'archive', id: id(), archived: false }, false)}>Unarchive</button></Show>
         <Show when={block()?.conflict}><button type="button" class="conflict-label" onClick={() => setConflicts(previous => { const next = new Set(previous); next.has(id()) ? next.delete(id()) : next.add(id()); return next; })}><Icon name="warning" />Conflict</button></Show>
         <Show when={block()?.conflict && conflicts().has(id())}><div class="conflict-panel">
@@ -984,7 +1011,8 @@ function Pane(props: OutlinePaneProps) {
       <Related title="Tagged blocks" rows={related.error ? [] : related()?.tagged ?? []} empty="No blocks are tagged with this page." />
     </div></Show>
     <Show when={menu()}>{state => <Menu anchor={state().anchor} label={state().label} items={state().items} onDismiss={() => setMenu(null)} />}</Show>
-    <Show when={completion()}><Popup anchor={completionAnchor} label="Reference completion" role="listbox" onDismiss={() => setCompletion(null)} autofocus={false}>
+    <Show when={completion()}><Popup anchor={completionAnchor} label={completion()?.manual ? 'Add type…' : 'Reference completion'} role={completion()?.manual ? 'dialog' : 'listbox'} onDismiss={() => setCompletion(null)} autofocus={!!completion()?.manual}>
+      <Show when={completion()?.manual}><input aria-label="Type title" value={completion()?.query ?? ''} onInput={event => { setCompletion(state => state ? { ...state, query: event.currentTarget.value } : null); setCompletionIndex(0); }} onKeyDown={event => { if (!event.isComposing && popupKey(event)) { event.preventDefault(); event.stopPropagation(); } }} /></Show>
       <div ref={completionList} class="reference-completion" onMouseDown={event => event.preventDefault()}>
         <Show when={matches.loading}><p>Searching…</p></Show>
         <Show when={matches.error}><p role="alert">Couldn't load completion.</p></Show>
@@ -992,7 +1020,7 @@ function Pane(props: OutlinePaneProps) {
           <Show when={row.kind === 'block' ? row.block : null}>{block => <><span class="completion-context"><BlockBreadcrumb block={block()} notebook={props.notebook} /></span>{block().text || 'Empty block'}</>}</Show>
           <Show when={row.kind === 'field' ? row.field : null}>{field => <>{field().name}<span class="completion-field-suffix">Field</span></>}</Show>
         </button>}</For>
-        <Show when={canCreate()}><button type="button" role="option" aria-selected={completionIndex() === 0} onClick={() => void chooseCompletion()}><Icon name="plus" />Create page “{completion()?.query}”</button></Show>
+        <Show when={canCreate()}><button type="button" role="option" aria-selected={completionIndex() === completionRows().length} onClick={() => void chooseCompletion(completionRows().length)}><Icon name="plus" />Create page “{completion()?.query}”</button></Show>
         <Show when={!matches.loading && !matches.error && !canCreate() && !completionRows().length}><p>No matching blocks.</p></Show>
       </div>
     </Popup></Show>

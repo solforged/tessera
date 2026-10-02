@@ -93,7 +93,7 @@ impl Notebook {
             return Err(not_found(id));
         }
         let members = self.conn.prepare_cached(concat!(hidden_blocks!(),
-            "SELECT COUNT(*) FROM memberships m JOIN blocks b ON b.id = m.block_id
+            "SELECT COUNT(DISTINCT m.block_id) FROM memberships m JOIN blocks b ON b.id = m.block_id
              JOIN blocks p ON p.id = b.page_id JOIN blocks t ON t.id = m.type_id
              WHERE m.type_id = ?1 AND b.deletion_id IS NULL AND p.deletion_id IS NULL AND t.deletion_id IS NULL
              AND b.rowid NOT IN (SELECT rowid FROM hidden) AND t.rowid NOT IN (SELECT rowid FROM hidden)"))?

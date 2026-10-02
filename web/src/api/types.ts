@@ -36,6 +36,8 @@ export type Operation =
   | { op: 'delete'; id: string; base_revision: number }
   | { op: 'restore'; id: string; deletion_id: string; revision: number }
   | { op: 'set_archived'; id: string; base_revision: number; archived: boolean }
+  | { op: 'add_type'; id: string; base_revision: number; title: string }
+  | { op: 'remove_type'; id: string; base_revision: number; title: string }
   | { op: 'set_field_kind'; id: string; base_revision: number; kind: FieldKind }
   | { op: 'set_type_fields'; type_id: string; base_revision: number; fields: string[] }
   | { op: 'save_view'; id: string; base_revision: number | null; name: string; query: Query }
@@ -79,6 +81,7 @@ export interface TextRewrite {
 export interface Row {
   block: Block;
   depth: number;
+  manual_types: string[];
 }
 
 export interface PageView {
