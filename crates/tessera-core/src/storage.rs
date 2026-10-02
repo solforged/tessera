@@ -273,8 +273,14 @@ pub(crate) fn rewrite_tags<'a>(
     {
         return None;
     }
-    let replaced = replacements.iter().map(|(span, _)| span.len()).sum::<usize>();
-    let inserted = replacements.iter().map(|(_, value)| value.len()).sum::<usize>();
+    let replaced = replacements
+        .iter()
+        .map(|(span, _)| span.len())
+        .sum::<usize>();
+    let inserted = replacements
+        .iter()
+        .map(|(_, value)| value.len())
+        .sum::<usize>();
     let mut rewritten = String::with_capacity(text.len() - replaced + inserted);
     let mut cursor = 0;
     for (span, value) in replacements {

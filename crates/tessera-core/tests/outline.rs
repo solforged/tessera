@@ -468,7 +468,7 @@ fn unicode_titles_and_calendar_dates_are_unique_among_live_roots() {
             .iter()
             .map(|block| block.id.clone())
             .collect::<Vec<_>>(),
-        vec![id(2), id(3), id(5), id(4)]
+        vec![nb.fields().unwrap().page_id, id(2), id(3), id(5), id(4)]
     );
 }
 
@@ -791,6 +791,6 @@ fn ranked_query_limits_break_score_ties_by_id_not_insertion_order() {
             .into_iter()
             .map(|block| block.id)
             .collect::<Vec<_>>(),
-        vec![id(1)]
+        vec![nb.fields().unwrap().page_id, id(1)]
     );
 }

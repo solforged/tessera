@@ -60,6 +60,7 @@ impl Notebook {
                 batch.idempotency_key, hash, operations],
         )?;
         let seq = tx.last_insert_rowid();
+        let mut field_changes = crate::fields::FieldChanges::default();
         let mut engine = Engine {
             tx: &tx,
             now,
@@ -77,6 +78,7 @@ impl Notebook {
         };
         for (index, operation) in batch.operations.iter().enumerate() {
             engine.op_index = index;
+            field_changes.before(&tx, operation)?;
             engine
                 .operation(operation, index)
                 .map_err(|error| indexed(error, index))?;
@@ -84,6 +86,18 @@ impl Notebook {
         engine.rewrite_incoming_tags()?;
         engine.derive_tags()?;
         engine.reconcile_titles()?;
+        for revision in &engine.revisions {
+            field_changes.capture(&tx, &revision.id)?;
+        }
+        field_changes.derive(&tx)?;
+        let mut views: Vec<&str> = Vec::new();
+        for operation in &batch.operations {
+            if let Operation::SaveView { id, .. } | Operation::DeleteView { id, .. } = operation
+                && !views.contains(&id.as_str())
+            {
+                views.push(id);
+            }
+        }
         let mut restructured_pages: Vec<_> = engine.restructured_pages.into_iter().collect();
         restructured_pages.sort_unstable();
         let committed = Committed {
@@ -106,11 +120,12 @@ impl Notebook {
         }
         drop(insert);
         tx.execute(
-            "UPDATE changes SET committed = ?1, restructured_pages = ?3 WHERE seq = ?2",
+            "UPDATE changes SET committed = ?1, restructured_pages = ?3, views = ?4 WHERE seq = ?2",
             params![
                 serde_json::to_string(&committed).expect("result serializes"),
                 seq,
-                serde_json::to_string(&restructured_pages).expect("page IDs serialize")
+                serde_json::to_string(&restructured_pages).expect("page IDs serialize"),
+                serde_json::to_string(&views).expect("view IDs serialize")
             ],
         )?;
         tx.commit()?;
@@ -283,7 +298,9 @@ impl Engine<'_, '_> {
                     )?
                     .query_row(params![rename.page_id, rename.title_key], |row| Ok((row.get(0)?, row.get(1)?)))
                     .optional()?;
-                let Some((title, case_only)) = target else { continue };
+                let Some((title, case_only)) = target else {
+                    continue;
+                };
                 let spelling =
                     tag_spelling(&title).map_err(|error| indexed(error, rename.op_index))?;
                 let position = replacements.len();
@@ -380,9 +397,10 @@ impl Engine<'_, '_> {
                 if let Some(text) = text {
                     let created = derive_memberships(self.tx, id, &text, self.now, true)?;
                     for revision in created {
-                        let title_key = self.tx.prepare_cached(
-                            "SELECT title_key FROM blocks WHERE id = ?1",
-                        )?.query_row([&revision.id], |row| row.get(0))?;
+                        let title_key = self
+                            .tx
+                            .prepare_cached("SELECT title_key FROM blocks WHERE id = ?1")?
+                            .query_row([&revision.id], |row| row.get(0))?;
                         self.changed_titles.insert(title_key);
                         self.touch(&revision.id, revision.revision);
                         self.tags_changed(&revision.id);
@@ -493,9 +511,16 @@ impl Engine<'_, '_> {
             return Ok(());
         }
         let title_key = (current.block.kind == BlockKind::Page).then(|| text.to_lowercase());
-        let old_key = title_key.as_ref().map(|_| current.block.text.to_lowercase());
+        let old_key = title_key
+            .as_ref()
+            .map(|_| current.block.text.to_lowercase());
         let rename = if let Some(title_key) = title_key.as_deref() {
-            self.prepare_tag_rename(current, text, title_key, old_key.as_deref().expect("page title"))?
+            self.prepare_tag_rename(
+                current,
+                text,
+                title_key,
+                old_key.as_deref().expect("page title"),
+            )?
         } else {
             None
         };
@@ -541,7 +566,8 @@ impl Engine<'_, '_> {
     fn delete(&mut self, id: &str) -> Result<()> {
         let current = self.live(id)?;
         if current.block.kind == BlockKind::Page {
-            self.changed_titles.insert(current.block.text.to_lowercase());
+            self.changed_titles
+                .insert(current.block.text.to_lowercase());
         }
         self.restructured_pages.insert(current.block.page_id);
         let event = self.event()?;
@@ -767,6 +793,23 @@ impl Engine<'_, '_> {
         self.delete(&source.block.id)
     }
 
+    fn bump(&mut self, current: &Stored) -> Result<()> {
+        self.tx.execute(
+            "UPDATE blocks SET revision = revision + 1, updated_at = ?1 WHERE id = ?2",
+            params![self.now, current.block.id],
+        )?;
+        self.touch(&current.block.id, current.block.revision + 1);
+        Ok(())
+    }
+
+    fn view_revision(&self, id: &str) -> Result<Option<i64>> {
+        Ok(self
+            .tx
+            .prepare_cached("SELECT revision FROM views WHERE id = ?1")?
+            .query_row([id], |row| row.get(0))
+            .optional()?)
+    }
+
     fn operation(&mut self, operation: &Operation, index: usize) -> Result<()> {
         match operation {
             Operation::CreatePage { id, title } => self.create(NewBlock {
@@ -908,6 +951,87 @@ impl Engine<'_, '_> {
             } => {
                 let current = self.checked(id, *revision, index, true)?;
                 self.restore(&current, deletion_id)
+            }
+            Operation::SetFieldKind {
+                id,
+                base_revision,
+                kind,
+            } => {
+                crate::fields::require_definition(self.tx, id)?;
+                let current = self.checked(id, *base_revision, index, false)?;
+                self.tx.execute("INSERT INTO fields(block_id, kind) VALUES (?1, ?2) ON CONFLICT(block_id) DO UPDATE SET kind = excluded.kind",
+                    params![id, kind.as_str()])?;
+                self.bump(&current)
+            }
+            Operation::SetTypeFields {
+                type_id,
+                base_revision,
+                fields,
+            } => {
+                let current = self.checked(type_id, *base_revision, index, false)?;
+                if current.block.kind != BlockKind::Page {
+                    return Err(validation("type must be a page"));
+                }
+                let mut unique = HashSet::new();
+                for field in fields {
+                    crate::fields::require_definition(self.tx, field)?;
+                    if !unique.insert(field) {
+                        return Err(validation("duplicate field in type template"));
+                    }
+                }
+                self.tx
+                    .execute("DELETE FROM type_fields WHERE type_id = ?1", [type_id])?;
+                let mut insert = self.tx.prepare_cached(
+                    "INSERT INTO type_fields(type_id, field_id, position) VALUES (?1, ?2, ?3)",
+                )?;
+                for (position, field) in fields.iter().enumerate() {
+                    insert.execute(params![type_id, field, position as i64])?;
+                }
+                self.bump(&current)
+            }
+            Operation::SaveView {
+                id,
+                base_revision,
+                name,
+                query,
+            } => {
+                validate_id(id)?;
+                let found = self.view_revision(id)?;
+                if found != *base_revision {
+                    return Err(Error::Conflict {
+                        op_index: index,
+                        id: id.clone(),
+                        expected: base_revision.unwrap_or(0),
+                        found,
+                    });
+                }
+                let name = name.trim();
+                if name.is_empty() || name.chars().count() > 120 {
+                    return Err(validation("view name must contain 1 to 120 characters"));
+                }
+                crate::query::validate_query(self.tx, query)?;
+                let revision = found.unwrap_or(0) + 1;
+                self.tx.execute(
+                    "INSERT INTO views(id, name, query, revision, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?5)
+                     ON CONFLICT(id) DO UPDATE SET name = excluded.name, query = excluded.query, revision = excluded.revision, updated_at = excluded.updated_at",
+                    params![id, name, serde_json::to_string(query).expect("query serializes"), revision, self.now])?;
+                self.touch(id, revision);
+                Ok(())
+            }
+            Operation::DeleteView { id, base_revision } => {
+                validate_id(id)?;
+                let found = self.view_revision(id)?.ok_or_else(|| not_found(id))?;
+                if found != *base_revision {
+                    return Err(Error::Conflict {
+                        op_index: index,
+                        id: id.clone(),
+                        expected: *base_revision,
+                        found: Some(found),
+                    });
+                }
+                self.tx.execute("DELETE FROM views WHERE id = ?1", [id])?;
+                self.touch(id, found + 1);
+                Ok(())
             }
         }
     }
