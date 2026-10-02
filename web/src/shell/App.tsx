@@ -88,7 +88,6 @@ export function App() {
   const [deleted, setDeleted] = createSignal<{ id: string; title: string } | null>(null);
   const todayDate = () => notebook.todayDate();
   const [date, setDate] = createSignal(todayDate());
-  let searchButton!: HTMLButtonElement;
   let newButton!: HTMLButtonElement;
   const entry = (pane: PaneId) => sessions()[pane].entries[sessions()[pane].index];
   const split = () => sessions().main.index >= 0 && sessions().side.index >= 0;
@@ -173,11 +172,7 @@ export function App() {
     focusPane(pane === 'main' ? 'side' : 'main');
   };
   const pin = (id: string) => setPinned(values => values.includes(id) ? values.filter(value => value !== id) : [...values, id]);
-  const showPalette = (kind: 'search' | 'commands') => {
-    const compact = document.querySelector<HTMLButtonElement>(`.compact-toolbar button[aria-label="${kind === 'search' ? 'Search notebook' : 'Notebook menu'}"]`);
-    const anchor = searchButton.getClientRects().length ? searchButton : compact;
-    if (anchor) setPopup({ kind, anchor, pane: active() });
-  };
+  const showPalette = (kind: 'search' | 'commands') => setPopup({ kind, anchor: document.body, pane: active() });
   const chooseDate = () => {
     const anchor = document.querySelector<HTMLButtonElement>('.journal-date');
     if (!anchor) return;
@@ -335,7 +330,7 @@ export function App() {
         <Button icon="sidebar" label="Collapse sidebar" onClick={toggleSidebar} />
       </div>
       <nav class="primary-navigation" aria-label="Notebook">
-        <Button ref={searchButton} icon="search" onClick={() => showPalette('search')}>Search <kbd>⌃⇧F</kbd></Button>
+        <Button icon="search" onClick={() => showPalette('search')}>Search <kbd>⌃⇧F</kbd></Button>
         <Button icon="calendar" class={activeRoot()?.kind === 'journal' && activeRoot()?.text === todayDate() ? 'selected' : ''} onClick={() => { void today(); }}>Today <kbd>⌃⇧J</kbd></Button>
         <div class="journal-navigation"><Button icon="left" label="Previous journal day" onClick={() => shiftDate(-1)} /><Button class="journal-date" onClick={event => setPopup({ kind: 'calendar', anchor: event.currentTarget, pane: active() })}>{date()}</Button><Button icon="right" label="Next journal day" onClick={() => shiftDate(1)} /></div>
       </nav>
@@ -348,7 +343,7 @@ export function App() {
     <main class="workspace">
       <div class="compact-toolbar">
         <Button icon="sidebar" label="Toggle sidebar" aria-expanded={sidebar()} onClick={toggleSidebar} />
-        <Button icon="search" label="Search notebook" shortcut="⌃⇧F" onClick={event => setPopup({ kind: 'search', anchor: event.currentTarget, pane: active() })} />
+        <Button icon="search" label="Search notebook" shortcut="⌃⇧F" onClick={() => showPalette('search')} />
         <Button icon="calendar" label="Today" shortcut="⌃⇧J" onClick={() => { void today(); }} />
         <Button icon="plus" label="New page" onClick={event => setPopup({ kind: 'new', anchor: event.currentTarget, pane: active() })} />
         <Button icon="more" label="Notebook menu" aria-haspopup="menu" onClick={event => setPopup({ kind: 'notebook', anchor: event.currentTarget, pane: active() })} />
@@ -377,7 +372,7 @@ export function App() {
     </main>
     <Show keyed when={popup()}>{state => <>
       <Show when={state.kind === 'search' || state.kind === 'commands'}>
-        <Palette anchor={state.anchor} pane={state.pane} mode={state.kind === 'commands' ? 'commands' : 'search'} commands={commands} notebook={notebook} onDismiss={() => setPopup(null)} onRestoreFocus={() => { if (!popup() && active() === state.pane) focusPane(state.pane); }} onOpen={(target, beside) => open(target, beside, state.pane)} />
+        <Palette pane={state.pane} mode={state.kind === 'commands' ? 'commands' : 'search'} commands={commands} notebook={notebook} onDismiss={() => setPopup(null)} onRestoreFocus={() => { if (!popup() && active() === state.pane) focusPane(state.pane); }} onOpen={(target, beside) => open(target, beside, state.pane)} />
       </Show>
       <Show when={state.kind === 'calendar'}>
         <Calendar anchor={state.anchor} date={date()} today={todayDate()} onToday={() => { void today(); }} onDismiss={() => setPopup(null)} onSelect={value => { void journal(value); }} />

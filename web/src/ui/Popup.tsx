@@ -3,6 +3,8 @@ import type { JSX } from 'solid-js';
 import { Portal } from 'solid-js/web';
 
 export type PopupAnchor = HTMLElement | DOMRect | (() => DOMRect | null);
+/** `anchor` hangs the panel off its trigger; `top` centres it near the top of the viewport, for palettes. */
+export type PopupPlacement = 'anchor' | 'top';
 export interface PopupProps {
   anchor: PopupAnchor;
   onDismiss(): void;
@@ -11,6 +13,7 @@ export interface PopupProps {
   role?: 'dialog' | 'menu' | 'listbox';
   label: string;
   width?: number;
+  placement?: PopupPlacement;
   /** Defaults to the first input or enabled button. false retains editor focus. */
   autofocus?: boolean;
 }
@@ -28,9 +31,15 @@ export function Popup(props: PopupProps) {
   const anchorRect = () => typeof props.anchor === 'function' ? props.anchor() : props.anchor instanceof HTMLElement ? props.anchor.getBoundingClientRect() : props.anchor;
   let frame = 0;
   const place = () => {
+    const width = Math.min(props.width ?? panel.offsetWidth, window.innerWidth - 16);
+    if (props.placement === 'top') {
+      const top = Math.min(64, Math.round(window.innerHeight * 0.08));
+      const height = Math.min(panel.scrollHeight, window.innerHeight - top - 16, 560);
+      setPosition({ left: Math.max(8, Math.round((window.innerWidth - width) / 2)), top, height, visible: true });
+      return;
+    }
     const rect = anchorRect();
     if (!rect) return;
-    const width = Math.min(props.width ?? panel.offsetWidth, window.innerWidth - 16);
     const below = Math.max(0, window.innerHeight - rect.bottom - 12);
     const above = Math.max(0, rect.top - 12);
     const needed = Math.min(panel.scrollHeight, 560);
