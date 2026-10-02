@@ -42,6 +42,19 @@ fn prefix_end(prefix: &str) -> Option<String> {
     None
 }
 
+// Materialize only hidden IDs, using the archived-seed and live-sibling indexes.
+// Keeping archived documents in FTS preserves its live-corpus BM25 statistics.
+macro_rules! hidden_blocks {
+    () => {
+        "WITH RECURSIVE hidden(rowid, id) AS MATERIALIZED (
+             SELECT rowid, id FROM blocks WHERE archived = 1 AND deletion_id IS NULL
+             UNION
+             SELECT b.rowid, b.id FROM blocks b JOIN hidden h ON b.parent_id = h.id
+             WHERE b.deletion_id IS NULL
+         ) "
+    };
+}
+
 impl Notebook {
     /// Read one live block, including an archived block.
     pub fn block(&self, id: &str) -> Result<Block> {
@@ -111,12 +124,12 @@ impl Notebook {
         })
     }
 
-    /// Live pages by Unicode-lowercase title, then journal days newest first.
+    /// Visible pages by Unicode-lowercase title, then journal days newest first.
     pub fn roots(&self) -> Result<Vec<Block>> {
         let mut statement = self.conn.prepare_cached(concat!(
             "SELECT ",
             block_columns!("b"),
-            " FROM blocks b WHERE b.parent_id IS NULL AND b.deletion_id IS NULL
+            " FROM blocks b WHERE b.parent_id IS NULL AND b.deletion_id IS NULL AND b.archived = 0
              ORDER BY CASE b.kind WHEN 'page' THEN 0 ELSE 1 END,
              CASE WHEN b.kind = 'page' THEN b.title_key END,
              CASE WHEN b.kind = 'journal' THEN b.text END DESC, b.id"
@@ -148,10 +161,11 @@ impl Notebook {
         ))?.query_row([title.to_lowercase()], |row| block_at(row, 0)).optional()?)
     }
 
-    /// Distinct live tagged blocks, with their current source page.
+    /// Distinct visible tagged blocks, with their current source page.
     pub fn members(&self, type_id: &str, limit: usize) -> Result<Vec<BlockInPage>> {
         validate_id(type_id)?;
         let mut statement = self.conn.prepare_cached(concat!(
+            hidden_blocks!(),
             "SELECT ",
             block_columns!("b"),
             ", ",
@@ -159,7 +173,10 @@ impl Notebook {
             " FROM memberships m JOIN blocks b ON b.id = m.block_id
              JOIN blocks p ON p.id = b.page_id JOIN blocks t ON t.id = m.type_id
              WHERE m.type_id = ?1 AND b.deletion_id IS NULL AND p.deletion_id IS NULL
-               AND t.deletion_id IS NULL ORDER BY m.block_id LIMIT ?2"
+               AND t.deletion_id IS NULL
+               AND b.rowid NOT IN (SELECT rowid FROM hidden)
+               AND t.rowid NOT IN (SELECT rowid FROM hidden)
+             ORDER BY m.block_id LIMIT ?2"
         ))?;
         Ok(statement
             .query_map(params![type_id, sql_limit(limit)], |row| {
@@ -171,10 +188,11 @@ impl Notebook {
             .collect::<rusqlite::Result<_>>()?)
     }
 
-    /// Distinct live sources, rather than one backlink per occurrence.
+    /// Distinct visible sources, rather than one backlink per occurrence.
     pub fn backlinks(&self, id: &str, limit: usize) -> Result<Vec<Backlink>> {
         validate_id(id)?;
         let mut statement = self.conn.prepare_cached(concat!(
+            hidden_blocks!(),
             "SELECT DISTINCT ",
             block_columns!("b"),
             ", ",
@@ -182,7 +200,9 @@ impl Notebook {
             " FROM links l
              JOIN blocks b ON b.id = l.source_id JOIN blocks p ON p.id = b.page_id
              WHERE l.target_id = ?1 AND b.deletion_id IS NULL AND p.deletion_id IS NULL
-               AND EXISTS (SELECT 1 FROM blocks t WHERE t.id = ?1 AND t.deletion_id IS NULL)
+               AND b.rowid NOT IN (SELECT rowid FROM hidden)
+               AND EXISTS (SELECT 1 FROM blocks t WHERE t.id = ?1 AND t.deletion_id IS NULL
+                           AND t.rowid NOT IN (SELECT rowid FROM hidden))
              ORDER BY b.id LIMIT ?2"
         ))?;
         Ok(statement
@@ -207,7 +227,7 @@ impl Notebook {
                 "SELECT ",
                 block_columns!("b"),
                 " FROM blocks b
-                WHERE b.kind = 'page' AND b.deletion_id IS NULL
+                WHERE b.kind = 'page' AND b.deletion_id IS NULL AND b.archived = 0
                 AND b.title_key >= ?1 AND b.title_key < ?3 ORDER BY b.title_key, b.id LIMIT ?2"
             )
         } else {
@@ -215,7 +235,7 @@ impl Notebook {
                 "SELECT ",
                 block_columns!("b"),
                 " FROM blocks b
-                WHERE b.kind = 'page' AND b.deletion_id IS NULL
+                WHERE b.kind = 'page' AND b.deletion_id IS NULL AND b.archived = 0
                 AND b.title_key >= ?1 ORDER BY b.title_key, b.id LIMIT ?2"
             )
         };
@@ -243,10 +263,12 @@ impl Notebook {
         let additional = self
             .conn
             .prepare_cached(concat!(
-                "WITH hits AS MATERIALIZED (
+                hidden_blocks!(),
+                ", hits AS MATERIALIZED (
                  SELECT s.block_id AS id, bm25(blocks_fts) AS score FROM blocks_fts
                  JOIN search_blocks s ON s.rowid = blocks_fts.rowid
-                 WHERE blocks_fts MATCH ?1 ORDER BY score, s.block_id LIMIT ?2
+                 WHERE blocks_fts MATCH ?1 AND blocks_fts.rowid NOT IN (SELECT rowid FROM hidden)
+                 ORDER BY score, s.block_id LIMIT ?2
              ) SELECT ",
                 block_columns!("b"),
                 " FROM hits h JOIN blocks b ON b.id = h.id ORDER BY h.score, b.id"
@@ -268,10 +290,12 @@ impl Notebook {
             return Ok(Vec::new());
         }
         let mut statement = self.conn.prepare_cached(concat!(
-            "WITH hits AS MATERIALIZED (
+            hidden_blocks!(),
+            ", hits AS MATERIALIZED (
                  SELECT s.block_id AS id, bm25(blocks_fts) AS score FROM blocks_fts
                  JOIN search_blocks s ON s.rowid = blocks_fts.rowid
-                 WHERE blocks_fts MATCH ?1 ORDER BY score, s.block_id LIMIT ?2
+                 WHERE blocks_fts MATCH ?1 AND blocks_fts.rowid NOT IN (SELECT rowid FROM hidden)
+                 ORDER BY score, s.block_id LIMIT ?2
              ) SELECT ",
             block_columns!("b"),
             ", ",

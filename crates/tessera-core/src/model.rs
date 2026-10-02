@@ -135,6 +135,16 @@ pub struct Revision {
     pub revision: i64,
 }
 
+/// A source considered for automatic tag rewriting during a page rename.
+/// Equal-text entries are revision-checked spelling guards for undo.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TextRewrite {
+    pub id: String,
+    pub before: String,
+    pub after: String,
+    pub revision: i64,
+}
+
 /// The result of a committed batch.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Committed {
@@ -145,6 +155,11 @@ pub struct Committed {
     pub revisions: Vec<Revision>,
     /// Deletion events created by `Delete` and `Merge`, in operation order.
     pub deletions: Vec<String>,
+    /// Incoming-tag sources considered by a rename, including equal-text
+    /// guards needed to preserve exact spelling on undo.
+    /// Older persisted receipts predate tag rewriting.
+    #[serde(default)]
+    pub text_rewrites: Vec<TextRewrite>,
     /// True when this is the stored result of an earlier identical batch.
     pub replayed: bool,
 }

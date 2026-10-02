@@ -6,10 +6,12 @@ use sha2::{Digest, Sha256};
 
 use crate::notebook::now_ms;
 use crate::storage::{
-    Stored, derive_links, derive_memberships, not_found, stored, validate_id, validate_text,
-    validation,
+    Stored, derive_links, derive_memberships, not_found, rewrite_tags, stored, tag_names,
+    tag_spelling, tag_title_matches, validate_id, validate_tag_title, validate_text, validation,
 };
-use crate::{Batch, BlockKind, Committed, Error, Notebook, Operation, Result, Revision};
+use crate::{
+    Batch, BlockKind, Committed, Error, Notebook, Operation, Result, Revision, TextRewrite,
+};
 
 const GAP: i64 = 1024;
 
@@ -66,19 +68,29 @@ impl Notebook {
             positions: HashMap::new(),
             deletions: Vec::new(),
             restructured_pages: HashSet::new(),
+            changed_titles: HashSet::new(),
+            pending_renames: Vec::new(),
+            text_rewrites: Vec::new(),
+            rewrite_positions: HashMap::new(),
+            operations: &batch.operations,
+            op_index: 0,
         };
         for (index, operation) in batch.operations.iter().enumerate() {
+            engine.op_index = index;
             engine
                 .operation(operation, index)
                 .map_err(|error| indexed(error, index))?;
         }
+        engine.rewrite_incoming_tags()?;
         engine.derive_tags()?;
+        engine.reconcile_titles()?;
         let mut restructured_pages: Vec<_> = engine.restructured_pages.into_iter().collect();
         restructured_pages.sort_unstable();
         let committed = Committed {
             seq,
             revisions: engine.revisions,
             deletions: engine.deletions,
+            text_rewrites: engine.text_rewrites,
             replayed: false,
         };
         let mut insert = tx.prepare_cached(
@@ -137,6 +149,26 @@ struct Engine<'a, 'conn> {
     positions: HashMap<String, (usize, bool)>,
     deletions: Vec<String>,
     restructured_pages: HashSet<String>,
+    changed_titles: HashSet<String>,
+    pending_renames: Vec<TagRename>,
+    text_rewrites: Vec<TextRewrite>,
+    rewrite_positions: HashMap<String, usize>,
+    operations: &'a [Operation],
+    op_index: usize,
+}
+
+struct TagRename {
+    title_key: String,
+    page_id: String,
+    sources: Vec<String>,
+    op_index: usize,
+}
+
+struct TagReplacement {
+    title_key: String,
+    spelling: String,
+    case_only: bool,
+    op_index: usize,
 }
 
 struct NewBlock<'a> {
@@ -167,6 +199,170 @@ impl Engine<'_, '_> {
         self.positions.get_mut(id).expect("touched block").1 = true;
     }
 
+    fn prepare_tag_rename(
+        &self,
+        current: &Stored,
+        text: &str,
+        title_key: &str,
+        old_key: &str,
+    ) -> Result<Option<TagRename>> {
+        let collision: bool = self
+            .tx
+            .prepare_cached(
+                "SELECT EXISTS(SELECT 1 FROM blocks WHERE kind = 'page' AND deletion_id IS NULL
+             AND title_key = ?1 AND id != ?2)",
+            )?
+            .query_row(params![title_key, current.block.id], |row| row.get(0))?;
+        if collision {
+            return Err(validation(format!("page title already exists: {text}")));
+        }
+        let mut sources = HashSet::new();
+        let mut incoming = self.tx.prepare_cached(
+            "SELECT b.id, b.text FROM memberships m JOIN blocks b ON b.id = m.block_id
+             WHERE m.title_key = ?1 AND b.deletion_id IS NULL ORDER BY m.block_id",
+        )?;
+        for row in incoming.query_map([old_key], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })? {
+            let (id, source) = row?;
+            if tag_names(&source).any(|name| tag_title_matches(name, old_key)) {
+                sources.insert(id);
+            }
+        }
+        // Membership derivation is deferred. Include newly inserted or edited
+        // sources that already refer to the old live title at this operation.
+        for revision in &self.revisions {
+            if !self.positions[&revision.id].1 || sources.contains(&revision.id) {
+                continue;
+            }
+            let source: Option<String> = self
+                .tx
+                .prepare_cached("SELECT text FROM blocks WHERE id = ?1 AND deletion_id IS NULL")?
+                .query_row([&revision.id], |row| row.get(0))
+                .optional()?;
+            if source.is_some_and(|source| {
+                tag_names(&source).any(|name| tag_title_matches(name, old_key))
+            }) {
+                sources.insert(revision.id.clone());
+            }
+        }
+        if sources.is_empty() {
+            if self
+                .pending_renames
+                .iter()
+                .any(|rename| rename.page_id == current.block.id)
+            {
+                validate_tag_title(text)?;
+            }
+            return Ok(None);
+        }
+        validate_tag_title(text)?;
+        let mut sources: Vec<_> = sources.into_iter().collect();
+        sources.sort_unstable();
+        Ok(Some(TagRename {
+            page_id: current.block.id.clone(),
+            title_key: old_key.to_owned(),
+            sources,
+            op_index: self.op_index,
+        }))
+    }
+
+    /// Explicit source inverses run before automatic rewriting. For case-only
+    /// renames they remain authoritative, even when the guard edit is a no-op.
+    fn rewrite_incoming_tags(&mut self) -> Result<()> {
+        let operations = self.operations;
+        let mut explicitly_edited: Option<HashSet<&str>> = None;
+        while !self.pending_renames.is_empty() {
+            let mut replacements = Vec::new();
+            let mut source_plans: HashMap<String, Vec<usize>> = HashMap::new();
+            for rename in std::mem::take(&mut self.pending_renames) {
+                let target: Option<(String, bool)> = self
+                    .tx
+                    .prepare_cached(
+                        "SELECT text, title_key = ?2 FROM blocks WHERE id = ?1 AND deletion_id IS NULL",
+                    )?
+                    .query_row(params![rename.page_id, rename.title_key], |row| Ok((row.get(0)?, row.get(1)?)))
+                    .optional()?;
+                let Some((title, case_only)) = target else { continue };
+                let spelling =
+                    tag_spelling(&title).map_err(|error| indexed(error, rename.op_index))?;
+                let position = replacements.len();
+                replacements.push(TagReplacement {
+                    title_key: rename.title_key,
+                    spelling,
+                    case_only,
+                    op_index: rename.op_index,
+                });
+                for id in rename.sources {
+                    source_plans.entry(id).or_default().push(position);
+                }
+            }
+            let mut sources: Vec<_> = source_plans.into_iter().collect();
+            sources.sort_unstable_by(|(left, _), (right, _)| left.cmp(right));
+            for (id, plans) in sources {
+                let Some(current) =
+                    stored(self.tx, &id)?.filter(|source| source.deletion_id.is_none())
+                else {
+                    continue;
+                };
+                let preserve_spelling = plans.iter().any(|index| replacements[*index].case_only)
+                    && explicitly_edited
+                        .get_or_insert_with(|| {
+                            operations
+                                .iter()
+                                .filter_map(|operation| match operation {
+                                    Operation::EditText { id, .. } => Some(id.as_str()),
+                                    _ => None,
+                                })
+                                .collect()
+                        })
+                        .contains(id.as_str());
+                let mut matched = false;
+                let text = rewrite_tags(&current.block.text, |title| {
+                    // The first captured association owns an original token,
+                    // even if another page subsequently reuses that old title.
+                    let folded = (!title.is_ascii()).then(|| title.to_lowercase());
+                    let replacement = plans.iter().find_map(|index| {
+                        let replacement = &replacements[*index];
+                        let matches = folded.as_ref().map_or_else(
+                            || title.eq_ignore_ascii_case(&replacement.title_key),
+                            |title_key| title_key == &replacement.title_key,
+                        );
+                        matches.then_some(replacement)
+                    })?;
+                    matched = true;
+                    (!(preserve_spelling && replacement.case_only))
+                        .then_some(replacement.spelling.as_str())
+                });
+                if !matched {
+                    continue;
+                }
+                self.op_index = replacements[plans[0]].op_index;
+                let (text, revision) = if let Some(text) = text {
+                    self.edit(&current, &text)
+                        .map_err(|error| indexed(error, self.op_index))?;
+                    (text, current.block.revision + 1)
+                } else {
+                    (current.block.text.clone(), current.block.revision)
+                };
+                if let Some(position) = self.rewrite_positions.get(&id) {
+                    self.text_rewrites[*position].after = text;
+                    self.text_rewrites[*position].revision = revision;
+                } else {
+                    self.rewrite_positions
+                        .insert(id.clone(), self.text_rewrites.len());
+                    self.text_rewrites.push(TextRewrite {
+                        id,
+                        before: current.block.text,
+                        after: text,
+                        revision,
+                    });
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// Resolve against the final live titles, so an explicitly-created page
     /// later in the batch wins over automatic creation.
     fn derive_tags(&mut self) -> Result<()> {
@@ -182,8 +378,12 @@ impl Engine<'_, '_> {
                     .query_row([id], |row| row.get(0))
                     .optional()?;
                 if let Some(text) = text {
-                    let created = derive_memberships(self.tx, id, &text, self.now)?;
+                    let created = derive_memberships(self.tx, id, &text, self.now, true)?;
                     for revision in created {
+                        let title_key = self.tx.prepare_cached(
+                            "SELECT title_key FROM blocks WHERE id = ?1",
+                        )?.query_row([&revision.id], |row| row.get(0))?;
+                        self.changed_titles.insert(title_key);
                         self.touch(&revision.id, revision.revision);
                         self.tags_changed(&revision.id);
                         self.restructured_pages.insert(revision.id);
@@ -191,6 +391,20 @@ impl Engine<'_, '_> {
                 }
             }
             position += 1;
+        }
+        Ok(())
+    }
+
+    fn reconcile_titles(&self) -> Result<()> {
+        let mut update = self.tx.prepare_cached(
+            "WITH target AS (
+                 SELECT id FROM blocks WHERE kind = 'page' AND deletion_id IS NULL AND title_key = ?1
+             )
+             UPDATE memberships SET type_id = (SELECT id FROM target)
+             WHERE title_key = ?1 AND type_id IS NOT (SELECT id FROM target)",
+        )?;
+        for title_key in &self.changed_titles {
+            update.execute([title_key])?;
         }
         Ok(())
     }
@@ -263,6 +477,9 @@ impl Engine<'_, '_> {
             "INSERT INTO blocks(id, kind, parent_id, page_id, ordinal, text, title_key, heading, revision, created_at, updated_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 1, ?9, ?9)",
         )?.execute(params![id, kind, parent, page, ordinal, text, title_key, heading, self.now])?;
+        if let Some(title_key) = title_key {
+            self.changed_titles.insert(title_key);
+        }
         derive_links(self.tx, id, text)?;
         self.touch(id, 1);
         self.tags_changed(id);
@@ -276,12 +493,25 @@ impl Engine<'_, '_> {
             return Ok(());
         }
         let title_key = (current.block.kind == BlockKind::Page).then(|| text.to_lowercase());
+        let old_key = title_key.as_ref().map(|_| current.block.text.to_lowercase());
+        let rename = if let Some(title_key) = title_key.as_deref() {
+            self.prepare_tag_rename(current, text, title_key, old_key.as_deref().expect("page title"))?
+        } else {
+            None
+        };
         self.tx.prepare_cached(
             "UPDATE blocks SET text = ?1, title_key = ?2, revision = revision + 1, updated_at = ?3 WHERE id = ?4",
         )?.execute(params![text, title_key, self.now, current.block.id])?;
+        if let Some(title_key) = title_key {
+            self.changed_titles.insert(title_key);
+            self.changed_titles.insert(old_key.expect("page title"));
+        }
         derive_links(self.tx, &current.block.id, text)?;
         self.touch(&current.block.id, current.block.revision + 1);
         self.tags_changed(&current.block.id);
+        if let Some(rename) = rename {
+            self.pending_renames.push(rename);
+        }
         Ok(())
     }
 
@@ -309,8 +539,11 @@ impl Engine<'_, '_> {
     }
 
     fn delete(&mut self, id: &str) -> Result<()> {
-        let page = self.live(id)?.block.page_id;
-        self.restructured_pages.insert(page);
+        let current = self.live(id)?;
+        if current.block.kind == BlockKind::Page {
+            self.changed_titles.insert(current.block.text.to_lowercase());
+        }
+        self.restructured_pages.insert(current.block.page_id);
         let event = self.event()?;
         for (id, revision, deletion) in self.subtree(id)? {
             if deletion.is_none() {
@@ -346,6 +579,9 @@ impl Engine<'_, '_> {
                 self.tx.prepare_cached(
                     "UPDATE blocks SET deletion_id = NULL, ordinal = ?1, revision = revision + 1, updated_at = ?2 WHERE id = ?3",
                 )?.execute(params![ordinal, self.now, id])?;
+                if row.block.kind == BlockKind::Page {
+                    self.changed_titles.insert(row.block.text.to_lowercase());
+                }
                 self.touch(&id, revision + 1);
                 self.tags_changed(&id);
             }
@@ -443,12 +679,13 @@ impl Engine<'_, '_> {
         let siblings = self
             .tx
             .prepare_cached(
-                "SELECT id FROM blocks WHERE parent_id = ?1 AND deletion_id IS NULL
+                "SELECT id FROM blocks WHERE parent_id = ?1
              AND (?2 IS NULL OR id != ?2) ORDER BY ordinal, id",
             )?
             .query_map(params![parent, excluded], |row| row.get::<_, String>(0))?
             .collect::<rusqlite::Result<Vec<_>>>()?;
-        // Rebalancing preserves logical order and does not invalidate sibling revisions.
+        // Rebalance tombstones too, preserving restore positions in the same
+        // coordinate system without invalidating authored sibling revisions.
         let mut update = self
             .tx
             .prepare_cached("UPDATE blocks SET ordinal = ?1 WHERE id = ?2")?;
