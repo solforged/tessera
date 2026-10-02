@@ -41,6 +41,8 @@ export class Notebook implements NotebookClient, DocumentHost {
   private revision = createSignal(0);
   private observedSequence = createSignal(0);
   changeSequence = this.observedSequence[0];
+  private observedChange = createSignal<ChangeEvent | null>(null);
+  lastChange = this.observedChange[0];
   private failure = '';
   private persistenceFailure = '';
   private sending = false;
@@ -636,6 +638,8 @@ export class Notebook implements NotebookClient, DocumentHost {
       for (const id of event.restructured_pages) pages.add(id);
     }
     await this.reconcile([...blocks.values()], [...removed], [...pages]);
+    const views = [...new Set(events.filter(event => event.seq > this.seq).flatMap(event => event.views ?? []))];
+    this.observedChange[1]({ ...events.at(-1)!, views });
     this.seq = Math.max(this.seq, events.at(-1)!.seq);
     this.observedSequence[1](seq => Math.max(seq, this.seq));
     this.touch();
@@ -644,6 +648,7 @@ export class Notebook implements NotebookClient, DocumentHost {
     if (event.seq <= this.seq) return;
     if (event.actor.kind !== 'client' || event.actor.name !== this.actorName) await this.reconcile(event.blocks, event.removed, event.restructured_pages);
     this.seq = event.seq;
+    this.observedChange[1]({ ...event, views: event.views ?? [] });
     this.observedSequence[1](seq => Math.max(seq, event.seq));
     this.touch();
   }

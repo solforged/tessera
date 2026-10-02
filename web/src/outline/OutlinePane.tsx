@@ -1,12 +1,14 @@
-import { For, Show, createEffect, createMemo, createResource, createSignal, onCleanup, onMount, untrack } from 'solid-js';
+import { For, Show, createEffect, createMemo, createResource, createRoot, createSignal, onCleanup, onMount, untrack } from 'solid-js';
 import type { Accessor } from 'solid-js';
 import { createVirtualizer, defaultRangeExtractor } from '@tanstack/solid-virtual';
 import type { EditorView } from '@codemirror/view';
 import type { VirtualItem } from '@tanstack/solid-virtual';
-import type { Block } from '../api/types';
+import type { Block, FieldDefinition } from '../api/types';
 import { api } from '../api/client';
-import type { Caret, Edit, EditResult, PageDocument, TextRange } from '../document/contract';
+import type { Caret, Edit, EditResult, NotebookClient, PageDocument, TextRange } from '../document/contract';
 import type { Command, OutlinePaneProps, ViewState } from '../shell/contract';
+import { fieldEntryId, fieldEntryText, matchFieldEntry } from '../table/query';
+import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
 import type { MenuItem } from '../ui/Menu';
@@ -19,8 +21,58 @@ import './outline.css';
 interface Completion { from: number; to: number; query: string }
 interface MenuState { anchor: HTMLElement; items: MenuItem[]; label: string }
 interface RowRange { anchor: string; head: string }
+type CompletionRow = { kind: 'block'; block: Block } | { kind: 'field'; field: FieldDefinition };
 const storedFolds = new Map<string, Set<string>>();
 const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+const fieldCreations = new WeakMap<NotebookClient, Map<string, Promise<FieldDefinition>>>();
+
+function documentReady(doc: PageDocument): Promise<void> {
+  const { promise, resolve, reject } = Promise.withResolvers<void>();
+  createRoot(dispose => {
+    createEffect(() => {
+      const status = doc.status();
+      if (status === 'loading') return;
+      const message = doc.statusMessage();
+      dispose();
+      if (status === 'ready') resolve();
+      else reject(new Error(message));
+    });
+  });
+  return promise;
+}
+
+function ensureField(notebook: NotebookClient, name: string): Promise<FieldDefinition> {
+  const pending = fieldCreations.get(notebook) ?? new Map<string, Promise<FieldDefinition>>();
+  fieldCreations.set(notebook, pending);
+  const key = name.toLowerCase();
+  const existing = pending.get(key);
+  if (existing) return existing;
+  const creation = (async () => {
+    const result = await api.fields();
+    const definition = result.fields.find(field => field.name.toLowerCase() === key);
+    if (definition) return definition;
+    const fieldsDoc = notebook.open(result.page_id);
+    try {
+      await documentReady(fieldsDoc);
+      // An empty page is seeded with one blank block on load; name it instead of adding a sibling.
+      let blank: string | undefined;
+      for (const id of fieldsDoc.outline.children(result.page_id)) {
+        const block = fieldsDoc.block(id);
+        if (!block || block.archived) continue;
+        if (block.text.toLowerCase() === key) return { id, name: block.text, kind: 'text' as const, revision: block.revision, options: [] };
+        if (!block.text.trim() && !blank) blank = id;
+      }
+      const written = blank
+        ? fieldsDoc.edit({ kind: 'text', id: blank, text: name })
+        : fieldsDoc.edit({ kind: 'insert', parentId: result.page_id, after: fieldsDoc.outline.children(result.page_id).at(-1) ?? null, text: name });
+      if (!written.ok) throw new Error(written.reason);
+      return { id: blank ?? written.created[0]!, name, kind: 'text' as const, revision: 0, options: [] };
+    } finally { fieldsDoc.release(); }
+  })();
+  pending.set(key, creation);
+  void creation.then(() => pending.delete(key), () => pending.delete(key));
+  return creation;
+}
 
 export function OutlinePane(props: OutlinePaneProps) {
   return <Show keyed when={props.pageId}>{pageId => <Pane {...props} pageId={pageId} />}</Show>;
@@ -64,6 +116,78 @@ function Pane(props: OutlinePaneProps) {
   let drag: { anchor: Caret; moved: boolean; native: boolean } | null = null;
   let compositionSelection: { range: TextRange; id: string; original: string; from: number; to: number; committed?: string } | null = null;
   let compositionFrame = 0;
+  const pendingFieldEntries = new Set<string>();
+  const [createdFields, setCreatedFields] = createSignal<FieldDefinition[]>([]);
+  const [fields] = createResource(() => props.notebook.changeSequence(), () => api.fields());
+  const definitions = createMemo(() => {
+    const result = new Map((fields.error ? [] : fields()?.fields ?? []).map(field => [field.id, field]));
+    for (const field of createdFields()) if (!result.has(field.id)) result.set(field.id, field);
+    return [...result.values()].filter(field => {
+      const block = props.notebook.lookup(field.id)();
+      return block !== null && !block?.archived;
+    });
+  });
+  const definitionsById = createMemo(() => new Map(definitions().map(field => [field.id, field])));
+  const [type] = createResource(
+    () => doc.root()?.kind === 'page' ? [props.pageId, props.notebook.changeSequence()] as const : false,
+    ([pageId]) => api.type(pageId),
+  );
+
+  function commitFieldEntry(id: string, focus = true): boolean {
+    if (disposed || composition()) return false;
+    if (pendingFieldEntries.has(id)) return true;
+    const original = doc.block(id)?.text;
+    if (original === undefined) return false;
+    const match = matchFieldEntry(original);
+    if (!match) return false;
+    pendingFieldEntries.add(id);
+    const before = caret()?.id === id ? { ...caret()! } : { id, offset: original.length };
+    const epoch = focusEpoch;
+    const heldDoc = props.notebook.open(props.pageId);
+    setCompletion(null);
+    void (async () => {
+      try {
+        const field = await ensureField(props.notebook, match.name);
+        if (!disposed) setCreatedFields(previous => previous.some(existing => existing.id === field.id) ? previous : [...previous, field]);
+        if (heldDoc.block(id)?.text !== original) return;
+        let result: EditResult;
+        // The existing paste transaction rewrites the label and inserts a
+        // first child atomically. Literal leading whitespace needs two edits.
+        if (match.value === match.value.trimStart()) {
+          result = heldDoc.edit({
+            kind: 'replaceRange', range: { anchor: { id, offset: 0 }, head: { id, offset: original.length } },
+            between: [], text: `${fieldEntryText(field.id)}\n  ${match.value}`, mode: 'paste',
+          }, before);
+        } else {
+          result = heldDoc.edit({ kind: 'text', id, text: fieldEntryText(field.id) }, before);
+          if (result.ok) {
+            result = heldDoc.edit({ kind: 'insert', parentId: id, after: null, text: match.value }, before);
+            if (result.ok && result.caret) result = { ...result, caret: { ...result.caret, offset: match.value.length } };
+          }
+        }
+        if (!result.ok) throw new Error(result.reason);
+        if (disposed) return;
+        setMessage('');
+        setFolds(previous => { const next = new Set(previous); next.delete(id); return next; });
+        if (result.caret && focusEpoch === epoch) {
+          const next = result.caret;
+          setSelected(next.id);
+          setCaret(next);
+          setRowRange(null);
+          setTextRange(null);
+          setEditing(next.id);
+          if (focus && props.active) queueMicrotask(() => editAt(next.id, next.offset, true, true, false));
+        }
+        scheduleReport();
+      } catch (error) {
+        if (!disposed) setMessage(error instanceof Error ? error.message : String(error));
+      } finally {
+        pendingFieldEntries.delete(id);
+        heldDoc.release();
+      }
+    })();
+    return true;
+  }
 
   const ids = createMemo(() => {
     doc.outline.version();
@@ -170,6 +294,8 @@ function Pane(props: OutlinePaneProps) {
   }
   function editAt(id: string, offset = 0, insert = !props.vim, reveal = true, activate = true) {
     if (disposed || composition() || !indices().has(id)) return;
+    const previous = editing();
+    if (previous && previous !== id && commitFieldEntry(previous)) return;
     if (activate) props.onActivate();
     offset = Math.max(0, Math.min(offset, doc.block(id)?.text.length ?? 0));
     setSelected(id);
@@ -197,6 +323,8 @@ function Pane(props: OutlinePaneProps) {
   }
   function rowFocus(id: string, extend = false) {
     if (disposed || composition() || !indices().has(id)) return;
+    const previous = editing();
+    if (previous && commitFieldEntry(previous)) return;
     focusEpoch++;
     focusRequest = null;
     props.onActivate();
@@ -279,6 +407,7 @@ function Pane(props: OutlinePaneProps) {
   }
   function zoomTo(id: string | null) {
     if (composition()) return;
+    if (editing() && commitFieldEntry(editing()!)) return;
     setZoom(id);
     setRowRange(null);
     setTextRange(null);
@@ -309,7 +438,10 @@ function Pane(props: OutlinePaneProps) {
     const id = ids()[Math.max(0, Math.min(ids().length - 1, index + direction))];
     if (id) rowFocus(id, extend);
   }
-  function split(_view: EditorView) { replaceSelection('', 'split'); }
+  function split(_view: EditorView) {
+    if (editing() && commitFieldEntry(editing()!)) return;
+    replaceSelection('', 'split');
+  }
   function backspace(view: EditorView) {
     if (textRange()) { deleteTextRange(); return true; }
     const id = editing();
@@ -336,6 +468,7 @@ function Pane(props: OutlinePaneProps) {
     const index = indices().get(editing() ?? '') ?? -1;
     const id = ids()[index + direction];
     if (!id) return false;
+    if (editing() && commitFieldEntry(editing()!)) return true;
     const offset = direction < 0 ? (doc.block(id)?.text.length ?? 0) : 0;
     const anchor = textRange()?.anchor ?? { id: editing()!, offset: view.state.selection.main.anchor };
     editAt(id, offset, true);
@@ -378,12 +511,18 @@ function Pane(props: OutlinePaneProps) {
     return false;
   }
   function commonKey(event: KeyboardEvent) {
+    if (event.metaKey && event.shiftKey && event.key.toLowerCase() === 't') { openTable(false); return true; }
     if (event.metaKey && event.key.toLowerCase() === 'z') { undo(event.shiftKey); return true; }
     if (event.metaKey && event.key === 'Enter') { event.shiftKey ? zoomOut() : selected() && zoomTo(selected()); return true; }
     if (event.altKey && ['ArrowUp', 'ArrowDown'].includes(event.key)) { apply({ kind: 'move', ids: roots(), direction: event.key === 'ArrowUp' ? 'up' : 'down' }); return true; }
     return false;
   }
   function structuralKey(event: KeyboardEvent) {
+    if (!event.defaultPrevented && !event.isComposing && !composition() && props.active && event.metaKey && event.shiftKey && event.key.toLowerCase() === 't') {
+      event.preventDefault();
+      openTable(false);
+      return;
+    }
     if (event.target === scroll && !event.isComposing && !composition()) {
       if (textRange() && event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey) { event.preventDefault(); replaceSelection(event.key, 'text'); return; }
       if (editing() && editor?.id === editing()) {
@@ -447,8 +586,19 @@ function Pane(props: OutlinePaneProps) {
     setCompletion(next);
   }
   const [matches] = createResource(() => completion()?.query, query => api.complete(query));
-  const completionRows = createMemo(() => matches.error ? [] : matches() ?? []);
-  const canCreate = createMemo(() => !!completion()?.query.trim() && !matches.loading && !matches.error && completionRows().length === 0);
+  const completionRows = createMemo<CompletionRow[]>(() => {
+    const query = completion()?.query.toLowerCase() ?? '';
+    const matchingFields = definitions().filter(field => field.name.toLowerCase().includes(query));
+    const byId = new Map(matchingFields.map(field => [field.id, field]));
+    const rows: CompletionRow[] = (matches.error ? [] : matches() ?? []).map(block => {
+      const field = byId.get(block.id);
+      byId.delete(block.id);
+      return field ? { kind: 'field', field } : { kind: 'block', block };
+    });
+    for (const field of byId.values()) rows.push({ kind: 'field', field });
+    return rows;
+  });
+  const canCreate = createMemo(() => !!completion()?.query.trim() && !matches.loading && !matches.error && !fields.loading && !fields.error && completionRows().length === 0);
   createEffect(() => {
     completionIndex();
     completionRows();
@@ -466,9 +616,10 @@ function Pane(props: OutlinePaneProps) {
     editor.view.focus();
   }
   async function chooseCompletion(index = completionIndex()) {
+    const row = completionRows()[index];
+    if (row?.kind === 'field') { insertReference(row.field.id); return; }
     if (matches.loading || matches.error) return;
-    const block = completionRows()[index];
-    if (block) { insertReference(block.id); return; }
+    if (row) { insertReference(row.block.id); return; }
     if (canCreate()) {
       try { const id = await props.notebook.createPage(completion()!.query.trim()); insertReference(id); }
       catch (error) { setMessage(error instanceof Error ? error.message : String(error)); }
@@ -485,17 +636,22 @@ function Pane(props: OutlinePaneProps) {
     if (result.ok) { setRenaming(false); setMessage(''); }
     else { setMessage(result.reason); titleInput?.focus(); }
   }
+  function openTable(beside: boolean) {
+    if (doc.root()?.kind !== 'page') return;
+    if (editing()) commitFieldEntry(editing()!, false);
+    props.onOpen({ kind: 'table', typeId: props.pageId, viewId: null, query: { type: props.pageId, text: null, filters: [], sort: [], limit: null } }, beside);
+  }
   function openSelected(beside: boolean) {
     const id = selected();
     if (!id) return;
     const reference = textTokens(doc.block(id)?.text ?? '').find(token => token.kind === 'reference');
     const target = reference?.id ? props.notebook.lookup(reference.id)() : null;
-    props.onOpen(target ? { pageId: target.page_id, blockId: target.kind === 'block' ? target.id : undefined } : { pageId: props.pageId, blockId: id }, beside);
+    props.onOpen(target ? { kind: 'page', pageId: target.page_id, blockId: target.kind === 'block' ? target.id : undefined } : { kind: 'page', pageId: props.pageId, blockId: id }, beside);
   }
   function copy(text: string) { void navigator.clipboard.writeText(text).catch(error => setMessage(`Couldn't copy: ${String(error)}`)); }
   function referenceMenu(id: string, anchor: HTMLElement) {
     const block = props.notebook.lookup(id)();
-    const open = (beside: boolean) => block && props.onOpen({ pageId: block.page_id, blockId: block.kind === 'block' ? id : undefined }, beside);
+    const open = (beside: boolean) => block && props.onOpen({ kind: 'page', pageId: block.page_id, blockId: block.kind === 'block' ? id : undefined }, beside);
     setMenu({ anchor, label: 'Reference actions', items: [
       { label: 'Open here', icon: 'link', disabledReason: block ? undefined : 'The reference is unresolved.', action: () => open(false) },
       { label: 'Open beside', icon: 'panes', disabledReason: block ? undefined : 'The reference is unresolved.', action: () => open(true) },
@@ -504,6 +660,7 @@ function Pane(props: OutlinePaneProps) {
   }
   const commandDefinitions: Command[] = [
     { id: 'rename', title: 'Rename page', section: 'Page', disabledReason: () => doc.root()?.kind === 'page' ? undefined : 'Journal dates cannot be renamed.', run: rename },
+    { id: 'open-table', title: 'Open as table', section: 'Page', keys: ['⌘⇧T'], disabledReason: () => doc.root()?.kind === 'page' ? undefined : 'Journal days cannot be opened as tables.', run: () => openTable(false) },
     { id: 'previous-row', title: 'Select previous block', section: 'Navigation', keys: ['↑', 'k'], run: () => adjacent(-1) },
     { id: 'next-row', title: 'Select next block', section: 'Navigation', keys: ['↓', 'j'], run: () => adjacent(1) },
     { id: 'parent', title: 'Fold children / select parent', section: 'Navigation', keys: ['←', 'h'], run: () => horizontal('left') },
@@ -553,7 +710,7 @@ function Pane(props: OutlinePaneProps) {
   const unregister = props.commands.register(commands);
   function blockMenu(id: string, anchor: HTMLElement) {
     if (!selectedSet().has(id)) rowFocus(id);
-    setMenu({ anchor, label: 'Block actions', items: commands.filter(command => !command.id.endsWith('.rename')).map(command => ({ label: command.title, shortcut: command.keys?.[0], disabledReason: command.disabledReason?.(), danger: command.id.endsWith('.delete'), action: command.run })) });
+    setMenu({ anchor, label: 'Block actions', items: commands.filter(command => command.section !== 'Page').map(command => ({ label: command.title, shortcut: command.keys?.[0], disabledReason: command.disabledReason?.(), danger: command.id.endsWith('.delete'), action: command.run })) });
   }
 
   function selectedOffsets(id: string): [number, number] | null {
@@ -565,6 +722,7 @@ function Pane(props: OutlinePaneProps) {
   function pointerStart(event: MouseEvent, id: string, element: HTMLElement) {
     if (event.button !== 0 || (event.target as HTMLElement).closest('button')) return;
     if (event.shiftKey) { event.preventDefault(); rowFocus(id, true); return; }
+    if (editing() && editing() !== id && commitFieldEntry(editing()!)) { event.preventDefault(); return; }
     const text = doc.block(id)?.text ?? '';
     const native = editor?.id === id && editor.view.dom.contains(event.target as Node);
     const offset = native ? editor!.view.posAtCoords({ x: event.clientX, y: event.clientY }) ?? 0 : offsetAtPoint(element, text, event.clientX, event.clientY);
@@ -591,6 +749,7 @@ function Pane(props: OutlinePaneProps) {
   function pointerEnd() {
     if (drag?.moved && textRange()) {
       const range = textRange()!;
+      if (editing() && editing() !== range.head.id && commitFieldEntry(editing()!)) { drag = null; return; }
       editAt(range.head.id, range.head.offset, true, false);
       setTextRange(range);
       queueMicrotask(() => { if (!disposed && props.active) restoreSelection(range); });
@@ -681,6 +840,7 @@ function Pane(props: OutlinePaneProps) {
     onCleanup(() => { scroll.removeEventListener('copy', copy, true); scroll.removeEventListener('cut', cut, true); scroll.removeEventListener('paste', paste, true); scroll.removeEventListener('beforeinput', beforeInput, true); cancelAnimationFrame(compositionFrame); });
     editor = new PaneEditor({
       key: editorKey,
+      blur: () => { if (editor?.id && editing() === editor.id) commitFieldEntry(editor.id, false); },
       text: (text, at) => measure('typing', () => {
         if (compositionSelection) return;
         const heading = /^(#{1,3}) $/.exec(text);
@@ -742,25 +902,35 @@ function Pane(props: OutlinePaneProps) {
     if (id && !visible.includes(id) && !composition()) { setEditing(null); const first = visible[0] ?? null; setSelected(first); setCaret(first ? { id: first, offset: 0 } : null); }
   });
   createEffect(() => { storedFolds.set(`${props.pane}:${props.pageId}`, new Set(folds())); });
-  onCleanup(() => { disposed = true; unregister(); doc.release(); editor?.destroy(); cancelAnimationFrame(reportingFrame); cancelAnimationFrame(anchorFrame); });
+  onCleanup(() => {
+    if (editing()) commitFieldEntry(editing()!, false);
+    disposed = true;
+    unregister();
+    doc.release();
+    editor?.destroy();
+    cancelAnimationFrame(reportingFrame);
+    cancelAnimationFrame(anchorFrame);
+  });
 
   function Row(propsRow: { id: string; item: Accessor<VirtualItem> }) {
     const id = () => propsRow.id;
     const block = () => doc.block(id());
     const children = () => doc.outline.children(id()).length > 0;
+    const field = createMemo(() => definitionsById().get(fieldEntryId(block()?.text ?? '') ?? ''));
     let row!: HTMLDivElement;
     onMount(() => virtualizer.measureElement(row));
     onCleanup(() => { const host = hosts.get(id()); if (host && row.contains(host)) hosts.delete(id()); });
     return <div ref={row} id={`outline-${props.pane}-${id()}`} data-index={propsRow.item().index} data-block-id={id()} role="treeitem" aria-level={doc.outline.depth(id()) - baseDepth() + 1}
       aria-expanded={children() ? !folds().has(id()) : undefined} aria-selected={selectedSet().has(id())}
-      class="outline-row" classList={{ 'row-selected': selectedSet().has(id()) && editing() !== id(), 'row-editing': editing() === id(), 'row-archived': block()?.archived ?? false }}
+      class="outline-row" classList={{ 'row-selected': selectedSet().has(id()) && editing() !== id(), 'row-editing': editing() === id(), 'row-archived': block()?.archived ?? false, 'field-entry': !!field() }}
       style={{ transform: `translateY(${propsRow.item().start - margin()}px)`, '--depth': doc.outline.depth(id()) - baseDepth() }}>
       <button type="button" class="row-menu icon-button" aria-label="Block actions" onClick={event => blockMenu(id(), event.currentTarget)}><Icon name="more" /></button>
       <button type="button" class="row-fold icon-button" classList={{ 'fold-empty': !children() }} aria-label={folds().has(id()) ? 'Unfold children' : 'Fold children'} disabled={!children()} onClick={() => fold(id())}><Icon name={folds().has(id()) ? 'right' : 'down'} /></button>
       <button type="button" class="row-bullet icon-button" classList={{ 'bullet-collapsed': children() && folds().has(id()) }} aria-label="Zoom into block" onClick={() => zoomTo(id())}><Icon name="bullet" /></button>
       <div class="outline-body" classList={{ 'heading-1': block()?.heading === 1, 'heading-2': block()?.heading === 2, 'heading-3': block()?.heading === 3 }} onMouseDown={event => pointerStart(event, id(), event.currentTarget)}>
+        <Show when={field() && editing() === id()}><Icon name="field" class="field-entry-icon" /></Show>
         <div class="editor-host" classList={{ 'host-active': editing() === id() }} ref={host => attach(id(), host)} />
-        <Show when={editing() !== id()}><div class="static-text"><BlockText text={block()?.text ?? ''} notebook={props.notebook} onOpen={props.onOpen} onReferenceMenu={referenceMenu} selection={selectedOffsets(id())} /><Show when={!block()?.text}><span class="empty-block">Empty block</span></Show></div></Show>
+        <Show when={editing() !== id()}><div class="static-text"><BlockText text={block()?.text ?? ''} field={field()} notebook={props.notebook} onOpen={props.onOpen} onReferenceMenu={referenceMenu} selection={selectedOffsets(id())} /><Show when={!block()?.text}><span class="empty-block">Empty block</span></Show></div></Show>
         <Show when={block()?.archived}><span class="archive-badge">Archived</span> <button class="text-button" type="button" onClick={() => apply({ kind: 'archive', id: id(), archived: false }, false)}>Unarchive</button></Show>
         <Show when={block()?.conflict}><button type="button" class="conflict-label" onClick={() => setConflicts(previous => { const next = new Set(previous); next.has(id()) ? next.delete(id()) : next.add(id()); return next; })}><Icon name="warning" />Conflict</button></Show>
         <Show when={block()?.conflict && conflicts().has(id())}><div class="conflict-panel">
@@ -781,10 +951,10 @@ function Pane(props: OutlinePaneProps) {
       <Show when={!related.error} fallback={<p role="alert">Couldn't load related blocks.</p>}>
       <Show when={propsRelated.rows.length} fallback={<p class="empty-state">{propsRelated.empty}</p>}><For each={propsRelated.rows}>{result => {
         const live = props.notebook.lookup(result.block.id);
-        return <div class="related-block"><div class="related-open" role="link" tabIndex={0} onKeyDown={event => { if (event.key === 'Enter') props.onOpen({ pageId: result.page.id, blockId: result.block.id }, event.shiftKey); }} onClick={event => props.onOpen({ pageId: result.page.id, blockId: result.block.id }, event.shiftKey)}>
+        return <div class="related-block"><div class="related-open" role="link" tabIndex={0} onKeyDown={event => { if (event.key === 'Enter') props.onOpen({ kind: 'page', pageId: result.page.id, blockId: result.block.id }, event.shiftKey); }} onClick={event => props.onOpen({ kind: 'page', pageId: result.page.id, blockId: result.block.id }, event.shiftKey)}>
           <span class="related-breadcrumb"><BlockBreadcrumb block={result.block} notebook={props.notebook} /></span>
           <BlockText text={live()?.text ?? result.block.text} notebook={props.notebook} onOpen={props.onOpen} />
-        </div><button type="button" class="text-button" onClick={() => props.onOpen({ pageId: result.page.id, blockId: result.block.id }, true)}>Open beside</button></div>;
+        </div><button type="button" class="text-button" onClick={() => props.onOpen({ kind: 'page', pageId: result.page.id, blockId: result.block.id }, true)}>Open beside</button></div>;
       }}</For></Show>
       </Show>
     </details>;
@@ -793,10 +963,13 @@ function Pane(props: OutlinePaneProps) {
   return <div ref={scroll} class="outline-pane" data-pane={props.pane} tabIndex={0} role="tree" aria-label="Page outline" aria-owns={[...virtualItems().keys()].map(id => `outline-${props.pane}-${id}`).join(' ')} onFocusIn={props.onActivate} onFocusOut={report} onKeyDown={structuralKey} onWheel={() => { anchorEpoch++; cancelAnimationFrame(anchorFrame); }} onScroll={scheduleReport}>
     <div class="outline-heading">
       <Show when={zoom()}><nav class="outline-breadcrumbs" aria-label="Zoom breadcrumbs"><button type="button" onClick={() => zoomTo(null)}>{doc.root()?.text}</button><For each={breadcrumbs()}>{id => <><Icon name="right" /><button type="button" onClick={() => zoomTo(id)}>{doc.block(id)?.text || 'Empty block'}</button></>}</For></nav></Show>
+      <div class="outline-title-row">
       <Show when={renaming()} fallback={<h1><button class="outline-title" type="button" disabled={doc.root()?.kind !== 'page'} onClick={rename}>{doc.root()?.text || 'Loading…'}</button></h1>}>
         <input ref={titleInput} class="title-input" aria-label="Page title" value={title()} onInput={event => setTitle(event.currentTarget.value)} onKeyDown={event => { if (event.isComposing) return; if (event.key === 'Enter') { event.preventDefault(); commitTitle(); } if (event.key === 'Escape') { setRenaming(false); setMessage(''); } }} />
         <button type="button" onClick={commitTitle}>Save title</button><button type="button" onClick={() => setRenaming(false)}>Cancel</button>
       </Show>
+      <Show when={doc.root()?.kind === 'page'}><div class="outline-header-actions"><Button icon="table" label="Table" shortcut="⌘⇧T" onClick={event => openTable(event.metaKey)}>Table<Show when={!type.error && (type()?.members ?? 0) > 0}><span class="table-member-count">{type()?.members}</span></Show></Button></div></Show>
+      </div>
       <Show when={showArchived()}><p class="archive-notice">Showing archived blocks <button type="button" class="text-button" onClick={() => { setShowArchived(false); scheduleReport(); }}>Hide archived</button></p></Show>
       <Show when={message()}><p class="outline-message" role="alert">{message()} <button class="text-button" type="button" onClick={() => setMessage('')}>Dismiss</button></p></Show>
       <Show when={doc.status() === 'error' || doc.status() === 'missing'}><p role="alert">{doc.statusMessage()}</p></Show>
@@ -815,8 +988,9 @@ function Pane(props: OutlinePaneProps) {
       <div ref={completionList} class="reference-completion" onMouseDown={event => event.preventDefault()}>
         <Show when={matches.loading}><p>Searching…</p></Show>
         <Show when={matches.error}><p role="alert">Couldn't load completion.</p></Show>
-        <For each={completionRows()}>{(block, index) => <button type="button" role="option" aria-selected={completionIndex() === index()} classList={{ 'completion-selected': completionIndex() === index() }} onClick={() => void chooseCompletion(index())}>
-          <span class="completion-context"><BlockBreadcrumb block={block} notebook={props.notebook} /></span>{block.text || 'Empty block'}
+        <For each={completionRows()}>{(row, index) => <button type="button" role="option" aria-selected={completionIndex() === index()} classList={{ 'completion-selected': completionIndex() === index() }} onClick={() => void chooseCompletion(index())}>
+          <Show when={row.kind === 'block' ? row.block : null}>{block => <><span class="completion-context"><BlockBreadcrumb block={block()} notebook={props.notebook} /></span>{block().text || 'Empty block'}</>}</Show>
+          <Show when={row.kind === 'field' ? row.field : null}>{field => <>{field().name}<span class="completion-field-suffix">Field</span></>}</Show>
         </button>}</For>
         <Show when={canCreate()}><button type="button" role="option" aria-selected={completionIndex() === 0} onClick={() => void chooseCompletion()}><Icon name="plus" />Create page “{completion()?.query}”</button></Show>
         <Show when={!matches.loading && !matches.error && !canCreate() && !completionRows().length}><p>No matching blocks.</p></Show>

@@ -45,6 +45,7 @@ const [targets, setTargets] = createSignal<{ target: OpenTarget; beside: boolean
 const [sideView, setSideView] = createSignal(fresh);
 function open(target: OpenTarget, beside: boolean) {
   setTargets(previous => [...previous, { target, beside }]);
+  if (target.kind !== 'page') return;
   const next = { ...fresh, zoom: target.blockId ?? null, caret: target.blockId ? { id: target.blockId, offset: 0 } : null };
   if (beside) { setSideView(next); setSide(target.pageId); setActive('side'); }
   else { setInitialView(next); setView(next); setPage(target.pageId); setEpoch(value => value + 1); }

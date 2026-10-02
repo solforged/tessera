@@ -42,9 +42,17 @@ Whether some references should freeze a quotation instead of following edits is 
 
 A block can have many types. Membership records whether it came from the text (`#book`) or was added manually; either keeps it.
 
-A field is defined by a block on the Fields system page. Its kind is text, number, date, checkbox, choice or instance. Options of a choice field are child blocks of the definition. A field entry is a block whose children are the values. Values are plain blocks read through the field's kind; a value that does not fit shows a problem but is never rejected or rewritten. Date values link to the journal day. Choice values link to their option.
+A field is defined by a block on the Fields system page, which every notebook has. Its name is the block's text. Its kind is text, number, date, checkbox, choice or instance; text unless set. Options of a choice field are child blocks of the definition. A field entry is a block whose whole text is one reference to a definition, so it renders as the field's name; the entry's parent owns the field and the entry's children are the values. Typing `Author::` in the editor produces such an entry. Values are plain blocks read through the field's kind; a value that does not fit shows a problem but is never rejected or rewritten. Date values link to the journal day or spell out the date. Choice values link to their option.
 
 Changing a field's kind changes only how values are read.
+
+A type may carry a template: an ordered list of fields that its table shows first. Fields present on members appear after the template, so a template is never required.
+
+## Queries and views
+
+A query names a type, a text search or both, then filters by field values, sorts by title, creation, update or a field, and limits the result. Several values of one field satisfy a filter if any of them does; "is empty" and "is not" hold only when none violates. Missing and unreadable values sort last.
+
+A view is a saved query with a name and a revision. Views are not blocks; saving and deleting them are operations like any other, so they are attributed and undoable. A type table is the unsaved query for that type's members.
 
 ## Tasks
 

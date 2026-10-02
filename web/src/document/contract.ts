@@ -14,7 +14,7 @@
  */
 
 import type { Accessor } from 'solid-js';
-import type { Block, BlockKind } from '../api/types';
+import type { Block, BlockKind, ChangeEvent } from '../api/types';
 
 /** A position in a block's text, in UTF-16 code units. */
 export interface Caret {
@@ -216,4 +216,6 @@ export interface NotebookClient {
   dismissRejected(): void;
   /** Last committed change sequence this window has observed (own or remote). Reactive. */
   changeSequence(): number;
+  /** Latest observed change; catch-up events combine affected view IDs. */
+  lastChange(): ChangeEvent | null;
 }

@@ -5,6 +5,7 @@
  */
 
 import type { Caret, NotebookClient } from '../document/contract';
+import type { Query } from '../api/types';
 
 export type PaneId = 'main' | 'side';
 
@@ -48,11 +49,11 @@ export interface ViewState {
   showArchived: boolean;
 }
 
-export interface OpenTarget {
-  pageId: string;
-  /** Zoom into (and focus) this block on open. */
-  blockId?: string;
-}
+export type OpenTarget =
+  | { kind: 'page'; pageId: string; blockId?: string }
+  | { kind: 'table'; typeId: string | null; viewId: string | null; query: Query };
+
+export interface TableViewState { query: Query; scroll: number }
 
 export interface OutlinePaneProps {
   pane: PaneId;
