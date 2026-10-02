@@ -78,7 +78,11 @@ export type Edit =
    * heading in the same undo step (the `# ` input rule).
    */
   | { kind: 'text'; id: string; text: string; heading?: 1 | 2 | 3 | null }
-  /** Enter: the original keeps its ID, children and the text before `offset`. */
+  /**
+   * Enter: the original keeps its ID, children and text before `offset`.
+   * At a parent's end, insert its first child; otherwise insert a sibling.
+   * A caret inside a complete reference or tag is a no-op.
+   */
   | { kind: 'split'; id: string; offset: number; zoomRoot?: string | null }
   /** A new empty block. */
   | { kind: 'insert'; parentId: string; after: string | null; text?: string }
@@ -109,11 +113,14 @@ export type Edit =
    * rules as `deleteRange`) with `text` as one batch and one undo step.
    * `text` inserts literally, newlines included; `paste` turns lines into
    * sibling blocks with leading indentation nesting them; `split` is Enter
-   * over a selection, heading-aware like `split`.
+   * over a selection, heading-aware like `split`. Empty text deletion expands
+   * partial reference endpoints to whole tokens. `selectionBefore` preserves
+   * the actual selection when key routing supplies an expanded removal range.
    */
   | {
       kind: 'replaceRange';
       range: TextRange;
+      selectionBefore?: TextRange;
       between: string[];
       text: string;
       mode: 'text' | 'paste' | 'split';

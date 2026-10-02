@@ -14,7 +14,9 @@ import { Menu } from '../ui/Menu';
 import type { IconName } from '../ui/Icon';
 import type { MenuItem } from '../ui/Menu';
 import { Popup } from '../ui/Popup';
-import { BlockBreadcrumb, BlockText, offsetAtPoint, textTokens } from './BlockText';
+import { BlockBreadcrumb, BlockText, offsetAtPoint } from './BlockText';
+import { textTokens } from '../document/text-tokens';
+import { boundaryDeletion } from '../document/outline-mechanics';
 import { PaneEditor } from './editor';
 import { orderedRange, selectedText, selectionIds, selectionRoots, visibleIds } from './visibility';
 import { completeReferences } from './completion';
@@ -337,7 +339,7 @@ function Pane(props: OutlinePaneProps) {
     const anchor = rowRange()?.anchor ?? selected() ?? id;
     setRowRange(extend ? { anchor, head: id } : null);
     setSelected(id);
-    setCaret({ id, offset: 0 });
+    if (caret()?.id !== id) setCaret({ id, offset: 0 });
     props.onVimMode(props.vim ? 'outline' : null);
     scroll.focus({ preventScroll: true });
     virtualizer.scrollToIndex(indices().get(id) ?? 0, { align: 'auto' });
@@ -411,10 +413,10 @@ function Pane(props: OutlinePaneProps) {
     const at = { id, offset: caret()?.id === id ? caret()!.offset : 0 };
     return { anchor: at, head: at };
   }
-  function replaceSelection(text: string, mode: 'text' | 'paste' | 'split', range = activeRange()) {
+  function replaceSelection(text: string, mode: 'text' | 'paste' | 'split', range = activeRange(), selectionBefore?: TextRange) {
     if (!range) return;
     const visible = selectionIds(ids(), range);
-    apply({ kind: 'replaceRange', range, between: visible.slice(1, -1), text, mode, zoomRoot: zoom() }, true);
+    apply({ kind: 'replaceRange', range, selectionBefore, between: visible.slice(1, -1), text, mode, zoomRoot: zoom() }, true);
   }
   function deleteTextRange() { if (textRange()) replaceSelection('', 'text'); }
   function fold(id = selected()) {
@@ -467,18 +469,23 @@ function Pane(props: OutlinePaneProps) {
     if (editing() && commitFieldEntry(editing()!)) return;
     replaceSelection('', 'split');
   }
-  function backspace(view: EditorView) {
+  function backspace(view: EditorView, forward = false) {
     if (textRange()) { deleteTextRange(); return true; }
     const id = editing();
-    if (!id || view.state.selection.main.head !== 0 || !view.state.selection.main.empty) return false;
-    const block = doc.block(id)!;
-    if (block.heading) apply({ kind: 'heading', id, level: null });
-    else if (doc.outline.depth(id) > 0) apply({ kind: 'outdent', ids: [id] });
-    else {
-      const siblings = doc.outline.children(props.pageId);
-      const previous = siblings[siblings.indexOf(id) - 1];
-      if (previous) apply({ kind: 'merge', sourceId: id, destinationId: previous });
+    if (!id) return false;
+    const selection = view.state.selection.main;
+    if (!selection.empty) { replaceSelection('', 'text'); return true; }
+    const token = textTokens(view.state.doc.toString()).find(token => token.kind === 'reference' &&
+      (forward ? selection.head >= token.start && selection.head < token.end : selection.head > token.start && selection.head <= token.end));
+    if (token) {
+      const at = { id, offset: selection.head };
+      replaceSelection('', 'text', { anchor: { id, offset: token.start }, head: { id, offset: token.end } }, { anchor: at, head: at });
+      return true;
     }
+    if (selection.head !== (forward ? view.state.doc.length : 0)) return false;
+    const previous = ids()[(indices().get(id) ?? 0) - 1] ?? null;
+    const intent = boundaryDeletion(doc, id, forward ? 'forward' : 'backward', previous);
+    if (intent) apply(intent);
     return true;
   }
   function crossArrow(event: KeyboardEvent, view: EditorView) {
@@ -486,6 +493,9 @@ function Pane(props: OutlinePaneProps) {
     const head = view.state.selection.main.head;
     const rect = view.coordsAtPos(head);
     const first = view.coordsAtPos(0);
+    const vertical = event.key === 'ArrowUp' || event.key === 'ArrowDown';
+    const lineStart = vertical ? view.coordsAtPos(view.moveToLineBoundary(view.state.selection.main, false, true).head) : null;
+    const column = rect && lineStart ? rect.left - lineStart.left : 0;
     const last = view.coordsAtPos(view.state.doc.length);
     const boundary = event.key === 'ArrowLeft' ? head === 0 : event.key === 'ArrowRight' ? head === view.state.doc.length
       : direction < 0 ? !!rect && !!first && rect.top <= first.top + 2 : !!rect && !!last && rect.bottom >= last.bottom - 2;
@@ -498,9 +508,19 @@ function Pane(props: OutlinePaneProps) {
     const anchor = textRange()?.anchor ?? { id: editing()!, offset: view.state.selection.main.anchor };
     editAt(id, offset, true);
     setTextRange(event.shiftKey ? { anchor, head: { id, offset } } : null);
-    if (event.shiftKey) queueMicrotask(() => {
+    queueMicrotask(() => {
       if (editor?.id !== id) return;
-      editor.view.dispatch({ selection: { anchor: anchor.id === id ? anchor.offset : direction > 0 ? 0 : editor.view.state.doc.length, head: offset } });
+      let target = offset;
+      if (vertical) {
+        const edge = editor.view.coordsAtPos(offset);
+        if (edge) {
+          const line = editor.view.moveToLineBoundary(editor.view.state.selection.main, false, true);
+          const start = editor.view.coordsAtPos(line.head);
+          if (start) target = editor.view.posAtCoords({ x: start.left + column, y: (edge.top + edge.bottom) / 2 }) ?? offset;
+        }
+      }
+      if (vertical || event.shiftKey) editor.view.dispatch({ selection: { anchor: event.shiftKey ? anchor.id === id ? anchor.offset : direction > 0 ? 0 : editor.view.state.doc.length : target, head: target } });
+      if (event.shiftKey) setTextRange({ anchor, head: { id, offset: target } });
     });
     return true;
   }
@@ -528,7 +548,7 @@ function Pane(props: OutlinePaneProps) {
     }
     if (event.key === 'Tab') { apply({ kind: event.shiftKey ? 'outdent' : 'indent', ids: [editing()!] }); return true; }
     if (event.key === 'Backspace') return backspace(view);
-    if (event.key === 'Delete' && textRange()) { deleteTextRange(); return true; }
+    if (event.key === 'Delete') return backspace(view, true);
     if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key) && !event.altKey && !event.metaKey && !event.ctrlKey) {
       if (!event.shiftKey) setTextRange(null);
       return crossArrow(event, view);
@@ -585,7 +605,7 @@ function Pane(props: OutlinePaneProps) {
     if (!handled && event.key === 'ArrowUp') { adjacent(-1, event.shiftKey); handled = true; }
     if (!handled && event.key === 'ArrowLeft') { horizontal('left'); handled = true; }
     if (!handled && event.key === 'ArrowRight') { horizontal('right'); handled = true; }
-    if (!handled && event.key === 'Enter' && selected()) { props.vim ? zoomTo(selected()) : editAt(selected()!, caret()?.offset ?? 0, true); handled = true; }
+    if (!handled && event.key === 'Enter' && selected()) { props.vim ? zoomTo(selected()) : editAt(selected()!, caret()?.id === selected() ? caret()!.offset : 0, true); handled = true; }
     if (!handled && event.key === 'Backspace') { props.vim ? zoomOut() : apply({ kind: 'delete', ids: roots() }, false); handled = true; }
     if (!handled && props.vim && !event.metaKey && !event.altKey) handled = vimStructural(event);
     if (handled) event.preventDefault();
@@ -601,7 +621,8 @@ function Pane(props: OutlinePaneProps) {
     if (key === 'd' && (previous === 'd' || rowRange())) { apply({ kind: 'delete', ids: roots() }, false); return true; }
     if (['g', '>', '<', 'd'].includes(key)) { rowKey = key; return true; }
     if (key === 'V' && selected()) { setRowRange({ anchor: selected()!, head: selected()! }); return true; }
-    if (['i', 'a', 'I', 'A'].includes(key) && selected()) { const id = selected()!; editAt(id, key === 'A' || key === 'a' ? doc.block(id)!.text.length : key === 'i' ? caret()?.offset ?? 0 : 0, true); return true; }
+    if (key === 'Escape') { setRowRange(null); setTextRange(null); return true; }
+    if (['i', 'a', 'I', 'A'].includes(key) && selected()) { const id = selected()!; editAt(id, key === 'A' || key === 'a' ? doc.block(id)!.text.length : key === 'i' && caret()?.id === id ? caret()!.offset : 0, true); return true; }
     if ((key === 'o' || key === 'O') && selected()) {
       const id = selected()!;
       const parentId = doc.outline.parentOf(id);
@@ -663,11 +684,11 @@ function Pane(props: OutlinePaneProps) {
   });
   function insertReference(id: string) {
     const state = completion();
-    if (!state || !editor) return;
+    const source = editing();
+    if (!state || !editor || !source) return;
+    const selectionBefore = activeRange() ?? undefined;
     setCompletion(null);
-    editor.view.dispatch({ changes: { from: state.from, to: state.to, insert: `[[${id}]]` }, selection: { anchor: state.from + id.length + 4 } });
-    setCompletion(null);
-    editor.view.focus();
+    replaceSelection(`[[${id}]]`, 'text', { anchor: { id: source, offset: state.from }, head: { id: source, offset: state.to } }, selectionBefore);
   }
   async function chooseCompletion(index = completionIndex()) {
     const row = completionRows()[index];

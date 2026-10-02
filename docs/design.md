@@ -78,6 +78,17 @@ Radius 4 px for controls, 8 px for popups, full for pills. Popups have a 1 px `-
 - **Headings** are block styles at the h1 to h3 tokens, semibold. `# ` at block start sets one.
 - Rows highlight on hover with `--hover`; selection uses `--selection` plus the accent bar.
 
+### Row mechanics
+
+Settled by the 2026-10-02 audit; each rule has a document-layer test in `web/src/document/outline-*.test.ts`.
+
+- **Enter** at the end of a block with children inserts its first child; at the end of a leaf, a sibling after it; at the start, an empty block above with the caret staying in the text; mid-text, the right part moves to a new block and the original id stays on the left. Enter inside a `[[reference]]` or `#tag` does nothing.
+- **Backspace** at the start merges into the previous visible row (a sibling's last unfolded descendant, never a folded hidden row), the merged block's children follow it. A first child with no previous sibling outdents instead. Deleting into a reference removes the whole token; undo restores the original caret.
+- **Delete** at the end joins the next sibling, appending its children in order.
+- **Arrows** at a row boundary cross to the neighbouring row keeping the visual column; Escape keeps the caret offset so the next Enter or `i` resumes there.
+- **Indent, outdent and move** act on the selection's roots with their subtrees, never leave the zoomed subtree, and are silent no-ops without a history entry at a boundary (no previous sibling, top level, first or last sibling). Outdent leaves the following siblings under their original parent. A multi-row selection survives the command.
+- **Delete** of a subtree selects the previous visible survivor; folding a descendant selects the folded parent; zooming out selects the block being left.
+
 ## Tables and views
 
 A table is a query shown as rows: a type's members or a saved view.

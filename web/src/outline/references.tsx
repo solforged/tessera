@@ -8,8 +8,9 @@ import type { JSX } from 'solid-js';
 import { Menu } from '../ui/Menu';
 import type { NotebookClient } from '../document/contract';
 import type { OpenTarget } from '../shell/contract';
-import { BlockText, isStableReference, referenceLabel, textTokens } from './BlockText';
-import type { Token } from './BlockText';
+import { BlockText, isStableReference, referenceLabel } from './BlockText';
+import { textTokens } from '../document/text-tokens';
+import type { Token } from '../document/text-tokens';
 
 
 export function TypePill(props: {
