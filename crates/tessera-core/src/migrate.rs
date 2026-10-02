@@ -12,6 +12,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/003_types_changes.sql"),
     include_str!("../migrations/004_archived_discovery.sql"),
     include_str!("../migrations/005_membership_titles.sql"),
+    include_str!("../migrations/006_fields_views.sql"),
 ];
 
 pub const SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
@@ -29,6 +30,7 @@ pub(crate) fn migrate(conn: &mut Connection) -> Result<()> {
         });
     }
     if found == SCHEMA_VERSION {
+        crate::fields::ensure_page(&tx)?;
         tx.commit()?;
         return Ok(());
     }
@@ -60,6 +62,8 @@ pub(crate) fn migrate(conn: &mut Connection) -> Result<()> {
             }
         }
     }
+    crate::fields::ensure_page(&tx)?;
+    crate::fields::rebuild(&tx)?;
     tx.pragma_update(None, "user_version", SCHEMA_VERSION)?;
     tx.commit()?;
     Ok(())

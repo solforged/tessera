@@ -78,7 +78,7 @@ fn tags_resolve_case_insensitively_create_pages_and_preserve_token_boundaries() 
             revision: 1
         }));
     }
-    assert_eq!(nb.roots().unwrap().len(), 4);
+    assert_eq!(nb.roots().unwrap().len(), 5);
     let members = nb.members(&id(2), 10).unwrap();
     assert_eq!(members.len(), 1);
     assert_eq!(members[0].block.id, id(10));
@@ -594,8 +594,23 @@ fn unchanged_receipt_guard_detects_a_later_source_edit_before_undo() {
 fn swapping_tag_titles_preserves_each_original_token_target() {
     let dir = tempfile::tempdir().unwrap();
     let mut nb = Notebook::open(dir.path()).unwrap();
-    apply(&mut nb, vec![page(1, "Notes"), page(2, "SwapAlpha"), page(3, "SwapBeta"), insert(10, 1, "#SwapAlpha #SwapBeta")]);
-    let swapped = apply(&mut nb, vec![edit(2, 1, "SwapTemp"), edit(3, 1, "SwapAlpha"), edit(2, 2, "SwapBeta")]);
+    apply(
+        &mut nb,
+        vec![
+            page(1, "Notes"),
+            page(2, "SwapAlpha"),
+            page(3, "SwapBeta"),
+            insert(10, 1, "#SwapAlpha #SwapBeta"),
+        ],
+    );
+    let swapped = apply(
+        &mut nb,
+        vec![
+            edit(2, 1, "SwapTemp"),
+            edit(3, 1, "SwapAlpha"),
+            edit(2, 2, "SwapBeta"),
+        ],
+    );
     assert_eq!(nb.block(&id(10)).unwrap().text, "#SwapBeta #SwapAlpha");
     assert_eq!(nb.members(&id(2), 10).unwrap()[0].block.id, id(10));
     assert_eq!(nb.members(&id(3), 10).unwrap()[0].block.id, id(10));
@@ -609,17 +624,45 @@ fn restored_tombstone_keeps_its_place_after_live_sibling_rebalancing() {
     let dir = tempfile::tempdir().unwrap();
     let mut nb = Notebook::open(dir.path()).unwrap();
     apply(&mut nb, vec![page(1, "Notes")]);
-    for (value, predecessor, text) in [(10, None, "L"), (11, Some(10), "A"), (12, Some(11), "B"), (13, Some(12), "C")] {
-        apply(&mut nb, vec![Operation::Insert { id: id(value), parent_id: id(1), after: predecessor.map(id), text: text.into(), heading: None }]);
+    for (value, predecessor, text) in [
+        (10, None, "L"),
+        (11, Some(10), "A"),
+        (12, Some(11), "B"),
+        (13, Some(12), "C"),
+    ] {
+        apply(
+            &mut nb,
+            vec![Operation::Insert {
+                id: id(value),
+                parent_id: id(1),
+                after: predecessor.map(id),
+                text: text.into(),
+                heading: None,
+            }],
+        );
     }
     let deleted = apply(&mut nb, vec![delete(12, 1)]);
     for value in 20..33 {
-        apply(&mut nb, vec![Operation::Insert { id: id(value), parent_id: id(1), after: Some(id(10)), text: format!("Inserted {value}"), heading: None }]);
+        apply(
+            &mut nb,
+            vec![Operation::Insert {
+                id: id(value),
+                parent_id: id(1),
+                after: Some(id(10)),
+                text: format!("Inserted {value}"),
+                heading: None,
+            }],
+        );
     }
     apply(&mut nb, vec![restore(12, 2, &deleted.deletions[0])]);
-    let projected: Vec<_> = nb.page(&id(1)).unwrap().rows.into_iter()
+    let projected: Vec<_> = nb
+        .page(&id(1))
+        .unwrap()
+        .rows
+        .into_iter()
         .filter(|row| [id(10), id(11), id(12), id(13)].contains(&row.block.id))
-        .map(|row| row.block.text).collect();
+        .map(|row| row.block.text)
+        .collect();
     assert_eq!(projected, vec!["L", "A", "B", "C"]);
     assert_eq!(nb.block(&id(11)).unwrap().revision, 1);
 }
@@ -628,22 +671,54 @@ fn restored_tombstone_keeps_its_place_after_live_sibling_rebalancing() {
 fn recreated_renamed_and_restored_titles_rebind_untouched_tag_sources() {
     let dir = tempfile::tempdir().unwrap();
     let mut nb = Notebook::open(dir.path()).unwrap();
-    apply(&mut nb, vec![page(1, "Notes"), page(2, "LifecycleType"), insert(10, 1, "#LifecycleType"), insert(11, 1, "#LIFECYCLETYPE")]);
+    apply(
+        &mut nb,
+        vec![
+            page(1, "Notes"),
+            page(2, "LifecycleType"),
+            insert(10, 1, "#LifecycleType"),
+            insert(11, 1, "#LIFECYCLETYPE"),
+        ],
+    );
     let old = apply(&mut nb, vec![delete(2, 1)]);
     apply(&mut nb, vec![page(3, "LifecycleType")]);
-    assert_eq!(nb.members(&id(3), 10).unwrap().iter().map(|hit| hit.block.id.clone()).collect::<Vec<_>>(), vec![id(10), id(11)]);
+    assert_eq!(
+        nb.members(&id(3), 10)
+            .unwrap()
+            .iter()
+            .map(|hit| hit.block.id.clone())
+            .collect::<Vec<_>>(),
+        vec![id(10), id(11)]
+    );
     assert!(nb.members(&id(2), 10).unwrap().is_empty());
     apply(&mut nb, vec![delete(3, 1), page(4, "Other")]);
     apply(&mut nb, vec![edit(4, 1, "LifecycleType")]);
     assert_eq!(nb.members(&id(4), 10).unwrap().len(), 2);
-    apply(&mut nb, vec![delete(4, 2), restore(2, 2, &old.deletions[0])]);
-    assert_eq!(nb.members(&id(2), 10).unwrap().iter().map(|hit| hit.block.id.clone()).collect::<Vec<_>>(), vec![id(10), id(11)]);
+    apply(
+        &mut nb,
+        vec![delete(4, 2), restore(2, 2, &old.deletions[0])],
+    );
+    assert_eq!(
+        nb.members(&id(2), 10)
+            .unwrap()
+            .iter()
+            .map(|hit| hit.block.id.clone())
+            .collect::<Vec<_>>(),
+        vec![id(10), id(11)]
+    );
     assert_eq!(nb.block(&id(10)).unwrap().revision, 1);
     assert_eq!(nb.block(&id(11)).unwrap().revision, 1);
     apply(&mut nb, vec![delete(2, 3)]);
     apply(&mut nb, vec![edit(10, 1, "#LifecycleType updated")]);
     let generated = nb.page_by_title("LifecycleType").unwrap().unwrap();
-    assert_eq!(nb.members(&generated.id, 10).unwrap().iter().map(|hit| hit.block.id.clone()).collect::<Vec<_>>(), vec![id(10), id(11)]);
+    assert_eq!(
+        nb.members(&generated.id, 10)
+            .unwrap()
+            .iter()
+            .map(|hit| hit.block.id.clone())
+            .collect::<Vec<_>>(),
+        vec![id(10), id(11)]
+    );
     assert_eq!(nb.block(&id(11)).unwrap().revision, 1);
 }
 
@@ -651,7 +726,14 @@ fn recreated_renamed_and_restored_titles_rebind_untouched_tag_sources() {
 fn membership_title_upgrade_preserves_unresolved_mentions_without_resurrecting_pages() {
     let dir = tempfile::tempdir().unwrap();
     let mut nb = Notebook::open(dir.path()).unwrap();
-    apply(&mut nb, vec![page(1, "Notes"), page(2, "UpgradeType"), insert(10, 1, "#UPGRADETYPE")]);
+    apply(
+        &mut nb,
+        vec![
+            page(1, "Notes"),
+            page(2, "UpgradeType"),
+            insert(10, 1, "#UPGRADETYPE"),
+        ],
+    );
     apply(&mut nb, vec![delete(2, 1)]);
     drop(nb);
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
@@ -663,15 +745,32 @@ fn membership_title_upgrade_preserves_unresolved_mentions_without_resurrecting_p
              PRIMARY KEY(block_id, type_id)
          ) STRICT;
          CREATE INDEX memberships_type ON memberships(type_id, block_id);
+         DROP TABLE field_values;
+         DROP TABLE type_fields;
+         DROP TABLE fields;
+         DROP TABLE views;
+         ALTER TABLE changes DROP COLUMN views;
          PRAGMA user_version = 4;",
-    ).unwrap();
-    conn.execute("INSERT INTO memberships(block_id, type_id) VALUES (?1, ?2)", rusqlite::params![id(10), id(2)]).unwrap();
+    )
+    .unwrap();
+    conn.execute(
+        "INSERT INTO memberships(block_id, type_id) VALUES (?1, ?2)",
+        rusqlite::params![id(10), id(2)],
+    )
+    .unwrap();
     drop(conn);
     let mut nb = Notebook::open(dir.path()).unwrap();
     assert!(nb.page_by_title("UpgradeType").unwrap().is_none());
     assert!(nb.page(&id(1)).unwrap().targets.is_empty());
     apply(&mut nb, vec![page(3, "UpgradeType")]);
-    assert_eq!(nb.members(&id(3), 10).unwrap().iter().map(|hit| hit.block.id.clone()).collect::<Vec<_>>(), vec![id(10)]);
+    assert_eq!(
+        nb.members(&id(3), 10)
+            .unwrap()
+            .iter()
+            .map(|hit| hit.block.id.clone())
+            .collect::<Vec<_>>(),
+        vec![id(10)]
+    );
     assert_eq!(nb.page(&id(1)).unwrap().targets[0].id, id(3));
     assert_eq!(nb.block(&id(10)).unwrap().revision, 1);
 }
@@ -688,15 +787,24 @@ fn deterministic_lifecycle_sequences_match_an_independent_membership_rebuild() {
         // This test generates only whitespace-delimited bare tags. Do not use
         // the production parser or membership index as the expected model.
         text.split_whitespace().any(|word| {
-            word.strip_prefix('#').is_some_and(|title| title.to_lowercase() == title_key)
+            word.strip_prefix('#')
+                .is_some_and(|title| title.to_lowercase() == title_key)
         })
     }
     let dir = tempfile::tempdir().unwrap();
     let mut nb = Notebook::open(dir.path()).unwrap();
-    apply(&mut nb, vec![
-        page(1, "Notes"), page(2, "Alpha"), page(3, "Beta"), page(4, "Gamma"),
-        insert(10, 1, "#Alpha #Beta"), insert(11, 1, "#ALPHA"), insert(12, 1, "#Gamma"),
-    ]);
+    apply(
+        &mut nb,
+        vec![
+            page(1, "Notes"),
+            page(2, "Alpha"),
+            page(3, "Beta"),
+            page(4, "Gamma"),
+            insert(10, 1, "#Alpha #Beta"),
+            insert(11, 1, "#ALPHA"),
+            insert(12, 1, "#Gamma"),
+        ],
+    );
     let names = ["Alpha", "Beta", "Gamma"];
     let mut deleted: Vec<DeletedType> = Vec::new();
     let mut random = 0x4a5b_713c_8dd1_9e03u64;
@@ -705,69 +813,147 @@ fn deterministic_lifecycle_sequences_match_an_independent_membership_rebuild() {
         random ^= random >> 7;
         random ^= random << 17;
         let choice = random as usize;
-        let roots: Vec<_> = nb.roots().unwrap().into_iter().filter(|root| root.id != id(1)).collect();
-        let vacant: Vec<_> = names.iter().filter(|name| {
-            !roots.iter().any(|root| root.text.to_lowercase() == name.to_lowercase())
-        }).copied().collect();
+        let roots: Vec<_> = nb
+            .roots()
+            .unwrap()
+            .into_iter()
+            .filter(|root| root.id != id(1))
+            .collect();
+        let vacant: Vec<_> = names
+            .iter()
+            .filter(|name| {
+                !roots
+                    .iter()
+                    .any(|root| root.text.to_lowercase() == name.to_lowercase())
+            })
+            .copied()
+            .collect();
         match step % 8 {
             1 | 2 if !roots.is_empty() => {
                 let target = &roots[choice % roots.len()];
-                let result = apply(&mut nb, vec![Operation::Delete {
-                    id: target.id.clone(), base_revision: target.revision,
-                }]);
+                let result = apply(
+                    &mut nb,
+                    vec![Operation::Delete {
+                        id: target.id.clone(),
+                        base_revision: target.revision,
+                    }],
+                );
                 deleted.push(DeletedType {
-                    id: target.id.clone(), title_key: target.text.to_lowercase(),
-                    revision: target.revision + 1, event: result.deletions[0].clone(),
+                    id: target.id.clone(),
+                    title_key: target.text.to_lowercase(),
+                    revision: target.revision + 1,
+                    event: result.deletions[0].clone(),
                 });
             }
             3 => {
-                let eligible: Vec<_> = deleted.iter().enumerate().filter(|(_, ticket)| {
-                    roots.iter().all(|root| root.text.to_lowercase() != ticket.title_key)
-                }).map(|(index, _)| index).collect();
+                let eligible: Vec<_> = deleted
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, ticket)| {
+                        roots
+                            .iter()
+                            .all(|root| root.text.to_lowercase() != ticket.title_key)
+                    })
+                    .map(|(index, _)| index)
+                    .collect();
                 if !eligible.is_empty() {
                     let ticket = deleted.swap_remove(eligible[choice % eligible.len()]);
-                    apply(&mut nb, vec![Operation::Restore {
-                        id: ticket.id, revision: ticket.revision, deletion_id: ticket.event,
-                    }]);
+                    apply(
+                        &mut nb,
+                        vec![Operation::Restore {
+                            id: ticket.id,
+                            revision: ticket.revision,
+                            deletion_id: ticket.event,
+                        }],
+                    );
                 }
             }
             4 if !roots.is_empty() => {
                 let target = &roots[choice % roots.len()];
                 let title = if vacant.is_empty() {
-                    if target.text == target.text.to_uppercase() { target.text.to_lowercase() }
-                    else { target.text.to_uppercase() }
-                } else { vacant[choice % vacant.len()].to_string() };
-                apply(&mut nb, vec![Operation::EditText {
-                    id: target.id.clone(), base_revision: target.revision, text: title,
-                }]);
+                    if target.text == target.text.to_uppercase() {
+                        target.text.to_lowercase()
+                    } else {
+                        target.text.to_uppercase()
+                    }
+                } else {
+                    vacant[choice % vacant.len()].to_string()
+                };
+                apply(
+                    &mut nb,
+                    vec![Operation::EditText {
+                        id: target.id.clone(),
+                        base_revision: target.revision,
+                        text: title,
+                    }],
+                );
             }
             5 if !vacant.is_empty() => {
-                apply(&mut nb, vec![page(2000 + step, vacant[choice % vacant.len()])]);
+                apply(
+                    &mut nb,
+                    vec![page(2000 + step, vacant[choice % vacant.len()])],
+                );
             }
             _ => {
                 let source = 10 + (choice % 3) as u128;
                 let text = ["#ALPHA #Beta", "#Gamma #alpha", "#Beta #GAMMA"][choice % 3];
                 let revision = nb.block(&id(source)).unwrap().revision;
-                apply(&mut nb, vec![edit(source, revision, &format!("{text} sequence{step}"))]);
+                apply(
+                    &mut nb,
+                    vec![edit(source, revision, &format!("{text} sequence{step}"))],
+                );
             }
         }
-        let roots: Vec<_> = nb.roots().unwrap().into_iter().filter(|root| root.id != id(1)).collect();
-        let sources: Vec<_> = (10..=12).map(|value| nb.block(&id(value)).unwrap()).collect();
+        let roots: Vec<_> = nb
+            .roots()
+            .unwrap()
+            .into_iter()
+            .filter(|root| root.id != id(1))
+            .collect();
+        let sources: Vec<_> = (10..=12)
+            .map(|value| nb.block(&id(value)).unwrap())
+            .collect();
         for root in &roots {
             let title_key = root.text.to_lowercase();
-            let expected: Vec<_> = sources.iter().filter(|source| mentions(&source.text, &title_key))
-                .map(|source| source.id.clone()).collect();
-            let actual: Vec<_> = nb.members(&root.id, 100).unwrap().into_iter()
-                .map(|hit| hit.block.id).collect();
-            assert_eq!(actual, expected, "membership mismatch at step {step}, title {}", root.text);
+            let expected: Vec<_> = sources
+                .iter()
+                .filter(|source| mentions(&source.text, &title_key))
+                .map(|source| source.id.clone())
+                .collect();
+            let actual: Vec<_> = nb
+                .members(&root.id, 100)
+                .unwrap()
+                .into_iter()
+                .map(|hit| hit.block.id)
+                .collect();
+            assert_eq!(
+                actual, expected,
+                "membership mismatch at step {step}, title {}",
+                root.text
+            );
         }
-        let mut expected_targets: Vec<_> = roots.iter().filter(|root| {
-            sources.iter().any(|source| mentions(&source.text, &root.text.to_lowercase()))
-        }).map(|root| root.id.clone()).collect();
+        let mut expected_targets: Vec<_> = roots
+            .iter()
+            .filter(|root| {
+                sources
+                    .iter()
+                    .any(|source| mentions(&source.text, &root.text.to_lowercase()))
+            })
+            .map(|root| root.id.clone())
+            .collect();
         expected_targets.sort_unstable();
-        let mut actual_targets: Vec<_> = nb.page(&id(1)).unwrap().targets.into_iter().map(|target| target.id).collect();
+        let mut actual_targets: Vec<_> = nb
+            .page(&id(1))
+            .unwrap()
+            .targets
+            .into_iter()
+            .map(|target| target.id)
+            .collect();
         actual_targets.sort_unstable();
-        assert_eq!(actual_targets, expected_targets, "page target mismatch at step {step}");
+        assert_eq!(
+            actual_targets, expected_targets,
+            "page target mismatch at step {step}"
+        );
     }
 }
 
@@ -775,10 +961,15 @@ fn deterministic_lifecycle_sequences_match_an_independent_membership_rebuild() {
 fn simultaneous_unicode_renames_resolve_context_sensitive_lowercase_titles() {
     let dir = tempfile::tempdir().unwrap();
     let mut nb = Notebook::open(dir.path()).unwrap();
-    apply(&mut nb, vec![
-        page(1, "Notes"), page(2, "ΟΣ"), page(3, "ΚΥΚΛΟΣ"),
-        insert(10, 1, "#ΟΣ #ΚΥΚΛΟΣ"),
-    ]);
+    apply(
+        &mut nb,
+        vec![
+            page(1, "Notes"),
+            page(2, "ΟΣ"),
+            page(3, "ΚΥΚΛΟΣ"),
+            insert(10, 1, "#ΟΣ #ΚΥΚΛΟΣ"),
+        ],
+    );
     apply(&mut nb, vec![edit(2, 1, "ΣΤΟΧΟΣ"), edit(3, 1, "ΑΛΛΟΣ")]);
     assert_eq!(nb.block(&id(10)).unwrap().text, "#ΣΤΟΧΟΣ #ΑΛΛΟΣ");
     assert_eq!(nb.members(&id(2), 10).unwrap()[0].block.id, id(10));

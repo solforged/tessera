@@ -133,7 +133,7 @@ fn archived_roots_are_hidden_from_roots_titles_and_source_discovery() {
             .into_iter()
             .map(|block| block.id)
             .collect::<Vec<_>>(),
-        vec![id(2), id(4), id(3)]
+        vec![notebook.fields().unwrap().page_id, id(2), id(4), id(3)]
     );
     assert_eq!(notebook.complete("prefix", 1).unwrap()[0].id, id(4));
     assert_eq!(notebook.search("prefix", 1).unwrap()[0].block.id, id(4));
