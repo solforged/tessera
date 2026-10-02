@@ -487,7 +487,7 @@ function Pane(props: OutlinePaneProps) {
     const count = completionRows().length + (canCreate() ? 1 : 0);
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { setCompletionIndex(index => Math.max(0, Math.min(count - 1, index + (event.key === 'ArrowDown' ? 1 : -1)))); return true; }
     if (event.key === 'Enter') { void chooseCompletion(); return true; }
-    if (event.key === 'Escape') { setCompletion(null); return true; }
+    if (event.key === 'Escape') { dismissCompletion(); return true; }
     return false;
   }
   function editorKey(event: KeyboardEvent, view: EditorView) {
@@ -580,12 +580,21 @@ function Pane(props: OutlinePaneProps) {
     return false;
   }
 
+  /** Escape closes the completion; it stays closed while the same `[[` query is under the caret, and reopens once the text changes. */
+  let dismissedCompletion: { id: string; from: number; query: string } | null = null;
+  function dismissCompletion() {
+    const state = completion();
+    if (state && !state.manual && editor) dismissedCompletion = { id: editor.id, from: state.from, query: state.query };
+    setCompletion(null);
+  }
   function updateCompletion(text: string, at: Caret) {
     if (completion()?.manual) return;
     const prefix = text.slice(0, at.offset);
     const from = prefix.lastIndexOf('[[');
     if (from < 0 || prefix.slice(from + 2).includes(']') || prefix[from - 1] === '#' || prefix.slice(from + 2).includes('\n')) { setCompletion(null); return; }
     const next = { from, to: at.offset, query: prefix.slice(from + 2) };
+    if (dismissedCompletion && dismissedCompletion.id === at.id && dismissedCompletion.from === from && dismissedCompletion.query === next.query) return;
+    dismissedCompletion = null;
     if (completion()?.query !== next.query) setCompletionIndex(0);
     setCompletion(next);
   }
@@ -1028,7 +1037,7 @@ function Pane(props: OutlinePaneProps) {
       <Show when={related.error || related()?.tagged.length}><Related title="Tagged blocks" rows={related.error ? [] : related()?.tagged ?? []} /></Show>
     </div></Show>
     <Show when={menu()}>{state => <Menu anchor={state().anchor} label={state().label} items={state().items} onDismiss={() => setMenu(null)} />}</Show>
-    <Show when={completion()}><Popup anchor={completionAnchor} width={480} class="picker" label={completion()?.manual ? 'Add type…' : 'Reference completion'} role={completion()?.manual ? 'dialog' : 'listbox'} onDismiss={() => setCompletion(null)} autofocus={!!completion()?.manual}>
+    <Show when={completion()}><Popup anchor={completionAnchor} width={480} class="picker" label={completion()?.manual ? 'Add type…' : 'Reference completion'} role={completion()?.manual ? 'dialog' : 'listbox'} onDismiss={dismissCompletion} autofocus={!!completion()?.manual}>
       <Show when={completion()?.manual}><div class="picker-query"><Icon name="tag" class="picker-prefix" /><input class="picker-input" aria-label="Type title" placeholder="Type title" value={completion()?.query ?? ''} onInput={event => { setCompletion(state => state ? { ...state, query: event.currentTarget.value } : null); setCompletionIndex(0); }} onKeyDown={event => { if (!event.isComposing && popupKey(event)) { event.preventDefault(); event.stopPropagation(); } }} /></div></Show>
       <div ref={completionList} class="picker-list" onMouseDown={event => event.preventDefault()}>
         <Show when={matches.loading}><p class="empty-state">Searching…</p></Show>
