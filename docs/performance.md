@@ -68,7 +68,7 @@ Commits cost the same on a 10,000-block page as on a 100-block page, so no opera
 
 Risk: completion and search for a word that appears in thousands of blocks cost about 13 ms here and 36 to 46 ms on a shared CI runner. Their cost grows with the number of matches, so slower machines may miss the 25 ms completion budget.
 
-## Spike 2 result: editor, partly settled
+## Spike 2 result: editor
 
 Three variants of the same outline editor live in `spikes/editor/`: React with one CodeMirror per pane, Solid with the same design, and one ProseMirror document. A runner drives them in headless Chrome with real keyboard and IME input, at 2,000 and 10,000 fully mounted rows. Results are in `spikes/editor/results/summary.md`.
 
@@ -82,11 +82,11 @@ What it settled:
 
 - **CodeMirror per pane, not one ProseMirror document.** ProseMirror matched the others on everything except Vim, and no usable ProseMirror Vim mode exists. CodeMirror's Vim extension passed every Vim scenario.
 - **Outline commands are cheap once indexed.** An indexed sequence shared by both CodeMirror variants made indent, outdent and move independent of page size.
+- **Solid over React.** React's list reconciliation added about 7 ms per structural edit at 10,000 rows; Solid's about 1 ms. Both were correct. The owner chose Solid.
 
-What it did not settle:
+What it left to spike 3:
 
 - **No variant meets the frame budgets with 10,000 rows mounted.** At 10,000 rows, browser style, layout and paint cost about 22 ms per Enter in every variant. That is mounted DOM size, which windowing bounds.
-- **React or Solid.** React's list reconciliation adds about 7 ms per structural edit at 10,000 rows; Solid's adds about 1 ms. Windowing shrinks both, so the choice is made in spike 3 by running both variants windowed. React stays the default until then.
 - Headless paint timing is a proxy. Two panes, real presentation traces and service round trips were not measured.
 
 ## Spikes that decide the stack
@@ -95,7 +95,7 @@ Each runs before the matching feature is built. Each can overturn a choice in [a
 
 1. **Backend operations.** Load 2,000 and 10,000-block pages and commit single-block operations. Pass: cold viewport under 500 ms, commit under 50 ms, no per-row work for unchanged rows.
 2. **Editor.** React with one CodeMirror per pane, against Solid with the same design and against one ProseMirror document. Pass: frame budgets, plus zero wrong outcomes for IME, Vim, undo and cross-block selection.
-3. **Windowing.** 10,000 mixed-height rows with folding and long scrolls, in both the React and Solid editors from spike 2. Pass: bounded mounted rows, at most 2 px anchor drift, no missed frames attributable to the app in real presentation traces. The faster variant that passes becomes the editor.
+3. **Windowing.** 10,000 mixed-height rows with folding and long scrolls, in the Solid editor. Pass: bounded mounted rows, at most 2 px anchor drift, no missed frames attributable to the app in real presentation traces.
 4. **Runtime and concurrency.** Chromium over HTTP against Tauri on WebKit; four windows plus agent writes. Pass: transport and propagation budgets, no lost edits, reconnects converge without polling.
 5. **Eight-hour soak.** Editing, navigation and forced crashes. Pass: no acknowledged edit lost, heap within 10 percent of a warmed steady state, bounded caches, WAL and draft storage.
 

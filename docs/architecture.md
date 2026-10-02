@@ -1,6 +1,6 @@
 # Architecture
 
-Tessera is a local Rust service that owns one SQLite notebook, plus a browser editor and other clients that talk to it. The prototype's measurements show that its slow paths came from doing page-sized work per edit, not from React, SQLite or HTTP. So the stack stays familiar and the work per edit gets small.
+Tessera is a local Rust service that owns one SQLite notebook, plus a browser editor and other clients that talk to it. The prototype's measurements show that its slow paths came from doing page-sized work per edit, not from its framework, SQLite or HTTP. So the stack stays familiar and the work per edit gets small.
 
 ```text
 Browser editor      CLI        Agents       Terminal (later)
@@ -22,9 +22,9 @@ Browser editor      CLI        Agents       Terminal (later)
 | Storage | SQLite, WAL, FTS5, `synchronous=FULL` | One ordinary file the CLI and backups can use; durable on power loss |
 | Service | Rust `tessera-service` on loopback | Single owner of the file; every client gets the same rules |
 | Transport | JSON operations over HTTP; change stream over WebSocket | Agents can use plain HTTP; windows get pushed updates without polling |
-| UI | React 19 with React Compiler, TypeScript, Vite | Mature editor and accessibility ecosystem; fast enough once updates are per block |
+| UI | Solid, TypeScript, Vite | Fine-grained updates: typing touches one row, and structural edits cost less than React's list reconciliation in spike 2 |
 | Text editing | CodeMirror 6, one active editor per pane, with its Vim extension | Real Vim motions and IME handling without writing a text engine |
-| Outline rendering | Plain DOM rows, virtualized with TanStack Virtual | Bounded memory and mount time on large pages |
+| Outline rendering | Plain DOM rows, virtualized with TanStack Virtual for Solid | Bounded memory, mount time and layout cost on large pages |
 | Drafts | IndexedDB outbox of pending operations | Asynchronous, incremental, no quota cliff at a few megabytes |
 | Packaging | Browser first; Tauri only if native integration is needed | Tauri uses WebKit on macOS and does not by itself make IPC faster |
 
@@ -65,7 +65,7 @@ A stale operation fails without writing. Clean remote changes merge into the loc
 ## Why not the alternatives
 
 - **WASM with SQLite in the browser:** the notebook would live in origin-private storage, out of reach of the CLI, agents and ordinary backups.
-- **Solid, Svelte or signals:** finer-grained updates, but per-block subscriptions in React reach a similar boundary. In spike 2, Solid's list updates were cheaper than React's at 10,000 mounted rows; the two are compared again with windowing in spike 3.
+- **React:** the larger ecosystem, but its list reconciliation added about 7 ms per structural edit at 10,000 mounted rows in spike 2, against about 1 ms for Solid, for the same correctness.
 - **ProseMirror or Lexical as one big editor:** better cross-block text selection, but no usable outline-aware Vim. In spike 2, ProseMirror matched CodeMirror on IME, undo and cross-block selection and failed only on Vim.
 - **Canvas rendering:** would mean rebuilding selection, IME and accessibility.
 - **Go or another rewrite language:** no measured benefit; the prototype's slowness was algorithmic.
@@ -77,7 +77,7 @@ crates/tessera-core      domain model, migrations, operations
 crates/tessera-service   HTTP and WebSocket service
 crates/tessera-cli       command line
 crates/tessera-bench     corpus generator and backend budget checks
-web/                     React editor
+web/                     Solid editor
 spikes/editor/           editor prototypes and their measurement runner
 docs/                    design documents
 ```
