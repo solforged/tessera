@@ -15,6 +15,7 @@ export interface MenuItem {
   action(): void;
 }
 export function Menu(props: { anchor: PopupAnchor; label: string; items: MenuItem[]; onDismiss(): void }) {
+  const iconed = () => props.items.some(item => item.icon);
   return <Popup anchor={props.anchor} onDismiss={props.onDismiss} role="menu" label={props.label} class="menu">
     <div onKeyDown={event => {
       if (event.isComposing || !['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
@@ -24,7 +25,7 @@ export function Menu(props: { anchor: PopupAnchor; label: string; items: MenuIte
       buttons[next]?.focus(); event.preventDefault();
     }}>
       <For each={props.items}>{item => <>{item.section && <div class="menu-section">{item.section}</div>}<button type="button" role="menuitem" class={`menu-item ${item.danger ? 'danger' : ''}`} disabled={!!item.disabledReason} title={item.disabledReason} onClick={() => { props.onDismiss(); item.action(); }}>
-        {item.icon && <Icon name={item.icon} />}<span class="menu-label">{item.label}</span>{item.shortcut && <kbd>{item.shortcut}</kbd>}
+        {item.icon ? <Icon name={item.icon} /> : iconed() ? <span class="icon" /> : null}<span class="menu-label">{item.label}</span>{item.shortcut && <kbd>{item.shortcut}</kbd>}
       </button></>}</For>
     </div>
   </Popup>;
