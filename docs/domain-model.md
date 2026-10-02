@@ -58,6 +58,8 @@ A question capability makes a block an enduring question with an optional review
 
 A source capability links a block to a Bibliotheca source and snapshot. A passage capability links to a specific passage. A position is an attributed claim: who holds it, about which question or subject, supported by which passages. Positions on the same question are compared side by side and never merged. Assessments cite positions and passages, so a conclusion can be traced to its evidence.
 
+These map the three kinds of knowledge in the [vision](vision.md): a fact is an ordinary block, with a passage when it came from reading; someone else's view is a position; your own conclusion is an assessment. A perspective lens is a view of positions grouped by holder.
+
 ## Projects
 
 A project capability gives a block an outcome, an optional deadline and a status. Tasks beneath it are its actions. Questions beneath it are its open questions. Completing a project does not reassess its questions.
@@ -81,3 +83,5 @@ Links, full-text search, type membership from text, cards from text and field re
 - Configurable task keywords beyond the five fixed states.
 - Whether blank blocks persist or exist only in drafts.
 - How Tessera and Bibliotheca exchange source identities.
+- How concept and taxonomy comparison is modelled: types, positions about a concept, or a capability of its own.
+- Whether vocabulary cards need anything beyond ordinary cards, such as language, part of speech or inflection fields.
