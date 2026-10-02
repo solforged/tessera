@@ -171,8 +171,17 @@ pub(crate) fn derive_links(conn: &Connection, id: &str, text: &str) -> Result<()
     Ok(())
 }
 
-/// Borrow tag names directly from authored text, without a regex or token copies.
-pub(crate) fn tag_names(text: &str) -> impl Iterator<Item = &str> {
+pub(crate) struct TagToken<'a> {
+    pub title: &'a str,
+    pub span: std::ops::Range<usize>,
+}
+
+fn bare_tag_character(ch: char) -> bool {
+    ch.is_alphanumeric() || matches!(ch, '-' | '_' | '/')
+}
+
+/// The same borrowed token spans drive membership derivation and rename.
+pub(crate) fn tag_tokens(text: &str) -> impl Iterator<Item = TagToken<'_>> {
     let mut cursor = 0;
     std::iter::from_fn(move || {
         while let Some(relative) = text[cursor..].find('#') {
@@ -191,20 +200,90 @@ pub(crate) fn tag_names(text: &str) -> impl Iterator<Item = &str> {
                 cursor += 2 + end + 2;
                 let title = rest[..end].trim();
                 if !title.is_empty() && !title.contains(['[', ']']) {
-                    return Some(title);
+                    return Some(TagToken {
+                        title,
+                        span: start..cursor,
+                    });
                 }
                 continue;
             }
             let end = rest
-                .find(|ch: char| !ch.is_alphanumeric() && !matches!(ch, '-' | '_' | '/'))
+                .find(|ch: char| !bare_tag_character(ch))
                 .unwrap_or(rest.len());
             cursor += end;
             if end != 0 {
-                return Some(&rest[..end]);
+                return Some(TagToken {
+                    title: &rest[..end],
+                    span: start..cursor,
+                });
             }
         }
         None
     })
+}
+
+pub(crate) fn tag_names(text: &str) -> impl Iterator<Item = &str> {
+    tag_tokens(text).map(|token| token.title)
+}
+
+pub(crate) fn tag_title_matches(title: &str, title_key: &str) -> bool {
+    if title.is_ascii() && title_key.is_ascii() {
+        title.eq_ignore_ascii_case(title_key)
+    } else {
+        title.to_lowercase() == title_key
+    }
+}
+
+pub(crate) fn validate_tag_title(title: &str) -> Result<()> {
+    if title.contains(['[', ']', '\n', '\r']) {
+        return Err(validation(
+            "a page referenced by tags cannot have a title containing brackets or line breaks",
+        ));
+    }
+    if title.trim() != title {
+        return Err(validation(
+            "a page referenced by tags cannot have a title starting or ending with whitespace",
+        ));
+    }
+    Ok(())
+}
+
+pub(crate) fn tag_spelling(title: &str) -> Result<String> {
+    validate_tag_title(title)?;
+    Ok(if title.chars().all(bare_tag_character) {
+        format!("#{title}")
+    } else {
+        format!("#[[{title}]]")
+    })
+}
+
+pub(crate) fn rewrite_tags<'a>(
+    text: &str,
+    mut spelling: impl FnMut(&str) -> Option<&'a str>,
+) -> Option<String> {
+    // Resolve every original token before emitting any replacement. A renamed
+    // title can itself be another token's old title in the same transaction.
+    let replacements: Vec<_> = tag_tokens(text)
+        .filter_map(|token| spelling(token.title).map(|value| (token.span, value)))
+        .collect();
+    if replacements.is_empty()
+        || replacements
+            .iter()
+            .all(|(span, value)| &text[span.clone()] == *value)
+    {
+        return None;
+    }
+    let replaced = replacements.iter().map(|(span, _)| span.len()).sum::<usize>();
+    let inserted = replacements.iter().map(|(_, value)| value.len()).sum::<usize>();
+    let mut rewritten = String::with_capacity(text.len() - replaced + inserted);
+    let mut cursor = 0;
+    for (span, value) in replacements {
+        rewritten.push_str(&text[cursor..span.start]);
+        rewritten.push_str(value);
+        cursor = span.end;
+    }
+    rewritten.push_str(&text[cursor..]);
+    Some(rewritten)
 }
 
 pub(crate) fn derive_memberships(
@@ -212,12 +291,17 @@ pub(crate) fn derive_memberships(
     id: &str,
     text: &str,
     now: i64,
+    create_missing: bool,
 ) -> Result<Vec<Revision>> {
     conn.prepare_cached("DELETE FROM memberships WHERE block_id = ?1")?
         .execute([id])?;
     let mut created = Vec::new();
+    let mut titles = Vec::new();
     for title in tag_names(text) {
         let title_key = title.to_lowercase();
+        if titles.contains(&title_key) {
+            continue;
+        }
         let existing: Option<String> = conn
             .prepare_cached(
                 "SELECT id FROM blocks WHERE kind = 'page' AND deletion_id IS NULL AND title_key = ?1",
@@ -225,8 +309,8 @@ pub(crate) fn derive_memberships(
             .query_row([&title_key], |row| row.get(0))
             .optional()?;
         let type_id = if let Some(id) = existing {
-            id
-        } else {
+            Some(id)
+        } else if create_missing {
             let id = ulid::Ulid::generate().to_string();
             conn.prepare_cached(
                 "INSERT INTO blocks(id, kind, page_id, ordinal, text, title_key, revision, created_at, updated_at)
@@ -238,12 +322,15 @@ pub(crate) fn derive_memberships(
                 id: id.clone(),
                 revision: 1,
             });
-            id
+            Some(id)
+        } else {
+            None
         };
         conn.prepare_cached(
-            "INSERT OR IGNORE INTO memberships(block_id, type_id) VALUES (?1, ?2)",
+            "INSERT INTO memberships(block_id, title_key, type_id) VALUES (?1, ?2, ?3)",
         )?
-        .execute(rusqlite::params![id, type_id])?;
+        .execute(rusqlite::params![id, title_key, type_id])?;
+        titles.push(title_key);
     }
     Ok(created)
 }

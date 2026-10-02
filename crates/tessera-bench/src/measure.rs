@@ -288,7 +288,7 @@ pub async fn queries(corpus: &Corpus, dir: &Path, recorder: &mut Recorder) -> Re
     let expected_members: Vec<_> = model
         .blocks
         .values()
-        .filter(|block| !block.deleted && block.text.contains("#[[Page 00000]]"))
+        .filter(|block| model.effectively_visible(&block.id) && block.text.contains("#[[Page 00000]]"))
         .take(100)
         .map(|block| block.id.clone())
         .collect();

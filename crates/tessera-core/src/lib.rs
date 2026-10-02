@@ -13,6 +13,6 @@ pub use error::{Error, Result};
 pub use migrate::SCHEMA_VERSION;
 pub use model::{
     Actor, Backlink, Batch, Block, BlockInPage, BlockKind, ChangeEvent, Committed, Operation,
-    PageView, Revision, Row,
+    PageView, Revision, Row, TextRewrite,
 };
 pub use notebook::{DATABASE_FILE, Notebook, NotebookInfo};

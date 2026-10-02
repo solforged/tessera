@@ -544,6 +544,17 @@ impl Model {
         Ok(())
     }
 
+    pub fn effectively_visible(&self, id: &str) -> bool {
+        let Some(mut block) = self.blocks.get(id) else { return false };
+        loop {
+            if block.deleted || block.archived {
+                return false;
+            }
+            let Some(parent) = block.parent.as_deref() else { return true };
+            block = &self.blocks[parent];
+        }
+    }
+
     pub fn search_ids(&self, query: &str, limit: usize) -> Vec<String> {
         let terms = tokens(query);
         let docs = self
@@ -567,6 +578,9 @@ impl Model {
         let mut hits = docs
             .iter()
             .filter_map(|(block, words)| {
+                if !self.effectively_visible(&block.id) {
+                    return None;
+                }
                 let mut score = 0.0;
                 for (term, idf) in terms.iter().zip(&idfs) {
                     let frequency =
@@ -590,7 +604,7 @@ impl Model {
             .blocks
             .values()
             .filter(|block| {
-                !block.deleted
+                self.effectively_visible(&block.id)
                     && block.kind == BlockKind::Page
                     && block.text.to_lowercase().starts_with(&query)
             })
@@ -613,9 +627,12 @@ impl Model {
     }
 
     pub fn backlink_ids(&self, target: &str, limit: usize) -> Vec<String> {
+        if !self.effectively_visible(target) {
+            return Vec::new();
+        }
         self.blocks
             .values()
-            .filter(|block| !block.deleted && references(&block.text).iter().any(|id| id == target))
+            .filter(|block| self.effectively_visible(&block.id) && references(&block.text).iter().any(|id| id == target))
             .take(limit)
             .map(|block| block.id.clone())
             .collect()
