@@ -8,6 +8,7 @@ import type { Block, PageView, TextRewrite } from '../api/types';
 import type { BlockState, Caret, Edit, EditResult, HistoryCaret, PageDocument, SaveState, TextRange } from './contract';
 import { OutlineIndex } from './outline-index';
 import type { Action, Command, HistoryEntry, Snapshot } from './types';
+import { textTokens } from './text-tokens';
 
 export interface DocumentHost {
   ready: Promise<void>;
@@ -502,8 +503,8 @@ export class Document implements PageDocument {
         return;
       }
       setText(block, prefix);
-      const zoom = zoomRoot === block.id;
-      caret = { id: insert(zoom ? block.id : block.parent_id!, zoom ? null : block.id, suffix, suffix ? block.heading : null), offset: 0 };
+      const child = zoomRoot === block.id || !suffix && this.outline.children(block.id).length > 0;
+      caret = { id: insert(child ? block.id : block.parent_id!, child ? null : block.id, suffix, suffix ? block.heading : null), offset: 0 };
     };
     const paste = (block: Block, prefix: string, suffix: string, text: string, zoomRoot?: string | null) => {
       const lines = text.replace(/\r\n?/g, '\n').split('\n');
@@ -540,8 +541,14 @@ export class Document implements PageDocument {
       if (this.outline.indexOf(start.id) > this.outline.indexOf(end.id) || start.id === end.id && start.offset > end.offset) [start, end] = [end, start];
       const first = this.snapshot(start.id);
       const last = this.snapshot(end.id);
-      const startOffset = Math.max(0, Math.min(start.offset, first.text.length));
-      const endOffset = Math.max(0, Math.min(end.offset, last.text.length));
+      let startOffset = Math.max(0, Math.min(start.offset, first.text.length));
+      let endOffset = Math.max(0, Math.min(end.offset, last.text.length));
+      if (mode === 'split' && [first, last].some((block, index) => textTokens(block.text).some(token =>
+        token.kind !== 'text' && (index ? endOffset : startOffset) > token.start && (index ? endOffset : startOffset) < token.end))) return;
+      if (mode === 'text' && !text && (start.id !== end.id || startOffset !== endOffset)) {
+        for (const token of textTokens(first.text)) if (token.kind === 'reference' && startOffset > token.start && startOffset < token.end) startOffset = token.start;
+        for (const token of textTokens(last.text)) if (token.kind === 'reference' && endOffset > token.start && endOffset < token.end) endOffset = token.end;
+      }
       const between = this.outline.slice(this.outline.indexOf(start.id) + 1, this.outline.indexOf(end.id)).map(row => row.id);
       if (between.length !== visible.length || between.some((id, i) => id !== visible[i])) throw new Error('Expand hidden blocks before deleting this text range.');
       const deleted = start.id === end.id ? [] : selected([...between, end.id]);
@@ -598,6 +605,7 @@ export class Document implements PageDocument {
           const old = this.snapshot(edit.id);
           if (old.kind !== 'block') throw new Error('Only outline blocks can split.');
           const offset = Math.max(0, Math.min(edit.offset, old.text.length));
+          if (textTokens(old.text).some(token => token.kind !== 'text' && offset > token.start && offset < token.end)) break;
           split(old, old.text.slice(0, offset), old.text.slice(offset), edit.zoomRoot);
           break;
         }
@@ -669,7 +677,8 @@ export class Document implements PageDocument {
       if (!actions.length) return { ok: true, caret, created };
       const inverse: Action[] = [];
       batch(() => { for (const action of actions) inverse.unshift(...this.apply(action)); });
-      const before: HistoryCaret | null = edit.kind === 'replaceRange' ? { ...(caretBefore ?? edit.range.head), range: { anchor: { ...edit.range.anchor }, head: { ...edit.range.head } } } : caretBefore;
+      const beforeRange = edit.kind === 'replaceRange' ? edit.selectionBefore ?? edit.range : null;
+      const before: HistoryCaret | null = beforeRange ? { ...(caretBefore ?? beforeRange.head), range: { anchor: { ...beforeRange.anchor }, head: { ...beforeRange.head } } } : caretBefore;
       const command = this.host.enqueue(this, actions, inverse, before, caret, edit.kind === 'text' && edit.heading === undefined);
       const last = this.undoStack.at(-1);
       const textGroup = edit.kind === 'text' && edit.heading === undefined && last?.forward.length === 1 && last.forward[0]!.kind === 'text' && last.forward[0]!.id === edit.id && Date.now() - this.lastTextEditAt < 1000;
