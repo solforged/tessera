@@ -4,6 +4,8 @@ import type { FieldKind, FieldSummary, Fields } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import type { FieldsViewState, OpenTarget } from '../shell/contract';
 import { Button } from '../ui/Button';
+import { Icon } from '../ui/Icon';
+import { Menu } from '../ui/Menu';
 import './fields.css';
 
 interface FieldsPaneProps {
@@ -21,6 +23,7 @@ export function FieldsPane(props: FieldsPaneProps) {
   const [error, setError] = createSignal('');
   const [loading, setLoading] = createSignal(true);
   const [retry, setRetry] = createSignal(0);
+  const [kindMenu, setKindMenu] = createSignal<{ field: FieldSummary; anchor: HTMLElement } | null>(null);
   const fields = createMemo(() => [...(data()?.fields ?? [])].sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id)));
   const pageId = createMemo(() => data()?.page_id);
   let scroll!: HTMLDivElement;
@@ -77,7 +80,7 @@ export function FieldsPane(props: FieldsPaneProps) {
               if (event.target === event.currentTarget && event.key === 'Enter') { event.preventDefault(); openDefinition(field, event.shiftKey); }
             }}>
               <td>{field.name}</td>
-              <td><select class="input" aria-label={`Kind for ${field.name}`} value={field.kind} disabled={loading() || doc()?.status() !== 'ready' || doc()?.saveState() !== 'saved'} onChange={event => { changeKind(field, event.currentTarget.value as FieldKind); event.currentTarget.value = field.kind; }}><For each={Object.entries(kindLabels)}>{([kind, label]) => <option value={kind}>{label}</option>}</For></select></td>
+              <td><Button class="bordered" aria-label={`Kind for ${field.name}`} aria-haspopup="menu" disabled={loading() || doc()?.status() !== 'ready' || doc()?.saveState() !== 'saved'} onClick={event => setKindMenu({ field, anchor: event.currentTarget })}>{kindLabels[field.kind]} <Icon name="down" /></Button></td>
               <td class="fields-count">{field.owners}</td><td>{field.types.map(type => type.name).join(', ') || <span class="muted">None</span>}</td>
               <td><div class="fields-actions"><Button onClick={event => openDefinition(field, event.shiftKey)}>Open definition</Button><Button onClick={event => props.onOpen({ kind: 'table', typeId: null, viewId: null, query: { type: null, text: null, filters: [{ field: field.id, op: 'set', value: null }], sort: [], limit: null } }, event.shiftKey)}>Show owners</Button></div></td>
             </tr>}</For>
@@ -85,5 +88,6 @@ export function FieldsPane(props: FieldsPaneProps) {
         </Show>
       </Show>
     </div>
+    <Show when={kindMenu()}>{state => <Menu anchor={state().anchor} label={`Kind for ${state().field.name}`} onDismiss={() => setKindMenu(null)} items={(Object.keys(kindLabels) as FieldKind[]).map(kind => ({ label: kindLabels[kind], icon: kind === state().field.kind ? 'check' : undefined, action: () => changeKind(state().field, kind) }))} />}</Show>
   </div>;
 }
