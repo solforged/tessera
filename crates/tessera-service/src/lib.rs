@@ -24,7 +24,8 @@ use axum::{
 };
 use serde::Deserialize;
 use tessera_core::{
-    Backlink, Batch, Block, BlockInPage, ChangeEvent, Committed, Notebook, NotebookInfo, PageView,
+    Backlink, Batch, Block, BlockInPage, ChangeEvent, Committed, FieldsView, Notebook,
+    NotebookInfo, PageView, QueryResult, TypeInfo, View,
 };
 use tokio::sync::broadcast;
 
@@ -74,6 +75,11 @@ pub fn router(
         .route("/api/blocks/{id}", get(block))
         .route("/api/blocks/{id}/backlinks", get(backlinks))
         .route("/api/types/{id}/members", get(members))
+        .route("/api/types/{id}", get(type_info))
+        .route("/api/fields", get(fields))
+        .route("/api/query", post(query))
+        .route("/api/views", get(views))
+        .route("/api/views/{id}", get(view))
         .route("/api/complete", get(complete))
         .route("/api/search", get(search))
         .route("/api/changes", get(changes))
@@ -98,7 +104,8 @@ pub async fn serve(config: Config) -> anyhow::Result<()> {
         let notebook = Notebook::open(&dir)
             .with_context(|| format!("cannot open notebook {}", dir.display()))?;
         Ok::<_, anyhow::Error>((notebook, ownership))
-    }).await??;
+    })
+    .await??;
     let shutdown = shutdown_signal().context("cannot register service shutdown signals")?;
     let path = notebook.info()?.path;
     let listener = tokio::net::TcpListener::bind((Ipv4Addr::LOCALHOST, config.port))
@@ -245,6 +252,44 @@ async fn members(
     let Path(id) = path.map_err(ApiError::from)?;
     let Query(query) = query.map_err(ApiError::from)?;
     run(&state, move |notebook| notebook.members(&id, query.limit))
+        .await
+        .map(Json)
+}
+
+async fn fields(State(state): State<AppState>) -> Result<Json<FieldsView>, ApiError> {
+    run(&state, |notebook| notebook.fields()).await.map(Json)
+}
+
+async fn type_info(
+    State(state): State<AppState>,
+    path: Result<Path<String>, PathRejection>,
+) -> Result<Json<TypeInfo>, ApiError> {
+    let Path(id) = path.map_err(ApiError::from)?;
+    run(&state, move |notebook| notebook.type_info(&id))
+        .await
+        .map(Json)
+}
+
+async fn query(
+    State(state): State<AppState>,
+    body: Result<Json<tessera_core::Query>, JsonRejection>,
+) -> Result<Json<QueryResult>, ApiError> {
+    let Json(query) = body.map_err(ApiError::from)?;
+    run(&state, move |notebook| notebook.query(&query))
+        .await
+        .map(Json)
+}
+
+async fn views(State(state): State<AppState>) -> Result<Json<Vec<View>>, ApiError> {
+    run(&state, |notebook| notebook.views()).await.map(Json)
+}
+
+async fn view(
+    State(state): State<AppState>,
+    path: Result<Path<String>, PathRejection>,
+) -> Result<Json<View>, ApiError> {
+    let Path(id) = path.map_err(ApiError::from)?;
+    run(&state, move |notebook| notebook.view(&id))
         .await
         .map(Json)
 }
