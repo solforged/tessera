@@ -3,6 +3,7 @@
 
 mod assets;
 mod error;
+mod ownership;
 mod security;
 
 use std::net::Ipv4Addr;
@@ -28,6 +29,7 @@ use tessera_core::{
 use tokio::sync::broadcast;
 
 use crate::error::ApiError;
+use crate::ownership::Ownership;
 pub use crate::security::validate_dev_origin;
 
 pub const DEFAULT_PORT: u16 = 4318;
@@ -84,30 +86,56 @@ pub fn router(
         .with_state(state))
 }
 
-/// Open the notebook, bind loopback and serve until Ctrl-C.
+/// Hold exclusive notebook ownership, bind loopback, and drain on termination.
 pub async fn serve(config: Config) -> anyhow::Result<()> {
     if let Some(origin) = &config.dev_origin {
         validate_dev_origin(origin).map_err(anyhow::Error::msg)?;
     }
     let dir = config.notebook.clone();
-    let notebook = tokio::task::spawn_blocking(move || Notebook::open(&dir))
-        .await?
-        .with_context(|| format!("cannot open notebook {}", config.notebook.display()))?;
+    let requested_port = config.port;
+    let (notebook, mut ownership) = tokio::task::spawn_blocking(move || {
+        let ownership = Ownership::acquire(&dir, requested_port)?;
+        let notebook = Notebook::open(&dir)
+            .with_context(|| format!("cannot open notebook {}", dir.display()))?;
+        Ok::<_, anyhow::Error>((notebook, ownership))
+    }).await??;
+    let shutdown = shutdown_signal().context("cannot register service shutdown signals")?;
     let path = notebook.info()?.path;
     let listener = tokio::net::TcpListener::bind((Ipv4Addr::LOCALHOST, config.port))
         .await
         .context("cannot bind the local HTTP port")?;
     let port = listener.local_addr()?.port();
+    ownership.record(Some(port))?;
     let app =
         router(notebook, port, config.assets, config.dev_origin).map_err(anyhow::Error::msg)?;
     eprintln!("tessera: http://127.0.0.1:{port}");
     eprintln!("tessera: notebook {}", path.display());
     axum::serve(listener, app)
-        .with_graceful_shutdown(async {
-            let _ = tokio::signal::ctrl_c().await;
-        })
+        .with_graceful_shutdown(shutdown)
         .await?;
+    drop(ownership);
     Ok(())
+}
+
+fn shutdown_signal() -> std::io::Result<impl Future<Output = ()>> {
+    #[cfg(unix)]
+    let mut terminate = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
+    Ok(async move {
+        #[cfg(unix)]
+        let terminated = async move {
+            let _ = terminate.recv().await;
+        };
+        #[cfg(not(unix))]
+        let terminated = std::future::pending::<()>();
+        tokio::select! {
+            result = tokio::signal::ctrl_c() => {
+                if let Err(error) = result {
+                    eprintln!("tessera: Ctrl-C handler failed; draining service: {error}");
+                }
+            }
+            () = terminated => {}
+        }
+    })
 }
 
 async fn notebook_info(State(state): State<AppState>) -> Result<Json<NotebookInfo>, ApiError> {
