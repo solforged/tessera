@@ -956,7 +956,7 @@ function Pane(props: OutlinePaneProps) {
       <div class="outline-body" classList={{ 'heading-1': block()?.heading === 1, 'heading-2': block()?.heading === 2, 'heading-3': block()?.heading === 3 }} onMouseDown={event => pointerStart(event, id(), event.currentTarget)}>
         <Show when={field() && editing() === id()}><Icon name="field" class="field-entry-icon" /></Show>
         <div class="editor-host" classList={{ 'host-active': editing() === id() }} ref={host => attach(id(), host)} />
-        <Show when={editing() !== id()}><div class="static-text"><BlockText text={block()?.text ?? ''} field={field()} notebook={props.notebook} onOpen={props.onOpen} onReferenceMenu={referenceMenu} selection={selectedOffsets(id())} /><Show when={!block()?.text}><span class="empty-block">Empty block</span></Show></div></Show>
+        <Show when={editing() !== id()}><div class="static-text"><BlockText text={block()?.text ?? ''} field={field()} notebook={props.notebook} onOpen={props.onOpen} onReferenceMenu={referenceMenu} selection={selectedOffsets(id())} /><Show when={!block()?.text && ids().length === 1}><span class="empty-block">Start writing</span></Show></div></Show>
         <For each={block()?.manual_types ?? []}>{title => <TypePill title={title} notebook={props.notebook} onOpen={props.onOpen} onRemove={() => { const result = doc.removeType(id(), title); if (!result.ok) setMessage(result.reason); }} />}</For>
         <Show when={block()?.archived}><span class="archive-badge">Archived</span> <button class="text-button" type="button" onClick={() => apply({ kind: 'archive', id: id(), archived: false }, false)}>Unarchive</button></Show>
         <Show when={block()?.conflict}><button type="button" class="conflict-label" onClick={() => setConflicts(previous => { const next = new Set(previous); next.has(id()) ? next.delete(id()) : next.add(id()); return next; })}><Icon name="warning" />Conflict</button></Show>
@@ -969,20 +969,20 @@ function Pane(props: OutlinePaneProps) {
     </div>;
   }
 
-  function Related(propsRelated: { title: string; rows: { block: Block; page: Block }[]; empty: string }) {
+  function Related(propsRelated: { title: string; rows: { block: Block; page: Block }[] }) {
     return <details class="related-section" onToggle={event => setRelatedOpen(previous => {
       const next = new Set(previous);
       event.currentTarget.open ? next.add(propsRelated.title) : next.delete(propsRelated.title);
       return next;
     })}><summary>{propsRelated.title} <span>{related.error ? 'Unavailable' : related.loading && !related() ? 'Loading…' : propsRelated.rows.length}</span></summary>
       <Show when={!related.error} fallback={<p role="alert">Couldn't load related blocks.</p>}>
-      <Show when={propsRelated.rows.length} fallback={<p class="empty-state">{propsRelated.empty}</p>}><For each={propsRelated.rows}>{result => {
+      <For each={propsRelated.rows}>{result => {
         const live = props.notebook.lookup(result.block.id);
         return <div class="related-block"><div class="related-open" role="link" tabIndex={0} onKeyDown={event => { if (event.key === 'Enter') props.onOpen({ kind: 'page', pageId: result.page.id, blockId: result.block.id }, event.shiftKey); }} onClick={event => props.onOpen({ kind: 'page', pageId: result.page.id, blockId: result.block.id }, event.shiftKey)}>
           <span class="related-breadcrumb"><BlockBreadcrumb block={result.block} notebook={props.notebook} /></span>
           <BlockText text={live()?.text ?? result.block.text} notebook={props.notebook} onOpen={props.onOpen} />
         </div><button type="button" class="text-button" onClick={() => props.onOpen({ kind: 'page', pageId: result.page.id, blockId: result.block.id }, true)}>Open beside</button></div>;
-      }}</For></Show>
+      }}</For>
       </Show>
     </details>;
   }
@@ -1006,9 +1006,9 @@ function Pane(props: OutlinePaneProps) {
       <Show keyed when={editing() && virtualItems().has(editing()!) ? editing() : null}>{id => <Row id={id} item={() => virtualItems().get(id)!} />}</Show>
     </div>
     <Show when={doc.status() === 'ready' && ids().length === 0}><button type="button" class="add-first-block" onClick={() => apply({ kind: 'insert', parentId: zoom() ?? props.pageId, after: null }, true)}><Icon name="plus" />Add a block</button></Show>
-    <Show when={doc.status() === 'ready'}><div class="related-sections">
-      <Related title="Backlinks" rows={related.error ? [] : related()?.backlinks ?? []} empty="No blocks link to this page." />
-      <Related title="Tagged blocks" rows={related.error ? [] : related()?.tagged ?? []} empty="No blocks are tagged with this page." />
+    <Show when={doc.status() === 'ready' && (related.error || (related()?.backlinks.length ?? 0) + (related()?.tagged.length ?? 0) > 0)}><div class="related-sections">
+      <Show when={related.error || related()?.backlinks.length}><Related title="Backlinks" rows={related.error ? [] : related()?.backlinks ?? []} /></Show>
+      <Show when={related.error || related()?.tagged.length}><Related title="Tagged blocks" rows={related.error ? [] : related()?.tagged ?? []} /></Show>
     </div></Show>
     <Show when={menu()}>{state => <Menu anchor={state().anchor} label={state().label} items={state().items} onDismiss={() => setMenu(null)} />}</Show>
     <Show when={completion()}><Popup anchor={completionAnchor} label={completion()?.manual ? 'Add type…' : 'Reference completion'} role={completion()?.manual ? 'dialog' : 'listbox'} onDismiss={() => setCompletion(null)} autofocus={!!completion()?.manual}>
