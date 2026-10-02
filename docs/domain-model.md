@@ -56,7 +56,9 @@ A question capability makes a block an enduring question with an optional review
 
 ## Sources, passages and positions
 
-A source capability links a block to a Bibliotheca source and snapshot. A passage capability links to a specific passage. A position is an attributed claim: who holds it, about which question or subject, supported by which passages. Positions on the same question are compared side by side and never merged. Assessments cite positions and passages, so a conclusion can be traced to its evidence.
+A source is a page with a source capability. Each ingestion of the same source (a URL or a file) whose bytes differ creates a new snapshot, identified by its content hash and never modified. A snapshot holds the document's structure and its passages: headings, paragraphs, footnotes and other units, each with a locator. Original bytes live in the notebook's object store, addressed by SHA-256; passages, structure and reading position live in the database. Passages are evidence, not authored blocks: they are never edited. Writing about a passage creates a block that cites it, and a citation names the source, snapshot and passage, so it keeps pointing at the exact text read even after a newer snapshot exists.
+
+A position is an attributed claim: who holds it, about which question or subject, supported by which passages. Positions on the same question are compared side by side and never merged. Assessments cite positions and passages, so a conclusion can be traced to its evidence.
 
 These map the three kinds of knowledge in the [vision](vision.md): a fact is an ordinary block, with a passage when it came from reading; someone else's view is a position; your own conclusion is an assessment. A perspective lens is a view of positions grouped by holder.
 
@@ -82,6 +84,6 @@ Links, full-text search, type membership from text, cards from text and field re
 - How much change history to keep, and whether old assessments become immutable.
 - Configurable task keywords beyond the five fixed states.
 - Whether blank blocks persist or exist only in drafts.
-- How Tessera and Bibliotheca exchange source identities.
+- Which reading state belongs to the source page (inbox, reading, finished, abandoned) and which is per-snapshot.
 - How concept and taxonomy comparison is modelled: types, positions about a concept, or a capability of its own.
 - Whether vocabulary cards need anything beyond ordinary cards, such as language, part of speech or inflection fields.
