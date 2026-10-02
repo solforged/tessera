@@ -1,8 +1,8 @@
 # Vision
 
-Tessera is one person's daily workstation for thinking, deciding, acting and learning. Its primary medium is an editable outline of addressable blocks. Documents, agendas and review queues are views over those blocks, not separate stores.
+Tessera is one person's local workstation for reading, research, thinking, acting and learning. Its primary medium is an editable outline of addressable blocks. Documents, agendas and review queues are views over those blocks, not separate stores.
 
-It is a personal tool, not a commercial product. It must still be dependable enough to hold years of real notes.
+It is a personal tool, not a commercial product or a hosted note service. It must still be dependable enough to hold years of real notes. Tana, Logseq and RemNote are the reference points for how its everyday features work and feel.
 
 ## Who it serves
 
@@ -23,6 +23,18 @@ It is a personal tool, not a commercial product. It must still be dependable eno
 9. **Navigation is reversible.** Back and forward restore the page, zoom, scroll position and caret.
 10. **Dark and quiet.** Dark from the first paint, including dialogs and errors. Chrome stays out of the way of the text.
 
+## How it holds knowledge
+
+Tessera comes with a way of working built in, like a set menu: the common structures exist and behave sensibly before any configuration. That way of working keeps these apart:
+
+- **Facts.** What was observed or read, with its source when there is one.
+- **Other people's views.** A claim belongs to whoever holds it. Views on the same topic sit side by side, and a perspective lens lets you flip between them. They are never averaged or silently restated as your own.
+- **Your own conclusions.** Dated, citing the views and passages behind them, and replaced rather than erased when you change your mind.
+
+Long reading is broken down by idea. A passage leads to its claim, the claim to other people's views on it, and those to your own position. Study grows out of the same material: cards on ideas and passages, vocabulary in the languages you read, and side-by-side comparison of how different thinkers carve up a concept. An agent can quiz you on a book from its passages and help plan study against a date, through the same checked operations as any other client.
+
+"Lens" names two different things, kept apart in the interface and API: a **view** is a saved query, such as Today or a review deck; a **perspective lens** shows one holder's positions.
+
 ## What must be first-class
 
 First-class means explicit relationships, lifecycle rules, operations and views. A label alone does not count.
@@ -31,21 +43,22 @@ First-class means explicit relationships, lifecycle rules, operations and views.
 |---|---|
 | Blocks and references | Stable identity; references render the original's current text |
 | Journals | One root per calendar day in the notebook's time zone |
-| Types and fields | Many-to-many membership; typed fields whose values are blocks |
+| Types and fields | Many-to-many membership; typed fields whose values are blocks; type pills and type tables |
+| Queries | Structured filters by type, field, task state, dates and text; saved as views and review decks |
 | Tasks | Status, scheduled and deadline dates, repeaters, priority, agenda, clocked work |
 | Investigations | An enduring question, criteria, dated assessments, one accepted answer, reassessment dates |
 | Sources and positions | Stable source and passage identity; attributed positions that stay comparable and distinct |
 | Projects | Bounded outcomes with deadlines, connected actions and open questions |
-| Cards | Derived from block text, stable across edits, with full review history |
+| Cards | Derived from block text, stable across edits, with full review history; saved decks; vocabulary study |
 | Agent changes | Checked, attributable, reviewable and reversible |
 
 ## Scope boundaries
 
-In scope for the first usable release: the daily outline, references, types and fields, tasks with an agenda, investigations, cards and review, sources and positions, agent operations with attribution, and backup and restore.
+In scope for the first usable release: the daily outline, references, types and fields, structured queries and saved views, tasks with an agenda, cards and review with saved decks, investigations, sources and positions, agent operations with attribution, and backup and restore. Perspective lenses, the reading flow and concept comparison follow directly after.
 
 Out of scope until the daily tool works: multi-device sync, collaboration, native mobile, plugin and schema builders, graph visualization and autonomous background agents.
 
-Source ingestion belongs to a separate tool (Bibliotheca). Tessera links to its source and passage identities rather than building a competing catalog.
+Source acquisition and reading belong to a separate local tool, Bibliotheca, which fetches, indexes, stores and displays books, papers and articles. Tessera receives passages and citations from it through a versioned promotion step and links to its source and passage identities rather than building a competing catalog. Together they form one workstation.
 
 ## How design work happens
 
