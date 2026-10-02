@@ -69,10 +69,4 @@
 .empty-state { font-size: var(--text-control); color: var(--faint); }
 .add-first-block { display: flex; align-items: center; gap: var(--space-8); border: 0; background: transparent; color: var(--muted); }
 
-/* Completion popups open below the caret. */
-.reference-completion { display: flex; flex-direction: column; max-width: 440px; }
-.reference-completion > button { display: block; min-height: 40px; border: 0; background: transparent; text-align: left; padding: var(--space-8) var(--space-12); color: var(--text); font: inherit; white-space: pre-wrap; }
-.reference-completion > button.completion-selected { background: var(--selection); }
-.completion-context { display: block; color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); }
-.completion-field-suffix { margin-left: var(--space-8); color: var(--muted); font-size: var(--text-meta); }
 @media (max-width: 479px) { .outline-pane { padding-inline: var(--space-12); } .outline-heading, .related-sections, .add-first-block { padding-left: var(--target-size); } .outline-row .row-menu { display: none; } }

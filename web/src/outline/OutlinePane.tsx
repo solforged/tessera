@@ -1028,17 +1028,17 @@ function Pane(props: OutlinePaneProps) {
       <Show when={related.error || related()?.tagged.length}><Related title="Tagged blocks" rows={related.error ? [] : related()?.tagged ?? []} /></Show>
     </div></Show>
     <Show when={menu()}>{state => <Menu anchor={state().anchor} label={state().label} items={state().items} onDismiss={() => setMenu(null)} />}</Show>
-    <Show when={completion()}><Popup anchor={completionAnchor} label={completion()?.manual ? 'Add type…' : 'Reference completion'} role={completion()?.manual ? 'dialog' : 'listbox'} onDismiss={() => setCompletion(null)} autofocus={!!completion()?.manual}>
-      <Show when={completion()?.manual}><input aria-label="Type title" value={completion()?.query ?? ''} onInput={event => { setCompletion(state => state ? { ...state, query: event.currentTarget.value } : null); setCompletionIndex(0); }} onKeyDown={event => { if (!event.isComposing && popupKey(event)) { event.preventDefault(); event.stopPropagation(); } }} /></Show>
-      <div ref={completionList} class="reference-completion" onMouseDown={event => event.preventDefault()}>
-        <Show when={matches.loading}><p>Searching…</p></Show>
-        <Show when={matches.error}><p role="alert">Couldn't load completion.</p></Show>
-        <For each={completionRows()}>{(row, index) => <button type="button" role="option" aria-selected={completionIndex() === index()} classList={{ 'completion-selected': completionIndex() === index() }} onClick={() => void chooseCompletion(index())}>
-          <Show when={row.kind === 'block' ? row.block : null}>{block => <><span class="completion-context"><BlockBreadcrumb block={block()} notebook={props.notebook} /></span>{block().text || 'Empty block'}</>}</Show>
-          <Show when={row.kind === 'field' ? row.field : null}>{field => <>{field().name}<span class="completion-field-suffix">Field</span></>}</Show>
-        </button>}</For>
-        <Show when={canCreate()}><button type="button" role="option" aria-selected={completionIndex() === completionRows().length} onClick={() => void chooseCompletion(completionRows().length)}><Icon name="plus" />Create page “{completion()?.query}”</button></Show>
-        <Show when={!matches.loading && !matches.error && !canCreate() && !completionRows().length}><p>No matching blocks.</p></Show>
+    <Show when={completion()}><Popup anchor={completionAnchor} width={480} class="picker" label={completion()?.manual ? 'Add type…' : 'Reference completion'} role={completion()?.manual ? 'dialog' : 'listbox'} onDismiss={() => setCompletion(null)} autofocus={!!completion()?.manual}>
+      <Show when={completion()?.manual}><div class="picker-query"><Icon name="tag" class="picker-prefix" /><input class="picker-input" aria-label="Type title" placeholder="Type title" value={completion()?.query ?? ''} onInput={event => { setCompletion(state => state ? { ...state, query: event.currentTarget.value } : null); setCompletionIndex(0); }} onKeyDown={event => { if (!event.isComposing && popupKey(event)) { event.preventDefault(); event.stopPropagation(); } }} /></div></Show>
+      <div ref={completionList} class="picker-list" onMouseDown={event => event.preventDefault()}>
+        <Show when={matches.loading}><p class="empty-state">Searching…</p></Show>
+        <Show when={matches.error}><p class="error" role="alert">Couldn't load completion.</p></Show>
+        <For each={completionRows()}>{(row, index) => <div role="option" aria-selected={completionIndex() === index()} class="picker-row" classList={{ selected: completionIndex() === index() }} onClick={() => void chooseCompletion(index())}>
+          <Show when={row.kind === 'block' ? row.block : null}>{block => <><Icon name={block().kind === 'journal' ? 'calendar' : block().kind === 'page' ? 'page' : 'bullet'} /><span class="picker-text">{block().text || 'Empty block'}</span><Show when={block().kind === 'block'}><span class="picker-meta"><BlockBreadcrumb block={block()} notebook={props.notebook} /></span></Show></>}</Show>
+          <Show when={row.kind === 'field' ? row.field : null}>{field => <><Icon name="field" /><span class="picker-text">{field().name}</span><span class="picker-meta">Field</span></>}</Show>
+        </div>}</For>
+        <Show when={canCreate()}><div role="option" aria-selected={completionIndex() === completionRows().length} class="picker-row" classList={{ selected: completionIndex() === completionRows().length }} onClick={() => void chooseCompletion(completionRows().length)}><Icon name="plus" /><span class="picker-text">Create page “{completion()?.query}”</span></div></Show>
+        <Show when={!matches.loading && !matches.error && !canCreate() && !completionRows().length}><p class="empty-state">No matching blocks.</p></Show>
       </div>
     </Popup></Show>
   </div>;
