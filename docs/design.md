@@ -92,15 +92,26 @@ A table is a query shown as rows: a type's members or a saved view.
 
 ## Popups and feedback
 
-Floating layers open below the element or caret that opened them, with a 4 px gap, start-aligned unless the anchor is in the pane's right half, flipping above only when below is too short, clamped to the viewport, never covering the anchor. Escape closes the topmost one and returns focus.
+Floating layers open below the element or caret that opened them, with a 4 px gap, start-aligned unless the anchor is in the pane's right half, flipping above only when below is too short, clamped to the viewport, never covering the anchor. Palettes centre near the top of the viewport instead. Escape closes the topmost one and returns focus.
 
-| Surface | Placement |
-|---|---|
-| `[[`, `#`, `Name::` completion | Below the caret |
-| Block, pill, column and view menus | Below their trigger; shortcuts shown |
-| Search and Commands palettes | Top centre, 560 px wide |
+Three shapes only, so every popup is recognisable at a glance:
+
+- **Menu**: 28 px rows with an icon slot, label and shortcut at the right; sections as 12 px labels; danger last. The icon column is reserved whenever any item has one, so labels align.
+- **Picker**: an input on top and 28 px rows below. Arrows move, Enter picks, typing filters, the mouse hovers to highlight. Chips before the input show steps already chosen. Used by the palette, reference completion, Add type, Add filter and the time zone.
+- **Confirm**: 13 px body text and two buttons.
+
+| Surface | Shape | Placement |
+|---|---|---|
+| Palette: text searches blocks, a leading `>` finds commands | Picker, one line per hit with the page path in meta size; Tab drills into children | Top centre, 560 px |
+| `[[`, `#`, `Name::` completion and Add type | Picker | Below the caret or the block |
+| Add filter | Picker in three steps: field, condition, value; Backspace on an empty query steps back | Below its trigger |
+| Block menu | Menu in sections Block, Move, Select; navigation stays in the palette | Below the handle |
+| Page, notebook, pill, column, view, sort and field kind menus | Menu | Below their trigger |
+| New page, Delete page | Confirm | Below their trigger |
 | Undo toast | Bottom centre, one at a time |
 | Save state | Pane header, never a toolbar |
+
+Native `<select>` is never used; a bordered menu button or a picker replaces it.
 
 ## Decisions
 
