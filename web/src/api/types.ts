@@ -146,6 +146,7 @@ export interface FieldValue { id: string; text: string; reading: Reading }
 export interface QueryRow { block: BlockInPage; values: Record<string, FieldValue[]> }
 export interface FieldDefinition { id: string; name: string; kind: FieldKind; revision: number; options: { id: string; text: string }[] }
 export interface QueryResult { fields: FieldDefinition[]; columns: string[]; rows: QueryRow[]; total: number }
-export interface Fields { page_id: string; fields: FieldDefinition[] }
+export interface FieldSummary extends FieldDefinition { owners: number; types: { id: string; name: string }[] }
+export interface Fields { page_id: string; fields: FieldSummary[] }
 export interface Type { page: Block; fields: string[]; members: number }
 export interface View { id: string; name: string; query: Query; revision: number; created_at: number; updated_at: number }

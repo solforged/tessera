@@ -70,6 +70,28 @@ afterAll(async () => {
 });
 
 describe('real notebook operations and recovery', () => {
+  test('field kind edits persist, undo and redo through the document outbox', async () => {
+    const instance = await client();
+    const fields = await api.fields();
+    const doc = instance.open(fields.page_id);
+    await eventually(() => doc.status() === 'ready', doc.statusMessage());
+    const id = success(doc.edit({ kind: 'insert', parentId: fields.page_id, after: null, text: `Kind test ${++serial}` })).created[0]!;
+    await instance.flush();
+    const definition = (await api.fields()).fields.find(field => field.id === id)!;
+    success(doc.edit({ kind: 'fieldKind', definition, value: 'number' }));
+    await instance.flush();
+    expect((await api.fields()).fields.find(field => field.id === id)?.kind).toBe('number');
+    doc.undo();
+    await instance.flush();
+    expect((await api.fields()).fields.find(field => field.id === id)?.kind).toBe('text');
+    doc.redo();
+    await instance.flush();
+    expect((await api.fields()).fields.find(field => field.id === id)?.kind).toBe('number');
+    const stale = doc.edit({ kind: 'fieldKind', definition, value: 'date' });
+    expect(stale.ok).toBe(false);
+    expect((await api.fields()).fields.find(field => field.id === id)?.kind).toBe('number');
+    doc.release();
+  });
   test('offline page creation accepts durable IDs, publishes a provisional root, and reopens it after reload', async () => {
     const session = `offline-create-${++serial}`;
     const instance = await client(session);

@@ -294,7 +294,10 @@ fn every_kind_reads_values_without_rewriting_authored_blocks() {
     edit(&mut nb, 300, "maybe");
     assert_eq!(reading(&nb, 10), problem("not a checkbox"));
     apply(&mut nb, vec![insert(11, 10, "Novel")]);
-    assert_eq!(nb.fields().unwrap().fields[0].options[0].text, "Novel");
+    assert_eq!(
+        nb.fields().unwrap().fields[0].definition.options[0].text,
+        "Novel"
+    );
     kind(&mut nb, 10, FieldKind::Choice);
     edit(&mut nb, 300, &format!(" [[{}|fiction]] ", id(11)));
     assert_eq!(
@@ -1051,7 +1054,7 @@ fn blank_fields_are_not_definitions_and_edits_refresh_incoming_entries() {
             .unwrap()
             .fields
             .iter()
-            .map(|f| f.id.clone())
+            .map(|f| f.definition.id.clone())
             .collect::<Vec<_>>(),
         vec![id(10)]
     );
@@ -1083,6 +1086,6 @@ fn blank_fields_are_not_definitions_and_edits_refresh_incoming_entries() {
         ));
         edit(&mut nb, 10, "Year");
         assert_eq!(indexed(&dir, 100), vec![id(300)]);
-        assert_eq!(nb.fields().unwrap().fields[0].name, "Year");
+        assert_eq!(nb.fields().unwrap().fields[0].definition.name, "Year");
     }
 }
