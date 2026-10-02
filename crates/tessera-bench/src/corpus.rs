@@ -545,12 +545,16 @@ impl Model {
     }
 
     pub fn effectively_visible(&self, id: &str) -> bool {
-        let Some(mut block) = self.blocks.get(id) else { return false };
+        let Some(mut block) = self.blocks.get(id) else {
+            return false;
+        };
         loop {
             if block.deleted || block.archived {
                 return false;
             }
-            let Some(parent) = block.parent.as_deref() else { return true };
+            let Some(parent) = block.parent.as_deref() else {
+                return true;
+            };
             block = &self.blocks[parent];
         }
     }
@@ -632,7 +636,10 @@ impl Model {
         }
         self.blocks
             .values()
-            .filter(|block| self.effectively_visible(&block.id) && references(&block.text).iter().any(|id| id == target))
+            .filter(|block| {
+                self.effectively_visible(&block.id)
+                    && references(&block.text).iter().any(|id| id == target)
+            })
             .take(limit)
             .map(|block| block.id.clone())
             .collect()

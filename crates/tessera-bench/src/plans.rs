@@ -58,7 +58,9 @@ pub fn save(dir: &Path, results: &Path, size: usize, corpus: &Corpus, stamp: u12
             vec![json!(query), json!(30), json!(end)],
         )?;
         let matched = format!("\"{query}\"*");
-        let candidates = format!("{HIDDEN}, hits AS MATERIALIZED (SELECT s.block_id AS id, bm25(blocks_fts) AS score FROM blocks_fts JOIN search_blocks s ON s.rowid = blocks_fts.rowid WHERE blocks_fts MATCH ?1 AND blocks_fts.rowid NOT IN (SELECT rowid FROM hidden) ORDER BY score, s.block_id LIMIT ?2)");
+        let candidates = format!(
+            "{HIDDEN}, hits AS MATERIALIZED (SELECT s.block_id AS id, bm25(blocks_fts) AS score FROM blocks_fts JOIN search_blocks s ON s.rowid = blocks_fts.rowid WHERE blocks_fts MATCH ?1 AND blocks_fts.rowid NOT IN (SELECT rowid FROM hidden) ORDER BY score, s.block_id LIMIT ?2)"
+        );
         capture(
             &connection,
             &mut plans,
@@ -106,9 +108,16 @@ pub fn save(dir: &Path, results: &Path, size: usize, corpus: &Corpus, stamp: u12
         ),
         vec![json!(type_id), json!(100)],
     )?;
-    let target = corpus.model.blocks.values().find_map(|block| {
-        references(&block.text).into_iter().find(|target| corpus.model.blocks.contains_key(target))
-    }).expect("corpus contains a referenced target");
+    let target = corpus
+        .model
+        .blocks
+        .values()
+        .find_map(|block| {
+            references(&block.text)
+                .into_iter()
+                .find(|target| corpus.model.blocks.contains_key(target))
+        })
+        .expect("corpus contains a referenced target");
     capture(
         &connection,
         &mut plans,
