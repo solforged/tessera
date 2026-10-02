@@ -11,6 +11,7 @@ import { fieldEntryId, fieldEntryText, matchFieldEntry } from '../table/query';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
+import type { IconName } from '../ui/Icon';
 import type { MenuItem } from '../ui/Menu';
 import { Popup } from '../ui/Popup';
 import { BlockBreadcrumb, BlockText, offsetAtPoint, textTokens } from './BlockText';
@@ -731,11 +732,27 @@ function Pane(props: OutlinePaneProps) {
   ];
   const commands = commandDefinitions.map(command => ({ ...command, id: `outline.${props.pane}.${command.id}`, disabledReason: () => !props.active ? 'This pane is not active.' : command.disabledReason?.() ?? (command.section !== 'Page' && !['zoom-out', 'show-archived', 'undo', 'redo'].includes(command.id) && !selected() ? 'Select a block first.' : undefined) }));
   const unregister = props.commands.register(commands);
+  /** Sections: Block, Move, Select. Pure navigation stays in the command palette and the shortcut list. */
   function blockMenu(id: string, anchor: HTMLElement) {
     if (!selectedSet().has(id)) rowFocus(id);
+    const item = (commandId: string, options: { icon?: IconName; section?: string; danger?: boolean } = {}): MenuItem => {
+      const command = commandDefinitions.find(candidate => candidate.id === commandId)!;
+      return { ...options, label: command.title, shortcut: command.keys?.[0], disabledReason: command.disabledReason?.(), action: command.run };
+    };
     setMenu({ anchor, label: 'Block actions', items: [
-      { label: 'Add type…', action: () => { setCompletionIndex(0); setCompletion({ from: 0, to: 0, query: '', manual: { blockId: id, anchor } }); } },
-      ...commands.filter(command => command.section !== 'Page').map(command => ({ label: command.title, shortcut: command.keys?.[0], disabledReason: command.disabledReason?.(), danger: command.id.endsWith('.delete'), action: command.run })),
+      { label: 'Add type…', icon: 'tag', action: () => { setCompletionIndex(0); setCompletion({ from: 0, to: 0, query: '', manual: { blockId: id, anchor } }); } },
+      item('zoom', { icon: 'bullet' }),
+      item('open-beside', { icon: 'panes' }),
+      item('copy-reference', { icon: 'copy' }),
+      item('insert-below', { section: 'Move', icon: 'plus' }),
+      item('indent', { icon: 'right' }),
+      item('outdent', { icon: 'left' }),
+      item('move-up', { icon: 'up' }),
+      item('move-down', { icon: 'down' }),
+      item('select', { section: 'Select', icon: 'select' }),
+      item('select-all'),
+      item('archive', { section: 'Block', icon: 'archive' }),
+      item('delete', { icon: 'trash', danger: true }),
     ] });
   }
 

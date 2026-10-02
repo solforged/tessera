@@ -23,6 +23,8 @@ const paths = {
   table: 'M1 2h14v12H1z M1 6h14 M6 2v12 M11 6v8',
   field: 'M2 3h12 M2 8h8 M2 13h5 M12 10v5 M10 12h4',
   settings: 'M2 4h12 M2 12h12 M5 2v4 M11 10v4',
+  tag: 'M2 2h6l6 6-6 6-6-6z M5 5h.01',
+  select: 'M2 2h5 M9 2h5 M2 14h5 M9 14h5 M2 2v5 M2 9v5 M14 2v5 M14 9v5',
 } as const;
 export type IconName = keyof typeof paths;
 export function Icon(props: { name: IconName; class?: string }): JSX.Element {
