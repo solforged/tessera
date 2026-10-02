@@ -72,13 +72,13 @@ export function FieldsPane(props: FieldsPaneProps) {
     <div ref={scroll} class="fields-scroll" onScroll={() => props.onViewChange({ scroll: scroll.scrollTop })}>
       <Show when={data()}>
         <Show when={fields().length} fallback={<p class="empty-state">No fields yet. Type <code>Name::</code> in a block to define one.</p>}>
-          <table class="fields-index"><thead><tr><th scope="col">Name</th><th scope="col">Kind</th><th scope="col">Owners</th><th scope="col">Template types</th><th scope="col">Actions</th></tr></thead><tbody>
+          <table class="fields-index"><thead><tr><th scope="col">Name</th><th scope="col">Kind</th><th scope="col" class="fields-count">Owners</th><th scope="col">Template types</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead><tbody>
             <For each={fields()}>{field => <tr tabIndex={0} aria-label={field.name} onKeyDown={event => {
               if (event.target === event.currentTarget && event.key === 'Enter') { event.preventDefault(); openDefinition(field, event.shiftKey); }
             }}>
               <td>{field.name}</td>
               <td><select class="input" aria-label={`Kind for ${field.name}`} value={field.kind} disabled={loading() || doc()?.status() !== 'ready' || doc()?.saveState() !== 'saved'} onChange={event => { changeKind(field, event.currentTarget.value as FieldKind); event.currentTarget.value = field.kind; }}><For each={Object.entries(kindLabels)}>{([kind, label]) => <option value={kind}>{label}</option>}</For></select></td>
-              <td>{field.owners}</td><td>{field.types.map(type => type.name).join(', ') || 'None'}</td>
+              <td class="fields-count">{field.owners}</td><td>{field.types.map(type => type.name).join(', ') || <span class="muted">None</span>}</td>
               <td><div class="fields-actions"><Button onClick={event => openDefinition(field, event.shiftKey)}>Open definition</Button><Button onClick={event => props.onOpen({ kind: 'table', typeId: null, viewId: null, query: { type: null, text: null, filters: [{ field: field.id, op: 'set', value: null }], sort: [], limit: null } }, event.shiftKey)}>Show owners</Button></div></td>
             </tr>}</For>
           </tbody></table>
