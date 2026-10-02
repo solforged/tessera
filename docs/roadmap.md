@@ -54,31 +54,43 @@ Exit: plan a small project, work it over several days with clocked time, and fin
 
 Exit: study cards from real reading notes and a vocabulary deck in a language being read, correct a card from review, and keep its history.
 
-## 5. Inquiry and evidence
+## 5. Library and reading
+
+- Ingest EPUB books and web articles into the notebook: immutable, content-hashed snapshots; original files in the notebook's object store; passages with their own search index.
+- Extractors from Bibliotheca moved into `tessera-ingest`; acquisition jobs with retry and resume run in the service.
+- A source is a page with a source capability, so it takes types and fields such as author, year and reading state.
+- A reader pane beside the outline, with reading position and progress.
+- Highlight a passage to write a block that cites it, on the source's page; citations pin source, snapshot and passage.
+- Cards from highlighted passages.
+
+Exit: ingest a book and an article, read a chapter in the reader, take notes that cite passages, and study cards made from them. Afterwards the Bibliotheca repository is archived.
+
+## 6. Inquiry and evidence
 
 - Questions, criteria and dated assessments with one accepted answer.
-- Sources and passages linked to Bibliotheca; attributed positions compared side by side.
+- Attributed positions compared side by side, supported by passages.
 - Assessments that cite positions and passages.
 
 Exit: run the "which model fits my work" investigation twice, a month apart, and trace each answer to its evidence.
 
-## 6. Trust
+## 7. Trust
 
 - Change history with actors; agent plans previewed and applied atomically.
 - Spike 4 (runtime and concurrency) and spike 5 (eight-hour soak).
-- Backup and restore from the app.
-- Command line for capture, search, queries and agent context.
+- Backup and restore from the app, including the object store.
+- Command line for capture, ingestion, search, queries and agent context.
 
 Exit: an agent does bounded work on a real project; every change is attributed and reversible; a restore from backup loses nothing acknowledged.
 
-## 7. Reading and perspectives
+## 8. Perspectives
 
-- Passages promoted from Bibliotheca become ideas in an outline of the book or paper.
+- Ideas: break a book or paper down into an outline of its ideas, each citing its passages.
 - Perspective lenses: flip between holders' positions on an idea, then record your own.
 - Side-by-side comparison of concepts and of how different thinkers classify them.
+- More sources: tweets and threads, papers as PDF.
 - Agent-assisted study: cards and quizzes drawn from a source's passages, with a study plan against a date.
 
-Exit: read a chapter, promote its key passages, link two authors' positions on one idea and state your own, then be quizzed on the chapter by an agent and review the resulting cards.
+Exit: break a chapter into ideas, link two authors' positions on one idea and state your own, then be quizzed on the chapter by an agent and review the resulting cards.
 
 ## Not planned
 
