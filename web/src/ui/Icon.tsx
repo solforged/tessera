@@ -22,6 +22,7 @@ const paths = {
   archive: 'M1 2h14v3H1z M3 5v9h10V5 M6 8h4',
   table: 'M1 2h14v12H1z M1 6h14 M6 2v12 M11 6v8',
   field: 'M2 3h12 M2 8h8 M2 13h5 M12 10v5 M10 12h4',
+  settings: 'M2 4h12 M2 12h12 M5 2v4 M11 10v4',
 } as const;
 export type IconName = keyof typeof paths;
 export function Icon(props: { name: IconName; class?: string }): JSX.Element {

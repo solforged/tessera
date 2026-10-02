@@ -148,6 +148,34 @@ describe('real notebook operations and recovery', () => {
       expect(recovered.queuedChanges()).toBe(0);
     } finally { globalThis.fetch = actualFetch; }
   });
+
+  test('notebook settings share revisions, undo safely, and choose the service journal date', async () => {
+    const first = await client();
+    const second = await client();
+    await eventually(() => first.connection() === 'live' && second.connection() === 'live', 'settings streams did not connect');
+    const originalZone = first.settings()!.time_zone;
+    await first.setSetting('time_zone', 'Pacific/Kiritimati');
+    await eventually(() => second.settings()?.time_zone === 'Pacific/Kiritimati', 'remote time zone did not arrive');
+    const todayId = await first.today();
+    await first.flush();
+    expect((await api.page(todayId)).root.text).toBe((await api.settings()).today);
+    await first.setSetting('vim', 'true');
+    await eventually(() => second.vim(), 'remote Vim preference did not arrive');
+    await first.undoSetting();
+    expect(first.vim()).toBe(false);
+    await first.undoSetting();
+    expect(first.settings()?.time_zone).toBe(originalZone);
+    await first.redoSetting();
+    expect(first.settings()?.time_zone).toBe('Pacific/Kiritimati');
+    await first.redoSetting();
+    expect(first.vim()).toBe(true);
+    await second.refreshSettings();
+    await second.setSetting('vim', 'false');
+    await eventually(() => !first.vim(), 'new remote Vim preference did not arrive');
+    await expect(first.undoSetting()).rejects.toThrow();
+    expect((await api.settings()).settings.find(setting => setting.key === 'vim')?.value).toBe('false');
+    await first.setSetting('time_zone', originalZone);
+  });
   test('offline page creation accepts durable IDs, publishes a provisional root, and reopens it after reload', async () => {
     const session = `offline-create-${++serial}`;
     const instance = await client(session);

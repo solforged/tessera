@@ -52,10 +52,12 @@ export interface ViewState {
 export type OpenTarget =
   | { kind: 'page'; pageId: string; blockId?: string }
   | { kind: 'table'; typeId: string | null; viewId: string | null; query: Query }
-  | { kind: 'fields' };
+  | { kind: 'fields' }
+  | { kind: 'settings' };
 
 export interface TableViewState { query: Query; scroll: number }
 export interface FieldsViewState { scroll: number }
+export interface SettingsViewState { scroll: number }
 
 export interface OutlinePaneProps {
   pane: PaneId;

@@ -12,6 +12,7 @@ import type {
   View,
   NotebookInfo,
   PageView,
+  SettingsView,
 } from './types';
 
 /** A failed request. `status` is 0 when the service could not be reached. */
@@ -72,6 +73,7 @@ const segment = encodeURIComponent;
 
 export interface ApiClient {
   notebook(signal?: AbortSignal): Promise<NotebookInfo>;
+  settings(signal?: AbortSignal): Promise<SettingsView>;
   roots(signal?: AbortSignal): Promise<Block[]>;
   page(id: string, signal?: AbortSignal): Promise<PageView>;
   pageByTitle(title: string, signal?: AbortSignal): Promise<Block>;
@@ -96,6 +98,7 @@ export function createApi(base = ''): ApiClient {
   const get = <T>(path: string, signal?: AbortSignal) => request<T>(base, 'GET', path, undefined, signal);
   return {
     notebook: (signal?: AbortSignal) => get<NotebookInfo>('/notebook', signal),
+    settings: (signal?: AbortSignal) => get<SettingsView>('/settings', signal),
     roots: (signal?: AbortSignal) => get<Block[]>('/roots', signal),
     page: (id: string, signal?: AbortSignal) => get<PageView>(`/pages/${segment(id)}`, signal),
     pageByTitle: (title: string, signal?: AbortSignal) => get<Block>(`/pages/by-title/${segment(title)}`, signal),

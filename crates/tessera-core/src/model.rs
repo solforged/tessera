@@ -152,6 +152,11 @@ pub enum Operation {
         id: String,
         base_revision: i64,
     },
+    SetSetting {
+        key: String,
+        base_revision: Option<i64>,
+        value: String,
+    },
 }
 
 /// Operations committed together or not at all.
@@ -199,6 +204,9 @@ pub struct Committed {
     /// Older persisted receipts predate tag rewriting.
     #[serde(default)]
     pub text_rewrites: Vec<TextRewrite>,
+    /// Resulting revisions of settings, which are not blocks.
+    #[serde(default)]
+    pub settings: Vec<SettingRevision>,
     /// True when this is the stored result of an earlier identical batch.
     pub replayed: bool,
 }
@@ -251,6 +259,9 @@ pub struct ChangeEvent {
     /// Views saved or deleted by this change; clients reload their view list.
     #[serde(default)]
     pub views: Vec<String>,
+    /// Settings changed by this batch; clients reload their settings.
+    #[serde(default)]
+    pub settings: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -410,4 +421,25 @@ pub struct FieldSummary {
 pub struct FieldType {
     pub id: String,
     pub name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SettingRevision {
+    pub key: String,
+    pub revision: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Setting {
+    pub key: String,
+    pub value: String,
+    pub revision: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SettingsView {
+    pub settings: Vec<Setting>,
+    pub today: String,
+    pub time_zone: String,
 }

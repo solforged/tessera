@@ -153,7 +153,7 @@ fn fields_page_is_idempotent_recreated_after_deletion_and_migration_backfills_en
     // A version-five database with existing Fields content upgrades in place.
     drop(nb);
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
-    conn.execute_batch("DROP TABLE field_values; DROP TABLE type_fields; DROP TABLE fields; DROP TABLE views; ALTER TABLE changes DROP COLUMN views; PRAGMA user_version = 5;").unwrap();
+    conn.execute_batch("DROP TABLE settings; DROP TABLE field_values; DROP TABLE type_fields; DROP TABLE fields; DROP TABLE views; ALTER TABLE changes DROP COLUMN views; PRAGMA user_version = 5;").unwrap();
     drop(conn);
     nb = Notebook::open(dir.path()).unwrap();
     assert_eq!(nb.fields().unwrap().page_id, fields);
