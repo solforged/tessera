@@ -19,7 +19,7 @@ Browser editor      CLI        Agents       Terminal (later)
 | Area | Choice | Why |
 |---|---|---|
 | Core | Rust library `tessera-core` | Transactions, identity rules and derivation in one tested place |
-| Storage | SQLite, WAL, FTS5, `synchronous=FULL` | One ordinary file the CLI and backups can use; durable on power loss |
+| Storage | SQLite, WAL, FTS5, `synchronous=FULL`; source files in a SHA-256 object store beside it | One notebook directory the CLI and backups can use; durable on power loss; books don't bloat the database |
 | Service | Rust `tessera-service` on loopback | Single owner of the file; every client gets the same rules |
 | Transport | JSON operations over HTTP; change stream over WebSocket | Agents can use plain HTTP; windows get pushed updates without polling |
 | UI | Solid, TypeScript, Vite | Fine-grained updates: typing touches one row, and structural edits cost less than React's list reconciliation in spike 2 |
@@ -41,6 +41,8 @@ Reads are set-based. Loading a page is a handful of queries for blocks, links, c
 `tessera-service` holds the only write connection and a small pool of read connections. Agent context queries run on readers with a time budget, so they never block an edit.
 
 Each committed change gets a sequence number. The service pushes `{seq, changed ids, revisions}` to subscribed windows. A reconnecting window asks for everything after its last sequence. The CLI starts the service on demand when it isn't running, so command-line use doesn't need an open window.
+
+Ingestion runs in the service: network fetches and parsing happen off the write connection, then the resulting snapshot and passages commit as one attributed batch. Extractors live in `tessera-ingest`, which has no database access, so each format is tested on files alone.
 
 The service binds to loopback and rejects untrusted hosts and origins. Remote access is out of scope.
 
@@ -77,6 +79,7 @@ crates/tessera-core      domain model, migrations, operations
 crates/tessera-service   HTTP and WebSocket service
 crates/tessera-cli       command line
 crates/tessera-bench     corpus generator and backend budget checks
+crates/tessera-ingest    extractors for books, articles and later other formats (planned)
 web/                     Solid editor
 spikes/editor/           editor prototypes and their measurement runner
 docs/                    design documents
