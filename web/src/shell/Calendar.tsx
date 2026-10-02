@@ -7,7 +7,7 @@ import type { PopupAnchor } from '../ui/Popup';
 export function localDate(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
-export function Calendar(props: { anchor: PopupAnchor; date: string; onDismiss(): void; onSelect(date: string): void }) {
+export function Calendar(props: { anchor: PopupAnchor; date: string; today: string; onToday(): void; onDismiss(): void; onSelect(date: string): void }) {
   const [month, setMonth] = createSignal(new Date(`${props.date}T12:00:00`));
   const cells = createMemo(() => {
     const value = month();
@@ -19,8 +19,8 @@ export function Calendar(props: { anchor: PopupAnchor; date: string; onDismiss()
   return <Popup anchor={props.anchor} onDismiss={props.onDismiss} label="Choose journal date" width={280} class="calendar-popup">
     <div class="calendar-header"><Button icon="left" label="Previous month" onClick={() => move(-1)} /><strong>{month().toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</strong><Button icon="right" label="Next month" onClick={() => move(1)} /></div>
     <div class="calendar-grid"><For each={['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']}>{day => <span class="weekday">{day}</span>}</For>
-      <For each={cells()}>{day => <button type="button" class={`calendar-day ${day.getMonth() !== month().getMonth() ? 'outside-month' : ''} ${localDate(day) === props.date ? 'selected' : ''}`} aria-label={day.toLocaleDateString(undefined, { dateStyle: 'full' })} aria-current={localDate(day) === localDate(new Date()) ? 'date' : undefined} onClick={() => { props.onDismiss(); props.onSelect(localDate(day)); }}>{day.getDate()}</button>}</For>
+      <For each={cells()}>{day => <button type="button" class={`calendar-day ${day.getMonth() !== month().getMonth() ? 'outside-month' : ''} ${localDate(day) === props.date ? 'selected' : ''}`} aria-label={day.toLocaleDateString(undefined, { dateStyle: 'full' })} aria-current={localDate(day) === props.today ? 'date' : undefined} onClick={() => { props.onDismiss(); props.onSelect(localDate(day)); }}>{day.getDate()}</button>}</For>
     </div>
-    <Button class="calendar-today" icon="calendar" onClick={() => { props.onDismiss(); props.onSelect(localDate(new Date())); }}>Today</Button>
+    <Button class="calendar-today" icon="calendar" onClick={() => { props.onDismiss(); props.onToday(); }}>Today</Button>
   </Popup>;
 }

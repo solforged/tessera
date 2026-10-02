@@ -2,7 +2,7 @@ import { createSignal } from 'solid-js';
 import type { Accessor } from 'solid-js';
 import { ulid } from 'ulid';
 import { ApiError, createApi } from '../api/client';
-import type { Block, ChangeEvent, Operation, PageView } from '../api/types';
+import type { Block, ChangeEvent, Operation, PageView, SettingsView } from '../api/types';
 import type { ApiClient } from '../api/client';
 import type { Caret, NotebookClient, PageDocument, SaveState } from './contract';
 import { Document } from './page-document';
@@ -19,6 +19,8 @@ export interface NotebookOptions {
   databaseName?: string;
   coalesceMs?: number;
 }
+
+type SettingEdit = { key: 'time_zone' | 'vim'; before: string; after: string; revision: number };
 
 /** One single-flight operation queue for every document in this window. */
 export class Notebook implements NotebookClient, DocumentHost {
@@ -63,6 +65,18 @@ export class Notebook implements NotebookClient, DocumentHost {
   private generations = new Map<string, number>();
   connection = this.connectionSignal[0];
   localPersistence = this.storageSignal[0];
+  private settingsSignal = createSignal<SettingsView>();
+  settings = this.settingsSignal[0];
+  private cachedVim = createSignal(false);
+  private settingBusy = createSignal(false);
+  settingsBusy = this.settingBusy[0];
+  private settingError = createSignal('');
+  private settingUndo: SettingEdit[] = [];
+  private settingRedo: SettingEdit[] = [];
+  vim = () => this.settings()?.settings.find(setting => setting.key === 'vim')?.value === 'true' || (!this.settings() && this.cachedVim[0]());
+  settingsMessage = () => this.settingError[0]() ? `Couldn’t save · ${this.settingError[0]()}` : this.settingsBusy() ? 'Saving…' : this.connection() === 'offline' ? 'Offline' : 'Saved';
+  canUndoSetting = () => { this.revision[0](); return !this.settingsBusy() && this.settingUndo.length > 0; };
+  canRedoSetting = () => { this.revision[0](); return !this.settingsBusy() && this.settingRedo.length > 0; };
   constructor(private options: NotebookOptions = {}) {
     this.api = createApi(options.baseUrl);
     const roots = createSignal<readonly Block[]>([]);
@@ -106,6 +120,8 @@ export class Notebook implements NotebookClient, DocumentHost {
       try { notebookId ??= sessionStorage.getItem(key) ?? undefined; } catch { /* No remembered notebook. */ }
       if (!notebookId) { this.failure = error instanceof Error ? error.message : String(error); this.touch(); return; }
     }
+    try { this.cachedVim[1](JSON.parse(localStorage.getItem(`tessera.navigation.${notebookId}`) ?? '{}').vim === true); } catch { /* Optional offline preference. */ }
+    try { await this.refreshSettings(); } catch { /* Offline dates and Vim use device/cache fallbacks. */ }
     this.outbox = new Outbox(notebookId, this.sessionId, this.storageFailed, this.options.databaseName);
     const stored = await this.outbox.load();
     this.queue = stored.commands.filter(command => !command.rejection);
@@ -657,6 +673,7 @@ export class Notebook implements NotebookClient, DocumentHost {
     await this.reconcile([...blocks.values()], [...removed], [...pages]);
     const views = [...new Set(events.filter(event => event.seq > this.seq).flatMap(event => event.views ?? []))];
     this.observedChange[1]({ ...events.at(-1)!, views });
+    if (events.some(event => (event.settings ?? []).length)) await this.refreshSettings();
     this.seq = Math.max(this.seq, events.at(-1)!.seq);
     this.observedSequence[1](seq => Math.max(seq, this.seq));
     this.touch();
@@ -664,14 +681,76 @@ export class Notebook implements NotebookClient, DocumentHost {
   private async change(event: ChangeEvent) {
     if (event.seq <= this.seq) return;
     if (event.actor.kind !== 'client' || event.actor.name !== this.actorName) await this.reconcile(event.blocks, event.removed, event.restructured_pages);
+    if (event.settings?.length) await this.refreshSettings();
     this.seq = event.seq;
     this.observedChange[1]({ ...event, views: event.views ?? [] });
     this.observedSequence[1](seq => Math.max(seq, event.seq));
     this.touch();
   }
-  async today() {
+  async refreshSettings() {
+    const value = await this.api.settings();
+    if (!this.closed) this.settingsSignal[1](value);
+  }
+  todayDate() {
+    const current = this.settings();
+    if (current && this.connection() !== 'offline') return current.today;
     const date = new Date();
-    return this.journal(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  }
+  async today() {
+    await this.ready;
+    try { await this.refreshSettings(); } catch { this.connectionSignal[1]('offline'); }
+    return this.journal(this.todayDate());
+  }
+  private async writeSetting(key: 'time_zone' | 'vim', value: string, baseRevision: number | null) {
+    const committed = await this.api.submit({
+      actor: { kind: 'client', name: this.actorName },
+      idempotency_key: ulid(),
+      operations: [{ op: 'set_setting', key, base_revision: baseRevision, value }],
+    });
+    const revision = committed.settings.find(setting => setting.key === key)!.revision;
+    // Keep the acknowledged value even if the subsequent calendar refresh fails.
+    const previous = this.settings()!;
+    this.settingsSignal[1]({ ...previous, settings: [
+      ...previous.settings.filter(setting => setting.key !== key),
+      { key, value, revision, updated_at: Date.now() },
+    ] });
+    try { await this.refreshSettings(); } catch { this.connectionSignal[1]('offline'); }
+    return revision;
+  }
+  private async settingAction(action: () => Promise<void>) {
+    if (this.settingsBusy()) return;
+    this.settingBusy[1](true); this.settingError[1]('');
+    try { await this.ready; await action(); }
+    catch (error) {
+      this.settingError[1](error instanceof Error ? error.message : String(error));
+      try { await this.refreshSettings(); } catch { /* Keep the last acknowledged values. */ }
+      throw error;
+    } finally { this.settingBusy[1](false); this.touch(); }
+  }
+  async setSetting(key: 'time_zone' | 'vim', value: string) {
+    return this.settingAction(async () => {
+      if (!this.settings()) await this.refreshSettings();
+      const settings = this.settings()!;
+      const current = settings.settings.find(setting => setting.key === key);
+      const before = current?.value ?? (key === 'vim' ? 'false' : settings.time_zone);
+      if (current?.value === value) return;
+      const revision = await this.writeSetting(key, value, current?.revision ?? null);
+      this.settingUndo.push({ key, before, after: value, revision });
+      this.settingRedo = [];
+    });
+  }
+  async undoSetting() { return this.travelSetting(this.settingUndo, this.settingRedo, false); }
+  async redoSetting() { return this.travelSetting(this.settingRedo, this.settingUndo, true); }
+  private async travelSetting(from: SettingEdit[], to: SettingEdit[], redo: boolean) {
+    return this.settingAction(async () => {
+      const edit = from.at(-1); if (!edit) return;
+      const revision = await this.writeSetting(edit.key, redo ? edit.after : edit.before, edit.revision);
+      from.pop(); to.push({ ...edit, revision });
+      for (let index = from.length - 1; index >= 0; index--) {
+        if (from[index]!.key === edit.key) { from[index]!.revision = revision; break; }
+      }
+    });
   }
   async journal(date: string) {
     await this.ready;

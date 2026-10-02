@@ -336,7 +336,7 @@ impl Notebook {
         let mut statement = self.conn.prepare_cached(concat!(
             "SELECT c.seq, c.actor, c.reason, c.created_at, c.restructured_pages, r.block_id, ",
             block_columns!("b"),
-            ", b.deletion_id, c.views
+            ", b.deletion_id, c.views, json_extract(c.committed, '$.settings')
              FROM (SELECT * FROM changes WHERE seq > ?1 ORDER BY seq LIMIT ?2) c
              LEFT JOIN change_revisions r ON r.change_seq = c.seq
              LEFT JOIN blocks b ON b.id = r.block_id ORDER BY c.seq, r.position",
@@ -360,6 +360,15 @@ impl Notebook {
                         .map_err(|error| validation(format!("invalid stored pages: {error}")))?,
                     views: serde_json::from_str(&row.get::<_, String>(17)?)
                         .map_err(|error| validation(format!("invalid stored view IDs: {error}")))?,
+                    settings: row
+                        .get::<_, Option<String>>(18)?
+                        .map(|json| serde_json::from_str::<Vec<crate::SettingRevision>>(&json))
+                        .transpose()
+                        .map_err(|error| validation(format!("invalid stored settings: {error}")))?
+                        .unwrap_or_default()
+                        .into_iter()
+                        .map(|setting| setting.key)
+                        .collect(),
                 });
             }
             if let Some(id) = row.get::<_, Option<String>>(5)? {

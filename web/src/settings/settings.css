@@ -1,0 +1,8 @@
+.settings-pane { height: 100%; overflow: auto; padding: var(--space-24); }
+.settings-pane section + section { margin-top: var(--space-32); }
+.settings-pane h2 { margin: 0 0 var(--space-16); }
+.settings-pane dl { display: grid; gap: var(--space-8); margin: 0; }
+.settings-pane dd { margin: 0 0 var(--space-8); overflow-wrap: anywhere; }
+.settings-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-8); margin-bottom: var(--space-24); }
+.settings-actions [role="status"] { flex: 1; }
+.settings-checkbox { display: inline-flex; align-items: center; gap: var(--space-8); }

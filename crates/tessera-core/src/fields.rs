@@ -153,6 +153,7 @@ impl FieldChanges {
             | Operation::AddType { .. }
             | Operation::RemoveType { .. }
             | Operation::SaveView { .. }
+            | Operation::SetSetting { .. }
             | Operation::DeleteView { .. } => Ok(()),
         }
     }

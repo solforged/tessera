@@ -313,3 +313,51 @@ async fn malformed_requests_keep_json_errors() {
         assert_eq!(error["error"]["code"], code);
     }
 }
+
+#[tokio::test]
+async fn settings_batch_changes_calendar_date_and_announces_keys() {
+    let dir = tempfile::tempdir().unwrap();
+    let app = app(dir.path(), None, None);
+    let host = [("host", "127.0.0.1:4318")];
+    let (_, body) = send(app.clone(), "/api/settings", &host).await;
+    let initial: tessera_core::SettingsView = serde_json::from_slice(&body).unwrap();
+    let mut revision = None;
+    let mut different = false;
+    // These zones are 26 hours apart, so at least one differs from the host date.
+    for zone in ["Pacific/Kiritimati", "Etc/GMT+12"] {
+        let (status, receipt) = batch(
+            app.clone(),
+            vec![Operation::SetSetting {
+                key: "time_zone".into(),
+                base_revision: revision,
+                value: zone.into(),
+            }],
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        revision = Some(receipt["settings"][0]["revision"].as_i64().unwrap());
+        assert_eq!(receipt["revisions"], serde_json::json!([]));
+        let (status, body) = send(app.clone(), "/api/settings", &host).await;
+        assert_eq!(status, StatusCode::OK);
+        let settings: tessera_core::SettingsView = serde_json::from_slice(&body).unwrap();
+        assert_eq!(settings.time_zone, zone);
+        assert_eq!(settings.settings[0].value, zone);
+        assert_eq!(settings.settings[0].revision, revision.unwrap());
+        different |= settings.today != initial.today;
+    }
+    assert!(different);
+    let (_, body) = send(app, "/api/changes?after=0", &host).await;
+    let changes: Vec<tessera_core::ChangeEvent> = serde_json::from_slice(&body).unwrap();
+    assert_eq!(
+        changes
+            .iter()
+            .map(|event| event.settings.as_slice())
+            .collect::<Vec<_>>(),
+        vec![["time_zone".to_string()].as_slice(); 2]
+    );
+    assert!(
+        changes
+            .iter()
+            .all(|event| event.blocks.is_empty() && event.removed.is_empty())
+    );
+}

@@ -1,4 +1,4 @@
-import { batch, createEffect, createMemo, createResource, createSignal, For, onCleanup, onMount, Show } from 'solid-js';
+import { batch, createEffect, createMemo, createResource, createSignal, For, Match, onCleanup, onMount, Show, Switch } from 'solid-js';
 import type { Accessor } from 'solid-js';
 import { api } from '../api/client';
 import type { Block, NotebookInfo } from '../api/types';
@@ -7,6 +7,7 @@ import type { NotebookClient, PageDocument } from '../document/contract';
 import { OutlinePane } from '../outline/OutlinePane';
 import { TablePane } from '../table/TablePane';
 import { FieldsPane } from '../fields/FieldsPane';
+import { SettingsPane } from '../settings/SettingsPane';
 import { copyQuery } from '../table/query';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
@@ -15,10 +16,11 @@ import type { MenuItem } from '../ui/Menu';
 import { Popup } from '../ui/Popup';
 import { Calendar, localDate } from './Calendar';
 import { createCommandRegistry } from './commands';
-import type { CommandRegistry, FieldsViewState, OpenTarget, PaneId, TableViewState, ViewState } from './contract';
+import type { CommandRegistry, FieldsViewState, OpenTarget, PaneId, SettingsViewState, TableViewState, ViewState } from './contract';
 import { Palette } from './Palette';
 
-type HistoryEntry = { target: OpenTarget; view: ViewState | TableViewState | FieldsViewState };
+type PaneView = ViewState | TableViewState | FieldsViewState | SettingsViewState;
+type HistoryEntry = { target: OpenTarget; view: PaneView };
 type PaneSession = { entries: HistoryEntry[]; index: number; generation: number };
 type SavedNavigation = { pinned?: string[]; recent?: string[]; vim?: boolean; panes?: Partial<Record<PaneId, HistoryEntry>>; active?: PaneId };
 type VimMode = 'insert' | 'normal' | 'visual' | 'outline' | null;
@@ -34,7 +36,11 @@ function copyView(view: ViewState): ViewState {
 function pageIdOf(current: HistoryEntry | undefined): string | undefined {
   return current?.target.kind === 'page' ? current.target.pageId : undefined;
 }
-function snapshotView(view: ViewState | TableViewState | FieldsViewState): ViewState | TableViewState | FieldsViewState {
+/** Header and tab text for panes that are not pages. */
+function paneLabel(target: OpenTarget | undefined): string {
+  return target?.kind === 'table' ? 'Table' : target?.kind === 'fields' ? 'Fields' : target?.kind === 'settings' ? 'Settings' : 'Loading…';
+}
+function snapshotView(view: PaneView): PaneView {
   return 'query' in view ? { query: copyQuery(view.query), scroll: view.scroll } : 'zoom' in view ? copyView(view) : { scroll: view.scroll };
 }
 
@@ -63,7 +69,7 @@ export function App() {
   createEffect(() => { if ((notebook.lastChange()?.views ?? []).length) void refetchViews(); });
   const [sessions, setSessions] = createSignal<Record<PaneId, PaneSession>>({ main: { entries: [], index: -1, generation: 0 }, side: { entries: [], index: -1, generation: 0 } });
   const [active, setActive] = createSignal<PaneId>('main');
-  const [vim, setVim] = createSignal(false);
+  const vim = notebook.vim;
   const [vimModes, setVimModes] = createSignal<Record<PaneId, VimMode>>({ main: null, side: null });
   const narrowQuery = window.matchMedia('(max-width: 479px)');
   const [narrow, setNarrow] = createSignal(narrowQuery.matches);
@@ -80,7 +86,8 @@ export function App() {
   const [error, setError] = createSignal('');
   const [offlineUnavailable, setOfflineUnavailable] = createSignal(false);
   const [deleted, setDeleted] = createSignal<{ id: string; title: string } | null>(null);
-  const [date, setDate] = createSignal(localDate(new Date()));
+  const todayDate = () => notebook.todayDate();
+  const [date, setDate] = createSignal(todayDate());
   let searchButton!: HTMLButtonElement;
   let commandsButton!: HTMLButtonElement;
   let newButton!: HTMLButtonElement;
@@ -98,7 +105,7 @@ export function App() {
       if (!root) return;
       setActive(pane);
       const editor = root.querySelector<HTMLElement>('.cm-content');
-      (editor?.getClientRects().length ? editor : root.querySelector<HTMLElement>('.outline-pane, .table-pane, .fields-pane'))?.focus({ preventScroll: true });
+      (editor?.getClientRects().length ? editor : root.querySelector<HTMLElement>('.outline-pane, .table-pane, .fields-pane, .settings-pane'))?.focus({ preventScroll: true });
     });
   };
   const open = (target: OpenTarget, beside = false, owner = active()) => {
@@ -106,9 +113,9 @@ export function App() {
     const current = entry(pane);
     const samePage = target.kind === 'page' && current?.target.kind === 'page' && current.target.pageId === target.pageId && 'zoom' in current.view && current.view.zoom === (target.blockId ?? null);
     if (!beside || !samePage) {
-      const view: ViewState | TableViewState | FieldsViewState = target.kind === 'table'
+      const view: PaneView = target.kind === 'table'
         ? { query: copyQuery(target.query), scroll: 0 }
-        : target.kind === 'fields' ? { scroll: 0 }
+        : target.kind === 'fields' || target.kind === 'settings' ? { scroll: 0 }
         : { zoom: target.blockId ?? null, caret: target.blockId ? { id: target.blockId, offset: 0 } : null, scroll: null, folds: null, showArchived: false };
       setSessions(values => {
         const previous = values[pane];
@@ -123,7 +130,7 @@ export function App() {
     }
     focusPane(pane);
   };
-  const changeView = (pane: PaneId, view: ViewState | TableViewState | FieldsViewState, restore = false) => setSessions(values => {
+  const changeView = (pane: PaneId, view: PaneView, restore = false) => setSessions(values => {
     const session = values[pane]; const current = session.entries[session.index]; if (!current) return values;
     if ('zoom' in view && 'zoom' in current.view && view.zoom !== current.view.zoom) {
       const entries = [...session.entries.slice(0, session.index + 1), { target: current.target, view: copyView(view) }];
@@ -146,12 +153,12 @@ export function App() {
     const root = notebook.roots().find(block => block.id === pageId); if (root?.kind === 'journal') setDate(root.text);
     focusPane(pane);
   };
-  const today = async () => { try { open({ kind: 'page', pageId: await notebook.today() }); setDate(localDate(new Date())); } catch (reason) { reportError(reason); } };
+  const today = async () => { try { open({ kind: 'page', pageId: await notebook.today() }); setDate(todayDate()); } catch (reason) { reportError(reason); } };
   const journal = async (value: string) => { try { open({ kind: 'page', pageId: await notebook.journal(value) }); setDate(value); } catch (reason) { reportError(reason); } };
   const shiftDate = (delta: number) => { const next = new Date(`${date()}T12:00:00`); next.setDate(next.getDate() + delta); void journal(localDate(next)); };
   const toggleVim = () => {
     const pane = active();
-    setVim(value => !value);
+    void notebook.setSetting('vim', String(!vim())).catch(reportError);
     focusPane(pane);
   };
   const switchPane = () => {
@@ -203,10 +210,10 @@ export function App() {
       await notebook.deletePage(pageId);
       setDeleted({ id: pageId, title }); setPopup(null);
       const remaining = notebook.roots().find(block => block.id !== pageId);
-      const previousDay = new Date(`${localDate(new Date())}T12:00:00`);
+      const previousDay = new Date(`${todayDate()}T12:00:00`);
       previousDay.setDate(previousDay.getDate() - 1);
       // Do not recreate a deleted journal date: that would prevent restoring its IDs.
-      const replacement = remaining?.id ?? (root?.kind === 'journal' && root.text === localDate(new Date()) ? await notebook.journal(localDate(previousDay)) : await notebook.today());
+      const replacement = remaining?.id ?? (root?.kind === 'journal' && root.text === todayDate() ? await notebook.journal(localDate(previousDay)) : await notebook.today());
       for (const owner of paneIds) if (pageIdOf(entry(owner)) === pageId) open({ kind: 'page', pageId: replacement }, false, owner);
     } catch (reason) { reportError(reason); }
   };
@@ -243,6 +250,7 @@ export function App() {
     void (async () => {
       if (!notebookInfo && !navigator.onLine) { setOfflineUnavailable(true); setError('Notebook unavailable offline · Open this notebook online once.'); return; }
       await notebook.ready;
+      setDate(todayDate());
       if (notebook.connection() === 'offline' && !notebook.roots().length) { setOfflineUnavailable(true); setError('Notebook unavailable offline · Open this notebook online once.'); return; }
       if (!notebookInfo) { await today(); return; }
       let stored: SavedNavigation = {};
@@ -250,7 +258,6 @@ export function App() {
       batch(() => {
         if (Array.isArray(stored.pinned)) setPinned(stored.pinned.filter(value => typeof value === 'string'));
         if (Array.isArray(stored.recent)) setRecent([...new Set(stored.recent)].filter(value => typeof value === 'string').slice(0, 10));
-        setVim(stored.vim === true);
       });
       const restored: Record<PaneId, PaneSession> = { main: { entries: [], index: -1, generation: 0 }, side: { entries: [], index: -1, generation: 0 } };
       for (const pane of paneIds) {
@@ -259,7 +266,7 @@ export function App() {
         let current: HistoryEntry;
         if (saved.target.kind === 'table' && 'query' in saved.view) {
           current = { target: { ...saved.target, query: copyQuery(saved.view.query) }, view: snapshotView(saved.view) };
-        } else if (saved.target.kind === 'fields' && typeof saved.view.scroll === 'number') {
+        } else if ((saved.target.kind === 'fields' || saved.target.kind === 'settings') && typeof saved.view.scroll === 'number') {
           current = { target: saved.target, view: { scroll: saved.view.scroll } };
         } else if (saved.target.kind === 'page' && 'zoom' in saved.view) {
           const savedId = saved.target.pageId;
@@ -286,6 +293,7 @@ export function App() {
   const unregister = commands.register([
     { id: 'shell.search', title: 'Search notebook', section: 'Navigation', keys: ['⌃⇧F'], run: () => showPalette('search') },
     { id: 'shell.commands', title: 'Show Commands', section: 'Navigation', keys: ['⌃⇧P'], run: () => showPalette('commands') },
+    { id: 'shell.settings', title: 'Open Settings', section: 'Navigation', run: () => open({ kind: 'settings' }) },
     { id: 'shell.today', title: 'Open today’s journal', section: 'Navigation', keys: ['⌃⇧J'], run: () => { void today(); } },
     { id: 'shell.fields', title: 'Open Fields', section: 'Navigation', run: () => open({ kind: 'fields' }) },
     { id: 'shell.previous-day', title: 'Previous journal day', section: 'Navigation', run: () => shiftDate(-1) },
@@ -336,7 +344,8 @@ export function App() {
       <section class="page-list"><h2>Views</h2><For each={views() ?? []}>{view => <Button icon="table" class={entry(active())?.target.kind === 'table' && (entry(active())!.target as Extract<OpenTarget, { kind: 'table' }>).viewId === view.id ? 'selected' : ''} onClick={event => open({ kind: 'table', typeId: view.query.type, viewId: view.id, query: copyQuery(view.query) }, event.metaKey)}>{view.name}</Button>}</For></section>
       <PageList title="Recent" roots={recentRoots()} notebook={notebook} activeId={pageIdOf(entry(active()))} onOpen={open} />
       <Button ref={newButton} class="new-page-button" icon="plus" onClick={event => setPopup({ kind: 'new', anchor: event.currentTarget, pane: active() })}>New page</Button>
-      <Button class="vim-toggle" aria-pressed={vim()} onClick={toggleVim}>Vim {vim() ? 'on' : 'off'}</Button>
+      <Button icon="settings" onClick={event => open({ kind: 'settings' }, event.shiftKey)}>Settings</Button>
+      <Button class="vim-toggle" aria-pressed={vim()} disabled={notebook.settingsBusy()} onClick={toggleVim}>Vim {vim() ? 'on' : 'off'}</Button>
     </aside>
     <main class="workspace">
       <div class="compact-toolbar">
@@ -346,9 +355,10 @@ export function App() {
         <Button icon="calendar" label="Today" shortcut="⌃⇧J" onClick={() => { void today(); }} />
         <Button icon="field" label="Fields" onClick={event => open({ kind: 'fields' }, event.shiftKey)} />
         <Button icon="plus" label="New page" onClick={event => setPopup({ kind: 'new', anchor: event.currentTarget, pane: active() })} />
-        <Button aria-pressed={vim()} label={vim() ? `Turn Vim off · ${vimLabels[vimModes()[active()] ?? 'outline']} mode` : 'Turn Vim on'} onClick={toggleVim}>{vim() ? narrow() ? `Vim: ${vimLabels[vimModes()[active()] ?? 'outline']}` : 'Vim on' : 'Vim off'}</Button>
+        <Button icon="settings" label="Settings" onClick={event => open({ kind: 'settings' }, event.shiftKey)} />
+        <Button aria-pressed={vim()} disabled={notebook.settingsBusy()} label={vim() ? `Turn Vim off · ${vimLabels[vimModes()[active()] ?? 'outline']} mode` : 'Turn Vim on'} onClick={toggleVim}>{vim() ? narrow() ? `Vim: ${vimLabels[vimModes()[active()] ?? 'outline']}` : 'Vim on' : 'Vim off'}</Button>
       </div>
-      <Show when={split()}><div class="pane-tabs" role="tablist" aria-label="Working panes"><For each={paneIds}>{pane => <Button role="tab" aria-selected={active() === pane} onClick={() => { if (active() !== pane) switchPane(); }}>{pane === 'main' ? 'Pane 1' : 'Pane 2'} · {rootById().get(pageIdOf(entry(pane)) ?? '')?.text ?? (entry(pane)?.target.kind === 'table' ? 'Table' : entry(pane)?.target.kind === 'fields' ? 'Fields' : 'Loading…')}</Button>}</For></div></Show>
+      <Show when={split()}><div class="pane-tabs" role="tablist" aria-label="Working panes"><For each={paneIds}>{pane => <Button role="tab" aria-selected={active() === pane} onClick={() => { if (active() !== pane) switchPane(); }}>{pane === 'main' ? 'Pane 1' : 'Pane 2'} · {rootById().get(pageIdOf(entry(pane)) ?? '')?.text ?? paneLabel(entry(pane)?.target)}</Button>}</For></div></Show>
       <Show when={error()}><div class="shell-error" role="alert"><Icon name="warning" /><span>{error()}</span><Button onClick={() => { if (offlineUnavailable()) { location.reload(); return; } setError(''); void today(); }}>Retry</Button></div></Show>
       <div class="panes"><For each={paneIds}>{pane => <Show when={entry(pane)}>
         <Pane pane={pane} session={() => sessions()[pane]} active={active() === pane} split={split()} notebook={notebook} commands={commands} vim={vim()} vimMode={vimModes()[pane]} onVimMode={mode => setVimModes(values => ({ ...values, [pane]: mode }))} pinned={pinned().includes(pageIdOf(entry(pane)) ?? '')}
@@ -375,7 +385,7 @@ export function App() {
         <Palette anchor={state.anchor} pane={state.pane} mode={state.kind === 'commands' ? 'commands' : 'search'} commands={commands} notebook={notebook} onDismiss={() => setPopup(null)} onRestoreFocus={() => { if (!popup() && active() === state.pane) focusPane(state.pane); }} onOpen={(target, beside) => open(target, beside, state.pane)} />
       </Show>
       <Show when={state.kind === 'calendar'}>
-        <Calendar anchor={state.anchor} date={date()} onDismiss={() => setPopup(null)} onSelect={value => { void journal(value); }} />
+        <Calendar anchor={state.anchor} date={date()} today={todayDate()} onToday={() => { void today(); }} onDismiss={() => setPopup(null)} onSelect={value => { void journal(value); }} />
       </Show>
       <Show when={state.kind === 'new'}>
         <NewPage anchor={state.anchor} notebook={notebook} onDismiss={() => setPopup(null)} onOpen={id => { setPopup(null); open({ kind: 'page', pageId: id }, false, state.pane); }} />
@@ -435,7 +445,7 @@ function GlobalBanner(props: { notebook: NotebookClient; onReview(): void }) {
   </div></Show>;
 }
 
-function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boolean; split: boolean; notebook: NotebookClient; commands: CommandRegistry; vim: boolean; vimMode: VimMode; onVimMode(mode: VimMode): void; pinned: boolean; onActivate(): void; onOpen(target: OpenTarget, beside: boolean): void; onTargetChange(target: OpenTarget): void; onPageBeside(): void; onViewChange(view: ViewState | TableViewState | FieldsViewState): void; onTravel(delta: number): void; onClose(): void; onSwitch(): void; onPin(): void; onRename(): void; onDelete(anchor: HTMLElement): void; onArchived(): void; onRestoreView(view: ViewState): void; onReview(): void }) {
+function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boolean; split: boolean; notebook: NotebookClient; commands: CommandRegistry; vim: boolean; vimMode: VimMode; onVimMode(mode: VimMode): void; pinned: boolean; onActivate(): void; onOpen(target: OpenTarget, beside: boolean): void; onTargetChange(target: OpenTarget): void; onPageBeside(): void; onViewChange(view: PaneView): void; onTravel(delta: number): void; onClose(): void; onSwitch(): void; onPin(): void; onRename(): void; onDelete(anchor: HTMLElement): void; onArchived(): void; onRestoreView(view: ViewState): void; onReview(): void }) {
   const current = () => props.session().entries[props.session().index]!;
   const pageId = createMemo(() => pageIdOf(current()));
   const outlineView = () => current().view as ViewState;
@@ -482,18 +492,18 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
         <span class="pane-save-state" title={doc()?.saveMessage()}><Icon name={doc()?.saveState() === 'saved' ? 'check' : doc()?.saveState() === 'offline' ? 'offline' : doc()?.saveState() === 'error' || doc()?.saveState() === 'conflict' ? 'warning' : 'saving'} />{status()}</span>
         <Show when={props.vim}><span class="vim-mode">Vim: {vimLabels[props.vimMode ?? 'outline']}</span></Show>
       </Show>
-      <Show when={!pageId()}><span class="pane-breadcrumbs">{current().target.kind === 'fields' ? 'Fields' : 'Table'}</span></Show>
+      <Show when={!pageId()}><span class="pane-breadcrumbs">{paneLabel(current().target)}</span></Show>
       <Show when={!props.split}><Button class="pane-secondary" icon="panes" label="Open page beside" onClick={props.onPageBeside} /></Show>
       <Show when={pageId()}><Button ref={menuButton} class="page-menu-button" icon="more" label="Page menu" aria-expanded={!!menu()} onClick={event => setMenu(value => value ? null : event.currentTarget)} /></Show>
       <Show when={props.split}><Button class="pane-secondary" icon="close" label="Close pane" shortcut="⌃⇧X" onClick={props.onClose} /></Show>
     </header>
     <Show when={props.active}><GlobalBanner notebook={props.notebook} onReview={props.onReview} /></Show>
     <Show when={!props.active && (doc()?.saveState() === 'error' || doc()?.saveState() === 'conflict')}><div class="pane-error" role="alert">{doc()?.saveMessage()}</div></Show>
-    <div class="pane-content"><Show keyed when={props.session().generation}>{generation => <Show when={current().target.kind === 'fields'} fallback={<Show when={current().target.kind === 'table'} fallback={<OutlinePane pane={props.pane} pageId={pageId()!} view={copyView(outlineView())} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} active={props.active} onActivate={() => { if (generation === props.session().generation && document.activeElement?.closest('.pane')?.getAttribute('data-pane') === props.pane) props.onActivate(); }} vim={props.vim} onVimMode={props.onVimMode} commands={props.commands} notebook={props.notebook} />}>
-      <TablePane pane={props.pane} target={current().target as Extract<OpenTarget, { kind: 'table' }>} view={snapshotView(current().view) as TableViewState} notebook={props.notebook} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onTargetChange={target => { if (generation === props.session().generation) props.onTargetChange(target); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} />
-    </Show>}>
-      <FieldsPane view={snapshotView(current().view) as FieldsViewState} notebook={props.notebook} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} />
-    </Show>}</Show></div>
+    <div class="pane-content"><Show keyed when={props.session().generation}>{generation => <Switch fallback={<OutlinePane pane={props.pane} pageId={pageId()!} view={copyView(outlineView())} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} active={props.active} onActivate={() => { if (generation === props.session().generation && document.activeElement?.closest('.pane')?.getAttribute('data-pane') === props.pane) props.onActivate(); }} vim={props.vim} onVimMode={props.onVimMode} commands={props.commands} notebook={props.notebook} />}>
+      <Match when={current().target.kind === 'table'}><TablePane pane={props.pane} target={current().target as Extract<OpenTarget, { kind: 'table' }>} view={snapshotView(current().view) as TableViewState} notebook={props.notebook} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onTargetChange={target => { if (generation === props.session().generation) props.onTargetChange(target); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
+      <Match when={current().target.kind === 'fields'}><FieldsPane view={snapshotView(current().view) as FieldsViewState} notebook={props.notebook} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
+      <Match when={current().target.kind === 'settings'}><SettingsPane pane={props.pane} view={snapshotView(current().view) as SettingsViewState} notebook={props.notebook} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
+    </Switch>}</Show></div>
     <Show when={menu()}>{anchor => <Menu anchor={anchor()} label="Page actions" items={items()} onDismiss={() => setMenu(null)} />}</Show>
   </section>;
 }

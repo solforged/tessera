@@ -11,7 +11,8 @@ use crate::storage::{
     validation,
 };
 use crate::{
-    Batch, BlockKind, Committed, Error, Notebook, Operation, Result, Revision, TextRewrite,
+    Batch, BlockKind, Committed, Error, Notebook, Operation, Result, Revision, SettingRevision,
+    TextRewrite,
 };
 
 const GAP: i64 = 1024;
@@ -67,6 +68,7 @@ impl Notebook {
             now,
             seq,
             revisions: Vec::new(),
+            settings: Vec::new(),
             positions: HashMap::new(),
             deletions: Vec::new(),
             restructured_pages: HashSet::new(),
@@ -104,6 +106,7 @@ impl Notebook {
         let committed = Committed {
             seq,
             revisions: engine.revisions,
+            settings: engine.settings,
             deletions: engine.deletions,
             text_rewrites: engine.text_rewrites,
             replayed: false,
@@ -162,6 +165,7 @@ struct Engine<'a, 'conn> {
     now: i64,
     seq: i64,
     revisions: Vec<Revision>,
+    settings: Vec<SettingRevision>,
     positions: HashMap<String, (usize, bool)>,
     deletions: Vec<String>,
     restructured_pages: HashSet<String>,
@@ -1125,6 +1129,42 @@ impl Engine<'_, '_> {
                 }
                 self.tx.execute("DELETE FROM views WHERE id = ?1", [id])?;
                 self.touch(id, found + 1);
+                Ok(())
+            }
+            Operation::SetSetting {
+                key,
+                base_revision,
+                value,
+            } => {
+                crate::settings::validate_setting(key, value)?;
+                let found = self
+                    .tx
+                    .prepare_cached("SELECT revision FROM settings WHERE key = ?1")?
+                    .query_row([key], |row| row.get::<_, i64>(0))
+                    .optional()?;
+                if found != *base_revision {
+                    return Err(Error::Conflict {
+                        op_index: index,
+                        id: key.clone(),
+                        expected: base_revision.unwrap_or(0),
+                        found,
+                    });
+                }
+                let revision = found.unwrap_or(0) + 1;
+                self.tx.execute(
+                    "INSERT INTO settings(key, value, revision, updated_at) VALUES (?1, ?2, ?3, ?4)
+                     ON CONFLICT(key) DO UPDATE SET value = excluded.value, revision = excluded.revision, updated_at = excluded.updated_at",
+                    params![key, value, revision, self.now],
+                )?;
+                if let Some(setting) = self.settings.iter_mut().find(|setting| setting.key == *key)
+                {
+                    setting.revision = revision;
+                } else {
+                    self.settings.push(SettingRevision {
+                        key: key.clone(),
+                        revision,
+                    });
+                }
                 Ok(())
             }
         }

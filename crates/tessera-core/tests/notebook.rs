@@ -1,4 +1,4 @@
-use tessera_core::{DATABASE_FILE, Error, Notebook, SCHEMA_VERSION};
+use tessera_core::{Actor, Batch, DATABASE_FILE, Error, Notebook, Operation, SCHEMA_VERSION};
 
 #[test]
 fn reopening_keeps_the_notebook_identity() {
@@ -178,4 +178,132 @@ fn failed_upgrade_rolls_back_schema_changes_and_releases_the_writer_slot() {
     assert_eq!(info.id, notebook_id);
     assert_eq!(info.created_at, 123);
     assert_eq!(info.schema_version, SCHEMA_VERSION);
+}
+
+fn setting_batch(key: &str, base_revision: Option<i64>, value: &str) -> Batch {
+    Batch {
+        actor: Actor::Person,
+        reason: None,
+        idempotency_key: None,
+        operations: vec![Operation::SetSetting {
+            key: key.into(),
+            base_revision,
+            value: value.into(),
+        }],
+    }
+}
+
+#[test]
+fn settings_create_update_and_replay_without_block_revisions() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut notebook = Notebook::open(dir.path()).unwrap();
+    let mut batch = setting_batch("vim", None, "true");
+    batch.idempotency_key = Some("setting-create".into());
+    let created = notebook.apply(&batch).unwrap();
+    assert!(created.revisions.is_empty());
+    assert_eq!(created.settings[0].key, "vim");
+    assert_eq!(created.settings[0].revision, 1);
+    let replay = notebook.apply(&batch).unwrap();
+    assert!(replay.replayed);
+    assert_eq!(replay.settings, created.settings);
+    notebook
+        .apply(&setting_batch("vim", Some(1), "false"))
+        .unwrap();
+    drop(notebook);
+    let notebook = Notebook::open(dir.path()).unwrap();
+    let settings = notebook.settings().unwrap();
+    assert_eq!(settings[0].value, "false");
+    assert_eq!(settings[0].revision, 2);
+    assert!(settings[0].updated_at > 0);
+    let changes = notebook.changes_since(0, 10).unwrap();
+    assert_eq!(changes.len(), 2);
+    assert_eq!(changes[0].settings, ["vim"]);
+    assert!(changes[0].blocks.is_empty() && changes[0].removed.is_empty());
+}
+
+#[test]
+fn stale_setting_revision_rejects_the_whole_batch() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut notebook = Notebook::open(dir.path()).unwrap();
+    notebook.apply(&setting_batch("vim", None, "true")).unwrap();
+    notebook
+        .apply(&setting_batch("vim", Some(1), "false"))
+        .unwrap();
+    let mut batch = setting_batch("time_zone", None, "Pacific/Kiritimati");
+    batch.operations.push(Operation::SetSetting {
+        key: "vim".into(),
+        base_revision: Some(1),
+        value: "true".into(),
+    });
+    assert!(matches!(
+        notebook.apply(&batch),
+        Err(Error::Conflict {
+            op_index: 1,
+            expected: 1,
+            found: Some(2),
+            ..
+        })
+    ));
+    assert_eq!(notebook.settings().unwrap().len(), 1);
+    assert_eq!(notebook.settings().unwrap()[0].value, "false");
+    assert!(matches!(
+        notebook.apply(&setting_batch("vim", None, "true")),
+        Err(Error::Conflict { .. })
+    ));
+    assert!(matches!(
+        notebook.apply(&setting_batch("time_zone", Some(1), "UTC")),
+        Err(Error::Conflict { found: None, .. })
+    ));
+    assert!(notebook.changes_since(2, 10).unwrap().is_empty());
+}
+
+#[test]
+fn invalid_time_zone_vim_and_unknown_setting_are_rejected() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut notebook = Notebook::open(dir.path()).unwrap();
+    for (key, value) in [
+        ("time_zone", "Mars/Olympus"),
+        ("time_zone", "+03:00"),
+        ("vim", "yes"),
+        ("unknown", "true"),
+    ] {
+        assert!(matches!(
+            notebook.apply(&setting_batch(key, None, value)),
+            Err(Error::Validation { .. })
+        ));
+    }
+    assert!(notebook.settings().unwrap().is_empty());
+    assert!(notebook.changes_since(0, 10).unwrap().is_empty());
+}
+
+#[test]
+fn today_uses_notebook_time_zone_across_midnight() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut notebook = Notebook::open(dir.path()).unwrap();
+    let instant: jiff::Timestamp = "2026-10-02T10:30:00Z".parse().unwrap();
+    notebook
+        .apply(&setting_batch("time_zone", None, "Pacific/Kiritimati"))
+        .unwrap();
+    assert_eq!(
+        notebook.today(instant.as_millisecond()).unwrap(),
+        "2026-10-03"
+    );
+    notebook
+        .apply(&setting_batch("time_zone", Some(1), "America/Los_Angeles"))
+        .unwrap();
+    assert_eq!(
+        notebook.today(instant.as_millisecond()).unwrap(),
+        "2026-10-02"
+    );
+}
+
+#[test]
+fn unset_time_zone_uses_service_host_local_zone() {
+    let dir = tempfile::tempdir().unwrap();
+    let notebook = Notebook::open(dir.path()).unwrap();
+    let instant: jiff::Timestamp = "2026-10-02T10:30:00Z".parse().unwrap();
+    let host_zone = jiff::tz::TimeZone::system();
+    let view = notebook.settings_view(instant.as_millisecond()).unwrap();
+    assert_eq!(view.time_zone, host_zone.iana_name().unwrap_or("UTC"));
+    assert_eq!(view.today, instant.to_zoned(host_zone).date().to_string());
 }

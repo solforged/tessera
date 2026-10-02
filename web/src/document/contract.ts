@@ -14,7 +14,7 @@
  */
 
 import type { Accessor } from 'solid-js';
-import type { Block, BlockKind, ChangeEvent, FieldDefinition, FieldKind } from '../api/types';
+import type { Block, BlockKind, ChangeEvent, FieldDefinition, FieldKind, SettingsView } from '../api/types';
 
 /** A position in a block's text, in UTF-16 code units. */
 export interface Caret {
@@ -180,8 +180,20 @@ export interface NotebookClient {
   open(pageId: string): PageDocument;
   /** Live pages, then journal days newest first; follows remote changes. */
   roots: Accessor<readonly Block[]>;
-  /** Today's journal day in the browser's time zone, created if missing. */
+  /** Today's journal day in the notebook's time zone, created if missing. */
   today(): Promise<string>;
+  /** Service calendar date, or the device date when offline. */
+  todayDate(): string;
+  settings(): SettingsView | undefined;
+  refreshSettings(): Promise<void>;
+  vim(): boolean;
+  setSetting(key: 'time_zone' | 'vim', value: string): Promise<void>;
+  settingsBusy(): boolean;
+  settingsMessage(): string;
+  canUndoSetting(): boolean;
+  canRedoSetting(): boolean;
+  undoSetting(): Promise<void>;
+  redoSetting(): Promise<void>;
   /** The journal root for `YYYY-MM-DD`, created if missing. */
   journal(date: string): Promise<string>;
   /** A new page; fails when the title is taken (ignoring case). */
