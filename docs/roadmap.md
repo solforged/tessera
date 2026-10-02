@@ -37,7 +37,7 @@ Exit: write, rearrange, navigate away and reopen for a week of real notes withou
 
 Exit: record a reading list with authors and dates, then sort, filter and save it as a view.
 
-Status: fields, templates, type tables with sorting and filtering, and queries saved as views are in. Field entries come from `Name::` in the editor; kinds and columns are set from the table. Remaining: manual membership, task-state filters (with stage 3) and settings.
+Status: done except task-state filters, which arrive with stage 3. Fields, templates, type tables with sorting and filtering, queries saved as views, manual membership from a pill menu, a Fields destination and notebook settings (time zone, Vim) are in. The [design](design.md) language was settled afterwards and applied to the shell, outline and tables.
 
 ## 3. Action
 
