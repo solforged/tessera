@@ -78,6 +78,10 @@ A project capability gives a block an outcome, an optional deadline and a status
 
 Cards derive from block text: `front :: back`, `front >> back` and clozes. A card's identity is its block plus a stable key anchored in the text, so editing wording keeps progress. Removing the markup deactivates the card. Review events record the shown text, grade, scheduler version and the state before and after. A reset is an event, not an erasure. Scheduling starts with SM-2.
 
+## Settings
+
+A notebook has settings: its time zone and editing preferences. Setting one is an operation like any other.
+
 ## Changes and attribution
 
 Every committed operation writes a change row: actor (person, agent name or client), operation, affected IDs and resulting revisions, and an optional reason. Agents may submit plans that are previewed, then applied atomically under an idempotency key. Undo works by applying an inverse operation, so history remains linear and inspectable across clients.

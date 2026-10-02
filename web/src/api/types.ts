@@ -41,7 +41,8 @@ export type Operation =
   | { op: 'set_field_kind'; id: string; base_revision: number; kind: FieldKind }
   | { op: 'set_type_fields'; type_id: string; base_revision: number; fields: string[] }
   | { op: 'save_view'; id: string; base_revision: number | null; name: string; query: Query }
-  | { op: 'delete_view'; id: string; base_revision: number };
+  | { op: 'delete_view'; id: string; base_revision: number }
+  | { op: 'set_setting'; key: string; base_revision: number | null; value: string };
 
 export interface Batch {
   actor: Actor;
@@ -59,6 +60,7 @@ export interface Committed {
   seq: number;
   /** Resulting revision of every block the batch changed, in first-touched order. */
   revisions: Revision[];
+  settings: SettingRevision[];
   /** Deletion events created by `delete` and `merge`, in operation order. */
   deletions: string[];
   replayed: boolean;
@@ -120,6 +122,7 @@ export interface ChangeEvent {
   restructured_pages: string[];
   /** Absent on change events produced before saved views were introduced. */
   views?: string[];
+  settings?: string[];
 }
 
 export interface NotebookInfo {
@@ -153,3 +156,6 @@ export interface FieldSummary extends FieldDefinition { owners: number; types: {
 export interface Fields { page_id: string; fields: FieldSummary[] }
 export interface Type { page: Block; fields: string[]; members: number }
 export interface View { id: string; name: string; query: Query; revision: number; created_at: number; updated_at: number }
+export interface SettingRevision { key: string; revision: number }
+export interface Setting { key: string; value: string; revision: number; updated_at: number }
+export interface SettingsView { settings: Setting[]; today: string; time_zone: string }

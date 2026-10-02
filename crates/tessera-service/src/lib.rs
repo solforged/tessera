@@ -25,7 +25,7 @@ use axum::{
 use serde::Deserialize;
 use tessera_core::{
     Backlink, Batch, Block, BlockInPage, ChangeEvent, Committed, FieldsView, Notebook,
-    NotebookInfo, PageView, QueryResult, TypeInfo, View,
+    NotebookInfo, PageView, QueryResult, SettingsView, TypeInfo, View,
 };
 use tokio::sync::broadcast;
 
@@ -68,6 +68,7 @@ pub fn router(
     };
     Ok(Router::new()
         .route("/api/notebook", get(notebook_info))
+        .route("/api/settings", get(settings))
         .route("/api/roots", get(roots))
         .route("/api/pages/{id}", get(page))
         .route("/api/pages/by-title/{title}", get(page_by_title))
@@ -282,6 +283,17 @@ async fn query(
 
 async fn views(State(state): State<AppState>) -> Result<Json<Vec<View>>, ApiError> {
     run(&state, |notebook| notebook.views()).await.map(Json)
+}
+
+async fn settings(State(state): State<AppState>) -> Result<Json<SettingsView>, ApiError> {
+    run(&state, |notebook| {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("system clock is after 1970");
+        notebook.settings_view(i64::try_from(now.as_millis()).expect("timestamp fits in i64"))
+    })
+    .await
+    .map(Json)
 }
 
 async fn view(
