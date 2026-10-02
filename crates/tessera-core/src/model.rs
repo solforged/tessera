@@ -384,5 +384,19 @@ pub struct TypeInfo {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FieldsView {
     pub page_id: String,
-    pub fields: Vec<FieldDefinition>,
+    pub fields: Vec<FieldSummary>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FieldSummary {
+    #[serde(flatten)]
+    pub definition: FieldDefinition,
+    pub owners: usize,
+    pub types: Vec<FieldType>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FieldType {
+    pub id: String,
+    pub name: String,
 }

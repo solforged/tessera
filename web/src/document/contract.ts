@@ -14,7 +14,7 @@
  */
 
 import type { Accessor } from 'solid-js';
-import type { Block, BlockKind, ChangeEvent } from '../api/types';
+import type { Block, BlockKind, ChangeEvent, FieldDefinition, FieldKind } from '../api/types';
 
 /** A position in a block's text, in UTF-16 code units. */
 export interface Caret {
@@ -117,6 +117,8 @@ export type Edit =
   /** Paste plain text at a caret; lines become sibling blocks, leading indentation nests them. */
   | { kind: 'paste'; at: Caret; text: string }
   | { kind: 'heading'; id: string; level: 1 | 2 | 3 | null }
+  /** The definition snapshot supplies the previous kind and revision for undo. */
+  | { kind: 'fieldKind'; definition: FieldDefinition; value: FieldKind }
   | { kind: 'archive'; id: string; archived: boolean };
 
 export type EditResult =
