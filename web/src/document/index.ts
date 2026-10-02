@@ -295,6 +295,13 @@ export class Notebook implements NotebookClient, DocumentHost {
           if (action.value !== action.previous) block.revision++;
           break;
         }
+        case 'addType':
+        case 'removeType': {
+          const block = current(action.id);
+          operations.push({ op: action.kind === 'addType' ? 'add_type' : 'remove_type', id: block.id, base_revision: block.revision, title: action.title });
+          block.revision++;
+          break;
+        }
         case 'move': {
           const block = current(action.id);
           const after = action.after && current(action.after).parent_id === action.parentId ? action.after : null;
@@ -432,6 +439,10 @@ export class Notebook implements NotebookClient, DocumentHost {
           this.activeCommand = undefined;
           this.touch();
           if (extraRoots || command.actions.some(action => action.kind === 'insert' && action.block.kind !== 'block' || action.kind === 'delete' && action.id === doc.pageId || action.kind === 'restore' && action.id === doc.pageId || action.kind === 'text' && action.id === doc.pageId)) await this.refreshRoots().catch(() => this.connectionSignal[1]('offline'));
+          if (command.actions.some(action => action.kind === 'text' && action.id === doc.pageId)) {
+            const pages = new Set(blocks.filter(block => block.id !== doc.pageId).map(block => block.page_id));
+            for (const page of pages) await this.docs.get(page)?.reload(false);
+          }
           this.closeUnused(doc);
         } catch (error) {
           this.activeCommand = undefined;

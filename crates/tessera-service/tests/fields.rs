@@ -184,3 +184,39 @@ async fn fields_count_distinct_live_entry_owners_and_template_types() {
         .unwrap();
     assert_eq!(author["owners"], 1);
 }
+
+#[tokio::test]
+async fn manual_membership_batch_round_trips_page_pills_and_type_members() {
+    let dir = tempfile::tempdir().unwrap();
+    let app =
+        tessera_service::router(Notebook::open(dir.path()).unwrap(), 4318, None, None).unwrap();
+    let (status, committed) = request(&app, "POST", "/api/batches", json!({
+        "actor": {"kind": "person"},
+        "operations": [
+            {"op": "create_page", "id": id(1), "title": "Notes"},
+            {"op": "create_page", "id": id(2), "title": "Book"},
+            {"op": "insert", "id": id(10), "parent_id": id(1), "after": null, "text": "Reading", "heading": null},
+            {"op": "add_type", "id": id(10), "base_revision": 1, "title": "BOOK"}
+        ]
+    })).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        committed["revisions"]
+            .as_array()
+            .unwrap()
+            .contains(&json!({"id": id(10), "revision": 2}))
+    );
+    let (status, page) = request(&app, "GET", &format!("/api/pages/{}", id(1)), Value::Null).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(page["rows"][0]["manual_types"], json!(["BOOK"]));
+    assert_eq!(page["targets"][0]["id"], id(2));
+    let (status, members) = request(
+        &app,
+        "GET",
+        &format!("/api/types/{}/members", id(2)),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(members[0]["block"]["id"], id(10));
+}

@@ -109,6 +109,7 @@ export class Outbox {
       const view = (await db.get('pages', `${this.notebookId}:${id}`))?.view;
       if (!view) return undefined;
       const blocks = new Map([view.root, ...view.rows.map(row => row.block)].map(block => [block.id, block]));
+      const manualTypes = new Map(view.rows.map(row => [row.block.id, row.manual_types]));
       const snapshotRevisions = new Map<string, number>();
       for (const block of blocks.values()) snapshotRevisions.set(block.id, block.revision);
       const index = new OutlineIndex(id);
@@ -126,6 +127,15 @@ export class Outbox {
               index.splice(at, 0, [{ id: blockId, parentId, depth: parentId === id ? 0 : index.depth(parentId) + 1 }]);
             }
             blocks.set(blockId, { ...action.block, revision });
+            break;
+          }
+          case 'addType':
+          case 'removeType': {
+            const previous = manualTypes.get(blockId) ?? [];
+            const key = action.title.toLowerCase();
+            manualTypes.set(blockId, action.kind === 'addType'
+              ? previous.some(title => title.toLowerCase() === key) ? previous : [...previous, action.title]
+              : previous.filter(title => title.toLowerCase() !== key));
             break;
           }
           case 'move':
@@ -146,7 +156,10 @@ export class Outbox {
           }
           case 'restore': {
             const rows = action.snapshots.flatMap(snapshot => snapshot.row && index.indexOf(snapshot.block.id) < 0 ? [{ ...snapshot.row }] : []);
-            for (const snapshot of action.snapshots) blocks.set(snapshot.block.id, { ...snapshot.block, revision: change.patch!.revisions.get(snapshot.block.id) ?? snapshot.block.revision });
+            for (const snapshot of action.snapshots) {
+              blocks.set(snapshot.block.id, { ...snapshot.block, revision: change.patch!.revisions.get(snapshot.block.id) ?? snapshot.block.revision });
+              manualTypes.set(snapshot.block.id, snapshot.manual_types);
+            }
             if (rows.length) {
               const parentId = rows[0]!.parentId;
               const at = action.after && index.indexOf(action.after) >= 0 ? index.subtreeEnd(index.indexOf(action.after)) : parentId === id ? 0 : index.indexOf(parentId) + 1;
@@ -161,7 +174,7 @@ export class Outbox {
       const patches = new Map((await db.getAll('blocks')).filter(row => row.key.startsWith(`${this.notebookId}:`) && row.block.page_id === id).map(row => [row.block.id, row.block]));
       const latest = (block: Block) => { const patch = patches.get(block.id); return patch && patch.revision > block.revision ? patch : block; };
       view.root = latest(blocks.get(id)!);
-      view.rows = index.slice(0, index.size()).map(row => ({ block: latest(blocks.get(row.id)!), depth: row.depth }));
+      view.rows = index.slice(0, index.size()).map(row => ({ block: latest(blocks.get(row.id)!), depth: row.depth, manual_types: manualTypes.get(row.id) ?? [] }));
       return view;
     }
     catch (error) { this.failed(error); return undefined; }

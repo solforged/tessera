@@ -122,6 +122,16 @@ pub enum Operation {
         base_revision: i64,
         archived: bool,
     },
+    AddType {
+        id: String,
+        base_revision: i64,
+        title: String,
+    },
+    RemoveType {
+        id: String,
+        base_revision: i64,
+        title: String,
+    },
     SetFieldKind {
         id: String,
         base_revision: i64,
@@ -199,6 +209,7 @@ pub struct Row {
     pub block: Block,
     /// 0 for the root's children.
     pub depth: u32,
+    pub manual_types: Vec<String>,
 }
 
 /// Everything needed to show one page.

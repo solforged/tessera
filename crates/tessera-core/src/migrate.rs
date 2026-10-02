@@ -13,6 +13,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/004_archived_discovery.sql"),
     include_str!("../migrations/005_membership_titles.sql"),
     include_str!("../migrations/006_fields_views.sql"),
+    include_str!("../migrations/007_manual_memberships.sql"),
 ];
 
 pub const SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
@@ -37,7 +38,7 @@ pub(crate) fn migrate(conn: &mut Connection) -> Result<()> {
     for sql in &MIGRATIONS[found as usize..] {
         tx.execute_batch(sql)?;
     }
-    if found < 5 {
+    if found < 7 {
         // Rebuild raw mentions, including tombstones. Only the original tag
         // migration creates missing pages; later rebuilds must not resurrect them.
         let mut sources = tx

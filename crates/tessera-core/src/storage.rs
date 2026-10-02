@@ -299,7 +299,7 @@ pub(crate) fn derive_memberships(
     now: i64,
     create_missing: bool,
 ) -> Result<Vec<Revision>> {
-    conn.prepare_cached("DELETE FROM memberships WHERE block_id = ?1")?
+    conn.prepare_cached("DELETE FROM memberships WHERE block_id = ?1 AND manual = 0")?
         .execute([id])?;
     let mut created = Vec::new();
     let mut titles = Vec::new();
@@ -308,35 +308,43 @@ pub(crate) fn derive_memberships(
         if titles.contains(&title_key) {
             continue;
         }
-        let existing: Option<String> = conn
-            .prepare_cached(
-                "SELECT id FROM blocks WHERE kind = 'page' AND deletion_id IS NULL AND title_key = ?1",
-            )?
-            .query_row([&title_key], |row| row.get(0))
-            .optional()?;
-        let type_id = if let Some(id) = existing {
-            Some(id)
-        } else if create_missing {
-            let id = ulid::Ulid::generate().to_string();
-            conn.prepare_cached(
-                "INSERT INTO blocks(id, kind, page_id, ordinal, text, title_key, revision, created_at, updated_at)
-                 VALUES (?1, 'page', ?1, 1024, ?2, ?3, 1, ?4, ?4)",
-            )?
-            .execute(rusqlite::params![id, title, title_key, now])?;
-            derive_links(conn, &id, title)?;
-            created.push(Revision {
-                id: id.clone(),
-                revision: 1,
-            });
-            Some(id)
-        } else {
-            None
-        };
+        let type_id = resolve_type(conn, title, &title_key, now, create_missing, &mut created)?;
         conn.prepare_cached(
-            "INSERT INTO memberships(block_id, title_key, type_id) VALUES (?1, ?2, ?3)",
+            "INSERT INTO memberships(block_id, title_key, type_id, manual, title) VALUES (?1, ?2, ?3, 0, ?4)",
         )?
-        .execute(rusqlite::params![id, title_key, type_id])?;
+        .execute(rusqlite::params![id, title_key, type_id, title])?;
         titles.push(title_key);
     }
     Ok(created)
+}
+
+pub(crate) fn resolve_type(
+    conn: &Connection,
+    title: &str,
+    title_key: &str,
+    now: i64,
+    create_missing: bool,
+    created: &mut Vec<Revision>,
+) -> Result<Option<String>> {
+    let existing = conn
+        .prepare_cached(
+            "SELECT id FROM blocks WHERE kind = 'page' AND deletion_id IS NULL AND title_key = ?1",
+        )?
+        .query_row([title_key], |row| row.get(0))
+        .optional()?;
+    if existing.is_some() || !create_missing {
+        return Ok(existing);
+    }
+    let id = ulid::Ulid::generate().to_string();
+    conn.prepare_cached(
+        "INSERT INTO blocks(id, kind, page_id, ordinal, text, title_key, revision, created_at, updated_at)
+         VALUES (?1, 'page', ?1, 1024, ?2, ?3, 1, ?4, ?4)",
+    )?
+    .execute(rusqlite::params![id, title, title_key, now])?;
+    derive_links(conn, &id, title)?;
+    created.push(Revision {
+        id: id.clone(),
+        revision: 1,
+    });
+    Ok(Some(id))
 }
