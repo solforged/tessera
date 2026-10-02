@@ -211,3 +211,139 @@ async fn title_and_members_routes_expose_generated_types_with_expected_json_shap
     assert!(events[0].blocks.iter().any(|block| block.id == page.id));
     task.abort();
 }
+
+#[tokio::test]
+async fn rename_receipt_and_live_event_preserve_tag_identity_through_edit_and_inverse() {
+    let dir = tempfile::tempdir().unwrap();
+    let (host, task) = server(Notebook::open(dir.path()).unwrap()).await;
+    let client = reqwest::Client::new();
+    let seeded = commit(
+        &client,
+        &host,
+        &batch(vec![
+            Operation::CreatePage {
+                id: PAGE.into(),
+                title: "Notes".into(),
+            },
+            Operation::Insert {
+                id: BLOCK.into(),
+                parent_id: PAGE.into(),
+                after: None,
+                text: "Focus #auditfocus".into(),
+                heading: None,
+            },
+        ]),
+    )
+    .await;
+    let tag: Block = client
+        .get(format!("http://{host}/api/pages/by-title/auditfocus"))
+        .send()
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let (mut socket, _) = connect_async(format!(
+        "ws://{host}/api/changes/stream?after={}",
+        seeded.seq
+    ))
+    .await
+    .unwrap();
+    let renamed = commit(
+        &client,
+        &host,
+        &batch(vec![Operation::EditText {
+            id: tag.id.clone(),
+            base_revision: 1,
+            text: "Audit work".into(),
+        }]),
+    )
+    .await;
+    assert_eq!(renamed.text_rewrites[0].id, BLOCK);
+    assert_eq!(renamed.text_rewrites[0].before, "Focus #auditfocus");
+    assert_eq!(renamed.text_rewrites[0].after, "Focus #[[Audit work]]");
+    assert_eq!(renamed.text_rewrites[0].revision, 2);
+    let message = tokio::time::timeout(Duration::from_secs(5), socket.next())
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+    let event: ChangeEvent = serde_json::from_str(message.to_text().unwrap()).unwrap();
+    assert_eq!(event.seq, renamed.seq);
+    assert_eq!(
+        event
+            .blocks
+            .iter()
+            .map(|block| block.id.as_str())
+            .collect::<Vec<_>>(),
+        vec![tag.id.as_str(), BLOCK]
+    );
+    assert_eq!(event.blocks[1].text, "Focus #[[Audit work]]");
+    let restored = commit(
+        &client,
+        &host,
+        &batch(vec![
+            Operation::EditText {
+                id: tag.id.clone(),
+                base_revision: 2,
+                text: "auditfocus".into(),
+            },
+            Operation::EditText {
+                id: BLOCK.into(),
+                base_revision: renamed.text_rewrites[0].revision,
+                text: renamed.text_rewrites[0].before.clone(),
+            },
+        ]),
+    )
+    .await;
+    assert_eq!(restored.seq, renamed.seq + 1);
+    let source: Block = client
+        .get(format!("http://{host}/api/blocks/{BLOCK}"))
+        .send()
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(source.text, "Focus #auditfocus");
+    let rerename = commit(
+        &client,
+        &host,
+        &batch(vec![Operation::EditText {
+            id: tag.id.clone(),
+            base_revision: 3,
+            text: "Audit work".into(),
+        }]),
+    )
+    .await;
+    commit(
+        &client,
+        &host,
+        &edit(rerename.text_rewrites[0].revision, "Focus #[[Audit work]]."),
+    )
+    .await;
+    let members: Vec<BlockInPage> = client
+        .get(format!("http://{host}/api/types/{}/members", tag.id))
+        .send()
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(members[0].block.id, BLOCK);
+    assert_eq!(members[0].block.text, "Focus #[[Audit work]].");
+    let old = client
+        .get(format!("http://{host}/api/pages/by-title/auditfocus"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(old.status(), reqwest::StatusCode::NOT_FOUND);
+    socket.close(None).await.unwrap();
+    task.abort();
+}
