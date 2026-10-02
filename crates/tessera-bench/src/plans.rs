@@ -4,11 +4,17 @@ use anyhow::Result;
 use rusqlite::{Connection, OpenFlags, params_from_iter};
 use serde_json::{Value, json};
 
-use crate::corpus::Corpus;
+use crate::corpus::{Corpus, references};
 
 // These are the actual core projections and query shapes, including both page
 // reads and both completion paths. Keep them aligned with core reads.rs.
 const COLUMNS: &str = "b.id, b.kind, b.parent_id, b.page_id, b.text, b.heading, b.archived, b.revision, b.created_at, b.updated_at";
+const HIDDEN: &str = "WITH RECURSIVE hidden(rowid, id) AS MATERIALIZED (
+    SELECT rowid, id FROM blocks WHERE archived = 1 AND deletion_id IS NULL
+    UNION
+    SELECT b.rowid, b.id FROM blocks b JOIN hidden h ON b.parent_id = h.id
+    WHERE b.deletion_id IS NULL
+)";
 
 pub fn save(dir: &Path, results: &Path, size: usize, corpus: &Corpus, stamp: u128) -> Result<()> {
     let connection = Connection::open_with_flags(
@@ -47,12 +53,12 @@ pub fn save(dir: &Path, results: &Path, size: usize, corpus: &Corpus, stamp: u12
             &mut plans,
             &format!("completion_title:{query}"),
             format!(
-                "SELECT {COLUMNS} FROM blocks b WHERE b.kind = 'page' AND b.deletion_id IS NULL AND b.title_key >= ?1 AND b.title_key < ?3 ORDER BY b.title_key, b.id LIMIT ?2"
+                "SELECT {COLUMNS} FROM blocks b WHERE b.kind = 'page' AND b.deletion_id IS NULL AND b.archived = 0 AND b.title_key >= ?1 AND b.title_key < ?3 ORDER BY b.title_key, b.id LIMIT ?2"
             ),
             vec![json!(query), json!(30), json!(end)],
         )?;
         let matched = format!("\"{query}\"*");
-        let candidates = "WITH hits AS MATERIALIZED (SELECT s.block_id AS id, bm25(blocks_fts) AS score FROM blocks_fts JOIN search_blocks s ON s.rowid = blocks_fts.rowid WHERE blocks_fts MATCH ?1 ORDER BY score, s.block_id LIMIT ?2)";
+        let candidates = format!("{HIDDEN}, hits AS MATERIALIZED (SELECT s.block_id AS id, bm25(blocks_fts) AS score FROM blocks_fts JOIN search_blocks s ON s.rowid = blocks_fts.rowid WHERE blocks_fts MATCH ?1 AND blocks_fts.rowid NOT IN (SELECT rowid FROM hidden) ORDER BY score, s.block_id LIMIT ?2)");
         capture(
             &connection,
             &mut plans,
@@ -95,10 +101,23 @@ pub fn save(dir: &Path, results: &Path, size: usize, corpus: &Corpus, stamp: u12
         &mut plans,
         "members",
         format!(
-            "SELECT {COLUMNS}, {} FROM memberships m JOIN blocks b ON b.id = m.block_id JOIN blocks p ON p.id = b.page_id JOIN blocks t ON t.id = m.type_id WHERE m.type_id = ?1 AND b.deletion_id IS NULL AND p.deletion_id IS NULL AND t.deletion_id IS NULL ORDER BY m.block_id LIMIT ?2",
+            "{HIDDEN} SELECT {COLUMNS}, {} FROM memberships m JOIN blocks b ON b.id = m.block_id JOIN blocks p ON p.id = b.page_id JOIN blocks t ON t.id = m.type_id WHERE m.type_id = ?1 AND b.deletion_id IS NULL AND p.deletion_id IS NULL AND t.deletion_id IS NULL AND b.rowid NOT IN (SELECT rowid FROM hidden) AND t.rowid NOT IN (SELECT rowid FROM hidden) ORDER BY m.block_id LIMIT ?2",
             COLUMNS.replace("b.", "p.")
         ),
         vec![json!(type_id), json!(100)],
+    )?;
+    let target = corpus.model.blocks.values().find_map(|block| {
+        references(&block.text).into_iter().find(|target| corpus.model.blocks.contains_key(target))
+    }).expect("corpus contains a referenced target");
+    capture(
+        &connection,
+        &mut plans,
+        "backlinks",
+        format!(
+            "{HIDDEN} SELECT DISTINCT {COLUMNS}, {} FROM links l JOIN blocks b ON b.id = l.source_id JOIN blocks p ON p.id = b.page_id WHERE l.target_id = ?1 AND b.deletion_id IS NULL AND p.deletion_id IS NULL AND b.rowid NOT IN (SELECT rowid FROM hidden) AND EXISTS (SELECT 1 FROM blocks t WHERE t.id = ?1 AND t.deletion_id IS NULL AND t.rowid NOT IN (SELECT rowid FROM hidden)) ORDER BY b.id LIMIT ?2",
+            COLUMNS.replace("b.", "p.")
+        ),
+        vec![json!(target), json!(100)],
     )?;
     std::fs::write(
         results.join(format!("plans-{size}-{stamp}.json")),
