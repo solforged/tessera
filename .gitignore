@@ -5,5 +5,7 @@
 /spikes/editor/*/node_modules/
 /spikes/editor/*/dist/
 /spikes/editor/results/profiles/
+/web/perf/results/*
+!/web/perf/results/*.md
 # Local development notebooks.
 /.tessera/

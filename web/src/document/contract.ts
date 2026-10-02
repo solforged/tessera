@@ -1,0 +1,219 @@
+/**
+ * The client-side notebook: one shared document per page, a notebook-wide
+ * block cache for references, and the sync engine behind them. Implemented in
+ * `web/src/document/`; the outline view and the shell use only these types.
+ *
+ * Rules every implementation keeps:
+ * - Typing never waits on the network, the service or storage.
+ * - No per-keystroke work proportional to page or notebook size.
+ * - Edits are saved as revision-checked operations, coalescing text for
+ *   150 to 300 ms (1 s at most); pending batches live in an IndexedDB outbox
+ *   until the service acknowledges them. "Saved" means committed.
+ * - A stale write never overwrites a newer one. When a remote change touches
+ *   a block with unsent local text, the block enters conflict and keeps both.
+ */
+
+import type { Accessor } from 'solid-js';
+import type { Block, BlockKind } from '../api/types';
+
+/** A position in a block's text, in UTF-16 code units. */
+export interface Caret {
+  id: string;
+  offset: number;
+}
+
+/** A text selection that may span blocks; anchor and head in any order. */
+export interface TextRange {
+  anchor: Caret;
+  head: Caret;
+}
+
+/** One block as the client sees it. Reading fields inside a reactive scope tracks them. */
+export interface BlockState {
+  readonly id: string;
+  readonly kind: BlockKind;
+  readonly parentId: string | null;
+  readonly pageId: string;
+  /** Local text, which may be ahead of the service. */
+  readonly text: string;
+  readonly heading: 1 | 2 | 3 | null;
+  readonly archived: boolean;
+  /** Last revision the service acknowledged; 0 until a new block is committed. */
+  readonly revision: number;
+  /** Local changes not yet acknowledged. */
+  readonly pending: boolean;
+  /** Set when a remote change met unsent local text. Both versions are kept. */
+  readonly conflict: { readonly remoteText: string; readonly remoteRevision: number } | null;
+}
+
+/**
+ * Order and nesting of a page's live descendants (the root excluded), in
+ * preorder. Reads are O(log n) or better. `version()` changes on structural
+ * edits only, never on text edits, so lists can depend on it cheaply.
+ */
+export interface OutlineReader {
+  version(): number;
+  size(): number;
+  idAt(index: number): string;
+  /** -1 when the block is not in this page. */
+  indexOf(id: string): number;
+  /** 0 for children of the root. */
+  depth(id: string): number;
+  /** The root's ID for top-level blocks. */
+  parentOf(id: string): string;
+  children(id: string): readonly string[];
+  /** Exclusive preorder end of the subtree starting at `index`. */
+  subtreeEnd(index: number): number;
+}
+
+/**
+ * Intent-level edits. The document turns each into operations plus an inverse
+ * for undo; the outline view never builds operations itself.
+ */
+export type Edit =
+  /**
+   * Replace text (from the active CodeMirror). Consecutive text edits to one
+   * block coalesce into one undo step. `heading`, when present, sets the
+   * heading in the same undo step (the `# ` input rule).
+   */
+  | { kind: 'text'; id: string; text: string; heading?: 1 | 2 | 3 | null }
+  /** Enter: the original keeps its ID, children and the text before `offset`. */
+  | { kind: 'split'; id: string; offset: number; zoomRoot?: string | null }
+  /** A new empty block. */
+  | { kind: 'insert'; parentId: string; after: string | null; text?: string }
+  /** Backspace at the start: append `sourceId` to `destinationId`, which keeps its ID. */
+  | { kind: 'merge'; sourceId: string; destinationId: string }
+  /** Each with its subtree. `ids` are top-level selected blocks in preorder. */
+  | { kind: 'indent'; ids: string[] }
+  | { kind: 'outdent'; ids: string[] }
+  | { kind: 'move'; ids: string[]; direction: 'up' | 'down' }
+  | { kind: 'moveTo'; ids: string[]; parentId: string; after: string | null }
+  /** Delete blocks with their subtrees. */
+  | { kind: 'delete'; ids: string[] }
+  /**
+   * Delete a cross-block text range: the first block keeps its ID, its prefix
+   * and the last block's suffix; the last block's children move to it; blocks
+   * between are deleted. `between` lists the blocks the pane shows strictly
+   * between the endpoints, in preorder. If any other live block lies between
+   * them (folded, archived or hidden), the edit fails with a reason and
+   * changes nothing: text selection never deletes what the user cannot see.
+   */
+  | { kind: 'deleteRange'; range: TextRange; between: string[] }
+  /**
+   * Replace a text range (possibly one caret, possibly across blocks, same
+   * rules as `deleteRange`) with `text` as one batch and one undo step.
+   * `text` inserts literally, newlines included; `paste` turns lines into
+   * sibling blocks with leading indentation nesting them; `split` is Enter
+   * over a selection, heading-aware like `split`.
+   */
+  | {
+      kind: 'replaceRange';
+      range: TextRange;
+      between: string[];
+      text: string;
+      mode: 'text' | 'paste' | 'split';
+      zoomRoot?: string | null;
+    }
+  /** Paste plain text at a caret; lines become sibling blocks, leading indentation nests them. */
+  | { kind: 'paste'; at: Caret; text: string }
+  | { kind: 'heading'; id: string; level: 1 | 2 | 3 | null }
+  | { kind: 'archive'; id: string; archived: boolean };
+
+export type EditResult =
+  | { ok: true; caret: Caret | null; created: string[] }
+  | { ok: false; reason: string };
+
+/** Where undo or redo leaves the user: a caret, plus the text selection to restore if there was one. */
+export type HistoryCaret = Caret & { range?: TextRange };
+
+export type SaveState =
+  /** Everything committed. */
+  | 'saved'
+  /** A batch is waiting for its acknowledgment. */
+  | 'saving'
+  /** Local edits waiting to be sent. */
+  | 'queued'
+  /** The service is unreachable; edits are kept in the outbox and retried. */
+  | 'offline'
+  /** At least one block holds both versions. */
+  | 'conflict'
+  /** A batch was rejected and needs attention; `saveMessage` says why. */
+  | 'error';
+
+/** One page's shared document. Both panes showing a page share one instance. */
+export interface PageDocument {
+  readonly pageId: string;
+  status(): 'loading' | 'ready' | 'missing' | 'error';
+  /** Load error or missing-page message. */
+  statusMessage(): string;
+  root(): BlockState | undefined;
+  /** Live blocks of this page, by ID; undefined when absent. */
+  block(id: string): BlockState | undefined;
+  outline: OutlineReader;
+
+  /** `caretBefore` is restored by undo. */
+  edit(edit: Edit, caretBefore?: Caret | null): EditResult;
+  /** Renames a page. Journal titles cannot change. */
+  rename(title: string): EditResult;
+  undo(): HistoryCaret | null;
+  redo(): HistoryCaret | null;
+  canUndo(): boolean;
+  canRedo(): boolean;
+
+  saveState(): SaveState;
+  saveMessage(): string;
+  /** Keep the local version (rewrites over the remote one) or take the remote one. */
+  resolveConflict(id: string, keep: 'mine' | 'theirs'): void;
+  /** Drop one pane's hold; the document closes when no pane holds it. */
+  release(): void;
+}
+
+/** The notebook-wide client. One per window. */
+export interface NotebookClient {
+  /** Open (or share) a page's document. Call `release()` when done. */
+  open(pageId: string): PageDocument;
+  /** Live pages, then journal days newest first; follows remote changes. */
+  roots: Accessor<readonly Block[]>;
+  /** Today's journal day in the browser's time zone, created if missing. */
+  today(): Promise<string>;
+  /** The journal root for `YYYY-MM-DD`, created if missing. */
+  journal(date: string): Promise<string>;
+  /** A new page; fails when the title is taken (ignoring case). */
+  createPage(title: string): Promise<string>;
+  /** The page with this title, created if missing (for tags). */
+  pageByTitle(title: string, create: boolean): Promise<string | null>;
+  deletePage(pageId: string): Promise<void>;
+  /** Undo the last page deletion in this window. */
+  restorePage(pageId: string): Promise<void>;
+  /**
+   * Current state of any block, for references. undefined while loading,
+   * null when it does not exist or is deleted. Follows local and remote edits.
+   */
+  lookup(id: string): Accessor<Block | null | undefined>;
+  /** Change stream state. */
+  connection(): 'connecting' | 'live' | 'offline';
+  /** Worst save state across open documents, plus outbox items for closed ones. */
+  saveState(): SaveState;
+  /** Why the notebook is in `error` or `conflict`, including documents no longer open. */
+  saveMessage(): string;
+  /** Operations persisted in the outbox and not yet acknowledged. */
+  queuedChanges(): number;
+  /** `failed` when IndexedDB is unavailable or a write failed: edits live only in this tab. */
+  localPersistence(): 'ready' | 'failed';
+  /** Send queued batches now (after `error` or `offline`). */
+  retry(): void;
+  /** Plain text of every block with unacknowledged local text, for "Copy unsaved text". */
+  unsavedText(): string;
+  /** Pages holding a conflict, including ones no pane has open, so "Review conflict" can open them. */
+  conflictedPages(): readonly string[];
+  /**
+   * Text from edits the service rejected and that could not be reapplied
+   * (for example a paste whose position no longer exists). It is kept
+   * durably, shown in `saveMessage` and `unsavedText`, and keeps the save
+   * state at `error` until the user dismisses it after copying.
+   */
+  rejectedText(): string;
+  dismissRejected(): void;
+  /** Last committed change sequence this window has observed (own or remote). Reactive. */
+  changeSequence(): number;
+}
