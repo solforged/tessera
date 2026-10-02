@@ -29,22 +29,25 @@ kbd { color: var(--muted); font: var(--text-meta)/var(--line-meta) var(--font-bo
 .empty-state { margin: var(--space-12) var(--space-8); color: var(--muted); font-size: var(--text-control); }
 
 .app { height: 100dvh; display: flex; overflow: hidden; }
-.sidebar { width: var(--sidebar-width); flex: 0 0 var(--sidebar-width); background: var(--surface); border-right: 1px solid var(--line); padding: var(--space-12) var(--space-8); overflow-y: auto; }
-.notebook-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); margin: 0 var(--space-4) var(--space-16); }
-.notebook-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--weight-heading); }
-.primary-navigation { display: flex; flex-direction: column; gap: 2px; }
-.primary-navigation .button { justify-content: flex-start; }
-.primary-navigation kbd { margin-left: auto; }
-.journal-navigation { display: flex; align-items: center; margin: var(--space-16) 0; }
-.journal-date { flex: 1; font-variant-numeric: tabular-nums; padding-inline: 0; }
-.page-list { margin-top: var(--space-24); }
-.page-list h2 { color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); font-weight: var(--weight-control); margin: 0 var(--space-8) var(--space-4); }
-.page-list .button { width: 100%; justify-content: flex-start; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sidebar-empty { margin: var(--space-4) var(--space-8); font-size: var(--text-meta); color: var(--faint); }
-.new-page-button { margin-top: var(--space-24); width: 100%; justify-content: flex-start; }
-.vim-toggle { margin: var(--space-12) var(--space-4); border-color: var(--line); }
+/* Sidebar: 28 px rows, one left edge (icons at 8 px, text and headings at 32 px), footer pinned to the bottom. */
+.sidebar { display: flex; flex-direction: column; width: var(--sidebar-width); flex: 0 0 var(--sidebar-width); background: var(--surface); border-right: 1px solid var(--line); padding: var(--space-8); overflow-y: auto; }
+.sidebar .button { width: 100%; justify-content: flex-start; min-height: var(--row-height); padding: 0 var(--space-8); gap: var(--space-8); border-left: 2px solid transparent; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar .button.icon-only { width: var(--row-height); padding: 0; justify-content: center; }
+.sidebar .button.selected { border-left-color: var(--accent); color: var(--text); }
+.sidebar kbd { margin-left: auto; }
+.notebook-heading { display: flex; align-items: center; gap: var(--space-4); margin-bottom: var(--space-8); }
+.notebook-heading .notebook-name { flex: 1; min-width: 0; font-weight: var(--weight-heading); font-size: var(--text-body); }
+.notebook-heading .notebook-name > span { overflow: hidden; text-overflow: ellipsis; }
+.notebook-heading .notebook-name .icon { width: var(--icon-size-small); height: var(--icon-size-small); color: var(--faint); }
+.primary-navigation { display: flex; flex-direction: column; }
+.journal-navigation { display: flex; align-items: center; padding-left: var(--space-24); }
+.journal-navigation .journal-date { flex: 1; justify-content: center; padding: 0; font-variant-numeric: tabular-nums; color: var(--muted); }
+.page-list { margin-top: var(--space-16); }
+.page-list h2 { color: var(--faint); font-size: var(--text-meta); line-height: var(--line-meta); font-weight: var(--weight-control); text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 var(--space-4) var(--space-32); }
+.sidebar-empty { margin: 0 0 0 var(--space-32); font-size: var(--text-meta); line-height: var(--line-meta); color: var(--faint); }
+.sidebar-footer { margin-top: auto; padding-top: var(--space-16); }
 .workspace { display: flex; flex: 1; flex-direction: column; min-width: 0; }
-.compact-toolbar { display: none; align-items: center; gap: 8px; padding: 6px 12px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.compact-toolbar { display: none; align-items: center; gap: var(--space-4); min-height: var(--touch-size); padding: var(--space-4) var(--space-8); background: var(--surface); border-bottom: 1px solid var(--line); }
 .sidebar-collapsed .sidebar { display: none; }
 .sidebar-collapsed .compact-toolbar { display: flex; }
 .pane-tabs { display: none; border-bottom: 1px solid var(--line); padding: 4px 8px; gap: 4px; }
