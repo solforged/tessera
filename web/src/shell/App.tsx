@@ -25,7 +25,7 @@ type PaneSession = { entries: HistoryEntry[]; index: number; generation: number 
 type SavedNavigation = { pinned?: string[]; recent?: string[]; vim?: boolean; panes?: Partial<Record<PaneId, HistoryEntry>>; active?: PaneId };
 type VimMode = 'insert' | 'normal' | 'visual' | 'outline' | null;
 const vimLabels: Record<Exclude<VimMode, null>, string> = { insert: 'Insert', normal: 'Normal', visual: 'Visual', outline: 'Outline' };
-type PopupState = { kind: 'search' | 'commands' | 'calendar' | 'new' | 'delete'; anchor: HTMLElement; pane: PaneId } | null;
+type PopupState = { kind: 'search' | 'commands' | 'calendar' | 'new' | 'delete' | 'notebook'; anchor: HTMLElement; pane: PaneId } | null;
 const paneIds: PaneId[] = ['main', 'side'];
 
 /** Views are snapshots: fold arrays and caret/scroll objects never alias history. */
@@ -89,7 +89,6 @@ export function App() {
   const todayDate = () => notebook.todayDate();
   const [date, setDate] = createSignal(todayDate());
   let searchButton!: HTMLButtonElement;
-  let commandsButton!: HTMLButtonElement;
   let newButton!: HTMLButtonElement;
   const entry = (pane: PaneId) => sessions()[pane].entries[sessions()[pane].index];
   const split = () => sessions().main.index >= 0 && sessions().side.index >= 0;
@@ -175,9 +174,8 @@ export function App() {
   };
   const pin = (id: string) => setPinned(values => values.includes(id) ? values.filter(value => value !== id) : [...values, id]);
   const showPalette = (kind: 'search' | 'commands') => {
-    const fallback = kind === 'search' ? searchButton : commandsButton;
-    const compact = document.querySelector<HTMLButtonElement>(`.compact-toolbar button[aria-label="${kind === 'search' ? 'Search notebook' : 'Commands'}"]`);
-    const anchor = fallback.getClientRects().length ? fallback : compact;
+    const compact = document.querySelector<HTMLButtonElement>(`.compact-toolbar button[aria-label="${kind === 'search' ? 'Search notebook' : 'Notebook menu'}"]`);
+    const anchor = searchButton.getClientRects().length ? searchButton : compact;
     if (anchor) setPopup({ kind, anchor, pane: active() });
   };
   const chooseDate = () => {
@@ -332,31 +330,28 @@ export function App() {
   const recentRoots = () => recent().filter(id => !pinned().includes(id)).map(id => rootById().get(id)).filter((root): root is Block => !!root).slice(0, 10);
   return <div class={`app ${split() ? 'is-split' : ''} ${sidebar() ? 'sidebar-expanded' : ''} ${sidebarCollapsed() ? 'sidebar-collapsed' : ''}`} onPointerDown={() => { focusEpoch++; }}>
     <aside class="sidebar" aria-label="Notebook navigation">
-      <div class="notebook-heading"><span class="notebook-name" title={info()?.path}>{info()?.path.split('/').filter(Boolean).at(-1) ?? 'Tessera'}</span><Button icon="sidebar" label="Collapse sidebar" onClick={toggleSidebar} /></div>
-      <nav class="primary-navigation">
+      <div class="notebook-heading">
+        <Button class="notebook-name" title={info()?.path} aria-haspopup="menu" aria-expanded={popup()?.kind === 'notebook'} onClick={event => setPopup({ kind: 'notebook', anchor: event.currentTarget, pane: active() })}><span>{info()?.path.split('/').filter(Boolean).at(-1) ?? 'Tessera'}</span><Icon name="down" /></Button>
+        <Button icon="sidebar" label="Collapse sidebar" onClick={toggleSidebar} />
+      </div>
+      <nav class="primary-navigation" aria-label="Notebook">
         <Button ref={searchButton} icon="search" onClick={() => showPalette('search')}>Search <kbd>⌃⇧F</kbd></Button>
-        <Button ref={commandsButton} icon="command" onClick={() => showPalette('commands')}>Commands <kbd>⌃⇧P</kbd></Button>
-        <Button icon="calendar" onClick={() => { void today(); }}>Today <kbd>⌃⇧J</kbd></Button>
-        <Button icon="field" onClick={event => open({ kind: 'fields' }, event.shiftKey)}>Fields</Button>
+        <Button icon="calendar" class={activeRoot()?.kind === 'journal' && activeRoot()?.text === todayDate() ? 'selected' : ''} onClick={() => { void today(); }}>Today <kbd>⌃⇧J</kbd></Button>
+        <div class="journal-navigation"><Button icon="left" label="Previous journal day" onClick={() => shiftDate(-1)} /><Button class="journal-date" onClick={event => setPopup({ kind: 'calendar', anchor: event.currentTarget, pane: active() })}>{date()}</Button><Button icon="right" label="Next journal day" onClick={() => shiftDate(1)} /></div>
       </nav>
-      <div class="journal-navigation"><Button icon="left" label="Previous journal day" onClick={() => shiftDate(-1)} /><Button class="journal-date" onClick={event => setPopup({ kind: 'calendar', anchor: event.currentTarget, pane: active() })}>{date()}</Button><Button icon="right" label="Next journal day" onClick={() => shiftDate(1)} /></div>
-      <PageList title="Pinned" roots={pinnedRoots()} notebook={notebook} activeId={pageIdOf(entry(active()))} onOpen={open} />
-      <section class="page-list"><h2>Views</h2><For each={views() ?? []}>{view => <Button icon="table" class={entry(active())?.target.kind === 'table' && (entry(active())!.target as Extract<OpenTarget, { kind: 'table' }>).viewId === view.id ? 'selected' : ''} onClick={event => open({ kind: 'table', typeId: view.query.type, viewId: view.id, query: copyQuery(view.query) }, event.metaKey)}>{view.name}</Button>}</For></section>
+      <Show when={pinnedRoots().length}><PageList title="Pinned" roots={pinnedRoots()} notebook={notebook} activeId={pageIdOf(entry(active()))} onOpen={open} /></Show>
       <PageList title="Recent" roots={recentRoots()} notebook={notebook} activeId={pageIdOf(entry(active()))} onOpen={open} />
-      <Button ref={newButton} class="new-page-button" icon="plus" onClick={event => setPopup({ kind: 'new', anchor: event.currentTarget, pane: active() })}>New page</Button>
-      <Button icon="settings" onClick={event => open({ kind: 'settings' }, event.shiftKey)}>Settings</Button>
-      <Button class="vim-toggle" aria-pressed={vim()} disabled={notebook.settingsBusy()} onClick={toggleVim}>Vim {vim() ? 'on' : 'off'}</Button>
+      <div class="sidebar-footer">
+        <Button ref={newButton} class="new-page-button" icon="plus" onClick={event => setPopup({ kind: 'new', anchor: event.currentTarget, pane: active() })}>New page</Button>
+      </div>
     </aside>
     <main class="workspace">
       <div class="compact-toolbar">
         <Button icon="sidebar" label="Toggle sidebar" aria-expanded={sidebar()} onClick={toggleSidebar} />
         <Button icon="search" label="Search notebook" shortcut="⌃⇧F" onClick={event => setPopup({ kind: 'search', anchor: event.currentTarget, pane: active() })} />
-        <Button icon="command" label="Commands" shortcut="⌃⇧P" onClick={event => setPopup({ kind: 'commands', anchor: event.currentTarget, pane: active() })} />
         <Button icon="calendar" label="Today" shortcut="⌃⇧J" onClick={() => { void today(); }} />
-        <Button icon="field" label="Fields" onClick={event => open({ kind: 'fields' }, event.shiftKey)} />
         <Button icon="plus" label="New page" onClick={event => setPopup({ kind: 'new', anchor: event.currentTarget, pane: active() })} />
-        <Button icon="settings" label="Settings" onClick={event => open({ kind: 'settings' }, event.shiftKey)} />
-        <Button aria-pressed={vim()} disabled={notebook.settingsBusy()} label={vim() ? `Turn Vim off · ${vimLabels[vimModes()[active()] ?? 'outline']} mode` : 'Turn Vim on'} onClick={toggleVim}>{vim() ? narrow() ? `Vim: ${vimLabels[vimModes()[active()] ?? 'outline']}` : 'Vim on' : 'Vim off'}</Button>
+        <Button icon="more" label="Notebook menu" aria-haspopup="menu" onClick={event => setPopup({ kind: 'notebook', anchor: event.currentTarget, pane: active() })} />
       </div>
       <Show when={split()}><div class="pane-tabs" role="tablist" aria-label="Working panes"><For each={paneIds}>{pane => <Button role="tab" aria-selected={active() === pane} onClick={() => { if (active() !== pane) switchPane(); }}>{pane === 'main' ? 'Pane 1' : 'Pane 2'} · {rootById().get(pageIdOf(entry(pane)) ?? '')?.text ?? paneLabel(entry(pane)?.target)}</Button>}</For></div></Show>
       <Show when={error()}><div class="shell-error" role="alert"><Icon name="warning" /><span>{error()}</span><Button onClick={() => { if (offlineUnavailable()) { location.reload(); return; } setError(''); void today(); }}>Retry</Button></div></Show>
@@ -397,13 +392,22 @@ export function App() {
           <div class="popup-actions"><Button onClick={() => setPopup(null)}>Cancel</Button><Button icon="trash" class="danger bordered" onClick={() => { void deletePage(state.pane); }}>Delete page</Button></div>
         </Popup>
       </Show>
+      <Show when={state.kind === 'notebook'}>
+        <Menu anchor={state.anchor} label="Notebook" onDismiss={() => setPopup(null)} items={[
+          { label: 'Commands', icon: 'command', shortcut: '⌃⇧P', action: () => showPalette('commands') },
+          { label: 'Fields', icon: 'field', action: () => open({ kind: 'fields' }, false, state.pane) },
+          ...(views() ?? []).map((view, index): MenuItem => ({ section: index === 0 ? 'Views' : undefined, label: view.name, icon: 'table', action: () => open({ kind: 'table', typeId: view.query.type, viewId: view.id, query: copyQuery(view.query) }, false, state.pane) })),
+          { section: 'Notebook', label: 'Settings', icon: 'settings', action: () => open({ kind: 'settings' }, false, state.pane) },
+          { label: vim() ? 'Turn Vim off' : 'Turn Vim on', action: toggleVim },
+        ]} />
+      </Show>
     </>}</Show>
     <Show when={deleted()}>{value => <div class="undo-toast" role="status"><Icon name="trash" /><span>“{value().title}” deleted</span><Button icon="undo" onClick={() => { void restorePage(); }}>Undo</Button><Button icon="close" label="Dismiss deletion notification" onClick={() => setDeleted(null)} /></div>}</Show>
   </div>;
 }
 
 function PageList(props: { title: string; roots: Block[]; notebook: NotebookClient; activeId?: string; onOpen(target: OpenTarget, beside?: boolean): void }) {
-  return <section class="page-list"><h2>{props.title}</h2><Show when={props.roots.length} fallback={<p class="sidebar-empty">{props.title === 'Pinned' ? 'No pinned pages' : 'No recent pages'}</p>}><For each={props.roots}>{root => <Button class={root.id === props.activeId ? 'selected' : ''} icon={root.kind === 'journal' ? 'calendar' : 'page'} title={props.notebook.lookup(root.id)()?.text ?? root.text} onClick={event => props.onOpen({ kind: 'page', pageId: root.id }, event.shiftKey)}>{props.notebook.lookup(root.id)()?.text ?? root.text}</Button>}</For></Show></section>;
+  return <section class="page-list"><h2>{props.title}</h2><Show when={props.roots.length} fallback={<p class="sidebar-empty">Pages you open appear here</p>}><For each={props.roots}>{root => <Button class={root.id === props.activeId ? 'selected' : ''} icon={root.kind === 'journal' ? 'calendar' : 'page'} title={props.notebook.lookup(root.id)()?.text ?? root.text} onClick={event => props.onOpen({ kind: 'page', pageId: root.id }, event.shiftKey)}>{props.notebook.lookup(root.id)()?.text ?? root.text}</Button>}</For></Show></section>;
 }
 
 function NewPage(props: { anchor: HTMLElement; notebook: NotebookClient; onDismiss(): void; onOpen(id: string): void }) {

@@ -57,7 +57,7 @@ Radius 4 px for controls, 8 px for popups, full for pills. Popups have a 1 px `-
 
 ## Shell
 
-- **Sidebar**, 208 px, collapsible to a compact toolbar. Order: notebook name; Search, Commands, Today with shortcuts; journal date with previous and next; Pinned; Views; Recent; New page; at the bottom Settings and the Vim toggle. Fields sits with the navigation group. Destinations open in the active pane; Shift-click opens beside. One modifier everywhere: Shift means beside, in the sidebar, in tables and in menus.
+- **Sidebar**, 208 px, collapsible to a compact toolbar. Only daily destinations: the notebook name as a menu (Commands, Fields, saved views, Settings, Vim); Search; Today with the journal stepper indented beneath it; Pinned, shown only when something is pinned; Recent; and New page pinned to the bottom. Rows are 28 px with one left edge: icons at 8 px, text and section headings at 32 px. The row for the active pane's target gets the 2 px accent bar. Agenda and Review join Today when tasks and cards exist. Destinations open in the active pane; Shift-click opens beside. One modifier everywhere: Shift means beside, in the sidebar, in tables and in menus.
 - **Panes.** Up to two, split equally. Each has a header: back and forward, breadcrumbs or the pane title, the page menu, save state, the Vim mode when on, and Close on the side pane. Errors needing action sit under the header until resolved. Non-page panes (table, fields, settings) share page padding and background.
 - **Measure.** Outline content is at most 760 px, centred, with a 48 px gutter to its left for row controls. Two panes split the width; text never shrinks to fit.
 
