@@ -11,7 +11,7 @@ fn sql_limit(limit: usize) -> i64 {
     i64::try_from(limit).unwrap_or(i64::MAX)
 }
 
-fn fts_query(query: &str) -> String {
+pub(crate) fn fts_query(query: &str) -> String {
     let mut matched = String::with_capacity(query.len() + 3);
     for word in query
         .split(|character: char| !character.is_alphanumeric())
@@ -54,6 +54,7 @@ macro_rules! hidden_blocks {
          ) "
     };
 }
+pub(crate) use hidden_blocks;
 
 impl Notebook {
     /// Read one live block, including an archived block.
@@ -318,7 +319,7 @@ impl Notebook {
         let mut statement = self.conn.prepare_cached(concat!(
             "SELECT c.seq, c.actor, c.reason, c.created_at, c.restructured_pages, r.block_id, ",
             block_columns!("b"),
-            ", b.deletion_id
+            ", b.deletion_id, c.views
              FROM (SELECT * FROM changes WHERE seq > ?1 ORDER BY seq LIMIT ?2) c
              LEFT JOIN change_revisions r ON r.change_seq = c.seq
              LEFT JOIN blocks b ON b.id = r.block_id ORDER BY c.seq, r.position",
@@ -340,10 +341,15 @@ impl Notebook {
                     removed: Vec::new(),
                     restructured_pages: serde_json::from_str(&pages)
                         .map_err(|error| validation(format!("invalid stored pages: {error}")))?,
+                    views: serde_json::from_str(&row.get::<_, String>(17)?)
+                        .map_err(|error| validation(format!("invalid stored view IDs: {error}")))?,
                 });
             }
             if let Some(id) = row.get::<_, Option<String>>(5)? {
                 let change = changes.last_mut().expect("change exists");
+                if change.views.contains(&id) {
+                    continue;
+                }
                 if row.get::<_, Option<String>>(6)?.is_none()
                     || row.get::<_, Option<String>>(16)?.is_some()
                 {

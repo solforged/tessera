@@ -48,10 +48,16 @@ pub enum Actor {
 #[serde(tag = "op", rename_all = "snake_case")]
 pub enum Operation {
     /// Create a named root. Titles are unique among live pages, ignoring case.
-    CreatePage { id: String, title: String },
+    CreatePage {
+        id: String,
+        title: String,
+    },
     /// Create the root for one calendar day. Dates are unique among live
     /// journal roots.
-    CreateJournal { id: String, date: String },
+    CreateJournal {
+        id: String,
+        date: String,
+    },
     /// Insert a new block under `parent_id`, after the sibling `after`, or
     /// first when `after` is `None`.
     Insert {
@@ -100,7 +106,10 @@ pub enum Operation {
         after: Option<String>,
     },
     /// Tombstone a block and its whole subtree under one new deletion event.
-    Delete { id: String, base_revision: i64 },
+    Delete {
+        id: String,
+        base_revision: i64,
+    },
     /// Bring back exactly the rows that `deletion_id` tombstoned in this
     /// block's subtree. `revision` is the block's revision after deletion.
     Restore {
@@ -112,6 +121,26 @@ pub enum Operation {
         id: String,
         base_revision: i64,
         archived: bool,
+    },
+    SetFieldKind {
+        id: String,
+        base_revision: i64,
+        kind: FieldKind,
+    },
+    SetTypeFields {
+        type_id: String,
+        base_revision: i64,
+        fields: Vec<String>,
+    },
+    SaveView {
+        id: String,
+        base_revision: Option<i64>,
+        name: String,
+        query: Query,
+    },
+    DeleteView {
+        id: String,
+        base_revision: i64,
     },
 }
 
@@ -208,4 +237,152 @@ pub struct ChangeEvent {
     pub removed: Vec<String>,
     /// Pages whose order or nesting changed, recorded when the batch applied.
     pub restructured_pages: Vec<String>,
+    /// Views saved or deleted by this change; clients reload their view list.
+    #[serde(default)]
+    pub views: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FieldKind {
+    Text,
+    Number,
+    Date,
+    Checkbox,
+    Choice,
+    Instance,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Direction {
+    Asc,
+    Desc,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FilterOp {
+    Is,
+    IsNot,
+    Contains,
+    Gt,
+    Gte,
+    Lt,
+    Lte,
+    Set,
+    Empty,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Filter {
+    pub field: String,
+    pub op: FilterOp,
+    pub value: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SortBy {
+    Title,
+    Created,
+    Updated,
+    Field,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SortKey {
+    pub by: SortBy,
+    pub field: Option<String>,
+    pub direction: Direction,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Query {
+    pub r#type: Option<String>,
+    pub text: Option<String>,
+    pub filters: Vec<Filter>,
+    pub sort: Vec<SortKey>,
+    pub limit: Option<usize>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ReadingValue {
+    Text(String),
+    Number(f64),
+    Checkbox(bool),
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum Reading {
+    Value {
+        ok: bool,
+        value: ReadingValue,
+        target: Option<String>,
+    },
+    Problem {
+        ok: bool,
+        problem: String,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FieldValue {
+    pub id: String,
+    pub text: String,
+    pub reading: Reading,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct QueryRow {
+    pub block: BlockInPage,
+    pub values: std::collections::BTreeMap<String, Vec<FieldValue>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FieldOption {
+    pub id: String,
+    pub text: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FieldDefinition {
+    pub id: String,
+    pub name: String,
+    pub kind: FieldKind,
+    pub revision: i64,
+    pub options: Vec<FieldOption>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct QueryResult {
+    pub fields: Vec<FieldDefinition>,
+    pub columns: Vec<String>,
+    pub rows: Vec<QueryRow>,
+    pub total: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct View {
+    pub id: String,
+    pub name: String,
+    pub query: Query,
+    pub revision: i64,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TypeInfo {
+    pub page: Block,
+    pub fields: Vec<String>,
+    pub members: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FieldsView {
+    pub page_id: String,
+    pub fields: Vec<FieldDefinition>,
 }
