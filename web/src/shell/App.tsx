@@ -497,7 +497,6 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
         <Show when={props.vim}><span class="vim-mode">Vim: {vimLabels[props.vimMode ?? 'outline']}</span></Show>
       </Show>
       <Show when={!pageId()}><span class="pane-breadcrumbs">{paneLabel(current().target)}</span></Show>
-      <Show when={!props.split}><Button class="pane-secondary" icon="panes" label="Open page beside" onClick={props.onPageBeside} /></Show>
       <Show when={pageId()}><Button ref={menuButton} class="page-menu-button" icon="more" label="Page menu" aria-expanded={!!menu()} onClick={event => setMenu(value => value ? null : event.currentTarget)} /></Show>
       <Show when={props.split}><Button class="pane-secondary" icon="close" label="Close pane" shortcut="⌃⇧X" onClick={props.onClose} /></Show>
     </header>
