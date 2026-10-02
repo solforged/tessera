@@ -345,20 +345,35 @@ function Pane(props: OutlinePaneProps) {
   }
   function apply(intent: Edit, keepEditing = editing() !== null) {
     if (disposed || composition()) return;
+    const rearrange = intent.kind === 'indent' || intent.kind === 'outdent' || intent.kind === 'move';
+    if (intent.kind === 'indent' || intent.kind === 'outdent' || intent.kind === 'move') intent = { ...intent, zoomRoot: zoom() };
+    const before = intent.kind === 'delete' ? ids() : [];
+    const firstSelected = selectedIds()[0];
+    const previousSelected = selected();
     const epoch = focusEpoch;
     let result: EditResult | undefined;
     measure('structural', () => anchored(() => { result = doc.edit(intent, caret()); }));
     if (!result || !result.ok) { setMessage(result && !result.ok ? result.reason : 'The edit could not be applied.'); return; }
     setMessage('');
     setTextRange(null);
-    setRowRange(null);
+    if (!rearrange) setRowRange(null);
     const next = result.caret;
-    if (next) queueMicrotask(() => { if (!disposed && props.active && focusEpoch === epoch) keepEditing ? editAt(next.id, next.offset, true, true, false) : rowFocus(next.id); });
-    else if (selected() && !doc.block(selected()!)) {
-      const first = ids()[0];
+    if (next) queueMicrotask(() => {
+      if (disposed || !props.active || focusEpoch !== epoch) return;
+      if (keepEditing) editAt(next.id, next.offset, true, true, false);
+      else if (rearrange) scroll.focus({ preventScroll: true });
+      else rowFocus(next.id);
+    });
+    else if (previousSelected && !doc.block(previousSelected)) {
+      const remaining = new Set(ids());
+      const at = before.indexOf(firstSelected ?? '');
+      let neighbor: string | undefined;
+      for (let index = at - 1; index >= 0 && !neighbor; index--) if (remaining.has(before[index]!)) neighbor = before[index];
+      for (let index = at + 1; index < before.length && !neighbor; index++) if (remaining.has(before[index]!)) neighbor = before[index];
+      neighbor ??= ids()[0];
       setEditing(null);
-      setSelected(first ?? null);
-      setCaret(first ? { id: first, offset: 0 } : null);
+      if (neighbor) rowFocus(neighbor);
+      else { setSelected(null); setCaret(null); }
     }
     scheduleReport();
   }
@@ -404,6 +419,12 @@ function Pane(props: OutlinePaneProps) {
   function deleteTextRange() { if (textRange()) replaceSelection('', 'text'); }
   function fold(id = selected()) {
     if (!id || composition()) return;
+    const active = editing() ?? selected();
+    if (!folds().has(id) && active && active !== id) {
+      const at = doc.outline.indexOf(id);
+      const child = doc.outline.indexOf(active);
+      if (child > at && child < doc.outline.subtreeEnd(at)) rowFocus(id);
+    }
     anchored(() => setFolds(previous => { const next = new Set(previous); next.has(id) ? next.delete(id) : next.add(id); return next; }));
     report();
     scheduleReport();
@@ -411,6 +432,7 @@ function Pane(props: OutlinePaneProps) {
   function zoomTo(id: string | null) {
     if (composition()) return;
     if (editing() && commitFieldEntry(editing()!)) return;
+    const previous = zoom();
     setZoom(id);
     setRowRange(null);
     setTextRange(null);
@@ -418,8 +440,8 @@ function Pane(props: OutlinePaneProps) {
     setSelected(null);
     setCaret(null);
     scroll.scrollTop = 0;
-    const first = ids()[0];
-    if (first) rowFocus(first);
+    const target = previous && indices().has(previous) ? previous : ids()[0];
+    if (target) rowFocus(target);
     report();
     scheduleReport();
   }
@@ -520,6 +542,17 @@ function Pane(props: OutlinePaneProps) {
     if (event.altKey && ['ArrowUp', 'ArrowDown'].includes(event.key)) { apply({ kind: 'move', ids: roots(), direction: event.key === 'ArrowUp' ? 'up' : 'down' }); return true; }
     return false;
   }
+  function clearSelection() {
+    focusEpoch++;
+    focusRequest = null;
+    setEditing(null);
+    setSelected(null);
+    setCaret(null);
+    setRowRange(null);
+    setTextRange(null);
+    rowKey = '';
+    scheduleReport();
+  }
   function structuralKey(event: KeyboardEvent) {
     if (!event.defaultPrevented && !event.isComposing && !composition() && props.active && event.metaKey && event.shiftKey && event.key.toLowerCase() === 't') {
       event.preventDefault();
@@ -546,11 +579,13 @@ function Pane(props: OutlinePaneProps) {
     let handled = false;
     if (textRange() && (event.key === 'Backspace' || event.key === 'Delete')) { deleteTextRange(); handled = true; }
     if (!handled) handled = commonKey(event);
+    if (!handled && event.key === 'Tab') { apply({ kind: event.shiftKey ? 'outdent' : 'indent', ids: roots() }, false); handled = true; }
+    if (!handled && event.key === 'Escape') { clearSelection(); handled = true; }
     if (!handled && event.key === 'ArrowDown') { adjacent(1, event.shiftKey); handled = true; }
     if (!handled && event.key === 'ArrowUp') { adjacent(-1, event.shiftKey); handled = true; }
     if (!handled && event.key === 'ArrowLeft') { horizontal('left'); handled = true; }
     if (!handled && event.key === 'ArrowRight') { horizontal('right'); handled = true; }
-    if (!handled && event.key === 'Enter' && selected()) { props.vim ? zoomTo(selected()) : editAt(selected()!, 0, true); handled = true; }
+    if (!handled && event.key === 'Enter' && selected()) { props.vim ? zoomTo(selected()) : editAt(selected()!, caret()?.offset ?? 0, true); handled = true; }
     if (!handled && event.key === 'Backspace') { props.vim ? zoomOut() : apply({ kind: 'delete', ids: roots() }, false); handled = true; }
     if (!handled && props.vim && !event.metaKey && !event.altKey) handled = vimStructural(event);
     if (handled) event.preventDefault();
@@ -566,8 +601,7 @@ function Pane(props: OutlinePaneProps) {
     if (key === 'd' && (previous === 'd' || rowRange())) { apply({ kind: 'delete', ids: roots() }, false); return true; }
     if (['g', '>', '<', 'd'].includes(key)) { rowKey = key; return true; }
     if (key === 'V' && selected()) { setRowRange({ anchor: selected()!, head: selected()! }); return true; }
-    if (key === 'Escape') { setRowRange(null); setTextRange(null); return true; }
-    if (['i', 'a', 'I', 'A'].includes(key) && selected()) { const id = selected()!; editAt(id, key === 'A' || key === 'a' ? doc.block(id)!.text.length : 0, true); return true; }
+    if (['i', 'a', 'I', 'A'].includes(key) && selected()) { const id = selected()!; editAt(id, key === 'A' || key === 'a' ? doc.block(id)!.text.length : key === 'i' ? caret()?.offset ?? 0 : 0, true); return true; }
     if ((key === 'o' || key === 'O') && selected()) {
       const id = selected()!;
       const parentId = doc.outline.parentOf(id);
@@ -887,6 +921,12 @@ function Pane(props: OutlinePaneProps) {
     const cut = (event: ClipboardEvent) => clipboard(event, true);
     scroll.addEventListener('copy', copy, true);
     scroll.addEventListener('cut', cut, true);
+    const clearOutsideRows = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (scroll.contains(target) && !target.closest('[data-block-id], button, input, [role="menu"], [role="dialog"]')) clearSelection();
+    };
+    scroll.addEventListener('mousedown', clearOutsideRows);
+    onCleanup(() => scroll.removeEventListener('mousedown', clearOutsideRows));
     scroll.addEventListener('paste', paste, true);
     scroll.addEventListener('beforeinput', beforeInput, true);
     onCleanup(() => { scroll.removeEventListener('copy', copy, true); scroll.removeEventListener('cut', cut, true); scroll.removeEventListener('paste', paste, true); scroll.removeEventListener('beforeinput', beforeInput, true); cancelAnimationFrame(compositionFrame); });

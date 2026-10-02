@@ -84,10 +84,14 @@ export type Edit =
   | { kind: 'insert'; parentId: string; after: string | null; text?: string }
   /** Backspace at the start: append `sourceId` to `destinationId`, which keeps its ID. */
   | { kind: 'merge'; sourceId: string; destinationId: string }
-  /** Each with its subtree. `ids` are top-level selected blocks in preorder. */
-  | { kind: 'indent'; ids: string[] }
-  | { kind: 'outdent'; ids: string[] }
-  | { kind: 'move'; ids: string[]; direction: 'up' | 'down' }
+  /**
+   * Each with its subtree. Boundary moves are silent no-ops without history.
+   * `zoomRoot` confines edits to its descendants; its direct children cannot
+   * outdent. Outdent leaves unselected following siblings with their parent.
+   */
+  | { kind: 'indent'; ids: string[]; zoomRoot?: string | null }
+  | { kind: 'outdent'; ids: string[]; zoomRoot?: string | null }
+  | { kind: 'move'; ids: string[]; direction: 'up' | 'down'; zoomRoot?: string | null }
   | { kind: 'moveTo'; ids: string[]; parentId: string; after: string | null }
   /** Delete blocks with their subtrees. */
   | { kind: 'delete'; ids: string[] }
