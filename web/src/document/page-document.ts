@@ -25,12 +25,13 @@ export interface DocumentHost {
 }
 type MutableBlockState = { -readonly [K in keyof BlockState]: BlockState[K] };
 interface Cell { state: MutableBlockState; set: SetStoreFunction<MutableBlockState> }
-const stateOf = (block: Block): BlockState => ({ id: block.id, kind: block.kind, parentId: block.parent_id, pageId: block.page_id, text: block.text, heading: block.heading, archived: block.archived, revision: block.revision, pending: false, conflict: null });
+const stateOf = (block: Block): BlockState => ({ id: block.id, kind: block.kind, parentId: block.parent_id, pageId: block.page_id, text: block.text, heading: block.heading, archived: block.archived, manual_types: [], revision: block.revision, pending: false, conflict: null });
 
 export class Document implements PageDocument {
   readonly outline: OutlineIndex;
   readonly baseOutline: OutlineIndex;
   readonly baseBlocks = new Map<string, Block>();
+  private baseManualTypes = new Map<string, string[]>();
   private cells = new Map<string, Cell>();
   private presence = new Map<string, Signal<number>>();
   private conflictVersion = createSignal(0);
@@ -96,11 +97,11 @@ export class Document implements PageDocument {
     this.loadMessage[1]('This page has been deleted.');
   }
   isResolving(id: string) { return this.resolving.has(id); }
-  private put(block: Block, pending = false) {
+  private put(block: Block, pending = false, manual_types = this.cells.get(block.id)?.state.manual_types ?? this.baseManualTypes.get(block.id) ?? []) {
     const cell = this.cells.get(block.id);
-    if (cell) cell.set({ ...stateOf(block), pending, conflict: cell.state.conflict });
+    if (cell) cell.set({ ...stateOf(block), manual_types, pending, conflict: cell.state.conflict });
     else {
-      const [state, set] = createStore<MutableBlockState>({ ...stateOf(block), pending });
+      const [state, set] = createStore<MutableBlockState>({ ...stateOf(block), manual_types, pending });
       this.cells.set(block.id, { state, set });
       this.presenceChanged(block.id);
     }
@@ -144,6 +145,21 @@ export class Document implements PageDocument {
       case 'fieldKind':
         this.changed(action.id, {}, base);
         return [{ kind: 'fieldKind', id: action.id, value: action.previous, previous: action.value }];
+      case 'addType':
+      case 'removeType': {
+        this.snapshot(action.id, base);
+        const previous = base ? this.baseManualTypes.get(action.id) ?? [] : this.cells.get(action.id)!.state.manual_types;
+        const key = action.title.toLowerCase();
+        const old = previous.find(title => title.toLowerCase() === key);
+        const titles = action.kind === 'addType'
+          ? old === undefined ? [...previous, action.title] : [...previous]
+          : previous.filter(title => title.toLowerCase() !== key);
+        if (base) this.baseManualTypes.set(action.id, titles);
+        else this.cells.get(action.id)!.set({ manual_types: titles, pending: true });
+        return old === undefined
+          ? action.kind === 'addType' ? [{ kind: 'removeType', id: action.id, title: action.title }] : []
+          : action.kind === 'removeType' ? [{ kind: 'addType', id: action.id, title: old }] : [];
+      }
       case 'insert': {
         const block = { ...action.block };
         if (block.parent_id && index.indexOf(block.id) >= 0) {
@@ -162,8 +178,8 @@ export class Document implements PageDocument {
         const at = index.indexOf(action.id);
         const rows = action.id === this.pageId ? index.slice(0, index.size()) : at < 0 ? [] : index.slice(at, index.subtreeEnd(at));
         const after = at < 0 ? null : index.previousSibling(action.id);
-        const snapshots: Snapshot[] = rows.map(row => ({ row, block: this.snapshot(row.id, base) }));
-        if (action.id === this.pageId) snapshots.unshift({ row: null, block: this.snapshot(action.id, base) });
+        const snapshots: Snapshot[] = rows.map(row => ({ row, block: this.snapshot(row.id, base), manual_types: [...(base ? this.baseManualTypes.get(row.id) ?? [] : this.cells.get(row.id)!.state.manual_types)] }));
+        if (action.id === this.pageId) snapshots.unshift({ row: null, block: this.snapshot(action.id, base), manual_types: [] });
         if (at >= 0) index.splice(at, rows.length, []);
         else if (action.id === this.pageId) index.replace([]);
         if (!base) for (const snapshot of snapshots) {
@@ -176,8 +192,9 @@ export class Document implements PageDocument {
       }
       case 'restore': {
         const rows = action.snapshots.flatMap(snapshot => snapshot.row && index.indexOf(snapshot.block.id) < 0 ? [{ ...snapshot.row }] : []);
-        for (const { block } of action.snapshots) {
-          if (base) this.baseBlocks.set(block.id, { ...block }); else this.put(block, true);
+        for (const { block, manual_types } of action.snapshots) {
+          if (base) { this.baseBlocks.set(block.id, { ...block }); this.baseManualTypes.set(block.id, manual_types); }
+          else this.put(block, true, manual_types);
           if (!base && block.kind !== 'block') this.host.updateRoot(block);
         }
         if (rows.length) {
@@ -226,11 +243,13 @@ export class Document implements PageDocument {
     }
     batch(() => {
       this.baseBlocks.clear();
+      this.baseManualTypes.clear();
+      for (const row of view.rows) this.baseManualTypes.set(row.block.id, row.manual_types);
       for (const block of [view.root, ...view.rows.map(row => row.block)]) this.baseBlocks.set(block.id, { ...block });
       const rows = view.rows.map(({ block, depth }) => ({ id: block.id, parentId: block.parent_id!, depth }));
       this.baseOutline.replace(rows);
       for (const id of this.cells.keys()) if (!this.baseBlocks.has(id)) { this.cells.delete(id); this.presenceChanged(id); }
-      for (const block of this.baseBlocks.values()) this.put(block);
+      for (const block of this.baseBlocks.values()) this.put(block, false, this.baseManualTypes.get(block.id) ?? []);
       this.outline.replace(rows);
       for (const command of this.host.commands(this.pageId)) {
         for (const action of command.actions) {
@@ -429,12 +448,12 @@ export class Document implements PageDocument {
         cell.set('conflict', null); this.conflicts.delete(id); this.conflictVersion[1](value => value + 1);
       }
       const saved = this.baseBlocks.get(id);
-      if (saved && !pending.has(id) && !cell.state.conflict && !this.resolving.has(id)) cell.set({ text: saved.text, heading: saved.heading, archived: saved.archived, parentId: saved.parent_id });
+      if (saved && !pending.has(id) && !cell.state.conflict && !this.resolving.has(id)) cell.set({ text: saved.text, heading: saved.heading, archived: saved.archived, parentId: saved.parent_id, manual_types: this.baseManualTypes.get(id) ?? [] });
       this.host.publish(this.snapshot(id));
     }
   }
   view(): PageView {
-    return { root: this.snapshot(this.pageId, true), rows: this.baseOutline.slice(0, this.baseOutline.size()).map(row => ({ block: this.snapshot(row.id, true), depth: row.depth })), targets: [] };
+    return { root: this.snapshot(this.pageId, true), rows: this.baseOutline.slice(0, this.baseOutline.size()).map(row => ({ block: this.snapshot(row.id, true), depth: row.depth, manual_types: this.baseManualTypes.get(row.id) ?? [] })), targets: [] };
   }
   edit(edit: Edit, caretBefore: Caret | null = null): EditResult {
     if (this.status() !== 'ready') return { ok: false, reason: 'This page is not ready.' };
@@ -557,6 +576,17 @@ export class Document implements PageDocument {
           if (definition.kind !== edit.value) actions.push({ kind: 'fieldKind', id: definition.id, value: edit.value, previous: definition.kind, baseRevision: definition.revision });
           break;
         }
+        case 'addType':
+        case 'removeType': {
+          const block = this.block(edit.id);
+          if (!block) throw new Error('The block no longer exists.');
+          if (!edit.title || edit.title.trim() !== edit.title || /[\[\]\r\n]/.test(edit.title)) throw new Error('Invalid type title.');
+          const exists = block.manual_types.some(title => title.toLowerCase() === edit.title.toLowerCase());
+          if (edit.kind === 'addType' && exists) break;
+          if (edit.kind === 'removeType' && !exists) throw new Error('From the text. Edit the #tag there to remove it.');
+          actions.push({ kind: edit.kind, id: edit.id, title: edit.title });
+          break;
+        }
         case 'insert': caret = { id: insert(edit.parentId, edit.after, edit.text ?? ''), offset: 0 }; break;
         case 'split': {
           const old = this.snapshot(edit.id);
@@ -655,13 +685,19 @@ export class Document implements PageDocument {
     if (!this.host.titleAvailable(title.trim(), this.pageId)) return { ok: false, reason: 'A page with this title already exists.' };
     return this.edit({ kind: 'text', id: this.pageId, text: title.trim() });
   }
+  addType(blockId: string, title: string): EditResult {
+    return this.edit({ kind: 'addType', id: blockId, title });
+  }
+  removeType(blockId: string, title: string): EditResult {
+    return this.edit({ kind: 'removeType', id: blockId, title });
+  }
   private travel(undo: boolean): HistoryCaret | null {
     this.lastTextEditAt = 0;
     const from = undo ? this.undoStack : this.redoStack;
     const to = undo ? this.redoStack : this.undoStack;
     const entry = from.pop();
     if (!entry) return null;
-    const actions = undo ? entry.inverse : entry.forward.map(action => action.kind === 'fieldKind' ? { ...action, baseRevision: undefined } : action.kind === 'insert' && this.baseBlocks.has(action.block.id) ? { kind: 'restore' as const, id: action.block.id, snapshots: [{ block: action.block, row: { id: action.block.id, parentId: action.block.parent_id!, depth: action.block.parent_id === this.pageId ? 0 : this.outline.depth(action.block.parent_id!) + 1 } }], after: action.after } : action);
+    const actions = undo ? entry.inverse : entry.forward.map(action => action.kind === 'fieldKind' ? { ...action, baseRevision: undefined } : action.kind === 'insert' && this.baseBlocks.has(action.block.id) ? { kind: 'restore' as const, id: action.block.id, snapshots: [{ block: action.block, manual_types: this.baseManualTypes.get(action.block.id) ?? [], row: { id: action.block.id, parentId: action.block.parent_id!, depth: action.block.parent_id === this.pageId ? 0 : this.outline.depth(action.block.parent_id!) + 1 } }], after: action.after } : action);
     try {
       const inverse: Action[] = [];
       batch(() => { for (const action of actions) {

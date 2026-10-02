@@ -2,12 +2,13 @@ import type { Block, Batch, FieldKind } from '../api/types';
 import type { Caret, HistoryCaret } from './contract';
 import type { OutlineRow } from './outline-index';
 
-export interface Snapshot { block: Block; row: OutlineRow | null }
+export interface Snapshot { block: Block; row: OutlineRow | null; manual_types: string[] }
 export type Action =
   | { kind: 'text'; id: string; text: string; baseRevision?: number }
   | { kind: 'heading'; id: string; heading: 1 | 2 | 3 | null }
   | { kind: 'archive'; id: string; archived: boolean }
   | { kind: 'fieldKind'; id: string; value: FieldKind; previous: FieldKind; baseRevision?: number }
+  | { kind: 'addType' | 'removeType'; id: string; title: string }
   | { kind: 'insert'; block: Block; after: string | null }
   | { kind: 'delete'; id: string }
   | { kind: 'restore'; id: string; snapshots: Snapshot[]; after: string | null }

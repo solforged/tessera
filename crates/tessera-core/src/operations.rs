@@ -6,8 +6,9 @@ use sha2::{Digest, Sha256};
 
 use crate::notebook::now_ms;
 use crate::storage::{
-    Stored, derive_links, derive_memberships, not_found, rewrite_tags, stored, tag_names,
-    tag_spelling, tag_title_matches, validate_id, validate_tag_title, validate_text, validation,
+    Stored, derive_links, derive_memberships, not_found, resolve_type, rewrite_tags, stored,
+    tag_names, tag_spelling, tag_title_matches, validate_id, validate_tag_title, validate_text,
+    validation,
 };
 use crate::{
     Batch, BlockKind, Committed, Error, Notebook, Operation, Result, Revision, TextRewrite,
@@ -181,6 +182,7 @@ struct TagRename {
 
 struct TagReplacement {
     title_key: String,
+    title: String,
     spelling: String,
     case_only: bool,
     op_index: usize,
@@ -233,14 +235,18 @@ impl Engine<'_, '_> {
         }
         let mut sources = HashSet::new();
         let mut incoming = self.tx.prepare_cached(
-            "SELECT b.id, b.text FROM memberships m JOIN blocks b ON b.id = m.block_id
+            "SELECT b.id, b.text, m.manual FROM memberships m JOIN blocks b ON b.id = m.block_id
              WHERE m.title_key = ?1 AND b.deletion_id IS NULL ORDER BY m.block_id",
         )?;
         for row in incoming.query_map([old_key], |row| {
-            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, bool>(2)?,
+            ))
         })? {
-            let (id, source) = row?;
-            if tag_names(&source).any(|name| tag_title_matches(name, old_key)) {
+            let (id, source, manual) = row?;
+            if manual || tag_names(&source).any(|name| tag_title_matches(name, old_key)) {
                 sources.insert(id);
             }
         }
@@ -306,6 +312,7 @@ impl Engine<'_, '_> {
                 let position = replacements.len();
                 replacements.push(TagReplacement {
                     title_key: rename.title_key,
+                    title,
                     spelling,
                     case_only,
                     op_index: rename.op_index,
@@ -334,6 +341,37 @@ impl Engine<'_, '_> {
                                 .collect()
                         })
                         .contains(id.as_str());
+                let manual = self.tx.prepare_cached(
+                    "SELECT title_key, title FROM memberships WHERE block_id = ?1 AND manual = 1",
+                )?.query_map([&id], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))?
+                    .collect::<rusqlite::Result<Vec<_>>>()?;
+                let manual_rewrites: Vec<_> = manual
+                    .iter()
+                    .filter_map(|(key, title)| {
+                        let replacement = plans.iter().find_map(|index| {
+                            let replacement = &replacements[*index];
+                            tag_title_matches(title, &replacement.title_key).then_some(replacement)
+                        })?;
+                        (title != &replacement.title).then_some((key, &replacement.title))
+                    })
+                    .collect();
+                for (key, _) in &manual_rewrites {
+                    self.tx.execute(
+                        "DELETE FROM memberships WHERE block_id = ?1 AND title_key = ?2 AND manual = 1",
+                        params![id, key],
+                    )?;
+                }
+                for (_, title) in &manual_rewrites {
+                    self.tx.execute(
+                        "INSERT OR IGNORE INTO memberships(block_id, title_key, type_id, manual, title)
+                         VALUES (?1, ?2, (SELECT id FROM blocks WHERE kind = 'page' AND deletion_id IS NULL AND title_key = ?2), 1, ?3)",
+                        params![id, title.to_lowercase(), title],
+                    )?;
+                }
+                if !manual_rewrites.is_empty() {
+                    self.restructured_pages
+                        .insert(current.block.page_id.clone());
+                }
                 let mut matched = false;
                 let text = rewrite_tags(&current.block.text, |title| {
                     // The first captured association owns an original token,
@@ -351,6 +389,9 @@ impl Engine<'_, '_> {
                     (!(preserve_spelling && replacement.case_only))
                         .then_some(replacement.spelling.as_str())
                 });
+                if text.is_none() && !manual_rewrites.is_empty() {
+                    self.bump(&current)?;
+                }
                 if !matched {
                     continue;
                 }
@@ -360,7 +401,10 @@ impl Engine<'_, '_> {
                         .map_err(|error| indexed(error, self.op_index))?;
                     (text, current.block.revision + 1)
                 } else {
-                    (current.block.text.clone(), current.block.revision)
+                    (
+                        current.block.text.clone(),
+                        current.block.revision + i64::from(!manual_rewrites.is_empty()),
+                    )
                 };
                 if let Some(position) = self.rewrite_positions.get(&id) {
                     self.text_rewrites[*position].after = text;
@@ -395,7 +439,19 @@ impl Engine<'_, '_> {
                     .query_row([id], |row| row.get(0))
                     .optional()?;
                 if let Some(text) = text {
-                    let created = derive_memberships(self.tx, id, &text, self.now, true)?;
+                    let mut created = derive_memberships(self.tx, id, &text, self.now, true)?;
+                    let manual = self.tx.prepare_cached(
+                        "SELECT title_key, title FROM memberships WHERE block_id = ?1 AND manual = 1 AND type_id IS NULL",
+                    )?.query_map([id], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))?
+                        .collect::<rusqlite::Result<Vec<_>>>()?;
+                    for (key, title) in manual {
+                        let type_id =
+                            resolve_type(self.tx, &title, &key, self.now, true, &mut created)?;
+                        self.tx.execute(
+                            "UPDATE memberships SET type_id = ?1 WHERE block_id = ?2 AND title_key = ?3 AND manual = 1",
+                            params![type_id, id, key],
+                        )?;
+                    }
                     for revision in created {
                         let title_key = self
                             .tx
@@ -884,6 +940,44 @@ impl Engine<'_, '_> {
                     self.touch(id, current.block.revision + 1);
                 }
                 Ok(())
+            }
+            Operation::AddType {
+                id,
+                base_revision,
+                title,
+            } => {
+                let current = self.checked(id, *base_revision, index, false)?;
+                validate_text(BlockKind::Page, title)?;
+                validate_tag_title(title)?;
+                self.tx.execute(
+                    "INSERT OR IGNORE INTO memberships(block_id, title_key, type_id, manual, title)
+                     VALUES (?1, ?2, (SELECT id FROM blocks WHERE kind = 'page' AND deletion_id IS NULL AND title_key = ?2), 1, ?3)",
+                    params![id, title.to_lowercase(), title],
+                )?;
+                self.bump(&current)?;
+                self.tags_changed(id);
+                self.restructured_pages
+                    .insert(current.block.page_id.clone());
+                Ok(())
+            }
+            Operation::RemoveType {
+                id,
+                base_revision,
+                title,
+            } => {
+                let current = self.checked(id, *base_revision, index, false)?;
+                validate_text(BlockKind::Page, title)?;
+                validate_tag_title(title)?;
+                let removed = self.tx.execute(
+                    "DELETE FROM memberships WHERE block_id = ?1 AND title_key = ?2 AND manual = 1",
+                    params![id, title.to_lowercase()],
+                )?;
+                if removed == 0 {
+                    return Err(validation("type has no manual membership"));
+                }
+                self.restructured_pages
+                    .insert(current.block.page_id.clone());
+                self.bump(&current)
             }
             Operation::Split {
                 id,

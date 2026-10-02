@@ -38,6 +38,7 @@ export interface BlockState {
   readonly text: string;
   readonly heading: 1 | 2 | 3 | null;
   readonly archived: boolean;
+  readonly manual_types: readonly string[];
   /** Last revision the service acknowledged; 0 until a new block is committed. */
   readonly revision: number;
   /** Local changes not yet acknowledged. */
@@ -119,7 +120,8 @@ export type Edit =
   | { kind: 'heading'; id: string; level: 1 | 2 | 3 | null }
   /** The definition snapshot supplies the previous kind and revision for undo. */
   | { kind: 'fieldKind'; definition: FieldDefinition; value: FieldKind }
-  | { kind: 'archive'; id: string; archived: boolean };
+  | { kind: 'archive'; id: string; archived: boolean }
+  | { kind: 'addType' | 'removeType'; id: string; title: string };
 
 export type EditResult =
   | { ok: true; caret: Caret | null; created: string[] }
@@ -157,6 +159,8 @@ export interface PageDocument {
   edit(edit: Edit, caretBefore?: Caret | null): EditResult;
   /** Renames a page. Journal titles cannot change. */
   rename(title: string): EditResult;
+  addType(blockId: string, title: string): EditResult;
+  removeType(blockId: string, title: string): EditResult;
   undo(): HistoryCaret | null;
   redo(): HistoryCaret | null;
   canUndo(): boolean;

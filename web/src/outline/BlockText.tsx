@@ -3,6 +3,7 @@ import type { NotebookClient } from '../document/contract';
 import type { Block, FieldDefinition } from '../api/types';
 import type { OpenTarget } from '../shell/contract';
 import { Icon } from '../ui/Icon';
+import { TypePill } from './references';
 
 export interface Token { start: number; end: number; kind: 'text' | 'reference' | 'tag'; value: string; id?: string; alias?: string }
 export function textTokens(text: string): Token[] {
@@ -102,9 +103,7 @@ export function BlockText(props: Props) {
       </Show>
       <Show when={token.kind === 'tag'}>
         <Show when={props.interactive !== false} fallback={<span class="outline-tag" data-source-start={token.start} data-source-end={token.end}>{text(display())}</span>}>
-          <button type="button" class="outline-tag" data-source-start={token.start} data-source-end={token.end}
-            onClick={async event => { event.stopPropagation(); const id = await props.notebook.pageByTitle(token.value, false); if (id) props.onOpen?.({ kind: 'page', pageId: id }, true); }}
-            title={`Open #${token.value} beside`}>{text(display())}</button>
+          <TypePill title={token.value} notebook={props.notebook} onOpen={props.onOpen} start={token.start} end={token.end}>{text(display())}</TypePill>
         </Show>
       </Show>
     </>;

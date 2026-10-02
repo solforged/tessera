@@ -150,6 +150,8 @@ impl FieldChanges {
             | Operation::SetArchived { id, .. }
             | Operation::SetFieldKind { id, .. } => self.capture(conn, id),
             Operation::SetTypeFields { .. }
+            | Operation::AddType { .. }
+            | Operation::RemoveType { .. }
             | Operation::SaveView { .. }
             | Operation::DeleteView { .. } => Ok(()),
         }
