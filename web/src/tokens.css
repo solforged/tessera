@@ -1,0 +1,77 @@
+/*
+ * Design tokens. Every value the interface uses lives here; components use
+ * tokens, never raw values. The reasons are in docs/design.md.
+ */
+:root {
+  color-scheme: dark;
+
+  /* Surfaces step up in lightness with elevation. */
+  --surface: #101719;   /* shell: sidebar, table headers, banners */
+  --canvas: #151e21;    /* panes */
+  --raised: #1d2a2e;    /* popups, pills, chips */
+  --hover: #1b272a;
+  --selection: #213236; /* rows add a 2 px accent bar at the left */
+  --line: #304247;      /* dividers */
+  --control-border: #627b80;
+
+  /* Text. */
+  --text: #dde7e5;
+  --muted: #a7b8b4;
+  --faint: #879d98;
+
+  /* One accent for focus and primary actions. */
+  --accent: #94c8b3;
+  --accent-tint: #94c8b31a;
+  --danger: #e5a491;
+  --warning: #d6b57b;
+  --focus-ring: 2px solid var(--accent);
+  --focus-offset: 2px;
+
+  /* Type hues colour pills only, as a 10% tint behind the hue, never bullets.
+     They never reuse a status hue. */
+  --type-1: #a9baf2; --type-2: #d5a8cb; --type-3: #8fc8d5;
+  --type-4: #b8c7a1; --type-5: #c4b5e8; --type-6: #aab9bd;
+
+  /* Task and status hues, reserved for stage 3. */
+  --status-todo: var(--muted);
+  --status-doing: #8fc8d5;
+  --status-waiting: var(--warning);
+  --status-done: var(--accent);
+  --status-cancelled: var(--faint);
+  --status-overdue: var(--danger);
+
+  /* Type. IBM Plex Sans Variable is bundled. */
+  --font-body: "IBM Plex Sans Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "SFMono-Regular", Menlo, Consolas, monospace;
+  --text-meta: 12px; --line-meta: 16px;       /* pills, labels, breadcrumbs, status */
+  --text-control: 13px; --line-control: 18px; /* buttons, menus, sidebar, tables */
+  --text-body: 15px; --line-body: 24px;       /* block text, inputs */
+  --text-h3: 16px; --line-h3: 24px;
+  --text-h2: 18px; --line-h2: 26px;           /* also section and pane titles */
+  --text-h1: 24px; --line-h1: 30px;           /* also dialog and view headings */
+  --text-title: 30px; --line-title: 36px;     /* page titles */
+  --weight-body: 400; --weight-control: 500; --weight-heading: 600;
+
+  /* Spacing and size. */
+  --space-2: 2px; --space-4: 4px; --space-8: 8px;
+  --space-12: 12px; --space-16: 16px; --space-24: 24px;
+  --space-32: 32px; --space-48: 48px;
+  --row-height: 28px;
+  --indent-width: 24px;
+  --measure: 760px;          /* widest text column */
+  --gutter: 48px;            /* handle and fold, left of the measure */
+  --sidebar-width: 208px;
+  --target-size: 24px;       /* pointer targets; touch targets are 44px */
+  --touch-size: 44px;
+  --icon-size: 16px;
+  --icon-size-small: 14px;
+
+  /* Shape and elevation. Only floating layers cast shadows. */
+  --radius-control: 4px; --radius-popup: 8px; --radius-pill: 999px;
+  --popup-shadow: 0 12px 32px #0008;
+  --dialog-shadow: 0 24px 64px #000a;
+
+  font: var(--weight-body) var(--text-body)/var(--line-body) var(--font-body);
+  background: var(--canvas);
+  color: var(--text);
+}
