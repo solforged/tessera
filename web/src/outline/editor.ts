@@ -7,6 +7,7 @@ export interface EditorHooks {
   text(text: string, caret: Caret): void;
   selection(caret: Caret): void;
   key(event: KeyboardEvent, view: EditorView): boolean;
+  blur(): void;
   composition(active: boolean, committed?: string): void;
   mode(mode: 'insert' | 'normal' | 'visual'): void;
 }
@@ -38,6 +39,7 @@ export class PaneEditor {
           if (event.isComposing || this.composing || view.composing || event.keyCode === 229) return false;
           return this.hooks.key(event, view);
         },
+        blur: () => { if (!this.replacing && !this.composing) this.hooks.blur(); return false; },
         compositionstart: () => { this.composing = true; this.hooks.composition(true); return false; },
         compositionend: event => { this.composing = false; this.hooks.composition(false, event.data); return false; },
       })),

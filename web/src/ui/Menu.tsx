@@ -6,6 +6,8 @@ import type { PopupAnchor } from './Popup';
 
 export interface MenuItem {
   label: string;
+  /** Optional heading for a group of adjacent actions. */
+  section?: string;
   icon?: IconName;
   shortcut?: string;
   disabledReason?: string;
@@ -21,9 +23,9 @@ export function Menu(props: { anchor: PopupAnchor; label: string; items: MenuIte
       const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (index + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length;
       buttons[next]?.focus(); event.preventDefault();
     }}>
-      <For each={props.items}>{item => <button type="button" role="menuitem" class={`menu-item ${item.danger ? 'danger' : ''}`} disabled={!!item.disabledReason} title={item.disabledReason} onClick={() => { props.onDismiss(); item.action(); }}>
+      <For each={props.items}>{item => <>{item.section && <div class="menu-section">{item.section}</div>}<button type="button" role="menuitem" class={`menu-item ${item.danger ? 'danger' : ''}`} disabled={!!item.disabledReason} title={item.disabledReason} onClick={() => { props.onDismiss(); item.action(); }}>
         {item.icon && <Icon name={item.icon} />}<span class="menu-label">{item.label}</span>{item.shortcut && <kbd>{item.shortcut}</kbd>}
-      </button>}</For>
+      </button></>}</For>
     </div>
   </Popup>;
 }

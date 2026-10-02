@@ -5,6 +5,11 @@ import type {
   BlockInPage,
   ChangeEvent,
   Committed,
+  Fields,
+  Type,
+  Query,
+  QueryResult,
+  View,
   NotebookInfo,
   PageView,
 } from './types';
@@ -74,6 +79,11 @@ export interface ApiClient {
   block(id: string, signal?: AbortSignal): Promise<Block>;
   backlinks(id: string, limit?: number, signal?: AbortSignal): Promise<Backlink[]>;
   members(id: string, limit?: number, signal?: AbortSignal): Promise<BlockInPage[]>;
+  fields(signal?: AbortSignal): Promise<Fields>;
+  type(id: string, signal?: AbortSignal): Promise<Type>;
+  query(value: Query, signal?: AbortSignal): Promise<QueryResult>;
+  views(signal?: AbortSignal): Promise<View[]>;
+  view(id: string, signal?: AbortSignal): Promise<View>;
   complete(q: string, limit?: number, signal?: AbortSignal): Promise<Block[]>;
   search(q: string, limit?: number, signal?: AbortSignal): Promise<BlockInPage[]>;
   changes(after: number, limit?: number, signal?: AbortSignal): Promise<ChangeEvent[]>;
@@ -93,6 +103,11 @@ export function createApi(base = ''): ApiClient {
     block: (id: string, signal?: AbortSignal) => get<Block>(`/blocks/${segment(id)}`, signal),
     backlinks: (id: string, limit = 100, signal?: AbortSignal) => get<Backlink[]>(`/blocks/${segment(id)}/backlinks${query({ limit })}`, signal),
     members: (id: string, limit = 100, signal?: AbortSignal) => get<BlockInPage[]>(`/types/${segment(id)}/members${query({ limit })}`, signal),
+    fields: (signal?: AbortSignal) => get<Fields>('/fields', signal),
+    type: (id: string, signal?: AbortSignal) => get<Type>(`/types/${segment(id)}`, signal),
+    query: (value: Query, signal?: AbortSignal) => request<QueryResult>(base, 'POST', '/query', value, signal),
+    views: (signal?: AbortSignal) => get<View[]>('/views', signal),
+    view: (id: string, signal?: AbortSignal) => get<View>(`/views/${segment(id)}`, signal),
     complete: (q: string, limit = 20, signal?: AbortSignal) => get<Block[]>(`/complete${query({ q, limit })}`, signal),
     search: (q: string, limit = 40, signal?: AbortSignal) => get<BlockInPage[]>(`/search${query({ q, limit })}`, signal),
     changes: (after: number, limit = 500, signal?: AbortSignal) => get<ChangeEvent[]>(`/changes${query({ after, limit })}`, signal),

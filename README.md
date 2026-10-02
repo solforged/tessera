@@ -2,7 +2,7 @@
 
 Tessera is a local-first outline workstation for notes, questions, evidence, tasks and study. You write in an outline of small addressable blocks. Each block is one tile; pages, journals, agendas, investigations and review sessions are different ways of arranging the same tiles.
 
-Status: foundations. The core stores an outline with revision-checked, attributed operations; the service exposes it over HTTP; a benchmark checks the performance budgets on 50,000-block notebooks. Editor prototypes live in `spikes/`. The daily outline editor comes next, following the [roadmap](docs/roadmap.md).
+Status: a working daily outline. The browser editor writes to the service with operation-based autosave, undo and conflict handling; pages, journals, references, search, tags, archiving and two panes work. Blocks take typed fields (`Author::`), and a type's members open as a table that sorts, filters and saves as a view. Tasks, cards and sources follow the [roadmap](docs/roadmap.md).
 
 ## What it is for
 

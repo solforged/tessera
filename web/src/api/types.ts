@@ -35,7 +35,11 @@ export type Operation =
   | { op: 'move'; id: string; base_revision: number; parent_id: string; after: string | null }
   | { op: 'delete'; id: string; base_revision: number }
   | { op: 'restore'; id: string; deletion_id: string; revision: number }
-  | { op: 'set_archived'; id: string; base_revision: number; archived: boolean };
+  | { op: 'set_archived'; id: string; base_revision: number; archived: boolean }
+  | { op: 'set_field_kind'; id: string; base_revision: number; kind: FieldKind }
+  | { op: 'set_type_fields'; type_id: string; base_revision: number; fields: string[] }
+  | { op: 'save_view'; id: string; base_revision: number | null; name: string; query: Query }
+  | { op: 'delete_view'; id: string; base_revision: number };
 
 export interface Batch {
   actor: Actor;
@@ -111,6 +115,8 @@ export interface ChangeEvent {
   blocks: Block[];
   removed: string[];
   restructured_pages: string[];
+  /** Absent on change events produced before saved views were introduced. */
+  views?: string[];
 }
 
 export interface NotebookInfo {
@@ -128,3 +134,18 @@ export interface ConflictDetails {
   expected: number;
   found: number | null;
 }
+
+export type FieldKind = 'text' | 'number' | 'date' | 'checkbox' | 'choice' | 'instance';
+export type Direction = 'asc' | 'desc';
+export type FilterOp = 'is' | 'is_not' | 'contains' | 'gt' | 'gte' | 'lt' | 'lte' | 'set' | 'empty';
+export interface Filter { field: string; op: FilterOp; value: string | null }
+export interface SortKey { by: 'title' | 'created' | 'updated' | 'field'; field: string | null; direction: Direction }
+export interface Query { type: string | null; text: string | null; filters: Filter[]; sort: SortKey[]; limit: number | null }
+export type Reading = { ok: true; value: string | number | boolean; target: string | null } | { ok: false; problem: string };
+export interface FieldValue { id: string; text: string; reading: Reading }
+export interface QueryRow { block: BlockInPage; values: Record<string, FieldValue[]> }
+export interface FieldDefinition { id: string; name: string; kind: FieldKind; revision: number; options: { id: string; text: string }[] }
+export interface QueryResult { fields: FieldDefinition[]; columns: string[]; rows: QueryRow[]; total: number }
+export interface Fields { page_id: string; fields: FieldDefinition[] }
+export interface Type { page: Block; fields: string[]; members: number }
+export interface View { id: string; name: string; query: Query; revision: number; created_at: number; updated_at: number }

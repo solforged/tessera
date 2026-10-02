@@ -139,7 +139,7 @@ export async function correctness(page: Page, url: string, service: string): Pro
     const text = (await page.evaluate(() => window.outlinePerf.snapshot())).find(row => row.id === f.c)?.text;
     assert(text?.includes(`[[${f.reference}]]`), 'Completion did not insert stable ID.');
     await press(page, 'Escape'); await page.locator(`[data-block-id="${f.c}"] .outline-reference`).click();
-    assert((await page.evaluate(() => window.outlinePerf.openTargets())).some(item => item.beside && item.target.pageId === f.reference), 'Reference did not open its target beside.');
+    assert((await page.evaluate(() => window.outlinePerf.openTargets())).some(item => item.beside && item.target.kind === 'page' && item.target.pageId === f.reference), 'Reference did not open its target beside.');
     return `Completion inserts [[${f.reference}]]; rendered target clicked into second real page pane.`;
   });
   await scenario('Tag chip resolves its type page and opens beside', async f => {
@@ -147,8 +147,8 @@ export async function correctness(page: Page, url: string, service: string): Pro
     const response = await fetch(`${service}/api/pages/by-title/proof-tag`); const target = await response.json() as Block;
     assert(response.ok, 'Tag page was not created by the service.');
     await page.locator(`[data-block-id="${f.c}"] .outline-tag`).click();
-    await page.waitForFunction(id => window.outlinePerf.openTargets().some(item => item.beside && item.target.pageId === id), target.id);
-    assert((await page.evaluate(() => window.outlinePerf.openTargets())).some(item => item.beside && item.target.pageId === target.id), 'Tag opened wrong type page.');
+    await page.waitForFunction(id => window.outlinePerf.openTargets().some(item => item.beside && item.target.kind === 'page' && item.target.pageId === id), target.id);
+    assert((await page.evaluate(() => window.outlinePerf.openTargets())).some(item => item.beside && item.target.kind === 'page' && item.target.pageId === target.id), 'Tag opened wrong type page.');
     return `#proof-tag resolves to live type page ${target.id} and opens beside.`;
   });
   await scenario('Fold, zoom breadcrumbs and exact view-state restore', async f => {

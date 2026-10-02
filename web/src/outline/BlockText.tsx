@@ -1,6 +1,6 @@
 import { For, Show, createMemo } from 'solid-js';
 import type { NotebookClient } from '../document/contract';
-import type { Block } from '../api/types';
+import type { Block, FieldDefinition } from '../api/types';
 import type { OpenTarget } from '../shell/contract';
 import { Icon } from '../ui/Icon';
 
@@ -25,6 +25,7 @@ export function textTokens(text: string): Token[] {
 interface Props {
   text: string;
   notebook: NotebookClient;
+  field?: Pick<FieldDefinition, 'id' | 'name'>;
   onOpen?(target: OpenTarget, beside: boolean): void;
   onReferenceMenu?(id: string, anchor: HTMLElement): void;
   selection?: [number, number] | null;
@@ -50,7 +51,8 @@ export function BlockText(props: Props) {
     return tokens().map(token => {
       const literal = token.kind === 'text' || token.kind === 'reference' && !isStableReference(token);
       const target = isStableReference(token) ? props.notebook.lookup(token.id!)() : undefined;
-      const label = literal ? token.value : token.kind === 'tag' ? `#${token.value}` : referenceLabel(token, target);
+      const field = props.field?.id === token.id ? props.field : undefined;
+      const label = literal ? token.value : token.kind === 'tag' ? `#${token.value}` : field ? token.alias || field.name : referenceLabel(token, target);
       const result: DisplayToken = { ...token, label, target, literal, visibleStart };
       visibleStart += label.length;
       return result;
@@ -88,20 +90,20 @@ export function BlockText(props: Props) {
       <Show when={display().literal}>{text(display())}</Show>
       <Show when={!display().literal && token.kind === 'reference'}>
         <Show when={props.interactive !== false} fallback={<span class="outline-reference" data-source-start={token.start} data-source-end={token.end}>
-          <Show when={display().target === null}><Icon name="brokenLink" /></Show>{text(display())}
+          <Show when={props.field?.id === token.id}><Icon name="field" /></Show><Show when={display().target === null}><Icon name="brokenLink" /></Show>{text(display())}
         </span>}>
           <button class="outline-reference" type="button" data-source-start={token.start} data-source-end={token.end}
-            onClick={event => { event.stopPropagation(); const block = display().target; if (block) props.onOpen?.({ pageId: block.page_id, blockId: block.kind === 'block' ? block.id : undefined }, true); }}
+            onClick={event => { event.stopPropagation(); const block = display().target; if (block) props.onOpen?.({ kind: 'page', pageId: block.page_id, blockId: block.kind === 'block' ? block.id : undefined }, true); }}
             onContextMenu={event => { event.preventDefault(); event.stopPropagation(); props.onReferenceMenu?.(token.id!, event.currentTarget); }}
             title={display().target ? 'Open reference beside · right-click for more actions' : display().target === null ? `Unresolved reference: ${token.id}` : 'Loading reference…'}>
-            <Show when={display().target === null}><Icon name="brokenLink" /></Show>{text(display())}
+            <Show when={props.field?.id === token.id}><Icon name="field" /></Show><Show when={display().target === null}><Icon name="brokenLink" /></Show>{text(display())}
           </button>
         </Show>
       </Show>
       <Show when={token.kind === 'tag'}>
         <Show when={props.interactive !== false} fallback={<span class="outline-tag" data-source-start={token.start} data-source-end={token.end}>{text(display())}</span>}>
           <button type="button" class="outline-tag" data-source-start={token.start} data-source-end={token.end}
-            onClick={async event => { event.stopPropagation(); const id = await props.notebook.pageByTitle(token.value, false); if (id) props.onOpen?.({ pageId: id }, true); }}
+            onClick={async event => { event.stopPropagation(); const id = await props.notebook.pageByTitle(token.value, false); if (id) props.onOpen?.({ kind: 'page', pageId: id }, true); }}
             title={`Open #${token.value} beside`}>{text(display())}</button>
         </Show>
       </Show>
