@@ -467,8 +467,14 @@ export class Document implements PageDocument {
       actions.push({ kind: 'insert', after, block: { id, kind: 'block', parent_id: parentId, page_id: this.pageId, text, heading, archived: false, revision: 0, created_at: Date.now(), updated_at: Date.now() } });
       return id;
     };
-    const selected = (ids: string[]) => {
+    const selected = (ids: string[], zoomRoot?: string | null) => {
       const set = new Set(ids);
+      if (zoomRoot) {
+        const start = this.outline.indexOf(zoomRoot);
+        if (start < 0) return [];
+        const end = this.outline.subtreeEnd(start);
+        if (ids.some(id => { const at = this.outline.indexOf(id); return at <= start || at >= end; })) return [];
+      }
       return ids.filter(id => {
         if (this.outline.indexOf(id) < 0) throw new Error('A selected block no longer exists.');
         let parent = this.outline.parentOf(id);
@@ -616,23 +622,23 @@ export class Document implements PageDocument {
         }
         case 'moveTo': move(selected(edit.ids), edit.parentId, edit.after); break;
         case 'indent': {
-          const ids = selected(edit.ids);
+          const ids = selected(edit.ids, edit.zoomRoot);
           if (!ids.length) break;
           const parent = this.outline.previousSibling(ids[0]!);
-          if (!parent) throw new Error('There is no previous sibling to indent beneath.');
+          if (!parent) break;
           move(ids, parent, this.outline.children(parent).at(-1) ?? null);
           break;
         }
         case 'outdent': {
-          const ids = selected(edit.ids);
+          const ids = selected(edit.ids, edit.zoomRoot);
           if (!ids.length) break;
           const parent = this.outline.parentOf(ids[0]!);
-          if (parent === this.pageId) throw new Error('This block is already at the top level.');
+          if (parent === this.pageId || parent === edit.zoomRoot) break;
           move(ids, this.outline.parentOf(parent), parent);
           break;
         }
         case 'move': {
-          const ids = selected(edit.ids);
+          const ids = selected(edit.ids, edit.zoomRoot);
           if (!ids.length) break;
           const parent = this.outline.parentOf(ids[0]!);
           if (ids.some(id => this.outline.parentOf(id) !== parent)) throw new Error('Move selection must contain siblings.');
@@ -640,10 +646,10 @@ export class Document implements PageDocument {
           const first = siblings.indexOf(ids[0]!);
           const last = siblings.indexOf(ids.at(-1)!);
           if (edit.direction === 'up') {
-            if (first <= 0) throw new Error('Already the first sibling.');
+            if (first <= 0) break;
             move(ids, parent, siblings[first - 2] ?? null);
           } else {
-            if (last + 1 >= siblings.length) throw new Error('Already the last sibling.');
+            if (last + 1 >= siblings.length) break;
             move(ids, parent, siblings[last + 1]!);
           }
           break;
