@@ -57,7 +57,7 @@ export function TablePane(props: TablePaneProps) {
     },
   );
   const fields = createMemo(() => {
-    const combined = new Map((definitions()?.fields ?? []).map(field => [field.id, field]));
+    const combined = new Map<string, FieldDefinition>((definitions()?.fields ?? []).map(field => [field.id, field]));
     for (const field of result()?.fields ?? []) if (!combined.has(field.id)) combined.set(field.id, field);
     return [...combined.values()];
   });
@@ -178,7 +178,7 @@ export function TablePane(props: TablePaneProps) {
       ...(sorted >= 0 ? [{ label: 'Clear sort', action: () => updateQuery(removeSort(query(), sorted)) }] : []),
       ...(field ? [
         { label: 'Filter…', action: () => showFilter(anchor, field.id) },
-        ...Object.entries(kindLabels).map(([kind, label], index): MenuItem => ({ label, section: index === 0 ? 'Field kind' : undefined, icon: field.kind === kind ? 'check' : undefined, action: () => { void submit({ op: 'set_field_kind', id: field.id, base_revision: field.revision, kind: kind as FieldKind }).catch(message); } })),
+        ...Object.entries(kindLabels).map(([kind, label], index): MenuItem => ({ label, section: index === 0 ? 'Field kind' : undefined, icon: field.kind === kind ? 'check' : undefined, action: () => { void withDocument(definitions()!.page_id, doc => { const result = doc.edit({ kind: 'fieldKind', definition: field, value: kind as FieldKind }); if (!result.ok) throw new Error(result.reason); }).catch(message); } })),
         ...(query().type && type()?.fields.includes(field.id) ? [{ label: 'Remove column', action: () => { const current = type()!; void submit({ op: 'set_type_fields', type_id: current.page.id, base_revision: current.page.revision, fields: current.fields.filter(id => id !== field.id) }).catch(message); } }] : []),
       ] : []),
     ] });

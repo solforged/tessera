@@ -12,8 +12,8 @@ use crate::{
 };
 
 pub(crate) fn validate_query(conn: &Connection, query: &Query) -> Result<Vec<FieldDefinition>> {
-    if query.r#type.is_none() && query.text.is_none() {
-        return Err(validation("query needs a type or text"));
+    if query.r#type.is_none() && query.text.is_none() && query.filters.is_empty() {
+        return Err(validation("query needs a type, text or filter"));
     }
     if let Some(id) = &query.r#type {
         validate_id(id)?;
@@ -130,6 +130,27 @@ impl Notebook {
         let definitions = validate_query(&self.conn, query)?;
         let defs = definition_map(&definitions);
         let matched = query.text.as_deref().map(fts_query);
+        let owners = if query.r#type.is_none() && query.text.is_none() {
+            let mut owners = HashSet::new();
+            let mut entries = self.conn.prepare_cached(concat!(
+                hidden_blocks!(),
+                "SELECT DISTINCT e.parent_id, e.text FROM links l
+                 JOIN blocks e ON e.id = l.source_id
+                 WHERE e.deletion_id IS NULL AND e.rowid NOT IN (SELECT rowid FROM hidden)"
+            ))?;
+            let mut cursor = entries.query([])?;
+            while let Some(row) = cursor.next()? {
+                let text: String = row.get(1)?;
+                if crate::fields::reference(&text)
+                    .is_some_and(|id| query.filters.iter().any(|filter| filter.field == id))
+                {
+                    owners.insert(row.get::<_, String>(0)?);
+                }
+            }
+            Some(owners)
+        } else {
+            None
+        };
         let mut rows: Vec<QueryRow> = Vec::new();
         if matched.as_ref().is_none_or(|text| !text.is_empty()) {
             // One joined read for candidates, values and reference targets. No
@@ -159,6 +180,9 @@ impl Notebook {
                         Box::new(error),
                     )
                 })?;
+                if owners.as_ref().is_some_and(|owners| !owners.contains(id)) {
+                    continue;
+                }
                 if rows.last().is_none_or(|r| r.block.block.id != id) {
                     rows.push(QueryRow {
                         block: crate::BlockInPage {

@@ -289,6 +289,12 @@ export class Notebook implements NotebookClient, DocumentHost {
           block.archived = action.archived;
           break;
         }
+        case 'fieldKind': {
+          const block = current(action.id);
+          operations.push({ op: 'set_field_kind', id: block.id, base_revision: action.baseRevision ?? block.revision, kind: action.value });
+          if (action.value !== action.previous) block.revision++;
+          break;
+        }
         case 'move': {
           const block = current(action.id);
           const after = action.after && current(action.after).parent_id === action.parentId ? action.after : null;

@@ -2,6 +2,8 @@ use std::collections::{HashMap, HashSet};
 
 use rusqlite::{Connection, OptionalExtension, params};
 
+use crate::model::{FieldSummary, FieldType};
+use crate::reads::hidden_blocks;
 use crate::storage::{not_found, validate_date, validate_id, validation};
 use crate::{
     Block, BlockKind, FieldDefinition, FieldKind, FieldOption, FieldsView, Notebook, Operation,
@@ -249,9 +251,60 @@ pub(crate) fn definitions(conn: &Connection) -> Result<Vec<FieldDefinition>> {
 
 impl Notebook {
     pub fn fields(&self) -> Result<FieldsView> {
+        let mut fields: Vec<FieldSummary> = definitions(&self.conn)?
+            .into_iter()
+            .map(|definition| FieldSummary {
+                definition,
+                owners: 0,
+                types: Vec::new(),
+            })
+            .collect();
+        let indices: HashMap<_, _> = fields
+            .iter()
+            .enumerate()
+            .map(|(index, field)| (field.definition.id.clone(), index))
+            .collect();
+        let mut owners = HashSet::new();
+        let mut entries = self.conn.prepare_cached(concat!(
+            hidden_blocks!(),
+            "SELECT l.target_id, e.text, e.parent_id FROM links l
+             JOIN blocks e ON e.id = l.source_id
+             JOIN blocks o ON o.id = e.parent_id
+             WHERE e.deletion_id IS NULL AND o.deletion_id IS NULL
+             AND e.rowid NOT IN (SELECT rowid FROM hidden)"
+        ))?;
+        let mut cursor = entries.query([])?;
+        while let Some(row) = cursor.next()? {
+            let field: String = row.get(0)?;
+            let Some(&index) = indices.get(&field) else {
+                continue;
+            };
+            let text: String = row.get(1)?;
+            if reference(&text) == Some(field.as_str())
+                && owners.insert((index, row.get::<_, String>(2)?))
+            {
+                fields[index].owners += 1;
+            }
+        }
+        let mut templates = self.conn.prepare_cached(concat!(
+            hidden_blocks!(),
+            "SELECT f.field_id, b.id, b.text FROM type_fields f
+             JOIN blocks b ON b.id = f.type_id
+             WHERE b.deletion_id IS NULL AND b.rowid NOT IN (SELECT rowid FROM hidden)
+             ORDER BY b.text COLLATE NOCASE, b.id"
+        ))?;
+        let mut cursor = templates.query([])?;
+        while let Some(row) = cursor.next()? {
+            if let Some(&index) = indices.get(&row.get::<_, String>(0)?) {
+                fields[index].types.push(FieldType {
+                    id: row.get(1)?,
+                    name: row.get(2)?,
+                });
+            }
+        }
         Ok(FieldsView {
             page_id: page_id(&self.conn)?.ok_or_else(|| not_found("Fields"))?,
-            fields: definitions(&self.conn)?,
+            fields,
         })
     }
 }

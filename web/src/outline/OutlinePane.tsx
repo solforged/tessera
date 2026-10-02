@@ -120,7 +120,7 @@ function Pane(props: OutlinePaneProps) {
   const [createdFields, setCreatedFields] = createSignal<FieldDefinition[]>([]);
   const [fields] = createResource(() => props.notebook.changeSequence(), () => api.fields());
   const definitions = createMemo(() => {
-    const result = new Map((fields.error ? [] : fields()?.fields ?? []).map(field => [field.id, field]));
+    const result = new Map<string, FieldDefinition>((fields.error ? [] : fields()?.fields ?? []).map(field => [field.id, field]));
     for (const field of createdFields()) if (!result.has(field.id)) result.set(field.id, field);
     return [...result.values()].filter(field => {
       const block = props.notebook.lookup(field.id)();

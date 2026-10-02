@@ -141,6 +141,9 @@ export class Document implements PageDocument {
         this.changed(action.id, { archived: action.archived }, base);
         return [{ kind: 'archive', id: action.id, archived: old }];
       }
+      case 'fieldKind':
+        this.changed(action.id, {}, base);
+        return [{ kind: 'fieldKind', id: action.id, value: action.previous, previous: action.value }];
       case 'insert': {
         const block = { ...action.block };
         if (block.parent_id && index.indexOf(block.id) >= 0) {
@@ -548,6 +551,12 @@ export class Document implements PageDocument {
           break;
         case 'heading': actions.push({ kind: 'heading', id: edit.id, heading: edit.level }); break;
         case 'archive': actions.push({ kind: 'archive', id: edit.id, archived: edit.archived }); break;
+        case 'fieldKind': {
+          const definition = edit.definition;
+          if (this.snapshot(definition.id).revision !== definition.revision || this.block(definition.id)?.pending) throw new Error('The field changed. Refresh before changing its kind.');
+          if (definition.kind !== edit.value) actions.push({ kind: 'fieldKind', id: definition.id, value: edit.value, previous: definition.kind, baseRevision: definition.revision });
+          break;
+        }
         case 'insert': caret = { id: insert(edit.parentId, edit.after, edit.text ?? ''), offset: 0 }; break;
         case 'split': {
           const old = this.snapshot(edit.id);
@@ -652,7 +661,7 @@ export class Document implements PageDocument {
     const to = undo ? this.redoStack : this.undoStack;
     const entry = from.pop();
     if (!entry) return null;
-    const actions = undo ? entry.inverse : entry.forward.map(action => action.kind === 'insert' && this.baseBlocks.has(action.block.id) ? { kind: 'restore' as const, id: action.block.id, snapshots: [{ block: action.block, row: { id: action.block.id, parentId: action.block.parent_id!, depth: action.block.parent_id === this.pageId ? 0 : this.outline.depth(action.block.parent_id!) + 1 } }], after: action.after } : action);
+    const actions = undo ? entry.inverse : entry.forward.map(action => action.kind === 'fieldKind' ? { ...action, baseRevision: undefined } : action.kind === 'insert' && this.baseBlocks.has(action.block.id) ? { kind: 'restore' as const, id: action.block.id, snapshots: [{ block: action.block, row: { id: action.block.id, parentId: action.block.parent_id!, depth: action.block.parent_id === this.pageId ? 0 : this.outline.depth(action.block.parent_id!) + 1 } }], after: action.after } : action);
     try {
       const inverse: Action[] = [];
       batch(() => { for (const action of actions) {

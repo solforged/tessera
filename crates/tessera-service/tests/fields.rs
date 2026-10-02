@@ -100,3 +100,87 @@ async fn fields_queries_and_saved_views_round_trip_through_http_and_conflict_env
     assert_eq!(events[0]["views"], json!([id(500)]));
     assert_eq!(events[0]["removed"], json!([]));
 }
+
+#[tokio::test]
+async fn fields_count_distinct_live_entry_owners_and_template_types() {
+    let dir = tempfile::tempdir().unwrap();
+    let app =
+        tessera_service::router(Notebook::open(dir.path()).unwrap(), 4318, None, None).unwrap();
+    let (_, fields) = request(&app, "GET", "/api/fields", Value::Null).await;
+    let operations = json!([
+        {"op":"create_page","id":id(1),"title":"Books"},
+        {"op":"create_page","id":id(2),"title":"Hidden template"},
+        {"op":"insert","id":id(10),"parent_id":fields["page_id"],"after":null,"text":"Author","heading":null},
+        {"op":"insert","id":id(11),"parent_id":fields["page_id"],"after":null,"text":"Unused","heading":null},
+        {"op":"set_type_fields","type_id":id(1),"base_revision":1,"fields":[id(10)]},
+        {"op":"set_type_fields","type_id":id(2),"base_revision":1,"fields":[id(10)]},
+        {"op":"set_archived","id":id(2),"base_revision":2,"archived":true},
+        {"op":"insert","id":id(100),"parent_id":id(1),"after":null,"text":"Filled owner","heading":null},
+        {"op":"insert","id":id(101),"parent_id":id(1),"after":null,"text":"Empty owner","heading":null},
+        {"op":"insert","id":id(102),"parent_id":id(1),"after":null,"text":"Archived owner","heading":null},
+        {"op":"insert","id":id(103),"parent_id":id(1),"after":null,"text":"Mention only","heading":null},
+        {"op":"insert","id":id(200),"parent_id":id(100),"after":null,"text":format!("[[{}]]",id(10)),"heading":null},
+        {"op":"insert","id":id(201),"parent_id":id(100),"after":null,"text":format!(" [[{}|Author]] ",id(10)),"heading":null},
+        {"op":"insert","id":id(202),"parent_id":id(101),"after":null,"text":format!("[[{}]]",id(10)),"heading":null},
+        {"op":"insert","id":id(203),"parent_id":id(102),"after":null,"text":format!("[[{}]]",id(10)),"heading":null},
+        {"op":"insert","id":id(204),"parent_id":id(103),"after":null,"text":format!("Mention [[{}]]",id(10)),"heading":null},
+        {"op":"insert","id":id(300),"parent_id":id(200),"after":null,"text":"Ursula","heading":null},
+        {"op":"insert","id":id(301),"parent_id":id(201),"after":null,"text":"Octavia","heading":null},
+        {"op":"insert","id":id(302),"parent_id":id(203),"after":null,"text":"Hidden","heading":null},
+        {"op":"set_archived","id":id(102),"base_revision":1,"archived":true}
+    ]);
+    let (status, _) = request(
+        &app,
+        "POST",
+        "/api/batches",
+        json!({"actor":{"kind":"person"},"operations":operations}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let (status, fields) = request(&app, "GET", "/api/fields", Value::Null).await;
+    assert_eq!(status, StatusCode::OK);
+    let author = fields["fields"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|field| field["id"] == id(10))
+        .unwrap();
+    assert_eq!(author["owners"], 2);
+    assert_eq!(author["types"], json!([{"id":id(1),"name":"Books"}]));
+    let unused = fields["fields"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|field| field["id"] == id(11))
+        .unwrap();
+    assert_eq!(unused["owners"], 0);
+    assert_eq!(unused["types"], json!([]));
+    for (op, owner) in [("set", 100), ("empty", 101)] {
+        let (status, result) = request(
+            &app,
+            "POST",
+            "/api/query",
+            json!({"type":null,"text":null,"filters":[{"field":id(10),"op":op,"value":null}],"sort":[],"limit":null}),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(result["total"], 1);
+        assert_eq!(result["rows"][0]["block"]["block"]["id"], id(owner));
+    }
+    let (status, _) = request(
+        &app,
+        "POST",
+        "/api/batches",
+        json!({"actor":{"kind":"person"},"operations":[{"op":"delete","id":id(100),"base_revision":1}]}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let (_, fields) = request(&app, "GET", "/api/fields", Value::Null).await;
+    let author = fields["fields"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|field| field["id"] == id(10))
+        .unwrap();
+    assert_eq!(author["owners"], 1);
+}
