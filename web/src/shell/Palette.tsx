@@ -83,7 +83,7 @@ export function Palette(props: { anchor: PopupAnchor; pane: PaneId; mode: 'searc
   };
   const open = (beside: boolean) => {
     const hit = selectedHit(); if (!hit) return;
-    props.onDismiss(); props.onOpen({ pageId: hit.page.id, ...(hit.block.id !== hit.page.id ? { blockId: hit.block.id } : {}) }, beside);
+    props.onDismiss(); props.onOpen({ kind: 'page', pageId: hit.page.id, ...(hit.block.id !== hit.page.id ? { blockId: hit.block.id } : {}) }, beside);
   };
   const runCommand = (index: number) => {
     const command = commands()[index]; if (!command || command.disabledReason?.()) return;
