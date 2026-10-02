@@ -32,9 +32,9 @@ export class PaneEditor {
         '&.cm-focused': { outline: 'none' },
         '.cm-scroller': { font: 'inherit', overflow: 'visible', lineHeight: 'inherit' },
         '.cm-selectionBackground, &.cm-focused .cm-selectionBackground': { background: 'var(--selection)' },
-        '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--accent)', borderLeftWidth: '2px' },
-        '&.cm-focused .cm-fat-cursor': { background: 'var(--accent)', color: 'var(--canvas)', outline: 'none' },
-        '&:not(.cm-focused) .cm-fat-cursor': { outline: '1px solid var(--accent)' },
+        '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'currentColor', borderLeftWidth: '2px' },
+        '&.cm-focused .cm-fat-cursor': { background: 'currentColor', color: 'var(--canvas)', outline: 'none' },
+        '&:not(.cm-focused) .cm-fat-cursor': { outline: '1px solid currentColor' },
       }),
       this.vimConfig.of([]),
       Prec.highest(EditorView.domEventHandlers({
