@@ -3,6 +3,8 @@ import { api } from '../api/client';
 import type { NotebookClient } from '../document/contract';
 import type { PaneId, SettingsViewState } from '../shell/contract';
 import { Button } from '../ui/Button';
+import { Icon } from '../ui/Icon';
+import { Picker } from '../ui/Picker';
 import './settings.css';
 
 export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; notebook: NotebookClient; onViewChange(view: SettingsViewState): void }) {
@@ -14,7 +16,13 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; not
   const deviceZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const available = Intl.supportedValuesOf('timeZone');
   const zone = () => props.notebook.settings()?.time_zone ?? deviceZone;
-  const zones = createMemo(() => [...new Set([zone(), ...available])].filter(value => value !== deviceZone).sort());
+  const zones = createMemo(() => [deviceZone, ...[...new Set([zone(), ...available])].filter(value => value !== deviceZone).sort()]);
+  const [zoneAnchor, setZoneAnchor] = createSignal<HTMLElement | null>(null);
+  const [zoneQuery, setZoneQuery] = createSignal('');
+  const zoneRows = createMemo(() => {
+    const needle = zoneQuery().trim().toLocaleLowerCase().replace(/ /g, '_');
+    return zones().filter(value => value.toLocaleLowerCase().includes(needle));
+  });
   let region!: HTMLDivElement;
   onMount(() => {
     region.scrollTop = props.view.scroll;
@@ -24,9 +32,8 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; not
     setError('');
     try { await props.notebook.setSetting(key, value); }
     catch { /* The document owns the save error and retains acknowledged values. */ }
-    // A rejected select/checkbox change must show the acknowledged value again.
-    const select = region.querySelector('select'); if (select) select.value = zone();
-    const checkbox = region.querySelector('input'); if (checkbox) checkbox.checked = props.notebook.vim();
+    // A rejected checkbox change must show the acknowledged value again.
+    const checkbox = region.querySelector('input[type="checkbox"]') as HTMLInputElement | null; if (checkbox) checkbox.checked = props.notebook.vim();
   };
   const history = async (redo: boolean) => {
     try { if (redo) await props.notebook.redoSetting(); else await props.notebook.undoSetting(); }
@@ -53,10 +60,12 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; not
     </section>
     <section aria-labelledby={`settings-zone-${props.pane}`}>
       <h2 id={`settings-zone-${props.pane}`}>Time zone</h2>
-      <select class="input" aria-label="Time zone" value={zone()} disabled={props.notebook.settingsBusy()} onChange={event => { void change('time_zone', event.currentTarget.value); }}>
-        <option value={deviceZone}>Device time zone ({deviceZone})</option>
-        <For each={zones()}>{value => <option value={value}>{value}</option>}</For>
-      </select>
+      <Button class="bordered" aria-label="Time zone" aria-haspopup="listbox" disabled={props.notebook.settingsBusy()} onClick={event => setZoneAnchor(event.currentTarget)}>{zone() === deviceZone ? `Device time zone (${deviceZone})` : zone()} <Icon name="down" /></Button>
+      <Show when={zoneAnchor()}>{anchor => <Picker<string> anchor={anchor()} width={360} label="Choose time zone" onDismiss={() => { setZoneAnchor(null); setZoneQuery(''); }}
+        query={zoneQuery()} onQuery={setZoneQuery} placeholder="Search time zones"
+        items={zoneRows()} key={value => value} empty="No matching time zone."
+        onPick={value => { setZoneAnchor(null); setZoneQuery(''); void change('time_zone', value); }}
+        row={value => <><Show when={value === zone()} fallback={<span class="icon" />}><Icon name="check" /></Show><span class="picker-text">{value === deviceZone ? `Device time zone (${deviceZone})` : value}</span></>} />}</Show>
     </section>
     <section aria-labelledby={`settings-editing-${props.pane}`}>
       <h2 id={`settings-editing-${props.pane}`}>Editing</h2>

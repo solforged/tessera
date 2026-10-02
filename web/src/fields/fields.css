@@ -11,7 +11,7 @@
 .fields-index tbody tr:hover { background: var(--hover); }
 .fields-index tbody tr:focus-visible { outline: var(--focus-ring); outline-offset: -2px; }
 .fields-index td.fields-count { text-align: right; font-variant-numeric: tabular-nums; }
-.fields-index select.input { width: auto; min-height: var(--target-size); padding-block: 0; }
+.fields-index .button { white-space: nowrap; }
 .fields-index td .fields-actions { padding: 0; opacity: 0; }
 .fields-index tr:hover .fields-actions, .fields-index tr:focus-within .fields-actions { opacity: 1; }
 .fields-actions { display: flex; flex-wrap: nowrap; gap: var(--space-4); }

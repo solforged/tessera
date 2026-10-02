@@ -343,5 +343,5 @@ function FilterPopup(props: { anchor: HTMLElement; fields: FieldDefinition[]; in
     row={row => row.kind === 'field' ? <><Icon name="field" /><span class="picker-text">{row.name}</span></>
       : row.kind === 'new-field' ? <><Icon name="plus" /><span class="picker-text">New field “{row.name}”</span></>
         : row.kind === 'op' ? <span class="picker-text">{filterLabels[row.op]}</span>
-          : <><Icon name="check" /><span class="picker-text">{row.label}</span></>} />;
+          : <span class="picker-text">{row.label}</span>} />;
 }
