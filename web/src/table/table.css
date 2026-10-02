@@ -1,28 +1,32 @@
+/* Type tables and saved views. Layout is in docs/design.md under "Tables and views". */
 .table-pane { display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; outline-offset: -2px; }
-.table-header { display: flex; align-items: center; gap: var(--space-8); min-height: 52px; padding: var(--space-8) var(--space-16); border-bottom: 1px solid var(--line); }
-.table-title { min-width: 24px; font-size: var(--text-h2); font-weight: var(--weight-heading); }
-.table-view-status { margin-left: auto; color: var(--muted); font-size: var(--text-meta); white-space: nowrap; }
-.table-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-8); padding: var(--space-12) var(--space-16); border-bottom: 1px solid var(--line); }
-.table-search { width: 14rem; max-width: 100%; }
-.table-chip { display: inline-flex; align-items: center; gap: var(--space-4); padding-left: var(--space-8); border: 1px solid var(--line); border-radius: var(--radius-pill); background: var(--raised); font-size: var(--text-control); line-height: var(--line-control); }
-.table-chip .button { padding: var(--space-2) var(--space-8); border-radius: var(--radius-pill); }
+.table-header { display: flex; align-items: center; gap: var(--space-8); min-height: var(--touch-size); padding: var(--space-8) var(--space-16); }
+.table-title { min-width: var(--target-size); font-size: var(--text-h2); line-height: var(--line-h2); font-weight: var(--weight-heading); }
+.table-view-status { margin-left: auto; color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); white-space: nowrap; }
+.table-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-8); padding: 0 var(--space-16) var(--space-8); border-bottom: 1px solid var(--line); }
+.table-toolbar .table-search { width: 16rem; max-width: 100%; min-height: var(--row-height); padding-block: var(--space-2); }
+.table-chip { display: inline-flex; align-items: center; gap: var(--space-2); min-height: var(--target-size); padding-left: var(--space-8); border: 1px solid var(--line); border-radius: var(--radius-pill); background: var(--raised); font-size: var(--text-control); line-height: var(--line-control); }
+.table-chip .button { min-height: 22px; padding: 0 var(--space-8); border-radius: var(--radius-pill); }
 .table-scroll { flex: 1; min-height: 0; overflow: auto; }
 .type-table { border-spacing: 0; width: max-content; min-width: 100%; font-size: var(--text-control); line-height: var(--line-control); }
-.type-table th, .type-table td { min-width: 8rem; max-width: 32rem; padding: var(--space-8) var(--space-12); border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
-.type-table th { position: sticky; top: 0; z-index: 2; background: var(--surface); font-weight: var(--weight-control); padding: var(--space-4) var(--space-8); }
-.type-table .table-title-column { min-width: 16rem; position: sticky; left: 0; z-index: 1; background: var(--canvas); }
+.type-table th, .type-table td { min-width: 8rem; max-width: 32rem; padding: var(--space-4) var(--space-12); border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.type-table th { position: sticky; top: 0; z-index: 2; background: var(--surface); color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); font-weight: var(--weight-control); padding: var(--space-4) var(--space-8); white-space: nowrap; }
+.type-table th .button { color: inherit; font-size: inherit; line-height: inherit; min-height: var(--target-size); padding-inline: var(--space-4); }
+.type-table tbody tr:hover td { background: var(--hover); }
+.type-table .table-title-column { min-width: 18rem; position: sticky; left: 0; z-index: 1; background: var(--canvas); border-right: 1px solid var(--line); }
 .type-table th.table-title-column { z-index: 3; background: var(--surface); }
-.type-table .table-add-column { min-width: 3rem; width: 3rem; }
-.table-cell { min-height: 36px; white-space: pre-wrap; }
+.type-table tbody tr:hover .table-title-column { background: var(--hover); }
+.type-table .table-add-column { min-width: var(--space-32); width: var(--space-32); text-align: center; }
+.table-cell { min-height: var(--row-height); white-space: pre-wrap; }
 .table-cell:focus { outline: var(--focus-ring); outline-offset: -2px; background: var(--selection); }
 .table-cell.table-title-column { cursor: pointer; }
 .type-table td.table-number { text-align: right; font-variant-numeric: tabular-nums; }
-.table-page-title { color: var(--muted); margin-top: var(--space-4); font-size: var(--text-meta); line-height: var(--line-meta); }
-.table-value-pill { padding: 1px 6px; border: 1px solid var(--line); border-radius: var(--radius-pill); background: var(--raised); }
-.table-reading-problem { text-decoration: underline dotted; text-underline-offset: 4px; }
-.table-cell-input { min-width: 7rem; padding: var(--space-4); min-height: 28px; }
-.table-footer { display: flex; align-items: center; gap: var(--space-4); min-height: 36px; padding: var(--space-8) var(--space-16); color: var(--muted); border-top: 1px solid var(--line); font-size: var(--text-meta); line-height: var(--line-meta); }
+.table-page-title { color: var(--faint); margin-top: var(--space-2); font-size: var(--text-meta); line-height: var(--line-meta); }
+.table-value-pill { display: inline-block; padding: 0 var(--space-8); margin: 1px var(--space-2) 1px 0; border: 1px solid var(--line); border-radius: var(--radius-pill); background: var(--raised); font-size: var(--text-meta); line-height: var(--line-meta); }
+.table-reading-problem { text-decoration: underline dotted var(--warning); text-underline-offset: 4px; }
+.table-cell-input { min-width: 7rem; padding: var(--space-4); min-height: var(--row-height); }
+.table-footer { display: flex; align-items: center; gap: var(--space-4); min-height: var(--space-32); padding: var(--space-4) var(--space-16); color: var(--muted); border-top: 1px solid var(--line); font-size: var(--text-meta); line-height: var(--line-meta); }
 .table-filter-form { display: flex; flex-direction: column; gap: var(--space-8); }
 .table-filter-form select { color: var(--text); font: inherit; }
 .menu-section { padding: var(--space-8) var(--space-8) var(--space-4); color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); border-top: 1px solid var(--line); margin-top: var(--space-4); }
-@media (max-width: 640px) { .table-header, .table-toolbar, .table-footer { padding-inline: var(--space-8); } .table-search { width: 100%; } .table-view-status { font-size: 11px; } }
+@media (max-width: 640px) { .table-header, .table-toolbar, .table-footer { padding-inline: var(--space-8); } .table-search { width: 100%; } }

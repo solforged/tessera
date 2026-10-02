@@ -27,6 +27,7 @@ Status: a working daily outline. The browser editor writes to the service with o
 - [Lessons](docs/lessons.md): what the prototype proved and what it got wrong.
 - [Domain model](docs/domain-model.md): blocks, capabilities and their rules.
 - [Architecture](docs/architecture.md): runtime, editor, storage and sync decisions.
+- [Design](docs/design.md): the browser client's tokens, shell, rows, tables and popups.
 - [Performance](docs/performance.md): budgets, the measured baseline and the spikes that decide the stack.
 - [Roadmap](docs/roadmap.md): build order and exit criteria.
 
