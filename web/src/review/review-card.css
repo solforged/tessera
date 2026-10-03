@@ -1,0 +1,18 @@
+.review-card { display: flex; flex-direction: column; gap: var(--space-16); width: 100%; max-width: var(--measure); min-width: 0; margin-inline: auto; padding: var(--space-16) var(--space-24) var(--space-24); }
+.review-card-source { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-8); color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); }
+.review-card-source-page { min-width: 0; overflow-wrap: anywhere; }
+.review-card-change-notice { margin: 0; color: var(--warning); font-size: var(--text-control); line-height: var(--line-control); }
+.review-card-side { display: flex; flex-direction: column; gap: var(--space-8); min-width: 0; }
+.review-card h2 { margin: 0; color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); font-weight: var(--weight-control); }
+.review-card-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--text-body); line-height: var(--line-body); }
+.review-card-comparison { display: flex; flex-wrap: wrap; gap: var(--space-16); padding: var(--space-12); background: var(--surface); border-radius: var(--radius-control); }
+.review-card-comparison-version { flex: 1 1 calc(var(--measure) / 3); min-width: 0; }
+.review-card-comparison dl { display: flex; flex-direction: column; gap: var(--space-4); margin: var(--space-12) 0 0; }
+.review-card-comparison dt { color: var(--faint); font-size: var(--text-meta); line-height: var(--line-meta); }
+.review-card-comparison dd { margin: 0 0 var(--space-8); }
+.review-card-progress, .review-card-grades, .review-card-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); }
+.review-card-grade { flex: 1 1 0; flex-direction: column; align-items: stretch; padding: var(--space-8); }
+.review-card-grade-label { display: flex; justify-content: space-between; align-items: center; gap: var(--space-16); }
+.review-card-interval { color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.review-card-error { margin: 0; font-size: var(--text-control); line-height: var(--line-control); overflow-wrap: anywhere; }
+.review-card-reset { width: var(--search-width); font-size: var(--text-control); line-height: var(--line-control); }

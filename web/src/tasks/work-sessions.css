@@ -1,0 +1,11 @@
+.work-sessions { display: flex; flex-direction: column; gap: var(--space-12); min-width: 0; font-size: var(--text-control); line-height: var(--line-control); }
+.work-session-active, .work-session-row { display: flex; flex-direction: column; gap: var(--space-8); min-width: 0; }
+.work-session-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-8); min-height: var(--row-height); }
+.work-session-times { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-4) var(--space-8); color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); }
+.work-session-times time { overflow-wrap: anywhere; }
+.work-session-duration { color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.work-session-note { display: flex; flex-direction: column; gap: var(--space-4); color: var(--muted); }
+.work-session-note textarea { min-width: 0; color: var(--text); resize: vertical; }
+.work-session-history { display: flex; flex-direction: column; gap: var(--space-16); list-style: none; padding: 0; margin: 0; }
+.work-session-row { padding-top: var(--space-12); border-top: var(--space-2) solid var(--line); }
+.work-session-error { margin: 0; overflow-wrap: anywhere; }

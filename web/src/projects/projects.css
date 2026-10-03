@@ -1,0 +1,6 @@
+.project-controls { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-8); min-width: 0; max-width: var(--measure); font-size: var(--text-control); line-height: var(--line-control); }
+.project-outcome { display: flex; flex-direction: column; gap: var(--space-4); width: 100%; min-width: 0; color: var(--muted); }
+.project-outcome textarea { display: block; max-width: 100%; resize: vertical; color: var(--text); font-size: var(--text-body); line-height: var(--line-body); }
+.project-controls-row { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-8); min-width: 0; }
+.project-controls-row > .button { max-width: 100%; }
+.project-error { margin: 0; overflow-wrap: anywhere; }
