@@ -1,0 +1,7 @@
+.date-picker { width: var(--search-width); }
+.date-picker-form { display: flex; flex-direction: column; gap: var(--space-12); }
+.date-picker .date-picker-field label { margin-bottom: var(--space-4); }
+.date-picker-time { font-variant-numeric: tabular-nums; }
+.date-picker-quick-picks { display: flex; flex-wrap: wrap; gap: var(--space-4); }
+.date-picker-actions { display: flex; justify-content: space-between; gap: var(--space-8); }
+.date-picker .date-picker-error { margin: 0; font-size: var(--text-control); line-height: var(--line-control); overflow-wrap: anywhere; }

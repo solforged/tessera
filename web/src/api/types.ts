@@ -1,6 +1,7 @@
 /**
- * JSON shapes of the service API. These mirror `crates/tessera-core/src/model.rs`
- * field for field (snake_case, as serialized). Change both together.
+ * JSON shapes of the service API. These mirror the wire models in
+ * `crates/tessera-core/src/` field for field (snake_case, as serialized).
+ * Change both together.
  */
 
 export type BlockKind = 'block' | 'page' | 'journal';
@@ -159,3 +160,141 @@ export interface View { id: string; name: string; query: Query; revision: number
 export interface SettingRevision { key: string; revision: number }
 export interface Setting { key: string; value: string; revision: number; updated_at: number }
 export interface SettingsView { settings: Setting[]; today: string; time_zone: string }
+
+export type RepeatUnit = 'day' | 'week' | 'month' | 'year';
+export type RepeatMode = 'fixed' | 'catch_up' | 'after_completion';
+export interface Repeater { every: number; unit: RepeatUnit; mode: RepeatMode }
+
+export type TaskStatus = 'todo' | 'doing' | 'waiting' | 'done' | 'cancelled';
+export type TaskPriority = 'high' | 'medium' | 'low';
+
+export interface TaskState {
+  status: TaskStatus;
+  scheduled: string | null;
+  scheduled_time: string | null;
+  deadline: string | null;
+  deadline_time: string | null;
+  warning_days: number | null;
+  repeater: Repeater | null;
+  priority: TaskPriority | null;
+  completed_on: string | null;
+}
+
+export interface TaskRecord { block_id: string; state: TaskState }
+
+export interface TaskOccurrence {
+  id: string;
+  block_id: string;
+  completed_on: string;
+  snapshot: TaskState;
+  reversed: boolean;
+  created_at: number;
+  change_seq: number;
+}
+
+export type ProjectStatus = 'active' | 'done' | 'cancelled';
+export interface ProjectState { outcome: string; deadline: string | null; status: ProjectStatus }
+export interface ProjectRecord { block_id: string; state: ProjectState }
+export interface BlockCapabilities { block_id: string; task: TaskState | null; project: ProjectState | null }
+
+export interface WorkSession {
+  id: string;
+  block_id: string;
+  started_at: number;
+  ended_at: number | null;
+  note: string;
+  reversed: boolean;
+  revision: number;
+}
+
+export type CardKind = 'forward' | 'reverse' | 'cloze';
+export type Grade = 'again' | 'hard' | 'good' | 'easy';
+
+export interface SchedulingState {
+  ease_factor: number;
+  interval_days: number;
+  repetitions: number;
+  lapses: number;
+  due_at: number;
+  last_reviewed_at: number | null;
+}
+
+export interface CardUnit {
+  id: string;
+  source_block_id: string;
+  key: string;
+  kind: CardKind;
+  active: boolean;
+  definition_revision: number;
+  front: string;
+  back: string;
+  revision: number;
+  schedule: SchedulingState;
+}
+
+export type ReviewSessionState = 'open' | 'finished' | 'abandoned';
+
+export interface ReviewSession {
+  id: string;
+  deck_id: string | null;
+  started_at: number;
+  ended_at: number | null;
+  state: ReviewSessionState;
+}
+
+export type ReviewEventKind = 'grade' | 'reset';
+
+export interface ReviewEvent {
+  id: string;
+  card_id: string;
+  session_id: string | null;
+  kind: ReviewEventKind;
+  grade: Grade | null;
+  shown_front: string;
+  shown_back: string;
+  definition_revision: number;
+  scheduler_version: number;
+  before: SchedulingState;
+  after: SchedulingState;
+  created_at: number;
+  change_seq: number;
+}
+
+export interface DateRange { from: string | null; through: string | null }
+export type TaskSelection = 'all' | 'unfinished' | 'unfinished_or_recent';
+
+export interface TaskFilter {
+  selection: TaskSelection;
+  statuses: TaskStatus[];
+  recent_days: number;
+  scheduled: DateRange | null;
+  deadline: DateRange | null;
+  priority: TaskPriority | null;
+  project_id: string | null;
+}
+
+export interface TaskQuery {
+  source: Query | null;
+  filter: TaskFilter;
+  context_date: string;
+  limit: number | null;
+}
+
+export interface TaskRow { source: BlockInPage; task: TaskState; project_id: string | null }
+export interface TaskQueryResult { rows: TaskRow[]; total: number }
+export type AgendaReason = 'scheduled' | 'deadline' | 'warning' | 'overdue' | 'unplanned' | 'recently_completed';
+
+export interface AgendaItem {
+  source: BlockInPage;
+  task: TaskState;
+  reasons: AgendaReason[];
+  time: string | null;
+  project_id: string | null;
+}
+
+export interface Agenda { date: string; items: AgendaItem[] }
+export type CardSelection = 'due' | 'new' | 'all';
+export interface CardQuery { source: Query | null; selection: CardSelection; limit: number | null }
+export interface CardRow { card: CardUnit; source: BlockInPage; last_review: ReviewEvent | null }
+export interface CardQueryResult { rows: CardRow[]; total: number }
+export interface Deck { id: string; name: string; query: CardQuery; revision: number; created_at: number; updated_at: number }
