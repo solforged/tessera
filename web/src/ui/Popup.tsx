@@ -18,6 +18,49 @@ export interface PopupProps {
   autofocus?: boolean;
 }
 const stack: symbol[] = [];
+let mountVersion = 0;
+
+function retirePanel(panel: HTMLDivElement) {
+  panel.classList.remove('popup', 'popup-enter');
+  panel.classList.add('popup-exit');
+  panel.inert = true;
+  panel.setAttribute('aria-hidden', 'true');
+  panel.removeAttribute('id');
+  for (const element of panel.querySelectorAll('[id]')) element.removeAttribute('id');
+
+  const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  if (motion.matches) {
+    panel.remove();
+    return;
+  }
+
+  // Portal has removed its wrapper; keep only the already-disposed DOM panel.
+  document.body.append(panel);
+  const animation = panel.getAnimations().find(animation => animation instanceof CSSAnimation && animation.animationName === 'popup-out');
+  const timing = animation?.effect?.getComputedTiming();
+  const duration = timing?.activeDuration;
+  const end = timing?.endTime;
+  if (!animation || typeof duration !== 'number' || duration <= 0 || typeof end !== 'number' || !Number.isFinite(end) || end <= 0) {
+    panel.remove();
+    return;
+  }
+
+  let removed = false;
+  let timer = 0;
+  const remove = () => {
+    if (removed) return;
+    removed = true;
+    window.clearTimeout(timer);
+    motion.removeEventListener('change', motionChanged);
+    panel.remove();
+    animation.cancel();
+  };
+  const motionChanged = () => { if (motion.matches) remove(); };
+  motion.addEventListener('change', motionChanged);
+  // Completion/cancellation is authoritative; bound paused or stalled effects too.
+  timer = window.setTimeout(remove, Math.ceil(end * 2));
+  void animation.finished.then(remove, remove);
+}
 
 /** Mount conditionally. Only the topmost popup owns Escape and outside clicks. */
 export function Popup(props: PopupProps) {
@@ -26,11 +69,13 @@ export function Popup(props: PopupProps) {
   const [position, setPosition] = createSignal({ left: 8, top: 8, height: 0, visible: false });
   const prior = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   const selection = window.getSelection();
-  const ranges = selection ? Array.from({ length: selection.rangeCount }, (_, i) => selection.getRangeAt(i).cloneRange()) : [];
+  const ranges = selection ? Array.from({ length: selection.rangeCount }, (_, i) => selection.getRangeAt(i).cloneRange()).filter(range => prior?.contains(range.commonAncestorContainer)) : [];
   const inputSelection: [number | null, number | null] | null = prior instanceof HTMLInputElement || prior instanceof HTMLTextAreaElement ? [prior.selectionStart, prior.selectionEnd] : null;
   const anchorRect = () => typeof props.anchor === 'function' ? props.anchor() : props.anchor instanceof HTMLElement ? props.anchor.getBoundingClientRect() : props.anchor;
   let frame = 0;
+  let disposed = false;
   const place = () => {
+    if (disposed) return;
     const width = Math.min(props.width ?? panel.offsetWidth, window.innerWidth - 16);
     if (props.placement === 'top') {
       const top = Math.min(64, Math.round(window.innerHeight * 0.08));
@@ -48,11 +93,13 @@ export function Popup(props: PopupProps) {
     const start = rect.left > window.innerWidth / 2 ? rect.right - width : rect.left;
     setPosition({ left: Math.max(8, Math.min(start, window.innerWidth - width - 8)), top: flip ? rect.top - height - 4 : rect.bottom + 4, height, visible: true });
   };
-  const reposition = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(place); };
-  const topmost = () => stack.at(-1) === token;
+  const reposition = () => { if (!disposed) { cancelAnimationFrame(frame); frame = requestAnimationFrame(place); } };
+  const topmost = () => !disposed && stack.at(-1) === token;
   const dismiss = (restore: boolean) => {
+    const version = mountVersion;
     props.onDismiss();
-    if (restore && prior?.isConnected) queueMicrotask(() => {
+    if (restore) queueMicrotask(() => {
+      if (version !== mountVersion || !prior?.isConnected || prior.closest('[inert]')) return;
       prior.focus({ preventScroll: true });
       if (inputSelection && (prior instanceof HTMLInputElement || prior instanceof HTMLTextAreaElement)) prior.setSelectionRange(inputSelection[0], inputSelection[1]);
       else if (ranges.length && window.getSelection()) {
@@ -73,6 +120,7 @@ export function Popup(props: PopupProps) {
   };
   onMount(() => {
     stack.push(token);
+    mountVersion++;
     place();
     document.addEventListener('keydown', keydown, true);
     document.addEventListener('pointerdown', outside, true);
@@ -81,17 +129,19 @@ export function Popup(props: PopupProps) {
     const observer = new ResizeObserver(reposition);
     observer.observe(panel);
     if (props.autofocus !== false) queueMicrotask(() => {
-      if (panel.isConnected && stack.at(-1) === token) (panel.querySelector<HTMLElement>('input, textarea') ?? panel.querySelector<HTMLElement>('button:not(:disabled), [tabindex="0"]'))?.focus();
+      if (panel.isConnected && topmost()) (panel.querySelector<HTMLElement>('input, textarea') ?? panel.querySelector<HTMLElement>('button:not(:disabled), [tabindex="0"]'))?.focus();
     });
     onCleanup(() => observer.disconnect());
   });
   onCleanup(() => {
+    disposed = true;
     const index = stack.indexOf(token); if (index >= 0) stack.splice(index, 1);
     cancelAnimationFrame(frame);
     document.removeEventListener('keydown', keydown, true);
     document.removeEventListener('pointerdown', outside, true);
     window.removeEventListener('resize', reposition);
     window.removeEventListener('scroll', reposition, true);
+    if (panel && position().visible) retirePanel(panel);
   });
-  return <Portal><div ref={panel} class={`popup ${props.class ?? ''}`} role={props.role ?? 'dialog'} aria-label={props.label} style={{ left: `${position().left}px`, top: `${position().top}px`, width: props.width ? `${Math.min(props.width, window.innerWidth - 16)}px` : undefined, 'max-height': `${position().height}px`, visibility: position().visible ? 'visible' : 'hidden' }}>{props.children}</div></Portal>;
+  return <Portal><div ref={panel} class={`popup${position().visible ? ' popup-enter' : ''} ${props.class ?? ''}`} role={props.role ?? 'dialog'} aria-label={props.label} style={{ left: `${position().left}px`, top: `${position().top}px`, width: props.width ? `${Math.min(props.width, window.innerWidth - 16)}px` : undefined, 'max-height': `${position().height}px`, visibility: position().visible ? 'visible' : 'hidden' }}>{props.children}</div></Portal>;
 }

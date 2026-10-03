@@ -143,7 +143,7 @@ export interface ConflictDetails {
 
 export type FieldKind = 'text' | 'number' | 'date' | 'checkbox' | 'choice' | 'instance';
 export type Direction = 'asc' | 'desc';
-export type FilterOp = 'is' | 'is_not' | 'contains' | 'gt' | 'gte' | 'lt' | 'lte' | 'set' | 'empty';
+export type FilterOp = 'is' | 'is_not' | 'contains' | 'gt' | 'gte' | 'lt' | 'lte' | 'present' | 'set' | 'empty';
 export interface Filter { field: string; op: FilterOp; value: string | null }
 export interface SortKey { by: 'title' | 'created' | 'updated' | 'field'; field: string | null; direction: Direction }
 export interface Query { type: string | null; text: string | null; filters: Filter[]; sort: SortKey[]; limit: number | null }

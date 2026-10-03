@@ -167,6 +167,24 @@ async fn fields_count_distinct_live_entry_owners_and_template_types() {
         assert_eq!(result["total"], 1);
         assert_eq!(result["rows"][0]["block"]["block"]["id"], id(owner));
     }
+    let (status, result) = request(
+        &app,
+        "POST",
+        "/api/query",
+        json!({"type":null,"text":null,"filters":[{"field":id(10),"op":"present","value":null}],"sort":[],"limit":null}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(result["total"], author["owners"]);
+    assert_eq!(
+        result["rows"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|row| row["block"]["block"]["id"].clone())
+            .collect::<Vec<_>>(),
+        vec![json!(id(100)), json!(id(101))]
+    );
     let (status, _) = request(
         &app,
         "POST",

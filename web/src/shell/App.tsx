@@ -1,7 +1,7 @@
 import { batch, createEffect, createMemo, createResource, createSignal, For, Match, onCleanup, onMount, Show, Switch } from 'solid-js';
 import type { Accessor } from 'solid-js';
 import { api } from '../api/client';
-import type { Block, NotebookInfo } from '../api/types';
+import type { Block, NotebookInfo, View } from '../api/types';
 import { createNotebookClient } from '../document';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import { OutlinePane } from '../outline/OutlinePane';
@@ -22,10 +22,10 @@ import { Palette } from './Palette';
 type PaneView = ViewState | TableViewState | FieldsViewState | SettingsViewState;
 type HistoryEntry = { target: OpenTarget; view: PaneView };
 type PaneSession = { entries: HistoryEntry[]; index: number; generation: number };
-type SavedNavigation = { pinned?: string[]; recent?: string[]; vim?: boolean; panes?: Partial<Record<PaneId, HistoryEntry>>; active?: PaneId };
+type SavedNavigation = { pinned?: string[]; pinnedViews?: string[]; recent?: string[]; vim?: boolean; panes?: Partial<Record<PaneId, HistoryEntry>>; active?: PaneId };
 type VimMode = 'insert' | 'normal' | 'visual' | 'outline' | null;
 const vimLabels: Record<Exclude<VimMode, null>, string> = { insert: 'Insert', normal: 'Normal', visual: 'Visual', outline: 'Outline' };
-type PopupState = { kind: 'search' | 'commands' | 'calendar' | 'new' | 'delete' | 'notebook'; anchor: HTMLElement; pane: PaneId } | null;
+type PopupState = { kind: 'search' | 'commands' | 'calendar' | 'new' | 'delete' | 'notebook' | 'layout'; anchor: HTMLElement; pane: PaneId; date?: string } | null;
 const paneIds: PaneId[] = ['main', 'side'];
 
 /** Views are snapshots: fold arrays and caret/scroll objects never alias history. */
@@ -71,27 +71,32 @@ export function App() {
   const [active, setActive] = createSignal<PaneId>('main');
   const vim = notebook.vim;
   const [vimModes, setVimModes] = createSignal<Record<PaneId, VimMode>>({ main: null, side: null });
-  const narrowQuery = window.matchMedia('(max-width: 479px)');
+  const narrowQuery = window.matchMedia('(max-width: 1047px)');
   const [narrow, setNarrow] = createSignal(narrowQuery.matches);
   const [sidebar, setSidebar] = createSignal(false);
   const [sidebarCollapsed, setSidebarCollapsed] = createSignal(false);
+  const sidebarVisible = () => narrow() ? sidebar() : !sidebarCollapsed();
   const toggleSidebar = () => {
-    if (window.innerWidth >= 1048) setSidebarCollapsed(value => !value);
-    else setSidebar(value => !value);
+    if (narrow()) setSidebar(value => !value);
+    else setSidebarCollapsed(value => !value);
   };
   const [popup, setPopup] = createSignal<PopupState>(null);
   const [pinned, setPinned] = createSignal<string[]>([]);
+  const [pinnedViews, setPinnedViews] = createSignal<string[]>([]);
   const [recent, setRecent] = createSignal<string[]>([]);
   const [navigationId, setNavigationId] = createSignal<string | null>(null);
   const [error, setError] = createSignal('');
   const [offlineUnavailable, setOfflineUnavailable] = createSignal(false);
   const [deleted, setDeleted] = createSignal<{ id: string; title: string } | null>(null);
   const todayDate = () => notebook.todayDate();
-  const [date, setDate] = createSignal(todayDate());
-  let newButton!: HTMLButtonElement;
+  let searchButton!: HTMLButtonElement;
   const entry = (pane: PaneId) => sessions()[pane].entries[sessions()[pane].index];
   const split = () => sessions().main.index >= 0 && sessions().side.index >= 0;
   const activeRoot = () => notebook.roots().find(root => root.id === pageIdOf(entry(active())));
+  const journalDate = (pane: PaneId) => {
+    const root = notebook.roots().find(root => root.id === pageIdOf(entry(pane)));
+    return root?.kind === 'journal' ? root.text : todayDate();
+  };
   const reportError = (reason: unknown) => setError(reason instanceof Error ? reason.message : String(reason));
   const remember = (id: string) => setRecent(values => [id, ...values.filter(value => value !== id)].slice(0, 10));
   let focusEpoch = 0;
@@ -122,10 +127,7 @@ export function App() {
       });
     }
     setActive(pane); setSidebar(false);
-    if (target.kind === 'page') {
-      remember(target.pageId);
-      const root = notebook.roots().find(block => block.id === target.pageId); if (root?.kind === 'journal') setDate(root.text);
-    }
+    if (target.kind === 'page') remember(target.pageId);
     focusPane(pane);
   };
   const changeView = (pane: PaneId, view: PaneView, restore = false) => setSessions(values => {
@@ -148,17 +150,11 @@ export function App() {
     if (index < 0 || index >= session.entries.length) return;
     setSessions(values => ({ ...values, [pane]: { ...values[pane], index, generation: values[pane].generation + 1 } }));
     setActive(pane); const pageId = pageIdOf(session.entries[index]); if (pageId) remember(pageId);
-    const root = notebook.roots().find(block => block.id === pageId); if (root?.kind === 'journal') setDate(root.text);
     focusPane(pane);
   };
-  const today = async () => { try { open({ kind: 'page', pageId: await notebook.today() }); setDate(todayDate()); } catch (reason) { reportError(reason); } };
-  const journal = async (value: string) => { try { open({ kind: 'page', pageId: await notebook.journal(value) }); setDate(value); } catch (reason) { reportError(reason); } };
-  const shiftDate = (delta: number) => { const next = new Date(`${date()}T12:00:00`); next.setDate(next.getDate() + delta); void journal(localDate(next)); };
-  const toggleVim = () => {
-    const pane = active();
-    void notebook.setSetting('vim', String(!vim())).catch(reportError);
-    focusPane(pane);
-  };
+  const today = async (pane = active(), beside = false) => { try { open({ kind: 'page', pageId: await notebook.today() }, beside, pane); } catch (reason) { reportError(reason); } };
+  const journal = async (value: string, pane = active()) => { try { open({ kind: 'page', pageId: await notebook.journal(value) }, false, pane); } catch (reason) { reportError(reason); } };
+  const shiftDate = (delta: number, pane = active()) => { const next = new Date(`${journalDate(pane)}T12:00:00`); next.setDate(next.getDate() + delta); void journal(localDate(next), pane); };
   const switchPane = () => {
     if (!split()) return;
     const pane = active() === 'main' ? 'side' : 'main';
@@ -172,14 +168,11 @@ export function App() {
     focusPane(pane === 'main' ? 'side' : 'main');
   };
   const pin = (id: string) => setPinned(values => values.includes(id) ? values.filter(value => value !== id) : [...values, id]);
-  const showPalette = (kind: 'search' | 'commands') => setPopup({ kind, anchor: document.body, pane: active() });
-  const chooseDate = () => {
-    const anchor = document.querySelector<HTMLButtonElement>('.journal-date');
-    if (!anchor) return;
-    if (!anchor.getClientRects().length) {
-      if (window.innerWidth < 1048) setSidebar(true); else setSidebarCollapsed(false);
-    }
-    requestAnimationFrame(() => setPopup({ kind: 'calendar', anchor, pane: active() }));
+  const pinView = (id: string) => setPinnedViews(values => values.includes(id) ? values.filter(value => value !== id) : [...values, id]);
+  const openView = (view: View, beside = false) => open({ kind: 'table', typeId: view.query.type, viewId: view.id, query: copyQuery(view.query) }, beside);
+  const showPalette = (kind: 'search' | 'commands') => setPopup({ kind, anchor: kind === 'search' ? searchButton : document.body, pane: active() });
+  const chooseDate = (pane = active(), anchor: HTMLElement = document.querySelector<HTMLButtonElement>(`[data-pane="${pane}"] .journal-date`) ?? searchButton) => {
+    setPopup({ kind: 'calendar', anchor, pane, date: journalDate(pane) });
   };
   const runOutline = (suffix: string, pane = active()) => commands.list().find(command => command.id === `outline.${pane}.${suffix}`)?.run();
   const reviewConflict = () => {
@@ -243,13 +236,13 @@ export function App() {
     void (async () => {
       if (!notebookInfo && !navigator.onLine) { setOfflineUnavailable(true); setError('Notebook unavailable offline · Open this notebook online once.'); return; }
       await notebook.ready;
-      setDate(todayDate());
       if (notebook.connection() === 'offline' && !notebook.roots().length) { setOfflineUnavailable(true); setError('Notebook unavailable offline · Open this notebook online once.'); return; }
       if (!notebookInfo) { await today(); return; }
       let stored: SavedNavigation = {};
       try { stored = JSON.parse(localStorage.getItem(`tessera.navigation.${notebookInfo.id}`) ?? '{}') ?? {}; } catch { /* Navigation preferences are optional; document durability is IndexedDB. */ }
       batch(() => {
         if (Array.isArray(stored.pinned)) setPinned(stored.pinned.filter(value => typeof value === 'string'));
+        if (Array.isArray(stored.pinnedViews)) setPinnedViews(stored.pinnedViews.filter(value => typeof value === 'string'));
         if (Array.isArray(stored.recent)) setRecent([...new Set(stored.recent)].filter(value => typeof value === 'string').slice(0, 10));
       });
       const restored: Record<PaneId, PaneSession> = { main: { entries: [], index: -1, generation: 0 }, side: { entries: [], index: -1, generation: 0 } };
@@ -271,8 +264,6 @@ export function App() {
       if (restored.main.index >= 0 || restored.side.index >= 0) {
         const pane = stored.active && restored[stored.active]?.index >= 0 ? stored.active : restored.main.index >= 0 ? 'main' : 'side';
         batch(() => { setActive(pane); setSessions(restored); });
-        const root = notebook.roots().find(root => root.id === pageIdOf(restored[pane].entries[0]));
-        if (root?.kind === 'journal') setDate(root.text);
       } else await today();
       setNavigationId(notebookInfo.id);
     })().catch(reportError);
@@ -281,27 +272,23 @@ export function App() {
     const id = navigationId(); if (!id) return;
     const panes: Partial<Record<PaneId, HistoryEntry>> = {};
     for (const pane of paneIds) { const current = entry(pane); if (current) panes[pane] = current; }
-    try { localStorage.setItem(`tessera.navigation.${id}`, JSON.stringify({ pinned: pinned(), recent: recent(), vim: vim(), panes, active: active() })); } catch { /* Storage-denied browsers keep preferences for this tab. */ }
+    try { localStorage.setItem(`tessera.navigation.${id}`, JSON.stringify({ pinned: pinned(), pinnedViews: pinnedViews(), recent: recent(), vim: vim(), panes, active: active() })); } catch { /* Storage-denied browsers keep preferences for this tab. */ }
   });
   const unregister = commands.register([
-    { id: 'shell.search', title: 'Search notebook', section: 'Navigation', keys: ['⌃⇧F'], run: () => showPalette('search') },
+    { id: 'shell.search', title: 'Find or create', section: 'Navigation', keys: ['⌃⇧F'], run: () => showPalette('search') },
     { id: 'shell.commands', title: 'Show Commands', section: 'Navigation', keys: ['⌃⇧P'], run: () => showPalette('commands') },
     { id: 'shell.settings', title: 'Open Settings', section: 'Navigation', run: () => open({ kind: 'settings' }) },
     { id: 'shell.today', title: 'Open today’s journal', section: 'Navigation', keys: ['⌃⇧J'], run: () => { void today(); } },
     { id: 'shell.fields', title: 'Open Fields', section: 'Navigation', run: () => open({ kind: 'fields' }) },
     { id: 'shell.previous-day', title: 'Previous journal day', section: 'Navigation', run: () => shiftDate(-1) },
     { id: 'shell.next-day', title: 'Next journal day', section: 'Navigation', run: () => shiftDate(1) },
-    { id: 'shell.calendar', title: 'Choose journal date', section: 'Navigation', run: chooseDate },
+    { id: 'shell.calendar', title: 'Choose journal date', section: 'Navigation', run: () => chooseDate() },
     { id: 'shell.back', title: 'Back', section: 'Navigation', keys: ['⌃⇧H'], disabledReason: () => sessions()[active()].index <= 0 ? 'No earlier page in this pane' : undefined, run: () => travel(active(), -1) },
     { id: 'shell.forward', title: 'Forward', section: 'Navigation', keys: ['⌃⇧L'], disabledReason: () => sessions()[active()].index >= sessions()[active()].entries.length - 1 ? 'No later page in this pane' : undefined, run: () => travel(active(), 1) },
     { id: 'shell.page-beside', title: 'Open page beside', section: 'Navigation', run: () => openPageBeside() },
     { id: 'shell.switch', title: 'Switch panes', section: 'View', keys: ['⌃⇧]'], disabledReason: () => !split() ? 'Open a second pane first' : undefined, run: switchPane },
     { id: 'shell.close', title: 'Close active pane', section: 'View', keys: ['⌃⇧X'], disabledReason: () => !split() ? 'Only one pane is open' : undefined, run: () => closePane(active()) },
-    { id: 'shell.new', title: 'New page', section: 'Page', run: () => {
-      const compact = document.querySelector<HTMLButtonElement>('.compact-toolbar button[aria-label="New page"]');
-      const anchor = newButton.getClientRects().length ? newButton : compact;
-      if (anchor) setPopup({ kind: 'new', anchor, pane: active() });
-    } },
+    { id: 'shell.new', title: 'New page', section: 'Page', run: () => setPopup({ kind: 'new', anchor: searchButton, pane: active() }) },
     { id: 'shell.pin', title: 'Pin / unpin page', section: 'Page', run: () => { const root = activeRoot(); if (root) pin(root.id); } },
     { id: 'shell.delete', title: 'Delete page', section: 'Page', run: () => { const anchor = document.querySelector<HTMLButtonElement>(`[data-pane="${active()}"] .page-menu-button`); if (anchor) setPopup({ kind: 'delete', anchor, pane: active() }); } },
     { id: 'shell.restore-page', title: 'Undo page deletion', section: 'Page', disabledReason: () => deleted() ? undefined : 'No deleted page to restore', run: () => { void restorePage(); } },
@@ -309,7 +296,6 @@ export function App() {
     { id: 'shell.retry', title: 'Retry saving', section: 'Editing', disabledReason: () => notebook.saveState() === 'saved' && notebook.connection() === 'live' ? 'All changes are saved' : undefined, run: () => notebook.retry() },
     { id: 'shell.copy-unsaved', title: 'Copy unsaved text', section: 'Editing', disabledReason: () => notebook.localPersistence() === 'failed' || notebook.rejectedText() ? undefined : 'Local recovery storage is working', run: () => { void navigator.clipboard.writeText(notebook.rejectedText() || notebook.unsavedText()).catch(reportError); } },
     { id: 'shell.dismiss-rejected', title: 'Dismiss rejected changes', section: 'Editing', disabledReason: () => notebook.rejectedText() ? undefined : 'No rejected changes', run: () => notebook.dismissRejected() },
-    { id: 'shell.vim', title: 'Toggle Vim', section: 'Vim', run: toggleVim },
     { id: 'shell.sidebar', title: 'Toggle sidebar', section: 'View', run: toggleSidebar },
   ]);
   onCleanup(unregister);
@@ -323,31 +309,42 @@ export function App() {
   const rootById = createMemo(() => new Map(notebook.roots().map(root => [root.id, root])));
   const pinnedRoots = () => pinned().map(id => rootById().get(id)).filter((root): root is Block => !!root);
   const recentRoots = () => recent().filter(id => !pinned().includes(id)).map(id => rootById().get(id)).filter((root): root is Block => !!root).slice(0, 10);
+  const pinnedViewList = createMemo(() => (views() ?? []).filter(view => pinnedViews().includes(view.id)));
+  const otherViews = createMemo(() => (views() ?? []).filter(view => !pinnedViews().includes(view.id)));
+  const activeViewId = () => { const target = entry(active())?.target; return target?.kind === 'table' ? target.viewId ?? undefined : undefined; };
   return <div class={`app ${split() ? 'is-split' : ''} ${sidebar() ? 'sidebar-expanded' : ''} ${sidebarCollapsed() ? 'sidebar-collapsed' : ''}`} onPointerDown={() => { focusEpoch++; }}>
-    <aside class="sidebar" aria-label="Notebook navigation">
-      <div class="notebook-heading">
+    <header class="global-rail" aria-label="Global navigation">
+      <div class="rail-notebook">
+        <Button icon="sidebar" label="Toggle sidebar" aria-expanded={sidebarVisible()} onClick={toggleSidebar} />
         <Button class="notebook-name" title={info()?.path} aria-haspopup="menu" aria-expanded={popup()?.kind === 'notebook'} onClick={event => setPopup({ kind: 'notebook', anchor: event.currentTarget, pane: active() })}><span>{info()?.path.split('/').filter(Boolean).at(-1) ?? 'Tessera'}</span><Icon name="down" /></Button>
-        <Button icon="sidebar" label="Collapse sidebar" onClick={toggleSidebar} />
       </div>
+      <div class="rail-actions">
+        <div class="rail-finder" role="group" aria-label="Find and commands">
+          <Button ref={searchButton} class="global-search" icon="search" label="Find or create" shortcut="⌃⇧F" aria-haspopup="dialog" aria-expanded={popup()?.kind === 'search'} onClick={() => showPalette('search')}><span>Find or create…</span><kbd>⌃⇧F</kbd></Button>
+          <Button class="global-commands" icon="command" label="Commands" shortcut="⌃⇧P" aria-haspopup="dialog" aria-expanded={popup()?.kind === 'commands'} onClick={() => showPalette('commands')} />
+        </div>
+        <Button icon="panes" label="Layout" aria-haspopup="menu" aria-expanded={popup()?.kind === 'layout'} onClick={event => setPopup({ kind: 'layout', anchor: event.currentTarget, pane: active() })} />
+      </div>
+    </header>
+    <aside class="sidebar" aria-label="Notebook navigation" aria-hidden={!sidebarVisible()} inert={!sidebarVisible()}>
       <nav class="primary-navigation" aria-label="Notebook">
-        <Button icon="search" onClick={() => showPalette('search')}>Search <kbd>⌃⇧F</kbd></Button>
-        <Button icon="calendar" class={activeRoot()?.kind === 'journal' && activeRoot()?.text === todayDate() ? 'selected' : ''} onClick={() => { void today(); }}>Today <kbd>⌃⇧J</kbd></Button>
-        <div class="journal-navigation"><Button icon="left" label="Previous journal day" onClick={() => shiftDate(-1)} /><Button class="journal-date" onClick={event => setPopup({ kind: 'calendar', anchor: event.currentTarget, pane: active() })}>{date()}</Button><Button icon="right" label="Next journal day" onClick={() => shiftDate(1)} /></div>
+        <Button icon="calendar" class={activeRoot()?.kind === 'journal' && activeRoot()?.text === todayDate() ? 'selected' : ''} onClick={event => { void today(active(), event.shiftKey); }}>Today <kbd>⌃⇧J</kbd></Button>
       </nav>
-      <Show when={pinnedRoots().length}><PageList title="Pinned" roots={pinnedRoots()} notebook={notebook} activeId={pageIdOf(entry(active()))} onOpen={open} /></Show>
-      <PageList title="Recent" roots={recentRoots()} notebook={notebook} activeId={pageIdOf(entry(active()))} onOpen={open} />
-      <div class="sidebar-footer">
-        <Button ref={newButton} class="new-page-button" icon="plus" onClick={event => setPopup({ kind: 'new', anchor: event.currentTarget, pane: active() })}>New page</Button>
-      </div>
+      <Show when={pinnedRoots().length || pinnedViewList().length}><section class="page-list" aria-label="Pinned">
+        <h2>Pinned</h2>
+        <PageLinks roots={pinnedRoots()} notebook={notebook} activeId={pageIdOf(entry(active()))} onOpen={open} />
+        <ViewLinks views={pinnedViewList()} pinned activeId={activeViewId()} onOpen={openView} onPin={pinView} />
+      </section></Show>
+      <Show when={otherViews().length}><section class="page-list" aria-label="Saved views">
+        <h2>Views</h2>
+        <ViewLinks views={otherViews()} pinned={false} activeId={activeViewId()} onOpen={openView} onPin={pinView} />
+      </section></Show>
+      <details class="page-list" open>
+        <summary>Recent<Icon name="down" /></summary>
+        <Show when={recentRoots().length} fallback={<p class="sidebar-empty">Pages you open appear here</p>}><PageLinks roots={recentRoots()} notebook={notebook} activeId={pageIdOf(entry(active()))} onOpen={open} /></Show>
+      </details>
     </aside>
     <main class="workspace">
-      <div class="compact-toolbar">
-        <Button icon="sidebar" label="Toggle sidebar" aria-expanded={sidebar()} onClick={toggleSidebar} />
-        <Button icon="search" label="Search notebook" shortcut="⌃⇧F" onClick={() => showPalette('search')} />
-        <Button icon="calendar" label="Today" shortcut="⌃⇧J" onClick={() => { void today(); }} />
-        <Button icon="plus" label="New page" onClick={event => setPopup({ kind: 'new', anchor: event.currentTarget, pane: active() })} />
-        <Button icon="more" label="Notebook menu" aria-haspopup="menu" onClick={event => setPopup({ kind: 'notebook', anchor: event.currentTarget, pane: active() })} />
-      </div>
       <Show when={split()}><div class="pane-tabs" role="tablist" aria-label="Working panes"><For each={paneIds}>{pane => <Button role="tab" aria-selected={active() === pane} onClick={() => { if (active() !== pane) switchPane(); }}>{pane === 'main' ? 'Pane 1' : 'Pane 2'} · {rootById().get(pageIdOf(entry(pane)) ?? '')?.text ?? paneLabel(entry(pane)?.target)}</Button>}</For></div></Show>
       <Show when={error()}><div class="shell-error" role="alert"><Icon name="warning" /><span>{error()}</span><Button onClick={() => { if (offlineUnavailable()) { location.reload(); return; } setError(''); void today(); }}>Retry</Button></div></Show>
       <div class="panes"><For each={paneIds}>{pane => <Show when={entry(pane)}>
@@ -359,7 +356,8 @@ export function App() {
           onTargetChange={target => changeTarget(pane, target)}
           onTravel={delta => travel(pane, delta)}
           onClose={() => closePane(pane)}
-          onSwitch={switchPane}
+          onChooseDate={anchor => chooseDate(pane, anchor)}
+          onShiftDate={delta => shiftDate(delta, pane)}
           onPin={() => { const id = pageIdOf(entry(pane)); if (id) pin(id); }}
           onRename={() => runOutline('rename', pane)}
           onDelete={anchor => setPopup({ kind: 'delete', anchor, pane })}
@@ -372,10 +370,10 @@ export function App() {
     </main>
     <Show keyed when={popup()}>{state => <>
       <Show when={state.kind === 'search' || state.kind === 'commands'}>
-        <Palette pane={state.pane} mode={state.kind === 'commands' ? 'commands' : 'search'} commands={commands} notebook={notebook} onDismiss={() => setPopup(null)} onRestoreFocus={() => { if (!popup() && active() === state.pane) focusPane(state.pane); }} onOpen={(target, beside) => open(target, beside, state.pane)} />
+        <Palette anchor={state.anchor} pane={state.pane} mode={state.kind === 'commands' ? 'commands' : 'search'} commands={commands} notebook={notebook} onDismiss={() => setPopup(null)} onRestoreFocus={() => { if (!popup() && active() === state.pane) focusPane(state.pane); }} onOpen={(target, beside) => open(target, beside, state.pane)} />
       </Show>
       <Show when={state.kind === 'calendar'}>
-        <Calendar anchor={state.anchor} date={date()} today={todayDate()} onToday={() => { void today(); }} onDismiss={() => setPopup(null)} onSelect={value => { void journal(value); }} />
+        <Calendar anchor={state.anchor} date={state.date ?? journalDate(state.pane)} today={todayDate()} onToday={() => { void today(state.pane); }} onDismiss={() => setPopup(null)} onSelect={value => { void journal(value, state.pane); }} />
       </Show>
       <Show when={state.kind === 'new'}>
         <NewPage anchor={state.anchor} notebook={notebook} onDismiss={() => setPopup(null)} onOpen={id => { setPopup(null); open({ kind: 'page', pageId: id }, false, state.pane); }} />
@@ -389,11 +387,16 @@ export function App() {
       </Show>
       <Show when={state.kind === 'notebook'}>
         <Menu anchor={state.anchor} label="Notebook" onDismiss={() => setPopup(null)} items={[
-          { label: 'Commands', icon: 'command', shortcut: '⌃⇧P', action: () => showPalette('commands') },
           { label: 'Fields', icon: 'field', action: () => open({ kind: 'fields' }, false, state.pane) },
-          ...(views() ?? []).map((view, index): MenuItem => ({ section: index === 0 ? 'Views' : undefined, label: view.name, icon: 'table', action: () => open({ kind: 'table', typeId: view.query.type, viewId: view.id, query: copyQuery(view.query) }, false, state.pane) })),
-          { section: 'Notebook', label: 'Settings', icon: 'settings', action: () => open({ kind: 'settings' }, false, state.pane) },
-          { label: vim() ? 'Turn Vim off' : 'Turn Vim on', action: toggleVim },
+          { label: 'Settings', icon: 'settings', action: () => open({ kind: 'settings' }, false, state.pane) },
+        ]} />
+      </Show>
+      <Show when={state.kind === 'layout'}>
+        <Menu anchor={state.anchor} label="Layout" onDismiss={() => setPopup(null)} items={[
+          { label: 'Open active view beside', icon: 'panes', shortcut: '⌃⇧O', disabledReason: entry(state.pane) ? undefined : 'No view is open', action: () => openPageBeside(state.pane) },
+          { label: 'Switch panes', icon: 'panes', shortcut: '⌃⇧]', disabledReason: split() ? undefined : 'Open a second pane first', action: switchPane },
+          { label: 'Close active pane', icon: 'close', shortcut: '⌃⇧X', disabledReason: split() ? undefined : 'Only one pane is open', action: () => closePane(state.pane) },
+          { section: 'Navigation', label: sidebarVisible() ? 'Hide sidebar' : 'Show sidebar', icon: 'sidebar', action: toggleSidebar },
         ]} />
       </Show>
     </>}</Show>
@@ -401,8 +404,15 @@ export function App() {
   </div>;
 }
 
-function PageList(props: { title: string; roots: Block[]; notebook: NotebookClient; activeId?: string; onOpen(target: OpenTarget, beside?: boolean): void }) {
-  return <section class="page-list"><h2>{props.title}</h2><Show when={props.roots.length} fallback={<p class="sidebar-empty">Pages you open appear here</p>}><For each={props.roots}>{root => <Button class={root.id === props.activeId ? 'selected' : ''} icon={root.kind === 'journal' ? 'calendar' : 'page'} title={props.notebook.lookup(root.id)()?.text ?? root.text} onClick={event => props.onOpen({ kind: 'page', pageId: root.id }, event.shiftKey)}>{props.notebook.lookup(root.id)()?.text ?? root.text}</Button>}</For></Show></section>;
+function PageLinks(props: { roots: Block[]; notebook: NotebookClient; activeId?: string; onOpen(target: OpenTarget, beside?: boolean): void }) {
+  return <For each={props.roots}>{root => <Button class={root.id === props.activeId ? 'selected' : ''} icon={root.kind === 'journal' ? 'calendar' : 'page'} title={props.notebook.lookup(root.id)()?.text ?? root.text} onClick={event => props.onOpen({ kind: 'page', pageId: root.id }, event.shiftKey)}>{props.notebook.lookup(root.id)()?.text ?? root.text}</Button>}</For>;
+}
+
+function ViewLinks(props: { views: View[]; pinned: boolean; activeId?: string; onOpen(view: View, beside: boolean): void; onPin(id: string): void }) {
+  return <For each={props.views}>{view => <div class="sidebar-view">
+    <Button class={`view-link ${view.id === props.activeId ? 'selected' : ''}`} icon="table" title={view.name} onClick={event => props.onOpen(view, event.shiftKey)}><span>{view.name}</span></Button>
+    <Button class="view-pin" icon="pin" label={`${props.pinned ? 'Unpin' : 'Pin'} view ${view.name}`} aria-pressed={props.pinned} onClick={() => props.onPin(view.id)} />
+  </div>}</For>;
 }
 
 function NewPage(props: { anchor: HTMLElement; notebook: NotebookClient; onDismiss(): void; onOpen(id: string): void }) {
@@ -444,7 +454,7 @@ function GlobalBanner(props: { notebook: NotebookClient; onReview(): void }) {
   </div></Show>;
 }
 
-function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boolean; split: boolean; notebook: NotebookClient; commands: CommandRegistry; vim: boolean; vimMode: VimMode; onVimMode(mode: VimMode): void; pinned: boolean; onActivate(): void; onOpen(target: OpenTarget, beside: boolean): void; onTargetChange(target: OpenTarget): void; onPageBeside(): void; onViewChange(view: PaneView): void; onTravel(delta: number): void; onClose(): void; onSwitch(): void; onPin(): void; onRename(): void; onDelete(anchor: HTMLElement): void; onArchived(): void; onRestoreView(view: ViewState): void; onReview(): void }) {
+function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boolean; split: boolean; notebook: NotebookClient; commands: CommandRegistry; vim: boolean; vimMode: VimMode; onVimMode(mode: VimMode): void; pinned: boolean; onActivate(): void; onOpen(target: OpenTarget, beside: boolean): void; onTargetChange(target: OpenTarget): void; onPageBeside(): void; onViewChange(view: PaneView): void; onTravel(delta: number): void; onClose(): void; onChooseDate(anchor: HTMLElement): void; onShiftDate(delta: number): void; onPin(): void; onRename(): void; onDelete(anchor: HTMLElement): void; onArchived(): void; onRestoreView(view: ViewState): void; onReview(): void }) {
   const current = () => props.session().entries[props.session().index]!;
   const pageId = createMemo(() => pageIdOf(current()));
   const outlineView = () => current().view as ViewState;
@@ -474,10 +484,6 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
     { label: 'Rename', icon: 'edit', disabledReason: root()?.kind === 'journal' ? 'Journal dates cannot be renamed' : undefined, action: props.onRename },
     { label: props.pinned ? 'Unpin' : 'Pin', icon: 'pin', action: props.onPin },
     { label: 'Open page beside', icon: 'panes', action: props.onPageBeside },
-    ...(props.split ? [
-      { label: 'Switch panes', icon: 'panes' as const, shortcut: '⌃⇧]', action: props.onSwitch },
-      { label: 'Close pane', icon: 'close' as const, shortcut: '⌃⇧X', action: props.onClose },
-    ] : []),
     { label: 'Undo', icon: 'undo', shortcut: '⌘Z', disabledReason: !doc()?.canUndo() ? 'Nothing to undo' : undefined, action: () => undo(false) },
     { label: 'Redo', icon: 'redo', shortcut: '⌘⇧Z', disabledReason: !doc()?.canRedo() ? 'Nothing to redo' : undefined, action: () => undo(true) },
     { label: outlineView().showArchived ? 'Hide archived' : 'Show archived', icon: 'archive', action: props.onArchived },
@@ -488,6 +494,11 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
       <div class="pane-navigation"><Button icon="left" label="Back" shortcut="⌃⇧H" disabled={props.session().index <= 0} onClick={() => props.onTravel(-1)} /><Button icon="right" label="Forward" shortcut="⌃⇧L" disabled={props.session().index >= props.session().entries.length - 1} onClick={() => props.onTravel(1)} /></div>
       <Show when={pageId()}>
         <nav class="pane-breadcrumbs" aria-label="Page breadcrumbs"><Button onClick={() => props.onRestoreView({ ...outlineView(), zoom: null })}>{root()?.text ?? 'Loading…'}</Button><For each={breadcrumbs()}>{block => <><span class="breadcrumb-separator">/</span><Button onClick={() => props.onRestoreView({ ...outlineView(), zoom: block.id })}>{block.text || 'Empty block'}</Button></>}</For></nav>
+        <Show when={root()?.kind === 'journal'}><nav class="journal-navigation" aria-label="Journal navigation">
+          <Button icon="left" label="Previous journal day" onClick={() => props.onShiftDate(-1)} />
+          <Button class="journal-date" icon="calendar" label="Choose journal date" aria-haspopup="dialog" onClick={event => props.onChooseDate(event.currentTarget)} />
+          <Button icon="right" label="Next journal day" onClick={() => props.onShiftDate(1)} />
+        </nav></Show>
         <span class="pane-save-state" title={doc()?.saveMessage()}><Icon name={doc()?.saveState() === 'saved' ? 'check' : doc()?.saveState() === 'offline' ? 'offline' : doc()?.saveState() === 'error' || doc()?.saveState() === 'conflict' ? 'warning' : 'saving'} />{status()}</span>
         <Show when={props.vim}><span class="vim-mode">Vim: {vimLabels[props.vimMode ?? 'outline']}</span></Show>
       </Show>
