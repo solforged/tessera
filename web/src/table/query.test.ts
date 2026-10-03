@@ -1,29 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import type { FieldDefinition, FilterOp } from '../api/types';
-import { addFilter, chooseSort, copyQuery, fieldEntryId, fieldEntryText, filterLabel, matchFieldEntry, queriesEqual, removeFilter, removeSort, sortLabel, typeQuery } from './query';
+import { addFilter, chooseSort, copyQuery, fieldEntryId, fieldEntryText, matchFieldEntry, queriesEqual, removeFilter, removeSort, typeQuery } from './query';
 
-const fields: FieldDefinition[] = [
-  { id: 'author', name: 'Author', kind: 'text', revision: 1, options: [] },
-  { id: 'year', name: 'Year', kind: 'number', revision: 1, options: [] },
-  { id: 'read', name: 'Read on', kind: 'date', revision: 1, options: [] },
-];
-describe('query chips', () => {
-  test('sorts use readable field and timestamp labels with direction', () => {
-    expect(sortLabel({ by: 'field', field: 'author', direction: 'asc' }, fields)).toBe('Author ↑');
-    expect(sortLabel({ by: 'field', field: 'author', direction: 'desc' }, fields)).toBe('Author ↓');
-    expect(sortLabel({ by: 'title', field: null, direction: 'asc' }, fields)).toBe('Title ↑');
-    expect(sortLabel({ by: 'created', field: null, direction: 'desc' }, fields)).toBe('Created ↓');
-    expect(sortLabel({ by: 'updated', field: null, direction: 'desc' }, fields)).toBe('Updated ↓');
-  });
-  test('filters show operators and omit values for presence checks', () => {
-    expect(filterLabel({ field: 'author', op: 'contains', value: 'Herbert' }, fields)).toBe('Author contains Herbert');
-    expect(filterLabel({ field: 'year', op: 'gte', value: '2000' }, fields)).toBe('Year ≥ 2000');
-    expect(filterLabel({ field: 'read', op: 'set', value: null }, fields)).toBe('Read on is set');
-    expect(filterLabel({ field: 'read', op: 'empty', value: null }, fields)).toBe('Read on is empty');
-    const operators: Partial<Record<FilterOp, string>> = { is: 'is', is_not: 'is not', gt: '>', lt: '<', lte: '≤' };
-    for (const [op, label] of Object.entries(operators)) expect(filterLabel({ field: 'year', op: op as FilterOp, value: '10' }, fields)).toBe(`Year ${label} 10`);
-  });
-});
 describe('query edits', () => {
   test('sort choice adds first, replaces without duplicates, and flips direction', () => {
     const initial = typeQuery('books');

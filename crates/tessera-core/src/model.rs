@@ -292,6 +292,7 @@ pub enum FilterOp {
     Gte,
     Lt,
     Lte,
+    Present,
     Set,
     Empty,
 }

@@ -2,7 +2,7 @@
 
 How the browser client looks and behaves. Tokens live in `web/src/tokens.css`; components use tokens, never raw values. This carries over the system remcard settled on in its `design-language.md`, keeps what worked, and adds the surfaces tessera has that remcard did not: saved views, a Fields destination and settings as panes.
 
-Status: decided; applied to the shell, the outline and the table. Later stages add their sections here before they are built.
+Status: applied to the shell, the outline and the table. The permanent global rail and inset workspace are being evaluated in the running app. Later stages add their sections here before they are built.
 
 ## Principles
 
@@ -11,7 +11,7 @@ Status: decided; applied to the shell, the outline and the table. Later stages a
 3. **One meaning, one form.** Structure is a neutral bullet. A type is a tinted pill with its name. Task state is a glyph. Colour never carries meaning alone, and type hues never reuse status hues.
 4. **Work happens in panes.** Tables, views, fields, settings, search results and references open in a pane. Dialogs are for short controls and confirmations only.
 5. **Summaries in the row, details on selection.** A block shows its state as compact trailing metadata; field rows appear as children under it.
-6. **Calm dark.** Surfaces step up in lightness with elevation. One accent marks focus and primary actions. Only floating layers cast shadows.
+6. **Calm dark.** A slightly lighter shell frames the darker canvas. One accent marks focus and primary actions. Only floating layers cast shadows.
 7. **Built for long sessions.** 28 px rows, 15 px body text, a 760 px measure. Nothing below 12 px.
 8. **Keyboard and pointer parity.** Menus show shortcuts beside actions. Vim is optional.
 
@@ -33,13 +33,14 @@ IBM Plex Sans Variable, bundled; weights 400, 500, 600.
 
 ### Space and size
 
-Steps 2, 4, 8, 12, 16, 24, 32, 48 px. Row height 28 px; indent 24 px; measure 760 px; gutter 48 px left of the measure; sidebar 208 px. Pointer targets 24 px, touch targets 44 px. Icons 16 px, 14 px inline.
+Steps 2, 4, 8, 12, 16, 24, 32, 48 px. Row height 28 px; indent 24 px; measure 760 px; gutter 48 px left of the measure; sidebar 208 px; global rail 48 px; pane header 36 px. Pointer targets 24 px, touch targets 44 px. Icons 16 px, 14 px inline.
 
 ### Colour
 
 | Role | Token |
 |---|---|
-| Shell: sidebar, table headers, banners | `--surface` |
+| Shell: global rail and sidebar | `--shell` |
+| Table headers and banners | `--surface` |
 | Canvas: panes | `--canvas` |
 | Raised: popups, pills, chips | `--raised` |
 | Hover, selection, divider, control border | `--hover` `--selection` `--line` `--control-border` |
@@ -53,13 +54,25 @@ Pills take a 12% tint of their hue with a 30% border. A selected row adds a 2 px
 
 ### Shape and elevation
 
-Radius 4 px for controls, 8 px for popups, full for pills. Popups have a 1 px `--line` border and `--popup-shadow`; dialogs `--dialog-shadow`. Rows and tables cast none.
+Radius 4 px for controls, 8 px for popups and the workspace frame, full for pills. Popups have a 1 px `--line` border and `--popup-shadow`; dialogs `--dialog-shadow`. The workspace frame has a 1 px `--line` border and no shadow. Rows and tables cast none.
+
+### Motion
+
+Motion acknowledges an action without delaying it: 140 ms for popup entry and sidebar movement, 90 ms for popup exit and hover feedback, with a short ease-out and no bounce. Popups travel 4 px; clickable button icons scale subtly on hover, focus and press. Recent expands and collapses in place. Reduced motion sets durations and travel to zero and disables icon scaling.
 
 ## Shell
 
-- **Sidebar**, 208 px, collapsible to a compact toolbar. Only daily destinations: the notebook name as a menu (Commands, Fields, saved views, Settings, Vim); Search; Today with the journal stepper indented beneath it; Pinned, shown only when something is pinned; Recent; and New page pinned to the bottom. Rows are 28 px with one left edge: icons at 8 px, text and section headings at 32 px. The row for the active pane's target gets the 2 px accent bar. Agenda and Review join Today when tasks and cards exist. Destinations open in the active pane; Shift-click opens beside. One modifier everywhere: Shift means beside, in the sidebar, in tables and in menus.
-- **Panes.** Up to two, split equally. Each has a header: back and forward, breadcrumbs or the pane title, the page menu, save state, the Vim mode when on, and Close on the side pane. Errors needing action sit under the header until resolved. Non-page panes (table, fields, settings) share page padding and background.
+- **Global rail.** Permanent across one or two panes. The left holds the sidebar toggle and notebook-name menu (Fields, Settings); Vim is toggled only in Settings. The right groups Find or create and the Commands icon in one 320 px search-shaped control, followed by an icon-only Layout button. Find or create opens its picker beneath the search trigger; Commands opens the command palette. Layout opens the active view beside, switches panes, closes the active pane or toggles the sidebar. Global controls are never duplicated inside pane headers.
+- **Sidebar**, 208 px. Today; Pinned, shown only when a page or saved view is pinned; unpinned saved Views; and collapsible Recent. Saved views have a pin control on hover or keyboard focus; pinning is stored per notebook alongside page pins. Rows are 28 px with one left edge: icons at 8 px, text and section headings at 32 px. The row for the active pane's target gets the 2 px accent bar. Destinations open in the active pane; Shift-click opens beside.
+- **Workspace frame.** The panes share one inset canvas, with a 12 px outside gutter at the right and bottom and an 8 px corner radius. Collapsing the sidebar adds the same gutter on the left. The rail and sidebar use the same shell surface.
+- **Panes.** Up to two, split equally. Each has a header: back and forward, breadcrumbs or the pane title, the page menu, save state, the Vim mode when on, and Close while split. Journal headers also hold their own previous-day, calendar and next-day controls; these always target the owning pane. Errors needing action sit under the header until resolved. Non-page panes (table, fields, settings) share page padding and background.
+- **Narrow layouts.** Below 1048 px the sidebar becomes a toggleable overlay. Hidden navigation is inert immediately, including during its exit. Below 840 px working-pane tabs show one pane at a time. Below 600 px Find or create, Commands and Layout retain accessible labels on icon controls, and the workspace gutter shrinks to 4 px. The global rail remains visible in every layout.
+- **Later destinations.** Library, Agenda and Review join Today when their workflows exist; the shell has no inactive placeholders. Reading will use a source pane beside authored notes, with document actions kept local to each pane.
 - **Measure.** Outline content is at most 760 px, centred, with a 48 px gutter to its left for row controls. Two panes split the width; text never shrinks to fit.
+
+### Find or create
+
+One picker searches pages and blocks; a leading `>` switches to commands. A case-insensitive exact page-title match appears first, including a locally created page not yet in server search. Otherwise a non-empty query offers an explicit Create page row after the search results, even when partial matches exist. Creation errors remain in the picker with the entered title intact. Enter opens or creates in the pane that invoked the picker; Shift-Enter uses the other pane. Tab drills into a result's children and Shift-Tab returns; a drilled search never offers root-page creation. New page remains a command with a direct title form anchored below search, not a separate rail button.
 
 ## Block row
 
@@ -89,21 +102,28 @@ Settled by the 2026-10-02 audit; each rule has a document-layer test in `web/src
 - **Indent, outdent and move** act on the selection's roots with their subtrees, never leave the zoomed subtree, and are silent no-ops without a history entry at a boundary (no previous sibling, top level, first or last sibling). Outdent leaves the following siblings under their original parent. A multi-row selection survives the command.
 - **Delete** of a subtree selects the previous visible survivor; folding a descendant selects the folded parent; zooming out selects the block being left.
 
+## Fields
+
+The notebook menu opens a searchable index with Name, Kind, Used by and Templates columns. Names open the definition in its source outline; template names open their type table. Used by opens the distinct owning blocks, including entries with no values. Shift opens any of these beside the index. Controls remain visible on narrow panes.
+
+Changing kind preserves value text and supports undo and redo from the index. Edit definitions opens the Fields page, where names and choice options remain ordinary blocks. Filtering the index does not change definitions; an empty result offers Clear filter.
+
 ## Tables and views
 
 A table is a query shown as rows: a type's members or a saved view.
 
 - **Header**: the type pill, the view name as a menu button (Save as view, Rename, Delete, Discard changes), and "Saved view" or "Unsaved changes" at the right.
 - **Toolbar**: a 16 rem search field, then filter chips and the sort chip. A chip shows its field and operator and removes with its own ×; the trailing "+ Filter" and "Sort" buttons add more. Chips wrap on narrow panes.
-- **Grid**: header row on `--surface`, meta size, sticky. The title column is sticky at the left with the page name under the text in `--faint`. Cells are 13 px, rows at least 28 px, divided by horizontal lines only. Numbers right-aligned and tabular. Multi-value cells show one pill per value. An unreadable value gets a dotted warning underline, never a rewrite.
-- **Columns**: the type template's fields first, then fields present on members. The trailing `+` adds a column and sets a kind. Column menus offer sort, filter by this field, change kind, remove from template.
+- **Grid**: header row on `--surface`, meta size, sticky. The title column is sticky at the left with the page name under the text in `--faint`. Cells are 13 px, rows at least 28 px, divided by horizontal lines only. Numbers right-aligned and tabular. Multi-value cells retain every value; choice and instance values use pills. An unreadable value gets a dotted warning underline, never a rewrite.
+- **Editing**: Enter or double-click edits a single plain text, number or date value inline. Multiple values, references, choices, instances and checkboxes open the field's source outline beside the table. Clearing a value preserves its block and child notes; refilling reuses a blank value block. Inline editors do not replace structured text with a rendered label.
+- **Columns**: the type template's fields first, then fields present on members. Fields used by filters remain visible even when every value is empty. The trailing `+` adds a column and sets a kind. Column menus offer sort, filter by this field, change kind, remove from template.
 - **Footer**: "N of M rows", and the load error with Retry when a request failed.
 - **Empty states** say what to do: no members yet for a type, no matches for a filter set, with a control that clears filters.
-- Rows open the block in the active pane; Shift-click opens beside.
+- Rows open the block in the active pane; Shift-click or Shift-Enter opens beside.
 
 ## Popups and feedback
 
-Floating layers open below the element or caret that opened them, with a 4 px gap, start-aligned unless the anchor is in the pane's right half, flipping above only when below is too short, clamped to the viewport, never covering the anchor. Palettes centre near the top of the viewport instead. Escape closes the topmost one and returns focus.
+Floating layers open below the element or caret that opened them, with a 4 px gap, start-aligned unless the anchor is in the viewport's right half, flipping above only when below is too short, clamped to the viewport, never covering the anchor. Find or create opens beneath the global search trigger; the dedicated command palette centres near the top of the viewport. Escape closes the topmost one and returns focus. Closing retires input handlers immediately; only an inert, accessibility-hidden visual remains for the brief exit animation. It has no IDs and cannot steal focus from a successor popup. Reduced motion removes it immediately.
 
 Three shapes only, so every popup is recognisable at a glance:
 
@@ -113,11 +133,12 @@ Three shapes only, so every popup is recognisable at a glance:
 
 | Surface | Shape | Placement |
 |---|---|---|
-| Palette: text searches blocks, a leading `>` finds commands | Picker, one line per hit with the page path in meta size; Tab drills into children | Top centre, 560 px |
+| Find or create: pages, blocks and explicit page creation; `>` finds commands | Picker, one line per hit with the page path in meta size; Tab drills into children | Below the global search trigger, 560 px |
+| Dedicated command palette | Picker, with action sections and shortcuts | Top centre, 560 px |
 | `[[`, `#`, `Name::` completion and Add type | Picker | Below the caret or the block |
 | Add filter | Picker in three steps: field, condition, value; Backspace on an empty query steps back | Below its trigger |
 | Block menu | Menu in sections Block, Move, Select; navigation stays in the palette | Below the handle |
-| Page, notebook, pill, column, view, sort and field kind menus | Menu | Below their trigger |
+| Page, notebook, layout, pill, column, view, sort and field kind menus | Menu | Below their trigger |
 | New page, Delete page | Confirm | Below their trigger |
 | Undo toast | Bottom centre, one at a time |
 | Save state | Pane header, never a toolbar |
@@ -132,6 +153,7 @@ Native `<select>` is never used; a bordered menu button or a picker replaces it.
 4. Fields, Settings, tables and views are panes, not dialogs.
 5. Pills are hue-tinted at meta size; bullets stay neutral.
 6. Tables divide rows, not columns; the title column is sticky.
+7. A permanent global rail owns notebook-wide actions; pane headers own document actions.
 
 ## Open
 

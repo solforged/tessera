@@ -36,7 +36,7 @@ Each choice has a spike that can overturn it. See [performance](performance.md).
 
 Reads are set-based. Loading a page is a handful of queries for blocks, links, capabilities and field values, never one query per block. Sibling order uses sparse ordinals with an index, so moves don't rescan siblings.
 
-Field values are indexed as the text that produces them is written: an owner, a field, an entry and a value block. The index stores no copies of text; a query reads the value blocks through the field's current kind, so changing a kind never touches the index. Queries gather candidates by type membership or full-text search in SQL, then filter and sort the readings in memory, which keeps every comparison rule in one place.
+Field values are indexed as the text that produces them is written: an owner, a field, an entry and a value block. The index stores no copies of text; a query reads the value blocks through the field's current kind, so changing a kind never touches the index. Field-presence queries use whole entry references in the link index, not value counts, so empty entries remain discoverable. Queries gather candidates by type membership, full-text search or field ownership, then filter and sort the readings in memory, which keeps every comparison rule in one place.
 
 ## Service
 

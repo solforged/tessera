@@ -3,6 +3,7 @@ import { ulid } from 'ulid';
 import { api } from '../api/client';
 import type { FieldDefinition, FieldKind, Fields, FilterOp, Operation, Query, QueryResult, QueryRow, SortKey, Type, View } from '../api/types';
 import type { Edit, NotebookClient, PageDocument } from '../document/contract';
+import { textTokens } from '../document/text-tokens';
 import { BlockText } from '../outline/BlockText';
 import type { OpenTarget, PaneId, TableViewState } from '../shell/contract';
 import { Button } from '../ui/Button';
@@ -193,25 +194,39 @@ export function TablePane(props: TablePaneProps) {
     ...(result()?.columns ?? []).map(id => ({ label: fieldById(id)?.name ?? id, action: () => updateQuery(chooseSort(query(), { by: 'field', field: id })) })),
   ] });
   const openRow = (row: QueryRow, beside: boolean) => props.onOpen({ kind: 'page', pageId: row.block.page.id, ...(row.block.block.kind === 'block' ? { blockId: row.block.block.id } : {}) }, beside);
+  const openField = (row: QueryRow, field: FieldDefinition) => {
+    void withDocument(row.block.page.id, doc => {
+      const owner = row.block.block;
+      const entries = doc.outline.children(owner.id).filter(id => fieldEntryId(doc.block(id)?.text ?? '') === field.id && !doc.block(id)?.archived);
+      props.onOpen({ kind: 'page', pageId: owner.page_id, blockId: entries.length === 1 ? entries[0] : owner.kind === 'block' ? owner.id : undefined }, true);
+    }).catch(message);
+  };
   const startEdit = (row: QueryRow, field: FieldDefinition) => {
-    if (!['text', 'number', 'date'].includes(field.kind)) { openRow(row, true); return; }
-    setEditing({ row, field, text: row.values[field.id]?.[0]?.text ?? '' });
+    const values = row.values[field.id] ?? [];
+    if (!['text', 'number', 'date'].includes(field.kind) || values.length > 1 || values.some(value => textTokens(value.text).some(token => token.kind !== 'text'))) {
+      openField(row, field);
+      return;
+    }
+    setEditing({ row, field, text: values[0]?.text ?? '' });
   };
   const commitEdit = async () => {
     const current = editing(); if (!current) return;
     setEditing(null);
+    const original = current.row.values[current.field.id]?.[0]?.text ?? '';
+    if (current.text === original) return;
     try {
       await withDocument(current.row.block.page.id, doc => {
         const first = current.row.values[current.field.id]?.[0];
         const apply = (edit: Edit) => { const value = doc.edit(edit); if (!value.ok) throw new Error(value.reason); return value; };
         if (first) {
-          if (current.text === '') apply({ kind: 'delete', ids: [first.id] });
-          else apply({ kind: 'text', id: first.id, text: current.text });
+          apply({ kind: 'text', id: first.id, text: current.text });
         } else {
           const owner = current.row.block.block.id;
           let entryId = doc.outline.children(owner).find(id => fieldEntryId(doc.block(id)?.text ?? '') === current.field.id && !doc.block(id)?.archived);
           if (!entryId) entryId = apply({ kind: 'insert', parentId: owner, after: doc.outline.children(owner).at(-1) ?? null, text: fieldEntryText(current.field.id) }).created[0]!;
-          apply({ kind: 'insert', parentId: entryId, after: null, text: current.text });
+          const blank = doc.outline.children(entryId).find(id => { const block = doc.block(id); return block && !block.archived && !block.text.trim(); });
+          if (blank) apply({ kind: 'text', id: blank, text: current.text });
+          else apply({ kind: 'insert', parentId: entryId, after: null, text: current.text });
         }
       });
     } catch (reason) { message(reason); }
@@ -222,7 +237,7 @@ export function TablePane(props: TablePaneProps) {
     const current = focused(); const row = result()?.rows[current.row];
     if (event.key === 'Escape') { region.focus(); event.preventDefault(); return; }
     if (event.key === 'Enter' && row) {
-      if (!current.column) openRow(row, event.metaKey);
+      if (!current.column) openRow(row, event.shiftKey);
       else { const field = fieldById(result()!.columns[current.column - 1]!); if (field) startEdit(row, field); }
       event.preventDefault(); return;
     }
@@ -233,7 +248,7 @@ export function TablePane(props: TablePaneProps) {
   onMount(() => { if (props.active) region.focus({ preventScroll: true }); });
   return <div ref={region} class="table-pane" tabIndex={0} role="region" aria-label="Table" onFocusIn={props.onActivate} onPointerDown={props.onActivate} onKeyDown={keydown}>
     <header class="table-header">
-      <Show when={query().type}><Button class="outline-tag tag" onClick={event => props.onOpen({ kind: 'page', pageId: query().type! }, event.metaKey)}>#{title()}</Button></Show>
+      <Show when={query().type}><Button class="outline-tag tag" onClick={event => props.onOpen({ kind: 'page', pageId: query().type! }, event.shiftKey)}>#{title()}</Button></Show>
       <Button class="table-title" label={saved()?.name ?? 'Views'} onClick={event => viewMenu(event.currentTarget)}>{saved()?.name ?? ''}<Icon name="down" /></Button>
       <Show when={props.target.viewId && saved()}><span class="table-view-status">{changed() ? 'Unsaved changes' : 'Saved view'}</span></Show>
     </header>
@@ -251,7 +266,7 @@ export function TablePane(props: TablePaneProps) {
         <For each={result()?.columns ?? []}>{id => <th><Button onClick={event => columnMenu(event.currentTarget, fieldById(id))}>{fieldById(id)?.name ?? id}</Button></th>}</For>
         <th class="table-add-column"><Button label="Add column" title={!query().type ? 'Open a type to add columns' : undefined} onClick={event => addColumnMenu(event.currentTarget)}>+</Button></th>
       </tr></thead><tbody><For each={result()?.rows ?? []}>{(row, rowIndex) => <tr>
-        <td class="table-title-column table-cell" data-row={rowIndex()} data-column={0} tabIndex={focused().row === rowIndex() && focused().column === 0 ? 0 : -1} onFocus={() => setFocused({ row: rowIndex(), column: 0 })} onClick={event => openRow(row, event.metaKey)}>
+        <td class="table-title-column table-cell" data-row={rowIndex()} data-column={0} tabIndex={focused().row === rowIndex() && focused().column === 0 ? 0 : -1} onFocus={() => setFocused({ row: rowIndex(), column: 0 })} onClick={event => openRow(row, event.shiftKey)}>
           <BlockText text={props.notebook.lookup(row.block.block.id)()?.text ?? row.block.block.text} notebook={props.notebook} interactive={false} />
           <Show when={row.block.block.id !== row.block.page.id}><div class="table-page-title">{row.block.page.text}</div></Show>
         </td>
@@ -259,11 +274,11 @@ export function TablePane(props: TablePaneProps) {
           const field = () => fieldById(id); const current = () => editing();
           return <td class={`table-cell ${field()?.kind === 'number' ? 'table-number' : ''}`} data-row={rowIndex()} data-column={columnIndex() + 1} tabIndex={focused().row === rowIndex() && focused().column === columnIndex() + 1 ? 0 : -1} onFocus={() => setFocused({ row: rowIndex(), column: columnIndex() + 1 })} onDblClick={() => { if (field()) startEdit(row, field()!); }}>
             <Show when={current()?.row.block.block.id === row.block.block.id && current()?.field.id === id} fallback={<For each={row.values[id] ?? []}>{(value, index) => <>
-              {index() > 0 ? ', ' : ''}<Show when={value.reading.ok} fallback={<span class="table-reading-problem" title={`Not a ${field()?.kind ?? 'text'}`}>{value.text}</span>}>
-                <span class={field()?.kind === 'choice' || field()?.kind === 'instance' ? 'table-value-pill' : ''}>{value.reading.ok ? field()?.kind === 'checkbox' ? value.reading.value ? '☑' : '☐' : String(value.reading.value) : ''}</span>
+              {index() > 0 ? ', ' : ''}<Show when={value.reading.ok} fallback={<span class="table-reading-problem" title={!value.reading.ok ? value.reading.problem : undefined}><BlockText text={value.text} notebook={props.notebook} interactive={false} /></span>}>
+                <Show when={field()?.kind === 'text'} fallback={<span class={field()?.kind === 'choice' || field()?.kind === 'instance' ? 'table-value-pill' : ''}>{value.reading.ok ? field()?.kind === 'checkbox' ? value.reading.value ? '☑' : '☐' : String(value.reading.value) : ''}</span>}><BlockText text={value.text} notebook={props.notebook} interactive={false} /></Show>
               </Show>
             </>}</For>}>
-              <input class="input table-cell-input" type={field()?.kind === 'date' ? 'date' : 'text'} inputmode={field()?.kind === 'number' ? 'decimal' : undefined} value={current()?.text ?? ''} ref={input => queueMicrotask(() => { input.focus(); if (input.type !== 'date') input.select(); })} onInput={event => { const text = event.currentTarget.value; setEditing(value => value ? { ...value, text } : null); }} onKeyDown={event => {
+              <input class="input table-cell-input" type="text" aria-label={`Edit ${field()?.name ?? 'field'} value`} placeholder={field()?.kind === 'date' ? 'YYYY-MM-DD' : undefined} inputmode={field()?.kind === 'number' ? 'decimal' : undefined} value={current()?.text ?? ''} ref={input => queueMicrotask(() => { input.focus(); input.select(); })} onInput={event => { const text = event.currentTarget.value; setEditing(value => value ? { ...value, text } : null); }} onKeyDown={event => {
                 if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); void commitEdit(); }
                 else if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setEditing(null); region.focus(); }
               }} onBlur={() => { void commitEdit(); }} />
@@ -325,7 +340,7 @@ function FilterPopup(props: { anchor: HTMLElement; fields: FieldDefinition[]; in
     setQuery(''); setError('');
     if (row.kind === 'field') setField({ id: row.id, name: row.name });
     else if (row.kind === 'new-field') setField({ id: null, name: row.name });
-    else if (row.kind === 'op') { setOp(row.op); if (row.op === 'set' || row.op === 'empty') void finish(null); }
+    else if (row.kind === 'op') { setOp(row.op); if (row.op === 'present' || row.op === 'set' || row.op === 'empty') void finish(null); }
     else void finish(row.value);
   };
   const placeholder = () => step() === 'field' ? 'Field name' : step() === 'op' ? 'Condition' : definition()?.kind === 'date' ? 'YYYY-MM-DD' : definition()?.kind === 'choice' ? 'Choose or type a value' : 'Value';
