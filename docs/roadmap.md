@@ -49,7 +49,7 @@ Exit: plan a small project, work it over several days with clocked time, and fin
 
 ## 4. Learning
 
-- Cards from `::`, `>>` and clozes, with forgiving, visible syntax.
+- Cards from `>>`, `<<`, `<>` and numbered clozes, with forgiving, visible syntax. `::` stays field shorthand.
 - Review with grades, next-interval previews and return to source.
 - Keep progress or start over when a card's text changes.
 - Saved review decks backed by queries.

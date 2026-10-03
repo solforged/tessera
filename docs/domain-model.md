@@ -76,7 +76,7 @@ A project capability gives a block an outcome, an optional deadline and a status
 
 ## Cards
 
-Cards derive from block text: `front :: back`, `front >> back` and clozes. A card's identity is its block plus a stable key anchored in the text, so editing wording keeps progress. Removing the markup deactivates the card. Review events record the shown text, grade, scheduler version and the state before and after. A reset is an event, not an erasure. Scheduling starts with SM-2.
+Cards derive from block text: `front >> back` is forward, `front << back` is reverse, and `front <> back` makes both directions. `::` remains field shorthand. Numbered clozes use `{{c1::answer}}` or `{{c1::answer::hint}}`; repeated numbers form one unit. The source block plus a role key (`forward`, `reverse`, `cloze:c1`) identifies a card, so wording edits keep progress. Escapes, code and references shield literal syntax. Ambiguous or malformed explicit syntax produces diagnostics rather than guessed cards. Removing markup deactivates the unit. Review events record the shown text, grade, scheduler version and state before and after; a reset is an event, not an erasure. Scheduling starts with versioned SM-2.
 
 ## Settings
 
