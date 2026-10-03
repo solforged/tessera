@@ -750,6 +750,15 @@ fn membership_title_upgrade_preserves_unresolved_mentions_without_resurrecting_p
          DROP TABLE fields;
          DROP TABLE views;
          DROP TABLE settings;
+         DROP TABLE review_events;
+         DROP TABLE review_sessions;
+         DROP TABLE card_units;
+         DROP TABLE decks;
+         DROP TABLE task_views;
+         DROP TABLE work_sessions;
+         DROP TABLE task_occurrences;
+         DROP TABLE tasks;
+         DROP TABLE projects;
          ALTER TABLE changes DROP COLUMN views;
          PRAGMA user_version = 4;",
     )
@@ -1223,6 +1232,15 @@ fn manual_membership_migration_retains_authored_text_tags_and_unresolved_titles(
          CREATE INDEX memberships_type ON memberships(type_id, block_id);
          CREATE INDEX memberships_title ON memberships(title_key, block_id);
          DROP TABLE settings;
+         DROP TABLE review_events;
+         DROP TABLE review_sessions;
+         DROP TABLE card_units;
+         DROP TABLE decks;
+         DROP TABLE task_views;
+         DROP TABLE work_sessions;
+         DROP TABLE task_occurrences;
+         DROP TABLE tasks;
+         DROP TABLE projects;
          PRAGMA user_version = 6;",
     ).unwrap();
     drop(conn);

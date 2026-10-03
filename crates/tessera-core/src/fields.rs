@@ -154,6 +154,22 @@ impl FieldChanges {
             | Operation::RemoveType { .. }
             | Operation::SaveView { .. }
             | Operation::SetSetting { .. }
+            | Operation::SetTask { .. }
+            | Operation::CompleteTask { .. }
+            | Operation::ReverseTaskCompletion { .. }
+            | Operation::SetProject { .. }
+            | Operation::StartWork { .. }
+            | Operation::StopWork { .. }
+            | Operation::EditWorkNote { .. }
+            | Operation::SetWorkSessionState { .. }
+            | Operation::StartReviewSession { .. }
+            | Operation::FinishReviewSession { .. }
+            | Operation::GradeCard { .. }
+            | Operation::ResetCard { .. }
+            | Operation::SaveDeck { .. }
+            | Operation::DeleteDeck { .. }
+            | Operation::SaveTaskView { .. }
+            | Operation::DeleteTaskView { .. }
             | Operation::DeleteView { .. } => Ok(()),
         }
     }
