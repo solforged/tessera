@@ -1,17 +1,20 @@
 /* Fields index: one row per definition, styled like the type table. */
 .fields-pane { display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; outline: none; }
-.fields-pane > .fields-actions { min-height: var(--touch-size); padding: var(--space-8) var(--space-16); border-bottom: 1px solid var(--line); }
+.fields-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-8); min-height: var(--touch-size); padding: var(--space-8) var(--space-16); border-bottom: 1px solid var(--line); }
+.fields-search { flex: 1; min-width: 0; width: 100%; max-width: var(--search-width); }
 .fields-scroll { flex: 1; min-height: 0; overflow: auto; }
 .fields-scroll > .empty-state { margin: var(--space-16) var(--space-24); }
-.fields-index { width: 100%; border-spacing: 0; font-size: var(--text-control); line-height: var(--line-control); }
-.fields-index th, .fields-index td { padding: var(--space-4) var(--space-12); border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; overflow-wrap: anywhere; }
+.fields-index { width: 100%; table-layout: fixed; border-spacing: 0; font-size: var(--text-control); line-height: var(--line-control); }
+.fields-index th, .fields-index td { padding: var(--space-4) var(--space-8); border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; overflow-wrap: anywhere; }
 .fields-index th { position: sticky; top: 0; z-index: 1; background: var(--surface); color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); font-weight: var(--weight-control); white-space: nowrap; }
-.fields-index th:first-child, .fields-index td:first-child { padding-left: var(--space-24); }
-.fields-index tbody tr { min-height: var(--row-height); }
-.fields-index tbody tr:hover { background: var(--hover); }
-.fields-index tbody tr:focus-visible { outline: var(--focus-ring); outline-offset: -2px; }
-.fields-index td.fields-count { text-align: right; font-variant-numeric: tabular-nums; }
-.fields-index .button { white-space: nowrap; }
-.fields-index td .fields-actions { padding: 0; opacity: 0; }
-.fields-index tr:hover .fields-actions, .fields-index tr:focus-within .fields-actions { opacity: 1; }
-.fields-actions { display: flex; flex-wrap: nowrap; gap: var(--space-4); }
+.fields-index th:first-child, .fields-index td:first-child { padding-left: var(--space-16); }
+.fields-index .fields-kind { width: calc(var(--row-height) * 3 + var(--space-24)); }
+.fields-index .fields-count { width: calc(var(--row-height) * 2 + var(--space-8)); text-align: right; font-variant-numeric: tabular-nums; }
+.fields-index tbody tr:hover, .fields-index tbody tr:focus-within { background: var(--hover); }
+.fields-index .button { min-height: var(--row-height); max-width: 100%; padding: var(--space-2) var(--space-4); }
+.fields-index .field-name { justify-content: flex-start; color: var(--accent); }
+.fields-index .field-name:hover { text-decoration: underline; }
+.fields-types { display: flex; flex-wrap: wrap; gap: var(--space-4); }
+.fields-types .outline-tag { margin: 0; }
+.fields-actions { display: flex; gap: var(--space-4); }
+.fields-footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: var(--space-8); padding: var(--space-8) var(--space-16); border-top: 1px solid var(--line); color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); }

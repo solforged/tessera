@@ -1089,3 +1089,49 @@ fn blank_fields_are_not_definitions_and_edits_refresh_incoming_entries() {
         assert_eq!(nb.fields().unwrap().fields[0].definition.name, "Year");
     }
 }
+
+#[test]
+fn field_presence_includes_empty_entries_but_not_mentions() {
+    let (_dir, mut nb) = fixture();
+    apply(
+        &mut nb,
+        vec![
+            insert(101, 2, "beta #books"),
+            insert(201, 101, &format!("[[{}]]", id(10))),
+            insert(202, 101, &format!(" [[{}|Year]] ", id(10))),
+            insert(102, 2, "mention only #books"),
+            insert(203, 102, &format!("Mention [[{}]]", id(10))),
+            insert(301, 201, " \t\u{2003}\u{00a0}"),
+        ],
+    );
+    let mut q = query();
+    q.filters.push(Filter {
+        field: id(10),
+        op: FilterOp::Present,
+        value: None,
+    });
+    assert_eq!(ids(nb.query(&q).unwrap()), vec![id(100), id(101)]);
+    q.r#type = None;
+    assert_eq!(
+        nb.query(&q).unwrap().total,
+        nb.fields().unwrap().fields[0].owners
+    );
+    q.filters.push(Filter {
+        field: id(10),
+        op: FilterOp::Empty,
+        value: None,
+    });
+    assert_eq!(ids(nb.query(&q).unwrap()), vec![id(101)]);
+    q.filters.pop();
+    archive(&mut nb, 300, true);
+    assert_eq!(ids(nb.query(&q).unwrap()), vec![id(100), id(101)]);
+    assert_eq!(nb.query(&q).unwrap().columns, vec![id(10)]);
+    archive(&mut nb, 100, true);
+    assert_eq!(ids(nb.query(&q).unwrap()), vec![id(101)]);
+    archive(&mut nb, 2, true);
+    assert_eq!(nb.query(&q).unwrap().total, 0);
+    assert_eq!(nb.query(&q).unwrap().columns, vec![id(10)]);
+    archive(&mut nb, 2, false);
+    q.text = Some("beta".into());
+    assert_eq!(ids(nb.query(&q).unwrap()), vec![id(101)]);
+}

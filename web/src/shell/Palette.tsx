@@ -3,18 +3,23 @@ import { api } from '../api/client';
 import type { Block, BlockInPage } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { BlockText } from '../outline/BlockText';
+import { cachedExactPage } from '../outline/completion';
 import { Icon } from '../ui/Icon';
 import { Picker } from '../ui/Picker';
 import type { Command, CommandRegistry, OpenTarget, PaneId } from './contract';
 
-type Entry = { kind: 'hit'; hit: BlockInPage } | { kind: 'command'; command: Command };
+type Entry = { kind: 'hit'; hit: BlockInPage } | { kind: 'command'; command: Command } | { kind: 'create'; title: string };
 
-/** One palette: text searches blocks, a leading `>` finds commands. Tab drills into the highlighted block's children. */
-export function Palette(props: { pane: PaneId; mode: 'search' | 'commands'; commands: CommandRegistry; notebook: NotebookClient; onDismiss(): void; onRestoreFocus(): void; onOpen(target: OpenTarget, beside: boolean): void }) {
+/** Find or create pages, search blocks, or prefix commands with `>`. Tab drills into a result's children. */
+export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'search' | 'commands'; commands: CommandRegistry; notebook: NotebookClient; onDismiss(): void; onRestoreFocus(): void; onOpen(target: OpenTarget, beside: boolean): void }) {
   const capturedCommands = props.commands.list().map(command => command.capture?.() ?? command);
   const [query, setQuery] = createSignal(props.mode === 'commands' ? '>' : '');
   const [debounced, setDebounced] = createSignal('');
   const [scopes, setScopes] = createSignal<BlockInPage[]>([]);
+  const [creating, setCreating] = createSignal(false);
+  const [createError, setCreateError] = createSignal('');
+  let disposed = false;
+  onCleanup(() => { disposed = true; });
   const mode = () => query().startsWith('>') ? 'commands' : 'search';
   const text = () => mode() === 'commands' ? query().slice(1).trim() : query().trim();
   createEffect(() => {
@@ -33,7 +38,14 @@ export function Palette(props: { pane: PaneId; mode: 'search' | 'commands'; comm
     const rows = !parent ? (hits.error ? [] : hits() ?? [])
       : scopedPage.error ? []
         : (scopedPage()?.rows ?? []).filter(row => row.block.parent_id === parent.block.id).map(row => ({ block: row.block, page: parent.page }));
-    return rows.map(hit => ({ kind: 'hit', hit }));
+    const title = text();
+    const exact = !parent && title ? cachedExactPage(props.notebook, title)
+      ?? rows.find(hit => hit.block.kind === 'page' && hit.block.text.toLowerCase() === title.toLowerCase())?.block : null;
+    const result: Entry[] = [];
+    if (exact) result.push({ kind: 'hit', hit: { block: exact, page: exact } });
+    for (const hit of rows) if (hit.block.id !== exact?.id) result.push({ kind: 'hit', hit });
+    if (!parent && title && !exact) result.push({ kind: 'create', title });
+    return result;
   });
   const drill = async (hit: BlockInPage): Promise<boolean> => {
     const page = await api.page(hit.page.id);
@@ -52,18 +64,34 @@ export function Palette(props: { pane: PaneId; mode: 'search' | 'commands'; comm
       if (document.activeElement === document.body) props.onRestoreFocus();
     });
   };
+  const create = async (title: string, beside: boolean) => {
+    if (creating()) return;
+    setCreating(true); setCreateError('');
+    try {
+      const id = await props.notebook.createPage(title);
+      if (disposed) return;
+      props.onDismiss(); props.onOpen({ kind: 'page', pageId: id }, beside);
+    } catch (reason) {
+      if (!disposed) setCreateError(reason instanceof Error ? reason.message : String(reason));
+    } finally { setCreating(false); }
+  };
   const busy = () => mode() === 'search' && (text() !== debounced() || hits.loading || scopedPage.loading);
   const error = () => {
+    if (createError()) return createError();
     const reason = mode() === 'search' ? hits.error ?? scopedPage.error : undefined;
     return reason ? `Couldn't search · ${String(reason?.message)}` : undefined;
   };
-  return <Picker<Entry> anchor={document.body} placement="top" label={mode() === 'search' ? 'Search notebook' : 'Find command'} class="palette" onDismiss={props.onDismiss}
-    query={query()} onQuery={setQuery} placeholder={mode() === 'search' ? 'Search blocks, or type > for commands' : 'Find a command'}
+  return <Picker<Entry> anchor={props.anchor} placement={props.mode === 'commands' ? 'top' : 'anchor'} label={mode() === 'search' ? 'Find or create' : 'Find command'} class="palette" onDismiss={props.onDismiss}
+    query={query()} onQuery={value => { setCreateError(''); setQuery(value); }} placeholder={mode() === 'search' ? 'Find a page, block, or new title' : 'Find a command'}
     prefix={<Icon name={mode() === 'search' ? 'search' : 'command'} class="picker-prefix" />}
     status={<Show when={scope()}>{parent => <div class="scope-bar"><Icon name="up" /><BlockText text={parent().block.text} notebook={props.notebook} interactive={false} /><kbd>⇧Tab</kbd></div>}</Show>}
-    items={entries()} key={entry => entry.kind === 'hit' ? entry.hit.block.id : entry.command.id}
-    disabledReason={entry => entry.kind === 'command' ? entry.command.disabledReason?.() : undefined}
-    onPick={(entry, event) => entry.kind === 'hit' ? open(entry.hit, event.shiftKey) : run(entry.command)}
+    items={entries()} key={entry => entry.kind === 'hit' ? entry.hit.block.id : entry.kind === 'command' ? entry.command.id : 'create'}
+    disabledReason={entry => creating() ? 'Creating page…' : entry.kind === 'command' ? entry.command.disabledReason?.() : undefined}
+    onPick={(entry, event) => {
+      if (entry.kind === 'hit') open(entry.hit, event.shiftKey);
+      else if (entry.kind === 'command') run(entry.command);
+      else void create(entry.title, event.shiftKey);
+    }}
     onKey={(event, entry) => {
       if (event.key !== 'Tab' || mode() !== 'search' || event.ctrlKey || event.metaKey || event.altKey) return false;
       if (event.shiftKey) { if (!scopes().length) return false; up(); return true; }
@@ -73,7 +101,8 @@ export function Palette(props: { pane: PaneId; mode: 'search' | 'commands'; comm
     busy={busy()} error={error()} empty={mode() === 'search' ? 'No results.' : 'No matching commands.'}
     row={(entry, selected) => entry.kind === 'hit'
       ? <HitRow hit={entry.hit} query={text()} notebook={props.notebook} selected={selected} />
-      : <CommandRow command={entry.command} />} />;
+      : entry.kind === 'command' ? <CommandRow command={entry.command} />
+        : <><Icon name="plus" /><span class="picker-text">Create page “{entry.title}”</span><Show when={selected}><kbd class="picker-hint">⇧↵ beside</kbd></Show></>} />;
 }
 
 function HitRow(props: { hit: BlockInPage; query: string; notebook: NotebookClient; selected: boolean }) {

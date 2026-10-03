@@ -1,7 +1,7 @@
 import type { FieldDefinition, Filter, FilterOp, Query, SortKey } from '../api/types';
 
 export const filterLabels: Record<FilterOp, string> = {
-  is: 'is', is_not: 'is not', contains: 'contains', gt: '>', gte: '≥', lt: '<', lte: '≤', set: 'is set', empty: 'is empty',
+  is: 'is', is_not: 'is not', contains: 'contains', gt: '>', gte: '≥', lt: '<', lte: '≤', present: 'is present', set: 'is set', empty: 'is empty',
 };
 export function typeQuery(type: string | null): Query {
   return { type, text: null, filters: [], sort: [], limit: null };
@@ -27,7 +27,7 @@ export function sortLabel(key: SortKey, fields: readonly FieldDefinition[]): str
 }
 export function filterLabel(filter: Filter, fields: readonly FieldDefinition[]): string {
   const name = fields.find(field => field.id === filter.field)?.name ?? filter.field;
-  return `${name} ${filterLabels[filter.op]}${filter.op === 'set' || filter.op === 'empty' ? '' : ` ${filter.value ?? ''}`}`;
+  return `${name} ${filterLabels[filter.op]}${filter.op === 'present' || filter.op === 'set' || filter.op === 'empty' ? '' : ` ${filter.value ?? ''}`}`;
 }
 /** Move this key to the front, flipping its direction when chosen again. */
 export function chooseSort(query: Query, key: Pick<SortKey, 'by' | 'field'>, direction?: SortKey['direction']): Query {
@@ -38,7 +38,7 @@ export function removeSort(query: Query, index: number): Query {
   return { ...query, sort: query.sort.filter((_, position) => position !== index) };
 }
 export function addFilter(query: Query, filter: Filter): Query {
-  return { ...query, filters: [...query.filters, { ...filter, value: filter.op === 'set' || filter.op === 'empty' ? null : filter.value }] };
+  return { ...query, filters: [...query.filters, { ...filter, value: filter.op === 'present' || filter.op === 'set' || filter.op === 'empty' ? null : filter.value }] };
 }
 export function removeFilter(query: Query, index: number): Query {
   return { ...query, filters: query.filters.filter((_, position) => position !== index) };

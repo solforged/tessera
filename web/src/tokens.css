@@ -5,8 +5,9 @@
 :root {
   color-scheme: dark;
 
-  /* Surfaces step up in lightness with elevation. */
-  --surface: #101719;   /* shell: sidebar, table headers, banners */
+  /* The canvas sits inside a slightly lighter shell. */
+  --shell: #1b2528;     /* global rail and sidebar */
+  --surface: #101719;   /* table headers and banners */
   --canvas: #151e21;    /* panes */
   --raised: #1d2a2e;    /* popups, pills, chips */
   --hover: #1b272a;
@@ -61,6 +62,9 @@
   --measure: 760px;          /* widest text column */
   --gutter: 48px;            /* handle and fold, left of the measure */
   --sidebar-width: 208px;
+  --rail-height: 48px;
+  --pane-header-height: 36px;
+  --search-width: 320px;
   --target-size: 24px;       /* pointer targets; touch targets are 44px */
   --touch-size: 44px;
   --icon-size: 16px;
@@ -71,7 +75,25 @@
   --popup-shadow: 0 12px 32px #0008;
   --dialog-shadow: 0 24px 64px #000a;
 
+  /* Motion acknowledges input without delaying the action. */
+  --motion-fast: 90ms;
+  --motion-ui: 140ms;
+  --motion-ease: cubic-bezier(.2, .8, .2, 1);
+  --motion-distance: var(--space-4);
+  --icon-hover-scale: 1.08;
+  --icon-press-scale: .94;
+
   font: var(--weight-body) var(--text-body)/var(--line-body) var(--font-body);
   background: var(--canvas);
   color: var(--text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-fast: 0ms;
+    --motion-ui: 0ms;
+    --motion-distance: 0px;
+    --icon-hover-scale: 1;
+    --icon-press-scale: 1;
+  }
 }

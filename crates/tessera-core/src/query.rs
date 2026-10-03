@@ -30,7 +30,11 @@ pub(crate) fn validate_query(conn: &Connection, query: &Query) -> Result<Vec<Fie
     };
     for filter in &query.filters {
         let definition = require(&filter.field)?;
-        if !matches!(filter.op, FilterOp::Set | FilterOp::Empty) && filter.value.is_none() {
+        if !matches!(
+            filter.op,
+            FilterOp::Present | FilterOp::Set | FilterOp::Empty
+        ) && filter.value.is_none()
+        {
             return Err(validation("filter value is required"));
         }
         if definition.kind == FieldKind::Number && ordered(filter.op) {
@@ -130,7 +134,13 @@ impl Notebook {
         let definitions = validate_query(&self.conn, query)?;
         let defs = definition_map(&definitions);
         let matched = query.text.as_deref().map(fts_query);
-        let owners = if query.r#type.is_none() && query.text.is_none() {
+        let filters = query
+            .filters
+            .iter()
+            .map(|filter| PreparedFilter::new(&self.conn, filter, defs[filter.field.as_str()].kind))
+            .collect::<Result<Vec<_>>>()?;
+        let present_owners = filters.iter().find_map(|filter| filter.owners.as_ref());
+        let owners = if present_owners.is_none() && query.r#type.is_none() && query.text.is_none() {
             let mut owners = HashSet::new();
             let mut entries = self.conn.prepare_cached(concat!(
                 hidden_blocks!(),
@@ -151,8 +161,11 @@ impl Notebook {
         } else {
             None
         };
+        let candidates = present_owners.or(owners.as_ref());
         let mut rows: Vec<QueryRow> = Vec::new();
-        if matched.as_ref().is_none_or(|text| !text.is_empty()) {
+        if matched.as_ref().is_none_or(|text| !text.is_empty())
+            && candidates.is_none_or(|owners| !owners.is_empty())
+        {
             // One joined read for candidates, values and reference targets. No
             // per-candidate or per-value queries, and no copied text in the index.
             let mut statement = self.conn.prepare_cached(concat!(hidden_blocks!(),
@@ -180,7 +193,7 @@ impl Notebook {
                         Box::new(error),
                     )
                 })?;
-                if owners.as_ref().is_some_and(|owners| !owners.contains(id)) {
+                if candidates.is_some_and(|owners| !owners.contains(id)) {
                     continue;
                 }
                 if rows.last().is_none_or(|r| r.block.block.id != id) {
@@ -224,11 +237,6 @@ impl Notebook {
                 }
             }
         }
-        let filters = query
-            .filters
-            .iter()
-            .map(|filter| PreparedFilter::new(filter, defs[filter.field.as_str()].kind))
-            .collect::<Result<Vec<_>>>()?;
         rows.retain(|row| filters.iter().all(|filter| filter.matches(row)));
         let total = rows.len();
         if !query.sort.is_empty() {
@@ -280,6 +288,9 @@ impl Notebook {
                 *frequencies.entry(field).or_default() += 1;
             }
         }
+        for filter in &query.filters {
+            frequencies.entry(filter.field.as_str()).or_default();
+        }
         let mut extra: Vec<_> = frequencies
             .into_iter()
             .filter(|(id, _)| !columns.iter().any(|column| column == id))
@@ -317,11 +328,50 @@ struct PreparedFilter<'a> {
     filter: &'a Filter,
     value: String,
     number: Option<f64>,
+    owners: Option<HashSet<String>>,
 }
 impl<'a> PreparedFilter<'a> {
-    fn new(filter: &'a Filter, kind: FieldKind) -> Result<Self> {
+    fn new(conn: &Connection, filter: &'a Filter, kind: FieldKind) -> Result<Self> {
+        let owners = if filter.op == FilterOp::Present {
+            let mut owners = HashSet::new();
+            let mut statement = conn.prepare_cached(concat!(
+                hidden_blocks!(),
+                "SELECT e.text, e.parent_id FROM links l
+                 JOIN blocks e ON e.id = l.source_id
+                 JOIN blocks o ON o.id = e.parent_id
+                 WHERE l.target_id = ?1 AND e.deletion_id IS NULL AND o.deletion_id IS NULL
+                 AND e.rowid NOT IN (SELECT rowid FROM hidden)"
+            ))?;
+            let mut cursor = statement.query([&filter.field])?;
+            while let Some(row) = cursor.next()? {
+                let text = row.get_ref(0)?.as_str().map_err(|error| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        0,
+                        rusqlite::types::Type::Text,
+                        Box::new(error),
+                    )
+                })?;
+                if crate::fields::reference(text) != Some(filter.field.as_str()) {
+                    continue;
+                }
+                let owner = row.get_ref(1)?.as_str().map_err(|error| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        1,
+                        rusqlite::types::Type::Text,
+                        Box::new(error),
+                    )
+                })?;
+                if !owners.contains(owner) {
+                    owners.insert(owner.to_owned());
+                }
+            }
+            Some(owners)
+        } else {
+            None
+        };
         Ok(Self {
             filter,
+            owners,
             value: filter.value.as_deref().unwrap_or_default().to_lowercase(),
             number: if kind == FieldKind::Number && ordered(filter.op) {
                 Some(filter_number(
@@ -339,6 +389,10 @@ impl<'a> PreparedFilter<'a> {
             .map(Vec::as_slice)
             .unwrap_or_default();
         match self.filter.op {
+            FilterOp::Present => self
+                .owners
+                .as_ref()
+                .is_some_and(|owners| owners.contains(&row.block.block.id)),
             FilterOp::Set => !values.is_empty(),
             FilterOp::Empty => values.is_empty(),
             FilterOp::IsNot => !values.iter().any(|v| self.compare(v, FilterOp::Is)),
