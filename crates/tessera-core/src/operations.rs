@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt::Write;
 
 use rusqlite::{OptionalExtension, Transaction, TransactionBehavior, params};
@@ -11,8 +11,8 @@ use crate::storage::{
     validation,
 };
 use crate::{
-    Batch, BlockKind, Committed, Error, Notebook, Operation, Result, Revision, SettingRevision,
-    TextRewrite,
+    Batch, BlockCapabilities, BlockKind, Committed, Error, Notebook, Operation, Result,
+    ReviewSession, Revision, SettingRevision, TextRewrite, WorkSession,
 };
 
 const GAP: i64 = 1024;
@@ -69,6 +69,13 @@ impl Notebook {
             seq,
             revisions: Vec::new(),
             settings: Vec::new(),
+            capability_sources: HashSet::new(),
+            card_sources: HashSet::new(),
+            cards: BTreeMap::new(),
+            work_sessions: BTreeMap::new(),
+            review_sessions: BTreeMap::new(),
+            decks: BTreeMap::new(),
+            task_views: BTreeMap::new(),
             positions: HashMap::new(),
             deletions: Vec::new(),
             restructured_pages: HashSet::new(),
@@ -89,8 +96,11 @@ impl Notebook {
         engine.rewrite_incoming_tags()?;
         engine.derive_tags()?;
         engine.reconcile_titles()?;
+        engine.derive_cards()?;
         for revision in &engine.revisions {
-            field_changes.capture(&tx, &revision.id)?;
+            if engine.positions[&revision.id].fields {
+                field_changes.capture(&tx, &revision.id)?;
+            }
         }
         field_changes.derive(&tx)?;
         let mut views: Vec<&str> = Vec::new();
@@ -101,6 +111,7 @@ impl Notebook {
                 views.push(id);
             }
         }
+        let capabilities = engine.capabilities()?;
         let mut restructured_pages: Vec<_> = engine.restructured_pages.into_iter().collect();
         restructured_pages.sort_unstable();
         let committed = Committed {
@@ -109,6 +120,12 @@ impl Notebook {
             settings: engine.settings,
             deletions: engine.deletions,
             text_rewrites: engine.text_rewrites,
+            capabilities,
+            cards: engine.cards.into_values().collect(),
+            work_sessions: engine.work_sessions.into_values().collect(),
+            review_sessions: engine.review_sessions.into_values().collect(),
+            decks: engine.decks.into_values().collect(),
+            task_views: engine.task_views.into_values().collect(),
             replayed: false,
         };
         let mut insert = tx.prepare_cached(
@@ -166,7 +183,14 @@ struct Engine<'a, 'conn> {
     seq: i64,
     revisions: Vec<Revision>,
     settings: Vec<SettingRevision>,
-    positions: HashMap<String, (usize, bool)>,
+    capability_sources: HashSet<String>,
+    card_sources: HashSet<String>,
+    cards: BTreeMap<String, Revision>,
+    work_sessions: BTreeMap<String, WorkSession>,
+    review_sessions: BTreeMap<String, ReviewSession>,
+    decks: BTreeMap<String, Revision>,
+    task_views: BTreeMap<String, Revision>,
+    positions: HashMap<String, Touched>,
     deletions: Vec<String>,
     restructured_pages: HashSet<String>,
     changed_titles: HashSet<String>,
@@ -175,6 +199,12 @@ struct Engine<'a, 'conn> {
     rewrite_positions: HashMap<String, usize>,
     operations: &'a [Operation],
     op_index: usize,
+}
+
+struct Touched {
+    position: usize,
+    tags: bool,
+    fields: bool,
 }
 
 struct TagRename {
@@ -204,11 +234,22 @@ struct NewBlock<'a> {
 
 impl Engine<'_, '_> {
     fn touch(&mut self, id: &str, revision: i64) {
+        self.record_revision(id, revision);
+        self.positions.get_mut(id).expect("touched block").fields = true;
+    }
+
+    fn record_revision(&mut self, id: &str, revision: i64) {
         if let Some(position) = self.positions.get(id) {
-            self.revisions[position.0].revision = revision;
+            self.revisions[position.position].revision = revision;
         } else {
-            self.positions
-                .insert(id.to_owned(), (self.revisions.len(), false));
+            self.positions.insert(
+                id.to_owned(),
+                Touched {
+                    position: self.revisions.len(),
+                    tags: false,
+                    fields: false,
+                },
+            );
             self.revisions.push(Revision {
                 id: id.to_owned(),
                 revision,
@@ -217,7 +258,41 @@ impl Engine<'_, '_> {
     }
 
     fn tags_changed(&mut self, id: &str) {
-        self.positions.get_mut(id).expect("touched block").1 = true;
+        self.positions.get_mut(id).expect("touched block").tags = true;
+    }
+
+    fn derive_cards(&mut self) -> Result<()> {
+        if self.card_sources.is_empty() {
+            return Ok(());
+        }
+        let mut sources: Vec<_> = self.card_sources.drain().collect();
+        sources.sort_unstable();
+        for revision in crate::card_store::derive_sources(self.tx, &sources, self.now)? {
+            self.cards.insert(revision.id.clone(), revision);
+        }
+        Ok(())
+    }
+
+    fn capabilities(&mut self) -> Result<Vec<BlockCapabilities>> {
+        if !self.cards.is_empty() {
+            let ids: Vec<_> = self.cards.keys().collect();
+            let mut sources = self.tx.prepare_cached(
+                "SELECT DISTINCT source_block_id FROM card_units
+                 WHERE id IN (SELECT value FROM json_each(?1))",
+            )?;
+            for source in sources.query_map(
+                [serde_json::to_string(&ids).expect("card IDs serialize")],
+                |row| row.get::<_, String>(0),
+            )? {
+                self.capability_sources.insert(source?);
+            }
+        }
+        if self.capability_sources.is_empty() {
+            return Ok(Vec::new());
+        }
+        let mut ids: Vec<_> = self.capability_sources.drain().collect();
+        ids.sort_unstable();
+        crate::task_store::capabilities_for(self.tx, &ids)
     }
 
     fn prepare_tag_rename(
@@ -257,7 +332,7 @@ impl Engine<'_, '_> {
         // Membership derivation is deferred. Include newly inserted or edited
         // sources that already refer to the old live title at this operation.
         for revision in &self.revisions {
-            if !self.positions[&revision.id].1 || sources.contains(&revision.id) {
+            if !self.positions[&revision.id].tags || sources.contains(&revision.id) {
                 continue;
             }
             let source: Option<String> = self
@@ -394,7 +469,7 @@ impl Engine<'_, '_> {
                         .then_some(replacement.spelling.as_str())
                 });
                 if text.is_none() && !manual_rewrites.is_empty() {
-                    self.bump(&current)?;
+                    self.bump(&current, true)?;
                 }
                 if !matched {
                     continue;
@@ -434,7 +509,7 @@ impl Engine<'_, '_> {
         let mut position = 0;
         while position < self.revisions.len() {
             let id = &self.revisions[position].id;
-            if self.positions[id].1 {
+            if self.positions[id].tags {
                 let text: Option<String> = self
                     .tx
                     .prepare_cached(
@@ -546,6 +621,9 @@ impl Engine<'_, '_> {
         self.unused(id)?;
         Self::heading(heading)?;
         validate_text(kind, text)?;
+        if kind == BlockKind::Block {
+            self.card_sources.insert(id.to_owned());
+        }
         let (kind, title_key) = match kind {
             BlockKind::Block => ("block", None),
             BlockKind::Page => ("page", Some(text.to_lowercase())),
@@ -594,6 +672,9 @@ impl Engine<'_, '_> {
         derive_links(self.tx, &current.block.id, text)?;
         self.touch(&current.block.id, current.block.revision + 1);
         self.tags_changed(&current.block.id);
+        if current.block.kind == BlockKind::Block {
+            self.card_sources.insert(current.block.id.clone());
+        }
         if let Some(rename) = rename {
             self.pending_renames.push(rename);
         }
@@ -625,6 +706,7 @@ impl Engine<'_, '_> {
 
     fn delete(&mut self, id: &str) -> Result<()> {
         let current = self.live(id)?;
+        crate::work_store::guard_hide_subtree(self.tx, id)?;
         if current.block.kind == BlockKind::Page {
             self.changed_titles
                 .insert(current.block.text.to_lowercase());
@@ -803,6 +885,7 @@ impl Engine<'_, '_> {
         {
             return Ok(());
         }
+        crate::work_store::guard_move(self.tx, &current.block.id, parent_id)?;
         let ordinal = self.ordinal(parent_id, after, Some(&current.block.id))?;
         self.restructured_pages
             .insert(current.block.page_id.clone());
@@ -832,6 +915,9 @@ impl Engine<'_, '_> {
                 "merge destination must be outside the source subtree",
             ));
         }
+        crate::task_store::guard_merge(self.tx, &source.block.id)?;
+        crate::card_store::guard_merge(self.tx, &source.block.id)?;
+        crate::work_store::guard_move(self.tx, &source.block.id, &destination.block.id)?;
         let mut text =
             String::with_capacity(destination.block.text.len() + source.block.text.len());
         text.push_str(&destination.block.text);
@@ -853,12 +939,16 @@ impl Engine<'_, '_> {
         self.delete(&source.block.id)
     }
 
-    fn bump(&mut self, current: &Stored) -> Result<()> {
+    fn bump(&mut self, current: &Stored, derive_fields: bool) -> Result<()> {
         self.tx.execute(
             "UPDATE blocks SET revision = revision + 1, updated_at = ?1 WHERE id = ?2",
             params![self.now, current.block.id],
         )?;
-        self.touch(&current.block.id, current.block.revision + 1);
+        if derive_fields {
+            self.touch(&current.block.id, current.block.revision + 1);
+        } else {
+            self.record_revision(&current.block.id, current.block.revision + 1);
+        }
         Ok(())
     }
 
@@ -939,6 +1029,9 @@ impl Engine<'_, '_> {
             } => {
                 let current = self.checked(id, *base_revision, index, false)?;
                 if current.block.archived != *archived {
+                    if *archived {
+                        crate::work_store::guard_hide_subtree(self.tx, id)?;
+                    }
                     self.tx.execute("UPDATE blocks SET archived = ?1, revision = revision + 1, updated_at = ?2 WHERE id = ?3",
                         params![archived, self.now, id])?;
                     self.touch(id, current.block.revision + 1);
@@ -958,7 +1051,7 @@ impl Engine<'_, '_> {
                      VALUES (?1, ?2, (SELECT id FROM blocks WHERE kind = 'page' AND deletion_id IS NULL AND title_key = ?2), 1, ?3)",
                     params![id, title.to_lowercase(), title],
                 )?;
-                self.bump(&current)?;
+                self.bump(&current, true)?;
                 self.tags_changed(id);
                 self.restructured_pages
                     .insert(current.block.page_id.clone());
@@ -981,7 +1074,7 @@ impl Engine<'_, '_> {
                 }
                 self.restructured_pages
                     .insert(current.block.page_id.clone());
-                self.bump(&current)
+                self.bump(&current, true)
             }
             Operation::Split {
                 id,
@@ -1000,6 +1093,7 @@ impl Engine<'_, '_> {
                 {
                     return Err(validation("split left + right must equal the current text"));
                 }
+                crate::card_store::guard_split(self.tx, id, left, right)?;
                 self.unused(new_id)?;
                 let parent = current
                     .block
@@ -1059,7 +1153,7 @@ impl Engine<'_, '_> {
                 let current = self.checked(id, *base_revision, index, false)?;
                 self.tx.execute("INSERT INTO fields(block_id, kind) VALUES (?1, ?2) ON CONFLICT(block_id) DO UPDATE SET kind = excluded.kind",
                     params![id, kind.as_str()])?;
-                self.bump(&current)
+                self.bump(&current, true)
             }
             Operation::SetTypeFields {
                 type_id,
@@ -1085,7 +1179,7 @@ impl Engine<'_, '_> {
                 for (position, field) in fields.iter().enumerate() {
                     insert.execute(params![type_id, field, position as i64])?;
                 }
-                self.bump(&current)
+                self.bump(&current, true)
             }
             Operation::SaveView {
                 id,
@@ -1167,6 +1261,143 @@ impl Engine<'_, '_> {
                 }
                 Ok(())
             }
+            Operation::SetTask {
+                id, base_revision, ..
+            }
+            | Operation::CompleteTask {
+                id, base_revision, ..
+            }
+            | Operation::ReverseTaskCompletion {
+                id, base_revision, ..
+            }
+            | Operation::SetProject {
+                id, base_revision, ..
+            } => {
+                let current = self.checked(id, *base_revision, index, false)?;
+                if crate::task_store::apply(self.tx, operation, self.now, self.seq)? {
+                    self.bump(&current, false)?;
+                    self.capability_sources.insert(id.clone());
+                }
+                Ok(())
+            }
+            Operation::StartWork {
+                id, base_revision, ..
+            }
+            | Operation::StopWork {
+                id, base_revision, ..
+            }
+            | Operation::EditWorkNote {
+                id, base_revision, ..
+            }
+            | Operation::SetWorkSessionState {
+                id, base_revision, ..
+            } => {
+                let current = self.checked(id, *base_revision, index, false)?;
+                if let Some(session) =
+                    crate::work_store::apply(self.tx, operation, self.now, self.seq, index)?
+                {
+                    self.bump(&current, false)?;
+                    self.work_sessions.insert(session.id.clone(), session);
+                }
+                Ok(())
+            }
+            Operation::StartReviewSession { .. }
+            | Operation::FinishReviewSession { .. }
+            | Operation::GradeCard { .. }
+            | Operation::ResetCard { .. }
+            | Operation::SaveDeck { .. }
+            | Operation::DeleteDeck { .. } => {
+                // A preceding text edit must invalidate stale shown definitions
+                // before a grade or reset checks the card's own revision.
+                if matches!(
+                    operation,
+                    Operation::GradeCard { .. } | Operation::ResetCard { .. }
+                ) {
+                    self.derive_cards()?;
+                }
+                let changes =
+                    crate::review_store::apply(self.tx, operation, self.now, self.seq, index)?;
+                for revision in changes.cards {
+                    self.cards.insert(revision.id.clone(), revision);
+                }
+                for session in changes.sessions {
+                    self.review_sessions.insert(session.id.clone(), session);
+                }
+                for revision in changes.decks {
+                    self.decks.insert(revision.id.clone(), revision);
+                }
+                Ok(())
+            }
+            Operation::SaveTaskView { .. } | Operation::DeleteTaskView { .. } => {
+                let revision = crate::task_query::apply_view(self.tx, operation, self.now, index)?;
+                self.task_views.insert(revision.id.clone(), revision);
+                Ok(())
+            }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn legacy_persisted_receipt_replays_and_streams_without_new_sidecars() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut notebook = Notebook::open(directory.path()).unwrap();
+        let id = ulid::Ulid::from(1u128).to_string();
+        let batch = Batch {
+            actor: crate::Actor::Person,
+            reason: None,
+            idempotency_key: Some("legacy-receipt".into()),
+            operations: vec![Operation::CreatePage {
+                id: id.clone(),
+                title: "Legacy".into(),
+            }],
+        };
+        let committed = notebook.apply(&batch).unwrap();
+        let mut legacy = serde_json::to_value(&committed).unwrap();
+        for field in [
+            "capabilities",
+            "cards",
+            "work_sessions",
+            "review_sessions",
+            "decks",
+            "task_views",
+            "settings",
+            "text_rewrites",
+        ] {
+            legacy.as_object_mut().unwrap().remove(field);
+        }
+        notebook
+            .conn
+            .execute(
+                "UPDATE changes SET committed = ?1 WHERE seq = ?2",
+                params![serde_json::to_string(&legacy).unwrap(), committed.seq],
+            )
+            .unwrap();
+        drop(notebook);
+
+        let mut notebook = Notebook::open(directory.path()).unwrap();
+        let replayed = notebook.apply(&batch).unwrap();
+        assert!(replayed.replayed);
+        assert_eq!(replayed.seq, committed.seq);
+        assert_eq!(replayed.revisions, committed.revisions);
+        assert!(replayed.capabilities.is_empty());
+        assert!(replayed.cards.is_empty());
+        assert!(replayed.work_sessions.is_empty());
+        assert!(replayed.review_sessions.is_empty());
+        assert!(replayed.decks.is_empty());
+        assert!(replayed.task_views.is_empty());
+        let changes = notebook.changes_since(0, 10).unwrap();
+        assert_eq!(changes.len(), 1);
+        assert_eq!(changes[0].seq, committed.seq);
+        assert_eq!(changes[0].blocks, vec![notebook.block(&id).unwrap()]);
+        assert!(changes[0].capabilities.is_empty());
+        assert!(changes[0].cards.is_empty());
+        assert!(changes[0].work_sessions.is_empty());
+        assert!(changes[0].review_sessions.is_empty());
+        assert!(changes[0].decks.is_empty());
+        assert!(changes[0].task_views.is_empty());
     }
 }
