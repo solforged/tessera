@@ -53,6 +53,27 @@ pub(crate) fn validate_query(conn: &Connection, query: &Query) -> Result<Vec<Fie
     Ok(definitions)
 }
 
+pub(crate) fn validate_source_query(conn: &Connection, query: &Query) -> Result<()> {
+    validate_query(conn, query)?;
+    validate_source_type(conn, query)
+}
+
+fn validate_source_type(conn: &Connection, query: &Query) -> Result<()> {
+    if let Some(id) = &query.r#type {
+        let live = conn
+            .prepare_cached(concat!(
+                hidden_blocks!(),
+                "SELECT EXISTS(SELECT 1 FROM blocks b WHERE b.id = ?1 AND b.kind = 'page'
+             AND b.deletion_id IS NULL AND b.rowid NOT IN (SELECT rowid FROM hidden))"
+            ))?
+            .query_row([id], |row| row.get::<_, bool>(0))?;
+        if !live {
+            return Err(validation(format!("not a live type page: {id}")));
+        }
+    }
+    Ok(())
+}
+
 fn ordered(op: FilterOp) -> bool {
     matches!(
         op,
@@ -131,7 +152,18 @@ impl Notebook {
     }
 
     pub fn query(&self, query: &Query) -> Result<QueryResult> {
+        self.query_sources(query, true)
+    }
+
+    pub(crate) fn query_all_sources(&self, query: &Query) -> Result<QueryResult> {
+        self.query_sources(query, false)
+    }
+
+    fn query_sources(&self, query: &Query, truncate: bool) -> Result<QueryResult> {
         let definitions = validate_query(&self.conn, query)?;
+        if !truncate {
+            validate_source_type(&self.conn, query)?;
+        }
         let defs = definition_map(&definitions);
         let matched = query.text.as_deref().map(fts_query);
         let filters = query
@@ -274,7 +306,9 @@ impl Notebook {
             });
             rows = keyed.into_iter().map(|(row, _)| row).collect();
         }
-        rows.truncate(query.limit.unwrap_or(500));
+        if truncate {
+            rows.truncate(query.limit.unwrap_or(500));
+        }
         let mut columns = query
             .r#type
             .as_deref()

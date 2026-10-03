@@ -81,6 +81,8 @@ pub struct BlockCapabilities {
     pub block_id: String,
     pub task: Option<TaskState>,
     pub project: Option<ProjectState>,
+    pub merge_protected: bool,
+    pub reviewed_cards: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -123,6 +125,7 @@ pub struct ReviewSession {
     pub started_at: i64,
     pub ended_at: Option<i64>,
     pub state: ReviewSessionState,
+    pub revision: i64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -276,4 +279,26 @@ pub struct Deck {
     pub revision: i64,
     pub created_at: i64,
     pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TaskView {
+    pub id: String,
+    pub name: String,
+    pub query: TaskQuery,
+    pub revision: i64,
+    pub created_at: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GradePreview {
+    pub grade: Grade,
+    pub interval_days: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CardPreviews {
+    pub current: Vec<GradePreview>,
+    pub reset: Vec<GradePreview>,
 }

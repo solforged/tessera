@@ -5,7 +5,9 @@ use rusqlite::{OptionalExtension, params};
 use crate::storage::{
     block_at, block_columns, not_found, stored, validate_date, validate_id, validation,
 };
-use crate::{Backlink, Block, BlockInPage, ChangeEvent, Notebook, PageView, Result, Row};
+use crate::{
+    Backlink, Block, BlockInPage, ChangeEvent, Committed, Notebook, PageView, Result, Row,
+};
 
 fn sql_limit(limit: usize) -> i64 {
     i64::try_from(limit).unwrap_or(i64::MAX)
@@ -139,6 +141,7 @@ impl Notebook {
             root,
             rows,
             targets,
+            capabilities: crate::task_store::page_capabilities(&self.conn, id)?,
         })
     }
 
@@ -336,7 +339,7 @@ impl Notebook {
         let mut statement = self.conn.prepare_cached(concat!(
             "SELECT c.seq, c.actor, c.reason, c.created_at, c.restructured_pages, r.block_id, ",
             block_columns!("b"),
-            ", b.deletion_id, c.views, json_extract(c.committed, '$.settings')
+            ", b.deletion_id, c.views, c.committed
              FROM (SELECT * FROM changes WHERE seq > ?1 ORDER BY seq LIMIT ?2) c
              LEFT JOIN change_revisions r ON r.change_seq = c.seq
              LEFT JOIN blocks b ON b.id = r.block_id ORDER BY c.seq, r.position",
@@ -348,6 +351,8 @@ impl Notebook {
             if changes.last().is_none_or(|change| change.seq != seq) {
                 let actor: String = row.get(1)?;
                 let pages: String = row.get(4)?;
+                let committed: Committed = serde_json::from_str(&row.get::<_, String>(18)?)
+                    .map_err(|error| validation(format!("invalid stored result: {error}")))?;
                 changes.push(ChangeEvent {
                     seq,
                     actor: serde_json::from_str(&actor)
@@ -360,14 +365,28 @@ impl Notebook {
                         .map_err(|error| validation(format!("invalid stored pages: {error}")))?,
                     views: serde_json::from_str(&row.get::<_, String>(17)?)
                         .map_err(|error| validation(format!("invalid stored view IDs: {error}")))?,
-                    settings: row
-                        .get::<_, Option<String>>(18)?
-                        .map(|json| serde_json::from_str::<Vec<crate::SettingRevision>>(&json))
-                        .transpose()
-                        .map_err(|error| validation(format!("invalid stored settings: {error}")))?
-                        .unwrap_or_default()
+                    settings: committed
+                        .settings
                         .into_iter()
                         .map(|setting| setting.key)
+                        .collect(),
+                    capabilities: committed.capabilities,
+                    cards: committed.cards.into_iter().map(|card| card.id).collect(),
+                    work_sessions: committed
+                        .work_sessions
+                        .into_iter()
+                        .map(|session| session.id)
+                        .collect(),
+                    review_sessions: committed
+                        .review_sessions
+                        .into_iter()
+                        .map(|session| session.id)
+                        .collect(),
+                    decks: committed.decks.into_iter().map(|deck| deck.id).collect(),
+                    task_views: committed
+                        .task_views
+                        .into_iter()
+                        .map(|view| view.id)
                         .collect(),
                 });
             }
@@ -383,6 +402,35 @@ impl Notebook {
                 } else {
                     change.blocks.push(block_at(row, 6)?);
                 }
+            }
+        }
+        let ids: HashSet<_> = changes
+            .iter()
+            .flat_map(|change| {
+                change
+                    .capabilities
+                    .iter()
+                    .map(|capability| capability.block_id.clone())
+            })
+            .collect();
+        if !ids.is_empty() {
+            let mut ids: Vec<_> = ids.into_iter().collect();
+            ids.sort_unstable();
+            let current: HashMap<_, _> = crate::task_store::capabilities_for(&self.conn, &ids)?
+                .into_iter()
+                .map(|capability| (capability.block_id.clone(), capability))
+                .collect();
+            for change in &mut changes {
+                // Like block rows, capability rows represent the current state,
+                // even when the receipt itself predates a later mutation.
+                change.capabilities.retain_mut(|capability| {
+                    if let Some(value) = current.get(&capability.block_id) {
+                        capability.clone_from(value);
+                        true
+                    } else {
+                        false
+                    }
+                });
             }
         }
         Ok(changes)

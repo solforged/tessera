@@ -38,6 +38,12 @@ Reads are set-based. Loading a page is a handful of queries for blocks, links, c
 
 Field values are indexed as the text that produces them is written: an owner, a field, an entry and a value block. The index stores no copies of text; a query reads the value blocks through the field's current kind, so changing a kind never touches the index. Field-presence queries use whole entry references in the link index, not value counts, so empty entries remain discoverable. Queries gather candidates by type membership, full-text search or field ownership, then filter and sort the readings in memory, which keeps every comparison rule in one place.
 
+Tasks and projects store retained capability rows keyed by block ID. Task occurrences and work sessions remain separate audit records. Capability writes check the owning block revision; semantic no-ops do not bump it. Page reads and change events carry set-based capability sidecars, including identity-protection flags for retained task/project or review history.
+
+Card units use a unique source-block/role-key identity. Authored text changes derive only the affected sources, once at the end of the batch; grading or resetting first flushes preceding authored source edits. Existing deferred tag renames still rewrite after explicit operations. Migration 009 backfills definitions once without changing source text or revisions. Reopening a current notebook does not rebuild cards.
+
+Review, deck and task-view operations use the same attributed, idempotent batch path. Their resource revisions stay separate from block revisions in receipts and change notifications. Immutable review events retain the shown definition and before/after scheduler state. Task/card source queries reuse field-query selection without its intermediate row limit; outer capability filters and ordering run before truncation.
+
 ## Service
 
 `tessera-service` holds the only write connection and a small pool of read connections. Agent context queries run on readers with a time budget, so they never block an edit.

@@ -43,7 +43,23 @@ export type Operation =
   | { op: 'set_type_fields'; type_id: string; base_revision: number; fields: string[] }
   | { op: 'save_view'; id: string; base_revision: number | null; name: string; query: Query }
   | { op: 'delete_view'; id: string; base_revision: number }
-  | { op: 'set_setting'; key: string; base_revision: number | null; value: string };
+  | { op: 'set_setting'; key: string; base_revision: number | null; value: string }
+  | { op: 'set_task'; id: string; base_revision: number; task: TaskState | null }
+  | { op: 'complete_task'; id: string; base_revision: number; occurrence_id: string; completed_on: string }
+  | { op: 'reverse_task_completion'; id: string; base_revision: number; occurrence_id: string }
+  | { op: 'set_project'; id: string; base_revision: number; project: ProjectState | null }
+  | { op: 'start_work'; id: string; base_revision: number; session_id: string; started_at: number; note: string }
+  | { op: 'stop_work'; id: string; base_revision: number; session_id: string; session_revision: number; ended_at: number; note: string }
+  | { op: 'edit_work_note'; id: string; base_revision: number; session_id: string; session_revision: number; note: string }
+  | { op: 'set_work_session_state'; id: string; base_revision: number; session_id: string; session_revision: number; ended_at: number | null; reversed: boolean }
+  | { op: 'start_review_session'; id: string; deck_id: string | null; started_at: number }
+  | { op: 'finish_review_session'; id: string; base_revision: number; state: ReviewSessionState; ended_at: number }
+  | { op: 'grade_card'; id: string; base_revision: number; definition_revision: number; event_id: string; session_id: string | null; grade: Grade; reset: boolean; shown_front: string; shown_back: string; reviewed_at: number }
+  | { op: 'reset_card'; id: string; base_revision: number; event_id: string; session_id: string | null; reviewed_at: number }
+  | { op: 'save_deck'; id: string; base_revision: number | null; name: string; query: CardQuery }
+  | { op: 'delete_deck'; id: string; base_revision: number }
+  | { op: 'save_task_view'; id: string; base_revision: number | null; name: string; query: TaskQuery }
+  | { op: 'delete_task_view'; id: string; base_revision: number };
 
 export interface Batch {
   actor: Actor;
@@ -71,6 +87,13 @@ export interface Committed {
    * `after`, so undo can restore exact spellings with a revision check.
    */
   text_rewrites: TextRewrite[];
+  /** Absent in persisted receipts from before Action and Learning. */
+  capabilities?: BlockCapabilities[];
+  cards?: Revision[];
+  work_sessions?: WorkSession[];
+  review_sessions?: ReviewSession[];
+  decks?: Revision[];
+  task_views?: Revision[];
 }
 
 export interface TextRewrite {
@@ -93,6 +116,8 @@ export interface PageView {
   rows: Row[];
   /** Live blocks outside the page that its rows reference, and the pages its tags name. */
   targets: Block[];
+  /** Absent in persisted page snapshots from before Action and Learning. */
+  capabilities?: BlockCapabilities[];
 }
 
 /** A block shown with its page: backlinks, search hits and type members. */
@@ -124,6 +149,12 @@ export interface ChangeEvent {
   /** Absent on change events produced before saved views were introduced. */
   views?: string[];
   settings?: string[];
+  capabilities?: BlockCapabilities[];
+  cards?: string[];
+  work_sessions?: string[];
+  review_sessions?: string[];
+  decks?: string[];
+  task_views?: string[];
 }
 
 export interface NotebookInfo {
@@ -195,7 +226,7 @@ export interface TaskOccurrence {
 export type ProjectStatus = 'active' | 'done' | 'cancelled';
 export interface ProjectState { outcome: string; deadline: string | null; status: ProjectStatus }
 export interface ProjectRecord { block_id: string; state: ProjectState }
-export interface BlockCapabilities { block_id: string; task: TaskState | null; project: ProjectState | null }
+export interface BlockCapabilities { block_id: string; task: TaskState | null; project: ProjectState | null; merge_protected: boolean; reviewed_cards: boolean }
 
 export interface WorkSession {
   id: string;
@@ -240,6 +271,7 @@ export interface ReviewSession {
   started_at: number;
   ended_at: number | null;
   state: ReviewSessionState;
+  revision: number;
 }
 
 export type ReviewEventKind = 'grade' | 'reset';
@@ -298,3 +330,6 @@ export interface CardQuery { source: Query | null; selection: CardSelection; lim
 export interface CardRow { card: CardUnit; source: BlockInPage; last_review: ReviewEvent | null }
 export interface CardQueryResult { rows: CardRow[]; total: number }
 export interface Deck { id: string; name: string; query: CardQuery; revision: number; created_at: number; updated_at: number }
+export interface TaskView { id: string; name: string; query: TaskQuery; revision: number; created_at: number; updated_at: number }
+export interface GradePreview { grade: Grade; interval_days: number }
+export interface CardPreviews { current: GradePreview[]; reset: GradePreview[] }

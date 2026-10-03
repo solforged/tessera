@@ -4,6 +4,12 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::capabilities::{
+    BlockCapabilities, CardQuery, ProjectState, ReviewSession, ReviewSessionState, TaskQuery,
+    TaskState, WorkSession,
+};
+use crate::scheduler::Grade;
+
 /// What a block is. Pages and journal days are roots; everything else has a
 /// parent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -157,6 +163,107 @@ pub enum Operation {
         base_revision: Option<i64>,
         value: String,
     },
+    SetTask {
+        id: String,
+        base_revision: i64,
+        task: Option<TaskState>,
+    },
+    CompleteTask {
+        id: String,
+        base_revision: i64,
+        occurrence_id: String,
+        completed_on: String,
+    },
+    ReverseTaskCompletion {
+        id: String,
+        base_revision: i64,
+        occurrence_id: String,
+    },
+    SetProject {
+        id: String,
+        base_revision: i64,
+        project: Option<ProjectState>,
+    },
+    StartWork {
+        id: String,
+        base_revision: i64,
+        session_id: String,
+        started_at: i64,
+        note: String,
+    },
+    StopWork {
+        id: String,
+        base_revision: i64,
+        session_id: String,
+        session_revision: i64,
+        ended_at: i64,
+        note: String,
+    },
+    EditWorkNote {
+        id: String,
+        base_revision: i64,
+        session_id: String,
+        session_revision: i64,
+        note: String,
+    },
+    SetWorkSessionState {
+        id: String,
+        base_revision: i64,
+        session_id: String,
+        session_revision: i64,
+        ended_at: Option<i64>,
+        reversed: bool,
+    },
+    StartReviewSession {
+        id: String,
+        deck_id: Option<String>,
+        started_at: i64,
+    },
+    FinishReviewSession {
+        id: String,
+        base_revision: i64,
+        state: ReviewSessionState,
+        ended_at: i64,
+    },
+    GradeCard {
+        id: String,
+        base_revision: i64,
+        definition_revision: i64,
+        event_id: String,
+        session_id: Option<String>,
+        grade: Grade,
+        reset: bool,
+        shown_front: String,
+        shown_back: String,
+        reviewed_at: i64,
+    },
+    ResetCard {
+        id: String,
+        base_revision: i64,
+        event_id: String,
+        session_id: Option<String>,
+        reviewed_at: i64,
+    },
+    SaveDeck {
+        id: String,
+        base_revision: Option<i64>,
+        name: String,
+        query: CardQuery,
+    },
+    DeleteDeck {
+        id: String,
+        base_revision: i64,
+    },
+    SaveTaskView {
+        id: String,
+        base_revision: Option<i64>,
+        name: String,
+        query: TaskQuery,
+    },
+    DeleteTaskView {
+        id: String,
+        base_revision: i64,
+    },
 }
 
 /// Operations committed together or not at all.
@@ -207,6 +314,18 @@ pub struct Committed {
     /// Resulting revisions of settings, which are not blocks.
     #[serde(default)]
     pub settings: Vec<SettingRevision>,
+    #[serde(default)]
+    pub capabilities: Vec<BlockCapabilities>,
+    #[serde(default)]
+    pub cards: Vec<Revision>,
+    #[serde(default)]
+    pub work_sessions: Vec<WorkSession>,
+    #[serde(default)]
+    pub review_sessions: Vec<ReviewSession>,
+    #[serde(default)]
+    pub decks: Vec<Revision>,
+    #[serde(default)]
+    pub task_views: Vec<Revision>,
     /// True when this is the stored result of an earlier identical batch.
     pub replayed: bool,
 }
@@ -229,6 +348,8 @@ pub struct PageView {
     /// Live blocks outside this page that its rows reference, and the pages
     /// named by its tags. A missing reference target is unresolved.
     pub targets: Vec<Block>,
+    #[serde(default)]
+    pub capabilities: Vec<BlockCapabilities>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -262,6 +383,18 @@ pub struct ChangeEvent {
     /// Settings changed by this batch; clients reload their settings.
     #[serde(default)]
     pub settings: Vec<String>,
+    #[serde(default)]
+    pub capabilities: Vec<BlockCapabilities>,
+    #[serde(default)]
+    pub cards: Vec<String>,
+    #[serde(default)]
+    pub work_sessions: Vec<String>,
+    #[serde(default)]
+    pub review_sessions: Vec<String>,
+    #[serde(default)]
+    pub decks: Vec<String>,
+    #[serde(default)]
+    pub task_views: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

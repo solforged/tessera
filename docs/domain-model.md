@@ -56,7 +56,15 @@ A view is a saved query with a name and a revision. Views are not blocks; saving
 
 ## Tasks
 
-A task capability adds status (todo, doing, waiting, done, cancelled), scheduled and deadline dates with optional times, warning lead, repeater and priority. Completing a recurring task records an occurrence and advances the dates. Completion never archives. Clocked work sessions belong to the task and keep their start, end and note.
+A task capability adds status (todo, doing, waiting, done, cancelled), scheduled and deadline dates with optional times, warning lead, repeater and priority. Dates are local civil dates; times are `HH:MM` labels, not timestamps. Scheduling after a deadline is valid. Removing the capability deactivates it without erasing its history.
+
+Completion records the exact planning snapshot and explicit completion date. A nonrecurring task becomes done; a recurring task stays on its original block and advances its dates. Fixed repeats advance one interval, catch-up repeats skip to the first interval after completion, and after-completion repeats count from the completion date. The scheduled date is the anchor when present, otherwise the deadline. Month/year repeats clamp to the last valid day; the signed separation between scheduled and deadline dates stays intact. Completion never archives. Undo reverses the exact latest occurrence only while its resulting task state still matches.
+
+Clocked work sessions retain their start, end, note and revision. Only one unreversed session may run in a notebook. Completion, cancellation, removal and hiding the running task require an explicit stop first; stop and completion can commit atomically. Reversing a work command retains its audit record.
+
+Task queries compose source type/text/field constraints with task status, priority, project ancestry and independent date ranges. Unfinished-or-recent selection includes unfinished tasks or an unreversed completion in the inclusive context-date range. Filtering precedes the outer result limit. Named task views retain the full query, including its date context.
+
+An agenda takes the displayed civil date, never an implicit device date. It merges schedule, deadline, warning, overdue, unplanned and completion reasons into one row per canonical source. A completion on that date uses the latest occurrence's planning snapshot and a done projection, not the next recurring plan. Cancelled tasks are excluded. Opening a row edits the original block; the journal contains no copied tasks.
 
 ## Investigations
 
@@ -72,11 +80,17 @@ These map the three kinds of knowledge in the [vision](vision.md): a fact is an 
 
 ## Projects
 
-A project capability gives a block an outcome, an optional deadline and a status. Tasks beneath it are its actions. Questions beneath it are its open questions. Completing a project does not reassess its questions.
+A project capability gives a block an outcome, an optional deadline and active, done or cancelled status. Tasks anywhere beneath it are its canonical actions; nested tasks report their nearest active project capability. A completed project's capability remains active until explicitly removed. Completing a project does not complete its tasks or reassess questions beneath it. Removing the capability retains its history and block identity.
 
 ## Cards
 
 Cards derive from block text: `front >> back` is forward, `front << back` is reverse, and `front <> back` makes both directions. `::` remains field shorthand. Numbered clozes use `{{c1::answer}}` or `{{c1::answer::hint}}`; repeated numbers form one unit. The source block plus a role key (`forward`, `reverse`, `cloze:c1`) identifies a card, so wording edits keep progress. Escapes, code and references shield literal syntax. Ambiguous or malformed explicit syntax produces diagnostics rather than guessed cards. Removing markup deactivates the unit. Review events record the shown text, grade, scheduler version and state before and after; a reset is an event, not an erasure. Scheduling starts with versioned SM-2.
+
+Only authored non-root blocks derive cards; page titles and journal dates do not. Derivation runs in the text transaction and changes definition revisions without rewriting scheduling state. Removed or malformed markup deactivates units; restoring a role or numbered cloze reuses its ID and progress. Archive and deletion hide cards from queues without destroying units or evidence.
+
+Splitting at the end leaves cards on their original source. An interior split cannot divide active card syntax; a start split cannot move a reviewed card onto a new identity. Merging away a source with any retained review event is rejected even after its markup is removed. Task and project history impose the same source-identity protection.
+
+Grading checks the card revision, definition revision and exact shown front/back. Optional review sessions retain open, finished or abandoned state; closing one never discards grades. A reset retains history, and reset-plus-grade commits both events atomically. Due queues include new cards after reviewed due cards, with stable tie ordering. Saved decks are revisioned card queries over canonical sources, not copies or separate card stores.
 
 ## Settings
 
@@ -88,7 +102,7 @@ Every committed operation writes a change row: actor (person, agent name or clie
 
 ## Derived data
 
-Links, full-text search, type membership from text, cards from text and field readings are all derived in the same transaction as the text that produces them. Each can be rebuilt from blocks.
+Links, full-text search, type membership from text, card definitions and field readings are derived in the same transaction as the text that produces them. Definitions can be rebuilt from blocks while retaining their role identities. Card schedules, review evidence, task occurrences and work sessions are authoritative history; rebuilding derived data never recreates or resets them.
 
 ## Open decisions
 

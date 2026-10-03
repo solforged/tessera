@@ -1,0 +1,2 @@
+.source-query-controls { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-8); min-width: 0; }
+.source-query-text { flex: 1 1 var(--sidebar-width); min-width: 0; max-width: var(--search-width); min-height: var(--row-height); padding-block: var(--space-2); }
