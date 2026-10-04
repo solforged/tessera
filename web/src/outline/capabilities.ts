@@ -7,8 +7,9 @@ import type { PopupAnchor } from '../ui/Popup';
 import { newTask } from '../tasks/quick-date';
 
 
+export type CapabilityKind = 'task' | 'schedule' | 'deadline' | 'repeat' | 'project' | 'work';
 export type CapabilityPopup = { id: string; anchor: PopupAnchor } & (
-  | { kind: 'task' | 'schedule' | 'project' | 'work' }
+  | { kind: CapabilityKind }
   | { kind: 'complete'; session: WorkSession; completedOn: string }
 );
 
@@ -44,7 +45,7 @@ export function createOutlineCapabilities(options: {
   // Event callbacks retain errors on their source row; controlled widgets also
   // receive the rejection so their entered draft is not discarded.
   const invoke = (operation: Promise<void>) => { void operation.catch(() => {}); };
-  function open(id: string, kind: 'task' | 'schedule' | 'project' | 'work', anchor = options.anchor(id)) {
+  function open(id: string, kind: CapabilityKind, anchor = options.anchor(id)) {
     if (!anchor || !doc.block(id)) return;
     setPopup({ id, kind, anchor });
   }
@@ -52,6 +53,11 @@ export function createOutlineCapabilities(options: {
   async function status(id: string, status: TaskStatus | null) {
     const completedOn = options.contextDate();
     await run(id, async () => {
+      // A new task starts Todo; any other status is a second step on the created task.
+      if (status !== null && !doc.block(id)?.task) {
+        await save({ kind: 'task', id, value: newTask() });
+        if (status === 'todo') return;
+      }
       if (status === 'done') {
         let active: WorkSession | null | undefined;
         if (notebook.connection() !== 'offline') {
@@ -81,5 +87,22 @@ export function createOutlineCapabilities(options: {
     options.onOpen({ kind: 'agenda', date, query: { source: null, filter: { selection: 'unfinished', statuses: [], recent_days: 7, scheduled: null, deadline: null, priority: null, project_id: id }, context_date: date, limit: null } }, beside);
   }
   function source(id: string, beside = false) { options.onOpen({ kind: 'page', pageId: doc.pageId, blockId: id }, beside); }
-  return { popup, busy, error, failure, run, save, edit, invoke, open, dismiss, status, toggle, complete, showActions, source };
+  /** Planning commands always land on a task; a plain block becomes a todo first. */
+  function ensureTask(id: string) {
+    if (doc.block(id) && !doc.block(id)!.task) invoke(edit(id, { kind: 'task', id, value: newTask() }));
+  }
+  /** Clock in on this task, or out when its own session is running. */
+  async function clock(id: string) {
+    await run(id, async () => {
+      if (!doc.block(id)?.task) await save({ kind: 'task', id, value: newTask() });
+      await doc.flush();
+      const active = await notebook.api.activeWorkSession();
+      const now = Date.now();
+      if (active && !active.reversed && active.ended_at === null) {
+        if (active.block_id !== id) throw new Error('Work is already running on another task.');
+        await save({ kind: 'stopWork', id, session: active, endedAt: now, note: active.note });
+      } else await save({ kind: 'startWork', id, startedAt: now });
+    });
+  }
+  return { popup, busy, error, failure, run, save, edit, invoke, open, dismiss, status, toggle, complete, showActions, source, ensureTask, clock };
 }

@@ -3,18 +3,18 @@ import type { Accessor } from 'solid-js';
 import { createVirtualizer, defaultRangeExtractor } from '@tanstack/solid-virtual';
 import type { EditorView } from '@codemirror/view';
 import type { VirtualItem } from '@tanstack/solid-virtual';
-import type { Block, FieldDefinition, WorkSession } from '../api/types';
+import type { Block, FieldDefinition, TaskStatus, WorkSession } from '../api/types';
 import { api } from '../api/client';
-import type { Caret, Edit, EditResult, NotebookClient, PageDocument, TextRange } from '../document/contract';
+import type { BlockState, Caret, Edit, EditResult, NotebookClient, PageDocument, TextRange } from '../document/contract';
 import type { Command, OutlinePaneProps, ViewState } from '../shell/contract';
 import { fieldEntryId, fieldEntryText, matchFieldEntry } from '../table/query';
 import { ProjectControls } from '../projects/ProjectControls';
 import { parseCardText } from '../review/card-text';
 import { DatePicker } from '../tasks/DatePicker';
-import { dateSuggestions, dateTokenAt, newTask, planDateToken } from '../tasks/quick-date';
+import { dateSuggestions, dateTokenAt, newTask, planDateToken, removeToken } from '../tasks/quick-date';
 import type { DateSuggestion, DateToken } from '../tasks/quick-date';
 import { JournalAgenda } from '../tasks/JournalAgenda';
-import { TaskControls, TaskStatusButton } from '../tasks/TaskControls';
+import { RepeatPopup, TaskControls, TaskStatusButton, priorities, priorityLabel, statusIcons, statusLabels, statuses } from '../tasks/TaskControls';
 import { WorkSessions } from '../tasks/WorkSessions';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
@@ -30,11 +30,22 @@ import { createOutlineCapabilities } from './capabilities';
 import type { CapabilityPopup } from './capabilities';
 import { orderedRange, selectedText, selectionIds, selectionRoots, visibleIds } from './visibility';
 import { completeReferences } from './completion';
+import { nextClozeNumber, rankSlash, slashTokenAt } from './slash';
+import type { SlashEntry, SlashToken } from './slash';
 import { TypePill } from './references';
 import './outline.css';
 
 interface Completion { from: number; to: number; query: string; manual?: { blockId: string; anchor: HTMLElement } }
 interface MenuState { anchor: HTMLElement; items: MenuItem[]; label: string }
+/** A slash-menu row: a block verb (`run`) or syntax that replaces the token (`insert`), or both. */
+interface SlashItem extends SlashEntry {
+  section: string;
+  icon: IconName;
+  keys?: string;
+  when?(block: BlockState | undefined): boolean;
+  insert?(text: string): { text: string; caret: number };
+  run?(id: string): void;
+}
 interface RowRange { anchor: string; head: string }
 interface WorkHistory { sessions: WorkSession[]; active: WorkSession | null; source: Block | null }
 type CompletionRow = { kind: 'block'; block: Block } | { kind: 'field'; field: FieldDefinition };
@@ -112,6 +123,8 @@ function Pane(props: OutlinePaneProps) {
   const [completionIndex, setCompletionIndex] = createSignal(0);
   const [dateCompletion, setDateCompletion] = createSignal<(DateToken & { id: string }) | null>(null);
   const [dateIndex, setDateIndex] = createSignal(0);
+  const [slashCompletion, setSlashCompletion] = createSignal<(SlashToken & { id: string }) | null>(null);
+  const [slashIndex, setSlashIndex] = createSignal(0);
   const [renaming, setRenaming] = createSignal(false);
   const [title, setTitle] = createSignal('');
   const [conflicts, setConflicts] = createSignal(new Set<string>());
@@ -122,6 +135,7 @@ function Pane(props: OutlinePaneProps) {
   let heading!: HTMLDivElement;
   let titleInput: HTMLInputElement | undefined;
   let completionList: HTMLDivElement | undefined;
+  let slashList: HTMLDivElement | undefined;
   const hosts = new Map<string, HTMLElement>();
   let editor: PaneEditor | undefined;
   let rowKey = '';
@@ -153,20 +167,32 @@ function Pane(props: OutlinePaneProps) {
   );
 
   const contextDate = () => doc.root()?.kind === 'journal' ? doc.root()!.text : props.notebook.todayDate();
-  const capabilities = createOutlineCapabilities({
-    doc, notebook: props.notebook, contextDate, caret,
-    anchor: id => id === props.pageId ? heading ?? null : hosts.get(id)?.closest<HTMLElement>('[data-block-id]') ?? null,
-    onOpen: props.onOpen,
-  });
-  /** `@` offers dates; choosing one makes the block a task scheduled for that day and removes the token. */
+  const rowAnchor = (id: string) => id === props.pageId ? heading ?? null : hosts.get(id)?.closest<HTMLElement>('[data-block-id]') ?? null;
+  const capabilities = createOutlineCapabilities({ doc, notebook: props.notebook, contextDate, caret, anchor: rowAnchor, onOpen: props.onOpen });
+  /** `@` offers dates; choosing one makes the block a task scheduled (or, after `@due`, due) that day and removes the token. */
   const dateRows = createMemo<DateSuggestion[]>(() => { const state = dateCompletion(); return state ? dateSuggestions(state.query, contextDate()) : []; });
+  /** `@d…` hints at the deadline form before it is typed out. */
+  const offerDeadline = createMemo(() => { const state = dateCompletion(); return !!state && state.field === 'scheduled' && 'due'.startsWith(state.query.toLowerCase()); });
   createEffect(() => { if (dateCompletion() && editing() !== dateCompletion()!.id) setDateCompletion(null); });
+  createEffect(() => { if (slashCompletion() && editing() !== slashCompletion()!.id) setSlashCompletion(null); });
   let dismissedDate: { id: string; from: number } | null = null;
-  function updateDateCompletion(text: string, at: Caret) {
+  let dismissedSlash: { id: string; from: number } | null = null;
+  /** One trigger at a time: a slash command being typed wins over an `@` before it. */
+  function updateTriggers(text: string, at: Caret) {
+    const idle = textRange() || composition();
+    if (dismissedSlash && (dismissedSlash.id !== at.id || text[dismissedSlash.from] !== '/')) dismissedSlash = null;
+    const slash = idle ? null : slashTokenAt(text, at.offset);
+    if (slash && dismissedSlash?.from !== slash.from) {
+      if (slashCompletion()?.query !== slash.query) setSlashIndex(0);
+      setSlashCompletion({ ...slash, id: at.id });
+      setDateCompletion(null);
+      return;
+    }
+    setSlashCompletion(null);
     if (dismissedDate && (dismissedDate.id !== at.id || text[dismissedDate.from] !== '@')) dismissedDate = null;
-    const token = textRange() || composition() ? null : dateTokenAt(text, at.offset);
+    const token = idle ? null : dateTokenAt(text, at.offset);
     if (!token || dismissedDate?.from === token.from) { setDateCompletion(null); return; }
-    if (dateCompletion()?.query !== token.query) setDateIndex(0);
+    if (dateCompletion()?.query !== token.query || dateCompletion()?.field !== token.field) setDateIndex(0);
     setDateCompletion({ ...token, id: at.id });
   }
   function dismissDate() {
@@ -174,12 +200,28 @@ function Pane(props: OutlinePaneProps) {
     if (state) dismissedDate = { id: state.id, from: state.from };
     setDateCompletion(null);
   }
+  /** Replaces the live token in the editor with `next`, keeping the document and caret in step. */
+  function rewriteEditing(id: string, next: { text: string; caret: number }): boolean {
+    if (!editor || editor.id !== id) return false;
+    const result = doc.edit({ kind: 'text', id, text: next.text }, caret());
+    if (!result.ok) { capabilities.failure(id, result.reason); return false; }
+    editor.sync(next.text);
+    editor.view.dispatch({ selection: { anchor: next.caret } });
+    setCaret({ id, offset: next.caret });
+    return true;
+  }
   function chooseDate(index = dateIndex()) {
     const state = dateCompletion();
     const id = editing();
     if (!state || !editor || id !== state.id || editor.id !== id) return;
+    const text = editor.view.state.doc.toString();
+    if (offerDeadline() && index === dateRows().length) {
+      const typed = '@due ';
+      if (rewriteEditing(id, { text: text.slice(0, state.from) + typed + text.slice(state.to), caret: state.from + typed.length })) updateTriggers(editor.view.state.doc.toString(), { id, offset: state.from + typed.length });
+      return;
+    }
     const choice = dateRows()[index] ?? null;
-    const plan = planDateToken(editor.view.state.doc.toString(), state, choice, doc.block(id)?.task ?? null);
+    const plan = planDateToken(text, state, choice, doc.block(id)?.task ?? null);
     setDateCompletion(null);
     const result = doc.edit({ kind: 'planTask', id, text: plan.text, value: plan.value }, caret());
     if (!result.ok) { capabilities.failure(id, result.reason); return; }
@@ -187,15 +229,53 @@ function Pane(props: OutlinePaneProps) {
     editor.view.dispatch({ selection: { anchor: plan.caret } });
     setCaret({ id, offset: plan.caret });
     void doc.flush().catch(reason => capabilities.failure(id, reason));
-    if (!choice) capabilities.open(id, 'schedule');
+    if (!choice) capabilities.open(id, state.field === 'deadline' ? 'deadline' : 'schedule');
     scheduleReport();
   }
   function dateKey(event: KeyboardEvent) {
     if (!dateCompletion()) return false;
-    const count = dateRows().length + 1;
+    const count = dateRows().length + (offerDeadline() ? 2 : 1);
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { setDateIndex(index => Math.max(0, Math.min(count - 1, index + (event.key === 'ArrowDown' ? 1 : -1)))); return true; }
     if ((event.key === 'Enter' || event.key === 'Tab') && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) { chooseDate(); return true; }
     if (event.key === 'Escape') { dismissDate(); return true; }
+    return false;
+  }
+  const slashRows = createMemo<SlashItem[]>(() => {
+    const state = slashCompletion();
+    if (!state) return [];
+    const block = doc.block(state.id);
+    return rankSlash(slashItems().filter(item => !item.when || item.when(block)), state.query);
+  });
+  function dismissSlash() {
+    const state = slashCompletion();
+    if (state) dismissedSlash = { id: state.id, from: state.from };
+    setSlashCompletion(null);
+  }
+  /** Removes `/query` (or swaps it for the item's syntax), then runs the item on the block. */
+  function chooseSlash(index = slashIndex()) {
+    const state = slashCompletion();
+    const id = editing();
+    const item = slashRows()[index];
+    if (!state || !item || !editor || id !== state.id || editor.id !== id) return;
+    const text = editor.view.state.doc.toString();
+    const insertion = item.insert?.(text);
+    const next = insertion
+      ? { text: text.slice(0, state.from) + insertion.text + text.slice(state.to), caret: state.from + insertion.caret }
+      : removeToken(text, state);
+    setSlashCompletion(null);
+    if (!rewriteEditing(id, next)) return;
+    if (insertion) { updateCompletion(next.text, { id, offset: next.caret }); updateTriggers(next.text, { id, offset: next.caret }); }
+    void doc.flush().catch(reason => capabilities.failure(id, reason));
+    item.run?.(id);
+    scheduleReport();
+  }
+  createEffect(() => { slashIndex(); slashRows(); requestAnimationFrame(() => slashList?.querySelector<HTMLElement>('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' })); });
+  function slashKey(event: KeyboardEvent) {
+    if (!slashCompletion()) return false;
+    const count = slashRows().length;
+    if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && count) { setSlashIndex(index => Math.max(0, Math.min(count - 1, index + (event.key === 'ArrowDown' ? 1 : -1)))); return true; }
+    if ((event.key === 'Enter' || event.key === 'Tab') && count && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) { chooseSlash(); return true; }
+    if (event.key === 'Escape') { dismissSlash(); return true; }
     return false;
   }
   /** Typing `[] ` or `[ ] ` at the start of a plain block makes it a task. */
@@ -611,10 +691,11 @@ function Pane(props: OutlinePaneProps) {
     return false;
   }
   function editorKey(event: KeyboardEvent, view: EditorView) {
-    if (dateKey(event) || popupKey(event)) return true;
+    if (slashKey(event) || dateKey(event) || popupKey(event)) return true;
     if (commonKey(event)) return true;
     if (event.key === 'Escape' && (!props.vim || editor?.mode() === 'normal')) { if (editing()) rowFocus(editing()!); return true; }
     if (props.vim && editor?.mode() !== 'insert') {
+      if (event.key === ' ' && editor?.mode() === 'normal' && editing() && !event.metaKey && !event.ctrlKey && !event.altKey) { leaderMenu(editing()!); return true; }
       if (event.key === 'u') { undo(); return true; }
       if (event.ctrlKey && event.key.toLowerCase() === 'r') { undo(true); return true; }
       return false;
@@ -638,12 +719,13 @@ function Pane(props: OutlinePaneProps) {
     if (event.metaKey && event.key.toLowerCase() === 'z') { undo(event.shiftKey); return true; }
     if (event.metaKey && event.code === 'Period') { event.shiftKey ? zoomOut() : selected() && zoomTo(selected()); return true; }
     const id = editing() ?? selected();
+    if (id && !rowRange() && !textRange() && event.metaKey && event.shiftKey && event.key === 'Enter' && !event.altKey && !event.ctrlKey) {
+      if (!event.repeat) statusMenu(id);
+      return true;
+    }
     if (id && !rowRange() && !textRange() && (event.altKey || event.metaKey) && event.key === 'Enter' && !(event.altKey && event.metaKey) && !event.ctrlKey && !event.shiftKey) {
       if (!event.repeat) capabilities.invoke(capabilities.toggle(id));
       return true;
-    }
-    if (id && !rowRange() && !textRange() && event.altKey && !event.metaKey && !event.ctrlKey && !event.shiftKey) {
-      if ((event.code === 'KeyS' || event.key.toLowerCase() === 's') && doc.block(id)?.task) { capabilities.open(id, 'schedule'); return true; }
     }
     if (event.altKey && ['ArrowUp', 'ArrowDown'].includes(event.key)) { apply({ kind: 'move', ids: roots(), direction: event.key === 'ArrowUp' ? 'up' : 'down' }); return true; }
     return false;
@@ -693,6 +775,7 @@ function Pane(props: OutlinePaneProps) {
     if (!handled && event.key === 'ArrowRight') { horizontal('right'); handled = true; }
     if (!handled && event.key === 'Enter' && selected()) { props.vim ? zoomTo(selected()) : editAt(selected()!, caret()?.id === selected() ? caret()!.offset : 0, true); handled = true; }
     if (!handled && event.key === 'Backspace') { props.vim ? zoomOut() : apply({ kind: 'delete', ids: roots() }, false); handled = true; }
+    if (!handled && event.key === ' ' && selected() && !rowRange() && !textRange() && !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey) { rowKey = ''; leaderMenu(selected()!); handled = true; }
     if (!handled && props.vim && !event.metaKey && !event.altKey) handled = vimStructural(event);
     if (handled) event.preventDefault();
   }
@@ -866,16 +949,23 @@ function Pane(props: OutlinePaneProps) {
     { id: 'select', title: 'Select blocks', section: 'Outline', keys: ['V', '⇧↑/↓'], run: () => selected() && rowFocus(selected()!, true) },
     { id: 'select-all', title: 'Select all visible blocks', section: 'Outline', run: () => { const first = ids()[0]; const last = ids().at(-1); if (first && last) { rowFocus(last); setRowRange({ anchor: first, head: last }); } } },
     { id: 'fold', title: 'Fold / unfold children', section: 'View', keys: ['←/→', 'h/l'], run: () => fold() },
-    { id: 'zoom', title: 'Zoom into block', section: 'Navigation', keys: ['⌘.'], run: () => selected() && zoomTo(selected()) },
+    { id: 'zoom', title: 'Zoom into block', section: 'Navigation', keys: ['⌘.', 'Space z'], run: () => selected() && zoomTo(selected()) },
     { id: 'zoom-out', title: 'Zoom out', section: 'Navigation', keys: ['⌘⇧.'], disabledReason: () => zoom() ? undefined : 'Already at the page root.', run: zoomOut },
     { id: 'open-beside', title: 'Open selected target beside', section: 'Navigation', keys: ['⌃⇧O'], run: () => openSelected(true) },
     { id: 'copy-reference', title: 'Copy block reference', section: 'Editing', run: () => selected() && copy(`[[${selected()}]]`) },
     { id: 'make-task', title: 'Make task', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.task ? 'Already a task.' : undefined, run: () => selected() && capabilities.invoke(capabilities.status(selected()!, 'todo')) },
     { id: 'remove-task', title: 'Remove task', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.task ? undefined : 'Select a task.', run: () => selected() && capabilities.invoke(capabilities.status(selected()!, null)) },
     { id: 'toggle-task', title: 'Toggle task', section: 'Outline', keys: ['⌘Enter'], run: () => selected() && capabilities.invoke(capabilities.toggle(selected()!)) },
+    { id: 'task-status', title: 'Set task status…', section: 'Outline', keys: ['⌘⇧Enter', 'Space t'], run: () => selected() && statusMenu(selected()!) },
     { id: 'plan-task', title: 'Plan task', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.task ? undefined : 'Select a task.', run: () => selected() && capabilities.open(selected()!, 'task') },
-    { id: 'schedule-task', title: 'Schedule task', section: 'Outline', keys: ['⌥S'], disabledReason: () => selected() && doc.block(selected()!)?.task ? undefined : 'Select a task.', run: () => selected() && capabilities.open(selected()!, 'schedule') },
+    { id: 'schedule-task', title: 'Schedule task', section: 'Outline', keys: ['Space s', '@'], run: () => selected() && openPlanning(selected()!, 'schedule') },
+    { id: 'deadline-task', title: 'Set deadline', section: 'Outline', keys: ['Space d', '@due'], run: () => selected() && openPlanning(selected()!, 'deadline') },
+    { id: 'priority-task', title: 'Set priority', section: 'Outline', keys: ['Space p'], run: () => selected() && priorityMenu(selected()!) },
+    { id: 'repeat-task', title: 'Repeat task', section: 'Outline', keys: ['Space r'], run: () => selected() && openPlanning(selected()!, 'repeat') },
+    { id: 'clock', title: 'Clock in / out', section: 'Outline', keys: ['Space w'], run: () => selected() && capabilities.invoke(capabilities.clock(selected()!)) },
     { id: 'work-sessions', title: 'Work sessions', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.task ? undefined : 'Select a task.', run: () => selected() && capabilities.open(selected()!, 'work') },
+    { id: 'add-card', title: 'Add card', section: 'Editing', keys: ['Space c', '>>'], run: () => selected() && addCard(selected()!) },
+    { id: 'leader', title: 'Show leader keys', section: 'Editing', keys: ['Space'], run: () => selected() && leaderMenu(selected()!) },
     { id: 'make-project', title: 'Make project', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.project ? 'Already a project.' : undefined, run: () => selected() && capabilities.invoke(capabilities.edit(selected()!, { kind: 'project', id: selected()!, value: { status: 'active', outcome: '', deadline: null } })) },
     { id: 'project', title: 'Project', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.project ? undefined : 'Select a project.', run: () => selected() && capabilities.open(selected()!, 'project') },
     { id: 'project-actions', title: 'Show actions', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.project ? undefined : 'Select a project.', run: () => selected() && capabilities.showActions(selected()!) },
@@ -917,10 +1007,11 @@ function Pane(props: OutlinePaneProps) {
       item('open-beside', { icon: 'panes' }),
       item('copy-reference', { icon: 'copy' }),
       { label: doc.block(id)?.task ? 'Remove task' : 'Make task', section: 'Task', action: () => capabilities.invoke(capabilities.status(id, doc.block(id)?.task ? null : 'todo')) },
-      { label: 'Toggle task', shortcut: '⌘Enter', action: () => capabilities.invoke(capabilities.toggle(id)) },
+      item('toggle-task'),
+      item('task-status'),
       ...(doc.block(id)?.task ? [
         { label: 'Plan task', action: () => capabilities.open(id, 'task', anchor) },
-        { label: 'Schedule task', shortcut: '⌥S', action: () => capabilities.open(id, 'schedule', anchor) },
+        { ...item('schedule-task'), action: () => capabilities.open(id, 'schedule', anchor) },
         { label: 'Work sessions', action: () => capabilities.open(id, 'work', anchor) },
       ] : []),
       ...(doc.block(id)?.project ? [
@@ -939,6 +1030,87 @@ function Pane(props: OutlinePaneProps) {
       item('archive', { section: 'Block', icon: 'archive' }),
       item('delete', { icon: 'trash', danger: true }),
     ] });
+  }
+  /** Keyboard menus hand focus back to the row or editor that opened them before their action runs. */
+  function keyboardMenu(id: string, label: string, items: MenuItem[]) {
+    const anchor = rowAnchor(id);
+    if (!anchor) return;
+    const prior = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const refocus = () => { if (prior?.isConnected) prior.focus({ preventScroll: true }); };
+    setMenu({ anchor, label, items: items.map(item => ({ ...item, action: () => { refocus(); item.action(); } })) });
+  }
+  function statusMenu(id: string) {
+    const task = doc.block(id)?.task;
+    keyboardMenu(id, 'Task status', [
+      ...statuses.map((status): MenuItem => ({ label: statusLabels[status], icon: task?.status === status ? 'check' : undefined, action: () => capabilities.invoke(capabilities.status(id, status)) })),
+      ...(task ? [{ label: 'Remove task', icon: 'close' as const, action: () => capabilities.invoke(capabilities.status(id, null)) }] : []),
+    ]);
+  }
+  function priorityMenu(id: string) {
+    const current = doc.block(id)?.task?.priority ?? null;
+    keyboardMenu(id, 'Priority', priorities.map((priority): MenuItem => ({ label: priorityLabel(priority), icon: current === priority ? 'check' : undefined, action: () => {
+      const task = doc.block(id)?.task ?? newTask();
+      capabilities.invoke(capabilities.edit(id, { kind: 'task', id, value: { ...task, priority } }));
+    } })));
+  }
+  function openPlanning(id: string, kind: 'schedule' | 'deadline' | 'repeat') {
+    capabilities.ensureTask(id);
+    capabilities.open(id, kind);
+  }
+  function openProject(id: string) {
+    if (!doc.block(id)?.project) capabilities.invoke(capabilities.edit(id, { kind: 'project', id, value: { status: 'active', outcome: '', deadline: null } }));
+    capabilities.open(id, 'project');
+  }
+  /** Appends ` >> ` and edits the back of the card. */
+  function addCard(id: string) {
+    const front = (doc.block(id)?.text ?? '').trimEnd();
+    const text = `${front}${front ? ' ' : ''}>> `;
+    if (editor?.id === id && editing() === id) { if (rewriteEditing(id, { text, caret: text.length })) editAt(id, text.length, true); return; }
+    const result = doc.edit({ kind: 'text', id, text }, caret());
+    if (!result.ok) { setMessage(result.reason); return; }
+    editAt(id, text.length, true);
+  }
+  /** Space on a selected row (or in Vim normal mode): one more letter acts on the block. */
+  function leaderMenu(id: string) {
+    const leader = (key: string, label: string, run: () => void, section?: string): MenuItem => ({ key, shortcut: key, label, section, action: run });
+    keyboardMenu(id, 'Leader keys', [
+      leader('t', 'Status…', () => statusMenu(id), 'Task'),
+      leader('s', 'Schedule…', () => openPlanning(id, 'schedule')),
+      leader('d', 'Deadline…', () => openPlanning(id, 'deadline')),
+      leader('p', 'Priority…', () => priorityMenu(id)),
+      leader('r', 'Repeat…', () => openPlanning(id, 'repeat')),
+      leader('w', doc.block(id)?.task ? 'Clock in / out' : 'Clock in', () => capabilities.invoke(capabilities.clock(id))),
+      leader('c', 'Add card', () => addCard(id), 'Block'),
+      leader('z', 'Zoom in', () => zoomTo(id)),
+    ]);
+  }
+  /** The slash menu: block verbs from the command list plus syntax inserts; each row shows its faster key. */
+  function slashItems(): SlashItem[] {
+    const keys = (commandId: string) => commandDefinitions.find(command => command.id === commandId)?.keys?.[0];
+    const status = (value: TaskStatus, aliases: string[]): SlashItem => ({ id: `status-${value}`, title: statusLabels[value], aliases, section: 'Task', icon: statusIcons[value], keys: value === 'todo' || value === 'done' ? keys('toggle-task') : undefined, run: id => capabilities.invoke(capabilities.status(id, value)) });
+    return [
+      status('todo', ['task', 'checkbox']),
+      status('doing', ['start', 'in progress']),
+      status('waiting', ['blocked', 'hold']),
+      status('done', ['complete', 'finish']),
+      status('cancelled', ['cancel']),
+      { id: 'schedule', title: 'Schedule', aliases: ['date', 'scheduled', 'when'], section: 'Task', icon: 'calendar', keys: '@', run: id => openPlanning(id, 'schedule') },
+      { id: 'deadline', title: 'Deadline', aliases: ['due'], section: 'Task', icon: 'warning', keys: '@due', run: id => openPlanning(id, 'deadline') },
+      { id: 'priority', title: 'Priority', aliases: ['important', 'urgent'], section: 'Task', icon: 'up', keys: keys('priority-task'), run: priorityMenu },
+      { id: 'repeat', title: 'Repeat', aliases: ['recur', 'recurring', 'every'], section: 'Task', icon: 'redo', keys: keys('repeat-task'), run: id => openPlanning(id, 'repeat') },
+      { id: 'clock', title: 'Clock in / out', aliases: ['timer', 'start work', 'stop work'], section: 'Task', icon: 'saving', keys: keys('clock'), run: id => capabilities.invoke(capabilities.clock(id)) },
+      { id: 'remove-task', title: 'Remove task', aliases: ['plain'], section: 'Task', icon: 'close', when: block => !!block?.task, run: id => capabilities.invoke(capabilities.status(id, null)) },
+      { id: 'project', title: 'Project', aliases: ['outcome'], section: 'Project', icon: 'pin', run: openProject },
+      ...([1, 2, 3] as const).map((level): SlashItem => ({ id: `heading-${level}`, title: `Heading ${level}`, aliases: [`h${level}`], section: 'Text', icon: 'edit', keys: '#'.repeat(level), run: id => apply({ kind: 'heading', id, level }) })),
+      { id: 'heading-normal', title: 'Normal text', aliases: ['paragraph'], section: 'Text', icon: 'edit', when: block => !!block?.heading, run: id => apply({ kind: 'heading', id, level: null }) },
+      { id: 'reference', title: 'Reference', aliases: ['link', 'page', 'mention'], section: 'Text', icon: 'link', keys: '[[', insert: () => ({ text: '[[', caret: 2 }) },
+      { id: 'type', title: 'Type', aliases: ['tag', 'supertag'], section: 'Text', icon: 'tag', keys: '#', insert: () => ({ text: '#', caret: 1 }) },
+      { id: 'card', title: 'Card', aliases: ['flashcard', 'question'], section: 'Cards', icon: 'right', keys: '>>', insert: () => ({ text: '>> ', caret: 3 }) },
+      { id: 'reversible-card', title: 'Reversible card', aliases: ['both ways', 'flashcard'], section: 'Cards', icon: 'panes', keys: '<>', insert: () => ({ text: '<> ', caret: 3 }) },
+      { id: 'cloze', title: 'Cloze', aliases: ['blank', 'fill in', 'flashcard'], section: 'Cards', icon: 'select', keys: '{{c1::}}', insert: text => { const cloze = `{{c${nextClozeNumber(text)}::}}`; return { text: cloze, caret: cloze.length - 2 }; } },
+      { id: 'zoom', title: 'Zoom in', aliases: ['focus'], section: 'Block', icon: 'bullet', keys: '⌘.', run: id => zoomTo(id) },
+      { id: 'copy-reference', title: 'Copy reference', aliases: ['link'], section: 'Block', icon: 'copy', run: id => copy(`[[${id}]]`) },
+    ];
   }
 
   function selectedOffsets(id: string): [number, number] | null {
@@ -1085,14 +1257,14 @@ function Pane(props: OutlinePaneProps) {
         } else if (taskPrefix(text, at)) return;
         else { const result = doc.edit({ kind: 'text', id: at.id, text }, caret()); if (!result.ok) setMessage(result.reason); }
         updateCompletion(text, at);
-        updateDateCompletion(text, at);
+        updateTriggers(text, at);
       }),
       selection: at => {
         if (compositionSelection || textRange() && textRange()!.head.id !== at.id) return;
         focusEpoch++;
         setCaret(at);
         setTextRange(previous => previous && previous.head.id === at.id ? { anchor: previous.anchor, head: at } : previous);
-        if (editor) { const text = editor.view.state.doc.toString(); updateCompletion(text, at); updateDateCompletion(text, at); }
+        if (editor) { const text = editor.view.state.doc.toString(); updateCompletion(text, at); updateTriggers(text, at); }
         scheduleReport();
       },
       composition: composing,
@@ -1309,6 +1481,10 @@ function Pane(props: OutlinePaneProps) {
       </Popup>}
       {state.kind === 'schedule' && <Show when={doc.block(state.id)?.task}>{task => <DatePicker anchor={state.anchor} label="Schedule task" value={task().scheduled} time={task().scheduled_time} contextDate={contextDate()} marks={task().deadline ? { [task().deadline!]: 'Deadline' } : undefined} onDismiss={() => capabilities.dismiss(state)}
         onSelect={value => capabilities.edit(state.id, { kind: 'task', id: state.id, value: { ...task(), scheduled: value.date, scheduled_time: value.date ? value.time : null } })} />}</Show>}
+      {state.kind === 'deadline' && <Show when={doc.block(state.id)?.task}>{task => <DatePicker anchor={state.anchor} label="Deadline" value={task().deadline} time={task().deadline_time} contextDate={contextDate()} marks={task().scheduled ? { [task().scheduled!]: 'Scheduled' } : undefined} onDismiss={() => capabilities.dismiss(state)}
+        onSelect={value => capabilities.edit(state.id, { kind: 'task', id: state.id, value: { ...task(), deadline: value.date, deadline_time: value.date ? value.time : null, warning_days: value.date ? task().warning_days : null } })} />}</Show>}
+      {state.kind === 'repeat' && <Show when={doc.block(state.id)?.task}>{task => <RepeatPopup anchor={state.anchor} value={task().repeater} disabled={capabilities.busy(state.id)} onDismiss={() => capabilities.dismiss(state)}
+        onSave={repeater => capabilities.edit(state.id, { kind: 'task', id: state.id, value: { ...task(), repeater } })} />}</Show>}
       {state.kind === 'project' && <Popup anchor={state.anchor} label="Project" class="outline-capability-popup" onDismiss={() => capabilities.dismiss(state)}>
         <ProjectControls project={doc.block(state.id)?.project ?? null} contextDate={contextDate()} disabled={capabilities.busy(state.id)} onChange={value => capabilities.edit(state.id, { kind: 'project', id: state.id, value })} />
         <Show when={doc.block(state.id)?.project}><Button onClick={event => capabilities.showActions(state.id, event.shiftKey)}>Show actions</Button></Show>
@@ -1336,15 +1512,30 @@ function Pane(props: OutlinePaneProps) {
         <Show when={!matches.loading && !matches.error && !canCreate() && !completionRows().length}><p class="empty-state">No matching blocks.</p></Show>
       </div>
     </Popup></Show>
-    <Show when={dateCompletion()}><Popup anchor={() => caretRect(dateCompletion()?.from ?? 0)} width={320} class="picker" label="Schedule task" role="listbox" onDismiss={dismissDate}>
+    <Show when={dateCompletion()}><Popup anchor={() => caretRect(dateCompletion()?.from ?? 0)} width={320} class="picker" label={dateCompletion()?.field === 'deadline' ? 'Deadline' : 'Schedule task'} role="listbox" onDismiss={dismissDate}>
       <div class="picker-list" onMouseDown={event => event.preventDefault()}>
+        <Show when={dateCompletion()?.field === 'deadline'}><div class="picker-section">Deadline</div></Show>
         <For each={dateRows()}>{(row, index) => <div role="option" aria-selected={dateIndex() === index()} class="picker-row" classList={{ selected: dateIndex() === index() }} onClick={() => chooseDate(index())}>
-          <Icon name="calendar" /><span class="picker-text">{row.label}</span><span class="picker-meta">{row.date}</span>
+          <Icon name={dateCompletion()?.field === 'deadline' ? 'warning' : 'calendar'} /><span class="picker-text">{row.label}</span><span class="picker-meta">{row.date}</span>
         </div>}</For>
-        <Show when={!dateRows().length}><p class="empty-state">No matching date</p></Show>
-        <div role="option" aria-selected={dateIndex() === dateRows().length} class="picker-row" classList={{ selected: dateIndex() === dateRows().length }} onClick={() => chooseDate(dateRows().length)}>
+        <Show when={!dateRows().length && !offerDeadline()}><p class="empty-state">No matching date</p></Show>
+        <Show when={offerDeadline()}><div role="option" aria-selected={dateIndex() === dateRows().length} class="picker-row" classList={{ selected: dateIndex() === dateRows().length }} onClick={() => chooseDate(dateRows().length)}>
+          <Icon name="warning" /><span class="picker-text">Deadline…</span><span class="picker-meta"><kbd>@due</kbd></span>
+        </div></Show>
+        <div role="option" aria-selected={dateIndex() === dateRows().length + (offerDeadline() ? 1 : 0)} class="picker-row" classList={{ selected: dateIndex() === dateRows().length + (offerDeadline() ? 1 : 0) }} onClick={() => chooseDate(dateRows().length + (offerDeadline() ? 1 : 0))}>
           <Icon name="more" /><span class="picker-text">Pick a date…</span>
         </div>
+      </div>
+    </Popup></Show>
+    <Show when={slashCompletion()}><Popup anchor={() => caretRect(slashCompletion()?.from ?? 0)} width={320} class="picker" label="Commands" role="listbox" onDismiss={dismissSlash}>
+      <div ref={slashList} class="picker-list" onMouseDown={event => event.preventDefault()}>
+        <For each={slashRows()}>{(row, index) => <>
+          <Show when={index() === 0 || slashRows()[index() - 1]!.section !== row.section}><div class="picker-section">{row.section}</div></Show>
+          <div role="option" aria-selected={slashIndex() === index()} class="picker-row" classList={{ selected: slashIndex() === index() }} onClick={() => chooseSlash(index())}>
+            <Icon name={row.icon} /><span class="picker-text">{row.title}</span><Show when={row.keys}><span class="picker-meta"><kbd>{row.keys}</kbd></span></Show>
+          </div>
+        </>}</For>
+        <Show when={!slashRows().length}><p class="empty-state">No matching command. Escape keeps the text.</p></Show>
       </div>
     </Popup></Show>
   </div>;

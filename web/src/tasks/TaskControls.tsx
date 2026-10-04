@@ -9,13 +9,13 @@ import type { PopupAnchor } from '../ui/Popup';
 import { DatePicker } from './DatePicker';
 import './task-controls.css';
 
-const statuses: TaskStatus[] = ['todo', 'doing', 'waiting', 'done', 'cancelled'];
-const statusLabels: Record<TaskStatus, string> = { todo: 'Todo', doing: 'Doing', waiting: 'Waiting', done: 'Done', cancelled: 'Cancelled' };
-const statusIcons: Record<TaskStatus, IconName> = { todo: 'select', doing: 'saving', waiting: 'more', done: 'check', cancelled: 'close' };
+export const statuses: TaskStatus[] = ['todo', 'doing', 'waiting', 'done', 'cancelled'];
+export const statusLabels: Record<TaskStatus, string> = { todo: 'Todo', doing: 'Doing', waiting: 'Waiting', done: 'Done', cancelled: 'Cancelled' };
+export const statusIcons: Record<TaskStatus, IconName> = { todo: 'select', doing: 'saving', waiting: 'more', done: 'check', cancelled: 'close' };
 type Priority = TaskState['priority'];
 type Repeater = NonNullable<TaskState['repeater']>;
-const priorities: Priority[] = [null, 'high', 'medium', 'low'];
-const priorityLabel = (value: Priority) => value === null ? 'None' : value === 'high' ? 'High' : value === 'medium' ? 'Medium' : 'Low';
+export const priorities: Priority[] = [null, 'high', 'medium', 'low'];
+export const priorityLabel = (value: Priority) => value === null ? 'None' : value === 'high' ? 'High' : value === 'medium' ? 'Medium' : 'Low';
 const repeatModes: (Repeater['mode'] | null)[] = [null, 'fixed', 'catch_up', 'after_completion'];
 const repeatLabels: Record<Repeater['mode'], string> = { fixed: 'Fixed', catch_up: 'Catch up', after_completion: 'After completion' };
 const repeatUnits: Repeater['unit'][] = ['day', 'week', 'month', 'year'];
@@ -134,7 +134,7 @@ function WarningPopup(props: { anchor: PopupAnchor; value: number | null; disabl
   </Popup>;
 }
 
-function RepeatPopup(props: { anchor: PopupAnchor; value: TaskState['repeater']; disabled: boolean; onDismiss(): void; onSave(value: TaskState['repeater']): Promise<void> }) {
+export function RepeatPopup(props: { anchor: PopupAnchor; value: TaskState['repeater']; disabled: boolean; onDismiss(): void; onSave(value: TaskState['repeater']): Promise<void> }) {
   const [mode, setMode] = createSignal<Repeater['mode'] | null>(props.value?.mode ?? null);
   const [every, setEvery] = createSignal(String(props.value?.every ?? 1));
   const [unit, setUnit] = createSignal<Repeater['unit']>(props.value?.unit ?? 'day');
