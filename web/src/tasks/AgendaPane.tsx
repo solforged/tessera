@@ -1,7 +1,7 @@
 import { For, Show, batch, createEffect, createMemo, createSignal, on, onCleanup } from 'solid-js';
 import { ulid } from 'ulid';
 import type { Agenda, DateRange, FieldDefinition, ProjectRecord, TaskFilter, TaskPriority, TaskQuery, TaskQueryResult, TaskSelection, TaskStatus, TaskView } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { NotebookClient, PageDocument } from '../document/contract';
 import type { AgendaViewState, OpenTarget, PaneId } from '../shell/contract';
 import { SourceQueryControls } from '../table/SourceQueryControls';
 import { Button } from '../ui/Button';
@@ -11,8 +11,9 @@ import type { MenuItem } from '../ui/Menu';
 import { Picker } from '../ui/Picker';
 import { Popup } from '../ui/Popup';
 import { DatePicker } from './DatePicker';
-import { TaskSourceRows } from './JournalAgenda';
+import { TaskSourceRows, documentReady } from './JournalAgenda';
 import { parseTaskDate } from './date-input';
+import { dateSuggestions, dateTokenAt, newTask, planDateToken } from './quick-date';
 import { copyTaskQuery, createTaskQuery, refreshedTaskQuery, taskQueriesEqual, taskRange } from './query';
 import './agenda.css';
 
@@ -65,6 +66,7 @@ export function AgendaPane(props: AgendaPaneProps) {
   const [pickerSearch, setPickerSearch] = createSignal('');
   const [busy, setBusy] = createSignal(false);
   const [commandError, setCommandError] = createSignal('');
+  const [draft, setDraft] = createSignal('');
   const [recentInput, setRecentInput] = createSignal(String(query().filter.recent_days));
   const [limitInput, setLimitInput] = createSignal(query().limit === null ? '' : String(query().limit));
   let scroll!: HTMLDivElement;
@@ -238,6 +240,36 @@ export function AgendaPane(props: AgendaPaneProps) {
     if (parsed.ok && parsed.date) update({ date: parsed.date, scroll: 0 });
     else if (!parsed.ok) setError(parsed.error);
   };
+  /** Captures into today's journal, scheduled for the displayed day unless a trailing `@date` says otherwise. */
+  const addTask = async () => {
+    const text = draft().trim();
+    if (!text) return;
+    setDraft(''); setCommandError('');
+    const token = dateTokenAt(text, text.length);
+    const choice = token?.query ? dateSuggestions(token.query, date())[0] : undefined;
+    const plan = token && choice ? planDateToken(text, token, choice, null) : { text, value: { ...newTask(), scheduled: date() } };
+    let doc: PageDocument | undefined;
+    try {
+      const pageId = await props.notebook.journal(props.notebook.todayDate());
+      doc = props.notebook.open(pageId);
+      await documentReady(doc);
+      const last = doc.outline.children(pageId).at(-1);
+      const reuse = last && !doc.block(last)?.text && !doc.block(last)?.task && !doc.outline.children(last).length ? last : null;
+      let id = reuse;
+      if (!id) {
+        const inserted = doc.edit({ kind: 'insert', parentId: pageId, after: last ?? null });
+        if (!inserted.ok) throw new Error(inserted.reason);
+        id = inserted.created[0]!;
+      }
+      const planned = doc.edit({ kind: 'planTask', id, text: plan.text.trim(), value: plan.value });
+      if (!planned.ok) throw new Error(planned.reason);
+      await doc.flush();
+      setRefresh(value => value + 1);
+    } catch (reason) {
+      setCommandError(reason instanceof Error ? reason.message : String(reason));
+      if (!draft()) setDraft(text);
+    } finally { doc?.release(); }
+  };
 
   return <div ref={scroll} class="agenda-pane" data-pane={props.pane} aria-label="Agenda and tasks" tabIndex={props.active ? 0 : -1} onFocusIn={props.onActivate} onPointerDown={props.onActivate} onScroll={() => props.onViewChange({ ...view(), query: copyTaskQuery(query()), scroll: scroll.scrollTop })}>
     <div class="agenda-content">
@@ -283,6 +315,12 @@ export function AgendaPane(props: AgendaPaneProps) {
       </Show>
       <Show when={busy() || props.notebook.commandState() !== 'saved'}><p class="agenda-message" role="status">{props.notebook.commandMessage() || (busy() ? 'Saving task view…' : props.notebook.commandState())}</p></Show>
       <Show when={commandError()}><p class="agenda-error" role="alert">{commandError()}</p></Show>
+      <Show when={mode() === 'agenda'}>
+        <form class="agenda-add" onSubmit={event => { event.preventDefault(); void addTask(); }}>
+          <Icon name="plus" />
+          <input class="input" aria-label="New task" placeholder={`Add a task for ${date()} · @ picks another day`} value={draft()} onInput={event => setDraft(event.currentTarget.value)} />
+        </form>
+      </Show>
       <section class="agenda-results" aria-label={mode() === 'agenda' ? `Agenda for ${date()}` : 'Task results'} aria-busy={loading()}>
         <Show when={loading()}><p class="agenda-message" role="status">Loading {mode() === 'agenda' ? 'agenda' : 'tasks'}…</p></Show>
         <Show when={error()}><div class="agenda-error" role="alert"><span>{error()}</span><Button onClick={() => setRefresh(value => value + 1)}>Retry</Button></div></Show>
@@ -290,7 +328,7 @@ export function AgendaPane(props: AgendaPaneProps) {
           <p class="agenda-message" role="status">{rows().length} of {total()} {mode() === 'agenda' ? 'agenda item' : 'task'}{total() === 1 ? '' : 's'}</p>
           <Show when={!rows().length}><p class="agenda-message">{mode() === 'agenda' ? 'Nothing planned' : 'No tasks match these filters.'}</p></Show>
         </Show>
-        <TaskSourceRows rows={rows()} date={date()} notebook={props.notebook} disabled={busy() || loading() || !!error()} onOpen={props.onOpen} onChanged={() => setRefresh(value => value + 1)} />
+        <TaskSourceRows rows={rows()} date={date()} pageId={props.notebook.roots().find(root => root.kind === 'journal' && root.text === date())?.id} notebook={props.notebook} disabled={busy() || loading() || !!error()} onOpen={props.onOpen} onChanged={() => setRefresh(value => value + 1)} />
       </section>
       <Show keyed when={popup()}>{state => {
         const dismiss = () => { if (!busy() && popup() === state) setPopup(null); };
