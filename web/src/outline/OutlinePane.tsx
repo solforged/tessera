@@ -1307,7 +1307,7 @@ function Pane(props: OutlinePaneProps) {
         <Show when={capabilities.busy(state.id)}><p class="outline-capability-notice" role="status">Saving…</p></Show>
         <Show when={capabilities.error(state.id)}><p class="error" role="alert">{capabilities.error(state.id)}</p></Show>
       </Popup>}
-      {state.kind === 'schedule' && <Show when={doc.block(state.id)?.task}>{task => <DatePicker anchor={state.anchor} label="Schedule task" value={task().scheduled} time={task().scheduled_time} contextDate={contextDate()} onDismiss={() => capabilities.dismiss(state)}
+      {state.kind === 'schedule' && <Show when={doc.block(state.id)?.task}>{task => <DatePicker anchor={state.anchor} label="Schedule task" value={task().scheduled} time={task().scheduled_time} contextDate={contextDate()} marks={task().deadline ? { [task().deadline!]: 'Deadline' } : undefined} onDismiss={() => capabilities.dismiss(state)}
         onSelect={value => capabilities.edit(state.id, { kind: 'task', id: state.id, value: { ...task(), scheduled: value.date, scheduled_time: value.date ? value.time : null } })} />}</Show>}
       {state.kind === 'project' && <Popup anchor={state.anchor} label="Project" class="outline-capability-popup" onDismiss={() => capabilities.dismiss(state)}>
         <ProjectControls project={doc.block(state.id)?.project ?? null} contextDate={contextDate()} disabled={capabilities.busy(state.id)} onChange={value => capabilities.edit(state.id, { kind: 'project', id: state.id, value })} />

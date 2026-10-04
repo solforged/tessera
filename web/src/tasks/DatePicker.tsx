@@ -1,5 +1,6 @@
-import { createEffect, createSignal, createUniqueId, on, onCleanup, Show } from 'solid-js';
+import { createEffect, createMemo, createSignal, createUniqueId, on, onCleanup, Show } from 'solid-js';
 import { Button } from '../ui/Button';
+import { MonthGrid } from '../ui/MonthGrid';
 import { Popup } from '../ui/Popup';
 import type { PopupAnchor } from '../ui/Popup';
 import { parseTaskDate } from './date-input';
@@ -12,6 +13,8 @@ export interface DatePickerProps {
   /** Omit for date-only values; null enables an optional time. */
   time?: string | null;
   contextDate: string;
+  /** Related dates shown on the calendar, such as the deadline while scheduling. */
+  marks?: Record<string, string>;
   onDismiss(): void;
   onSelect(value: { date: string | null; time: string | null }): void | Promise<void>;
 }
@@ -79,6 +82,8 @@ export function DatePicker(props: DatePickerProps) {
     event.stopPropagation();
     if (!event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.repeat) apply();
   };
+  // The calendar follows whatever the field currently parses to, so typing `fri` previews the day.
+  const preview = createMemo(() => { const parsed = parseTaskDate(date(), props.contextDate); return parsed.ok ? parsed.date : props.value; });
 
   return <Popup anchor={props.anchor} label={props.label} onDismiss={props.onDismiss} class="date-picker">
     <form class="date-picker-form" aria-busy={busy()} onKeyDown={keydown} onCompositionStart={() => { composing = true; }} onCompositionEnd={() => { composing = false; }} onSubmit={event => { event.preventDefault(); if (!composing) apply(); }}>
@@ -86,17 +91,18 @@ export function DatePicker(props: DatePickerProps) {
         <label for={`${id}-date`}>{props.label}</label>
         <input id={`${id}-date`} class="input" type="text" value={date()} placeholder="today, next Monday, +2d" autocomplete="off" spellcheck={false} disabled={busy()} aria-invalid={!!error()} aria-describedby={error() ? `${id}-error` : undefined} onInput={event => setDate(event.currentTarget.value)} />
       </div>
+      <div class="date-picker-quick-picks">
+        <Button disabled={busy()} onClick={() => quickPick('today')}>Today</Button>
+        <Button disabled={busy()} onClick={() => quickPick('tomorrow')}>Tomorrow</Button>
+        <Button disabled={busy()} onClick={() => quickPick('+1w')}>Next week</Button>
+      </div>
+      <MonthGrid value={preview()} today={props.contextDate} marks={props.marks} disabled={busy()} onPick={day => { setDate(day); apply(day); }} />
       <Show when={props.time !== undefined}>
         <div class="date-picker-field">
           <label for={`${id}-time`}>Time (optional)</label>
           <input id={`${id}-time`} class="input date-picker-time" type="text" value={time()} placeholder="HH:MM" autocomplete="off" spellcheck={false} disabled={busy()} aria-invalid={!!error()} aria-describedby={error() ? `${id}-error` : undefined} onInput={event => setTime(event.currentTarget.value)} />
         </div>
       </Show>
-      <div class="date-picker-quick-picks">
-        <Button disabled={busy()} onClick={() => quickPick('today')}>Today</Button>
-        <Button disabled={busy()} onClick={() => quickPick('tomorrow')}>Tomorrow</Button>
-        <Button disabled={busy()} onClick={() => quickPick('+1w')}>Next week</Button>
-      </div>
       <Show when={error()}><p id={`${id}-error`} class="error date-picker-error" role="alert">{error()}</p></Show>
       <div class="date-picker-actions">
         <Button disabled={busy()} onClick={() => { void select({ date: null, time: null }); }}>Clear</Button>

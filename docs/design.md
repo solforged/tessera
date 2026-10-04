@@ -128,6 +128,8 @@ Tasks are made as in Tana, Roam and Logseq: ⌘Enter makes a block a todo, then 
 
 Typing `@` after a space or at block start opens date suggestions under the `@`: Today, Tomorrow, the next five weekdays and Next week, or the parse of what follows (`@fri`, `@in 2 weeks`, `@2026-11-01 09:30`). Enter or Tab picks one: a plain block becomes a todo, the task is scheduled, and the token and its leading space leave the text. Pick a date… opens the full picker. Escape keeps the `@` as text. References, inline code and field shorthand never open it.
 
+Date pickers pair the text field with a month grid shared with the journal calendar. Today is ringed, the chosen day is filled with the accent and follows what the field parses (`fri` previews Friday), and the task's other planning date carries a dot. Clicking a day applies it; arrows move by day and week, Page Up and Page Down by month.
+
 Completion uses the displayed journal or agenda date. Repeating tasks retain their source identity and advance their plan; history on an earlier day shows that occurrence's plan, not the next repeat. A running work session requires an explicit stop, with Stop and complete offered as one atomic action. Work-session notes and prior sessions remain accessible from the block menu.
 
 Project controls edit outcome, deadline and status. Show actions opens a task query over canonical descendants. Completing a project does not complete its tasks.
