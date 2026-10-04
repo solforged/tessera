@@ -27,4 +27,5 @@
 .table-cell-input { min-width: 7rem; padding: var(--space-4); min-height: var(--row-height); }
 .table-footer { display: flex; align-items: center; gap: var(--space-4); min-height: var(--space-32); padding: var(--space-4) var(--space-16); color: var(--muted); border-top: 1px solid var(--line); font-size: var(--text-meta); line-height: var(--line-meta); }
 .menu-section { padding: var(--space-8) var(--space-8) var(--space-4); color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); border-top: 1px solid var(--line); margin-top: var(--space-4); }
+.menu-section:first-child { border-top: 0; margin-top: 0; }
 @media (max-width: 640px) { .table-header, .table-toolbar, .table-footer { padding-inline: var(--space-8); } .table-search { width: 100%; } }

@@ -2,13 +2,13 @@ import type { TaskState } from '../api/types';
 import { matchFieldEntry } from '../table/query';
 import { parseTaskDate } from './date-input';
 
-export interface DateToken { from: number; to: number; query: string }
+export interface DateToken { from: number; to: number; query: string; field: 'scheduled' | 'deadline' }
 export interface DateSuggestion { label: string; date: string; time: string | null }
 
 export const newTask = (): TaskState => ({ status: 'todo', scheduled: null, scheduled_time: null, deadline: null, deadline_time: null, warning_days: null, repeater: null, priority: null, completed_on: null });
 
 /** Ignore even unfinished references/code while the author is typing. */
-function protectedDate(text: string, at: number): boolean {
+export function insideProtectedSyntax(text: string, at: number): boolean {
   for (let cursor = 0; cursor < at;) {
     if (text[cursor] === '\\') { cursor += 2; continue; }
     if (text.startsWith('[[', cursor)) {
@@ -56,10 +56,11 @@ function protectedDate(text: string, at: number): boolean {
 export function dateTokenAt(text: string, caret: number): DateToken | null {
   if (caret <= 0 || caret > text.length || matchFieldEntry(text)) return null;
   const from = text.lastIndexOf('@', caret - 1);
-  if (from < 0 || from > 0 && !/\s/.test(text[from - 1]!) || protectedDate(text, from)) return null;
+  if (from < 0 || from > 0 && !/\s/.test(text[from - 1]!) || insideProtectedSyntax(text, from)) return null;
   const query = text.slice(from + 1, caret);
   if (query.length > 24 || /^\s/.test(query) || /[\r\n]/.test(query)) return null;
-  return { from, to: caret, query };
+  if (/^due(?: +|$)/i.test(query)) return { from, to: caret, query: query.slice(3).replace(/^ +/, ''), field: 'deadline' };
+  return { from, to: caret, query, field: 'scheduled' };
 }
 
 const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -107,19 +108,21 @@ export function dateSuggestions(query: string, contextDate: string): DateSuggest
   return suggestions.slice(0, 7);
 }
 
-/**
- * Removes the token and the space that introduced it when nothing but space follows, so
- * `Pay rent @tom` becomes `Pay rent` with the caret where the token began. A null choice
- * keeps the current plan, for choosing the date in the full picker instead.
- */
-export function planDateToken(text: string, token: DateToken, choice: DateSuggestion | null, task: TaskState | null): { text: string; caret: number; value: TaskState } {
+/** Trim the introducing whitespace when the suffix is empty or starts with whitespace. */
+export function removeToken(text: string, token: { from: number; to: number }): { text: string; caret: number } {
   const before = text.slice(0, token.from);
   const after = text.slice(token.to);
   const start = after === '' || /^\s/.test(after) ? before.trimEnd().length : before.length;
+  return { text: text.slice(0, start) + after, caret: start };
+}
+
+/** A null choice keeps the current plan for choosing the date in the full picker. */
+export function planDateToken(text: string, token: DateToken, choice: DateSuggestion | null, task: TaskState | null): { text: string; caret: number; value: TaskState } {
   const base = task ?? newTask();
-  return {
-    text: text.slice(0, start) + after,
-    caret: start,
-    value: choice ? { ...base, scheduled: choice.date, scheduled_time: choice.time } : base,
-  };
+  const value = choice
+    ? token.field === 'deadline'
+      ? { ...base, deadline: choice.date, deadline_time: choice.time }
+      : { ...base, scheduled: choice.date, scheduled_time: choice.time }
+    : base;
+  return { ...removeToken(text, token), value };
 }
