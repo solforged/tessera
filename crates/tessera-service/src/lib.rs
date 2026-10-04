@@ -2,6 +2,7 @@
 //! agents reach the notebook only through its operation API.
 
 mod assets;
+mod capabilities;
 mod error;
 mod ownership;
 mod security;
@@ -76,6 +77,36 @@ pub fn router(
         .route("/api/blocks/{id}", get(block))
         .route("/api/blocks/{id}/backlinks", get(backlinks))
         .route("/api/types/{id}/members", get(members))
+        .route("/api/blocks/{id}/capabilities", get(capabilities::block))
+        .route(
+            "/api/blocks/{id}/task-occurrences",
+            get(capabilities::task_occurrences),
+        )
+        .route(
+            "/api/blocks/{id}/work-sessions",
+            get(capabilities::work_sessions),
+        )
+        .route(
+            "/api/work-sessions/active",
+            get(capabilities::active_work_session),
+        )
+        .route("/api/projects", get(capabilities::projects))
+        .route("/api/tasks/query", post(capabilities::task_query))
+        .route("/api/agenda/{date}", get(capabilities::agenda))
+        .route("/api/task-views", get(capabilities::task_views))
+        .route("/api/task-views/{id}", get(capabilities::task_view))
+        .route("/api/blocks/{id}/cards", get(capabilities::source_cards))
+        .route("/api/cards/{id}", get(capabilities::card))
+        .route("/api/cards/query", post(capabilities::card_query))
+        .route("/api/cards/{id}/previews", get(capabilities::card_previews))
+        .route("/api/cards/{id}/reviews", get(capabilities::card_reviews))
+        .route("/api/decks", get(capabilities::decks))
+        .route("/api/decks/{id}", get(capabilities::deck))
+        .route("/api/review-sessions", get(capabilities::review_sessions))
+        .route(
+            "/api/review-sessions/{id}",
+            get(capabilities::review_session),
+        )
         .route("/api/types/{id}", get(type_info))
         .route("/api/fields", get(fields))
         .route("/api/query", post(query))

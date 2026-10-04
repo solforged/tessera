@@ -1264,6 +1264,9 @@ impl Engine<'_, '_> {
             Operation::SetTask {
                 id, base_revision, ..
             }
+            | Operation::RestoreTaskState {
+                id, base_revision, ..
+            }
             | Operation::CompleteTask {
                 id, base_revision, ..
             }

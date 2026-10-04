@@ -3,11 +3,17 @@ import type { Accessor } from 'solid-js';
 import { createVirtualizer, defaultRangeExtractor } from '@tanstack/solid-virtual';
 import type { EditorView } from '@codemirror/view';
 import type { VirtualItem } from '@tanstack/solid-virtual';
-import type { Block, FieldDefinition } from '../api/types';
+import type { Block, FieldDefinition, WorkSession } from '../api/types';
 import { api } from '../api/client';
 import type { Caret, Edit, EditResult, NotebookClient, PageDocument, TextRange } from '../document/contract';
 import type { Command, OutlinePaneProps, ViewState } from '../shell/contract';
 import { fieldEntryId, fieldEntryText, matchFieldEntry } from '../table/query';
+import { ProjectControls } from '../projects/ProjectControls';
+import { parseCardText } from '../review/card-text';
+import { DatePicker } from '../tasks/DatePicker';
+import { JournalAgenda } from '../tasks/JournalAgenda';
+import { TaskControls, TaskStatusButton } from '../tasks/TaskControls';
+import { WorkSessions } from '../tasks/WorkSessions';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
@@ -18,6 +24,8 @@ import { BlockBreadcrumb, BlockText, offsetAtPoint } from './BlockText';
 import { textTokens } from '../document/text-tokens';
 import { boundaryDeletion } from '../document/outline-mechanics';
 import { PaneEditor } from './editor';
+import { createOutlineCapabilities, quickTaskPlan } from './capabilities';
+import type { CapabilityPopup } from './capabilities';
 import { orderedRange, selectedText, selectionIds, selectionRoots, visibleIds } from './visibility';
 import { completeReferences } from './completion';
 import { TypePill } from './references';
@@ -26,6 +34,7 @@ import './outline.css';
 interface Completion { from: number; to: number; query: string; manual?: { blockId: string; anchor: HTMLElement } }
 interface MenuState { anchor: HTMLElement; items: MenuItem[]; label: string }
 interface RowRange { anchor: string; head: string }
+interface WorkHistory { sessions: WorkSession[]; active: WorkSession | null; source: Block | null }
 type CompletionRow = { kind: 'block'; block: Block } | { kind: 'field'; field: FieldDefinition };
 const storedFolds = new Map<string, Set<string>>();
 const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
@@ -106,6 +115,7 @@ function Pane(props: OutlinePaneProps) {
   const [margin, setMargin] = createSignal(0);
   let scroll!: HTMLDivElement;
   let list!: HTMLDivElement;
+  let heading!: HTMLDivElement;
   let titleInput: HTMLInputElement | undefined;
   let completionList: HTMLDivElement | undefined;
   const hosts = new Map<string, HTMLElement>();
@@ -137,6 +147,28 @@ function Pane(props: OutlinePaneProps) {
     () => doc.root()?.kind === 'page' ? [props.pageId, props.notebook.changeSequence()] as const : false,
     ([pageId]) => api.type(pageId),
   );
+
+  const contextDate = () => doc.root()?.kind === 'journal' ? doc.root()!.text : props.notebook.todayDate();
+  const capabilities = createOutlineCapabilities({
+    doc, notebook: props.notebook, contextDate, caret,
+    anchor: id => id === props.pageId ? heading ?? null : hosts.get(id)?.closest<HTMLElement>('[data-block-id]') ?? null,
+    onOpen: props.onOpen,
+  });
+  function quickSchedule(view: EditorView): boolean {
+    const id = editing();
+    const selection = view.state.selection.main;
+    if (!id || textRange() || !selection.empty || selection.head !== view.state.doc.length || capabilities.busy(id)) return false;
+    const plan = quickTaskPlan(view.state.doc.toString(), doc.block(id)?.task ?? null, contextDate());
+    if (!plan) return false;
+    const result = doc.edit({ kind: 'planTask', id, ...plan }, caret());
+    if (!result.ok) { capabilities.failure(id, result.reason); return true; }
+    setCompletion(null);
+    editor?.sync(plan.text);
+    setCaret({ id, offset: plan.text.length });
+    capabilities.invoke(capabilities.run(id, () => doc.flush()));
+    scheduleReport();
+    return true;
+  }
 
   function commitFieldEntry(id: string, focus = true): boolean {
     if (disposed || composition()) return false;
@@ -216,10 +248,10 @@ function Pane(props: OutlinePaneProps) {
     get scrollMargin() { return margin(); },
     get getItemKey() { const rows = ids(); return (index: number) => rows[index]!; },
     get rangeExtractor() {
-      const active = indices().get(editing() ?? '');
+      const pinned = [editing(), capabilities.popup()?.id].flatMap(id => id ? indices().get(id) ?? [] : []);
       return (range: Parameters<typeof defaultRangeExtractor>[0]) => {
         const result = defaultRangeExtractor(range);
-        if (active !== undefined && !result.includes(active)) result.push(active);
+        for (const index of pinned) if (!result.includes(index)) result.push(index);
         return result.sort((a, b) => a - b);
       };
     },
@@ -541,6 +573,7 @@ function Pane(props: OutlinePaneProps) {
       if (event.ctrlKey && event.key.toLowerCase() === 'r') { undo(true); return true; }
       return false;
     }
+    if ((event.key === ' ' || event.key === 'Enter') && !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey && quickSchedule(view)) return true;
     if (event.key === 'Enter') {
       if (event.shiftKey) replaceSelection('\n', 'text');
       else split(view);
@@ -559,6 +592,11 @@ function Pane(props: OutlinePaneProps) {
     if (event.metaKey && event.shiftKey && event.key.toLowerCase() === 't') { openTable(false); return true; }
     if (event.metaKey && event.key.toLowerCase() === 'z') { undo(event.shiftKey); return true; }
     if (event.metaKey && event.key === 'Enter') { event.shiftKey ? zoomOut() : selected() && zoomTo(selected()); return true; }
+    const id = editing() ?? selected();
+    if (id && !rowRange() && !textRange() && event.altKey && !event.metaKey && !event.ctrlKey && !event.shiftKey) {
+      if (event.key === 'Enter') { if (!event.repeat) capabilities.invoke(capabilities.toggle(id)); return true; }
+      if ((event.code === 'KeyS' || event.key.toLowerCase() === 's') && doc.block(id)?.task) { capabilities.open(id, 'schedule'); return true; }
+    }
     if (event.altKey && ['ArrowUp', 'ArrowDown'].includes(event.key)) { apply({ kind: 'move', ids: roots(), direction: event.key === 'ArrowUp' ? 'up' : 'down' }); return true; }
     return false;
   }
@@ -749,6 +787,14 @@ function Pane(props: OutlinePaneProps) {
   const commandDefinitions: Command[] = [
     { id: 'rename', title: 'Rename page', section: 'Page', disabledReason: () => doc.root()?.kind === 'page' ? undefined : 'Journal dates cannot be renamed.', run: rename },
     { id: 'open-table', title: 'Open as table', section: 'Page', keys: ['⌘⇧T'], disabledReason: () => doc.root()?.kind === 'page' ? undefined : 'Journal days cannot be opened as tables.', run: () => openTable(false) },
+    { id: 'task-root', title: 'Task', section: 'Page', disabledReason: () => doc.status() !== 'ready' || capabilities.busy(props.pageId) ? 'Page is unavailable.' : undefined, run: () => {
+      if (!doc.root()?.task) capabilities.invoke(capabilities.status(props.pageId, 'todo'));
+      capabilities.open(props.pageId, 'task');
+    } },
+    { id: 'project-root', title: 'Project', section: 'Page', disabledReason: () => doc.status() !== 'ready' || capabilities.busy(props.pageId) ? 'Page is unavailable.' : undefined, run: () => {
+      if (!doc.root()?.project) capabilities.invoke(capabilities.edit(props.pageId, { kind: 'project', id: props.pageId, value: { status: 'active', outcome: '', deadline: null } }));
+      capabilities.open(props.pageId, 'project');
+    } },
     { id: 'previous-row', title: 'Select previous block', section: 'Navigation', keys: ['↑', 'k'], run: () => adjacent(-1) },
     { id: 'next-row', title: 'Select next block', section: 'Navigation', keys: ['↓', 'j'], run: () => adjacent(1) },
     { id: 'parent', title: 'Fold children / select parent', section: 'Navigation', keys: ['←', 'h'], run: () => horizontal('left') },
@@ -773,6 +819,17 @@ function Pane(props: OutlinePaneProps) {
     { id: 'zoom-out', title: 'Zoom out', section: 'Navigation', keys: ['⌘⇧Enter'], disabledReason: () => zoom() ? undefined : 'Already at the page root.', run: zoomOut },
     { id: 'open-beside', title: 'Open selected target beside', section: 'Navigation', keys: ['⌃⇧O'], run: () => openSelected(true) },
     { id: 'copy-reference', title: 'Copy block reference', section: 'Editing', run: () => selected() && copy(`[[${selected()}]]`) },
+    { id: 'make-task', title: 'Make task', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.task ? 'Already a task.' : undefined, run: () => selected() && capabilities.invoke(capabilities.status(selected()!, 'todo')) },
+    { id: 'remove-task', title: 'Remove task', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.task ? undefined : 'Select a task.', run: () => selected() && capabilities.invoke(capabilities.status(selected()!, null)) },
+    { id: 'toggle-task', title: 'Toggle task', section: 'Outline', keys: ['⌥Enter'], run: () => selected() && capabilities.invoke(capabilities.toggle(selected()!)) },
+    { id: 'plan-task', title: 'Plan task', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.task ? undefined : 'Select a task.', run: () => selected() && capabilities.open(selected()!, 'task') },
+    { id: 'schedule-task', title: 'Schedule task', section: 'Outline', keys: ['⌥S'], disabledReason: () => selected() && doc.block(selected()!)?.task ? undefined : 'Select a task.', run: () => selected() && capabilities.open(selected()!, 'schedule') },
+    { id: 'work-sessions', title: 'Work sessions', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.task ? undefined : 'Select a task.', run: () => selected() && capabilities.open(selected()!, 'work') },
+    { id: 'make-project', title: 'Make project', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.project ? 'Already a project.' : undefined, run: () => selected() && capabilities.invoke(capabilities.edit(selected()!, { kind: 'project', id: selected()!, value: { status: 'active', outcome: '', deadline: null } })) },
+    { id: 'project', title: 'Project', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.project ? undefined : 'Select a project.', run: () => selected() && capabilities.open(selected()!, 'project') },
+    { id: 'project-actions', title: 'Show actions', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.project ? undefined : 'Select a project.', run: () => selected() && capabilities.showActions(selected()!) },
+    { id: 'review-cards', title: 'Review cards', section: 'View', run: () => props.onOpen({ kind: 'review' }, false) },
+    { id: 'card-source', title: 'Show card source', section: 'Navigation', run: () => selected() && capabilities.source(selected()!) },
     { id: 'archive', title: 'Archive / unarchive block', section: 'Outline', run: () => selected() && apply({ kind: 'archive', id: selected()!, archived: !doc.block(selected()!)?.archived }, false) },
     { id: 'show-archived', title: 'Show / hide archived blocks', section: 'View', run: () => { anchored(() => setShowArchived(value => !value)); scheduleReport(); } },
     { id: 'delete', title: 'Delete selected subtrees', section: 'Outline', keys: ['Backspace', 'dd'], run: () => apply({ kind: 'delete', ids: roots() }, false) },
@@ -808,6 +865,19 @@ function Pane(props: OutlinePaneProps) {
       item('zoom', { icon: 'bullet' }),
       item('open-beside', { icon: 'panes' }),
       item('copy-reference', { icon: 'copy' }),
+      { label: doc.block(id)?.task ? 'Remove task' : 'Make task', section: 'Task', action: () => capabilities.invoke(capabilities.status(id, doc.block(id)?.task ? null : 'todo')) },
+      { label: 'Toggle task', shortcut: '⌥Enter', action: () => capabilities.invoke(capabilities.toggle(id)) },
+      ...(doc.block(id)?.task ? [
+        { label: 'Plan task', action: () => capabilities.open(id, 'task', anchor) },
+        { label: 'Schedule task', shortcut: '⌥S', action: () => capabilities.open(id, 'schedule', anchor) },
+        { label: 'Work sessions', action: () => capabilities.open(id, 'work', anchor) },
+      ] : []),
+      ...(doc.block(id)?.project ? [
+        { label: 'Project', section: 'Project', action: () => capabilities.open(id, 'project', anchor) },
+        { label: 'Show actions', action: () => capabilities.showActions(id) },
+      ] : [{ label: 'Make project', section: 'Project', action: () => capabilities.invoke(capabilities.edit(id, { kind: 'project', id, value: { status: 'active', outcome: '', deadline: null } })) }]),
+      { label: 'Review cards', section: 'Cards', action: () => props.onOpen({ kind: 'review' }, false) },
+      { label: 'Show card source', action: () => capabilities.source(id) },
       item('insert-below', { section: 'Move', icon: 'plus' }),
       item('indent', { icon: 'right' }),
       item('outdent', { icon: 'left' }),
@@ -1025,11 +1095,68 @@ function Pane(props: OutlinePaneProps) {
     cancelAnimationFrame(anchorFrame);
   });
 
+  function WorkPopup(propsWork: { state: CapabilityPopup }) {
+    const state = propsWork.state;
+    const load = async () => {
+      await doc.flush();
+      const [sessions, active] = await Promise.all([props.notebook.api.workSessions(state.id), props.notebook.api.activeWorkSession()]);
+      const source = active ? await props.notebook.api.block(active.block_id) : null;
+      return { sessions, active, source };
+    };
+    const [history, { refetch, mutate }] = createResource(() => props.notebook.changeSequence(), load);
+    const [shown, setShown] = createSignal<WorkHistory>();
+    createEffect(() => { if (!history.error) { const value = history(); if (value) setShown(value); } });
+    const another = () => shown()?.active && shown()!.active!.block_id !== state.id;
+    async function start() {
+      const startedAt = Date.now();
+      await capabilities.run(state.id, async () => {
+        const current = await load();
+        mutate(current);
+        if (current.active) throw new Error(current.active.block_id === state.id ? 'Work is already running on this task.' : 'Work is already running on another task.');
+        await capabilities.save({ kind: 'startWork', id: state.id, startedAt });
+        await refetch();
+      });
+    }
+    async function change(kind: 'stopWork' | 'workNote', sessionId: string, note: string) {
+      const session = shown()?.sessions.find(session => session.id === sessionId) ?? (shown()?.active?.id === sessionId ? shown()?.active : null);
+      if (!session || session.block_id !== state.id) throw new Error('The work session is no longer available.');
+      await capabilities.edit(state.id, kind === 'stopWork'
+        ? { kind, id: state.id, session, endedAt: Date.now(), note }
+        : { kind, id: state.id, session, note });
+      await refetch();
+    }
+    return <Popup anchor={state.anchor} label="Work sessions" class="outline-capability-popup" onDismiss={() => capabilities.dismiss(state)}>
+      <Show when={history.loading}><p class="outline-capability-notice" role="status">Loading work sessions…</p></Show>
+      <Show when={history.error}><p class="error" role="alert">{String(history.error)} <Button onClick={() => { void refetch(); }}>Retry</Button></p></Show>
+      <Show when={another() && shown()?.source}>{source => <div class="outline-running-task">
+        <span>Work is running on</span>
+        <BlockText text={source().text} notebook={props.notebook} onOpen={props.onOpen} />
+        <Button onClick={event => props.onOpen({ kind: 'page', pageId: source().page_id, blockId: source().id }, event.shiftKey)}>Open running task</Button>
+      </div>}</Show>
+      <Show when={shown()}>{value => <WorkSessions sessions={value().sessions} active={value().active?.block_id === state.id ? value().active : null}
+        disabled={history.loading || !!history.error || capabilities.busy(state.id)}
+        onStart={start} onStop={(id, note) => change('stopWork', id, note)} onEdit={(id, note) => change('workNote', id, note)} />}</Show>
+      <Show when={capabilities.error(state.id)}><p class="error" role="alert">{capabilities.error(state.id)}</p></Show>
+    </Popup>;
+  }
+
+  function TaskSummary(propsTask: { id: string }) {
+    return <Show when={doc.block(propsTask.id)?.task}>{task => <Button class="outline-planning" label="Plan task" disabled={capabilities.busy(propsTask.id)} aria-haspopup="dialog" onClick={event => capabilities.open(propsTask.id, 'task', event.currentTarget)}>
+      <Show when={task().scheduled}><span aria-label={`Scheduled: ${task().scheduled}${task().scheduled_time ? ` ${task().scheduled_time}` : ''}`}>Scheduled {task().scheduled} {task().scheduled_time}</span></Show>
+      <Show when={task().deadline}><span aria-label={`Deadline: ${task().deadline}${task().deadline_time ? ` ${task().deadline_time}` : ''}`}>Deadline {task().deadline} {task().deadline_time}</span></Show>
+      <Show when={task().priority}><span>Priority: {task().priority}</span></Show>
+      <Show when={task().repeater}>{repeat => <span aria-label={`Repeat: ${repeat().mode}, every ${repeat().every} ${repeat().unit}`}>Repeat {repeat().every} {repeat().unit}</span>}</Show>
+      <Show when={!task().scheduled && !task().deadline && !task().priority && !task().repeater}>Plan task</Show>
+    </Button>}</Show>;
+  }
+
   function Row(propsRow: { id: string; item: Accessor<VirtualItem> }) {
     const id = () => propsRow.id;
     const block = () => doc.block(id());
     const children = () => doc.outline.children(id()).length > 0;
     const field = createMemo(() => definitionsById().get(fieldEntryId(block()?.text ?? '') ?? ''));
+    const cardText = createMemo(() => block()?.text ?? '');
+    const cards = createMemo(() => parseCardText(cardText()));
     let row!: HTMLDivElement;
     onMount(() => virtualizer.measureElement(row));
     onCleanup(() => { const host = hosts.get(id()); if (host && row.contains(host)) hosts.delete(id()); });
@@ -1040,11 +1167,23 @@ function Pane(props: OutlinePaneProps) {
       <button type="button" class="row-menu icon-button" aria-label="Block actions" onClick={event => blockMenu(id(), event.currentTarget)}><Icon name="more" /></button>
       <button type="button" class="row-fold icon-button" classList={{ 'fold-empty': !children() }} aria-label={folds().has(id()) ? 'Unfold children' : 'Fold children'} disabled={!children()} onClick={() => fold(id())}><Icon name={folds().has(id()) ? 'right' : 'down'} /></button>
       <button type="button" class="row-bullet icon-button" classList={{ 'bullet-collapsed': children() && folds().has(id()) }} aria-label="Zoom into block" onClick={() => zoomTo(id())}><Icon name="bullet" /></button>
+      <Show when={block()?.task}><TaskStatusButton task={block()?.task ?? null} disabled={capabilities.busy(id())} onChange={status => capabilities.status(id(), status)} /></Show>
       <div class="outline-body" classList={{ 'heading-1': block()?.heading === 1, 'heading-2': block()?.heading === 2, 'heading-3': block()?.heading === 3 }} onMouseDown={event => pointerStart(event, id(), event.currentTarget)}>
+        <div class="outline-source-line"><div class="outline-source">
         <Show when={field() && editing() === id()}><Icon name="field" class="field-entry-icon" /></Show>
         <div class="editor-host" classList={{ 'host-active': editing() === id() }} ref={host => attach(id(), host)} />
         <Show when={editing() !== id()}><div class="static-text"><BlockText text={block()?.text ?? ''} field={field()} notebook={props.notebook} onOpen={props.onOpen} onReferenceMenu={referenceMenu} selection={selectedOffsets(id())} /><Show when={!block()?.text && ids().length === 1}><span class="empty-block">Start writing</span></Show></div></Show>
         <For each={block()?.manual_types ?? []}>{title => <TypePill title={title} notebook={props.notebook} onOpen={props.onOpen} onRemove={() => { const result = doc.removeType(id(), title); if (!result.ok) setMessage(result.reason); }} />}</For>
+        </div>
+        <Show when={block()?.task || block()?.project || cards().cards.length}><span class="outline-capability-metadata">
+          <TaskSummary id={id()} />
+          <Show when={block()?.project}><Button class="outline-planning" label="Project" aria-haspopup="dialog" onClick={event => capabilities.open(id(), 'project', event.currentTarget)}>Project</Button></Show>
+          <Show when={cards().cards.length}><Button class="outline-planning" label="Review cards" onClick={event => props.onOpen({ kind: 'review' }, event.shiftKey)}>{cards().cards.length} {cards().cards.length === 1 ? 'card' : 'cards'}</Button></Show>
+        </span></Show>
+        </div>
+        <For each={cards().problems}>{problem => <p class="outline-card-problem" role="alert">{problem.message}</p>}</For>
+        <Show when={capabilities.busy(id()) || (block()?.pending && (block()?.task || block()?.project))}><span class="outline-capability-notice" role="status">{doc.saveState() === 'offline' ? 'Waiting to save' : 'Saving…'}</span></Show>
+        <Show when={capabilities.error(id())}><p class="outline-capability-error" role="alert">{capabilities.error(id())}</p></Show>
         <Show when={block()?.archived}><span class="archive-badge">Archived</span> <button class="text-button" type="button" onClick={() => apply({ kind: 'archive', id: id(), archived: false }, false)}>Unarchive</button></Show>
         <Show when={block()?.conflict}><button type="button" class="conflict-label" onClick={() => setConflicts(previous => { const next = new Set(previous); next.has(id()) ? next.delete(id()) : next.add(id()); return next; })}><Icon name="warning" />Conflict</button></Show>
         <Show when={block()?.conflict && conflicts().has(id())}><div class="conflict-panel">
@@ -1075,7 +1214,7 @@ function Pane(props: OutlinePaneProps) {
   }
 
   return <div ref={scroll} class="outline-pane" data-pane={props.pane} tabIndex={0} role="tree" aria-label="Page outline" aria-owns={[...virtualItems().keys()].map(id => `outline-${props.pane}-${id}`).join(' ')} onFocusIn={props.onActivate} onFocusOut={report} onKeyDown={structuralKey} onWheel={() => { anchorEpoch++; cancelAnimationFrame(anchorFrame); }} onScroll={scheduleReport}>
-    <div class="outline-heading">
+    <div ref={heading} class="outline-heading">
       <Show when={zoom()}><nav class="outline-breadcrumbs" aria-label="Zoom breadcrumbs"><button type="button" onClick={() => zoomTo(null)}>{doc.root()?.text}</button><For each={breadcrumbs()}>{id => <><Icon name="right" /><button type="button" onClick={() => zoomTo(id)}>{doc.block(id)?.text || 'Empty block'}</button></>}</For></nav></Show>
       <div class="outline-title-row">
       <Show when={renaming()} fallback={<h1><button class="outline-title" type="button" disabled={doc.root()?.kind !== 'page'} onClick={rename}>{doc.root()?.text || 'Loading…'}</button></h1>}>
@@ -1084,9 +1223,20 @@ function Pane(props: OutlinePaneProps) {
       </Show>
       <Show when={doc.root()?.kind === 'page'}><div class="outline-header-actions"><Button icon="table" label="Table" shortcut="⌘⇧T" onClick={event => openTable(event.metaKey)}>Table<Show when={!type.error && (type()?.members ?? 0) > 0}><span class="table-member-count">{type()?.members}</span></Show></Button></div></Show>
       </div>
+      <Show when={doc.root()?.task || doc.root()?.project}><div class="outline-root-capabilities outline-capability-metadata">
+        <Show when={doc.root()?.task}>
+          <TaskStatusButton task={doc.root()?.task ?? null} disabled={capabilities.busy(props.pageId)} onChange={status => capabilities.status(props.pageId, status)} />
+          <TaskSummary id={props.pageId} />
+          <Button class="outline-planning" onClick={event => capabilities.open(props.pageId, 'work', event.currentTarget)}>Work sessions</Button>
+        </Show>
+        <Show when={doc.root()?.project}><Button class="outline-planning" onClick={event => capabilities.open(props.pageId, 'project', event.currentTarget)}>Project</Button></Show>
+      </div></Show>
+      <Show when={capabilities.busy(props.pageId) || (doc.root()?.pending && (doc.root()?.task || doc.root()?.project))}><p class="outline-capability-notice" role="status">{doc.saveState() === 'offline' ? 'Waiting to save' : 'Saving…'}</p></Show>
+      <Show when={capabilities.error(props.pageId)}><p class="outline-capability-error" role="alert">{capabilities.error(props.pageId)}</p></Show>
       <Show when={showArchived()}><p class="archive-notice">Showing archived blocks <button type="button" class="text-button" onClick={() => { setShowArchived(false); scheduleReport(); }}>Hide archived</button></p></Show>
       <Show when={message()}><p class="outline-message" role="alert">{message()} <button class="text-button" type="button" onClick={() => setMessage('')}>Dismiss</button></p></Show>
       <Show when={doc.status() === 'error' || doc.status() === 'missing'}><p role="alert">{doc.statusMessage()}</p></Show>
+      <Show when={doc.root()?.kind === 'journal'}><JournalAgenda date={doc.root()!.text} notebook={props.notebook} onOpen={props.onOpen} /></Show>
     </div>
     <div ref={list} class="outline-list" style={{ height: `${virtualizer.getTotalSize()}px` }}>
       <For each={[...virtualItems().keys()].filter(id => id !== editing())}>{id => <Row id={id} item={() => virtualItems().get(id)!} />}</For>
@@ -1097,7 +1247,29 @@ function Pane(props: OutlinePaneProps) {
       <Show when={related.error || related()?.backlinks.length}><Related title="Backlinks" rows={related.error ? [] : related()?.backlinks ?? []} /></Show>
       <Show when={related.error || related()?.tagged.length}><Related title="Tagged blocks" rows={related.error ? [] : related()?.tagged ?? []} /></Show>
     </div></Show>
-    <Show when={menu()}>{state => <Menu anchor={state().anchor} label={state().label} items={state().items} onDismiss={() => setMenu(null)} />}</Show>
+    <Show keyed when={menu()}>{state => <Menu anchor={state.anchor} label={state.label} items={state.items} onDismiss={() => setMenu(null)} />}</Show>
+    <Show keyed when={capabilities.popup()}>{state => <>
+      {state.kind === 'task' && <Popup anchor={state.anchor} label="Task" class="outline-capability-popup" onDismiss={() => capabilities.dismiss(state)}>
+        <Show when={doc.block(state.id)?.task} fallback={<p class="outline-capability-notice">Task removed.</p>}>{task => <TaskControls task={task()} contextDate={contextDate()} disabled={capabilities.busy(state.id)} onChange={value => capabilities.edit(state.id, { kind: 'task', id: state.id, value })} />}</Show>
+        <Show when={capabilities.busy(state.id)}><p class="outline-capability-notice" role="status">Saving…</p></Show>
+        <Show when={capabilities.error(state.id)}><p class="error" role="alert">{capabilities.error(state.id)}</p></Show>
+      </Popup>}
+      {state.kind === 'schedule' && <Show when={doc.block(state.id)?.task}>{task => <DatePicker anchor={state.anchor} label="Schedule task" value={task().scheduled} time={task().scheduled_time} contextDate={contextDate()} onDismiss={() => capabilities.dismiss(state)}
+        onSelect={value => capabilities.edit(state.id, { kind: 'task', id: state.id, value: { ...task(), scheduled: value.date, scheduled_time: value.date ? value.time : null } })} />}</Show>}
+      {state.kind === 'project' && <Popup anchor={state.anchor} label="Project" class="outline-capability-popup" onDismiss={() => capabilities.dismiss(state)}>
+        <ProjectControls project={doc.block(state.id)?.project ?? null} contextDate={contextDate()} disabled={capabilities.busy(state.id)} onChange={value => capabilities.edit(state.id, { kind: 'project', id: state.id, value })} />
+        <Show when={doc.block(state.id)?.project}><Button onClick={event => capabilities.showActions(state.id, event.shiftKey)}>Show actions</Button></Show>
+        <Show when={capabilities.busy(state.id)}><p class="outline-capability-notice" role="status">Saving…</p></Show>
+        <Show when={capabilities.error(state.id)}><p class="error" role="alert">{capabilities.error(state.id)}</p></Show>
+      </Popup>}
+      {state.kind === 'work' && <WorkPopup state={state} />}
+      {state.kind === 'complete' && <Popup anchor={state.anchor} label="Stop work and complete?" class="outline-capability-popup" onDismiss={() => capabilities.dismiss(state)}>
+        <p>Stop work and complete?</p>
+        <div class="outline-capability-actions"><Button class="bordered" disabled={capabilities.busy(state.id)} onClick={() => capabilities.invoke(capabilities.complete(state))}>Stop and complete</Button><Button onClick={() => capabilities.dismiss(state)}>Cancel</Button></div>
+        <Show when={capabilities.busy(state.id)}><p class="outline-capability-notice" role="status">Saving…</p></Show>
+        <Show when={capabilities.error(state.id)}><p class="error" role="alert">{capabilities.error(state.id)}</p></Show>
+      </Popup>}
+    </>}</Show>
     <Show when={completion()}><Popup anchor={completionAnchor} width={480} class="picker" label={completion()?.manual ? 'Add type…' : 'Reference completion'} role={completion()?.manual ? 'dialog' : 'listbox'} onDismiss={dismissCompletion} autofocus={!!completion()?.manual}>
       <Show when={completion()?.manual}><div class="picker-query"><Icon name="tag" class="picker-prefix" /><input class="picker-input" aria-label="Type title" placeholder="Type title" value={completion()?.query ?? ''} onInput={event => { setCompletion(state => state ? { ...state, query: event.currentTarget.value } : null); setCompletionIndex(0); }} onKeyDown={event => { if (!event.isComposing && popupKey(event)) { event.preventDefault(); event.stopPropagation(); } }} /></div></Show>
       <div ref={completionList} class="picker-list" onMouseDown={event => event.preventDefault()}>

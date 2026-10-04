@@ -5,7 +5,7 @@
  */
 
 import type { Caret, NotebookClient } from '../document/contract';
-import type { Query } from '../api/types';
+import type { CardSelection, Query, TaskQuery } from '../api/types';
 
 export type PaneId = 'main' | 'side';
 
@@ -52,12 +52,16 @@ export interface ViewState {
 export type OpenTarget =
   | { kind: 'page'; pageId: string; blockId?: string }
   | { kind: 'table'; typeId: string | null; viewId: string | null; query: Query }
+  | { kind: 'agenda'; date?: string; viewId?: string; query?: TaskQuery }
+  | { kind: 'review'; deckId?: string }
   | { kind: 'fields' }
   | { kind: 'settings' };
 
 export interface TableViewState { query: Query; scroll: number }
 export interface FieldsViewState { scroll: number }
 export interface SettingsViewState { scroll: number }
+export interface AgendaViewState { date: string; mode: 'agenda' | 'tasks'; query: TaskQuery; viewId: string | null; scroll: number }
+export interface ReviewViewState { deckId: string | null; sessionId: string | null; selection: CardSelection | null; scroll: number }
 
 export interface OutlinePaneProps {
   pane: PaneId;

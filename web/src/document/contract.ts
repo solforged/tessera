@@ -14,7 +14,8 @@
  */
 
 import type { Accessor } from 'solid-js';
-import type { Block, BlockKind, ChangeEvent, FieldDefinition, FieldKind, SettingsView } from '../api/types';
+import type { Block, BlockKind, ChangeEvent, Committed, FieldDefinition, FieldKind, Operation, ProjectState, SettingsView, TaskState, WorkSession } from '../api/types';
+import type { ApiClient } from '../api/client';
 
 /** A position in a block's text, in UTF-16 code units. */
 export interface Caret {
@@ -39,6 +40,10 @@ export interface BlockState {
   readonly heading: 1 | 2 | 3 | null;
   readonly archived: boolean;
   readonly manual_types: readonly string[];
+  readonly task: TaskState | null;
+  readonly project: ProjectState | null;
+  readonly mergeProtected: boolean;
+  readonly reviewedCards: boolean;
   /** Last revision the service acknowledged; 0 until a new block is committed. */
   readonly revision: number;
   /** Local changes not yet acknowledged. */
@@ -78,6 +83,13 @@ export type Edit =
    * heading in the same undo step (the `# ` input rule).
    */
   | { kind: 'text'; id: string; text: string; heading?: 1 | 2 | 3 | null }
+  | { kind: 'task'; id: string; value: TaskState | null }
+  | { kind: 'planTask'; id: string; text: string; value: TaskState }
+  | { kind: 'completeTask'; id: string; completedOn: string; stopWork?: WorkSession }
+  | { kind: 'project'; id: string; value: ProjectState | null }
+  | { kind: 'startWork'; id: string; startedAt: number }
+  | { kind: 'stopWork'; id: string; session: WorkSession; endedAt: number; note: string }
+  | { kind: 'workNote'; id: string; session: WorkSession; note: string }
   /**
    * Enter: the original keeps its ID, children and text before `offset`.
    * At a parent's end, insert its first child; otherwise insert a sibling.
@@ -179,6 +191,8 @@ export interface PageDocument {
 
   saveState(): SaveState;
   saveMessage(): string;
+  /** Wait for this page's pending commands to commit; uncertainty remains pending. */
+  flush(): Promise<void>;
   /** Keep the local version (rewrites over the remote one) or take the remote one. */
   resolveConflict(id: string, keep: 'mine' | 'theirs'): void;
   /** Drop one pane's hold; the document closes when no pane holds it. */
@@ -187,6 +201,11 @@ export interface PageDocument {
 
 /** The notebook-wide client. One per window. */
 export interface NotebookClient {
+  readonly api: ApiClient;
+  /** Durable notebook command; resolves only after acknowledgement. */
+  commit(operations: readonly Operation[], reason?: string): Promise<Committed>;
+  commandState(): SaveState;
+  commandMessage(): string;
   /** Open (or share) a page's document. Call `release()` when done. */
   open(pageId: string): PageDocument;
   /** Live pages, then journal days newest first; follows remote changes. */

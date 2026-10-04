@@ -1,10 +1,17 @@
 import type {
+  Agenda,
   Backlink,
   Batch,
   Block,
+  BlockCapabilities,
   BlockInPage,
+  CardPreviews,
+  CardQuery,
+  CardQueryResult,
+  CardUnit,
   ChangeEvent,
   Committed,
+  Deck,
   Fields,
   Type,
   Query,
@@ -12,7 +19,15 @@ import type {
   View,
   NotebookInfo,
   PageView,
+  ProjectRecord,
+  ReviewEvent,
+  ReviewSession,
   SettingsView,
+  TaskOccurrence,
+  TaskQuery,
+  TaskQueryResult,
+  TaskView,
+  WorkSession,
 } from './types';
 
 /** A failed request. `status` is 0 when the service could not be reached. */
@@ -79,6 +94,24 @@ export interface ApiClient {
   pageByTitle(title: string, signal?: AbortSignal): Promise<Block>;
   journal(date: string, signal?: AbortSignal): Promise<Block>;
   block(id: string, signal?: AbortSignal): Promise<Block>;
+  capabilities(id: string, signal?: AbortSignal): Promise<BlockCapabilities>;
+  taskOccurrences(id: string, signal?: AbortSignal): Promise<TaskOccurrence[]>;
+  workSessions(id: string, signal?: AbortSignal): Promise<WorkSession[]>;
+  activeWorkSession(signal?: AbortSignal): Promise<WorkSession | null>;
+  projects(signal?: AbortSignal): Promise<ProjectRecord[]>;
+  taskQuery(value: TaskQuery, signal?: AbortSignal): Promise<TaskQueryResult>;
+  agenda(date: string, signal?: AbortSignal): Promise<Agenda>;
+  taskViews(signal?: AbortSignal): Promise<TaskView[]>;
+  taskView(id: string, signal?: AbortSignal): Promise<TaskView>;
+  sourceCards(id: string, signal?: AbortSignal): Promise<CardUnit[]>;
+  card(id: string, signal?: AbortSignal): Promise<CardUnit>;
+  cardQuery(value: CardQuery, signal?: AbortSignal): Promise<CardQueryResult>;
+  cardPreviews(id: string, signal?: AbortSignal): Promise<CardPreviews>;
+  cardReviews(id: string, signal?: AbortSignal): Promise<ReviewEvent[]>;
+  decks(signal?: AbortSignal): Promise<Deck[]>;
+  deck(id: string, signal?: AbortSignal): Promise<Deck>;
+  reviewSessions(signal?: AbortSignal): Promise<ReviewSession[]>;
+  reviewSession(id: string, signal?: AbortSignal): Promise<ReviewSession>;
   backlinks(id: string, limit?: number, signal?: AbortSignal): Promise<Backlink[]>;
   members(id: string, limit?: number, signal?: AbortSignal): Promise<BlockInPage[]>;
   fields(signal?: AbortSignal): Promise<Fields>;
@@ -104,6 +137,24 @@ export function createApi(base = ''): ApiClient {
     pageByTitle: (title: string, signal?: AbortSignal) => get<Block>(`/pages/by-title/${segment(title)}`, signal),
     journal: (date: string, signal?: AbortSignal) => get<Block>(`/journal/${segment(date)}`, signal),
     block: (id: string, signal?: AbortSignal) => get<Block>(`/blocks/${segment(id)}`, signal),
+    capabilities: (id: string, signal?: AbortSignal) => get<BlockCapabilities>(`/blocks/${segment(id)}/capabilities`, signal),
+    taskOccurrences: (id: string, signal?: AbortSignal) => get<TaskOccurrence[]>(`/blocks/${segment(id)}/task-occurrences`, signal),
+    workSessions: (id: string, signal?: AbortSignal) => get<WorkSession[]>(`/blocks/${segment(id)}/work-sessions`, signal),
+    activeWorkSession: (signal?: AbortSignal) => get<WorkSession | null>('/work-sessions/active', signal),
+    projects: (signal?: AbortSignal) => get<ProjectRecord[]>('/projects', signal),
+    taskQuery: (value: TaskQuery, signal?: AbortSignal) => request<TaskQueryResult>(base, 'POST', '/tasks/query', value, signal),
+    agenda: (date: string, signal?: AbortSignal) => get<Agenda>(`/agenda/${segment(date)}`, signal),
+    taskViews: (signal?: AbortSignal) => get<TaskView[]>('/task-views', signal),
+    taskView: (id: string, signal?: AbortSignal) => get<TaskView>(`/task-views/${segment(id)}`, signal),
+    sourceCards: (id: string, signal?: AbortSignal) => get<CardUnit[]>(`/blocks/${segment(id)}/cards`, signal),
+    card: (id: string, signal?: AbortSignal) => get<CardUnit>(`/cards/${segment(id)}`, signal),
+    cardQuery: (value: CardQuery, signal?: AbortSignal) => request<CardQueryResult>(base, 'POST', '/cards/query', value, signal),
+    cardPreviews: (id: string, signal?: AbortSignal) => get<CardPreviews>(`/cards/${segment(id)}/previews`, signal),
+    cardReviews: (id: string, signal?: AbortSignal) => get<ReviewEvent[]>(`/cards/${segment(id)}/reviews`, signal),
+    decks: (signal?: AbortSignal) => get<Deck[]>('/decks', signal),
+    deck: (id: string, signal?: AbortSignal) => get<Deck>(`/decks/${segment(id)}`, signal),
+    reviewSessions: (signal?: AbortSignal) => get<ReviewSession[]>('/review-sessions', signal),
+    reviewSession: (id: string, signal?: AbortSignal) => get<ReviewSession>(`/review-sessions/${segment(id)}`, signal),
     backlinks: (id: string, limit = 100, signal?: AbortSignal) => get<Backlink[]>(`/blocks/${segment(id)}/backlinks${query({ limit })}`, signal),
     members: (id: string, limit = 100, signal?: AbortSignal) => get<BlockInPage[]>(`/types/${segment(id)}/members${query({ limit })}`, signal),
     fields: (signal?: AbortSignal) => get<Fields>('/fields', signal),

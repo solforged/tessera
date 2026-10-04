@@ -1,4 +1,5 @@
 import type { FieldDefinition, Filter, FilterOp, Query, SortKey } from '../api/types';
+import { parseCardText } from '../review/card-text';
 
 export const filterLabels: Record<FilterOp, string> = {
   is: 'is', is_not: 'is not', contains: 'contains', gt: '>', gte: '≥', lt: '<', lte: '≤', present: 'is present', set: 'is set', empty: 'is empty',
@@ -44,9 +45,12 @@ export function removeFilter(query: Query, index: number): Query {
   return { ...query, filters: query.filters.filter((_, position) => position !== index) };
 }
 export function matchFieldEntry(text: string): { name: string; value: string } | null {
-  const match = /^([^\[\]#:]{1,60}?)::\s?(.*)$/.exec(text);
+  const match = /^([^\\`\[\]#:]{1,60}?)::\s?(.*)$/.exec(text);
   if (!match || !match[1]!.trim()) return null;
-  return { name: match[1]!.trim(), value: match[2]! };
+  const name = match[1]!.trim();
+  const prefix = parseCardText(name);
+  if (prefix.cards.length || prefix.problems.length) return null;
+  return { name, value: match[2]! };
 }
 export function fieldEntryText(fieldId: string): string { return `[[${fieldId}]]`; }
 export function fieldEntryId(text: string): string | null {

@@ -37,7 +37,7 @@ Exit: write, rearrange, navigate away and reopen for a week of real notes withou
 
 Exit: record a reading list with authors and dates, then sort, filter and save it as a view.
 
-Status: done except task-state filters, which arrive with stage 3. Fields, templates, type tables with sorting and filtering, queries saved as views, manual membership from a pill menu, a Fields destination and notebook settings (time zone, Vim) are in. The [design](design.md) language was settled afterwards and applied to the shell, outline and tables.
+Status: done. Fields, templates, type tables with sorting and filtering, saved queries, manual membership from a pill menu, a Fields destination and notebook settings (time zone, Vim) are in. Task-state and date filters are available in Agenda's Tasks view. The [design](design.md) language applies to the shell, outline, tables and capability surfaces.
 
 ## 3. Action
 
@@ -47,6 +47,8 @@ Status: done except task-state filters, which arrive with stage 3. Fields, templ
 
 Exit: plan a small project, work it over several days with clocked time, and find the result from the agenda.
 
+Status: done. Browser proof planned a language-model project, recorded clocked work and notes, completed work in historical journals, advanced a recurring task across adjacent days, reopened and undid a completion without duplicating history, and saved and restored a project task query. Agenda rows open the canonical source beside the historical day.
+
 ## 4. Learning
 
 - Cards from `>>`, `<<`, `<>` and numbered clozes, with forgiving, visible syntax. `::` stays field shorthand.
@@ -55,6 +57,8 @@ Exit: plan a small project, work it over several days with clocked time, and fin
 - Saved review decks backed by queries.
 
 Exit: study cards from real reading notes and a vocabulary deck in a language being read, correct a card from review, and keep its history.
+
+Status: done. Browser proof studied Greek vocabulary and attention-study notes, including both card directions and independent numbered clozes. It saved and edited source/field-filtered decks, corrected a source beside review, retained progress and shown-text evidence, reset progress without erasing history, and restored the selected deck, queue and session through navigation and reload.
 
 ## 5. Library and reading
 

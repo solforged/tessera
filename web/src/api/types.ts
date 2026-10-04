@@ -45,6 +45,7 @@ export type Operation =
   | { op: 'delete_view'; id: string; base_revision: number }
   | { op: 'set_setting'; key: string; base_revision: number | null; value: string }
   | { op: 'set_task'; id: string; base_revision: number; task: TaskState | null }
+  | { op: 'restore_task_state'; id: string; base_revision: number; expected: TaskState; task: TaskState }
   | { op: 'complete_task'; id: string; base_revision: number; occurrence_id: string; completed_on: string }
   | { op: 'reverse_task_completion'; id: string; base_revision: number; occurrence_id: string }
   | { op: 'set_project'; id: string; base_revision: number; project: ProjectState | null }

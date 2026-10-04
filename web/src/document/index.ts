@@ -2,13 +2,14 @@ import { createSignal } from 'solid-js';
 import type { Accessor } from 'solid-js';
 import { ulid } from 'ulid';
 import { ApiError, createApi } from '../api/client';
-import type { Block, ChangeEvent, Operation, PageView, SettingsView } from '../api/types';
+import type { Batch, Block, BlockCapabilities, ChangeEvent, Committed, Operation, PageView, SettingsView, WorkSession } from '../api/types';
 import type { ApiClient } from '../api/client';
 import type { Caret, NotebookClient, PageDocument, SaveState } from './contract';
 import { Document } from './page-document';
 import type { DocumentHost } from './page-document';
 import { Outbox } from './outbox';
-import type { Action, Command, Compiled, Ticket } from './types';
+import type { Action, Command, Compiled, NotebookCommand, PageCommand, Ticket } from './types';
+import { emptyCapabilities, isCapabilityAction, sameState } from './types';
 export type { NotebookClient, PageDocument, BlockState, Caret, Edit, EditResult, SaveState } from './contract';
 
 export interface NotebookOptions {
@@ -54,6 +55,7 @@ export class Notebook implements NotebookClient, DocumentHost {
   private socket?: WebSocket;
   private connecting?: Promise<void>;
   private closed = false;
+  private initialized = false;
   private seq = 0;
   private reconnectDelay = 500;
   private streamWork = Promise.resolve();
@@ -63,6 +65,12 @@ export class Notebook implements NotebookClient, DocumentHost {
   private actorName: string;
   private persisted = new Set<string>();
   private generations = new Map<string, number>();
+  private commandWaiters = new Map<string, { resolve(value: Committed): void; reject(error: Error): void }>();
+  private pageWaiters = new Set<{ pageId: string; ids: Set<string>; resolve(): void; reject(error: Error): void }>();
+  private activeWork?: WorkSession;
+  private workSequence = 0;
+  private capabilitySequence = new Map<string, number>();
+  runningWork() { return this.activeWork; }
   connection = this.connectionSignal[0];
   localPersistence = this.storageSignal[0];
   private settingsSignal = createSignal<SettingsView>();
@@ -90,7 +98,7 @@ export class Notebook implements NotebookClient, DocumentHost {
     }
     this.sessionId = identity;
     this.actorName = `tessera-web:${identity}`;
-    this.ready = this.initialize();
+    this.ready = this.initialize().then(() => { this.initialized = true; this.touch(); });
     if (typeof window !== 'undefined') {
       window.addEventListener('online', this.online);
       window.addEventListener('beforeunload', this.beforeUnload);
@@ -102,7 +110,17 @@ export class Notebook implements NotebookClient, DocumentHost {
       event.preventDefault(); event.returnValue = '';
     }
   };
-  private touch() { this.revision[1](value => value + 1); }
+  private touch() {
+    this.revision[1](value => value + 1);
+    for (const waiter of this.pageWaiters) {
+      const rejected = [...this.rejected.values()].find(command => command.pageId === waiter.pageId);
+      const pending = this.queue.filter(command => waiter.ids.has(command.id));
+      const failure = rejected?.rejection?.message ?? pending.find(command => command.failed)?.failed
+        ?? (pending.length && this.persistenceFailure ? this.persistenceFailure : pending.length && this.docs.get(waiter.pageId)?.hasConflict() ? 'Conflict · Both versions kept' : undefined);
+      if (failure) { this.pageWaiters.delete(waiter); waiter.reject(new Error(failure)); }
+      else if (!pending.length) { this.pageWaiters.delete(waiter); waiter.resolve(); }
+    }
+  }
   private storageFailed = (error: unknown) => {
     this.storageSignal[1]('failed');
     this.persistenceFailure = `Not saved locally · Keep this tab open. ${error instanceof Error ? error.message : String(error)}`;
@@ -122,6 +140,7 @@ export class Notebook implements NotebookClient, DocumentHost {
     }
     try { this.cachedVim[1](JSON.parse(localStorage.getItem(`tessera.navigation.${notebookId}`) ?? '{}').vim === true); } catch { /* Optional offline preference. */ }
     try { await this.refreshSettings(); } catch { /* Offline dates and Vim use device/cache fallbacks. */ }
+    try { this.activeWork = await this.api.activeWorkSession() ?? undefined; } catch { /* The service still guards unknown clocks. */ }
     this.outbox = new Outbox(notebookId, this.sessionId, this.storageFailed, this.options.databaseName);
     const stored = await this.outbox.load();
     this.queue = stored.commands.filter(command => !command.rejection);
@@ -134,7 +153,7 @@ export class Notebook implements NotebookClient, DocumentHost {
     try { await this.refreshRoots(); } catch { this.connectionSignal[1]('offline'); }
     // Loading recovered documents is chained after ready, avoiding a constructor cycle.
     queueMicrotask(() => {
-      for (const command of this.queue) if (!this.docs.has(command.pageId)) this.open(command.pageId).release();
+      for (const command of this.queue) if (command.kind !== 'notebook' && !this.docs.has(command.pageId)) this.open(command.pageId).release();
       void this.connect();
       this.schedule(0);
     });
@@ -156,7 +175,7 @@ export class Notebook implements NotebookClient, DocumentHost {
       this.docs.delete(doc.pageId);
     }
   }
-  commands(pageId: string) { this.revision[0](); return this.queue.filter(command => command.pageId === pageId); }
+  commands(pageId: string): PageCommand[] { this.revision[0](); return this.queue.filter((command): command is PageCommand => command.kind !== 'notebook' && command.pageId === pageId); }
   async loadPage(id: string) {
     const sequence = this.changeSequence();
     try {
@@ -173,6 +192,10 @@ export class Notebook implements NotebookClient, DocumentHost {
     }
   }
   cachePage(view: PageView) {
+    if (!this.cachedViews.has(view)) {
+      const capabilities = new Map((view.capabilities ?? []).map(value => [value.block_id, value]));
+      void this.outbox?.capabilities([view.root, ...view.rows.map(row => row.block)].map(block => capabilities.get(block.id) ?? emptyCapabilities(block.id)), this.snapshotSequence.get(view) ?? 0).catch(() => undefined);
+    }
     if (!this.cachedViews.has(view)) void this.outbox?.page(view, this.snapshotSequence.get(view) ?? 0).catch(() => undefined);
   }
   publish(block: Block | null, id = block?.id) {
@@ -224,17 +247,17 @@ export class Notebook implements NotebookClient, DocumentHost {
       if (this.cache.get(id)?.[0]() === undefined) this.loadLookup(id);
     }
   }
-  enqueue(doc: Document, actions: Action[], inverse: Action[], before: Caret | null, after: Caret | null, coalesce: boolean) {
+  enqueue(doc: Document, actions: Action[], inverse: Action[], before: Caret | null, after: Caret | null, coalesce: boolean): PageCommand {
     const previous = this.queue.at(-1);
-    let command: Command;
-    if (coalesce && previous && !previous.frozen && previous.pageId === doc.pageId && actions.length === 1 && actions[0]!.kind === 'text' && previous.actions.length === 1 && previous.actions[0]!.kind === 'text' && previous.actions[0]!.id === actions[0]!.id) {
-      previous.actions = actions;
+    let command: PageCommand;
+    if (coalesce && previous && previous.kind !== 'notebook' && !previous.frozen && previous.pageId === doc.pageId && actions.length === 1 && actions[0]!.kind === 'text' && previous.actions.length === 1 && previous.actions[0]!.kind === 'text' && previous.actions[0]!.id === actions[0]!.id) {
+      previous.actions = structuredClone(actions);
       previous.after = after;
       previous.failed = undefined;
       this.persisted.delete(previous.id);
       command = previous;
     } else {
-      command = { id: ulid(), order: ++this.order, pageId: doc.pageId, actions, inverse, before, after };
+      command = { id: ulid(), order: ++this.order, pageId: doc.pageId, actions: structuredClone(actions), inverse: structuredClone(inverse), before, after };
       this.queue.push(command);
     }
     this.generations.set(command.id, (this.generations.get(command.id) ?? 0) + 1);
@@ -245,14 +268,57 @@ export class Notebook implements NotebookClient, DocumentHost {
     this.schedule(coalesce ? Math.min(Math.max(150, Math.min(300, this.options.coalesceMs ?? 200)), Math.max(0, 1000 - (Date.now() - this.firstQueuedAt))) : 0);
     return command;
   }
+  async commit(operations: readonly Operation[], reason?: string): Promise<Committed> {
+    const id = ulid();
+    const frozen = JSON.stringify({ actor: { kind: 'client', name: this.actorName }, idempotency_key: id, reason, operations });
+    const snapshot: Batch = JSON.parse(frozen);
+    if (!this.initialized) await this.ready;
+    if (this.closed) throw new Error('The notebook is closed.');
+    if (!snapshot.operations.length) throw new Error('A command needs an operation.');
+    const command: NotebookCommand = { kind: 'notebook', id, order: ++this.order, pageId: null, operations: snapshot.operations, reason, actions: [], inverse: [], before: null, after: null, frozen };
+    const waiter = Promise.withResolvers<Committed>();
+    this.commandWaiters.set(id, waiter);
+    this.queue.push(command);
+    this.touch();
+    void this.persist(command).then(() => this.schedule(0));
+    return waiter.promise;
+  }
+  commandState(): SaveState {
+    this.revision[0]();
+    if (!this.initialized) return 'queued';
+    const commands = this.queue.filter(command => command.kind === 'notebook');
+    if (!commands.length && [...this.rejected.values()].some(command => command.kind === 'notebook')) return 'error';
+    if (commands.some(command => !this.persisted.has(command.id))) return 'queued';
+    if (!commands.length) return 'saved';
+    if (this.connection() === 'offline') return 'offline';
+    return commands.some(command => command.id === this.activeCommand) ? 'saving' : 'queued';
+  }
+  commandMessage() {
+    const state = this.commandState();
+    const rejected = [...this.rejected.values()].filter((command): command is NotebookCommand => command.kind === 'notebook');
+    if (rejected.length) return rejected.map(command => `${command.rejection!.message}\n${JSON.stringify(command.rejection!.operations ?? command.operations)}`).join('\n\n');
+    if (this.queue.some(command => command.kind === 'notebook') && this.persistenceFailure) return this.persistenceFailure;
+    if (state === 'error') return this.persistenceFailure || this.queue.find(command => command.kind === 'notebook' && command.failed)?.failed || 'Command failed.';
+    return state === 'saved' ? 'Saved' : state === 'offline' ? 'Offline · Command kept for retry' : 'Saving…';
+  }
+  async flushPage(pageId: string) {
+    await this.ready;
+    const waiter = Promise.withResolvers<void>();
+    this.pageWaiters.add({ pageId, ids: new Set(this.commands(pageId).map(command => command.id)), resolve: waiter.resolve, reject: waiter.reject });
+    this.touch();
+    this.schedule(0);
+    return waiter.promise;
+  }
   private async persist(command: Command) {
-    const generation = this.generations.get(command.id);
+    const generation = (this.generations.get(command.id) ?? 0) + 1;
+    this.generations.set(command.id, generation);
+    this.persisted.delete(command.id);
     try {
       if (!this.outbox) throw new Error('Recovery storage has not opened.');
       await this.outbox.put(command);
       if (this.queue.includes(command) && this.generations.get(command.id) === generation) this.persisted.add(command.id);
       this.touch();
-    } catch { /* Outbox reports the precise storage failure and saving continues in memory. */ }
+    } catch (error) { if (!this.outbox) this.storageFailed(error); }
   }
   private schedule(delay: number) {
     clearTimeout(this.timer);
@@ -262,6 +328,9 @@ export class Notebook implements NotebookClient, DocumentHost {
   private compile(command: Command, doc: Document): Compiled {
     const operations: Operation[] = [];
     const working = new Map<string, Block>();
+    const capabilities = new Map<string, BlockCapabilities>();
+    const work = new Map<string, WorkSession>();
+    const initialRevisions = new Map<string, number>();
     const deleted: string[] = [];
     const current = (id: string) => {
       let block = working.get(id);
@@ -271,17 +340,92 @@ export class Notebook implements NotebookClient, DocumentHost {
         if (!saved) throw new Error('The block no longer exists.');
         block = { ...saved };
         working.set(id, block);
+        initialRevisions.set(id, saved.revision);
       }
       return block;
     };
     for (const action of command.actions) {
       switch (action.kind) {
+        case 'task':
+        case 'project':
+        case 'completeTask':
+        case 'reverseTaskCompletion':
+        case 'startWork':
+        case 'stopWork':
+        case 'workNote':
+        case 'workState': {
+          const block = current(action.id);
+          if (action.baseRevision !== initialRevisions.get(action.id)) throw new Error('The task, project, or work source changed. Rejected command kept; refresh before applying it again.');
+          let value = capabilities.get(action.id);
+          if (!value) { value = doc.capabilities(action.id, true); capabilities.set(action.id, value); }
+          let changed = true;
+          if (action.kind === 'task') {
+            if (!sameState(value.task, action.previous)) throw new Error('Task metadata changed. Rejected command kept.');
+            if (action.restore && action.value && action.previous) operations.push({ op: 'restore_task_state', id: action.id, base_revision: block.revision, expected: action.previous, task: action.value });
+            else operations.push({ op: 'set_task', id: action.id, base_revision: block.revision, task: action.value });
+            changed = !sameState(value.task, action.value); value.task = action.value;
+          } else if (action.kind === 'project') {
+            if (!sameState(value.project, action.previous)) throw new Error('Project metadata changed. Rejected command kept.');
+            operations.push({ op: 'set_project', id: action.id, base_revision: block.revision, project: action.value });
+            changed = !sameState(value.project, action.value); value.project = action.value;
+          } else if (action.kind === 'completeTask') {
+            if (!sameState(value.task, action.previous)) throw new Error('Task metadata changed before completion. Rejected command kept.');
+            operations.push({ op: 'complete_task', id: action.id, base_revision: block.revision, occurrence_id: action.occurrenceId, completed_on: action.completedOn });
+            changed = value.task?.status !== 'done' || Boolean(value.task.repeater);
+          } else if (action.kind === 'reverseTaskCompletion') {
+            if (!sameState(value.task, action.previous)) throw new Error('Task changed after completion. Its exact undo cannot overwrite newer metadata.');
+            operations.push({ op: 'reverse_task_completion', id: action.id, base_revision: block.revision, occurrence_id: action.occurrenceId });
+            value.task = action.value;
+          } else {
+            const session = work.get(action.session.id) ?? { ...action.session };
+            if (action.kind === 'startWork') {
+              operations.push({ op: 'start_work', id: action.id, base_revision: block.revision, session_id: session.id, started_at: session.started_at, note: session.note });
+              session.revision = 1;
+            } else if (action.kind === 'stopWork') {
+              operations.push({ op: 'stop_work', id: action.id, base_revision: block.revision, session_id: session.id, session_revision: session.revision, ended_at: action.endedAt, note: action.note });
+              session.ended_at = action.endedAt; session.note = action.note; session.revision++;
+            } else if (action.kind === 'workNote') {
+              operations.push({ op: 'edit_work_note', id: action.id, base_revision: block.revision, session_id: session.id, session_revision: session.revision, note: action.note });
+              changed = session.note !== action.note; session.note = action.note; if (changed) session.revision++;
+            } else {
+              operations.push({ op: 'set_work_session_state', id: action.id, base_revision: block.revision, session_id: session.id, session_revision: session.revision, ended_at: action.endedAt, reversed: action.reversed });
+              changed = session.ended_at !== action.endedAt || session.reversed !== action.reversed;
+              session.ended_at = action.endedAt; session.reversed = action.reversed; if (changed) session.revision++;
+            }
+            work.set(session.id, session);
+          }
+          if (changed) block.revision++;
+          break;
+        }
+        case 'split': {
+          const block = current(action.id);
+          operations.push({ op: 'split', id: action.id, base_revision: block.revision, new_id: action.block.id, left: action.left, right: action.right });
+          if (block.text !== action.left) block.revision++;
+          block.text = action.left;
+          working.set(action.block.id, { ...action.block, revision: 1 });
+          initialRevisions.set(action.block.id, 0);
+          break;
+        }
+        case 'merge': {
+          const source = current(action.id);
+          const destination = current(action.destinationId);
+          operations.push({ op: 'merge', source_id: action.id, source_revision: source.revision, destination_id: destination.id, destination_revision: destination.revision });
+          if (source.text) destination.revision++;
+          destination.text += source.text;
+          for (const child of doc.baseOutline.children(source.id)) {
+            const block = current(child);
+            if (block.parent_id === source.id) { block.parent_id = destination.id; block.revision++; }
+          }
+          source.revision++; deleted.push(source.id);
+          break;
+        }
         case 'insert': {
           const block = { ...action.block, revision: 1 };
           if (block.kind === 'page') operations.push({ op: 'create_page', id: block.id, title: block.text });
           else if (block.kind === 'journal') operations.push({ op: 'create_journal', id: block.id, date: block.text });
           else operations.push({ op: 'insert', id: block.id, parent_id: block.parent_id!, after: action.after, text: block.text, heading: block.heading });
           working.set(block.id, block);
+          initialRevisions.set(block.id, 0);
           break;
         }
         case 'text': {
@@ -350,28 +494,71 @@ export class Notebook implements NotebookClient, DocumentHost {
     }
     return { batch: { actor: { kind: 'client', name: this.actorName }, idempotency_key: command.id, operations }, deleted };
   }
-  private async reject(command: Command, doc: Document, message: string) {
+  private async reject(command: Command, doc: Document | undefined, message: string) {
     const texts = new Map<string, string>();
     for (const action of command.actions) {
-      if (action.kind === 'text') texts.set(action.id, doc.block(action.id)?.text ?? action.text);
-      if (action.kind === 'insert') texts.set(action.block.id, doc.block(action.block.id)?.text ?? action.block.text);
+      if (action.kind === 'text') texts.set(action.id, doc?.block(action.id)?.text ?? action.text);
+      if (action.kind === 'insert' || action.kind === 'split') texts.set(action.block.id, doc?.block(action.block.id)?.text ?? action.block.text);
     }
-    command.rejection = { text: [...texts.values()].filter(Boolean).join('\n'), message };
-    command.frozen = undefined;
-    if (command.rejection.text) {
-      this.rejected.set(command.id, command);
-      await this.outbox?.put(command).catch(() => undefined);
-    } else {
-      this.failure = message;
-      await this.outbox?.remove(command.id).catch(() => undefined);
-    }
+    const frozen: { operations: Operation[] } | undefined = command.frozen ? JSON.parse(command.frozen) : undefined;
+    command.rejection = { text: [...texts.values()].filter(Boolean).join('\n'), message,
+      operations: frozen?.operations ?? (command.kind === 'notebook' ? command.operations : undefined),
+      actions: structuredClone(command.actions) };
+    this.rejected.set(command.id, command);
+    await this.outbox?.put(command).catch(() => undefined);
+    this.commandWaiters.get(command.id)?.reject(new Error(message));
+    this.commandWaiters.delete(command.id);
     this.queue = this.queue.filter(item => item !== command);
     this.persisted.delete(command.id);
     this.generations.delete(command.id);
-    doc.forgetRejected(command.id);
-    await doc.reload(false);
-    this.closeUnused(doc);
+    doc?.forgetRejected(command.id);
+    if (doc) { await doc.reload(false); this.closeUnused(doc); }
     this.touch();
+  }
+  private async sendNotebook(command: NotebookCommand): Promise<boolean> {
+    try {
+      await this.persist(command);
+      if (!this.persisted.has(command.id)) return false;
+      this.activeCommand = command.id; this.touch();
+      const ack = await this.api.submitFrozen(command.frozen!);
+      if (this.closed) return false;
+      ack.capabilities = this.acceptCapabilities(ack.capabilities ?? [], ack.seq);
+      if (ack.seq < this.workSequence) ack.work_sessions = [];
+      this.serviceReached();
+      const blocks = await Promise.all(ack.revisions.map(value => this.api.block(value.id).catch(() => undefined)));
+      for (const block of blocks) if (block) { this.publish(block); this.docs.get(block.page_id)?.receive(block); }
+      this.receiveReceipt(ack);
+      await this.outbox?.capabilities(ack.capabilities ?? [], ack.seq);
+      await this.outbox?.acknowledge(command, blocks.filter((block): block is Block => Boolean(block)), ack.seq, new Map(ack.revisions.map(value => [value.id, value.revision])));
+      this.queue.shift(); this.persisted.delete(command.id);
+      this.commandWaiters.get(command.id)?.resolve(ack); this.commandWaiters.delete(command.id);
+      this.activeCommand = undefined; this.touch();
+      return true;
+    } catch (error) {
+      this.activeCommand = undefined;
+      if (error instanceof ApiError && !error.uncertain) { await this.reject(command, undefined, error.message); return true; }
+      this.connectionSignal[1]('offline'); this.scheduleReconnect(); this.touch();
+      return false;
+    }
+  }
+  private receiveReceipt(ack: Committed) {
+    for (const doc of this.docs.values()) doc.receiveCapabilities(ack.capabilities ?? []);
+    for (const session of ack.work_sessions ?? []) {
+      if (!session.reversed && session.ended_at === null) this.activeWork = session;
+      else if (this.activeWork?.id === session.id) this.activeWork = undefined;
+    }
+    if (ack.work_sessions?.length) this.workSequence = Math.max(this.workSequence, ack.seq);
+    this.observedChange[1]({ seq: ack.seq, actor: { kind: 'client', name: this.actorName }, reason: null, created_at: Date.now(), blocks: [], removed: [], restructured_pages: [],
+      capabilities: ack.capabilities ?? [], cards: (ack.cards ?? []).map(value => value.id), work_sessions: (ack.work_sessions ?? []).map(value => value.id),
+      review_sessions: (ack.review_sessions ?? []).map(value => value.id), decks: (ack.decks ?? []).map(value => value.id), task_views: (ack.task_views ?? []).map(value => value.id) });
+    this.observedSequence[1](seq => Math.max(seq, ack.seq));
+  }
+  private acceptCapabilities(values: readonly BlockCapabilities[], sequence: number) {
+    return values.filter(value => {
+      if ((this.capabilitySequence.get(value.block_id) ?? -1) > sequence) return false;
+      this.capabilitySequence.set(value.block_id, sequence);
+      return true;
+    });
   }
   private async drain() {
     await this.ready;
@@ -380,8 +567,10 @@ export class Notebook implements NotebookClient, DocumentHost {
     try {
       while (this.queue.length && !this.closed) {
         const command = this.queue[0]!;
+        if (command.kind === 'notebook') { if (await this.sendNotebook(command)) continue; break; }
         const doc = this.docs.get(command.pageId) ?? this.open(command.pageId) as Document;
         if (doc.status() === 'loading') { await doc.reload(false); }
+        if (doc.status() === 'missing' && !command.frozen) { await this.reject(command, doc, doc.statusMessage()); continue; }
         if (doc.status() !== 'ready' && !command.frozen) { this.failure = doc.statusMessage(); this.touch(); break; }
         if (!command.frozen && command.failed?.startsWith('A structural change could not be applied:')) { await this.reject(command, doc, command.failed); continue; }
         if (!command.frozen && (command.failed || command.actions.some(action => action.kind === 'text' && doc.block(action.id)?.conflict && !doc.isResolving(action.id)))) break;
@@ -393,10 +582,13 @@ export class Notebook implements NotebookClient, DocumentHost {
           }
           // Even an uncertain retry passes through persistence before it can hit the network.
           await this.persist(command);
+          if (!this.persisted.has(command.id)) break;
           this.activeCommand = command.id;
           this.touch();
           const ack = await this.api.submitFrozen(command.frozen);
           if (this.closed) break;
+          ack.capabilities = this.acceptCapabilities(ack.capabilities ?? [], ack.seq);
+          if (ack.seq < this.workSequence) ack.work_sessions = [];
           this.serviceReached();
           this.observedSequence[1](seq => Math.max(seq, ack.seq));
           const revisions = new Map(ack.revisions.map(revision => [revision.id, revision.revision]));
@@ -411,10 +603,15 @@ export class Notebook implements NotebookClient, DocumentHost {
               void this.outbox?.ticket(id, ticket).catch(() => undefined);
             }
           }
+          // Remove from optimistic replay only after acknowledgement; the durable
+          // record remains until its receipt and structural patch have been stored.
           this.queue.shift();
           this.persisted.delete(command.id);
           this.generations.delete(command.id);
-          doc.acknowledged(command, revisions, ack.text_rewrites);
+          doc.acknowledged(command, revisions, ack.text_rewrites, ack);
+          this.receiveReceipt(ack);
+          await this.outbox?.capabilities(ack.capabilities ?? [], ack.seq).catch(() => undefined);
+          for (const pending of this.commands(doc.pageId)) if (!pending.frozen) await this.persist(pending);
           const historyChanges = new Set(doc.recordRewrites(command, ack.text_rewrites));
           const choices = command.resolutions?.filter(choice => doc.isResolving(choice.id)) ?? [];
           for (const choice of choices) if (!choice.deferred) doc.confirmResolution(choice.id, choice.text);
@@ -467,6 +664,7 @@ export class Notebook implements NotebookClient, DocumentHost {
             this.failure = '';
             this.scheduleReconnect();
           } else if (error instanceof ApiError && error.status === 409) {
+            if (command.actions.some(isCapabilityAction)) { await this.reject(command, doc, `The source changed. ${error.message}`); continue; }
             // This request definitively wrote nothing; only now may its frozen revision be retired.
             command.frozen = undefined;
             await doc.reload(true);
@@ -496,12 +694,14 @@ export class Notebook implements NotebookClient, DocumentHost {
             this.failure = error instanceof Error ? error.message : String(error);
             command.failed = this.failure;
             if (error instanceof ApiError) {
+              if (command.actions.some(isCapabilityAction)) { await this.reject(command, doc, this.failure); continue; }
               command.frozen = undefined;
-              if (command.actions.some(action => action.kind === 'insert' || action.kind === 'move' || action.kind === 'delete' || action.kind === 'restore')) {
+              if (command.actions.some(action => action.kind === 'insert' || action.kind === 'move' || action.kind === 'delete' || action.kind === 'restore' || action.kind === 'split' || action.kind === 'merge')) {
                 await this.reject(command, doc, this.failure);
                 continue;
               } else await this.persist(command);
-            } else await this.persist(command);
+            } else if (command.actions.some(isCapabilityAction)) { await this.reject(command, doc, this.failure); continue; }
+            else await this.persist(command);
           }
           this.touch();
           break;
@@ -526,16 +726,19 @@ export class Notebook implements NotebookClient, DocumentHost {
     const state = this.state(pageId);
     if (this.persistenceFailure && (pageId ? this.commands(pageId).length : this.queue.length)) return this.persistenceFailure;
     const rejected = [...this.rejected.values()].filter(command => !pageId || command.pageId === pageId);
-    if (rejected.length) return `Couldn’t apply a structural change · Rejected text kept. ${rejected.map(command => command.rejection?.message).join(' ')}\n${rejected.map(command => command.rejection?.text).filter(Boolean).join('\n\n')}`;
+    if (rejected.length) return `Couldn’t apply a change · Rejected data kept. ${rejected.map(command => command.rejection?.message).join(' ')}\n${rejected.map(command => command.rejection?.text || JSON.stringify(command.rejection?.operations ?? command.rejection?.actions)).filter(Boolean).join('\n\n')}`;
     if (state === 'conflict') return 'Conflict · Both versions kept';
     if (state === 'error') return `Couldn’t save · Local changes kept. ${this.failure || this.queue.find(command => command.failed)?.failed || ''}`;
     if (state === 'offline') { const n = this.queuedChanges(); return n ? `Offline · ${n} changes queued locally` : 'Offline · All changes saved'; }
     return state === 'saved' ? 'Saved' : 'Saving…';
   }
   saveMessage() { return this.message(); }
-  queuedChanges() { this.revision[0](); return this.queue.filter(command => this.persisted.has(command.id)).reduce((count, command) => count + command.actions.length, 0); }
-  unsavedText() { return [...this.docs.values()].map(doc => doc.localText()).concat(this.rejectedText()).filter(Boolean).join('\n\n'); }
-  rejectedText() { this.revision[0](); return [...this.rejected.values()].map(command => command.rejection?.text ?? '').filter(Boolean).join('\n\n'); }
+  queuedChanges() { this.revision[0](); return this.queue.filter(command => this.persisted.has(command.id)).reduce((count, command) => count + (command.kind === 'notebook' ? command.operations.length : command.actions.length), 0); }
+  unsavedText() {
+    const operations = this.queue.flatMap(command => command.kind === 'notebook' ? [command.frozen ?? JSON.stringify(command.operations)] : command.actions.some(isCapabilityAction) ? [command.frozen ?? JSON.stringify(command.actions)] : []);
+    return [...this.docs.values()].map(doc => doc.localText()).concat(operations, this.rejectedText()).filter(Boolean).join('\n\n');
+  }
+  rejectedText() { this.revision[0](); return [...this.rejected.values()].map(command => [command.rejection?.text, JSON.stringify(command.rejection?.operations ?? command.rejection?.actions)].filter(Boolean).join('\n')).filter(Boolean).join('\n\n'); }
   dismissRejected() {
     for (const id of this.rejected.keys()) void this.outbox?.remove(id).catch(() => undefined);
     this.rejected.clear();
@@ -552,7 +755,7 @@ export class Notebook implements NotebookClient, DocumentHost {
   retry() {
     this.failure = '';
     for (const command of this.queue) {
-      const doc = this.docs.get(command.pageId);
+      const doc = command.pageId ? this.docs.get(command.pageId) : undefined;
       if (!command.actions.some(action => action.kind === 'text' && doc?.block(action.id)?.conflict && !doc.isResolving(action.id))) command.failed = undefined;
       void this.persist(command);
     }
@@ -646,7 +849,7 @@ export class Notebook implements NotebookClient, DocumentHost {
     this.reconnectTimer = setTimeout(() => { this.reconnectTimer = undefined; void this.connect(); }, this.reconnectDelay);
     this.reconnectDelay = Math.min(10000, this.reconnectDelay * 2);
   }
-  private async reconcile(blocks: readonly Block[], removed: readonly string[], pages: readonly string[]) {
+  private async reconcile(blocks: readonly Block[], removed: readonly string[], pages: readonly string[], capabilities: readonly BlockCapabilities[] = []) {
     const structured = new Set(pages);
     for (const block of blocks) {
       this.publish(block);
@@ -657,6 +860,7 @@ export class Notebook implements NotebookClient, DocumentHost {
       const doc = this.docs.get(id);
       if (doc?.needsRefresh(blocks, removed)) await doc.reload(true);
     }
+    for (const doc of this.docs.values()) doc.receiveCapabilities(capabilities);
     if (blocks.some(block => block.kind !== 'block') || removed.some(id => this.roots().some(root => root.id === id))) await this.refreshRoots();
   }
   private async catchUp(events: readonly ChangeEvent[]) {
@@ -664,15 +868,26 @@ export class Notebook implements NotebookClient, DocumentHost {
     const blocks = new Map<string, Block>();
     const removed = new Set<string>();
     const pages = new Set<string>();
+    const capabilities = new Map<string, BlockCapabilities>();
     for (const event of events) {
       if (event.seq <= this.seq || event.actor.kind === 'client' && event.actor.name === this.actorName) continue;
       for (const block of event.blocks) { blocks.set(block.id, block); removed.delete(block.id); }
       for (const id of event.removed) { removed.add(id); blocks.delete(id); }
       for (const id of event.restructured_pages) pages.add(id);
+      for (const value of this.acceptCapabilities(event.capabilities ?? [], event.seq)) capabilities.set(value.block_id, value);
     }
-    await this.reconcile([...blocks.values()], [...removed], [...pages]);
-    const views = [...new Set(events.filter(event => event.seq > this.seq).flatMap(event => event.views ?? []))];
-    this.observedChange[1]({ ...events.at(-1)!, views });
+    await this.reconcile([...blocks.values()], [...removed], [...pages], [...capabilities.values()]);
+    const latest = events.at(-1)!;
+    await this.outbox?.capabilities([...capabilities.values()], latest.seq);
+    const changed = events.filter(event => event.seq > this.seq);
+    this.observedChange[1]({ ...latest, capabilities: [...capabilities.values()],
+      views: [...new Set(changed.flatMap(event => event.views ?? []))],
+      cards: [...new Set(changed.flatMap(event => event.cards ?? []))],
+      work_sessions: [...new Set(changed.flatMap(event => event.work_sessions ?? []))],
+      review_sessions: [...new Set(changed.flatMap(event => event.review_sessions ?? []))],
+      decks: [...new Set(changed.flatMap(event => event.decks ?? []))],
+      task_views: [...new Set(changed.flatMap(event => event.task_views ?? []))] });
+    if (changed.some(event => event.work_sessions?.length)) await this.refreshWork(latest.seq);
     if (events.some(event => (event.settings ?? []).length)) await this.refreshSettings();
     this.seq = Math.max(this.seq, events.at(-1)!.seq);
     this.observedSequence[1](seq => Math.max(seq, this.seq));
@@ -680,12 +895,21 @@ export class Notebook implements NotebookClient, DocumentHost {
   }
   private async change(event: ChangeEvent) {
     if (event.seq <= this.seq) return;
-    if (event.actor.kind !== 'client' || event.actor.name !== this.actorName) await this.reconcile(event.blocks, event.removed, event.restructured_pages);
+    if (event.actor.kind !== 'client' || event.actor.name !== this.actorName) {
+      const capabilities = this.acceptCapabilities(event.capabilities ?? [], event.seq);
+      await this.reconcile(event.blocks, event.removed, event.restructured_pages, capabilities);
+      await this.outbox?.capabilities(capabilities, event.seq);
+      if (event.work_sessions?.length) await this.refreshWork(event.seq);
+    }
     if (event.settings?.length) await this.refreshSettings();
     this.seq = event.seq;
     this.observedChange[1]({ ...event, views: event.views ?? [] });
     this.observedSequence[1](seq => Math.max(seq, event.seq));
     this.touch();
+  }
+  private async refreshWork(sequence: number) {
+    const active = await this.api.activeWorkSession();
+    if (sequence >= this.workSequence) { this.activeWork = active ?? undefined; this.workSequence = sequence; }
   }
   async refreshSettings() {
     const value = await this.api.settings();
@@ -803,13 +1027,14 @@ export class Notebook implements NotebookClient, DocumentHost {
   async deletePage(pageId: string) {
     await this.ready;
     const doc = this.open(pageId) as Document;
-    if (doc.status() !== 'ready') await doc.reload();
-    const action: Action = { kind: 'delete', id: pageId };
-    const inverse = doc.apply(action);
-    this.deletedPages.set(pageId, inverse[0]!);
-    this.enqueue(doc, [action], inverse, null, null, false);
-    doc.release();
-    await this.flush();
+    try {
+      if (doc.status() !== 'ready') await doc.reload();
+      const action: Action = { kind: 'delete', id: pageId };
+      const inverse = doc.apply(action);
+      this.deletedPages.set(pageId, inverse[0]!);
+      this.enqueue(doc, [action], inverse, null, null, false);
+      await this.flush();
+    } finally { doc.release(); }
   }
   async restorePage(pageId: string) {
     const action = this.deletedPages.get(pageId);

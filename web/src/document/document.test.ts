@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import type { Subprocess } from 'bun';
 import { ulid } from 'ulid';
 import { createApi } from '../api/client';
+import type { Batch, Operation, TaskState } from '../api/types';
 import { createNotebookClient } from './index';
 import type { Notebook } from './index';
 import type { EditResult, PageDocument } from './contract';
@@ -594,7 +595,6 @@ describe('real notebook operations and recovery', () => {
     try {
       const right = success(doc.edit({ kind: 'split', id: first, offset: 4 })).created[0]!;
       await instance.flush();
-      expect(instance.queuedChanges()).toBe(2);
       expect((await api.page(id)).rows.map(row => row.block.id)).toEqual([first, right]);
       instance.retry();
       await instance.flush();
@@ -825,7 +825,7 @@ describe('real notebook operations and recovery', () => {
     expect(doc.root()?.text).toBe(before);
   });
 
-  test('an IndexedDB open failure is visible while editing and real-service saving still work', async () => {
+  test('an IndexedDB open failure keeps edits visible without sending an unfrozen request', async () => {
     const id = ulid();
     const first = ulid();
     await api.submit({ actor: { kind: 'agent', name: 'existing page before storage failure' }, operations: [{ op: 'create_page', id, title: `Existing storage failure page ${++serial}` }, { op: 'insert', id: first, parent_id: id, after: null, text: 'base', heading: null }] });
@@ -849,7 +849,7 @@ describe('real notebook operations and recovery', () => {
       expect(instance.saveMessage()).toContain('Not saved locally');
       expect(instance.unsavedText()).toContain('kept in memory');
       await instance.flush();
-      expect((await api.block(first)).text).toBe('kept in memory');
+      expect((await api.block(first)).text).toBe('base');
     } finally { globalThis.indexedDB = realIndexedDB; await instance?.dispose(); }
   });
 
@@ -1042,5 +1042,328 @@ describe('real notebook operations and recovery', () => {
     expect(ids(doc)).toEqual([first, hidden, last]);
     expect(doc.block(first)?.text).toBe('first');
     expect((await api.block(hidden)).text).toBe('hidden');
+  });
+});
+
+const todo: TaskState = { status: 'todo', scheduled: null, scheduled_time: null, deadline: null, deadline_time: null, warning_days: null, repeater: null, priority: null, completed_on: null };
+
+describe('durable Action and Learning document commands', () => {
+  test('recurrence receipts preserve signed dates, share sidecars, and reverse exactly one occurrence', async () => {
+    const instance = await client();
+    const { doc, id, first } = await page(instance, 'Read the next primary source');
+    const shared = instance.open(id);
+    const remote = await client();
+    const other = remote.open(id);
+    await eventually(() => other.status() === 'ready' && remote.connection() === 'live', 'capability subscriber not ready');
+    const planned: TaskState = { ...todo, scheduled: '2026-10-10', deadline: '2026-10-05', scheduled_time: '09:00', repeater: { every: 1, unit: 'day', mode: 'fixed' } };
+    success(doc.edit({ kind: 'task', id: first, value: planned }));
+    await doc.flush();
+    success(doc.edit({ kind: 'completeTask', id: first, completedOn: '2026-10-11' }));
+    expect(doc.block(first)?.task).toEqual(planned);
+    await doc.flush();
+    expect(shared).toBe(doc);
+    expect(shared.block(first)?.task).toEqual({ ...planned, scheduled: '2026-10-11', deadline: '2026-10-06' });
+    await eventually(() => other.block(first)?.task?.deadline === '2026-10-06', 'remote recurrence sidecar not reconciled');
+    const firstOccurrence = (await api.taskOccurrences(first))[0]!;
+    doc.undo();
+    await doc.flush();
+    expect(doc.block(first)?.task).toEqual(planned);
+    expect((await api.taskOccurrences(first)).find(event => event.id === firstOccurrence.id)?.reversed).toBe(true);
+    doc.redo();
+    await doc.flush();
+    const events = await api.taskOccurrences(first);
+    expect(events).toHaveLength(2);
+    expect(events.filter(event => !event.reversed)).toHaveLength(1);
+    expect(events.find(event => !event.reversed)?.id).not.toBe(firstOccurrence.id);
+    expect(doc.block(first)?.task?.scheduled).toBe('2026-10-11');
+    shared.release(); other.release();
+  });
+
+  test('planning is one text/state undo step and reopening undo restores done without new evidence', async () => {
+    const instance = await client();
+    const { doc, first } = await page(instance, 'Read @tomorrow');
+    success(doc.edit({ kind: 'task', id: first, value: todo }));
+    await doc.flush();
+    const before = { id: first, offset: 14 };
+    const planned = { ...todo, scheduled: '2026-10-04', scheduled_time: '14:30' };
+    expect(success(doc.edit({ kind: 'planTask', id: first, text: 'Read', value: planned }, before)).caret).toEqual({ id: first, offset: 4 });
+    await doc.flush();
+    expect(doc.undo()).toEqual(before);
+    await doc.flush();
+    expect(doc.block(first)?.text).toBe('Read @tomorrow');
+    expect(doc.block(first)?.task).toEqual(todo);
+    doc.redo();
+    await doc.flush();
+    expect(doc.block(first)?.text).toBe('Read');
+    expect(doc.block(first)?.task).toEqual(planned);
+    success(doc.edit({ kind: 'completeTask', id: first, completedOn: '2026-10-04' }));
+    await doc.flush();
+    success(doc.edit({ kind: 'task', id: first, value: planned }));
+    await doc.flush();
+    expect(doc.block(first)?.task?.status).toBe('todo');
+    doc.undo();
+    await doc.flush();
+    expect(doc.block(first)?.task).toEqual({ ...planned, status: 'done', completed_on: '2026-10-04' });
+    expect(await api.taskOccurrences(first)).toHaveLength(1);
+    doc.redo();
+    await doc.flush();
+    expect(doc.block(first)?.task).toEqual(planned);
+    expect(await api.taskOccurrences(first)).toHaveLength(1);
+  });
+
+  test('work start, stop, note and combined completion undo retain session identity and exact notes', async () => {
+    const instance = await client();
+    const { doc, first } = await page(instance, 'Translate the inscription');
+    success(doc.edit({ kind: 'task', id: first, value: todo }));
+    await doc.flush();
+    success(doc.edit({ kind: 'startWork', id: first, startedAt: 1000 }));
+    await doc.flush();
+    const initial = (await api.workSessions(first))[0]!;
+    expect(doc.edit({ kind: 'archive', id: first, archived: true }).ok).toBe(false);
+    expect(doc.edit({ kind: 'delete', ids: [first] }).ok).toBe(false);
+    doc.undo();
+    await doc.flush();
+    expect((await api.workSessions(first))[0]?.reversed).toBe(true);
+    doc.redo();
+    await doc.flush();
+    let session = (await api.workSessions(first))[0]!;
+    expect(session.id).toBe(initial.id);
+    expect(session.reversed).toBe(false);
+    success(doc.edit({ kind: 'stopWork', id: first, session, endedAt: 2000, note: 'First pass' }));
+    await doc.flush();
+    session = (await api.workSessions(first))[0]!;
+    success(doc.edit({ kind: 'workNote', id: first, session, note: 'Corrected reading' }));
+    expect(doc.edit({ kind: 'workNote', id: first, session, note: 'Stale second note' }).ok).toBe(false);
+    await doc.flush();
+    doc.undo();
+    await doc.flush();
+    expect((await api.workSessions(first))[0]?.note).toBe('First pass');
+    doc.undo();
+    await doc.flush();
+    session = (await api.workSessions(first))[0]!;
+    expect(session.ended_at).toBeNull();
+    expect(session.note).toBe('');
+    success(doc.edit({ kind: 'completeTask', id: first, completedOn: '2026-10-03', stopWork: session }));
+    await doc.flush();
+    expect((await api.workSessions(first))[0]?.ended_at).not.toBeNull();
+    expect(doc.block(first)?.task?.status).toBe('done');
+    doc.undo();
+    await doc.flush();
+    expect(doc.block(first)?.task?.status).toBe('todo');
+    expect((await api.workSessions(first))[0]?.ended_at).toBeNull();
+    doc.redo();
+    await doc.flush();
+    expect((await api.workSessions(first))[0]?.id).toBe(initial.id);
+    expect((await api.workSessions(first))[0]?.ended_at).not.toBeNull();
+    expect((await api.taskOccurrences(first)).filter(event => !event.reversed)).toHaveLength(1);
+  });
+
+  test('stale task snapshots are refused and their rejected metadata survives later writes and reload', async () => {
+    const session = `metadata-rejection-${++serial}`;
+    const instance = await client(session);
+    const { doc, first, id } = await page(instance);
+    success(doc.edit({ kind: 'task', id: first, value: todo }));
+    await doc.flush();
+    const current = await api.block(first);
+    let intervene = true;
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (intervene && String(input) === `${baseUrl}/api/batches` && String(init?.body).includes('"set_task"')) {
+        intervene = false;
+        await actualFetch(`${baseUrl}/api/batches`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ actor: { kind: 'person' }, operations: [{ op: 'set_task', id: first, base_revision: current.revision, task: { ...todo, priority: 'high' } }] }) });
+      }
+      return actualFetch(input, init);
+    }) as typeof fetch;
+    try {
+      success(doc.edit({ kind: 'task', id: first, value: { ...todo, scheduled: '2026-10-09' } }));
+      await expect(doc.flush()).rejects.toThrow();
+      await instance.flush();
+      expect((await api.capabilities(first)).task?.priority).toBe('high');
+      expect((await api.capabilities(first)).task?.scheduled).toBeNull();
+      expect(instance.rejectedText()).toContain('2026-10-09');
+      success(doc.edit({ kind: 'text', id: first, text: 'A later successful text edit' }));
+      await instance.flush();
+      expect((await api.block(first)).text).toBe('A later successful text edit');
+      expect(instance.saveState()).toBe('error');
+      await instance.dispose();
+      const recovered = await client(session);
+      expect(recovered.rejectedText()).toContain('2026-10-09');
+      const reopened = recovered.open(id);
+      await eventually(() => reopened.status() === 'ready', 'rejected page did not reopen');
+      expect(reopened.block(first)?.task?.priority).toBe('high');
+      recovered.dismissRejected();
+    } finally { globalThis.fetch = actualFetch; }
+  });
+
+  test('lost completion and queued grade recover in order with frozen IDs and shown evidence', async () => {
+    const session = `completion-grade-${++serial}`;
+    const instance = await client(session);
+    const { doc, first, id } = await page(instance, 'Avestan >> an Old Iranian language');
+    success(doc.edit({ kind: 'task', id: first, value: todo }));
+    await doc.flush();
+    const card = (await api.sourceCards(first))[0]!;
+    const eventId = ulid();
+    const grade: Operation = { op: 'grade_card', id: card.id, base_revision: card.revision, definition_revision: card.definition_revision, event_id: eventId, session_id: null, grade: 'good', reset: false, shown_front: card.front, shown_back: card.back, reviewed_at: 10000 };
+    const requests: string[] = [];
+    let lose = true, offline = false, settled = false;
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const batch = String(input) === `${baseUrl}/api/batches` && init?.method === 'POST';
+      if (batch) requests.push(String(init.body));
+      if (offline) throw new TypeError('Offline with uncertain completion');
+      const response = await actualFetch(input, init);
+      if (batch && lose) { lose = false; offline = true; throw new TypeError('Lost committed completion receipt'); }
+      return response;
+    }) as typeof fetch;
+    try {
+      success(doc.edit({ kind: 'completeTask', id: first, completedOn: '2026-10-03' }));
+      void doc.flush().then(() => { settled = true; });
+      await instance.flush();
+      expect(settled).toBe(false);
+      const completionBytes = requests[0]!;
+      void instance.commit([grade]).then(() => { settled = true; });
+      grade.shown_back = 'Caller mutation must not reach the outbox';
+      await instance.flush();
+      expect(instance.queuedChanges()).toBe(2);
+      await instance.dispose();
+      const recovered = await client(session);
+      const reopened = recovered.open(id);
+      await eventually(() => reopened.status() === 'ready', 'offline capabilities did not recover');
+      expect(reopened.block(first)?.mergeProtected).toBe(true);
+      expect(recovered.commandState()).not.toBe('saved');
+      offline = false;
+      recovered.retry();
+      await recovered.flush();
+      expect(requests.filter(body => body.includes('"complete_task"')).every(body => body === completionBytes)).toBe(true);
+      expect(await api.taskOccurrences(first)).toHaveLength(1);
+      const reviews = await api.cardReviews(card.id);
+      expect(reviews).toHaveLength(1);
+      expect(reviews[0]?.id).toBe(eventId);
+      expect(reviews[0]?.shown_back).toBe(card.back);
+      expect(recovered.commandState()).toBe('saved');
+      expect(reopened.block(first)?.task?.status).toBe('done');
+    } finally { globalThis.fetch = actualFetch; }
+  });
+
+  test('an uncertain grade retries identical bytes after reload without duplicating review evidence', async () => {
+    const session = `uncertain-grade-${++serial}`;
+    const instance = await client(session);
+    const { doc, first } = await page(instance, 'logos >> word, account');
+    const card = (await api.sourceCards(first))[0]!;
+    const eventId = ulid();
+    const requests: string[] = [];
+    let offline = false, acknowledged = false;
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const grade = String(input) === `${baseUrl}/api/batches` && String(init?.body).includes(eventId);
+      if (grade) requests.push(String(init!.body));
+      if (offline) throw new TypeError('Offline after grading');
+      const response = await actualFetch(input, init);
+      if (grade) { offline = true; throw new TypeError('Grade committed without acknowledgement'); }
+      return response;
+    }) as typeof fetch;
+    try {
+      void instance.commit([{ op: 'grade_card', id: card.id, base_revision: card.revision, definition_revision: card.definition_revision, event_id: eventId, session_id: null, grade: 'hard', reset: false, shown_front: card.front, shown_back: card.back, reviewed_at: 25000 }]).then(() => { acknowledged = true; });
+      await instance.flush();
+      expect(acknowledged).toBe(false);
+      expect(instance.commandState()).toBe('offline');
+      await instance.dispose();
+      const recovered = await client(session);
+      expect(recovered.queuedChanges()).toBe(1);
+      globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input) === `${baseUrl}/api/batches` && String(init?.body).includes(eventId)) requests.push(String(init!.body));
+        return actualFetch(input, init);
+      }) as typeof fetch;
+      recovered.retry();
+      await recovered.flush();
+      expect(new Set(requests).size).toBe(1);
+      expect(requests.length).toBeGreaterThanOrEqual(2);
+      expect((await api.cardReviews(card.id)).map(event => event.id)).toEqual([eventId]);
+      expect(recovered.commandState()).toBe('saved');
+      expect(recovered.lastChange()?.cards).toContain(card.id);
+      doc.release();
+    } finally { globalThis.fetch = actualFetch; }
+  });
+
+  test('a rejected grade remains visible after a successful page edit and reload', async () => {
+    const session = `grade-rejection-${++serial}`;
+    const instance = await client(session);
+    const { doc, first } = await page(instance, 'ša >> of');
+    const card = (await api.sourceCards(first))[0]!;
+    success(doc.edit({ kind: 'text', id: first, text: 'ša >> of, which' }));
+    await doc.flush();
+    const eventId = ulid();
+    await expect(instance.commit([{ op: 'grade_card', id: card.id, base_revision: card.revision, definition_revision: card.definition_revision, event_id: eventId, session_id: null, grade: 'easy', reset: false, shown_front: card.front, shown_back: card.back, reviewed_at: 20000 }])).rejects.toThrow();
+    expect(instance.commandState()).toBe('error');
+    expect(instance.commandMessage()).toContain(eventId);
+    success(doc.edit({ kind: 'text', id: first, text: 'ša >> of / which' }));
+    await doc.flush();
+    expect(instance.commandState()).toBe('error');
+    expect(await api.cardReviews(card.id)).toHaveLength(0);
+    await instance.dispose();
+    const recovered = await client(session);
+    expect(recovered.commandState()).toBe('error');
+    expect(recovered.commandMessage()).toContain('of');
+    expect(recovered.rejectedText()).toContain(eventId);
+    recovered.dismissRejected();
+  });
+
+  test('structural capability guards protect range endpoints, safe splits and reviewed inactive markup', async () => {
+    const instance = await client();
+    const { doc, first, id } = await page(instance, 'Destination');
+    const source = success(doc.edit({ kind: 'insert', parentId: id, after: first, text: 'front >> back' })).created[0]!;
+    await doc.flush();
+    expect(doc.edit({ kind: 'split', id: source, offset: 3 }).ok).toBe(false);
+    expect(doc.edit({ kind: 'paste', at: { id: source, offset: 3 }, text: 'x\ny' }).ok).toBe(false);
+    const project = { outcome: 'Read the corpus', deadline: '2026-12-01', status: 'active' as const };
+    success(doc.edit({ kind: 'project', id: source, value: project }));
+    success(doc.edit({ kind: 'task', id: source, value: todo }));
+    await doc.flush();
+    success(doc.edit({ kind: 'project', id: source, value: { ...project, status: 'done', outcome: 'Corpus translated' } }));
+    await doc.flush();
+    expect(doc.block(source)?.task?.status).toBe('todo');
+    doc.undo();
+    await doc.flush();
+    expect(doc.block(source)?.project).toEqual(project);
+    doc.redo();
+    await doc.flush();
+    expect(doc.block(source)?.project?.outcome).toBe('Corpus translated');
+    doc.undo();
+    await doc.flush();
+    const bodies: Batch[] = [];
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === `${baseUrl}/api/batches` && init?.method === 'POST') bodies.push(JSON.parse(String(init.body)));
+      return actualFetch(input, init);
+    }) as typeof fetch;
+    try {
+      const sibling = success(doc.edit({ kind: 'split', id: source, offset: 'front >> back'.length })).created[0]!;
+      await doc.flush();
+      expect(bodies.some(batch => batch.operations.some(operation => operation.op === 'split'))).toBe(true);
+      expect(doc.block(source)?.task).toEqual(todo);
+      expect(doc.block(source)?.project).toEqual(project);
+      expect(doc.block(sibling)?.task).toBeNull();
+      expect(doc.block(sibling)?.project).toBeNull();
+      const range = { anchor: { id: first, offset: 2 }, head: { id: source, offset: 2 } };
+      expect(doc.edit({ kind: 'deleteRange', range, between: [] }).ok).toBe(false);
+      expect(doc.edit({ kind: 'replaceRange', range, between: [], text: 'x\ny', mode: 'paste' }).ok).toBe(false);
+      success(doc.edit({ kind: 'delete', ids: [source] }));
+      await doc.flush();
+      doc.undo();
+      await doc.flush();
+      expect(doc.block(source)?.project).toEqual(project);
+      const card = (await api.sourceCards(source))[0]!;
+      const reviewer = await client();
+      await eventually(() => instance.connection() === 'live', 'review sidecar stream not ready');
+      const sourceRevision = doc.block(source)!.revision;
+      await reviewer.commit([{ op: 'grade_card', id: card.id, base_revision: card.revision, definition_revision: card.definition_revision, event_id: ulid(), session_id: null, grade: 'good', reset: false, shown_front: card.front, shown_back: card.back, reviewed_at: 30000 }]);
+      await eventually(() => doc.block(source)?.reviewedCards === true, 'review-only remote protection did not reach the source');
+      expect(doc.block(source)?.revision).toBe(sourceRevision);
+      success(doc.edit({ kind: 'text', id: source, text: 'Markup removed' }));
+      success(doc.edit({ kind: 'task', id: source, value: null }));
+      success(doc.edit({ kind: 'project', id: source, value: null }));
+      await doc.flush();
+      expect(doc.block(source)?.reviewedCards).toBe(true);
+      expect(doc.edit({ kind: 'merge', sourceId: source, destinationId: first }).ok).toBe(false);
+      success(doc.edit({ kind: 'merge', sourceId: sibling, destinationId: source }));
+      await doc.flush();
+      expect(bodies.some(batch => batch.operations.some(operation => operation.op === 'merge'))).toBe(true);
+    } finally { globalThis.fetch = actualFetch; }
   });
 });

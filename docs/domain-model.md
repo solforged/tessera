@@ -92,6 +92,8 @@ Splitting at the end leaves cards on their original source. An interior split ca
 
 Grading checks the card revision, definition revision and exact shown front/back. Optional review sessions retain open, finished or abandoned state; closing one never discards grades. A reset retains history, and reset-plus-grade commits both events atomically. Due queues include new cards after reviewed due cards, with stable tie ordering. Saved decks are revisioned card queries over canonical sources, not copies or separate card stores.
 
+A review session excludes cards already graded in that session. Deck selection, queue selection and session identity are navigation state, not card ownership. A grade submitted from a stale or changed presentation is rejected without an event; the client must obtain and show the current card before another grade. Pending delivery and confirmed rejection are distinct, and neither is a successful review.
+
 ## Settings
 
 A notebook has settings: its time zone and editing preferences. Setting one is an operation like any other.
