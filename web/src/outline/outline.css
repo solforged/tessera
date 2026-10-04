@@ -47,9 +47,10 @@
 /* Capability details stay anchored; only summaries and task glyphs live in rows. */
 .outline-row > .task-status-control { flex: none; }
 .outline-source-line { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--space-8); }
-.outline-source { flex: 1; min-width: 0; }
+/* Intrinsic text width makes metadata wrap before it can squeeze the source. */
+.outline-source { flex: 1 1 auto; min-width: 0; }
 .outline-capability-metadata { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-4); color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); font-weight: var(--weight-body); }
-.outline-capability-metadata .outline-planning { display: inline-flex; flex-wrap: wrap; gap: var(--space-8); padding: 0 var(--space-4); color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); }
+.outline-capability-metadata .outline-planning { display: inline-flex; flex-wrap: wrap; justify-content: flex-start; gap: var(--space-8); padding: 0 var(--space-4); color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); }
 .outline-root-capabilities { justify-content: flex-start; align-items: center; margin-top: var(--space-8); }
 .outline-capability-notice { color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); font-weight: var(--weight-body); }
 .outline-card-problem, .outline-capability-error { margin: var(--space-4) 0; color: var(--warning); font-size: var(--text-meta); line-height: var(--line-meta); font-weight: var(--weight-body); }

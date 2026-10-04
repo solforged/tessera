@@ -87,7 +87,7 @@ One picker searches pages and blocks; a leading `>` switches to commands. A case
 - **Text** is the block body. References render inline in the accent with a soft underline; wrapped references align left.
 - **Type pills** follow the text at meta size. Clicking a pill opens a menu: open the table, open the type page, remove a manual membership. A text membership says so instead of offering removal.
 - **Field entries** are children rendered with a field icon and muted name. Values are ordinary child blocks.
-- **Capability metadata** follows the source text without replacing it. Task glyphs open status choices; planning summaries show schedule, deadline, priority and repeat. Project and review controls open the attached capability. Controls wrap in narrow panes rather than shrinking authored text.
+- **Capability metadata** follows the source text without replacing it. Task glyphs open status choices; planning summaries show schedule, deadline, priority and repeat. Project and review controls open the attached capability. Source text keeps its natural width; controls wrap beneath it when they cannot fit beside it. Wrapped planning values stay left-aligned.
 - **Headings** are block styles at the h1 to h3 tokens, semibold. `# ` at block start sets one.
 - Rows highlight on hover with `--hover`; selection uses `--selection` plus the accent bar.
 
