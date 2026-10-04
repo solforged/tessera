@@ -109,14 +109,6 @@ kbd { color: var(--muted); font: var(--text-meta)/var(--line-meta) var(--font-bo
 .popup-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 :is(.popup, .popup-exit) p { margin: 4px 0 12px; }
 :is(.popup, .popup-exit) label { display: block; margin-bottom: 8px; font-size: var(--text-control); }
-.calendar-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; font-size: var(--text-control); }
-.calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
-.weekday { text-align: center; color: var(--muted); font-size: var(--text-meta); }
-.calendar-day { height: 30px; background: transparent; border: 1px solid transparent; border-radius: var(--radius-control); font-size: var(--text-control); }
-.calendar-day:hover { background: var(--hover); }
-.calendar-day.selected { background: var(--selection); color: var(--accent); border-color: var(--accent); }
-.calendar-day[aria-current="date"] { text-decoration: underline; }
-.outside-month { color: var(--faint); }
 .calendar-today { display: flex; margin: 8px auto 0; }
 /* Picker: input on top, 28 px rows below. Palettes centre near the top of the viewport. */
 .picker { padding: 0; }
