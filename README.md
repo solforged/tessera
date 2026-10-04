@@ -4,6 +4,26 @@ Tessera is a local-first outline workstation for notes, questions, evidence, tas
 
 Status: the daily outline, structure, action and learning workflows are working. Pages, journals, references, search, fields, saved tables and two panes share operation-based autosave, undo and conflict handling. Tasks support planning, recurrence, projects, clocked work and historical agendas. Cards derive from authored notes and vocabulary, with query-backed decks, review sessions and retained scheduling history. Library, reading and inquiry follow the [roadmap](docs/roadmap.md).
 
+## Screenshots
+
+### Linked research
+
+Follow references into a second pane without leaving the source outline.
+
+![Linked research outlines showing an LLM overview beside notes on causal self-attention](docs/images/research.png)
+
+### Tasks and agenda
+
+Project tasks stay in their source outline while the agenda collects schedules, deadlines and completed occurrences.
+
+![A project outline with readable task titles and wrapped planning details beside its daily agenda](docs/images/agenda.png)
+
+### Review and source notes
+
+Review a saved deck beside its source notes, with interval previews and retained review history.
+
+![A revealed study card with four grade intervals and review history beside its original notes](docs/images/review.png)
+
 ## What it is for
 
 - **Writing in outlines.** Nest, move, fold and zoom blocks with the keyboard or the mouse. Vim users get real Vim motions inside a block and structural commands across blocks.
