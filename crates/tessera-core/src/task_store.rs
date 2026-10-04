@@ -333,20 +333,31 @@ pub(crate) fn apply(conn: &Connection, operation: &Operation, now: i64, seq: i64
     }
 }
 
+macro_rules! capability_history {
+    () => {
+        "EXISTS(SELECT 1 FROM task_occurrences o WHERE o.block_id = b.id AND o.reversed = 0)
+         OR EXISTS(SELECT 1 FROM work_sessions w WHERE w.block_id = b.id AND w.reversed = 0)"
+    };
+}
+
 macro_rules! capability_rows {
     () => {
-        "SELECT b.id, CASE WHEN t.active = 1 THEN t.state END,
-         CASE WHEN p.active = 1 THEN p.state END,
-         (t.block_id IS NOT NULL OR p.block_id IS NOT NULL) AS retained,
-         EXISTS(SELECT 1 FROM card_units c JOIN review_events e ON e.card_id = c.id
-                WHERE c.source_block_id = b.id) AS reviewed
-         FROM blocks b LEFT JOIN tasks t ON t.block_id = b.id
-         LEFT JOIN projects p ON p.block_id = b.id "
+        concat!(
+            "SELECT b.id, CASE WHEN t.active = 1 THEN t.state END,
+             CASE WHEN p.active = 1 THEN p.state END, (",
+            capability_history!(),
+            ") AS history,
+             EXISTS(SELECT 1 FROM card_units c JOIN review_events e ON e.card_id = c.id
+                    WHERE c.source_block_id = b.id) AS reviewed,
+             (t.block_id IS NOT NULL OR p.block_id IS NOT NULL) AS retained
+             FROM blocks b LEFT JOIN tasks t ON t.block_id = b.id
+             LEFT JOIN projects p ON p.block_id = b.id "
+        )
     };
 }
 
 fn capability_at(row: &rusqlite::Row<'_>) -> rusqlite::Result<BlockCapabilities> {
-    let retained: bool = row.get(3)?;
+    let history: bool = row.get(3)?;
     let reviewed_cards: bool = row.get(4)?;
     let task = if row.get_ref(1)?.data_type() == rusqlite::types::Type::Null {
         None
@@ -360,9 +371,10 @@ fn capability_at(row: &rusqlite::Row<'_>) -> rusqlite::Result<BlockCapabilities>
     };
     Ok(BlockCapabilities {
         block_id: row.get(0)?,
+        merge_protected: task.is_some() || project.is_some() || history || reviewed_cards,
         task,
         project,
-        merge_protected: retained || reviewed_cards,
+        history,
         reviewed_cards,
     })
 }
@@ -392,7 +404,7 @@ pub(crate) fn page_capabilities(
             "SELECT * FROM (",
             capability_rows!(),
             "WHERE b.page_id = ?1 AND b.deletion_id IS NULL)
-             WHERE retained OR reviewed ORDER BY id"
+             WHERE retained OR history OR reviewed ORDER BY id"
         ))?
         .query_map([page_id], capability_at)?
         .collect::<rusqlite::Result<_>>()?)
@@ -400,14 +412,17 @@ pub(crate) fn page_capabilities(
 
 pub(crate) fn guard_merge(conn: &Connection, source_id: &str) -> Result<()> {
     let protected: bool = conn
-        .prepare_cached(
-            "SELECT EXISTS(SELECT 1 FROM tasks WHERE block_id = ?1)
-             OR EXISTS(SELECT 1 FROM projects WHERE block_id = ?1)",
-        )?
+        .prepare_cached(concat!(
+            "SELECT EXISTS(SELECT 1 FROM tasks WHERE block_id = b.id AND active = 1)
+             OR EXISTS(SELECT 1 FROM projects WHERE block_id = b.id AND active = 1)
+             OR ",
+            capability_history!(),
+            " FROM blocks b WHERE b.id = ?1"
+        ))?
         .query_row([source_id], |row| row.get(0))?;
     if protected {
         return Err(validation(
-            "this block has task or project history and cannot be merged away",
+            "this block has active task/project state or completion/work history; delete it or keep it separate",
         ));
     }
     Ok(())

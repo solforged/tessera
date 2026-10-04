@@ -481,6 +481,7 @@ fn done_deactivation_undo_and_exact_delete_restore_keep_same_identity() {
     assert!(capability.task.is_none());
     assert_eq!(capability.project, Some(project.clone()));
     assert!(capability.merge_protected);
+    assert!(capability.history);
     assert!(!capability.reviewed_cards);
     assert_eq!(removed.capabilities, vec![capability.clone()]);
     assert_eq!(nb.page(&id(1)).unwrap().capabilities, vec![capability]);
@@ -538,7 +539,7 @@ fn done_deactivation_undo_and_exact_delete_restore_keep_same_identity() {
 }
 
 #[test]
-fn moves_and_splits_preserve_capability_identity_and_merges_protect_retained_rows() {
+fn moves_and_splits_preserve_capability_identity_and_merges_protect_history() {
     let (_dir, mut nb) = fixture();
     apply(
         &mut nb,
@@ -609,7 +610,8 @@ fn moves_and_splits_preserve_capability_identity_and_merges_protect_retained_row
     assert_eq!(nb.page(&id(2)).unwrap(), before);
     assert_eq!(nb.task_occurrences(&id(10)).unwrap(), history);
     assert!(nb.capabilities(&id(10)).unwrap().merge_protected);
-    // Project rows without any task history are equally identity-bearing.
+    assert!(nb.capabilities(&id(10)).unwrap().history);
+    // An inactive project without history no longer protects its source.
     apply(
         &mut nb,
         vec![
@@ -617,7 +619,7 @@ fn moves_and_splits_preserve_capability_identity_and_merges_protect_retained_row
             set_project(13, 2, None),
         ],
     );
-    reject(
+    apply(
         &mut nb,
         vec![Operation::Merge {
             source_id: id(13),
@@ -626,6 +628,62 @@ fn moves_and_splits_preserve_capability_identity_and_merges_protect_retained_row
             destination_revision: 9,
         }],
     );
+}
+
+#[test]
+fn removing_tasks_without_history_allows_merge_and_retains_delete_restore_state() {
+    for reversed_completion in [false, true] {
+        let (_dir, mut nb) = fixture();
+        apply(&mut nb, vec![set_task(11, 1, Some(TaskState::default()))]);
+        if reversed_completion {
+            apply(
+                &mut nb,
+                vec![complete(11, 2, 100, "2024-02-29"), reverse(11, 3, 100)],
+            );
+        }
+        let revision = nb.block(&id(11)).unwrap().revision;
+        let removed = apply(&mut nb, vec![set_task(11, revision, None)]);
+        let capability = nb.capabilities(&id(11)).unwrap();
+        assert!(!capability.merge_protected);
+        assert!(!capability.history);
+        assert_eq!(removed.capabilities, vec![capability.clone()]);
+        assert_eq!(
+            nb.page(&id(1)).unwrap().capabilities,
+            vec![capability.clone()]
+        );
+        let deleted = apply(
+            &mut nb,
+            vec![Operation::Delete {
+                id: id(11),
+                base_revision: revision + 1,
+            }],
+        );
+        assert!(nb.page(&id(1)).unwrap().capabilities.is_empty());
+        assert_eq!(nb.capabilities(&id(11)).unwrap(), capability);
+        apply(
+            &mut nb,
+            vec![Operation::Restore {
+                id: id(11),
+                revision: revision + 2,
+                deletion_id: deleted.deletions[0].clone(),
+            }],
+        );
+        assert_eq!(nb.page(&id(1)).unwrap().capabilities, vec![capability]);
+        apply(
+            &mut nb,
+            vec![Operation::Merge {
+                source_id: id(11),
+                source_revision: revision + 3,
+                destination_id: id(10),
+                destination_revision: 1,
+            }],
+        );
+        assert_eq!(nb.block(&id(10)).unwrap().text, "actionother");
+        assert_eq!(
+            nb.task_occurrences(&id(11)).unwrap().len(),
+            usize::from(reversed_completion)
+        );
+    }
 }
 
 #[test]
@@ -843,7 +901,7 @@ fn projects_list_all_statuses_but_exclude_hidden_deleted_and_inactive_without_ca
         vec![id(10), id(12)]
     );
     assert_eq!(state(&nb, 13).status, TaskStatus::Waiting);
-    assert!(nb.capabilities(&id(11)).unwrap().merge_protected);
+    assert!(!nb.capabilities(&id(11)).unwrap().merge_protected);
 }
 
 #[test]

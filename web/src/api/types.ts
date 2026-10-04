@@ -227,7 +227,7 @@ export interface TaskOccurrence {
 export type ProjectStatus = 'active' | 'done' | 'cancelled';
 export interface ProjectState { outcome: string; deadline: string | null; status: ProjectStatus }
 export interface ProjectRecord { block_id: string; state: ProjectState }
-export interface BlockCapabilities { block_id: string; task: TaskState | null; project: ProjectState | null; merge_protected: boolean; reviewed_cards: boolean }
+export interface BlockCapabilities { block_id: string; task: TaskState | null; project: ProjectState | null; history: boolean; merge_protected: boolean; reviewed_cards: boolean }
 
 export interface WorkSession {
   id: string;

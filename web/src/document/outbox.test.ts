@@ -45,7 +45,7 @@ test('authoritative sidecars survive text-only patches and older snapshots canno
   root.page_id = root.id;
   const block: Block = { ...root, id: ulid(), kind: 'block', parent_id: root.id, text: 'Read' };
   const view: PageView = { root, rows: [{ block, depth: 0, manual_types: [] }], targets: [] };
-  const capability: BlockCapabilities = { block_id: block.id, task, project: null, merge_protected: true, reviewed_cards: true };
+  const capability: BlockCapabilities = { block_id: block.id, task, project: null, history: false, merge_protected: true, reviewed_cards: true };
   const errors: unknown[] = [];
   const outbox = new Outbox('notebook', 'window', error => errors.push(error), database);
   try {
@@ -69,7 +69,7 @@ test('an end split replays its new sibling and final text even when the source r
   root.page_id = root.id;
   const block: Block = { ...root, id: ulid(), kind: 'block', parent_id: root.id, text: 'front >> back' };
   const sibling: Block = { ...block, id: ulid(), text: '', revision: 0 };
-  const capability: BlockCapabilities = { block_id: block.id, task, project: null, merge_protected: true, reviewed_cards: true };
+  const capability: BlockCapabilities = { block_id: block.id, task, project: null, history: false, merge_protected: true, reviewed_cards: true };
   const outbox = new Outbox('notebook', 'window', error => { throw error; }, database);
   try {
     await outbox.page({ root, rows: [{ block, depth: 0, manual_types: [] }], targets: [], capabilities: [capability] });

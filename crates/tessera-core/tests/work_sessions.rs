@@ -400,10 +400,13 @@ fn stop_and_complete_are_explicit_and_atomic_on_failure_success_and_retry() {
 fn reverse_retains_session_and_undo_cannot_replace_another_running_clock() {
     let (_dir, mut nb) = fixture();
     let beginning = start(&nb, 11, 100, 100);
-    apply(&mut nb, vec![beginning]);
+    let started = apply(&mut nb, vec![beginning]);
+    assert!(started.capabilities[0].history);
     let original = session(&nb, 11, 100);
     let reversing = state(&nb, &original, None, true);
-    apply(&mut nb, vec![reversing]);
+    let undone = apply(&mut nb, vec![reversing]);
+    assert!(!undone.capabilities[0].history);
+    assert!(undone.capabilities[0].merge_protected);
     let reversed = session(&nb, 11, 100);
     assert!(reversed.reversed);
     assert_eq!(reversed.ended_at, None);
@@ -425,6 +428,7 @@ fn reverse_retains_session_and_undo_cannot_replace_another_running_clock() {
     apply(&mut nb, vec![stopping, undo]);
     let restored = session(&nb, 11, 100);
     assert!(!restored.reversed);
+    assert!(nb.capabilities(&id(11)).unwrap().history);
     assert_eq!(restored.started_at, 100);
     assert_eq!(restored.revision, 3);
     assert_eq!(nb.active_work_session().unwrap(), Some(restored.clone()));

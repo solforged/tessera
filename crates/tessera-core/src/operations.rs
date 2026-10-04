@@ -1300,6 +1300,12 @@ impl Engine<'_, '_> {
                     crate::work_store::apply(self.tx, operation, self.now, self.seq, index)?
                 {
                     self.bump(&current, false)?;
+                    if matches!(
+                        operation,
+                        Operation::StartWork { .. } | Operation::SetWorkSessionState { .. }
+                    ) {
+                        self.capability_sources.insert(id.clone());
+                    }
                     self.work_sessions.insert(session.id.clone(), session);
                 }
                 Ok(())

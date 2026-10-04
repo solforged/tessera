@@ -9,6 +9,9 @@ export function boundaryDeletion(doc: PageDocument, id: string, direction: 'back
     const next = siblings[siblings.indexOf(id) + 1];
     return next ? { kind: 'merge', sourceId: next, destinationId: id } : null;
   }
+  if (block.task) return !block.text && !doc.outline.children(id).length
+    ? { kind: 'delete', ids: [id] }
+    : { kind: 'task', id, value: null };
   if (block.heading) return { kind: 'heading', id, level: null };
   if (siblings.indexOf(id) > 0) return previousVisible ? { kind: 'merge', sourceId: id, destinationId: previousVisible } : null;
   return doc.outline.depth(id) > 0 ? { kind: 'outdent', ids: [id] } : null;
