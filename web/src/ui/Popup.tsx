@@ -99,7 +99,8 @@ export function Popup(props: PopupProps) {
     const version = mountVersion;
     props.onDismiss();
     if (restore) queueMicrotask(() => {
-      if (version !== mountVersion || !prior?.isConnected || prior.closest('[inert]')) return;
+      // Popups that never took focus (editor completions) must not rewind the caret to where they opened.
+      if (version !== mountVersion || !prior?.isConnected || prior.closest('[inert]') || prior.contains(document.activeElement)) return;
       prior.focus({ preventScroll: true });
       if (inputSelection && (prior instanceof HTMLInputElement || prior instanceof HTMLTextAreaElement)) prior.setSelectionRange(inputSelection[0], inputSelection[1]);
       else if (ranges.length && window.getSelection()) {
@@ -128,6 +129,8 @@ export function Popup(props: PopupProps) {
     window.addEventListener('scroll', reposition, true);
     const observer = new ResizeObserver(reposition);
     observer.observe(panel);
+    // max-height pins the panel, so growth only shows up on its content.
+    for (const child of panel.children) observer.observe(child);
     if (props.autofocus !== false) queueMicrotask(() => {
       if (panel.isConnected && topmost()) (panel.querySelector<HTMLElement>('input, textarea') ?? panel.querySelector<HTMLElement>('button:not(:disabled), [tabindex="0"]'))?.focus();
     });
