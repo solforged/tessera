@@ -97,6 +97,7 @@ async fn task_sources_recurrence_and_work_history_survive_reversal_and_deletion(
     let capability = get(&app, &format!("/api/blocks/{}/capabilities", id(3))).await;
     assert_eq!(capability["task"], task);
     assert_eq!(capability["merge_protected"], true);
+    assert_eq!(capability["history"], false);
     assert!(
         enabled["capabilities"]
             .as_array()
@@ -195,6 +196,7 @@ async fn task_sources_recurrence_and_work_history_survive_reversal_and_deletion(
     assert_eq!(replay["replayed"], true);
     assert_eq!(replay["seq"], completed["seq"]);
     assert_eq!(completed["work_sessions"][0]["ended_at"], 2000);
+    assert_eq!(completed["capabilities"][0]["history"], true);
     assert_eq!(
         completed["capabilities"][0]["task"]["scheduled"],
         "2026-10-04"

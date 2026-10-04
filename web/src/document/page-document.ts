@@ -28,7 +28,7 @@ export interface DocumentHost {
   retry(): void;
   titleAvailable(title: string, exceptId: string): boolean;
 }
-type MutableBlockState = { -readonly [K in keyof BlockState]: BlockState[K] };
+type MutableBlockState = { -readonly [K in keyof BlockState]: BlockState[K] } & { history: boolean };
 interface Cell { state: MutableBlockState; set: SetStoreFunction<MutableBlockState> }
 const stateOf = (block: Block): BlockState => ({ id: block.id, kind: block.kind, parentId: block.parent_id, pageId: block.page_id, text: block.text, heading: block.heading, archived: block.archived, manual_types: [], task: null, project: null, mergeProtected: false, reviewedCards: false, revision: block.revision, pending: false, conflict: null });
 
@@ -107,7 +107,7 @@ export class Document implements PageDocument {
   isResolving(id: string) { return this.resolving.has(id); }
   private put(block: Block, pending = false, manual_types = this.cells.get(block.id)?.state.manual_types ?? this.baseManualTypes.get(block.id) ?? [], capability = this.capabilities(block.id)) {
     const cell = this.cells.get(block.id);
-    const sidecar = { task: capability.task, project: capability.project, mergeProtected: capability.merge_protected, reviewedCards: capability.reviewed_cards };
+    const sidecar = { task: capability.task, project: capability.project, history: capability.history, mergeProtected: capability.merge_protected, reviewedCards: capability.reviewed_cards };
     if (cell) cell.set({ ...stateOf(block), ...sidecar, manual_types, pending, conflict: cell.state.conflict });
     else {
       const [state, set] = createStore<MutableBlockState>({ ...stateOf(block), ...sidecar, manual_types, pending });
@@ -134,15 +134,26 @@ export class Document implements PageDocument {
   }
   capabilities(id: string, base = false): BlockCapabilities {
     const cell = !base && this.cells.get(id)?.state;
-    const value = cell ? { block_id: id, task: cell.task, project: cell.project, merge_protected: cell.mergeProtected, reviewed_cards: cell.reviewedCards } : this.baseCapabilities.get(id) ?? emptyCapabilities(id);
+    const value = cell ? { block_id: id, task: cell.task, project: cell.project, history: cell.history, merge_protected: cell.mergeProtected, reviewed_cards: cell.reviewedCards } : this.baseCapabilities.get(id) ?? emptyCapabilities(id);
     return JSON.parse(JSON.stringify(value)) as BlockCapabilities;
+  }
+  private updateCapabilities(value: BlockCapabilities, base: boolean) {
+    value.merge_protected = value.task !== null || value.project !== null || value.history || value.reviewed_cards;
+    if (base) this.baseCapabilities.set(value.block_id, value);
+    else this.cells.get(value.block_id)?.set({ task: value.task, project: value.project, history: value.history, mergeProtected: value.merge_protected, reviewedCards: value.reviewed_cards, pending: true });
+  }
+  private guardMerge(id: string) {
+    const value = this.capabilities(id);
+    if (value.merge_protected) throw new Error(value.history
+      ? 'This task has completion or work history; delete it or keep it separate.'
+      : 'Cannot merge away an active task, project, or reviewed card.');
   }
   receiveCapabilities(values: readonly BlockCapabilities[]) {
     for (const value of values) {
       if (!this.baseBlocks.has(value.block_id) && !this.cells.has(value.block_id)) continue;
       this.baseCapabilities.set(value.block_id, structuredClone(value));
       this.syncGeneration++;
-      this.cells.get(value.block_id)?.set({ task: value.task, project: value.project, mergeProtected: value.merge_protected, reviewedCards: value.reviewed_cards });
+      this.cells.get(value.block_id)?.set({ task: value.task, project: value.project, history: value.history, mergeProtected: value.merge_protected, reviewedCards: value.reviewed_cards });
       for (const command of this.host.commands(this.pageId)) for (const action of command.actions) if (isCapabilityAction(action) && action.id === value.block_id) this.apply(action);
     }
   }
@@ -169,9 +180,7 @@ export class Document implements PageDocument {
         const previous = value[action.kind];
         if (action.kind === 'task') value.task = action.value;
         else value.project = action.value;
-        value.merge_protected ||= action.value !== null;
-        if (base) this.baseCapabilities.set(action.id, value);
-        else this.cells.get(action.id)!.set({ task: value.task, project: value.project, mergeProtected: value.merge_protected, pending: true });
+        this.updateCapabilities(value, base);
         return [action.kind === 'task'
           ? { ...action, value: previous as typeof action.value, previous: action.value, restore: previous?.status === 'done' && action.value !== null && action.value.status !== 'done' }
           : { ...action, value: previous as typeof action.value, previous: action.value }];
@@ -180,16 +189,15 @@ export class Document implements PageDocument {
         const value = this.capabilities(action.id, base);
         // Recurrence is authoritative server state, never a second client calendar.
         const completed = action.previous.repeater ? action.previous : { ...action.previous, status: 'done' as const, completed_on: action.completedOn };
-        value.task = completed; value.merge_protected = true;
-        if (base) this.baseCapabilities.set(action.id, value);
-        else this.cells.get(action.id)!.set({ task: completed, mergeProtected: true, pending: true });
+        value.task = completed; value.history = true;
+        this.updateCapabilities(value, base);
         return [{ kind: 'reverseTaskCompletion', id: action.id, occurrenceId: action.occurrenceId, completedOn: action.completedOn, value: action.previous, previous: completed, baseRevision: action.baseRevision }];
       }
       case 'reverseTaskCompletion': {
         const value = this.capabilities(action.id, base);
         value.task = action.value;
-        if (base) this.baseCapabilities.set(action.id, value);
-        else this.cells.get(action.id)!.set({ task: action.value, pending: true });
+        // Other occurrences or work may remain; only the server can clear history.
+        this.updateCapabilities(value, base);
         return [{ kind: 'completeTask', id: action.id, occurrenceId: ulid(), completedOn: action.completedOn, previous: action.value, baseRevision: action.baseRevision }];
       }
       case 'startWork':
@@ -200,7 +208,10 @@ export class Document implements PageDocument {
         const value = action.kind === 'startWork' ? old : action.kind === 'workNote' ? { ...old, note: action.note }
           : action.kind === 'stopWork' ? { ...old, ended_at: action.endedAt, note: action.note }
           : { ...old, ended_at: action.endedAt, reversed: action.reversed };
-        if (!base) { this.work.set(old.id, value); this.cells.get(action.id)?.set('pending', true); }
+        const capability = this.capabilities(action.id, base);
+        if (!value.reversed) capability.history = true;
+        this.updateCapabilities(capability, base);
+        if (!base) this.work.set(old.id, value);
         if (action.kind === 'workNote') return [{ ...action, session: value, note: old.note }];
         const inverse: Action[] = [{ kind: 'workState', id: action.id, session: value, endedAt: old.ended_at, reversed: action.kind === 'startWork' ? true : old.reversed, baseRevision: action.baseRevision }];
         if (action.kind === 'stopWork' && old.note !== action.note) inverse.push({ kind: 'workNote', id: action.id, session: value, note: old.note, baseRevision: action.baseRevision });
@@ -592,7 +603,7 @@ export class Document implements PageDocument {
       const saved = this.baseBlocks.get(id);
       if (saved && !pending.has(id) && !cell.state.conflict && !this.resolving.has(id)) {
         const value = this.capabilities(id, true);
-        cell.set({ text: saved.text, heading: saved.heading, archived: saved.archived, parentId: saved.parent_id, manual_types: this.baseManualTypes.get(id) ?? [], task: value.task, project: value.project, mergeProtected: value.merge_protected, reviewedCards: value.reviewed_cards });
+        cell.set({ text: saved.text, heading: saved.heading, archived: saved.archived, parentId: saved.parent_id, manual_types: this.baseManualTypes.get(id) ?? [], task: value.task, project: value.project, history: value.history, mergeProtected: value.merge_protected, reviewedCards: value.reviewed_cards });
       }
       this.host.publish(this.snapshot(id));
     }
@@ -718,7 +729,7 @@ export class Document implements PageDocument {
       }
       const between = this.outline.slice(this.outline.indexOf(start.id) + 1, this.outline.indexOf(end.id)).map(row => row.id);
       if (between.length !== visible.length || between.some((id, i) => id !== visible[i])) throw new Error('Expand hidden blocks before deleting this text range.');
-      if (start.id !== end.id && this.block(end.id)?.mergeProtected) throw new Error('This range would merge away task, project, or review history.');
+      if (start.id !== end.id) this.guardMerge(end.id);
       const multiline = mode === 'split' || mode === 'paste' && /[\r\n]/.test(text);
       if (multiline && (parseCardText(first.text).cards.length || start.id !== end.id && parseCardText(last.text).cards.length)
         && !(start.id === end.id && startOffset === endOffset && endOffset === first.text.length)) {
@@ -842,7 +853,7 @@ export class Document implements PageDocument {
           let parent = destination.id;
           while (parent !== this.pageId) { if (parent === source.id) throw new Error('Cannot merge into a descendant.'); parent = this.outline.parentOf(parent); }
           for (let ancestor: string | null = destination.id; ancestor; ancestor = this.block(ancestor)?.parentId ?? null) if (this.block(ancestor)?.archived) { this.guardHide(source.id); break; }
-          if (this.block(source.id)?.mergeProtected) throw new Error('Cannot merge away task, project, or review history.');
+          this.guardMerge(source.id);
           actions.push({ kind: 'merge', id: source.id, destinationId: destination.id, text: destination.text + source.text });
           caret = { id: destination.id, offset: destination.text.length };
           break;
