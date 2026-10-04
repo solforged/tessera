@@ -81,6 +81,10 @@ pub struct BlockCapabilities {
     pub block_id: String,
     pub task: Option<TaskState>,
     pub project: Option<ProjectState>,
+    /// Non-reversed task occurrences or work sessions exist for this source.
+    #[serde(default)]
+    pub history: bool,
+    /// Live task/project state, completion/work history, or reviewed cards.
     pub merge_protected: bool,
     pub reviewed_cards: bool,
 }

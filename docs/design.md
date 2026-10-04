@@ -96,12 +96,12 @@ One picker searches pages and blocks; a leading `>` switches to commands. A case
 Settled by the 2026-10-02 audit; each rule has a document-layer test in `web/src/document/outline-*.test.ts`.
 
 - **Enter** at the end of a block with children inserts its first child; at the end of a leaf, a sibling after it; at the start, an empty block above with the caret staying in the text; mid-text, the right part moves to a new block and the original id stays on the left. Enter inside a `[[reference]]` or `#tag` does nothing.
-- **Backspace** at the start merges into the previous visible row (a sibling's last unfolded descendant, never a folded hidden row), the merged block's children follow it. A first child with no previous sibling outdents instead. Deleting into a reference removes the whole token; undo restores the original caret.
+- **Backspace** at the start merges into the previous visible row (a sibling's last unfolded descendant, never a folded hidden row), the merged block's children follow it. A first child with no previous sibling outdents instead. On a task it acts first on the checkbox: an empty, childless todo is deleted and the caret moves to the end of the previous row; a todo with text loses its task state, and the next Backspace follows the plain rules. Headings likewise drop their style first. Deleting into a reference removes the whole token; undo restores the original caret.
 - **Delete** at the end joins the next sibling, appending its children in order.
 - **Arrows** at a row boundary cross to the neighbouring row keeping the visual column; Escape keeps the caret offset so the next Enter or `i` resumes there.
 - **Indent, outdent and move** act on the selection's roots with their subtrees, never leave the zoomed subtree, and are silent no-ops without a history entry at a boundary (no previous sibling, top level, first or last sibling). Outdent leaves the following siblings under their original parent. A multi-row selection survives the command.
 - **Delete** of a subtree selects the previous visible survivor; folding a descendant selects the folded parent; zooming out selects the block being left.
-- **Capability identity** stays on the original block through moves, end splits, undo and restoration. Merging away retained task, project or review history is refused. An interior split cannot divide active card syntax; moving reviewed syntax onto a new source identity is also refused.
+- **Capability identity** stays on the original block through moves, end splits, undo and restoration. A merge cannot remove an active task or project, a block with completion or work history, or reviewed cards; a block that was a task and has no history merges like any other. Deleting is allowed. An interior split cannot divide active card syntax; moving reviewed syntax onto a new source identity is also refused.
 
 ## Fields
 

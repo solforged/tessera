@@ -11,6 +11,7 @@ import { createNotebookClient } from './index';
 import type { Notebook } from './index';
 import type { EditResult, PageDocument } from './contract';
 import type { Document } from './page-document';
+import { boundaryDeletion } from './outline-mechanics';
 
 const baseUrl = 'http://127.0.0.1:4330';
 const api = createApi(baseUrl);
@@ -1048,6 +1049,100 @@ describe('real notebook operations and recovery', () => {
 const todo: TaskState = { status: 'todo', scheduled: null, scheduled_time: null, deadline: null, deadline_time: null, warning_days: null, repeater: null, priority: null, completed_on: null };
 
 describe('durable Action and Learning document commands', () => {
+  test('Backspace deletes an empty todo even with history and undo restores its task', async () => {
+    for (const history of [false, true]) {
+      const instance = await client();
+      const { doc, first, id } = await page(instance, '');
+      success(doc.edit({ kind: 'task', id: first, value: todo }));
+      if (history) success(doc.edit({ kind: 'completeTask', id: first, completedOn: '2026-10-03' }));
+      await doc.flush();
+      const task = { ...doc.block(first)!.task! };
+      const at = { id: first, offset: 0 };
+      const intent = boundaryDeletion(doc, first, 'backward');
+      expect(intent).toEqual({ kind: 'delete', ids: [first] });
+      const removed = success(doc.edit(intent!, at));
+      expect(doc.block(first)).toBeUndefined();
+      expect(removed.caret).toEqual({ id: removed.created[0]!, offset: 0 });
+      expect(doc.block(removed.created[0]!)?.text).toBe('');
+      expect(doc.block(removed.created[0]!)?.task).toBeNull();
+      await doc.flush();
+      expect(doc.undo()).toEqual(at);
+      expect(ids(doc)).toEqual([first]);
+      expect(doc.block(first)?.task).toEqual(task);
+      expect(doc.block(first)?.mergeProtected).toBe(true);
+      await doc.flush();
+      expect((await api.page(id)).capabilities).toEqual([await api.capabilities(first)]);
+      expect((await api.capabilities(first)).history).toBe(history);
+    }
+  });
+
+  test('Backspace removes a nonempty todo before merging nested siblings, while forward Delete refuses', async () => {
+    const instance = await client();
+    const { doc, first, id } = await page(instance, 'Groceries');
+    const milk = success(doc.edit({ kind: 'insert', parentId: first, after: null, text: 'Buy milk' })).created[0]!;
+    const eggs = success(doc.edit({ kind: 'insert', parentId: id, after: first, text: 'Buy eggs' })).created[0]!;
+    success(doc.edit({ kind: 'task', id: milk, value: todo }));
+    success(doc.edit({ kind: 'task', id: eggs, value: todo }));
+    success(doc.edit({ kind: 'indent', ids: [eggs] }));
+    await doc.flush();
+    expect(doc.outline.children(first)).toEqual([milk, eggs]);
+    expect(doc.edit(boundaryDeletion(doc, milk, 'forward')!).ok).toBe(false);
+    const at = { id: eggs, offset: 0 };
+    const remove = boundaryDeletion(doc, eggs, 'backward', milk);
+    expect(remove).toEqual({ kind: 'task', id: eggs, value: null });
+    expect(success(doc.edit(remove!, at)).caret).toEqual(at);
+    expect(doc.block(eggs)?.mergeProtected).toBe(false);
+    const merge = boundaryDeletion(doc, eggs, 'backward', milk);
+    expect(merge).toEqual({ kind: 'merge', sourceId: eggs, destinationId: milk });
+    expect(success(doc.edit(merge!, at)).caret).toEqual({ id: milk, offset: 8 });
+    expect(doc.block(milk)?.text).toBe('Buy milkBuy eggs');
+    expect(doc.block(milk)?.task).toEqual(todo);
+    expect(doc.block(eggs)).toBeUndefined();
+    await doc.flush();
+    expect(doc.undo()).toEqual(at);
+    await doc.flush();
+    expect(doc.block(eggs)?.task).toBeNull();
+    expect(doc.block(eggs)?.mergeProtected).toBe(false);
+    expect(doc.undo()).toEqual(at);
+    await doc.flush();
+    expect(doc.block(eggs)?.task).toEqual(todo);
+    expect(doc.block(eggs)?.mergeProtected).toBe(true);
+    success(doc.edit({ kind: 'heading', id: eggs, level: 2 }));
+    expect(boundaryDeletion(doc, eggs, 'backward', milk)).toEqual({ kind: 'task', id: eggs, value: null });
+    await doc.flush();
+  });
+
+  test('completion protects a removed task until undo receives authoritative cleared history', async () => {
+    const instance = await client();
+    const { doc, first, id } = await page(instance, 'Destination');
+    const source = success(doc.edit({ kind: 'insert', parentId: id, after: first, text: 'Task' })).created[0]!;
+    success(doc.edit({ kind: 'task', id: source, value: todo }));
+    await doc.flush();
+    success(doc.edit({ kind: 'completeTask', id: source, completedOn: '2026-10-03' }));
+    expect((doc as Document).capabilities(source).history).toBe(true);
+    success(doc.edit({ kind: 'task', id: source, value: null }));
+    expect(doc.block(source)?.mergeProtected).toBe(true);
+    expect(doc.edit({ kind: 'merge', sourceId: source, destinationId: first })).toEqual({
+      ok: false, reason: 'This task has completion or work history; delete it or keep it separate.',
+    });
+    await doc.flush();
+    doc.undo();
+    await doc.flush();
+    doc.undo();
+    expect(doc.block(source)?.task).toEqual(todo);
+    expect((doc as Document).capabilities(source).history).toBe(true);
+    await doc.flush();
+    expect((doc as Document).capabilities(source).history).toBe(false);
+    expect(doc.block(source)?.mergeProtected).toBe(true);
+    success(doc.edit({ kind: 'task', id: source, value: null }));
+    expect(doc.block(source)?.mergeProtected).toBe(false);
+    await doc.flush();
+    expect((await api.capabilities(source)).merge_protected).toBe(false);
+    doc.undo();
+    expect(doc.block(source)?.mergeProtected).toBe(true);
+    await doc.flush();
+  });
+
   test('recurrence receipts preserve signed dates, share sidecars, and reverse exactly one occurrence', async () => {
     const instance = await client();
     const { doc, id, first } = await page(instance, 'Read the next primary source');
@@ -1117,6 +1212,7 @@ describe('durable Action and Learning document commands', () => {
     success(doc.edit({ kind: 'task', id: first, value: todo }));
     await doc.flush();
     success(doc.edit({ kind: 'startWork', id: first, startedAt: 1000 }));
+    expect((doc as Document).capabilities(first).history).toBe(true);
     await doc.flush();
     const initial = (await api.workSessions(first))[0]!;
     expect(doc.edit({ kind: 'archive', id: first, archived: true }).ok).toBe(false);
@@ -1124,6 +1220,7 @@ describe('durable Action and Learning document commands', () => {
     doc.undo();
     await doc.flush();
     expect((await api.workSessions(first))[0]?.reversed).toBe(true);
+    expect((doc as Document).capabilities(first).history).toBe(false);
     doc.redo();
     await doc.flush();
     let session = (await api.workSessions(first))[0]!;
@@ -1228,6 +1325,7 @@ describe('durable Action and Learning document commands', () => {
       const reopened = recovered.open(id);
       await eventually(() => reopened.status() === 'ready', 'offline capabilities did not recover');
       expect(reopened.block(first)?.mergeProtected).toBe(true);
+      expect((reopened as Document).capabilities(first).history).toBe(true);
       expect(recovered.commandState()).not.toBe('saved');
       offline = false;
       recovered.retry();

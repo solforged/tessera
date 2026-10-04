@@ -15,7 +15,7 @@ export type CapabilityAction =
 export function isCapabilityAction(action: Action): action is CapabilityAction {
   return ['task', 'project', 'completeTask', 'reverseTaskCompletion', 'startWork', 'stopWork', 'workNote', 'workState'].includes(action.kind);
 }
-export const emptyCapabilities = (id: string): BlockCapabilities => ({ block_id: id, task: null, project: null, merge_protected: false, reviewed_cards: false });
+export const emptyCapabilities = (id: string): BlockCapabilities => ({ block_id: id, task: null, project: null, history: false, merge_protected: false, reviewed_cards: false });
 export function sameState(left: unknown, right: unknown): boolean {
   if (left === right) return true;
   if (!left || !right || typeof left !== 'object' || typeof right !== 'object') return false;

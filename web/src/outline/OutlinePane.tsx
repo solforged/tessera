@@ -556,9 +556,14 @@ function Pane(props: OutlinePaneProps) {
       return true;
     }
     if (selection.head !== (forward ? view.state.doc.length : 0)) return false;
-    const previous = ids()[(indices().get(id) ?? 0) - 1] ?? null;
+    const row = indices().get(id) ?? 0;
+    const previous = ids()[row - 1] ?? null;
     const intent = boundaryDeletion(doc, id, forward ? 'forward' : 'backward', previous);
-    if (intent) apply(intent);
+    if (intent?.kind === 'delete') {
+      const neighbor = previous ?? ids()[row + 1];
+      apply(intent);
+      if (!doc.block(id) && neighbor) editAt(neighbor, doc.block(neighbor)?.text.length ?? 0, true);
+    } else if (intent) apply(intent);
     return true;
   }
   function crossArrow(event: KeyboardEvent, view: EditorView) {
