@@ -50,6 +50,8 @@ Review, deck and task-view operations use the same attributed, idempotent batch 
 
 Each committed change gets a sequence number. The service pushes `{seq, changed ids, revisions}` to subscribed windows. A reconnecting window asks for everything after its last sequence. The CLI starts the service on demand when it isn't running, so command-line use doesn't need an open window.
 
+Capability endpoints expose task plans and occurrences, project descendants, work sessions, card previews and review history, saved task views, decks and review sessions. Writes remain batches, not separate unchecked resource mutations. Their receipts and stream events carry changed capability/resource IDs as well as block changes, so an open source and its agenda or review stay consistent.
+
 Ingestion runs in the service: network fetches and parsing happen off the write connection, then the resulting snapshot and passages commit as one attributed batch. Extractors live in `tessera-ingest`, which has no database access, so each format is tested on files alone.
 
 The service binds to loopback and rejects untrusted hosts and origins. Remote access is out of scope.
@@ -65,6 +67,10 @@ The editor is split into layers that the prototype mixed together:
 5. **Sync.** Coalesce text edits for 150 to 300 ms (1 s maximum), send them as revision-checked operations, and store pending ones in the IndexedDB outbox until the service acknowledges them. "Saved" appears only after a commit.
 
 Undo is a stack of operations and their inverses, shared by both panes on the same page. Cross-block selection uses block ID plus offset at each end, so it works when rows are off screen.
+
+Page commands include task/project edits and work-session operations, with capability snapshots and inverses alongside text. Review sessions, decks, grades and saved task views use notebook-level commands in the same ordered outbox; they are not assigned fake page IDs. Commands are persisted before sending, and the first compiled request body is frozen for byte-identical replay after uncertain delivery or reload. Rejected commands stay recoverable until explicitly dismissed.
+
+Review keeps the shown card snapshot until acknowledgement and revalidates it against committed changes. A stale grade cannot advance the queue or silently adopt a new definition. Command-state equality isolates review refreshes from unrelated local page bookkeeping. Recovery feedback is notebook-wide and does not change location when focus moves between panes.
 
 Two panes, back and forward history, and per-pane fold, zoom and caret state are part of the shell from the start.
 

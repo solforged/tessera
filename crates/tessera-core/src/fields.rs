@@ -155,6 +155,7 @@ impl FieldChanges {
             | Operation::SaveView { .. }
             | Operation::SetSetting { .. }
             | Operation::SetTask { .. }
+            | Operation::RestoreTaskState { .. }
             | Operation::CompleteTask { .. }
             | Operation::ReverseTaskCompletion { .. }
             | Operation::SetProject { .. }

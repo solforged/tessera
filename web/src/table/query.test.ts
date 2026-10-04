@@ -45,6 +45,19 @@ describe('field entry input rule', () => {
   test('rejects tags, references, extra colons, blank names, and overlong names', () => {
     for (const text of ['#Author:: value', '[[Author]]:: value', 'A:B:: value', ' :: value', 'A'.repeat(61) + '::value', 'Author: value', 'Author::value\nnext']) expect(matchFieldEntry(text)).toBeNull();
   });
+  test('keeps cards, cloze drafts and shielded literals out of field conversion', () => {
+    for (const text of [
+      '{{c1::answer}}', 'The {{c01::term::hint}} is important', '{{c0::answer}}', '{{c1::',
+      'front >> back::suffix', 'front << back::suffix', 'front <> back::suffix',
+      String.raw`\{{c1::literal}}`, '`{{c1::literal}}`', '`Author:: literal`', String.raw`Author\:: literal`,
+    ]) expect(matchFieldEntry(text)).toBeNull();
+  });
+  test('retains card and code syntax inside an explicit field value', () => {
+    for (const value of ['{{c1::Plato}}', 'question >> answer', 'word <> meaning', '`literal::text`', String.raw`\{{c1::literal}}`]) {
+      expect(matchFieldEntry(`Prompt:: ${value}`)).toEqual({ name: 'Prompt', value });
+    }
+    expect(matchFieldEntry('front :: back')).toEqual({ name: 'front', value: 'back' });
+  });
   test('rewrites stable references and identifies only whole-entry references', () => {
     expect(fieldEntryText('field-id')).toBe('[[field-id]]');
     expect(fieldEntryId(' [[field-id|Author]] ')).toBe('field-id');

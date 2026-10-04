@@ -2,7 +2,7 @@
 
 Tessera is a local-first outline workstation for notes, questions, evidence, tasks and study. You write in an outline of small addressable blocks. Each block is one tile; pages, journals, agendas, investigations and review sessions are different ways of arranging the same tiles.
 
-Status: a working daily outline. The browser editor writes to the service with operation-based autosave, undo and conflict handling; pages, journals, references, search, tags, archiving and two panes work. Blocks take typed fields (`Author::`), and a type's members open as a table that sorts, filters and saves as a view. Tasks, cards and sources follow the [roadmap](docs/roadmap.md).
+Status: the daily outline, structure, action and learning workflows are working. Pages, journals, references, search, fields, saved tables and two panes share operation-based autosave, undo and conflict handling. Tasks support planning, recurrence, projects, clocked work and historical agendas. Cards derive from authored notes and vocabulary, with query-backed decks, review sessions and retained scheduling history. Library, reading and inquiry follow the [roadmap](docs/roadmap.md).
 
 ## What it is for
 

@@ -63,11 +63,11 @@ Motion acknowledges an action without delaying it: 140 ms for popup entry and si
 ## Shell
 
 - **Global rail.** Permanent across one or two panes. The left holds the sidebar toggle and notebook-name menu (Fields, Settings); Vim is toggled only in Settings. The right groups Find or create and the Commands icon in one 320 px search-shaped control, followed by an icon-only Layout button. Find or create opens its picker beneath the search trigger; Commands opens the command palette. Layout opens the active view beside, switches panes, closes the active pane or toggles the sidebar. Global controls are never duplicated inside pane headers.
-- **Sidebar**, 208 px. Today; Pinned, shown only when a page or saved view is pinned; unpinned saved Views; and collapsible Recent. Saved views have a pin control on hover or keyboard focus; pinning is stored per notebook alongside page pins. Rows are 28 px with one left edge: icons at 8 px, text and section headings at 32 px. The row for the active pane's target gets the 2 px accent bar. Destinations open in the active pane; Shift-click opens beside.
+- **Sidebar**, 208 px. Today, Agenda and Review; Pinned, shown only when a page or saved table view is pinned; unpinned saved Views; and collapsible Recent. Saved table views have a pin control on hover or keyboard focus; pinning is stored per notebook alongside page pins. Task views and decks are selected in their own destinations. Rows are 28 px with one left edge: icons at 8 px, text and section headings at 32 px. The row for the active pane's target gets the 2 px accent bar. Destinations open in the active pane; Shift-click opens beside.
 - **Workspace frame.** The panes share one inset canvas, with a 12 px outside gutter at the right and bottom and an 8 px corner radius. Collapsing the sidebar adds the same gutter on the left. The rail and sidebar use the same shell surface.
-- **Panes.** Up to two, split equally. Each has a header: back and forward, breadcrumbs or the pane title, the page menu, save state, the Vim mode when on, and Close while split. Journal headers also hold their own previous-day, calendar and next-day controls; these always target the owning pane. Errors needing action sit under the header until resolved. Non-page panes (table, fields, settings) share page padding and background.
+- **Panes.** Up to two, split equally. Each has a header: back and forward, breadcrumbs or the pane title, the page menu, save state, the Vim mode when on, and Close while split. Journal headers also hold their own previous-day, calendar and next-day controls; these always target the owning pane. Page errors stay under their owning header. Notebook recovery feedback appears once above both panes, so activating a pane cannot move a control between pointer-down and click. Non-page panes (table, fields, settings, agenda, review) share the workspace frame.
 - **Narrow layouts.** Below 1048 px the sidebar becomes a toggleable overlay. Hidden navigation is inert immediately, including during its exit. Below 840 px working-pane tabs show one pane at a time. Below 600 px Find or create, Commands and Layout retain accessible labels on icon controls, and the workspace gutter shrinks to 4 px. The global rail remains visible in every layout.
-- **Later destinations.** Library, Agenda and Review join Today when their workflows exist; the shell has no inactive placeholders. Reading will use a source pane beside authored notes, with document actions kept local to each pane.
+- **Later destinations.** Library joins the sidebar when its workflow exists; the shell has no inactive placeholders. Reading will use a source pane beside authored notes, with document actions kept local to each pane.
 - **Measure.** Outline content is at most 760 px, centred, with a 48 px gutter to its left for row controls. Two panes split the width; text never shrinks to fit.
 
 ### Find or create
@@ -87,7 +87,7 @@ One picker searches pages and blocks; a leading `>` switches to commands. A case
 - **Text** is the block body. References render inline in the accent with a soft underline; wrapped references align left.
 - **Type pills** follow the text at meta size. Clicking a pill opens a menu: open the table, open the type page, remove a manual membership. A text membership says so instead of offering removal.
 - **Field entries** are children rendered with a field icon and muted name. Values are ordinary child blocks.
-- **Trailing metadata** (stage 3: dates, repeat, reference count) sits at the right edge of the measure so it scans as a column.
+- **Capability metadata** follows the source text without replacing it. Task glyphs open status choices; planning summaries show schedule, deadline, priority and repeat. Project and review controls open the attached capability. Controls wrap in narrow panes rather than shrinking authored text.
 - **Headings** are block styles at the h1 to h3 tokens, semibold. `# ` at block start sets one.
 - Rows highlight on hover with `--hover`; selection uses `--selection` plus the accent bar.
 
@@ -101,6 +101,7 @@ Settled by the 2026-10-02 audit; each rule has a document-layer test in `web/src
 - **Arrows** at a row boundary cross to the neighbouring row keeping the visual column; Escape keeps the caret offset so the next Enter or `i` resumes there.
 - **Indent, outdent and move** act on the selection's roots with their subtrees, never leave the zoomed subtree, and are silent no-ops without a history entry at a boundary (no previous sibling, top level, first or last sibling). Outdent leaves the following siblings under their original parent. A multi-row selection survives the command.
 - **Delete** of a subtree selects the previous visible survivor; folding a descendant selects the folded parent; zooming out selects the block being left.
+- **Capability identity** stays on the original block through moves, end splits, undo and restoration. Merging away retained task, project or review history is refused. An interior split cannot divide active card syntax; moving reviewed syntax onto a new source identity is also refused.
 
 ## Fields
 
@@ -120,6 +121,26 @@ A table is a query shown as rows: a type's members or a saved view.
 - **Footer**: "N of M rows", and the load error with Retry when a request failed.
 - **Empty states** say what to do: no members yet for a type, no matches for a filter set, with a control that clears filters.
 - Rows open the block in the active pane; Shift-click or Shift-Enter opens beside.
+
+## Tasks, projects and agenda
+
+Make task is available from block and page menus. Alt-Enter toggles a task; Alt-S opens its schedule picker. Task state, dates, optional times, deadline warning, priority and repeat are anchored controls, not text prefixes. A trailing quick-date token such as `@friday` on a task is accepted with Enter; the rest of the source text stays intact. Ordinary field shorthand still takes precedence.
+
+Completion uses the displayed journal or agenda date. Repeating tasks retain their source identity and advance their plan; history on an earlier day shows that occurrence's plan, not the next repeat. A running work session requires an explicit stop, with Stop and complete offered as one atomic action. Work-session notes and prior sessions remain accessible from the block menu.
+
+Project controls edit outcome, deadline and status. Show actions opens a task query over canonical descendants. Completing a project does not complete its tasks.
+
+The Agenda destination switches between the displayed day's agenda and a composable Tasks query. Status, priority, project, independent scheduled/deadline ranges, source type, text and fields combine before the result limit. Named task views preserve that query and its date context. Journal agendas use the same canonical rows; clicking opens the source and Shift-click opens it beside. Completion and planning never insert copies into the journal.
+
+## Cards and review
+
+Author `front >> back`, `front << back`, `front <> back`, or numbered clozes such as `{{c1::answer::hint}}` in ordinary blocks. `::` remains field shorthand. Explicit malformed syntax shows diagnostics instead of guessed cards. Each numbered cloze and each direction has its own stable progress.
+
+Review selects a saved deck or all cards, with Due, New and All queues. Decks compose source type, text and field predicates. Their editor saves a query, never a copied card collection.
+
+Space reveals the answer; 1–4 select Again, Hard, Good and Easy. Buttons show the corresponding next interval. Source opens the canonical block; Shift opens it beside review. A source or schedule change invalidates the shown snapshot and requires Review current card before grading. Changed wording retains identity and progress; the card shows the last reviewed text beside its current text, with Keep progress and Start over choices. Reset progress requires confirmation and keeps review history.
+
+The current card stays until a grade is acknowledged. Pending commands survive offline reload with their original request bytes; rejection preserves the command for copying and requires a fresh card snapshot. Unrelated local page edits do not invalidate the shown card. Finishing, abandoning or switching an open review is explicit; committed grades and their shown-text evidence remain. Pane history and reload preserve the deck, queue selection and session.
 
 ## Popups and feedback
 
