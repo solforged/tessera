@@ -103,6 +103,27 @@ Settled by the 2026-10-02 audit; each rule has a document-layer test in `web/src
 - **Delete** of a subtree selects the previous visible survivor; folding a descendant selects the folded parent; zooming out selects the block being left.
 - **Capability identity** stays on the original block through moves, end splits, undo and restoration. A merge cannot remove an active task or project, a block with completion or work history, or reviewed cards; a block that was a task and has no history merges like any other. Deleting is allowed. An interior split cannot divide active card syntax; moving reviewed syntax onto a new source identity is also refused.
 
+## Keyboard language
+
+Three layers, each reaching the same actions as the palette and the block menu.
+
+1. **Typed triggers** in block text. Each character means one thing, opens a picker at the caret, and Escape keeps it as text. References, inline code and field shorthand never open one.
+
+   | Trigger | Means |
+   |---|---|
+   | `[[` | reference |
+   | `#` | type |
+   | `@` | when: `@fri` schedules, `@due fri` sets a deadline |
+   | `/` | every block verb: statuses, schedule, deadline, priority, repeat, clock, project, headings, references, types, cards |
+   | `::` | field shorthand |
+   | `[] `, `# ` | todo, heading |
+   | `>>`, `<<`, `<>`, `{{c1::}}` | cards |
+
+2. **Chords** for what happens constantly. ⌘ acts on the current block: ⌘Enter toggles todo and done, ⌘⇧Enter opens the status menu, ⌘. zooms in and ⌘⇧. out, ⌘⇧T opens the table. ⌃⇧ is shell navigation. ⌥↑ and ⌥↓ move blocks. No ⌥-letter chords: on macOS they type accented letters.
+3. **Leader.** Space on a selected row, or in Vim normal mode, opens a menu of single letters: `t` status, `s` schedule, `d` deadline, `p` priority, `r` repeat, `w` clock in or out, `c` add card, `z` zoom in.
+
+`/` matches titles and aliases (`/due` finds Deadline, `/h1` Heading 1) and shows each row's faster key, so the menu teaches the chords. A slash command removes its `/query` before it runs; syntax rows such as Reference and Cloze replace it with their syntax and leave the caret inside. Planning commands on a plain block make it a todo first.
+
 ## Fields
 
 The notebook menu opens a searchable index with Name, Kind, Used by and Templates columns. Names open the definition in its source outline; template names open their type table. Used by opens the distinct owning blocks, including entries with no values. Shift opens any of these beside the index. Controls remain visible on narrow panes.
@@ -124,9 +145,9 @@ A table is a query shown as rows: a type's members or a saved view.
 
 ## Tasks, projects and agenda
 
-Tasks are made as in Tana, Roam and Logseq: ⌘Enter makes a block a todo, then toggles it between todo and done (⌥Enter is an alias); `[] ` or `[ ] ` at the start of a plain block makes it a todo; Make task sits in block and page menus. Alt-S opens a task's schedule picker. Task state, dates, optional times, deadline warning, priority and repeat are anchored controls, not text prefixes.
+Tasks are made as in Tana, Roam and Logseq: ⌘Enter makes a block a todo, then toggles it between todo and done (⌥Enter is an alias); `[] ` or `[ ] ` at the start of a plain block makes it a todo; `/todo`, `/doing` and the other statuses set any status, as does the ⌘⇧Enter menu; Make task sits in block and page menus. Task state, dates, optional times, deadline warning, priority and repeat are anchored controls, not text prefixes.
 
-Typing `@` after a space or at block start opens date suggestions under the `@`: Today, Tomorrow, the next five weekdays and Next week, or the parse of what follows (`@fri`, `@in 2 weeks`, `@2026-11-01 09:30`). Enter or Tab picks one: a plain block becomes a todo, the task is scheduled, and the token and its leading space leave the text. Pick a date… opens the full picker. Escape keeps the `@` as text. References, inline code and field shorthand never open it.
+Typing `@` after a space or at block start opens date suggestions under the `@`: Today, Tomorrow, the next five weekdays and Next week, or the parse of what follows (`@fri`, `@in 2 weeks`, `@2026-11-01 09:30`). `@due` switches the same list to the deadline, and `@d` offers that switch as a row. Enter or Tab picks one: a plain block becomes a todo, the task is scheduled or due, and the token and its leading space leave the text. Pick a date… opens the full picker. Escape keeps the `@` as text.
 
 Date pickers pair the text field with a month grid shared with the journal calendar. Today is ringed, the chosen day is filled with the accent and follows what the field parses (`fri` previews Friday), and the task's other planning date carries a dot. Clicking a day applies it; arrows move by day and week, Page Up and Page Down by month.
 
@@ -163,6 +184,8 @@ Three shapes only, so every popup is recognisable at a glance:
 | Find or create: pages, blocks and explicit page creation; `>` finds commands | Picker, one line per hit with the page path in meta size; Tab drills into children | Below the global search trigger, 560 px |
 | Dedicated command palette | Picker, with action sections and shortcuts | Top centre, 560 px |
 | `[[`, `#`, `Name::` completion and Add type | Picker | Below the caret or the block |
+| `@` dates and `/` commands | Picker without an input; the block text is the query, sections label `/` rows, faster keys at the right | Below the token |
+| Leader, status and priority menus | Menu; leader letters at the right and pressed directly | Below the row |
 | Add filter | Picker in three steps: field, condition, value; Backspace on an empty query steps back | Below its trigger |
 | Block menu | Menu in sections Block, Move, Select; navigation stays in the palette | Below the handle |
 | Page, notebook, layout, pill, column, view, sort and field kind menus | Menu | Below their trigger |

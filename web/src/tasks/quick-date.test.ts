@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { TaskState } from '../api/types';
-import { dateSuggestions, dateTokenAt, newTask, planDateToken } from './quick-date';
+import { dateSuggestions, dateTokenAt, newTask, planDateToken, removeToken } from './quick-date';
 
 const context = '2026-10-03';
 const task: TaskState = {
@@ -12,12 +12,12 @@ const atEnd = (text: string) => dateTokenAt(text, text.length);
 
 describe('date completion tokens', () => {
   test('accepts the start of text and whitespace boundaries, including an empty query', () => {
-    expect(atEnd('@')).toEqual({ from: 0, to: 1, query: '' });
-    expect(atEnd('@today')).toEqual({ from: 0, to: 6, query: 'today' });
-    expect(atEnd('Read @')).toEqual({ from: 5, to: 6, query: '' });
-    expect(atEnd('Read\t@tomorrow')).toEqual({ from: 5, to: 14, query: 'tomorrow' });
-    expect(atEnd('Read\n@today')).toEqual({ from: 5, to: 11, query: 'today' });
-    expect(atEnd('Read @today @tom')).toEqual({ from: 12, to: 16, query: 'tom' });
+    expect(atEnd('@')).toEqual({ from: 0, to: 1, query: '', field: 'scheduled' });
+    expect(atEnd('@today')).toEqual({ from: 0, to: 6, query: 'today', field: 'scheduled' });
+    expect(atEnd('Read @')).toEqual({ from: 5, to: 6, query: '', field: 'scheduled' });
+    expect(atEnd('Read\t@tomorrow')).toEqual({ from: 5, to: 14, query: 'tomorrow', field: 'scheduled' });
+    expect(atEnd('Read\n@today')).toEqual({ from: 5, to: 11, query: 'today', field: 'scheduled' });
+    expect(atEnd('Read @today @tom')).toEqual({ from: 12, to: 16, query: 'tom', field: 'scheduled' });
   });
 
   test('rejects mid-word, doubled and escaped @ markers without falling back to an earlier marker', () => {
@@ -29,8 +29,8 @@ describe('date completion tokens', () => {
   });
 
   test('uses the caret rather than the end of text', () => {
-    expect(dateTokenAt('Read @tomorrow then translate @today', 14)).toEqual({ from: 5, to: 14, query: 'tomorrow' });
-    expect(dateTokenAt('Read @tomorrow', 6)).toEqual({ from: 5, to: 6, query: '' });
+    expect(dateTokenAt('Read @tomorrow then translate @today', 14)).toEqual({ from: 5, to: 14, query: 'tomorrow', field: 'scheduled' });
+    expect(dateTokenAt('Read @tomorrow', 6)).toEqual({ from: 5, to: 6, query: '', field: 'scheduled' });
     expect(dateTokenAt('Read @tomorrow', 5)).toBeNull();
   });
 
@@ -38,7 +38,7 @@ describe('date completion tokens', () => {
     for (const text of ['Read @next\nMonday', 'Read @next\rMonday', 'Read @ today', 'Read @\ttoday', '@' + 'a'.repeat(25)]) {
       expect(atEnd(text)).toBeNull();
     }
-    expect(atEnd('@' + 'a'.repeat(24))).toEqual({ from: 0, to: 25, query: 'a'.repeat(24) });
+    expect(atEnd('@' + 'a'.repeat(24))).toEqual({ from: 0, to: 25, query: 'a'.repeat(24), field: 'scheduled' });
     expect(atEnd('Read @next Thursday')?.query).toBe('next Thursday');
     expect(atEnd('Read @in 2 weeks')?.query).toBe('in 2 weeks');
     expect(atEnd('Read @tomorrow 09:05')?.query).toBe('tomorrow 09:05');
@@ -50,7 +50,7 @@ describe('date completion tokens', () => {
     }
     expect(dateTokenAt('When:: @tomorrow then translate', 15)).toBeNull();
     for (const text of ['Front >> Back::suffix @tomorrow', '{{c1::answer}} @tomorrow']) {
-      expect(atEnd(text)).toEqual({ from: text.lastIndexOf('@'), to: text.length, query: 'tomorrow' });
+      expect(atEnd(text)).toEqual({ from: text.lastIndexOf('@'), to: text.length, query: 'tomorrow', field: 'scheduled' });
     }
   });
 
@@ -79,6 +79,26 @@ describe('date completion tokens', () => {
     }
     expect(atEnd('```md\n@today\n```\nRead @tomorrow')?.query).toBe('tomorrow');
     expect(atEnd('~~~md\n@today\n~~~~\nRead @tomorrow')?.query).toBe('tomorrow');
+  });
+
+  test('recognizes only the complete due keyword followed by spaces or the caret', () => {
+    for (const [text, query] of [
+      ['@due', ''], ['@due ', ''], ['@DUE   ', ''], ['@Due fri', 'fri'],
+      ['Read @due   in 2 weeks', 'in 2 weeks'], ['@due tomorrow 09:05', 'tomorrow 09:05'],
+    ] as const) {
+      expect(atEnd(text)).toEqual({ from: text.lastIndexOf('@'), to: text.length, query, field: 'deadline' });
+    }
+    for (const query of ['dues', 'du', 'fri', 'due\tfri', 'due-date']) {
+      expect(atEnd('@' + query)).toEqual({ from: 0, to: query.length + 1, query, field: 'scheduled' });
+    }
+    expect(dateTokenAt('Read @due fri next', 9)).toEqual({ from: 5, to: 9, query: '', field: 'deadline' });
+  });
+
+  test('applies the length cap and protection rules to the whole deadline token', () => {
+    expect(atEnd('@due ' + 'a'.repeat(20))).toEqual({ from: 0, to: 25, query: 'a'.repeat(20), field: 'deadline' });
+    for (const text of ['@due ' + 'a'.repeat(21), '@due\nfri', 'When:: @due fri', 'Read [[ @due fri', 'Read ` @due fri', 'name@due fri']) {
+      expect(atEnd(text)).toBeNull();
+    }
   });
 });
 
@@ -199,5 +219,53 @@ describe('date completion plans', () => {
     const token = dateTokenAt(text, 9)!;
     expect(planDateToken(text, token, null, task)).toEqual({ text: 'Read .', caret: 5, value: task });
     expect(planDateToken(text, token, null, null).value).toEqual(newTask());
+  });
+
+  test('creates a deadline task with a chosen local time and no schedule', () => {
+    const text = 'Read @due tomorrow 09:05';
+    const token = atEnd(text)!;
+    const choice = dateSuggestions(token.query, context)[0]!;
+    expect(planDateToken(text, token, choice, null)).toEqual({
+      text: 'Read', caret: 4, value: { ...newTask(), deadline: '2026-10-04', deadline_time: '09:05' },
+    });
+  });
+
+  test('updates only the deadline fields of an existing task', () => {
+    const text = 'Read @due tomorrow 09:05';
+    const token = atEnd(text)!;
+    const choice = dateSuggestions(token.query, context)[0]!;
+    expect(planDateToken(text, token, choice, task)).toEqual({
+      text: 'Read', caret: 4, value: { ...task, deadline: '2026-10-04', deadline_time: '09:05' },
+    });
+    expect(task.deadline).toBe('2026-12-31');
+    expect(task.deadline_time).toBe('17:00');
+  });
+
+  test('clears only the deadline time for an untimed choice and preserves plans for the picker', () => {
+    const text = 'Read @due';
+    const token = atEnd(text)!;
+    expect(planDateToken(text, token, dateSuggestions('', context)[0]!, task)).toEqual({
+      text: 'Read', caret: 4, value: { ...task, deadline: context, deadline_time: null },
+    });
+    expect(planDateToken(text, token, null, task)).toEqual({ text: 'Read', caret: 4, value: task });
+    expect(planDateToken(text, token, null, null)).toEqual({ text: 'Read', caret: 4, value: newTask() });
+  });
+});
+
+describe('token removal', () => {
+  test('trims introducing whitespace at the end while preserving the rest of the text', () => {
+    expect(removeToken('  Read\t @due', { from: 8, to: 12 })).toEqual({ text: '  Read', caret: 6 });
+    expect(removeToken('/task', { from: 0, to: 5 })).toEqual({ text: '', caret: 0 });
+  });
+
+  test('trims introducing whitespace but retains the exact whitespace-led suffix', () => {
+    expect(removeToken('Read\t /task  then rest', { from: 6, to: 11 })).toEqual({ text: 'Read  then rest', caret: 4 });
+    expect(removeToken('Read /task\nnext', { from: 5, to: 10 })).toEqual({ text: 'Read\nnext', caret: 4 });
+    expect(removeToken('Read /task   ', { from: 5, to: 10 })).toEqual({ text: 'Read   ', caret: 4 });
+  });
+
+  test('keeps introducing whitespace before punctuation or other non-whitespace suffixes', () => {
+    expect(removeToken('Read /task.', { from: 5, to: 10 })).toEqual({ text: 'Read .', caret: 5 });
+    expect(removeToken('Read /tasknext', { from: 5, to: 10 })).toEqual({ text: 'Read next', caret: 5 });
   });
 });
