@@ -168,6 +168,13 @@ pub enum Operation {
         base_revision: i64,
         task: Option<TaskState>,
     },
+    /// Restore a checked metadata snapshot without inventing a completion.
+    RestoreTaskState {
+        id: String,
+        base_revision: i64,
+        expected: TaskState,
+        task: TaskState,
+    },
     CompleteTask {
         id: String,
         base_revision: i64,

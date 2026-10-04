@@ -347,3 +347,104 @@ async fn rename_receipt_and_live_event_preserve_tag_identity_through_edit_and_in
     socket.close(None).await.unwrap();
     task.abort();
 }
+
+#[tokio::test]
+async fn capability_catch_up_and_live_review_protection_do_not_require_text_revisions() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut nb = Notebook::open(dir.path()).unwrap();
+    let seeded = nb
+        .apply(&batch(vec![
+            Operation::CreatePage {
+                id: PAGE.into(),
+                title: "Vocabulary practice".into(),
+            },
+            Operation::Insert {
+                id: BLOCK.into(),
+                parent_id: PAGE.into(),
+                after: None,
+                text: "water >> wātar".into(),
+                heading: None,
+            },
+        ]))
+        .unwrap();
+    let card = nb.source_cards(BLOCK).unwrap().remove(0);
+    let enabled = nb
+        .apply(&batch(vec![Operation::SetTask {
+            id: BLOCK.into(),
+            base_revision: 1,
+            task: Some(tessera_core::TaskState::default()),
+        }]))
+        .unwrap();
+    let (host, task) = server(nb).await;
+    let client = reqwest::Client::new();
+    let (mut socket, _) = connect_async(format!(
+        "ws://{host}/api/changes/stream?after={}",
+        seeded.seq
+    ))
+    .await
+    .unwrap();
+    let message = tokio::time::timeout(Duration::from_secs(5), socket.next())
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+    let caught_up: ChangeEvent = serde_json::from_str(message.to_text().unwrap()).unwrap();
+    assert_eq!(caught_up.seq, enabled.seq);
+    assert_eq!(caught_up.capabilities, enabled.capabilities);
+    assert!(caught_up.capabilities[0].task.is_some());
+
+    let reviewed = commit(
+        &client,
+        &host,
+        &batch(vec![Operation::GradeCard {
+            id: card.id.clone(),
+            base_revision: card.revision,
+            definition_revision: card.definition_revision,
+            event_id: ulid::Ulid::generate().to_string(),
+            session_id: None,
+            grade: tessera_core::scheduler::Grade::Good,
+            reset: false,
+            shown_front: card.front,
+            shown_back: card.back,
+            reviewed_at: 1000,
+        }]),
+    )
+    .await;
+    assert!(reviewed.revisions.is_empty());
+    let message = tokio::time::timeout(Duration::from_secs(5), socket.next())
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+    let live: ChangeEvent = serde_json::from_str(message.to_text().unwrap()).unwrap();
+    assert_eq!(live.seq, reviewed.seq);
+    assert_eq!(live.cards, vec![card.id]);
+    assert_eq!(live.capabilities, reviewed.capabilities);
+    assert!(live.capabilities[0].reviewed_cards);
+    assert!(live.capabilities[0].merge_protected);
+    assert!(live.blocks.is_empty());
+
+    let removed = commit(
+        &client,
+        &host,
+        &batch(vec![Operation::SetTask {
+            id: BLOCK.into(),
+            base_revision: 2,
+            task: None,
+        }]),
+    )
+    .await;
+    let message = tokio::time::timeout(Duration::from_secs(5), socket.next())
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+    let live: ChangeEvent = serde_json::from_str(message.to_text().unwrap()).unwrap();
+    assert_eq!(live.seq, removed.seq);
+    assert_eq!(live.capabilities, removed.capabilities);
+    assert!(live.capabilities[0].task.is_none());
+    assert!(live.capabilities[0].reviewed_cards);
+    assert!(live.capabilities[0].merge_protected);
+    socket.close(None).await.unwrap();
+    task.abort();
+}

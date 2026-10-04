@@ -76,11 +76,27 @@ pub(crate) fn task(conn: &Connection, id: &str) -> Result<Option<TaskState>> {
         .optional()?)
 }
 
-fn set_task(conn: &Connection, id: &str, next: Option<&TaskState>) -> Result<bool> {
+fn set_task(
+    conn: &Connection,
+    id: &str,
+    next: Option<&TaskState>,
+    expected: Option<&TaskState>,
+) -> Result<bool> {
     let current: Option<(bool, TaskState)> = conn
         .prepare_cached("SELECT active, state FROM tasks WHERE block_id = ?1")?
         .query_row([id], |row| Ok((row.get(0)?, json_at(row, 1)?)))
         .optional()?;
+    if let Some(expected) = expected
+        && current
+            .as_ref()
+            .filter(|(active, _)| *active)
+            .map(|(_, state)| state)
+            != Some(expected)
+    {
+        return Err(validation(
+            "task changed before its previous state could be restored",
+        ));
+    }
     let Some(next) = next else {
         if current.as_ref().is_none_or(|(active, _)| !active) {
             return Ok(false);
@@ -92,15 +108,33 @@ fn set_task(conn: &Connection, id: &str, next: Option<&TaskState>) -> Result<boo
     };
     validate_task(next)?;
     if next.status == TaskStatus::Done {
-        let prior = current
-            .as_ref()
-            .map(|(_, state)| state)
-            .filter(|state| state.status == TaskStatus::Done)
-            .ok_or_else(|| validation("use task completion to mark a task done"))?;
-        if next.completed_on != prior.completed_on {
-            return Err(validation(
-                "editing a done task must retain its completion date",
-            ));
+        if expected.is_some() {
+            let recorded: bool = conn
+                .prepare_cached(
+                    "SELECT COALESCE((
+                    SELECT json_extract(after_state, '$.status') = 'done'
+                       AND json_extract(after_state, '$.completed_on') = ?2
+                    FROM task_occurrences WHERE block_id = ?1 AND reversed = 0
+                    ORDER BY rowid DESC LIMIT 1
+                ), 0)",
+                )?
+                .query_row(params![id, next.completed_on.as_deref()], |row| row.get(0))?;
+            if !recorded {
+                return Err(validation(
+                    "restoring done requires the latest recorded completion",
+                ));
+            }
+        } else {
+            let prior = current
+                .as_ref()
+                .map(|(_, state)| state)
+                .filter(|state| state.status == TaskStatus::Done)
+                .ok_or_else(|| validation("use task completion to mark a task done"))?;
+            if next.completed_on != prior.completed_on {
+                return Err(validation(
+                    "editing a done task must retain its completion date",
+                ));
+            }
         }
     }
     if current
@@ -109,7 +143,9 @@ fn set_task(conn: &Connection, id: &str, next: Option<&TaskState>) -> Result<boo
     {
         return Ok(false);
     }
-    if next.status == TaskStatus::Cancelled {
+    if next.status == TaskStatus::Cancelled
+        || (expected.is_some() && next.status == TaskStatus::Done)
+    {
         guard_running_work(conn, id)?;
     }
     conn.prepare_cached(
@@ -266,7 +302,13 @@ pub(crate) fn apply(conn: &Connection, operation: &Operation, now: i64, seq: i64
     match operation {
         Operation::SetTask { id, task, .. } => {
             validate_id(id)?;
-            set_task(conn, id, task.as_ref())
+            set_task(conn, id, task.as_ref(), None)
+        }
+        Operation::RestoreTaskState {
+            id, expected, task, ..
+        } => {
+            validate_id(id)?;
+            set_task(conn, id, Some(task), Some(expected))
         }
         Operation::CompleteTask {
             id,

@@ -4,18 +4,22 @@ import { createStore } from 'solid-js/store';
 import type { SetStoreFunction } from 'solid-js/store';
 import { ulid } from 'ulid';
 import { ApiError } from '../api/client';
-import type { Block, PageView, TextRewrite } from '../api/types';
+import type { Batch, Block, BlockCapabilities, Committed, PageView, TextRewrite, WorkSession } from '../api/types';
 import type { BlockState, Caret, Edit, EditResult, HistoryCaret, PageDocument, SaveState, TextRange } from './contract';
 import { OutlineIndex } from './outline-index';
-import type { Action, Command, HistoryEntry, Snapshot } from './types';
+import type { Action, Command, HistoryEntry, PageCommand, Snapshot } from './types';
+import { emptyCapabilities, isCapabilityAction, sameState } from './types';
+import { parseCardText } from '../review/card-text';
 import { textTokens } from './text-tokens';
 
 export interface DocumentHost {
   ready: Promise<void>;
-  commands(pageId: string): Command[];
+  commands(pageId: string): PageCommand[];
   loadPage(id: string): Promise<PageView>;
   cachePage(view: PageView): void;
-  enqueue(doc: Document, actions: Action[], inverse: Action[], before: Caret | null, after: Caret | null, coalesce: boolean): Command;
+  enqueue(doc: Document, actions: Action[], inverse: Action[], before: Caret | null, after: Caret | null, coalesce: boolean): PageCommand;
+  flushPage(pageId: string): Promise<void>;
+  runningWork(): WorkSession | undefined;
   state(pageId?: string): SaveState;
   message(pageId?: string): string;
   publish(block: Block | null, id?: string): void;
@@ -26,13 +30,15 @@ export interface DocumentHost {
 }
 type MutableBlockState = { -readonly [K in keyof BlockState]: BlockState[K] };
 interface Cell { state: MutableBlockState; set: SetStoreFunction<MutableBlockState> }
-const stateOf = (block: Block): BlockState => ({ id: block.id, kind: block.kind, parentId: block.parent_id, pageId: block.page_id, text: block.text, heading: block.heading, archived: block.archived, manual_types: [], revision: block.revision, pending: false, conflict: null });
+const stateOf = (block: Block): BlockState => ({ id: block.id, kind: block.kind, parentId: block.parent_id, pageId: block.page_id, text: block.text, heading: block.heading, archived: block.archived, manual_types: [], task: null, project: null, mergeProtected: false, reviewedCards: false, revision: block.revision, pending: false, conflict: null });
 
 export class Document implements PageDocument {
   readonly outline: OutlineIndex;
   readonly baseOutline: OutlineIndex;
   readonly baseBlocks = new Map<string, Block>();
   private baseManualTypes = new Map<string, string[]>();
+  readonly baseCapabilities = new Map<string, BlockCapabilities>();
+  private work = new Map<string, WorkSession>();
   private cells = new Map<string, Cell>();
   private presence = new Map<string, Signal<number>>();
   private conflictVersion = createSignal(0);
@@ -71,6 +77,7 @@ export class Document implements PageDocument {
   }
   saveState() { return this.host.state(this.pageId); }
   saveMessage() { return this.host.message(this.pageId); }
+  flush() { return this.host.flushPage(this.pageId); }
   canUndo() { this.historyVersion[0](); return this.undoStack.length > 0; }
   canRedo() { this.historyVersion[0](); return this.redoStack.length > 0; }
   release() { this.host.release(this); }
@@ -98,11 +105,12 @@ export class Document implements PageDocument {
     this.loadMessage[1]('This page has been deleted.');
   }
   isResolving(id: string) { return this.resolving.has(id); }
-  private put(block: Block, pending = false, manual_types = this.cells.get(block.id)?.state.manual_types ?? this.baseManualTypes.get(block.id) ?? []) {
+  private put(block: Block, pending = false, manual_types = this.cells.get(block.id)?.state.manual_types ?? this.baseManualTypes.get(block.id) ?? [], capability = this.capabilities(block.id)) {
     const cell = this.cells.get(block.id);
-    if (cell) cell.set({ ...stateOf(block), manual_types, pending, conflict: cell.state.conflict });
+    const sidecar = { task: capability.task, project: capability.project, mergeProtected: capability.merge_protected, reviewedCards: capability.reviewed_cards };
+    if (cell) cell.set({ ...stateOf(block), ...sidecar, manual_types, pending, conflict: cell.state.conflict });
     else {
-      const [state, set] = createStore<MutableBlockState>({ ...stateOf(block), manual_types, pending });
+      const [state, set] = createStore<MutableBlockState>({ ...stateOf(block), ...sidecar, manual_types, pending });
       this.cells.set(block.id, { state, set });
       this.presenceChanged(block.id);
     }
@@ -124,10 +132,94 @@ export class Document implements PageDocument {
     if (base) this.baseBlocks.set(id, block);
     else { this.put(block, true); if (block.kind !== 'block') this.host.updateRoot(block); }
   }
+  capabilities(id: string, base = false): BlockCapabilities {
+    const cell = !base && this.cells.get(id)?.state;
+    const value = cell ? { block_id: id, task: cell.task, project: cell.project, merge_protected: cell.mergeProtected, reviewed_cards: cell.reviewedCards } : this.baseCapabilities.get(id) ?? emptyCapabilities(id);
+    return JSON.parse(JSON.stringify(value)) as BlockCapabilities;
+  }
+  receiveCapabilities(values: readonly BlockCapabilities[]) {
+    for (const value of values) {
+      if (!this.baseBlocks.has(value.block_id) && !this.cells.has(value.block_id)) continue;
+      this.baseCapabilities.set(value.block_id, structuredClone(value));
+      this.syncGeneration++;
+      this.cells.get(value.block_id)?.set({ task: value.task, project: value.project, mergeProtected: value.merge_protected, reviewedCards: value.reviewed_cards });
+      for (const command of this.host.commands(this.pageId)) for (const action of command.actions) if (isCapabilityAction(action) && action.id === value.block_id) this.apply(action);
+    }
+  }
+  private guardHide(id: string) {
+    const known = this.host.runningWork();
+    const pendingSessions = new Set<string>();
+    for (const command of this.host.commands(this.pageId)) for (const action of command.actions) if (isCapabilityAction(action) && 'session' in action) pendingSessions.add(action.session.id);
+    const active = [...this.work.values()].find(session => pendingSessions.has(session.id) && !session.reversed && session.ended_at === null)
+      ?? (known && !pendingSessions.has(known.id) ? known : undefined);
+    if (!active) return;
+    let parent: string | null = active.block_id;
+    while (parent) {
+      if (parent === id) throw new Error('Stop work before hiding this task.');
+      parent = this.block(parent)?.parentId ?? null;
+    }
+  }
   /** Applies only touched blocks/subtrees; inverse size follows the edit, not the page. */
   apply(action: Action, base = false): Action[] {
     const index = base ? this.baseOutline : this.outline;
     switch (action.kind) {
+      case 'task':
+      case 'project': {
+        const value = this.capabilities(action.id, base);
+        const previous = value[action.kind];
+        if (action.kind === 'task') value.task = action.value;
+        else value.project = action.value;
+        value.merge_protected ||= action.value !== null;
+        if (base) this.baseCapabilities.set(action.id, value);
+        else this.cells.get(action.id)!.set({ task: value.task, project: value.project, mergeProtected: value.merge_protected, pending: true });
+        return [action.kind === 'task'
+          ? { ...action, value: previous as typeof action.value, previous: action.value, restore: previous?.status === 'done' && action.value !== null && action.value.status !== 'done' }
+          : { ...action, value: previous as typeof action.value, previous: action.value }];
+      }
+      case 'completeTask': {
+        const value = this.capabilities(action.id, base);
+        // Recurrence is authoritative server state, never a second client calendar.
+        const completed = action.previous.repeater ? action.previous : { ...action.previous, status: 'done' as const, completed_on: action.completedOn };
+        value.task = completed; value.merge_protected = true;
+        if (base) this.baseCapabilities.set(action.id, value);
+        else this.cells.get(action.id)!.set({ task: completed, mergeProtected: true, pending: true });
+        return [{ kind: 'reverseTaskCompletion', id: action.id, occurrenceId: action.occurrenceId, completedOn: action.completedOn, value: action.previous, previous: completed, baseRevision: action.baseRevision }];
+      }
+      case 'reverseTaskCompletion': {
+        const value = this.capabilities(action.id, base);
+        value.task = action.value;
+        if (base) this.baseCapabilities.set(action.id, value);
+        else this.cells.get(action.id)!.set({ task: action.value, pending: true });
+        return [{ kind: 'completeTask', id: action.id, occurrenceId: ulid(), completedOn: action.completedOn, previous: action.value, baseRevision: action.baseRevision }];
+      }
+      case 'startWork':
+      case 'stopWork':
+      case 'workNote':
+      case 'workState': {
+        const old = action.session;
+        const value = action.kind === 'startWork' ? old : action.kind === 'workNote' ? { ...old, note: action.note }
+          : action.kind === 'stopWork' ? { ...old, ended_at: action.endedAt, note: action.note }
+          : { ...old, ended_at: action.endedAt, reversed: action.reversed };
+        if (!base) { this.work.set(old.id, value); this.cells.get(action.id)?.set('pending', true); }
+        if (action.kind === 'workNote') return [{ ...action, session: value, note: old.note }];
+        const inverse: Action[] = [{ kind: 'workState', id: action.id, session: value, endedAt: old.ended_at, reversed: action.kind === 'startWork' ? true : old.reversed, baseRevision: action.baseRevision }];
+        if (action.kind === 'stopWork' && old.note !== action.note) inverse.push({ kind: 'workNote', id: action.id, session: value, note: old.note, baseRevision: action.baseRevision });
+        return inverse;
+      }
+      case 'split': {
+        const inverse = this.apply({ kind: 'text', id: action.id, text: action.left }, base);
+        return [...this.apply({ kind: 'insert', block: action.block, after: action.id }, base), ...inverse];
+      }
+      case 'merge': {
+        const inverse = this.apply({ kind: 'text', id: action.destinationId, text: action.text }, base);
+        let after = index.children(action.destinationId).at(-1) ?? null;
+        for (const id of [...index.children(action.id)]) {
+          inverse.unshift(...this.apply({ kind: 'move', id, parentId: action.destinationId, after }, base));
+          after = id;
+        }
+        inverse.unshift(...this.apply({ kind: 'delete', id: action.id }, base));
+        return inverse;
+      }
       case 'text': {
         const old = this.snapshot(action.id, base).text;
         this.changed(action.id, { text: action.text }, base);
@@ -139,6 +231,7 @@ export class Document implements PageDocument {
         return [{ kind: 'heading', id: action.id, heading: old }];
       }
       case 'archive': {
+        if (!base && action.archived) this.guardHide(action.id);
         const old = this.snapshot(action.id, base).archived;
         this.changed(action.id, { archived: action.archived }, base);
         return [{ kind: 'archive', id: action.id, archived: old }];
@@ -176,11 +269,12 @@ export class Document implements PageDocument {
         return [{ kind: 'delete', id: block.id }];
       }
       case 'delete': {
+        if (!base) this.guardHide(action.id);
         const at = index.indexOf(action.id);
         const rows = action.id === this.pageId ? index.slice(0, index.size()) : at < 0 ? [] : index.slice(at, index.subtreeEnd(at));
         const after = at < 0 ? null : index.previousSibling(action.id);
-        const snapshots: Snapshot[] = rows.map(row => ({ row, block: this.snapshot(row.id, base), manual_types: [...(base ? this.baseManualTypes.get(row.id) ?? [] : this.cells.get(row.id)!.state.manual_types)] }));
-        if (action.id === this.pageId) snapshots.unshift({ row: null, block: this.snapshot(action.id, base), manual_types: [] });
+        const snapshots: Snapshot[] = rows.map(row => ({ row, block: this.snapshot(row.id, base), manual_types: [...(base ? this.baseManualTypes.get(row.id) ?? [] : this.cells.get(row.id)!.state.manual_types)], capabilities: this.capabilities(row.id, base) }));
+        if (action.id === this.pageId) snapshots.unshift({ row: null, block: this.snapshot(action.id, base), manual_types: [], capabilities: this.capabilities(action.id, base) });
         if (at >= 0) index.splice(at, rows.length, []);
         else if (action.id === this.pageId) index.replace([]);
         if (!base) for (const snapshot of snapshots) {
@@ -193,9 +287,9 @@ export class Document implements PageDocument {
       }
       case 'restore': {
         const rows = action.snapshots.flatMap(snapshot => snapshot.row && index.indexOf(snapshot.block.id) < 0 ? [{ ...snapshot.row }] : []);
-        for (const { block, manual_types } of action.snapshots) {
-          if (base) { this.baseBlocks.set(block.id, { ...block }); this.baseManualTypes.set(block.id, manual_types); }
-          else this.put(block, true, manual_types);
+        for (const { block, manual_types, capabilities } of action.snapshots) {
+          if (base) { this.baseBlocks.set(block.id, { ...block }); this.baseManualTypes.set(block.id, manual_types); this.baseCapabilities.set(block.id, capabilities ?? emptyCapabilities(block.id)); }
+          else this.put(block, true, manual_types, capabilities ?? emptyCapabilities(block.id));
           if (!base && block.kind !== 'block') this.host.updateRoot(block);
         }
         if (rows.length) {
@@ -208,6 +302,7 @@ export class Document implements PageDocument {
       }
       case 'move': {
         if (index.indexOf(action.id) < 0) throw new Error('The block to move no longer exists.');
+        if (!base) for (let ancestor: string | null = action.parentId; ancestor; ancestor = this.block(ancestor)?.parentId ?? null) if (this.block(ancestor)?.archived) { this.guardHide(action.id); break; }
         const inverse: Action = { kind: 'move', id: action.id, parentId: index.parentOf(action.id), after: index.previousSibling(action.id) };
         const after = action.after && index.parentOf(action.after) === action.parentId ? action.after : null;
         index.move(action.id, action.parentId, after);
@@ -228,7 +323,9 @@ export class Document implements PageDocument {
     for (const command of pending) {
       for (const action of command.actions) {
         if (action.kind === 'text') latestText.set(action.id, action.text);
-        if (action.kind === 'insert') { latestText.set(action.block.id, action.block.text); if (!originalText.has(action.block.id)) originalText.set(action.block.id, action.block.text); }
+        if (action.kind === 'insert' || action.kind === 'split') { latestText.set(action.block.id, action.block.text); if (!originalText.has(action.block.id)) originalText.set(action.block.id, action.block.text); }
+        if (action.kind === 'split') latestText.set(action.id, action.left);
+        if (action.kind === 'merge') latestText.set(action.destinationId, action.text);
       }
       for (const action of command.inverse) if (action.kind === 'text' && !originalText.has(action.id)) originalText.set(action.id, action.text);
     }
@@ -245,12 +342,14 @@ export class Document implements PageDocument {
     batch(() => {
       this.baseBlocks.clear();
       this.baseManualTypes.clear();
+      this.baseCapabilities.clear();
+      for (const value of view.capabilities ?? []) this.baseCapabilities.set(value.block_id, structuredClone(value));
       for (const row of view.rows) this.baseManualTypes.set(row.block.id, row.manual_types);
       for (const block of [view.root, ...view.rows.map(row => row.block)]) this.baseBlocks.set(block.id, { ...block });
       const rows = view.rows.map(({ block, depth }) => ({ id: block.id, parentId: block.parent_id!, depth }));
       this.baseOutline.replace(rows);
       for (const id of this.cells.keys()) if (!this.baseBlocks.has(id)) { this.cells.delete(id); this.presenceChanged(id); }
-      for (const block of this.baseBlocks.values()) this.put(block, false, this.baseManualTypes.get(block.id) ?? []);
+      for (const block of this.baseBlocks.values()) this.put(block, false, this.baseManualTypes.get(block.id) ?? [], this.capabilities(block.id, true));
       this.outline.replace(rows);
       for (const command of this.host.commands(this.pageId)) {
         for (const action of command.actions) {
@@ -300,6 +399,8 @@ export class Document implements PageDocument {
     const ids = new Set<string>();
     for (const command of this.host.commands(this.pageId)) for (const action of command.actions) {
       if (action.kind === 'text') ids.add(action.id);
+      else if (action.kind === 'split') { ids.add(action.id); ids.add(action.block.id); }
+      else if (action.kind === 'merge') ids.add(action.destinationId);
       else if (action.kind === 'insert') ids.add(action.block.id);
     }
     return ids;
@@ -317,11 +418,11 @@ export class Document implements PageDocument {
     this.syncGeneration++;
     if (!cell) return;
     const commands = this.host.commands(this.pageId);
-    const pending = commands.some(command => command.actions.some(action => action.kind === 'insert' ? action.block.id === block.id : action.id === block.id));
+    const pending = commands.some(command => command.actions.some(action => action.kind === 'insert' ? action.block.id === block.id : action.kind === 'split' ? action.id === block.id || action.block.id === block.id : action.kind === 'merge' ? action.id === block.id || action.destinationId === block.id : action.id === block.id));
     let previousText = previous?.text;
     if (previousText === undefined) for (const command of commands) {
-      const inserted = command.actions.find(action => action.kind === 'insert' && action.block.id === block.id);
-      if (inserted?.kind === 'insert') { previousText = inserted.block.text; break; }
+      const inserted = command.actions.find(action => (action.kind === 'insert' || action.kind === 'split') && action.block.id === block.id);
+      if (inserted?.kind === 'insert' || inserted?.kind === 'split') { previousText = inserted.block.text; break; }
     }
     if (this.pendingText().has(block.id) && previousText !== block.text && cell.state.text !== block.text) {
       cell.set('conflict', { remoteText: block.text, remoteRevision: block.revision });
@@ -333,7 +434,11 @@ export class Document implements PageDocument {
     this.host.publish(this.snapshot(block.id));
     this.conflictVersion[1](value => value + 1);
   }
-  acknowledged(command: Command, revisions: Map<string, number>, rewrites: readonly TextRewrite[]) {
+  acknowledged(command: Command, revisions: Map<string, number>, rewrites: readonly TextRewrite[], receipt?: Committed) {
+    const previousRevisions = new Map([...revisions.keys()].map(id => [id, this.baseBlocks.get(id)?.revision ?? 0]));
+    const sentRevisions = new Map<string, number>();
+    const sent: Batch | undefined = command.frozen ? JSON.parse(command.frozen) : undefined;
+    for (const operation of sent?.operations ?? []) if ('id' in operation && 'base_revision' in operation && typeof operation.base_revision === 'number' && !sentRevisions.has(operation.id)) sentRevisions.set(operation.id, operation.base_revision);
     batch(() => {
       this.syncGeneration++;
       for (const rewrite of rewrites) {
@@ -343,13 +448,23 @@ export class Document implements PageDocument {
       for (const action of command.actions) {
         const id = action.kind === 'insert' ? action.block.id : action.id;
         const acknowledgedRevision = revisions.get(id);
+        if (action.kind === 'split') {
+          if ((this.baseBlocks.get(id)?.revision ?? 0) <= (acknowledgedRevision ?? 0)) this.apply({ kind: 'text', id, text: action.left }, true);
+          const saved = this.baseBlocks.get(action.block.id);
+          const block = saved && saved.revision > (revisions.get(saved.id) ?? 0) ? saved : action.block;
+          this.apply({ kind: 'insert', block, after: action.id }, true);
+          continue;
+        }
         if (acknowledgedRevision !== undefined && (this.baseBlocks.get(id)?.revision ?? 0) > acknowledgedRevision) {
           if (action.kind === 'insert' && this.baseOutline.indexOf(id) < 0) this.apply({ ...action, block: this.snapshot(id, true) }, true);
           continue;
         }
         if (action.kind === 'delete' && !this.baseBlocks.has(id)) continue;
         if (action.kind === 'text' && action.baseRevision !== undefined && !this.baseBlocks.has(id)) continue;
-        this.apply(action, true);
+        if (action.kind === 'merge') {
+          const destination = this.baseBlocks.get(action.destinationId);
+          this.apply(destination && destination.revision > (revisions.get(destination.id) ?? 0) ? { ...action, text: destination.text } : action, true);
+        } else this.apply(action, true);
       }
       for (const [id, revision] of revisions) {
         const block = this.baseBlocks.get(id);
@@ -357,8 +472,32 @@ export class Document implements PageDocument {
         const cell = this.cells.get(id);
         if (cell && cell.state.revision <= revision) cell.set('revision', revision);
       }
+      const capabilityRows = receipt?.capabilities ?? [];
+      const allActions = [
+        ...this.host.commands(this.pageId).filter(item => !item.frozen).flatMap(item => [...item.actions, ...item.inverse]),
+        ...[...this.undoStack, ...this.redoStack].flatMap(entry => [...entry.forward, ...entry.inverse]),
+      ];
+      for (const action of allActions) if (isCapabilityAction(action)) {
+        const revision = revisions.get(action.id);
+        if (revision !== undefined && (previousRevisions.get(action.id) ?? 0) <= revision
+          && (action.baseRevision === previousRevisions.get(action.id) || action.baseRevision === sentRevisions.get(action.id))) action.baseRevision = revision;
+        if (action.kind === 'reverseTaskCompletion' && command.actions.some(sent => sent.kind === 'completeTask' && sent.occurrenceId === action.occurrenceId)) {
+          const task = capabilityRows.find(value => value.block_id === action.id)?.task;
+          if (task) action.previous = structuredClone(task);
+        }
+        if ('session' in action) {
+          const session = receipt?.work_sessions?.find(value => value.id === action.session.id);
+          if (session) action.session = { ...action.session, revision: session.revision };
+        }
+      }
+      for (const session of receipt?.work_sessions ?? []) this.work.set(session.id, session);
+      this.receiveCapabilities(capabilityRows);
       const touched = new Set(revisions.keys());
-      for (const action of command.actions) touched.add(action.kind === 'insert' ? action.block.id : action.id);
+      for (const action of command.actions) {
+        touched.add(action.kind === 'insert' ? action.block.id : action.id);
+        if (action.kind === 'split') touched.add(action.block.id);
+        if (action.kind === 'merge') touched.add(action.destinationId);
+      }
       this.refreshPending(touched);
       if (command.actions.some(action => action.kind === 'delete' && action.id === this.pageId)) this.markMissing();
       if (command.actions.some(action => action.kind === 'restore' && action.id === this.pageId)) { this.loadStatus[1]('ready'); this.loadMessage[1](''); }
@@ -439,6 +578,8 @@ export class Document implements PageDocument {
     const pending = new Set<string>();
     for (const command of this.host.commands(this.pageId)) for (const action of command.actions) {
       pending.add(action.kind === 'insert' ? action.block.id : action.id);
+      if (action.kind === 'split') pending.add(action.block.id);
+      if (action.kind === 'merge') pending.add(action.destinationId);
       if (action.kind === 'restore') for (const snapshot of action.snapshots) pending.add(snapshot.block.id);
     }
     for (const id of touched ?? this.cells.keys()) {
@@ -449,12 +590,15 @@ export class Document implements PageDocument {
         cell.set('conflict', null); this.conflicts.delete(id); this.conflictVersion[1](value => value + 1);
       }
       const saved = this.baseBlocks.get(id);
-      if (saved && !pending.has(id) && !cell.state.conflict && !this.resolving.has(id)) cell.set({ text: saved.text, heading: saved.heading, archived: saved.archived, parentId: saved.parent_id, manual_types: this.baseManualTypes.get(id) ?? [] });
+      if (saved && !pending.has(id) && !cell.state.conflict && !this.resolving.has(id)) {
+        const value = this.capabilities(id, true);
+        cell.set({ text: saved.text, heading: saved.heading, archived: saved.archived, parentId: saved.parent_id, manual_types: this.baseManualTypes.get(id) ?? [], task: value.task, project: value.project, mergeProtected: value.merge_protected, reviewedCards: value.reviewed_cards });
+      }
       this.host.publish(this.snapshot(id));
     }
   }
   view(): PageView {
-    return { root: this.snapshot(this.pageId, true), rows: this.baseOutline.slice(0, this.baseOutline.size()).map(row => ({ block: this.snapshot(row.id, true), depth: row.depth, manual_types: this.baseManualTypes.get(row.id) ?? [] })), targets: [] };
+    return { root: this.snapshot(this.pageId, true), rows: this.baseOutline.slice(0, this.baseOutline.size()).map(row => ({ block: this.snapshot(row.id, true), depth: row.depth, manual_types: this.baseManualTypes.get(row.id) ?? [] })), targets: [], capabilities: [...this.baseCapabilities.values()] };
   }
   edit(edit: Edit, caretBefore: Caret | null = null): EditResult {
     if (this.status() !== 'ready') return { ok: false, reason: 'This page is not ready.' };
@@ -488,12 +632,17 @@ export class Document implements PageDocument {
         let parent = parentId;
         while (parent !== this.pageId) { if (parent === id) throw new Error('A block cannot move into its own subtree.'); if (!this.block(parent)) throw new Error('The destination no longer exists.'); parent = this.outline.parentOf(parent); }
         if (after && !ids.includes(after) && this.outline.parentOf(after) !== parentId) throw new Error('The destination sibling no longer exists.');
+        for (let ancestor: string | null = parentId; ancestor; ancestor = this.block(ancestor)?.parentId ?? null) if (this.block(ancestor)?.archived) { this.guardHide(id); break; }
         actions.push({ kind: 'move', id, parentId, after });
         after = id;
       }
     };
     const setText = (block: Block, text: string) => {
       if (block.text !== text) actions.push({ kind: 'text', id: block.id, text });
+    };
+    const guardSplit = (block: Block, prefix: string, suffix: string) => {
+      if (!parseCardText(block.text).cards.length || !suffix && prefix === block.text) return;
+      if (prefix || this.block(block.id)?.reviewedCards) throw new Error('This split would divide or move a card. Keep its source in one block.');
     };
     const split = (block: Block, prefix: string, suffix: string, zoomRoot?: string | null) => {
       if (block.heading !== null && !prefix && !suffix) {
@@ -502,9 +651,15 @@ export class Document implements PageDocument {
         caret = { id: block.id, offset: 0 };
         return;
       }
-      setText(block, prefix);
+      guardSplit(block, prefix, suffix);
+      setText(block, prefix + suffix);
       const child = zoomRoot === block.id || !suffix && this.outline.children(block.id).length > 0;
-      caret = { id: insert(child ? block.id : block.parent_id!, child ? null : block.id, suffix, suffix ? block.heading : null), offset: 0 };
+      const id = insert(block.parent_id!, block.id, suffix, block.heading);
+      const insertion = actions.pop() as Extract<Action, { kind: 'insert' }>;
+      actions.push({ kind: 'split', id: block.id, block: insertion.block, left: prefix, right: suffix });
+      if (child) actions.push({ kind: 'move', id, parentId: block.id, after: null });
+      if (!suffix && block.heading !== null) actions.push({ kind: 'heading', id, heading: null });
+      caret = { id, offset: 0 };
     };
     const paste = (block: Block, prefix: string, suffix: string, text: string, zoomRoot?: string | null) => {
       const lines = text.replace(/\r\n?/g, '\n').split('\n');
@@ -513,7 +668,13 @@ export class Document implements PageDocument {
         caret = { id: block.id, offset: prefix.length + lines[0]!.length };
         return;
       }
-      setText(block, prefix + lines[0]!);
+      guardSplit(block, prefix, suffix);
+      setText(block, prefix + suffix);
+      const rightId = ulid();
+      created.push(rightId);
+      const right: Block = { ...block, id: rightId, text: suffix, revision: 0, heading: block.heading };
+      actions.push({ kind: 'split', id: block.id, block: right, left: prefix, right: suffix });
+      setText({ ...block, text: prefix }, prefix + lines[0]!);
       const zoom = zoomRoot === block.id;
       const stack = [{ width: 0, id: block.id, parentId: zoom ? block.id : block.parent_id! }];
       let zoomAfter: string | null = null;
@@ -528,7 +689,13 @@ export class Document implements PageDocument {
         const parentId = nested ? previous.id : previous.parentId;
         const after = zoom && parentId === block.id ? zoomAfter : nested ? null : previous.id;
         const body = line.slice(whitespace.length) + (i === lines.length - 1 ? suffix : '');
-        const id = insert(parentId, after, body);
+        let id: string;
+        if (i === 1) {
+          id = rightId;
+          if (parentId !== block.parent_id || after !== block.id) actions.push({ kind: 'move', id, parentId, after });
+          setText(right, body);
+          if (right.heading !== null) actions.push({ kind: 'heading', id, heading: null });
+        } else id = insert(parentId, after, body);
         if (zoom && parentId === block.id) zoomAfter = id;
         if (!nested) stack.pop();
         stack.push({ width, id, parentId });
@@ -551,6 +718,12 @@ export class Document implements PageDocument {
       }
       const between = this.outline.slice(this.outline.indexOf(start.id) + 1, this.outline.indexOf(end.id)).map(row => row.id);
       if (between.length !== visible.length || between.some((id, i) => id !== visible[i])) throw new Error('Expand hidden blocks before deleting this text range.');
+      if (start.id !== end.id && this.block(end.id)?.mergeProtected) throw new Error('This range would merge away task, project, or review history.');
+      const multiline = mode === 'split' || mode === 'paste' && /[\r\n]/.test(text);
+      if (multiline && (parseCardText(first.text).cards.length || start.id !== end.id && parseCardText(last.text).cards.length)
+        && !(start.id === end.id && startOffset === endOffset && endOffset === first.text.length)) {
+        throw new Error('Replace this card in place before splitting its source.');
+      }
       const deleted = start.id === end.id ? [] : selected([...between, end.id]);
       const removed = new Set([...between, end.id]);
       const preserved: string[] = [];
@@ -562,9 +735,6 @@ export class Document implements PageDocument {
       }
       const prefix = first.text.slice(0, startOffset);
       const suffix = last.text.slice(endOffset);
-      if (mode === 'split') split(first, prefix + text, suffix, zoomRoot);
-      else if (mode === 'paste') paste(first, prefix, suffix, text, zoomRoot);
-      else { setText(first, prefix + text + suffix); caret = { id: first.id, offset: prefix.length + text.length }; }
       if (preserved.length) {
         let after: string | null = this.outline.children(first.id).at(-1) ?? null;
         if (this.outline.indexOf(end.id) < this.outline.subtreeEnd(this.outline.indexOf(first.id))) {
@@ -573,16 +743,72 @@ export class Document implements PageDocument {
         }
         move(preserved, first.id, after);
       }
-      for (const id of deleted) actions.push({ kind: 'delete', id });
+      if (start.id !== end.id) actions.push({ kind: 'merge', id: end.id, destinationId: first.id, text: first.text + last.text });
+      for (const id of deleted) if (id !== end.id) { this.guardHide(id); actions.push({ kind: 'delete', id }); }
+      const merged = start.id === end.id ? first : { ...first, text: first.text + last.text };
+      if (mode === 'split') split(merged, prefix + text, suffix, zoomRoot);
+      else if (mode === 'paste') paste(merged, prefix, suffix, text, zoomRoot);
+      else { setText(merged, prefix + text + suffix); caret = { id: first.id, offset: prefix.length + text.length }; }
     };
     try {
       switch (edit.kind) {
+        case 'task':
+        case 'planTask':
+        case 'project':
+        case 'completeTask':
+        case 'startWork':
+        case 'stopWork':
+        case 'workNote': {
+          const block = this.snapshot(edit.id);
+          const state = this.capabilities(edit.id);
+          if (this.host.commands(this.pageId).some(command => command.actions.some(action => action.kind === 'completeTask' && action.id === edit.id && action.previous.repeater))) throw new Error('Wait for the recurring completion before changing this task.');
+          const baseRevision = block.revision;
+          if (edit.kind === 'task' || edit.kind === 'planTask') {
+            const value = edit.value === null ? null : JSON.parse(JSON.stringify(edit.value));
+            if (value?.status === 'done' && state.task?.status !== 'done') throw new Error('Complete the task to record its occurrence.');
+            if (!state.task && value && value.status !== 'todo') throw new Error('A new task starts Todo.');
+            if (!sameState(state.task, value)) actions.push({ kind: 'task', id: edit.id, value, previous: state.task, baseRevision });
+            if (edit.kind === 'planTask') { setText(block, edit.text); caret = { id: edit.id, offset: edit.text.length }; }
+          } else if (edit.kind === 'project') {
+            const value = edit.value === null ? null : JSON.parse(JSON.stringify(edit.value));
+            if (!sameState(state.project, value)) actions.push({ kind: 'project', id: edit.id, value, previous: state.project, baseRevision });
+          } else if (edit.kind === 'completeTask') {
+            let task = state.task;
+            if (task?.status === 'done' && !task.repeater) break;
+            if (!task) {
+              task = { status: 'todo', scheduled: null, scheduled_time: null, deadline: null, deadline_time: null, warning_days: null, repeater: null, priority: null, completed_on: null };
+              actions.push({ kind: 'task', id: edit.id, value: task, previous: null, baseRevision });
+            }
+            if (edit.stopWork) {
+              if (edit.stopWork.block_id !== edit.id || edit.stopWork.ended_at !== null || edit.stopWork.reversed) throw new Error('Refresh the running work session before completing.');
+              const known = this.work.get(edit.stopWork.id);
+              if (known && known.revision >= edit.stopWork.revision && !sameState(known, edit.stopWork)) throw new Error('The work session changed. Refresh before completing.');
+              actions.push({ kind: 'stopWork', id: edit.id, session: { ...edit.stopWork }, endedAt: Date.now(), note: edit.stopWork.note, baseRevision });
+            }
+            actions.push({ kind: 'completeTask', id: edit.id, occurrenceId: ulid(), completedOn: edit.completedOn, previous: task, baseRevision });
+          } else if (edit.kind === 'startWork') {
+            const active = this.host.runningWork();
+            if (active) throw new Error('Stop the running work session before starting another.');
+            actions.push({ kind: 'startWork', id: edit.id, session: { id: ulid(), block_id: edit.id, started_at: edit.startedAt, ended_at: null, note: '', reversed: false, revision: 0 }, baseRevision });
+          } else {
+            if (edit.session.block_id !== edit.id) throw new Error('The work session belongs to another task.');
+            const session = { ...edit.session };
+            const known = this.work.get(session.id);
+            if (known && known.revision >= session.revision && !sameState(known, session)) throw new Error('The work session changed. Refresh before editing it.');
+            if (edit.kind === 'stopWork') actions.push({ kind: 'stopWork', id: edit.id, session, endedAt: edit.endedAt, note: edit.note, baseRevision });
+            else if (session.note !== edit.note) actions.push({ kind: 'workNote', id: edit.id, session, note: edit.note, baseRevision });
+          }
+          break;
+        }
         case 'text':
           if (this.snapshot(edit.id).text !== edit.text) actions.push({ kind: 'text', id: edit.id, text: edit.text });
           if (edit.heading !== undefined && this.snapshot(edit.id).heading !== edit.heading) actions.push({ kind: 'heading', id: edit.id, heading: edit.heading });
           break;
         case 'heading': actions.push({ kind: 'heading', id: edit.id, heading: edit.level }); break;
-        case 'archive': actions.push({ kind: 'archive', id: edit.id, archived: edit.archived }); break;
+        case 'archive':
+          if (edit.archived) this.guardHide(edit.id);
+          actions.push({ kind: 'archive', id: edit.id, archived: edit.archived });
+          break;
         case 'fieldKind': {
           const definition = edit.definition;
           if (this.snapshot(definition.id).revision !== definition.revision || this.block(definition.id)?.pending) throw new Error('The field changed. Refresh before changing its kind.');
@@ -615,16 +841,16 @@ export class Document implements PageDocument {
           if (source.kind !== 'block') throw new Error('A page cannot merge into a block.');
           let parent = destination.id;
           while (parent !== this.pageId) { if (parent === source.id) throw new Error('Cannot merge into a descendant.'); parent = this.outline.parentOf(parent); }
-          actions.push({ kind: 'text', id: destination.id, text: destination.text + source.text });
-          move([...this.outline.children(source.id)], destination.id, this.outline.children(destination.id).at(-1) ?? null);
-          actions.push({ kind: 'delete', id: source.id });
+          for (let ancestor: string | null = destination.id; ancestor; ancestor = this.block(ancestor)?.parentId ?? null) if (this.block(ancestor)?.archived) { this.guardHide(source.id); break; }
+          if (this.block(source.id)?.mergeProtected) throw new Error('Cannot merge away task, project, or review history.');
+          actions.push({ kind: 'merge', id: source.id, destinationId: destination.id, text: destination.text + source.text });
           caret = { id: destination.id, offset: destination.text.length };
           break;
         }
         case 'delete': {
           const roots = selected(edit.ids);
           let removed = 0;
-          for (const id of roots) { actions.push({ kind: 'delete', id }); const at = this.outline.indexOf(id); removed += this.outline.subtreeEnd(at) - at; }
+          for (const id of roots) { this.guardHide(id); actions.push({ kind: 'delete', id }); const at = this.outline.indexOf(id); removed += this.outline.subtreeEnd(at) - at; }
           caret = removed && removed === this.outline.size() ? { id: insert(this.pageId, null, ''), offset: 0 } : null;
           break;
         }
@@ -712,7 +938,14 @@ export class Document implements PageDocument {
     const to = undo ? this.redoStack : this.undoStack;
     const entry = from.pop();
     if (!entry) return null;
-    const actions = undo ? entry.inverse : entry.forward.map(action => action.kind === 'fieldKind' ? { ...action, baseRevision: undefined } : action.kind === 'insert' && this.baseBlocks.has(action.block.id) ? { kind: 'restore' as const, id: action.block.id, snapshots: [{ block: action.block, manual_types: this.baseManualTypes.get(action.block.id) ?? [], row: { id: action.block.id, parentId: action.block.parent_id!, depth: action.block.parent_id === this.pageId ? 0 : this.outline.depth(action.block.parent_id!) + 1 } }], after: action.after } : action);
+    const actions = (undo ? entry.inverse : entry.forward).flatMap<Action>(action => {
+      if (!undo && action.kind === 'fieldKind') return [{ ...action, baseRevision: undefined }];
+      if (!undo && (action.kind === 'insert' || action.kind === 'split') && this.baseBlocks.has(action.block.id)) {
+        const restored: Action = { kind: 'restore', id: action.block.id, snapshots: [{ block: action.block, manual_types: this.baseManualTypes.get(action.block.id) ?? [], capabilities: this.capabilities(action.block.id, true), row: { id: action.block.id, parentId: action.block.parent_id!, depth: action.block.parent_id === this.pageId ? 0 : this.outline.depth(action.block.parent_id!) + 1 } }], after: action.kind === 'split' ? action.id : action.after };
+        return action.kind === 'split' ? [{ kind: 'text', id: action.id, text: action.left }, restored] : [restored];
+      }
+      return [{ ...action }];
+    });
     try {
       const inverse: Action[] = [];
       batch(() => { for (const action of actions) {
@@ -720,6 +953,10 @@ export class Document implements PageDocument {
         inverse.unshift(...this.apply(action));
       } });
       const command = this.host.enqueue(this, actions, inverse, undo ? entry.after : entry.before, undo ? entry.before : entry.after, false);
+      if (actions.some(isCapabilityAction)) {
+        if (undo) entry.forward = inverse;
+        else entry.inverse = inverse;
+      }
       entry.applied = !undo;
       this.rememberHistory(command, entry, undo, true);
       to.push(entry);

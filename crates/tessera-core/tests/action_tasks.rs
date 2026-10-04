@@ -1030,3 +1030,173 @@ fn explicit_stop_can_atomically_remove_or_cancel_a_task() {
         assert!(nb.task_occurrences(&id(10)).unwrap().is_empty());
     }
 }
+
+fn restore_task_state(
+    value: u128,
+    revision: i64,
+    expected: TaskState,
+    task: TaskState,
+) -> Operation {
+    Operation::RestoreTaskState {
+        id: id(value),
+        base_revision: revision,
+        expected,
+        task,
+    }
+}
+
+#[test]
+fn reopening_undo_restores_exact_done_metadata_without_another_occurrence() {
+    let (_dir, mut nb) = fixture();
+    apply(
+        &mut nb,
+        vec![
+            set_task(10, 1, Some(TaskState::default())),
+            complete(10, 2, 100, "2024-01-01"),
+        ],
+    );
+    let done = TaskState {
+        scheduled: Some("2024-01-05".into()),
+        priority: Some(TaskPriority::High),
+        ..state(&nb, 10)
+    };
+    let reopened = TaskState {
+        status: TaskStatus::Todo,
+        completed_on: None,
+        ..done.clone()
+    };
+    apply(
+        &mut nb,
+        vec![
+            set_task(10, 3, Some(done.clone())),
+            set_task(10, 4, Some(reopened.clone())),
+        ],
+    );
+    let history = nb.task_occurrences(&id(10)).unwrap();
+    let restoring = Batch {
+        idempotency_key: Some(id(500)),
+        ..batch(vec![restore_task_state(
+            10,
+            5,
+            reopened.clone(),
+            done.clone(),
+        )])
+    };
+    let committed = nb.apply(&restoring).unwrap();
+    let replayed = nb.apply(&restoring).unwrap();
+    assert!(replayed.replayed);
+    assert_eq!(replayed.seq, committed.seq);
+    assert_eq!(state(&nb, 10), done);
+    assert_eq!(nb.task_occurrences(&id(10)).unwrap(), history);
+    apply(&mut nb, vec![set_task(10, 6, Some(reopened.clone()))]);
+    assert_eq!(state(&nb, 10), reopened);
+    assert!(matches!(
+        nb.apply(&batch(vec![restore_task_state(
+            10,
+            6,
+            reopened.clone(),
+            done.clone()
+        )])),
+        Err(Error::Conflict {
+            expected: 6,
+            found: Some(7),
+            ..
+        })
+    ));
+    let wrong_expected = TaskState {
+        priority: None,
+        ..reopened.clone()
+    };
+    reject(
+        &mut nb,
+        vec![restore_task_state(10, 7, wrong_expected, done.clone())],
+    );
+    assert_eq!(state(&nb, 10), reopened);
+    apply(
+        &mut nb,
+        vec![Operation::StartWork {
+            id: id(10),
+            base_revision: 7,
+            session_id: id(300),
+            started_at: 1000,
+            note: String::new(),
+        }],
+    );
+    reject(
+        &mut nb,
+        vec![restore_task_state(10, 8, reopened.clone(), done.clone())],
+    );
+    assert_eq!(nb.active_work_session().unwrap().unwrap().id, id(300));
+    apply(
+        &mut nb,
+        vec![
+            Operation::StopWork {
+                id: id(10),
+                base_revision: 8,
+                session_id: id(300),
+                session_revision: 1,
+                ended_at: 2000,
+                note: String::new(),
+            },
+            restore_task_state(10, 9, reopened, done.clone()),
+        ],
+    );
+    assert_eq!(state(&nb, 10), done);
+    assert_eq!(nb.task_occurrences(&id(10)).unwrap(), history);
+    assert!(nb.active_work_session().unwrap().is_none());
+}
+
+#[test]
+fn restoring_done_cannot_invent_or_reuse_a_superseded_completion() {
+    let (_dir, mut nb) = fixture();
+    let todo = TaskState::default();
+    let done = TaskState {
+        status: TaskStatus::Done,
+        completed_on: Some("2024-01-01".into()),
+        ..todo.clone()
+    };
+    apply(&mut nb, vec![set_task(10, 1, Some(todo.clone()))]);
+    reject(
+        &mut nb,
+        vec![restore_task_state(10, 2, todo.clone(), done.clone())],
+    );
+    assert!(nb.task_occurrences(&id(10)).unwrap().is_empty());
+    apply(
+        &mut nb,
+        vec![complete(10, 2, 100, "2024-01-01"), reverse(10, 3, 100)],
+    );
+    reject(
+        &mut nb,
+        vec![restore_task_state(10, 4, todo.clone(), done.clone())],
+    );
+    assert!(nb.task_occurrences(&id(10)).unwrap()[0].reversed);
+    apply(
+        &mut nb,
+        vec![
+            complete(10, 4, 101, "2024-01-02"),
+            set_task(10, 5, Some(todo.clone())),
+        ],
+    );
+    reject(&mut nb, vec![restore_task_state(10, 6, todo.clone(), done)]);
+    assert_eq!(state(&nb, 10), todo);
+    let recurring_task = recurring("2024-01-01", RepeatMode::Fixed);
+    apply(
+        &mut nb,
+        vec![
+            set_task(11, 1, Some(recurring_task)),
+            complete(11, 2, 102, "2024-01-01"),
+        ],
+    );
+    let advanced = state(&nb, 11);
+    let invented_done = TaskState {
+        status: TaskStatus::Done,
+        completed_on: Some("2024-01-01".into()),
+        ..advanced.clone()
+    };
+    reject(
+        &mut nb,
+        vec![restore_task_state(11, 3, advanced.clone(), invented_done)],
+    );
+    assert_eq!(state(&nb, 11), advanced);
+    assert_eq!(nb.task_occurrences(&id(11)).unwrap()[0].id, id(102));
+}
