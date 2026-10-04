@@ -83,7 +83,7 @@ One picker searches pages and blocks; a leading `>` switches to commands. A case
 ```
 
 - **Handle** and **fold** live in the gutter and show on hover, focus and selection. The handle opens the block menu and drags. The fold is hidden on leaf rows; a collapsed block shows a ringed bullet.
-- **Bullet** is a filled dot in `--muted`, 24 px target. Click to zoom, drag to move. The page title aligns with the bullet column.
+- **Bullet** is a filled dot in `--muted`, 24 px target. Click or ⌘. to zoom (⌘⇧. zooms out), drag to move. The page title aligns with the bullet column.
 - **Text** is the block body. References render inline in the accent with a soft underline; wrapped references align left.
 - **Type pills** follow the text at meta size. Clicking a pill opens a menu: open the table, open the type page, remove a manual membership. A text membership says so instead of offering removal.
 - **Field entries** are children rendered with a field icon and muted name. Values are ordinary child blocks.
@@ -124,13 +124,17 @@ A table is a query shown as rows: a type's members or a saved view.
 
 ## Tasks, projects and agenda
 
-Make task is available from block and page menus. Alt-Enter toggles a task; Alt-S opens its schedule picker. Task state, dates, optional times, deadline warning, priority and repeat are anchored controls, not text prefixes. A trailing quick-date token such as `@friday` on a task is accepted with Enter; the rest of the source text stays intact. Ordinary field shorthand still takes precedence.
+Tasks are made as in Tana, Roam and Logseq: ⌘Enter makes a block a todo, then toggles it between todo and done (⌥Enter is an alias); `[] ` or `[ ] ` at the start of a plain block makes it a todo; Make task sits in block and page menus. Alt-S opens a task's schedule picker. Task state, dates, optional times, deadline warning, priority and repeat are anchored controls, not text prefixes.
+
+Typing `@` after a space or at block start opens date suggestions under the `@`: Today, Tomorrow, the next five weekdays and Next week, or the parse of what follows (`@fri`, `@in 2 weeks`, `@2026-11-01 09:30`). Enter or Tab picks one: a plain block becomes a todo, the task is scheduled, and the token and its leading space leave the text. Pick a date… opens the full picker. Escape keeps the `@` as text. References, inline code and field shorthand never open it.
 
 Completion uses the displayed journal or agenda date. Repeating tasks retain their source identity and advance their plan; history on an earlier day shows that occurrence's plan, not the next repeat. A running work session requires an explicit stop, with Stop and complete offered as one atomic action. Work-session notes and prior sessions remain accessible from the block menu.
 
 Project controls edit outcome, deadline and status. Show actions opens a task query over canonical descendants. Completing a project does not complete its tasks.
 
-The Agenda destination switches between the displayed day's agenda and a composable Tasks query. Status, priority, project, independent scheduled/deadline ranges, source type, text and fields combine before the result limit. Named task views preserve that query and its date context. Journal agendas use the same canonical rows; clicking opens the source and Shift-click opens it beside. Completion and planning never insert copies into the journal.
+The Agenda destination switches between the displayed day's agenda and a composable Tasks query. Its Add a task field captures into today's journal, scheduled for the displayed day unless a trailing `@date` names another. Status, priority, project, independent scheduled/deadline ranges, source type, text and fields combine before the result limit. Named task views preserve that query and its date context. Agenda rows are one 28 px line: status, source text with its page (omitted for the displayed day's own journal), then planning on the right. Planning is relative to the displayed day: only facts not implied by the listing appear, and carried or missed dates use `--danger`.
+
+A journal's agenda sits under its title and lists canonical tasks from other pages; the day's own tasks are already in the outline below. Its header summarises the day (`3 to do · 1 overdue · 2 done`, or Nothing planned), so the collapsed state still answers what is due; collapse is one device preference across journals. Undated tasks gather under a collapsed Unplanned group. Clicking a row opens the source and Shift-click opens it beside. Completion and planning never insert copies into the journal.
 
 ## Cards and review
 

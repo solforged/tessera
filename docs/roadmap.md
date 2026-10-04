@@ -47,7 +47,7 @@ Status: done. Fields, templates, type tables with sorting and filtering, saved q
 
 Exit: plan a small project, work it over several days with clocked time, and find the result from the agenda.
 
-Status: done. Browser proof planned a language-model project, recorded clocked work and notes, completed work in historical journals, advanced a recurring task across adjacent days, reopened and undid a completion without duplicating history, and saved and restored a project task query. Agenda rows open the canonical source beside the historical day.
+Status: done. Browser proof planned a language-model project, recorded clocked work and notes, completed work in historical journals, advanced a recurring task across adjacent days, reopened and undid a completion without duplicating history, and saved and restored a project task query. Agenda rows open the canonical source beside the historical day. A parity pass added ⌘Enter and `[] ` task creation, the `@` date popup on any block, quick capture in Agenda, and a journal agenda that summarises the day when collapsed.
 
 ## 4. Learning
 

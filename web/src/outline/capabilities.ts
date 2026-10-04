@@ -4,66 +4,8 @@ import type { TaskState, TaskStatus, WorkSession } from '../api/types';
 import type { Caret, Edit, NotebookClient, PageDocument } from '../document/contract';
 import type { OpenTarget } from '../shell/contract';
 import type { PopupAnchor } from '../ui/Popup';
-import { matchFieldEntry } from '../table/query';
-import { parseTaskDate } from '../tasks/date-input';
+import { newTask } from '../tasks/quick-date';
 
-export const newTask = (): TaskState => ({ status: 'todo', scheduled: null, scheduled_time: null, deadline: null, deadline_time: null, warning_days: null, repeater: null, priority: null, completed_on: null });
-
-/** Ignore even unfinished references/code while the author is typing. */
-function protectedDate(text: string, at: number): boolean {
-  for (let cursor = 0; cursor < at;) {
-    if (text[cursor] === '\\') { cursor += 2; continue; }
-    if (text.startsWith('[[', cursor)) {
-      cursor += 2;
-      while (cursor < text.length && !text.startsWith(']]', cursor)) cursor += text[cursor] === '\\' ? 2 : 1;
-      cursor = Math.min(text.length, cursor + 2);
-      if (cursor > at) return true;
-      continue;
-    }
-    const marker = text[cursor];
-    const lineStart = text.lastIndexOf('\n', cursor - 1) + 1;
-    const fenceStart = /^[ ]{0,3}$/.test(text.slice(lineStart, cursor));
-    if (marker !== '`' && !(marker === '~' && fenceStart)) { cursor++; continue; }
-    let end = cursor;
-    while (text[end] === marker) end++;
-    const count = end - cursor;
-    const newline = text.indexOf('\n', end);
-    const openingEnd = newline < 0 ? text.length : newline;
-    if (count >= 3 && fenceStart && (marker === '~' || !text.slice(end, openingEnd).includes('`'))) {
-      const close = new RegExp(`^[ ]{0,3}${marker}{${count},}[ \\t\\r]*$`);
-      cursor = Math.min(openingEnd + 1, text.length);
-      while (cursor < text.length) {
-        const next = text.indexOf('\n', cursor);
-        const lineEnd = next < 0 ? text.length : next;
-        const closed = close.test(text.slice(cursor, lineEnd));
-        cursor = Math.min(lineEnd + 1, text.length);
-        if (closed) break;
-      }
-    } else if (marker === '`') {
-      cursor = end;
-      for (;;) {
-        const start = text.indexOf('`', cursor);
-        if (start < 0) { cursor = text.length; break; }
-        cursor = start;
-        while (text[cursor] === '`') cursor++;
-        if (cursor - start === count) break;
-      }
-    } else cursor = end;
-    if (cursor > at) return true;
-  }
-  return false;
-}
-
-/** A trailing authoring token only; preserve every other source character. */
-export function quickTaskPlan(text: string, task: TaskState | null, contextDate: string): { text: string; value: TaskState } | null {
-  if (!task || matchFieldEntry(text)) return null;
-  const end = text.trimEnd().length;
-  const at = text.lastIndexOf('@', end - 1);
-  if (at < 0 || at > 0 && !/\s/.test(text[at - 1]!) || /[\r\n]/.test(text.slice(at, end)) || protectedDate(text, at)) return null;
-  const parsed = parseTaskDate(text.slice(at, end), contextDate);
-  if (!parsed.ok || !parsed.date) return null;
-  return { text: text.slice(0, at) + text.slice(end), value: { ...task, scheduled: parsed.date, scheduled_time: parsed.time } };
-}
 
 export type CapabilityPopup = { id: string; anchor: PopupAnchor } & (
   | { kind: 'task' | 'schedule' | 'project' | 'work' }

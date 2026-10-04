@@ -11,6 +11,8 @@ import { fieldEntryId, fieldEntryText, matchFieldEntry } from '../table/query';
 import { ProjectControls } from '../projects/ProjectControls';
 import { parseCardText } from '../review/card-text';
 import { DatePicker } from '../tasks/DatePicker';
+import { dateSuggestions, dateTokenAt, newTask, planDateToken } from '../tasks/quick-date';
+import type { DateSuggestion, DateToken } from '../tasks/quick-date';
 import { JournalAgenda } from '../tasks/JournalAgenda';
 import { TaskControls, TaskStatusButton } from '../tasks/TaskControls';
 import { WorkSessions } from '../tasks/WorkSessions';
@@ -24,7 +26,7 @@ import { BlockBreadcrumb, BlockText, offsetAtPoint } from './BlockText';
 import { textTokens } from '../document/text-tokens';
 import { boundaryDeletion } from '../document/outline-mechanics';
 import { PaneEditor } from './editor';
-import { createOutlineCapabilities, quickTaskPlan } from './capabilities';
+import { createOutlineCapabilities } from './capabilities';
 import type { CapabilityPopup } from './capabilities';
 import { orderedRange, selectedText, selectionIds, selectionRoots, visibleIds } from './visibility';
 import { completeReferences } from './completion';
@@ -108,6 +110,8 @@ function Pane(props: OutlinePaneProps) {
   const [menu, setMenu] = createSignal<MenuState | null>(null);
   const [completion, setCompletion] = createSignal<Completion | null>(null);
   const [completionIndex, setCompletionIndex] = createSignal(0);
+  const [dateCompletion, setDateCompletion] = createSignal<(DateToken & { id: string }) | null>(null);
+  const [dateIndex, setDateIndex] = createSignal(0);
   const [renaming, setRenaming] = createSignal(false);
   const [title, setTitle] = createSignal('');
   const [conflicts, setConflicts] = createSignal(new Set<string>());
@@ -154,19 +158,56 @@ function Pane(props: OutlinePaneProps) {
     anchor: id => id === props.pageId ? heading ?? null : hosts.get(id)?.closest<HTMLElement>('[data-block-id]') ?? null,
     onOpen: props.onOpen,
   });
-  function quickSchedule(view: EditorView): boolean {
+  /** `@` offers dates; choosing one makes the block a task scheduled for that day and removes the token. */
+  const dateRows = createMemo<DateSuggestion[]>(() => { const state = dateCompletion(); return state ? dateSuggestions(state.query, contextDate()) : []; });
+  createEffect(() => { if (dateCompletion() && editing() !== dateCompletion()!.id) setDateCompletion(null); });
+  let dismissedDate: { id: string; from: number } | null = null;
+  function updateDateCompletion(text: string, at: Caret) {
+    if (dismissedDate && (dismissedDate.id !== at.id || text[dismissedDate.from] !== '@')) dismissedDate = null;
+    const token = textRange() || composition() ? null : dateTokenAt(text, at.offset);
+    if (!token || dismissedDate?.from === token.from) { setDateCompletion(null); return; }
+    if (dateCompletion()?.query !== token.query) setDateIndex(0);
+    setDateCompletion({ ...token, id: at.id });
+  }
+  function dismissDate() {
+    const state = dateCompletion();
+    if (state) dismissedDate = { id: state.id, from: state.from };
+    setDateCompletion(null);
+  }
+  function chooseDate(index = dateIndex()) {
+    const state = dateCompletion();
     const id = editing();
-    const selection = view.state.selection.main;
-    if (!id || textRange() || !selection.empty || selection.head !== view.state.doc.length || capabilities.busy(id)) return false;
-    const plan = quickTaskPlan(view.state.doc.toString(), doc.block(id)?.task ?? null, contextDate());
-    if (!plan) return false;
-    const result = doc.edit({ kind: 'planTask', id, ...plan }, caret());
-    if (!result.ok) { capabilities.failure(id, result.reason); return true; }
-    setCompletion(null);
-    editor?.sync(plan.text);
-    setCaret({ id, offset: plan.text.length });
-    capabilities.invoke(capabilities.run(id, () => doc.flush()));
+    if (!state || !editor || id !== state.id || editor.id !== id) return;
+    const choice = dateRows()[index] ?? null;
+    const plan = planDateToken(editor.view.state.doc.toString(), state, choice, doc.block(id)?.task ?? null);
+    setDateCompletion(null);
+    const result = doc.edit({ kind: 'planTask', id, text: plan.text, value: plan.value }, caret());
+    if (!result.ok) { capabilities.failure(id, result.reason); return; }
+    editor.sync(plan.text);
+    editor.view.dispatch({ selection: { anchor: plan.caret } });
+    setCaret({ id, offset: plan.caret });
+    void doc.flush().catch(reason => capabilities.failure(id, reason));
+    if (!choice) capabilities.open(id, 'schedule');
     scheduleReport();
+  }
+  function dateKey(event: KeyboardEvent) {
+    if (!dateCompletion()) return false;
+    const count = dateRows().length + 1;
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { setDateIndex(index => Math.max(0, Math.min(count - 1, index + (event.key === 'ArrowDown' ? 1 : -1)))); return true; }
+    if ((event.key === 'Enter' || event.key === 'Tab') && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) { chooseDate(); return true; }
+    if (event.key === 'Escape') { dismissDate(); return true; }
+    return false;
+  }
+  /** Typing `[] ` or `[ ] ` at the start of a plain block makes it a task. */
+  function taskPrefix(text: string, at: Caret): boolean {
+    const prefix = /^\[ ?\] /.exec(text)?.[0];
+    if (!prefix || at.offset !== prefix.length || composition() || doc.block(at.id)?.task) return false;
+    const rest = text.slice(prefix.length);
+    const result = doc.edit({ kind: 'planTask', id: at.id, text: rest, value: newTask() }, caret());
+    if (!result.ok) { setMessage(result.reason); return true; }
+    queueMicrotask(() => { if (editor?.id !== at.id) return; editor.sync(rest); editor.view.dispatch({ selection: { anchor: 0 } }); });
+    setCaret({ id: at.id, offset: 0 });
+    void doc.flush().catch(reason => capabilities.failure(at.id, reason));
     return true;
   }
 
@@ -565,7 +606,7 @@ function Pane(props: OutlinePaneProps) {
     return false;
   }
   function editorKey(event: KeyboardEvent, view: EditorView) {
-    if (popupKey(event)) return true;
+    if (dateKey(event) || popupKey(event)) return true;
     if (commonKey(event)) return true;
     if (event.key === 'Escape' && (!props.vim || editor?.mode() === 'normal')) { if (editing()) rowFocus(editing()!); return true; }
     if (props.vim && editor?.mode() !== 'insert') {
@@ -573,7 +614,6 @@ function Pane(props: OutlinePaneProps) {
       if (event.ctrlKey && event.key.toLowerCase() === 'r') { undo(true); return true; }
       return false;
     }
-    if ((event.key === ' ' || event.key === 'Enter') && !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey && quickSchedule(view)) return true;
     if (event.key === 'Enter') {
       if (event.shiftKey) replaceSelection('\n', 'text');
       else split(view);
@@ -591,10 +631,13 @@ function Pane(props: OutlinePaneProps) {
   function commonKey(event: KeyboardEvent) {
     if (event.metaKey && event.shiftKey && event.key.toLowerCase() === 't') { openTable(false); return true; }
     if (event.metaKey && event.key.toLowerCase() === 'z') { undo(event.shiftKey); return true; }
-    if (event.metaKey && event.key === 'Enter') { event.shiftKey ? zoomOut() : selected() && zoomTo(selected()); return true; }
+    if (event.metaKey && event.code === 'Period') { event.shiftKey ? zoomOut() : selected() && zoomTo(selected()); return true; }
     const id = editing() ?? selected();
+    if (id && !rowRange() && !textRange() && (event.altKey || event.metaKey) && event.key === 'Enter' && !(event.altKey && event.metaKey) && !event.ctrlKey && !event.shiftKey) {
+      if (!event.repeat) capabilities.invoke(capabilities.toggle(id));
+      return true;
+    }
     if (id && !rowRange() && !textRange() && event.altKey && !event.metaKey && !event.ctrlKey && !event.shiftKey) {
-      if (event.key === 'Enter') { if (!event.repeat) capabilities.invoke(capabilities.toggle(id)); return true; }
       if ((event.code === 'KeyS' || event.key.toLowerCase() === 's') && doc.block(id)?.task) { capabilities.open(id, 'schedule'); return true; }
     }
     if (event.altKey && ['ArrowUp', 'ArrowDown'].includes(event.key)) { apply({ kind: 'move', ids: roots(), direction: event.key === 'ArrowUp' ? 'up' : 'down' }); return true; }
@@ -749,11 +792,14 @@ function Pane(props: OutlinePaneProps) {
       catch (error) { setMessage(error instanceof Error ? error.message : String(error)); }
     }
   }
+  function caretRect(offset: number): DOMRect | null {
+    const rect = editor?.view.coordsAtPos(offset);
+    return rect ? new DOMRect(rect.left, rect.top, Math.max(1, rect.right - rect.left), rect.bottom - rect.top) : null;
+  }
   function completionAnchor(): DOMRect | null {
     const manual = completion()?.manual;
     if (manual) return manual.anchor.getBoundingClientRect();
-    const rect = editor?.view.coordsAtPos(editor.view.state.selection.main.head);
-    return rect ? new DOMRect(rect.left, rect.top, Math.max(1, rect.right - rect.left), rect.bottom - rect.top) : null;
+    return editor ? caretRect(editor.view.state.selection.main.head) : null;
   }
 
   function rename() { if (doc.root()?.kind !== 'page') return; setTitle(doc.root()!.text); setRenaming(true); queueMicrotask(() => { titleInput?.focus(); titleInput?.select(); }); }
@@ -815,13 +861,13 @@ function Pane(props: OutlinePaneProps) {
     { id: 'select', title: 'Select blocks', section: 'Outline', keys: ['V', '⇧↑/↓'], run: () => selected() && rowFocus(selected()!, true) },
     { id: 'select-all', title: 'Select all visible blocks', section: 'Outline', run: () => { const first = ids()[0]; const last = ids().at(-1); if (first && last) { rowFocus(last); setRowRange({ anchor: first, head: last }); } } },
     { id: 'fold', title: 'Fold / unfold children', section: 'View', keys: ['←/→', 'h/l'], run: () => fold() },
-    { id: 'zoom', title: 'Zoom into block', section: 'Navigation', keys: ['⌘Enter'], run: () => selected() && zoomTo(selected()) },
-    { id: 'zoom-out', title: 'Zoom out', section: 'Navigation', keys: ['⌘⇧Enter'], disabledReason: () => zoom() ? undefined : 'Already at the page root.', run: zoomOut },
+    { id: 'zoom', title: 'Zoom into block', section: 'Navigation', keys: ['⌘.'], run: () => selected() && zoomTo(selected()) },
+    { id: 'zoom-out', title: 'Zoom out', section: 'Navigation', keys: ['⌘⇧.'], disabledReason: () => zoom() ? undefined : 'Already at the page root.', run: zoomOut },
     { id: 'open-beside', title: 'Open selected target beside', section: 'Navigation', keys: ['⌃⇧O'], run: () => openSelected(true) },
     { id: 'copy-reference', title: 'Copy block reference', section: 'Editing', run: () => selected() && copy(`[[${selected()}]]`) },
     { id: 'make-task', title: 'Make task', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.task ? 'Already a task.' : undefined, run: () => selected() && capabilities.invoke(capabilities.status(selected()!, 'todo')) },
     { id: 'remove-task', title: 'Remove task', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.task ? undefined : 'Select a task.', run: () => selected() && capabilities.invoke(capabilities.status(selected()!, null)) },
-    { id: 'toggle-task', title: 'Toggle task', section: 'Outline', keys: ['⌥Enter'], run: () => selected() && capabilities.invoke(capabilities.toggle(selected()!)) },
+    { id: 'toggle-task', title: 'Toggle task', section: 'Outline', keys: ['⌘Enter'], run: () => selected() && capabilities.invoke(capabilities.toggle(selected()!)) },
     { id: 'plan-task', title: 'Plan task', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.task ? undefined : 'Select a task.', run: () => selected() && capabilities.open(selected()!, 'task') },
     { id: 'schedule-task', title: 'Schedule task', section: 'Outline', keys: ['⌥S'], disabledReason: () => selected() && doc.block(selected()!)?.task ? undefined : 'Select a task.', run: () => selected() && capabilities.open(selected()!, 'schedule') },
     { id: 'work-sessions', title: 'Work sessions', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.task ? undefined : 'Select a task.', run: () => selected() && capabilities.open(selected()!, 'work') },
@@ -866,7 +912,7 @@ function Pane(props: OutlinePaneProps) {
       item('open-beside', { icon: 'panes' }),
       item('copy-reference', { icon: 'copy' }),
       { label: doc.block(id)?.task ? 'Remove task' : 'Make task', section: 'Task', action: () => capabilities.invoke(capabilities.status(id, doc.block(id)?.task ? null : 'todo')) },
-      { label: 'Toggle task', shortcut: '⌥Enter', action: () => capabilities.invoke(capabilities.toggle(id)) },
+      { label: 'Toggle task', shortcut: '⌘Enter', action: () => capabilities.invoke(capabilities.toggle(id)) },
       ...(doc.block(id)?.task ? [
         { label: 'Plan task', action: () => capabilities.open(id, 'task', anchor) },
         { label: 'Schedule task', shortcut: '⌥S', action: () => capabilities.open(id, 'schedule', anchor) },
@@ -1031,15 +1077,17 @@ function Pane(props: OutlinePaneProps) {
           const result = doc.edit({ kind: 'text', id: at.id, text: '', heading: heading[1]!.length as 1 | 2 | 3 }, caret());
           if (!result.ok) setMessage(result.reason);
           else { queueMicrotask(() => editor?.sync('')); setCaret({ id: at.id, offset: 0 }); }
-        } else { const result = doc.edit({ kind: 'text', id: at.id, text }, caret()); if (!result.ok) setMessage(result.reason); }
+        } else if (taskPrefix(text, at)) return;
+        else { const result = doc.edit({ kind: 'text', id: at.id, text }, caret()); if (!result.ok) setMessage(result.reason); }
         updateCompletion(text, at);
+        updateDateCompletion(text, at);
       }),
       selection: at => {
         if (compositionSelection || textRange() && textRange()!.head.id !== at.id) return;
         focusEpoch++;
         setCaret(at);
         setTextRange(previous => previous && previous.head.id === at.id ? { anchor: previous.anchor, head: at } : previous);
-        if (editor) updateCompletion(editor.view.state.doc.toString(), at);
+        if (editor) { const text = editor.view.state.doc.toString(); updateCompletion(text, at); updateDateCompletion(text, at); }
         scheduleReport();
       },
       composition: composing,
@@ -1236,7 +1284,7 @@ function Pane(props: OutlinePaneProps) {
       <Show when={showArchived()}><p class="archive-notice">Showing archived blocks <button type="button" class="text-button" onClick={() => { setShowArchived(false); scheduleReport(); }}>Hide archived</button></p></Show>
       <Show when={message()}><p class="outline-message" role="alert">{message()} <button class="text-button" type="button" onClick={() => setMessage('')}>Dismiss</button></p></Show>
       <Show when={doc.status() === 'error' || doc.status() === 'missing'}><p role="alert">{doc.statusMessage()}</p></Show>
-      <Show when={doc.root()?.kind === 'journal'}><JournalAgenda date={doc.root()!.text} notebook={props.notebook} onOpen={props.onOpen} /></Show>
+      <Show when={doc.root()?.kind === 'journal'}><JournalAgenda date={doc.root()!.text} pageId={props.pageId} notebook={props.notebook} onOpen={props.onOpen} /></Show>
     </div>
     <div ref={list} class="outline-list" style={{ height: `${virtualizer.getTotalSize()}px` }}>
       <For each={[...virtualItems().keys()].filter(id => id !== editing())}>{id => <Row id={id} item={() => virtualItems().get(id)!} />}</For>
@@ -1281,6 +1329,17 @@ function Pane(props: OutlinePaneProps) {
         </div>}</For>
         <Show when={canCreate()}><div role="option" aria-selected={completionIndex() === completionRows().length} class="picker-row" classList={{ selected: completionIndex() === completionRows().length }} onClick={() => void chooseCompletion(completionRows().length)}><Icon name="plus" /><span class="picker-text">Create page “{completion()?.query}”</span></div></Show>
         <Show when={!matches.loading && !matches.error && !canCreate() && !completionRows().length}><p class="empty-state">No matching blocks.</p></Show>
+      </div>
+    </Popup></Show>
+    <Show when={dateCompletion()}><Popup anchor={() => caretRect(dateCompletion()?.from ?? 0)} width={320} class="picker" label="Schedule task" role="listbox" onDismiss={dismissDate}>
+      <div class="picker-list" onMouseDown={event => event.preventDefault()}>
+        <For each={dateRows()}>{(row, index) => <div role="option" aria-selected={dateIndex() === index()} class="picker-row" classList={{ selected: dateIndex() === index() }} onClick={() => chooseDate(index())}>
+          <Icon name="calendar" /><span class="picker-text">{row.label}</span><span class="picker-meta">{row.date}</span>
+        </div>}</For>
+        <Show when={!dateRows().length}><p class="empty-state">No matching date</p></Show>
+        <div role="option" aria-selected={dateIndex() === dateRows().length} class="picker-row" classList={{ selected: dateIndex() === dateRows().length }} onClick={() => chooseDate(dateRows().length)}>
+          <Icon name="more" /><span class="picker-text">Pick a date…</span>
+        </div>
       </div>
     </Popup></Show>
   </div>;
