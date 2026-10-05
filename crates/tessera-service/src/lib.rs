@@ -4,12 +4,14 @@
 mod assets;
 mod capabilities;
 mod error;
+pub mod library;
 mod ownership;
 mod security;
 
+use parking_lot::Mutex;
 use std::net::Ipv4Addr;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use anyhow::Context;
 use axum::{
@@ -51,6 +53,7 @@ pub(crate) struct AppState {
     notebook: Arc<Mutex<Notebook>>,
     assets: Option<Arc<PathBuf>>,
     changes: broadcast::Sender<i64>,
+    library: library::Library,
 }
 
 /// Build the HTTP router. `port` must be the port the listener actually bound,
@@ -62,10 +65,15 @@ pub fn router(
     dev_origin: Option<String>,
 ) -> Result<Router, String> {
     let policy = security::RequestPolicy::new(port, dev_origin)?;
+    let notebook = Arc::new(Mutex::new(notebook));
+    let notifications = broadcast::channel(256).0;
+    let library =
+        library::Library::start(notebook.clone(), notifications.clone(), library::extract)?;
     let state = AppState {
-        notebook: Arc::new(Mutex::new(notebook)),
+        notebook,
         assets: assets.map(Arc::new),
-        changes: broadcast::channel(256).0,
+        changes: notifications,
+        library,
     };
     Ok(Router::new()
         .route("/api/notebook", get(notebook_info))
@@ -120,6 +128,7 @@ pub fn router(
         .method_not_allowed_fallback(|| async { ApiError::method_not_allowed() })
         .fallback(assets::serve)
         .layer(DefaultBodyLimit::max(2 * 1024 * 1024))
+        .merge(library::routes())
         .layer(middleware::from_fn_with_state(policy, security::protect))
         .with_state(state))
 }
@@ -469,9 +478,7 @@ async fn run<T: Send + 'static>(
 ) -> Result<T, ApiError> {
     let notebook = state.notebook.clone();
     tokio::task::spawn_blocking(move || {
-        let mut notebook = notebook
-            .lock()
-            .map_err(|_| ApiError::internal("notebook lock poisoned"))?;
+        let mut notebook = notebook.lock();
         operation(&mut notebook).map_err(ApiError::from)
     })
     .await

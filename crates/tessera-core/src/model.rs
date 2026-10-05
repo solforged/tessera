@@ -8,6 +8,7 @@ use crate::capabilities::{
     BlockCapabilities, CardQuery, ProjectState, ReviewSession, ReviewSessionState, TaskQuery,
     TaskState, WorkSession,
 };
+use crate::library::{PassagePoint, SourceState};
 use crate::scheduler::Grade;
 
 /// What a block is. Pages and journal days are roots; everything else has a
@@ -53,6 +54,29 @@ pub enum Actor {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case")]
 pub enum Operation {
+    SetSource {
+        id: String,
+        base_revision: i64,
+        source: Option<SourceState>,
+    },
+    AttachSnapshot {
+        id: String,
+        base_revision: i64,
+        snapshot_id: String,
+    },
+    Cite {
+        id: String,
+        base_revision: i64,
+        citation_id: String,
+        snapshot_id: String,
+        start: PassagePoint,
+        end: PassagePoint,
+    },
+    Uncite {
+        id: String,
+        base_revision: i64,
+        citation_id: String,
+    },
     /// Create a named root. Titles are unique among live pages, ignoring case.
     CreatePage {
         id: String,

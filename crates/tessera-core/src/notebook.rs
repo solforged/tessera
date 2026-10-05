@@ -15,7 +15,7 @@ pub const DATABASE_FILE: &str = "notebook.db";
 /// All reads and writes go through methods on this type, so every client
 /// gets the same rules.
 pub struct Notebook {
-    dir: PathBuf,
+    pub(crate) dir: PathBuf,
     pub(crate) conn: Connection,
 }
 

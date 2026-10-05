@@ -158,6 +158,10 @@ impl FieldChanges {
             | Operation::RemoveType { .. }
             | Operation::SaveView { .. }
             | Operation::SetSetting { .. }
+            | Operation::SetSource { .. }
+            | Operation::AttachSnapshot { .. }
+            | Operation::Cite { .. }
+            | Operation::Uncite { .. }
             | Operation::SetTask { .. }
             | Operation::RestoreTaskState { .. }
             | Operation::CompleteTask { .. }

@@ -936,6 +936,17 @@ impl Engine<'_, '_> {
             self.move_block(&child, &destination.block.id, after.as_deref())?;
             after = Some(id);
         }
+        let moved_citations = self.tx.execute(
+            "UPDATE citations SET block_id = ?1 WHERE block_id = ?2",
+            params![destination.block.id, source.block.id],
+        )?;
+        if moved_citations > 0 {
+            if source.block.text.is_empty() {
+                self.bump(destination, false)?;
+            }
+            self.capability_sources.insert(destination.block.id.clone());
+            self.capability_sources.insert(source.block.id.clone());
+        }
         self.delete(&source.block.id)
     }
 
@@ -1258,6 +1269,25 @@ impl Engine<'_, '_> {
                         key: key.clone(),
                         revision,
                     });
+                }
+                Ok(())
+            }
+            Operation::SetSource {
+                id, base_revision, ..
+            }
+            | Operation::AttachSnapshot {
+                id, base_revision, ..
+            }
+            | Operation::Cite {
+                id, base_revision, ..
+            }
+            | Operation::Uncite {
+                id, base_revision, ..
+            } => {
+                let current = self.checked(id, *base_revision, index, false)?;
+                if crate::library_store::apply(self.tx, operation, self.now, self.seq)? {
+                    self.bump(&current, false)?;
+                    self.capability_sources.insert(id.clone());
                 }
                 Ok(())
             }
