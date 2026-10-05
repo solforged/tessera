@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/tessera-core", "crates/tessera-service", "crates/tessera-cli", "crates/tessera-bench"]
+members = ["crates/tessera-core", "crates/tessera-ingest", "crates/tessera-service", "crates/tessera-cli", "crates/tessera-bench"]
 
 [workspace.package]
 version = "0.1.0"
@@ -10,6 +10,7 @@ repository = "https://github.com/solforged/tessera"
 
 [workspace.dependencies]
 tessera-core = { path = "crates/tessera-core" }
+tessera-ingest = { path = "crates/tessera-ingest" }
 tessera-service = { path = "crates/tessera-service" }
 anyhow = "1"
 axum = { version = "0.8", features = ["ws"] }
@@ -17,7 +18,7 @@ clap = { version = "4", features = ["derive", "env"] }
 dirs = "7"
 futures-util = { version = "0.3", features = ["sink"] }
 rusqlite = { version = "0.40", features = ["bundled"] }
-reqwest = { version = "0.13", default-features = false, features = ["json"] }
+reqwest = { version = "0.13", default-features = false, features = ["json", "query", "rustls"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.11"
