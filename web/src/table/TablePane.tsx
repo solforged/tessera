@@ -11,6 +11,7 @@ import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
 import type { MenuItem } from '../ui/Menu';
 import { Popup } from '../ui/Popup';
+import { kindLabels } from '../fields/kinds';
 import { FilterPopup } from './FilterPopup';
 import { addFilter, chooseSort, copyQuery, fieldEntryId, fieldEntryText, filterLabel, queriesEqual, removeFilter, removeSort, sortLabel } from './query';
 import './table.css';
@@ -25,7 +26,7 @@ type PopupState = { kind: 'menu'; anchor: HTMLElement; items: MenuItem[]; label:
   | { kind: 'filter'; anchor: HTMLElement; field: string }
   | { kind: 'name'; anchor: HTMLElement; action: 'save' | 'rename' | 'field'; addColumn?: boolean }
   | null;
-const kindLabels: Record<FieldKind, string> = { text: 'Text', number: 'Number', date: 'Date', checkbox: 'Checkbox', choice: 'Choice', instance: 'Instance' };
+const valuePlaceholders: Partial<Record<FieldKind, string>> = { date: 'YYYY-MM-DD', url: 'https://', identifier: 'ISBN, DOI or arXiv ID' };
 
 export function TablePane(props: TablePaneProps) {
   const [query, setQuery] = createSignal(copyQuery(props.view.query));
@@ -203,7 +204,7 @@ export function TablePane(props: TablePaneProps) {
   };
   const startEdit = (row: QueryRow, field: FieldDefinition) => {
     const values = row.values[field.id] ?? [];
-    if (!['text', 'number', 'date'].includes(field.kind) || values.length > 1 || values.some(value => textTokens(value.text).some(token => token.kind !== 'text'))) {
+    if (!['text', 'number', 'date', 'url', 'identifier'].includes(field.kind) || values.length > 1 || values.some(value => textTokens(value.text).some(token => token.kind !== 'text'))) {
       openField(row, field);
       return;
     }
@@ -278,7 +279,7 @@ export function TablePane(props: TablePaneProps) {
                 <Show when={field()?.kind === 'text'} fallback={<span class={field()?.kind === 'choice' || field()?.kind === 'instance' ? 'table-value-pill' : ''}>{value.reading.ok ? field()?.kind === 'checkbox' ? value.reading.value ? '☑' : '☐' : String(value.reading.value) : ''}</span>}><BlockText text={value.text} notebook={props.notebook} interactive={false} /></Show>
               </Show>
             </>}</For>}>
-              <input class="input table-cell-input" type="text" aria-label={`Edit ${field()?.name ?? 'field'} value`} placeholder={field()?.kind === 'date' ? 'YYYY-MM-DD' : undefined} inputmode={field()?.kind === 'number' ? 'decimal' : undefined} value={current()?.text ?? ''} ref={input => queueMicrotask(() => { input.focus(); input.select(); })} onInput={event => { const text = event.currentTarget.value; setEditing(value => value ? { ...value, text } : null); }} onKeyDown={event => {
+              <input class="input table-cell-input" type="text" aria-label={`Edit ${field()?.name ?? 'field'} value`} placeholder={field() ? valuePlaceholders[field()!.kind] : undefined} inputmode={field()?.kind === 'number' ? 'decimal' : field()?.kind === 'url' ? 'url' : undefined} value={current()?.text ?? ''} ref={input => queueMicrotask(() => { input.focus(); input.select(); })} onInput={event => { const text = event.currentTarget.value; setEditing(value => value ? { ...value, text } : null); }} onKeyDown={event => {
                 if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); void commitEdit(); }
                 else if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setEditing(null); region.focus(); }
               }} onBlur={() => { void commitEdit(); }} />
