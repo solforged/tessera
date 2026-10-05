@@ -19,6 +19,8 @@ impl FieldKind {
             Self::Checkbox => "checkbox",
             Self::Choice => "choice",
             Self::Instance => "instance",
+            Self::Url => "url",
+            Self::Identifier => "identifier",
         }
     }
     fn from_str(value: &str) -> Self {
@@ -28,6 +30,8 @@ impl FieldKind {
             "checkbox" => Self::Checkbox,
             "choice" => Self::Choice,
             "instance" => Self::Instance,
+            "url" => Self::Url,
+            "identifier" => Self::Identifier,
             _ => Self::Text,
         }
     }
@@ -367,12 +371,23 @@ pub(crate) fn reading(kind: FieldKind, field: &str, text: &str, target: Option<&
                     ReadingValue::Text(target.text.clone()),
                     Some(target.id.clone()),
                 )
-            } else if validate_date(text.trim()).is_ok() {
+            } else if partial_date(text.trim()) {
                 value(ReadingValue::Text(text.trim().to_owned()), None)
             } else {
                 problem("not a date")
             }
         }
+        FieldKind::Url => {
+            if url(text.trim()) {
+                value(ReadingValue::Text(text.trim().to_owned()), None)
+            } else {
+                problem("not a URL")
+            }
+        }
+        FieldKind::Identifier => identifier(text).map_or_else(
+            || problem("not an ISBN, DOI or arXiv ID"),
+            |id| value(ReadingValue::Text(id), None),
+        ),
         FieldKind::Checkbox => match text.trim().to_ascii_lowercase().as_str() {
             "yes" | "true" | "x" | "[x]" | "done" => value(ReadingValue::Checkbox(true), None),
             "no" | "false" | "[ ]" | "" => value(ReadingValue::Checkbox(false), None),
@@ -396,6 +411,173 @@ pub(crate) fn reading(kind: FieldKind, field: &str, text: &str, target: Option<&
             }
         }
     }
+}
+
+/// A calendar date, or a bare year or year and month for sources dated no
+/// more precisely. ISO order keeps partial dates sortable as text.
+fn partial_date(text: &str) -> bool {
+    let bytes = text.as_bytes();
+    let year = |digits: &[u8]| {
+        digits.len() == 4 && digits.iter().all(u8::is_ascii_digit) && digits != b"0000"
+    };
+    match bytes.len() {
+        4 => year(bytes),
+        7 => {
+            year(&bytes[..4])
+                && bytes[4] == b'-'
+                && matches!(
+                    &text[5..7],
+                    "01" | "02"
+                        | "03"
+                        | "04"
+                        | "05"
+                        | "06"
+                        | "07"
+                        | "08"
+                        | "09"
+                        | "10"
+                        | "11"
+                        | "12"
+                )
+        }
+        _ => validate_date(text).is_ok(),
+    }
+}
+
+fn url(text: &str) -> bool {
+    let rest = text
+        .strip_prefix("https://")
+        .or_else(|| text.strip_prefix("http://"));
+    rest.is_some_and(|rest| {
+        let host = rest.split(['/', '?', '#']).next().unwrap_or_default();
+        !host.is_empty() && !text.chars().any(char::is_whitespace)
+    })
+}
+
+fn strip_prefix_ignore_case<'a>(text: &'a str, prefix: &str) -> Option<&'a str> {
+    text.get(..prefix.len())
+        .filter(|head| head.eq_ignore_ascii_case(prefix))
+        .map(|_| &text[prefix.len()..])
+}
+
+/// Normalize an ISBN to `isbn:` and 13 digits, a DOI to lowercase `doi:10.…`
+/// and an arXiv ID to `arxiv:…`, accepting their common URL and label forms.
+pub(crate) fn identifier(text: &str) -> Option<String> {
+    let text = text.trim();
+    for prefix in [
+        "https://doi.org/",
+        "http://doi.org/",
+        "https://dx.doi.org/",
+        "http://dx.doi.org/",
+        "doi:",
+    ] {
+        if let Some(rest) = strip_prefix_ignore_case(text, prefix) {
+            return doi(rest.trim());
+        }
+    }
+    for prefix in ["https://arxiv.org/abs/", "http://arxiv.org/abs/", "arxiv:"] {
+        if let Some(rest) = strip_prefix_ignore_case(text, prefix) {
+            return arxiv(rest.trim());
+        }
+    }
+    if let Some(rest) = strip_prefix_ignore_case(text, "isbn") {
+        return isbn(rest.trim_start_matches([':', ' ', '-']).trim());
+    }
+    isbn(text).or_else(|| doi(text)).or_else(|| arxiv(text))
+}
+
+fn isbn(text: &str) -> Option<String> {
+    let compact: Vec<u8> = text.bytes().filter(|b| *b != b'-' && *b != b' ').collect();
+    let digit = |b: u8| (b - b'0') as u32;
+    match compact.len() {
+        10 if compact[..9].iter().all(u8::is_ascii_digit)
+            && (compact[9].is_ascii_digit() || compact[9] == b'X' || compact[9] == b'x') =>
+        {
+            let check = if compact[9].is_ascii_digit() {
+                digit(compact[9])
+            } else {
+                10
+            };
+            let sum: u32 = compact[..9]
+                .iter()
+                .enumerate()
+                .map(|(i, b)| (10 - i as u32) * digit(*b))
+                .sum::<u32>()
+                + check;
+            if !sum.is_multiple_of(11) {
+                return None;
+            }
+            let mut thirteen: Vec<u8> = b"978".iter().chain(&compact[..9]).copied().collect();
+            thirteen.push(isbn13_check(&thirteen));
+            Some(format!(
+                "isbn:{}",
+                String::from_utf8(thirteen).expect("ASCII digits")
+            ))
+        }
+        13 if compact.iter().all(u8::is_ascii_digit)
+            && (compact.starts_with(b"978") || compact.starts_with(b"979"))
+            && isbn13_check(&compact[..12]) == compact[12] =>
+        {
+            Some(format!(
+                "isbn:{}",
+                String::from_utf8(compact).expect("ASCII digits")
+            ))
+        }
+        _ => None,
+    }
+}
+
+fn isbn13_check(twelve: &[u8]) -> u8 {
+    let sum: u32 = twelve
+        .iter()
+        .enumerate()
+        .map(|(i, b)| (b - b'0') as u32 * if i % 2 == 0 { 1 } else { 3 })
+        .sum();
+    b'0' + ((10 - sum % 10) % 10) as u8
+}
+
+fn doi(text: &str) -> Option<String> {
+    let (registrant, suffix) = text.strip_prefix("10.")?.split_once('/')?;
+    (registrant.len() >= 4
+        && registrant.bytes().all(|b| b.is_ascii_digit() || b == b'.')
+        && !suffix.is_empty()
+        && !text.chars().any(char::is_whitespace))
+    .then(|| format!("doi:{}", text.to_lowercase()))
+}
+
+fn arxiv(text: &str) -> Option<String> {
+    let (base, version) = match text.rsplit_once('v') {
+        Some((base, version))
+            if !version.is_empty() && version.bytes().all(|b| b.is_ascii_digit()) =>
+        {
+            (base, Some(version))
+        }
+        _ => (text, None),
+    };
+    let modern = base.split_once('.').is_some_and(|(month, number)| {
+        month.len() == 4
+            && month.bytes().all(|b| b.is_ascii_digit())
+            && matches!(
+                &month[2..],
+                "01" | "02" | "03" | "04" | "05" | "06" | "07" | "08" | "09" | "10" | "11" | "12"
+            )
+            && (4..=5).contains(&number.len())
+            && number.bytes().all(|b| b.is_ascii_digit())
+    });
+    let legacy = base.split_once('/').is_some_and(|(archive, number)| {
+        let (name, class) = archive
+            .split_once('.')
+            .map_or((archive, None), |(n, c)| (n, Some(c)));
+        !name.is_empty()
+            && name.bytes().all(|b| b.is_ascii_lowercase() || b == b'-')
+            && class.is_none_or(|c| c.len() == 2 && c.bytes().all(|b| b.is_ascii_uppercase()))
+            && number.len() == 7
+            && number.bytes().all(|b| b.is_ascii_digit())
+    });
+    (modern || legacy).then(|| match version {
+        Some(version) => format!("arxiv:{base}v{version}"),
+        None => format!("arxiv:{base}"),
+    })
 }
 
 pub(crate) fn definition_map(definitions: &[FieldDefinition]) -> HashMap<&str, &FieldDefinition> {

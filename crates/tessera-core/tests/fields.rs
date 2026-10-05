@@ -353,6 +353,64 @@ fn every_kind_reads_values_without_rewriting_authored_blocks() {
 }
 
 #[test]
+fn source_kinds_read_partial_dates_urls_and_normalized_identifiers() {
+    let (_dir, mut nb) = fixture();
+    kind(&mut nb, 10, FieldKind::Date);
+    for (text, read) in [(" 1987 ", "1987"), ("1987-03", "1987-03")] {
+        edit(&mut nb, 300, text);
+        assert_eq!(reading(&nb, 10), ok(ReadingValue::Text(read.into()), None));
+    }
+    for text in ["0000", "1987-13", "1987-3", "87"] {
+        edit(&mut nb, 300, text);
+        assert_eq!(reading(&nb, 10), problem("not a date"));
+    }
+    kind(&mut nb, 10, FieldKind::Url);
+    edit(&mut nb, 300, " https://example.com/a?b#c ");
+    assert_eq!(
+        reading(&nb, 10),
+        ok(ReadingValue::Text("https://example.com/a?b#c".into()), None)
+    );
+    for text in [
+        "example.com",
+        "https://",
+        "https://exa mple.com",
+        "ftp://example.com",
+    ] {
+        edit(&mut nb, 300, text);
+        assert_eq!(reading(&nb, 10), problem("not a URL"));
+    }
+    kind(&mut nb, 10, FieldKind::Identifier);
+    for (text, read) in [
+        ("ISBN 0-262-03384-4", "isbn:9780262033848"),
+        ("978-0-262-03384-8", "isbn:9780262033848"),
+        ("080442957X", "isbn:9780804429573"),
+        ("https://doi.org/10.1145/3065386", "doi:10.1145/3065386"),
+        (
+            "DOI:10.48550/arXiv.1706.03762",
+            "doi:10.48550/arxiv.1706.03762",
+        ),
+        ("arXiv:1706.03762v7", "arxiv:1706.03762v7"),
+        (
+            "https://arxiv.org/abs/hep-th/9711200",
+            "arxiv:hep-th/9711200",
+        ),
+    ] {
+        edit(&mut nb, 300, text);
+        assert_eq!(reading(&nb, 10), ok(ReadingValue::Text(read.into()), None));
+    }
+    for text in [
+        "0-262-03384-5",
+        "9780262033847",
+        "10.1/x",
+        "1713.03762",
+        "Attention",
+    ] {
+        edit(&mut nb, 300, text);
+        assert_eq!(reading(&nb, 10), problem("not an ISBN, DOI or arXiv ID"));
+    }
+}
+
+#[test]
 fn index_tracks_owner_entry_value_edits_moves_deletes_restores_and_archives() {
     for target in [100, 200, 300] {
         let (dir, mut nb) = fixture();

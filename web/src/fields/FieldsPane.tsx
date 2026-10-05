@@ -4,6 +4,7 @@ import type { FieldKind, FieldSummary, Fields } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import type { FieldsViewState, OpenTarget } from '../shell/contract';
 import { typeQuery } from '../table/query';
+import { kindLabels } from './kinds';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
@@ -16,7 +17,6 @@ interface FieldsPaneProps {
   onOpen(target: OpenTarget, beside: boolean): void;
   onViewChange(view: FieldsViewState): void;
 }
-const kindLabels: Record<FieldKind, string> = { text: 'Text', number: 'Number', date: 'Date', checkbox: 'Checkbox', choice: 'Choice', instance: 'Instance' };
 
 export function FieldsPane(props: FieldsPaneProps) {
   const [data, setData] = createSignal<Fields>();
