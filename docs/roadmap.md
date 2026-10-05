@@ -62,16 +62,27 @@ Status: done. Browser proof studied Greek vocabulary and attention-study notes, 
 
 ## 5. Library and reading
 
-- Ingest EPUB books and web articles into the notebook: immutable, content-hashed snapshots; original files in the notebook's object store; passages with their own search index.
-- Extractors from Bibliotheca moved into `tessera-ingest`; acquisition jobs with retry and resume run in the service.
-- A source is a page with a source capability, so it takes types and fields such as author, year and reading state.
+- Fields that sources need: ordered creators with roles (author, editor, translator) as references to person pages; partial dates such as a bare year; URL and identifier kinds for ISBN, DOI and arXiv; values supplied by a snapshot's extracted metadata until an authored value replaces them, with reset back to the extracted value.
+- A source is a page with a source capability and a source type (`#book`, `#article`), so its metadata is ordinary fields ordered by the type's template. A compact header shows creators, year, reading state and progress instead of one outline row per field.
+- `tessera-ingest`, written fresh with Bibliotheca as reference only. EPUB first, then web articles: immutable, content-hashed snapshots; original files in the notebook's object store; passages with their own search index. Ingestion jobs with retry and resume run in the service.
+- Library joins the sidebar as a saved table over source types, with Inbox, Reading, Finished and Abandoned views.
 - A reader pane beside the outline, with reading position and progress.
-- Highlight a passage to write a block that cites it, on the source's page; citations pin source, snapshot and passage.
-- Cards from highlighted passages.
+- Highlighting a passage writes an ordinary block on the source's page that cites it; citations pin source, snapshot and passage. A triage view lists unprocessed highlights across sources.
+- Cards from highlights.
+- Export: stable citation keys, with BibTeX and CSL JSON for a source, a selection or a saved view.
 
-Exit: ingest a book and an article, read a chapter in the reader, take notes that cite passages, and study cards made from them. Afterwards the Bibliotheca repository is archived.
+Exit: ingest a book and an article, read a chapter in the reader, take notes that cite passages, study cards made from them, and export the book as BibTeX and a reading list as CSL JSON. Afterwards the Bibliotheca repository is archived.
 
-## 6. Inquiry and evidence
+## 6. Capture
+
+- A save-to-Tessera browser extension that sends the current page, or a selection as a highlight, to the loopback service.
+- RSS and Atom feeds polled by the service, with new items arriving in the Library inbox.
+- Newsletters arriving in the same inbox.
+- Book search and download providers, such as OPDS catalogues, written fresh.
+
+Exit: subscribe to two feeds and a newsletter, save an article and a highlighted selection from the browser, find and ingest a book through a provider, and triage a week of arrivals from the inbox.
+
+## 7. Inquiry and evidence
 
 - Questions, criteria and dated assessments with one accepted answer.
 - Attributed positions compared side by side, supported by passages.
@@ -79,7 +90,7 @@ Exit: ingest a book and an article, read a chapter in the reader, take notes tha
 
 Exit: run the "which model fits my work" investigation twice, a month apart, and trace each answer to its evidence.
 
-## 7. Trust
+## 8. Trust
 
 - Change history with actors; agent plans previewed and applied atomically.
 - Spike 4 (runtime and concurrency) and spike 5 (eight-hour soak).
@@ -88,12 +99,12 @@ Exit: run the "which model fits my work" investigation twice, a month apart, and
 
 Exit: an agent does bounded work on a real project; every change is attributed and reversible; a restore from backup loses nothing acknowledged.
 
-## 8. Perspectives
+## 9. Perspectives
 
 - Ideas: break a book or paper down into an outline of its ideas, each citing its passages.
 - Perspective lenses: flip between holders' positions on an idea, then record your own.
 - Side-by-side comparison of concepts and of how different thinkers classify them.
-- More sources: tweets and threads, papers as PDF.
+- More sources: papers as PDF, tweets and threads, and highlight imports from Kindle and X.
 - Agent-assisted study: cards and quizzes drawn from a source's passages, with a study plan against a date.
 
 Exit: break a chapter into ideas, link two authors' positions on one idea and state your own, then be quizzed on the chapter by an agent and review the resulting cards.
