@@ -18,9 +18,10 @@ clap.workspace = true
 dirs.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
+reqwest.workspace = true
+percent-encoding = "2"
 
 [dev-dependencies]
-reqwest.workspace = true
 rusqlite.workspace = true
 tempfile.workspace = true
 

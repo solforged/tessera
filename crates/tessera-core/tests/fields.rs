@@ -168,6 +168,15 @@ fn fields_page_is_idempotent_recreated_after_deletion_and_migration_backfills_en
          DROP TABLE type_fields;
          DROP TABLE fields;
          DROP TABLE views;
+         DROP TABLE citations;
+         DROP TABLE reading_positions;
+         DROP TABLE source_snapshots;
+         DROP TABLE sources;
+         DROP TABLE snapshot_resources;
+         DROP TABLE passages_fts;
+         DROP TABLE passages;
+         DROP TABLE snapshots;
+         DROP TABLE ingest_jobs;
          ALTER TABLE changes DROP COLUMN views;
          PRAGMA user_version = 5;",
     )

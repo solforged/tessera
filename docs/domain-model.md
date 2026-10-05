@@ -76,7 +76,11 @@ A source is a page with a source capability. Each ingestion of the same source (
 
 A source's metadata is ordinary fields. A value extracted from a snapshot fills its field until an authored value replaces it; resetting the field shows the extracted value again, which is never discarded. A source keeps one citation key once assigned, and export renders BibTeX or CSL JSON from its fields. Reading state (inbox, reading, finished, abandoned) belongs to the source; reading position and coverage belong to a snapshot. Opening a citation is not reading and changes neither.
 
-A highlight is an authored block on the source's page that cites a passage. It takes children, types, fields and card syntax like any other block. A highlight with no children, no card and no incoming reference is unprocessed; there is no separate triage state. Because passages never change, a passage citation is a frozen quotation by construction.
+Reading position and the sorted, disjoint coverage ranges are navigation state, not authored changes: they are stored per snapshot, are not undoable, and do not add change rows. The first recorded reading of an inbox source changes its state to reading through an ordinary attributed batch. A citation jump must not call the reading-position endpoint.
+
+Citation keys are assigned once at ingestion and never recomputed when fields change. The suggestion combines the ASCII-folded lowercase family name of the first author (otherwise editor, site or `anon`), the publication year (otherwise `nd`), and the first non-stopword title word. Only letters and digits remain; collisions gain `a` through `z`, then `aa` and onward. Authored keys start with a letter, contain at most 64 letters, digits, underscores, colons or hyphens, and are unique among active sources ignoring case.
+
+A highlight is an authored block on the source's page that cites a passage. It takes children, types, fields and card syntax like any other block. A highlight with no non-blank children, no card and no incoming reference is unprocessed; there is no separate triage state. Because passages never change, a passage citation is a frozen quotation by construction.
 
 A position is an attributed claim: who holds it, about which question or subject, supported by which passages. Positions on the same question are compared side by side and never merged. Assessments cite positions and passages, so a conclusion can be traced to its evidence.
 
@@ -119,4 +123,3 @@ Links, full-text search, type membership from text, card definitions and field r
 - How concept and taxonomy comparison is modelled: types, positions about a concept, or a capability of its own.
 - Whether vocabulary cards need anything beyond ordinary cards, such as language, part of speech or inflection fields.
 - How newsletters arrive: a polled mail folder, a forwarding address or feeds only.
-- The citation key format, and whether a key changes when the fields it was built from change.

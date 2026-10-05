@@ -1,0 +1,755 @@
+use tessera_core::{
+    Actor, Batch, Direction, Error, Notebook, Operation, Query, Reading, ReadingValue, library::*,
+};
+fn id() -> String {
+    ulid::Ulid::generate().to_string()
+}
+fn batch(operations: Vec<Operation>) -> Batch {
+    Batch {
+        actor: Actor::Person,
+        reason: None,
+        idempotency_key: None,
+        operations,
+    }
+}
+fn apply(n: &mut Notebook, ops: Vec<Operation>) -> tessera_core::Committed {
+    n.apply(&batch(ops)).unwrap()
+}
+fn document() -> ExtractedDocument {
+    ExtractedDocument {
+        format: SourceFormat::Epub,
+        media_type: "application/epub+zip".into(),
+        metadata: ExtractedMetadata {
+            title: Some("The Evidence & Meaning".into()),
+            creators: vec![
+                ExtractedCreator {
+                    name: "García, Ana".into(),
+                    role: CreatorRole::Author,
+                },
+                ExtractedCreator {
+                    name: "John Smith".into(),
+                    role: CreatorRole::Author,
+                },
+                ExtractedCreator {
+                    name: "Lee, Pat".into(),
+                    role: CreatorRole::Translator,
+                },
+            ],
+            published: Some("2020-04".into()),
+            publisher: Some("Original Press".into()),
+            language: Some("en".into()),
+            identifiers: vec!["9780262033848".into(), "unrecognized:foo".into()],
+            unique_id: Some("urn:book:one".into()),
+            ..Default::default()
+        },
+        toc: vec![TocEntry {
+            title: "Opening".into(),
+            locator: "chapter#first".into(),
+            level: 1,
+        }],
+        passages: vec![
+            ExtractedPassage {
+                kind: PassageKind::Paragraph,
+                level: None,
+                text: "First 🦉 evidence".into(),
+                locator: "chapter#first".into(),
+                anchor: Some("first".into()),
+                resource: None,
+                marks: vec![],
+            },
+            ExtractedPassage {
+                kind: PassageKind::Paragraph,
+                level: None,
+                text: "Second evidence".into(),
+                locator: "chapter#second".into(),
+                anchor: Some("second".into()),
+                resource: None,
+                marks: vec![],
+            },
+        ],
+        resources: vec![],
+    }
+}
+fn stage(n: &mut Notebook, doc: &ExtractedDocument, bytes: &[u8]) -> String {
+    let hash = n.put_object(bytes).unwrap();
+    n.stage_snapshot(doc, &hash, &[]).unwrap().id
+}
+fn ingest(n: &mut Notebook, doc: &ExtractedDocument, bytes: &[u8]) -> (String, String) {
+    let snapshot = stage(n, doc, bytes);
+    let plan = n
+        .plan_ingest(&snapshot, None, Some("evidence.epub"))
+        .unwrap();
+    let source = plan.source_id.clone();
+    if !plan.unchanged {
+        apply(n, plan.operations);
+    }
+    (source, snapshot)
+}
+fn query(n: &Notebook) -> tessera_core::QueryResult {
+    let author = n
+        .fields()
+        .unwrap()
+        .fields
+        .into_iter()
+        .find(|field| field.definition.name == "Author")
+        .unwrap()
+        .definition
+        .id;
+    n.query(&Query {
+        r#type: None,
+        text: None,
+        filters: vec![tessera_core::Filter {
+            field: author,
+            op: tessera_core::FilterOp::Present,
+            value: None,
+        }],
+        sort: vec![],
+        limit: Some(2000),
+    })
+    .unwrap()
+}
+fn field(n: &Notebook, source: &str, name: &str) -> Vec<tessera_core::FieldValue> {
+    let result = query(n);
+    let field = &result.fields.iter().find(|f| f.name == name).unwrap().id;
+    result
+        .rows
+        .iter()
+        .find(|r| r.block.block.id == source)
+        .unwrap()
+        .values
+        .get(field)
+        .cloned()
+        .unwrap_or_default()
+}
+fn edit(n: &mut Notebook, id: &str, text: &str) {
+    let rev = n.block(id).unwrap().revision;
+    apply(
+        n,
+        vec![Operation::EditText {
+            id: id.into(),
+            base_revision: rev,
+            text: text.into(),
+        }],
+    );
+}
+fn note(n: &mut Notebook, page: &str, text: &str) -> String {
+    let id = id();
+    apply(
+        n,
+        vec![Operation::Insert {
+            id: id.clone(),
+            parent_id: page.into(),
+            after: None,
+            text: text.into(),
+            heading: None,
+        }],
+    );
+    id
+}
+fn cite(n: &mut Notebook, block: &str, snapshot: &str) -> String {
+    let passages = n.passages(snapshot, 0, 500).unwrap().passages;
+    let citation = id();
+    let rev = n.block(block).unwrap().revision;
+    apply(
+        n,
+        vec![Operation::Cite {
+            id: block.into(),
+            base_revision: rev,
+            citation_id: citation.clone(),
+            snapshot_id: snapshot.into(),
+            start: PassagePoint {
+                passage_id: passages[0].id.clone(),
+                offset: 6,
+            },
+            end: PassagePoint {
+                passage_id: passages[1].id.clone(),
+                offset: 6,
+            },
+        }],
+    );
+    citation
+}
+#[test]
+fn staging_ingestion_fields_and_immutable_objects() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut n = Notebook::open(dir.path()).unwrap();
+    let doc = document();
+    let hash = n.put_object(b"book").unwrap();
+    let path = n.object_path(&hash).unwrap();
+    let modified = std::fs::metadata(&path).unwrap().modified().unwrap();
+    assert_eq!(n.put_object(b"book").unwrap(), hash);
+    assert_eq!(
+        std::fs::metadata(path).unwrap().modified().unwrap(),
+        modified
+    );
+    assert_eq!(n.read_object(&hash).unwrap(), b"book");
+    assert!(n.object_path("../bad").is_err());
+    let staged = n.stage_snapshot(&doc, &hash, &[]).unwrap();
+    assert!(!staged.existing);
+    let duplicate = n.stage_snapshot(&doc, &hash, &[]).unwrap();
+    assert!(duplicate.existing);
+    assert_eq!(duplicate.id, staged.id);
+    let plan = n.plan_ingest(&staged.id, None, Some("book.epub")).unwrap();
+    assert!(plan.created);
+    assert!(n.page_by_title("The Evidence & Meaning").unwrap().is_none());
+    let source = plan.source_id.clone();
+    let receipt = apply(&mut n, plan.operations);
+    let view = n.source(&source).unwrap();
+    assert_eq!(
+        view.source.citation_key.as_deref(),
+        Some("garcia2020evidence")
+    );
+    assert_eq!(view.source.origin.as_deref(), Some("book.epub"));
+    assert_eq!(view.toc, doc.toc);
+    assert!(
+        receipt
+            .capabilities
+            .iter()
+            .any(|c| c.source.as_ref().is_some_and(|s| s.block_id == source))
+    );
+    let authors = field(&n, &source, "Author");
+    assert_eq!(authors.len(), 2);
+    assert!(
+        matches!(&authors[0].reading,Reading::Value{value:ReadingValue::Text(s),target:Some(_),..} if s=="Ana García")
+    );
+    assert_eq!(
+        field(&n, &source, "Identifier")[0].text,
+        "isbn:9780262033848"
+    );
+    assert_eq!(field(&n, &source, "Published")[0].text, "2020-04");
+    assert_eq!(field(&n, &source, "Translator").len(), 1);
+    let book = n.page_by_title("Book").unwrap().unwrap();
+    assert_eq!(n.type_info(&book.id).unwrap().fields.len(), 7);
+    assert!(
+        n.page(&source)
+            .unwrap()
+            .capabilities
+            .iter()
+            .any(|c| c.source.is_some())
+    );
+    assert!(n.plan_ingest(&staged.id, None, None).unwrap().unchanged);
+    assert_eq!(n.locate(&staged.id, "first").unwrap(), Some(0));
+    assert_eq!(n.locate(&staged.id, "chapter#second").unwrap(), Some(1));
+    assert_eq!(n.passages(&staged.id, 0, 1).unwrap().total, 2);
+    assert!(n.passages(&staged.id, 0, 501).is_err());
+    let values = n.extracted_values(&source).unwrap();
+    assert!(
+        values
+            .iter()
+            .any(|(label, v)| label == "Author" && v[0] == authors[0].text)
+    );
+}
+#[test]
+fn reingest_updates_only_extracted_values_and_preserves_state() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut doc = document();
+    let (source, first) = ingest(&mut n, &doc, b"one");
+    let published = field(&n, &source, "Published")[0].id.clone();
+    edit(&mut n, &published, "1984");
+    n.set_reading_position(&first, 0, (0, 1)).unwrap();
+    doc.metadata.published = Some("2024".into());
+    doc.metadata.publisher = Some("New Press".into());
+    doc.metadata.site = Some("Journal".into());
+    let (same, second) = ingest(&mut n, &doc, b"two");
+    assert_eq!(same, source);
+    assert_ne!(first, second);
+    let view = n.source(&source).unwrap();
+    assert_eq!(view.snapshots.len(), 2);
+    assert_eq!(view.source.state, ReadingState::Reading);
+    assert_eq!(view.source.current_snapshot_id, Some(second));
+    assert_eq!(field(&n, &source, "Published")[0].text, "1984");
+    assert_eq!(field(&n, &source, "Publisher")[0].text, "New Press");
+    assert_eq!(field(&n, &source, "Site")[0].text, "Journal");
+    assert_eq!(
+        view.source.citation_key.as_deref(),
+        Some("garcia2020evidence")
+    );
+    assert!(
+        n.plan_ingest(&first, Some(&source), None)
+            .unwrap()
+            .unchanged
+    );
+}
+#[test]
+fn collision_titles_and_keys_and_origin_fallback() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut doc = document();
+    let (first, _) = ingest(&mut n, &doc, b"one");
+    doc.metadata.unique_id = Some("two".into());
+    let (second, _) = ingest(&mut n, &doc, b"two");
+    doc.metadata.unique_id = Some("three".into());
+    let (third, _) = ingest(&mut n, &doc, b"three");
+    assert_eq!(
+        n.block(&second).unwrap().text,
+        "The Evidence & Meaning (2020)"
+    );
+    assert_eq!(
+        n.block(&third).unwrap().text,
+        "The Evidence & Meaning (2020) (2)"
+    );
+    assert_ne!(first, second);
+    assert_eq!(
+        n.source(&second).unwrap().source.citation_key.as_deref(),
+        Some("garcia2020evidencea")
+    );
+    assert_eq!(
+        n.source(&third).unwrap().source.citation_key.as_deref(),
+        Some("garcia2020evidenceb")
+    );
+    for suffix_index in 3..=27 {
+        let unique = format!("collision-{suffix_index}");
+        doc.metadata.unique_id = Some(unique.clone());
+        let (source, _) = ingest(&mut n, &doc, unique.as_bytes());
+        if suffix_index == 26 {
+            assert_eq!(
+                n.source(&source).unwrap().source.citation_key.as_deref(),
+                Some("garcia2020evidencez")
+            );
+        }
+        if suffix_index == 27 {
+            assert_eq!(
+                n.source(&source).unwrap().source.citation_key.as_deref(),
+                Some("garcia2020evidenceaa")
+            );
+        }
+    }
+    doc.metadata.title = None;
+    doc.metadata.unique_id = Some("four".into());
+    let snapshot = stage(&mut n, &doc, b"four");
+    let plan = n
+        .plan_ingest(&snapshot, None, Some("/tmp/fallback.epub"))
+        .unwrap();
+    let id = plan.source_id.clone();
+    apply(&mut n, plan.operations);
+    assert_eq!(n.block(&id).unwrap().text, "fallback");
+}
+#[test]
+fn citation_ranges_reactivation_sidecars_merge_and_visibility() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut n = Notebook::open(dir.path()).unwrap();
+    let doc = document();
+    let (source, snapshot) = ingest(&mut n, &doc, b"one");
+    let other = stage(&mut n, &doc, b"other");
+    let block = note(&mut n, &source, "highlight");
+    let passages = n.passages(&snapshot, 0, 10).unwrap().passages;
+    let foreign = n.passages(&other, 0, 10).unwrap().passages;
+    for (start, end) in [
+        (
+            PassagePoint {
+                passage_id: passages[0].id.clone(),
+                offset: 0,
+            },
+            PassagePoint {
+                passage_id: foreign[1].id.clone(),
+                offset: 1,
+            },
+        ),
+        (
+            PassagePoint {
+                passage_id: passages[0].id.clone(),
+                offset: 999,
+            },
+            PassagePoint {
+                passage_id: passages[1].id.clone(),
+                offset: 1,
+            },
+        ),
+        (
+            PassagePoint {
+                passage_id: passages[1].id.clone(),
+                offset: 0,
+            },
+            PassagePoint {
+                passage_id: passages[0].id.clone(),
+                offset: 1,
+            },
+        ),
+        (
+            PassagePoint {
+                passage_id: passages[0].id.clone(),
+                offset: 1,
+            },
+            PassagePoint {
+                passage_id: passages[0].id.clone(),
+                offset: 1,
+            },
+        ),
+    ] {
+        assert!(matches!(
+            n.apply(&batch(vec![Operation::Cite {
+                id: block.clone(),
+                base_revision: 1,
+                citation_id: id(),
+                snapshot_id: snapshot.clone(),
+                start,
+                end
+            }])),
+            Err(Error::Validation { .. })
+        ));
+    }
+    let citation_id = cite(&mut n, &block, &snapshot);
+    let citation = n.capabilities(&block).unwrap().citations[0].clone();
+    assert_eq!(citation.quote, "🦉 evidence\n\nSecond");
+    assert_eq!(citation.locator, "chapter#first");
+    assert!(!n.capabilities(&block).unwrap().merge_protected);
+    let removed = apply(
+        &mut n,
+        vec![Operation::Uncite {
+            id: block.clone(),
+            base_revision: 2,
+            citation_id: citation_id.clone(),
+        }],
+    );
+    assert!(
+        removed
+            .capabilities
+            .iter()
+            .find(|c| c.block_id == block)
+            .unwrap()
+            .citations
+            .is_empty()
+    );
+    apply(
+        &mut n,
+        vec![Operation::Cite {
+            id: block.clone(),
+            base_revision: 3,
+            citation_id,
+            snapshot_id: snapshot.clone(),
+            start: citation.start,
+            end: citation.end,
+        }],
+    );
+    let destination = note(&mut n, &source, "destination");
+    apply(
+        &mut n,
+        vec![Operation::Merge {
+            source_id: block,
+            source_revision: 4,
+            destination_id: destination.clone(),
+            destination_revision: 1,
+        }],
+    );
+    assert_eq!(n.capabilities(&destination).unwrap().citations.len(), 1);
+    assert_eq!(
+        n.passages(&snapshot, 1, 1).unwrap().citations[0].block_id,
+        destination
+    );
+    let rev = n.block(&destination).unwrap().revision;
+    apply(
+        &mut n,
+        vec![Operation::SetArchived {
+            id: destination,
+            base_revision: rev,
+            archived: true,
+        }],
+    );
+    assert!(n.passages(&snapshot, 0, 2).unwrap().citations.is_empty());
+}
+#[test]
+fn coverage_changes_state_once_and_library_filters_sort() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut n = Notebook::open(dir.path()).unwrap();
+    let doc = document();
+    let (source, snapshot) = ingest(&mut n, &doc, b"one");
+    let first = n.set_reading_position(&snapshot, 0, (0, 1)).unwrap();
+    assert!(first.state_changed);
+    assert!(first.seq.is_some());
+    assert_eq!(first.position.covered, vec![(0, 1)]);
+    assert!((first.progress - 17.0 / 32.0).abs() < 1e-8);
+    let second = n.set_reading_position(&snapshot, 1, (1, 2)).unwrap();
+    assert!(!second.state_changed);
+    assert_eq!(second.seq, None);
+    assert_eq!(second.position.covered, vec![(0, 2)]);
+    assert_eq!(second.progress, 1.0);
+    assert_eq!(
+        n.changes_since(first.seq.unwrap() - 1, 100).unwrap().len(),
+        1
+    );
+    let mut other = doc.clone();
+    other.metadata.unique_id = Some("other".into());
+    other.metadata.title = Some("A different book".into());
+    ingest(&mut n, &other, b"other");
+    let library = n
+        .library(&LibraryQuery {
+            sort: LibrarySort::Title,
+            direction: Direction::Asc,
+            ..Default::default()
+        })
+        .unwrap();
+    assert_eq!(library.counts.reading, 1);
+    assert_eq!(library.counts.inbox, 1);
+    assert_eq!(library.total, 2);
+    assert_eq!(library.rows[0].page.text, "A different book");
+    let filtered = n
+        .library(&LibraryQuery {
+            states: vec![ReadingState::Reading],
+            text: Some("García".into()),
+            ..Default::default()
+        })
+        .unwrap();
+    assert_eq!(filtered.total, 1);
+    assert_eq!(filtered.rows[0].page.id, source);
+    assert_eq!(
+        n.library(&LibraryQuery {
+            format: Some(SourceFormat::Article),
+            ..Default::default()
+        })
+        .unwrap()
+        .total,
+        0
+    );
+}
+#[test]
+fn highlight_processing_uses_children_cards_and_incoming_links() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut n = Notebook::open(dir.path()).unwrap();
+    let (source, snapshot) = ingest(&mut n, &document(), b"one");
+    let highlight = note(&mut n, &source, "highlight");
+    cite(&mut n, &highlight, &snapshot);
+    let unprocessed = HighlightQuery {
+        unprocessed: true,
+        ..Default::default()
+    };
+    assert_eq!(n.highlights(&unprocessed).unwrap().total, 1);
+    let child = note(&mut n, &highlight, "  ");
+    assert_eq!(
+        n.highlights(&unprocessed).unwrap().total,
+        1,
+        "a blank note is not processing"
+    );
+    edit(&mut n, &child, "child");
+    assert_eq!(n.highlights(&unprocessed).unwrap().total, 0);
+    apply(
+        &mut n,
+        vec![Operation::Delete {
+            id: child,
+            base_revision: 2,
+        }],
+    );
+    edit(&mut n, &highlight, "Question>>Answer");
+    assert_eq!(n.highlights(&unprocessed).unwrap().total, 0);
+    edit(&mut n, &highlight, "highlight");
+    let incoming = note(&mut n, &source, &format!("[[{highlight}]]"));
+    assert_eq!(n.highlights(&unprocessed).unwrap().total, 0);
+    apply(
+        &mut n,
+        vec![Operation::Delete {
+            id: incoming,
+            base_revision: 1,
+        }],
+    );
+    assert_eq!(n.highlights(&unprocessed).unwrap().total, 1);
+    let row = &n.library(&LibraryQuery::default()).unwrap().rows[0];
+    assert_eq!((row.highlights, row.unprocessed), (1, 1));
+}
+#[test]
+fn export_reads_authored_fields_and_article_doi_and_search_filters() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut n = Notebook::open(dir.path()).unwrap();
+    let (book, old) = ingest(&mut n, &document(), b"book");
+    let publisher = field(&n, &book, "Publisher")[0].id.clone();
+    edit(&mut n, &publisher, "Authored {Press} \\ % & $ # _ ^ ~");
+    let bib = n
+        .export(std::slice::from_ref(&book), ExportFormat::Bibtex)
+        .unwrap();
+    assert!(bib.starts_with("@book{garcia2020evidence,"));
+    assert!(bib.contains("author = {García, Ana and Smith, John}"));
+    assert!(bib.contains("translator = {Lee, Pat}"));
+    assert!(bib.contains(
+        "Authored \\{Press\\} \\\\ \\% \\& \\$ \\# \\_ \\textasciicircum{} \\textasciitilde{}"
+    ));
+    let mut article = document();
+    article.format = SourceFormat::Article;
+    article.media_type = "text/html".into();
+    article.metadata.title = Some("An Article".into());
+    article.metadata.unique_id = None;
+    article.metadata.url = Some("https://example.test/story".into());
+    article.metadata.site = Some("Science".into());
+    article.metadata.identifiers = vec![
+        "https://doi.org/10.1234/ABC".into(),
+        "arxiv:2401.12345v2".into(),
+    ];
+    let (source, snapshot) = ingest(&mut n, &article, b"article");
+    let csl: serde_json::Value = serde_json::from_str(
+        &n.export(&[book.clone(), source.clone()], ExportFormat::CslJson)
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(csl[0]["type"], "book");
+    assert_eq!(csl[0]["author"][0]["family"], "García");
+    assert_eq!(csl[1]["type"], "article-journal");
+    assert_eq!(csl[1]["DOI"], "10.1234/abc");
+    assert_eq!(csl[1]["container-title"], "Science");
+    assert_eq!(csl[1]["archive"], "arXiv");
+    assert!(
+        n.export(&[], ExportFormat::Bibtex)
+            .unwrap()
+            .contains("@online")
+    );
+    let hits = n.search_passages("evidence", None, 10).unwrap();
+    assert_eq!(hits.len(), 4);
+    let hits = n.search_passages("Second", Some(&source), 10).unwrap();
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0].snapshot_id, snapshot);
+    let mut revised = document();
+    revised.passages[0].text = "Replacement text".into();
+    revised.passages[1].text = "Replacement body".into();
+    let (_, new) = ingest(&mut n, &revised, b"revised");
+    assert_ne!(new, old);
+    assert!(
+        n.search_passages("evidence", None, 10)
+            .unwrap()
+            .iter()
+            .all(|h| h.source_id == source)
+    );
+    assert_eq!(
+        n.search_passages("evidence", Some(&book), 10)
+            .unwrap()
+            .len(),
+        2
+    );
+}
+#[test]
+fn source_validation_revision_noops_and_job_resume_retry() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut n = Notebook::open(dir.path()).unwrap();
+    let (source, snapshot) = ingest(&mut n, &document(), b"book");
+    let state = n.source(&source).unwrap().source.source_state();
+    let revision = n.block(&source).unwrap().revision;
+    let no_op = apply(
+        &mut n,
+        vec![Operation::SetSource {
+            id: source.clone(),
+            base_revision: revision,
+            source: Some(state.clone()),
+        }],
+    );
+    assert!(no_op.revisions.is_empty());
+    assert!(
+        n.apply(&batch(vec![Operation::AttachSnapshot {
+            id: source.clone(),
+            base_revision: revision,
+            snapshot_id: snapshot
+        }]))
+        .is_err()
+    );
+    for key in ["bad key", "1bad", ""] {
+        let mut state = state.clone();
+        state.citation_key = Some(key.into());
+        assert!(
+            n.apply(&batch(vec![Operation::SetSource {
+                id: source.clone(),
+                base_revision: revision,
+                source: Some(state)
+            }]))
+            .is_err()
+        );
+    }
+    let page = id();
+    apply(
+        &mut n,
+        vec![Operation::CreatePage {
+            id: page.clone(),
+            title: "Other source".into(),
+        }],
+    );
+    let mut collision = state.clone();
+    collision.citation_key = Some(state.citation_key.unwrap().to_uppercase());
+    assert!(
+        n.apply(&batch(vec![Operation::SetSource {
+            id: page,
+            base_revision: 1,
+            source: Some(collision)
+        }]))
+        .is_err()
+    );
+    assert!(
+        n.queue_ingest(IngestInput::Url, "file:///etc/passwd", "bad", None)
+            .is_err()
+    );
+    let job = n
+        .queue_ingest(IngestInput::Url, "https://example.test/", "example", None)
+        .unwrap();
+    assert_eq!(n.claim_ingest().unwrap().unwrap().id, job.id);
+    drop(n);
+    let mut n = Notebook::open(dir.path()).unwrap();
+    n.resume_ingest().unwrap();
+    assert_eq!(n.ingest_job(&job.id).unwrap().state, IngestJobState::Queued);
+    let claimed = n.claim_ingest().unwrap().unwrap();
+    assert_eq!(claimed.attempts, 2);
+    n.fail_ingest(&job.id, "The server refused the request.", None)
+        .unwrap();
+    assert_eq!(n.retry_ingest(&job.id).unwrap().attempts, 0);
+    assert!(n.retry_ingest(&job.id).is_err());
+}
+
+#[test]
+fn journal_citations_keep_identity_across_split_delete_and_restore() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut n = Notebook::open(dir.path()).unwrap();
+    let (_, snapshot) = ingest(&mut n, &document(), b"book");
+    let journal = id();
+    apply(
+        &mut n,
+        vec![Operation::CreateJournal {
+            id: journal.clone(),
+            date: "2026-10-04".into(),
+        }],
+    );
+    let block = note(&mut n, &journal, "two words");
+    let citation = cite(&mut n, &block, &snapshot);
+    let new_id = id();
+    apply(
+        &mut n,
+        vec![Operation::Split {
+            id: block.clone(),
+            base_revision: 2,
+            new_id: new_id.clone(),
+            left: "two".into(),
+            right: " words".into(),
+        }],
+    );
+    assert_eq!(n.capabilities(&block).unwrap().citations[0].id, citation);
+    assert!(n.capabilities(&new_id).unwrap().citations.is_empty());
+    let revision = n.block(&block).unwrap().revision;
+    let deleted = apply(
+        &mut n,
+        vec![Operation::Delete {
+            id: block.clone(),
+            base_revision: revision,
+        }],
+    );
+    assert!(
+        n.highlights(&HighlightQuery::default())
+            .unwrap()
+            .rows
+            .is_empty()
+    );
+    apply(
+        &mut n,
+        vec![Operation::Restore {
+            id: block.clone(),
+            deletion_id: deleted.deletions[0].clone(),
+            revision: revision + 1,
+        }],
+    );
+    assert_eq!(n.capabilities(&block).unwrap().citations[0].id, citation);
+    let source = SourceState {
+        format: SourceFormat::Epub,
+        state: ReadingState::Inbox,
+        origin: None,
+        match_key: None,
+        citation_key: None,
+    };
+    assert!(
+        n.apply(&batch(vec![Operation::SetSource {
+            id: journal,
+            base_revision: 1,
+            source: Some(source)
+        }]))
+        .is_err()
+    );
+}

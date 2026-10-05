@@ -81,6 +81,10 @@ pub struct BlockCapabilities {
     pub block_id: String,
     pub task: Option<TaskState>,
     pub project: Option<ProjectState>,
+    #[serde(default)]
+    pub source: Option<crate::library::SourceRecord>,
+    #[serde(default)]
+    pub citations: Vec<crate::library::Citation>,
     /// Non-reversed task occurrences or work sessions exist for this source.
     #[serde(default)]
     pub history: bool,

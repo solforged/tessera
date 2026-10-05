@@ -349,7 +349,9 @@ macro_rules! capability_rows {
             ") AS history,
              EXISTS(SELECT 1 FROM card_units c JOIN review_events e ON e.card_id = c.id
                     WHERE c.source_block_id = b.id) AS reviewed,
-             (t.block_id IS NOT NULL OR p.block_id IS NOT NULL) AS retained
+             (t.block_id IS NOT NULL OR p.block_id IS NOT NULL
+              OR EXISTS(SELECT 1 FROM sources s WHERE s.block_id=b.id)
+              OR EXISTS(SELECT 1 FROM citations c WHERE c.block_id=b.id)) AS retained
              FROM blocks b LEFT JOIN tasks t ON t.block_id = b.id
              LEFT JOIN projects p ON p.block_id = b.id "
         )
@@ -376,6 +378,8 @@ fn capability_at(row: &rusqlite::Row<'_>) -> rusqlite::Result<BlockCapabilities>
         project,
         history,
         reviewed_cards,
+        source: None,
+        citations: Vec::new(),
     })
 }
 
@@ -383,8 +387,9 @@ pub(crate) fn capabilities_for(
     conn: &Connection,
     ids: &[String],
 ) -> Result<Vec<BlockCapabilities>> {
-    Ok(conn
-        .prepare_cached(concat!(
+    crate::library_reads::hydrate(
+        conn,
+        conn.prepare_cached(concat!(
             capability_rows!(),
             "WHERE b.id IN (SELECT value FROM json_each(?1)) ORDER BY b.id"
         ))?
@@ -392,22 +397,25 @@ pub(crate) fn capabilities_for(
             [serde_json::to_string(ids).expect("block IDs serialize")],
             capability_at,
         )?
-        .collect::<rusqlite::Result<_>>()?)
+        .collect::<rusqlite::Result<_>>()?,
+    )
 }
 
 pub(crate) fn page_capabilities(
     conn: &Connection,
     page_id: &str,
 ) -> Result<Vec<BlockCapabilities>> {
-    Ok(conn
-        .prepare_cached(concat!(
+    crate::library_reads::hydrate(
+        conn,
+        conn.prepare_cached(concat!(
             "SELECT * FROM (",
             capability_rows!(),
             "WHERE b.page_id = ?1 AND b.deletion_id IS NULL)
              WHERE retained OR history OR reviewed ORDER BY id"
         ))?
         .query_map([page_id], capability_at)?
-        .collect::<rusqlite::Result<_>>()?)
+        .collect::<rusqlite::Result<_>>()?,
+    )
 }
 
 pub(crate) fn guard_merge(conn: &Connection, source_id: &str) -> Result<()> {
