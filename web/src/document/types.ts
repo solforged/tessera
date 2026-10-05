@@ -1,4 +1,4 @@
-import type { Block, BlockCapabilities, Batch, FieldKind, Operation, ProjectState, TaskState, WorkSession } from '../api/types';
+import type { Block, BlockCapabilities, Batch, Citation, FieldKind, Operation, ProjectState, SourceState, TaskState, WorkSession } from '../api/types';
 import type { Caret, HistoryCaret } from './contract';
 import type { OutlineRow } from './outline-index';
 
@@ -6,6 +6,9 @@ export interface Snapshot { block: Block; row: OutlineRow | null; manual_types: 
 export type CapabilityAction =
   | { kind: 'task'; id: string; value: TaskState | null; previous: TaskState | null; baseRevision: number; restore?: boolean }
   | { kind: 'project'; id: string; value: ProjectState | null; previous: ProjectState | null; baseRevision: number }
+  | { kind: 'source'; id: string; value: SourceState | null; previous: SourceState | null; baseRevision: number }
+  | { kind: 'cite'; id: string; citation: Citation; index?: number; baseRevision: number }
+  | { kind: 'uncite'; id: string; citationId: string; baseRevision: number }
   | { kind: 'completeTask'; id: string; occurrenceId: string; completedOn: string; previous: TaskState; baseRevision: number }
   | { kind: 'reverseTaskCompletion'; id: string; occurrenceId: string; completedOn: string; value: TaskState; previous: TaskState; baseRevision: number }
   | { kind: 'startWork'; id: string; session: WorkSession; baseRevision: number }
@@ -13,9 +16,12 @@ export type CapabilityAction =
   | { kind: 'workNote'; id: string; session: WorkSession; note: string; baseRevision: number }
   | { kind: 'workState'; id: string; session: WorkSession; endedAt: number | null; reversed: boolean; baseRevision: number };
 export function isCapabilityAction(action: Action): action is CapabilityAction {
-  return ['task', 'project', 'completeTask', 'reverseTaskCompletion', 'startWork', 'stopWork', 'workNote', 'workState'].includes(action.kind);
+  return ['task', 'project', 'source', 'cite', 'uncite', 'completeTask', 'reverseTaskCompletion', 'startWork', 'stopWork', 'workNote', 'workState'].includes(action.kind);
 }
-export const emptyCapabilities = (id: string): BlockCapabilities => ({ block_id: id, task: null, project: null, history: false, merge_protected: false, reviewed_cards: false });
+export const emptyCapabilities = (id: string): BlockCapabilities => ({ block_id: id, task: null, project: null, source: null, citations: [], history: false, merge_protected: false, reviewed_cards: false });
+export function sourceState(source: SourceState | null | undefined): SourceState | null {
+  return source ? { format: source.format, state: source.state, origin: source.origin, match_key: source.match_key, citation_key: source.citation_key } : null;
+}
 export function sameState(left: unknown, right: unknown): boolean {
   if (left === right) return true;
   if (!left || !right || typeof left !== 'object' || typeof right !== 'object') return false;

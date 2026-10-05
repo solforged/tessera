@@ -14,7 +14,7 @@
  */
 
 import type { Accessor } from 'solid-js';
-import type { Block, BlockKind, ChangeEvent, Committed, FieldDefinition, FieldKind, Operation, ProjectState, SettingsView, TaskState, WorkSession } from '../api/types';
+import type { Block, BlockKind, ChangeEvent, Citation, Committed, FieldDefinition, FieldKind, Operation, PassagePoint, ProjectState, SettingsView, SourceRecord, SourceState, TaskState, WorkSession } from '../api/types';
 import type { ApiClient } from '../api/client';
 
 /** A position in a block's text, in UTF-16 code units. */
@@ -44,6 +44,10 @@ export interface BlockState {
   readonly project: ProjectState | null;
   readonly mergeProtected: boolean;
   readonly reviewedCards: boolean;
+  /** Present on a source page's root. */
+  readonly source: SourceRecord | null;
+  /** Active citations of this block, in creation order. */
+  readonly citations: readonly Citation[];
   /** Last revision the service acknowledged; 0 until a new block is committed. */
   readonly revision: number;
   /** Local changes not yet acknowledged. */
@@ -90,6 +94,16 @@ export type Edit =
   | { kind: 'startWork'; id: string; startedAt: number }
   | { kind: 'stopWork'; id: string; session: WorkSession; endedAt: number; note: string }
   | { kind: 'workNote'; id: string; session: WorkSession; note: string }
+  /** Set, change or remove a page's source capability. */
+  | { kind: 'source'; id: string; value: SourceState | null }
+  | { kind: 'cite'; id: string; citation: NewCitation }
+  /** Remove the selected citations together in one undo step. */
+  | { kind: 'uncite'; id: string; citationIds: string[] }
+  /**
+   * Append a block with `text` under `parentId` (after `after`, or last when
+   * omitted) that cites `citation`; one undo step. `created[0]` is its ID.
+   */
+  | { kind: 'highlight'; parentId: string; after?: string | null; text: string; citation: NewCitation }
   /**
    * Enter: the original keeps its ID, children and text before `offset`.
    * At a parent's end, insert its first child; otherwise insert a sibling.
@@ -145,6 +159,19 @@ export type Edit =
   | { kind: 'fieldKind'; definition: FieldDefinition; value: FieldKind }
   | { kind: 'archive'; id: string; archived: boolean }
   | { kind: 'addType' | 'removeType'; id: string; title: string };
+
+/** What a new citation needs; `quote`, `locator` and `ordinal` make the optimistic state complete until the receipt replaces it. */
+export interface NewCitation {
+  id: string;
+  sourceId: string;
+  snapshotId: string;
+  start: PassagePoint;
+  end: PassagePoint;
+  quote: string;
+  locator: string;
+  /** Start passage's ordinal. */
+  ordinal: number;
+}
 
 export type EditResult =
   | { ok: true; caret: Caret | null; created: string[] }

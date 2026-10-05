@@ -10,6 +10,8 @@ import { FieldsPane } from '../fields/FieldsPane';
 import { SettingsPane } from '../settings/SettingsPane';
 import { AgendaPane } from '../tasks/AgendaPane';
 import { ReviewPane } from '../review/ReviewPane';
+import { LibraryPane } from '../library/LibraryPane';
+import { ReaderPane } from '../reader/ReaderPane';
 import { copyTaskQuery, createTaskQuery } from '../tasks/query';
 import { copyQuery } from '../table/query';
 import { Button } from '../ui/Button';
@@ -20,10 +22,10 @@ import { Popup } from '../ui/Popup';
 import { Calendar } from './Calendar';
 import { localDate } from '../ui/MonthGrid';
 import { createCommandRegistry } from './commands';
-import type { AgendaViewState, CommandRegistry, FieldsViewState, OpenTarget, PaneId, ReviewViewState, SettingsViewState, TableViewState, ViewState } from './contract';
+import type { AgendaViewState, CommandRegistry, FieldsViewState, LibraryViewState, OpenTarget, PaneId, ReaderViewState, ReviewViewState, SettingsViewState, TableViewState, ViewState } from './contract';
 import { Palette } from './Palette';
 
-type PaneView = ViewState | TableViewState | FieldsViewState | SettingsViewState | AgendaViewState | ReviewViewState;
+type PaneView = ViewState | TableViewState | FieldsViewState | SettingsViewState | AgendaViewState | ReviewViewState | LibraryViewState | ReaderViewState;
 type HistoryEntry = { target: OpenTarget; view: PaneView };
 type PaneSession = { entries: HistoryEntry[]; index: number; generation: number };
 type SavedNavigation = { pinned?: string[]; pinnedViews?: string[]; recent?: string[]; vim?: boolean; panes?: Partial<Record<PaneId, HistoryEntry>>; active?: PaneId };
@@ -42,11 +44,13 @@ function pageIdOf(current: HistoryEntry | undefined): string | undefined {
 }
 /** Header and tab text for panes that are not pages. */
 function paneLabel(target: OpenTarget | undefined): string {
-  return target?.kind === 'table' ? 'Table' : target?.kind === 'fields' ? 'Fields' : target?.kind === 'settings' ? 'Settings' : target?.kind === 'agenda' ? 'Agenda' : target?.kind === 'review' ? 'Review' : 'Loading…';
+  return target?.kind === 'table' ? 'Table' : target?.kind === 'fields' ? 'Fields' : target?.kind === 'settings' ? 'Settings' : target?.kind === 'agenda' ? 'Agenda' : target?.kind === 'review' ? 'Review' : target?.kind === 'library' ? 'Library' : target?.kind === 'reader' ? 'Reader' : 'Loading…';
 }
 function snapshotView(view: PaneView): PaneView {
   if ('mode' in view) return { ...view, query: copyTaskQuery(view.query) };
   if ('deckId' in view) return { ...view, selection: view.selection ?? null };
+  if ('tab' in view) return { ...view };
+  if ('ordinal' in view) return { ...view };
   return 'query' in view ? { query: copyQuery(view.query), scroll: view.scroll } : 'zoom' in view ? copyView(view) : { scroll: view.scroll };
 }
 function targetFromView(entry: HistoryEntry): OpenTarget {
@@ -54,7 +58,10 @@ function targetFromView(entry: HistoryEntry): OpenTarget {
   if (target.kind === 'table' && 'query' in view && !('mode' in view)) return { ...target, query: copyQuery(view.query), typeId: view.query.type };
   if (target.kind === 'agenda' && 'mode' in view) return { kind: 'agenda', date: view.date, viewId: view.viewId ?? undefined, query: copyTaskQuery(view.query) };
   if (target.kind === 'review' && 'deckId' in view) return { kind: 'review', deckId: view.deckId ?? undefined };
-  if (target.kind === 'page' && 'zoom' in view) return { ...target, blockId: view.zoom ?? undefined };
+  if (target.kind === 'library' && 'tab' in view) return { kind: 'library', tab: view.tab };
+  // A jump not yet performed (no position reported) survives a reload.
+  if (target.kind === 'reader' && 'ordinal' in view) return view.ordinal < 0 ? { ...target, snapshotId: view.snapshotId ?? target.snapshotId } : { kind: 'reader', sourceId: target.sourceId, snapshotId: view.snapshotId ?? undefined };
+  if (target.kind === 'page' && 'zoom' in view) return { kind: 'page', pageId: target.pageId, blockId: view.zoom ?? undefined };
   return target;
 }
 
@@ -150,7 +157,9 @@ export function App() {
         : target.kind === 'agenda' ? { date, mode: target.query || target.viewId ? 'tasks' : 'agenda', query: { ...(target.query ? copyTaskQuery(target.query) : createTaskQuery(date)), context_date: date }, viewId: target.viewId ?? null, scroll: 0 }
           : target.kind === 'review' ? { deckId: target.deckId ?? null, sessionId: null, selection: null, scroll: 0 }
             : target.kind === 'fields' || target.kind === 'settings' ? { scroll: 0 }
-              : { zoom: target.blockId ?? null, caret: target.blockId ? { id: target.blockId, offset: 0 } : null, scroll: null, folds: null, showArchived: false };
+              : target.kind === 'library' ? { tab: target.tab ?? 'inbox', text: '', sort: 'added', unprocessedOnly: true, scroll: 0 }
+                : target.kind === 'reader' ? { snapshotId: target.snapshotId ?? null, ordinal: -1, offset: 0 }
+                  : { zoom: target.blockId ?? null, caret: target.blockId ? { id: target.caretId ?? target.blockId, offset: 0 } : null, scroll: null, folds: null, showArchived: false };
       setSessions(values => {
         const previous = values[pane];
         const next = { entries: [...previous.entries.slice(0, previous.index + 1), { target, view }], index: previous.index + 1, generation: previous.generation + 1 };
@@ -289,8 +298,10 @@ export function App() {
           current = { target: targetFromView(saved), view: snapshotView(saved.view) };
         } else if (saved.target.kind === 'review' && 'deckId' in saved.view) {
           current = { target: targetFromView(saved), view: snapshotView(saved.view) };
-        } else if ((saved.target.kind === 'fields' || saved.target.kind === 'settings') && typeof saved.view.scroll === 'number') {
+        } else if ((saved.target.kind === 'fields' || saved.target.kind === 'settings') && 'scroll' in saved.view && typeof saved.view.scroll === 'number') {
           current = { target: saved.target, view: { scroll: saved.view.scroll } };
+        } else if ((saved.target.kind === 'library' && 'tab' in saved.view) || (saved.target.kind === 'reader' && 'ordinal' in saved.view)) {
+          current = { target: targetFromView(saved), view: snapshotView(saved.view) };
         } else if (saved.target.kind === 'page' && 'zoom' in saved.view) {
           const savedId = saved.target.pageId;
           const exists = notebook.roots().some(root => root.id === savedId);
@@ -370,6 +381,7 @@ export function App() {
         <Button icon="calendar" class={activeRoot()?.kind === 'journal' && activeRoot()?.text === todayDate() ? 'selected' : ''} onClick={event => { void today(active(), event.shiftKey); }}>Today <kbd>⌃⇧J</kbd></Button>
         <Button icon="check" class={entry(active())?.target.kind === 'agenda' ? 'selected' : ''} onClick={event => open({ kind: 'agenda', date: journalDate(active()) }, event.shiftKey)}>Agenda</Button>
         <Button icon="copy" class={entry(active())?.target.kind === 'review' ? 'selected' : ''} onClick={event => open({ kind: 'review' }, event.shiftKey)}>Review</Button>
+        <Button icon="book" class={entry(active())?.target.kind === 'library' ? 'selected' : ''} onClick={event => open({ kind: 'library' }, event.shiftKey)}>Library</Button>
       </nav>
       <Show when={pinnedRoots().length || pinnedViewList().length}><section class="page-list" aria-label="Pinned">
         <h2>Pinned</h2>
@@ -546,7 +558,9 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
         <span class="pane-save-state" title={doc()?.saveMessage()}><Icon name={doc()?.saveState() === 'saved' ? 'check' : doc()?.saveState() === 'offline' ? 'offline' : doc()?.saveState() === 'error' || doc()?.saveState() === 'conflict' ? 'warning' : 'saving'} />{status()}</span>
         <Show when={props.vim}><span class="vim-mode">Vim: {vimLabels[props.vimMode ?? 'outline']}</span></Show>
       </Show>
-      <Show when={!pageId()}><span class="pane-breadcrumbs">{paneLabel(current().target)}</span></Show>
+      <Show when={!pageId()}><Show when={current().target.kind === 'reader' ? current().target as Extract<OpenTarget, { kind: 'reader' }> : undefined} fallback={<span class="pane-breadcrumbs">{paneLabel(current().target)}</span>}>{target =>
+        <nav class="pane-breadcrumbs" aria-label="Source breadcrumbs"><Button onClick={event => props.onOpen({ kind: 'page', pageId: target().sourceId }, event.shiftKey)}>{props.notebook.lookup(target().sourceId)()?.text ?? 'Reader'}</Button></nav>
+      }</Show></Show>
       <Show when={pageId()}><Button ref={menuButton} class="page-menu-button" icon="more" label="Page menu" aria-expanded={!!menu()} onClick={event => setMenu(value => value ? null : event.currentTarget)} /></Show>
       <Show when={props.split}><Button class="pane-secondary" icon="close" label="Close pane" shortcut="⌃⇧X" onClick={props.onClose} /></Show>
     </header>
@@ -557,6 +571,8 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
       <Match when={current().target.kind === 'settings'}><SettingsPane pane={props.pane} view={snapshotView(current().view) as SettingsViewState} notebook={props.notebook} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
       <Match when={current().target.kind === 'agenda'}><AgendaPane pane={props.pane} view={snapshotView(current().view) as AgendaViewState} notebook={props.notebook} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
       <Match when={current().target.kind === 'review'}><ReviewPane pane={props.pane} view={snapshotView(current().view) as ReviewViewState} notebook={props.notebook} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
+      <Match when={current().target.kind === 'library'}><LibraryPane pane={props.pane} view={snapshotView(current().view) as LibraryViewState} notebook={props.notebook} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
+      <Match when={current().target.kind === 'reader'}><ReaderPane pane={props.pane} target={current().target as Extract<OpenTarget, { kind: 'reader' }>} view={snapshotView(current().view) as ReaderViewState} notebook={props.notebook} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
     </Switch>}</Show></div>
     <Show when={menu()}>{anchor => <Menu anchor={anchor()} label="Page actions" items={items()} onDismiss={() => setMenu(null)} />}</Show>
   </section>;

@@ -1,0 +1,39 @@
+.library-pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100%; }
+/* Toolbar and list share the outline measure, like Agenda. */
+.library-toolbar { display: flex; flex-direction: column; gap: var(--space-8); padding: var(--space-24) var(--space-16) var(--space-12); }
+.library-toolbar > *, .library-scroll > * { width: 100%; max-width: var(--measure); margin-inline: auto; }
+.library-tabs, .library-controls { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-4); }
+.library-controls { gap: var(--space-8); }
+.library-tabs .button { font-weight: var(--weight-body); }
+.library-tabs [aria-pressed="true"] { background: var(--selection); color: var(--accent); }
+.library-search { flex: 0 1 var(--search-width); min-width: 0; margin-right: auto; }
+.library-filter { margin-right: auto; }
+.library-scroll { flex: 1; min-height: 0; overflow: auto; padding: 0 var(--space-16) var(--space-24); }
+.library-count, .library-progress { display: inline-flex; align-items: center; gap: var(--space-4); flex-shrink: 0; font-variant-numeric: tabular-nums; color: var(--muted); }
+.library-tabs .library-count { color: var(--faint); }
+.library-tabs [aria-pressed="true"] .library-count { color: inherit; }
+.library-rows { border-top: 1px solid var(--line); }
+.library-row { display: flex; align-items: center; min-height: var(--row-height); gap: var(--space-4); border-bottom: 1px solid var(--line); }
+.library-row-open.button { display: flex; flex: 1; min-width: 0; height: var(--row-height); justify-content: flex-start; gap: var(--space-8); text-align: left; font-weight: var(--weight-body); }
+.library-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.library-byline { flex: 0 1 auto; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 45%; margin-right: auto; }
+.library-row > .button:last-child { opacity: 0; }
+.library-row:hover > .button:last-child, .library-row:focus-within > .button:last-child, .library-row > .button[aria-expanded="true"]:last-child { opacity: 1; }
+.library-row:hover { background: var(--hover); }
+.library-message, .library-error, .library-empty { font-size: var(--text-control); line-height: var(--line-control); color: var(--muted); }
+.library-error, .library-job-error { color: var(--danger); white-space: pre-wrap; overflow-wrap: anywhere; }
+.library-toolbar .library-message { margin: 0; }
+.library-empty { padding-block: var(--space-24); }
+.library-empty p { margin: 0 0 var(--space-8); }
+.library-jobs { display: flex; flex-direction: column; gap: var(--space-8); margin-bottom: var(--space-12); }
+.library-job { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-8); font-size: var(--text-control); line-height: var(--line-control); }
+.library-job-name { min-width: 0; overflow-wrap: anywhere; }
+.library-job-error { flex-basis: 100%; }
+.library-highlight.button { display: flex; flex-direction: column; align-items: stretch; width: 100%; height: auto; padding: var(--space-8); gap: var(--space-4); text-align: left; white-space: normal; font-weight: var(--weight-body); border-bottom: 1px solid var(--line); border-radius: 0; }
+.library-highlight-text { color: var(--text); font-size: var(--text-body); line-height: var(--line-body); white-space: pre-wrap; overflow-wrap: anywhere; }
+.library-highlight-source { order: 3; color: var(--faint); font-size: var(--text-meta); line-height: var(--line-meta); }
+/* The frozen quote reads as a quotation, as in the outline. */
+.library-highlight-quote { color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; border-left: 2px solid var(--line); padding-left: var(--space-8); }
+.library-add { width: var(--search-width); }
+.library-add form { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-12); }
+.library-add .library-error { margin: 0; }

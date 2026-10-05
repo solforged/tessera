@@ -6,10 +6,10 @@ import { tmpdir } from 'node:os';
 import type { Subprocess } from 'bun';
 import { ulid } from 'ulid';
 import { createApi } from '../api/client';
-import type { Batch, Operation, TaskState } from '../api/types';
+import type { Batch, Operation, SourceState, TaskState } from '../api/types';
 import { createNotebookClient } from './index';
 import type { Notebook } from './index';
-import type { EditResult, PageDocument } from './contract';
+import type { EditResult, NewCitation, PageDocument } from './contract';
 import type { Document } from './page-document';
 import { boundaryDeletion } from './outline-mechanics';
 
@@ -1462,6 +1462,185 @@ describe('durable Action and Learning document commands', () => {
       success(doc.edit({ kind: 'merge', sourceId: sibling, destinationId: source }));
       await doc.flush();
       expect(bodies.some(batch => batch.operations.some(operation => operation.op === 'merge'))).toBe(true);
+    } finally { globalThis.fetch = actualFetch; }
+  });
+});
+
+async function sourcePage(instance: Notebook) {
+  const title = `Evidence source ${++serial}`;
+  const fixture = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch: () => new Response(
+    `<!doctype html><html><head><title>${title}</title><meta name="author" content="Ada Reader"><meta property="article:published_time" content="2024-06-01"></head><body><article><h1>${title}</h1><p>Frozen evidence stays attached to the passage. A reader can rewrite a highlight without changing what the source said, and return to the exact passage later.</p></article></body></html>`,
+    { headers: { 'Content-Type': 'text/html' } },
+  ) });
+  try {
+    const job = await api.queueUrl(`http://127.0.0.1:${fixture.port}/source`);
+    const deadline = Date.now() + 10000;
+    let result = job;
+    while (result.state !== 'done') {
+      if (result.state === 'failed' || Date.now() > deadline) throw new Error(result.error ?? 'Source ingestion timed out');
+      // The worker runs in the real service process; fake JS timers cannot advance it.
+      await Bun.sleep(20);
+      result = (await api.ingestJobs()).find(item => item.id === job.id)!;
+    }
+    const id = result.source_id!;
+    const doc = instance.open(id);
+    await eventually(() => doc.status() === 'ready', 'Source document did not load');
+    await doc.flush();
+    const snapshotId = (await api.source(id)).source.current_snapshot_id!;
+    const passage = (await api.passages(snapshotId, 0)).passages.find(item => item.kind === 'paragraph')!;
+    const citation: NewCitation = { id: ulid(), sourceId: id, snapshotId, start: { passage_id: passage.id, offset: 0 },
+      end: { passage_id: passage.id, offset: passage.text.length }, quote: passage.text, locator: passage.locator, ordinal: passage.ordinal };
+    return { id, doc, citation };
+  } finally { fixture.stop(true); }
+}
+
+describe('source and citation document commands', () => {
+  test('source creation, removal and state changes invert, reconcile and reach remote documents', async () => {
+    const instance = await client();
+    const { id, doc } = await page(instance);
+    const value: SourceState = { format: 'article', state: 'inbox', origin: 'https://example.test/evidence', match_key: null, citation_key: `evidence${++serial}` };
+    success(doc.edit({ kind: 'source', id, value }));
+    expect(doc.root()?.source).toMatchObject(value);
+    expect(instance.commands(id).at(-1)?.inverse).toMatchObject([{ kind: 'source', id, value: null, previous: value }]);
+    await doc.flush();
+    expect(doc.root()?.source).toEqual((await api.source(id)).source);
+    doc.undo();
+    expect(doc.root()?.source).toBeNull();
+    await doc.flush();
+    doc.redo();
+    await doc.flush();
+    expect(doc.root()?.source).toMatchObject(value);
+    const remote = await client();
+    const shared = remote.open(id);
+    await eventually(() => shared.status() === 'ready' && remote.connection() === 'live', 'Source observer not ready');
+    success(doc.edit({ kind: 'source', id, value: { ...value, state: 'finished' } }));
+    expect(doc.root()?.source?.state).toBe('finished');
+    await doc.flush();
+    await eventually(() => shared.root()?.source?.state === 'finished', 'Source sidecar did not arrive');
+    doc.undo();
+    await doc.flush();
+    expect(doc.root()?.source?.state).toBe('inbox');
+    doc.redo();
+    await doc.flush();
+    expect(doc.root()?.source?.state).toBe('finished');
+  });
+
+  test('cite preserves optimistic evidence, reconciles frozen quotes and round trips through uncite', async () => {
+    const instance = await client();
+    const { id, doc, citation } = await sourcePage(instance);
+    const blockId = success(doc.edit({ kind: 'insert', parentId: id, after: null, text: 'A paraphrase' })).created[0]!;
+    await doc.flush();
+    success(doc.edit({ kind: 'cite', id: blockId, citation: { ...citation, quote: 'Optimistic quote' } }));
+    expect(doc.block(blockId)?.citations[0]).toMatchObject({ id: citation.id, block_id: blockId, source_id: id, snapshot_id: citation.snapshotId, start: citation.start, end: citation.end, quote: 'Optimistic quote', locator: citation.locator });
+    expect(instance.commands(id).at(-1)?.inverse).toMatchObject([{ kind: 'uncite', id: blockId, citationId: citation.id }]);
+    await doc.flush();
+    expect(doc.block(blockId)?.citations[0]?.quote).toBe(citation.quote);
+    doc.undo();
+    expect(doc.block(blockId)?.citations).toEqual([]);
+    await doc.flush();
+    doc.redo();
+    await doc.flush();
+    expect(doc.block(blockId)?.citations).toEqual((await api.capabilities(blockId)).citations);
+    expect(doc.block(blockId)?.citations[0]?.id).toBe(citation.id);
+    const remote = await client();
+    const shared = remote.open(id);
+    await eventually(() => shared.status() === 'ready' && remote.connection() === 'live', 'Citation observer not ready');
+    success(doc.edit({ kind: 'uncite', id: blockId, citationIds: [citation.id] }));
+    expect(doc.block(blockId)?.citations).toEqual([]);
+    expect(instance.commands(id).at(-1)?.inverse).toMatchObject([{ kind: 'cite', id: blockId, citation: { id: citation.id, start: citation.start, end: citation.end, quote: citation.quote } }]);
+    await doc.flush();
+    await eventually(() => shared.block(blockId)?.citations.length === 0, 'Uncite sidecar did not arrive');
+    doc.undo();
+    expect(doc.block(blockId)?.citations[0]?.quote).toBe(citation.quote);
+    await doc.flush();
+    doc.redo();
+    await doc.flush();
+    expect(doc.block(blockId)?.citations).toEqual([]);
+  });
+
+  test('multiple citations are removed and restored in one undo step in creation order', async () => {
+    const instance = await client();
+    const { id, doc, citation } = await sourcePage(instance);
+    const blockId = success(doc.edit({ kind: 'highlight', parentId: id, text: citation.quote, citation })).created[0]!;
+    const second = { ...citation, id: ulid() };
+    success(doc.edit({ kind: 'cite', id: blockId, citation: second }));
+    await doc.flush();
+    success(doc.edit({ kind: 'uncite', id: blockId, citationIds: [citation.id, second.id] }));
+    expect(doc.block(blockId)?.citations).toEqual([]);
+    await doc.flush();
+    doc.undo();
+    expect(doc.block(blockId)?.citations.map(item => item.id)).toEqual([citation.id, second.id]);
+    await doc.flush();
+    expect(doc.block(blockId)?.citations.map(item => item.id)).toEqual([citation.id, second.id]);
+    doc.redo();
+    await doc.flush();
+    expect(doc.block(blockId)?.citations).toEqual([]);
+  });
+
+  test('highlight inserts then cites in one command at the root or requested sibling and undoes by deletion', async () => {
+    const instance = await client();
+    const { id, doc, citation } = await sourcePage(instance);
+    const before = [...doc.outline.children(id)];
+    const result = success(doc.edit({ kind: 'highlight', parentId: id, text: citation.quote, citation }));
+    const blockId = result.created[0]!;
+    expect(result.created).toHaveLength(1);
+    expect(doc.outline.children(id)).toEqual([...before, blockId]);
+    expect(doc.block(blockId)?.citations[0]?.id).toBe(citation.id);
+    const command = instance.commands(id).at(-1)!;
+    expect(command.actions.map(action => action.kind)).toEqual(['insert', 'cite']);
+    expect(command.inverse).toEqual([{ kind: 'delete', id: blockId }]);
+    await doc.flush();
+    expect(JSON.parse(command.frozen!).operations.map((operation: Operation) => operation.op)).toEqual(['insert', 'cite']);
+    expect(doc.block(blockId)?.citations).toEqual((await api.capabilities(blockId)).citations);
+    doc.undo();
+    expect(doc.block(blockId)).toBeUndefined();
+    await doc.flush();
+    doc.redo();
+    expect(doc.block(blockId)?.citations[0]?.id).toBe(citation.id);
+    await doc.flush();
+    expect(doc.block(blockId)?.citations).toHaveLength(1);
+    const nested = success(doc.edit({ kind: 'highlight', parentId: blockId, after: null, text: citation.quote, citation: { ...citation, id: ulid() } })).created[0]!;
+    const sibling = success(doc.edit({ kind: 'highlight', parentId: blockId, after: nested, text: citation.quote, citation: { ...citation, id: ulid() } })).created[0]!;
+    expect(doc.outline.children(blockId)).toEqual([nested, sibling]);
+    await doc.flush();
+  });
+
+  test('offline recovery retains source and citation sidecars and replays insert before cite', async () => {
+    const session = `offline-source-${++serial}`;
+    const instance = await client(session);
+    const { id, doc, citation } = await sourcePage(instance);
+    const existing = success(doc.edit({ kind: 'highlight', parentId: id, text: citation.quote, citation })).created[0]!;
+    await doc.flush();
+    let offline = true;
+    const bodies: Batch[] = [];
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === `${baseUrl}/api/batches` && init?.method === 'POST') bodies.push(JSON.parse(String(init.body)));
+      if (offline) throw new TypeError('Offline for source recovery');
+      return actualFetch(input, init);
+    }) as typeof fetch;
+    try {
+      const nextCitation = { ...citation, id: ulid() };
+      const blockId = success(doc.edit({ kind: 'highlight', parentId: id, text: nextCitation.quote, citation: nextCitation })).created[0]!;
+      success(doc.edit({ kind: 'source', id, value: { ...doc.root()!.source!, state: 'reading' } }));
+      await instance.flush();
+      await instance.dispose();
+      const recovered = await client(session);
+      const reopened = recovered.open(id);
+      await eventually(() => reopened.status() === 'ready', 'Source cache did not recover');
+      expect(reopened.root()?.source?.state).toBe('reading');
+      expect(reopened.root()?.source?.current_snapshot_id).toBe(citation.snapshotId);
+      expect(reopened.block(existing)?.citations[0]?.id).toBe(citation.id);
+      expect(reopened.block(blockId)?.citations[0]?.id).toBe(nextCitation.id);
+      offline = false;
+      recovered.retry();
+      await recovered.flush();
+      expect(reopened.saveState()).toBe('saved');
+      expect(reopened.block(blockId)?.citations).toEqual((await api.capabilities(blockId)).citations);
+      const sent = bodies.filter(body => body.operations.some(op => op.op === 'cite' && op.citation_id === nextCitation.id));
+      expect(sent.length).toBeGreaterThanOrEqual(1);
+      expect(sent.every(body => body.operations.map(op => op.op).join(',') === 'insert,cite')).toBe(true);
+      expect(new Set(sent.map(body => JSON.stringify(body))).size).toBe(1);
+      expect((await api.source(id)).source.state).toBe('reading');
     } finally { globalThis.fetch = actualFetch; }
   });
 });

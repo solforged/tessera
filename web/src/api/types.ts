@@ -27,6 +27,10 @@ export type Actor =
 
 export type Operation =
   | { op: 'create_page'; id: string; title: string }
+  | { op: 'set_source'; id: string; base_revision: number; source: SourceState | null }
+  | { op: 'attach_snapshot'; id: string; base_revision: number; snapshot_id: string }
+  | { op: 'cite'; id: string; base_revision: number; citation_id: string; snapshot_id: string; start: PassagePoint; end: PassagePoint }
+  | { op: 'uncite'; id: string; base_revision: number; citation_id: string }
   | { op: 'create_journal'; id: string; date: string }
   | { op: 'insert'; id: string; parent_id: string; after: string | null; text: string; heading: 1 | 2 | 3 | null }
   | { op: 'edit_text'; id: string; base_revision: number; text: string }
@@ -334,3 +338,75 @@ export interface Deck { id: string; name: string; query: CardQuery; revision: nu
 export interface TaskView { id: string; name: string; query: TaskQuery; revision: number; created_at: number; updated_at: number }
 export interface GradePreview { grade: Grade; interval_days: number }
 export interface CardPreviews { current: GradePreview[]; reset: GradePreview[] }
+
+export type SourceFormat = 'epub' | 'article';
+export type ReadingState = 'inbox' | 'reading' | 'finished' | 'abandoned';
+export interface SourceState {
+  format: SourceFormat; state: ReadingState; origin: string | null;
+  match_key: string | null; citation_key: string | null;
+}
+export interface SourceRecord extends SourceState {
+  block_id: string; added_at: number; state_changed_at: number;
+  last_read_at: number | null; current_snapshot_id: string | null;
+}
+export interface PassagePoint { passage_id: string; offset: number }
+export interface Citation {
+  id: string; block_id: string; source_id: string; snapshot_id: string;
+  start: PassagePoint; end: PassagePoint; quote: string; locator: string; ordinal: number;
+}
+export interface BlockCapabilities { source?: SourceRecord | null; citations?: Citation[] }
+export interface ExtractedCreator { name: string; role: 'author' | 'editor' | 'translator' }
+export interface ExtractedMetadata {
+  title: string | null; subtitle: string | null; creators: ExtractedCreator[];
+  published: string | null; publisher: string | null; language: string | null;
+  identifiers: string[]; unique_id: string | null; url: string | null;
+  site: string | null; description: string | null; cover: string | null;
+}
+export interface TocEntry { title: string; locator: string; level: number }
+export type PassageKind = 'heading' | 'paragraph' | 'quote' | 'list_item' | 'code' | 'footnote' | 'image';
+export type MarkKind = { kind: 'emphasis' | 'strong' | 'code' } | { kind: 'link'; href: string } | { kind: 'internal' | 'note_ref'; locator: string };
+export interface Mark { start: number; end: number; kind: MarkKind }
+export interface Passage {
+  id: string; ordinal: number; kind: PassageKind; level: number | null;
+  text: string; locator: string; anchor: string | null; resource: string | null;
+  marks: Mark[]; start: number;
+}
+export interface SnapshotSummary {
+  id: string; sha256: string; format: SourceFormat; media_type: string;
+  metadata: ExtractedMetadata; passage_count: number; text_length: number;
+  attached_at: number; change_seq: number;
+}
+export interface ReadingPosition {
+  snapshot_id: string; passage_ordinal: number; covered: [number, number][]; updated_at: number;
+}
+export interface ReadingProgress {
+  position: ReadingPosition; progress: number; state_changed: boolean; seq: number | null;
+}
+export interface SourceView {
+  source: SourceRecord; page: Block; snapshots: SnapshotSummary[]; toc: TocEntry[];
+  position: ReadingPosition | null; progress: number;
+}
+export interface PassagePage { passages: Passage[]; citations: Citation[]; total: number }
+export interface PassageHit { source_id: string; title: string; snapshot_id: string; passage: Passage; snippet: string }
+export interface LibraryQuery {
+  states?: ReadingState[]; format?: SourceFormat | null; text?: string | null;
+  sort?: 'added' | 'title' | 'last_read' | 'progress'; direction?: Direction; limit?: number | null;
+}
+export interface LibraryRow {
+  page: Block; source: SourceRecord; creators: string[]; published: string | null;
+  progress: number; highlights: number; unprocessed: number;
+}
+export interface LibraryResult {
+  rows: LibraryRow[]; total: number; counts: { inbox: number; reading: number; finished: number; abandoned: number };
+}
+export interface HighlightQuery { source_id?: string | null; unprocessed?: boolean; limit?: number | null }
+export interface HighlightRow { block: BlockInPage; citation: Citation; source_title: string; processed: boolean }
+export interface HighlightResult { rows: HighlightRow[]; total: number }
+export interface IngestJob {
+  id: string; input_kind: 'url' | 'file'; input: string; name: string; target_source: string | null;
+  state: 'queued' | 'running' | 'failed' | 'done'; attempts: number; error: string | null;
+  next_attempt_at: number | null; source_id: string | null; snapshot_id: string | null;
+  created_at: number; updated_at: number;
+}
+export interface StagedSnapshot { id: string; existing: boolean }
+export interface IngestPlan { source_id: string; created: boolean; unchanged: boolean; operations: Operation[] }
