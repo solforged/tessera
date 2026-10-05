@@ -759,6 +759,15 @@ fn membership_title_upgrade_preserves_unresolved_mentions_without_resurrecting_p
          DROP TABLE task_occurrences;
          DROP TABLE tasks;
          DROP TABLE projects;
+         DROP TABLE citations;
+         DROP TABLE reading_positions;
+         DROP TABLE source_snapshots;
+         DROP TABLE sources;
+         DROP TABLE snapshot_resources;
+         DROP TABLE passages_fts;
+         DROP TABLE passages;
+         DROP TABLE snapshots;
+         DROP TABLE ingest_jobs;
          ALTER TABLE changes DROP COLUMN views;
          PRAGMA user_version = 4;",
     )
@@ -1241,6 +1250,15 @@ fn manual_membership_migration_retains_authored_text_tags_and_unresolved_titles(
          DROP TABLE task_occurrences;
          DROP TABLE tasks;
          DROP TABLE projects;
+         DROP TABLE citations;
+         DROP TABLE reading_positions;
+         DROP TABLE source_snapshots;
+         DROP TABLE sources;
+         DROP TABLE snapshot_resources;
+         DROP TABLE passages_fts;
+         DROP TABLE passages;
+         DROP TABLE snapshots;
+         DROP TABLE ingest_jobs;
          PRAGMA user_version = 6;",
     ).unwrap();
     drop(conn);

@@ -42,6 +42,8 @@ Tasks and projects store retained capability rows keyed by block ID. Task occurr
 
 Card units use a unique source-block/role-key identity. Authored text changes derive only the affected sources, once at the end of the batch; grading or resetting first flushes preceding authored source edits. Existing deferred tag renames still rewrite after explicit operations. Migration 009 backfills definitions once without changing source text or revisions. Reopening a current notebook does not rebuild cards.
 
+Library sources and citations are retained capabilities. Immutable snapshots and passages are staged separately from attribution; attaching them and creating metadata fields uses ordinary operations. Original bytes and extracted resources live at `<notebook>/objects/<first two SHA-256 hex digits>/<remaining 62 digits>`. Writes use a same-directory temporary file, sync its contents, publish without replacing an existing object, then sync the directory. Passages have a separate insert-only FTS5 index. Reading coverage and persistent ingestion jobs are operational state rather than authored outline changes.
+
 Review, deck and task-view operations use the same attributed, idempotent batch path. Their resource revisions stay separate from block revisions in receipts and change notifications. Immutable review events retain the shown definition and before/after scheduler state. Task/card source queries reuse field-query selection without its intermediate row limit; outer capability filters and ordering run before truncation.
 
 ## Service
@@ -52,7 +54,7 @@ Each committed change gets a sequence number. The service pushes `{seq, changed 
 
 Capability endpoints expose task plans and occurrences, project descendants, work sessions, card previews and review history, saved task views, decks and review sessions. Writes remain batches, not separate unchecked resource mutations. Their receipts and stream events carry changed capability/resource IDs as well as block changes, so an open source and its agenda or review stay consistent.
 
-Ingestion runs in the service: network fetches and parsing happen off the write connection, then the resulting snapshot and passages commit as one attributed batch. Extractors live in `tessera-ingest`, which has no database access, so each format is tested on files alone.
+Ingestion runs in one service worker. Network fetches and parsing happen off the write connection; the worker stages content-addressed snapshots, then commits the source attachment and metadata as an attributed batch. Extractors live in `tessera-ingest`, which has no database access, so each format is tested on files alone. Persistent jobs resume after restart and retry transient network/server failures after 30 seconds, two minutes and ten minutes before failing the fourth attempt. The worker never holds the notebook mutex across network I/O.
 
 The service binds to loopback and rejects untrusted hosts and origins. Remote access is out of scope.
 
@@ -93,7 +95,7 @@ crates/tessera-core      domain model, migrations, operations
 crates/tessera-service   HTTP and WebSocket service
 crates/tessera-cli       command line
 crates/tessera-bench     corpus generator and backend budget checks
-crates/tessera-ingest    extractors for books, articles and later other formats (planned)
+crates/tessera-ingest    extractors for EPUB books and web articles
 web/                     Solid editor
 spikes/editor/           editor prototypes and their measurement runner
 docs/                    design documents
