@@ -413,6 +413,10 @@ pub enum FieldKind {
     Checkbox,
     Choice,
     Instance,
+    /// An absolute `http` or `https` address.
+    Url,
+    /// An ISBN, DOI or arXiv ID, read in a normalized `scheme:value` form.
+    Identifier,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
