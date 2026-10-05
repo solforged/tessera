@@ -13,6 +13,15 @@ import type {
   Committed,
   Deck,
   Fields,
+  HighlightQuery,
+  HighlightResult,
+  IngestJob,
+  LibraryQuery,
+  LibraryResult,
+  PassageHit,
+  PassagePage,
+  ReadingProgress,
+  SourceView,
   Type,
   Query,
   QueryResult,
@@ -53,16 +62,16 @@ interface ErrorEnvelope {
 }
 
 async function request<T>(base: string, method: 'GET' | 'POST', path: string, body?: unknown, signal?: AbortSignal, frozen?: string): Promise<T> {
+  const json = frozen ?? (body === undefined ? undefined : JSON.stringify(body));
+  return send<T>(`${base}/api${path}`, { method, signal, headers: json === undefined ? undefined : { 'Content-Type': 'application/json' }, body: json });
+}
+
+async function send<T>(url: string, init: RequestInit & { signal?: AbortSignal }): Promise<T> {
   let response: Response;
   try {
-    response = await fetch(`${base}/api${path}`, {
-      method,
-      signal,
-      headers: body === undefined && frozen === undefined ? undefined : { 'Content-Type': 'application/json' },
-      body: frozen ?? (body === undefined ? undefined : JSON.stringify(body)),
-    });
+    response = await fetch(url, init);
   } catch (error) {
-    if (signal?.aborted) throw error;
+    if (init.signal?.aborted) throw error;
     throw new ApiError('The notebook service is not reachable.', 0, 'unreachable');
   }
   const parsed: unknown = await response.json().catch(() => null);
@@ -125,6 +134,24 @@ export interface ApiClient {
   submit(batch: Batch, signal?: AbortSignal): Promise<Committed>;
   submitFrozen(json: string, signal?: AbortSignal): Promise<Committed>;
   streamUrl(after: number): string;
+  library(value: LibraryQuery, signal?: AbortSignal): Promise<LibraryResult>;
+  ingestJobs(limit?: number, signal?: AbortSignal): Promise<IngestJob[]>;
+  queueUrl(url: string, targetSource?: string, signal?: AbortSignal): Promise<IngestJob>;
+  upload(file: Blob, name: string, targetSource?: string, signal?: AbortSignal): Promise<IngestJob>;
+  retryJob(id: string, signal?: AbortSignal): Promise<IngestJob>;
+  source(id: string, signal?: AbortSignal): Promise<SourceView>;
+  /** What the current snapshot's metadata renders to, per field name. */
+  extracted(id: string, signal?: AbortSignal): Promise<[string, string[]][]>;
+  passages(snapshotId: string, from: number, limit?: number, signal?: AbortSignal): Promise<PassagePage>;
+  /** The ordinal of a passage locator or anchor, or null. */
+  locate(snapshotId: string, at: string, signal?: AbortSignal): Promise<number | null>;
+  resourceUrl(snapshotId: string, href: string): string;
+  /** Record reading: position at `ordinal`, passages `from`..`to` (exclusive) seen. */
+  readingPosition(snapshotId: string, ordinal: number, from: number, to: number, signal?: AbortSignal): Promise<ReadingProgress>;
+  searchPassages(q: string, sourceId?: string, limit?: number, signal?: AbortSignal): Promise<PassageHit[]>;
+  highlights(value: HighlightQuery, signal?: AbortSignal): Promise<HighlightResult>;
+  /** Download URL; all active sources when `ids` is empty. */
+  exportUrl(format: 'bibtex' | 'csl', ids: readonly string[]): string;
 }
 
 export function createApi(base = ''): ApiClient {
@@ -172,6 +199,23 @@ export function createApi(base = ''): ApiClient {
       url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
       return url.href;
     },
+    library: (value: LibraryQuery, signal?: AbortSignal) => request<LibraryResult>(base, 'POST', '/library/query', value, signal),
+    ingestJobs: (limit = 50, signal?: AbortSignal) => get<IngestJob[]>(`/library/jobs${query({ limit })}`, signal),
+    queueUrl: (url: string, targetSource?: string, signal?: AbortSignal) => request<IngestJob>(base, 'POST', '/library/jobs', { url, target_source: targetSource ?? null }, signal),
+    upload: (file: Blob, name: string, targetSource?: string, signal?: AbortSignal) => send<IngestJob>(`${base}/api/library/uploads${query({ target_source: targetSource })}`, {
+      method: 'POST', signal, body: file,
+      headers: { 'Content-Type': file.type || 'application/octet-stream', 'X-Filename': encodeURIComponent(name) },
+    }),
+    retryJob: (id: string, signal?: AbortSignal) => request<IngestJob>(base, 'POST', `/library/jobs/${segment(id)}/retry`, undefined, signal),
+    source: (id: string, signal?: AbortSignal) => get<SourceView>(`/sources/${segment(id)}`, signal),
+    extracted: (id: string, signal?: AbortSignal) => get<[string, string[]][]>(`/sources/${segment(id)}/extracted`, signal),
+    passages: (snapshotId: string, from: number, limit = 200, signal?: AbortSignal) => get<PassagePage>(`/snapshots/${segment(snapshotId)}/passages${query({ from, limit })}`, signal),
+    locate: (snapshotId: string, at: string, signal?: AbortSignal) => get<number | null>(`/snapshots/${segment(snapshotId)}/locate${query({ at })}`, signal),
+    resourceUrl: (snapshotId: string, href: string) => `${base}/api/snapshots/${segment(snapshotId)}/resources/${href.split('/').map(segment).join('/')}`,
+    readingPosition: (snapshotId: string, ordinal: number, from: number, to: number, signal?: AbortSignal) => request<ReadingProgress>(base, 'POST', `/snapshots/${segment(snapshotId)}/position`, { ordinal, from, to }, signal),
+    searchPassages: (q: string, sourceId?: string, limit = 40, signal?: AbortSignal) => get<PassageHit[]>(`/passages/search${query({ q, source: sourceId, limit })}`, signal),
+    highlights: (value: HighlightQuery, signal?: AbortSignal) => request<HighlightResult>(base, 'POST', '/highlights/query', value, signal),
+    exportUrl: (format: 'bibtex' | 'csl', ids: readonly string[]) => `${base}/api/library/export${query({ format, ids: ids.length ? ids.join(',') : undefined })}`,
   };
 }
 

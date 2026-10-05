@@ -9,7 +9,7 @@ import { Document } from './page-document';
 import type { DocumentHost } from './page-document';
 import { Outbox } from './outbox';
 import type { Action, Command, Compiled, NotebookCommand, PageCommand, Ticket } from './types';
-import { emptyCapabilities, isCapabilityAction, sameState } from './types';
+import { emptyCapabilities, isCapabilityAction, sameState, sourceState } from './types';
 export type { NotebookClient, PageDocument, BlockState, Caret, Edit, EditResult, SaveState } from './contract';
 
 export interface NotebookOptions {
@@ -348,6 +348,9 @@ export class Notebook implements NotebookClient, DocumentHost {
       switch (action.kind) {
         case 'task':
         case 'project':
+        case 'source':
+        case 'cite':
+        case 'uncite':
         case 'completeTask':
         case 'reverseTaskCompletion':
         case 'startWork':
@@ -355,7 +358,7 @@ export class Notebook implements NotebookClient, DocumentHost {
         case 'workNote':
         case 'workState': {
           const block = current(action.id);
-          if (action.baseRevision !== initialRevisions.get(action.id)) throw new Error('The task, project, or work source changed. Rejected command kept; refresh before applying it again.');
+          if (action.baseRevision !== initialRevisions.get(action.id)) throw new Error('The capability source changed. Rejected command kept; refresh before applying it again.');
           let value = capabilities.get(action.id);
           if (!value) { value = doc.capabilities(action.id, true); capabilities.set(action.id, value); }
           let changed = true;
@@ -368,6 +371,20 @@ export class Notebook implements NotebookClient, DocumentHost {
             if (!sameState(value.project, action.previous)) throw new Error('Project metadata changed. Rejected command kept.');
             operations.push({ op: 'set_project', id: action.id, base_revision: block.revision, project: action.value });
             changed = !sameState(value.project, action.value); value.project = action.value;
+          } else if (action.kind === 'source') {
+            if (!sameState(sourceState(value.source), action.previous)) throw new Error('Source metadata changed. Rejected command kept.');
+            operations.push({ op: 'set_source', id: action.id, base_revision: block.revision, source: action.value });
+            changed = !sameState(sourceState(value.source), action.value);
+            value.source = action.value ? { block_id: action.id, added_at: 0, state_changed_at: 0, last_read_at: null, current_snapshot_id: null, ...value.source, ...action.value } : null;
+          } else if (action.kind === 'cite') {
+            const citation = action.citation;
+            operations.push({ op: 'cite', id: action.id, base_revision: block.revision, citation_id: citation.id, snapshot_id: citation.snapshot_id, start: citation.start, end: citation.end });
+            changed = !(value.citations ?? []).some(item => item.id === citation.id);
+            if (changed) value.citations = [...value.citations ?? [], citation];
+          } else if (action.kind === 'uncite') {
+            operations.push({ op: 'uncite', id: action.id, base_revision: block.revision, citation_id: action.citationId });
+            changed = (value.citations ?? []).some(item => item.id === action.citationId);
+            value.citations = (value.citations ?? []).filter(item => item.id !== action.citationId);
           } else if (action.kind === 'completeTask') {
             if (!sameState(value.task, action.previous)) throw new Error('Task metadata changed before completion. Rejected command kept.');
             operations.push({ op: 'complete_task', id: action.id, base_revision: block.revision, occurrence_id: action.occurrenceId, completed_on: action.completedOn });
@@ -487,6 +504,8 @@ export class Notebook implements NotebookClient, DocumentHost {
           for (const snapshot of action.snapshots) {
             const saved = doc.baseBlocks.get(snapshot.block.id);
             working.set(snapshot.block.id, { ...snapshot.block, revision: (saved?.revision ?? this.tickets.get(snapshot.block.id)?.revision ?? snapshot.block.revision) + 1 });
+            initialRevisions.set(snapshot.block.id, saved?.revision ?? snapshot.block.revision);
+            capabilities.set(snapshot.block.id, snapshot.capabilities ?? emptyCapabilities(snapshot.block.id));
           }
           break;
         }

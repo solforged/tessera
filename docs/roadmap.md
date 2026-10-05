@@ -73,6 +73,8 @@ Status: done. Browser proof studied Greek vocabulary and attention-study notes, 
 
 Exit: ingest a book and an article, read a chapter in the reader, take notes that cite passages, study cards made from them, and export the book as BibTeX and a reading list as CSL JSON. Afterwards the Bibliotheca repository is archived.
 
+Status: done, except archiving the Bibliotheca repository. Browser proof ingested The Tudors (EPUB) and Karpathy's RNN article through the CLI, jumped to chapter 1 from Contents, read until the source moved from Inbox to Reading, highlighted a sentence with a note and a `>>` card beneath it, turned an article highlight into a cloze, studied both cards in Review, worked the Highlights triage, and exported the book as BibTeX and the library as CSL JSON (`meyer2010tudors`, `scharre2018army`, `karpathy2015unreasonable`). Fields gained URL and identifier kinds and year-only dates.
+
 ## 6. Capture
 
 - A save-to-Tessera browser extension that sends the current page, or a selection as a highlight, to the loopback service.

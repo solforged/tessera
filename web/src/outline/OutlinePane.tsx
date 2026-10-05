@@ -33,6 +33,8 @@ import { completeReferences } from './completion';
 import { nextClozeNumber, rankSlash, slashTokenAt } from './slash';
 import type { SlashEntry, SlashToken } from './slash';
 import { TypePill } from './references';
+import { CitationChip, SourceHeader } from './SourceHeader';
+import { extractedResets, sourceFieldName } from './source';
 import './outline.css';
 
 interface Completion { from: number; to: number; query: string; manual?: { blockId: string; anchor: HTMLElement } }
@@ -164,6 +166,10 @@ function Pane(props: OutlinePaneProps) {
   const [type] = createResource(
     () => doc.root()?.kind === 'page' ? [props.pageId, props.notebook.changeSequence()] as const : false,
     ([pageId]) => api.type(pageId),
+  );
+  const [extracted] = createResource(
+    () => doc.root()?.source ? [props.pageId, props.notebook.changeSequence()] as const : false,
+    ([pageId]) => api.extracted(pageId),
   );
 
   const contextDate = () => doc.root()?.kind === 'journal' ? doc.root()!.text : props.notebook.todayDate();
@@ -1001,7 +1007,23 @@ function Pane(props: OutlinePaneProps) {
       const command = commandDefinitions.find(candidate => candidate.id === commandId)!;
       return { ...options, label: command.title, shortcut: command.keys?.[0], disabledReason: command.disabledReason?.(), action: command.run };
     };
+    const entry = doc.block(id);
+    const fieldName = entry?.parentId === props.pageId ? sourceFieldName(entry.text, definitionsById()) : undefined;
+    const resetValues = doc.root()?.source && fieldName && !extracted.error
+      ? extractedResets(doc.outline.children(id).flatMap(child => {
+        const value = doc.block(child);
+        return value && !value.archived ? [value] : [];
+      }), extracted()?.find(([name]) => name.toLowerCase() === fieldName.toLowerCase())?.[1])
+      : [];
     setMenu({ anchor, label: 'Block actions', items: [
+      ...(resetValues.length ? [{ label: 'Reset to extracted', action: () => {
+        for (const value of resetValues) {
+          const result = doc.edit({ kind: 'text', ...value }, caret());
+          if (!result.ok) { setMessage(result.reason); return; }
+        }
+        void doc.flush().catch(reason => setMessage(String(reason)));
+      } }] : []),
+      ...(entry?.citations.length ? [{ label: 'Remove citation', action: () => apply({ kind: 'uncite', id, citationIds: entry.citations.map(citation => citation.id) }, false) }] : []),
       { label: 'Add type…', icon: 'tag', action: () => { setCompletionIndex(0); setCompletion({ from: 0, to: 0, query: '', manual: { blockId: id, anchor } }); } },
       item('zoom', { icon: 'bullet' }),
       item('open-beside', { icon: 'panes' }),
@@ -1400,12 +1422,16 @@ function Pane(props: OutlinePaneProps) {
         <Show when={editing() !== id()}><div class="static-text"><BlockText text={block()?.text ?? ''} field={field()} notebook={props.notebook} onOpen={props.onOpen} onReferenceMenu={referenceMenu} selection={selectedOffsets(id())} /><Show when={!block()?.text && ids().length === 1}><span class="empty-block">Start writing</span></Show></div></Show>
         <For each={block()?.manual_types ?? []}>{title => <TypePill title={title} notebook={props.notebook} onOpen={props.onOpen} onRemove={() => { const result = doc.removeType(id(), title); if (!result.ok) setMessage(result.reason); }} />}</For>
         </div>
-        <Show when={block()?.task || block()?.project || cards().cards.length}><span class="outline-capability-metadata">
+        <Show when={block()?.task || block()?.project || cards().cards.length || block()?.citations.length}><span class="outline-capability-metadata">
           <TaskSummary id={id()} />
           <Show when={block()?.project}><Button class="outline-planning" label="Project" aria-haspopup="dialog" onClick={event => capabilities.open(id(), 'project', event.currentTarget)}>Project</Button></Show>
           <Show when={cards().cards.length}><Button class="outline-planning" label="Review cards" onClick={event => props.onOpen({ kind: 'review' }, event.shiftKey)}>{cards().cards.length} {cards().cards.length === 1 ? 'card' : 'cards'}</Button></Show>
+          <For each={block()?.citations}>{citation => <CitationChip citation={citation} notebook={props.notebook} onOpen={props.onOpen} />}</For>
         </span></Show>
         </div>
+        <For each={block()?.citations}>{citation => <Show when={block()?.text.trim() !== citation.quote.trim()}>
+          <p class="outline-citation-quote" title={citation.quote}>{citation.quote}</p>
+        </Show>}</For>
         <For each={cards().problems}>{problem => <p class="outline-card-problem" role="alert">{problem.message}</p>}</For>
         <Show when={capabilities.busy(id()) || (block()?.pending && (block()?.task || block()?.project))}><span class="outline-capability-notice" role="status">{doc.saveState() === 'offline' ? 'Waiting to save' : 'Saving…'}</span></Show>
         <Show when={capabilities.error(id())}><p class="outline-capability-error" role="alert">{capabilities.error(id())}</p></Show>
@@ -1448,14 +1474,19 @@ function Pane(props: OutlinePaneProps) {
       </Show>
       <Show when={doc.root()?.kind === 'page'}><div class="outline-header-actions"><Button icon="table" label="Table" shortcut="⌘⇧T" onClick={event => openTable(event.metaKey)}>Table<Show when={!type.error && (type()?.members ?? 0) > 0}><span class="table-member-count">{type()?.members}</span></Show></Button></div></Show>
       </div>
-      <Show when={doc.root()?.task || doc.root()?.project}><div class="outline-root-capabilities outline-capability-metadata">
+      <Show when={doc.root()?.source}><SourceHeader doc={doc} notebook={props.notebook} definitions={definitionsById()} onOpen={props.onOpen} onError={setMessage} /></Show>
+      <Show when={doc.root()?.task || doc.root()?.project || doc.root()?.citations.length}><div class="outline-root-capabilities outline-capability-metadata">
         <Show when={doc.root()?.task}>
           <TaskStatusButton task={doc.root()?.task ?? null} disabled={capabilities.busy(props.pageId)} onChange={status => capabilities.status(props.pageId, status)} />
           <TaskSummary id={props.pageId} />
           <Button class="outline-planning" onClick={event => capabilities.open(props.pageId, 'work', event.currentTarget)}>Work sessions</Button>
         </Show>
         <Show when={doc.root()?.project}><Button class="outline-planning" onClick={event => capabilities.open(props.pageId, 'project', event.currentTarget)}>Project</Button></Show>
+        <For each={doc.root()?.citations}>{citation => <CitationChip citation={citation} notebook={props.notebook} onOpen={props.onOpen} />}</For>
       </div></Show>
+      <For each={doc.root()?.citations}>{citation => <Show when={doc.root()?.text.trim() !== citation.quote.trim()}>
+        <p class="outline-citation-quote" title={citation.quote}>{citation.quote}</p>
+      </Show>}</For>
       <Show when={capabilities.busy(props.pageId) || (doc.root()?.pending && (doc.root()?.task || doc.root()?.project))}><p class="outline-capability-notice" role="status">{doc.saveState() === 'offline' ? 'Waiting to save' : 'Saving…'}</p></Show>
       <Show when={capabilities.error(props.pageId)}><p class="outline-capability-error" role="alert">{capabilities.error(props.pageId)}</p></Show>
       <Show when={showArchived()}><p class="archive-notice">Showing archived blocks <button type="button" class="text-button" onClick={() => { setShowArchived(false); scheduleReport(); }}>Hide archived</button></p></Show>

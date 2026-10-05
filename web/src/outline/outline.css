@@ -57,6 +57,11 @@
 .outline-capability-popup { display: flex; flex-direction: column; gap: var(--space-8); padding: var(--space-12); max-width: var(--measure); font-size: var(--text-control); line-height: var(--line-control); }
 .outline-capability-popup p { margin: 0; }
 .outline-capability-actions { display: flex; flex-wrap: wrap; gap: var(--space-8); }
+.outline-source-header { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); margin-top: var(--space-8); font-size: var(--text-control); line-height: var(--line-control); }
+.outline-source-summary { flex: 1 1 auto; color: var(--muted); }
+.outline-source-progress { color: var(--muted); font-variant-numeric: tabular-nums; }
+.outline-citation { max-width: 100%; overflow-wrap: anywhere; text-align: left; }
+.outline-citation-quote { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; margin: var(--space-4) 0; padding-left: var(--space-8); border-left: 2px solid var(--line); white-space: pre-wrap; color: var(--muted); font-size: var(--text-body); line-height: var(--line-body); font-weight: var(--weight-body); }
 .outline-running-task { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-4); color: var(--muted); }
 
 /* Type pills: a hue tint behind the name. The hue is a CSS variable the renderer may set; default is neutral. */

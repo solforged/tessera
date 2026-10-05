@@ -25,6 +25,12 @@ const paths = {
   settings: 'M2 4h12 M2 12h12 M5 2v4 M11 10v4',
   tag: 'M2 2h6l6 6-6 6-6-6z M5 5h.01',
   select: 'M2 2h5 M9 2h5 M2 14h5 M9 14h5 M2 2v5 M2 9v5 M14 2v5 M14 9v5',
+  book: 'M2 2.5h4.5A1.5 1.5 0 0 1 8 4v10a1.5 1.5 0 0 0-1.5-1.5H2z M14 2.5H9.5A1.5 1.5 0 0 0 8 4v10a1.5 1.5 0 0 1 1.5-1.5H14z',
+  quote: 'M3 4h10 M3 8h10 M3 12h6 M1 3v10',
+  highlight: 'M3 13h10 M5 10l6-7 2 2-6 7H5z',
+  contents: 'M2 3h2 M6 3h8 M4 7h2 M8 7h6 M4 11h2 M8 11h6',
+  upload: 'M8 11V2 M4 6l4-4 4 4 M2 11v3h12v-3',
+  download: 'M8 2v9 M4 7l4 4 4-4 M2 11v3h12v-3',
 } as const;
 export type IconName = keyof typeof paths;
 export function Icon(props: { name: IconName; class?: string }): JSX.Element {
