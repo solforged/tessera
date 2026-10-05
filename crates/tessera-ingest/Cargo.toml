@@ -1,0 +1,23 @@
+[package]
+name = "tessera-ingest"
+description = "Extractors that turn EPUB books and web articles into Tessera passages"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+tessera-core.workspace = true
+thiserror.workspace = true
+percent-encoding = "2"
+roxmltree = "0.21"
+scraper = { version = "0.24", default-features = false }
+serde_json.workspace = true
+url = "2"
+zip = { version = "6", default-features = false, features = ["deflate"] }
+
+[dev-dependencies]
+zip = { version = "6", default-features = false, features = ["deflate"] }
+
+[lints]
+workspace = true
