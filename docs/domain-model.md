@@ -74,6 +74,10 @@ A question capability makes a block an enduring question with an optional review
 
 A source is a page with a source capability. Each ingestion of the same source (a URL or a file) whose bytes differ creates a new snapshot, identified by its content hash and never modified. A snapshot holds the document's structure and its passages: headings, paragraphs, footnotes and other units, each with a locator. Original bytes live in the notebook's object store, addressed by SHA-256; passages, structure and reading position live in the database. Passages are evidence, not authored blocks: they are never edited. Writing about a passage creates a block that cites it, and a citation names the source, snapshot and passage, so it keeps pointing at the exact text read even after a newer snapshot exists.
 
+A source's metadata is ordinary fields. A value extracted from a snapshot fills its field until an authored value replaces it; resetting the field shows the extracted value again, which is never discarded. A source keeps one citation key once assigned, and export renders BibTeX or CSL JSON from its fields. Reading state (inbox, reading, finished, abandoned) belongs to the source; reading position and coverage belong to a snapshot. Opening a citation is not reading and changes neither.
+
+A highlight is an authored block on the source's page that cites a passage. It takes children, types, fields and card syntax like any other block. A highlight with no children, no card and no incoming reference is unprocessed; there is no separate triage state. Because passages never change, a passage citation is a frozen quotation by construction.
+
 A position is an attributed claim: who holds it, about which question or subject, supported by which passages. Positions on the same question are compared side by side and never merged. Assessments cite positions and passages, so a conclusion can be traced to its evidence.
 
 These map the three kinds of knowledge in the [vision](vision.md): a fact is an ordinary block, with a passage when it came from reading; someone else's view is a position; your own conclusion is an assessment. A perspective lens is a view of positions grouped by holder.
@@ -108,10 +112,11 @@ Links, full-text search, type membership from text, card definitions and field r
 
 ## Open decisions
 
-- Live references versus frozen quotations.
+- Whether a block reference can freeze its target's text. Passage citations are already frozen.
 - How much change history to keep, and whether old assessments become immutable.
 - Configurable task keywords beyond the five fixed states.
 - Whether blank blocks persist or exist only in drafts.
-- Which reading state belongs to the source page (inbox, reading, finished, abandoned) and which is per-snapshot.
 - How concept and taxonomy comparison is modelled: types, positions about a concept, or a capability of its own.
 - Whether vocabulary cards need anything beyond ordinary cards, such as language, part of speech or inflection fields.
+- How newsletters arrive: a polled mail folder, a forwarding address or feeds only.
+- The citation key format, and whether a key changes when the fields it was built from change.

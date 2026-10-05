@@ -58,7 +58,7 @@ In scope for the first usable release: the daily outline, references, types and 
 
 Out of scope until the daily tool works: multi-device sync, collaboration, native mobile, plugin and schema builders, graph visualization and autonomous background agents.
 
-Reading lives in Tessera too. Books, papers, articles and posts are ingested into the notebook as immutable snapshots broken into passages, read in a pane beside the outline, and cited from the blocks written about them. This absorbs Bibliotheca, the earlier separate reading tool; its extractors and evidence rules carry over, and its own storage and terminal interface do not.
+Reading lives in Tessera too. Books, papers, articles and posts are ingested into the notebook as immutable snapshots broken into passages, read in a pane beside the outline, and cited from the blocks written about them. This absorbs Bibliotheca, the earlier separate reading tool. Its evidence rules carry over; its extractors are rewritten, and its own storage and terminal interface are retired.
 
 ## How design work happens
 
