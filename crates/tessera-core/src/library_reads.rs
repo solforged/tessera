@@ -264,14 +264,14 @@ impl Notebook {
                 "Passages require a nonnegative ordinal and a limit of at most 500.",
             ));
         }
-        let total = self
+        let (total, toc) = self
             .conn
             .query_row(
-                "SELECT passage_count
+                "SELECT passage_count, toc
                  FROM snapshots
                  WHERE id = ?1",
                 [snapshot],
-                |r| r.get(0),
+                |r| Ok((r.get(0)?, json_at(r, 1)?)),
             )
             .optional()?
             .ok_or_else(|| not_found(snapshot))?;
@@ -301,6 +301,7 @@ impl Notebook {
             passages,
             citations,
             total,
+            toc,
         })
     }
     /// The ordinal of the passage with this ID, locator or element anchor.
@@ -540,6 +541,9 @@ impl Notebook {
         Ok(HighlightResult { rows, total })
     }
     pub fn library(&self, query: &LibraryQuery) -> Result<LibraryResult> {
+        self.library_rows(query, query.limit.unwrap_or(100))
+    }
+    pub(crate) fn library_rows(&self, query: &LibraryQuery, limit: usize) -> Result<LibraryResult> {
         let mut statement = self.conn.prepare_cached(concat!(
             hidden_blocks!(),
             "SELECT ",
@@ -650,7 +654,7 @@ impl Notebook {
             }
         });
         let total = rows.len();
-        rows.truncate(query.limit.unwrap_or(100));
+        rows.truncate(limit);
         Ok(LibraryResult {
             rows,
             total,

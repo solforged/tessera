@@ -295,6 +295,16 @@ pub enum Operation {
         id: String,
         base_revision: i64,
     },
+    SaveLibraryView {
+        id: String,
+        base_revision: Option<i64>,
+        name: String,
+        query: crate::library::LibraryQuery,
+    },
+    DeleteLibraryView {
+        id: String,
+        base_revision: i64,
+    },
 }
 
 /// Operations committed together or not at all.
@@ -357,6 +367,8 @@ pub struct Committed {
     pub decks: Vec<Revision>,
     #[serde(default)]
     pub task_views: Vec<Revision>,
+    #[serde(default)]
+    pub library_views: Vec<Revision>,
     /// True when this is the stored result of an earlier identical batch.
     pub replayed: bool,
 }
@@ -426,6 +438,8 @@ pub struct ChangeEvent {
     pub decks: Vec<String>,
     #[serde(default)]
     pub task_views: Vec<String>,
+    #[serde(default)]
+    pub library_views: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

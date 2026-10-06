@@ -49,7 +49,7 @@ function paneLabel(target: OpenTarget | undefined): string {
 function snapshotView(view: PaneView): PaneView {
   if ('mode' in view) return { ...view, query: copyTaskQuery(view.query) };
   if ('deckId' in view) return { ...view, selection: view.selection ?? null };
-  if ('tab' in view) return { ...view };
+  if ('tab' in view) return { ...view, view: view.view ?? null };
   if ('ordinal' in view) return { ...view };
   return 'query' in view ? { query: copyQuery(view.query), scroll: view.scroll } : 'zoom' in view ? copyView(view) : { scroll: view.scroll };
 }
@@ -157,7 +157,7 @@ export function App() {
         : target.kind === 'agenda' ? { date, mode: target.query || target.viewId ? 'tasks' : 'agenda', query: { ...(target.query ? copyTaskQuery(target.query) : createTaskQuery(date)), context_date: date }, viewId: target.viewId ?? null, scroll: 0 }
           : target.kind === 'review' ? { deckId: target.deckId ?? null, sessionId: null, selection: null, scroll: 0 }
             : target.kind === 'fields' || target.kind === 'settings' ? { scroll: 0 }
-              : target.kind === 'library' ? { tab: target.tab ?? 'inbox', text: '', sort: 'added', unprocessedOnly: true, scroll: 0 }
+              : target.kind === 'library' ? { view: null, tab: target.tab ?? 'inbox', text: '', sort: 'added', unprocessedOnly: true, scroll: 0 }
                 : target.kind === 'reader' ? { snapshotId: target.snapshotId ?? null, ordinal: -1, offset: 0 }
                   : { zoom: target.blockId ?? null, caret: target.blockId ? { id: target.caretId ?? target.blockId, offset: 0 } : null, scroll: null, folds: null, showArchived: false };
       setSessions(values => {

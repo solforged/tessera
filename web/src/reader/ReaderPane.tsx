@@ -3,7 +3,7 @@ import { Dynamic, Portal } from 'solid-js/web';
 import { createVirtualizer, defaultRangeExtractor } from '@tanstack/solid-virtual';
 import type { VirtualItem } from '@tanstack/solid-virtual';
 import { ulid } from 'ulid';
-import type { Citation, Passage, PassageHit, PassagePage, SourceView } from '../api/types';
+import type { Citation, Passage, PassageHit, PassagePage, SourceView, TocEntry } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import type { OpenTarget, PaneId, ReaderViewState } from '../shell/contract';
 import { formatProgress } from '../library/query';
@@ -35,6 +35,7 @@ export function ReaderPane(props: ReaderPaneProps) {
   const api = props.notebook.api;
   const [source, setSource] = createSignal<SourceView>();
   const [snapshot, setSnapshot] = createSignal('');
+  const [contents, setContents] = createSignal<TocEntry[]>([]);
   const [total, setTotal] = createSignal(0);
   const [progress, setProgress] = createSignal(0);
   const [version, setVersion] = createSignal(0);
@@ -82,7 +83,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     if (flashed) values.set(flashed.id, flashed);
     return [...values.values()];
   });
-  const toc = createMemo(() => snapshot() === source()?.source.current_snapshot_id ? source()?.toc.filter(entry => entry.title.toLocaleLowerCase().includes(query().toLocaleLowerCase())) ?? [] : []);
+  const toc = createMemo(() => contents().filter(entry => entry.title.toLocaleLowerCase().includes(query().toLocaleLowerCase())));
 
   async function locate(at: string): Promise<number | null> {
     const cached = ordinals.get(at);
@@ -107,7 +108,7 @@ export function ReaderPane(props: ReaderPaneProps) {
       if (disposed || epoch !== generation) return;
       pages.set(start, page);
       for (const passage of page.passages) { passages.set(passage.ordinal, passage); ordinals.set(passage.id, passage.ordinal); }
-      batch(() => { setTotal(page.total); setVersion(value => value + 1); });
+      batch(() => { setTotal(page.total); setContents(page.toc); setVersion(value => value + 1); });
       await Promise.all(page.citations.flatMap(citation => [locate(citation.start.passage_id), locate(citation.end.passage_id)]));
     }).finally(() => { if (epoch === generation) pending.delete(start); });
     pending.set(start, request);
@@ -121,6 +122,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     clearTimeout(positionTimer);
     batch(() => {
       setSelection(null); setFlash(null); setSnapshot(id);
+      setContents([]);
       setTotal(source()?.snapshots.find(value => value.id === id)?.passage_count ?? 0);
       setProgress(id === source()?.source.current_snapshot_id ? source()!.progress : 0);
       setVersion(value => value + 1);
@@ -332,7 +334,7 @@ export function ReaderPane(props: ReaderPaneProps) {
 
   return <div class="reader-pane" onPointerDown={props.onActivate} onFocusIn={props.onActivate}>
     <div class="reader-header">
-      <Show when={snapshot() === source()?.source.current_snapshot_id && !!source()?.toc.length}><Button icon="contents" aria-haspopup="dialog" onClick={event => { setQuery(''); setPopup({ kind: 'contents', anchor: event.currentTarget }); }}>Contents</Button></Show>
+      <Show when={contents().length}><Button icon="contents" aria-haspopup="dialog" onClick={event => { setQuery(''); setPopup({ kind: 'contents', anchor: event.currentTarget }); }}>Contents</Button></Show>
       <Button icon="search" aria-haspopup="dialog" disabled={!snapshot()} onClick={event => { setQuery(''); setPopup({ kind: 'find', anchor: event.currentTarget }); }}>Find in source</Button>
       <span class="reader-progress" aria-label="Reading progress">{formatProgress(progress())}</span>
     </div>
