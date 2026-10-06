@@ -307,3 +307,27 @@ test('unknown fields and values with children keep the original two-level outlin
   expect(rows()).toEqual([first, entry, value, note, after]);
   expect(rows(null, false, new Set([value]))).toEqual([first, entry, value, after]);
 });
+
+test('depth stops show the gloss, the opening, then headings and positions, and folds still apply', async () => {
+  const { doc, first: gloss, pageId } = await fixture('[[gloss-definition]]');
+  const glossValue = insert(doc, gloss, null, 'What this is');
+  const intro = insert(doc, pageId, gloss, 'Opening paragraph');
+  const introChild = insert(doc, intro, null, 'Opening detail');
+  const perspectives = insert(doc, pageId, intro, 'Perspectives');
+  const position = insert(doc, perspectives, null, 'Plato');
+  insert(doc, position, null, 'His reading');
+  insert(doc, perspectives, position, 'A plain note under the heading');
+  const section = insert(doc, pageId, perspectives, 'Where they disagree');
+  const subsection = insert(doc, section, null, 'Is it a circle?');
+  insert(doc, subsection, null, 'Detail under a subheading');
+  insert(doc, pageId, section, 'Top-level text after the sections');
+  for (const [id, level] of [[perspectives, 2], [section, 2], [subsection, 3]] as const) success(doc.edit({ kind: 'heading', id, level }));
+  const filter = (stop: 'gloss' | 'opening' | 'perspectives' | 'full') => ({ stop, gloss, position: (id: string) => id === position });
+  const rows = (stop: Parameters<typeof filter>[0], folds: ReadonlySet<string> = new Set(), zoom: string | null = null) => visibleIds(doc, zoom, folds, false, undefined, filter(stop));
+  expect(rows('gloss')).toEqual([gloss, glossValue]);
+  expect(rows('opening')).toEqual([gloss, glossValue, intro, introChild]);
+  expect(rows('opening', new Set([intro]))).toEqual([gloss, glossValue, intro]);
+  expect(rows('perspectives')).toEqual([gloss, glossValue, intro, introChild, perspectives, position, section, subsection]);
+  expect(rows('full').length).toBe(doc.outline.size());
+  expect(rows('gloss', new Set(), section)).toEqual([section, subsection, doc.outline.children(subsection)[0]!]);
+});

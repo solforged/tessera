@@ -6,7 +6,8 @@ import type { VirtualItem } from '@tanstack/solid-virtual';
 import type { Block, FieldDefinition, TaskStatus, WorkSession } from '../api/types';
 import { api } from '../api/client';
 import type { BlockState, Caret, Edit, EditResult, PageDocument, TextRange } from '../document/contract';
-import type { Command, OutlinePaneProps, ViewState } from '../shell/contract';
+import { depthStops } from '../shell/contract';
+import type { Command, Depth, OutlinePaneProps, ViewState } from '../shell/contract';
 import { fieldEntryId, matchFieldEntry } from '../table/query';
 import { kindLabels } from '../fields/kinds';
 import { linkedCitation, setLinkedCitation } from '../library/highlights';
@@ -32,11 +33,13 @@ import { PaneEditor } from './editor';
 import { createOutlineCapabilities } from './capabilities';
 import type { CapabilityPopup } from './capabilities';
 import { inlineFieldValue, orderedRange, selectedText, selectionIds, selectionRoots, visibleIds } from './visibility';
+import type { DepthFilter } from './visibility';
 import { completeReferences } from './completion';
 import { nextClozeNumber, rankSlash, slashTokenAt } from './slash';
 import type { SlashEntry, SlashToken } from './slash';
 import { TypePill } from './references';
 import { CitationChip, SourceHeader } from './SourceHeader';
+import { GLOSS_FIELD, glossEntry, isGlossName } from './gloss';
 import { CardSummary } from './CardSummary';
 import { addFieldOption, createFieldEntryConversion, createSourceFieldResets } from './source-fields';
 import { formatSourceValue, sourceFieldName } from './source';
@@ -73,6 +76,7 @@ function Pane(props: OutlinePaneProps) {
   const [zoom, setZoom] = createSignal(initial.zoom);
   const [folds, setFolds] = createSignal(new Set(initial.folds ?? storedFolds.get(`${props.pane}:${props.pageId}`) ?? []));
   const [showArchived, setShowArchived] = createSignal(initial.showArchived);
+  const [depth, setDepth] = createSignal<Depth>(initial.depth ?? 'full');
   const [caret, setCaret] = createSignal<Caret | null>(initial.caret);
   const [editing, setEditing] = createSignal<string | null>(initial.caret?.id ?? null);
   const [selected, setSelected] = createSignal<string | null>(initial.caret?.id ?? null);
@@ -127,6 +131,9 @@ function Pane(props: OutlinePaneProps) {
   });
   const definitionsById = createMemo(() => new Map(definitions().map(field => [field.id, field])));
   const definitionsByName = createMemo(() => new Map(definitions().map(field => [field.name.toLowerCase(), field])));
+  const glossId = createMemo(() => doc.root()?.kind === 'page' ? glossEntry(doc, id => isGlossName(definitionsById().get(id)?.name)) : null);
+  const depthFilter = createMemo<DepthFilter | undefined>(() => doc.root()?.kind === 'page' && depth() !== 'full'
+    ? { stop: depth(), gloss: glossId(), position: () => false } : undefined);
   const [type] = createResource(
     () => doc.root()?.kind === 'page' ? [props.pageId, props.notebook.changeSequence()] as const : false,
     ([pageId]) => api.type(pageId),
@@ -333,7 +340,7 @@ function Pane(props: OutlinePaneProps) {
     editAt(id, date.length, true);
   }
 
-  const unfoldedIds = createMemo(() => visibleIds(doc, zoom(), folds(), showArchived()));
+  const unfoldedIds = createMemo(() => visibleIds(doc, zoom(), folds(), showArchived(), undefined, depthFilter()));
   const unfoldedSet = createMemo(() => new Set(unfoldedIds()));
   // Only field entries can fold their value inline. Field entries come from structural edits (shorthand
   // conversion inserts the value), which rebuild this list; reading text untracked keeps typing out of it.
@@ -416,7 +423,7 @@ function Pane(props: OutlinePaneProps) {
   }
   function report() {
     if (restoring || disposed) return;
-    props.onViewChange({ zoom: zoom(), folds: [...folds()], showArchived: showArchived(), caret: caret(), scroll: currentAnchor() });
+    props.onViewChange({ zoom: zoom(), folds: [...folds()], showArchived: showArchived(), depth: depth(), caret: caret(), scroll: currentAnchor() });
   }
   function scheduleReport() {
     cancelAnimationFrame(reportingFrame);
@@ -633,6 +640,35 @@ function Pane(props: OutlinePaneProps) {
     const id = zoom();
     if (id) zoomTo(doc.outline.parentOf(id) === props.pageId ? null : doc.outline.parentOf(id));
   }
+  /** Moves the depth dial. Rows that leave the list stop being edited or selected; the rest keep their place. */
+  function setStop(stop: Depth) {
+    if (composition() || depthReason() || stop === depth()) return;
+    if (editing() && commitFieldEntry(editing()!)) return;
+    anchored(() => setDepth(stop));
+    const visible = indices();
+    if (editing() && !visible.has(editing()!)) setEditing(null);
+    if (selected() && !visible.has(selected()!)) { setSelected(null); setCaret(null); }
+    setRowRange(null);
+    setTextRange(null);
+    report();
+    scheduleReport();
+  }
+  const depthReason = () => doc.root()?.kind !== 'page' ? 'Only titled pages have depth.' : zoom() ? 'Zoom out to change depth.' : undefined;
+  const stepDepth = (delta: 1 | -1) => { const next = depthStops[depthStops.indexOf(depth()) + delta]; if (next) setStop(next); };
+  const depthTitles: Record<Depth, string> = { gloss: 'Show the gloss only', opening: 'Show the opening', perspectives: 'Show perspectives', full: 'Show the full page' };
+  /** Edits the gloss, adding the entry as the page's first block when there is none. */
+  function addGloss() {
+    const existing = glossId();
+    if (existing) {
+      if (zoom()) zoomTo(null);
+      const value = doc.outline.children(existing)[0];
+      if (value) editAt(value, doc.block(value)?.text.length ?? 0, true);
+      return;
+    }
+    const result = doc.edit({ kind: 'insert', parentId: props.pageId, after: null, text: '' }, caret());
+    if (!result.ok) { setMessage(result.reason); return; }
+    fieldConversion.entry(result.created[0]!, GLOSS_FIELD, 0, true);
+  }
   function horizontal(direction: 'left' | 'right') {
     const id = selected();
     if (!id) return;
@@ -824,6 +860,7 @@ function Pane(props: OutlinePaneProps) {
     let handled = false;
     if (textRange() && (event.key === 'Backspace' || event.key === 'Delete')) { deleteTextRange(); handled = true; }
     if (!handled) handled = commonKey(event);
+    if (!handled && (event.key === '[' || event.key === ']') && !event.metaKey && !event.ctrlKey && !event.altKey && !depthReason()) { stepDepth(event.key === '[' ? -1 : 1); handled = true; }
     if (!handled && !selected() && !textRange()) {
       if (!event.metaKey && !event.ctrlKey && !event.altKey && ['ArrowDown', 'ArrowUp', 'j', 'k'].includes(event.key)) {
         adjacent(event.key === 'ArrowDown' || event.key === 'j' ? 1 : -1);
@@ -1086,6 +1123,10 @@ function Pane(props: OutlinePaneProps) {
       if (!doc.root()?.project) capabilities.invoke(capabilities.edit(props.pageId, { kind: 'project', id: props.pageId, value: { status: 'active', outcome: '', deadline: null } }));
       capabilities.open(props.pageId, 'project');
     } },
+    { id: 'gloss', title: 'Add or edit gloss', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Page is unavailable.' : doc.root()?.kind !== 'page' ? 'Journal days have no gloss.' : undefined, run: addGloss },
+    ...depthStops.map((stop): Command => ({ id: `depth-${stop}`, title: depthTitles[stop], section: 'Page', disabledReason: depthReason, run: () => setStop(stop) })),
+    { id: 'depth-less', title: 'Show less of the page', section: 'Page', keys: ['['], disabledReason: () => depthReason() ?? (depth() === 'gloss' ? 'Only the gloss is showing.' : undefined), run: () => stepDepth(-1) },
+    { id: 'depth-more', title: 'Show more of the page', section: 'Page', keys: [']'], disabledReason: () => depthReason() ?? (depth() === 'full' ? 'The whole page is showing.' : undefined), run: () => stepDepth(1) },
     { id: 'previous-row', title: 'Select previous block', section: 'Navigation', keys: ['↑', 'k'], run: () => adjacent(-1) },
     { id: 'next-row', title: 'Select next block', section: 'Navigation', keys: ['↓', 'j'], run: () => adjacent(1) },
     { id: 'parent', title: 'Fold children / select parent', section: 'Navigation', keys: ['←', 'h'], run: () => horizontal('left') },
@@ -1596,7 +1637,7 @@ function Pane(props: OutlinePaneProps) {
     onCleanup(() => { const host = hosts.get(id()); if (host && row.contains(host)) hosts.delete(id()); });
     return <div ref={row} id={`outline-${props.pane}-${id()}`} data-index={propsRow.item().index} data-block-id={id()} role="treeitem" aria-level={depth() + 1}
       aria-expanded={children() ? !folds().has(id()) : undefined} aria-selected={selectedSet().has(id())}
-      class="outline-row" classList={{ 'row-selected': selectedSet().has(id()) && editing() !== id(), 'row-editing': editing() === id(), 'row-archived': block()?.archived ?? false, 'field-entry': !!field(), 'inline-field-value': inline(), 'choice-value': pill(), 'source-detail': !!sourceField(), 'source-highlights-start': sourceDetails().firstHighlight === id(), 'outline-row-linked': block()?.citations.some(citation => citation.id === linkedCitation()) ?? false }}
+      class="outline-row" classList={{ 'row-selected': selectedSet().has(id()) && editing() !== id(), 'row-editing': editing() === id(), 'row-archived': block()?.archived ?? false, 'field-entry': !!field(), 'inline-field-value': inline(), 'row-gloss': inline() && parent() === glossId(), 'choice-value': pill(), 'source-detail': !!sourceField(), 'source-highlights-start': sourceDetails().firstHighlight === id(), 'outline-row-linked': block()?.citations.some(citation => citation.id === linkedCitation()) ?? false }}
       onPointerEnter={() => setLinkedCitation(block()?.citations[0]?.id ?? null)} onPointerLeave={() => setLinkedCitation(null)}
       style={{ transform: `translateY(${propsRow.item().start - margin()}px)`, '--depth': depth() }}>
       <Show when={sourceDetails().firstHighlight === id()}><div class="outline-highlights-label">Highlights <span>{sourceDetails().highlightCount}</span></div></Show>
@@ -1608,7 +1649,7 @@ function Pane(props: OutlinePaneProps) {
       <div class="outline-body" classList={{ 'heading-1': block()?.heading === 1, 'heading-2': block()?.heading === 2, 'heading-3': block()?.heading === 3 }} onMouseDown={event => pointerStart(event, id(), event.currentTarget)}>
         <div class="outline-source-line"><div class="outline-source">
         <div class="editor-host" classList={{ 'host-active': editing() === id() }} ref={host => attach(id(), host)} />
-        <Show when={editing() !== id()}><div class="static-text"><span classList={{ 'outline-value-pill': pill() }}><BlockText text={displayText()} cards field={field()} notebook={props.notebook} onOpen={props.onOpen} onReferenceMenu={referenceMenu} selection={selectedOffsets(id())} /></span><Show when={!block()?.text && ids().length === 1}><span class="empty-block">Start writing</span></Show></div></Show>
+        <Show when={editing() !== id()}><div class="static-text"><span classList={{ 'outline-value-pill': pill() }}><BlockText text={displayText()} cards field={field()} notebook={props.notebook} onOpen={props.onOpen} onReferenceMenu={referenceMenu} selection={selectedOffsets(id())} /></span><Show when={!block()?.text && (ids().length === 1 || (inline() && parent() === glossId()))}><span class="empty-block">{inline() && parent() === glossId() ? 'One or two sentences on what this is' : 'Start writing'}</span></Show></div></Show>
         <For each={block()?.manual_types ?? []}>{title => <TypePill title={title} notebook={props.notebook} onOpen={props.onOpen} onRemove={() => { const result = doc.removeType(id(), title); if (!result.ok) setMessage(result.reason); }} />}</For>
         </div>
         <Show when={block()?.task || block()?.project || cards().cards.length || block()?.citations.length}><span class="outline-capability-metadata">
@@ -1688,7 +1729,7 @@ function Pane(props: OutlinePaneProps) {
       <For each={[...virtualItems().keys()].filter(id => id !== editing())}>{id => <Row id={id} item={() => virtualItems().get(id)!} />}</For>
       <Show keyed when={editing() && virtualItems().has(editing()!) ? editing() : null}>{id => <Row id={id} item={() => virtualItems().get(id)!} />}</Show>
     </div>
-    <Show when={doc.status() === 'ready' && ids().length === 0}><button type="button" class="add-first-block" onClick={() => apply({ kind: 'insert', parentId: zoom() ?? props.pageId, after: null }, true)}><Icon name="plus" />Add a block</button></Show>
+    <Show when={doc.status() === 'ready' && ids().length === 0 && depthFilter() === undefined}><button type="button" class="add-first-block" onClick={() => apply({ kind: 'insert', parentId: zoom() ?? props.pageId, after: null }, true)}><Icon name="plus" />Add a block</button></Show>
     <Show when={doc.status() === 'ready' && (related.error || (related()?.backlinks.length ?? 0) + (related()?.tagged.length ?? 0) > 0)}><div class="related-sections">
       <Show when={related.error || related()?.backlinks.length}><Related title="Backlinks" rows={related.error ? [] : related()?.backlinks ?? []} /></Show>
       <Show when={related.error || related()?.tagged.length}><Related title="Tagged blocks" rows={related.error ? [] : related()?.tagged ?? []} /></Show>

@@ -10,6 +10,15 @@ import type { CardSelection, Query, ReadingState, TaskQuery } from '../api/types
 export type PaneId = 'main' | 'side';
 
 /**
+ * How much of a page shows, from its gloss alone to everything: the depth dial's four stops. The opening is
+ * the top-level text before the first heading; perspectives adds the sections' headings and the positions
+ * filed under them, each closed to its own row.
+ */
+export type Depth = 'gloss' | 'opening' | 'perspectives' | 'full';
+export const depthStops: readonly Depth[] = ['gloss', 'opening', 'perspectives', 'full'];
+export const depthLabels: Record<Depth, string> = { gloss: 'Gloss', opening: 'Opening', perspectives: 'Perspectives', full: 'Full' };
+
+/**
  * One action. Every action appears in the command palette with its shortcut,
  * and in a visible menu or button. `keys` are display strings using the
  * spec's notation, e.g. `⌘Enter`, `⌃⇧F`; the owner of the action handles the
@@ -47,6 +56,8 @@ export interface ViewState {
   folds: string[] | null;
   /** Archived rows shown. */
   showArchived: boolean;
+  /** How much of a titled page shows; absent means full. */
+  depth?: Depth;
   /** Set only by an open that names `caretId`: the pane starts editing at the caret instead of selecting its row. Never reported back, so history does not re-enter editing. */
   edit?: boolean;
 }

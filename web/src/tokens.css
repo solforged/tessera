@@ -71,6 +71,7 @@
   --text-h1: 24px; --line-h1: 30px;           /* also dialog and view headings */
   --text-title: 32px; --line-title: 38px;     /* page titles */
   --text-quote: 16px; --line-quote: 24px;
+  --text-gloss: 17px; --line-gloss: 26px;     /* a page's gloss under its title */
   --text-library-title: 15.5px;
   --line-source-title: 22px;
   --weight-body: 400; --weight-control: 500; --weight-heading: 600;

@@ -49,6 +49,11 @@ const paths = {
   review: ['M12.9 9.4A5 5 0 1 1 12.3 5.4 M12.8 2.6v3.1H9.7', 'M9.1 8a1.1 1.1 0 1 1-2.2 0 1.1 1.1 0 0 1 2.2 0Z'],
   library: 'M2.5 3.5h3v9h-3z M6.5 2.5h3v10h-3z M11 4.2l2.5 8.1',
   find: ['M1.8 8s2.4-4.2 6.2-4.2S14.2 8 14.2 8s-2.4 4.2-6.2 4.2S1.8 8 1.8 8Z M10 8a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z', 'M8.8 8a.8.8 0 1 1-1.6 0 .8.8 0 0 1 1.6 0Z'],
+  // The depth dial: one iris, its pupil widening from gloss to full.
+  'depth-gloss': ['M14 8a6 6 0 1 1-12 0 6 6 0 0 1 12 0Z', 'M9.5 8a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z'],
+  'depth-opening': ['M14 8a6 6 0 1 1-12 0 6 6 0 0 1 12 0Z', 'M10.6 8a2.6 2.6 0 1 1-5.2 0 2.6 2.6 0 0 1 5.2 0Z'],
+  'depth-perspectives': ['M14 8a6 6 0 1 1-12 0 6 6 0 0 1 12 0Z', 'M11.7 8a3.7 3.7 0 1 1-7.4 0 3.7 3.7 0 0 1 7.4 0Z'],
+  'depth-full': ['M14 8a6 6 0 1 1-12 0 6 6 0 0 1 12 0Z', 'M12.8 8a4.8 4.8 0 1 1-9.6 0 4.8 4.8 0 0 1 9.6 0Z'],
 } as const satisfies Record<string, Glyph>;
 export type IconName = keyof typeof paths;
 export function Icon(props: { name: IconName; class?: string }): JSX.Element {
