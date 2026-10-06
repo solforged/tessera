@@ -6,11 +6,15 @@ import type { DecorationSet, ViewUpdate } from '@codemirror/view';
 import type * as VimModule from '@replit/codemirror-vim';
 import type { Caret } from '../document/contract';
 import { textTokens } from '../document/text-tokens';
-import { fieldEntryId } from '../table/query';
+import type { FieldKind } from '../api/types';
+import { kindLabels } from '../fields/kinds';
+import { fieldEntryId, matchFieldEntry } from '../table/query';
 import { Icon } from '../ui/Icon';
 
 type FieldResolver = (id: string) => string | undefined;
+type FieldKindResolver = (name: string) => FieldKind | undefined;
 const fieldName = Facet.define<FieldResolver, FieldResolver>({ combine: values => values.at(-1) ?? (() => undefined) });
+const fieldKind = Facet.define<FieldKindResolver, FieldKindResolver>({ combine: values => values.at(-1) ?? (() => undefined) });
 
 class FieldNameWidget extends WidgetType {
   constructor(private readonly name: string) { super(); }
@@ -39,11 +43,55 @@ const fieldDecorations = StateField.define<DecorationSet>({
   ],
 });
 
-/** Whole field entries retain their raw text but expose only atomic name widgets. */
-export function fieldEntryExtension(resolve: FieldResolver): Extension {
+class FieldIconWidget extends WidgetType {
+  eq(): boolean { return true; }
+  toDOM(): HTMLElement {
+    const icon = document.createElement('span');
+    icon.className = 'field-draft-icon';
+    icon.append(Icon({ name: 'field' }) as SVGElement);
+    return icon;
+  }
+}
+class FieldHintWidget extends WidgetType {
+  constructor(private readonly hint: string) { super(); }
+  eq(other: FieldHintWidget): boolean { return this.hint === other.hint; }
+  toDOM(): HTMLElement {
+    const hint = document.createElement('span');
+    hint.className = 'field-draft-hint';
+    hint.textContent = this.hint;
+    return hint;
+  }
+}
+const fieldIcon = Decoration.widget({ widget: new FieldIconWidget(), side: -1 });
+const draftName = Decoration.mark({ class: 'field-draft-name' });
+/**
+ * While `Name:: value` is typed, the name already reads as a field label. A trailing hint says the field is
+ * new, or names a known field's kind until a value is typed.
+ */
+export function fieldDraftDecorations(text: string, kindOf: FieldKindResolver): DecorationSet {
+  if (fieldEntryId(text) !== null) return Decoration.none;
+  const match = matchFieldEntry(text);
+  if (!match) return Decoration.none;
+  const kind = kindOf(match.name);
+  const hint = kind ? match.value.trim() ? null : kindLabels[kind] : 'New field';
+  const ranges = [fieldIcon.range(0), draftName.range(0, text.indexOf('::') + 2)];
+  if (hint) ranges.push(Decoration.widget({ widget: new FieldHintWidget(hint), side: 1 }).range(text.length));
+  return Decoration.set(ranges, true);
+}
+const fieldDrafts = StateField.define<DecorationSet>({
+  create: state => fieldDraftDecorations(state.doc.toString(), state.facet(fieldKind)),
+  update: (value, transaction) => transaction.docChanged || transaction.startState.facet(fieldKind) !== transaction.state.facet(fieldKind)
+    ? fieldDraftDecorations(transaction.state.doc.toString(), transaction.state.facet(fieldKind)) : value.map(transaction.changes),
+  provide: field => EditorView.decorations.from(field),
+});
+
+/** Whole field entries retain their raw text but expose only atomic name widgets; shorthand being typed shows as a draft label. */
+export function fieldEntryExtension(resolve: FieldResolver, kindOf: FieldKindResolver = () => undefined): Extension {
   return [
     fieldName.of(resolve),
+    fieldKind.of(kindOf),
     fieldDecorations,
+    fieldDrafts,
     EditorView.domEventHandlers({
       keydown: (event, view) => {
         if (event.altKey || event.ctrlKey || event.metaKey || !view.state.field(fieldDecorations).size) return false;
@@ -83,9 +131,13 @@ class ReferenceWidget extends WidgetType {
   }
 }
 
-/** Endpoints remain atomic; placing the caret inside a token exposes its source. A whole field entry is the field widget's job. */
-export function referenceDecorations(text: string, head: number, label: EditorHooks['label']): DecorationSet {
-  if (fieldEntryId(text) !== null) return Decoration.none;
+/**
+ * Endpoints remain atomic; placing the caret inside a token exposes its source. A whole field entry is the
+ * field widget's job; a whole-text reference to anything else, such as a choice value, still gets a label.
+ */
+export function referenceDecorations(text: string, head: number, label: EditorHooks['label'], isField: (id: string) => boolean = () => true): DecorationSet {
+  const whole = fieldEntryId(text);
+  if (whole !== null && isField(whole)) return Decoration.none;
   return Decoration.set(textTokens(text).flatMap(token => {
     if (token.kind !== 'reference' || /[\r\n]/.test(token.value) || head > token.start && head < token.end) return [];
     return [Decoration.replace({ inclusive: false, widget: new ReferenceWidget(token.alias || label(token.id!) || token.id!) }).range(token.start, token.end)];
@@ -95,10 +147,10 @@ export function referenceDecorations(text: string, head: number, label: EditorHo
 function references(label: EditorHooks['label']) {
   return ViewPlugin.fromClass(class {
     decorations: DecorationSet;
-    constructor(view: EditorView) { this.decorations = referenceDecorations(view.state.doc.toString(), view.state.selection.main.head, label); }
+    constructor(view: EditorView) { this.decorations = referenceDecorations(view.state.doc.toString(), view.state.selection.main.head, label, id => view.state.facet(fieldName)(id) !== undefined); }
     update(update: ViewUpdate) {
-      if (update.docChanged || update.selectionSet || update.transactions.some(transaction => transaction.effects.some(effect => effect.is(refreshLabels)))) {
-        this.decorations = referenceDecorations(update.state.doc.toString(), update.state.selection.main.head, label);
+      if (update.docChanged || update.selectionSet || update.startState.facet(fieldName) !== update.state.facet(fieldName) || update.transactions.some(transaction => transaction.effects.some(effect => effect.is(refreshLabels)))) {
+        this.decorations = referenceDecorations(update.state.doc.toString(), update.state.selection.main.head, label, id => update.state.facet(fieldName)(id) !== undefined);
       }
     }
   }, {
@@ -243,8 +295,8 @@ export class PaneEditor {
     });
   }
 
-  configureFields(resolve: FieldResolver): void {
-    this.view.dispatch({ effects: this.fieldConfig.reconfigure(fieldEntryExtension(resolve)) });
+  configureFields(resolve: FieldResolver, kindOf: FieldKindResolver): void {
+    this.view.dispatch({ effects: this.fieldConfig.reconfigure(fieldEntryExtension(resolve, kindOf)) });
   }
 
   mode(): 'insert' | 'normal' | 'visual' {

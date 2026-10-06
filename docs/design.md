@@ -117,11 +117,15 @@ Three layers, each reaching the same actions as the palette and the block menu.
    | `#` | type |
    | `@` | when: `@fri` schedules, `@due fri` sets a deadline |
    | `/` | every block verb: statuses, schedule, deadline, priority, repeat, clock, project, headings, references, types, cards |
-   | `::` | field shorthand |
+   | `Name::`, `::` at block start | field entry; `::` alone picks the field |
    | `[] `, `# ` | todo, heading |
    | `>>`, `<<`, `<>`, `{{c1::}}` | cards |
 
    `[[` and `((` close their pair as in Roam and Logseq, and a typed closer steps over the paired one. The picker opens under the opening brackets and stays there while the query grows; the open `[[query]]` is tinted in the accent until a choice replaces it with a reference. Enter or Tab picks, including when pressed before results arrive. The caret lands after the reference, with a space when a word or the end of the block follows; punctuation or a space typed next takes that space's place. Backspace in an empty `[[]]` removes both pairs. A query that names no page or field exactly offers Create page after the matches.
+
+   `[[Title]]` typed by hand, or kept as text with Escape, links the page with that exact title once the block is left, creating the page if none exists; a date only links a journal that already exists.
+
+   `Name::` reads as a field label while it is typed: the field icon, the name in `--muted`, and a tinted hint at the end, New field for a name no field has or the field's kind until a value is typed. Space straight after `::`, or Tab anywhere in the name, makes the entry at once and puts the caret in its value; leaving the block converts it as before. `::` at the start of a block opens a field picker listing each field with its kind and Create field for a new name, and picking makes the entry the same way. A choice field's value offers its options as you type, with Add option for a new one; a new date entry opens the date picker for its value.
 
 2. **Chords** for what happens constantly. ⌘ acts on the current block: ⌘Enter toggles todo and done, ⌘⇧Enter opens the status menu, ⌘. zooms in and ⌘⇧. out, ⌘⇧T opens the table. ⌃⇧ is shell navigation. ⌥↑ and ⌥↓ move blocks. No ⌥-letter chords: on macOS they type accented letters.
 3. **Leader.** Space on a selected row, or in Vim normal mode, opens a menu of single letters: `t` status, `s` schedule, `d` deadline, `p` priority, `r` repeat, `w` clock in or out, `c` add card, `z` zoom in.

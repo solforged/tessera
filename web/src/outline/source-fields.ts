@@ -56,57 +56,111 @@ function ensureField(notebook: NotebookClient, name: string): Promise<FieldDefin
   return creation;
 }
 
+/** Appends a choice option under the field's definition and returns the option's id. */
+export async function addFieldOption(notebook: NotebookClient, field: FieldDefinition, text: string): Promise<string> {
+  const existing = field.options.find(option => option.text.toLowerCase() === text.toLowerCase());
+  if (existing) return existing.id;
+  const definition = await api.block(field.id);
+  const doc = notebook.open(definition.page_id);
+  try {
+    await documentReady(doc);
+    const written = doc.edit({ kind: 'insert', parentId: field.id, after: doc.outline.children(field.id).at(-1) ?? null, text });
+    if (!written.ok) throw new Error(written.reason);
+    return written.created[0]!;
+  } finally { doc.release(); }
+}
+
+export interface FieldEntryConversion {
+  /** Converts a `Name:: value` block if its text matches; true when a conversion started. */
+  shorthand(id: string, focus?: boolean): boolean;
+  /** Turns block `id` into an entry for `field`, an existing definition or a name to find or create, keeping the text after `from` as its value. */
+  entry(id: string, field: FieldDefinition | string, from: number, focus?: boolean): void;
+}
+
 export function createFieldEntryConversion(options: {
   doc: PageDocument; notebook: NotebookClient;
   disposed(): boolean; composing(): boolean; caret(): Caret | null; focusEpoch(): number;
+  /** A definition already loaded by name, so a known field converts without a round trip. */
+  known(name: string): FieldDefinition | undefined;
   onStart(): void; onField(field: FieldDefinition): void;
-  onCommitted(id: string, caret: Caret | null, epoch: number, focus: boolean): void;
+  onCommitted(id: string, caret: Caret | null, epoch: number, focus: boolean, field: FieldDefinition): void;
   onError(message: string): void;
 }) {
   const pending = new Set<string>();
-  return (id: string, focus = true): boolean => {
-    if (options.disposed() || options.composing()) return false;
-    if (pending.has(id)) return true;
-    const original = options.doc.block(id)?.text;
-    if (original === undefined) return false;
-    const match = matchFieldEntry(original);
-    if (!match) return false;
+  /**
+   * Rewrites the block as `[[field]]` with `value` as its first child. Typing may continue while a new
+   * definition is created, so the caret's place in the value is read at write time.
+   */
+  function write(doc: PageDocument, id: string, field: FieldDefinition, valueStart: number, epoch: number, focus: boolean) {
+    const text = doc.block(id)!.text;
+    const value = text.slice(valueStart);
+    const at = options.caret();
+    const before = at?.id === id ? { ...at } : { id, offset: text.length };
+    let result: EditResult;
+    // The paste transaction rewrites the label and inserts a first child atomically. An empty value or
+    // literal leading whitespace needs two edits.
+    if (value && value === value.trimStart()) {
+      result = doc.edit({
+        kind: 'replaceRange', range: { anchor: { id, offset: 0 }, head: { id, offset: text.length } },
+        between: [], text: `${fieldEntryText(field.id)}\n  ${value}`, mode: 'paste',
+      }, before);
+    } else {
+      result = doc.edit({ kind: 'text', id, text: fieldEntryText(field.id) }, before);
+      if (result.ok) result = doc.edit({ kind: 'insert', parentId: id, after: null, text: value }, before);
+    }
+    if (!result.ok) throw new Error(result.reason);
+    const offset = before.id === id ? Math.max(0, Math.min(value.length, before.offset - valueStart)) : value.length;
+    options.onCommitted(id, result.caret ? { ...result.caret, offset } : null, at?.id === id ? options.focusEpoch() : epoch, focus, field);
+  }
+  function start(id: string, target: FieldDefinition | string, valueStart: number, focus: boolean, still: (text: string) => number | null) {
     pending.add(id);
-    const before = options.caret()?.id === id ? { ...options.caret()! } : { id, offset: original.length };
     const epoch = options.focusEpoch();
     const heldDoc = options.notebook.open(options.doc.pageId);
     options.onStart();
+    const known = typeof target === 'string' ? options.known(target) : target;
+    const finish = () => { pending.delete(id); heldDoc.release(); };
+    if (known) {
+      try { write(heldDoc, id, known, valueStart, epoch, focus); }
+      catch (error) { options.onError(error instanceof Error ? error.message : String(error)); }
+      finally { finish(); }
+      return;
+    }
     void (async () => {
       try {
-        const field = await ensureField(options.notebook, match.name);
-        if (!options.disposed()) options.onField(field);
-        if (heldDoc.block(id)?.text !== original) return;
-        let result: EditResult;
-        // The existing paste transaction rewrites the label and inserts a
-        // first child atomically. Literal leading whitespace needs two edits.
-        if (match.value === match.value.trimStart()) {
-          result = heldDoc.edit({
-            kind: 'replaceRange', range: { anchor: { id, offset: 0 }, head: { id, offset: original.length } },
-            between: [], text: `${fieldEntryText(field.id)}\n  ${match.value}`, mode: 'paste',
-          }, before);
-        } else {
-          result = heldDoc.edit({ kind: 'text', id, text: fieldEntryText(field.id) }, before);
-          if (result.ok) {
-            result = heldDoc.edit({ kind: 'insert', parentId: id, after: null, text: match.value }, before);
-            if (result.ok && result.caret) result = { ...result, caret: { ...result.caret, offset: match.value.length } };
-          }
-        }
-        if (!result.ok) throw new Error(result.reason);
-        if (!options.disposed()) options.onCommitted(id, result.caret, epoch, focus);
+        const field = await ensureField(options.notebook, typeof target === 'string' ? target : target.name);
+        if (options.disposed()) return;
+        options.onField(field);
+        const text = heldDoc.block(id)?.text;
+        const from = text === undefined ? null : still(text);
+        if (from !== null) write(heldDoc, id, field, from, epoch, focus);
       } catch (error) {
         if (!options.disposed()) options.onError(error instanceof Error ? error.message : String(error));
-      } finally {
-        pending.delete(id);
-        heldDoc.release();
-      }
+      } finally { finish(); }
     })();
-    return true;
-  };
+  }
+  const valueOffset = (text: string, value: string) => text.length - value.length;
+  return {
+    shorthand(id, focus = true) {
+      if (options.disposed() || options.composing()) return false;
+      if (pending.has(id)) return true;
+      const original = options.doc.block(id)?.text;
+      const match = original === undefined ? null : matchFieldEntry(original);
+      if (!match) return false;
+      const name = match.name.toLowerCase();
+      // Still the same field after the definition is created: convert what the block holds by then.
+      start(id, match.name, valueOffset(original!, match.value), focus, text => {
+        const now = matchFieldEntry(text);
+        return now && now.name.toLowerCase() === name ? valueOffset(text, now.value) : null;
+      });
+      return true;
+    },
+    entry(id, field, from, focus = true) {
+      if (options.disposed() || pending.has(id) || !options.doc.block(id)) return;
+      const original = options.doc.block(id)!.text;
+      const valueAt = (text: string) => { let at = from; while (text[at] === ' ') at++; return at; };
+      start(id, field, valueAt(original), focus, text => text.startsWith(original.slice(0, from)) ? valueAt(text) : null);
+    },
+  } satisfies FieldEntryConversion;
 }
 
 /** Both entry actions and source actions apply the same positional reset plan. */
