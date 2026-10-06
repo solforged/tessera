@@ -14,5 +14,7 @@
     "noEmit": true,
     "types": ["vite/client", "bun"]
   },
-  "include": ["src", "perf", "vite.config.ts"]
+  "include": ["src", "perf", "vite.config.ts"],
+  // The demo worker imports the generated wasm bindings; tsconfig.demo.json checks it.
+  "exclude": ["src/demo/worker.ts"]
 }
