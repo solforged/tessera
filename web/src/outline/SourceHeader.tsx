@@ -89,7 +89,7 @@ export function SourceHeader(props: {
       </div>}</Show>
       <div class="outline-source-actions">
         <Button class="bordered" aria-haspopup="menu" onClick={event => stateMenu(event.currentTarget)}>{stateLabels[props.doc.root()!.source!.state]}<Icon name="down" /></Button>
-        <Show when={!source.error && source() && source()!.progress > 0}><span class="outline-source-progress" aria-label="Reading progress">{formatProgress(source()!.progress)} read</span></Show>
+        <Show when={!source.error && source() && source()!.progress > 0}><span class="outline-source-progress" aria-label="Reading position" title="Reading position">{formatProgress(source()!.progress)}</span></Show>
         <Button icon="book" onClick={event => props.onOpen({ kind: 'reader', sourceId: props.doc.pageId }, event.shiftKey)}>Read</Button>
         <Button icon="more" label="Source actions" aria-haspopup="menu" onClick={event => sourceMenu(event.currentTarget)} />
       </div>

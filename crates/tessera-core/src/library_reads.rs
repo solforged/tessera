@@ -198,7 +198,7 @@ pub(crate) fn hydrate(
 fn position(conn: &Connection, snapshot: &str) -> Result<Option<ReadingPosition>> {
     Ok(conn
         .query_row(
-            "SELECT snapshot_id, passage_ordinal, covered, updated_at
+            "SELECT snapshot_id, passage_ordinal, updated_at
              FROM reading_positions
              WHERE snapshot_id = ?1",
             [snapshot],
@@ -206,44 +206,28 @@ fn position(conn: &Connection, snapshot: &str) -> Result<Option<ReadingPosition>
                 Ok(ReadingPosition {
                     snapshot_id: r.get(0)?,
                     passage_ordinal: r.get(1)?,
-                    covered: json_at(r, 2)?,
-                    updated_at: r.get(3)?,
+                    updated_at: r.get(2)?,
                 })
             },
         )
         .optional()?)
 }
+/// The reading position as a share of the text: the characters before the
+/// passage it rests on. The library, the source header and the reader agree.
 pub(crate) fn progress(conn: &Connection, snapshot: &str) -> Result<f64> {
-    let total: i64 = conn.query_row(
-        "SELECT text_length
-         FROM snapshots
-         WHERE id = ?1",
-        [snapshot],
-        |r| r.get(0),
-    )?;
-    if total == 0 {
-        return Ok(0.0);
-    }
-    let Some(pos) = position(conn, snapshot)? else {
-        return Ok(0.0);
-    };
-    let covered: i64 = conn.query_row(
-        "SELECT COALESCE(SUM(COALESCE((
-             SELECT next.start
-             FROM passages next
-             WHERE next.snapshot_id = p.snapshot_id AND next.ordinal = p.ordinal + 1
-         ), ?3) - p.start), 0)
-         FROM passages p
-         WHERE p.snapshot_id = ?1
-         AND EXISTS(
-             SELECT 1 FROM json_each(?2) r
-             WHERE p.ordinal >= json_extract(r.value, '$[0]')
-             AND p.ordinal < json_extract(r.value, '$[1]')
-         )",
-        params![snapshot, json(&pos.covered), total],
-        |r| r.get(0),
-    )?;
-    Ok((covered as f64 / total as f64).clamp(0.0, 1.0))
+    Ok(conn
+        .query_row(
+            "SELECT CAST(p.start AS REAL) / s.text_length
+             FROM reading_positions rp
+             JOIN snapshots s ON s.id = rp.snapshot_id
+             JOIN passages p ON p.snapshot_id = rp.snapshot_id AND p.ordinal = rp.passage_ordinal
+             WHERE rp.snapshot_id = ?1 AND s.text_length > 0",
+            [snapshot],
+            |r| r.get::<_, f64>(0),
+        )
+        .optional()?
+        .unwrap_or(0.0)
+        .clamp(0.0, 1.0))
 }
 impl Notebook {
     pub fn source(&self, id: &str) -> Result<SourceView> {
@@ -402,7 +386,6 @@ impl Notebook {
         &mut self,
         snapshot: &str,
         ordinal: i64,
-        seen: (i64, i64),
     ) -> Result<ReadingProgress> {
         let count: i64 = self
             .conn
@@ -415,10 +398,8 @@ impl Notebook {
             )
             .optional()?
             .ok_or_else(|| not_found(snapshot))?;
-        if ordinal < 0 || ordinal >= count || seen.0 < 0 || seen.0 > seen.1 || seen.1 > count {
-            return Err(validation(
-                "Reading positions and coverage must be inside the snapshot.",
-            ));
+        if ordinal < 0 || ordinal >= count {
+            return Err(validation("Reading positions must be inside the snapshot."));
         }
         let id: String = self
             .conn
@@ -458,29 +439,13 @@ impl Notebook {
             None
         };
         let now = crate::notebook::now_ms();
-        let mut covered = position(&self.conn, snapshot)?
-            .map(|p| p.covered)
-            .unwrap_or_default();
-        if seen.0 < seen.1 {
-            covered.push(seen);
-        }
-        covered.sort_unstable();
-        let mut merged: Vec<(i64, i64)> = vec![];
-        for range in covered {
-            if let Some(last) = merged.last_mut().filter(|last| last.1 >= range.0) {
-                last.1 = last.1.max(range.1);
-            } else {
-                merged.push(range);
-            }
-        }
         let tx = self.conn.transaction()?;
         tx.execute(
-            "INSERT INTO reading_positions
-             VALUES (?1, ?2, ?3, ?4)
+            "INSERT INTO reading_positions (snapshot_id, passage_ordinal, updated_at)
+             VALUES (?1, ?2, ?3)
              ON CONFLICT(snapshot_id) DO UPDATE
-             SET passage_ordinal = excluded.passage_ordinal,
-                 covered = excluded.covered, updated_at = excluded.updated_at",
-            params![snapshot, ordinal, json(&merged), now],
+             SET passage_ordinal = excluded.passage_ordinal, updated_at = excluded.updated_at",
+            params![snapshot, ordinal, now],
         )?;
         tx.execute(
             "UPDATE sources
@@ -493,7 +458,6 @@ impl Notebook {
             position: ReadingPosition {
                 snapshot_id: snapshot.into(),
                 passage_ordinal: ordinal,
-                covered: merged,
                 updated_at: now,
             },
             progress: progress(&self.conn, snapshot)?,
@@ -659,19 +623,11 @@ impl Notebook {
             .query_map([json(&snapshot_ids)], |r| Ok((r.get(0)?, r.get(1)?)))?
             .collect::<rusqlite::Result<_>>()?;
         let mut statement = self.conn.prepare_cached(
-            "SELECT s.id,
-                    CAST(SUM(COALESCE(next.start, s.text_length) - p.start) AS REAL) / s.text_length
+            "SELECT s.id, CAST(p.start AS REAL) / s.text_length
              FROM snapshots s
              JOIN reading_positions rp ON rp.snapshot_id = s.id
-             JOIN passages p ON p.snapshot_id = s.id
-             LEFT JOIN passages next ON next.snapshot_id = s.id AND next.ordinal = p.ordinal + 1
-             WHERE s.id IN (SELECT value FROM json_each(?1)) AND s.text_length > 0
-             AND EXISTS(
-                 SELECT 1 FROM json_each(rp.covered) r
-                 WHERE p.ordinal >= json_extract(r.value, '$[0]')
-                 AND p.ordinal < json_extract(r.value, '$[1]')
-             )
-             GROUP BY s.id",
+             JOIN passages p ON p.snapshot_id = s.id AND p.ordinal = rp.passage_ordinal
+             WHERE s.id IN (SELECT value FROM json_each(?1)) AND s.text_length > 0",
         )?;
         let progresses: HashMap<String, f64> = statement
             .query_map([json(&snapshot_ids)], |r| Ok((r.get(0)?, r.get(1)?)))?
