@@ -76,6 +76,56 @@ pub struct ProjectRecord {
     pub state: ProjectState,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum QuestionStatus {
+    #[default]
+    Open,
+    Answered,
+    Parked,
+    Unsettled,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct QuestionState {
+    pub unsettled: bool,
+    pub parked: bool,
+    pub review_on: Option<String>,
+    pub accepted: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AssessmentState {
+    pub assessed_on: String,
+    pub aporia: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct QuestionInfo {
+    pub state: QuestionState,
+    pub status: QuestionStatus,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AssessmentInfo {
+    pub state: AssessmentState,
+    pub question_id: Option<String>,
+    pub accepted: bool,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct QuestionQuery {
+    pub status: Option<QuestionStatus>,
+    pub review_by: Option<String>,
+    pub limit: Option<u32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct QuestionRow {
+    pub block: BlockInPage,
+    pub info: QuestionInfo,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PositionInfo {
     pub holder_id: Option<String>,
@@ -104,13 +154,17 @@ pub struct BlockCapabilities {
     #[serde(default)]
     pub position: Option<PositionInfo>,
     #[serde(default)]
+    pub question: Option<QuestionInfo>,
+    #[serde(default)]
+    pub assessment: Option<AssessmentInfo>,
+    #[serde(default)]
     pub source: Option<crate::library::SourceRecord>,
     #[serde(default)]
     pub citations: Vec<crate::library::Citation>,
     /// Non-reversed task occurrences or work sessions exist for this source.
     #[serde(default)]
     pub history: bool,
-    /// Live task/project state, completion/work history, or reviewed cards.
+    /// Live task/project/question/assessment state, history, or reviewed cards.
     pub merge_protected: bool,
     pub reviewed_cards: bool,
 }

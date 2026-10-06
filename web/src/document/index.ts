@@ -9,7 +9,7 @@ import { Document } from './page-document';
 import type { DocumentHost } from './page-document';
 import { Outbox } from './outbox';
 import type { Action, Command, Compiled, NotebookCommand, PageCommand, Ticket } from './types';
-import { emptyCapabilities, isCapabilityAction, sameState, sourceState } from './types';
+import { emptyCapabilities, isCapabilityAction, questionStatus, sameState, sourceState } from './types';
 export type { NotebookClient, PageDocument, BlockState, Caret, Edit, EditResult, SaveState } from './contract';
 
 export interface NotebookOptions {
@@ -370,6 +370,8 @@ export class Notebook implements NotebookClient, DocumentHost {
         case 'task':
         case 'project':
         case 'position':
+        case 'question':
+        case 'assessment':
         case 'source':
         case 'cite':
         case 'uncite':
@@ -400,6 +402,16 @@ export class Notebook implements NotebookClient, DocumentHost {
             operations.push({ op: 'set_position', id: action.id, base_revision: block.revision, position: action.value });
             changed = !!value.position !== action.value;
             value.position = action.value ? { holder_id: null, subject_id: block.page_id } : null;
+          } else if (action.kind === 'question') {
+            if (!sameState(value.question?.state ?? null, action.previous)) throw new Error('Question changed. Rejected command kept.');
+            operations.push({ op: 'set_question', id: action.id, base_revision: block.revision, question: action.value });
+            changed = !sameState(value.question?.state ?? null, action.value);
+            value.question = action.value ? { state: action.value, status: questionStatus(action.value, false) } : null;
+          } else if (action.kind === 'assessment') {
+            if (!sameState(value.assessment?.state ?? null, action.previous)) throw new Error('Answer changed. Rejected command kept.');
+            operations.push({ op: 'set_assessment', id: action.id, base_revision: block.revision, assessment: action.value });
+            changed = !sameState(value.assessment?.state ?? null, action.value);
+            value.assessment = action.value ? { state: action.value, question_id: null, accepted: false } : null;
           } else if (action.kind === 'source') {
             if (!sameState(sourceState(value.source), action.previous)) throw new Error('Source metadata changed. Rejected command kept.');
             operations.push({ op: 'set_source', id: action.id, base_revision: block.revision, source: action.value });

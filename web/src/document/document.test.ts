@@ -12,6 +12,7 @@ import type { Notebook } from './index';
 import type { EditResult, NewCitation, PageDocument } from './contract';
 import type { Document } from './page-document';
 import { boundaryDeletion } from './outline-mechanics';
+import { questionStatus } from './types';
 
 const baseUrl = 'http://127.0.0.1:4330';
 const api = createApi(baseUrl);
@@ -1446,6 +1447,92 @@ describe('durable Action and Learning document commands', () => {
     expect(doc.block(first)?.position).toEqual({ holder_id: null, subject_id: id });
     expect(await api.positions({ holder })).toEqual([]);
     doc.release();
+  });
+
+  test('questions and answers accept, undo and redo with optimistic derived status', async () => {
+    const instance = await client();
+    const { doc, first, id } = await page(instance, 'An enduring question');
+    const value = { unsettled: false, parked: false, review_on: null, accepted: null };
+    success(doc.edit({ kind: 'question', id: first, value }));
+    expect(doc.block(first)?.question?.status).toBe('open');
+    await doc.flush();
+    doc.undo();
+    expect(doc.block(first)?.question).toBeNull();
+    await doc.flush();
+    doc.redo();
+    expect(doc.block(first)?.question?.status).toBe('open');
+    await doc.flush();
+    const answer = success(doc.edit({ kind: 'insert', parentId: first, after: null, text: 'Current reading' })).created[0]!;
+    await doc.flush();
+    success(doc.edit({ kind: 'assessment', id: answer, value: { assessed_on: instance.todayDate(), aporia: false } }));
+    expect(doc.block(answer)?.assessment?.question_id).toBe(first);
+    await doc.flush();
+    doc.undo();
+    expect(doc.block(answer)?.assessment).toBeNull();
+    await doc.flush();
+    doc.redo();
+    expect(doc.block(answer)?.assessment?.question_id).toBe(first);
+    await doc.flush();
+    const staleAnswer = await api.capabilities(answer);
+    success(doc.edit({ kind: 'question', id: first, value: { ...value, accepted: answer } }));
+    (doc as Document).receiveCapabilities([staleAnswer]);
+    expect(doc.block(first)?.question?.status).toBe('answered');
+    expect(doc.block(answer)?.assessment?.accepted).toBe(true);
+    await doc.flush();
+    expect((await api.capabilities(answer)).assessment?.accepted).toBe(true);
+    doc.undo();
+    expect(doc.block(first)?.question?.status).toBe('open');
+    expect(doc.block(answer)?.assessment?.accepted).toBe(false);
+    await doc.flush();
+    doc.redo();
+    expect(doc.block(first)?.question?.status).toBe('answered');
+    await doc.flush();
+    success(doc.edit({ kind: 'question', id: first, value: { ...value, accepted: answer, unsettled: true } }));
+    expect(doc.block(first)?.question?.status).toBe('unsettled');
+    await doc.flush();
+    success(doc.edit({ kind: 'archive', id: answer, archived: true }));
+    expect(doc.block(answer)?.assessment?.accepted).toBe(false);
+    await doc.flush();
+    doc.undo();
+    expect(doc.block(answer)?.assessment?.accepted).toBe(true);
+    await doc.flush();
+    const rows = await api.questions({ status: 'unsettled' });
+    expect(rows.some(row => row.block.block.id === first && row.block.page.id === id)).toBe(true);
+    for (const parked of [false, true]) for (const unsettled of [false, true]) for (const acceptedLive of [false, true]) {
+      expect(questionStatus({ ...value, parked, unsettled }, acceptedLive)).toBe(parked ? 'parked' : unsettled ? 'unsettled' : acceptedLive ? 'answered' : 'open');
+    }
+  });
+
+  test('assessment supersession, moving and deletion refresh the question optimistically', async () => {
+    const instance = await client();
+    const { doc, first, id } = await page(instance, 'Question');
+    const question = { unsettled: false, parked: false, review_on: null, accepted: null };
+    success(doc.edit({ kind: 'question', id: first, value: question }));
+    const a = success(doc.edit({ kind: 'insert', parentId: first, after: null, text: 'First answer' })).created[0]!;
+    const b = success(doc.edit({ kind: 'insert', parentId: first, after: a, text: 'Second answer' })).created[0]!;
+    await doc.flush();
+    for (const answer of [a, b]) {
+      success(doc.edit({ kind: 'assessment', id: answer, value: { assessed_on: instance.todayDate(), aporia: false } }));
+      await doc.flush();
+      success(doc.edit({ kind: 'question', id: first, value: { ...question, accepted: answer } }));
+      await doc.flush();
+    }
+    expect(doc.block(a)?.assessment?.accepted).toBe(false);
+    expect(doc.block(b)?.assessment?.accepted).toBe(true);
+    success(doc.edit({ kind: 'outdent', ids: [b] }));
+    expect(doc.block(first)?.question?.status).toBe('open');
+    expect(doc.block(b)?.assessment?.question_id).toBeNull();
+    await doc.flush();
+    expect((await api.block(b)).parent_id).toBe(id);
+    doc.undo();
+    expect(doc.block(first)?.question?.status).toBe('answered');
+    await doc.flush();
+    success(doc.edit({ kind: 'delete', ids: [b] }));
+    expect(doc.block(first)?.question?.status).toBe('open');
+    await doc.flush();
+    doc.undo();
+    expect(doc.block(first)?.question?.status).toBe('answered');
+    await doc.flush();
   });
 
   test('structural capability guards protect range endpoints, safe splits and reviewed inactive markup', async () => {

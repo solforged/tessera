@@ -602,7 +602,7 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
   const undo = (redo: boolean) => {
     const caret = redo ? doc()?.redo() : doc()?.undo(); if (caret) props.onRestoreView({ ...outlineView(), caret });
   };
-  const rootCapability = (kind: 'task' | 'project') => props.commands.list().find(command => command.id === `outline.${props.pane}.${kind}-root`)?.run();
+  const rootCapability = (kind: 'task' | 'project' | 'question') => props.commands.list().find(command => command.id === `outline.${props.pane}.${kind}-root`)?.run();
   const outlineCommand = (id: string) => props.commands.list().find(command => command.id === `outline.${props.pane}.${id}`);
   const depth = (): Depth => outlineView().depth ?? 'full';
   // The dial shows on titled pages at their top level; a zoomed page always shows in full.
@@ -616,6 +616,7 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
     { label: 'Compare perspectives', icon: 'compare', disabledReason: outlineCommand('compare')?.disabledReason?.()?.replace(/\.$/, ''), action: () => outlineCommand('compare')?.run() },
     { label: root()?.task ? 'Task' : 'Make task', icon: 'check', disabledReason: root() ? undefined : 'Page is still loading', action: () => rootCapability('task') },
     { label: root()?.project ? 'Project' : 'Make project', icon: 'flag', disabledReason: root() ? undefined : 'Page is still loading', action: () => rootCapability('project') },
+    { label: root()?.question ? 'Question' : 'Make question', icon: 'question-open', disabledReason: !root() ? 'Page is still loading' : root()?.kind !== 'page' ? 'Journal days cannot be questions' : undefined, action: () => rootCapability('question') },
     { label: 'Undo', icon: 'undo', shortcut: '⌘Z', disabledReason: !doc()?.canUndo() ? 'Nothing to undo' : undefined, action: () => undo(false) },
     { label: 'Redo', icon: 'redo', shortcut: '⌘⇧Z', disabledReason: !doc()?.canRedo() ? 'Nothing to redo' : undefined, action: () => undo(true) },
     { label: outlineView().showArchived ? 'Hide archived' : 'Show archived', icon: 'archive', action: props.onArchived },

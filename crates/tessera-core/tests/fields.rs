@@ -231,6 +231,8 @@ fn fields_page_is_idempotent_recreated_after_deletion_and_migration_backfills_en
          DROP TABLE task_occurrences;
          DROP TABLE tasks;
          DROP TABLE projects;
+         DROP TABLE questions;
+         DROP TABLE assessments;
          DROP TABLE positions;
          DROP TABLE settings;
          DROP TABLE field_values;

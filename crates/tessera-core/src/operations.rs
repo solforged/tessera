@@ -986,6 +986,30 @@ impl Engine<'_, '_> {
     }
 
     fn operation(&mut self, operation: &Operation, index: usize) -> Result<()> {
+        let affected = match operation {
+            Operation::SetQuestion { id, .. }
+            | Operation::SetAssessment { id, .. }
+            | Operation::SetArchived { id, .. }
+            | Operation::Move { id, .. }
+            | Operation::Delete { id, .. }
+            | Operation::Restore { id, .. } => Some(id),
+            Operation::Merge { source_id, .. } => Some(source_id),
+            _ => None,
+        };
+        if let Some(id) = affected {
+            crate::question_store::affected(self.tx, id, &mut self.capability_sources)?;
+        }
+        self.apply_operation(operation, index)?;
+        if let Some(id) = affected {
+            crate::question_store::affected(self.tx, id, &mut self.capability_sources)?;
+        }
+        if let Operation::Merge { destination_id, .. } = operation {
+            crate::question_store::affected(self.tx, destination_id, &mut self.capability_sources)?;
+        }
+        Ok(())
+    }
+
+    fn apply_operation(&mut self, operation: &Operation, index: usize) -> Result<()> {
         match operation {
             Operation::CreatePage { id, title } => self.create(NewBlock {
                 id,
@@ -1335,6 +1359,39 @@ impl Engine<'_, '_> {
                 crate::position_store::validate_source(self.tx, id)?;
                 let current = self.checked(id, *base_revision, index, false)?;
                 if crate::position_store::set(self.tx, id, *position)? {
+                    self.bump(&current, false)?;
+                    self.capability_sources.insert(id.clone());
+                }
+                Ok(())
+            }
+            Operation::SetQuestion {
+                id, base_revision, ..
+            }
+            | Operation::SetAssessment {
+                id, base_revision, ..
+            } => {
+                let current = self.checked(id, *base_revision, index, false)?;
+                if matches!(
+                    operation,
+                    Operation::SetQuestion {
+                        question: Some(_),
+                        ..
+                    }
+                ) && current.block.kind == BlockKind::Journal
+                {
+                    return Err(validation("Make an ordinary block or page a question."));
+                }
+                if matches!(
+                    operation,
+                    Operation::SetAssessment {
+                        assessment: Some(_),
+                        ..
+                    }
+                ) && current.block.kind != BlockKind::Block
+                {
+                    return Err(validation("Make an ordinary block an answer."));
+                }
+                if crate::question_store::apply(self.tx, operation)? {
                     self.bump(&current, false)?;
                     self.capability_sources.insert(id.clone());
                 }

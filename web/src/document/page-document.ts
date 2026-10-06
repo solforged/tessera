@@ -8,7 +8,7 @@ import type { Batch, Block, BlockCapabilities, Committed, PageView, TextRewrite,
 import type { BlockState, Caret, Edit, EditResult, HistoryCaret, PageDocument, SaveState, TextRange } from './contract';
 import { OutlineIndex } from './outline-index';
 import type { Action, Command, HistoryEntry, PageCommand, Snapshot } from './types';
-import { emptyCapabilities, isCapabilityAction, sameState, sourceState } from './types';
+import { emptyCapabilities, isCapabilityAction, questionStatus, sameState, sourceState } from './types';
 import { parseCardText } from '../review/card-text';
 import { textTokens } from './text-tokens';
 
@@ -30,7 +30,7 @@ export interface DocumentHost {
 }
 type MutableBlockState = { -readonly [K in keyof BlockState]: BlockState[K] } & { history: boolean };
 interface Cell { state: MutableBlockState; set: SetStoreFunction<MutableBlockState> }
-const stateOf = (block: Block): BlockState => ({ id: block.id, kind: block.kind, parentId: block.parent_id, pageId: block.page_id, text: block.text, heading: block.heading, archived: block.archived, manual_types: [], task: null, project: null, position: null, mergeProtected: false, reviewedCards: false, source: null, citations: [], revision: block.revision, pending: false, conflict: null });
+const stateOf = (block: Block): BlockState => ({ id: block.id, kind: block.kind, parentId: block.parent_id, pageId: block.page_id, text: block.text, heading: block.heading, archived: block.archived, manual_types: [], task: null, project: null, position: null, question: null, assessment: null, mergeProtected: false, reviewedCards: false, source: null, citations: [], revision: block.revision, pending: false, conflict: null });
 
 export class Document implements PageDocument {
   readonly outline: OutlineIndex;
@@ -40,6 +40,7 @@ export class Document implements PageDocument {
   readonly baseCapabilities = new Map<string, BlockCapabilities>();
   private work = new Map<string, WorkSession>();
   private cells = new Map<string, Cell>();
+  private investigationIds = new Set<string>();
   private presence = new Map<string, Signal<number>>();
   private conflictVersion = createSignal(0);
   /** Archived block ids outside the stores, so visible-row walks avoid a store read per row. */
@@ -117,7 +118,8 @@ export class Document implements PageDocument {
   isResolving(id: string) { return this.resolving.has(id); }
   private put(block: Block, pending = false, manual_types = this.cells.get(block.id)?.state.manual_types ?? this.baseManualTypes.get(block.id) ?? [], capability = this.capabilities(block.id)) {
     const cell = this.cells.get(block.id);
-    const sidecar = { task: capability.task, project: capability.project, position: capability.position ?? null, source: capability.source ?? null, citations: capability.citations ?? [], history: capability.history, mergeProtected: capability.merge_protected, reviewedCards: capability.reviewed_cards };
+    const sidecar = { task: capability.task, project: capability.project, position: capability.position ?? null, question: capability.question ?? null, assessment: capability.assessment ?? null, source: capability.source ?? null, citations: capability.citations ?? [], history: capability.history, mergeProtected: capability.merge_protected, reviewedCards: capability.reviewed_cards };
+    this.trackInvestigation(capability);
     this.markArchived(block.id, block.archived);
     if (cell) cell.set({ ...stateOf(block), ...sidecar, manual_types, pending, conflict: cell.state.conflict });
     else {
@@ -145,29 +147,40 @@ export class Document implements PageDocument {
   }
   capabilities(id: string, base = false): BlockCapabilities {
     const cell = !base && this.cells.get(id)?.state;
-    const value = cell ? { block_id: id, task: cell.task, project: cell.project, position: cell.position, source: cell.source, citations: cell.citations, history: cell.history, merge_protected: cell.mergeProtected, reviewed_cards: cell.reviewedCards } : this.baseCapabilities.get(id);
+    const value = cell ? { block_id: id, task: cell.task, project: cell.project, position: cell.position, question: cell.question, assessment: cell.assessment, source: cell.source, citations: cell.citations, history: cell.history, merge_protected: cell.mergeProtected, reviewed_cards: cell.reviewedCards } : this.baseCapabilities.get(id);
     // Most blocks have no capabilities; a fresh empty value needs no defensive copy.
     return value ? JSON.parse(JSON.stringify(value)) as BlockCapabilities : emptyCapabilities(id);
   }
+  private trackInvestigation(value: BlockCapabilities) {
+    if (value.question || value.assessment) this.investigationIds.add(value.block_id);
+    else this.investigationIds.delete(value.block_id);
+  }
   private updateCapabilities(value: BlockCapabilities, base: boolean) {
-    value.merge_protected = value.task !== null || value.project !== null || !!value.position || value.history || value.reviewed_cards;
+    value.merge_protected = value.task !== null || value.project !== null || Boolean(value.position || value.question || value.assessment) || value.history || value.reviewed_cards;
+    if (!base) this.trackInvestigation(value);
     if (base) this.baseCapabilities.set(value.block_id, value);
-    else this.cells.get(value.block_id)?.set({ task: value.task, project: value.project, position: value.position ?? null, source: value.source ?? null, citations: value.citations ?? [], history: value.history, mergeProtected: value.merge_protected, reviewedCards: value.reviewed_cards, pending: true });
+    else this.cells.get(value.block_id)?.set({ task: value.task, project: value.project, position: value.position ?? null, question: value.question ?? null, assessment: value.assessment ?? null, source: value.source ?? null, citations: value.citations ?? [], history: value.history, mergeProtected: value.merge_protected, reviewedCards: value.reviewed_cards, pending: true });
   }
   private guardMerge(id: string) {
     const value = this.capabilities(id);
     if (value.merge_protected) throw new Error(value.history
       ? 'This task has completion or work history; delete it or keep it separate.'
-      : 'Cannot merge away an active task, project, perspective, or reviewed card.');
+      : 'Cannot merge away an active task, project, perspective, question, answer, or reviewed card.');
   }
   receiveCapabilities(values: readonly BlockCapabilities[]) {
+    const received = new Set<string>();
     for (const value of values) {
       if (!this.baseBlocks.has(value.block_id) && !this.cells.has(value.block_id)) continue;
       this.baseCapabilities.set(value.block_id, structuredClone(value));
       this.syncGeneration++;
-      this.cells.get(value.block_id)?.set({ task: value.task, project: value.project, position: value.position ?? null, source: value.source ?? null, citations: value.citations ?? [], history: value.history, mergeProtected: value.merge_protected, reviewedCards: value.reviewed_cards });
-      for (const command of this.host.commands(this.pageId)) for (const action of command.actions) if (isCapabilityAction(action) && action.id === value.block_id) this.apply(action);
+      this.cells.get(value.block_id)?.set({ task: value.task, project: value.project, position: value.position ?? null, question: value.question ?? null, assessment: value.assessment ?? null, source: value.source ?? null, citations: value.citations ?? [], history: value.history, mergeProtected: value.merge_protected, reviewedCards: value.reviewed_cards });
+      this.trackInvestigation(value);
+      received.add(value.block_id);
     }
+    for (const command of this.host.commands(this.pageId)) for (const action of command.actions) {
+      if (isCapabilityAction(action) && (received.has(action.id) || action.kind === 'question' || action.kind === 'assessment')) this.apply(action);
+    }
+    if (received.size && this.investigationIds.size) this.refreshInvestigations(false);
   }
   private guardHide(id: string) {
     const known = this.host.runningWork();
@@ -182,8 +195,44 @@ export class Document implements PageDocument {
       parent = this.block(parent)?.parentId ?? null;
     }
   }
+  private refreshInvestigations(base: boolean) {
+    const values = base
+      ? [...this.baseCapabilities.values()].filter(value => value.question || value.assessment)
+      : [...this.investigationIds].filter(id => this.cells.has(id)).map(id => this.capabilities(id));
+    const byId = new Map(values.map(value => [value.block_id, value]));
+    const parent = (id: string) => base ? this.baseBlocks.get(id)?.parent_id : this.cells.get(id)?.state.parentId;
+    const visible = (id: string) => {
+      for (let current: string | null | undefined = id; current; current = parent(current)) {
+        const block = base ? this.baseBlocks.get(current) : this.cells.get(current)?.state;
+        if (!block || block.archived) return false;
+      }
+      return true;
+    };
+    for (const value of values) if (value.assessment) {
+      let questionId: string | null = null;
+      for (let id = parent(value.block_id); id; id = parent(id)) {
+        if (byId.get(id)?.question) { questionId = id; break; }
+      }
+      value.assessment.question_id = questionId;
+      value.assessment.accepted = visible(value.block_id) && questionId !== null
+        && byId.get(questionId)?.question?.state.accepted === value.block_id;
+    }
+    for (const value of values) {
+      if (value.question) {
+        const answer = value.question.state.accepted ? byId.get(value.question.state.accepted)?.assessment : null;
+        value.question.status = questionStatus(value.question.state, Boolean(answer?.accepted && answer.question_id === value.block_id));
+      }
+      const current = this.cells.get(value.block_id)?.state;
+      if (base || !sameState(current?.question, value.question) || !sameState(current?.assessment, value.assessment)) this.updateCapabilities(value, base);
+    }
+  }
   /** Applies only touched blocks/subtrees; inverse size follows the edit, not the page. */
   apply(action: Action, base = false): Action[] {
+    const inverse = this.applyAction(action, base);
+    if (['question', 'assessment', 'move', 'archive', 'delete', 'restore', 'merge'].includes(action.kind)) this.refreshInvestigations(base);
+    return inverse;
+  }
+  private applyAction(action: Action, base = false): Action[] {
     const index = base ? this.baseOutline : this.outline;
     switch (action.kind) {
       case 'task':
@@ -201,6 +250,20 @@ export class Document implements PageDocument {
         const value = this.capabilities(action.id, base);
         const previous = !!value.position;
         value.position = action.value ? { holder_id: null, subject_id: this.pageId } : null;
+        this.updateCapabilities(value, base);
+        return [{ ...action, value: previous, previous: action.value }];
+      }
+      case 'question': {
+        const value = this.capabilities(action.id, base);
+        const previous = value.question?.state ?? null;
+        value.question = action.value ? { state: action.value, status: questionStatus(action.value, false) } : null;
+        this.updateCapabilities(value, base);
+        return [{ ...action, value: previous, previous: action.value }];
+      }
+      case 'assessment': {
+        const value = this.capabilities(action.id, base);
+        const previous = value.assessment?.state ?? null;
+        value.assessment = action.value ? { state: action.value, question_id: null, accepted: false } : null;
         this.updateCapabilities(value, base);
         return [{ ...action, value: previous, previous: action.value }];
       }
@@ -355,6 +418,7 @@ export class Document implements PageDocument {
         else if (action.id === this.pageId) index.replace([]);
         if (!base) for (const snapshot of snapshots) {
           this.cells.delete(snapshot.block.id); this.conflicts.delete(snapshot.block.id);
+          this.investigationIds.delete(snapshot.block.id);
           this.presenceChanged(snapshot.block.id); this.host.publish(null, snapshot.block.id);
         }
         if (!base) this.conflictVersion[1](value => value + 1);
@@ -876,6 +940,25 @@ export class Document implements PageDocument {
           if (block.kind !== 'block') throw new Error('Only ordinary blocks can be perspectives.');
           const previous = !!this.capabilities(edit.id).position;
           if (previous !== edit.value) actions.push({ kind: 'position', id: edit.id, value: edit.value, previous, baseRevision: block.revision });
+          break;
+        }
+        case 'question': {
+          const previous = this.capabilities(edit.id).question?.state ?? null;
+          if (edit.value && this.block(edit.id)?.assessment) throw new Error('A block cannot be both a question and an answer.');
+          if ((previous?.parked || edit.value?.parked) && (previous?.accepted ?? null) !== (edit.value?.accepted ?? null)) throw new Error('Resume the question before accepting an answer.');
+          if (!sameState(previous, edit.value)) actions.push({ ...edit, value: structuredClone(edit.value), previous, baseRevision: this.snapshot(edit.id).revision });
+          break;
+        }
+        case 'assessment': {
+          const previous = this.capabilities(edit.id).assessment?.state ?? null;
+          if (edit.value) {
+            if (this.block(edit.id)?.question) throw new Error('A block cannot be both a question and an answer.');
+            let owner = this.block(edit.id)?.parentId;
+            while (owner && !this.block(owner)?.question) owner = this.block(owner)?.parentId;
+            if (!owner) throw new Error('Put the answer under a question first.');
+            if (!previous && this.block(owner)?.question?.state.parked) throw new Error('Resume the question before answering it.');
+          }
+          if (!sameState(previous, edit.value)) actions.push({ ...edit, value: structuredClone(edit.value), previous, baseRevision: this.snapshot(edit.id).revision });
           break;
         }
         case 'task':
