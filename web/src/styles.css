@@ -119,6 +119,8 @@ kbd { color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular
 .pane-breadcrumbs { display: flex; align-items: center; flex: 1; min-width: 0; overflow: hidden; color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 /* Block, not inline-flex: a centred flex button clips both ends of a long title instead of showing an ellipsis. */
 .pane-breadcrumbs .button { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 28px; color: inherit; font: inherit; letter-spacing: inherit; }
+/* The title gives way first: ancestors such as Library keep their width up to 10em, so a narrow pane reads Library / Discourses on…, not L… / D…. */
+.pane-breadcrumbs .button:not(:last-child) { flex-shrink: 0; max-width: 10em; }
 .pane-breadcrumbs .button:last-child { color: var(--text); }
 .is-split .pane:not(.active) .pane-header { color: var(--muted); }
 .is-split .pane:not(.active) .pane-breadcrumbs .button:last-child { color: var(--muted); }

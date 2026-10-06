@@ -142,7 +142,9 @@
 .outline-source-cover.button { float: left; width: calc(var(--space-48) * 2); padding: 0; margin-right: var(--space-16); margin-bottom: var(--space-8); border: 0; border-radius: var(--radius-control); overflow: hidden; }
 .outline-source-cover img { display: block; width: 100%; height: auto; aspect-ratio: auto; }
 .outline-source-summary { display: block; overflow: hidden; color: var(--muted); }
-.source-siglum { display: inline-block; min-width: var(--target-size); margin-right: var(--space-8); padding: 0 var(--space-4); border: 1px solid var(--control-border); border-radius: var(--radius-control); color: var(--text); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); text-align: center; vertical-align: 1px; }
+/* The source's own siglum leads its byline as a plain gilt mark with a rule after it, like an edition's sigla list; boxes are for the margin, where a siglum stands for a source. */
+.source-siglum { display: inline-flex; align-items: center; gap: var(--space-8); margin-right: var(--space-8); color: var(--accent); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.source-siglum::after { content: ''; width: var(--space-8); border-top: var(--rule-width) solid var(--line); }
 .outline-source-description { display: flex; align-items: flex-end; gap: var(--space-8); overflow: hidden; margin-top: var(--space-8); }
 .outline-source-description p { flex: 1; min-width: 0; margin: 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; color: var(--muted); font-size: var(--text-body); line-height: var(--line-body); }
 .outline-source-description p.expanded { display: block; }
