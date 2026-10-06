@@ -75,6 +75,17 @@
 .row-gist .outline-field-label { display: none; }
 .row-gist .outline-body { margin-left: var(--target-size); }
 .row-gist .static-text, .row-gist .outline-reference { color: var(--text); }
+/* A question reads in the publication's voice too. Its state control is coloured by state: open in gilt,
+   unsettled in blued steel (it keeps collecting answers), answered in the done colour, parked in faint. */
+.row-question > .outline-body .static-text { font-family: var(--font-display); font-variation-settings: var(--optical-heading); }
+.outline-capability-metadata .outline-question { align-items: center; gap: var(--space-4); font-family: var(--font-body); font-variation-settings: normal; }
+.outline-question .icon { width: var(--icon-size-small); height: var(--icon-size-small); }
+.outline-capability-metadata .outline-question[data-question-status="open"] { color: var(--accent); }
+.outline-capability-metadata .outline-question[data-question-status="unsettled"] { color: var(--agree); }
+.outline-capability-metadata .outline-question[data-question-status="answered"] { color: var(--status-done); }
+.outline-capability-metadata .outline-question[data-question-status="parked"] { color: var(--faint); }
+.outline-question > span, .outline-answer > span { color: var(--muted); }
+.outline-capability-metadata .outline-answer[data-accepted="true"] { color: var(--accent); }
 .field-entry-widget .icon { flex: none; width: var(--icon-size-small); height: var(--icon-size-small); }
 .field-entry-widget { display: inline-flex; align-items: center; gap: var(--space-4); color: var(--muted); }
 /* `Name:: value` while typed: the name already reads as a field label, with a quiet hint at the end. */

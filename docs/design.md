@@ -219,13 +219,15 @@ The reader is a pane: the pane header reads Library / source title, and the titl
 
 A block with a citation shows a citation chip in its capability metadata: the highlight's colour dot (a quote icon without colour), the source's short title (before any subtitle colon, cut at a word within 40 characters) and the passage number, `¶231`. On the source's own page the chip shows only `¶231` in `--faint` and stays at the end of the block's first line, the text wrapping beside it. Clicking opens the reader at that passage; Shift opens it beside. A block whose text no longer equals the quote shows the quote beneath it in `--muted` with a quotation rule, so a paraphrase or cloze keeps its evidence visible.
 
-## Perspectives
+## Perspectives and questions
 
 A concept page holds several attributed readings. Make perspective, in the block menu, the palette and `/perspective`, turns a block such as `[[Plato]]` into a position; Remove perspective undoes it. Its row names the holder in Piazzolla at control weight, the holder link in `--text` with a `--line` underline that turns gilt on hover, and its source's siglum hangs in the margin. A `Gist::` child drops its label and reads as the line under the holder, so the pair reads "Plato / A line of decline". At the Perspectives depth each position closes to its holder and gist.
 
 A holder's page lists Perspectives held above its backlinks, and a subject's page lists Perspectives filed elsewhere (positions about it that live on other pages, such as under a highlight); neither repeats under Backlinks.
 
 Compare perspectives, in the page menu and the palette once a page has two positions filed under it, opens a Compare pane. Its toolbar names the subject in Piazzolla with a mono count. The table has one row per position, with the siglum, holder and gist in its first column, and one column per field that two or more positions carry, apart from Gist and Work. A value shared by two or more positions is set in `--agree` (blued steel); a column where every value differs gets a 2 px `--danger` rule under its header. `Shape::` values draw a small gilt glyph: a falling line, a circle, an open arc for a cycle rarely completed, a spiral or branches. Every cell opens its value in the outline (Shift beside), and the table reads live from the positions' pages.
+
+Make question and Make answer, in the block menu, the palette and `/question` or `/answer`, mark a block as a question or as an answer beneath one; a titled page can be a question from its page menu. A question reads in Piazzolla. Its state control sits in the capability metadata with the question glyph and its state: Open in gilt, Unsettled in `--agree`, Answered in `--status-done` with the settled glyph, Parked in `--faint`, then any review date. Clicking it opens the question menu: Park or Resume, Keep open or Let it settle, Set review date and Remove question. An answer shows `Answer 2026-10-06`, or `Accepted` in gilt once its question accepts it, and `Aporia` when it records that no answer holds. Commands that cannot apply stay listed with their reason, such as "Resume the question before accepting an answer."
 
 ## Popups and feedback
 

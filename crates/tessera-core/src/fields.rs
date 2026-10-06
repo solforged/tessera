@@ -143,6 +143,8 @@ impl FieldChanges {
             | Operation::ReverseTaskCompletion { .. }
             | Operation::SetProject { .. }
             | Operation::SetPosition { .. }
+            | Operation::SetQuestion { .. }
+            | Operation::SetAssessment { .. }
             | Operation::StartWork { .. }
             | Operation::StopWork { .. }
             | Operation::EditWorkNote { .. }

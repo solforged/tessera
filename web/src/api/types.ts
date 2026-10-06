@@ -57,6 +57,8 @@ export type Operation =
   | { op: 'reverse_task_completion'; id: string; base_revision: number; occurrence_id: string }
   | { op: 'set_project'; id: string; base_revision: number; project: ProjectState | null }
   | { op: 'set_position'; id: string; base_revision: number; position: boolean }
+  | { op: 'set_question'; id: string; base_revision: number; question: QuestionState | null }
+  | { op: 'set_assessment'; id: string; base_revision: number; assessment: AssessmentState | null }
   | { op: 'start_work'; id: string; base_revision: number; session_id: string; started_at: number; note: string }
   | { op: 'stop_work'; id: string; base_revision: number; session_id: string; session_revision: number; ended_at: number; note: string }
   | { op: 'edit_work_note'; id: string; base_revision: number; session_id: string; session_revision: number; note: string }
@@ -252,7 +254,14 @@ export interface ProjectState { outcome: string; deadline: string | null; status
 export interface ProjectRecord { block_id: string; state: ProjectState }
 export interface PositionInfo { holder_id: string | null; subject_id: string }
 export interface PositionRow { block: BlockInPage; holder_id: string | null; subject_id: string }
-export interface BlockCapabilities { block_id: string; task: TaskState | null; project: ProjectState | null; position: PositionInfo | null; history: boolean; merge_protected: boolean; reviewed_cards: boolean }
+export type QuestionStatus = 'open' | 'answered' | 'parked' | 'unsettled';
+export interface QuestionState { unsettled: boolean; parked: boolean; review_on: string | null; accepted: string | null }
+export interface AssessmentState { assessed_on: string; aporia: boolean }
+export interface QuestionInfo { state: QuestionState; status: QuestionStatus }
+export interface AssessmentInfo { state: AssessmentState; question_id: string | null; accepted: boolean }
+export interface QuestionQuery { status?: QuestionStatus; review_by?: string; limit?: number }
+export interface QuestionRow { block: BlockInPage; info: QuestionInfo }
+export interface BlockCapabilities { block_id: string; task: TaskState | null; project: ProjectState | null; position: PositionInfo | null; question: QuestionInfo | null; assessment: AssessmentInfo | null; history: boolean; merge_protected: boolean; reviewed_cards: boolean }
 
 export interface WorkSession {
   id: string;

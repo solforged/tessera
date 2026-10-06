@@ -23,6 +23,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/014_citation_color.sql"),
     include_str!("../migrations/015_resurfacing.sql"),
     include_str!("../migrations/016_positions.sql"),
+    include_str!("../migrations/017_questions.sql"),
 ];
 
 pub const SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
