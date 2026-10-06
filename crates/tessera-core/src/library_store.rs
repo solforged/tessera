@@ -332,9 +332,11 @@ pub(crate) fn apply(conn: &Connection, operation: &Operation, now: i64, seq: i64
             snapshot_id,
             start,
             end,
+            color,
             ..
         } => {
             validate_id(citation_id)?;
+            validate_color(color.as_deref())?;
             let first = crate::library_reads::passage(conn, &start.passage_id)?;
             let last = crate::library_reads::passage(conn, &end.passage_id)?;
             let count: i64 = conn.query_row(
@@ -404,16 +406,16 @@ pub(crate) fn apply(conn: &Connection, operation: &Operation, now: i64, seq: i64
                 }
                 conn.execute(
                     "UPDATE citations
-                     SET active = 1
+                     SET active = 1, color = ?2
                      WHERE id = ?1",
-                    [citation_id],
+                    params![citation_id, color],
                 )?;
             } else {
                 conn.execute(
                     "INSERT INTO citations(
                          id, block_id, active, snapshot_id, start_passage, start_offset,
-                         end_passage, end_offset, created_seq
-                     ) VALUES (?1, ?2, 1, ?3, ?4, ?5, ?6, ?7, ?8)",
+                         end_passage, end_offset, created_seq, color
+                     ) VALUES (?1, ?2, 1, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
                     params![
                         citation_id,
                         id,
@@ -422,7 +424,8 @@ pub(crate) fn apply(conn: &Connection, operation: &Operation, now: i64, seq: i64
                         start.offset,
                         end.passage_id,
                         end.offset,
-                        seq
+                        seq,
+                        color
                     ],
                 )?;
             }
@@ -470,6 +473,23 @@ pub(crate) fn apply(conn: &Connection, operation: &Operation, now: i64, seq: i64
                 params![id, triage],
             )? > 0)
         }
+        Operation::SetCitationColor { id, color, .. } => {
+            validate_color(color.as_deref())?;
+            Ok(conn.execute(
+                "UPDATE citations SET color = ?2
+                 WHERE id = ?1 AND active = 1 AND color IS NOT ?2",
+                params![id, color],
+            )? > 0)
+        }
         _ => Err(validation("Not a library operation.")),
     }
+}
+
+pub(crate) fn validate_color(color: Option<&str>) -> Result<()> {
+    if color.is_some_and(|value| !matches!(value, "yellow" | "green" | "blue" | "red" | "purple")) {
+        return Err(validation(
+            "Citation colour must be yellow, green, blue, red or purple.",
+        ));
+    }
+    Ok(())
 }
