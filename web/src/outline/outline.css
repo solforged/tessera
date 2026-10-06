@@ -53,6 +53,11 @@
 .outline-field-label .icon { flex: none; width: var(--target-size); height: var(--icon-size-small); }
 .field-entry-widget .icon { flex: none; width: var(--icon-size-small); height: var(--icon-size-small); }
 .field-entry-widget { display: inline-flex; align-items: center; gap: var(--space-4); color: var(--muted); }
+/* `Name:: value` while typed: the name already reads as a field label, with a quiet hint at the end. */
+.field-draft-icon { display: inline-flex; vertical-align: -2px; margin-right: var(--space-4); color: var(--muted); }
+.field-draft-icon .icon { width: var(--icon-size-small); height: var(--icon-size-small); }
+.field-draft-name { color: var(--muted); }
+.field-draft-hint { margin-left: var(--space-8); padding: 0 var(--space-4); border-radius: var(--radius-control); background: var(--accent-tint); color: var(--accent); font-size: var(--text-meta); line-height: var(--line-meta); white-space: nowrap; }
 .outline-value-pill { display: inline-block; padding: 0 var(--space-8); margin-right: var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-pill); background: var(--raised); font-size: var(--text-meta); line-height: var(--line-meta); }
 .outline-value-pill .outline-reference { color: var(--text); text-decoration: none; }
 .outline-value-pill .outline-reference:hover { text-decoration: underline; }
