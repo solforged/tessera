@@ -1,5 +1,6 @@
 import { Show, createMemo, createSignal } from 'solid-js';
 import type { TaskState, TaskStatus } from '../api/types';
+import type { NotebookClient } from '../document/contract';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import type { IconName } from '../ui/Icon';
@@ -53,7 +54,7 @@ export function TaskStatusButton(props: { task: TaskState | null; disabled?: boo
 
 type TaskPopup = { kind: 'scheduled' | 'deadline' | 'warning' | 'priority' | 'repeat'; anchor: HTMLElement };
 
-export function TaskControls(props: { task: TaskState; contextDate: string; disabled?: boolean; onChange(value: TaskState): void | Promise<void> }) {
+export function TaskControls(props: { notebook: NotebookClient; task: TaskState; contextDate: string; disabled?: boolean; onChange(value: TaskState): void | Promise<void> }) {
   const [popup, setPopup] = createSignal<TaskPopup | null>(null);
   const [busy, setBusy] = createSignal(false);
   const [failure, setFailure] = createSignal<{ priority: Priority; message: string } | null>(null);
@@ -98,7 +99,7 @@ export function TaskControls(props: { task: TaskState; contextDate: string; disa
       <Button disabled={blocked()} label={`Retry priority: ${priorityLabel(state.priority)}`} onClick={() => { void changePriority(state.priority); }}>Retry</Button>
     </span>}</Show>
     <Show keyed when={popup()}>{state => <>
-      {(state.kind === 'scheduled' || state.kind === 'deadline') && <DatePicker anchor={state.anchor} label={state.kind === 'scheduled' ? 'Scheduled' : 'Deadline'} value={props.task[state.kind]} time={state.kind === 'scheduled' ? props.task.scheduled_time : props.task.deadline_time} contextDate={props.contextDate}
+      {(state.kind === 'scheduled' || state.kind === 'deadline') && <DatePicker notebook={props.notebook} anchor={state.anchor} label={state.kind === 'scheduled' ? 'Scheduled' : 'Deadline'} value={props.task[state.kind]} time={state.kind === 'scheduled' ? props.task.scheduled_time : props.task.deadline_time} contextDate={props.contextDate}
         marks={state.kind === 'scheduled' ? props.task.deadline ? { [props.task.deadline]: 'Deadline' } : undefined : props.task.scheduled ? { [props.task.scheduled]: 'Scheduled' } : undefined} onDismiss={() => dismiss(state)} onSelect={async value => {
         if (state.kind === 'scheduled') await change({ scheduled: value.date, scheduled_time: value.date ? value.time : null });
         else await change({ deadline: value.date, deadline_time: value.date ? value.time : null, warning_days: value.date ? props.task.warning_days : null });

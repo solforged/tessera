@@ -1,12 +1,15 @@
 import { createEffect, createMemo, createSignal, createUniqueId, on, onCleanup, Show } from 'solid-js';
+import type { NotebookClient } from '../document/contract';
 import { Button } from '../ui/Button';
 import { MonthGrid } from '../ui/MonthGrid';
 import { Popup } from '../ui/Popup';
 import type { PopupAnchor } from '../ui/Popup';
+import { createMonthPlanningMarks } from './create-planning-marks';
 import { parseTaskDate } from './date-input';
 import './date-picker.css';
 
 export interface DatePickerProps {
+  notebook: NotebookClient;
   anchor: PopupAnchor;
   label: string;
   value: string | null;
@@ -84,6 +87,7 @@ export function DatePicker(props: DatePickerProps) {
   };
   // The calendar follows whatever the field currently parses to, so typing `fri` previews the day.
   const preview = createMemo(() => { const parsed = parseTaskDate(date(), props.contextDate); return parsed.ok ? parsed.date : props.value; });
+  const planning = createMonthPlanningMarks(() => props.notebook, preview() ?? props.contextDate);
 
   return <Popup anchor={props.anchor} label={props.label} onDismiss={props.onDismiss} class="date-picker">
     <form class="date-picker-form" aria-busy={busy()} onKeyDown={keydown} onCompositionStart={() => { composing = true; }} onCompositionEnd={() => { composing = false; }} onSubmit={event => { event.preventDefault(); if (!composing) apply(); }}>
@@ -96,7 +100,7 @@ export function DatePicker(props: DatePickerProps) {
         <Button disabled={busy()} onClick={() => quickPick('tomorrow')}>Tomorrow</Button>
         <Button disabled={busy()} onClick={() => quickPick('+1w')}>Next week</Button>
       </div>
-      <MonthGrid value={preview()} today={props.contextDate} marks={props.marks} disabled={busy()} onPick={day => { setDate(day); apply(day); }} />
+      <MonthGrid value={preview()} today={props.contextDate} marks={props.marks} planningMarks={planning.marks()} planningLoading={planning.loading()} planningError={planning.error()} onMonthChange={planning.setMonth} disabled={busy()} onPick={day => { setDate(day); apply(day); }} />
       <Show when={props.time !== undefined}>
         <div class="date-picker-field">
           <label for={`${id}-time`}>Time (optional)</label>

@@ -15,6 +15,8 @@ import { TaskSourceRows, documentReady } from './JournalAgenda';
 import { parseTaskDate } from './date-input';
 import { dateSuggestions, dateTokenAt, newTask, planDateToken } from './quick-date';
 import { copyTaskQuery, createTaskQuery, refreshedTaskQuery, taskQueriesEqual, taskRange } from './query';
+import { WeekCalendar } from './WeekCalendar';
+import { shiftCalendarDate } from './week-calendar';
 import './agenda.css';
 
 export interface AgendaPaneProps {
@@ -106,6 +108,11 @@ export function AgendaPane(props: AgendaPaneProps) {
     props.notebook.changeSequence(); refresh();
     let current = true;
     setLoading(true); setError('');
+    if (currentMode === 'week') {
+      setLoading(false);
+      requested = null;
+      return;
+    }
     if (!requested || requested.mode !== currentMode || requested.date !== currentDate || !taskQueriesEqual(requested.query, value)) {
       setAgenda(undefined); setTasks(undefined);
     }
@@ -235,6 +242,8 @@ export function AgendaPane(props: AgendaPaneProps) {
   };
   const rows = createMemo(() => mode() === 'agenda' ? agenda()?.items ?? [] : tasks()?.rows ?? []);
   const total = createMemo(() => mode() === 'agenda' ? agenda()?.items.length ?? 0 : tasks()?.total ?? 0);
+  const previousDate = createMemo(() => shiftCalendarDate(date(), mode() === 'week' ? -7 : -1));
+  const nextDate = createMemo(() => shiftCalendarDate(date(), mode() === 'week' ? 7 : 1));
   const changeDay = (input: string) => {
     const parsed = parseTaskDate(input, date());
     if (parsed.ok && parsed.date) update({ date: parsed.date, scroll: 0 });
@@ -272,16 +281,17 @@ export function AgendaPane(props: AgendaPaneProps) {
   };
 
   return <div ref={scroll} class="agenda-pane" data-pane={props.pane} aria-label="Agenda and tasks" tabIndex={props.active ? 0 : -1} onFocusIn={props.onActivate} onPointerDown={props.onActivate} onScroll={() => props.onViewChange({ ...view(), query: copyTaskQuery(query()), scroll: scroll.scrollTop })}>
-    <div class="agenda-content">
+    <div class="agenda-content" classList={{ 'agenda-content-week': mode() === 'week' }}>
       <header class="agenda-toolbar">
         <div class="agenda-modes" role="group" aria-label="Task display">
           <Button class="bordered" aria-pressed={mode() === 'agenda'} disabled={busy()} onClick={() => update({ mode: 'agenda', scroll: 0 })}>Agenda</Button>
+          <Button class="bordered" aria-pressed={mode() === 'week'} disabled={busy()} onClick={() => update({ mode: 'week', scroll: 0 })}>Week</Button>
           <Button class="bordered" aria-pressed={mode() === 'tasks'} disabled={busy()} onClick={() => update({ mode: 'tasks', scroll: 0 })}>Tasks</Button>
         </div>
         <div class="agenda-date" role="group" aria-label="Displayed date">
-          <Button icon="left" label="Previous day" disabled={busy() || date() === '0001-01-01'} onClick={() => changeDay('yesterday')} />
+          <Button icon="left" label={mode() === 'week' ? 'Previous week' : 'Previous day'} disabled={busy() || !previousDate()} onClick={() => { const previous = previousDate(); if (previous) changeDay(previous); }} />
           <Button class="bordered" disabled={busy()} aria-haspopup="dialog" aria-expanded={popup()?.kind === 'date'} onClick={event => setPopup({ kind: 'date', anchor: event.currentTarget })}>{date()}</Button>
-          <Button icon="right" label="Next day" disabled={busy() || date() === '9999-12-31'} onClick={() => changeDay('tomorrow')} />
+          <Button icon="right" label={mode() === 'week' ? 'Next week' : 'Next day'} disabled={busy() || !nextDate()} onClick={() => { const next = nextDate(); if (next) changeDay(next); }} />
           <Button disabled={busy()} onClick={() => update({ date: props.notebook.todayDate(), scroll: 0 })}>Today</Button>
         </div>
       </header>
@@ -321,6 +331,8 @@ export function AgendaPane(props: AgendaPaneProps) {
           <input class="input" aria-label="New task" placeholder={`Add a task for ${date()} · @ picks another day`} value={draft()} onInput={event => setDraft(event.currentTarget.value)} />
         </form>
       </Show>
+      <Show when={mode() === 'week'}><WeekCalendar date={date()} notebook={props.notebook} onOpen={props.onOpen} /></Show>
+      <Show when={mode() !== 'week'}>
       <section class="agenda-results" aria-label={mode() === 'agenda' ? `Agenda for ${date()}` : 'Task results'} aria-busy={loading()}>
         <Show when={loading()}><p class="agenda-message" role="status">Loading {mode() === 'agenda' ? 'agenda' : 'tasks'}…</p></Show>
         <Show when={error()}><div class="agenda-error" role="alert"><span>{error()}</span><Button onClick={() => setRefresh(value => value + 1)}>Retry</Button></div></Show>
@@ -330,11 +342,12 @@ export function AgendaPane(props: AgendaPaneProps) {
         </Show>
         <TaskSourceRows rows={rows()} date={date()} pageId={props.notebook.roots().find(root => root.kind === 'journal' && root.text === date())?.id} notebook={props.notebook} disabled={busy() || loading() || !!error()} onOpen={props.onOpen} onChanged={() => setRefresh(value => value + 1)} />
       </section>
+      </Show>
       <Show keyed when={popup()}>{state => {
         const dismiss = () => { if (!busy() && popup() === state) setPopup(null); };
         if (state.kind === 'menu') return <Menu anchor={state.anchor} label={state.label} items={state.items} onDismiss={dismiss} />;
-        if (state.kind === 'date') return <DatePicker anchor={state.anchor} label="Displayed date" value={date()} contextDate={date()} onDismiss={dismiss} onSelect={value => { if (!value.date) throw new Error('Choose a displayed date.'); update({ date: value.date, scroll: 0 }); }} />;
-        if (state.kind === 'range') return <DatePicker anchor={state.anchor} label={`${state.field === 'scheduled' ? 'Scheduled' : 'Deadline'} ${state.edge}`} value={query().filter[state.field]?.[state.edge] ?? null} contextDate={date()} onDismiss={dismiss} onSelect={value => update({ query: taskRange(query(), state.field, state.edge, value.date) })} />;
+        if (state.kind === 'date') return <DatePicker notebook={props.notebook} anchor={state.anchor} label="Displayed date" value={date()} contextDate={date()} onDismiss={dismiss} onSelect={value => { if (!value.date) throw new Error('Choose a displayed date.'); update({ date: value.date, scroll: 0 }); }} />;
+        if (state.kind === 'range') return <DatePicker notebook={props.notebook} anchor={state.anchor} label={`${state.field === 'scheduled' ? 'Scheduled' : 'Deadline'} ${state.edge}`} value={query().filter[state.field]?.[state.edge] ?? null} contextDate={date()} onDismiss={dismiss} onSelect={value => update({ query: taskRange(query(), state.field, state.edge, value.date) })} />;
         if (state.kind === 'projects') return <Picker<ProjectChoice> anchor={state.anchor} label="Project" query={pickerSearch()} onQuery={setPickerSearch} placeholder="Find a project" items={projectChoices()} key={item => item.id ?? 'any'} busy={metadataLoading()} error={metadataError()} onDismiss={dismiss} onPick={item => { updateFilter({ project_id: item.id }); dismiss(); }} row={item => <><Icon name={query().filter.project_id === item.id ? 'check' : 'page'} /><span class="picker-text">{item.name}</span></>} empty="No matching projects." />;
         if (state.kind === 'views') return <Picker<TaskView | null> anchor={state.anchor} label="Saved task views" query={pickerSearch()} onQuery={setPickerSearch} placeholder="Find a task view" items={[null, ...viewChoices()]} key={item => item?.id ?? 'unsaved'} busy={viewsLoading()} error={viewsError()} onDismiss={dismiss} onPick={selectView} row={item => <><Icon name={viewId() === (item?.id ?? null) ? 'check' : 'page'} /><span class="picker-text">{item?.name ?? 'New task query'}</span></>} empty="No matching task views." />;
         if (state.kind === 'name') return <TaskViewNamePopup anchor={state.anchor} name={state.saved?.name ?? ''} rename={state.action === 'rename'} busy={busy()} onDismiss={dismiss} onSave={name => saveView(name, state.id, state.saved, state.action === 'rename')} />;

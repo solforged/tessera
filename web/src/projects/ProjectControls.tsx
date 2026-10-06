@@ -1,5 +1,6 @@
 import { Show, createEffect, createSignal, on, untrack } from 'solid-js';
 import type { ProjectState } from '../api/types';
+import type { NotebookClient } from '../document/contract';
 import { DatePicker } from '../tasks/DatePicker';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
@@ -7,6 +8,7 @@ import { Menu } from '../ui/Menu';
 import './projects.css';
 
 export interface ProjectControlsProps {
+  notebook: NotebookClient;
   project: ProjectState | null;
   contextDate: string;
   disabled?: boolean;
@@ -80,7 +82,7 @@ export function ProjectControls(props: ProjectControlsProps) {
         <Button class="bordered" disabled={disabled()} onClick={() => { void save({ ...draft() }); }}>Save</Button>
         <Button class="danger" disabled={disabled()} onClick={() => { void save(null); }}>Remove project</Button>
       </div>
-      <Show when={deadlineAnchor()}>{anchor => <DatePicker anchor={anchor()} label="Deadline" value={draft().deadline} contextDate={props.contextDate} onDismiss={() => setDeadlineAnchor(null)} onSelect={value => {
+      <Show when={deadlineAnchor()}>{anchor => <DatePicker notebook={props.notebook} anchor={anchor()} label="Deadline" value={draft().deadline} contextDate={props.contextDate} onDismiss={() => setDeadlineAnchor(null)} onSelect={value => {
         edit({ deadline: value.date });
         setDeadlineAnchor(null);
       }} />}</Show>

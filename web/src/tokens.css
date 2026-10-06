@@ -42,6 +42,11 @@
   --status-cancelled: var(--faint);
   --status-overdue: var(--danger);
 
+  /* Calendar planning marks distinguish dates without relying on hue alone. */
+  --calendar-scheduled: var(--accent);
+  --calendar-deadline: var(--warning);
+  --calendar-related: var(--muted);
+
   /* Type. IBM Plex Sans Variable is bundled. */
   --font-body: "IBM Plex Sans Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: "SFMono-Regular", Menlo, Consolas, monospace;
@@ -71,6 +76,18 @@
   --touch-size: 44px;
   --icon-size: 16px;
   --icon-size-small: 14px;
+
+  /* Week planning has a half-hour card and a readable column at narrow widths. */
+  --week-measure: 1200px;
+  --week-hour-height: 96px;
+  --week-grid-height: calc(24 * var(--week-hour-height));
+  --week-task-height: calc(var(--week-hour-height) / 2);
+  --week-day-min-width: 144px;
+  --week-time-gutter: var(--space-48);
+  --week-scroll-height: 560px;
+  --week-all-day-max-height: 144px;
+  --week-rule-width: 1px;
+  --week-drag-threshold: var(--space-4);
 
   /* Shape and elevation. Only floating layers cast shadows. */
   --radius-control: 4px; --radius-popup: 8px; --radius-pill: 999px;
