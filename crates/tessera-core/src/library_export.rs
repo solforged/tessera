@@ -1,9 +1,10 @@
-use crate::library::{ExportFormat, SourceFormat};
+use crate::library::{ExportFormat, HighlightQuery, HighlightRow, SourceFormat};
 use crate::reads::hidden_blocks;
 use crate::storage::{block_at, block_columns, validation};
 use crate::{Notebook, Reading, ReadingValue, Result};
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, HashMap};
+use std::fmt::Write;
 
 pub(crate) type FieldReadings = BTreeMap<String, Vec<String>>;
 pub(crate) fn field_readings(
@@ -80,6 +81,36 @@ fn escape(text: &str) -> String {
     }
     output
 }
+
+type NoteChildren = HashMap<String, Vec<(String, String)>>;
+
+fn markdown_notes(output: &mut String, block: &str, children: &NoteChildren) {
+    let mut pending = vec![];
+    if let Some(notes) = children.get(block) {
+        pending.extend(notes.iter().rev().map(|note| (note, 0)));
+    }
+    while let Some(((id, text), depth)) = pending.pop() {
+        let nonblank = !text.trim().is_empty();
+        if nonblank {
+            output.push('\n');
+            for (index, line) in text.lines().enumerate() {
+                if depth == 0 {
+                    writeln!(output, "{line}").expect("String write");
+                } else if index == 0 {
+                    writeln!(output, "{:width$}- {line}", "", width = depth * 2)
+                        .expect("String write");
+                } else {
+                    writeln!(output, "{:width$}{line}", "", width = depth * 2 + 2)
+                        .expect("String write");
+                }
+            }
+        }
+        if let Some(notes) = children.get(id) {
+            let depth = depth + usize::from(nonblank);
+            pending.extend(notes.iter().rev().map(|note| (note, depth)));
+        }
+    }
+}
 impl Notebook {
     /// Export every matching source, independently of the query's display limit.
     pub fn export_query(
@@ -96,7 +127,7 @@ impl Notebook {
         // `export` treats an empty ID list as the whole library.
         if ids.is_empty() {
             return Ok(match format {
-                ExportFormat::Bibtex => String::new(),
+                ExportFormat::Bibtex | ExportFormat::Markdown => String::new(),
                 ExportFormat::CslJson => "[]\n".into(),
             });
         }
@@ -110,6 +141,9 @@ impl Notebook {
         } else {
             ids
         };
+        if format == ExportFormat::Markdown {
+            return self.export_markdown(ids);
+        }
         let mut bib = String::new();
         let mut csl = vec![];
         let mut readings_by_source = field_readings(self, ids)?;
@@ -242,6 +276,7 @@ impl Notebook {
                     bib.push_str("}\n");
                 }
                 ExportFormat::CslJson => csl.push(Value::Object(item)),
+                ExportFormat::Markdown => unreachable!("Markdown is exported separately"),
             }
         }
         Ok(match format {
@@ -250,7 +285,152 @@ impl Notebook {
                 "{}\n",
                 serde_json::to_string_pretty(&csl).expect("CSL serializes")
             ),
+            ExportFormat::Markdown => unreachable!("Markdown is exported separately"),
         })
+    }
+
+    fn export_markdown(&self, ids: &[String]) -> Result<String> {
+        let mut readings = field_readings(self, ids)?;
+        let mut highlights: HashMap<String, Vec<HighlightRow>> = HashMap::new();
+        for row in self
+            .highlights(&HighlightQuery {
+                limit: Some(usize::MAX),
+                ..Default::default()
+            })?
+            .rows
+        {
+            if ids.contains(&row.citation.source_id) {
+                highlights
+                    .entry(row.citation.source_id.clone())
+                    .or_default()
+                    .push(row);
+            }
+        }
+        let blocks: Vec<_> = highlights
+            .values()
+            .flatten()
+            .map(|row| &row.citation.block_id)
+            .collect();
+        let mut statement = self.conn.prepare_cached(
+            "WITH RECURSIVE notes(id) AS (
+                 SELECT value FROM json_each(?1)
+                 UNION
+                 SELECT b.id FROM blocks b JOIN notes ON b.parent_id = notes.id
+                 WHERE b.deletion_id IS NULL
+             )
+             SELECT b.parent_id, b.id, b.text FROM notes
+             JOIN blocks b ON b.id = notes.id
+             WHERE b.parent_id IN (SELECT id FROM notes)
+             ORDER BY b.parent_id, b.ordinal, b.id",
+        )?;
+        let mut children: NoteChildren = HashMap::new();
+        let mut rows = statement.query([crate::library_store::json(&blocks)])?;
+        while let Some(row) = rows.next()? {
+            children
+                .entry(row.get(0)?)
+                .or_default()
+                .push((row.get(1)?, row.get(2)?));
+        }
+        let mut sections = self.conn.prepare_cached(
+            "SELECT MIN(p.ordinal), json_extract(e.value, '$.title')
+             FROM snapshots s, json_each(s.toc) e
+             JOIN passages p ON p.snapshot_id = s.id
+                 AND (p.id = json_extract(e.value, '$.locator')
+                     OR p.locator = json_extract(e.value, '$.locator')
+                     OR p.anchor = json_extract(e.value, '$.locator'))
+             WHERE s.id = ?1
+             GROUP BY e.key
+             ORDER BY MIN(p.ordinal), CAST(e.key AS INTEGER)",
+        )?;
+        let mut output = String::new();
+        for id in ids {
+            let source = self.source(id)?;
+            let key =
+                source.source.citation_key.as_deref().ok_or_else(|| {
+                    validation("Assign a citation key before exporting this source.")
+                })?;
+            if !output.is_empty() {
+                output.push_str("\n---\n\n");
+            }
+            writeln!(output, "# {}", source.page.text).expect("String write");
+            let fields = readings.remove(id).unwrap_or_default();
+            if let Some(creators) = fields.get("author").filter(|names| !names.is_empty()) {
+                write!(output, "{} · ", creators.join(", ")).expect("String write");
+            }
+            if let Some(published) = fields.get("published").and_then(|values| values.first()) {
+                write!(output, "{published} · ").expect("String write");
+            }
+            writeln!(output, "`{key}`").expect("String write");
+            if let Some(url) = fields.get("url").and_then(|values| values.first()) {
+                writeln!(output, "{url}").expect("String write");
+            }
+            output.push_str("\n## Highlights\n");
+            let Some(mut rows) = highlights.remove(id) else {
+                output.push_str("\n_No highlights._\n");
+                continue;
+            };
+            let snapshot_order: HashMap<_, _> = source
+                .snapshots
+                .iter()
+                .enumerate()
+                .map(|(index, snapshot)| (snapshot.id.as_str(), index))
+                .collect();
+            rows.sort_by(|a, b| {
+                let position = |row: &HighlightRow| {
+                    (
+                        Some(&row.citation.snapshot_id)
+                            != source.source.current_snapshot_id.as_ref(),
+                        snapshot_order.get(row.citation.snapshot_id.as_str()),
+                        row.citation.ordinal,
+                        row.citation.start.offset,
+                    )
+                };
+                position(a)
+                    .cmp(&position(b))
+                    .then_with(|| a.citation.id.cmp(&b.citation.id))
+            });
+            let mut snapshot = None;
+            let mut contents: Vec<(i64, String)> = vec![];
+            let mut earlier = false;
+            for row in rows {
+                let citation = &row.citation;
+                if !earlier
+                    && Some(&citation.snapshot_id) != source.source.current_snapshot_id.as_ref()
+                {
+                    output.push_str("\n### Earlier snapshot\n");
+                    earlier = true;
+                }
+                if snapshot.as_ref() != Some(&citation.snapshot_id) {
+                    contents = sections
+                        .query_map([&citation.snapshot_id], |row| {
+                            Ok((row.get(0)?, row.get(1)?))
+                        })?
+                        .collect::<rusqlite::Result<_>>()?;
+                    snapshot = Some(citation.snapshot_id.clone());
+                }
+                output.push('\n');
+                for line in citation.quote.split('\n') {
+                    if line.is_empty() {
+                        output.push_str(">\n");
+                    } else {
+                        writeln!(output, "> {line}").expect("String write");
+                    }
+                }
+                output.push_str("\n— ");
+                if let Some((_, title)) = contents
+                    .iter()
+                    .rev()
+                    .find(|(ordinal, _)| *ordinal <= citation.ordinal)
+                {
+                    output.push_str(title);
+                } else {
+                    write!(output, "¶ {}", citation.ordinal + 1).expect("String write");
+                }
+                writeln!(output, " · {}", self.today(row.created_at)?).expect("String write");
+                markdown_notes(&mut output, &citation.block_id, &children);
+            }
+        }
+        Ok(output)
     }
     fn active_source_ids(&self) -> Result<Vec<String>> {
         let mut statement = self.conn.prepare_cached(concat!(

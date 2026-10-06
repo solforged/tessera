@@ -1053,6 +1053,252 @@ fn export_reads_authored_fields_and_article_doi_and_search_filters() {
         2
     );
 }
+
+fn freeze_markdown_dates(dir: &std::path::Path, n: &mut Notebook) {
+    apply(
+        n,
+        vec![Operation::SetSetting {
+            key: "time_zone".into(),
+            base_revision: None,
+            value: "Asia/Tokyo".into(),
+        }],
+    );
+    let instant: jiff::Timestamp = "2026-10-02T23:30:00Z".parse().unwrap();
+    let conn = rusqlite::Connection::open(dir.join(tessera_core::DATABASE_FILE)).unwrap();
+    conn.execute(
+        "UPDATE changes SET created_at = ?1 WHERE seq IN (SELECT created_seq FROM citations)",
+        [instant.as_millisecond()],
+    )
+    .unwrap();
+}
+
+#[test]
+fn export_markdown_document_reading_order_notes_and_locations() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut doc = document();
+    doc.metadata.url = Some("https://example.test/evidence".into());
+    doc.toc[0].locator = "second".into();
+    doc.toc[0].title = "Evidence".into();
+    doc.passages[1].text = "Second evidence #tag".into();
+    let (source, snapshot) = ingest(&mut n, &doc, b"markdown");
+    let passages = n.passages(&snapshot, 0, 10).unwrap().passages;
+    let later = note(&mut n, &source, "Later highlight");
+    apply(
+        &mut n,
+        vec![Operation::Cite {
+            id: later,
+            base_revision: 1,
+            citation_id: id(),
+            snapshot_id: snapshot.clone(),
+            start: PassagePoint {
+                passage_id: passages[1].id.clone(),
+                offset: 7,
+            },
+            end: PassagePoint {
+                passage_id: passages[1].id.clone(),
+                offset: 20,
+            },
+        }],
+    );
+    let first = note(&mut n, &source, "Edited highlight, not the frozen quote");
+    cite(&mut n, &first, &snapshot);
+    note(&mut n, &first, "Second note");
+    let parent = note(&mut n, &first, "First note #tag");
+    let nested = note(&mut n, &parent, "Nested note\ncontinued");
+    note(&mut n, &nested, "Deep note");
+    note(&mut n, &first, " \t ");
+    let deleted = note(&mut n, &first, "Deleted note");
+    apply(
+        &mut n,
+        vec![Operation::Delete {
+            id: deleted,
+            base_revision: 1,
+        }],
+    );
+    edit(&mut n, &source, "Authored title");
+    let published = field(&n, &source, "Published")[0].id.clone();
+    edit(&mut n, &published, "2021-05-06");
+    freeze_markdown_dates(dir.path(), &mut n);
+    assert_eq!(
+        n.export(&[source], ExportFormat::Markdown).unwrap(),
+        "# Authored title
+Ana García, John Smith · 2021-05-06 · `garcia2020evidence`
+https://example.test/evidence
+
+## Highlights
+
+> 🦉 evidence
+>
+> Second
+
+— ¶ 1 · 2026-10-03
+
+First note #tag
+
+  - Nested note
+    continued
+
+    - Deep note
+
+Second note
+
+> evidence #tag
+
+— Evidence · 2026-10-03
+"
+    );
+}
+
+#[test]
+fn export_markdown_empty_sources_and_query() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut n = Notebook::open(dir.path()).unwrap();
+    let (first, _) = ingest(&mut n, &document(), b"first");
+    let mut doc = document();
+    doc.metadata = ExtractedMetadata {
+        title: Some("Empty source".into()),
+        unique_id: Some("empty-source".into()),
+        ..Default::default()
+    };
+    let (second, _) = ingest(&mut n, &doc, b"second");
+    let view = n.source(&second).unwrap();
+    let mut state = view.source.source_state();
+    state.citation_key = Some("empty".into());
+    apply(
+        &mut n,
+        vec![Operation::SetSource {
+            id: second.clone(),
+            base_revision: view.page.revision,
+            source: Some(state),
+        }],
+    );
+    assert_eq!(
+        n.export(std::slice::from_ref(&second), ExportFormat::Markdown)
+            .unwrap(),
+        "# Empty source
+`empty`
+
+## Highlights
+
+_No highlights._
+"
+    );
+    let expected = "# Empty source
+`empty`
+
+## Highlights
+
+_No highlights._
+
+---
+
+# The Evidence & Meaning
+Ana García, John Smith · 2020-04 · `garcia2020evidence`
+
+## Highlights
+
+_No highlights._
+";
+    assert_eq!(
+        n.export(&[second, first], ExportFormat::Markdown).unwrap(),
+        expected
+    );
+    assert_eq!(n.export(&[], ExportFormat::Markdown).unwrap(), expected);
+    assert_eq!(
+        n.export_query(
+            &LibraryQuery {
+                sort: LibrarySort::Title,
+                direction: Direction::Asc,
+                limit: Some(1),
+                ..Default::default()
+            },
+            ExportFormat::Markdown,
+        )
+        .unwrap(),
+        expected
+    );
+    assert_eq!(
+        n.export_query(
+            &LibraryQuery {
+                text: Some("unmatched".into()),
+                ..Default::default()
+            },
+            ExportFormat::Markdown,
+        )
+        .unwrap(),
+        ""
+    );
+}
+
+#[test]
+fn export_markdown_current_snapshot_before_history_and_offset_order() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut n = Notebook::open(dir.path()).unwrap();
+    let (source, old) = ingest(&mut n, &document(), b"old");
+    let old_block = note(&mut n, &source, "Old highlight");
+    cite(&mut n, &old_block, &old);
+    let mut doc = document();
+    doc.toc[0].title = "Revised opening".into();
+    let (_, current) = ingest(&mut n, &doc, b"current");
+    let passage = n.passages(&current, 0, 1).unwrap().passages.remove(0);
+    for (start, end) in [(6, 8), (0, 5)] {
+        let block = note(&mut n, &source, "Current highlight");
+        apply(
+            &mut n,
+            vec![Operation::Cite {
+                id: block,
+                base_revision: 1,
+                citation_id: id(),
+                snapshot_id: current.clone(),
+                start: PassagePoint {
+                    passage_id: passage.id.clone(),
+                    offset: start,
+                },
+                end: PassagePoint {
+                    passage_id: passage.id.clone(),
+                    offset: end,
+                },
+            }],
+        );
+    }
+    let hidden = note(&mut n, &source, "Hidden highlight");
+    cite(&mut n, &hidden, &current);
+    let revision = n.block(&hidden).unwrap().revision;
+    apply(
+        &mut n,
+        vec![Operation::SetArchived {
+            id: hidden,
+            base_revision: revision,
+            archived: true,
+        }],
+    );
+    freeze_markdown_dates(dir.path(), &mut n);
+    assert_eq!(
+        n.export(&[source], ExportFormat::Markdown).unwrap(),
+        "# The Evidence & Meaning
+Ana García, John Smith · 2020-04 · `garcia2020evidence`
+
+## Highlights
+
+> First
+
+— Revised opening · 2026-10-03
+
+> 🦉
+
+— Revised opening · 2026-10-03
+
+### Earlier snapshot
+
+> 🦉 evidence
+>
+> Second
+
+— Opening · 2026-10-03
+"
+    );
+}
 #[test]
 fn source_validation_revision_noops_and_job_resume_retry() {
     let dir = tempfile::tempdir().unwrap();
