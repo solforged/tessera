@@ -70,6 +70,10 @@ The `embed-web` feature compiles `web/dist` into the binary. `tessera serve` nee
 
 Logs go to stderr through `tracing`. `RUST_LOG` selects the filter, defaulting to `info`; the launch agent sets `RUST_LOG=info`. CLI JSON and exports remain on stdout.
 
+### Shipping a build
+
+`scripts/ship [commit]` makes a commit (default `HEAD`) the installed app on this Mac. It builds in a separate worktree under `~/Library/Caches/tessera/ship`, so uncommitted edits never ship. It backs up the live notebook (listed under Settings → Backups), copies the binary to `~/.local/bin/tessera`, reinstalls the launch agent on port 4318 and waits for the new build to answer. Settings shows the build's commit. If the new build does not answer within 20 seconds, the script puts back the previous binary, restores the backup and exits with an error.
+
 ### Backup and restore
 
 ```sh
@@ -87,10 +91,10 @@ Requires Rust (stable) and Bun.
 ```sh
 bun install --cwd web
 bun run --cwd web build
-cargo run -p tessera-cli -- --notebook .tessera/dev serve --assets web/dist
+cargo run -p tessera-cli -- --notebook .tessera/dev serve --port 4320 --assets web/dist
 ```
 
-Open <http://127.0.0.1:4318>. Without `--notebook` (or `TESSERA_NOTEBOOK`), the notebook lives in the platform data directory under `tessera/notebook`. A missing notebook is created; an existing one is never overwritten.
+Open <http://127.0.0.1:4320>. Port 4318 belongs to the installed app. Without `--notebook` (or `TESSERA_NOTEBOOK`), the notebook lives in the platform data directory under `tessera/notebook`. A missing notebook is created; an existing one is never overwritten.
 
 For live reloading, run the service with `--dev-origin http://127.0.0.1:5173` and `bun run --cwd web dev` in a second terminal, then open <http://127.0.0.1:5173>.
 

@@ -98,15 +98,31 @@ fn domain() -> anyhow::Result<String> {
 
 #[cfg(target_os = "macos")]
 fn bootout(domain: &str) -> anyhow::Result<()> {
+    let target = format!("{domain}/{LABEL}");
     let output = std::process::Command::new("/bin/launchctl")
-        .args(["bootout", &format!("{domain}/{LABEL}")])
+        .args(["bootout", &target])
         .output()?;
     anyhow::ensure!(
         output.status.success() || output.status.code() == Some(3),
         "launchctl bootout failed: {}",
         String::from_utf8_lossy(&output.stderr).trim()
     );
-    Ok(())
+    // bootout returns while a running service is still draining, and
+    // bootstrapping the label meanwhile fails with EIO. launchd kills the
+    // service after its 20-second exit timeout, which bounds this wait.
+    for _ in 0..250 {
+        let loaded = std::process::Command::new("/bin/launchctl")
+            .args(["print", &target])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()?
+            .success();
+        if !loaded {
+            return Ok(());
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    anyhow::bail!("the previous launch agent did not stop within 25 seconds")
 }
 
 #[cfg(target_os = "macos")]

@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+# Build a commit (default HEAD) and make it the live Tessera on this Mac.
+#
+# Builds in a separate worktree, so uncommitted edits never ship. Backs up
+# the live notebook first, swaps ~/.local/bin/tessera, restarts the launch
+# agent on port 4318 and waits for the new build to answer. If it does not,
+# restores the previous binary and the backup.
+set -euo pipefail
+
+root=$(git rev-parse --show-toplevel)
+commit=$(git -C "$root" rev-parse --verify "${1:-HEAD}^{commit}")
+build=$(git -C "$root" rev-parse --short "$commit")
+src="$HOME/Library/Caches/tessera/ship"
+bin="$HOME/.local/bin/tessera"
+notebook="${TESSERA_NOTEBOOK:-$HOME/Library/Application Support/tessera/notebook}"
+url="http://127.0.0.1:4318"
+log="$HOME/Library/Logs/tessera/serve.log"
+
+service() { curl -fsS --max-time 2 "$url/api/service" 2>/dev/null; }
+
+if service | grep -q "\"build\":\"$build\""; then
+  echo "ship: $build is already live at $url"
+  exit 0
+fi
+
+echo "ship: building $build"
+if [ -e "$src/.git" ]; then
+  git -C "$src" checkout --quiet --detach --force "$commit"
+  git -C "$src" clean -fdq
+else
+  mkdir -p "$(dirname "$src")"
+  git -C "$root" worktree add --quiet --detach "$src" "$commit"
+fi
+(
+  cd "$src"
+  bun install --cwd web --frozen-lockfile --silent
+  # Vite's chunk-size warning is noise here; show the output only on failure.
+  if ! out=$(bun run --silent --cwd web build 2>&1); then
+    echo "$out" >&2
+    exit 1
+  fi
+  TESSERA_BUILD="$build" cargo build --quiet --release --locked -p tessera-cli --features embed-web
+)
+
+backup=""
+if service >/dev/null; then
+  backup=$(curl -fsS --max-time 60 -X POST "$url/api/backups" | sed -n 's/.*"path":"\([^"]*\)".*/\1/p')
+elif [ -e "$notebook/notebook.db" ]; then
+  id=$("$src/target/release/tessera" --notebook "$notebook" info | sed -n 's/.*"id": *"\([^"]*\)".*/\1/p')
+  backup="$(dirname "$notebook")/backups/$id/$(date -u +%Y-%m-%dT%H-%M-%S)"
+  mkdir -p "$(dirname "$backup")"
+  "$src/target/release/tessera" --notebook "$notebook" backup "$backup" >/dev/null
+fi
+[ -n "$backup" ] && echo "ship: backed up to $backup"
+
+mkdir -p "$(dirname "$bin")"
+[ -e "$bin" ] && cp -p "$bin" "$bin.prev"
+cp "$src/target/release/tessera" "$bin.next"
+mv -f "$bin.next" "$bin"
+
+live() {
+  "$bin" install >/dev/null || return 1
+  for _ in $(seq 40); do
+    service | grep -q "\"build\":\"$build\"" && return 0
+    sleep 0.5
+  done
+  return 1
+}
+
+if live; then
+  echo "ship: $build is live at $url"
+  exit 0
+fi
+
+echo "ship: $build did not come up; last log lines:" >&2
+tail -n 20 "$log" >&2 || true
+# Older binaries return from uninstall before launchd drops the label.
+"$bin" uninstall || true
+for _ in $(seq 150); do
+  launchctl print "gui/$(id -u)/dev.tessera.serve" >/dev/null 2>&1 || break
+  sleep 0.2
+done
+if [ -e "$bin.prev" ]; then
+  mv -f "$bin.prev" "$bin"
+  if [ -n "$backup" ]; then
+    "$bin" --notebook "$notebook" restore "$backup" --force >/dev/null
+  fi
+  "$bin" install >/dev/null
+  echo "ship: rolled back to the previous build" >&2
+else
+  echo "ship: no previous build; the launch agent is removed" >&2
+fi
+exit 1
