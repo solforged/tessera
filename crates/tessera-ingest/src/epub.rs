@@ -215,6 +215,7 @@ pub(crate) fn extract(bytes: &[u8]) -> Result<ExtractedDocument> {
                 title: entry.title,
                 locator: passage.locator.clone(),
                 level: entry.level,
+                ordinal: None,
             })
         })
         .collect();
@@ -247,6 +248,7 @@ pub(crate) fn extract(bytes: &[u8]) -> Result<ExtractedDocument> {
                     title,
                     locator: first.locator.clone(),
                     level: 1,
+                    ordinal: None,
                 })
             })
             .collect();

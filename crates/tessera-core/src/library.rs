@@ -79,6 +79,8 @@ pub struct TocEntry {
     pub locator: String,
     /// 1 for top-level entries.
     pub level: u8,
+    /// Resolved passage ordinal in the snapshot; absent during extraction.
+    pub ordinal: Option<i64>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

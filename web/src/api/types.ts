@@ -381,7 +381,7 @@ export interface ExtractedMetadata {
   identifiers: string[]; unique_id: string | null; url: string | null;
   site: string | null; description: string | null; cover: string | null;
 }
-export interface TocEntry { title: string; locator: string; level: number }
+export interface TocEntry { title: string; locator: string; level: number; ordinal: number | null }
 export type PassageKind = 'heading' | 'paragraph' | 'quote' | 'list_item' | 'code' | 'footnote' | 'image';
 export type MarkKind = { kind: 'emphasis' | 'strong' | 'code' } | { kind: 'link'; href: string } | { kind: 'internal' | 'note_ref'; locator: string };
 export interface Mark { start: number; end: number; kind: MarkKind }

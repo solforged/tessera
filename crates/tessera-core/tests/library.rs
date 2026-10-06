@@ -47,6 +47,7 @@ fn document() -> ExtractedDocument {
             title: "Opening".into(),
             locator: "chapter#first".into(),
             level: 1,
+            ordinal: None,
         }],
         passages: vec![
             ExtractedPassage {
@@ -580,7 +581,8 @@ fn staging_ingestion_fields_and_immutable_objects() {
         Some("garcia2020evidence")
     );
     assert_eq!(view.source.origin.as_deref(), Some("book.epub"));
-    assert_eq!(view.toc, doc.toc);
+    assert_eq!(view.toc[0].title, doc.toc[0].title);
+    assert_eq!(view.toc[0].ordinal, Some(0));
     assert!(
         receipt
             .capabilities
@@ -618,6 +620,42 @@ fn staging_ingestion_fields_and_immutable_objects() {
             .iter()
             .any(|(label, v)| label == "Author" && v[0] == authors[0].text)
     );
+}
+
+#[test]
+fn epub_toc_ordinals_match_locate_in_each_snapshot() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut doc = document();
+    for locator in ["second", "chapter#second", "missing"] {
+        doc.toc.push(TocEntry {
+            title: locator.into(),
+            locator: locator.into(),
+            level: 2,
+            ordinal: Some(99),
+        });
+    }
+    let (source, snapshot) = ingest(&mut n, &doc, b"toc fixture");
+    let page = n.passages(&snapshot, 0, 1).unwrap();
+    assert_eq!(page.toc, n.source(&source).unwrap().toc);
+    assert_eq!(
+        page.toc
+            .iter()
+            .map(|entry| entry.ordinal)
+            .collect::<Vec<_>>(),
+        vec![Some(0), Some(1), Some(1), None]
+    );
+    for entry in &page.toc {
+        assert_eq!(entry.ordinal, n.locate(&snapshot, &entry.locator).unwrap());
+    }
+    doc.passages.swap(0, 1);
+    let (_, latest) = ingest(&mut n, &doc, b"reordered toc fixture");
+    assert_eq!(n.passages(&snapshot, 0, 1).unwrap().toc, page.toc);
+    let current = n.source(&source).unwrap().toc;
+    assert_eq!(current, n.passages(&latest, 0, 1).unwrap().toc);
+    for entry in current {
+        assert_eq!(entry.ordinal, n.locate(&latest, &entry.locator).unwrap());
+    }
 }
 #[test]
 fn reingest_updates_only_extracted_values_and_preserves_state() {

@@ -1,4 +1,4 @@
-import { For, Show, batch, createEffect, createMemo, createSignal, on, onCleanup, onMount } from 'solid-js';
+import { For, Show, batch, createComputed, createEffect, createMemo, createSignal, on, onCleanup, onMount } from 'solid-js';
 import { Dynamic, Portal } from 'solid-js/web';
 import { createVirtualizer, defaultRangeExtractor } from '@tanstack/solid-virtual';
 import type { VirtualItem } from '@tanstack/solid-virtual';
@@ -7,10 +7,11 @@ import type { Citation, HighlightRow, Passage, PassageHit, PassagePage, SourceVi
 import type { NotebookClient } from '../document/contract';
 import type { OpenTarget, PaneId, ReaderViewState } from '../shell/contract';
 import { formatProgress, highlightLocation } from '../library/query';
-import { createHighlightActions, highlightColors, highlightSections } from '../library/highlights';
+import { createHighlightActions, highlightColors } from '../library/highlights';
 import type { HighlightSection } from '../library/highlights';
 import { documentReady } from '../tasks/JournalAgenda';
 import { Button } from '../ui/Button';
+import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
 import type { MenuItem } from '../ui/Menu';
 import { Picker } from '../ui/Picker';
@@ -20,6 +21,8 @@ import { passageNode, selectionInPassages } from './passages';
 import type { PassageSelection } from './passages';
 import { extendSelection, sentenceAt, shrinkSelection } from './sentences';
 import type { SelectionUnit, SentenceSelection } from './sentences';
+import { ReaderSettingsPopup, readerSettings, readerStyle } from './ReaderSettings';
+import '@fontsource-variable/literata';
 import './reader.css';
 
 export interface ReaderPaneProps {
@@ -34,7 +37,7 @@ export interface ReaderPaneProps {
 }
 
 const PAGE_SIZE = 200;
-type ReaderPopup = { kind: 'contents' | 'find' | 'highlights'; anchor: HTMLElement } | { kind: 'note'; anchor: HTMLElement; text: string; loading: boolean } | { kind: 'menu'; anchor: HTMLElement; items: MenuItem[] };
+type ReaderPopup = { kind: 'contents' | 'find' | 'highlights' | 'settings' | 'actions'; anchor: HTMLElement } | { kind: 'note'; anchor: HTMLElement; text: string; loading: boolean } | { kind: 'menu'; anchor: HTMLElement; items: MenuItem[] };
 type SelectionToolbar = PassageSelection & { rect: DOMRect; snapshotId: string };
 
 export function ReaderPane(props: ReaderPaneProps) {
@@ -44,6 +47,8 @@ export function ReaderPane(props: ReaderPaneProps) {
   const [contents, setContents] = createSignal<TocEntry[]>([]);
   const [total, setTotal] = createSignal(0);
   const [progress, setProgress] = createSignal(0);
+  const [firstVisible, setFirstVisible] = createSignal(0);
+  const [titleHeight, setTitleHeight] = createSignal(0);
   const [version, setVersion] = createSignal(0);
   const [loading, setLoading] = createSignal(true);
   const [error, setError] = createSignal('');
@@ -59,7 +64,7 @@ export function ReaderPane(props: ReaderPaneProps) {
   const [editing, setEditing] = createSignal(false);
   const [flash, setFlash] = createSignal<Citation | null>(null);
   const [highlights, setHighlights] = createSignal<HighlightRow[]>([]);
-  const [sections, setSections] = createSignal<HighlightSection[]>([]);
+  const sections = createMemo(() => contents().filter((entry): entry is HighlightSection => entry.ordinal !== null).sort((a, b) => a.ordinal - b.ordinal));
   const [highlightsLoading, setHighlightsLoading] = createSignal(false);
   const [highlightsError, setHighlightsError] = createSignal('');
   const actions = createHighlightActions(props.notebook, props.onOpen, setError);
@@ -73,12 +78,15 @@ export function ReaderPane(props: ReaderPaneProps) {
   let suppressed = !!(props.target.at || props.target.citationId), jumpOrigin = 0, userScroll = false;
   let reportTimer = 0, positionTimer = 0, flashTimer = 0;
   let keyboardQueue = Promise.resolve(), keyboardPending = 0, keyboardVersion = 0, rewritingSelection = false;
+  let shiftPressed = false;
+  let settingsViewport: { ordinal: number; offset: number } | null = null, settingsAtStart = false, settingsVersion = 0;
   const requests = new AbortController();
   const virtualizer = createVirtualizer<HTMLDivElement, HTMLDivElement>({
     get count() { return total(); },
     getScrollElement: () => scroll,
     estimateSize: () => 112,
     overscan: 8,
+    get paddingStart() { return titleHeight(); },
     get rangeExtractor() {
       const selected = keyboardRange() ?? selection(), current = cursor();
       return (range: Parameters<typeof defaultRangeExtractor>[0]) => {
@@ -99,21 +107,27 @@ export function ReaderPane(props: ReaderPaneProps) {
     return [...values.values()];
   });
   const toc = createMemo(() => contents().filter(entry => entry.title.toLocaleLowerCase().includes(query().toLocaleLowerCase())));
+  const currentSnapshot = createMemo(() => source()?.snapshots.find(value => value.id === snapshot()));
+  const currentSection = createMemo(() => {
+    const entries = sections(), ordinal = firstVisible();
+    for (let index = entries.length - 1; index >= 0; index--) if (entries[index]!.ordinal <= ordinal) return entries[index];
+    return undefined;
+  });
+  const position = createMemo(() => {
+    version();
+    const length = currentSnapshot()?.text_length ?? 0;
+    return length ? Math.floor((passages.get(firstVisible())?.start ?? 0) / length * 100) : 0;
+  });
+  const byline = createMemo(() => {
+    const metadata = currentSnapshot()?.metadata;
+    if (!metadata) return '';
+    return [metadata.creators.map(creator => creator.name).join(', ') || metadata.site, metadata.published?.match(/\d{4}/)?.[0]].filter(Boolean).join(' · ');
+  });
   const sourceHighlights = createMemo(() => highlights()
     .filter(row => row.citation.snapshot_id === snapshot())
     .sort((a, b) => a.citation.ordinal - b.citation.ordinal || a.citation.start.offset - b.citation.start.offset || a.citation.id.localeCompare(b.citation.id)));
-  const highlightLabel = (row: HighlightRow) => `${highlightLocation(row.citation, sections())} · ${row.citation.quote.slice(0, 80)}`;
-  const filteredHighlights = createMemo(() => sourceHighlights().filter(row => highlightLabel(row).toLocaleLowerCase().includes(query().toLocaleLowerCase())));
+  const filteredHighlights = createMemo(() => sourceHighlights().filter(row => `${row.citation.quote} ${highlightLocation(row.citation, sections())}`.toLocaleLowerCase().includes(query().toLocaleLowerCase())));
 
-  createEffect(() => {
-    const id = snapshot();
-    if (!id) return;
-    const controller = new AbortController();
-    setSections([]);
-    void highlightSections(api, id, controller.signal).then(values => { if (!controller.signal.aborted) setSections(values); })
-      .catch(reason => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : String(reason)); });
-    onCleanup(() => controller.abort());
-  });
   createEffect(() => {
     const sourceId = props.target.sourceId;
     props.notebook.changeSequence();
@@ -126,6 +140,29 @@ export function ReaderPane(props: ReaderPaneProps) {
     });
     onCleanup(() => controller.abort());
   });
+
+  createComputed(on(readerSettings, () => {
+    if (!settingsViewport) { settingsViewport = visibleRange(); settingsAtStart = scroll?.scrollTop === 0; }
+    const range = settingsViewport;
+    if (!range) return;
+    const epoch = generation, token = ++settingsVersion;
+    requestAnimationFrame(() => {
+      void (async () => {
+        // fonts.ready can settle before the new face is requested; load it explicitly.
+        if (readerSettings().typeface === 'serif') await document.fonts.load(`${readerSettings().size}px "Literata Variable"`);
+        if (disposed || epoch !== generation || token !== settingsVersion) return;
+        // measure() would drop every cached size, and rows whose height did not change
+        // (images, short headings) then fall back to the estimate. Re-measure mounted rows
+        // only; rows mounted later measure themselves.
+        for (const row of scroll.querySelectorAll<HTMLDivElement>('.reader-row')) virtualizer.measureElement(row);
+        await jump(range.ordinal, range.offset);
+        if (!disposed && epoch === generation && token === settingsVersion) {
+          if (settingsAtStart) { scroll.scrollTop = 0; report(); }
+          settingsViewport = null;
+        }
+      })().catch(reason => { if (!disposed) { settingsViewport = null; setError(reason instanceof Error ? reason.message : String(reason)); } });
+    });
+  }, { defer: true }));
 
   async function locate(at: string): Promise<number | null> {
     const cached = ordinals.get(at);
@@ -166,6 +203,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     batch(() => {
       setSelection(null); setFlash(null); setSnapshot(id);
       setContents([]);
+      setFirstVisible(0);
       setTotal(source()?.snapshots.find(value => value.id === id)?.passage_count ?? 0);
       setProgress(id === source()?.source.current_snapshot_id ? source()!.progress : 0);
       setVersion(value => value + 1);
@@ -218,7 +256,10 @@ export function ReaderPane(props: ReaderPaneProps) {
   function report() {
     if (disposed || restoring) return;
     const range = visibleRange();
-    if (range) props.onViewChange({ snapshotId: snapshot(), ordinal: range.ordinal, offset: range.offset });
+    if (range) {
+      setFirstVisible(range.ordinal);
+      props.onViewChange({ snapshotId: snapshot(), ordinal: range.ordinal, offset: range.offset });
+    }
   }
 
   async function savePosition() {
@@ -312,7 +353,7 @@ export function ReaderPane(props: ReaderPaneProps) {
   }
 
   function selected() {
-    if (editing() || rewritingSelection) return;
+    if (editing() || rewritingSelection || popup()?.kind === 'actions') return;
     const dom = window.getSelection();
     const value = dom && selectionInPassages(scroll, dom, [...passages.values()]);
     setSelection(value && dom!.rangeCount ? { ...value, rect: dom!.getRangeAt(0).getBoundingClientRect(), snapshotId: snapshot() } : null);
@@ -430,6 +471,23 @@ export function ReaderPane(props: ReaderPaneProps) {
     if (range !== value) await writeSelection(range);
   }
 
+  const readerActions = createMemo<MenuItem[]>(() => {
+    const needsSelection = selection() ? undefined : 'Select text first';
+    return [
+      { label: 'Open source page', icon: 'page', shortcut: 'Shift beside', action: () => props.onOpen({ kind: 'page', pageId: props.target.sourceId }, shiftPressed) },
+      { label: 'Next passage', section: 'Keyboard', shortcut: 'J', action: () => { void moveCursor(1); } },
+      { label: 'Previous passage', shortcut: 'K', action: () => { void moveCursor(-1); } },
+      { label: 'Select sentence', shortcut: 'S', action: () => { void selectSentence(); } },
+      { label: 'Extend by sentence', shortcut: ']', disabledReason: needsSelection, action: () => { void resizeSelection(true, 'sentence'); } },
+      { label: 'Shrink by sentence', shortcut: '[', disabledReason: needsSelection, action: () => { void resizeSelection(false, 'sentence'); } },
+      { label: 'Extend by passage', shortcut: '}', disabledReason: needsSelection, action: () => { void resizeSelection(true, 'passage'); } },
+      { label: 'Shrink by passage', shortcut: '{', disabledReason: needsSelection, action: () => { void resizeSelection(false, 'passage'); } },
+      { label: 'Highlight', shortcut: 'H', disabledReason: needsSelection, action: () => { void highlight(false); } },
+      { label: 'Highlight and note', shortcut: 'N', disabledReason: needsSelection, action: () => { void highlight(true); } },
+    ];
+  });
+  const trackShift = (event: KeyboardEvent | PointerEvent) => { shiftPressed = event.shiftKey; };
+
   const readerKey = (event: KeyboardEvent) => {
     if (readerKeyBlocked(event)) return;
     const key = event.key, moving = key === 'j' || key === 'k' || key === 's', resizing = '][}{'.includes(key) && key.length === 1;
@@ -465,6 +523,9 @@ export function ReaderPane(props: ReaderPaneProps) {
     document.addEventListener('selectionchange', selected);
     document.addEventListener('keydown', selectionKey, true);
     document.addEventListener('keydown', readerKey, true);
+    document.addEventListener('keydown', trackShift, true);
+    document.addEventListener('keyup', trackShift, true);
+    document.addEventListener('pointerdown', trackShift, true);
     const initialView = { ...props.view }, target = { ...props.target };
     void (async () => {
       const value = await api.source(target.sourceId, requests.signal);
@@ -492,7 +553,7 @@ export function ReaderPane(props: ReaderPaneProps) {
         ordinal = located;
       }
       if (disposed) return;
-      await jump(ordinal, target.at || citation || initialView.ordinal < 0 ? 0 : initialView.offset);
+      await jump(ordinal, ordinal === 0 && initialView.ordinal < 0 && !target.at && !citation ? titleHeight() : target.at || citation || initialView.ordinal < 0 ? 0 : initialView.offset);
       if (citation) flashTimer = window.setTimeout(() => setFlash(null), 1500);
       setLoading(false);
     })().catch(reason => { if (!disposed) { restoring = false; setLoading(false); setError(reason instanceof Error ? reason.message : String(reason)); } });
@@ -503,6 +564,9 @@ export function ReaderPane(props: ReaderPaneProps) {
     document.removeEventListener('selectionchange', selected);
     document.removeEventListener('keydown', selectionKey, true);
     document.removeEventListener('keydown', readerKey, true);
+    document.removeEventListener('keydown', trackShift, true);
+    document.removeEventListener('keyup', trackShift, true);
+    document.removeEventListener('pointerdown', trackShift, true);
   });
 
   function PassageRow(row: { ordinal: number; item: () => VirtualItem }) {
@@ -521,46 +585,94 @@ export function ReaderPane(props: ReaderPaneProps) {
     </div>;
   }
 
-  return <div class="reader-pane" onPointerDown={props.onActivate} onFocusIn={props.onActivate}>
+  function TitleBlock() {
+    let element!: HTMLDivElement;
+    onMount(() => {
+      const measure = () => setTitleHeight(element.getBoundingClientRect().height);
+      const observer = new ResizeObserver(measure);
+      measure(); observer.observe(element);
+      onCleanup(() => { observer.disconnect(); setTitleHeight(0); });
+    });
+    return <div ref={element} class="reader-title-block">
+      <h1>{currentSnapshot()?.metadata.title}</h1>
+      <Show when={byline()}><p>{byline()}</p></Show>
+    </div>;
+  }
+
+  function SelectionTools() {
+    let element!: HTMLDivElement;
+    const [placement, setPlacement] = createSignal({ left: 0, top: 0, width: 0, visible: false });
+    const place = () => {
+      const value = selection();
+      if (!element || !value) return;
+      const viewport = scroll.getBoundingClientRect();
+      const left = Math.max(0, viewport.left), right = Math.min(window.innerWidth, viewport.right);
+      const top = Math.max(0, viewport.top), bottom = Math.min(window.innerHeight, viewport.bottom);
+      const gap = parseFloat(getComputedStyle(element).getPropertyValue('--space-4'));
+      const width = Math.min(element.offsetWidth, right - left), height = element.offsetHeight;
+      const above = value.rect.top - height - gap;
+      setPlacement({
+        left: Math.max(left, Math.min((value.rect.left + value.rect.right - width) / 2, right - width)),
+        top: Math.max(top, Math.min(above < top ? value.rect.bottom + gap : above, bottom - height)),
+        width: right - left, visible: true,
+      });
+    };
+    createEffect(place);
+    onMount(() => {
+      const observer = new ResizeObserver(place);
+      observer.observe(element); observer.observe(scroll);
+      place();
+      onCleanup(() => observer.disconnect());
+    });
+    return <Portal><div ref={element} class="reader-selection-toolbar" role="toolbar" aria-label="Highlight selection"
+      style={{ left: `${placement().left}px`, top: `${placement().top}px`, 'max-width': `${placement().width}px`, visibility: placement().visible ? 'visible' : 'hidden' }}
+      onPointerDown={event => event.preventDefault()}>
+      <div class="reader-selection-actions"><Button icon="highlight" disabled={editing()} onClick={() => { void highlight(false); }}>Highlight <kbd>H</kbd></Button><Button disabled={editing()} onClick={() => { void highlight(true); }}>Highlight and note <kbd>N</kbd></Button></div>
+      <div class="reader-selection-actions"><For each={highlightColors}>{(color, index) => <Button aria-label={`Highlight ${color}`} title={`Highlight ${color} (${index() + 1})`} disabled={editing()} onClick={() => { void highlight(false, color); }}><span class={`highlight-color-dot highlight-color-${color}`} aria-hidden="true" /><kbd>{index() + 1}</kbd></Button>}</For></div>
+      <Show when={editError()}><p class="error" role="alert">{editError()}</p></Show>
+    </div></Portal>;
+  }
+
+  return <div class="reader-pane" style={readerStyle()} onPointerDown={props.onActivate} onFocusIn={props.onActivate}>
     <div class="reader-header">
-      <Show when={contents().length}><Button icon="contents" aria-haspopup="dialog" onClick={event => { setQuery(''); setPopup({ kind: 'contents', anchor: event.currentTarget }); }}>Contents</Button></Show>
-      <Button icon="highlight" aria-haspopup="dialog" disabled={!snapshot()} onClick={event => { setQuery(''); setPopup({ kind: 'highlights', anchor: event.currentTarget }); }}>Highlights</Button>
-      <Button icon="search" aria-haspopup="dialog" disabled={!snapshot()} onClick={event => { setQuery(''); setPopup({ kind: 'find', anchor: event.currentTarget }); }}>Find in source</Button>
-      <span class="reader-progress" aria-label="Reading progress">{formatProgress(progress())}</span>
-      <Show when={props.active}><span class="reader-progress reader-keys">Keys: j k move · s select sentence · ] [ extend · h highlight</span></Show>
+      <Button class="reader-contents" icon="contents" label="Contents" aria-haspopup="dialog" disabled={!contents().length} onClick={event => { setQuery(''); setPopup({ kind: 'contents', anchor: event.currentTarget }); }}><span>{currentSection()?.title ?? 'Contents'}</span><Icon name="down" /></Button>
+      <Button icon="highlight" label="Highlights" aria-haspopup="dialog" disabled={!snapshot()} onClick={event => { setQuery(''); setPopup({ kind: 'highlights', anchor: event.currentTarget }); }}><Show when={sourceHighlights().length}><span>{sourceHighlights().length}</span></Show></Button>
+      <Button icon="search" label="Find in source" aria-haspopup="dialog" disabled={!snapshot()} onClick={event => { setQuery(''); setPopup({ kind: 'find', anchor: event.currentTarget }); }} />
+      <span class="reader-progress" aria-label="Reading position" title={`${formatProgress(progress())} read`}>{position()}%</span>
+      <Button label="Reader settings" aria-haspopup="dialog" onClick={event => setPopup({ kind: 'settings', anchor: event.currentTarget })}>Aa</Button>
+      <Button icon="more" label="Reader actions" aria-haspopup="menu" onPointerDown={event => event.preventDefault()} onClick={event => setPopup({ kind: 'actions', anchor: event.currentTarget })} />
     </div>
+    <div class="reader-progress-rule" aria-hidden="true"><span style={{ width: `${position()}%` }} /></div>
     <Show when={error()}><p class="reader-error error" role="alert">{error()}</p></Show>
     <Show when={loading()}><p class="reader-status" role="status">Loading…</p></Show>
     <div ref={scroll} class="reader-scroll" tabIndex={0} aria-label="Source passages" onScroll={scrolled}
       onWheel={() => { userScroll = true; }} onTouchMove={() => { userScroll = true; }} onPointerDown={() => { userScroll = true; }}
       onKeyDown={event => { if (['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp', 'Home', 'End', ' '].includes(event.key)) userScroll = true; }}>
       <div class="reader-list" style={{ height: `${virtualizer.getTotalSize()}px` }}>
+        <Show when={currentSnapshot()?.metadata.title}><TitleBlock /></Show>
         <For each={[...items().keys()]}>{ordinal => <PassageRow ordinal={ordinal} item={() => items().get(ordinal)!} />}</For>
       </div>
     </div>
     <Show when={popup()}>{state => <>
-      <Show when={state().kind === 'contents'}><Picker anchor={state().anchor} label="Contents" placeholder="Find a section" query={query()} onQuery={setQuery} items={toc()} key={entry => entry.locator}
-        row={entry => <span class="reader-toc-entry" style={{ '--level': Math.max(0, entry.level - 1) }}>{entry.title}</span>}
-        onPick={entry => { void jumpTo(entry.locator); }} empty="No sections" onDismiss={() => setPopup(null)} /></Show>
-      <Show when={state().kind === 'highlights'}><Picker anchor={state().anchor} label="Highlights" placeholder="Highlights" query={query()} onQuery={setQuery} items={filteredHighlights()} key={row => row.citation.id}
-        row={row => <span class="reader-search-snippet">{highlightLabel(row)}</span>} busy={highlightsLoading()} error={highlightsError()} empty="No highlights"
+      <Show when={state().kind === 'settings'}><ReaderSettingsPopup anchor={state().anchor} onDismiss={() => setPopup(null)} /></Show>
+      <Show when={state().kind === 'actions'}><Menu anchor={state().anchor} label="Reader actions" items={readerActions()} onDismiss={() => setPopup(null)} /></Show>
+      <Show when={state().kind === 'contents'}><Picker class="reader-picker" anchor={state().anchor} label="Contents" placeholder="Find a section" query={query()} onQuery={setQuery} items={toc()} key={entry => entry.locator} initial={Math.max(0, toc().indexOf(currentSection()!))}
+        row={entry => <span class="reader-toc-entry" aria-current={entry === currentSection() ? 'true' : undefined} style={{ '--level': Math.max(0, entry.level - 1) }}><span class="reader-toc-check"><Show when={entry === currentSection()}><Icon name="check" /></Show></span><span>{entry.title}</span></span>}
+        onPick={entry => { setPopup(null); if (entry.ordinal !== null) void jump(entry.ordinal); else void jumpTo(entry.locator); }} empty="No sections" onDismiss={() => setPopup(null)} /></Show>
+      <Show when={state().kind === 'highlights'}><Picker class="reader-picker" anchor={state().anchor} label="Highlights" placeholder="Find a highlight" query={query()} onQuery={setQuery} items={filteredHighlights()} key={row => row.citation.id}
+        row={row => <div class="reader-highlight-entry"><span class={`highlight-color-dot${row.citation.color ? ` highlight-color-${row.citation.color}` : ''}`} aria-hidden="true" /><span class="reader-highlight-quote">{row.citation.quote}</span><span class="reader-highlight-section">{highlightLocation(row.citation, sections())}</span></div>} busy={highlightsLoading()} error={highlightsError()} empty="No highlights"
         onPick={row => { void jumpHighlight(row.citation); }} onDismiss={() => setPopup(null)} /></Show>
       <Show when={state().kind === 'menu'}><Menu anchor={state().anchor} label="Actions for highlight" items={(() => { const value = state(); return value.kind === 'menu' ? value.items : []; })()} onDismiss={() => setPopup(null)} /></Show>
-      <Show when={state().kind === 'find'}><Picker anchor={state().anchor} label="Find in source" placeholder="Find in source" query={query()} onQuery={setQuery} items={hits()} key={hit => `${hit.snapshot_id}:${hit.passage.id}`}
-        row={hit => <span class="reader-search-snippet">{hit.snippet}</span>} busy={searching()} error={searchError()} empty={query().trim() ? 'No passages found' : 'Search this source'}
+      <Show when={state().kind === 'find'}><Picker class="reader-picker" anchor={state().anchor} label="Find in source" placeholder="Find in source" query={query()} onQuery={setQuery} items={hits()} key={hit => `${hit.snapshot_id}:${hit.passage.id}`}
+        status={<p class="reader-find-status" role="status">{hits().length === 40 ? 'First 40 passages' : `${hits().length} passages`}</p>}
+        row={hit => <span class="reader-search-snippet"><For each={hit.snippet.replace(/^(?:\.\.\.|…)\s*/, '…').replace(/\s*(?:\.\.\.|…)$/, '…').split(/(\[[^\]]+\])/g)}>{part => part.startsWith('[') && part.endsWith(']') ? <mark class="reader-search-match">{part.slice(1, -1)}</mark> : part}</For></span>} busy={searching()} error={searchError()} empty={query().trim() ? 'No passages found' : 'Search this source'}
         onPick={hit => { setPopup(null); switchSnapshot(hit.snapshot_id); void jump(hit.passage.ordinal).catch(reason => { restoring = false; setError(reason instanceof Error ? reason.message : String(reason)); }); }}
         onDismiss={() => setPopup(null)} /></Show>
       <Show when={state().kind === 'note'}><Popup anchor={state().anchor} label="Footnote" class="reader-note" onDismiss={() => setPopup(null)}>
         <p>{(() => { const value = state(); return value.kind === 'note' ? value.loading ? 'Loading…' : value.text : ''; })()}</p>
       </Popup></Show>
     </>}</Show>
-    <Show when={selection()}>{value => <Portal><div class="reader-selection-toolbar" role="toolbar" aria-label="Highlight selection"
-      style={{ left: `${Math.max(8, Math.min(value().rect.left, window.innerWidth - 320))}px`, top: `${Math.max(0, value().rect.top)}px` }}
-      onPointerDown={event => event.preventDefault()}>
-      <div class="reader-selection-actions"><Button icon="highlight" disabled={editing()} onClick={() => { void highlight(false); }}>Highlight <kbd>H</kbd></Button><Button disabled={editing()} onClick={() => { void highlight(true); }}>Highlight and note <kbd>N</kbd></Button></div>
-      <div class="reader-selection-actions"><For each={highlightColors}>{(color, index) => <Button aria-label={`Highlight ${color}`} title={`Highlight ${color} (${index() + 1})`} disabled={editing()} onClick={() => { void highlight(false, color); }}><span class={`highlight-color-dot highlight-color-${color}`} aria-hidden="true" /><kbd>{index() + 1}</kbd></Button>}</For></div>
-      <Show when={editError()}><p class="error" role="alert">{editError()}</p></Show>
-    </div></Portal>}</Show>
+    <Show when={selection()}><SelectionTools /></Show>
     <actions.TagPopup />
   </div>;
 }
