@@ -1,10 +1,9 @@
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use rusqlite::{Connection, params};
 use serde::Serialize;
 
-use crate::error::{Error, Result};
+use crate::error::Result;
 use crate::migrate::{SCHEMA_VERSION, migrate};
 
 /// File name of the database inside a notebook directory.
@@ -34,14 +33,20 @@ impl Notebook {
     /// never overwritten.
     pub fn open(dir: impl AsRef<Path>) -> Result<Self> {
         let dir = dir.as_ref();
-        std::fs::create_dir_all(dir).map_err(|source| Error::CreateDir {
-            path: dir.to_path_buf(),
-            source,
-        })?;
-        let dir = std::fs::canonicalize(dir).map_err(|source| Error::CreateDir {
-            path: dir.to_path_buf(),
-            source,
-        })?;
+        // Browsers have no directories; the path names a file in SQLite's VFS.
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+        let dir = {
+            std::fs::create_dir_all(dir).map_err(|source| crate::error::Error::CreateDir {
+                path: dir.to_path_buf(),
+                source,
+            })?;
+            std::fs::canonicalize(dir).map_err(|source| crate::error::Error::CreateDir {
+                path: dir.to_path_buf(),
+                source,
+            })?
+        };
+        #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+        let dir = dir.to_path_buf();
         let mut conn = Connection::open(dir.join(DATABASE_FILE))?;
         conn.pragma_update(None, "journal_mode", "WAL")?;
         // FULL: an acknowledged commit survives power loss, not just a crash.
@@ -52,7 +57,7 @@ impl Notebook {
         conn.execute(
             "INSERT INTO notebook (singleton, id, created_at) VALUES (1, ?1, ?2)
              ON CONFLICT (singleton) DO NOTHING",
-            params![ulid::Ulid::generate().to_string(), now_ms()],
+            params![new_ulid().to_string(), now_ms()],
         )?;
         Ok(Self { dir, conn })
     }
@@ -73,9 +78,28 @@ impl Notebook {
     }
 }
 
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 pub(crate) fn now_ms() -> i64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
     let elapsed = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("system clock is after 1970");
     i64::try_from(elapsed.as_millis()).expect("timestamp fits in i64")
+}
+
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+pub(crate) fn now_ms() -> i64 {
+    js_sys::Date::now() as i64
+}
+
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+pub(crate) fn new_ulid() -> ulid::Ulid {
+    ulid::Ulid::generate()
+}
+
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+pub(crate) fn new_ulid() -> ulid::Ulid {
+    let mut random = [0u8; 16];
+    getrandom::fill(&mut random).expect("browser crypto is available");
+    ulid::Ulid::from_parts(now_ms() as u64, u128::from_le_bytes(random))
 }

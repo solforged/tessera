@@ -195,7 +195,7 @@ impl<'a> Planner<'a> {
         let page = if let Some(page) = self.notebook.page_by_title(title)? {
             (page.id, page.revision)
         } else {
-            let id = ulid::Ulid::generate().to_string();
+            let id = crate::notebook::new_ulid().to_string();
             self.operations.push(Operation::CreatePage {
                 id: id.clone(),
                 title: title.into(),
@@ -210,7 +210,7 @@ impl<'a> Planner<'a> {
         if let Some(field) = self.fields.get(&key) {
             return field.id.clone();
         }
-        let id = ulid::Ulid::generate().to_string();
+        let id = crate::notebook::new_ulid().to_string();
         self.operations.push(Operation::Insert {
             id: id.clone(),
             parent_id: self.fields_page.clone(),
@@ -254,7 +254,7 @@ impl<'a> Planner<'a> {
                     if let Some(option) = option {
                         *value = format!("[[{}]]", option.id);
                     } else if create {
-                        let id = ulid::Ulid::generate().to_string();
+                        let id = crate::notebook::new_ulid().to_string();
                         self.operations.push(Operation::Insert {
                             id: id.clone(),
                             parent_id: field.id.clone(),
@@ -480,7 +480,7 @@ impl Notebook {
                     SourceFormat::Article => "article",
                 });
             let title = planner.unique_title(title, disambiguator)?;
-            let id = ulid::Ulid::generate().to_string();
+            let id = crate::notebook::new_ulid().to_string();
             planner.operations.push(Operation::CreatePage {
                 id: id.clone(),
                 title: title.clone(),
@@ -551,7 +551,7 @@ impl Notebook {
             } else if values.is_empty() {
                 continue;
             } else {
-                let entry = ulid::Ulid::generate().to_string();
+                let entry = crate::notebook::new_ulid().to_string();
                 planner.operations.push(Operation::Insert {
                     id: entry.clone(),
                     parent_id: id.clone(),
@@ -591,7 +591,7 @@ impl Notebook {
                         });
                     }
                 } else {
-                    let value = ulid::Ulid::generate().to_string();
+                    let value = crate::notebook::new_ulid().to_string();
                     planner.operations.push(Operation::Insert {
                         id: value.clone(),
                         parent_id: entry.clone(),
