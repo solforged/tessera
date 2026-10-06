@@ -92,6 +92,8 @@ One picker searches pages and blocks; a leading `>` switches to commands. A case
 - **Cards** show their syntax quietly outside editing: `>>`, `<<` and `<>` become →, ← and ↔ in `--faint`, and cloze answers carry a dotted accent underline with the hint in their tooltip. Clicking places the caret at the same source offset. The summary reads `2 cards · 1 due` and opens a Cards popup listing each card's kind, front and state (New, Due, In 6 days), Reset with confirmation for reviewed cards, and Review. Shift opens Review beside.
 - **Headings** are block styles at the h1 to h3 tokens, semibold. `# ` at block start sets one.
 - Rows highlight on hover with `--hover`; selection uses `--selection` plus the accent bar.
+- Opening a page selects nothing, so no row lights up that you did not choose; journals still open editing their last empty block. ↓ or `j` then selects the first visible row and ↑ or `k` the last; other keys wait for a selection. Back and forward restore the row you had selected. An open that names a block selects it, and one that names a caret (Add note, Make card, Highlight and note) starts editing there.
+- An inline field's label edits its value, caret at the end, and the field stays on one line. ← on a selected inline value selects the field entry itself; Enter then edits its name.
 
 ### Row mechanics
 
