@@ -50,16 +50,17 @@ impl Service {
         let mut process = ChildGuard(command(notebook).spawn().unwrap());
         let mut stderr = BufReader::new(process.0.stderr.take().unwrap());
         let mut line = String::new();
-        assert_ne!(
-            stderr.read_line(&mut line).unwrap(),
-            0,
-            "service exited before listening"
-        );
-        let host = line
-            .trim()
-            .strip_prefix("tessera: http://")
-            .unwrap()
-            .to_string();
+        let host = loop {
+            line.clear();
+            assert_ne!(
+                stderr.read_line(&mut line).unwrap(),
+                0,
+                "service exited before listening"
+            );
+            if line.contains("service listening") {
+                break line.split_once("http://").unwrap().1.trim().to_string();
+            }
+        };
         let port = host.rsplit(':').next().unwrap().parse().unwrap();
         Self {
             process,
@@ -221,4 +222,51 @@ fn sigterm_and_ctrl_c_drain_an_accepted_batch_before_exiting() {
             .unwrap();
         assert_eq!(page, "Drained");
     }
+}
+
+#[test]
+fn cli_backup_and_restore_round_trip_while_service_runs() {
+    let root = tempfile::tempdir().unwrap();
+    let source = root.path().join("source");
+    let backup = root.path().join("backup");
+    let restored = root.path().join("restored");
+    let mut service = Service::start(&source);
+    let run = |notebook: &Path, args: &[&std::ffi::OsStr]| {
+        Command::new(env!("CARGO_BIN_EXE_tessera"))
+            .arg("--notebook")
+            .arg(notebook)
+            .args(args)
+            .output()
+            .unwrap()
+    };
+    let saved = run(&source, &["backup".as_ref(), backup.as_os_str()]);
+    assert!(
+        saved.status.success(),
+        "{}",
+        String::from_utf8_lossy(&saved.stderr)
+    );
+    let manifest: serde_json::Value = serde_json::from_slice(&saved.stdout).unwrap();
+    let copied = run(&backup, &["info".as_ref()]);
+    assert!(copied.status.success());
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&copied.stdout).unwrap()["id"],
+        manifest["notebook_id"]
+    );
+    let refused = run(
+        &source,
+        &["restore".as_ref(), backup.as_os_str(), "--force".as_ref()],
+    );
+    assert!(!refused.status.success());
+    assert!(String::from_utf8_lossy(&refused.stderr).contains("already served"));
+    let output = run(&restored, &["restore".as_ref(), backup.as_os_str()]);
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(&output.stdout).unwrap()["id"],
+        manifest["notebook_id"]
+    );
+    service.stop();
 }

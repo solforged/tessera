@@ -16,6 +16,7 @@ thiserror.workspace = true
 ulid.workspace = true
 tempfile.workspace = true
 deunicode = "1"
+tracing.workspace = true
 
 
 [lints]

@@ -1,3 +1,5 @@
+mod install;
+
 use std::path::PathBuf;
 
 use anyhow::Context;
@@ -46,10 +48,36 @@ enum Command {
         #[arg(long)]
         dev_origin: Option<String>,
     },
+    /// Install the local service as a macOS launch agent.
+    Install {
+        #[arg(long, default_value_t = tessera_service::DEFAULT_PORT, value_parser = clap::value_parser!(u16).range(1..))]
+        port: u16,
+        #[arg(long)]
+        allow_debug: bool,
+    },
+    /// Remove the macOS launch agent without deleting the notebook.
+    Uninstall,
+    /// Back up a notebook while its service is running.
+    Backup { dest: PathBuf },
+    /// Restore a backup into an offline notebook.
+    Restore {
+        src: PathBuf,
+        #[arg(long)]
+        force: bool,
+    },
 }
 
 fn main() -> anyhow::Result<()> {
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
+        )
+        .with_writer(std::io::stderr)
+        .with_ansi(std::io::IsTerminal::is_terminal(&std::io::stderr()))
+        .init();
     let cli = Cli::parse();
+    let explicit_notebook = cli.notebook.is_some();
     let notebook = match cli.notebook {
         Some(path) => path,
         None => dirs::data_dir()
@@ -90,6 +118,22 @@ fn main() -> anyhow::Result<()> {
                     dev_origin,
                 },
             ))?;
+        }
+        Command::Install { port, allow_debug } => {
+            install::install(
+                explicit_notebook.then_some(notebook.as_path()),
+                port,
+                allow_debug,
+            )?;
+        }
+        Command::Uninstall => install::uninstall()?,
+        Command::Backup { dest } => {
+            let manifest = tessera_core::backup(&notebook, dest)?;
+            println!("{}", serde_json::to_string_pretty(&manifest)?);
+        }
+        Command::Restore { src, force } => {
+            let info = tessera_core::restore(src, &notebook, force)?;
+            println!("{}", serde_json::to_string_pretty(&info)?);
         }
     }
     Ok(())

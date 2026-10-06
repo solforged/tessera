@@ -51,6 +51,35 @@ Review a saved deck beside its source notes, with interval previews and retained
 - [Performance](docs/performance.md): budgets, the measured baseline and the spikes that decide the stack.
 - [Roadmap](docs/roadmap.md): build order and exit criteria.
 
+## Install
+
+Build a self-contained binary with Rust (stable) and Bun:
+
+```sh
+bun install --cwd web --frozen-lockfile
+bun run --cwd web build
+cargo install --path crates/tessera-cli --features embed-web
+tessera install
+```
+
+On macOS, `tessera install` starts a launch agent and opens the service at <http://127.0.0.1:4318>. Open that URL in a browser. The agent starts at login and restarts the service if it exits. It writes stdout and stderr to `~/Library/Logs/tessera/serve.log`. `tessera uninstall` stops the agent and removes its plist, not the notebook. Install and uninstall are macOS-only; on Linux run `tessera serve` directly.
+
+To choose a notebook or port, use `tessera --notebook /absolute/path/to/notebook install --port 4397`. `TESSERA_NOTEBOOK` also persists that notebook choice in the agent. Without either, the service uses the platform data directory. Install refuses a binary under `target/debug` unless `--allow-debug` is given.
+
+The `embed-web` feature compiles `web/dist` into the binary. `tessera serve` needs no `--assets` flag; `--assets web/dist` still overrides the embedded editor during development. Builds without that feature serve only the API unless given `--assets`. The service remains loopback-only.
+
+Logs go to stderr through `tracing`. `RUST_LOG` selects the filter, defaulting to `info`; the launch agent sets `RUST_LOG=info`. CLI JSON and exports remain on stdout.
+
+### Backup and restore
+
+```sh
+tessera backup /path/to/new-backup
+tessera info --notebook /path/to/new-backup
+tessera --notebook /path/to/restored-notebook restore /path/to/new-backup
+```
+
+Backup can run while the service is running. Its destination must be empty. It contains an online SQLite snapshot (`notebook.db`), immutable `objects/` files and `manifest.json` with the notebook ID, schema version, backup timestamp, object count and database page count. Restore preserves notebook identity and checks migrations. Stop the destination service first. Restore refuses a non-empty destination unless `--force` is passed; that flag never bypasses a live service lock.
+
 ## Development
 
 Requires Rust (stable) and Bun.
