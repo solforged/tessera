@@ -142,6 +142,7 @@ impl FieldChanges {
             | Operation::CompleteTask { .. }
             | Operation::ReverseTaskCompletion { .. }
             | Operation::SetProject { .. }
+            | Operation::SetPosition { .. }
             | Operation::StartWork { .. }
             | Operation::StopWork { .. }
             | Operation::EditWorkNote { .. }

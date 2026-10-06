@@ -77,10 +77,32 @@ pub struct ProjectRecord {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PositionInfo {
+    pub holder_id: Option<String>,
+    pub subject_id: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PositionQuery {
+    pub holder: Option<String>,
+    pub subject: Option<String>,
+    pub limit: Option<u32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PositionRow {
+    pub block: BlockInPage,
+    pub holder_id: Option<String>,
+    pub subject_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BlockCapabilities {
     pub block_id: String,
     pub task: Option<TaskState>,
     pub project: Option<ProjectState>,
+    #[serde(default)]
+    pub position: Option<PositionInfo>,
     #[serde(default)]
     pub source: Option<crate::library::SourceRecord>,
     #[serde(default)]

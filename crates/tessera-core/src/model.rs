@@ -227,6 +227,11 @@ pub enum Operation {
         base_revision: i64,
         project: Option<ProjectState>,
     },
+    SetPosition {
+        id: String,
+        base_revision: i64,
+        position: bool,
+    },
     StartWork {
         id: String,
         base_revision: i64,
