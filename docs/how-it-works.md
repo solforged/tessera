@@ -4,11 +4,15 @@ Tessera stores an outline in SQLite. The browser keeps an optimistic document, t
 
 ## The shape in one page
 
-The CLI runs the service; each browser window creates its own notebook client. `tessera serve` calls `tessera_service::serve` in the CLI process. `info` reads notebook identity directly; `add` and `export` discover an already-running service through `service.lock`. There is no automatic service-starting command dispatcher. See `crates/tessera-cli/src/main.rs:18` and `main`.
+The CLI runs the service; each browser window creates its own notebook client. `tessera serve` calls `tessera_service::serve` in the CLI process. With `embed-web`, the built editor is compiled into that binary, so no asset directory is needed at runtime. `--assets` overrides the embedded files for development. `tessera install` runs the service as a macOS launch agent; `uninstall` removes the agent without deleting data. `info` reads notebook identity directly; `add` and `export` discover an already-running service through `service.lock`. There is no automatic service-starting command dispatcher. See `crates/tessera-cli/src/main.rs`, `install.rs` and `crates/tessera-service/src/assets.rs`.
 
-The service acquires `service.lock`, opens the notebook and binds to loopback. Its `AppState` holds one `Notebook` behind `Arc<Mutex<Notebook>>`. That notebook owns one SQLite connection. **Reads and writes currently share this connection and mutex**; the read pool described in the architecture document is not in this implementation. See `crates/tessera-service/src/ownership.rs:23`, `crates/tessera-service/src/lib.rs:49`, `serve` and `run`.
+The service acquires `service.lock`, opens the notebook and binds to loopback. Its `AppState` holds one `Notebook` behind `Arc<Mutex<Notebook>>`. That notebook owns one SQLite connection. **Reads and writes currently share this connection and mutex**; the read pool described in the architecture document is not in this implementation. See `crates/tessera-core/src/ownership.rs`, `NotebookOwnership::acquire`, `crates/tessera-service/src/lib.rs`, `serve` and `run`.
 
 The database is `notebook.db` inside the notebook directory. `Notebook::open` enables WAL, `synchronous=FULL` and foreign keys, then runs migrations. The singleton `notebook` row supplies the notebook ID used to namespace browser recovery data. See `crates/tessera-core/src/notebook.rs:10`, `Notebook::open` and `Notebook::info`; `crates/tessera-core/migrations/001_notebook.sql`.
+
+Every CLI command initializes `tracing` on stderr with a `RUST_LOG` filter, defaulting to `info`. Service events include its URL, notebook path, applied migration versions, ingestion job starts and outcomes, and shutdown. The macOS launch agent sets `RUST_LOG=info` and writes both output streams to `~/Library/Logs/tessera/serve.log`. CLI JSON and exports still go to stdout.
+
+`tessera backup <dest>` opens a fresh read connection and uses SQLite's online backup API while the service can keep writing WAL commits. It copies published content-addressed objects and writes a manifest with notebook ID, schema version, backup time in Unix milliseconds, object count and database page count. The destination must be empty. `tessera --notebook <dest> restore <src>` holds the service ownership lock throughout replacement and migration checks. A live service always prevents restore, even with `--force`; that flag only permits a non-empty destination. Immutable objects already present are retained. See `crates/tessera-core/src/backup.rs` and the [install instructions](../README.md#install).
 
 ```mermaid
 flowchart TD
@@ -321,7 +325,7 @@ Start with the layer that owns the symptom. These entries point to the implement
 | Card syntax creates no unit or progress seems to change on edit | `crates/tessera-core/src/card_text.rs` · `parse_card_text`; `card_store.rs` · `derive_sources`; `web/src/review/card-text.ts` · `parseCardText` |
 | A shown card cannot be graded or advances before saving | `crates/tessera-core/src/review_store.rs` · `GradeCard` handling; `web/src/review/ReviewPane.tsx` · `refresh`, `grade` |
 | Pane back/forward, restored folds or command targeting is wrong | `web/src/shell/App.tsx` · `open`, `changeView`, `travel`, navigation restore; `web/src/shell/Palette.tsx` · command capture |
-| Service startup fails with existing ownership | `crates/tessera-service/src/ownership.rs` · `Ownership::acquire`; `crates/tessera-service/src/lib.rs` · `serve` |
+| Service startup fails with existing ownership | `crates/tessera-core/src/ownership.rs` · `NotebookOwnership::acquire`; `crates/tessera-service/src/lib.rs` · `serve` |
 
 ## Open questions
 

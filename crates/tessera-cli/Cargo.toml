@@ -10,6 +10,9 @@ repository.workspace = true
 name = "tessera"
 path = "src/main.rs"
 
+[features]
+embed-web = ["tessera-service/embed-web"]
+
 [dependencies]
 tessera-core.workspace = true
 tessera-service.workspace = true
@@ -20,6 +23,7 @@ serde_json.workspace = true
 tokio.workspace = true
 reqwest.workspace = true
 percent-encoding = "2"
+tracing-subscriber.workspace = true
 
 [dev-dependencies]
 rusqlite.workspace = true

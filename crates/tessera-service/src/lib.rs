@@ -5,7 +5,6 @@ mod assets;
 mod capabilities;
 mod error;
 pub mod library;
-mod ownership;
 mod security;
 
 use parking_lot::Mutex;
@@ -33,8 +32,8 @@ use tessera_core::{
 use tokio::sync::broadcast;
 
 use crate::error::ApiError;
-use crate::ownership::Ownership;
 pub use crate::security::validate_dev_origin;
+use tessera_core::NotebookOwnership;
 
 pub const DEFAULT_PORT: u16 = 4318;
 
@@ -42,7 +41,7 @@ pub struct Config {
     /// Notebook directory; created if missing.
     pub notebook: PathBuf,
     pub port: u16,
-    /// Built browser editor (`web/dist`). Without it only `/api` is served.
+    /// Override embedded browser assets with a built directory (`web/dist`).
     pub assets: Option<PathBuf>,
     /// Extra allowed browser origin for the Vite dev server.
     pub dev_origin: Option<String>,
@@ -141,7 +140,7 @@ pub async fn serve(config: Config) -> anyhow::Result<()> {
     let dir = config.notebook.clone();
     let requested_port = config.port;
     let (notebook, mut ownership) = tokio::task::spawn_blocking(move || {
-        let ownership = Ownership::acquire(&dir, requested_port)?;
+        let ownership = NotebookOwnership::acquire(&dir, requested_port)?;
         let notebook = Notebook::open(&dir)
             .with_context(|| format!("cannot open notebook {}", dir.display()))?;
         Ok::<_, anyhow::Error>((notebook, ownership))
@@ -156,12 +155,13 @@ pub async fn serve(config: Config) -> anyhow::Result<()> {
     ownership.record(Some(port))?;
     let app =
         router(notebook, port, config.assets, config.dev_origin).map_err(anyhow::Error::msg)?;
-    eprintln!("tessera: http://127.0.0.1:{port}");
-    eprintln!("tessera: notebook {}", path.display());
+    tracing::info!(url = %format_args!("http://127.0.0.1:{port}"), "service listening");
+    tracing::info!(path = %path.display(), "notebook opened");
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown)
         .await?;
     drop(ownership);
+    tracing::info!("service stopped");
     Ok(())
 }
 
@@ -178,11 +178,12 @@ fn shutdown_signal() -> std::io::Result<impl Future<Output = ()>> {
         tokio::select! {
             result = tokio::signal::ctrl_c() => {
                 if let Err(error) = result {
-                    eprintln!("tessera: Ctrl-C handler failed; draining service: {error}");
+                    tracing::error!(%error, "Ctrl-C handler failed; draining service");
                 }
             }
             () = terminated => {}
         }
+        tracing::info!("service shutting down");
     })
 }
 
