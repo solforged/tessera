@@ -607,16 +607,20 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
   const depth = (): Depth => outlineView().depth ?? 'full';
   // The dial shows on titled pages at their top level; a zoomed page always shows in full.
   const showDial = () => root()?.kind === 'page' && !outlineView().zoom;
+  // Journal days leave out what only titled pages can do (rename, gloss, compare, question) rather than listing it disabled.
+  const titled = () => root()?.kind !== 'journal';
   const items = (): MenuItem[] => [
-    { label: 'Rename', icon: 'edit', disabledReason: root()?.kind === 'journal' ? 'Journal dates cannot be renamed' : undefined, action: props.onRename },
+    ...(titled() ? [{ label: 'Rename', icon: 'edit', action: props.onRename } satisfies MenuItem] : []),
     { label: props.pinned ? 'Unpin' : 'Pin', icon: 'pin', action: props.onPin },
     { label: 'Open page beside', icon: 'panes', action: props.onPageBeside },
     { label: pageStyle() === 'prose' ? 'Show bullets' : 'Hide bullets', icon: 'bullet', disabledReason: root() ? undefined : 'Page is still loading', action: () => props.onPageStyle(pageId()!, pageStyle() === 'prose' ? 'bullets' : 'prose', defaultStyle()) },
-    { label: 'Gloss', icon: 'edit', disabledReason: root()?.kind === 'page' ? undefined : root() ? 'Journal days have no gloss' : 'Page is still loading', action: () => outlineCommand('gloss')?.run() },
-    { label: 'Compare perspectives', icon: 'compare', disabledReason: outlineCommand('compare')?.disabledReason?.()?.replace(/\.$/, ''), action: () => outlineCommand('compare')?.run() },
+    ...(titled() ? [
+      { label: 'Gloss', icon: 'edit', disabledReason: root() ? undefined : 'Page is still loading', action: () => outlineCommand('gloss')?.run() },
+      { label: 'Compare perspectives', icon: 'compare', disabledReason: outlineCommand('compare')?.disabledReason?.()?.replace(/\.$/, ''), action: () => outlineCommand('compare')?.run() },
+    ] satisfies MenuItem[] : []),
     { label: root()?.task ? 'Task' : 'Make task', icon: 'check', disabledReason: root() ? undefined : 'Page is still loading', action: () => rootCapability('task') },
     { label: root()?.project ? 'Project' : 'Make project', icon: 'flag', disabledReason: root() ? undefined : 'Page is still loading', action: () => rootCapability('project') },
-    { label: root()?.question ? 'Question' : 'Make question', icon: 'question-open', disabledReason: !root() ? 'Page is still loading' : root()?.kind !== 'page' ? 'Journal days cannot be questions' : undefined, action: () => rootCapability('question') },
+    ...(titled() ? [{ label: root()?.question ? 'Question' : 'Make question', icon: 'question-open', disabledReason: root() ? undefined : 'Page is still loading', action: () => rootCapability('question') } satisfies MenuItem] : []),
     { label: 'Undo', icon: 'undo', shortcut: '⌘Z', disabledReason: !doc()?.canUndo() ? 'Nothing to undo' : undefined, action: () => undo(false) },
     { label: 'Redo', icon: 'redo', shortcut: '⌘⇧Z', disabledReason: !doc()?.canRedo() ? 'Nothing to redo' : undefined, action: () => undo(true) },
     { label: outlineView().showArchived ? 'Hide archived' : 'Show archived', icon: 'archive', action: props.onArchived },
