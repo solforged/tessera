@@ -208,7 +208,7 @@ Three shapes only, so every popup is recognisable at a glance:
 | Page, notebook, layout, pill, column, view, sort and field kind menus | Menu | Below their trigger |
 | New page, Delete page | Confirm | Below their trigger |
 | Undo toast | Bottom centre, one at a time |
-| Save state | Pane header, never a toolbar |
+| Save state | Pane header, never a toolbar or a row; it says Saving… only when a save takes longer than a second |
 
 Native `<select>` is never used; a bordered menu button or a picker replaces it.
 
