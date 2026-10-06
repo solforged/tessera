@@ -24,17 +24,19 @@ export function visibleIds(doc: PageDocument, zoom: string | null, folds: Readon
   const result: string[] = [];
   const start = zoom ? outline.indexOf(zoom) : 0;
   const end = zoom && start >= 0 ? outline.subtreeEnd(start) : outline.size();
+  // One subscription for every archived flag; a tracked read per row would cost a subscription per row.
+  if (!archived) doc.archivedVersion();
   let hiddenDepth: number | null = null;
-  for (const row of (outline as OutlineIndex).slice(Math.max(0, start), end)) {
-    if (hiddenDepth !== null && row.depth > hiddenDepth) continue;
+  (outline as OutlineIndex).each(Math.max(0, start), end, row => {
+    if (hiddenDepth !== null && row.depth > hiddenDepth) return;
     hiddenDepth = null;
-    if (!archived && row.id !== zoom && doc.block(row.id)?.archived) {
+    if (!archived && row.id !== zoom && doc.isArchived(row.id)) {
       hiddenDepth = row.depth;
-      continue;
+      return;
     }
     if (!inlineFields?.has(row.id)) result.push(row.id);
     if (folds.has(row.id)) hiddenDepth = row.depth;
-  }
+  });
   return result;
 }
 

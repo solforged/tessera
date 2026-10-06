@@ -113,6 +113,9 @@ function Pane(props: OutlinePaneProps) {
       const block = props.notebook.lookup(field.id)();
       return block !== null && !block?.archived;
     });
+  }, undefined, {
+    // Fields refetch after every committed change; unchanged definitions must not reconfigure the editor or re-scan rows.
+    equals: (a, b) => a.length === b.length && a.every((field, index) => { const other = b[index]!; return field.id === other.id && field.revision === other.revision && field.name === other.name && field.kind === other.kind && JSON.stringify(field.options) === JSON.stringify(other.options); }),
   });
   const definitionsById = createMemo(() => new Map(definitions().map(field => [field.id, field])));
   const [type] = createResource(
@@ -267,10 +270,17 @@ function Pane(props: OutlinePaneProps) {
   });
 
   const unfoldedIds = createMemo(() => visibleIds(doc, zoom(), folds(), showArchived()));
-  // Per-row memos keep ordinary typing from rebuilding the page's visible list.
-  const fieldCandidates = mapArray(unfoldedIds, id => ({ id, value: createMemo(() => inlineFieldValue(doc, id, definitionsById())) }));
+  const unfoldedSet = createMemo(() => new Set(unfoldedIds()));
+  // Only field entries can fold their value inline. Field entries come from structural edits (shorthand
+  // conversion inserts the value), which rebuild this list; reading text untracked keeps typing out of it.
+  const fieldEntries = createMemo(() => {
+    const visible = unfoldedIds(); const definitions = definitionsById();
+    return definitions.size ? untrack(() => visible.filter(id => definitions.has(fieldEntryId(doc.block(id)?.text ?? '') ?? ''))) : [];
+  });
+  // Per-entry memos keep ordinary typing from rebuilding the page's visible list.
+  const fieldCandidates = mapArray(fieldEntries, id => ({ id, value: createMemo(() => inlineFieldValue(doc, id, definitionsById())) }));
   const inlineFields = createMemo(() => {
-    const visible = new Set(unfoldedIds());
+    const visible = unfoldedSet();
     const retained = new Set([editing(), selected(), rowRange()?.anchor, rowRange()?.head, textRange()?.anchor.id, textRange()?.head.id]);
     const result = new Set<string>();
     for (const candidate of fieldCandidates()) {
@@ -278,8 +288,9 @@ function Pane(props: OutlinePaneProps) {
       if (value && visible.has(value) && !retained.has(candidate.id)) result.add(candidate.id);
     }
     return result;
-  });
-  const ids = createMemo(() => visibleIds(doc, zoom(), folds(), showArchived(), inlineFields()));
+  }, undefined, { equals: (a, b) => a.size === b.size && [...a].every(id => b.has(id)) });
+  // Inline entries only drop out of the unfolded list, so selection changes never re-walk the outline.
+  const ids = createMemo(() => { const inline = inlineFields(); const visible = unfoldedIds(); return inline.size ? visible.filter(id => !inline.has(id)) : visible; });
   const indices = createMemo(() => new Map(ids().map((id, index) => [id, index])));
   const baseDepth = createMemo(() => zoom() ? doc.outline.depth(zoom()!) : 0);
   const selectedIds = createMemo(() => {
@@ -293,7 +304,8 @@ function Pane(props: OutlinePaneProps) {
   const virtualizer = createVirtualizer<HTMLDivElement, HTMLDivElement>({
     get count() { return ids().length; },
     getScrollElement: () => scroll,
-    estimateSize: () => 32,
+    // One unwrapped line; a mismatch makes every mounted row re-measure the whole list.
+    estimateSize: () => 28,
     overscan: 8,
     get scrollMargin() { return margin(); },
     get getItemKey() { const rows = ids(); return (index: number) => rows[index]!; },

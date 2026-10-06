@@ -108,6 +108,17 @@ export class OutlineIndex implements OutlineReader {
     collect(this.tree, 0);
     return rows;
   }
+  /** Visits rows in order without copying them, for walks over the whole page. Callers must not mutate rows. */
+  each(start: number, end: number, visit: (row: Readonly<OutlineRow>) => void) {
+    const walk = (item: Item | null, base: number) => {
+      if (!item || base >= end || base + item.size <= start) return;
+      const position = base + (item.left?.size ?? 0);
+      walk(item.left, base);
+      if (position >= start && position < end) visit(item.row);
+      walk(item.right, position + 1);
+    };
+    walk(this.tree, 0);
+  }
   subtreeEnd(index: number) {
     this.version();
     const start = index + 1;

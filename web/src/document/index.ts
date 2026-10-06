@@ -23,6 +23,8 @@ export interface NotebookOptions {
 
 type SettingEdit = { key: 'time_zone' | 'vim'; before: string; after: string; revision: number };
 
+/** Back and forward between a few pages reopens them without a reload; each warm page keeps its rows in memory. */
+const WARM_DOCUMENTS = 3;
 /** One single-flight operation queue for every document in this window. */
 export class Notebook implements NotebookClient, DocumentHost {
   readonly ready: Promise<void>;
@@ -30,6 +32,8 @@ export class Notebook implements NotebookClient, DocumentHost {
   readonly roots: Accessor<readonly Block[]>;
   private setRoots;
   private docs = new Map<string, Document>();
+  /** Released documents kept loaded, oldest first, so returning to a page does not refetch and rebuild it. */
+  private warm: string[] = [];
   private cache = new Map<string, [Accessor<Block | null | undefined>, (value: Block | null | undefined) => Block | null | undefined]>();
   private failedLookups = new Set<string>();
   private queue: Command[] = [];
@@ -162,6 +166,8 @@ export class Notebook implements NotebookClient, DocumentHost {
   open(pageId: string): PageDocument {
     let doc = this.docs.get(pageId);
     if (!doc) { doc = new Document(pageId, this); this.docs.set(pageId, doc); }
+    const warm = this.warm.indexOf(pageId);
+    if (warm >= 0) this.warm.splice(warm, 1);
     doc.holds++;
     return doc;
   }
@@ -169,11 +175,25 @@ export class Notebook implements NotebookClient, DocumentHost {
     doc.holds = Math.max(0, doc.holds - 1);
     this.closeUnused(doc);
   }
+  /** Unheld documents without queued commands, conflicts or a pending page restore can close. */
+  private closable(doc: Document) {
+    return this.docs.get(doc.pageId) === doc && !doc.holds && !this.queue.some(command => command.pageId === doc.pageId) && !doc.hasConflict() && !this.deletedPages.has(doc.pageId);
+  }
   private closeUnused(doc: Document) {
-    if (this.docs.get(doc.pageId) === doc && !doc.holds && !this.queue.some(command => command.pageId === doc.pageId) && !doc.hasConflict() && !this.deletedPages.has(doc.pageId)) {
-      doc.close();
-      this.docs.delete(doc.pageId);
+    if (!this.closable(doc)) return;
+    if (doc.status() !== 'ready') { this.close(doc); return; }
+    // A loaded document keeps following the change stream while warm.
+    if (!this.warm.includes(doc.pageId)) this.warm.push(doc.pageId);
+    while (this.warm.length > WARM_DOCUMENTS) {
+      const oldest = this.docs.get(this.warm.shift()!);
+      if (oldest && this.closable(oldest)) this.close(oldest);
     }
+  }
+  private close(doc: Document) {
+    doc.close();
+    this.docs.delete(doc.pageId);
+    const warm = this.warm.indexOf(doc.pageId);
+    if (warm >= 0) this.warm.splice(warm, 1);
   }
   commands(pageId: string): PageCommand[] { this.revision[0](); return this.queue.filter((command): command is PageCommand => command.kind !== 'notebook' && command.pageId === pageId); }
   async loadPage(id: string) {
@@ -191,12 +211,13 @@ export class Notebook implements NotebookClient, DocumentHost {
       throw error;
     }
   }
+  /** Writes a loaded view to recovery storage once; a merge offers the same view more than once. */
   cachePage(view: PageView) {
-    if (!this.cachedViews.has(view)) {
-      const capabilities = new Map((view.capabilities ?? []).map(value => [value.block_id, value]));
-      void this.outbox?.capabilities([view.root, ...view.rows.map(row => row.block)].map(block => capabilities.get(block.id) ?? emptyCapabilities(block.id)), this.snapshotSequence.get(view) ?? 0).catch(() => undefined);
-    }
-    if (!this.cachedViews.has(view)) void this.outbox?.page(view, this.snapshotSequence.get(view) ?? 0).catch(() => undefined);
+    if (this.cachedViews.has(view)) return;
+    this.cachedViews.add(view);
+    const capabilities = new Map((view.capabilities ?? []).map(value => [value.block_id, value]));
+    void this.outbox?.capabilities([view.root, ...view.rows.map(row => row.block)].map(block => capabilities.get(block.id) ?? emptyCapabilities(block.id)), this.snapshotSequence.get(view) ?? 0).catch(() => undefined);
+    void this.outbox?.page(view, this.snapshotSequence.get(view) ?? 0).catch(() => undefined);
   }
   publish(block: Block | null, id = block?.id) {
     if (!id) return;

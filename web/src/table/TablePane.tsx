@@ -43,6 +43,9 @@ export function TablePane(props: TablePaneProps) {
   const [deleted, setDeleted] = createSignal<View | null>(null);
   const [savedRevision, setSavedRevision] = createSignal(0);
   let region!: HTMLDivElement; let scroll!: HTMLDivElement;
+  // Scroll position reaches pane history once per frame, not once per scroll event.
+  let scrollReport = 0;
+  onCleanup(() => cancelAnimationFrame(scrollReport));
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
   let deletedTimer: ReturnType<typeof setTimeout> | undefined;
   let restoredScroll = false;
@@ -263,24 +266,24 @@ export function TablePane(props: TablePaneProps) {
       <For each={query().filters}>{(filter, index) => <span class="table-chip">{filterLabel(filter, fields())}<Button label={`Remove ${filterLabel(filter, fields())}`} onClick={() => updateQuery(removeFilter(query(), index()))}>×</Button></span>}</For>
       <Button onClick={event => showFilter(event.currentTarget)}>+ Filter</Button><Button onClick={event => sortMenu(event.currentTarget)}>Sort <Icon name="down" /></Button>
     </div>
-    <div ref={scroll} class="table-scroll" onScroll={() => props.onViewChange({ query: copyQuery(query()), scroll: scroll.scrollTop })}>
+    <div ref={scroll} class="table-scroll" onScroll={() => { cancelAnimationFrame(scrollReport); scrollReport = requestAnimationFrame(() => props.onViewChange({ query: copyQuery(query()), scroll: scroll.scrollTop })); }}>
       <table class="type-table" role="grid"><thead><tr><th class="table-title-column"><Button onClick={event => columnMenu(event.currentTarget, undefined)}>Title</Button></th>
         <For each={result()?.columns ?? []}>{id => <th><Button onClick={event => columnMenu(event.currentTarget, fieldById(id))}>{fieldById(id)?.name ?? id}</Button></th>}</For>
         <th class="table-add-column"><Button label="Add column" title={!query().type ? 'Open a type to add columns' : undefined} onClick={event => addColumnMenu(event.currentTarget)}>+</Button></th>
       </tr></thead><tbody><For each={result()?.rows ?? []}>{(row, rowIndex) => <tr>
         <td class="table-title-column table-cell" data-row={rowIndex()} data-column={0} tabIndex={focused().row === rowIndex() && focused().column === 0 ? 0 : -1} onFocus={() => setFocused({ row: rowIndex(), column: 0 })} onClick={event => openRow(row, event.shiftKey)}>
-          <TableCellText><BlockText text={props.notebook.lookup(row.block.block.id)()?.text ?? row.block.block.text} notebook={props.notebook} interactive={false} />
+          <TableCellText>{expanded => <><BlockText text={preview(props.notebook.lookup(row.block.block.id)()?.text ?? row.block.block.text, expanded)} notebook={props.notebook} interactive={false} />
             <Show when={row.block.block.id !== row.block.page.id}><div class="table-page-title">{row.block.page.text}</div></Show>
-          </TableCellText>
+          </>}</TableCellText>
         </td>
         <For each={result()?.columns ?? []}>{(id, columnIndex) => {
           const field = () => fieldById(id); const current = () => editing();
           return <td class={`table-cell ${field()?.kind === 'number' ? 'table-number' : ''}`} data-row={rowIndex()} data-column={columnIndex() + 1} tabIndex={focused().row === rowIndex() && focused().column === columnIndex() + 1 ? 0 : -1} onFocus={() => setFocused({ row: rowIndex(), column: columnIndex() + 1 })} onDblClick={() => { if (field()) startEdit(row, field()!); }}>
-            <Show when={current()?.row.block.block.id === row.block.block.id && current()?.field.id === id} fallback={<TableCellText><For each={row.values[id] ?? []}>{(value, index) => <>
-              {index() > 0 ? ', ' : ''}<Show when={value.reading.ok} fallback={<span class="table-reading-problem" title={!value.reading.ok ? value.reading.problem : undefined}><BlockText text={value.text} notebook={props.notebook} interactive={false} /></span>}>
-                <span class={field()?.kind === 'choice' || field()?.kind === 'instance' ? 'table-value-pill' : ''}><BlockText text={value.reading.ok ? field()?.kind === 'text' ? value.text : field()?.kind === 'checkbox' ? value.reading.value ? '☑' : '☐' : String(value.reading.value) : ''} notebook={props.notebook} interactive={false} /></span>
+            <Show when={current()?.row.block.block.id === row.block.block.id && current()?.field.id === id} fallback={<TableCellText>{expanded => <For each={row.values[id] ?? []}>{(value, index) => <>
+              {index() > 0 ? ', ' : ''}<Show when={value.reading.ok} fallback={<span class="table-reading-problem" title={!value.reading.ok ? value.reading.problem : undefined}><BlockText text={preview(value.text, expanded)} notebook={props.notebook} interactive={false} /></span>}>
+                <span class={field()?.kind === 'choice' || field()?.kind === 'instance' ? 'table-value-pill' : ''}><BlockText text={value.reading.ok ? field()?.kind === 'text' ? preview(value.text, expanded) : field()?.kind === 'checkbox' ? value.reading.value ? '☑' : '☐' : String(value.reading.value) : ''} notebook={props.notebook} interactive={false} /></span>
               </Show>
-            </>}</For></TableCellText>}>
+            </>}</For>}</TableCellText>}>
               <input class="input table-cell-input" type="text" aria-label={`Edit ${field()?.name ?? 'field'} value`} placeholder={field() ? valuePlaceholders[field()!.kind] : undefined} inputmode={field()?.kind === 'number' ? 'decimal' : field()?.kind === 'url' ? 'url' : undefined} value={current()?.text ?? ''} ref={input => queueMicrotask(() => { input.focus(); input.select(); })} onInput={event => { const text = event.currentTarget.value; setEditing(value => value ? { ...value, text } : null); }} onKeyDown={event => {
                 if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); void commitEdit(); }
                 else if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setEditing(null); region.focus(); }
@@ -298,30 +301,52 @@ export function TablePane(props: TablePaneProps) {
   </div>;
 }
 
-/** One observer for every clamped cell; a table can mount thousands of them. */
-const cellMeasures = new WeakMap<Element, () => void>();
+/** Clamped cells measure in batches, all reads before any write, so mounting a table lays out once. */
+interface CellMeasure { read(): boolean; write(clipped: boolean): void }
+const cellMeasures = new WeakMap<Element, CellMeasure>();
+const pendingCells = new Set<CellMeasure>();
+let cellFrame = 0;
 let cellResize: ResizeObserver | undefined;
-function observeCell(element: Element, measure: () => void): () => void {
-  cellResize ??= new ResizeObserver(entries => { for (const entry of entries) cellMeasures.get(entry.target)?.(); });
+function measureCells(cells: CellMeasure[]) {
+  const clipped = cells.map(cell => cell.read());
+  cells.forEach((cell, index) => cell.write(clipped[index]!));
+}
+function flushCells() { cellFrame = 0; const cells = [...pendingCells]; pendingCells.clear(); measureCells(cells); }
+function observeCell(element: Element, measure: CellMeasure): { schedule(): void; dispose(): void } {
+  // A newly observed element reports once after layout, which covers the first measurement.
+  cellResize ??= new ResizeObserver(entries => measureCells(entries.flatMap(entry => cellMeasures.get(entry.target) ?? [])));
   cellMeasures.set(element, measure);
   cellResize.observe(element);
-  return () => { cellResize?.unobserve(element); cellMeasures.delete(element); };
+  return {
+    schedule() { pendingCells.add(measure); cellFrame ||= requestAnimationFrame(flushCells); },
+    dispose() { cellResize?.unobserve(element); cellMeasures.delete(element); pendingCells.delete(measure); },
+  };
 }
 
-function TableCellText(props: { children: JSX.Element }) {
+/** Clamped cells show three lines, so they shape only a prefix; long values otherwise dominate a large table's layout. */
+const PREVIEW_CHARACTERS = 400;
+function preview(text: string, expanded: boolean): string {
+  if (expanded || text.length <= PREVIEW_CHARACTERS) return text;
+  let end = 0;
+  for (const token of textTokens(text)) {
+    if (token.start >= PREVIEW_CHARACTERS) break;
+    end = token.kind === 'text' ? Math.min(token.end, PREVIEW_CHARACTERS) : token.end;
+  }
+  return `${text.slice(0, end)}…`;
+}
+
+function TableCellText(props: { children: (expanded: boolean) => JSX.Element }) {
   const [open, setOpen] = createSignal(false);
   const [clipped, setClipped] = createSignal(false);
   let content!: HTMLDivElement;
   onMount(() => {
-    const measure = () => { if (!open()) setClipped(content.scrollHeight > content.clientHeight); };
-    const unobserve = observeCell(content, measure);
-    const mutation = new MutationObserver(measure);
+    const cell = observeCell(content, { read: () => !open() && content.scrollHeight > content.clientHeight, write: value => { if (!open()) setClipped(value); } });
+    const mutation = new MutationObserver(() => cell.schedule());
     mutation.observe(content, { subtree: true, childList: true, characterData: true });
-    measure();
-    onCleanup(() => { unobserve(); mutation.disconnect(); });
+    onCleanup(() => { cell.dispose(); mutation.disconnect(); });
   });
   return <>
-    <div ref={content} class="table-cell-clamp" classList={{ 'table-cell-open': open() }}>{props.children}</div>
+    <div ref={content} class="table-cell-clamp" classList={{ 'table-cell-open': open() }}>{props.children(open())}</div>
     <Show when={clipped()}><Button class="table-cell-more" aria-expanded={open()} onMouseDown={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()} onDblClick={event => event.stopPropagation()}
       onClick={event => { event.stopPropagation(); setOpen(value => !value); }}>{open() ? 'Less' : 'More'}</Button></Show>
   </>;
