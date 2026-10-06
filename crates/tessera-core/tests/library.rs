@@ -1101,7 +1101,8 @@ fn citation_ranges_reactivation_sidecars_merge_and_visibility() {
 fn coverage_changes_state_once_and_library_filters_sort() {
     let dir = tempfile::tempdir().unwrap();
     let mut n = Notebook::open(dir.path()).unwrap();
-    let doc = document();
+    let mut doc = document();
+    doc.metadata.cover = Some("images/cover.jpg".into());
     let (source, snapshot) = ingest(&mut n, &doc, b"one");
     let first = n.set_reading_position(&snapshot, 0, (0, 1)).unwrap();
     assert!(first.state_changed);
@@ -1120,6 +1121,10 @@ fn coverage_changes_state_once_and_library_filters_sort() {
     let mut other = doc.clone();
     other.metadata.unique_id = Some("other".into());
     other.metadata.title = Some("A different book".into());
+    other.format = SourceFormat::Article;
+    other.media_type = "text/html".into();
+    other.metadata.cover = None;
+    other.metadata.site = Some("example.org".into());
     ingest(&mut n, &other, b"other");
     let library = n
         .library(&LibraryQuery {
@@ -1132,6 +1137,10 @@ fn coverage_changes_state_once_and_library_filters_sort() {
     assert_eq!(library.counts.inbox, 1);
     assert_eq!(library.total, 2);
     assert_eq!(library.rows[0].page.text, "A different book");
+    assert_eq!(library.rows[0].site.as_deref(), Some("example.org"));
+    assert_eq!(library.rows[0].cover, None);
+    assert_eq!(library.rows[1].site, None);
+    assert_eq!(library.rows[1].cover.as_deref(), Some("images/cover.jpg"));
     let filtered = n
         .library(&LibraryQuery {
             states: vec![ReadingState::Reading],
@@ -1148,7 +1157,7 @@ fn coverage_changes_state_once_and_library_filters_sort() {
         })
         .unwrap()
         .total,
-        0
+        1
     );
 }
 #[test]
