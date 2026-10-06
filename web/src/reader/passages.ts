@@ -90,6 +90,19 @@ export function passagePoint(root: HTMLElement, node: Node, offset: number): Pas
   return found && root.dataset.passageId ? { passage_id: root.dataset.passageId, offset: total } : null;
 }
 
+/** Invert passagePoint without counting element wrappers as text. */
+export function passageNode(root: HTMLElement, offset: number): { node: Text; offset: number } | null {
+  if (offset < 0) return null;
+  const walker = root.ownerDocument.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let node: Node | null;
+  while ((node = walker.nextNode())) {
+    const length = node.textContent?.length ?? 0;
+    if (offset <= length) return { node: node as Text, offset };
+    offset -= length;
+  }
+  return null;
+}
+
 export function selectionInPassages(container: HTMLElement, selection: Selection, passages: readonly Passage[]): PassageSelection | null {
   if (selection.isCollapsed || !selection.anchorNode || !selection.focusNode) return null;
   const element = (node: Node) => (node.nodeType === Node.ELEMENT_NODE ? node as Element : node.parentElement)?.closest<HTMLElement>('[data-passage-id]');
