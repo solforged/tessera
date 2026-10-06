@@ -42,6 +42,8 @@
 .outline-body.heading-2 { font-size: var(--text-h2); line-height: var(--line-h2); font-weight: var(--weight-heading); }
 .outline-body.heading-3 { font-size: var(--text-h3); line-height: var(--line-h3); font-weight: var(--weight-heading); }
 .outline-reference { display: inline; font: inherit; color: var(--accent); border: 0; padding: 0; background: transparent; text-align: left; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent); cursor: pointer; }
+/* The `[[query]]` a picker is completing: accent text on a tint, so the pending link reads as one span. */
+.outline-reference-draft { color: var(--accent); background: var(--accent-tint); border-radius: var(--radius-control); }
 .outline-reference .icon { width: var(--icon-size-small); height: var(--icon-size-small); display: inline; vertical-align: -2px; margin-right: var(--space-4); }
 .field-entry .static-text, .field-entry .outline-reference, .field-entry .editor-host { color: var(--muted); text-decoration: none; }
 /* Inline field label: the icon takes the bullet's slot, the name starts on the text edge. */

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { Compartment, EditorState } from '@codemirror/state';
-import { fieldEntryExtension, referenceDecorations } from './editor';
+import { fieldEntryExtension, pairInput, referenceDecorations } from './editor';
 
 test('known whole-field references keep raw copy text and reject interior carets', () => {
   for (const text of ['[[area]]', '  [[area|Alias]]  ']) {
@@ -73,5 +73,37 @@ describe('editor reference decorations', () => {
   test('rebuilds labels when a lookup changes', () => {
     expect(decorations('By [[author]]', 0)[0]?.label).toBe('author');
     expect(decorations('By [[author]]', 0, { author: 'Author' })[0]?.label).toBe('Author');
+  });
+});
+
+/** Types `keys` one character at a time, as the input handler would, and marks the caret with `|`. */
+function typed(keys: string, doc = '', caret = doc.length) {
+  for (const key of keys) {
+    const paired = pairInput(doc, caret, key);
+    const insert = paired ? paired.insert : key;
+    doc = doc.slice(0, caret) + insert + doc.slice(caret);
+    caret = paired ? paired.caret : caret + 1;
+  }
+  return `${doc.slice(0, caret)}|${doc.slice(caret)}`;
+}
+
+describe('bracket pairing', () => {
+  test('a second opener closes the pair with the caret inside', () => {
+    expect(typed('See [[')).toBe('See [[|]]');
+    expect(typed('See ((')).toBe('See ((|))');
+    expect(typed('#[[')).toBe('#[[|]]');
+  });
+  test('single brackets, task shorthand and a third opener stay plain', () => {
+    expect(typed('[] ')).toBe('[] |');
+    expect(typed('[ ] ')).toBe('[ ] |');
+    expect(typed('a (b)')).toBe('a (b)|');
+    expect(typed('[', '[[]]', 2)).toBe('[[[|]]');
+  });
+  test('typed closers step over the paired ones, so typing the whole token by hand matches the source', () => {
+    expect(typed('[[Page]] next')).toBe('[[Page]] next|');
+    expect(typed('((a+b)*c)')).toBe('((a+b)*c)|');
+  });
+  test('a closer outside an open pair is ordinary text', () => {
+    expect(typed(']', '[[a]]x]', 6)).toBe('[[a]]x]|]');
   });
 });
