@@ -5,65 +5,78 @@
 :root {
   color-scheme: dark;
 
-  /* The canvas sits inside a slightly lighter shell. */
-  --shell: #1b2528;     /* global rail and sidebar */
-  --surface: #101719;   /* table headers and banners */
-  --canvas: #151e21;    /* panes */
-  --raised: #1d2a2e;    /* popups, pills, chips */
-  --hover: #1b272a;
-  --selection: #213236; /* rows add a 2 px accent bar at the left */
-  --text-selection: #94c8b34d; /* selected text: the accent at 30%, distinct from highlights */
-  --line: #304247;      /* dividers */
-  --control-border: #627b80;
+  /* Orrery: a midnight desk around an ink-blue canvas. */
+  --shell: #0a0d13;     /* global rail and sidebar */
+  --surface: #080b10;   /* table headers and banners */
+  --canvas: #0e121a;    /* panes */
+  --raised: #151b26;    /* popups, pills, chips */
+  --hover: #131823;
+  --selection: #19202e; /* rows add a 2 px gilt bar at the left */
+  --text-selection: #d8aa553d; /* selected text: the gilt accent at 24% */
+  --line: #232c3b;      /* dividers */
+  --control-border: #48546b;
 
   /* Text. */
-  --text: #dde7e5;
-  --muted: #a7b8b4;
-  --faint: #879d98;
+  --text: #e6e1d6;
+  --muted: #a4a9b4;
+  --faint: #78808f;
 
-  /* One accent for focus and primary actions. */
-  --accent: #94c8b3;
-  --accent-tint: #94c8b31a;
-  --danger: #e5a491;
-  --warning: #d6b57b;
+  /* Gilt for focus and primary actions; rubric red for warnings and marks. */
+  --accent: #d8aa55;
+  --accent-tint: #d8aa551a;
+  --danger: #d97a6b;
+  --warning: #e09a5d;
   --focus-ring: 2px solid var(--accent);
   --focus-offset: 2px;
 
-  /* Type hues colour pills only, as a 10% tint behind the hue, never bullets.
+  /* Type hues colour pills only, as a 12% tint behind the hue, never bullets.
      They never reuse a status hue. */
-  --type-1: #a9baf2; --type-2: #d5a8cb; --type-3: #8fc8d5;
-  --type-4: #b8c7a1; --type-5: #c4b5e8; --type-6: #aab9bd;
+  --type-1: #8ea6e6; --type-2: #cf9fc4; --type-3: #86b6c9;
+  --type-4: #b5c19b; --type-5: #b4a5e2; --type-6: #a6adbb;
 
   /* Task and status hues, reserved for stage 3. */
   --status-todo: var(--muted);
-  --status-doing: #8fc8d5;
+  --status-doing: #7f9de0;
   --status-waiting: var(--warning);
-  --status-done: var(--accent);
+  --status-done: #8fb59a;
   --status-cancelled: var(--faint);
   --status-overdue: var(--danger);
 
   /* Calendar planning marks distinguish dates without relying on hue alone. */
-  --calendar-scheduled: var(--accent);
+  --calendar-scheduled: #7f9de0;
   --calendar-deadline: var(--warning);
   --calendar-related: var(--muted);
 
   /* Highlight hues: reader tints at 24%, dots and chips at full strength.
      Distinct from the accent and status hues so a colour reads as a label. */
-  --highlight-yellow: #dab342; --highlight-green: #52b777; --highlight-blue: #589ee0;
-  --highlight-red: #e66d71; --highlight-purple: #b186da;
+  --highlight-yellow: #d8b24a; --highlight-green: #62ad85; --highlight-blue: #6f95e0;
+  --highlight-red: #d86b6f; --highlight-purple: #ae8ad8;
 
-  /* Type. IBM Plex Sans Variable is bundled. */
+  /* Three voices: writing, publication and apparatus. Only the first two are bundled. */
   --font-body: "IBM Plex Sans Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-reading-serif: "Literata Variable", Georgia, serif;
-  --font-mono: "SFMono-Regular", Menlo, Consolas, monospace;
-  --text-meta: 12px; --line-meta: 16px;       /* pills, labels, breadcrumbs, status */
+  --font-display: "Piazzolla Variable", Georgia, serif;
+  --font-reading-serif: var(--font-display);
+  --font-mono: "Berkeley Mono Variable", "Berkeley Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+  --text-apparatus: 11.5px; --line-apparatus: 16px;
+  --apparatus: var(--weight-body) var(--text-apparatus)/var(--line-apparatus) var(--font-mono);
+  --tracking-apparatus: .01em;
+  --tracking-notebook: .14em;
+  --tracking-title: -.005em; --tracking-heading: -.003em;
+  --text-meta: 12px; --line-meta: 16px;       /* pills and labels */
   --text-control: 13px; --line-control: 18px; /* buttons, menus, sidebar, tables */
   --text-body: 15px; --line-body: 24px;       /* block text, inputs */
   --text-h3: 16px; --line-h3: 24px;
   --text-h2: 18px; --line-h2: 26px;           /* also section and pane titles */
+  --text-outline-h2: 19px;
   --text-h1: 24px; --line-h1: 30px;           /* also dialog and view headings */
-  --text-title: 30px; --line-title: 36px;     /* page titles */
+  --text-title: 32px; --line-title: 38px;     /* page titles */
+  --text-quote: 16px; --line-quote: 24px;
+  --text-library-title: 15.5px;
+  --line-source-title: 22px;
   --weight-body: 400; --weight-control: 500; --weight-heading: 600;
+  --weight-title: 430; --weight-display-heading: 480; --weight-source-title: 560;
+  --optical-title: "opsz" 30; --optical-heading: "opsz" 20;
+  --optical-quote: "opsz" 16; --optical-reader: "opsz" 17;
 
   /* Spacing and size. */
   --space-2: 2px; --space-4: 4px; --space-8: 8px;
@@ -96,9 +109,13 @@
   --week-drag-threshold: var(--space-4);
 
   /* Shape and elevation. Only floating layers cast shadows. */
-  --radius-control: 4px; --radius-popup: 8px; --radius-pill: 999px;
+  --radius-control: 2px; --radius-popup: 3px; --radius-workspace: 0; --radius-pill: 999px;
+  --registration-size: 9px; --rule-width: 1px;
+  --rubric-width: 24px; --rubric-height: 2px;
+  --oculus-gap: 6px;
   --popup-shadow: 0 12px 32px #0008;
   --dialog-shadow: 0 24px 64px #000a;
+  --mask-opaque: #000;
 
   /* Motion acknowledges input without delaying the action. */
   --motion-fast: 90ms;

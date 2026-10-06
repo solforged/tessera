@@ -22,7 +22,6 @@ import type { PassageSelection } from './passages';
 import { extendSelection, sentenceAt, shrinkSelection } from './sentences';
 import type { SelectionUnit, SentenceSelection } from './sentences';
 import { ReaderSettingsPopup, readerSettings, readerStyle } from './ReaderSettings';
-import '@fontsource-variable/literata';
 import './reader.css';
 
 export interface ReaderPaneProps {
@@ -150,7 +149,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     requestAnimationFrame(() => {
       void (async () => {
         // fonts.ready can settle before the new face is requested; load it explicitly.
-        if (readerSettings().typeface === 'serif') await document.fonts.load(`${readerSettings().size}px "Literata Variable"`);
+        if (readerSettings().typeface === 'serif') await document.fonts.load(`${readerSettings().size}px "Piazzolla Variable"`);
         if (disposed || epoch !== generation || token !== settingsVersion) return;
         // measure() would drop every cached size, and rows whose height did not change
         // (images, short headings) then fall back to the estimate. Re-measure mounted rows

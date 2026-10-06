@@ -3,7 +3,7 @@ import { Button } from '../ui/Button';
 import { Popup } from '../ui/Popup';
 
 const sizes = [15, 16, 17, 18, 20, 22] as const;
-// Widths in em follow the reader size: about 56 and 68 characters of Plex at any size.
+// Widths in em follow the reader size: a compact or medium reading measure.
 const widths = { Narrow: '28em', Medium: '34em', Wide: 'var(--measure)' } as const;
 const spacings = { Compact: 1.5, Normal: 1.65, Relaxed: 1.8 } as const;
 interface ReaderSettings {
@@ -12,14 +12,14 @@ interface ReaderSettings {
   width: keyof typeof widths;
   spacing: keyof typeof spacings;
 }
-const defaults: ReaderSettings = { typeface: 'sans', size: 17, width: 'Medium', spacing: 'Normal' };
+const defaults: ReaderSettings = { typeface: 'serif', size: 17, width: 'Medium', spacing: 'Normal' };
 const storageKey = 'tessera.reader';
 function storedSettings(): ReaderSettings {
   try {
     const value = JSON.parse(localStorage.getItem(storageKey) ?? 'null');
     if (!value || typeof value !== 'object') return defaults;
     return {
-      typeface: value.typeface === 'serif' ? 'serif' : 'sans',
+      typeface: value.typeface === 'sans' || value.typeface === 'serif' ? value.typeface : defaults.typeface,
       size: sizes.includes(value.size) ? value.size : defaults.size,
       width: Object.hasOwn(widths, value.width) ? value.width : defaults.width,
       spacing: Object.hasOwn(spacings, value.spacing) ? value.spacing : defaults.spacing,

@@ -6,6 +6,8 @@ import type { Command, CommandRegistry, OpenTarget, ViewState } from '../src/she
 import { OutlinePane } from '../src/outline/OutlinePane';
 import '../src/styles.css';
 import '@fontsource-variable/ibm-plex-sans';
+import '@fontsource-variable/piazzolla/standard.css';
+import '@fontsource-variable/piazzolla/standard-italic.css';
 
 interface RowSnapshot { id: string; text: string; parent: string; depth: number }
 export interface PerfControls {
