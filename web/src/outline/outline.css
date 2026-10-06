@@ -60,6 +60,10 @@
 .outline-field-label:hover { color: var(--text); }
 .outline-field-label span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .outline-field-label .icon { flex: none; width: var(--target-size); height: var(--icon-size-small); }
+/* The gloss reads as the page's standfirst: serif, muted, on the text edge, with no label. Clicking edits it. */
+.row-gloss .outline-field-label { display: none; }
+.row-gloss .outline-body { margin-left: var(--target-size); padding-bottom: var(--space-8); color: var(--muted); font: var(--weight-body) var(--text-gloss)/var(--line-gloss) var(--font-display); font-variation-settings: var(--optical-quote); }
+.row-gloss .empty-block { font: inherit; }
 .field-entry-widget .icon { flex: none; width: var(--icon-size-small); height: var(--icon-size-small); }
 .field-entry-widget { display: inline-flex; align-items: center; gap: var(--space-4); color: var(--muted); }
 /* `Name:: value` while typed: the name already reads as a field label, with a quiet hint at the end. */
