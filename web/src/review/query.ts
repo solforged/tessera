@@ -2,6 +2,13 @@ import type { CardQuery, CardRow, CardUnit, Grade, Operation, ReviewEvent, Revie
 import { copyQuery } from '../table/query';
 
 export const selectionLabels = { due: 'Due', new: 'New', all: 'All' } as const;
+export const gradeLabels: Record<Grade, string> = { again: 'Again', hard: 'Hard', good: 'Good', easy: 'Easy' };
+
+/** Grade buttons and history: days under a month, then months and years to one decimal. */
+export function formatInterval(days: number): string {
+  const [value, unit] = days < 30 ? [days, 'day'] : days < 365 ? [Number((days / 30.44).toFixed(1)), 'month'] : [Number((days / 365.25).toFixed(1)), 'year'];
+  return `${value} ${unit}${value === 1 ? '' : 's'}`;
+}
 
 export function copyCardQuery(query: CardQuery): CardQuery {
   return { ...query, source: query.source ? copyQuery(query.source) : null };
