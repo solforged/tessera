@@ -668,6 +668,8 @@ mod tests {
             changes,
             assets: None,
             library,
+            port: crate::DEFAULT_PORT,
+            backup: Arc::new(tokio::sync::Mutex::new(())),
         }
     }
     async fn response(app: &Router, method: &str, path: &str, body: Vec<u8>) -> Response {

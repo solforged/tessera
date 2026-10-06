@@ -362,7 +362,7 @@ export function LibraryPane(props: LibraryPaneProps) {
           }>
             <Show when={library()?.rows.length} fallback={<div class="library-empty">
               <Show when={text().trim()} fallback={<Show when={tab() === 'inbox'} fallback={<p>No sources.</p>}>
-                <p>Nothing in your inbox. Add a book or article.</p><Button onClick={event => { setAddError(''); setPopup({ kind: 'add', anchor: event.currentTarget }); }}>Add</Button>
+                <p>Nothing in your inbox. Add a book or article.</p>
               </Show>}><p>No sources match.</p><Button onClick={() => update({ view: null, text: '', scroll: 0 })}>Clear search</Button></Show>
             </div>}>
               <div class="library-rows" role="list"><For each={library()?.rows}>{row => {

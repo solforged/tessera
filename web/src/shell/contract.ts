@@ -50,8 +50,8 @@ export interface ViewState {
 }
 
 export type OpenTarget =
-  /** `blockId` zooms; `caretId` (default `blockId`) receives the caret. */
-  | { kind: 'page'; pageId: string; blockId?: string; caretId?: string }
+  /** `blockId` zooms; `caretId` (default `blockId`) receives the caret at `caretOffset` (default 0). */
+  | { kind: 'page'; pageId: string; blockId?: string; caretId?: string; caretOffset?: number }
   | { kind: 'table'; typeId: string | null; viewId: string | null; query: Query }
   | { kind: 'agenda'; date?: string; viewId?: string; query?: TaskQuery }
   | { kind: 'review'; deckId?: string }

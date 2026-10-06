@@ -5,6 +5,7 @@ import type { PaneId, SettingsViewState } from '../shell/contract';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Picker } from '../ui/Picker';
+import { backupLabel } from './backup';
 import './settings.css';
 
 export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; notebook: NotebookClient; onViewChange(view: SettingsViewState): void }) {
@@ -13,6 +14,22 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; not
     try { return await api.notebook(); }
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); return undefined; }
   });
+  const [service] = createResource(async () => {
+    try { return await api.service(); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); return undefined; }
+  });
+  const [backups, { refetch: refreshBackups }] = createResource(async () => {
+    try { return await api.backups(); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); return undefined; }
+  });
+  const [backingUp, setBackingUp] = createSignal(false);
+  const backUp = async () => {
+    if (backingUp()) return;
+    setBackingUp(true); setError('');
+    try { await api.createBackup(); await refreshBackups(); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
+    finally { setBackingUp(false); }
+  };
   const deviceZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const available = Intl.supportedValuesOf('timeZone');
   const zone = () => props.notebook.settings()?.time_zone ?? deviceZone;
@@ -57,6 +74,23 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; not
         <dt>Path</dt><dd>{value().path}</dd>
         <dt>Created</dt><dd>{new Date(value().created_at).toLocaleDateString()}</dd>
       </dl>}</Show>
+    </section>
+    <section aria-labelledby={`settings-service-${props.pane}`}>
+      <h2 id={`settings-service-${props.pane}`}>Service</h2>
+      <Show when={service()}>{value => <dl>
+        <dt>Version</dt><dd>{value().version}</dd>
+        <dt>URL</dt><dd>{`http://127.0.0.1:${value().port}`}</dd>
+        <dt>Assets</dt><dd>{value().assets}</dd>
+        <dt>Launch agent</dt><dd>{value().launch_agent.installed ? 'Installed' : 'Not installed · run tessera install'}</dd>
+      </dl>}</Show>
+    </section>
+    <section aria-labelledby={`settings-backups-${props.pane}`} aria-busy={backingUp()}>
+      <h2 id={`settings-backups-${props.pane}`}>Backups</h2>
+      <Button class="bordered" disabled={backingUp()} onClick={() => { void backUp(); }}>Back up now</Button>
+      <Show when={backups()}>{values => <>
+        <p role="status">{values()[0] ? `Last backup: ${backupLabel(values()[0]!)}` : 'No backups yet'}</p>
+        <Show when={values().length > 1}><ul><For each={values().slice(1)}>{backup => <li>{backupLabel(backup)}</li>}</For></ul></Show>
+      </>}</Show>
     </section>
     <section aria-labelledby={`settings-zone-${props.pane}`}>
       <h2 id={`settings-zone-${props.pane}`}>Time zone</h2>
