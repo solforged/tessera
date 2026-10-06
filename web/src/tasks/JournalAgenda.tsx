@@ -71,15 +71,15 @@ export function JournalAgenda(props: JournalAgendaProps) {
   const rowProps = { get date() { return props.date; }, get pageId() { return props.pageId; }, notebook: props.notebook, get disabled() { return loading() || !!error(); }, onOpen: props.onOpen, onChanged: () => setRefresh(value => value + 1) };
   return <section class="journal-agenda" aria-label="Agenda">
     <Button class="journal-agenda-toggle" aria-expanded={!collapsed()} aria-controls={id} onClick={() => setCollapsed(!collapsed())}>
-      <Icon name="down" />Agenda
-      <span class="agenda-summary">{loading() && !agenda() ? 'Loading…' : summary().length ? <For each={summary()}>{(part, index) => <>{index() ? ' · ' : ''}<span classList={{ 'agenda-late': !!part.late }}>{part.text}</span></>}</For> : groups().here ? 'Nothing else planned' : 'Nothing planned'}</span>
+      <span class="journal-section-name">Agenda</span><span class="section-rule" />
+      <span class="agenda-summary">{loading() && !agenda() ? 'Loading…' : summary().length ? <For each={summary()}>{(part, index) => <>{index() ? ' · ' : ''}<span classList={{ 'agenda-late': !!part.late }}>{part.text}</span></>}</For> : groups().here ? 'Nothing else planned' : 'Nothing planned'}</span><Icon name="down" />
     </Button>
     <Show when={!collapsed()}><div id={id} class="journal-agenda-body" aria-busy={loading()}>
       <Show when={error()}><div class="agenda-error" role="alert"><span>{error()}</span><Button onClick={() => setRefresh(value => value + 1)}>Retry</Button></div></Show>
       <Show when={groups().planned.length || groups().done.length}><CappedTaskRows rows={[...groups().planned, ...groups().done]} {...rowProps} /></Show>
       <Show when={groups().open.length}>
         <Button class="journal-agenda-toggle" aria-expanded={showUnplanned()} onClick={() => setShowUnplanned(value => !value)}>
-          <Icon name="down" />Unplanned<span class="agenda-summary">{groups().open.length}</span>
+          <span class="journal-section-name">Unplanned</span><span class="section-rule" /><span class="agenda-summary">{groups().open.length}</span><Icon name="down" />
         </Button>
         <Show when={showUnplanned()}><CappedTaskRows rows={groups().open} {...rowProps} /></Show>
       </Show>

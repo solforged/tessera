@@ -311,7 +311,7 @@ export function ReviewPane(props: ReviewPaneProps) {
   return <div class="review-pane" data-pane={props.pane} role="region" aria-label="Review" tabIndex={0} onFocusIn={props.onActivate} onPointerDown={props.onActivate}>
     <div class="review-toolbar">
       <Button ref={deckTrigger} class="bordered" disabled={locked() || loading()} aria-haspopup="dialog" onClick={event => { setSearch(''); setPicker({ kind: 'decks', anchor: event.currentTarget }); }}>{deckId() ? selectedDeck()?.name ?? 'Unavailable deck' : 'All cards'}<Icon name="down" /></Button>
-      <div role="group" aria-label="Review queue" class="review-queue-controls"><For each={selections}>{value => <Button aria-pressed={query().selection === value} disabled={locked() || loading()} onClick={() => {
+      <div role="group" aria-label="Review queue" class="review-queue-controls mode-tabs"><For each={selections}>{value => <Button aria-pressed={query().selection === value} disabled={locked() || loading()} onClick={() => {
         if (value === query().selection) return;
         setShown(null); setUpdated(null); setStale(''); setNeedsReload(false); setSelection(value); publish();
       }}>{selectionLabels[value]}<Show when={counts()[value] !== undefined}><span class="review-count">{counts()[value]}</span></Show></Button>}</For></div>

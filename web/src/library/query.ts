@@ -36,7 +36,8 @@ export function highlightLocation(citation: Pick<Citation, 'ordinal'>, sections:
 }
 
 export function highlightMeta(row: Pick<HighlightRow, 'citation' | 'created_at'>, sections: readonly HighlightSection[], timeZone: string): string {
-  const date = new Intl.DateTimeFormat('en-GB', { timeZone, year: 'numeric', month: 'short', day: 'numeric' }).format(row.created_at);
+  // Civil dates read as ISO everywhere the apparatus shows them, like journal titles and task plans.
+  const date = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(row.created_at);
   const location = highlightLocation(row.citation, sections);
   const passage = `¶${row.citation.ordinal + 1}`;
   return `${location === passage ? passage : `${location} · ${passage}`} · ${date}`;

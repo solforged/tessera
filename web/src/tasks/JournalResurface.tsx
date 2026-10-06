@@ -4,6 +4,7 @@ import type { NotebookClient } from '../document/contract';
 import { highlightSections } from '../library/highlights';
 import type { HighlightSection } from '../library/highlights';
 import { highlightLocation } from '../library/query';
+import { shortSourceTitle } from '../outline/source';
 import type { OpenTarget } from '../shell/contract';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
@@ -88,15 +89,15 @@ export function JournalResurface(props: JournalResurfaceProps) {
   };
   return <section class="journal-agenda journal-resurface" aria-label="Resurfaced">
     <Button class="journal-agenda-toggle" aria-expanded={!collapsed()} aria-controls={id} onClick={() => setCollapsed(!collapsed())}>
-      <Icon name={collapsed() ? 'right' : 'down'} />Resurfaced
-      <span class="agenda-summary">{loading() ? 'Loading…' : items().length ? `${items().length} ${items().length === 1 ? 'highlight' : 'highlights'}` : 'Nothing to resurface'}</span>
+      <span class="journal-section-name">Resurfaced</span><span class="section-rule" />
+      <span class="agenda-summary">{loading() ? 'Loading…' : items().length ? `${items().length} ${items().length === 1 ? 'highlight' : 'highlights'}` : 'Nothing yet'}</span><Icon name="down" />
     </Button>
     <Show when={!collapsed()}><div id={id} class="journal-agenda-body" aria-busy={loading() || pending()}>
       <Show when={error()}><div class="agenda-error" role="alert"><span>{error()}</span><Button disabled={pending()} onClick={retry}>Retry</Button></div></Show>
       <Show when={!loading() && !error() && !items().length}><p class="agenda-message">Highlights you make appear here on later days.</p></Show>
       <For each={items()}>{row => <article class="resurface-card" data-citation-id={row.citation.id}>
         <p class="resurface-quote">{row.citation.quote}</p>
-        <p class="resurface-meta">{row.source_title} · {highlightLocation(row.citation, sections().get(row.citation.snapshot_id) ?? [])} · highlighted {highlightedDate(row)}</p>
+        <p class="resurface-meta" title={row.source_title}>{shortSourceTitle(row.source_title)} · {highlightLocation(row.citation, sections().get(row.citation.snapshot_id) ?? [])} · {highlightedDate(row)}</p>
         <div class="resurface-actions">
           <Button disabled={pending() || loading()} onClick={() => void act(row, 'opened')}>Open</Button>
           <Button disabled={pending() || loading()} aria-pressed={row.action === 'kept'} onClick={() => void act(row, 'kept')}><Show when={row.action === 'kept'}><Icon name="check" /></Show>Keep</Button>

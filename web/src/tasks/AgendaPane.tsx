@@ -283,14 +283,14 @@ export function AgendaPane(props: AgendaPaneProps) {
   return <div ref={scroll} class="agenda-pane" data-pane={props.pane} aria-label="Agenda and tasks" tabIndex={props.active ? 0 : -1} onFocusIn={props.onActivate} onPointerDown={props.onActivate} onScroll={() => props.onViewChange({ ...view(), query: copyTaskQuery(query()), scroll: scroll.scrollTop })}>
     <div class="agenda-content" classList={{ 'agenda-content-week': mode() === 'week' }}>
       <header class="agenda-toolbar">
-        <div class="agenda-modes" role="group" aria-label="Task display">
-          <Button class="bordered" aria-pressed={mode() === 'agenda'} disabled={busy()} onClick={() => update({ mode: 'agenda', scroll: 0 })}>Agenda</Button>
-          <Button class="bordered" aria-pressed={mode() === 'week'} disabled={busy()} onClick={() => update({ mode: 'week', scroll: 0 })}>Week</Button>
-          <Button class="bordered" aria-pressed={mode() === 'tasks'} disabled={busy()} onClick={() => update({ mode: 'tasks', scroll: 0 })}>Tasks</Button>
+        <div class="agenda-modes mode-tabs" role="group" aria-label="Task display">
+          <Button aria-pressed={mode() === 'agenda'} disabled={busy()} onClick={() => update({ mode: 'agenda', scroll: 0 })}>Agenda</Button>
+          <Button aria-pressed={mode() === 'week'} disabled={busy()} onClick={() => update({ mode: 'week', scroll: 0 })}>Week</Button>
+          <Button aria-pressed={mode() === 'tasks'} disabled={busy()} onClick={() => update({ mode: 'tasks', scroll: 0 })}>Tasks</Button>
         </div>
         <div class="agenda-date" role="group" aria-label="Displayed date">
           <Button icon="left" label={mode() === 'week' ? 'Previous week' : 'Previous day'} disabled={busy() || !previousDate()} onClick={() => { const previous = previousDate(); if (previous) changeDay(previous); }} />
-          <Button class="bordered" disabled={busy()} aria-haspopup="dialog" aria-expanded={popup()?.kind === 'date'} onClick={event => setPopup({ kind: 'date', anchor: event.currentTarget })}>{date()}</Button>
+          <Button class="agenda-date-button" disabled={busy()} aria-haspopup="dialog" aria-expanded={popup()?.kind === 'date'} onClick={event => setPopup({ kind: 'date', anchor: event.currentTarget })}>{date()}</Button>
           <Button icon="right" label={mode() === 'week' ? 'Next week' : 'Next day'} disabled={busy() || !nextDate()} onClick={() => { const next = nextDate(); if (next) changeDay(next); }} />
           <Button disabled={busy()} onClick={() => update({ date: props.notebook.todayDate(), scroll: 0 })}>Today</Button>
         </div>
@@ -337,7 +337,7 @@ export function AgendaPane(props: AgendaPaneProps) {
         <Show when={loading()}><p class="agenda-message" role="status">Loading {mode() === 'agenda' ? 'agenda' : 'tasks'}…</p></Show>
         <Show when={error()}><div class="agenda-error" role="alert"><span>{error()}</span><Button onClick={() => setRefresh(value => value + 1)}>Retry</Button></div></Show>
         <Show when={!loading() && !error()}>
-          <Show when={mode() !== 'agenda' || rows().length || total()}><p class="agenda-message" role="status">{rows().length} of {total()} {mode() === 'agenda' ? 'agenda item' : 'task'}{total() === 1 ? '' : 's'}</p></Show>
+          <Show when={mode() !== 'agenda' || rows().length || total()}><p class="agenda-count" role="status">{rows().length} of {total()} {mode() === 'agenda' ? 'agenda item' : 'task'}{total() === 1 ? '' : 's'}</p></Show>
           <Show when={!rows().length}><p class="agenda-message">{mode() === 'agenda' ? 'Nothing planned' : 'No tasks match these filters.'}</p></Show>
         </Show>
         <TaskSourceRows rows={rows()} date={date()} pageId={props.notebook.roots().find(root => root.kind === 'journal' && root.text === date())?.id} notebook={props.notebook} disabled={busy() || loading() || !!error()} onOpen={props.onOpen} onChanged={() => setRefresh(value => value + 1)} />
