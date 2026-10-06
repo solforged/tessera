@@ -119,6 +119,7 @@
   --popup-shadow: 0 12px 32px #0008;
   --dialog-shadow: 0 24px 64px #000a;
   --mask-opaque: #000;
+  --image-filter: brightness(.85); /* figures dimmed so white pages do not glare on the dark canvas */
 
   /* Motion acknowledges input without delaying the action. */
   --motion-fast: 90ms;
@@ -131,6 +132,49 @@
   font: var(--weight-body) var(--text-body)/var(--line-body) var(--font-body);
   background: var(--canvas);
   color: var(--text);
+}
+
+/*
+ * Orrery by day: the same instrument on vellum. Ink and the metals darken so
+ * text keeps its contrast; gilt becomes antique gold, rubric a true oxblood
+ * red, steel a deeper blue. Only colour changes; type, space and shape do not.
+ */
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --shell: #ebe5d8;
+  --surface: #f0ebe0;
+  --canvas: #f8f5ee;
+  --raised: #fffdf8;
+  --hover: #f0eadd;
+  --selection: #e9e0cc;
+  --text-selection: #a8761a40;
+  --line: #ddd5c4;
+  --control-border: #b3a890;
+
+  --text: #1f1b15;
+  --muted: #5b554b;
+  --faint: #7c7568;
+
+  --accent: #93650f;
+  --accent-tint: #93650f1a;
+  --danger: #ad3a2b;
+  --warning: #a95e17;
+
+  --type-1: #3f5fae; --type-2: #9a4886; --type-3: #2d7590;
+  --type-4: #5f7233; --type-5: #6650b0; --type-6: #5e6674;
+
+  --status-doing: #3b5fb0;
+  --status-done: #3b7a4f;
+  --agree: #3b5fb0;
+  --calendar-scheduled: #3b5fb0;
+
+  --highlight-yellow: #d6a21f; --highlight-green: #3c9564; --highlight-blue: #4b7bd4;
+  --highlight-red: #cf4f55; --highlight-purple: #9566cc;
+
+  --popup-shadow: 0 12px 32px #3b2c1426;
+  --dialog-shadow: 0 24px 64px #3b2c1438;
+  --image-filter: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

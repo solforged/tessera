@@ -1,3 +1,4 @@
+import './shell/theme';
 import '@fontsource-variable/ibm-plex-sans';
 import '@fontsource-variable/piazzolla/standard.css';
 import '@fontsource-variable/piazzolla/standard-italic.css';
