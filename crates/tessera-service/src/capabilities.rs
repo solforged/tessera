@@ -10,6 +10,7 @@ use tessera_core::{
     PositionQuery, PositionRow, ProjectRecord, ReviewEvent, ReviewSession, TaskOccurrence,
     TaskQuery, TaskQueryResult, TaskView, WorkSession,
 };
+use tessera_core::{QuestionQuery, QuestionRow};
 
 use crate::{AppState, error::ApiError, run};
 
@@ -63,6 +64,16 @@ pub(crate) async fn positions(
 ) -> Result<Json<Vec<PositionRow>>, ApiError> {
     let Query(query) = query.map_err(ApiError::from)?;
     run(&state, move |notebook| notebook.positions(&query))
+        .await
+        .map(Json)
+}
+
+pub(crate) async fn questions(
+    State(state): State<AppState>,
+    query: Result<Query<QuestionQuery>, QueryRejection>,
+) -> Result<Json<Vec<QuestionRow>>, ApiError> {
+    let Query(query) = query.map_err(ApiError::from)?;
+    run(&state, move |notebook| notebook.questions(&query))
         .await
         .map(Json)
 }

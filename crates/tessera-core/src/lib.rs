@@ -23,6 +23,7 @@ mod operations;
 mod ownership;
 mod position_store;
 mod query;
+pub mod question_store;
 mod reads;
 mod resurface;
 mod review_store;
@@ -41,6 +42,10 @@ pub use capabilities::{
     ReviewSession, ReviewSessionState, TaskFilter, TaskOccurrence, TaskPriority, TaskQuery,
     TaskQueryResult, TaskRecord, TaskRow, TaskSelection, TaskState, TaskStatus, TaskView,
     WorkSession,
+};
+pub use capabilities::{
+    AssessmentInfo, AssessmentState, QuestionInfo, QuestionQuery, QuestionRow, QuestionState,
+    QuestionStatus,
 };
 pub use error::{Error, Result};
 pub use migrate::SCHEMA_VERSION;

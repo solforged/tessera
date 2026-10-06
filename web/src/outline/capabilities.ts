@@ -7,7 +7,7 @@ import type { PopupAnchor } from '../ui/Popup';
 import { newTask } from '../tasks/quick-date';
 
 
-export type CapabilityKind = 'task' | 'schedule' | 'deadline' | 'repeat' | 'project' | 'work';
+export type CapabilityKind = 'task' | 'schedule' | 'deadline' | 'repeat' | 'project' | 'work' | 'review-date';
 export type CapabilityPopup = { id: string; anchor: PopupAnchor } & (
   | { kind: CapabilityKind }
   | { kind: 'complete'; session: WorkSession; completedOn: string }

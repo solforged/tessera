@@ -3,7 +3,7 @@ import type { Accessor } from 'solid-js';
 import { createVirtualizer, defaultRangeExtractor } from '@tanstack/solid-virtual';
 import type { EditorView } from '@codemirror/view';
 import type { VirtualItem } from '@tanstack/solid-virtual';
-import type { Block, FieldDefinition, TaskStatus, WorkSession } from '../api/types';
+import type { Block, FieldDefinition, QuestionStatus, TaskStatus, WorkSession } from '../api/types';
 import { api } from '../api/client';
 import type { BlockState, Caret, Edit, EditResult, PageDocument, TextRange } from '../document/contract';
 import { depthStops } from '../shell/contract';
@@ -48,6 +48,8 @@ import { addFieldOption, createFieldEntryConversion, createSourceFieldResets } f
 import { formatSourceValue, sourceFieldName } from './source';
 import './outline.css';
 
+const questionLabels: Record<QuestionStatus, string> = { open: 'Open', answered: 'Answered', parked: 'Parked', unsettled: 'Unsettled' };
+
 /**
  * An open `[[` page reference or `((` block reference, `::` at the start of a block naming a field, the
  * value of a choice field picking an option, or the manual Add type picker.
@@ -60,6 +62,7 @@ interface SlashItem extends SlashEntry {
   icon: IconName;
   keys?: string;
   when?(block: BlockState | undefined): boolean;
+  disabledReason?(id: string): string | undefined;
   insert?(text: string): { text: string; caret: number };
   run?(id: string): void;
 }
@@ -234,6 +237,8 @@ function Pane(props: OutlinePaneProps) {
     const id = editing();
     const item = slashRows()[index];
     if (!state || !item || !editor || id !== state.id || editor.id !== id) return;
+    const disabled = item.disabledReason?.(id);
+    if (disabled) { setMessage(disabled); return; }
     const text = editor.view.state.doc.toString();
     const insertion = item.insert?.(text);
     const next = insertion
@@ -1133,6 +1138,32 @@ function Pane(props: OutlinePaneProps) {
       { label: 'Copy reference', icon: 'copy', action: () => copy(`[[${id}]]`) },
     ] });
   }
+  function investigationItems(id: string): MenuItem[] {
+    const block = doc.block(id);
+    if (!block) return [];
+    const question = block.question?.state;
+    const assessment = block.assessment;
+    let ownerId = block.parentId;
+    while (ownerId && !doc.block(ownerId)?.question) ownerId = doc.block(ownerId)?.parentId ?? null;
+    const owner = ownerId ? doc.block(ownerId)?.question : null;
+    const edit = (intent: Extract<Edit, { kind: 'question' | 'assessment' }>) => capabilities.invoke(capabilities.edit(intent.id, intent));
+    return [
+      ...(question ? [
+        { label: question.parked ? 'Resume question' : 'Park question', action: () => edit({ kind: 'question', id, value: { ...question, parked: !question.parked } }) },
+        { label: question.unsettled ? 'Let it settle' : 'Keep open', action: () => edit({ kind: 'question', id, value: { ...question, unsettled: !question.unsettled } }) },
+        { label: 'Set review date', action: () => capabilities.open(id, 'review-date') },
+        { label: 'Remove question', disabledReason: question.parked && question.accepted ? 'Resume the question before accepting an answer.' : undefined, action: () => edit({ kind: 'question', id, value: null }) },
+      ] : [{ label: 'Make question', disabledReason: assessment ? 'Remove the answer first.' : block.kind === 'journal' ? 'Make an ordinary block or page a question.' : undefined,
+        action: () => edit({ kind: 'question', id, value: { unsettled: false, parked: false, accepted: null, review_on: null } }) }]),
+      ...(assessment ? [
+        { label: 'Accept answer', disabledReason: !owner ? 'Put the answer under a question first.' : owner.state.parked ? 'Resume the question before accepting an answer.' : assessment.accepted ? 'Already accepted.' : undefined,
+          action: () => { if (ownerId && owner) edit({ kind: 'question', id: ownerId, value: { ...owner.state, accepted: id } }); } },
+        { label: assessment.state.aporia ? 'Clear aporia' : 'Record aporia', action: () => edit({ kind: 'assessment', id, value: { ...assessment.state, aporia: !assessment.state.aporia } }) },
+        { label: 'Remove answer', action: () => edit({ kind: 'assessment', id, value: null }) },
+      ] : [{ label: 'Make answer', disabledReason: question ? 'Remove the question first.' : !owner ? 'Put the answer under a question first.' : owner.state.parked ? 'Resume the question before answering it.' : undefined,
+        action: () => edit({ kind: 'assessment', id, value: { assessed_on: props.notebook.todayDate(), aporia: false } }) }]),
+    ];
+  }
   const commandDefinitions: Command[] = [
     { id: 'rename', title: 'Rename page', section: 'Page', disabledReason: () => doc.root()?.kind === 'page' ? undefined : 'Journal dates cannot be renamed.', run: rename },
     { id: 'open-table', title: 'Open as table', section: 'Page', keys: ['⌘⇧T'], disabledReason: () => doc.root()?.kind === 'page' ? undefined : 'Journal days cannot be opened as tables.', run: () => openTable(false) },
@@ -1149,6 +1180,11 @@ function Pane(props: OutlinePaneProps) {
     ...depthStops.map((stop): Command => ({ id: `depth-${stop}`, title: depthTitles[stop], section: 'Page', disabledReason: depthReason, run: () => setStop(stop) })),
     { id: 'depth-less', title: 'Show less of the page', section: 'Page', keys: ['['], disabledReason: () => depthReason() ?? (depth() === 'gloss' ? 'Only the gloss is showing.' : undefined), run: () => stepDepth(-1) },
     { id: 'depth-more', title: 'Show more of the page', section: 'Page', keys: [']'], disabledReason: () => depthReason() ?? (depth() === 'full' ? 'The whole page is showing.' : undefined), run: () => stepDepth(1) },
+    { id: 'question-root', title: 'Make question', section: 'Page', disabledReason: () => doc.root()?.kind !== 'page' || capabilities.busy(props.pageId) ? 'Page is unavailable.' : undefined, run: () => {
+      const item = investigationItems(props.pageId).find(item => item.label === 'Make question');
+      if (item && !item.disabledReason) item.action();
+      else if (heading) setMenu({ anchor: heading, label: 'Question', items: investigationItems(props.pageId) });
+    } },
     { id: 'previous-row', title: 'Select previous block', section: 'Navigation', keys: ['↑', 'k'], run: () => adjacent(-1) },
     { id: 'next-row', title: 'Select next block', section: 'Navigation', keys: ['↓', 'j'], run: () => adjacent(1) },
     { id: 'parent', title: 'Fold children / select parent', section: 'Navigation', keys: ['←', 'h'], run: () => horizontal('left') },
@@ -1189,6 +1225,17 @@ function Pane(props: OutlinePaneProps) {
     { id: 'make-project', title: 'Make project', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.project ? 'Already a project.' : undefined, run: () => selected() && capabilities.invoke(capabilities.edit(selected()!, { kind: 'project', id: selected()!, value: { status: 'active', outcome: '', deadline: null } })) },
     { id: 'make-perspective', title: 'Make perspective', section: 'Block', disabledReason: () => doc.block(selected() ?? '')?.kind !== 'block' ? 'Select an ordinary block.' : doc.block(selected()!)?.position ? 'Already a perspective.' : undefined, run: () => selected() && capabilities.invoke(capabilities.edit(selected()!, { kind: 'position', id: selected()!, value: true })) },
     { id: 'remove-perspective', title: 'Remove perspective', section: 'Block', disabledReason: () => doc.block(selected() ?? '')?.kind !== 'block' ? 'Select an ordinary block.' : !doc.block(selected()!)?.position ? 'Select a perspective.' : undefined, run: () => selected() && capabilities.invoke(capabilities.edit(selected()!, { kind: 'position', id: selected()!, value: false })) },
+    ...['Make question', 'Make answer', 'Accept answer', 'Record aporia', 'Clear aporia', 'Park question', 'Resume question', 'Keep open', 'Let it settle', 'Set review date', 'Remove question', 'Remove answer'].map((title): Command => ({
+      id: title.toLowerCase().replaceAll(' ', '-'), title, section: 'Outline',
+      disabledReason: () => {
+        const item = selected() && investigationItems(selected()!).find(item => item.label === title);
+        return item ? item.disabledReason : 'Select a matching question or answer.';
+      },
+      run: () => {
+        const item = selected() && investigationItems(selected()!).find(item => item.label === title);
+        if (item && !item.disabledReason) item.action();
+      },
+    })),
     { id: 'project', title: 'Project', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.project ? undefined : 'Select a project.', run: () => selected() && capabilities.open(selected()!, 'project') },
     { id: 'project-actions', title: 'Show actions', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.project ? undefined : 'Select a project.', run: () => selected() && capabilities.showActions(selected()!) },
     { id: 'review-cards', title: 'Review cards', section: 'View', run: () => props.onOpen({ kind: 'review' }, false) },
@@ -1244,6 +1291,7 @@ function Pane(props: OutlinePaneProps) {
         { label: 'Show actions', action: () => capabilities.showActions(id) },
       ] : [{ label: 'Make project', section: 'Project', action: () => capabilities.invoke(capabilities.edit(id, { kind: 'project', id, value: { status: 'active', outcome: '', deadline: null } })) }]),
       item(entry?.position ? 'remove-perspective' : 'make-perspective', { section: 'Block' }),
+      ...investigationItems(id).map((item, index) => ({ ...item, section: index === 0 ? 'Question' : undefined })),
       ...(parseCardText(doc.block(id)?.text ?? '').cards.length ? [
         { label: 'Review cards', section: 'Cards', action: () => props.onOpen({ kind: 'review' }, false) },
         { label: 'Show card source', action: () => capabilities.source(id) },
@@ -1331,6 +1379,14 @@ function Pane(props: OutlinePaneProps) {
       { id: 'project', title: 'Project', aliases: ['outcome'], section: 'Project', icon: 'flag', run: openProject },
       { id: 'perspective', title: 'Make perspective', aliases: ['position', 'view'], section: 'Block', icon: 'link', when: block => block?.kind === 'block' && !block.position, run: id => capabilities.invoke(capabilities.edit(id, { kind: 'position', id, value: true })) },
       { id: 'remove-perspective', title: 'Remove perspective', aliases: ['remove position', 'remove view'], section: 'Block', icon: 'close', when: block => block?.kind === 'block' && !!block.position, run: id => capabilities.invoke(capabilities.edit(id, { kind: 'position', id, value: false })) },
+      ...(['question', 'answer'] as const).map((kind): SlashItem => ({
+        id: kind, title: `Make ${kind}`, aliases: [kind], section: 'Question', icon: kind === 'question' ? 'question-open' : 'question-settled',
+        disabledReason: id => investigationItems(id).find(item => item.label === `Make ${kind}`)?.disabledReason ?? (doc.block(id)?.[kind === 'question' ? 'question' : 'assessment'] ? `Already a ${kind}.` : undefined),
+        run: id => {
+          const item = investigationItems(id).find(item => item.label === `Make ${kind}`);
+          if (item && !item.disabledReason) item.action();
+        },
+      })),
       ...([1, 2, 3] as const).map((level): SlashItem => ({ id: `heading-${level}`, title: `Heading ${level}`, aliases: [`h${level}`], section: 'Text', icon: 'heading', keys: '#'.repeat(level), run: id => apply({ kind: 'heading', id, level }) })),
       { id: 'heading-normal', title: 'Normal text', aliases: ['paragraph'], section: 'Text', icon: 'edit', when: block => !!block?.heading, run: id => apply({ kind: 'heading', id, level: null }) },
       { id: 'reference', title: 'Reference', aliases: ['link', 'page', 'mention'], section: 'Text', icon: 'link', keys: '[[', insert: () => ({ text: '[[', caret: 2 }) },
@@ -1646,6 +1702,23 @@ function Pane(props: OutlinePaneProps) {
     </Button>}</Show>;
   }
 
+  /** A question's state as one control: its glyph, its state and any review date. Clicking opens the question menu. */
+  function QuestionSummary(propsQuestion: { id: string }) {
+    return <Show when={doc.block(propsQuestion.id)?.question}>{question => <Button class="outline-planning outline-question" data-question-status={question().status} label="Question" aria-haspopup="menu" disabled={capabilities.busy(propsQuestion.id)}
+      onClick={event => setMenu({ anchor: event.currentTarget, label: 'Question', items: investigationItems(propsQuestion.id) })}>
+      <Icon name={question().status === 'answered' ? 'question-settled' : 'question-open'} />{questionLabels[question().status]}
+      <Show when={question().state.review_on}>{date => <span>Review {date()}</span>}</Show>
+    </Button>}</Show>;
+  }
+
+  /** An answer's date, whether its question accepted it, and aporia when it records that no answer holds. */
+  function AnswerSummary(propsAnswer: { id: string }) {
+    return <Show when={doc.block(propsAnswer.id)?.assessment}>{answer => <Button class="outline-planning outline-answer" data-accepted={String(answer().accepted)} label="Answer" aria-haspopup="menu" disabled={capabilities.busy(propsAnswer.id)}
+      onClick={event => setMenu({ anchor: event.currentTarget, label: 'Answer', items: investigationItems(propsAnswer.id) })}>
+      {answer().accepted ? 'Accepted' : 'Answer'} {answer().state.assessed_on}<Show when={answer().state.aporia}><span>Aporia</span></Show>
+    </Button>}</Show>;
+  }
+
   function Row(propsRow: { id: string; item: Accessor<VirtualItem> }) {
     const id = () => propsRow.id;
     const block = () => doc.block(id());
@@ -1674,8 +1747,9 @@ function Pane(props: OutlinePaneProps) {
     onCleanup(() => { const host = hosts.get(id()); if (host && row.contains(host)) hosts.delete(id()); });
     return <div ref={row} id={`outline-${props.pane}-${id()}`} data-index={propsRow.item().index} data-block-id={id()} role="treeitem" aria-level={depth() + 1}
       aria-expanded={children() ? !folds().has(id()) : undefined} aria-selected={selectedSet().has(id())}
-      class="outline-row" classList={{ 'row-position': !!block()?.position, 'row-gist': gist(), 'row-selected': selectedSet().has(id()) && editing() !== id(), 'row-editing': editing() === id(), 'row-archived': block()?.archived ?? false, 'field-entry': !!field(), 'inline-field-value': inline(), 'row-gloss': inline() && parent() === glossId(), 'choice-value': pill(), 'source-detail': !!sourceField(), 'source-highlights-start': sourceDetails().firstHighlight === id(), 'outline-row-linked': block()?.citations.some(citation => citation.id === linkedCitation()) ?? false }}
+      class="outline-row" classList={{ 'row-position': !!block()?.position, 'row-gist': gist(), 'row-question': !!block()?.question, 'row-assessment': !!block()?.assessment, 'row-selected': selectedSet().has(id()) && editing() !== id(), 'row-editing': editing() === id(), 'row-archived': block()?.archived ?? false, 'field-entry': !!field(), 'inline-field-value': inline(), 'row-gloss': inline() && parent() === glossId(), 'choice-value': pill(), 'source-detail': !!sourceField(), 'source-highlights-start': sourceDetails().firstHighlight === id(), 'outline-row-linked': block()?.citations.some(citation => citation.id === linkedCitation()) ?? false }}
       data-holder={block()?.position?.holder_id ?? undefined}
+      data-question-status={block()?.question?.status} data-accepted={block()?.assessment ? String(block()!.assessment!.accepted) : undefined} data-aporia={block()?.assessment?.state.aporia ? 'true' : undefined}
       onPointerEnter={() => setLinkedCitation(block()?.citations[0]?.id ?? null)} onPointerLeave={() => setLinkedCitation(null)}
       style={{ transform: `translateY(${propsRow.item().start - margin()}px)`, '--depth': depth() }}>
       <Show when={sourceDetails().firstHighlight === id()}><div class="outline-highlights-label">Highlights <span>{sourceDetails().highlightCount}</span></div></Show>
@@ -1691,9 +1765,11 @@ function Pane(props: OutlinePaneProps) {
         <Show when={editing() !== id()}><div class="static-text"><span classList={{ 'outline-value-pill': pill() }}><BlockText text={displayText()} cards field={field()} notebook={props.notebook} onOpen={props.onOpen} onReferenceMenu={referenceMenu} selection={selectedOffsets(id())} /></span><Show when={!block()?.text && (ids().length === 1 || (inline() && parent() === glossId()))}><span class="empty-block">{inline() && parent() === glossId() ? 'One or two sentences on what this is' : 'Start writing'}</span></Show></div></Show>
         <For each={block()?.manual_types ?? []}>{title => <TypePill title={title} notebook={props.notebook} onOpen={props.onOpen} onRemove={() => { const result = doc.removeType(id(), title); if (!result.ok) setMessage(result.reason); }} />}</For>
         </div>
-        <Show when={block()?.task || block()?.project || cards().cards.length || block()?.citations.length}><span class="outline-capability-metadata">
+        <Show when={block()?.task || block()?.project || block()?.question || block()?.assessment || cards().cards.length || block()?.citations.length}><span class="outline-capability-metadata">
           <TaskSummary id={id()} />
           <Show when={block()?.project}><Button class="outline-planning" label="Project" aria-haspopup="dialog" onClick={event => capabilities.open(id(), 'project', event.currentTarget)}>Project</Button></Show>
+          <QuestionSummary id={id()} />
+          <AnswerSummary id={id()} />
           <Show when={cards().cards.length}><CardSummary blockId={id()} cards={cards().cards} notebook={props.notebook} onOpen={props.onOpen} /></Show>
           <For each={block()?.citations}>{citation => <CitationChip citation={citation} pageId={props.pageId} notebook={props.notebook} onOpen={props.onOpen} />}</For>
         </span></Show>
@@ -1743,13 +1819,14 @@ function Pane(props: OutlinePaneProps) {
       <Show when={doc.root()?.kind === 'page' && !doc.root()?.source}><div class="outline-header-actions"><Button icon="table" label="Table" shortcut="⌘⇧T" onClick={event => openTable(event.metaKey)}>Table<Show when={!type.error && (type()?.members ?? 0) > 0}><span class="table-member-count">{type()?.members}</span></Show></Button></div></Show>
       </div>
       <Show when={doc.root()?.source}><SourceHeader doc={doc} notebook={props.notebook} definitions={definitionsById()} resetItems={sourceResets} onOpen={props.onOpen} onError={setMessage} /></Show>
-      <Show when={doc.root()?.task || doc.root()?.project || doc.root()?.citations.length}><div class="outline-root-capabilities outline-capability-metadata">
+      <Show when={doc.root()?.task || doc.root()?.project || doc.root()?.question || doc.root()?.citations.length}><div class="outline-root-capabilities outline-capability-metadata">
         <Show when={doc.root()?.task}>
           <TaskStatusButton task={doc.root()?.task ?? null} disabled={capabilities.busy(props.pageId)} onChange={status => capabilities.status(props.pageId, status)} />
           <TaskSummary id={props.pageId} />
           <Button class="outline-planning" onClick={event => capabilities.open(props.pageId, 'work', event.currentTarget)}>Work sessions</Button>
         </Show>
         <Show when={doc.root()?.project}><Button class="outline-planning" onClick={event => capabilities.open(props.pageId, 'project', event.currentTarget)}>Project</Button></Show>
+        <QuestionSummary id={props.pageId} />
         <For each={doc.root()?.citations}>{citation => <CitationChip citation={citation} pageId={props.pageId} notebook={props.notebook} onOpen={props.onOpen} />}</For>
       </div></Show>
       <For each={doc.root()?.citations}>{citation => <Show when={doc.root()?.text.trim() !== citation.quote.trim()}>
@@ -1782,6 +1859,8 @@ function Pane(props: OutlinePaneProps) {
         <Show when={capabilities.busy(state.id)}><p class="outline-capability-notice" role="status">Saving…</p></Show>
         <Show when={capabilities.error(state.id)}><p class="error" role="alert">{capabilities.error(state.id)}</p></Show>
       </Popup>}
+      {state.kind === 'review-date' && <Show when={doc.block(state.id)?.question}>{question => <DatePicker notebook={props.notebook} anchor={state.anchor} label="Set review date" value={question().state.review_on} contextDate={props.notebook.todayDate()} onDismiss={() => capabilities.dismiss(state)}
+        onSelect={value => capabilities.edit(state.id, { kind: 'question', id: state.id, value: { ...question().state, review_on: value.date } })} />}</Show>}
       {state.kind === 'schedule' && <Show when={doc.block(state.id)?.task}>{task => <DatePicker notebook={props.notebook} anchor={state.anchor} label="Schedule task" value={task().scheduled} time={task().scheduled_time} contextDate={contextDate()} marks={task().deadline ? { [task().deadline!]: 'Deadline' } : undefined} onDismiss={() => capabilities.dismiss(state)}
         onSelect={value => capabilities.edit(state.id, { kind: 'task', id: state.id, value: { ...task(), scheduled: value.date, scheduled_time: value.date ? value.time : null } })} />}</Show>}
       {state.kind === 'deadline' && <Show when={doc.block(state.id)?.task}>{task => <DatePicker notebook={props.notebook} anchor={state.anchor} label="Deadline" value={task().deadline} time={task().deadline_time} contextDate={contextDate()} marks={task().scheduled ? { [task().scheduled!]: 'Scheduled' } : undefined} onDismiss={() => capabilities.dismiss(state)}
@@ -1839,8 +1918,9 @@ function Pane(props: OutlinePaneProps) {
       <div ref={slashList} class="picker-list" onMouseDown={event => event.preventDefault()}>
         <For each={slashRows()}>{(row, index) => <>
           <Show when={index() === 0 || slashRows()[index() - 1]!.section !== row.section}><div class="picker-section">{row.section}</div></Show>
-          <div role="option" aria-selected={slashIndex() === index()} class="picker-row" classList={{ selected: slashIndex() === index() }} onClick={() => chooseSlash(index())}>
+          <div role="option" aria-selected={slashIndex() === index()} aria-disabled={!!row.disabledReason?.(slashCompletion()!.id)} title={row.disabledReason?.(slashCompletion()!.id)} class="picker-row" classList={{ selected: slashIndex() === index() }} onClick={() => chooseSlash(index())}>
             <Icon name={row.icon} /><span class="picker-text">{row.title}</span><Show when={row.keys}><span class="picker-meta"><kbd>{row.keys}</kbd></span></Show>
+            <Show when={row.disabledReason?.(slashCompletion()!.id)}>{reason => <span class="picker-meta">{reason()}</span>}</Show>
           </div>
         </>}</For>
         <Show when={!slashRows().length}><p class="empty-state">No matching command. Escape keeps the text.</p></Show>
