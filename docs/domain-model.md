@@ -68,7 +68,18 @@ An agenda takes the displayed civil date, never an implicit device date. It merg
 
 ## Investigations
 
-A question capability makes a block an enduring question with an optional review date and a retired state. Criteria are blocks beneath it. An assessment capability turns any block into a dated answer to a question. At most one assessment per question is accepted. Accepting a new one supersedes the old one, which stays readable. Retired questions accept nothing new.
+A question capability makes a block an enduring question with an optional review date. Criteria are blocks beneath it. An assessment capability turns any block into a dated answer to a question. At most one assessment per question is accepted. Accepting a new one supersedes the old one, which stays readable. An assessment may also record aporia, that no answer holds yet; it is dated and cites its evidence like any other.
+
+A question is in one of four states:
+
+| State | Meaning |
+|---|---|
+| Open | The default: no accepted assessment yet |
+| Answered | An accepted assessment exists |
+| Parked | Paused; it accepts nothing new until resumed |
+| Unsettled | Open by design: it recurs or may end in aporia, collects dated assessments and returns on its review date |
+
+Only two things are stored: whether the question is unsettled and whether it is parked. The state is derived from them and the assessments, in that order: parked, then unsettled, then answered when an accepted assessment exists, otherwise open. Answered is never stored, so it cannot disagree with the assessments. Accepting an assessment on an unsettled question records the current reading without settling it. Resuming a parked question returns it to whatever the rest of the rule gives. Export writes the derived state as the site's `state`.
 
 ## Sources, passages and positions
 
