@@ -1,4 +1,4 @@
-import { For, Show, batch, createEffect, createMemo, createSignal, on, onCleanup } from 'solid-js';
+import { For, Show, batch, createEffect, createMemo, createRoot, createSignal, createUniqueId, on, onCleanup } from 'solid-js';
 import { ulid } from 'ulid';
 import type { Agenda, DateRange, FieldDefinition, ProjectRecord, TaskFilter, TaskPriority, TaskQuery, TaskQueryResult, TaskSelection, TaskStatus, TaskView } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
@@ -15,6 +15,8 @@ import { TaskSourceRows, documentReady } from './JournalAgenda';
 import { parseTaskDate } from './date-input';
 import { dateSuggestions, dateTokenAt, newTask, planDateToken } from './quick-date';
 import { copyTaskQuery, createTaskQuery, refreshedTaskQuery, taskQueriesEqual, taskRange } from './query';
+import { TaskQueryLine } from './TaskQueryLine';
+import type { TaskQueryLineContext } from './task-query-line';
 import { WeekCalendar } from './WeekCalendar';
 import { shiftCalendarDate } from './week-calendar';
 import './agenda.css';
@@ -41,6 +43,13 @@ const statusLabels: Record<TaskStatus, string> = { todo: 'Todo', doing: 'Doing',
 const statuses: TaskStatus[] = ['todo', 'doing', 'waiting', 'done', 'cancelled'];
 const priorityLabels = { high: 'High', medium: 'Medium', low: 'Low' };
 type ProjectChoice = { id: string | null; name: string };
+
+const filtersOpenKey = 'tessera.task-filters.open';
+const [filtersOpen, setFiltersOpenSignal] = createRoot(() => createSignal((() => { try { return localStorage.getItem(filtersOpenKey) === '1'; } catch { return false; } })()));
+const setFiltersOpen = (value: boolean) => {
+  setFiltersOpenSignal(value);
+  try { if (value) localStorage.setItem(filtersOpenKey, '1'); else localStorage.removeItem(filtersOpenKey); } catch { /* The preference lasts for this tab. */ }
+};
 
 export function AgendaPane(props: AgendaPaneProps) {
   const [view, setView] = createSignal<AgendaViewState>({ ...props.view, query: copyTaskQuery(props.view.query) });
@@ -71,6 +80,31 @@ export function AgendaPane(props: AgendaPaneProps) {
   const [draft, setDraft] = createSignal('');
   const [recentInput, setRecentInput] = createSignal(String(query().filter.recent_days));
   const [limitInput, setLimitInput] = createSignal(query().limit === null ? '' : String(query().limit));
+  const [queryLineDirty, setQueryLineDirty] = createSignal(false);
+  const [queryLineError, setQueryLineError] = createSignal('');
+  const filtersId = createUniqueId();
+  const typeTitles = createMemo(() => new Map(props.notebook.roots().filter(block => block.kind === 'page' && !block.archived).map(block => [block.id, block.text])));
+  const typeIds = createMemo(() => new Map([...typeTitles()].map(([id, title]) => [title.toLocaleLowerCase(), id])));
+  const projectTitles = createMemo(() => new Map(projects().map(project => [project.block_id, props.notebook.lookup(project.block_id)()?.text || project.state.outcome || project.block_id])));
+  const projectIds = createMemo(() => {
+    const ids = new Map<string, string | null>();
+    for (const [id, title] of projectTitles()) {
+      const key = title.toLocaleLowerCase();
+      ids.set(key, ids.has(key) ? null : id);
+    }
+    return ids;
+  });
+  const queryLineContext = createMemo((): TaskQueryLineContext => {
+    const types = typeTitles(); const typeIndex = typeIds(); const projectNames = projectTitles(); const projectIndex = projectIds();
+    const value = query();
+    return {
+      context_date: date(), baseQuery: value,
+      resolveType: title => typeIndex.get(title.toLocaleLowerCase()) ?? (title === value.source?.type ? title : null),
+      typeTitle: id => types.get(id) ?? null,
+      resolveProject: title => projectIndex.get(title.toLocaleLowerCase()) ?? (title === value.filter.project_id ? title : null),
+      projectTitle: id => projectNames.get(id) ?? null,
+    };
+  });
   let scroll!: HTMLDivElement;
   let restoredScroll = false;
   let requested: { mode: AgendaViewState['mode']; date: string; query: TaskQuery } | null = null;
@@ -86,12 +120,13 @@ export function AgendaPane(props: AgendaPaneProps) {
   createEffect(on(() => query().filter.recent_days, value => setRecentInput(String(value)), { defer: true }));
   createEffect(on(() => query().limit, value => setLimitInput(value === null ? '' : String(value)), { defer: true }));
   const filterError = createMemo(() => {
+    if (queryLineError()) return queryLineError();
     const recent = Number(recentInput()); const limit = Number(limitInput());
     if (query().filter.selection === 'unfinished_or_recent' && (!Number.isInteger(recent) || recent < 1 || recent > 3660)) return 'Recent days must be between 1 and 3660.';
     if (limitInput() && (!Number.isInteger(limit) || limit < 1 || limit > 2000)) return 'Result limit must be between 1 and 2000, or empty.';
     return '';
   });
-  const hasInputDraft = createMemo(() => Number(recentInput()) !== query().filter.recent_days || (limitInput() === '' ? null : Number(limitInput())) !== query().limit);
+  const hasInputDraft = createMemo(() => queryLineDirty() || Number(recentInput()) !== query().filter.recent_days || (limitInput() === '' ? null : Number(limitInput())) !== query().limit);
   const dirty = createMemo(() => !!saved() && (hasInputDraft() || !taskQueriesEqual(query(), saved()!.query)));
   const remoteChanged = createMemo(() => dirty() && !!latestSaved() && latestSaved()!.revision !== saved()!.revision);
   const update = (patch: Partial<AgendaViewState>) => {
@@ -180,10 +215,7 @@ export function AgendaPane(props: AgendaPaneProps) {
   });
   const projectChoices = createMemo((): ProjectChoice[] => {
     const needle = pickerSearch().trim().toLocaleLowerCase();
-    return [{ id: null, name: 'Any project' }, ...projects().map(project => ({
-      id: project.block_id,
-      name: props.notebook.lookup(project.block_id)()?.text || project.state.outcome || project.block_id,
-    })).filter(project => project.name.toLocaleLowerCase().includes(needle))];
+    return [{ id: null, name: 'Any project' }, ...[...projectTitles()].map(([id, name]) => ({ id, name })).filter(project => project.name.toLocaleLowerCase().includes(needle))];
   });
   const viewChoices = createMemo(() => views().filter(value => value.name.toLocaleLowerCase().includes(pickerSearch().trim().toLocaleLowerCase())));
   const selectView = (value: TaskView | null) => {
@@ -249,14 +281,23 @@ export function AgendaPane(props: AgendaPaneProps) {
     if (parsed.ok && parsed.date) update({ date: parsed.date, scroll: 0 });
     else if (!parsed.ok) setError(parsed.error);
   };
+  const draftDate = createMemo(() => {
+    const text = draft().trim();
+    const token = dateTokenAt(text, text.length);
+    if (!token) return null;
+    const choice = token.query ? dateSuggestions(token.query, date())[0] : undefined;
+    const label = choice
+      ? `${choice.date}${choice.time ? ` ${choice.time}` : ''} · ${token.field}`
+      : `Not a date: ${text.slice(token.from, token.to)} · it stays in the text`;
+    return { token, choice, label };
+  });
   /** Captures into today's journal, scheduled for the displayed day unless a trailing `@date` says otherwise. */
   const addTask = async () => {
     const text = draft().trim();
     if (!text) return;
+    const completion = draftDate();
+    const plan = completion?.choice ? planDateToken(text, completion.token, completion.choice, null) : { text, value: { ...newTask(), scheduled: date() } };
     setDraft(''); setCommandError('');
-    const token = dateTokenAt(text, text.length);
-    const choice = token?.query ? dateSuggestions(token.query, date())[0] : undefined;
-    const plan = token && choice ? planDateToken(text, token, choice, null) : { text, value: { ...newTask(), scheduled: date() } };
     let doc: PageDocument | undefined;
     try {
       const pageId = await props.notebook.journal(props.notebook.todayDate());
@@ -304,6 +345,13 @@ export function AgendaPane(props: AgendaPaneProps) {
         </div>
         <Show when={remoteChanged()}><p class="agenda-message" role="status">The saved view changed elsewhere. Your draft is unchanged. Discard changes to load the saved version, or save as another view.</p></Show>
         <Show when={viewsError() || savedError()}><div class="agenda-error" role="alert"><span>{viewsError() || savedError()}</span><Button onClick={() => setRefresh(value => value + 1)}>Retry views</Button></div></Show>
+        <div class="task-query-toolbar">
+          <TaskQueryLine query={query()} context={queryLineContext()} disabled={busy()} onChange={value => update({ query: value, scroll: 0 })} onDraftState={(draft, message) => { setQueryLineDirty(draft); setQueryLineError(message); }} />
+          <Button class="bordered" disabled={busy()} aria-expanded={filtersOpen()} aria-controls={filtersId} onClick={() => setFiltersOpen(!filtersOpen())}>Filters<Icon name="down" /></Button>
+        </div>
+        <Show when={!loading() && !error()}><p class="agenda-count" role="status">{rows().length === total() ? `${total()} task${total() === 1 ? '' : 's'}` : `${rows().length} of ${total()} tasks`}</p></Show>
+        <SourceQueryControls sections="fields" query={query().source} types={props.notebook.roots()} fields={fields()} disabled={busy()} onChange={source => update({ query: { ...query(), source } })} />
+        <Show when={filtersOpen()}><div id={filtersId} class="task-filters-panel">
         <div class="agenda-filters" role="group" aria-label="Task filters">
           <Button class="bordered" disabled={busy()} aria-haspopup="menu" onClick={event => setPopup({ kind: 'menu', anchor: event.currentTarget, label: 'Task selection', items: (['unfinished', 'unfinished_or_recent', 'all'] as TaskSelection[]).map(selection => ({ label: selectionLabels[selection], icon: query().filter.selection === selection ? 'check' as const : undefined, action: () => updateFilter({ selection }) })) })}>{selectionLabels[query().filter.selection]}<Icon name="down" /></Button>
           <Show when={query().filter.selection === 'unfinished_or_recent'}><label class="agenda-number">Recent days<input class="input" type="number" min="1" max="3660" step="1" disabled={busy()} value={recentInput()} onInput={event => { const text = event.currentTarget.value; setRecentInput(text); const value = Number(text); if (Number.isInteger(value) && value >= 1 && value <= 3660) updateFilter({ recent_days: value }); }} /></label></Show>
@@ -318,8 +366,9 @@ export function AgendaPane(props: AgendaPaneProps) {
           </div>}</For>
           <label class="agenda-number">Result limit<input class="input" type="number" min="1" max="2000" step="1" placeholder="Default" disabled={busy()} value={limitInput()} onInput={event => { const text = event.currentTarget.value; setLimitInput(text); const value = Number(text); if (!text || Number.isInteger(value) && value >= 1 && value <= 2000) update({ query: { ...query(), limit: text ? value : null } }); }} /></label>
         </div>
-        <SourceQueryControls query={query().source} types={props.notebook.roots()} fields={fields()} disabled={busy()} onChange={source => update({ query: { ...query(), source } })} />
-        <Show when={filterError()}><p class="agenda-error" role="alert">{filterError()}</p></Show>
+        <SourceQueryControls sections="source" query={query().source} types={props.notebook.roots()} fields={fields()} disabled={busy()} onChange={source => update({ query: { ...query(), source } })} />
+        </div></Show>
+        <Show when={filterError() && !queryLineError()}><p class="agenda-error" role="alert">{filterError()}</p></Show>
         <Show when={metadataLoading()}><p class="agenda-message" role="status">Loading source filters…</p></Show>
         <Show when={metadataError()}><div class="agenda-error" role="alert"><span>{metadataError()}</span><Button onClick={() => setRefresh(value => value + 1)}>Retry filters</Button></div></Show>
       </Show>
@@ -328,7 +377,10 @@ export function AgendaPane(props: AgendaPaneProps) {
       <Show when={mode() === 'agenda'}>
         <form class="agenda-add" onSubmit={event => { event.preventDefault(); void addTask(); }}>
           <Icon name="plus" />
-          <input class="input" aria-label="New task" placeholder={`Add a task for ${date()} · @ picks another day`} value={draft()} onInput={event => setDraft(event.currentTarget.value)} />
+          <div class="agenda-add-field">
+            <input class="input" aria-label="New task" aria-describedby={draftDate() ? `task-date-preview-${props.pane}` : undefined} placeholder={`Add a task for ${date()} · @ picks another day`} value={draft()} onInput={event => setDraft(event.currentTarget.value)} />
+            <Show when={draftDate()}>{state => <p id={`task-date-preview-${props.pane}`} class="agenda-add-preview" classList={{ warning: !state().choice }} role="status">{state().label}</p>}</Show>
+          </div>
         </form>
       </Show>
       <Show when={mode() === 'week'}><WeekCalendar date={date()} notebook={props.notebook} onOpen={props.onOpen} /></Show>
@@ -337,7 +389,7 @@ export function AgendaPane(props: AgendaPaneProps) {
         <Show when={loading()}><p class="agenda-message" role="status">Loading {mode() === 'agenda' ? 'agenda' : 'tasks'}…</p></Show>
         <Show when={error()}><div class="agenda-error" role="alert"><span>{error()}</span><Button onClick={() => setRefresh(value => value + 1)}>Retry</Button></div></Show>
         <Show when={!loading() && !error()}>
-          <Show when={mode() !== 'agenda' || rows().length || total()}><p class="agenda-count" role="status">{rows().length} of {total()} {mode() === 'agenda' ? 'agenda item' : 'task'}{total() === 1 ? '' : 's'}</p></Show>
+          <Show when={mode() === 'agenda' && (rows().length || total())}><p class="agenda-count" role="status">{rows().length} of {total()} agenda item{total() === 1 ? '' : 's'}</p></Show>
           <Show when={!rows().length}><p class="agenda-message">{mode() === 'agenda' ? 'Nothing planned' : 'No tasks match these filters.'}</p></Show>
         </Show>
         <TaskSourceRows rows={rows()} date={date()} pageId={props.notebook.roots().find(root => root.kind === 'journal' && root.text === date())?.id} notebook={props.notebook} disabled={busy() || loading() || !!error()} onOpen={props.onOpen} onChanged={() => setRefresh(value => value + 1)} />
