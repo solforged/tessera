@@ -23,7 +23,8 @@ pub(crate) fn routes() -> Router<AppState> {
         .route("/api/library/jobs/{id}", get(job))
         .route("/api/library/jobs/{id}/retry", post(retry))
         .route("/api/library/query", post(query))
-        .route("/api/library/export", get(export))
+        .route("/api/library/export", get(export).post(export_query))
+        .route("/api/library/views", get(views))
         .route("/api/sources/{id}", get(source))
         .route("/api/sources/{id}/extracted", get(extracted))
         .route("/api/snapshots/{id}/passages", get(passages))
@@ -147,6 +148,9 @@ async fn query(
 ) -> Result<Json<LibraryResult>, ApiError> {
     let Json(q) = body.map_err(ApiError::from)?;
     run(&state, move |n| n.library(&q)).await.map(Json)
+}
+async fn views(State(state): State<AppState>) -> Result<Json<Vec<LibraryView>>, ApiError> {
+    run(&state, move |n| n.library_views()).await.map(Json)
 }
 async fn source(
     State(state): State<AppState>,
@@ -297,11 +301,27 @@ async fn export(
         })
         .unwrap_or_default();
     let output = run(&state, move |n| n.export(&ids, q.format)).await?;
-    let (media, filename) = match q.format {
+    Ok(export_response(q.format, output))
+}
+#[derive(Deserialize)]
+struct ExportBody {
+    format: ExportFormat,
+    query: LibraryQuery,
+}
+async fn export_query(
+    State(state): State<AppState>,
+    body: Result<Json<ExportBody>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    let Json(body) = body.map_err(ApiError::from)?;
+    let output = run(&state, move |n| n.export_query(&body.query, body.format)).await?;
+    Ok(export_response(body.format, output))
+}
+fn export_response(format: ExportFormat, output: String) -> Response {
+    let (media, filename) = match format {
         ExportFormat::Bibtex => ("application/x-bibtex", "tessera.bib"),
         ExportFormat::CslJson => ("application/vnd.citationstyles.csl+json", "tessera.json"),
     };
-    Ok((
+    (
         [
             (header::CONTENT_TYPE, media.to_owned()),
             (
@@ -311,7 +331,7 @@ async fn export(
         ],
         output,
     )
-        .into_response())
+        .into_response()
 }
 
 type Extractor = fn(&[u8], Option<&str>, &str) -> Result<ExtractedDocument, String>;
@@ -848,5 +868,129 @@ mod tests {
         assert!(queued.error.unwrap().contains("503"));
         assert!(queued.next_attempt_at.unwrap() > now_ms() + 25_000);
         server.abort();
+    }
+    #[tokio::test]
+    async fn library_views_and_query_exports_use_saved_queries() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut notebook = Notebook::open(dir.path()).unwrap();
+        let document = constructed(&[], None, "").unwrap();
+        let hash = notebook.put_object(b"library view book").unwrap();
+        let snapshot = notebook.stage_snapshot(&document, &hash, &[]).unwrap();
+        let plan = notebook.plan_ingest(&snapshot.id, None, None).unwrap();
+        notebook
+            .apply(&Batch {
+                actor: Actor::Person,
+                reason: None,
+                idempotency_key: None,
+                operations: plan.operations,
+            })
+            .unwrap();
+        let view_id = ulid::Ulid::generate().to_string();
+        notebook
+            .apply(&Batch {
+                actor: Actor::Person,
+                reason: None,
+                idempotency_key: None,
+                operations: vec![tessera_core::Operation::SaveLibraryView {
+                    id: view_id.clone(),
+                    base_revision: None,
+                    name: "Reading list".into(),
+                    query: LibraryQuery {
+                        text: Some("Worker".into()),
+                        limit: Some(0),
+                        ..Default::default()
+                    },
+                }],
+            })
+            .unwrap();
+        let state = state(notebook, constructed);
+        let app = routes().with_state(state);
+        let views = value(response(&app, "GET", "/api/library/views", vec![]).await).await;
+        assert_eq!(views[0]["id"], view_id);
+        let exported = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/library/export")
+                    .header("Content-Type", "application/json")
+                    .body(Body::from(
+                        serde_json::json!({ "format": "csl", "query": views[0]["query"] })
+                            .to_string(),
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(exported.status(), StatusCode::OK);
+        assert_eq!(
+            exported.headers()[header::CONTENT_DISPOSITION],
+            "attachment; filename=\"tessera.json\""
+        );
+        assert_eq!(value(exported).await[0]["title"], "Worker book");
+        let empty = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/library/export")
+                    .header("Content-Type", "application/json")
+                    .body(Body::from(
+                        r#"{"format":"csl","query":{"text":"does not match"}}"#,
+                    ))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(value(empty).await, serde_json::json!([]));
+    }
+
+    #[tokio::test]
+    async fn historical_snapshot_passages_return_their_own_contents() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut notebook = Notebook::open(dir.path()).unwrap();
+        let mut document = constructed(&[], None, "").unwrap();
+        document.toc = vec![TocEntry {
+            title: "Old opening".into(),
+            locator: "body#one".into(),
+            level: 1,
+        }];
+        let hash = notebook.put_object(b"old book").unwrap();
+        let old = notebook.stage_snapshot(&document, &hash, &[]).unwrap();
+        let plan = notebook.plan_ingest(&old.id, None, None).unwrap();
+        let source = plan.source_id;
+        notebook
+            .apply(&Batch {
+                actor: Actor::Person,
+                reason: None,
+                idempotency_key: None,
+                operations: plan.operations,
+            })
+            .unwrap();
+        document.toc[0].title = "New opening".into();
+        let hash = notebook.put_object(b"new book").unwrap();
+        let new = notebook.stage_snapshot(&document, &hash, &[]).unwrap();
+        let plan = notebook.plan_ingest(&new.id, Some(&source), None).unwrap();
+        notebook
+            .apply(&Batch {
+                actor: Actor::Person,
+                reason: None,
+                idempotency_key: None,
+                operations: plan.operations,
+            })
+            .unwrap();
+        assert_eq!(
+            notebook.source(&source).unwrap().source.current_snapshot_id,
+            Some(new.id)
+        );
+        let app = routes().with_state(state(notebook, constructed));
+        let passages = response(
+            &app,
+            "GET",
+            &format!("/api/snapshots/{}/passages", old.id),
+            vec![],
+        )
+        .await;
+        assert_eq!(passages.status(), StatusCode::OK);
+        assert_eq!(value(passages).await["toc"][0]["title"], "Old opening");
     }
 }

@@ -73,8 +73,11 @@ impl Notebook {
         let mut statement = self.conn.prepare_cached(&format!(
             "SELECT {JOB_COLUMNS}
              FROM ingest_jobs
-             ORDER BY created_at DESC, id DESC
-             LIMIT ?1"
+             WHERE state != 'done' OR id IN (
+                 SELECT id FROM ingest_jobs WHERE state = 'done'
+                 ORDER BY created_at DESC, id DESC LIMIT ?1
+             )
+             ORDER BY created_at DESC, id DESC"
         ))?;
         Ok(statement
             .query_map([limit.min(10000) as i64], job_at)?

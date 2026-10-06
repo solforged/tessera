@@ -14,6 +14,7 @@ mod library_ingest;
 mod library_jobs;
 mod library_reads;
 mod library_store;
+mod library_views;
 mod migrate;
 mod model;
 mod notebook;

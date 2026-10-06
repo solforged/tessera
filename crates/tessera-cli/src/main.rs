@@ -31,6 +31,9 @@ enum Command {
         #[arg(long, default_value = "bibtex", value_parser = ["bibtex", "csl"])]
         format: String,
         source_ids: Vec<String>,
+        /// Export a saved library view by name instead of source IDs.
+        #[arg(long, conflicts_with = "source_ids")]
+        view: Option<String>,
     },
     /// Serve the notebook and the browser editor on loopback.
     Serve {
@@ -62,8 +65,17 @@ fn main() -> anyhow::Result<()> {
         Command::Add { inputs, wait } => {
             tokio::runtime::Runtime::new()?.block_on(add(&notebook, inputs, wait))?;
         }
-        Command::Export { format, source_ids } => {
-            tokio::runtime::Runtime::new()?.block_on(export(&notebook, &format, &source_ids))?;
+        Command::Export {
+            format,
+            source_ids,
+            view,
+        } => {
+            tokio::runtime::Runtime::new()?.block_on(export(
+                &notebook,
+                &format,
+                &source_ids,
+                view.as_deref(),
+            ))?;
         }
         Command::Serve {
             port,
@@ -209,14 +221,43 @@ async fn add(notebook: &std::path::Path, inputs: Vec<String>, wait: bool) -> any
     Ok(())
 }
 
-async fn export(notebook: &std::path::Path, format: &str, ids: &[String]) -> anyhow::Result<()> {
+async fn export(
+    notebook: &std::path::Path,
+    format: &str,
+    ids: &[String],
+    view: Option<&str>,
+) -> anyhow::Result<()> {
     let (client, base) = service(notebook).await?;
-    let mut request = client
-        .get(format!("{base}/api/library/export"))
-        .query(&[("format", format)]);
-    if !ids.is_empty() {
-        request = request.query(&[("ids", ids.join(","))]);
-    }
+    let request = if let Some(name) = view {
+        let views: Vec<tessera_core::library::LibraryView> = checked(
+            client
+                .get(format!("{base}/api/library/views"))
+                .send()
+                .await?,
+        )
+        .await?
+        .json()
+        .await?;
+        let mut matching = views.iter().filter(|view| view.name == name);
+        let view = matching
+            .next()
+            .with_context(|| format!("Library view not found: {name}"))?;
+        anyhow::ensure!(
+            matching.next().is_none(),
+            "More than one library view is named {name}"
+        );
+        client
+            .post(format!("{base}/api/library/export"))
+            .json(&serde_json::json!({ "format": format, "query": view.query }))
+    } else {
+        let mut request = client
+            .get(format!("{base}/api/library/export"))
+            .query(&[("format", format)]);
+        if !ids.is_empty() {
+            request = request.query(&[("ids", ids.join(","))]);
+        }
+        request
+    };
     print!("{}", checked(request.send().await?).await?.text().await?);
     Ok(())
 }

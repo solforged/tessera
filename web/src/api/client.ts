@@ -18,6 +18,7 @@ import type {
   IngestJob,
   LibraryQuery,
   LibraryResult,
+  LibraryView,
   PassageHit,
   PassagePage,
   ReadingProgress,
@@ -66,7 +67,7 @@ async function request<T>(base: string, method: 'GET' | 'POST', path: string, bo
   return send<T>(`${base}/api${path}`, { method, signal, headers: json === undefined ? undefined : { 'Content-Type': 'application/json' }, body: json });
 }
 
-async function send<T>(url: string, init: RequestInit & { signal?: AbortSignal }): Promise<T> {
+async function send<T>(url: string, init: RequestInit & { signal?: AbortSignal }, decode?: (response: Response) => Promise<T>): Promise<T> {
   let response: Response;
   try {
     response = await fetch(url, init);
@@ -74,6 +75,7 @@ async function send<T>(url: string, init: RequestInit & { signal?: AbortSignal }
     if (init.signal?.aborted) throw error;
     throw new ApiError('The notebook service is not reachable.', 0, 'unreachable');
   }
+  if (response.ok && decode) return decode(response);
   const parsed: unknown = await response.json().catch(() => null);
   if (!response.ok) {
     const envelope = (parsed as ErrorEnvelope | null)?.error;
@@ -135,6 +137,7 @@ export interface ApiClient {
   submitFrozen(json: string, signal?: AbortSignal): Promise<Committed>;
   streamUrl(after: number): string;
   library(value: LibraryQuery, signal?: AbortSignal): Promise<LibraryResult>;
+  libraryViews(signal?: AbortSignal): Promise<LibraryView[]>;
   ingestJobs(limit?: number, signal?: AbortSignal): Promise<IngestJob[]>;
   queueUrl(url: string, targetSource?: string, signal?: AbortSignal): Promise<IngestJob>;
   upload(file: Blob, name: string, targetSource?: string, signal?: AbortSignal): Promise<IngestJob>;
@@ -152,6 +155,7 @@ export interface ApiClient {
   highlights(value: HighlightQuery, signal?: AbortSignal): Promise<HighlightResult>;
   /** Download URL; all active sources when `ids` is empty. */
   exportUrl(format: 'bibtex' | 'csl', ids: readonly string[]): string;
+  exportQuery(format: 'bibtex' | 'csl', query: LibraryQuery, signal?: AbortSignal): Promise<Blob>;
 }
 
 export function createApi(base = ''): ApiClient {
@@ -200,6 +204,7 @@ export function createApi(base = ''): ApiClient {
       return url.href;
     },
     library: (value: LibraryQuery, signal?: AbortSignal) => request<LibraryResult>(base, 'POST', '/library/query', value, signal),
+    libraryViews: (signal?: AbortSignal) => get<LibraryView[]>('/library/views', signal),
     ingestJobs: (limit = 50, signal?: AbortSignal) => get<IngestJob[]>(`/library/jobs${query({ limit })}`, signal),
     queueUrl: (url: string, targetSource?: string, signal?: AbortSignal) => request<IngestJob>(base, 'POST', '/library/jobs', { url, target_source: targetSource ?? null }, signal),
     upload: (file: Blob, name: string, targetSource?: string, signal?: AbortSignal) => send<IngestJob>(`${base}/api/library/uploads${query({ target_source: targetSource })}`, {
@@ -216,6 +221,9 @@ export function createApi(base = ''): ApiClient {
     searchPassages: (q: string, sourceId?: string, limit = 40, signal?: AbortSignal) => get<PassageHit[]>(`/passages/search${query({ q, source: sourceId, limit })}`, signal),
     highlights: (value: HighlightQuery, signal?: AbortSignal) => request<HighlightResult>(base, 'POST', '/highlights/query', value, signal),
     exportUrl: (format: 'bibtex' | 'csl', ids: readonly string[]) => `${base}/api/library/export${query({ format, ids: ids.length ? ids.join(',') : undefined })}`,
+    exportQuery: (format: 'bibtex' | 'csl', query: LibraryQuery, signal?: AbortSignal) => send<Blob>(`${base}/api/library/export`, {
+      method: 'POST', signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ format, query }),
+    }, response => response.blob()),
   };
 }
 

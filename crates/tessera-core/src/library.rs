@@ -281,6 +281,7 @@ pub struct PassagePage {
     pub passages: Vec<Passage>,
     pub citations: Vec<Citation>,
     pub total: i64,
+    pub toc: Vec<TocEntry>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -323,6 +324,16 @@ impl Default for LibraryQuery {
             limit: Some(100),
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LibraryView {
+    pub id: String,
+    pub name: String,
+    pub query: LibraryQuery,
+    pub revision: i64,
+    pub created_at: i64,
+    pub updated_at: i64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

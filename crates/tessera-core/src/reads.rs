@@ -388,6 +388,11 @@ impl Notebook {
                         .into_iter()
                         .map(|view| view.id)
                         .collect(),
+                    library_views: committed
+                        .library_views
+                        .into_iter()
+                        .map(|view| view.id)
+                        .collect(),
                 });
             }
             if let Some(id) = row.get::<_, Option<String>>(5)? {

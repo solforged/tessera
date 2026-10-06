@@ -1,5 +1,6 @@
 import { For, Show, batch, createEffect, createMemo, createSignal, on, onCleanup } from 'solid-js';
-import type { HighlightResult, IngestJob, LibraryResult, LibraryRow, ReadingState } from '../api/types';
+import { ulid } from 'ulid';
+import type { HighlightResult, IngestJob, LibraryQuery, LibraryResult, LibraryRow, LibraryView, ReadingState } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { BlockText } from '../outline/BlockText';
 import type { LibraryTab, LibraryViewState, OpenTarget, PaneId } from '../shell/contract';
@@ -8,7 +9,7 @@ import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
 import type { MenuItem } from '../ui/Menu';
 import { Popup } from '../ui/Popup';
-import { formatProgress, libraryQuery, recentJobs, sourceByline, sourceStateOperation } from './query';
+import { formatProgress, libraryQuery, recentJobs, retryTime, selectSources, sourceByline, sourceStateOperation } from './query';
 import './library.css';
 
 export interface LibraryPaneProps {
@@ -23,6 +24,8 @@ export interface LibraryPaneProps {
 
 type LibraryPopup =
   | { kind: 'add'; anchor: HTMLElement }
+  | { kind: 'name'; anchor: HTMLElement; saved: LibraryView | null; id: string }
+  | { kind: 'delete'; anchor: HTMLElement; saved: LibraryView }
   | { kind: 'menu'; anchor: HTMLElement; label: string; items: MenuItem[] };
 const tabs: { id: LibraryTab; label: string }[] = [
   { id: 'inbox', label: 'Inbox' }, { id: 'reading', label: 'Reading' },
@@ -44,7 +47,14 @@ export function LibraryPane(props: LibraryPaneProps) {
   const text = createMemo(() => view().text);
   const sort = createMemo(() => view().sort);
   const unprocessedOnly = createMemo(() => view().unprocessedOnly);
-  const queryKey = createMemo(() => JSON.stringify([tab(), text(), sort(), unprocessedOnly()]));
+  const [views, setViews] = createSignal<LibraryView[]>([]);
+  const [viewsError, setViewsError] = createSignal('');
+  const saved = createMemo(() => views().find(value => value.id === view().view));
+  const currentQuery = createMemo(() => saved()?.query ?? libraryQuery({ tab: tab(), text: text(), sort: sort() }));
+  const queryKey = createMemo(() => JSON.stringify([view().view, tab(), currentQuery(), unprocessedOnly()]));
+  const [selected, setSelected] = createSignal<Set<string>>(new Set());
+  let selectionAnchor: string | null = null;
+  createEffect(on(queryKey, () => { setSelected(new Set<string>()); selectionAnchor = null; }));
   const [loadedKey, setLoadedKey] = createSignal('');
   const [library, setLibrary] = createSignal<LibraryResult>();
   const [highlights, setHighlights] = createSignal<HighlightResult>();
@@ -76,15 +86,37 @@ export function LibraryPane(props: LibraryPaneProps) {
   };
   createEffect(on(() => props.view, next => {
     const previous = view();
-    if (next.tab === previous.tab && next.text === previous.text && next.sort === previous.sort && next.unprocessedOnly === previous.unprocessedOnly && next.scroll === previous.scroll) return;
-    restoreScroll = next.tab !== previous.tab || next.text !== previous.text || next.sort !== previous.sort || next.unprocessedOnly !== previous.unprocessedOnly ? next.scroll : null;
+    if (next.view === previous.view && next.tab === previous.tab && next.text === previous.text && next.sort === previous.sort && next.unprocessedOnly === previous.unprocessedOnly && next.scroll === previous.scroll) return;
+    restoreScroll = next.view !== previous.view || next.tab !== previous.tab || next.text !== previous.text || next.sort !== previous.sort || next.unprocessedOnly !== previous.unprocessedOnly ? next.scroll : null;
     setView({ ...next });
     scroll.scrollTop = next.scroll;
   }, { defer: true }));
 
+  function viewFields(query: LibraryQuery): Pick<LibraryViewState, 'tab' | 'text' | 'sort'> {
+    return { tab: query.states?.length === 1 ? query.states[0]! : 'all', text: query.text ?? '', sort: query.sort ?? 'added' };
+  }
+  createEffect(() => {
+    props.notebook.changeSequence(); props.notebook.lastChange(); refresh();
+    const controller = new AbortController();
+    void props.notebook.api.libraryViews(controller.signal).then(result => {
+      if (controller.signal.aborted) return;
+      batch(() => {
+        setViews(result); setViewsError('');
+        const id = view().view;
+        if (!id) return;
+        const value = result.find(value => value.id === id);
+        if (value) update(viewFields(value.query));
+        else update({ view: null });
+      });
+    }).catch(reason => {
+      if (!controller.signal.aborted) setViewsError(reason instanceof Error ? reason.message : String(reason));
+    });
+    onCleanup(() => controller.abort());
+  });
+
   createEffect(() => {
     const currentTab = tab();
-    const query = libraryQuery({ tab: currentTab, text: text(), sort: sort() });
+    const query = currentQuery();
     const unprocessed = unprocessedOnly();
     const currentKey = queryKey();
     props.notebook.changeSequence(); refresh();
@@ -174,6 +206,56 @@ export function LibraryPane(props: LibraryPaneProps) {
       if (!disposed) setCommandError(reason instanceof Error ? reason.message : String(reason));
     } finally { if (!disposed) setSaving(false); }
   }
+  function toggleSelection(id: string, range: boolean) {
+    setSelected(previous => selectSources(library()?.rows.map(row => row.page.id) ?? [], previous, id, selectionAnchor, range));
+    selectionAnchor = id;
+  }
+  function chooseView(value: LibraryView) {
+    update({ view: value.id, ...viewFields(value.query), scroll: 0 });
+  }
+  async function saveView(name: string, id: string, previous: LibraryView | null) {
+    if (saving()) return;
+    setSaving(true); setCommandError('');
+    try {
+      await props.notebook.commit([{ op: 'save_library_view', id, base_revision: previous?.revision ?? null, name: name.trim(), query: previous?.query ?? currentQuery() }], previous ? 'Rename library view' : 'Save library view');
+      if (!disposed) { update({ view: id }); setPopup(null); setRefresh(value => value + 1); }
+    } finally { if (!disposed) setSaving(false); }
+  }
+  async function deleteView(value: LibraryView) {
+    if (saving()) return;
+    setSaving(true); setCommandError('');
+    try {
+      await props.notebook.commit([{ op: 'delete_library_view', id: value.id, base_revision: value.revision }], 'Delete library view');
+      if (!disposed) {
+        if (view().view === value.id) update({ view: null });
+        setPopup(null); setRefresh(value => value + 1);
+      }
+    } catch (reason) {
+      if (!disposed) setCommandError(reason instanceof Error ? reason.message : String(reason));
+    } finally { if (!disposed) setSaving(false); }
+  }
+  function viewMenu(value: LibraryView, anchor: HTMLElement) {
+    setPopup({ kind: 'menu', anchor, label: 'Library view actions', items: [
+      { label: 'Rename', action: () => setPopup({ kind: 'name', anchor, saved: value, id: value.id }) },
+      { label: 'Delete', action: () => { setCommandError(''); setPopup({ kind: 'delete', anchor, saved: value }); } },
+      { label: 'Export BibTeX', action: () => { void downloadQuery('bibtex', value.query); } },
+      { label: 'Export CSL JSON', action: () => { void downloadQuery('csl', value.query); } },
+    ] });
+  }
+  async function downloadQuery(format: 'bibtex' | 'csl', query: LibraryQuery) {
+    setCommandError('');
+    try {
+      const blob = await props.notebook.api.exportQuery(format, query);
+      if (disposed) return;
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url; anchor.download = format === 'bibtex' ? 'library.bib' : 'library.json';
+      document.body.append(anchor); anchor.click(); anchor.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 0);
+    } catch (reason) {
+      if (!disposed) setCommandError(reason instanceof Error ? reason.message : String(reason));
+    }
+  }
   function download(format: 'bibtex' | 'csl', ids: string[]) {
     // An empty ID list means every source to the API, not the empty result set.
     if (!ids.length) return;
@@ -210,26 +292,37 @@ export function LibraryPane(props: LibraryPaneProps) {
     onDrop={event => { if (event.dataTransfer?.files.length) { event.preventDefault(); void upload(Array.from(event.dataTransfer.files)); } }}>
     <header class="library-toolbar">
       <div class="library-tabs" role="group" aria-label="Library state">
-        <For each={tabs}>{item => <Button aria-pressed={tab() === item.id} onClick={() => update({ tab: item.id, scroll: 0 })}>
+        <For each={tabs}>{item => <Button aria-pressed={!view().view && tab() === item.id} onClick={() => update({ view: null, tab: item.id, scroll: 0 })}>
           {item.label}<Show when={item.id !== 'highlights' && library()}><span class="library-count">{item.id === 'all' ? Object.values(library()!.counts).reduce((sum, count) => sum + count, 0) : library()!.counts[item.id as ReadingState]}</span></Show>
         </Button>}</For>
+        <For each={views()}>{value => <div class="library-tabs">
+          <Button aria-pressed={view().view === value.id} onClick={() => chooseView(value)}>{value.name}</Button>
+          <Button icon="more" label={`Actions for view ${value.name}`} aria-haspopup="menu" disabled={saving()} onClick={event => viewMenu(value, event.currentTarget)} />
+        </div>}</For>
       </div>
       <div class="library-controls">
         <Show when={tab() !== 'highlights'} fallback={<div class="library-tabs library-filter" role="group" aria-label="Highlight processing">
           <Button aria-pressed={unprocessedOnly()} onClick={() => update({ unprocessedOnly: true, scroll: 0 })}>Unprocessed</Button>
           <Button aria-pressed={!unprocessedOnly()} onClick={() => update({ unprocessedOnly: false, scroll: 0 })}>All</Button>
         </div>}>
-          <input class="input library-search" type="search" aria-label="Search library" placeholder="Search library" value={text()} onInput={event => update({ text: event.currentTarget.value, scroll: 0 })} />
-          <Button aria-haspopup="menu" label="Sort sources" onClick={event => setPopup({ kind: 'menu', anchor: event.currentTarget, label: 'Sort sources', items: sorts.map(item => ({ label: item.label, icon: sort() === item.id ? 'check' : undefined, action: () => update({ sort: item.id, scroll: 0 }) })) })}>{sorts.find(item => item.id === sort())!.label}<Icon name="down" /></Button>
+          <input class="input library-search" type="search" aria-label="Search library" placeholder="Search library" value={text()} onInput={event => update({ view: null, text: event.currentTarget.value, scroll: 0 })} />
+          <Button aria-haspopup="menu" label="Sort sources" onClick={event => setPopup({ kind: 'menu', anchor: event.currentTarget, label: 'Sort sources', items: sorts.map(item => ({ label: item.label, icon: sort() === item.id ? 'check' : undefined, action: () => update({ view: null, sort: item.id, scroll: 0 }) })) })}>{sorts.find(item => item.id === sort())!.label}<Icon name="down" /></Button>
         </Show>
         <Button icon="plus" aria-haspopup="dialog" aria-expanded={popup()?.kind === 'add'} onClick={event => { setAddError(''); setPopup({ kind: 'add', anchor: event.currentTarget }); }}>Add</Button>
-        <Show when={tab() !== 'highlights'}><Button icon="download" aria-haspopup="menu" disabled={loading() || !!error() || !library()?.rows.length} onClick={event => {
-          const ids = library()!.rows.map(row => row.page.id);
+        <Show when={tab() !== 'highlights'}><Button icon="download" aria-haspopup="menu" disabled={loading() || !!error() || loadedKey() !== queryKey()} onClick={event => {
+          const ids = [...selected()], query = currentQuery();
           setPopup({ kind: 'menu', anchor: event.currentTarget, label: 'Export sources', items: [
-            { label: 'BibTeX', action: () => download('bibtex', ids) },
-            { label: 'CSL JSON', action: () => download('csl', ids) },
+            { label: 'BibTeX', action: () => { if (ids.length) download('bibtex', ids); else void downloadQuery('bibtex', query); } },
+            { label: 'CSL JSON', action: () => { if (ids.length) download('csl', ids); else void downloadQuery('csl', query); } },
           ] });
-        }}>Export</Button></Show>
+        }}>{selected().size ? `Export ${selected().size} selected` : 'Export this view'}</Button></Show>
+        <Button icon="more" label="Library actions" aria-haspopup="menu" onClick={event => {
+          const anchor = event.currentTarget;
+          setPopup({ kind: 'menu', anchor, label: 'Library actions', items: [
+            { label: 'Save view…', disabledReason: tab() === 'highlights' ? 'Select a source view.' : saving() ? 'Saving…' : undefined,
+              action: () => setPopup({ kind: 'name', anchor, saved: null, id: ulid() }) },
+          ] });
+        }} />
       </div>
       <Show when={saving() || props.notebook.commandState() !== 'saved'}><p class="library-message" role="status">{props.notebook.commandMessage() || (saving() ? 'Saving…' : props.notebook.commandState())}</p></Show>
     </header>
@@ -243,8 +336,11 @@ export function LibraryPane(props: LibraryPaneProps) {
     }}>
       <Show when={commandError()}><p class="library-error" role="alert">{commandError()}</p></Show>
       <Show when={jobsError()}><div class="library-error" role="alert">{jobsError()}<Button onClick={() => setJobsRefresh(value => value + 1)}>Retry</Button></div></Show>
+      <Show when={viewsError()}><div class="library-error" role="alert">{viewsError()}<Button onClick={() => setRefresh(value => value + 1)}>Retry</Button></div></Show>
       <Show when={jobs().length}><section class="library-jobs" aria-label="Ingestion jobs"><For each={jobs()}>{job => <div class="library-job">
         <span class="library-job-name">{job.name}</span><span class="library-message">{job.state}</span>
+        <span class="library-message">attempt {job.attempts}</span>
+        <Show when={job.next_attempt_at !== null && props.notebook.settings()}><span class="library-message">retries at {retryTime(job.next_attempt_at!, props.notebook.settings()!.time_zone)}</span></Show>
         <Show when={job.state === 'failed'}><Button disabled={retrying().includes(job.id)} onClick={() => { void retryJob(job); }}>Retry</Button></Show>
         <Show when={job.error}><span class="library-job-error" role={job.state === 'failed' ? 'alert' : undefined}>{job.error}</span></Show>
       </div>}</For></section></Show>
@@ -267,12 +363,15 @@ export function LibraryPane(props: LibraryPaneProps) {
             <Show when={library()?.rows.length} fallback={<div class="library-empty">
               <Show when={text().trim()} fallback={<Show when={tab() === 'inbox'} fallback={<p>No sources.</p>}>
                 <p>Nothing in your inbox. Add a book or article.</p><Button onClick={event => { setAddError(''); setPopup({ kind: 'add', anchor: event.currentTarget }); }}>Add</Button>
-              </Show>}><p>No sources match.</p><Button onClick={() => update({ text: '', scroll: 0 })}>Clear search</Button></Show>
+              </Show>}><p>No sources match.</p><Button onClick={() => update({ view: null, text: '', scroll: 0 })}>Clear search</Button></Show>
             </div>}>
               <div class="library-rows" role="list"><For each={library()?.rows}>{row => {
                 const target: OpenTarget = { kind: 'page', pageId: row.page.id };
                 return <div class="library-row" role="listitem">
-                  <Button class="library-row-open" data-library-row={row.page.id} onClick={event => props.onOpen(target, event.shiftKey)} onKeyDown={event => rowKey(event, target)}>
+                  <Button role="checkbox" aria-checked={selected().has(row.page.id)} label={`Select ${row.page.text}`} class="bordered icon-only" onClick={event => toggleSelection(row.page.id, event.shiftKey)}>
+                    <Show when={selected().has(row.page.id)} fallback={<span class="icon" />}><Icon name="check" /></Show>
+                  </Button>
+                  <Button class="library-row-open" data-library-row={row.page.id} onClick={event => { if (event.shiftKey) toggleSelection(row.page.id, true); else props.onOpen(target, false); }} onKeyDown={event => rowKey(event, target)}>
                     <span class="library-title">{row.page.text}</span><span class="library-byline">{sourceByline(row)}</span>
                     <Show when={row.progress > 0}><span class="library-progress">{formatProgress(row.progress)}</span></Show>
                     <Show when={row.unprocessed > 0}><span class="library-count" aria-label={`${row.unprocessed} unprocessed highlights`}><Icon name="highlight" />{row.unprocessed}</span></Show>
@@ -288,6 +387,12 @@ export function LibraryPane(props: LibraryPaneProps) {
     <Show keyed when={popup()}>{state => {
       const dismiss = () => { if (popup() === state) setPopup(null); };
       if (state.kind === 'menu') return <Menu anchor={state.anchor} label={state.label} items={state.items} onDismiss={dismiss} />;
+      if (state.kind === 'name') return <LibraryViewNamePopup anchor={state.anchor} saved={state.saved} busy={saving()} onDismiss={dismiss} onSave={name => saveView(name, state.id, state.saved)} />;
+      if (state.kind === 'delete') return <Popup anchor={state.anchor} label="Delete library view?" onDismiss={dismiss}>
+        <p>Delete “{state.saved.name}”? Sources are not deleted.</p>
+        <Show when={commandError()}><p class="library-error" role="alert">{commandError()}</p></Show>
+        <div class="popup-actions"><Button disabled={saving()} onClick={dismiss}>Cancel</Button><Button class="bordered danger" disabled={saving()} onClick={() => { void deleteView(state.saved); }}>Delete view</Button></div>
+      </Popup>;
       return <Popup anchor={state.anchor} label="Add source" class="library-add" onDismiss={dismiss}>
         <form onSubmit={event => { event.preventDefault(); void queueUrl(); }}>
           <input class="input" aria-label="URL" placeholder="URL" inputmode="url" value={url()} disabled={adding()} onInput={event => setUrl(event.currentTarget.value)} />
@@ -297,4 +402,22 @@ export function LibraryPane(props: LibraryPaneProps) {
       </Popup>;
     }}</Show>
   </div>;
+}
+
+function LibraryViewNamePopup(props: { anchor: HTMLElement; saved: LibraryView | null; busy: boolean; onDismiss(): void; onSave(name: string): Promise<void> }) {
+  const [name, setName] = createSignal(props.saved?.name ?? '');
+  const [error, setError] = createSignal('');
+  const submit = async () => {
+    if (props.busy || !name().trim()) return;
+    setError('');
+    try { await props.onSave(name()); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
+  };
+  return <Popup anchor={props.anchor} label={props.saved ? 'Rename library view' : 'Save library view'} onDismiss={props.onDismiss}>
+    <form onSubmit={event => { event.preventDefault(); void submit(); }}>
+      <input class="input" aria-label="Library view name" placeholder="View name" value={name()} maxlength={120} disabled={props.busy} onInput={event => setName(event.currentTarget.value)} />
+      <Show when={error()}><p class="library-error" role="alert">{error()}</p></Show>
+      <div class="popup-actions"><Button disabled={props.busy} onClick={props.onDismiss}>Cancel</Button><Button type="submit" class="bordered" disabled={props.busy || !name().trim()}>Save</Button></div>
+    </form>
+  </Popup>;
 }
