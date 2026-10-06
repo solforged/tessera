@@ -410,7 +410,7 @@ export interface SnapshotSummary {
   attached_at: number; change_seq: number;
 }
 export interface ReadingPosition {
-  snapshot_id: string; passage_ordinal: number; covered: [number, number][]; updated_at: number;
+  snapshot_id: string; passage_ordinal: number; updated_at: number;
 }
 export interface ReadingProgress {
   position: ReadingPosition; progress: number; state_changed: boolean; seq: number | null;

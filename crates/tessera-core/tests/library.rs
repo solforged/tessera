@@ -333,7 +333,8 @@ fn citation_triage_migration_preserves_existing_evidence() {
     drop(n);
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
     conn.execute_batch(
-        "DROP TABLE questions;
+        "ALTER TABLE reading_positions ADD COLUMN covered TEXT NOT NULL DEFAULT '[]';
+         DROP TABLE questions;
          DROP TABLE assessments;
          DROP TABLE positions;
          DROP TABLE highlight_surfacings;
@@ -536,7 +537,8 @@ fn citation_color_migration_preserves_existing_evidence_with_null_color() {
     drop(n);
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
     conn.execute_batch(
-        "DROP TABLE questions;
+        "ALTER TABLE reading_positions ADD COLUMN covered TEXT NOT NULL DEFAULT '[]';
+         DROP TABLE questions;
          DROP TABLE assessments;
          DROP TABLE positions;
          DROP TABLE highlight_surfacings;
@@ -671,7 +673,7 @@ fn reingest_updates_only_extracted_values_and_preserves_state() {
     let (source, first) = ingest(&mut n, &doc, b"one");
     let published = field(&n, &source, "Published")[0].id.clone();
     edit(&mut n, &published, "1984");
-    n.set_reading_position(&first, 0, (0, 1)).unwrap();
+    n.set_reading_position(&first, 0).unwrap();
     doc.metadata.published = Some("2024".into());
     doc.metadata.publisher = Some("New Press".into());
     doc.metadata.site = Some("Journal".into());
@@ -1142,22 +1144,26 @@ fn citation_ranges_reactivation_sidecars_merge_and_visibility() {
     assert!(n.passages(&snapshot, 0, 2).unwrap().citations.is_empty());
 }
 #[test]
-fn coverage_changes_state_once_and_library_filters_sort() {
+fn reading_position_changes_state_once_and_library_filters_sort() {
     let dir = tempfile::tempdir().unwrap();
     let mut n = Notebook::open(dir.path()).unwrap();
     let mut doc = document();
     doc.metadata.cover = Some("images/cover.jpg".into());
     let (source, snapshot) = ingest(&mut n, &doc, b"one");
-    let first = n.set_reading_position(&snapshot, 0, (0, 1)).unwrap();
+    let first = n.set_reading_position(&snapshot, 0).unwrap();
     assert!(first.state_changed);
     assert!(first.seq.is_some());
-    assert_eq!(first.position.covered, vec![(0, 1)]);
-    assert!((first.progress - 17.0 / 32.0).abs() < 1e-8);
-    let second = n.set_reading_position(&snapshot, 1, (1, 2)).unwrap();
+    assert_eq!(first.progress, 0.0);
+    let second = n.set_reading_position(&snapshot, 1).unwrap();
     assert!(!second.state_changed);
     assert_eq!(second.seq, None);
-    assert_eq!(second.position.covered, vec![(0, 2)]);
-    assert_eq!(second.progress, 1.0);
+    assert_eq!(second.position.passage_ordinal, 1);
+    // Progress is where the reader rests, so reading back lowers it again.
+    assert!((second.progress - 17.0 / 32.0).abs() < 1e-8);
+    assert_eq!(n.source(&source).unwrap().progress, second.progress);
+    assert!(n.set_reading_position(&snapshot, 2).is_err());
+    assert_eq!(n.set_reading_position(&snapshot, 0).unwrap().progress, 0.0);
+    n.set_reading_position(&snapshot, 1).unwrap();
     assert_eq!(
         n.changes_since(first.seq.unwrap() - 1, 100).unwrap().len(),
         1
@@ -1185,6 +1191,7 @@ fn coverage_changes_state_once_and_library_filters_sort() {
     assert_eq!(library.rows[0].cover, None);
     assert_eq!(library.rows[1].site, None);
     assert_eq!(library.rows[1].cover.as_deref(), Some("images/cover.jpg"));
+    assert_eq!(library.rows[1].progress, second.progress);
     let filtered = n
         .library(&LibraryQuery {
             states: vec![ReadingState::Reading],

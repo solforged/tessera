@@ -263,13 +263,13 @@ pub struct SnapshotSummary {
 pub struct ReadingPosition {
     pub snapshot_id: String,
     pub passage_ordinal: i64,
-    pub covered: Vec<(i64, i64)>,
     pub updated_at: i64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ReadingProgress {
     pub position: ReadingPosition,
+    /// The reading position as a share of the text: the characters before its passage.
     pub progress: f64,
     pub state_changed: bool,
     pub seq: Option<i64>,

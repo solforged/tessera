@@ -165,8 +165,8 @@ export interface ApiClient {
   /** The ordinal of a passage locator or anchor, or null. */
   locate(snapshotId: string, at: string, signal?: AbortSignal): Promise<number | null>;
   resourceUrl(snapshotId: string, href: string): string;
-  /** Record reading: position at `ordinal`, passages `from`..`to` (exclusive) seen. */
-  readingPosition(snapshotId: string, ordinal: number, from: number, to: number, signal?: AbortSignal): Promise<ReadingProgress>;
+  /** Record the reading position: the first passage on screen. */
+  readingPosition(snapshotId: string, ordinal: number, signal?: AbortSignal): Promise<ReadingProgress>;
   searchPassages(q: string, sourceId?: string, limit?: number, signal?: AbortSignal): Promise<PassageHit[]>;
   highlights(value: HighlightQuery, signal?: AbortSignal): Promise<HighlightResult>;
   resurfacing(date: string, limit?: number, signal?: AbortSignal): Promise<Surfacing[]>;
@@ -252,7 +252,7 @@ export function createApi(base = ''): ApiClient {
     passages: (snapshotId: string, from: number, limit = 200, signal?: AbortSignal) => get<PassagePage>(`/snapshots/${segment(snapshotId)}/passages${query({ from, limit })}`, signal),
     locate: (snapshotId: string, at: string, signal?: AbortSignal) => get<number | null>(`/snapshots/${segment(snapshotId)}/locate${query({ at })}`, signal),
     resourceUrl: (snapshotId: string, href: string) => `${base}/api/snapshots/${segment(snapshotId)}/resources/${href.split('/').map(segment).join('/')}`,
-    readingPosition: (snapshotId: string, ordinal: number, from: number, to: number, signal?: AbortSignal) => request<ReadingProgress>(base, 'POST', `/snapshots/${segment(snapshotId)}/position`, { ordinal, from, to }, signal),
+    readingPosition: (snapshotId: string, ordinal: number, signal?: AbortSignal) => request<ReadingProgress>(base, 'POST', `/snapshots/${segment(snapshotId)}/position`, { ordinal }, signal),
     searchPassages: (q: string, sourceId?: string, limit = 40, signal?: AbortSignal) => get<PassageHit[]>(`/passages/search${query({ q, source: sourceId, limit })}`, signal),
     highlights: (value: HighlightQuery, signal?: AbortSignal) => request<HighlightResult>(base, 'POST', '/highlights/query', value, signal),
     resurfacing: (date: string, limit = 3, signal?: AbortSignal) => get<Surfacing[]>(`/highlights/resurface${query({ date, limit })}`, signal),

@@ -23,9 +23,9 @@ export function sourceByline(row: Pick<LibraryRow, 'creators' | 'site' | 'publis
   return [row.creators.join(', ') || row.site, row.published?.slice(0, 4)].filter(Boolean).join(' · ');
 }
 
-/** Whole percent; a started source never reads as 0%. */
+/** Whole percent, rounded down so a source never reads 100% before its last passage; a started source never reads as 0%. */
 export function formatProgress(progress: number): string {
-  return progress > 0 && progress < 0.01 ? '<1%' : `${Math.round(progress * 100)}%`;
+  return progress > 0 && progress < 0.01 ? '<1%' : `${Math.floor(progress * 100)}%`;
 }
 
 export function highlightLocation(citation: Pick<Citation, 'ordinal'>, sections: readonly HighlightSection[]): string {

@@ -45,7 +45,6 @@ export function ReaderPane(props: ReaderPaneProps) {
   const [snapshot, setSnapshot] = createSignal('');
   const [contents, setContents] = createSignal<TocEntry[]>([]);
   const [total, setTotal] = createSignal(0);
-  const [progress, setProgress] = createSignal(0);
   const [firstVisible, setFirstVisible] = createSignal(0);
   const [titleHeight, setTitleHeight] = createSignal(0);
   const [version, setVersion] = createSignal(0);
@@ -112,10 +111,11 @@ export function ReaderPane(props: ReaderPaneProps) {
     for (let index = entries.length - 1; index >= 0; index--) if (entries[index]!.ordinal <= ordinal) return entries[index];
     return undefined;
   });
+  /** The reading position as a share of the text, the same measure the library and source page show. */
   const position = createMemo(() => {
     version();
     const length = currentSnapshot()?.text_length ?? 0;
-    return length ? Math.floor((passages.get(firstVisible())?.start ?? 0) / length * 100) : 0;
+    return length ? (passages.get(firstVisible())?.start ?? 0) / length : 0;
   });
   const byline = createMemo(() => {
     const metadata = currentSnapshot()?.metadata;
@@ -205,7 +205,6 @@ export function ReaderPane(props: ReaderPaneProps) {
       setContents([]);
       setFirstVisible(0);
       setTotal(source()?.snapshots.find(value => value.id === id)?.passage_count ?? 0);
-      setProgress(id === source()?.source.current_snapshot_id ? source()!.progress : 0);
       setVersion(value => value + 1);
     });
     virtualizer.measure();
@@ -243,14 +242,13 @@ export function ReaderPane(props: ReaderPaneProps) {
   function visibleRange() {
     if (!scroll || !scroll.getClientRects().length || scroll.closest('[inert], [aria-hidden="true"]') || document.visibilityState === 'hidden') return null;
     const viewport = scroll.getBoundingClientRect();
-    let first: { ordinal: number; offset: number } | null = null, last = -1;
+    let first: { ordinal: number; offset: number } | null = null;
     for (const row of scroll.querySelectorAll<HTMLElement>('[data-passage-id]')) {
       const rect = row.getBoundingClientRect(), ordinal = Number(row.dataset.ordinal);
       if (rect.bottom <= viewport.top || rect.top >= viewport.bottom) continue;
       if (!first || ordinal < first.ordinal) first = { ordinal, offset: rect.top - viewport.top };
-      last = Math.max(last, ordinal);
     }
-    return first ? { ...first, last } : null;
+    return first;
   }
 
   function report() {
@@ -263,12 +261,10 @@ export function ReaderPane(props: ReaderPaneProps) {
   }
 
   async function savePosition() {
-    const range = visibleRange(), id = snapshot(), epoch = generation;
+    const range = visibleRange(), id = snapshot();
     if (!range || disposed || restoring || suppressed || !userScroll) return;
-    try {
-      const result = await api.readingPosition(id, range.ordinal, range.ordinal, range.last + 1, requests.signal);
-      if (!disposed && epoch === generation) setProgress(result.progress);
-    } catch (reason) { if (!disposed) setError(reason instanceof Error ? reason.message : String(reason)); }
+    try { await api.readingPosition(id, range.ordinal, requests.signal); }
+    catch (reason) { if (!disposed) setError(reason instanceof Error ? reason.message : String(reason)); }
   }
 
   function scrolled() {
@@ -646,11 +642,11 @@ export function ReaderPane(props: ReaderPaneProps) {
       <Button class="reader-contents" icon="contents" label="Contents" aria-haspopup="dialog" disabled={!contents().length} onClick={event => { setQuery(''); setPopup({ kind: 'contents', anchor: event.currentTarget }); }}><span>{currentSection()?.title ?? 'Contents'}</span><Icon name="down" /></Button>
       <Button icon="highlight" label="Highlights" aria-haspopup="dialog" disabled={!snapshot()} onClick={event => { setQuery(''); setPopup({ kind: 'highlights', anchor: event.currentTarget }); }}><Show when={sourceHighlights().length}><span>{sourceHighlights().length}</span></Show></Button>
       <Button icon="search" label="Find in source" aria-haspopup="dialog" disabled={!snapshot()} onClick={event => { setQuery(''); setPopup({ kind: 'find', anchor: event.currentTarget }); }} />
-      <span class="reader-progress" aria-label="Reading position" title={`${formatProgress(progress())} read`}>{position()}%</span>
+      <span class="reader-progress" aria-label="Reading position">{formatProgress(position())}</span>
       <Button label="Reader settings" aria-haspopup="dialog" onClick={event => setPopup({ kind: 'settings', anchor: event.currentTarget })}>Aa</Button>
       <Button icon="more" label="Reader actions" aria-haspopup="menu" onPointerDown={event => event.preventDefault()} onClick={event => setPopup({ kind: 'actions', anchor: event.currentTarget })} />
     </div>
-    <div class="reader-progress-rule" aria-hidden="true"><span style={{ width: `${position()}%` }} /></div>
+    <div class="reader-progress-rule" aria-hidden="true"><span style={{ width: `${position() * 100}%` }} /></div>
     <Show when={error()}><p class="reader-error error" role="alert">{error()}</p></Show>
     <Show when={loading()}><p class="reader-status" role="status">Loading…</p></Show>
     <div ref={scroll} class="reader-scroll" tabIndex={0} aria-label="Source passages" onScroll={scrolled}
