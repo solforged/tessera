@@ -79,6 +79,7 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; not
       <h2 id={`settings-service-${props.pane}`}>Service</h2>
       <Show when={service()}>{value => <dl>
         <dt>Version</dt><dd>{value().version}</dd>
+        <Show when={value().build}>{build => <><dt>Build</dt><dd>{build()}</dd></>}</Show>
         <dt>URL</dt><dd>{`http://127.0.0.1:${value().port}`}</dd>
         <dt>Assets</dt><dd>{value().assets}</dd>
         <dt>Launch agent</dt><dd>{value().launch_agent.installed ? 'Installed' : 'Not installed · run tessera install'}</dd>

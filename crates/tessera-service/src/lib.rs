@@ -216,6 +216,8 @@ struct LaunchAgentInfo {
 #[derive(Serialize)]
 struct ServiceInfo {
     version: &'static str,
+    /// The commit `scripts/ship` built from; absent in development builds.
+    build: Option<&'static str>,
     port: u16,
     assets: &'static str,
     launch_agent: LaunchAgentInfo,
@@ -232,6 +234,7 @@ async fn service_info(State(state): State<AppState>) -> Result<Json<ServiceInfo>
             .unwrap_or(false);
         Ok(Json(ServiceInfo {
             version: env!("CARGO_PKG_VERSION"),
+            build: option_env!("TESSERA_BUILD"),
             port: state.port,
             assets: if state.assets.is_some() {
                 "directory"
