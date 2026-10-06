@@ -1075,10 +1075,12 @@ dependencies = [
  "jiff-core",
  "jiff-static",
  "jiff-tzdb-platform",
+ "js-sys",
  "log",
  "portable-atomic",
  "portable-atomic-util",
  "serde_core",
+ "wasm-bindgen",
  "windows-link",
 ]
 
@@ -2306,7 +2308,9 @@ name = "tessera-core"
 version = "0.1.0"
 dependencies = [
  "deunicode",
+ "getrandom 0.4.3",
  "jiff",
+ "js-sys",
  "rusqlite",
  "serde",
  "serde_json",

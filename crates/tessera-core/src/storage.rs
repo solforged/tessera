@@ -335,7 +335,7 @@ pub(crate) fn resolve_type(
     if existing.is_some() || !create_missing {
         return Ok(existing);
     }
-    let id = ulid::Ulid::generate().to_string();
+    let id = crate::notebook::new_ulid().to_string();
     conn.prepare_cached(
         "INSERT INTO blocks(id, kind, page_id, ordinal, text, title_key, revision, created_at, updated_at)
          VALUES (?1, 'page', ?1, 1024, ?2, ?3, 1, ?4, ?4)",
