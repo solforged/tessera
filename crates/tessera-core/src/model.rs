@@ -71,6 +71,8 @@ pub enum Operation {
         snapshot_id: String,
         start: PassagePoint,
         end: PassagePoint,
+        #[serde(default)]
+        color: Option<String>,
     },
     Uncite {
         id: String,
@@ -81,6 +83,11 @@ pub enum Operation {
         id: String,
         base_revision: i64,
         triage: Option<String>,
+    },
+    SetCitationColor {
+        id: String,
+        base_revision: i64,
+        color: Option<String>,
     },
     /// Create a named root. Titles are unique among live pages, ignoring case.
     CreatePage {

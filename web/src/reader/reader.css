@@ -17,6 +17,11 @@
 .reader-passage .reader-inline-link, .reader-passage a { display: inline; min-height: 0; font: inherit; color: var(--accent); padding: 0; border: 0; border-radius: 0; background: transparent; text-decoration: underline; white-space: inherit; }
 .reader-passage sup { font-size: var(--text-meta); line-height: var(--line-meta); }
 .reader-highlight { background: var(--selection); cursor: pointer; }
+.reader-highlight-yellow { background: rgb(218 179 66 / 24%); }
+.reader-highlight-green { background: rgb(82 183 119 / 24%); }
+.reader-highlight-blue { background: rgb(88 158 224 / 24%); }
+.reader-highlight-red { background: rgb(230 109 113 / 24%); }
+.reader-highlight-purple { background: rgb(177 134 218 / 24%); }
 .reader-highlight-overlap { text-decoration: underline double var(--accent); text-underline-offset: var(--space-4); }
 .reader-flash { outline: 1px solid var(--accent); }
 .reader-placeholder { min-height: calc(var(--line-body) * 4); }

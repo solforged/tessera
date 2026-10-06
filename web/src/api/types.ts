@@ -30,9 +30,10 @@ export type Operation =
   | { op: 'create_page'; id: string; title: string }
   | { op: 'set_source'; id: string; base_revision: number; source: SourceState | null }
   | { op: 'attach_snapshot'; id: string; base_revision: number; snapshot_id: string }
-  | { op: 'cite'; id: string; base_revision: number; citation_id: string; snapshot_id: string; start: PassagePoint; end: PassagePoint }
+  | { op: 'cite'; id: string; base_revision: number; citation_id: string; snapshot_id: string; start: PassagePoint; end: PassagePoint; color?: Citation['color'] }
   | { op: 'uncite'; id: string; base_revision: number; citation_id: string }
   | { op: 'set_citation_triage'; id: string; base_revision: number; triage: Citation['triage'] }
+  | { op: 'set_citation_color'; id: string; base_revision: number; color: Citation['color'] }
   | { op: 'create_journal'; id: string; date: string }
   | { op: 'insert'; id: string; parent_id: string; after: string | null; text: string; heading: 1 | 2 | 3 | null }
   | { op: 'edit_text'; id: string; base_revision: number; text: string }
@@ -370,6 +371,7 @@ export interface Citation {
   id: string; block_id: string; source_id: string; snapshot_id: string;
   start: PassagePoint; end: PassagePoint; quote: string; locator: string; ordinal: number;
   triage: 'processed' | 'unprocessed' | null;
+  color: 'yellow' | 'green' | 'blue' | 'red' | 'purple' | null;
 }
 export interface BlockCapabilities { source?: SourceRecord | null; citations?: Citation[] }
 export interface ExtractedCreator { name: string; role: 'author' | 'editor' | 'translator' }
@@ -417,8 +419,8 @@ export interface LibraryRow {
 export interface LibraryResult {
   rows: LibraryRow[]; total: number; counts: { inbox: number; reading: number; finished: number; abandoned: number };
 }
-export interface HighlightQuery { source_id?: string | null; unprocessed?: boolean; limit?: number | null }
-export interface HighlightRow { block: BlockInPage; citation: Citation; source_title: string; processed: boolean; triage: Citation['triage']; created_at: number }
+export interface HighlightQuery { source_id?: string | null; unprocessed?: boolean; colors?: string[]; tags?: string[]; limit?: number | null }
+export interface HighlightRow { block: BlockInPage; citation: Citation; source_title: string; processed: boolean; triage: Citation['triage']; color: Citation['color']; tags: string[]; created_at: number }
 export interface HighlightResult { rows: HighlightRow[]; total: number }
 export interface IngestJob {
   id: string; input_kind: 'url' | 'file'; input: string; name: string; target_source: string | null;
