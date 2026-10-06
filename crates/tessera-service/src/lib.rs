@@ -114,6 +114,7 @@ pub fn router(
             get(capabilities::active_work_session),
         )
         .route("/api/projects", get(capabilities::projects))
+        .route("/api/positions", get(capabilities::positions))
         .route("/api/tasks/query", post(capabilities::task_query))
         .route("/api/agenda/{date}", get(capabilities::agenda))
         .route("/api/task-views", get(capabilities::task_views))

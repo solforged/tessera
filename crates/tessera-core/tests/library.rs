@@ -333,7 +333,8 @@ fn citation_triage_migration_preserves_existing_evidence() {
     drop(n);
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
     conn.execute_batch(
-        "DROP TABLE highlight_surfacings;
+        "DROP TABLE positions;
+         DROP TABLE highlight_surfacings;
          ALTER TABLE citations DROP COLUMN resurface_muted_at;
          ALTER TABLE citations DROP COLUMN color;
          ALTER TABLE citations DROP COLUMN triage;
@@ -533,7 +534,8 @@ fn citation_color_migration_preserves_existing_evidence_with_null_color() {
     drop(n);
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
     conn.execute_batch(
-        "DROP TABLE highlight_surfacings;
+        "DROP TABLE positions;
+         DROP TABLE highlight_surfacings;
          ALTER TABLE citations DROP COLUMN resurface_muted_at;
          ALTER TABLE citations DROP COLUMN color;
          PRAGMA user_version = 13;",

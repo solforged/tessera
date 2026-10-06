@@ -41,7 +41,8 @@ import { nextClozeNumber, rankSlash, slashTokenAt } from './slash';
 import type { SlashEntry, SlashToken } from './slash';
 import { TypePill } from './references';
 import { CitationChip, SourceHeader } from './SourceHeader';
-import { GLOSS_FIELD, glossEntry, isGlossName } from './gloss';
+import { GLOSS_FIELD, glossEntry, isGistName, isGlossName } from './gloss';
+import { positionSource as sharedPositionSource } from './perspectives';
 import { CardSummary } from './CardSummary';
 import { addFieldOption, createFieldEntryConversion, createSourceFieldResets } from './source-fields';
 import { formatSourceValue, sourceFieldName } from './source';
@@ -135,7 +136,7 @@ function Pane(props: OutlinePaneProps) {
   const definitionsByName = createMemo(() => new Map(definitions().map(field => [field.name.toLowerCase(), field])));
   const glossId = createMemo(() => doc.root()?.kind === 'page' ? glossEntry(doc, id => isGlossName(definitionsById().get(id)?.name)) : null);
   const depthFilter = createMemo<DepthFilter | undefined>(() => doc.root()?.kind === 'page' && depth() !== 'full'
-    ? { stop: depth(), gloss: glossId(), position: () => false } : undefined);
+    ? { stop: depth(), gloss: glossId(), position: id => !!doc.block(id)?.position, gist: id => isGistName(definitionsById().get(fieldEntryId(doc.block(id)?.text ?? '') ?? '')?.name) } : undefined);
   const [type] = createResource(
     () => doc.root()?.kind === 'page' ? [props.pageId, props.notebook.changeSequence()] as const : false,
     ([pageId]) => api.type(pageId),
@@ -366,12 +367,18 @@ function Pane(props: OutlinePaneProps) {
   const ids = createMemo(() => { const inline = inlineFields(); const visible = unfoldedIds(); return inline.size ? visible.filter(id => !inline.has(id)) : visible; });
   const indices = createMemo(() => new Map(ids().map((id, index) => [id, index])));
   const baseDepth = createMemo(() => zoom() ? doc.outline.depth(zoom()!) : 0);
-  // Sources cited on this page, in order of first appearance, give the sigla shown beside citing rows. A
-  // source page's own highlights need no mark.
+  const positionSource = (id: string) => sharedPositionSource(doc, id, fieldId => definitionsById().get(fieldId)?.name);
+  /** Perspectives on this page filed under it, as opposed to under a question or another subject. */
+  const localPositions = createMemo(() => { let count = 0; (doc.outline as OutlineIndex).each(0, doc.outline.size(), row => { if (doc.block(row.id)?.position?.subject_id === props.pageId) count++; }); return count; });
+  // Sources cited or named by positions on this page, in order of first appearance, give the sigla shown in
+  // the margin. A source page's own highlights need no mark.
   const citedSources = createMemo(() => {
     const seen: string[] = [];
+    const add = (id: string | null | undefined) => { if (id && id !== props.pageId && !seen.includes(id)) seen.push(id); };
     (doc.outline as OutlineIndex).each(0, doc.outline.size(), row => {
-      for (const citation of doc.block(row.id)?.citations ?? []) if (citation.source_id !== props.pageId && !seen.includes(citation.source_id)) seen.push(citation.source_id);
+      const block = doc.block(row.id);
+      if (block?.position) add(positionSource(row.id));
+      for (const citation of block?.citations ?? []) add(citation.source_id);
     });
     return seen;
   }, undefined, { equals: (a, b) => a.length === b.length && a.every((id, index) => id === b[index]) });
@@ -1138,6 +1145,7 @@ function Pane(props: OutlinePaneProps) {
       capabilities.open(props.pageId, 'project');
     } },
     { id: 'gloss', title: 'Add or edit gloss', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Page is unavailable.' : doc.root()?.kind !== 'page' ? 'Journal days have no gloss.' : undefined, run: addGloss },
+    { id: 'compare', title: 'Compare perspectives', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Page is unavailable.' : localPositions() < 2 ? 'Compare needs two perspectives on this page.' : undefined, run: () => props.onOpen({ kind: 'compare', subjectId: props.pageId }, false) },
     ...depthStops.map((stop): Command => ({ id: `depth-${stop}`, title: depthTitles[stop], section: 'Page', disabledReason: depthReason, run: () => setStop(stop) })),
     { id: 'depth-less', title: 'Show less of the page', section: 'Page', keys: ['['], disabledReason: () => depthReason() ?? (depth() === 'gloss' ? 'Only the gloss is showing.' : undefined), run: () => stepDepth(-1) },
     { id: 'depth-more', title: 'Show more of the page', section: 'Page', keys: [']'], disabledReason: () => depthReason() ?? (depth() === 'full' ? 'The whole page is showing.' : undefined), run: () => stepDepth(1) },
@@ -1179,6 +1187,8 @@ function Pane(props: OutlinePaneProps) {
     { id: 'add-card', title: 'Add card', section: 'Editing', keys: ['Space c', '>>'], run: () => selected() && addCard(selected()!) },
     { id: 'leader', title: 'Show leader keys', section: 'Editing', keys: ['Space'], run: () => selected() && leaderMenu(selected()!) },
     { id: 'make-project', title: 'Make project', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.project ? 'Already a project.' : undefined, run: () => selected() && capabilities.invoke(capabilities.edit(selected()!, { kind: 'project', id: selected()!, value: { status: 'active', outcome: '', deadline: null } })) },
+    { id: 'make-perspective', title: 'Make perspective', section: 'Block', disabledReason: () => doc.block(selected() ?? '')?.kind !== 'block' ? 'Select an ordinary block.' : doc.block(selected()!)?.position ? 'Already a perspective.' : undefined, run: () => selected() && capabilities.invoke(capabilities.edit(selected()!, { kind: 'position', id: selected()!, value: true })) },
+    { id: 'remove-perspective', title: 'Remove perspective', section: 'Block', disabledReason: () => doc.block(selected() ?? '')?.kind !== 'block' ? 'Select an ordinary block.' : !doc.block(selected()!)?.position ? 'Select a perspective.' : undefined, run: () => selected() && capabilities.invoke(capabilities.edit(selected()!, { kind: 'position', id: selected()!, value: false })) },
     { id: 'project', title: 'Project', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.project ? undefined : 'Select a project.', run: () => selected() && capabilities.open(selected()!, 'project') },
     { id: 'project-actions', title: 'Show actions', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.project ? undefined : 'Select a project.', run: () => selected() && capabilities.showActions(selected()!) },
     { id: 'review-cards', title: 'Review cards', section: 'View', run: () => props.onOpen({ kind: 'review' }, false) },
@@ -1233,6 +1243,7 @@ function Pane(props: OutlinePaneProps) {
         { label: 'Project', section: 'Project', action: () => capabilities.open(id, 'project', anchor) },
         { label: 'Show actions', action: () => capabilities.showActions(id) },
       ] : [{ label: 'Make project', section: 'Project', action: () => capabilities.invoke(capabilities.edit(id, { kind: 'project', id, value: { status: 'active', outcome: '', deadline: null } })) }]),
+      item(entry?.position ? 'remove-perspective' : 'make-perspective', { section: 'Block' }),
       ...(parseCardText(doc.block(id)?.text ?? '').cards.length ? [
         { label: 'Review cards', section: 'Cards', action: () => props.onOpen({ kind: 'review' }, false) },
         { label: 'Show card source', action: () => capabilities.source(id) },
@@ -1318,6 +1329,8 @@ function Pane(props: OutlinePaneProps) {
       { id: 'clock', title: 'Clock in / out', aliases: ['timer', 'start work', 'stop work'], section: 'Task', icon: 'clock', keys: keys('clock'), run: id => capabilities.invoke(capabilities.clock(id)) },
       { id: 'remove-task', title: 'Remove task', aliases: ['plain'], section: 'Task', icon: 'close', when: block => !!block?.task, run: id => capabilities.invoke(capabilities.status(id, null)) },
       { id: 'project', title: 'Project', aliases: ['outcome'], section: 'Project', icon: 'flag', run: openProject },
+      { id: 'perspective', title: 'Make perspective', aliases: ['position', 'view'], section: 'Block', icon: 'link', when: block => block?.kind === 'block' && !block.position, run: id => capabilities.invoke(capabilities.edit(id, { kind: 'position', id, value: true })) },
+      { id: 'remove-perspective', title: 'Remove perspective', aliases: ['remove position', 'remove view'], section: 'Block', icon: 'close', when: block => block?.kind === 'block' && !!block.position, run: id => capabilities.invoke(capabilities.edit(id, { kind: 'position', id, value: false })) },
       ...([1, 2, 3] as const).map((level): SlashItem => ({ id: `heading-${level}`, title: `Heading ${level}`, aliases: [`h${level}`], section: 'Text', icon: 'heading', keys: '#'.repeat(level), run: id => apply({ kind: 'heading', id, level }) })),
       { id: 'heading-normal', title: 'Normal text', aliases: ['paragraph'], section: 'Text', icon: 'edit', when: block => !!block?.heading, run: id => apply({ kind: 'heading', id, level: null }) },
       { id: 'reference', title: 'Reference', aliases: ['link', 'page', 'mention'], section: 'Text', icon: 'link', keys: '[[', insert: () => ({ text: '[[', caret: 2 }) },
@@ -1436,8 +1449,16 @@ function Pane(props: OutlinePaneProps) {
   });
   onCleanup(() => window.clearTimeout(relatedTimer));
   const [related] = createResource(() => `${props.pageId}:${relatedVersion()}`, async () => {
-    const [backlinks, tagged] = await Promise.all([api.backlinks(props.pageId), api.members(props.pageId)]);
-    return { backlinks: backlinks.map(item => ({ block: item.source, page: item.page })), tagged };
+    const [backlinks, tagged, held, about] = await Promise.all([api.backlinks(props.pageId), api.members(props.pageId), api.positions({ holder: props.pageId }), api.positions({ subject: props.pageId })]);
+    // A position links its holder and often its subject, so it shows once, as a perspective, not again as a backlink.
+    const positions = new Set([...held, ...about].map(row => row.block.block.id));
+    return {
+      backlinks: backlinks.filter(item => !positions.has(item.source.id)).map(item => ({ block: item.source, page: item.page })),
+      tagged,
+      held: held.map(row => row.block),
+      // Perspectives on this page filed elsewhere, such as under a highlight on a source page.
+      about: about.filter(row => row.block.page.id !== props.pageId).map(row => row.block),
+    };
   });
   const breadcrumbs = createMemo(() => {
     doc.outline.version();
@@ -1635,6 +1656,8 @@ function Pane(props: OutlinePaneProps) {
     const inline = () => inlineFields().has(parent());
     const depth = () => (inline() ? doc.outline.depth(parent()) : doc.outline.depth(id())) - baseDepth();
     const pill = () => valueField()?.kind === 'choice' || valueField()?.kind === 'instance';
+    const rowSource = createMemo(() => block()?.citations[0]?.source_id ?? (block()?.position ? positionSource(id()) : null));
+    const gist = () => inline() && isGistName(valueField()?.name) && !!doc.block(doc.outline.parentOf(parent()))?.position;
     const sourceField = createMemo(() => sourceDetails().fields.get(id()) ?? sourceDetails().fields.get(parent()));
     const displayText = createMemo(() => {
       const text = block()?.text ?? '';
@@ -1651,11 +1674,12 @@ function Pane(props: OutlinePaneProps) {
     onCleanup(() => { const host = hosts.get(id()); if (host && row.contains(host)) hosts.delete(id()); });
     return <div ref={row} id={`outline-${props.pane}-${id()}`} data-index={propsRow.item().index} data-block-id={id()} role="treeitem" aria-level={depth() + 1}
       aria-expanded={children() ? !folds().has(id()) : undefined} aria-selected={selectedSet().has(id())}
-      class="outline-row" classList={{ 'row-selected': selectedSet().has(id()) && editing() !== id(), 'row-editing': editing() === id(), 'row-archived': block()?.archived ?? false, 'field-entry': !!field(), 'inline-field-value': inline(), 'row-gloss': inline() && parent() === glossId(), 'choice-value': pill(), 'source-detail': !!sourceField(), 'source-highlights-start': sourceDetails().firstHighlight === id(), 'outline-row-linked': block()?.citations.some(citation => citation.id === linkedCitation()) ?? false }}
+      class="outline-row" classList={{ 'row-position': !!block()?.position, 'row-gist': gist(), 'row-selected': selectedSet().has(id()) && editing() !== id(), 'row-editing': editing() === id(), 'row-archived': block()?.archived ?? false, 'field-entry': !!field(), 'inline-field-value': inline(), 'row-gloss': inline() && parent() === glossId(), 'choice-value': pill(), 'source-detail': !!sourceField(), 'source-highlights-start': sourceDetails().firstHighlight === id(), 'outline-row-linked': block()?.citations.some(citation => citation.id === linkedCitation()) ?? false }}
+      data-holder={block()?.position?.holder_id ?? undefined}
       onPointerEnter={() => setLinkedCitation(block()?.citations[0]?.id ?? null)} onPointerLeave={() => setLinkedCitation(null)}
       style={{ transform: `translateY(${propsRow.item().start - margin()}px)`, '--depth': depth() }}>
       <Show when={sourceDetails().firstHighlight === id()}><div class="outline-highlights-label">Highlights <span>{sourceDetails().highlightCount}</span></div></Show>
-      <Show when={block()?.citations[0] && sigla().get(block()!.citations[0]!.source_id)}>{mark => <span class="row-siglum" title={props.notebook.lookup(block()!.citations[0]!.source_id)()?.text}>{mark()}</span>}</Show>
+      <Show when={rowSource() && sigla().get(rowSource()!)}>{mark => <span class="row-siglum" title={props.notebook.lookup(rowSource()!)()?.text}>{mark()}</span>}</Show>
       <button type="button" class="row-menu icon-button" aria-label="Block actions" onClick={event => blockMenu(id(), event.currentTarget)}><Icon name="more" /></button>
       <button type="button" class="row-fold icon-button" classList={{ 'fold-empty': !children(), folded: folds().has(id()) }} aria-label={folds().has(id()) ? 'Unfold children' : 'Fold children'} disabled={!children()} onClick={() => fold(id())}><Icon name="down" /></button>
       <Show when={!inline()}><button type="button" class="row-bullet icon-button" classList={{ 'bullet-collapsed': children() && folds().has(id()) }} aria-label="Zoom into block" onClick={() => zoomTo(id())}><Icon name="bullet" /></button></Show>
@@ -1745,7 +1769,9 @@ function Pane(props: OutlinePaneProps) {
       <Show keyed when={editing() && virtualItems().has(editing()!) ? editing() : null}>{id => <Row id={id} item={() => virtualItems().get(id)!} />}</Show>
     </div>
     <Show when={doc.status() === 'ready' && ids().length === 0 && depthFilter() === undefined}><button type="button" class="add-first-block" onClick={() => apply({ kind: 'insert', parentId: zoom() ?? props.pageId, after: null }, true)}><Icon name="plus" />Add a block</button></Show>
-    <Show when={doc.status() === 'ready' && (related.error || (related()?.backlinks.length ?? 0) + (related()?.tagged.length ?? 0) > 0)}><div class="related-sections">
+    <Show when={doc.status() === 'ready' && (related.error || (related()?.backlinks.length ?? 0) + (related()?.tagged.length ?? 0) + (related()?.held.length ?? 0) + (related()?.about.length ?? 0) > 0)}><div class="related-sections">
+      <Show when={related()?.held.length}><Related title="Perspectives held" rows={related()?.held ?? []} /></Show>
+      <Show when={related()?.about.length}><Related title="Perspectives filed elsewhere" rows={related()?.about ?? []} /></Show>
       <Show when={related.error || related()?.backlinks.length}><Related title="Backlinks" rows={related.error ? [] : related()?.backlinks ?? []} /></Show>
       <Show when={related.error || related()?.tagged.length}><Related title="Tagged blocks" rows={related.error ? [] : related()?.tagged ?? []} /></Show>
     </div></Show>

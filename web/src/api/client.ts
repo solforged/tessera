@@ -32,6 +32,7 @@ import type {
   NotebookInfo,
   PageView,
   ProjectRecord,
+  PositionRow,
   ReviewEvent,
   ReviewSession,
   ServiceInfo,
@@ -121,6 +122,7 @@ export interface ApiClient {
   workSessions(id: string, signal?: AbortSignal): Promise<WorkSession[]>;
   activeWorkSession(signal?: AbortSignal): Promise<WorkSession | null>;
   projects(signal?: AbortSignal): Promise<ProjectRecord[]>;
+  positions(query: { holder?: string; subject?: string; limit?: number }, signal?: AbortSignal): Promise<PositionRow[]>;
   taskQuery(value: TaskQuery, signal?: AbortSignal): Promise<TaskQueryResult>;
   agenda(date: string, signal?: AbortSignal): Promise<Agenda>;
   taskViews(signal?: AbortSignal): Promise<TaskView[]>;
@@ -189,6 +191,13 @@ export function createApi(base = ''): ApiClient {
     workSessions: (id: string, signal?: AbortSignal) => get<WorkSession[]>(`/blocks/${segment(id)}/work-sessions`, signal),
     activeWorkSession: (signal?: AbortSignal) => get<WorkSession | null>('/work-sessions/active', signal),
     projects: (signal?: AbortSignal) => get<ProjectRecord[]>('/projects', signal),
+    positions: (query: { holder?: string; subject?: string; limit?: number }, signal?: AbortSignal) => {
+      const params = new URLSearchParams();
+      if (query.holder !== undefined) params.set('holder', query.holder);
+      if (query.subject !== undefined) params.set('subject', query.subject);
+      if (query.limit !== undefined) params.set('limit', String(query.limit));
+      return get<PositionRow[]>(`/positions?${params}`, signal);
+    },
     taskQuery: (value: TaskQuery, signal?: AbortSignal) => request<TaskQueryResult>(base, 'POST', '/tasks/query', value, signal),
     agenda: (date: string, signal?: AbortSignal) => get<Agenda>(`/agenda/${segment(date)}`, signal),
     taskViews: (signal?: AbortSignal) => get<TaskView[]>('/task-views', signal),

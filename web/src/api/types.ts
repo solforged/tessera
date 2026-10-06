@@ -56,6 +56,7 @@ export type Operation =
   | { op: 'complete_task'; id: string; base_revision: number; occurrence_id: string; completed_on: string }
   | { op: 'reverse_task_completion'; id: string; base_revision: number; occurrence_id: string }
   | { op: 'set_project'; id: string; base_revision: number; project: ProjectState | null }
+  | { op: 'set_position'; id: string; base_revision: number; position: boolean }
   | { op: 'start_work'; id: string; base_revision: number; session_id: string; started_at: number; note: string }
   | { op: 'stop_work'; id: string; base_revision: number; session_id: string; session_revision: number; ended_at: number; note: string }
   | { op: 'edit_work_note'; id: string; base_revision: number; session_id: string; session_revision: number; note: string }
@@ -249,7 +250,9 @@ export interface TaskOccurrence {
 export type ProjectStatus = 'active' | 'done' | 'cancelled';
 export interface ProjectState { outcome: string; deadline: string | null; status: ProjectStatus }
 export interface ProjectRecord { block_id: string; state: ProjectState }
-export interface BlockCapabilities { block_id: string; task: TaskState | null; project: ProjectState | null; history: boolean; merge_protected: boolean; reviewed_cards: boolean }
+export interface PositionInfo { holder_id: string | null; subject_id: string }
+export interface PositionRow { block: BlockInPage; holder_id: string | null; subject_id: string }
+export interface BlockCapabilities { block_id: string; task: TaskState | null; project: ProjectState | null; position: PositionInfo | null; history: boolean; merge_protected: boolean; reviewed_cards: boolean }
 
 export interface WorkSession {
   id: string;
