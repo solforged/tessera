@@ -28,5 +28,18 @@ export function formatProgress(progress: number): string {
 }
 
 export function recentJobs(jobs: readonly IngestJob[], now: number): IngestJob[] {
-  return jobs.filter(job => job.created_at >= now - 24 * 60 * 60 * 1000 && job.state !== 'done');
+  return jobs.filter(job => job.state !== 'done' || job.created_at >= now - 24 * 60 * 60 * 1000);
+}
+
+export function retryTime(timestamp: number, timeZone: string): string {
+  return new Intl.DateTimeFormat('en-GB', { timeZone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(timestamp);
+}
+
+export function selectSources(ids: readonly string[], selected: ReadonlySet<string>, id: string, anchor: string | null, range: boolean): Set<string> {
+  const next = new Set(selected);
+  const start = anchor === null ? -1 : ids.indexOf(anchor), end = ids.indexOf(id);
+  const targets = range && start >= 0 && end >= 0 ? ids.slice(Math.min(start, end), Math.max(start, end) + 1) : [id];
+  const checked = !selected.has(id);
+  for (const target of targets) { if (checked) next.add(target); else next.delete(target); }
+  return next;
 }

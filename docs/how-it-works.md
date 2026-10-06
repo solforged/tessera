@@ -221,9 +221,15 @@ Library queries exclude inactive, hidden and deleted sources. Highlight triage i
 
 Export supports valid text, number, date, URL, identifier, instance and choice readings for the known bibliography labels. Numbers keep their authored formatting. Dates keep their authored precision (`YYYY`, `YYYY-MM` or `YYYY-MM-DD`); journal references resolve to their date. Instance and choice references export the target title. Identifiers use their normalized ISBN, DOI or arXiv scheme. Checkbox readings are deliberately excluded, as are invalid readings and labels without a bibliography mapping. `tests/library.rs::export_field_kind_matrix` covers every kind in both BibTeX and CSL JSON.
 
+Library views persist a name, query and revision in `library_views`. `SaveLibraryView` and `DeleteLibraryView` use the same revision checks, batch receipts and change events as task views. The Library lists these beside its built-in tabs and restores the selected view after reload. Selection stays in the pane and clears when the query changes. Selection exports use source IDs; `POST /api/library/export` exports every source matching a query, without the displayed-row limit. An empty query result exports no sources. See `crates/tessera-core/src/library_views.rs`, `library_export.rs` (`export_query`) and `web/src/library/LibraryPane.tsx`.
+
+Snapshot passage responses include that snapshot's Contents, including historical snapshots. The job list keeps queued, running and failed jobs regardless of age, plus completed jobs from the last 24 hours. Rows show the attempt count and scheduled retry time in the notebook time zone. Failed jobs keep their Retry action after reload.
+
 The service exposes uploads, persistent ingestion jobs, sources, passages, resources, position, search, triage and export under `/api/library`, `/api/sources`, `/api/snapshots`, `/api/passages/search` and `/api/highlights/query`. Uploads alone accept 256 MiB; other request bodies keep the 2 MiB limit. One worker resumes running jobs as queued, downloads HTTP(S) sources with a 30-second timeout, five-redirect and 32 MiB limits, and extracts off the async runtime. Article images are limited to 60 resources of 10 MiB each; failed image fetches are skipped. Resource responses serve only image media types with immutable private caching and `nosniff`. Transient downloads receive three retries; extraction and 4xx failures stop immediately. See `crates/tessera-service/src/library.rs:1` and `crates/tessera-core/src/library_jobs.rs:1`.
 
 `tessera add <path-or-url>...` queues work through the running service; `--wait` prints completed source titles or failed-job errors. `tessera export --format bibtex|csl [SOURCE_ID...]` prints the selected sources, or all active visible sources when no IDs are supplied. See `crates/tessera-cli/src/main.rs:18`.
+
+`tessera export --view "Reading list" --format csl` resolves a saved library view by name and exports its query through the POST endpoint. A view name and source IDs cannot be combined. Duplicate view names are reported rather than choosing one silently.
 
 ## The client document layer
 

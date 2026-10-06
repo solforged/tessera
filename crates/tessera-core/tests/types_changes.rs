@@ -768,6 +768,7 @@ fn membership_title_upgrade_preserves_unresolved_mentions_without_resurrecting_p
          DROP TABLE passages;
          DROP TABLE snapshots;
          DROP TABLE ingest_jobs;
+         DROP TABLE library_views;
          ALTER TABLE changes DROP COLUMN views;
          PRAGMA user_version = 4;",
     )
@@ -1259,6 +1260,7 @@ fn manual_membership_migration_retains_authored_text_tags_and_unresolved_titles(
          DROP TABLE passages;
          DROP TABLE snapshots;
          DROP TABLE ingest_jobs;
+         DROP TABLE library_views;
          PRAGMA user_version = 6;",
     ).unwrap();
     drop(conn);

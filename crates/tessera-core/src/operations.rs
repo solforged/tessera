@@ -76,6 +76,7 @@ impl Notebook {
             review_sessions: BTreeMap::new(),
             decks: BTreeMap::new(),
             task_views: BTreeMap::new(),
+            library_views: BTreeMap::new(),
             positions: HashMap::new(),
             deletions: Vec::new(),
             restructured_pages: HashSet::new(),
@@ -126,6 +127,7 @@ impl Notebook {
             review_sessions: engine.review_sessions.into_values().collect(),
             decks: engine.decks.into_values().collect(),
             task_views: engine.task_views.into_values().collect(),
+            library_views: engine.library_views.into_values().collect(),
             replayed: false,
         };
         let mut insert = tx.prepare_cached(
@@ -190,6 +192,7 @@ struct Engine<'a, 'conn> {
     review_sessions: BTreeMap<String, ReviewSession>,
     decks: BTreeMap<String, Revision>,
     task_views: BTreeMap<String, Revision>,
+    library_views: BTreeMap<String, Revision>,
     positions: HashMap<String, Touched>,
     deletions: Vec<String>,
     restructured_pages: HashSet<String>,
@@ -1372,6 +1375,12 @@ impl Engine<'_, '_> {
                 self.task_views.insert(revision.id.clone(), revision);
                 Ok(())
             }
+            Operation::SaveLibraryView { .. } | Operation::DeleteLibraryView { .. } => {
+                let revision =
+                    crate::library_views::apply_view(self.tx, operation, self.now, index)?;
+                self.library_views.insert(revision.id.clone(), revision);
+                Ok(())
+            }
         }
     }
 }
@@ -1403,6 +1412,7 @@ mod tests {
             "review_sessions",
             "decks",
             "task_views",
+            "library_views",
             "settings",
             "text_rewrites",
         ] {
@@ -1428,6 +1438,7 @@ mod tests {
         assert!(replayed.review_sessions.is_empty());
         assert!(replayed.decks.is_empty());
         assert!(replayed.task_views.is_empty());
+        assert!(replayed.library_views.is_empty());
         let changes = notebook.changes_since(0, 10).unwrap();
         assert_eq!(changes.len(), 1);
         assert_eq!(changes[0].seq, committed.seq);
@@ -1438,5 +1449,6 @@ mod tests {
         assert!(changes[0].review_sessions.is_empty());
         assert!(changes[0].decks.is_empty());
         assert!(changes[0].task_views.is_empty());
+        assert!(changes[0].library_views.is_empty());
     }
 }

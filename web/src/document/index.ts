@@ -569,7 +569,7 @@ export class Notebook implements NotebookClient, DocumentHost {
     if (ack.work_sessions?.length) this.workSequence = Math.max(this.workSequence, ack.seq);
     this.observedChange[1]({ seq: ack.seq, actor: { kind: 'client', name: this.actorName }, reason: null, created_at: Date.now(), blocks: [], removed: [], restructured_pages: [],
       capabilities: ack.capabilities ?? [], cards: (ack.cards ?? []).map(value => value.id), work_sessions: (ack.work_sessions ?? []).map(value => value.id),
-      review_sessions: (ack.review_sessions ?? []).map(value => value.id), decks: (ack.decks ?? []).map(value => value.id), task_views: (ack.task_views ?? []).map(value => value.id) });
+      review_sessions: (ack.review_sessions ?? []).map(value => value.id), decks: (ack.decks ?? []).map(value => value.id), task_views: (ack.task_views ?? []).map(value => value.id), library_views: (ack.library_views ?? []).map(value => value.id) });
     this.observedSequence[1](seq => Math.max(seq, ack.seq));
   }
   private acceptCapabilities(values: readonly BlockCapabilities[], sequence: number) {
@@ -905,7 +905,8 @@ export class Notebook implements NotebookClient, DocumentHost {
       work_sessions: [...new Set(changed.flatMap(event => event.work_sessions ?? []))],
       review_sessions: [...new Set(changed.flatMap(event => event.review_sessions ?? []))],
       decks: [...new Set(changed.flatMap(event => event.decks ?? []))],
-      task_views: [...new Set(changed.flatMap(event => event.task_views ?? []))] });
+      task_views: [...new Set(changed.flatMap(event => event.task_views ?? []))],
+      library_views: [...new Set(changed.flatMap(event => event.library_views ?? []))] });
     if (changed.some(event => event.work_sessions?.length)) await this.refreshWork(latest.seq);
     if (events.some(event => (event.settings ?? []).length)) await this.refreshSettings();
     this.seq = Math.max(this.seq, events.at(-1)!.seq);

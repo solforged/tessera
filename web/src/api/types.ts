@@ -65,7 +65,9 @@ export type Operation =
   | { op: 'save_deck'; id: string; base_revision: number | null; name: string; query: CardQuery }
   | { op: 'delete_deck'; id: string; base_revision: number }
   | { op: 'save_task_view'; id: string; base_revision: number | null; name: string; query: TaskQuery }
-  | { op: 'delete_task_view'; id: string; base_revision: number };
+  | { op: 'delete_task_view'; id: string; base_revision: number }
+  | { op: 'save_library_view'; id: string; base_revision: number | null; name: string; query: LibraryQuery }
+  | { op: 'delete_library_view'; id: string; base_revision: number };
 
 export interface Batch {
   actor: Actor;
@@ -100,6 +102,7 @@ export interface Committed {
   review_sessions?: ReviewSession[];
   decks?: Revision[];
   task_views?: Revision[];
+  library_views?: Revision[];
 }
 
 export interface TextRewrite {
@@ -161,6 +164,7 @@ export interface ChangeEvent {
   review_sessions?: string[];
   decks?: string[];
   task_views?: string[];
+  library_views?: string[];
 }
 
 export interface NotebookInfo {
@@ -387,12 +391,13 @@ export interface SourceView {
   source: SourceRecord; page: Block; snapshots: SnapshotSummary[]; toc: TocEntry[];
   position: ReadingPosition | null; progress: number;
 }
-export interface PassagePage { passages: Passage[]; citations: Citation[]; total: number }
+export interface PassagePage { passages: Passage[]; citations: Citation[]; total: number; toc: TocEntry[] }
 export interface PassageHit { source_id: string; title: string; snapshot_id: string; passage: Passage; snippet: string }
 export interface LibraryQuery {
   states?: ReadingState[]; format?: SourceFormat | null; text?: string | null;
   sort?: 'added' | 'title' | 'last_read' | 'progress'; direction?: Direction; limit?: number | null;
 }
+export interface LibraryView { id: string; name: string; query: LibraryQuery; revision: number; created_at: number; updated_at: number }
 export interface LibraryRow {
   page: Block; source: SourceRecord; creators: string[]; published: string | null;
   progress: number; highlights: number; unprocessed: number;

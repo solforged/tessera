@@ -81,6 +81,27 @@ fn escape(text: &str) -> String {
     output
 }
 impl Notebook {
+    /// Export every matching source, independently of the query's display limit.
+    pub fn export_query(
+        &self,
+        query: &crate::library::LibraryQuery,
+        format: ExportFormat,
+    ) -> Result<String> {
+        let ids: Vec<_> = self
+            .library_rows(query, usize::MAX)?
+            .rows
+            .into_iter()
+            .map(|row| row.page.id)
+            .collect();
+        // `export` treats an empty ID list as the whole library.
+        if ids.is_empty() {
+            return Ok(match format {
+                ExportFormat::Bibtex => String::new(),
+                ExportFormat::CslJson => "[]\n".into(),
+            });
+        }
+        self.export(&ids, format)
+    }
     pub fn export(&self, ids: &[String], format: ExportFormat) -> Result<String> {
         let all;
         let ids = if ids.is_empty() {

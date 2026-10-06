@@ -68,7 +68,7 @@ export interface FieldsViewState { scroll: number }
 export interface SettingsViewState { scroll: number }
 export interface AgendaViewState { date: string; mode: 'agenda' | 'tasks'; query: TaskQuery; viewId: string | null; scroll: number }
 export interface ReviewViewState { deckId: string | null; sessionId: string | null; selection: CardSelection | null; scroll: number }
-export interface LibraryViewState { tab: LibraryTab; text: string; sort: 'added' | 'title' | 'last_read' | 'progress'; unprocessedOnly: boolean; scroll: number }
+export interface LibraryViewState { view: string | null; tab: LibraryTab; text: string; sort: 'added' | 'title' | 'last_read' | 'progress'; unprocessedOnly: boolean; scroll: number }
 /** `ordinal` is the top passage; `offset` its pixel offset from the pane's top. */
 export interface ReaderViewState { snapshotId: string | null; ordinal: number; offset: number }
 

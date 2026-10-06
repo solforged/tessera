@@ -245,6 +245,7 @@ fn fields_page_is_idempotent_recreated_after_deletion_and_migration_backfills_en
          DROP TABLE passages;
          DROP TABLE snapshots;
          DROP TABLE ingest_jobs;
+         DROP TABLE library_views;
          ALTER TABLE changes DROP COLUMN views;
          PRAGMA user_version = 5;",
     )

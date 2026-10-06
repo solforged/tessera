@@ -152,6 +152,8 @@ impl FieldChanges {
             | Operation::DeleteDeck { .. }
             | Operation::SaveTaskView { .. }
             | Operation::DeleteTaskView { .. }
+            | Operation::SaveLibraryView { .. }
+            | Operation::DeleteLibraryView { .. }
             | Operation::DeleteView { .. } => Ok(()),
         }
     }
