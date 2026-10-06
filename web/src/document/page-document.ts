@@ -272,7 +272,7 @@ export class Document implements PageDocument {
         const previous = sourceState(value.source);
         value.source = action.value ? {
           block_id: action.id, added_at: Date.now(), state_changed_at: Date.now(), last_read_at: null, current_snapshot_id: null,
-          siglum: '?', siglum_basis: '?',
+          siglum: '?', siglum_basis: '?', siglum_authored: false,
           ...value.source, ...action.value,
         } : null;
         this.updateCapabilities(value, base);

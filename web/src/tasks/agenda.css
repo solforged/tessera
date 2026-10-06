@@ -15,11 +15,35 @@
 .agenda-error { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); color: var(--danger); font-size: var(--text-control); line-height: var(--line-control); margin: 0; }
 .agenda-results { display: flex; flex-direction: column; gap: var(--space-12); }
 .agenda-rows { list-style: none; margin: 0; padding: 0; }
+/* The task query shares the add row's hairline; syntax and counts belong to apparatus. */
+.task-query-toolbar { display: flex; align-items: flex-start; gap: var(--space-8); min-width: 0; }
+.task-query-toolbar > .button { flex: 0 0 auto; }
+.task-query-toolbar > .button[aria-expanded="true"] > .icon { rotate: 180deg; }
+.task-query-line { flex: 1; min-width: 0; }
+.task-query-chips, .task-query-input.input, .task-query-highlight { font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.task-query-chips { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4); min-height: var(--row-height); padding: var(--space-2) var(--space-4); border-bottom: var(--rule-width) solid var(--line); cursor: text; }
+.task-query-chips:hover { border-color: var(--control-border); }
+.task-query-placeholder { color: var(--faint); }
+.task-query-chip { display: inline-flex; align-items: center; min-width: 0; max-width: 100%; padding-left: var(--space-8); border: var(--rule-width) solid var(--line); border-radius: var(--radius-pill); background: var(--raised); }
+.task-query-chip > span { overflow-wrap: anywhere; }
+.task-query-chip > .button { flex: 0 0 auto; min-height: var(--target-size); padding: 0 var(--space-4); font: inherit; border-radius: var(--radius-pill); color: var(--faint); }
+.task-query-editor { position: relative; }
+.task-query-input.input, .task-query-highlight { width: 100%; height: var(--row-height); padding: calc((var(--row-height) - var(--line-apparatus) - var(--rule-width)) / 2) var(--space-4); border: 0; border-bottom: var(--rule-width) solid var(--line); border-radius: 0; background: transparent; }
+.task-query-input.input { position: relative; min-height: var(--row-height); }
+.task-query-input.input:focus-visible { outline: none; border-color: var(--accent); }
+.task-query-highlight { position: absolute; inset: 0; overflow: hidden; white-space: pre; color: transparent; pointer-events: none; }
+.task-query-invalid { text-decoration: underline wavy var(--danger); text-underline-offset: var(--space-2); }
+.task-query-errors { margin-top: var(--space-4); color: var(--danger); font-size: var(--text-control); line-height: var(--line-control); }
+.task-query-errors p { margin: 0; overflow-wrap: anywhere; }
+.task-filters-panel { display: flex; flex-direction: column; gap: var(--space-8); padding-block: var(--space-8); border-block: var(--rule-width) solid var(--line); }
 /* Adding reads as the next row: the plus in the status column, then a field on a hairline instead of a box. */
-.agenda-add { display: flex; align-items: center; gap: var(--space-8); color: var(--faint); }
-.agenda-add > .icon { width: var(--target-size); }
-.agenda-add .input { flex: 1; min-width: 0; min-height: var(--row-height); border-width: 0 0 var(--rule-width); border-radius: 0; padding-inline: var(--space-4); background: transparent; }
+.agenda-add { display: flex; align-items: flex-start; gap: var(--space-8); color: var(--faint); }
+.agenda-add > .icon { flex: none; width: var(--target-size); margin-top: calc((var(--row-height) - var(--icon-size)) / 2); }
+.agenda-add-field { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-4); }
+.agenda-add .input { width: 100%; min-width: 0; min-height: var(--row-height); border-width: 0 0 var(--rule-width); border-radius: 0; padding-inline: var(--space-4); background: transparent; }
 .agenda-add .input:focus-visible { outline: none; border-color: var(--accent); }
+.agenda-add-preview { margin: 0; padding-inline: var(--space-4); color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); overflow-wrap: anywhere; }
+.agenda-add-preview.warning { color: var(--warning); }
 /* One line per task: status, source with its page, then planning on the right; wraps under the source when narrow. */
 .agenda-row { display: flex; flex-wrap: wrap; align-items: flex-start; column-gap: var(--space-8); min-width: 0; content-visibility: auto; contain-intrinsic-size: auto var(--row-height); }
 .agenda-status { display: inline-flex; flex: 0 0 var(--target-size); justify-content: center; align-items: center; width: var(--target-size); min-height: var(--row-height); padding: 0; color: var(--muted); }

@@ -203,18 +203,42 @@ pub(crate) fn source_siglum(
             .map(|value| value.trim())
             .filter(|value| !value.is_empty())
     };
-    if let Some(authored) = first("siglum") {
-        source.siglum = authored.to_owned();
-        source.siglum_basis = authored.to_owned();
+    source.siglum_authored = false;
+    if let Some(authored) = first("siglum")
+        && authored.chars().count() <= 4
+        && authored.chars().all(char::is_alphabetic)
+    {
+        source.siglum = authored.to_uppercase();
+        source.siglum_basis = source.siglum.clone();
+        source.siglum_authored = true;
         return;
     }
-    let family = first("author")
-        .or_else(|| first("editor"))
-        .map(crate::library_ingest::family_name);
-    for candidate in family.into_iter().chain(first("site")).chain(Some(title)) {
-        let basis = crate::library_ingest::fold(candidate);
-        if let Some(letter) = basis.chars().find(char::is_ascii_alphabetic) {
-            source.siglum = letter.to_ascii_uppercase().to_string();
+    for candidate in first("author")
+        .map(crate::library_ingest::family_name)
+        .into_iter()
+        .chain(first("editor").map(crate::library_ingest::family_name))
+        .chain(first("site"))
+        .chain(
+            title
+                .split_whitespace()
+                .filter(|word| word.chars().any(char::is_alphabetic))
+                .take(1),
+        )
+    {
+        let mut basis = String::new();
+        let mut siglum_end = 0;
+        for (index, letter) in candidate
+            .chars()
+            .filter(|letter| letter.is_alphabetic())
+            .enumerate()
+        {
+            basis.extend(letter.to_uppercase());
+            if index < 3 {
+                siglum_end = basis.len();
+            }
+        }
+        if !basis.is_empty() {
+            source.siglum = basis[..siglum_end].to_owned();
             source.siglum_basis = basis;
             return;
         }
@@ -236,6 +260,7 @@ pub(crate) fn source_at(row: &rusqlite::Row<'_>) -> rusqlite::Result<SourceRecor
         current_snapshot_id: row.get(9)?,
         siglum: String::new(),
         siglum_basis: String::new(),
+        siglum_authored: false,
     })
 }
 pub(crate) fn source(conn: &Connection, id: &str) -> Result<Option<SourceRecord>> {

@@ -416,7 +416,7 @@ export class Notebook implements NotebookClient, DocumentHost {
             if (!sameState(sourceState(value.source), action.previous)) throw new Error('Source metadata changed. Rejected command kept.');
             operations.push({ op: 'set_source', id: action.id, base_revision: block.revision, source: action.value });
             changed = !sameState(sourceState(value.source), action.value);
-            value.source = action.value ? { block_id: action.id, added_at: 0, state_changed_at: 0, last_read_at: null, current_snapshot_id: null, siglum: '?', siglum_basis: '?', ...value.source, ...action.value } : null;
+            value.source = action.value ? { block_id: action.id, added_at: 0, state_changed_at: 0, last_read_at: null, current_snapshot_id: null, siglum: '?', siglum_basis: '?', siglum_authored: false, ...value.source, ...action.value } : null;
           } else if (action.kind === 'cite') {
             const citation = action.citation;
             operations.push({ op: 'cite', id: action.id, base_revision: block.revision, citation_id: citation.id, snapshot_id: citation.snapshot_id, start: citation.start, end: citation.end, color: citation.color });

@@ -89,6 +89,7 @@
   --measure: 760px;          /* widest text column */
   --gutter: 48px;            /* handle and fold, left of the measure */
   --apparatus-width: 240px;  /* the margin beside the measure on wide concept pages */
+  --siglum-width: calc(4ch + var(--space-8) + 2 * var(--rule-width)); /* four mono letters with box padding */
   --sidebar-width: 208px;
   --rail-height: 48px;
   --pane-header-height: 36px;

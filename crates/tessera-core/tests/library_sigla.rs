@@ -111,17 +111,33 @@ fn authored_siglum_wins_and_uses_the_first_trimmed_case_insensitive_field_value(
     let source = source(&mut n, "Source title");
     field(&mut n, &source, "Author", &["Karl Popper"]);
     let values = field(&mut n, &source, "sIgLuM", &["  Po  ", "ignored"]);
-    assert_siglum(&n, &source, "Po", "Po");
-    edit(&mut n, &values[0], " ");
-    assert_siglum(&n, &source, "P", "popper");
+    assert_siglum(&n, &source, "PO", "PO");
+    assert!(n.source(&source).unwrap().source.siglum_authored);
+    for invalid in [" ", "ABCDE", "P0", "Po!", "P O"] {
+        edit(&mut n, &values[0], invalid);
+        assert_siglum(&n, &source, "POP", "POPPER");
+        assert!(!n.source(&source).unwrap().source.siglum_authored);
+    }
+    for (authored, expected) in [("x", "X"), ("abcd", "ABCD"), (" éλ ", "ÉΛ")] {
+        edit(&mut n, &values[0], authored);
+        assert_siglum(&n, &source, expected, expected);
+        assert!(n.source(&source).unwrap().source.siglum_authored);
+    }
 }
 
 #[test]
-fn siglum_defaults_to_the_first_author_family_name_and_ascii_folds() {
+fn siglum_defaults_to_three_letters_of_the_first_author_family_name() {
     for (author, siglum, basis) in [
-        ("Le Guin, Ursula", "L", "leguin"),
-        ("Ursula Le Guin", "G", "guin"),
-        ("García, Ana", "G", "garcia"),
+        ("Dylan Thomas", "THO", "THOMAS"),
+        ("Le Guin, Ursula", "LEG", "LEGUIN"),
+        ("Ursula Le Guin", "GUI", "GUIN"),
+        ("García, Ana", "GAR", "GARCÍA"),
+        ("Émile Zola", "ZOL", "ZOLA"),
+        ("Ana Évora", "ÉVO", "ÉVORA"),
+        ("李, 文", "李", "李"),
+        ("Bo Li", "LI", "LI"),
+        ("Ana D'Arc", "DAR", "DARC"),
+        ("Ana ßab", "SSAB", "SSAB"),
     ] {
         let dir = tempfile::tempdir().unwrap();
         let mut n = Notebook::open(dir.path()).unwrap();
@@ -137,11 +153,15 @@ fn siglum_falls_back_to_editor_then_site_then_title() {
     let dir = tempfile::tempdir().unwrap();
     let mut n = Notebook::open(dir.path()).unwrap();
     let source = source(&mut n, "Évidence and meaning");
-    assert_siglum(&n, &source, "E", "evidenceandmeaning");
+    assert_siglum(&n, &source, "ÉVI", "ÉVIDENCE");
     field(&mut n, &source, "sItE", &["Philosophy Journal"]);
-    assert_siglum(&n, &source, "P", "philosophyjournal");
+    assert_siglum(&n, &source, "PHI", "PHILOSOPHYJOURNAL");
     field(&mut n, &source, "eDiToR", &["Mary Shelley", "John Locke"]);
-    assert_siglum(&n, &source, "S", "shelley");
+    assert_siglum(&n, &source, "SHE", "SHELLEY");
+    let author = field(&mut n, &source, "Author", &["Dylan Thomas"]);
+    assert_siglum(&n, &source, "THO", "THOMAS");
+    edit(&mut n, &author[0], "123 !!!");
+    assert_siglum(&n, &source, "SHE", "SHELLEY");
 }
 
 #[test]
@@ -150,9 +170,9 @@ fn editing_current_author_values_and_linked_people_changes_the_default_siglum() 
     let mut n = Notebook::open(dir.path()).unwrap();
     let source = source(&mut n, "Source title");
     let author = field(&mut n, &source, "Author", &["Karl Popper"]);
-    assert_siglum(&n, &source, "P", "popper");
+    assert_siglum(&n, &source, "POP", "POPPER");
     edit(&mut n, &author[0], "Hannah Arendt");
-    assert_siglum(&n, &source, "A", "arendt");
+    assert_siglum(&n, &source, "ARE", "ARENDT");
     let person = id();
     apply(
         &mut n,
@@ -180,9 +200,9 @@ fn editing_current_author_values_and_linked_people_changes_the_default_siglum() 
         }],
     );
     edit(&mut n, &author[0], &format!("[[{person}]]"));
-    assert_siglum(&n, &source, "W", "weil");
+    assert_siglum(&n, &source, "WEI", "WEIL");
     edit(&mut n, &person, "Simone de Beauvoir");
-    assert_siglum(&n, &source, "B", "beauvoir");
+    assert_siglum(&n, &source, "BEA", "BEAUVOIR");
 }
 
 #[test]
@@ -190,11 +210,11 @@ fn siglum_skips_leading_digits_and_never_returns_an_empty_mark_or_basis() {
     let dir = tempfile::tempdir().unwrap();
     let mut n = Notebook::open(dir.path()).unwrap();
     let numbered = source(&mut n, "123 Philosophy");
-    assert_siglum(&n, &numbered, "P", "123philosophy");
+    assert_siglum(&n, &numbered, "PHI", "PHILOSOPHY");
     field(&mut n, &numbered, "Author", &["123 !!!"]);
-    assert_siglum(&n, &numbered, "P", "123philosophy");
+    assert_siglum(&n, &numbered, "PHI", "PHILOSOPHY");
     field(&mut n, &numbered, "Site", &["Example Journal"]);
-    assert_siglum(&n, &numbered, "E", "examplejournal");
+    assert_siglum(&n, &numbered, "EXA", "EXAMPLEJOURNAL");
     let unlettered = source(&mut n, "123 !!!");
     assert_siglum(&n, &unlettered, "?", "?");
 }
@@ -204,17 +224,17 @@ fn csl_export_includes_the_effective_citation_label_without_changing_other_forma
     let dir = tempfile::tempdir().unwrap();
     let mut n = Notebook::open(dir.path()).unwrap();
     let source = source(&mut n, "Source title");
-    field(&mut n, &source, "Author", &["Karl Popper"]);
+    field(&mut n, &source, "Author", &["Dylan Thomas"]);
     let ids = std::slice::from_ref(&source);
     let before_bibtex = n.export(ids, ExportFormat::Bibtex).unwrap();
     let before_markdown = n.export(ids, ExportFormat::Markdown).unwrap();
     let csl: serde_json::Value =
         serde_json::from_str(&n.export(ids, ExportFormat::CslJson).unwrap()).unwrap();
-    assert_eq!(csl[0]["citation-label"], "P");
+    assert_eq!(csl[0]["citation-label"], "THO");
     field(&mut n, &source, "Siglum", &["Po"]);
     let csl: serde_json::Value =
         serde_json::from_str(&n.export(ids, ExportFormat::CslJson).unwrap()).unwrap();
-    assert_eq!(csl[0]["citation-label"], "Po");
+    assert_eq!(csl[0]["citation-label"], "PO");
     assert_eq!(n.export(ids, ExportFormat::Bibtex).unwrap(), before_bibtex);
     assert_eq!(
         n.export(ids, ExportFormat::Markdown).unwrap(),
@@ -231,4 +251,5 @@ fn source_records_stored_before_sigla_still_read() {
         (record.siglum.as_str(), record.siglum_basis.as_str()),
         ("", "")
     );
+    assert!(!record.siglum_authored);
 }

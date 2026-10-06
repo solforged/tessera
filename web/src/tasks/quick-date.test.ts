@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { TaskState } from '../api/types';
-import { dateSuggestions, dateTokenAt, newTask, planDateToken, removeToken } from './quick-date';
+import { dateSuggestions, dateTokenAt, flipDateToken, newTask, planDateToken, removeToken } from './quick-date';
 
 const context = '2026-10-03';
 const task: TaskState = {
@@ -34,11 +34,10 @@ describe('date completion tokens', () => {
     expect(dateTokenAt('Read @tomorrow', 5)).toBeNull();
   });
 
-  test('rejects newlines, leading whitespace and queries longer than 24 characters', () => {
-    for (const text of ['Read @next\nMonday', 'Read @next\rMonday', 'Read @ today', 'Read @\ttoday', '@' + 'a'.repeat(25)]) {
+  test('rejects newlines and whitespace directly after the marker', () => {
+    for (const text of ['Read @next\nMonday', 'Read @next\rMonday', 'Read @ today', 'Read @\ttoday']) {
       expect(atEnd(text)).toBeNull();
     }
-    expect(atEnd('@' + 'a'.repeat(24))).toEqual({ from: 0, to: 25, query: 'a'.repeat(24), field: 'scheduled' });
     expect(atEnd('Read @next Thursday')?.query).toBe('next Thursday');
     expect(atEnd('Read @in 2 weeks')?.query).toBe('in 2 weeks');
     expect(atEnd('Read @tomorrow 09:05')?.query).toBe('tomorrow 09:05');
@@ -81,24 +80,60 @@ describe('date completion tokens', () => {
     expect(atEnd('~~~md\n@today\n~~~~\nRead @tomorrow')?.query).toBe('tomorrow');
   });
 
-  test('recognizes only the complete due keyword followed by spaces or the caret', () => {
+  test('recognizes complete by and due keywords followed by spaces or the caret', () => {
     for (const [text, query] of [
+      ['@by', ''], ['@by ', ''], ['@BY   ', ''], ['@By fri', 'fri'],
       ['@due', ''], ['@due ', ''], ['@DUE   ', ''], ['@Due fri', 'fri'],
+      ['Read @by   in 2 weeks', 'in 2 weeks'], ['@by oct 12 3pm', 'oct 12 3pm'],
       ['Read @due   in 2 weeks', 'in 2 weeks'], ['@due tomorrow 09:05', 'tomorrow 09:05'],
     ] as const) {
       expect(atEnd(text)).toEqual({ from: text.lastIndexOf('@'), to: text.length, query, field: 'deadline' });
     }
-    for (const query of ['dues', 'du', 'fri', 'due\tfri', 'due-date']) {
+    for (const query of ['bye', 'bygone', 'b', 'dues', 'du', 'fri', 'by\tfri', 'due\tfri', 'by-date', 'due-date']) {
       expect(atEnd('@' + query)).toEqual({ from: 0, to: query.length + 1, query, field: 'scheduled' });
     }
     expect(dateTokenAt('Read @due fri next', 9)).toEqual({ from: 5, to: 9, query: '', field: 'deadline' });
+    expect(dateTokenAt('Read @by fri next', 8)).toEqual({ from: 5, to: 8, query: '', field: 'deadline' });
   });
 
-  test('applies the length cap and protection rules to the whole deadline token', () => {
-    expect(atEnd('@due ' + 'a'.repeat(20))).toEqual({ from: 0, to: 25, query: 'a'.repeat(20), field: 'deadline' });
-    for (const text of ['@due ' + 'a'.repeat(21), '@due\nfri', 'When:: @due fri', 'Read [[ @due fri', 'Read ` @due fri', 'name@due fri']) {
+  test('accepts long date forms while retaining protection rules for deadline tokens', () => {
+    for (const word of ['by', 'due']) {
+      const text = `Read @${word} september 12 2027 15:00`;
+      expect(atEnd(text)).toEqual({ from: 5, to: text.length, query: 'september 12 2027 15:00', field: 'deadline' });
+    }
+    for (const text of ['@by\nfri', '@due\nfri', 'When:: @due fri', 'Read [[ @due fri', 'Read ` @due fri', 'name@due fri']) {
       expect(atEnd(text)).toBeNull();
     }
+  });
+});
+
+describe('date completion field flips', () => {
+  test('adds by to scheduled tokens and removes either deadline word', () => {
+    for (const [text, rewritten] of [
+      ['@', '@by '],
+      ['Read @fri', 'Read @by fri'],
+      ['Read @oct 12 3pm', 'Read @by oct 12 3pm'],
+      ['Read @bye', 'Read @by bye'],
+      ['Read @by fri', 'Read @fri'],
+      ['Read @due fri', 'Read @fri'],
+      ['Read @BY   oct 12 3pm', 'Read @oct 12 3pm'],
+      ['@by', '@'],
+      ['@due ', '@'],
+    ] as const) {
+      expect(flipDateToken(text, atEnd(text)!)).toEqual({ text: rewritten, caret: rewritten.length });
+    }
+  });
+
+  test('keeps the query and every surrounding character when the caret is inside a block', () => {
+    const text = '  Read\t@oct 12 3pm  then rest';
+    const caret = text.indexOf('  then rest');
+    const deadline = flipDateToken(text, dateTokenAt(text, caret)!);
+    expect(deadline).toEqual({ text: '  Read\t@by oct 12 3pm  then rest', caret: caret + 3 });
+    expect(dateTokenAt(deadline.text, deadline.caret)?.field).toBe('deadline');
+    expect(flipDateToken(deadline.text, dateTokenAt(deadline.text, deadline.caret)!)).toEqual({ text, caret });
+    const due = 'Read @due  fri! and rest';
+    const dueCaret = due.indexOf('!');
+    expect(flipDateToken(due, dateTokenAt(due, dueCaret)!)).toEqual({ text: 'Read @fri! and rest', caret: dueCaret - 5 });
   });
 });
 
@@ -158,7 +193,19 @@ describe('date completion suggestions', () => {
     expect(dateSuggestions('NEXT THU 23:59', '2026-12-31')).toEqual([{ label: 'Next Thursday 23:59', date: '2027-01-07', time: '23:59' }]);
     expect(dateSuggestions('2027-01-01 00:00', context)).toEqual([{ label: 'Friday 00:00', date: '2027-01-01', time: '00:00' }]);
     expect(dateSuggestions('+2d 09:05', '2024-02-28')).toEqual([{ label: 'Friday 09:05', date: '2024-03-01', time: '09:05' }]);
-    for (const query of ['today 24:00', 'today 9:05', '09:05', '2026-02-29']) expect(dateSuggestions(query, context)).toEqual([]);
+    expect(dateSuggestions('tomorrow 9:05', '2024-02-28')[0]).toEqual({ label: 'Tomorrow 09:05', date: '2024-02-29', time: '09:05' });
+    expect(dateSuggestions('09:05', context)[0]).toEqual({ label: 'Today 09:05', date: context, time: '09:05' });
+    for (const query of ['today 24:00', '2026-02-29']) expect(dateSuggestions(query, context)).toEqual([]);
+  });
+
+  test('puts month/day, next-week weekday and bare-time parses before presets', () => {
+    for (const query of ['oct 12 3pm', '12 october 2026 15:00']) {
+      expect(dateSuggestions(query, context)[0]).toEqual({ label: 'Monday 15:00', date: '2026-10-12', time: '15:00' });
+    }
+    expect(dateSuggestions('next fri 3:30pm', '2026-10-05')[0]).toEqual({ label: 'Next Friday 15:30', date: '2026-10-16', time: '15:30' });
+    expect(dateSuggestions('3pm', context)[0]).toEqual({ label: 'Today 15:00', date: context, time: '15:00' });
+    expect(dateSuggestions('jan 3', '2026-12-28')[0]?.date).toBe('2027-01-03');
+    expect(dateSuggestions('feb 30', context)).toEqual([]);
   });
 
   test('caps non-empty results at seven while keeping every empty-query preset', () => {
@@ -228,6 +275,21 @@ describe('date completion plans', () => {
     expect(planDateToken(text, token, choice, null)).toEqual({
       text: 'Read', caret: 4, value: { ...newTask(), deadline: '2026-10-04', deadline_time: '09:05' },
     });
+  });
+
+  test('plans either deadline word with named dates and normalized time, including annual rollover', () => {
+    for (const word of ['by', 'due']) {
+      const text = `Read @${word} oct 12 3pm`;
+      const token = atEnd(text)!;
+      for (const [from, deadline] of [[context, '2026-10-12'], ['2026-10-13', '2027-10-12']] as const) {
+        const choice = dateSuggestions(token.query, from)[0]!;
+        expect(planDateToken(text, token, choice, null)).toEqual({
+          text: 'Read', caret: 4, value: { ...newTask(), deadline, deadline_time: '15:00' },
+        });
+      }
+    }
+    expect(atEnd('Read @bye fri')?.field).toBe('scheduled');
+    expect(dateSuggestions(atEnd('Read @bye fri')!.query, context)).toEqual([]);
   });
 
   test('updates only the deadline fields of an existing task', () => {

@@ -12,11 +12,11 @@
 .compare-table thead th.compare-tension { box-shadow: inset 0 calc(-1 * var(--rubric-height)) var(--danger); color: var(--text); }
 .compare-table th:first-child, .compare-table td:first-child { padding-left: var(--space-16); }
 .compare-holder-column { width: 30%; }
-.compare-holder { position: relative; padding-left: calc(var(--space-16) + var(--target-size) + var(--space-8)) !important; font-weight: var(--weight-body); }
-.compare-siglum { position: absolute; left: var(--space-16); top: calc(var(--space-8) + 2px); min-width: var(--target-size); padding: 0 var(--space-4); border: 1px solid var(--control-border); border-radius: var(--radius-control); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); text-align: center; }
-.compare-holder-name.button { display: block; min-height: 0; padding: 0; color: var(--text); font: var(--weight-control) var(--text-body)/var(--line-body) var(--font-display); font-variation-settings: var(--optical-heading); text-align: left; }
+.compare-holder { position: relative; font-weight: var(--weight-body); }
+.compare-siglum { float: left; min-width: var(--siglum-width); margin-right: var(--space-8); padding: 0 var(--space-4); border: 1px solid var(--control-border); border-radius: var(--radius-control); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); text-align: center; white-space: nowrap; }
+.compare-holder-name.button { display: block; overflow: hidden; min-height: 0; padding: 0; color: var(--text); font: var(--weight-control) var(--text-body)/var(--line-body) var(--font-display); font-variation-settings: var(--optical-heading); text-align: left; }
 .compare-holder-name.button:hover { color: var(--accent); }
-.compare-gist { display: block; color: var(--muted); }
+.compare-gist { display: block; overflow: hidden; color: var(--muted); }
 .compare-cell { display: flex; align-items: flex-start; gap: var(--space-8); width: 100%; padding: 0; border: 0; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
 .compare-cell:hover { color: var(--accent); }
 .compare-agrees .compare-cell { color: var(--agree); }
