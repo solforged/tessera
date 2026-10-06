@@ -290,6 +290,17 @@ impl Engine<'_, '_> {
                 self.capability_sources.insert(source?);
             }
         }
+        let changed: Vec<_> = self.revisions.iter().map(|revision| &revision.id).collect();
+        let mut positions = self.tx.prepare_cached(
+            "SELECT block_id FROM positions WHERE active = 1
+             AND block_id IN (SELECT value FROM json_each(?1))",
+        )?;
+        for id in positions.query_map(
+            [serde_json::to_string(&changed).expect("block IDs serialize")],
+            |row| row.get::<_, String>(0),
+        )? {
+            self.capability_sources.insert(id?);
+        }
         if self.capability_sources.is_empty() {
             return Ok(Vec::new());
         }
@@ -1313,6 +1324,19 @@ impl Engine<'_, '_> {
                 if crate::library_store::apply(self.tx, operation, self.now, self.seq)? {
                     self.bump(&current, false)?;
                     self.capability_sources.insert(block_id);
+                }
+                Ok(())
+            }
+            Operation::SetPosition {
+                id,
+                base_revision,
+                position,
+            } => {
+                crate::position_store::validate_source(self.tx, id)?;
+                let current = self.checked(id, *base_revision, index, false)?;
+                if crate::position_store::set(self.tx, id, *position)? {
+                    self.bump(&current, false)?;
+                    self.capability_sources.insert(id.clone());
                 }
                 Ok(())
             }

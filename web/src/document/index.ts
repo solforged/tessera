@@ -369,6 +369,7 @@ export class Notebook implements NotebookClient, DocumentHost {
       switch (action.kind) {
         case 'task':
         case 'project':
+        case 'position':
         case 'source':
         case 'cite':
         case 'uncite':
@@ -394,6 +395,11 @@ export class Notebook implements NotebookClient, DocumentHost {
             if (!sameState(value.project, action.previous)) throw new Error('Project metadata changed. Rejected command kept.');
             operations.push({ op: 'set_project', id: action.id, base_revision: block.revision, project: action.value });
             changed = !sameState(value.project, action.value); value.project = action.value;
+          } else if (action.kind === 'position') {
+            if (!!value.position !== action.previous) throw new Error('Perspective metadata changed. Rejected command kept.');
+            operations.push({ op: 'set_position', id: action.id, base_revision: block.revision, position: action.value });
+            changed = !!value.position !== action.value;
+            value.position = action.value ? { holder_id: null, subject_id: block.page_id } : null;
           } else if (action.kind === 'source') {
             if (!sameState(sourceState(value.source), action.previous)) throw new Error('Source metadata changed. Rejected command kept.');
             operations.push({ op: 'set_source', id: action.id, base_revision: block.revision, source: action.value });

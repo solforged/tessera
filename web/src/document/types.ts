@@ -6,6 +6,7 @@ export interface Snapshot { block: Block; row: OutlineRow | null; manual_types: 
 export type CapabilityAction =
   | { kind: 'task'; id: string; value: TaskState | null; previous: TaskState | null; baseRevision: number; restore?: boolean }
   | { kind: 'project'; id: string; value: ProjectState | null; previous: ProjectState | null; baseRevision: number }
+  | { kind: 'position'; id: string; value: boolean; previous: boolean; baseRevision: number }
   | { kind: 'source'; id: string; value: SourceState | null; previous: SourceState | null; baseRevision: number }
   | { kind: 'cite'; id: string; citation: Citation; index?: number; baseRevision: number }
   | { kind: 'uncite'; id: string; citationId: string; baseRevision: number }
@@ -18,9 +19,9 @@ export type CapabilityAction =
   | { kind: 'workNote'; id: string; session: WorkSession; note: string; baseRevision: number }
   | { kind: 'workState'; id: string; session: WorkSession; endedAt: number | null; reversed: boolean; baseRevision: number };
 export function isCapabilityAction(action: Action): action is CapabilityAction {
-  return ['task', 'project', 'source', 'cite', 'uncite', 'citationTriage', 'highlightColor', 'completeTask', 'reverseTaskCompletion', 'startWork', 'stopWork', 'workNote', 'workState'].includes(action.kind);
+  return ['task', 'project', 'position', 'source', 'cite', 'uncite', 'citationTriage', 'highlightColor', 'completeTask', 'reverseTaskCompletion', 'startWork', 'stopWork', 'workNote', 'workState'].includes(action.kind);
 }
-export const emptyCapabilities = (id: string): BlockCapabilities => ({ block_id: id, task: null, project: null, source: null, citations: [], history: false, merge_protected: false, reviewed_cards: false });
+export const emptyCapabilities = (id: string): BlockCapabilities => ({ block_id: id, task: null, project: null, position: null, source: null, citations: [], history: false, merge_protected: false, reviewed_cards: false });
 export function sourceState(source: SourceState | null | undefined): SourceState | null {
   return source ? { format: source.format, state: source.state, origin: source.origin, match_key: source.match_key, citation_key: source.citation_key } : null;
 }

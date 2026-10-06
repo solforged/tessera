@@ -21,6 +21,7 @@ mod model;
 mod notebook;
 mod operations;
 mod ownership;
+mod position_store;
 mod query;
 mod reads;
 mod resurface;
@@ -35,10 +36,11 @@ mod work_store;
 pub use backup::{BackupManifest, backup, restore};
 pub use capabilities::{
     Agenda, AgendaItem, AgendaReason, BlockCapabilities, CardPreviews, CardQuery, CardQueryResult,
-    CardRow, CardSelection, CardUnit, DateRange, Deck, GradePreview, ProjectRecord, ProjectState,
-    ProjectStatus, ReviewEvent, ReviewEventKind, ReviewSession, ReviewSessionState, TaskFilter,
-    TaskOccurrence, TaskPriority, TaskQuery, TaskQueryResult, TaskRecord, TaskRow, TaskSelection,
-    TaskState, TaskStatus, TaskView, WorkSession,
+    CardRow, CardSelection, CardUnit, DateRange, Deck, GradePreview, PositionInfo, PositionQuery,
+    PositionRow, ProjectRecord, ProjectState, ProjectStatus, ReviewEvent, ReviewEventKind,
+    ReviewSession, ReviewSessionState, TaskFilter, TaskOccurrence, TaskPriority, TaskQuery,
+    TaskQueryResult, TaskRecord, TaskRow, TaskSelection, TaskState, TaskStatus, TaskView,
+    WorkSession,
 };
 pub use error::{Error, Result};
 pub use migrate::SCHEMA_VERSION;

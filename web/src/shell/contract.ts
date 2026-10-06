@@ -27,7 +27,7 @@ export const depthLabels: Record<Depth, string> = { gloss: 'Gloss', opening: 'Op
 export interface Command {
   id: string;
   title: string;
-  section: 'Navigation' | 'Outline' | 'Editing' | 'Vim' | 'Page' | 'View';
+  section: 'Navigation' | 'Outline' | 'Block' | 'Editing' | 'Vim' | 'Page' | 'View';
   keys?: string[];
   /** Why it cannot run now; shown in the palette. Undefined when enabled. */
   disabledReason?(): string | undefined;
@@ -72,13 +72,16 @@ export type OpenTarget =
   | { kind: 'settings' }
   | { kind: 'library'; tab?: LibraryTab }
   /** Read a source. `at` is a passage ID to scroll to; `citationId` flashes that citation's range and does not count as reading. */
-  | { kind: 'reader'; sourceId: string; snapshotId?: string; at?: string; citationId?: string };
+  | { kind: 'reader'; sourceId: string; snapshotId?: string; at?: string; citationId?: string }
+  /** The perspectives filed under a subject, side by side. */
+  | { kind: 'compare'; subjectId: string };
 
 export type LibraryTab = ReadingState | 'all' | 'highlights';
 
 export interface TableViewState { query: Query; scroll: number }
 export interface FieldsViewState { scroll: number }
 export interface SettingsViewState { scroll: number }
+export interface CompareViewState { scroll: number }
 export interface AgendaViewState { date: string; mode: 'agenda' | 'week' | 'tasks'; query: TaskQuery; viewId: string | null; scroll: number }
 export interface ReviewViewState { deckId: string | null; sessionId: string | null; selection: CardSelection | null; scroll: number }
 export interface LibraryViewState { view: string | null; tab: LibraryTab; text: string; sort: 'added' | 'title' | 'last_read' | 'progress'; unprocessedOnly: boolean; colors: string[]; tags: string[]; scroll: number }

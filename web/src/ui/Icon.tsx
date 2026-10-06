@@ -54,6 +54,12 @@ const paths = {
   'depth-opening': ['M14 8a6 6 0 1 1-12 0 6 6 0 0 1 12 0Z', 'M10.6 8a2.6 2.6 0 1 1-5.2 0 2.6 2.6 0 0 1 5.2 0Z'],
   'depth-perspectives': ['M14 8a6 6 0 1 1-12 0 6 6 0 0 1 12 0Z', 'M11.7 8a3.7 3.7 0 1 1-7.4 0 3.7 3.7 0 0 1 7.4 0Z'],
   'depth-full': ['M14 8a6 6 0 1 1-12 0 6 6 0 0 1 12 0Z', 'M12.8 8a4.8 4.8 0 1 1-9.6 0 4.8 4.8 0 0 1 9.6 0Z'],
+  // Perspectives and inquiry: a holder's mark, the compare grid, the constellation, open and settled questions.
+  perspective: 'M3 3h10v10H3z M6.6 11V5h1.9a1.8 1.8 0 0 1 0 3.6H6.6',
+  compare: 'M2.5 3.5h11v9h-11z M6.2 3.5v9 M2.5 6.5h11 M2.5 9.5h11',
+  constellation: 'M10 8a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z M4.7 4a1.2 1.2 0 1 1-2.4 0 1.2 1.2 0 0 1 2.4 0Z M14 5a1.2 1.2 0 1 1-2.4 0 1.2 1.2 0 0 1 2.4 0Z M11.7 13a1.2 1.2 0 1 1-2.4 0 1.2 1.2 0 0 1 2.4 0Z M6.3 6.8 4.4 4.8 M9.9 7.3l1.9-1.6 M8.8 9.8l1.2 2',
+  'question-open': ['M12.9 5.6A5.5 5.5 0 1 1 10.6 3.1', 'M9.2 8a1.2 1.2 0 1 1-2.4 0 1.2 1.2 0 0 1 2.4 0Z'],
+  'question-settled': ['M13.5 8a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0Z', 'M10.2 8a2.2 2.2 0 1 1-4.4 0 2.2 2.2 0 0 1 4.4 0Z'],
 } as const satisfies Record<string, Glyph>;
 export type IconName = keyof typeof paths;
 export function Icon(props: { name: IconName; class?: string }): JSX.Element {

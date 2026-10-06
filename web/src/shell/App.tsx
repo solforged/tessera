@@ -20,7 +20,7 @@ import { localDate } from '../ui/MonthGrid';
 import { createCommandRegistry } from './commands';
 import { deskCounts, shortDay } from './desk-counts';
 import { depthLabels, depthStops } from './contract';
-import type { AgendaViewState, CommandRegistry, Depth, FieldsViewState, LibraryViewState, OpenTarget, PaneId, ReaderViewState, ReviewViewState, SettingsViewState, TableViewState, ViewState } from './contract';
+import type { AgendaViewState, CommandRegistry, CompareViewState, Depth, FieldsViewState, LibraryViewState, OpenTarget, PaneId, ReaderViewState, ReviewViewState, SettingsViewState, TableViewState, ViewState } from './contract';
 import { Palette } from './Palette';
 
 // Panes other than the outline load on demand and are prefetched once the app is idle.
@@ -32,6 +32,7 @@ const paneModules = {
   review: () => import('../review/ReviewPane'),
   library: () => import('../library/LibraryPane'),
   reader: () => import('../reader/ReaderPane'),
+  compare: () => import('../compare/ComparePane'),
 };
 const TablePane = lazy(() => paneModules.table().then(module => ({ default: module.TablePane })));
 const FieldsPane = lazy(() => paneModules.fields().then(module => ({ default: module.FieldsPane })));
@@ -40,8 +41,9 @@ const AgendaPane = lazy(() => paneModules.agenda().then(module => ({ default: mo
 const ReviewPane = lazy(() => paneModules.review().then(module => ({ default: module.ReviewPane })));
 const LibraryPane = lazy(() => paneModules.library().then(module => ({ default: module.LibraryPane })));
 const ReaderPane = lazy(() => paneModules.reader().then(module => ({ default: module.ReaderPane })));
+const ComparePane = lazy(() => paneModules.compare().then(module => ({ default: module.ComparePane })));
 
-type PaneView = ViewState | TableViewState | FieldsViewState | SettingsViewState | AgendaViewState | ReviewViewState | LibraryViewState | ReaderViewState;
+type PaneView = ViewState | TableViewState | FieldsViewState | SettingsViewState | AgendaViewState | ReviewViewState | LibraryViewState | ReaderViewState | CompareViewState;
 type HistoryEntry = { target: OpenTarget; view: PaneView };
 type PaneSession = { entries: HistoryEntry[]; index: number; generation: number };
 type PageStyle = 'bullets' | 'prose';
@@ -62,7 +64,7 @@ function pageIdOf(current: HistoryEntry | undefined): string | undefined {
 }
 /** Header and tab text for panes that are not pages. */
 function paneLabel(target: OpenTarget | undefined): string {
-  return target?.kind === 'table' ? 'Table' : target?.kind === 'fields' ? 'Fields' : target?.kind === 'settings' ? 'Settings' : target?.kind === 'agenda' ? 'Agenda' : target?.kind === 'review' ? 'Review' : target?.kind === 'library' ? 'Library' : target?.kind === 'reader' ? 'Reader' : 'Loading…';
+  return target?.kind === 'table' ? 'Table' : target?.kind === 'fields' ? 'Fields' : target?.kind === 'settings' ? 'Settings' : target?.kind === 'agenda' ? 'Agenda' : target?.kind === 'review' ? 'Review' : target?.kind === 'library' ? 'Library' : target?.kind === 'reader' ? 'Reader' : target?.kind === 'compare' ? 'Compare' : 'Loading…';
 }
 function snapshotView(view: PaneView): PaneView {
   if ('mode' in view) return { ...view, query: copyTaskQuery(view.query) };
@@ -178,7 +180,7 @@ export function App() {
         ? { query: copyQuery(target.query), scroll: 0 }
         : target.kind === 'agenda' ? { date, mode: target.query || target.viewId ? 'tasks' : 'agenda', query: { ...(target.query ? copyTaskQuery(target.query) : createTaskQuery(date)), context_date: date }, viewId: target.viewId ?? null, scroll: 0 }
           : target.kind === 'review' ? { deckId: target.deckId ?? null, sessionId: null, selection: null, scroll: 0 }
-            : target.kind === 'fields' || target.kind === 'settings' ? { scroll: 0 }
+            : target.kind === 'fields' || target.kind === 'settings' || target.kind === 'compare' ? { scroll: 0 }
               : target.kind === 'library' ? { view: null, tab: target.tab ?? 'inbox', text: '', sort: 'added', unprocessedOnly: true, colors: [], tags: [], scroll: 0 }
                 : target.kind === 'reader' ? { snapshotId: target.snapshotId ?? null, ordinal: -1, offset: 0 }
                   : { zoom: target.blockId ?? null, caret: target.blockId ? { id: target.caretId ?? target.blockId, offset: target.caretOffset ?? 0 } : null, scroll: null, folds: null, showArchived: false, ...(target.blockId && target.caretId ? { edit: true } : {}) };
@@ -325,7 +327,7 @@ export function App() {
           current = { target: targetFromView(saved), view: snapshotView(saved.view) };
         } else if (saved.target.kind === 'review' && 'deckId' in saved.view) {
           current = { target: targetFromView(saved), view: snapshotView(saved.view) };
-        } else if ((saved.target.kind === 'fields' || saved.target.kind === 'settings') && 'scroll' in saved.view && typeof saved.view.scroll === 'number') {
+        } else if ((saved.target.kind === 'fields' || saved.target.kind === 'settings' || saved.target.kind === 'compare') && 'scroll' in saved.view && typeof saved.view.scroll === 'number') {
           current = { target: saved.target, view: { scroll: saved.view.scroll } };
         } else if ((saved.target.kind === 'library' && 'tab' in saved.view) || (saved.target.kind === 'reader' && 'ordinal' in saved.view)) {
           current = { target: targetFromView(saved), view: snapshotView(saved.view) };
@@ -611,6 +613,7 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
     { label: 'Open page beside', icon: 'panes', action: props.onPageBeside },
     { label: pageStyle() === 'prose' ? 'Show bullets' : 'Hide bullets', icon: 'bullet', disabledReason: root() ? undefined : 'Page is still loading', action: () => props.onPageStyle(pageId()!, pageStyle() === 'prose' ? 'bullets' : 'prose', defaultStyle()) },
     { label: 'Gloss', icon: 'edit', disabledReason: root()?.kind === 'page' ? undefined : root() ? 'Journal days have no gloss' : 'Page is still loading', action: () => outlineCommand('gloss')?.run() },
+    { label: 'Compare perspectives', icon: 'compare', disabledReason: outlineCommand('compare')?.disabledReason?.()?.replace(/\.$/, ''), action: () => outlineCommand('compare')?.run() },
     { label: root()?.task ? 'Task' : 'Make task', icon: 'check', disabledReason: root() ? undefined : 'Page is still loading', action: () => rootCapability('task') },
     { label: root()?.project ? 'Project' : 'Make project', icon: 'flag', disabledReason: root() ? undefined : 'Page is still loading', action: () => rootCapability('project') },
     { label: 'Undo', icon: 'undo', shortcut: '⌘Z', disabledReason: !doc()?.canUndo() ? 'Nothing to undo' : undefined, action: () => undo(false) },
@@ -622,7 +625,7 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
   const kindIcon = (): IconName => {
     if (pageId()) return root()?.kind === 'journal' ? 'today' : root()?.source ? 'library' : 'page';
     const kind = current().target.kind;
-    return kind === 'agenda' ? 'agenda' : kind === 'review' ? 'review' : kind === 'library' || kind === 'reader' ? 'library' : kind === 'table' ? 'table' : kind === 'fields' ? 'field' : kind === 'settings' ? 'settings' : 'page';
+    return kind === 'agenda' ? 'agenda' : kind === 'review' ? 'review' : kind === 'library' || kind === 'reader' ? 'library' : kind === 'table' ? 'table' : kind === 'fields' ? 'field' : kind === 'settings' ? 'settings' : kind === 'compare' ? 'compare' : 'page';
   };
   return <section class={`pane ${props.active ? 'active' : ''}`} data-pane={props.pane} data-page-style={pageStyle()} aria-label={props.pane === 'main' ? 'Pane 1' : 'Pane 2'} onPointerDown={props.onActivate} onFocusIn={props.onActivate}>
     <header class="pane-header">
@@ -653,6 +656,7 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
       <Match when={current().target.kind === 'table'}><TablePane pane={props.pane} target={current().target as Extract<OpenTarget, { kind: 'table' }>} view={snapshotView(current().view) as TableViewState} notebook={props.notebook} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onTargetChange={target => { if (generation === props.session().generation) props.onTargetChange(target); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
       <Match when={current().target.kind === 'fields'}><FieldsPane view={snapshotView(current().view) as FieldsViewState} notebook={props.notebook} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
       <Match when={current().target.kind === 'settings'}><SettingsPane pane={props.pane} view={snapshotView(current().view) as SettingsViewState} notebook={props.notebook} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
+      <Match when={current().target.kind === 'compare' ? current().target as Extract<OpenTarget, { kind: 'compare' }> : undefined}>{target => <ComparePane subjectId={target().subjectId} view={snapshotView(current().view) as CompareViewState} notebook={props.notebook} onActivate={props.onActivate} onOpen={(next, beside) => { if (generation === props.session().generation) props.onOpen(next, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} />}</Match>
       <Match when={current().target.kind === 'agenda'}><AgendaPane pane={props.pane} view={snapshotView(current().view) as AgendaViewState} notebook={props.notebook} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
       <Match when={current().target.kind === 'review'}><ReviewPane pane={props.pane} view={snapshotView(current().view) as ReviewViewState} notebook={props.notebook} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
       <Match when={current().target.kind === 'library'}><LibraryPane pane={props.pane} view={snapshotView(current().view) as LibraryViewState} notebook={props.notebook} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>

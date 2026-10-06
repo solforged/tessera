@@ -1,0 +1,27 @@
+/* Compare: perspectives side by side, styled like the type table, with the holder in the publication's voice. */
+.compare-pane { display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; outline: none; }
+.compare-toolbar { display: flex; align-items: baseline; gap: var(--space-12); min-height: var(--touch-size); padding: var(--space-8) var(--space-16); border-bottom: 1px solid var(--line); }
+.compare-toolbar h2 { margin: 0; font: var(--weight-title) var(--text-h2)/var(--line-h2) var(--font-display); font-variation-settings: var(--optical-heading); }
+.compare-subject.button { padding: 0; font: inherit; color: var(--text); }
+.compare-count { color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.compare-scroll { flex: 1; min-height: 0; overflow: auto; }
+.compare-scroll > .empty-state { margin: var(--space-16) var(--space-24); max-width: var(--measure); }
+.compare-table { width: 100%; border-spacing: 0; font-size: var(--text-control); line-height: var(--line-control); }
+.compare-table th, .compare-table td { padding: var(--space-8); border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.compare-table thead th { position: sticky; top: 0; z-index: 1; background: var(--surface); color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); font-weight: var(--weight-control); white-space: nowrap; }
+.compare-table thead th.compare-tension { box-shadow: inset 0 calc(-1 * var(--rubric-height)) var(--danger); color: var(--text); }
+.compare-table th:first-child, .compare-table td:first-child { padding-left: var(--space-16); }
+.compare-holder-column { width: 30%; }
+.compare-holder { position: relative; padding-left: calc(var(--space-16) + var(--target-size) + var(--space-8)) !important; font-weight: var(--weight-body); }
+.compare-siglum { position: absolute; left: var(--space-16); top: calc(var(--space-8) + 2px); min-width: var(--target-size); padding: 0 var(--space-4); border: 1px solid var(--control-border); border-radius: var(--radius-control); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); text-align: center; }
+.compare-holder-name.button { display: block; min-height: 0; padding: 0; color: var(--text); font: var(--weight-control) var(--text-body)/var(--line-body) var(--font-display); font-variation-settings: var(--optical-heading); text-align: left; }
+.compare-holder-name.button:hover { color: var(--accent); }
+.compare-gist { display: block; color: var(--muted); }
+.compare-cell { display: flex; align-items: flex-start; gap: var(--space-8); width: 100%; padding: 0; border: 0; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.compare-cell:hover { color: var(--accent); }
+.compare-agrees .compare-cell { color: var(--agree); }
+.compare-missing { color: var(--faint); }
+.shape-glyph { flex: none; width: calc(var(--icon-size) * 1.75); height: var(--icon-size); margin-top: var(--space-2); color: var(--accent); }
+.compare-table tbody tr { transition: background-color var(--motion-fast) var(--motion-ease); }
+.compare-table tbody tr:hover { background: var(--hover); }
+.compare-footer { padding: var(--space-8) var(--space-16); border-top: 1px solid var(--line); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }

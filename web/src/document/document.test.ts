@@ -1423,6 +1423,31 @@ describe('durable Action and Learning document commands', () => {
     recovered.dismissRejected();
   });
 
+  test('make perspective undo and redo round trip through the API', async () => {
+    const instance = await client();
+    const holder = await instance.createPage(`Perspective holder ${++serial}`);
+    const { doc, first, id } = await page(instance, `[[${holder}]]`);
+    expect(doc.edit({ kind: 'position', id, value: true }).ok).toBe(false);
+    success(doc.edit({ kind: 'position', id: first, value: true }));
+    expect(doc.block(first)?.position).toEqual({ holder_id: null, subject_id: id });
+    await doc.flush();
+    expect(doc.block(first)?.position).toEqual({ holder_id: holder, subject_id: id });
+    expect((await api.capabilities(first)).position).toEqual({ holder_id: holder, subject_id: id });
+    expect((await api.positions({ holder, subject: id }))[0]?.block.block.id).toBe(first);
+    doc.undo();
+    await doc.flush();
+    expect(doc.block(first)?.position).toBeNull();
+    expect((await api.capabilities(first)).position).toBeNull();
+    doc.redo();
+    await doc.flush();
+    expect(doc.block(first)?.position).toEqual({ holder_id: holder, subject_id: id });
+    success(doc.edit({ kind: 'text', id: first, text: 'Unattributed' }));
+    await doc.flush();
+    expect(doc.block(first)?.position).toEqual({ holder_id: null, subject_id: id });
+    expect(await api.positions({ holder })).toEqual([]);
+    doc.release();
+  });
+
   test('structural capability guards protect range endpoints, safe splits and reviewed inactive markup', async () => {
     const instance = await client();
     const { doc, first, id } = await page(instance, 'Destination');

@@ -351,6 +351,7 @@ macro_rules! capability_rows {
                     WHERE c.source_block_id = b.id) AS reviewed,
              (t.block_id IS NOT NULL OR p.block_id IS NOT NULL
               OR EXISTS(SELECT 1 FROM sources s WHERE s.block_id=b.id)
+              OR EXISTS(SELECT 1 FROM positions pos WHERE pos.block_id=b.id)
               OR EXISTS(SELECT 1 FROM citations c WHERE c.block_id=b.id)) AS retained
              FROM blocks b LEFT JOIN tasks t ON t.block_id = b.id
              LEFT JOIN projects p ON p.block_id = b.id "
@@ -376,6 +377,7 @@ fn capability_at(row: &rusqlite::Row<'_>) -> rusqlite::Result<BlockCapabilities>
         merge_protected: task.is_some() || project.is_some() || history || reviewed_cards,
         task,
         project,
+        position: None,
         history,
         reviewed_cards,
         source: None,
@@ -387,17 +389,20 @@ pub(crate) fn capabilities_for(
     conn: &Connection,
     ids: &[String],
 ) -> Result<Vec<BlockCapabilities>> {
-    crate::library_reads::hydrate(
+    crate::position_store::hydrate(
         conn,
-        conn.prepare_cached(concat!(
-            capability_rows!(),
-            "WHERE b.id IN (SELECT value FROM json_each(?1)) ORDER BY b.id"
-        ))?
-        .query_map(
-            [serde_json::to_string(ids).expect("block IDs serialize")],
-            capability_at,
-        )?
-        .collect::<rusqlite::Result<_>>()?,
+        crate::library_reads::hydrate(
+            conn,
+            conn.prepare_cached(concat!(
+                capability_rows!(),
+                "WHERE b.id IN (SELECT value FROM json_each(?1)) ORDER BY b.id"
+            ))?
+            .query_map(
+                [serde_json::to_string(ids).expect("block IDs serialize")],
+                capability_at,
+            )?
+            .collect::<rusqlite::Result<_>>()?,
+        )?,
     )
 }
 
@@ -405,16 +410,19 @@ pub(crate) fn page_capabilities(
     conn: &Connection,
     page_id: &str,
 ) -> Result<Vec<BlockCapabilities>> {
-    crate::library_reads::hydrate(
+    crate::position_store::hydrate(
         conn,
-        conn.prepare_cached(concat!(
-            "SELECT * FROM (",
-            capability_rows!(),
-            "WHERE b.page_id = ?1 AND b.deletion_id IS NULL)
+        crate::library_reads::hydrate(
+            conn,
+            conn.prepare_cached(concat!(
+                "SELECT * FROM (",
+                capability_rows!(),
+                "WHERE b.page_id = ?1 AND b.deletion_id IS NULL)
              WHERE retained OR history OR reviewed ORDER BY id"
-        ))?
-        .query_map([page_id], capability_at)?
-        .collect::<rusqlite::Result<_>>()?,
+            ))?
+            .query_map([page_id], capability_at)?
+            .collect::<rusqlite::Result<_>>()?,
+        )?,
     )
 }
 
@@ -423,6 +431,7 @@ pub(crate) fn guard_merge(conn: &Connection, source_id: &str) -> Result<()> {
         .prepare_cached(concat!(
             "SELECT EXISTS(SELECT 1 FROM tasks WHERE block_id = b.id AND active = 1)
              OR EXISTS(SELECT 1 FROM projects WHERE block_id = b.id AND active = 1)
+             OR EXISTS(SELECT 1 FROM positions WHERE block_id = b.id AND active = 1)
              OR ",
             capability_history!(),
             " FROM blocks b WHERE b.id = ?1"
@@ -430,7 +439,7 @@ pub(crate) fn guard_merge(conn: &Connection, source_id: &str) -> Result<()> {
         .query_row([source_id], |row| row.get(0))?;
     if protected {
         return Err(validation(
-            "this block has active task/project state or completion/work history; delete it or keep it separate",
+            "This block has active task/project/perspective state or completion/work history; delete it or keep it separate",
         ));
     }
     Ok(())

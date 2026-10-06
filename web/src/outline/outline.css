@@ -67,6 +67,14 @@
 /* A source's siglum hangs in the margin beside rows that cite it, as in a critical edition. */
 .row-siglum { position: absolute; right: 100%; top: calc((var(--row-height) - var(--line-apparatus)) / 2); min-width: var(--target-size); margin-right: var(--space-4); padding: 0 var(--space-4); border: 1px solid var(--control-border); border-radius: var(--radius-control); background: var(--canvas); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); text-align: center; white-space: nowrap; }
 .outline-row-linked .row-siglum, .outline-row.row-selected .row-siglum { border-color: var(--accent); background: var(--accent); color: var(--canvas); }
+/* A perspective names its holder in the publication's voice; the holder link reads as ink until hovered. */
+.row-position > .outline-body .static-text { font-family: var(--font-display); font-weight: var(--weight-control); font-variation-settings: var(--optical-heading); }
+.row-position > .outline-body .outline-reference { color: var(--text); text-decoration-color: var(--line); }
+.row-position > .outline-body .outline-reference:hover { color: var(--accent); text-decoration-color: var(--accent); }
+/* Its gist follows on its own line, unlabelled, so the pair reads "Plato / A line of decline". */
+.row-gist .outline-field-label { display: none; }
+.row-gist .outline-body { margin-left: var(--target-size); }
+.row-gist .static-text, .row-gist .outline-reference { color: var(--text); }
 .field-entry-widget .icon { flex: none; width: var(--icon-size-small); height: var(--icon-size-small); }
 .field-entry-widget { display: inline-flex; align-items: center; gap: var(--space-4); color: var(--muted); }
 /* `Name:: value` while typed: the name already reads as a field label, with a quiet hint at the end. */

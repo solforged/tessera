@@ -227,5 +227,8 @@ fn source_records_stored_before_sigla_still_read() {
     // Change results are stored as JSON; a source written before sigla existed must not break the change feed.
     let stored = r#"{"block_id":"b","format":"epub","state":"inbox","origin":null,"match_key":null,"citation_key":"k","added_at":1,"state_changed_at":1,"last_read_at":null,"current_snapshot_id":null}"#;
     let record: SourceRecord = serde_json::from_str(stored).unwrap();
-    assert_eq!((record.siglum.as_str(), record.siglum_basis.as_str()), ("", ""));
+    assert_eq!(
+        (record.siglum.as_str(), record.siglum_basis.as_str()),
+        ("", "")
+    );
 }

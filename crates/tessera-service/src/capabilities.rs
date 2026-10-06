@@ -1,14 +1,14 @@
 use axum::{
     Json,
     extract::{
-        Path, State,
-        rejection::{JsonRejection, PathRejection},
+        Path, Query, State,
+        rejection::{JsonRejection, PathRejection, QueryRejection},
     },
 };
 use tessera_core::{
     Agenda, BlockCapabilities, CardPreviews, CardQuery, CardQueryResult, CardUnit, Deck,
-    ProjectRecord, ReviewEvent, ReviewSession, TaskOccurrence, TaskQuery, TaskQueryResult,
-    TaskView, WorkSession,
+    PositionQuery, PositionRow, ProjectRecord, ReviewEvent, ReviewSession, TaskOccurrence,
+    TaskQuery, TaskQueryResult, TaskView, WorkSession,
 };
 
 use crate::{AppState, error::ApiError, run};
@@ -55,6 +55,16 @@ pub(crate) async fn projects(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<ProjectRecord>>, ApiError> {
     run(&state, |notebook| notebook.projects()).await.map(Json)
+}
+
+pub(crate) async fn positions(
+    State(state): State<AppState>,
+    query: Result<Query<PositionQuery>, QueryRejection>,
+) -> Result<Json<Vec<PositionRow>>, ApiError> {
+    let Query(query) = query.map_err(ApiError::from)?;
+    run(&state, move |notebook| notebook.positions(&query))
+        .await
+        .map(Json)
 }
 
 pub(crate) async fn task_query(

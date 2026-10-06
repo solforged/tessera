@@ -15,8 +15,10 @@ export interface DepthFilter {
   stop: Depth;
   /** The page's gloss entry, shown at every stop. */
   gloss: string | null;
-  /** Positions show at the perspectives stop under a shown heading. */
+  /** Positions show at the perspectives stop under a shown heading, with only their gist beneath them. */
   position(id: string): boolean;
+  /** A position's gist entry. */
+  gist(id: string): boolean;
 }
 
 /** Rebuilt for structure, folds, archive visibility, zoom, depth or inline-field eligibility. A zoomed page shows in full. */
@@ -29,10 +31,12 @@ export function visibleIds(doc: PageDocument, zoom: string | null, folds: Readon
   // One subscription for every archived flag; a tracked read per row would cost a subscription per row.
   if (!archived) doc.archivedVersion();
   let hiddenDepth: number | null = null;
-  // Below full: rows deeper than `openDepth` show with their subtree (gloss, opening text); `sectionDepth`
-  // is the deepest shown heading, under which only headings and positions appear.
+  // Below full: rows deeper than `openDepth` show with their subtree (gloss, opening text, a gist);
+  // `sectionDepth` is the deepest shown heading, under which only headings and positions appear;
+  // `positionDepth` is a shown position, under which only its gist appears.
   let openDepth: number | null = null;
   let sectionDepth = -1;
+  let positionDepth: number | null = null;
   let opening = true;
   (outline as OutlineIndex).each(Math.max(0, start), end, row => {
     if (hiddenDepth !== null && row.depth > hiddenDepth) return;
@@ -43,13 +47,19 @@ export function visibleIds(doc: PageDocument, zoom: string | null, folds: Readon
     }
     if (stop !== 'full' && (openDepth === null || row.depth <= openDepth)) {
       openDepth = null;
-      if (row.depth <= sectionDepth) sectionDepth = row.depth - 1;
-      const heading = !!doc.block(row.id)?.heading;
-      if (row.depth === 0 && heading) opening = false;
-      if (row.id === depth!.gloss || (stop !== 'gloss' && opening && row.depth === 0)) openDepth = row.depth;
-      else if (stop === 'perspectives' && heading && row.depth === sectionDepth + 1) sectionDepth = row.depth;
-      else if (stop === 'perspectives' && row.depth === sectionDepth + 1 && depth!.position(row.id)) hiddenDepth = row.depth;
-      else { hiddenDepth = row.depth; return; }
+      if (positionDepth !== null && row.depth <= positionDepth) positionDepth = null;
+      if (positionDepth !== null) {
+        if (row.depth === positionDepth + 1 && depth!.gist(row.id)) openDepth = row.depth;
+        else { hiddenDepth = row.depth; return; }
+      } else {
+        if (row.depth <= sectionDepth) sectionDepth = row.depth - 1;
+        const heading = !!doc.block(row.id)?.heading;
+        if (row.depth === 0 && heading) opening = false;
+        if (row.id === depth!.gloss || (stop !== 'gloss' && opening && row.depth === 0)) openDepth = row.depth;
+        else if (stop === 'perspectives' && heading && row.depth === sectionDepth + 1) sectionDepth = row.depth;
+        else if (stop === 'perspectives' && row.depth === sectionDepth + 1 && depth!.position(row.id)) positionDepth = row.depth;
+        else { hiddenDepth = row.depth; return; }
+      }
     }
     if (!inlineFields?.has(row.id)) result.push(row.id);
     if (folds.has(row.id)) hiddenDepth = row.depth;

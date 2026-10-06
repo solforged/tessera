@@ -30,7 +30,7 @@ export interface DocumentHost {
 }
 type MutableBlockState = { -readonly [K in keyof BlockState]: BlockState[K] } & { history: boolean };
 interface Cell { state: MutableBlockState; set: SetStoreFunction<MutableBlockState> }
-const stateOf = (block: Block): BlockState => ({ id: block.id, kind: block.kind, parentId: block.parent_id, pageId: block.page_id, text: block.text, heading: block.heading, archived: block.archived, manual_types: [], task: null, project: null, mergeProtected: false, reviewedCards: false, source: null, citations: [], revision: block.revision, pending: false, conflict: null });
+const stateOf = (block: Block): BlockState => ({ id: block.id, kind: block.kind, parentId: block.parent_id, pageId: block.page_id, text: block.text, heading: block.heading, archived: block.archived, manual_types: [], task: null, project: null, position: null, mergeProtected: false, reviewedCards: false, source: null, citations: [], revision: block.revision, pending: false, conflict: null });
 
 export class Document implements PageDocument {
   readonly outline: OutlineIndex;
@@ -117,7 +117,7 @@ export class Document implements PageDocument {
   isResolving(id: string) { return this.resolving.has(id); }
   private put(block: Block, pending = false, manual_types = this.cells.get(block.id)?.state.manual_types ?? this.baseManualTypes.get(block.id) ?? [], capability = this.capabilities(block.id)) {
     const cell = this.cells.get(block.id);
-    const sidecar = { task: capability.task, project: capability.project, source: capability.source ?? null, citations: capability.citations ?? [], history: capability.history, mergeProtected: capability.merge_protected, reviewedCards: capability.reviewed_cards };
+    const sidecar = { task: capability.task, project: capability.project, position: capability.position ?? null, source: capability.source ?? null, citations: capability.citations ?? [], history: capability.history, mergeProtected: capability.merge_protected, reviewedCards: capability.reviewed_cards };
     this.markArchived(block.id, block.archived);
     if (cell) cell.set({ ...stateOf(block), ...sidecar, manual_types, pending, conflict: cell.state.conflict });
     else {
@@ -145,27 +145,27 @@ export class Document implements PageDocument {
   }
   capabilities(id: string, base = false): BlockCapabilities {
     const cell = !base && this.cells.get(id)?.state;
-    const value = cell ? { block_id: id, task: cell.task, project: cell.project, source: cell.source, citations: cell.citations, history: cell.history, merge_protected: cell.mergeProtected, reviewed_cards: cell.reviewedCards } : this.baseCapabilities.get(id);
+    const value = cell ? { block_id: id, task: cell.task, project: cell.project, position: cell.position, source: cell.source, citations: cell.citations, history: cell.history, merge_protected: cell.mergeProtected, reviewed_cards: cell.reviewedCards } : this.baseCapabilities.get(id);
     // Most blocks have no capabilities; a fresh empty value needs no defensive copy.
     return value ? JSON.parse(JSON.stringify(value)) as BlockCapabilities : emptyCapabilities(id);
   }
   private updateCapabilities(value: BlockCapabilities, base: boolean) {
-    value.merge_protected = value.task !== null || value.project !== null || value.history || value.reviewed_cards;
+    value.merge_protected = value.task !== null || value.project !== null || !!value.position || value.history || value.reviewed_cards;
     if (base) this.baseCapabilities.set(value.block_id, value);
-    else this.cells.get(value.block_id)?.set({ task: value.task, project: value.project, source: value.source ?? null, citations: value.citations ?? [], history: value.history, mergeProtected: value.merge_protected, reviewedCards: value.reviewed_cards, pending: true });
+    else this.cells.get(value.block_id)?.set({ task: value.task, project: value.project, position: value.position ?? null, source: value.source ?? null, citations: value.citations ?? [], history: value.history, mergeProtected: value.merge_protected, reviewedCards: value.reviewed_cards, pending: true });
   }
   private guardMerge(id: string) {
     const value = this.capabilities(id);
     if (value.merge_protected) throw new Error(value.history
       ? 'This task has completion or work history; delete it or keep it separate.'
-      : 'Cannot merge away an active task, project, or reviewed card.');
+      : 'Cannot merge away an active task, project, perspective, or reviewed card.');
   }
   receiveCapabilities(values: readonly BlockCapabilities[]) {
     for (const value of values) {
       if (!this.baseBlocks.has(value.block_id) && !this.cells.has(value.block_id)) continue;
       this.baseCapabilities.set(value.block_id, structuredClone(value));
       this.syncGeneration++;
-      this.cells.get(value.block_id)?.set({ task: value.task, project: value.project, source: value.source ?? null, citations: value.citations ?? [], history: value.history, mergeProtected: value.merge_protected, reviewedCards: value.reviewed_cards });
+      this.cells.get(value.block_id)?.set({ task: value.task, project: value.project, position: value.position ?? null, source: value.source ?? null, citations: value.citations ?? [], history: value.history, mergeProtected: value.merge_protected, reviewedCards: value.reviewed_cards });
       for (const command of this.host.commands(this.pageId)) for (const action of command.actions) if (isCapabilityAction(action) && action.id === value.block_id) this.apply(action);
     }
   }
@@ -196,6 +196,13 @@ export class Document implements PageDocument {
         return [action.kind === 'task'
           ? { ...action, value: previous as typeof action.value, previous: action.value, restore: previous?.status === 'done' && action.value !== null && action.value.status !== 'done' }
           : { ...action, value: previous as typeof action.value, previous: action.value }];
+      }
+      case 'position': {
+        const value = this.capabilities(action.id, base);
+        const previous = !!value.position;
+        value.position = action.value ? { holder_id: null, subject_id: this.pageId } : null;
+        this.updateCapabilities(value, base);
+        return [{ ...action, value: previous, previous: action.value }];
       }
       case 'source': {
         const value = this.capabilities(action.id, base);
@@ -667,7 +674,7 @@ export class Document implements PageDocument {
       if (saved && !pending.has(id) && !cell.state.conflict && !this.resolving.has(id)) {
         const value = this.capabilities(id, true);
         this.markArchived(id, saved.archived);
-        cell.set({ text: saved.text, heading: saved.heading, archived: saved.archived, parentId: saved.parent_id, manual_types: this.baseManualTypes.get(id) ?? [], task: value.task, project: value.project, source: value.source ?? null, citations: value.citations ?? [], history: value.history, mergeProtected: value.merge_protected, reviewedCards: value.reviewed_cards });
+        cell.set({ text: saved.text, heading: saved.heading, archived: saved.archived, parentId: saved.parent_id, manual_types: this.baseManualTypes.get(id) ?? [], task: value.task, project: value.project, position: value.position ?? null, source: value.source ?? null, citations: value.citations ?? [], history: value.history, mergeProtected: value.merge_protected, reviewedCards: value.reviewed_cards });
       }
       this.host.publish(this.snapshot(id));
     }
@@ -862,6 +869,13 @@ export class Document implements PageDocument {
           const citation = this.capabilities(edit.id).citations?.find(item => item.id === edit.citationId);
           if (!citation) throw new Error('Citation not found.');
           if (citation.color !== edit.color) actions.push({ kind: 'highlightColor', id: edit.id, citationId: edit.citationId, color: edit.color, previous: citation.color, baseRevision: this.snapshot(edit.id).revision });
+          break;
+        }
+        case 'position': {
+          const block = this.snapshot(edit.id);
+          if (block.kind !== 'block') throw new Error('Only ordinary blocks can be perspectives.');
+          const previous = !!this.capabilities(edit.id).position;
+          if (previous !== edit.value) actions.push({ kind: 'position', id: edit.id, value: edit.value, previous, baseRevision: block.revision });
           break;
         }
         case 'task':

@@ -15,6 +15,7 @@
 
 import type { Accessor } from 'solid-js';
 import type { Block, BlockKind, ChangeEvent, Citation, Committed, FieldDefinition, FieldKind, Operation, PassagePoint, ProjectState, SettingsView, SourceRecord, SourceState, TaskState, WorkSession } from '../api/types';
+import type { PositionInfo } from '../api/types';
 import type { ApiClient } from '../api/client';
 
 /** A position in a block's text, in UTF-16 code units. */
@@ -42,6 +43,7 @@ export interface BlockState {
   readonly manual_types: readonly string[];
   readonly task: TaskState | null;
   readonly project: ProjectState | null;
+  readonly position: PositionInfo | null;
   readonly mergeProtected: boolean;
   readonly reviewedCards: boolean;
   /** Present on a source page's root. */
@@ -91,6 +93,7 @@ export type Edit =
   | { kind: 'planTask'; id: string; text: string; value: TaskState }
   | { kind: 'completeTask'; id: string; completedOn: string; stopWork?: WorkSession }
   | { kind: 'project'; id: string; value: ProjectState | null }
+  | { kind: 'position'; id: string; value: boolean }
   | { kind: 'startWork'; id: string; startedAt: number }
   | { kind: 'stopWork'; id: string; session: WorkSession; endedAt: number; note: string }
   | { kind: 'workNote'; id: string; session: WorkSession; note: string }

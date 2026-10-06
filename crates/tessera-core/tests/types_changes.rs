@@ -759,6 +759,7 @@ fn membership_title_upgrade_preserves_unresolved_mentions_without_resurrecting_p
          DROP TABLE task_occurrences;
          DROP TABLE tasks;
          DROP TABLE projects;
+         DROP TABLE positions;
          ALTER TABLE citations DROP COLUMN triage;
          ALTER TABLE citations DROP COLUMN color;
          DROP TABLE highlight_surfacings;
@@ -1255,6 +1256,7 @@ fn manual_membership_migration_retains_authored_text_tags_and_unresolved_titles(
          DROP TABLE task_occurrences;
          DROP TABLE tasks;
          DROP TABLE projects;
+         DROP TABLE positions;
          ALTER TABLE citations DROP COLUMN triage;
          ALTER TABLE citations DROP COLUMN color;
          DROP TABLE highlight_surfacings;
