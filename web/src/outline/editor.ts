@@ -1,10 +1,11 @@
-import { Compartment, EditorSelection, EditorState, Facet, Prec, StateField } from '@codemirror/state';
+import { cursorCharLeft, cursorCharRight, selectCharLeft, selectCharRight, standardKeymap } from '@codemirror/commands';
+import { Compartment, EditorSelection, EditorState, Facet, Prec, StateEffect, StateField } from '@codemirror/state';
 import type { Extension } from '@codemirror/state';
-import { Decoration, drawSelection, EditorView, WidgetType } from '@codemirror/view';
-import type { DecorationSet } from '@codemirror/view';
-import { cursorCharLeft, cursorCharRight, selectCharLeft, selectCharRight } from '@codemirror/commands';
+import { Decoration, drawSelection, EditorView, keymap, ViewPlugin, WidgetType } from '@codemirror/view';
+import type { DecorationSet, ViewUpdate } from '@codemirror/view';
 import { getCM, Vim, vim } from '@replit/codemirror-vim';
 import type { Caret } from '../document/contract';
+import { textTokens } from '../document/text-tokens';
 import { fieldEntryId } from '../table/query';
 import { Icon } from '../ui/Icon';
 
@@ -63,9 +64,52 @@ export function fieldEntryExtension(resolve: FieldResolver): Extension {
     }),
   ];
 }
+const refreshLabels = StateEffect.define<null>();
+
+class ReferenceWidget extends WidgetType {
+  constructor(readonly label: string) { super(); }
+  eq(other: ReferenceWidget): boolean { return this.label === other.label; }
+  toDOM(view: EditorView): HTMLElement {
+    const dom = document.createElement('span');
+    dom.className = 'outline-reference';
+    dom.textContent = this.label;
+    dom.addEventListener('mousedown', event => { event.preventDefault(); event.stopPropagation(); });
+    dom.addEventListener('click', event => {
+      event.preventDefault(); event.stopPropagation();
+      view.dispatch({ selection: { anchor: view.posAtDOM(dom) + 2 } });
+      view.focus();
+    });
+    return dom;
+  }
+}
+
+/** Endpoints remain atomic; placing the caret inside a token exposes its source. A whole field entry is the field widget's job. */
+export function referenceDecorations(text: string, head: number, label: EditorHooks['label']): DecorationSet {
+  if (fieldEntryId(text) !== null) return Decoration.none;
+  return Decoration.set(textTokens(text).flatMap(token => {
+    if (token.kind !== 'reference' || /[\r\n]/.test(token.value) || head > token.start && head < token.end) return [];
+    return [Decoration.replace({ inclusive: false, widget: new ReferenceWidget(token.alias || label(token.id!) || token.id!) }).range(token.start, token.end)];
+  }));
+}
+
+function references(label: EditorHooks['label']) {
+  return ViewPlugin.fromClass(class {
+    decorations: DecorationSet;
+    constructor(view: EditorView) { this.decorations = referenceDecorations(view.state.doc.toString(), view.state.selection.main.head, label); }
+    update(update: ViewUpdate) {
+      if (update.docChanged || update.selectionSet || update.transactions.some(transaction => transaction.effects.some(effect => effect.is(refreshLabels)))) {
+        this.decorations = referenceDecorations(update.state.doc.toString(), update.state.selection.main.head, label);
+      }
+    }
+  }, {
+    decorations: plugin => plugin.decorations,
+    provide: plugin => EditorView.atomicRanges.of(view => view.plugin(plugin)?.decorations ?? Decoration.none),
+  });
+}
 
 export interface EditorHooks {
   text(text: string, caret: Caret): void;
+  label(id: string): string | undefined;
   selection(caret: Caret): void;
   key(event: KeyboardEvent, view: EditorView): boolean;
   blur(): void;
@@ -87,6 +131,8 @@ export class PaneEditor {
     this.view = new EditorView({ state: EditorState.create({ extensions: [
       EditorView.lineWrapping,
       drawSelection(),
+      references(hooks.label),
+      keymap.of(standardKeymap),
       EditorView.theme({
         '&': { background: 'transparent', color: 'inherit', font: 'inherit' },
         '.cm-content': { padding: '0', minHeight: '24px', fontFamily: 'inherit', caretColor: 'var(--accent)' },
@@ -183,6 +229,8 @@ export class PaneEditor {
     this.view.dispatch({ changes: { from: 0, to: this.view.state.doc.length, insert: text }, selection: { anchor: offset } });
     this.replacing = false;
   }
+
+  refreshLabels(): void { this.view.dispatch({ effects: refreshLabels.of(null) }); }
 
   destroy(): void { this.view.destroy(); }
 }

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { IngestJob, LibraryRow } from '../api/types';
-import { libraryQuery, recentJobs, retryTime, selectSources, sourceByline, sourceStateOperation } from './query';
+import { jobLabel, libraryQuery, recentJobs, retryTime, selectSources, sourceByline, sourceStateOperation, visibleJobs } from './query';
 
 describe('library queries', () => {
   test('selects a state and trims search text', () => {
@@ -50,6 +50,28 @@ test('jobs retain unfinished work at any age and completed work for one day', ()
   ] as IngestJob[];
   expect(recentJobs(jobs, now).map(job => job.id)).toEqual(['queued', 'running', 'failed', 'done', 'boundary']);
   expect(jobs).toHaveLength(6);
+});
+
+test('completed jobs disappear only when their source is in the current row list', () => {
+  const jobs = [
+    { id: 'visible', state: 'done', source_id: 'source' },
+    { id: 'filtered', state: 'done', source_id: 'other' },
+    { id: 'queued', state: 'queued', source_id: 'source' },
+    { id: 'failed', state: 'failed', source_id: 'source' },
+  ] as IngestJob[];
+  expect(visibleJobs(jobs, new Set(['source'])).map(job => job.id)).toEqual(['filtered', 'queued', 'failed']);
+  expect(visibleJobs(jobs, new Set())).toEqual(jobs);
+});
+
+test('completed jobs use the source title and added with attempts only after a retry', () => {
+  const job = { name: 'upload-123.epub', state: 'done', source_id: 'source', attempts: 1 } as IngestJob;
+  const titles = new Map([['source', 'The source title']]);
+  expect(jobLabel(job, titles)).toEqual({ name: 'The source title', state: 'added', attempt: null });
+  expect(jobLabel({ ...job, attempts: 2 }, titles).attempt).toBe('attempt 2');
+  for (const state of ['queued', 'failed'] as const) {
+    expect(jobLabel({ ...job, state, attempts: 0 }, titles)).toEqual({ name: 'upload-123.epub', state, attempt: null });
+    expect(jobLabel({ ...job, state, attempts: 3 }, titles)).toEqual({ name: 'upload-123.epub', state, attempt: 'attempt 3' });
+  }
 });
 
 test('retry times use the notebook time zone and a 24-hour clock', () => {

@@ -31,6 +31,19 @@ export function recentJobs(jobs: readonly IngestJob[], now: number): IngestJob[]
   return jobs.filter(job => job.state !== 'done' || job.created_at >= now - 24 * 60 * 60 * 1000);
 }
 
+/** Completed sources already present in this view do not need a second row. */
+export function visibleJobs(jobs: readonly IngestJob[], sourceIds: ReadonlySet<string>): IngestJob[] {
+  return jobs.filter(job => job.state !== 'done' || !job.source_id || !sourceIds.has(job.source_id));
+}
+
+export function jobLabel(job: IngestJob, titles: ReadonlyMap<string, string>): { name: string; state: string; attempt: string | null } {
+  return {
+    name: job.state === 'done' ? titles.get(job.source_id ?? '') ?? job.name : job.name,
+    state: job.state === 'done' ? 'added' : job.state,
+    attempt: job.attempts > 1 ? `attempt ${job.attempts}` : null,
+  };
+}
+
 export function retryTime(timestamp: number, timeZone: string): string {
   return new Intl.DateTimeFormat('en-GB', { timeZone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(timestamp);
 }

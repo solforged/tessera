@@ -149,7 +149,8 @@ export function App() {
       setActive(pane); setSidebar(false); focusPane(pane);
       return;
     }
-    const samePage = target.kind === 'page' && current?.target.kind === 'page' && current.target.pageId === target.pageId && 'zoom' in current.view && current.view.zoom === (target.blockId ?? null);
+    // An explicit caret target still needs the view rebuilt even when the same zoom is already open beside.
+    const samePage = target.kind === 'page' && !target.caretId && current?.target.kind === 'page' && current.target.pageId === target.pageId && 'zoom' in current.view && current.view.zoom === (target.blockId ?? null);
     if (!beside || !samePage) {
       const date = target.kind === 'agenda' ? target.date ?? target.query?.context_date ?? todayDate() : '';
       const view: PaneView = restore ? snapshotView(restore) : target.kind === 'table'

@@ -207,7 +207,7 @@ pub(crate) fn extract(bytes: &[u8]) -> Result<ExtractedDocument> {
     {
         return Err(Error::Empty("book"));
     }
-    let toc = navigation
+    let mut toc: Vec<_> = navigation
         .into_iter()
         .filter_map(|entry| {
             let passage = passages.resolve(&entry.target)?;
@@ -218,6 +218,39 @@ pub(crate) fn extract(bytes: &[u8]) -> Result<ExtractedDocument> {
             })
         })
         .collect();
+    // Sparse navigation is often only a cover or a "Start" link. Use the
+    // extracted spine order, skipping image-only documents.
+    if toc.len() < 3 {
+        toc = passages
+            .passages
+            .chunk_by(|left, right| {
+                left.locator.split('#').next() == right.locator.split('#').next()
+            })
+            .filter_map(|document| {
+                let first = document.iter().find(|passage| {
+                    passage.kind != PassageKind::Image && !passage.text.trim().is_empty()
+                })?;
+                let heading = document
+                    .iter()
+                    .find(|passage| passage.kind == PassageKind::Heading);
+                let title = heading.map_or_else(
+                    || {
+                        let paragraph = document
+                            .iter()
+                            .find(|passage| passage.kind == PassageKind::Paragraph)
+                            .unwrap_or(first);
+                        spine_title(&paragraph.text)
+                    },
+                    |passage| passage.text.clone(),
+                );
+                Some(TocEntry {
+                    title,
+                    locator: first.locator.clone(),
+                    level: 1,
+                })
+            })
+            .collect();
+    }
     passages.finish();
     let referenced: HashSet<_> = passages
         .passages
@@ -247,6 +280,23 @@ pub(crate) fn extract(bytes: &[u8]) -> Result<ExtractedDocument> {
         passages: passages.passages,
         resources,
     })
+}
+
+/// A paragraph label fits within 60 characters, including its ellipsis.
+fn spine_title(text: &str) -> String {
+    let mut chars = text.char_indices();
+    let Some((end, _)) = chars.nth(59) else {
+        return text.to_owned();
+    };
+    if chars.next().is_none() {
+        return text.to_owned();
+    }
+    let prefix = &text[..end];
+    let boundary = prefix
+        .rfind(char::is_whitespace)
+        .filter(|index| *index > 0)
+        .unwrap_or(end);
+    format!("{}…", prefix[..boundary].trim_end())
 }
 
 fn raw_node_text(node: Node<'_, '_>) -> String {

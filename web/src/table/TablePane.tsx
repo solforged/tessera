@@ -1,4 +1,5 @@
 import { For, Show, createEffect, createMemo, createResource, createRoot, createSignal, onCleanup, onMount } from 'solid-js';
+import type { JSX } from 'solid-js';
 import { ulid } from 'ulid';
 import { api } from '../api/client';
 import type { FieldDefinition, FieldKind, Fields, Operation, Query, QueryResult, QueryRow, SortKey, Type, View } from '../api/types';
@@ -204,7 +205,7 @@ export function TablePane(props: TablePaneProps) {
   };
   const startEdit = (row: QueryRow, field: FieldDefinition) => {
     const values = row.values[field.id] ?? [];
-    if (!['text', 'number', 'date', 'url', 'identifier'].includes(field.kind) || values.length > 1 || values.some(value => textTokens(value.text).some(token => token.kind !== 'text'))) {
+    if (!['text', 'number', 'date', 'url', 'identifier'].includes(field.kind) || values.length > 1 || values.some(value => textTokens(value.text).some(token => token.kind === 'reference' || token.kind === 'tag'))) {
       openField(row, field);
       return;
     }
@@ -268,17 +269,18 @@ export function TablePane(props: TablePaneProps) {
         <th class="table-add-column"><Button label="Add column" title={!query().type ? 'Open a type to add columns' : undefined} onClick={event => addColumnMenu(event.currentTarget)}>+</Button></th>
       </tr></thead><tbody><For each={result()?.rows ?? []}>{(row, rowIndex) => <tr>
         <td class="table-title-column table-cell" data-row={rowIndex()} data-column={0} tabIndex={focused().row === rowIndex() && focused().column === 0 ? 0 : -1} onFocus={() => setFocused({ row: rowIndex(), column: 0 })} onClick={event => openRow(row, event.shiftKey)}>
-          <BlockText text={props.notebook.lookup(row.block.block.id)()?.text ?? row.block.block.text} notebook={props.notebook} interactive={false} />
-          <Show when={row.block.block.id !== row.block.page.id}><div class="table-page-title">{row.block.page.text}</div></Show>
+          <TableCellText><BlockText text={props.notebook.lookup(row.block.block.id)()?.text ?? row.block.block.text} notebook={props.notebook} interactive={false} />
+            <Show when={row.block.block.id !== row.block.page.id}><div class="table-page-title">{row.block.page.text}</div></Show>
+          </TableCellText>
         </td>
         <For each={result()?.columns ?? []}>{(id, columnIndex) => {
           const field = () => fieldById(id); const current = () => editing();
           return <td class={`table-cell ${field()?.kind === 'number' ? 'table-number' : ''}`} data-row={rowIndex()} data-column={columnIndex() + 1} tabIndex={focused().row === rowIndex() && focused().column === columnIndex() + 1 ? 0 : -1} onFocus={() => setFocused({ row: rowIndex(), column: columnIndex() + 1 })} onDblClick={() => { if (field()) startEdit(row, field()!); }}>
-            <Show when={current()?.row.block.block.id === row.block.block.id && current()?.field.id === id} fallback={<For each={row.values[id] ?? []}>{(value, index) => <>
+            <Show when={current()?.row.block.block.id === row.block.block.id && current()?.field.id === id} fallback={<TableCellText><For each={row.values[id] ?? []}>{(value, index) => <>
               {index() > 0 ? ', ' : ''}<Show when={value.reading.ok} fallback={<span class="table-reading-problem" title={!value.reading.ok ? value.reading.problem : undefined}><BlockText text={value.text} notebook={props.notebook} interactive={false} /></span>}>
-                <Show when={field()?.kind === 'text'} fallback={<span class={field()?.kind === 'choice' || field()?.kind === 'instance' ? 'table-value-pill' : ''}>{value.reading.ok ? field()?.kind === 'checkbox' ? value.reading.value ? '☑' : '☐' : String(value.reading.value) : ''}</span>}><BlockText text={value.text} notebook={props.notebook} interactive={false} /></Show>
+                <span class={field()?.kind === 'choice' || field()?.kind === 'instance' ? 'table-value-pill' : ''}><BlockText text={value.reading.ok ? field()?.kind === 'text' ? value.text : field()?.kind === 'checkbox' ? value.reading.value ? '☑' : '☐' : String(value.reading.value) : ''} notebook={props.notebook} interactive={false} /></span>
               </Show>
-            </>}</For>}>
+            </>}</For></TableCellText>}>
               <input class="input table-cell-input" type="text" aria-label={`Edit ${field()?.name ?? 'field'} value`} placeholder={field() ? valuePlaceholders[field()!.kind] : undefined} inputmode={field()?.kind === 'number' ? 'decimal' : field()?.kind === 'url' ? 'url' : undefined} value={current()?.text ?? ''} ref={input => queueMicrotask(() => { input.focus(); input.select(); })} onInput={event => { const text = event.currentTarget.value; setEditing(value => value ? { ...value, text } : null); }} onKeyDown={event => {
                 if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); void commitEdit(); }
                 else if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setEditing(null); region.focus(); }
@@ -294,6 +296,26 @@ export function TablePane(props: TablePaneProps) {
       {state.kind === 'name' && <NamePopup anchor={state.anchor} action={state.action} name={state.action === 'rename' ? saved()?.name ?? '' : ''} onDismiss={() => setPopup(null)} onSave={async name => { if (state.action === 'field') await createField(name, !!state.addColumn); else await saveView(name, state.action === 'rename'); }} />}
     </>}</Show>
   </div>;
+}
+
+function TableCellText(props: { children: JSX.Element }) {
+  const [open, setOpen] = createSignal(false);
+  const [clipped, setClipped] = createSignal(false);
+  let content!: HTMLDivElement;
+  onMount(() => {
+    const measure = () => { if (!open()) setClipped(content.scrollHeight > content.clientHeight); };
+    const resize = new ResizeObserver(measure);
+    const mutation = new MutationObserver(measure);
+    resize.observe(content);
+    mutation.observe(content, { subtree: true, childList: true, characterData: true });
+    measure();
+    onCleanup(() => { resize.disconnect(); mutation.disconnect(); });
+  });
+  return <>
+    <div ref={content} class="table-cell-clamp" classList={{ 'table-cell-open': open() }}>{props.children}</div>
+    <Show when={clipped()}><Button aria-expanded={open()} onMouseDown={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()} onDblClick={event => event.stopPropagation()}
+      onClick={event => { event.stopPropagation(); setOpen(value => !value); }}>More</Button></Show>
+  </>;
 }
 
 function NamePopup(props: { anchor: HTMLElement; action: 'save' | 'rename' | 'field'; name: string; onDismiss(): void; onSave(name: string): Promise<void> }) {

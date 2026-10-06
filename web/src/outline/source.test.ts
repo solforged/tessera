@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import type { FieldDefinition } from '../api/types';
-import { extractedResets, shortSourceTitle, sourceFieldName, valueLabel } from './source';
+import type { PageDocument } from '../document/contract';
+import { extractedResets, shortSourceTitle, sourceFieldName, sourceSummary, valueLabel } from './source';
 
 describe('source outline metadata', () => {
   test('recognizes reference and inline field entries without treating prose as metadata', () => {
@@ -15,6 +16,30 @@ describe('source outline metadata', () => {
     expect(shortSourceTitle('Evidence: A longer subtitle')).toBe('Evidence');
     expect(shortSourceTitle('a'.repeat(50))).toBe(`${'a'.repeat(40)}…`);
     expect(shortSourceTitle('The Unreasonable Effectiveness of Recurrent Neural Networks')).toBe('The Unreasonable Effectiveness of…');
+  });
+
+  test('source summaries preserve author and year and link Site to an active URL field', () => {
+    const blocks: Record<string, { text: string; archived: boolean }> = {
+      author: { text: 'Author:: Ada Reader', archived: false },
+      published: { text: 'Published:: 2026-10-06', archived: false },
+      site: { text: 'Site:: Example site', archived: false },
+      url: { text: '[[url-field]]', archived: false },
+      value: { text: 'https://example.org/article', archived: false },
+    };
+    const doc = {
+      pageId: 'source',
+      outline: { children: (id: string) => id === 'source' ? ['author', 'published', 'site', 'url'] : id === 'url' ? ['value'] : [] },
+      block: (id: string) => blocks[id],
+    } as unknown as PageDocument;
+    const definitions = new Map<string, FieldDefinition>([['url-field', { id: 'url-field', name: 'URL', kind: 'url', revision: 1, options: [] }]]);
+    expect(sourceSummary(doc, definitions, () => () => undefined)).toEqual([
+      { text: 'Ada Reader' }, { text: '2026' }, { text: 'Example site', url: 'https://example.org/article' },
+    ]);
+    blocks.value!.archived = true;
+    expect(sourceSummary(doc, definitions, () => () => undefined).at(-1)).toEqual({ text: 'Example site', url: undefined });
+    blocks.value!.archived = false;
+    blocks.value!.text = 'javascript:alert(1)';
+    expect(sourceSummary(doc, definitions, () => () => undefined).at(-1)?.url).toBeUndefined();
   });
 
   test('resets only differing values in matching extracted lists', () => {

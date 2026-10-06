@@ -28,7 +28,7 @@ import { boundaryDeletion } from '../document/outline-mechanics';
 import { PaneEditor } from './editor';
 import { createOutlineCapabilities } from './capabilities';
 import type { CapabilityPopup } from './capabilities';
-import { inlineFieldValue, orderedRange, selectedText, selectionIds, selectionRoots, visibleIds } from './visibility';
+import { initialRow, inlineFieldValue, orderedRange, selectedText, selectionIds, selectionRoots, visibleIds } from './visibility';
 import { completeReferences } from './completion';
 import { nextClozeNumber, rankSlash, slashTokenAt } from './slash';
 import type { SlashEntry, SlashToken } from './slash';
@@ -1177,6 +1177,7 @@ function Pane(props: OutlinePaneProps) {
     onCleanup(() => { scroll.removeEventListener('copy', copy, true); scroll.removeEventListener('cut', cut, true); scroll.removeEventListener('paste', paste, true); scroll.removeEventListener('beforeinput', beforeInput, true); cancelAnimationFrame(compositionFrame); });
     editor = new PaneEditor({
       key: editorKey,
+      label: id => props.notebook.lookup(id)()?.text,
       blur: () => { if (editor?.id && editing() === editor.id) commitFieldEntry(editor.id, false); },
       text: (text, at) => measure('typing', () => {
         if (compositionSelection) return;
@@ -1217,8 +1218,18 @@ function Pane(props: OutlinePaneProps) {
     if (restoring) {
       restoring = false;
       const saved = initial.caret;
+      if (doc.root()?.kind !== 'journal') {
+        const id = saved && doc.block(saved.id) && indices().has(saved.id) ? saved.id : initialRow(ids(), id => doc.block(id));
+        setEditing(null);
+        setSelected(id);
+        setCaret(id ? { id, offset: id === saved?.id ? saved.offset : 0 } : null);
+        if (props.active) scroll.focus({ preventScroll: true });
+        scheduleReport();
+        if (initial.scroll) requestAnimationFrame(() => restoreAnchor(initial.scroll));
+        return;
+      }
       let first: Caret | null = saved && doc.block(saved.id) && indices().has(saved.id) ? saved : null;
-      if (!saved && doc.root()?.kind === 'journal') {
+      if (!saved) {
         const siblings = doc.outline.children(props.pageId);
         let empty: string | undefined;
         for (let index = siblings.length - 1; index >= 0; index--) {
@@ -1242,6 +1253,13 @@ function Pane(props: OutlinePaneProps) {
     }
   });
   createEffect(() => { const id = editing(); const text = id ? doc.block(id)?.text : undefined; if (text !== undefined && editor?.id === id) queueMicrotask(() => { if (editor?.id === id) editor.sync(text); }); });
+  createEffect(() => {
+    const id = editing();
+    const text = id ? doc.block(id)?.text : undefined;
+    if (text === undefined) return;
+    for (const token of textTokens(text)) if (token.kind === 'reference') props.notebook.lookup(token.id!)();
+    queueMicrotask(() => { if (!disposed && editor?.id === id) editor.refreshLabels(); });
+  });
   createEffect(() => {
     const visible = ids();
     const id = editing();

@@ -749,7 +749,7 @@ export class Document implements PageDocument {
       let startOffset = Math.max(0, Math.min(start.offset, first.text.length));
       let endOffset = Math.max(0, Math.min(end.offset, last.text.length));
       if (mode === 'split' && [first, last].some((block, index) => textTokens(block.text).some(token =>
-        token.kind !== 'text' && (index ? endOffset : startOffset) > token.start && (index ? endOffset : startOffset) < token.end))) return;
+        (token.kind === 'reference' || token.kind === 'tag') && (index ? endOffset : startOffset) > token.start && (index ? endOffset : startOffset) < token.end))) return;
       if (mode === 'text' && !text && (start.id !== end.id || startOffset !== endOffset)) {
         for (const token of textTokens(first.text)) if (token.kind === 'reference' && startOffset > token.start && startOffset < token.end) startOffset = token.start;
         for (const token of textTokens(last.text)) if (token.kind === 'reference' && endOffset > token.start && endOffset < token.end) endOffset = token.end;
@@ -894,7 +894,7 @@ export class Document implements PageDocument {
           const old = this.snapshot(edit.id);
           if (old.kind !== 'block') throw new Error('Only outline blocks can split.');
           const offset = Math.max(0, Math.min(edit.offset, old.text.length));
-          if (textTokens(old.text).some(token => token.kind !== 'text' && offset > token.start && offset < token.end)) break;
+          if (textTokens(old.text).some(token => (token.kind === 'reference' || token.kind === 'tag') && offset > token.start && offset < token.end)) break;
           split(old, old.text.slice(0, offset), old.text.slice(offset), edit.zoomRoot);
           break;
         }

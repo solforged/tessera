@@ -11,13 +11,13 @@ export function valueLabel(text: string, lookup: NotebookClient['lookup']): stri
   return textTokens(text).map(token => token.kind === 'reference' ? token.alias ?? lookup(token.id!)()?.text ?? token.id : token.value).join('');
 }
 
-export function sourceSummary(doc: PageDocument, definitions: ReadonlyMap<string, FieldDefinition>, lookup: NotebookClient['lookup']): string {
+export function sourceSummary(doc: PageDocument, definitions: ReadonlyMap<string, FieldDefinition>, lookup: NotebookClient['lookup']): { text: string; url?: string }[] {
   const values: Record<string, string[]> = {};
   for (const id of doc.outline.children(doc.pageId)) {
     const entry = doc.block(id);
     if (!entry || entry.archived) continue;
     const name = sourceFieldName(entry.text, definitions)?.toLowerCase();
-    if (name !== 'author' && name !== 'published' && name !== 'site') continue;
+    if (name !== 'author' && name !== 'published' && name !== 'site' && name !== 'url') continue;
     const texts = doc.outline.children(id).flatMap(child => {
       const value = doc.block(child);
       return value && !value.archived ? [valueLabel(value.text, lookup)] : [];
@@ -30,7 +30,12 @@ export function sourceSummary(doc: PageDocument, definitions: ReadonlyMap<string
   }
   const published = values.published?.[0];
   const year = published?.match(/\d{4}/)?.[0] ?? published;
-  return [values.author?.join(', '), year, values.site?.join(', ')].filter(Boolean).join(' · ');
+  const url = values.url?.find(value => /^https?:\/\/[^\s<>"']+$/.test(value));
+  return [
+    { text: values.author?.join(', ') ?? '' },
+    { text: year ?? '' },
+    { text: values.site?.join(', ') ?? '', url },
+  ].filter(part => part.text);
 }
 
 /** Reset extracted positions without discarding authored extra values. */
