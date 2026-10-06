@@ -9,6 +9,7 @@ import { createNotebookClient } from './index';
 import type { Notebook } from './index';
 import type { EditResult, PageDocument } from './contract';
 import { boundaryDeletion } from './outline-mechanics';
+import { inlineFieldValue, selectionIds, selectionRoots, visibleIds } from '../outline/visibility';
 
 const baseUrl = 'http://127.0.0.1:43862';
 const api = createApi(baseUrl);
@@ -201,4 +202,108 @@ test('undo of expanded token deletion restores the original collapsed caret', as
   await client.flush();
   expect(doc.redo()).toEqual(result.caret);
   expect(doc.block(first)?.text).toBe('before  after');
+});
+
+async function fieldFixture() {
+  const fixtureState = await fixture('Before the field');
+  const { client, doc, first, pageId } = fixtureState;
+  const entry = insert(doc, pageId, first, '[[field-definition]]');
+  const value = insert(doc, entry, null, 'Architecture');
+  const after = insert(doc, pageId, entry, 'After the field');
+  await client.flush();
+  const definitions = new Map([['field-definition', { name: 'Area' }]]);
+  const rows = (retained: string | null = null, archived = false, folds: ReadonlySet<string> = new Set(), zoom: string | null = null) => {
+    const visible = visibleIds(doc, zoom, folds, archived);
+    const inline = new Set(visible.filter(id => id !== retained && visible.includes(inlineFieldValue(doc, id, definitions) ?? '')));
+    return visibleIds(doc, zoom, folds, archived, inline);
+  };
+  return { ...fixtureState, entry, value, after, rows };
+}
+
+test('inline field arrows cross directly between the value and the row before the entry', async () => {
+  const { first, value, after, rows } = await fieldFixture();
+  const visible = rows();
+  expect(visible).toEqual([first, value, after]);
+  expect(visible[visible.indexOf(value) - 1]).toBe(first);
+  expect(visible[visible.indexOf(first) + 1]).toBe(value);
+});
+
+test('Backspace at the start of an inline field value is a silent no-op without history', async () => {
+  const { doc, first, entry, value } = await fieldFixture();
+  const before = snapshot(doc);
+  const history = { undo: doc.canUndo(), redo: doc.canRedo() };
+  const intent = boundaryDeletion(doc, value, 'backward', first, new Set([entry]));
+  if (intent) success(doc.edit(intent, { id: value, offset: 0 }));
+  expect(intent).toBeNull();
+  expect(snapshot(doc)).toEqual(before);
+  expect({ undo: doc.canUndo(), redo: doc.canRedo() }).toEqual(history);
+  expect(doc.block(entry)?.text).toBe('[[field-definition]]');
+});
+
+test('Enter at the inline value end creates a second value and reveals the field entry', async () => {
+  const { doc, first, entry, value, after, rows } = await fieldFixture();
+  expect(rows()).toEqual([first, value, after]);
+  const at = { id: value, offset: doc.block(value)!.text.length };
+  const result = success(doc.edit({ kind: 'replaceRange', range: { anchor: at, head: at }, between: [], text: '', mode: 'split' }, at));
+  expect(doc.outline.children(entry)).toEqual([value, result.created[0]!]);
+  expect(rows()).toEqual([first, entry, value, result.created[0]!, after]);
+});
+
+test('deleting an inline value leaves its empty field entry visible', async () => {
+  const { doc, first, entry, value, after, rows } = await fieldFixture();
+  expect(rows()).toEqual([first, value, after]);
+  success(doc.edit({ kind: 'delete', ids: [value] }, { id: value, offset: 0 }));
+  expect(doc.block(entry)?.text).toBe('[[field-definition]]');
+  expect(rows()).toEqual([first, entry, after]);
+});
+
+test('multi-select across an inline field includes only its value, never the hidden entry', async () => {
+  const { doc, first, value, after, rows } = await fieldFixture();
+  const selected = selectionIds(rows(), { anchor: { id: first, offset: 0 }, head: { id: after, offset: 5 } });
+  expect(selected).toEqual([first, value, after]);
+  expect(selectionRoots(doc, selected)).toEqual([first, value, after]);
+});
+
+test('undo and redo restore inline field rows across split and deletion', async () => {
+  const { client, doc, first, entry, value, after, rows } = await fieldFixture();
+  expect(rows()).toEqual([first, value, after]);
+  const at = { id: value, offset: doc.block(value)!.text.length };
+  const result = success(doc.edit({ kind: 'split', id: value, offset: at.offset }, at));
+  await client.flush();
+  expect(rows()).toEqual([first, entry, value, result.created[0]!, after]);
+  expect(doc.undo()).toEqual(at);
+  expect(rows()).toEqual([first, value, after]);
+  expect(doc.redo()).toEqual(result.caret);
+  expect(rows()).toEqual([first, entry, value, result.created[0]!, after]);
+  doc.undo();
+  success(doc.edit({ kind: 'delete', ids: [value] }, at));
+  await client.flush();
+  expect(rows()).toEqual([first, entry, after]);
+  doc.undo();
+  expect(rows()).toEqual([first, value, after]);
+  doc.redo();
+  expect(rows()).toEqual([first, entry, after]);
+});
+
+test('inline field eligibility retains edited or selected entries and hidden values', async () => {
+  const { doc, first, entry, value, after, rows } = await fieldFixture();
+  expect(rows(entry)).toEqual([first, entry, value, after]);
+  expect(rows(value)).toEqual([first, value, after]);
+  expect(rows(null, false, new Set([entry]))).toEqual([first, entry, after]);
+  success(doc.edit({ kind: 'archive', id: value, archived: true }));
+  expect(rows()).toEqual([first, entry, after]);
+  expect(rows(null, true)).toEqual([first, value, after]);
+  doc.undo();
+  expect(rows()).toEqual([first, value, after]);
+  expect(rows(null, false, new Set(), value)).toEqual([value]);
+});
+
+test('unknown fields and values with children keep the original two-level outline', async () => {
+  const { doc, first, entry, value, after, rows } = await fieldFixture();
+  success(doc.edit({ kind: 'text', id: entry, text: '[[unknown-definition]]' }));
+  expect(rows()).toEqual([first, entry, value, after]);
+  doc.undo();
+  const note = insert(doc, value, null, 'Value note');
+  expect(rows()).toEqual([first, entry, value, note, after]);
+  expect(rows(null, false, new Set([value]))).toEqual([first, entry, value, after]);
 });

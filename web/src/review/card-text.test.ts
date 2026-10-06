@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { clozeSegments, parseCardText } from './card-text';
+import { cardMarks, clozeSegments, parseCardText } from './card-text';
 
 describe('card text', () => {
   test('ordinary prose, fields, and shielded syntax do not create cards', () => {
@@ -171,5 +171,38 @@ describe('card text', () => {
     expect(parseCardText('\ufeff>>A').cards).toEqual([
       { key: 'forward', kind: 'forward', front: '\ufeff', back: 'A' },
     ]);
+  });
+});
+
+describe('card marks', () => {
+  test('direction marks cover only the authored operator in UTF-16 offsets', () => {
+    for (const op of ['>>', '<<', '<>'] as const) {
+      expect(cardMarks(`🌍 front ${op} back`)).toEqual([{ kind: 'operator', start: 9, end: 11, op }]);
+    }
+  });
+
+  test('cloze marks preserve answer and optional hint ranges, including repeated IDs', () => {
+    expect(cardMarks('A {{c01::🌍}} and {{c2::two::number}} {{c1::again}}')).toEqual([
+      { kind: 'cloze', start: 2, end: 13, id: '1', answerStart: 9, answerEnd: 11, hintStart: null, hintEnd: null },
+      { kind: 'cloze', start: 18, end: 37, id: '2', answerStart: 24, answerEnd: 27, hintStart: 29, hintEnd: 35 },
+      { kind: 'cloze', start: 38, end: 51, id: '1', answerStart: 44, answerEnd: 49, hintStart: null, hintEnd: null },
+    ]);
+  });
+
+  test('escaped, referenced, and code operators stay literal while real syntax is marked', () => {
+    for (const shielded of [String.raw`a \>> b`, '[[ref|a >> b]]', '`a >> b`']) {
+      expect(cardMarks(shielded)).toEqual([]);
+      expect(cardMarks(`${shielded} >> answer`)).toEqual([{ kind: 'operator', start: shielded.length + 1, end: shielded.length + 3, op: '>>' }]);
+    }
+    const source = '{{c1::[[ref|a >> b]] and `c >> d`::hint}}';
+    const [mark] = cardMarks(source);
+    expect(mark).toEqual({ kind: 'cloze', start: 0, end: source.length, id: '1', answerStart: 6, answerEnd: source.indexOf('::hint'), hintStart: source.indexOf('hint'), hintEnd: source.length - 2 });
+  });
+
+  test('malformed syntax never produces partial quiet marks', () => {
+    for (const text of ['front >>', '>> back', 'a >>> b', 'a <> b >> c', '{{c1::answer', '{{c0::answer}}', '{{c1::answer::}}', '{{c1::answer}} {{bad}}', '{{c1::answer}} >> back']) {
+      expect(parseCardText(text).problems.length).toBeGreaterThan(0);
+      expect(cardMarks(text)).toEqual([]);
+    }
   });
 });
