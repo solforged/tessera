@@ -31,10 +31,11 @@ test('source state edits preserve authored identifiers and use the owning revisi
 });
 
 test('bylines retain creators and only the publication year without dangling separators', () => {
-  expect(sourceByline({ creators: ['A. Author', 'B. Editor'], published: '2026-10-04' })).toBe('A. Author, B. Editor · 2026');
-  expect(sourceByline({ creators: ['A. Author'], published: null })).toBe('A. Author');
-  expect(sourceByline({ creators: [], published: '1999' })).toBe('1999');
-  expect(sourceByline({ creators: [], published: null })).toBe('');
+  expect(sourceByline({ creators: ['A. Author', 'B. Editor'], site: 'Journal', published: '2026-10-04' })).toBe('A. Author, B. Editor · 2026');
+  expect(sourceByline({ creators: ['A. Author'], site: null, published: null })).toBe('A. Author');
+  expect(sourceByline({ creators: [], site: 'karpathy.github.io', published: '2015-05-21' })).toBe('karpathy.github.io · 2015');
+  expect(sourceByline({ creators: [], site: null, published: '1999' })).toBe('1999');
+  expect(sourceByline({ creators: [], site: null, published: null })).toBe('');
 });
 
 test('jobs retain unfinished work at any age and completed work for one day', () => {
@@ -66,11 +67,12 @@ test('completed jobs disappear only when their source is in the current row list
 test('completed jobs use the source title and added with attempts only after a retry', () => {
   const job = { name: 'upload-123.epub', state: 'done', source_id: 'source', attempts: 1 } as IngestJob;
   const titles = new Map([['source', 'The source title']]);
-  expect(jobLabel(job, titles)).toEqual({ name: 'The source title', state: 'added', attempt: null });
+  expect(jobLabel(job, titles)).toEqual({ name: 'The source title', state: 'Added', attempt: null });
   expect(jobLabel({ ...job, attempts: 2 }, titles).attempt).toBe('attempt 2');
   for (const state of ['queued', 'failed'] as const) {
-    expect(jobLabel({ ...job, state, attempts: 0 }, titles)).toEqual({ name: 'upload-123.epub', state, attempt: null });
-    expect(jobLabel({ ...job, state, attempts: 3 }, titles)).toEqual({ name: 'upload-123.epub', state, attempt: 'attempt 3' });
+    const label = state[0]!.toUpperCase() + state.slice(1);
+    expect(jobLabel({ ...job, state, attempts: 0 }, titles)).toEqual({ name: 'upload-123', state: label, attempt: null });
+    expect(jobLabel({ ...job, state, attempts: 3 }, titles)).toEqual({ name: 'upload-123', state: label, attempt: 'attempt 3' });
   }
 });
 
@@ -97,8 +99,8 @@ test('highlight meta uses the covering chapter and the notebook date', () => {
     { title: 'Next chapter', ordinal: 8, locator: 'next', level: 1 },
   ];
   const row = { citation: { ordinal: 7 } as Citation, created_at: Date.parse('2026-10-06T00:30:00Z') };
-  expect(highlightMeta(row, sections, 'UTC')).toBe('Opening · 6 Oct 2026');
-  expect(highlightMeta(row, sections, 'America/Los_Angeles')).toBe('Opening · 5 Oct 2026');
+  expect(highlightMeta(row, sections, 'UTC')).toBe('Opening · ¶8 · 6 Oct 2026');
+  expect(highlightMeta(row, sections, 'America/Los_Angeles')).toBe('Opening · ¶8 · 5 Oct 2026');
   expect(highlightLocation({ ordinal: 8 }, sections)).toBe('Next chapter');
   expect(highlightLocation({ ordinal: 1 }, sections)).toBe('¶2');
 });

@@ -19,8 +19,8 @@ export function sourceStateOperation(row: LibraryRow, state: ReadingState): Oper
   };
 }
 
-export function sourceByline(row: Pick<LibraryRow, 'creators' | 'published'>): string {
-  return [row.creators.join(', '), row.published?.slice(0, 4)].filter(Boolean).join(' · ');
+export function sourceByline(row: Pick<LibraryRow, 'creators' | 'site' | 'published'>): string {
+  return [row.creators.join(', ') || row.site, row.published?.slice(0, 4)].filter(Boolean).join(' · ');
 }
 
 /** Whole percent; a started source never reads as 0%. */
@@ -37,7 +37,9 @@ export function highlightLocation(citation: Pick<Citation, 'ordinal'>, sections:
 
 export function highlightMeta(row: Pick<HighlightRow, 'citation' | 'created_at'>, sections: readonly HighlightSection[], timeZone: string): string {
   const date = new Intl.DateTimeFormat('en-GB', { timeZone, year: 'numeric', month: 'short', day: 'numeric' }).format(row.created_at);
-  return `${highlightLocation(row.citation, sections)} · ${date}`;
+  const location = highlightLocation(row.citation, sections);
+  const passage = `¶${row.citation.ordinal + 1}`;
+  return `${location === passage ? passage : `${location} · ${passage}`} · ${date}`;
 }
 
 export function recentJobs(jobs: readonly IngestJob[], now: number): IngestJob[] {
@@ -51,8 +53,8 @@ export function visibleJobs(jobs: readonly IngestJob[], sourceIds: ReadonlySet<s
 
 export function jobLabel(job: IngestJob, titles: ReadonlyMap<string, string>): { name: string; state: string; attempt: string | null } {
   return {
-    name: job.state === 'done' ? titles.get(job.source_id ?? '') ?? job.name : job.name,
-    state: job.state === 'done' ? 'added' : job.state,
+    name: (job.state === 'done' ? titles.get(job.source_id ?? '') ?? job.name : job.name).replace(/\.epub$/i, ''),
+    state: job.state === 'done' ? 'Added' : job.state[0]!.toUpperCase() + job.state.slice(1),
     attempt: job.attempts > 1 ? `attempt ${job.attempts}` : null,
   };
 }
