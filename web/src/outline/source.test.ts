@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import type { FieldDefinition } from '../api/types';
 import type { PageDocument } from '../document/contract';
-import { extractedResets, shortSourceTitle, sourceFieldName, sourceSummary, valueLabel } from './source';
+import { extractedResets, formatSourceValue, shortSourceTitle, sourceFieldName, sourceSummary, valueLabel } from './source';
 
 describe('source outline metadata', () => {
   test('recognizes reference and inline field entries without treating prose as metadata', () => {
@@ -9,6 +9,16 @@ describe('source outline metadata', () => {
     expect(sourceFieldName('[[publisher|Imprint]]', fields)).toBe('Publisher');
     expect(sourceFieldName('Publisher:: Authored press', fields)).toBe('Publisher');
     expect(sourceFieldName('A paragraph about [[publisher]]', fields)).toBeUndefined();
+  });
+
+  test('formats source language and identifiers without changing other values', () => {
+    expect(formatSourceValue('Language', 'en-US')).toBe('American English');
+    expect(formatSourceValue('Language', 'en')).toBe('English');
+    expect(formatSourceValue('Language', 'not a tag')).toBe('not a tag');
+    expect(formatSourceValue('Identifier', 'isbn:9780385340762')).toBe('ISBN 9780385340762');
+    expect(formatSourceValue('Identifier', 'doi:10.1000/example')).toBe('DOI 10.1000/example');
+    expect(formatSourceValue('Identifier', 'urn:example')).toBe('urn:example');
+    expect(formatSourceValue('Title', 'en')).toBe('en');
   });
 
   test('uses author reference labels and short source titles', () => {
@@ -22,18 +32,19 @@ describe('source outline metadata', () => {
     const blocks: Record<string, { text: string; archived: boolean }> = {
       author: { text: 'Author:: Ada Reader', archived: false },
       published: { text: 'Published:: 2026-10-06', archived: false },
+      publisher: { text: 'Publisher:: Example press', archived: false },
       site: { text: 'Site:: Example site', archived: false },
       url: { text: '[[url-field]]', archived: false },
       value: { text: 'https://example.org/article', archived: false },
     };
     const doc = {
       pageId: 'source',
-      outline: { children: (id: string) => id === 'source' ? ['author', 'published', 'site', 'url'] : id === 'url' ? ['value'] : [] },
+      outline: { children: (id: string) => id === 'source' ? ['author', 'published', 'publisher', 'site', 'url'] : id === 'url' ? ['value'] : [] },
       block: (id: string) => blocks[id],
     } as unknown as PageDocument;
     const definitions = new Map<string, FieldDefinition>([['url-field', { id: 'url-field', name: 'URL', kind: 'url', revision: 1, options: [] }]]);
     expect(sourceSummary(doc, definitions, () => () => undefined)).toEqual([
-      { text: 'Ada Reader' }, { text: '2026' }, { text: 'Example site', url: 'https://example.org/article' },
+      { text: 'Ada Reader' }, { text: '2026' }, { text: 'Example press' }, { text: 'Example site', url: 'https://example.org/article' },
     ]);
     blocks.value!.archived = true;
     expect(sourceSummary(doc, definitions, () => () => undefined).at(-1)).toEqual({ text: 'Example site', url: undefined });

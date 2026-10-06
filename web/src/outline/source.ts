@@ -7,6 +7,17 @@ export function sourceFieldName(text: string, definitions: ReadonlyMap<string, F
   return definitions.get(fieldEntryId(text) ?? '')?.name ?? matchFieldEntry(text)?.name;
 }
 
+const languageNames = new Intl.DisplayNames(['en'], { type: 'language' });
+
+/** Source details are formatted for display only; stored and edited values stay raw. */
+export function formatSourceValue(name: string, value: string): string {
+  if (name.toLowerCase() === 'language') {
+    try { return languageNames.of(value) ?? value; } catch { return value; }
+  }
+  if (name.toLowerCase() === 'identifier') return value.replace(/^(isbn|doi):(.+)$/i, (_, kind: string, identifier: string) => `${kind.toUpperCase()} ${identifier}`);
+  return value;
+}
+
 export function valueLabel(text: string, lookup: NotebookClient['lookup']): string {
   return textTokens(text).map(token => token.kind === 'reference' ? token.alias ?? lookup(token.id!)()?.text ?? token.id : token.value).join('');
 }
@@ -17,7 +28,7 @@ export function sourceSummary(doc: PageDocument, definitions: ReadonlyMap<string
     const entry = doc.block(id);
     if (!entry || entry.archived) continue;
     const name = sourceFieldName(entry.text, definitions)?.toLowerCase();
-    if (name !== 'author' && name !== 'published' && name !== 'site' && name !== 'url') continue;
+    if (name !== 'author' && name !== 'published' && name !== 'publisher' && name !== 'site' && name !== 'url') continue;
     const texts = doc.outline.children(id).flatMap(child => {
       const value = doc.block(child);
       return value && !value.archived ? [valueLabel(value.text, lookup)] : [];
@@ -34,6 +45,7 @@ export function sourceSummary(doc: PageDocument, definitions: ReadonlyMap<string
   return [
     { text: values.author?.join(', ') ?? '' },
     { text: year ?? '' },
+    { text: values.publisher?.join(', ') ?? '' },
     { text: values.site?.join(', ') ?? '', url },
   ].filter(part => part.text);
 }
