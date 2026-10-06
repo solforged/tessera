@@ -95,7 +95,9 @@
 .related-section { border-top: 1px solid var(--line); margin-top: var(--space-16); padding-top: var(--space-12); }
 .related-section summary { cursor: pointer; font-weight: var(--weight-control); font-size: var(--text-control); line-height: var(--line-control); color: var(--muted); }
 .related-section summary span { color: var(--faint); font-size: var(--text-meta); margin-left: var(--space-8); }
-.related-block { display: flex; align-items: flex-start; gap: var(--space-8); margin-top: var(--space-12); }
+/* Backlink lists can run to hundreds of blocks; offscreen ones skip layout and paint. */
+.related-block { display: flex; align-items: flex-start; gap: var(--space-8); margin-top: var(--space-12); content-visibility: auto; contain-intrinsic-size: auto calc(var(--line-body) + var(--line-meta)); }
+.related-block :focus-visible { outline-offset: -2px; }
 .related-open { flex: 1; min-width: 0; border: 0; background: transparent; text-align: left; padding: 0; font: inherit; color: inherit; }
 .related-breadcrumb { display: block; color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); }
 .empty-state { font-size: var(--text-control); color: var(--faint); }

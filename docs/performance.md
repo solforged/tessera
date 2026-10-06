@@ -89,6 +89,25 @@ What it left to spike 3:
 - **No variant meets the frame budgets with 10,000 rows mounted.** At 10,000 rows, browser style, layout and paint cost about 22 ms per Enter in every variant. That is mounted DOM size, which windowing bounds.
 - Headless paint timing is a proxy. Two panes, real presentation traces and service round trips were not measured.
 
+## Client pass, 2026-10-06
+
+Measured on an Apple M5 Max in headless Chrome 150 against a release service and the 50,000-block bench notebook, with 1,500 seeded tasks. Times run from the key or click to two frames after the target rows render.
+
+| Scenario | Before | After |
+|---|---|---|
+| Reopen the 10,000-row page | 600 to 980 ms, one 620 to 750 ms task | 95 to 140 ms |
+| Reopen the 2,000-row page | 100 to 255 ms | 60 to 80 ms |
+| Enter on the 10,000-row page, handler time | 37 to 43 ms | 17 to 24 ms |
+| Tab on the 10,000-row page, handler time | 20 to 23 ms | 12 to 13 ms |
+| Scrolling the 10,000-row page, frame p95 / max | 25 / 92 ms | 18 / 42 ms |
+| Opening a 41,922-member table at its 500-row limit | 1,080 ms, one 540 ms layout | 730 to 870 ms, one 150 ms task |
+| A journal with 501 overdue tasks | 700 ms, 5,554 nodes | 130 ms, 312 nodes |
+| Startup bundle | 884 kB, 270 kB gzipped | 585 kB, 179 kB gzipped |
+
+What changed: released pages stay warm for back and forward; a merge caches its view once and refreshes only the cells that differ; the visible-row walk reads archive flags from one set instead of a store per row; field definitions keep their identity across the refetch after every commit, so the editor is not reconfigured; rows estimate their height at the row height; card parsing skips text with no card syntax; table cells measure in one batch and shape only a preview; navigation persists off the input path; scroll anchors are measured once scrolling settles; secondary panes and Vim load on demand.
+
+Remaining: the table's server query costs about 270 ms at 42,000 members, with the type count queued behind it, and the table renders its 500 rows without windowing. Enter on a 10,000-row page still re-walks the outline once.
+
 ## Spikes that decide the stack
 
 Each runs before the matching feature is built. Each can overturn a choice in [architecture](architecture.md).
