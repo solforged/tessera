@@ -237,8 +237,6 @@ async fn resource(
 #[derive(Deserialize)]
 struct PositionBody {
     ordinal: i64,
-    from: i64,
-    to: i64,
 }
 async fn position(
     State(state): State<AppState>,
@@ -249,7 +247,7 @@ async fn position(
     let Json(body) = body.map_err(ApiError::from)?;
     let changes = state.changes.clone();
     run(&state, move |n| {
-        let result = n.set_reading_position(&id, body.ordinal, (body.from, body.to))?;
+        let result = n.set_reading_position(&id, body.ordinal)?;
         if let Some(seq) = result.seq {
             let _ = changes.send(seq);
         }
@@ -849,13 +847,13 @@ mod tests {
                     .method("POST")
                     .uri(format!("/api/snapshots/{snapshot}/position"))
                     .header("Content-Type", "application/json")
-                    .body(Body::from(r#"{"ordinal":0,"from":0,"to":1}"#))
+                    .body(Body::from(r#"{"ordinal":0}"#))
                     .unwrap(),
             )
             .await
             .unwrap();
         let position = value(position).await;
-        assert_eq!(position["progress"], 1.0);
+        assert_eq!(position["progress"], 0.0);
         assert_eq!(
             changes.recv().await.unwrap(),
             position["seq"].as_i64().unwrap()
