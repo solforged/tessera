@@ -34,6 +34,12 @@
 .row-bullet .icon { fill: currentColor; }
 .row-bullet.bullet-collapsed { opacity: 1; }
 .row-bullet.bullet-collapsed .icon { background: var(--raised); border: 1px solid var(--muted); border-radius: 50%; padding: 1px; }
+/* Prose pages read as paragraphs: bullets rest hidden and return on hover or selection, where they
+   still zoom and drag. Hairline threads under each ancestor's handle show depth. Folded rows keep
+   their marker, since it is the only sign of hidden children. */
+[data-page-style="prose"] .row-bullet:not(.bullet-collapsed) { opacity: 0; }
+[data-page-style="prose"] .outline-row:is(:hover, .row-selected) .row-bullet { opacity: 1; }
+[data-page-style="prose"] .outline-row::before { content: ''; position: absolute; top: 0; bottom: 0; left: calc(2.5 * var(--target-size)); width: calc((var(--depth) - 1) * var(--indent-width) + var(--rule-width)); background: repeating-linear-gradient(to right, var(--line) 0 var(--rule-width), transparent var(--rule-width) var(--indent-width)); pointer-events: none; }
 .outline-body { min-width: 0; flex: 1; padding-right: var(--space-8); overflow-wrap: anywhere; }
 .static-text { white-space: pre-wrap; min-height: var(--line-body); }
 .empty-block { color: var(--faint); opacity: 0.65; }
