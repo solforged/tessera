@@ -174,7 +174,7 @@ export function App() {
             : target.kind === 'fields' || target.kind === 'settings' ? { scroll: 0 }
               : target.kind === 'library' ? { view: null, tab: target.tab ?? 'inbox', text: '', sort: 'added', unprocessedOnly: true, colors: [], tags: [], scroll: 0 }
                 : target.kind === 'reader' ? { snapshotId: target.snapshotId ?? null, ordinal: -1, offset: 0 }
-                  : { zoom: target.blockId ?? null, caret: target.blockId ? { id: target.caretId ?? target.blockId, offset: target.caretOffset ?? 0 } : null, scroll: null, folds: null, showArchived: false };
+                  : { zoom: target.blockId ?? null, caret: target.blockId ? { id: target.caretId ?? target.blockId, offset: target.caretOffset ?? 0 } : null, scroll: null, folds: null, showArchived: false, ...(target.blockId && target.caretId ? { edit: true } : {}) };
       setSessions(values => {
         const previous = values[pane];
         const next = { entries: [...previous.entries.slice(0, previous.index + 1), { target, view }], index: previous.index + 1, generation: previous.generation + 1 };
