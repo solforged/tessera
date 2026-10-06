@@ -85,8 +85,9 @@ One picker searches pages and blocks; a leading `>` switches to commands. A case
 - **Bullet** is a filled dot in `--muted`, 24 px target. Click or ⌘. to zoom (⌘⇧. zooms out), drag to move. The page title aligns with the bullet column.
 - **Text** is the block body. References render inline in the accent with a soft underline; wrapped references align left.
 - **Type pills** follow the text at meta size. Clicking a pill opens a menu: open the table, open the type page, remove a manual membership. A text membership says so instead of offering removal.
-- **Field entries** are children rendered with a field icon and muted name. Values are ordinary child blocks.
+- **Field entries** are children rendered with a field icon and muted name; editing one shows the name as an atomic widget, never the reference ID. Values are ordinary child blocks. A field with one leaf value shares one row: the field icon takes the bullet slot, the name sits in a 144 px muted column, and the value follows, edited in place. Clicking the name edits the entry, which then shows as two rows; so do fields with several values or nested values. Backspace at the start of an inline value does nothing. A page that opens on a field selects its value row instead of editing. Choice and instance values render as pills outside editing.
 - **Capability metadata** follows the source text without replacing it. Task glyphs open status choices; planning summaries show schedule, deadline, priority and repeat. Project and review controls open the attached capability. Source text keeps its natural width; controls wrap beneath it when they cannot fit beside it. Wrapped planning values stay left-aligned.
+- **Cards** show their syntax quietly outside editing: `>>`, `<<` and `<>` become →, ← and ↔ in `--faint`, and cloze answers carry a dotted accent underline with the hint in their tooltip. Clicking places the caret at the same source offset. The summary reads `2 cards · 1 due` and opens a Cards popup listing each card's kind, front and state (New, Due, In 6 days), Reset with confirmation for reviewed cards, and Review. Shift opens Review beside.
 - **Headings** are block styles at the h1 to h3 tokens, semibold. `# ` at block start sets one.
 - Rows highlight on hover with `--hover`; selection uses `--selection` plus the accent bar.
 
@@ -223,5 +224,5 @@ Native `<select>` is never used; a bordered menu button or a picker replaces it.
 ## Open
 
 - Type hue assignment: by a stable hash of the type title, or chosen per type and stored on the type page.
-- Whether field rows under a block collapse into a summary line when the block is not selected.
+- Whether single-value field rows should also fold into the parent block's line.
 - Column resizing and per-view column widths.

@@ -6,6 +6,10 @@ export interface CardParse { cards: ParsedCard[]; problems: CardProblem[] }
 
 interface Cloze { start: number; end: number; id: string; answerStart: number; answerEnd: number; hintStart: number | null }
 
+export type CardMark =
+  | { kind: 'operator'; start: number; end: number; op: '>>' | '<<' | '<>' }
+  | ({ kind: 'cloze'; hintEnd: number | null } & Cloze);
+
 function problem(message: string, start: number, end: number): CardProblem { return { message, start, end }; }
 
 // Consume whole escaped syntax tokens. Even runs of backslashes leave the
@@ -146,7 +150,7 @@ function cloze(text: string, start: number): { end: number; cloze?: Cloze; probl
 
 interface ClozePiece { id: string; before: string; answer: string; hint: string | null }
 
-function derive(text: string): { parse: CardParse; pieces: ClozePiece[]; suffix: string } {
+function derive(text: string): { parse: CardParse; pieces: ClozePiece[]; suffix: string; marks: CardMark[] } {
   const result: CardParse = { cards: [], problems: [] };
   const operators: number[] = [];
   const clozes: Cloze[] = [];
@@ -167,7 +171,7 @@ function derive(text: string): { parse: CardParse; pieces: ClozePiece[]; suffix:
       cursor++;
     }
   }
-  const none = { parse: result, pieces: [], suffix: '' };
+  const none = { parse: result, pieces: [], suffix: '', marks: [] };
   const first = operators[0];
   if (first !== undefined) {
     if (operators.length > 1) result.problems.push(problem('Use only one card operator per block.', first, operators[operators.length - 1]! + 2));
@@ -182,10 +186,10 @@ function derive(text: string): { parse: CardParse; pieces: ClozePiece[]; suffix:
       result.problems.push(problem('Both sides of a card need text.', first, first + 2));
       return none;
     }
-    const op = text.slice(first, first + 2);
+    const op = text.slice(first, first + 2) as '>>' | '<<' | '<>';
     if (op !== '<<') result.cards.push({ key: 'forward', kind: 'forward', front: left, back: right });
     if (op !== '>>') result.cards.push({ key: 'reverse', kind: 'reverse', front: right, back: left });
-    return none;
+    return { ...none, marks: [{ kind: 'operator', start: first, end: first + 2, op }] };
   }
   let previous = 0;
   const pieces = clozes.map(cloze => {
@@ -204,13 +208,18 @@ function derive(text: string): { parse: CardParse; pieces: ClozePiece[]; suffix:
     const front = trim(pieces.map(piece => piece.before + (piece.id === group.id ? piece.hint ?? '[…]' : piece.answer)).join('') + suffix);
     result.cards.push({ key: `cloze:c${group.id}`, kind: 'cloze', front, back });
   }
-  return { parse: result, pieces, suffix };
+  return { parse: result, pieces, suffix, marks: clozes.map(cloze => ({ ...cloze, kind: 'cloze', hintEnd: cloze.hintStart === null ? null : cloze.end - 2 })) };
 }
 
 /** Offsets are UTF-16 indices for CodeMirror. Invalid explicit syntax produces
  * diagnostics and no cards; keys depend only on direction or authored cloze ID. */
 export function parseCardText(text: string): CardParse {
   return derive(text).parse;
+}
+
+/** Valid card syntax, using the same shielding and UTF-16 ranges as derivation. */
+export function cardMarks(text: string): CardMark[] {
+  return derive(text).marks;
 }
 
 /** Plain text, or one of this card's gaps with its answer and optional hint. */

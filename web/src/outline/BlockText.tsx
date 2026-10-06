@@ -4,6 +4,8 @@ import type { Block, FieldDefinition } from '../api/types';
 import type { OpenTarget } from '../shell/contract';
 import { Icon } from '../ui/Icon';
 import { TypePill } from './references';
+import { cardMarks } from '../review/card-text';
+import type { CardMark } from '../review/card-text';
 
 import { textTokens } from '../document/text-tokens';
 import type { Token } from '../document/text-tokens';
@@ -17,6 +19,7 @@ interface Props {
   selection?: [number, number] | null;
   interactive?: boolean;
   highlight?: string;
+  cards?: boolean;
 }
 
 export function isStableReference(token: Token): boolean {
@@ -29,25 +32,43 @@ export function referenceLabel(token: Token, target: Block | null | undefined): 
   return token.alias || target.text || 'Empty block';
 }
 interface DisplayToken extends Token { label: string; visibleStart: number; target: Block | null | undefined; literal: boolean }
+interface TokenGroup { mark?: CardMark; tokens: Token[] }
+const operators = { '>>': { label: 'then', text: '→' }, '<<': { label: 'from', text: '←' }, '<>': { label: 'both ways', text: '↔' } };
 
 export function BlockText(props: Props) {
-  const tokens = createMemo(() => textTokens(props.text));
+  const groups = createMemo(() => {
+    const marks = props.cards ? cardMarks(props.text) : [];
+    const result: TokenGroup[] = [];
+    const add = (start: number, end: number, mark?: CardMark) => {
+      const tokens = textTokens(props.text.slice(start, end)).map(token => ({ ...token, start: token.start + start, end: token.end + start }));
+      result.push({ mark, tokens });
+    };
+    let offset = 0;
+    for (const mark of marks) {
+      if (offset < mark.start) add(offset, mark.start);
+      if (mark.kind === 'cloze') add(mark.answerStart, mark.answerEnd, mark);
+      else result.push({ mark, tokens: [{ start: mark.start, end: mark.end, kind: 'text', value: operators[mark.op].text }] });
+      offset = mark.end;
+    }
+    if (offset < props.text.length) add(offset, props.text.length);
+    return result;
+  });
   const displayed = createMemo(() => {
     let visibleStart = 0;
-    return tokens().map(token => {
-      const literal = token.kind === 'text' || token.kind === 'reference' && !isStableReference(token);
+    return groups().map(group => ({ ...group, tokens: group.tokens.map(token => {
+      const literal = group.mark?.kind !== 'operator' && (token.kind === 'text' || token.kind === 'reference' && !isStableReference(token));
       const target = isStableReference(token) ? props.notebook.lookup(token.id!)() : undefined;
       const field = props.field?.id === token.id ? props.field : undefined;
-      const label = literal ? token.value : token.kind === 'tag' ? `#${token.value}` : field ? token.alias || field.name : referenceLabel(token, target);
+      const label = group.mark?.kind === 'operator' || literal ? token.value : token.kind === 'tag' ? `#${token.value}` : field ? token.alias || field.name : referenceLabel(token, target);
       const result: DisplayToken = { ...token, label, target, literal, visibleStart };
       visibleStart += label.length;
       return result;
-    });
+    }) }));
   });
   const highlights = createMemo(() => {
     const query = props.highlight;
     if (!query) return [];
-    const value = displayed().map(token => token.label).join('');
+    const value = displayed().flatMap(group => group.tokens.map(token => token.label)).join('');
     const pattern = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
     return [...value.matchAll(pattern)].map(match => [match.index, match.index + match[0].length] as const);
   });
@@ -70,28 +91,35 @@ export function BlockText(props: Props) {
       return chosen ? <mark>{marked ? <mark class="outline-highlight">{value}</mark> : value}</mark> : marked ? <mark class="outline-highlight">{value}</mark> : value;
     }}</For>;
   }
-  return <For each={tokens()}>{(token, index) => {
-    const display = () => displayed()[index()]!;
-    return <>
-      <Show when={display().literal}>{text(display())}</Show>
-      <Show when={!display().literal && token.kind === 'reference'}>
+  function renderTokens(tokens: DisplayToken[]) {
+    return <For each={tokens}>{token => <>
+      <Show when={token.literal}>
+        <Show when={props.cards} fallback={text(token)}><span data-source-start={token.start} data-source-end={token.end} data-source-literal>{text(token)}</span></Show>
+      </Show>
+      <Show when={!token.literal && token.kind === 'reference'}>
         <Show when={props.interactive !== false} fallback={<span class="outline-reference" data-source-start={token.start} data-source-end={token.end}>
-          <Show when={props.field?.id === token.id}><Icon name="field" /></Show><Show when={display().target === null}><Icon name="brokenLink" /></Show>{text(display())}
+          <Show when={props.field?.id === token.id}><Icon name="field" /></Show><Show when={token.target === null}><Icon name="brokenLink" /></Show>{text(token)}
         </span>}>
           <button class="outline-reference" type="button" data-source-start={token.start} data-source-end={token.end}
-            onClick={event => { event.stopPropagation(); const block = display().target; if (block) props.onOpen?.({ kind: 'page', pageId: block.page_id, blockId: block.kind === 'block' ? block.id : undefined }, true); }}
+            onClick={event => { event.stopPropagation(); const block = token.target; if (block) props.onOpen?.({ kind: 'page', pageId: block.page_id, blockId: block.kind === 'block' ? block.id : undefined }, true); }}
             onContextMenu={event => { event.preventDefault(); event.stopPropagation(); props.onReferenceMenu?.(token.id!, event.currentTarget); }}
-            title={display().target ? 'Open reference beside · right-click for more actions' : display().target === null ? `Unresolved reference: ${token.id}` : 'Loading reference…'}>
-            <Show when={props.field?.id === token.id}><Icon name="field" /></Show><Show when={display().target === null}><Icon name="brokenLink" /></Show>{text(display())}
+            title={token.target ? 'Open reference beside · right-click for more actions' : token.target === null ? `Unresolved reference: ${token.id}` : 'Loading reference…'}>
+            <Show when={props.field?.id === token.id}><Icon name="field" /></Show><Show when={token.target === null}><Icon name="brokenLink" /></Show>{text(token)}
           </button>
         </Show>
       </Show>
       <Show when={token.kind === 'tag'}>
-        <Show when={props.interactive !== false} fallback={<span class="outline-tag" data-source-start={token.start} data-source-end={token.end}>{text(display())}</span>}>
-          <TypePill title={token.value} notebook={props.notebook} onOpen={props.onOpen} start={token.start} end={token.end}>{text(display())}</TypePill>
+        <Show when={props.interactive !== false} fallback={<span class="outline-tag" data-source-start={token.start} data-source-end={token.end}>{text(token)}</span>}>
+          <TypePill title={token.value} notebook={props.notebook} onOpen={props.onOpen} start={token.start} end={token.end}>{text(token)}</TypePill>
         </Show>
       </Show>
-    </>;
+    </>}</For>;
+  }
+  return <For each={displayed()}>{group => {
+    const mark = group.mark;
+    if (mark?.kind === 'operator') return <span class="card-operator" aria-label={operators[mark.op].label} data-source-start={mark.start} data-source-end={mark.end}>{text(group.tokens[0]!)}</span>;
+    if (mark?.kind === 'cloze') return <span class="card-cloze" title={`Cloze ${mark.id}${mark.hintStart === null ? '' : ` · ${props.text.slice(mark.hintStart, mark.hintEnd!)}`}`}>{renderTokens(group.tokens)}</span>;
+    return renderTokens(group.tokens);
   }}</For>;
 }
 
@@ -120,6 +148,12 @@ export function offsetAtPoint(element: HTMLElement, text: string, x: number, y: 
   const range = dom.caretRangeFromPoint?.(x, y);
   if (!range || !element.contains(range.startContainer)) return text.length;
   const token = range.startContainer.parentElement?.closest<HTMLElement>('[data-source-end]');
+  if (token?.hasAttribute('data-source-literal') && element.contains(token)) {
+    const within = dom.createRange();
+    within.selectNodeContents(token);
+    within.setEnd(range.startContainer, range.startOffset);
+    return Math.min(Number(token.dataset.sourceEnd), Number(token.dataset.sourceStart) + within.toString().length);
+  }
   if (token && element.contains(token)) return Number(token.dataset.sourceEnd);
   const before = dom.createRange();
   before.selectNodeContents(element);

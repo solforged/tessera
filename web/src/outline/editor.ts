@@ -1,7 +1,68 @@
-import { Compartment, EditorSelection, EditorState, Prec } from '@codemirror/state';
-import { drawSelection, EditorView } from '@codemirror/view';
+import { Compartment, EditorSelection, EditorState, Facet, Prec, StateField } from '@codemirror/state';
+import type { Extension } from '@codemirror/state';
+import { Decoration, drawSelection, EditorView, WidgetType } from '@codemirror/view';
+import type { DecorationSet } from '@codemirror/view';
+import { cursorCharLeft, cursorCharRight, selectCharLeft, selectCharRight } from '@codemirror/commands';
 import { getCM, Vim, vim } from '@replit/codemirror-vim';
 import type { Caret } from '../document/contract';
+import { fieldEntryId } from '../table/query';
+import { Icon } from '../ui/Icon';
+
+type FieldResolver = (id: string) => string | undefined;
+const fieldName = Facet.define<FieldResolver, FieldResolver>({ combine: values => values.at(-1) ?? (() => undefined) });
+
+class FieldNameWidget extends WidgetType {
+  constructor(private readonly name: string) { super(); }
+  eq(other: FieldNameWidget): boolean { return this.name === other.name; }
+  toDOM(): HTMLElement {
+    const label = document.createElement('span');
+    label.className = 'field-entry-widget';
+    label.append(Icon({ name: 'field' }) as SVGElement, document.createTextNode(this.name));
+    return label;
+  }
+}
+
+function fieldDecoration(state: EditorState): DecorationSet {
+  const id = fieldEntryId(state.doc.toString());
+  const name = id ? state.facet(fieldName)(id) : undefined;
+  return name === undefined ? Decoration.none
+    : Decoration.set([Decoration.replace({ widget: new FieldNameWidget(name) }).range(0, state.doc.length)]);
+}
+const fieldDecorations = StateField.define<DecorationSet>({
+  create: fieldDecoration,
+  update: (value, transaction) => transaction.docChanged || transaction.startState.facet(fieldName) !== transaction.state.facet(fieldName)
+    ? fieldDecoration(transaction.state) : value,
+  provide: field => [
+    EditorView.decorations.from(field),
+    EditorView.atomicRanges.of(view => view.state.field(field)),
+  ],
+});
+
+/** Whole field entries retain their raw text but expose only atomic name widgets. */
+export function fieldEntryExtension(resolve: FieldResolver): Extension {
+  return [
+    fieldName.of(resolve),
+    fieldDecorations,
+    EditorView.domEventHandlers({
+      keydown: (event, view) => {
+        if (event.altKey || event.ctrlKey || event.metaKey || !view.state.field(fieldDecorations).size) return false;
+        if (event.key === 'ArrowLeft') return (event.shiftKey ? selectCharLeft : cursorCharLeft)(view);
+        if (event.key === 'ArrowRight') return (event.shiftKey ? selectCharRight : cursorCharRight)(view);
+        return false;
+      },
+    }),
+    EditorState.transactionFilter.of(transaction => {
+      const state = transaction.state;
+      const id = fieldEntryId(state.doc.toString());
+      if (!id || state.facet(fieldName)(id) === undefined) return transaction;
+      const end = state.doc.length;
+      const boundary = (offset: number) => offset > 0 && offset < end ? offset < end / 2 ? 0 : end : offset;
+      const ranges = state.selection.ranges.map(range => EditorSelection.range(boundary(range.anchor), boundary(range.head)));
+      const selection = EditorSelection.create(ranges, state.selection.mainIndex);
+      return selection.eq(state.selection) ? transaction : [transaction, { selection, sequential: true }];
+    }),
+  ];
+}
 
 export interface EditorHooks {
   text(text: string, caret: Caret): void;
@@ -16,6 +77,7 @@ export interface EditorHooks {
 export class PaneEditor {
   readonly view: EditorView;
   private readonly vimConfig = new Compartment();
+  private readonly fieldConfig = new Compartment();
   private replacing = false;
   id = '';
   composing = false;
@@ -37,6 +99,7 @@ export class PaneEditor {
         '&:not(.cm-focused) .cm-fat-cursor': { outline: '1px solid currentColor' },
       }),
       this.vimConfig.of([]),
+      this.fieldConfig.of(fieldEntryExtension(() => undefined)),
       Prec.highest(EditorView.domEventHandlers({
         keydown: (event, view) => {
           if (event.isComposing || this.composing || view.composing || event.keyCode === 229) return false;
@@ -69,6 +132,10 @@ export class PaneEditor {
     this.useVim = enabled;
     this.view.dispatch({ effects: this.vimConfig.reconfigure(enabled ? vim() : []) });
     this.reportMode();
+  }
+
+  configureFields(resolve: FieldResolver): void {
+    this.view.dispatch({ effects: this.fieldConfig.reconfigure(fieldEntryExtension(resolve)) });
   }
 
   mode(): 'insert' | 'normal' | 'visual' {
