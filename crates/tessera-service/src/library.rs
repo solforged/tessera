@@ -320,6 +320,7 @@ fn export_response(format: ExportFormat, output: String) -> Response {
     let (media, filename) = match format {
         ExportFormat::Bibtex => ("application/x-bibtex", "tessera.bib"),
         ExportFormat::CslJson => ("application/vnd.citationstyles.csl+json", "tessera.json"),
+        ExportFormat::Markdown => ("text/markdown; charset=utf-8", "tessera.md"),
     };
     (
         [
@@ -623,6 +624,48 @@ mod tests {
         http::Request,
     };
     use tower::ServiceExt;
+
+    #[tokio::test]
+    async fn markdown_export_get_and_query_have_download_headers() {
+        let dir = tempfile::tempdir().unwrap();
+        let app = routes().with_state(state(Notebook::open(dir.path()).unwrap(), constructed));
+        for (method, path, body) in [
+            ("GET", "/api/library/export?format=markdown", ""),
+            (
+                "POST",
+                "/api/library/export",
+                r#"{"format":"markdown","query":{}}"#,
+            ),
+        ] {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .method(method)
+                        .uri(path)
+                        .header("Content-Type", "application/json")
+                        .body(Body::from(body))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            assert_eq!(
+                response.headers()[header::CONTENT_TYPE],
+                "text/markdown; charset=utf-8"
+            );
+            assert_eq!(
+                response.headers()[header::CONTENT_DISPOSITION],
+                "attachment; filename=\"tessera.md\""
+            );
+            assert!(
+                to_bytes(response.into_body(), usize::MAX)
+                    .await
+                    .unwrap()
+                    .is_empty()
+            );
+        }
+    }
 
     fn constructed(_: &[u8], _: Option<&str>, _: &str) -> Result<ExtractedDocument, String> {
         Ok(ExtractedDocument {

@@ -393,6 +393,7 @@ pub enum ExportFormat {
     Bibtex,
     #[serde(rename = "csl")]
     CslJson,
+    Markdown,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
