@@ -10,33 +10,6 @@ use crate::{
     Reading, ReadingValue, Result,
 };
 
-impl FieldKind {
-    pub(crate) fn as_str(self) -> &'static str {
-        match self {
-            Self::Text => "text",
-            Self::Number => "number",
-            Self::Date => "date",
-            Self::Checkbox => "checkbox",
-            Self::Choice => "choice",
-            Self::Instance => "instance",
-            Self::Url => "url",
-            Self::Identifier => "identifier",
-        }
-    }
-    fn from_str(value: &str) -> Self {
-        match value {
-            "number" => Self::Number,
-            "date" => Self::Date,
-            "checkbox" => Self::Checkbox,
-            "choice" => Self::Choice,
-            "instance" => Self::Instance,
-            "url" => Self::Url,
-            "identifier" => Self::Identifier,
-            _ => Self::Text,
-        }
-    }
-}
-
 pub(crate) fn ensure_page(conn: &Connection) -> Result<()> {
     let exists: bool = conn.query_row(
         "SELECT EXISTS(SELECT 1 FROM blocks WHERE kind = 'page' AND title_key = 'fields' AND deletion_id IS NULL)",
@@ -258,7 +231,16 @@ pub(crate) fn definitions(conn: &Connection) -> Result<Vec<FieldDefinition>> {
             result.push(FieldDefinition {
                 id,
                 name: name.to_owned(),
-                kind: FieldKind::from_str(&row.get::<_, String>(2)?),
+                kind: FieldKind::from_str(&row.get::<_, String>(2)?).ok_or_else(|| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        2,
+                        rusqlite::types::Type::Text,
+                        Box::new(std::io::Error::new(
+                            std::io::ErrorKind::InvalidData,
+                            "unknown field kind",
+                        )),
+                    )
+                })?,
                 revision: row.get(3)?,
                 options: Vec::new(),
             });

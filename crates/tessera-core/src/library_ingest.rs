@@ -153,7 +153,7 @@ struct Planner<'a> {
     notebook: &'a Notebook,
     operations: Vec<Operation>,
     pages: HashMap<String, (String, i64)>,
-    fields: HashMap<String, String>,
+    fields: HashMap<String, crate::FieldDefinition>,
     definition_after: Option<String>,
     fields_page: String,
 }
@@ -163,7 +163,7 @@ impl<'a> Planner<'a> {
             .ok_or_else(|| validation("The Fields page is missing."))?;
         let fields = crate::fields::definitions(&notebook.conn)?
             .into_iter()
-            .map(|f| (f.name.to_lowercase(), f.id))
+            .map(|f| (f.name.to_lowercase(), f))
             .collect();
         let definition_after = notebook
             .conn
@@ -206,8 +206,8 @@ impl<'a> Planner<'a> {
     }
     fn field(&mut self, label: &str, kind: FieldKind) -> String {
         let key = label.to_lowercase();
-        if let Some(id) = self.fields.get(&key) {
-            return id.clone();
+        if let Some(field) = self.fields.get(&key) {
+            return field.id.clone();
         }
         let id = ulid::Ulid::generate().to_string();
         self.operations.push(Operation::Insert {
@@ -223,7 +223,16 @@ impl<'a> Planner<'a> {
             base_revision: 1,
             kind,
         });
-        self.fields.insert(key, id.clone());
+        self.fields.insert(
+            key,
+            crate::FieldDefinition {
+                id: id.clone(),
+                name: label.into(),
+                kind,
+                revision: 2,
+                options: vec![],
+            },
+        );
         id
     }
     fn values(
@@ -232,7 +241,35 @@ impl<'a> Planner<'a> {
         create: bool,
     ) -> Result<Vec<(&'static str, FieldKind, Vec<String>)>> {
         let mut values = metadata_values(metadata);
-        for (_, kind, values) in &mut values {
+        for (label, kind, values) in &mut values {
+            let key = label.to_lowercase();
+            if let Some(field) = self.fields.get(&key) {
+                *kind = field.kind;
+            }
+            if *kind == FieldKind::Choice {
+                let field = self.fields.get_mut(&key).expect("existing choice field");
+                for value in values {
+                    let option = field.options.iter().find(|option| option.text == *value);
+                    if let Some(option) = option {
+                        *value = format!("[[{}]]", option.id);
+                    } else if create {
+                        let id = ulid::Ulid::generate().to_string();
+                        self.operations.push(Operation::Insert {
+                            id: id.clone(),
+                            parent_id: field.id.clone(),
+                            after: field.options.last().map(|option| option.id.clone()),
+                            text: value.clone(),
+                            heading: None,
+                        });
+                        field.options.push(crate::FieldOption {
+                            id: id.clone(),
+                            text: value.clone(),
+                        });
+                        *value = format!("[[{id}]]");
+                    }
+                }
+                continue;
+            }
             if *kind != FieldKind::Instance {
                 continue;
             }
@@ -485,7 +522,12 @@ impl Notebook {
             )
             .optional()?;
         for (label, kind, values) in values {
-            if values.is_empty() {
+            let previous = old
+                .iter()
+                .find(|(name, _, _)| *name == label)
+                .map(|(_, _, v)| v.as_slice())
+                .unwrap_or_default();
+            if values.is_empty() && previous.is_empty() {
                 continue;
             }
             let field = planner.field(label, kind);
@@ -505,6 +547,8 @@ impl Notebook {
                 .optional()?;
             let entry = if let Some(entry) = entry {
                 entry
+            } else if values.is_empty() {
+                continue;
             } else {
                 let entry = ulid::Ulid::generate().to_string();
                 planner.operations.push(Operation::Insert {
@@ -520,18 +564,22 @@ impl Notebook {
             let mut statement = self.conn.prepare_cached(
                 "SELECT id, text, revision
                  FROM blocks
-                 WHERE parent_id = ?1 AND deletion_id IS NULL
+                 WHERE parent_id = ?1 AND deletion_id IS NULL AND archived = 0
                  ORDER BY ordinal, id",
             )?;
             let current: Vec<(String, String, i64)> = statement
                 .query_map([&entry], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?
                 .collect::<rusqlite::Result<_>>()?;
-            let previous = old
-                .iter()
-                .find(|(name, _, _)| *name == label)
-                .map(|(_, _, v)| v.as_slice())
-                .unwrap_or_default();
             let mut value_after = current.last().map(|v| v.0.clone());
+            for (i, (value, text, revision)) in current.iter().enumerate().skip(values.len()) {
+                if previous.get(i) == Some(text) {
+                    planner.operations.push(Operation::SetArchived {
+                        id: value.clone(),
+                        base_revision: *revision,
+                        archived: true,
+                    });
+                }
+            }
             for (i, text) in values.into_iter().enumerate() {
                 if let Some((value, old_text, revision)) = current.get(i) {
                     if previous.get(i) == Some(old_text) && *old_text != text {

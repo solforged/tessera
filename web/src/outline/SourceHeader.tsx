@@ -15,6 +15,7 @@ const stateLabels: Record<ReadingState, string> = { inbox: 'Inbox', reading: 'Re
 export function SourceHeader(props: {
   doc: PageDocument; notebook: NotebookClient; definitions: ReadonlyMap<string, FieldDefinition>;
   onOpen: OutlinePaneProps['onOpen']; onError(message: string): void;
+  resetItems(): MenuItem[];
 }) {
   const [source] = createResource(() => props.notebook.changeSequence(), () => api.source(props.doc.pageId));
   const [menu, setMenu] = createSignal<{ anchor: HTMLElement; label: string; items: MenuItem[] } | null>(null);
@@ -40,6 +41,7 @@ export function SourceHeader(props: {
   }
   function sourceMenu(anchor: HTMLElement) {
     setMenu({ anchor, label: 'Source actions', items: [
+      ...props.resetItems(),
       { label: 'Copy citation key', icon: 'copy', disabledReason: props.doc.root()?.source?.citation_key ? undefined : 'No citation key', action: () => { void navigator.clipboard.writeText(props.doc.root()!.source!.citation_key!).catch(fail); } },
       { label: 'Export BibTeX', icon: 'download', action: () => exportSource('bibtex') },
       { label: 'Export CSL JSON', icon: 'download', action: () => exportSource('csl') },

@@ -139,6 +139,74 @@ fn indexed(dir: &tempfile::TempDir, owner: u128) -> Vec<String> {
 }
 
 #[test]
+fn field_kind_contract_matches_database_check() {
+    let (dir, mut nb) = fixture();
+    let fields = nb.fields().unwrap().page_id;
+    let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
+    for (index, kind) in FieldKind::ALL.into_iter().enumerate() {
+        let value = 1000 + index as u128;
+        apply(&mut nb, vec![child(value, &fields, kind.as_str())]);
+        conn.execute(
+            "INSERT INTO fields(block_id, kind) VALUES (?1, ?2)",
+            rusqlite::params![id(value), kind.as_str()],
+        )
+        .unwrap();
+        assert_eq!(serde_json::to_value(kind).unwrap(), kind.as_str());
+        assert_eq!(
+            serde_json::from_value::<FieldKind>(serde_json::json!(kind.as_str())).unwrap(),
+            kind
+        );
+    }
+    let error = conn
+        .execute(
+            "INSERT INTO fields(block_id, kind) VALUES (?1, 'bogus')",
+            [id(10)],
+        )
+        .unwrap_err();
+    assert!(matches!(error, rusqlite::Error::SqliteFailure(code, _)
+        if code.extended_code == rusqlite::ffi::SQLITE_CONSTRAINT_CHECK));
+}
+
+#[test]
+fn field_kind_contract_matches_web_order() {
+    let source = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../web/src/fields/kinds.ts"),
+    )
+    .unwrap();
+    let array = source
+        .split_once("export const fieldKinds = [")
+        .expect("exported fieldKinds array")
+        .1
+        .split_once("] as const")
+        .expect("readonly fieldKinds array")
+        .0;
+    let kinds: Vec<_> = array
+        .split(',')
+        .map(|kind| kind.trim().trim_matches(['\'', '"']))
+        .filter(|kind| !kind.is_empty())
+        .collect();
+    assert_eq!(kinds, FieldKind::ALL.map(FieldKind::as_str));
+}
+
+#[test]
+fn unknown_stored_field_kind_is_corruption() {
+    let (dir, nb) = fixture();
+    let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
+    conn.execute_batch("PRAGMA ignore_check_constraints = ON")
+        .unwrap();
+    conn.execute(
+        "INSERT INTO fields(block_id, kind) VALUES (?1, 'bogus')",
+        [id(10)],
+    )
+    .unwrap();
+    let error = nb.fields().unwrap_err();
+    assert!(matches!(
+        error,
+        Error::Sqlite(rusqlite::Error::FromSqlConversionFailure(_, _, _))
+    ));
+}
+
+#[test]
 fn fields_page_is_idempotent_recreated_after_deletion_and_migration_backfills_entries() {
     let (dir, mut nb) = fixture();
     let fields = nb.fields().unwrap().page_id;
