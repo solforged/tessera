@@ -12,7 +12,9 @@ a { color: var(--accent); }
 .button { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-4); min-height: var(--target-size); border: 1px solid transparent; border-radius: var(--radius-control); padding: var(--space-4) var(--space-8); background: transparent; font-size: var(--text-control); line-height: var(--line-control); font-weight: var(--weight-control); text-align: left; transition: background-color var(--motion-fast) var(--motion-ease), color var(--motion-fast) var(--motion-ease), border-color var(--motion-fast) var(--motion-ease), opacity var(--motion-fast) var(--motion-ease); }
 .button:hover:not(:disabled) { background: var(--hover); }
 .button[aria-pressed="true"], .button.selected { background: var(--selection); color: var(--accent); }
-.button.bordered { border-color: var(--control-border); }
+/* Bordered controls (menu triggers, date ranges) carry a hairline, not a frame. */
+.button.bordered { border-color: var(--line); }
+.button.bordered:hover:not(:disabled) { border-color: var(--control-border); }
 .button.danger { color: var(--danger); }
 .button.icon-only { width: 28px; padding: var(--space-4); }
 .button > .icon { transition: scale var(--motion-fast) var(--motion-ease), rotate var(--motion-fast) var(--motion-ease); }
@@ -20,6 +22,11 @@ a { color: var(--accent); }
 .button[aria-haspopup][aria-expanded="true"] > .icon:last-child:not(:first-child) { rotate: 180deg; }
 .button:hover:not(:disabled) > .icon, .button:focus-visible > .icon { scale: var(--icon-hover-scale); }
 .button:active:not(:disabled) > .icon { scale: var(--icon-press-scale); }
+/* Modes and tabs: mono labels with a faint count; the current one is gilt with a rule beneath, never a box. */
+.mode-tabs { display: flex; align-items: center; gap: var(--space-4); }
+.mode-tabs > .button { font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); color: var(--muted); }
+.mode-tabs > .button:hover:not(:disabled) { color: var(--text); }
+.mode-tabs > .button[aria-pressed="true"] { background: transparent; color: var(--accent); box-shadow: inset 0 calc(-1 * var(--rule-width)) var(--accent); }
 :is(.popup, .popup-exit) { position: fixed; z-index: 50; max-width: calc(100vw - var(--space-16)); overflow: auto; background: var(--raised); border: 1px solid var(--line); border-radius: var(--radius-popup); box-shadow: var(--popup-shadow); padding: var(--space-8); }
 :is(.popup, .popup-exit)::before { content: ''; position: absolute; top: 0; left: var(--space-12); width: var(--rubric-width); height: var(--rubric-height); background: var(--danger); pointer-events: none; }
 .popup-enter { animation: popup-in var(--motion-ui) var(--motion-ease) both; }
@@ -28,14 +35,19 @@ a { color: var(--accent); }
 @keyframes popup-out { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(calc(-1 * var(--motion-distance))); } }
 .menu { min-width: 220px; }
 .menu-item { display: flex; align-items: center; width: 100%; gap: var(--space-8); padding: var(--space-4) var(--space-8); min-height: var(--row-height); background: transparent; border: 0; border-radius: var(--radius-control); font-size: var(--text-control); line-height: var(--line-control); text-align: left; transition: background-color var(--motion-fast) var(--motion-ease); }
-.menu-item:hover, .menu-item:focus-visible { background: var(--selection); }
+/* Keyboard focus in a menu is the selection fill with a gilt edge, the same as a selected row, not a ring. */
+.menu-item:hover { background: var(--selection); }
+.menu-item:focus-visible { outline: none; background: var(--selection); box-shadow: inset var(--rule-width) 0 var(--accent); }
 .menu-item.danger { color: var(--danger); }
 .menu-label { flex: 1; }
 kbd { color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
 .muted { color: var(--muted); }
 .error { color: var(--danger); }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-.input { width: 100%; min-height: 32px; border: 1px solid var(--control-border); border-radius: var(--radius-control); padding: var(--space-4) var(--space-8); background: var(--surface); }
+/* Fields sit in a dark well with a hairline; the frame brightens only while hovered or typed in. */
+.input { width: 100%; min-height: 32px; border: 1px solid var(--line); border-radius: var(--radius-control); padding: var(--space-4) var(--space-8); background: var(--surface); transition: border-color var(--motion-fast) var(--motion-ease); }
+.input:hover:not(:disabled), .input:focus { border-color: var(--control-border); }
+.input::placeholder { color: var(--faint); }
 .empty-state { margin: var(--space-12) var(--space-8); color: var(--muted); font-size: var(--text-control); }
 
 .app { height: 100dvh; display: grid; grid-template-columns: var(--sidebar-width) minmax(0, 1fr); grid-template-rows: var(--rail-height) minmax(0, 1fr); overflow: hidden; background: var(--shell); transition: grid-template-columns var(--motion-ui) var(--motion-ease); }
@@ -127,8 +139,9 @@ kbd { color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular
 .vim-mode { color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
 .pane-content { position: relative; display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; }
 .pane-content::before, .pane-content::after { content: ''; position: absolute; width: var(--registration-size); height: var(--registration-size); pointer-events: none; z-index: 1; border: 0 solid var(--line); }
-.pane-content::before { top: var(--space-12); left: var(--space-12); border-width: var(--rule-width) 0 0 var(--rule-width); }
-.pane-content::after { bottom: var(--space-12); right: var(--space-12); border-width: 0 var(--rule-width) var(--rule-width) 0; }
+/* The marks sit in the corner gutter, clear of toolbars that start 8 px in. */
+.pane-content::before { top: var(--space-4); left: var(--space-4); border-width: var(--rule-width) 0 0 var(--rule-width); }
+.pane-content::after { bottom: var(--space-4); right: var(--space-4); border-width: 0 var(--rule-width) var(--rule-width) 0; }
 .pane.active .pane-content::before, .pane.active .pane-content::after { border-color: var(--accent); }
 .save-banner, .shell-error, .pane-error { display: flex; align-items: center; gap: 8px; padding: 8px 16px; background: var(--surface); border-bottom: 1px solid var(--line); color: var(--warning); font-size: var(--text-control); line-height: var(--line-control); }
 .save-banner > span, .shell-error > span { flex: 1; }

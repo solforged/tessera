@@ -1,8 +1,9 @@
 /* Settings pane: a page-shaped column of short sections. */
 .settings-pane { flex: 1; min-height: 0; overflow: auto; padding: var(--space-16) var(--space-24) var(--space-48); outline: none; }
 .settings-pane > * { max-width: var(--measure); margin-inline: auto; }
-.settings-pane section + section { margin-top: var(--space-32); }
-.settings-pane h2 { margin: 0 0 var(--space-12); font-size: var(--text-h2); line-height: var(--line-h2); font-weight: var(--weight-heading); }
+.settings-pane section + section { margin-top: var(--space-24); }
+/* Sections head like the sidebar's: a rubric numeral, the name and a hairline rule, in mono. */
+.settings-pane h2 { display: flex; align-items: center; gap: var(--space-8); min-height: var(--target-size); margin: 0 0 var(--space-8); color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 /* One label column across sections, so values line up down the page. */
 .settings-pane dl { display: grid; grid-template-columns: calc(var(--space-48) * 2) minmax(0, 1fr); gap: var(--space-4) var(--space-16); margin: 0; font-size: var(--text-control); line-height: var(--line-control); }
 .settings-pane dt { color: var(--muted); }
