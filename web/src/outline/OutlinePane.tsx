@@ -9,6 +9,7 @@ import type { BlockState, Caret, Edit, EditResult, PageDocument, TextRange } fro
 import type { Command, OutlinePaneProps, ViewState } from '../shell/contract';
 import { fieldEntryId, matchFieldEntry } from '../table/query';
 import { kindLabels } from '../fields/kinds';
+import { linkedCitation, setLinkedCitation } from '../library/highlights';
 import { ProjectControls } from '../projects/ProjectControls';
 import { parseCardText } from '../review/card-text';
 import { DatePicker } from '../tasks/DatePicker';
@@ -1505,6 +1506,7 @@ function Pane(props: OutlinePaneProps) {
   onCleanup(() => {
     if (editing()) commitFieldEntry(editing()!, false);
     disposed = true;
+    setLinkedCitation(null);
     unregister();
     doc.release();
     editor?.destroy();
@@ -1594,7 +1596,8 @@ function Pane(props: OutlinePaneProps) {
     onCleanup(() => { const host = hosts.get(id()); if (host && row.contains(host)) hosts.delete(id()); });
     return <div ref={row} id={`outline-${props.pane}-${id()}`} data-index={propsRow.item().index} data-block-id={id()} role="treeitem" aria-level={depth() + 1}
       aria-expanded={children() ? !folds().has(id()) : undefined} aria-selected={selectedSet().has(id())}
-      class="outline-row" classList={{ 'row-selected': selectedSet().has(id()) && editing() !== id(), 'row-editing': editing() === id(), 'row-archived': block()?.archived ?? false, 'field-entry': !!field(), 'inline-field-value': inline(), 'choice-value': pill(), 'source-detail': !!sourceField(), 'source-highlights-start': sourceDetails().firstHighlight === id() }}
+      class="outline-row" classList={{ 'row-selected': selectedSet().has(id()) && editing() !== id(), 'row-editing': editing() === id(), 'row-archived': block()?.archived ?? false, 'field-entry': !!field(), 'inline-field-value': inline(), 'choice-value': pill(), 'source-detail': !!sourceField(), 'source-highlights-start': sourceDetails().firstHighlight === id(), 'outline-row-linked': block()?.citations.some(citation => citation.id === linkedCitation()) ?? false }}
+      onPointerEnter={() => setLinkedCitation(block()?.citations[0]?.id ?? null)} onPointerLeave={() => setLinkedCitation(null)}
       style={{ transform: `translateY(${propsRow.item().start - margin()}px)`, '--depth': depth() }}>
       <Show when={sourceDetails().firstHighlight === id()}><div class="outline-highlights-label">Highlights <span>{sourceDetails().highlightCount}</span></div></Show>
       <button type="button" class="row-menu icon-button" aria-label="Block actions" onClick={event => blockMenu(id(), event.currentTarget)}><Icon name="more" /></button>

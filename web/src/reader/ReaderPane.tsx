@@ -7,8 +7,8 @@ import type { Citation, HighlightRow, Passage, PassageHit, PassagePage, SourceVi
 import type { NotebookClient } from '../document/contract';
 import type { OpenTarget, PaneId, ReaderViewState } from '../shell/contract';
 import { formatProgress, highlightLocation } from '../library/query';
-import { createHighlightActions, highlightColors } from '../library/highlights';
-import type { HighlightSection } from '../library/highlights';
+import { createHighlightActions, highlightColors, setLinkedCitation } from '../library/highlights';
+import type { HighlightMenu, HighlightSection } from '../library/highlights';
 import { documentReady } from '../tasks/JournalAgenda';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
@@ -37,7 +37,7 @@ export interface ReaderPaneProps {
 }
 
 const PAGE_SIZE = 200;
-type ReaderPopup = { kind: 'contents' | 'find' | 'highlights' | 'settings' | 'actions'; anchor: HTMLElement } | { kind: 'note'; anchor: HTMLElement; text: string; loading: boolean } | { kind: 'menu'; anchor: HTMLElement; items: MenuItem[] };
+type ReaderPopup = { kind: 'contents' | 'find' | 'highlights' | 'settings' | 'actions'; anchor: HTMLElement } | { kind: 'note'; anchor: HTMLElement; text: string; loading: boolean } | { kind: 'menu'; anchor: HTMLElement; items: MenuItem[]; Header?: HighlightMenu['Header'] };
 type SelectionToolbar = PassageSelection & { rect: DOMRect; snapshotId: string };
 
 export function ReaderPane(props: ReaderPaneProps) {
@@ -127,6 +127,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     .filter(row => row.citation.snapshot_id === snapshot())
     .sort((a, b) => a.citation.ordinal - b.citation.ordinal || a.citation.start.offset - b.citation.start.offset || a.citation.id.localeCompare(b.citation.id)));
   const filteredHighlights = createMemo(() => sourceHighlights().filter(row => `${row.citation.quote} ${highlightLocation(row.citation, sections())}`.toLocaleLowerCase().includes(query().toLocaleLowerCase())));
+  const highlightNotes = createMemo(() => new Map(sourceHighlights().filter(row => row.notes > 0).map(row => [row.citation.id, row])));
 
   createEffect(() => {
     const sourceId = props.target.sourceId;
@@ -325,8 +326,15 @@ export function ReaderPane(props: ReaderPaneProps) {
       const result = await api.highlights({ source_id: citation.source_id, unprocessed: false, limit: Number.MAX_SAFE_INTEGER }, requests.signal);
       const row = result.rows.find(value => value.citation.id === citation.id);
       if (!row) throw new Error('Citation not found.');
-      const items = await actions(row, `“${row.citation.quote}” — ${row.source_title}, ${highlightLocation(row.citation, sections())}`);
-      if (!disposed && anchor.isConnected) setPopup({ kind: 'menu', anchor, items });
+      const { items, Header } = await actions(row, `“${row.citation.quote}” — ${row.source_title}, ${highlightLocation(row.citation, sections())}`);
+      if (!disposed && anchor.isConnected) setPopup({ kind: 'menu', anchor, items, Header });
+    } catch (reason) { if (!disposed) setError(reason instanceof Error ? reason.message : String(reason)); }
+  }
+
+  async function openHighlightNote(row: HighlightRow) {
+    try {
+      const menu = await actions(row);
+      if (!disposed) menu.openNote();
     } catch (reason) { if (!disposed) setError(reason instanceof Error ? reason.message : String(reason)); }
   }
 
@@ -560,6 +568,7 @@ export function ReaderPane(props: ReaderPaneProps) {
   });
   onCleanup(() => {
     disposed = true; requests.abort();
+    setLinkedCitation(null);
     clearTimeout(reportTimer); clearTimeout(positionTimer); clearTimeout(flashTimer);
     document.removeEventListener('selectionchange', selected);
     document.removeEventListener('keydown', selectionKey, true);
@@ -578,7 +587,7 @@ export function ReaderPane(props: ReaderPaneProps) {
         component={value().kind === 'heading' ? `h${Math.min(3, Math.max(1, value().level ?? 1))}` : value().kind === 'quote' ? 'blockquote' : value().kind === 'code' ? 'pre' : 'div'}
         class={`reader-passage reader-${value().kind}`} classList={{ 'reader-cursor': props.active && cursor() === row.ordinal }} aria-current={props.active && cursor() === row.ordinal ? 'true' : undefined}
         data-passage-id={value().id} data-ordinal={value().ordinal} style={{ '--level': Math.max(0, value().level ?? 0) }}>
-        <Show when={value().kind === 'image' && value().resource} fallback={<PassageText passage={value()} citations={citations()} ordinals={(() => { version(); return ordinals; })()} flashId={flash()?.id ?? null} onLocate={at => { void jumpTo(at); }} onNote={(at, anchor) => { void note(at, anchor); }} onCitation={clickedCitation} />}>
+        <Show when={value().kind === 'image' && value().resource} fallback={<PassageText passage={value()} citations={citations()} notes={highlightNotes()} ordinals={(() => { version(); return ordinals; })()} flashId={flash()?.id ?? null} onLocate={at => { void jumpTo(at); }} onNote={(at, anchor) => { void note(at, anchor); }} onCitation={clickedCitation} onHighlightNote={row => { void openHighlightNote(row); }} />}>
           <img src={api.resourceUrl(snapshot(), value().resource!)} alt={value().text} onLoad={() => virtualizer.measureElement(element)} />
         </Show>
       </Dynamic>}</Show>
@@ -662,7 +671,7 @@ export function ReaderPane(props: ReaderPaneProps) {
       <Show when={state().kind === 'highlights'}><Picker class="reader-picker" anchor={state().anchor} label="Highlights" placeholder="Find a highlight" query={query()} onQuery={setQuery} items={filteredHighlights()} key={row => row.citation.id}
         row={row => <div class="reader-highlight-entry"><span class={`highlight-color-dot${row.citation.color ? ` highlight-color-${row.citation.color}` : ''}`} aria-hidden="true" /><span class="reader-highlight-quote">{row.citation.quote}</span><span class="reader-highlight-section">{highlightLocation(row.citation, sections())}</span></div>} busy={highlightsLoading()} error={highlightsError()} empty="No highlights"
         onPick={row => { void jumpHighlight(row.citation); }} onDismiss={() => setPopup(null)} /></Show>
-      <Show when={state().kind === 'menu'}><Menu anchor={state().anchor} label="Actions for highlight" items={(() => { const value = state(); return value.kind === 'menu' ? value.items : []; })()} onDismiss={() => setPopup(null)} /></Show>
+      <Show when={state().kind === 'menu'}><Menu anchor={state().anchor} label="Actions for highlight" items={(() => { const value = state(); return value.kind === 'menu' ? value.items : []; })()} header={(() => { const value = state(); return value.kind === 'menu' && value.Header ? <value.Header onDismiss={() => setPopup(null)} /> : undefined; })()} onDismiss={() => setPopup(null)} /></Show>
       <Show when={state().kind === 'find'}><Picker class="reader-picker" anchor={state().anchor} label="Find in source" placeholder="Find in source" query={query()} onQuery={setQuery} items={hits()} key={hit => `${hit.snapshot_id}:${hit.passage.id}`}
         status={<p class="reader-find-status" role="status">{hits().length === 40 ? 'First 40 passages' : `${hits().length} passages`}</p>}
         row={hit => <span class="reader-search-snippet"><For each={hit.snippet.replace(/^(?:\.\.\.|…)\s*/, '…').replace(/\s*(?:\.\.\.|…)$/, '…').split(/(\[[^\]]+\])/g)}>{part => part.startsWith('[') && part.endsWith(']') ? <mark class="reader-search-match">{part.slice(1, -1)}</mark> : part}</For></span>} busy={searching()} error={searchError()} empty={query().trim() ? 'No passages found' : 'Search this source'}

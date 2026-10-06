@@ -507,10 +507,10 @@ impl Notebook {
             block_columns!("b"),
             ", ",
             block_columns!("p"),
-            ", EXISTS(
-                 SELECT 1 FROM blocks child
-                 WHERE child.parent_id = b.id AND child.deletion_id IS NULL AND TRIM(child.text) <> ''
-             ) OR EXISTS(
+            ", (SELECT COUNT(*) FROM blocks child
+                 WHERE child.parent_id = b.id AND child.deletion_id IS NULL AND child.archived = 0
+                 AND TRIM(child.text, char(9) || char(10) || char(11) || char(12) || char(13) || ' ') <> ''
+             ), EXISTS(
                  SELECT 1 FROM card_units card
                  WHERE card.source_block_id = b.id AND card.active = 1
              ) OR EXISTS(
@@ -533,7 +533,7 @@ impl Notebook {
              )
              AND (?2 IS NULL OR b.id IN (SELECT value FROM json_each(?2)))"
         ))?;
-        let mut blocks: HashMap<String, (BlockInPage, bool, Vec<String>)> = statement
+        let mut blocks: HashMap<String, (BlockInPage, u32, bool, Vec<String>)> = statement
             .query_map(params![json(&tags), ids_json.as_deref()], |r| {
                 let block = block_at(r, 0)?;
                 Ok((
@@ -544,7 +544,8 @@ impl Notebook {
                             page: block_at(r, 10)?,
                         },
                         r.get(20)?,
-                        json_at(r, 21)?,
+                        r.get(21)?,
+                        json_at(r, 22)?,
                     ),
                 ))
             })?
@@ -586,14 +587,14 @@ impl Notebook {
             {
                 continue;
             }
-            let Some((block, derived, tags)) = blocks.get_mut(&citation.block_id) else {
+            let Some((block, notes, derived, tags)) = blocks.get_mut(&citation.block_id) else {
                 continue;
             };
             let processed = citation
                 .triage
                 .as_deref()
                 .map(|value| value == "processed")
-                .unwrap_or(*derived);
+                .unwrap_or(*notes > 0 || *derived);
             if query.unprocessed && processed {
                 continue;
             }
@@ -606,6 +607,7 @@ impl Notebook {
                 created_at: created[&citation.id],
                 citation,
                 processed,
+                notes: *notes,
             });
         }
         let total = rows.len();

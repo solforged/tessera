@@ -1,17 +1,20 @@
 import { For, createMemo } from 'solid-js';
 import type { JSX } from 'solid-js';
-import type { Citation, Mark, Passage } from '../api/types';
+import type { Citation, HighlightRow, Mark, Passage } from '../api/types';
+import { linkedCitation, setLinkedCitation } from '../library/highlights';
 import { Button } from '../ui/Button';
 import { citationRange, passageSegments } from './passages';
 
 export function PassageText(props: {
   passage: Passage;
   citations: Citation[];
+  notes: ReadonlyMap<string, HighlightRow>;
   ordinals: ReadonlyMap<string, number>;
   flashId: string | null;
   onLocate(locator: string): void;
   onNote(locator: string, anchor: HTMLElement): void;
   onCitation(citations: Citation[], anchor: HTMLElement, beside: boolean): void;
+  onHighlightNote(row: HighlightRow): void;
 }) {
   const segments = createMemo(() => passageSegments(props.passage, props.citations.flatMap(citation => citationRange(props.passage, citation, props.ordinals) ?? []), props.flashId));
   const marked = (text: JSX.Element, marks: readonly Mark[], linked = true, index = 0): JSX.Element => {
@@ -28,8 +31,15 @@ export function PassageText(props: {
       case 'note_ref': return <sup>{linked ? <Button class="reader-inline-link" onClick={event => props.onNote(kind.locator, event.currentTarget)}>{content}</Button> : content}</sup>;
     }
   };
-  return <For each={segments()}>{segment => segment.citations.length ? <span class={`reader-highlight${segment.citations[0]!.color ? ` reader-highlight-${segment.citations[0]!.color}` : ''}`} classList={{ 'reader-flash': segment.flash, 'reader-highlight-overlap': segment.citations.length > 1 }} data-citation-id={segment.citations[0]!.id} role="button" aria-haspopup="menu" tabIndex={0}
-    onClick={event => { if (!window.getSelection()?.isCollapsed) return; event.preventDefault(); event.stopPropagation(); props.onCitation(segment.citations, event.currentTarget, event.shiftKey); }}
-    onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); props.onCitation(segment.citations, event.currentTarget, event.shiftKey); } }}
-  >{marked(segment.text, segment.marks, false)}</span> : marked(segment.text, segment.marks)}</For>;
+  return <For each={segments()}>{segment => segment.citations.length ? <>
+    <span class={`reader-highlight${segment.citations[0]!.color ? ` reader-highlight-${segment.citations[0]!.color}` : ''}`} classList={{ 'reader-flash': segment.flash, 'reader-highlight-overlap': segment.citations.length > 1, 'reader-highlight-linked': segment.citations.some(citation => citation.id === linkedCitation()) }} data-citation-id={segment.citations[0]!.id} role="button" aria-haspopup="menu" tabIndex={0}
+      onPointerEnter={() => setLinkedCitation(segment.citations[0]!.id)} onPointerLeave={() => setLinkedCitation(null)}
+      onClick={event => { if (!window.getSelection()?.isCollapsed) return; event.preventDefault(); event.stopPropagation(); props.onCitation(segment.citations, event.currentTarget, event.shiftKey); }}
+      onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); props.onCitation(segment.citations, event.currentTarget, event.shiftKey); } }}
+    >{marked(segment.text, segment.marks, false)}</span>
+    <For each={segment.citations.flatMap(citation => {
+      const row = props.notes.get(citation.id);
+      return row && citation.end.passage_id === props.passage.id && citation.end.offset === segment.end ? [row] : [];
+    })}>{row => <Button class="reader-highlight-note" icon="note" label="Open note" title="Open note" onPointerDown={event => event.preventDefault()} onClick={event => { event.stopPropagation(); props.onHighlightNote(row); }} />}</For>
+  </> : marked(segment.text, segment.marks)}</For>;
 }

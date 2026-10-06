@@ -88,7 +88,8 @@ export function Popup(props: PopupProps) {
     const below = Math.max(0, window.innerHeight - rect.bottom - 12);
     const above = Math.max(0, rect.top - 12);
     const needed = Math.min(panel.scrollHeight, 560);
-    const flip = below < Math.min(needed, 180) && above > below;
+    // A menu's items are fixed, so it opens upward whenever only the space above holds all of them; growing lists flip only when cramped.
+    const flip = above > below && (below < Math.min(needed, 180) || (props.role === 'menu' && below < needed && above >= needed));
     const height = Math.min(needed, flip ? above : below);
     const start = rect.left > window.innerWidth / 2 ? rect.right - width : rect.left;
     setPosition({ left: Math.max(8, Math.min(start, window.innerWidth - width - 8)), top: flip ? rect.top - height - 4 : rect.bottom + 4, height, visible: true });

@@ -421,7 +421,7 @@ export interface LibraryResult {
   rows: LibraryRow[]; total: number; counts: { inbox: number; reading: number; finished: number; abandoned: number };
 }
 export interface HighlightQuery { source_id?: string | null; unprocessed?: boolean; colors?: string[]; tags?: string[]; limit?: number | null }
-export interface HighlightRow { block: BlockInPage; citation: Citation; source_title: string; processed: boolean; triage: Citation['triage']; color: Citation['color']; tags: string[]; created_at: number }
+export interface HighlightRow { block: BlockInPage; citation: Citation; source_title: string; processed: boolean; notes: number; triage: Citation['triage']; color: Citation['color']; tags: string[]; created_at: number }
 export interface HighlightResult { rows: HighlightRow[]; total: number }
 export type SurfacingAction = 'kept' | 'opened' | 'muted';
 export interface Surfacing extends HighlightRow { action: SurfacingAction | null }

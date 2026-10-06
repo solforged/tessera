@@ -13,8 +13,8 @@ import type { MenuItem } from '../ui/Menu';
 import { Popup } from '../ui/Popup';
 import { Picker } from '../ui/Picker';
 import { formatProgress, highlightMeta, jobLabel, libraryQuery, recentJobs, retryTime, selectSources, sourceByline, sourceStateOperation, visibleJobs } from './query';
-import { createHighlightActions, highlightColors, highlightSections } from './highlights';
-import type { HighlightSection } from './highlights';
+import { createHighlightActions, highlightColors, highlightSections, setLinkedCitation } from './highlights';
+import type { HighlightMenu, HighlightSection } from './highlights';
 import './library.css';
 
 export interface LibraryPaneProps {
@@ -32,7 +32,7 @@ type LibraryPopup =
   | { kind: 'tags'; anchor: HTMLElement }
   | { kind: 'name'; anchor: HTMLElement; saved: LibraryView | null; id: string }
   | { kind: 'delete'; anchor: HTMLElement; saved: LibraryView }
-  | { kind: 'menu'; anchor: HTMLElement; label: string; items: MenuItem[] };
+  | { kind: 'menu'; anchor: HTMLElement; label: string; items: MenuItem[]; Header?: HighlightMenu['Header'] };
 const tabs: { id: LibraryTab; label: string }[] = [
   { id: 'inbox', label: 'Inbox' }, { id: 'reading', label: 'Reading' },
   { id: 'finished', label: 'Finished' }, { id: 'abandoned', label: 'Abandoned' },
@@ -131,7 +131,7 @@ export function LibraryPane(props: LibraryPaneProps) {
   let fileInput!: HTMLInputElement;
   let restoreScroll: number | null = props.view.scroll;
   let disposed = false;
-  onCleanup(() => { disposed = true; });
+  onCleanup(() => { disposed = true; setLinkedCitation(null); });
 
   const highlightActions = createHighlightActions(props.notebook, props.onOpen, setCommandError);
   const [highlightContents, setHighlightContents] = createSignal(new Map<string, HighlightSection[]>());
@@ -151,8 +151,8 @@ export function LibraryPane(props: LibraryPaneProps) {
   async function highlightMenu(row: HighlightRow, anchor: HTMLElement) {
     setCommandError('');
     try {
-      const items = await highlightActions(row);
-      if (!disposed && anchor.isConnected) setPopup({ kind: 'menu', anchor, label: 'Actions for highlight', items: [
+      const { items, Header } = await highlightActions(row);
+      if (!disposed && anchor.isConnected) setPopup({ kind: 'menu', anchor, label: 'Actions for highlight', Header, items: [
         { label: 'Open in reader', action: () => props.onOpen({ kind: 'reader', sourceId: row.citation.source_id, snapshotId: row.citation.snapshot_id, citationId: row.citation.id }, true) },
         ...items,
       ] });
@@ -503,10 +503,10 @@ export function LibraryPane(props: LibraryPaneProps) {
                 <div class="library-highlight-heading"><Button onClick={event => props.onOpen({ kind: 'page', pageId: group.sourceId }, event.shiftKey)}>{group.title}</Button><span>{group.rows.length}</span></div>
                 <div role="list"><For each={group.rows}>{row => {
                   const target: OpenTarget = { kind: 'page', pageId: row.block.page.id, blockId: row.block.block.id };
-                  return <div class="library-row" role="listitem"><Button class="library-highlight" data-library-row={row.citation.id} onClick={event => props.onOpen(target, event.shiftKey)} onKeyDown={event => rowKey(event, target)}>
+                  return <div class="library-row" role="listitem" onPointerEnter={() => setLinkedCitation(row.citation.id)} onPointerLeave={() => setLinkedCitation(null)}><Button class="library-highlight" data-library-row={row.citation.id} onClick={event => props.onOpen(target, event.shiftKey)} onKeyDown={event => rowKey(event, target)}>
                     <span class="library-highlight-text"><span class={`highlight-color-dot${row.color ? ` highlight-color-${row.color}` : ''}`} role="img" aria-label={row.color ? `${row.color} highlight` : 'No colour'} /><BlockText text={row.block.block.text} notebook={props.notebook} interactive={false} /></span>
                     <span class="library-highlight-details">
-                      <Show when={props.notebook.settings()}>{settings => <span class="library-highlight-meta">{highlightMeta(row, highlightContents().get(row.citation.snapshot_id) ?? [], settings().time_zone)}</span>}</Show>
+                      <Show when={props.notebook.settings()}>{settings => <span class="library-highlight-meta">{highlightMeta(row, highlightContents().get(row.citation.snapshot_id) ?? [], settings().time_zone)}<Show when={row.notes > 0}> · {row.notes} {row.notes === 1 ? 'note' : 'notes'}</Show></span>}</Show>
                       <Show when={row.tags.length}><span class="library-highlight-tags"><For each={row.tags}>{tag => <span class="outline-tag">#{tag}</span>}</For></span></Show>
                     </span>
                     <Show when={row.block.block.text.trim() !== row.citation.quote.trim()}><span class="library-highlight-quote">{row.citation.quote}</span></Show>
@@ -544,7 +544,7 @@ export function LibraryPane(props: LibraryPaneProps) {
     </div>
     <Show keyed when={popup()}>{state => {
       const dismiss = () => { if (popup() === state) setPopup(null); };
-      if (state.kind === 'menu') return <Menu anchor={state.anchor} label={state.label} items={state.items} onDismiss={dismiss} />;
+      if (state.kind === 'menu') return <Menu anchor={state.anchor} label={state.label} items={state.items} header={state.Header && <state.Header onDismiss={dismiss} />} onDismiss={dismiss} />;
       if (state.kind === 'tags') return <Picker anchor={state.anchor} label="Filter highlight tags" placeholder="Find a tag" query={tagQuery()} onQuery={setTagQuery} items={tagOptions()} key={tag => tag}
         row={tag => <><Show when={tags().includes(tag)}><Icon name="check" /></Show><span class="outline-tag">#{tag}</span></>}
         onPick={tag => { update({ tags: tags().includes(tag) ? tags().filter(value => value !== tag) : [...tags(), tag], scroll: 0 }); dismiss(); }} empty="No tags in these highlights" onDismiss={dismiss} />;
