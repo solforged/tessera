@@ -6,6 +6,7 @@ import { createNotebookClient } from '../document';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import { OutlinePane } from '../outline/OutlinePane';
 import { plainText } from '../outline/BlockText';
+import { ReferencePreviews } from '../outline/ReferencePreview';
 import { copyTaskQuery, createTaskQuery } from '../tasks/query';
 import { copyQuery } from '../table/query';
 import { Button } from '../ui/Button';
@@ -484,6 +485,7 @@ export function App() {
         ]} />
       </Show>
     </>}</Show>
+    <ReferencePreviews notebook={notebook} onOpen={(target, beside, pane) => open(target, beside, pane ?? active())} />
     <Show when={deleted()}>{value => <div class="undo-toast" role="status"><Icon name="trash" /><span>“{value().title}” deleted</span><Button icon="undo" onClick={() => { void restorePage(); }}>Undo</Button><Button icon="close" label="Dismiss deletion notification" onClick={() => setDeleted(null)} /></div>}</Show>
   </div>;
 }

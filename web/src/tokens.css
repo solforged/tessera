@@ -66,6 +66,7 @@
   --rail-height: 48px;
   --pane-header-height: 36px;
   --search-width: 320px;
+  --preview-body-height: 320px; /* reference hover card body before it clips */
   --target-size: 24px;       /* pointer targets; touch targets are 44px */
   --touch-size: 44px;
   --icon-size: 16px;
