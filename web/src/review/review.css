@@ -1,11 +1,17 @@
 .review-pane { display: flex; flex-direction: column; min-height: 0; height: 100%; min-width: 0; }
-.review-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); padding: var(--space-12) var(--space-24); }
-.review-queue-controls { display: flex; flex-wrap: wrap; gap: var(--space-4); }
-.review-queue-controls [aria-pressed="true"] { background: var(--selection); color: var(--accent); }
-.review-scroll { flex: 1; min-height: 0; overflow: auto; }
-.review-summary, .review-stale, .review-history { width: 100%; max-width: var(--measure); margin-inline: auto; padding: var(--space-12) var(--space-24); }
-.review-summary { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-12); color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
+/* Toolbar, status, card and footer share the outline measure, like Library and Agenda. */
+.review-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); width: 100%; max-width: calc(var(--measure) + 2 * var(--space-16)); margin-inline: auto; padding: var(--space-24) var(--space-16) var(--space-12); }
+.review-scroll > * { width: 100%; max-width: var(--measure); margin-inline: auto; }
+.review-queue-controls { display: flex; flex-wrap: wrap; gap: var(--space-4); margin-right: auto; }
+.review-queue-controls .button { font-weight: var(--weight-body); }
+.review-count { margin-left: var(--space-4); color: var(--faint); font-variant-numeric: tabular-nums; }
+.review-queue-controls [aria-pressed="true"] .review-count { color: inherit; }
+.review-open-sessions.button { font-weight: var(--weight-body); }
+.review-scroll { flex: 1; min-height: 0; overflow: auto; padding: 0 var(--space-16) var(--space-24); }
+.review-scroll > * + * { margin-top: var(--space-12); }
+.review-summary { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-4) var(--space-12); min-height: var(--target-size); color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); font-variant-numeric: tabular-nums; }
 .review-summary p { flex-basis: 100%; margin: 0; }
+.review-pending { color: var(--faint); }
 .review-notice { padding: var(--space-8) var(--space-24); color: var(--muted); background: var(--surface); font-size: var(--text-control); line-height: var(--line-control); overflow-wrap: anywhere; }
 .review-notice[role="alert"] { color: var(--danger); }
 .review-stale { color: var(--warning); font-size: var(--text-control); line-height: var(--line-control); }
@@ -14,17 +20,18 @@
 .review-stale-versions section { flex: 1 1 calc(var(--measure) / 3); min-width: 0; }
 .review-stale-versions h2 { color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); font-weight: var(--weight-control); margin: 0 0 var(--space-8); }
 .review-stale-versions section > div, .review-history-text { white-space: pre-wrap; overflow-wrap: anywhere; margin-bottom: var(--space-8); }
-.review-session-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); padding: var(--space-12) var(--space-24); background: var(--surface); }
-.review-session-actions span { color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); }
+.review-session-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); padding: var(--space-12) max(var(--space-16), calc((100% - var(--measure)) / 2)); border-top: 1px solid var(--line); }
 .review-history { color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
 .review-history summary { cursor: pointer; padding-block: var(--space-4); }
 .review-history summary:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-offset); }
-.review-history ol { display: flex; flex-direction: column; gap: var(--space-12); padding-inline-start: var(--space-24); }
+.review-history ul { display: flex; flex-direction: column; gap: var(--space-8); margin: var(--space-8) 0 0; padding-inline-start: var(--space-16); list-style: none; }
+.review-history li summary { color: var(--faint); }
 .review-history time { font-variant-numeric: tabular-nums; }
 .review-history-text { color: var(--text); }
 .review-confirm { width: var(--search-width); font-size: var(--text-control); line-height: var(--line-control); }
 .deck-editor { width: var(--measure); max-width: 100%; font-size: var(--text-control); line-height: var(--line-control); }
 .deck-editor form { display: flex; flex-direction: column; gap: var(--space-12); }
 .deck-editor-name { display: flex; flex-direction: column; gap: var(--space-4); }
-.deck-editor .review-toolbar { padding: 0; }
+.deck-editor-queue { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); }
+.deck-editor-match { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
 .deck-editor p { margin: 0; overflow-wrap: anywhere; }
