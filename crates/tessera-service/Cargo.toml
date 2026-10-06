@@ -13,6 +13,8 @@ embed-web = ["dep:include_dir"]
 tessera-core.workspace = true
 anyhow.workspace = true
 axum.workspace = true
+dirs.workspace = true
+jiff = { version = "0.2", default-features = false, features = ["std"] }
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true

@@ -2,7 +2,7 @@
 use std::path::Path;
 
 #[cfg(any(target_os = "macos", test))]
-const LABEL: &str = "dev.tessera.serve";
+use tessera_service::LAUNCH_AGENT_LABEL as LABEL;
 
 #[cfg(any(target_os = "macos", test))]
 fn check_executable(executable: &Path, allow_debug: bool) -> anyhow::Result<()> {
@@ -115,7 +115,7 @@ pub fn install(notebook: Option<&Path>, port: u16, allow_debug: bool) -> anyhow:
     let executable = std::fs::canonicalize(std::env::current_exe()?)?;
     check_executable(&executable, allow_debug)?;
     let home = dirs::home_dir().context("no home directory for the launch agent")?;
-    let agents = home.join("Library/LaunchAgents");
+    let path = tessera_service::launch_agent_path(&home);
     let logs = home.join("Library/Logs/tessera");
     let notebook = notebook.map(std::path::absolute).transpose()?;
     let content = plist(
@@ -124,9 +124,8 @@ pub fn install(notebook: Option<&Path>, port: u16, allow_debug: bool) -> anyhow:
         port,
         &logs.join("serve.log"),
     )?;
-    std::fs::create_dir_all(&agents)?;
+    std::fs::create_dir_all(path.parent().context("launch agent path has no parent")?)?;
     std::fs::create_dir_all(&logs)?;
-    let path = agents.join(format!("{LABEL}.plist"));
     std::fs::write(&path, content)?;
     let domain = domain()?;
     bootout(&domain)?;
@@ -148,7 +147,7 @@ pub fn uninstall() -> anyhow::Result<()> {
     use anyhow::Context;
     let home = dirs::home_dir().context("no home directory for the launch agent")?;
     bootout(&domain()?)?;
-    match std::fs::remove_file(home.join(format!("Library/LaunchAgents/{LABEL}.plist"))) {
+    match std::fs::remove_file(tessera_service::launch_agent_path(&home)) {
         Ok(()) => (),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => (),
         Err(error) => return Err(error.into()),

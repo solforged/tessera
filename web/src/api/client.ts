@@ -1,6 +1,8 @@
 import type {
   Agenda,
   Backlink,
+  BackupInfo,
+  CreatedBackup,
   Batch,
   Block,
   BlockCapabilities,
@@ -32,6 +34,7 @@ import type {
   ProjectRecord,
   ReviewEvent,
   ReviewSession,
+  ServiceInfo,
   SettingsView,
   TaskOccurrence,
   TaskQuery,
@@ -99,6 +102,9 @@ const segment = encodeURIComponent;
 
 export interface ApiClient {
   notebook(signal?: AbortSignal): Promise<NotebookInfo>;
+  service(signal?: AbortSignal): Promise<ServiceInfo>;
+  backups(signal?: AbortSignal): Promise<BackupInfo[]>;
+  createBackup(signal?: AbortSignal): Promise<CreatedBackup>;
   settings(signal?: AbortSignal): Promise<SettingsView>;
   roots(signal?: AbortSignal): Promise<Block[]>;
   page(id: string, signal?: AbortSignal): Promise<PageView>;
@@ -162,6 +168,9 @@ export function createApi(base = ''): ApiClient {
   const get = <T>(path: string, signal?: AbortSignal) => request<T>(base, 'GET', path, undefined, signal);
   return {
     notebook: (signal?: AbortSignal) => get<NotebookInfo>('/notebook', signal),
+    service: (signal?: AbortSignal) => get<ServiceInfo>('/service', signal),
+    backups: (signal?: AbortSignal) => get<BackupInfo[]>('/backups', signal),
+    createBackup: (signal?: AbortSignal) => request<CreatedBackup>(base, 'POST', '/backups', undefined, signal),
     settings: (signal?: AbortSignal) => get<SettingsView>('/settings', signal),
     roots: (signal?: AbortSignal) => get<Block[]>('/roots', signal),
     page: (id: string, signal?: AbortSignal) => get<PageView>(`/pages/${segment(id)}`, signal),

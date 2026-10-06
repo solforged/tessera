@@ -7,15 +7,16 @@ import { cachedExactPage } from '../outline/completion';
 import { Icon } from '../ui/Icon';
 import { Picker } from '../ui/Picker';
 import type { Command, CommandRegistry, OpenTarget, PaneId } from './contract';
+import { paletteRows, type SearchEntry } from './palette-rows';
 
-type Entry = { kind: 'hit'; hit: BlockInPage } | { kind: 'command'; command: Command } | { kind: 'create'; title: string };
+type Entry = SearchEntry | { kind: 'command'; command: Command } | { kind: 'create'; title: string };
 
 /** Find or create pages, search blocks, or prefix commands with `>`. Tab drills into a result's children. */
 export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'search' | 'commands'; commands: CommandRegistry; notebook: NotebookClient; onDismiss(): void; onRestoreFocus(): void; onOpen(target: OpenTarget, beside: boolean): void }) {
   const capturedCommands = props.commands.list().map(command => command.capture?.() ?? command);
   const [query, setQuery] = createSignal(props.mode === 'commands' ? '>' : '');
   const [debounced, setDebounced] = createSignal('');
-  const [scopes, setScopes] = createSignal<BlockInPage[]>([]);
+  const [scopes, setScopes] = createSignal<(BlockInPage & { matching?: boolean })[]>([]);
   const [creating, setCreating] = createSignal(false);
   const [createError, setCreateError] = createSignal('');
   let disposed = false;
@@ -29,12 +30,13 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
   });
   const [hits] = createResource(() => mode() === 'search' ? debounced() : null, async q => q ? api.search(q) : props.notebook.roots().map(root => ({ block: root, page: root })));
   const scope = () => scopes().at(-1);
-  const [scopedPage] = createResource(() => scope()?.page.id, id => api.page(id));
+  const [scopedPage] = createResource(() => scope()?.matching ? undefined : scope()?.page.id, id => api.page(id));
   const commands = createMemo(() => capturedCommands.filter(command => (!command.id.startsWith('outline.') || command.id.startsWith(`outline.${props.pane}.`)) && `${command.title} ${command.section}`.toLocaleLowerCase().includes(text().toLocaleLowerCase())));
   const entries = createMemo((): Entry[] => {
     if (mode() === 'commands') return commands().map(command => ({ kind: 'command', command }));
     if (text() !== debounced() || hits.loading) return [];
     const parent = scope();
+    if (parent?.matching) return paletteRows(hits.error ? [] : hits() ?? [], text(), parent.page.id);
     const rows = !parent ? (hits.error ? [] : hits() ?? [])
       : scopedPage.error ? []
         : (scopedPage()?.rows ?? []).filter(row => row.block.parent_id === parent.block.id).map(row => ({ block: row.block, page: parent.page }));
@@ -43,7 +45,8 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
       ?? rows.find(hit => hit.block.kind === 'page' && hit.block.text.toLowerCase() === title.toLowerCase())?.block : null;
     const result: Entry[] = [];
     if (exact) result.push({ kind: 'hit', hit: { block: exact, page: exact } });
-    for (const hit of rows) if (hit.block.id !== exact?.id) result.push({ kind: 'hit', hit });
+    const remaining = rows.filter(hit => hit.block.id !== exact?.id);
+    result.push(...(parent ? remaining.map((hit): Entry => ({ kind: 'hit', hit })) : paletteRows(remaining, title)));
     if (!parent && title && !exact) result.push({ kind: 'create', title });
     return result;
   });
@@ -54,6 +57,7 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
     return true;
   };
   const up = () => setScopes(previous => previous.slice(0, -1));
+  const more = (page: Block) => setScopes(previous => [...previous, { block: page, page, matching: true }]);
   const open = (hit: BlockInPage, beside: boolean) => {
     props.onDismiss(); props.onOpen({ kind: 'page', pageId: hit.page.id, ...(hit.block.id !== hit.page.id ? { blockId: hit.block.id } : {}) }, beside);
   };
@@ -85,10 +89,11 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
     query={query()} onQuery={value => { setCreateError(''); setQuery(value); }} placeholder={mode() === 'search' ? 'Find a page, block, or new title' : 'Find a command'}
     prefix={<Icon name={mode() === 'search' ? 'search' : 'command'} class="picker-prefix" />}
     status={<Show when={scope()}>{parent => <div class="scope-bar"><Icon name="up" /><BlockText text={parent().block.text} notebook={props.notebook} interactive={false} /><kbd>⇧Tab</kbd></div>}</Show>}
-    items={entries()} key={entry => entry.kind === 'hit' ? entry.hit.block.id : entry.kind === 'command' ? entry.command.id : 'create'}
+    items={entries()} key={entry => entry.kind === 'hit' ? entry.hit.block.id : entry.kind === 'more' ? `more:${entry.page.id}` : entry.kind === 'command' ? entry.command.id : 'create'}
     disabledReason={entry => creating() ? 'Creating page…' : entry.kind === 'command' ? entry.command.disabledReason?.() : undefined}
     onPick={(entry, event) => {
       if (entry.kind === 'hit') open(entry.hit, event.shiftKey);
+      else if (entry.kind === 'more') more(entry.page);
       else if (entry.kind === 'command') run(entry.command);
       else void create(entry.title, event.shiftKey);
     }}
@@ -96,11 +101,13 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
       if (event.key !== 'Tab' || mode() !== 'search' || event.ctrlKey || event.metaKey || event.altKey) return false;
       if (event.shiftKey) { if (!scopes().length) return false; up(); return true; }
       if (entry?.kind === 'hit') void drill(entry.hit);
+      else if (entry?.kind === 'more') more(entry.page);
       return true;
     }}
     busy={busy()} error={error()} empty={mode() === 'search' ? 'No results.' : 'No matching commands.'}
     row={(entry, selected) => entry.kind === 'hit'
       ? <HitRow hit={entry.hit} query={text()} notebook={props.notebook} selected={selected} />
+      : entry.kind === 'more' ? <><Icon name="page" /><span class="picker-text">+{entry.count} more in {entry.page.text}</span></>
       : entry.kind === 'command' ? <CommandRow command={entry.command} />
         : <><Icon name="plus" /><span class="picker-text">Create page “{entry.title}”</span><Show when={selected}><kbd class="picker-hint">⇧↵ beside</kbd></Show></>} />;
 }

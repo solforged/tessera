@@ -1,5 +1,7 @@
 //! The loopback HTTP and WebSocket service that owns one notebook. Browser windows, the CLI and
 //! agents reach the notebook only through its operation API.
+//! `GET /api/service` reports local runtime details. `POST /api/backups` takes a
+//! portable snapshot, and `GET /api/backups` lists completed snapshots newest first.
 
 mod assets;
 mod capabilities;
@@ -24,7 +26,7 @@ use axum::{
     response::Response,
     routing::{get, post},
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tessera_core::{
     Backlink, Batch, Block, BlockInPage, ChangeEvent, Committed, FieldsView, Notebook,
     NotebookInfo, PageView, QueryResult, SettingsView, TypeInfo, View,
@@ -36,6 +38,14 @@ pub use crate::security::validate_dev_origin;
 use tessera_core::NotebookOwnership;
 
 pub const DEFAULT_PORT: u16 = 4318;
+
+pub const LAUNCH_AGENT_LABEL: &str = "dev.tessera.serve";
+
+/// The per-user launch agent location. This does not invoke launchctl.
+pub fn launch_agent_path(home: &std::path::Path) -> PathBuf {
+    home.join("Library/LaunchAgents")
+        .join(format!("{LAUNCH_AGENT_LABEL}.plist"))
+}
 
 pub struct Config {
     /// Notebook directory; created if missing.
@@ -53,6 +63,8 @@ pub(crate) struct AppState {
     assets: Option<Arc<PathBuf>>,
     changes: broadcast::Sender<i64>,
     library: library::Library,
+    port: u16,
+    backup: Arc<tokio::sync::Mutex<()>>,
 }
 
 /// Build the HTTP router. `port` must be the port the listener actually bound,
@@ -73,9 +85,13 @@ pub fn router(
         assets: assets.map(Arc::new),
         changes: notifications,
         library,
+        port,
+        backup: Arc::new(tokio::sync::Mutex::new(())),
     };
     Ok(Router::new()
         .route("/api/notebook", get(notebook_info))
+        .route("/api/service", get(service_info))
+        .route("/api/backups", get(backups).post(create_backup))
         .route("/api/settings", get(settings))
         .route("/api/roots", get(roots))
         .route("/api/pages/{id}", get(page))
@@ -189,6 +205,148 @@ fn shutdown_signal() -> std::io::Result<impl Future<Output = ()>> {
 
 async fn notebook_info(State(state): State<AppState>) -> Result<Json<NotebookInfo>, ApiError> {
     run(&state, |notebook| notebook.info()).await.map(Json)
+}
+
+#[derive(Serialize)]
+struct LaunchAgentInfo {
+    installed: bool,
+    path: Option<PathBuf>,
+}
+
+#[derive(Serialize)]
+struct ServiceInfo {
+    version: &'static str,
+    port: u16,
+    assets: &'static str,
+    launch_agent: LaunchAgentInfo,
+}
+
+async fn service_info(State(state): State<AppState>) -> Result<Json<ServiceInfo>, ApiError> {
+    tokio::task::spawn_blocking(move || {
+        let path = dirs::home_dir().map(|home| launch_agent_path(&home));
+        let installed = path
+            .as_ref()
+            .map(|path| path.try_exists())
+            .transpose()
+            .map_err(ApiError::internal)?
+            .unwrap_or(false);
+        Ok(Json(ServiceInfo {
+            version: env!("CARGO_PKG_VERSION"),
+            port: state.port,
+            assets: if state.assets.is_some() {
+                "directory"
+            } else if cfg!(feature = "embed-web") {
+                "embedded"
+            } else {
+                "none"
+            },
+            launch_agent: LaunchAgentInfo { installed, path },
+        }))
+    })
+    .await
+    .map_err(ApiError::internal)?
+}
+
+#[derive(Serialize)]
+struct BackupInfo {
+    path: PathBuf,
+    created_at: i64,
+    object_count: u64,
+}
+
+#[derive(Serialize)]
+struct CreatedBackup {
+    path: PathBuf,
+    #[serde(flatten)]
+    manifest: tessera_core::BackupManifest,
+}
+
+fn backup_directory(info: &NotebookInfo) -> Result<PathBuf, ApiError> {
+    let parent = info
+        .path
+        .parent()
+        .ok_or_else(|| ApiError::internal("The notebook has no parent directory."))?;
+    Ok(parent.join("backups").join(&info.id))
+}
+
+async fn backups(State(state): State<AppState>) -> Result<Json<Vec<BackupInfo>>, ApiError> {
+    let info = run(&state, |notebook| notebook.info()).await?;
+    tokio::task::spawn_blocking(move || {
+        let entries = match std::fs::read_dir(backup_directory(&info)?) {
+            Ok(entries) => entries,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                return Ok(Json(Vec::new()));
+            }
+            Err(error) => return Err(ApiError::internal(error)),
+        };
+        let mut backups = Vec::new();
+        for entry in entries {
+            let entry = entry.map_err(ApiError::internal)?;
+            if !entry.file_type().map_err(ApiError::internal)?.is_dir() {
+                continue;
+            }
+            // The manifest is published last. An interrupted backup is not listed.
+            let file = match std::fs::File::open(entry.path().join("manifest.json")) {
+                Ok(file) => file,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(error) => return Err(ApiError::internal(error)),
+            };
+            let manifest: tessera_core::BackupManifest =
+                serde_json::from_reader(file).map_err(ApiError::internal)?;
+            if manifest.notebook_id == info.id {
+                backups.push(BackupInfo {
+                    path: entry.path(),
+                    created_at: manifest.created_at,
+                    object_count: manifest.object_count,
+                });
+            }
+        }
+        backups.sort_by(|a, b| {
+            b.created_at
+                .cmp(&a.created_at)
+                .then_with(|| b.path.cmp(&a.path))
+        });
+        Ok(Json(backups))
+    })
+    .await
+    .map_err(ApiError::internal)?
+}
+
+async fn create_backup(State(state): State<AppState>) -> Result<Json<CreatedBackup>, ApiError> {
+    let guard = state.backup.clone().try_lock_owned().map_err(|_| {
+        ApiError::new(
+            axum::http::StatusCode::CONFLICT,
+            "conflict",
+            "A backup is already running.",
+        )
+    })?;
+    let info = run(&state, |notebook| notebook.info()).await?;
+    tokio::task::spawn_blocking(move || {
+        // Keep the guard here so cancelling the HTTP request cannot release it early.
+        let _guard = guard;
+        let directory = backup_directory(&info)?;
+        std::fs::create_dir_all(&directory).map_err(ApiError::internal)?;
+        let path = directory.join(
+            jiff::Timestamp::now()
+                .strftime("%Y-%m-%dT%H-%M-%S")
+                .to_string(),
+        );
+        match std::fs::create_dir(&path) {
+            Ok(()) => (),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                return Err(ApiError::new(
+                    axum::http::StatusCode::CONFLICT,
+                    "conflict",
+                    "A backup already exists for this second.",
+                ));
+            }
+            Err(error) => return Err(ApiError::internal(error)),
+        }
+        let manifest = tessera_core::backup(&info.path, &path).map_err(ApiError::from)?;
+        Ok(Json(CreatedBackup { path, manifest }))
+    })
+    .await
+    .map_err(ApiError::internal)?
 }
 
 #[derive(Deserialize)]
@@ -484,4 +642,66 @@ async fn run<T: Send + 'static>(
     })
     .await
     .map_err(ApiError::internal)?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::{
+        body::{Body, to_bytes},
+        http::{Request, StatusCode},
+    };
+    use tower::ServiceExt;
+
+    #[tokio::test]
+    async fn backup_rejects_concurrent_requests_and_releases_guard_after_failure() {
+        let dir = tempfile::tempdir().unwrap();
+        let notebook = Arc::new(Mutex::new(
+            Notebook::open(dir.path().join("notebook")).unwrap(),
+        ));
+        let info = notebook.lock().info().unwrap();
+        let changes = broadcast::channel(32).0;
+        let library =
+            library::Library::start(notebook.clone(), changes.clone(), library::extract).unwrap();
+        let backup = Arc::new(tokio::sync::Mutex::new(()));
+        let app = Router::new()
+            .route("/api/backups", post(create_backup))
+            .with_state(AppState {
+                notebook,
+                assets: None,
+                changes,
+                library,
+                port: 4396,
+                backup: backup.clone(),
+            });
+        let guard = backup.clone().try_lock_owned().unwrap();
+        let response = app
+            .clone()
+            .oneshot(Request::post("/api/backups").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::CONFLICT);
+        let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let error: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(error["error"]["code"], "conflict");
+        assert_eq!(error["error"]["message"], "A backup is already running.");
+        drop(guard);
+
+        let blocked = info.path.parent().unwrap().join("backups");
+        std::fs::write(&blocked, b"not a directory").unwrap();
+        let response = app
+            .clone()
+            .oneshot(Request::post("/api/backups").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        assert!(backup.try_lock().is_ok());
+        std::fs::remove_file(blocked).unwrap();
+        let response = app
+            .oneshot(Request::post("/api/backups").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert!(backup.try_lock().is_ok());
+    }
 }

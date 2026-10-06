@@ -325,7 +325,7 @@ export function AgendaPane(props: AgendaPaneProps) {
         <Show when={loading()}><p class="agenda-message" role="status">Loading {mode() === 'agenda' ? 'agenda' : 'tasks'}…</p></Show>
         <Show when={error()}><div class="agenda-error" role="alert"><span>{error()}</span><Button onClick={() => setRefresh(value => value + 1)}>Retry</Button></div></Show>
         <Show when={!loading() && !error()}>
-          <p class="agenda-message" role="status">{rows().length} of {total()} {mode() === 'agenda' ? 'agenda item' : 'task'}{total() === 1 ? '' : 's'}</p>
+          <Show when={mode() !== 'agenda' || rows().length || total()}><p class="agenda-message" role="status">{rows().length} of {total()} {mode() === 'agenda' ? 'agenda item' : 'task'}{total() === 1 ? '' : 's'}</p></Show>
           <Show when={!rows().length}><p class="agenda-message">{mode() === 'agenda' ? 'Nothing planned' : 'No tasks match these filters.'}</p></Show>
         </Show>
         <TaskSourceRows rows={rows()} date={date()} pageId={props.notebook.roots().find(root => root.kind === 'journal' && root.text === date())?.id} notebook={props.notebook} disabled={busy() || loading() || !!error()} onOpen={props.onOpen} onChanged={() => setRefresh(value => value + 1)} />

@@ -329,7 +329,8 @@ export function ReviewPane(props: ReviewPaneProps) {
         <Show when={!openSession() && rows().length}><Button class="bordered" disabled={locked() || loading() || !!readError()} onClick={() => void start()}>Start review</Button></Show>
         <span role="status">{!ready() ? 'Loading cards…'
           : rows().length ? `${rows().length} ${openSession() ? 'left' : rows().length === 1 ? 'card' : 'cards'}`
-          : openSession() ? 'Queue complete.' : query().selection === 'due' ? 'Nothing due.' : 'No cards in this queue.'}</span>
+          : openSession() ? 'Queue complete.' : !deckId() && counts().all === 0 ? 'No cards yet. Type >> in any block to make one, or <> for both directions.'
+            : query().selection === 'due' ? 'Nothing due.' : 'No cards in this queue.'}</span>
         <Show when={openSession() && ready() && !rows().length && !shown()}><Button class="bordered" disabled={locked()} onClick={() => void closeSession('finished')}>Finish review</Button></Show>
         <Show when={pending()}><span class="review-pending" role="status">{pending()}</span></Show>
         <Show when={session() && session()!.state !== 'open'}><p role="status">{session()!.state === 'finished' ? 'Review finished.' : 'Review abandoned.'} Its grades are kept.</p></Show>
