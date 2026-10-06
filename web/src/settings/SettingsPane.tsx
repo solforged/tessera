@@ -5,6 +5,7 @@ import type { PaneId, SettingsViewState } from '../shell/contract';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Picker } from '../ui/Picker';
+import { setThemePreference, themePreference } from '../shell/theme';
 import { backupLabel } from './backup';
 import './settings.css';
 
@@ -105,6 +106,14 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; not
     <section aria-labelledby={`settings-editing-${props.pane}`}>
       <h2 id={`settings-editing-${props.pane}`}><span class="section-number">05</span>Editing<span class="section-rule" /></h2>
       <label class="settings-checkbox"><input type="checkbox" checked={props.notebook.vim()} disabled={props.notebook.settingsBusy()} onChange={event => { void change('vim', String(event.currentTarget.checked)); }} /> Vim</label>
+    </section>
+    <section aria-labelledby={`settings-appearance-${props.pane}`}>
+      <h2 id={`settings-appearance-${props.pane}`}><span class="section-number">06</span>Appearance<span class="section-rule" /></h2>
+      <div class="mode-tabs" role="group" aria-label="Theme">
+        <For each={[['system', 'System'], ['light', 'Light'], ['dark', 'Dark']] as const}>{([value, label]) =>
+          <Button aria-pressed={themePreference() === value} onClick={() => setThemePreference(value)}>{label}</Button>}</For>
+      </div>
+      <p>Applies to this device only.</p>
     </section>
   </div>;
 }

@@ -11,7 +11,7 @@ Status: applied to the shell, the outline and the table. The permanent global ra
 3. **One meaning, one form.** Structure is a neutral bullet. A type is a tinted pill with its name. Task state is a glyph. Colour never carries meaning alone, and type hues never reuse status hues.
 4. **Work happens in panes.** Tables, views, fields, settings, search results and references open in a pane. Dialogs are for short controls and confirmations only.
 5. **Summaries in the row, details on selection.** A block shows its state as compact trailing metadata; field rows appear as children under it.
-6. **Calm dark.** A midnight shell frames the ink-blue canvas. Gilt marks focus and primary actions. Only floating layers cast shadows.
+6. **Calm by night and day.** A midnight shell frames the ink-blue canvas, or a vellum one by day. Gilt marks focus and primary actions. Only floating layers cast shadows.
 7. **Built for long sessions.** 28 px rows, 15 px writing, a 760 px measure. Apparatus is 11.5 px; other labels start at 12 px.
 8. **Keyboard and pointer parity.** Menus show shortcuts beside actions. Vim is optional.
 
@@ -45,6 +45,8 @@ Steps 2, 4, 8, 12, 16, 24, 32, 48 px. Row height 28 px; indent 24 px; measure 76
 ### Colour
 
 Orrery uses midnight `--shell` (#0a0d13), ink-blue `--canvas` (#0e121a), parchment `--text` (#e6e1d6) and gilt `--accent` (#d8aa55). Muted text is cool grey. Rubric red `--danger` (#d97a6b) marks danger and short insertion rules; `--warning` is warm orange. Doing and scheduled work are blue; done is sage. Type and highlight hues stay separate from these roles.
+
+Orrery by day is the light theme: the same roles on vellum, a `--canvas` of #f8f5ee inside a #ebe5d8 shell, ink `--text` (#1f1b15), antique gold `--accent` (#93650f), oxblood `--danger` (#ad3a2b) and a deeper steel blue. It overrides colour tokens only, under `:root[data-theme="light"]`; type, space and shape never change, and reader figures are not dimmed. Settings › Appearance chooses System (the default, following the operating system), Light or Dark per device, stored in local storage rather than the notebook. The entry imports `shell/theme.ts` first so the page paints in the right theme, and `index.html` paints the system theme before any script runs.
 
 | Role | Token |
 |---|---|
