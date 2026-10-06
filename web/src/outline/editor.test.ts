@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { Compartment, EditorState } from '@codemirror/state';
-import { fieldEntryExtension, pairInput, referenceDecorations } from './editor';
+import { fieldDraftDecorations, fieldEntryExtension, pairInput, referenceDecorations } from './editor';
 
 test('known whole-field references keep raw copy text and reject interior carets', () => {
   for (const text of ['[[area]]', '  [[area|Alias]]  ']) {
@@ -63,6 +63,11 @@ describe('editor reference decorations', () => {
   test('leaves whole field entries to the field widget', () => {
     expect(decorations('[[author]]', 0, { author: 'Author' })).toEqual([]);
   });
+  test('labels a whole-text reference that is not a field, such as a chosen option', () => {
+    const ranges: string[] = [];
+    referenceDecorations('[[option]]', 10, id => id === 'option' ? 'Architecture' : undefined, () => false).between(0, 10, (_from, _to, decoration) => { ranges.push(decoration.spec.widget.label); });
+    expect(ranges).toEqual(['Architecture']);
+  });
   test('leaves plain text tags and URLs undecorated', () => {
     expect(decorations('Text #tag https://example.org', 0)).toEqual([]);
     expect(decorations('By [[author|]]', 0, { author: 'Author' })[0]?.label).toBe('Author');
@@ -105,5 +110,30 @@ describe('bracket pairing', () => {
   });
   test('a closer outside an open pair is ordinary text', () => {
     expect(typed(']', '[[a]]x]', 6)).toBe('[[a]]x]|]');
+  });
+});
+
+/** The draft mark's range and the hint text, if any. */
+function draft(text: string, kinds: Record<string, 'text' | 'date'> = {}): { name: [number, number] | null; hint: string | null } {
+  let name: [number, number] | null = null;
+  let hint: string | null = null;
+  fieldDraftDecorations(text, value => kinds[value.toLowerCase()]).between(0, text.length, (from, to, decoration) => {
+    if (decoration.spec.class === 'field-draft-name') name = [from, to];
+    else if (decoration.spec.widget?.hint) hint = decoration.spec.widget.hint;
+  });
+  return { name, hint };
+}
+
+describe('field shorthand drafts', () => {
+  test('mark the name as a label while it is typed and say when the field is new', () => {
+    expect(draft('Mood::')).toEqual({ name: [0, 6], hint: 'New field' });
+    expect(draft('Mood:: calm')).toEqual({ name: [0, 6], hint: 'New field' });
+  });
+  test('name a known field kind until a value is typed', () => {
+    expect(draft('Published::', { published: 'date' })).toEqual({ name: [0, 11], hint: 'Date' });
+    expect(draft('Published:: 2026', { published: 'date' })).toEqual({ name: [0, 11], hint: null });
+  });
+  test('leave prose, card syntax and converted entries alone', () => {
+    for (const text of ['Plain prose', 'Front >> Back::x', '{{c1::answer}}', '[[field]]', '::query']) expect(draft(text)).toEqual({ name: null, hint: null });
   });
 });
