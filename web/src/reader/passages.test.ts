@@ -5,7 +5,7 @@ import { citationRange, passageSegments, selectedPassages } from './passages';
 const passages: Passage[] = ['First 😀 passage', 'Middle marked text', 'Final passage'].map((text, ordinal) => ({
   id: `p${ordinal}`, ordinal, text, kind: 'paragraph', level: null, locator: `chapter#${ordinal}`, anchor: null, resource: null, marks: [], start: 0,
 }));
-const citation: Citation = { id: 'c1', block_id: 'block', source_id: 'source', snapshot_id: 'snapshot', start: { passage_id: 'p0', offset: 6 }, end: { passage_id: 'p2', offset: 5 }, quote: '😀 passage\n\nMiddle marked text\n\nFinal', locator: 'chapter#0', ordinal: 0, triage: null };
+const citation: Citation = { id: 'c1', block_id: 'block', source_id: 'source', snapshot_id: 'snapshot', start: { passage_id: 'p0', offset: 6 }, end: { passage_id: 'p2', offset: 5 }, quote: '😀 passage\n\nMiddle marked text\n\nFinal', locator: 'chapter#0', ordinal: 0, triage: null, color: null };
 
 describe('reader selection', () => {
   test('normalizes backwards cross-passage selections and UTF-16 offsets', () => {

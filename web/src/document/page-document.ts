@@ -221,6 +221,15 @@ export class Document implements PageDocument {
         this.updateCapabilities(value, base);
         return [{ ...action, triage: previous, previous: action.triage }];
       }
+      case 'highlightColor': {
+        const value = this.capabilities(action.id, base);
+        const citation = value.citations?.find(item => item.id === action.citationId);
+        if (!citation) return [];
+        const previous = citation.color;
+        citation.color = action.color;
+        this.updateCapabilities(value, base);
+        return [{ ...action, color: previous, previous: action.color }];
+      }
       case 'completeTask': {
         const value = this.capabilities(action.id, base);
         // Recurrence is authoritative server state, never a second client calendar.
@@ -813,7 +822,7 @@ export class Document implements PageDocument {
           const citation = edit.citation;
           actions.push({ kind: 'cite', id, baseRevision: edit.kind === 'highlight' ? 0 : this.snapshot(id).revision,
             citation: { id: citation.id, block_id: id, source_id: citation.sourceId, snapshot_id: citation.snapshotId,
-              start: { ...citation.start }, end: { ...citation.end }, quote: citation.quote, locator: citation.locator, ordinal: citation.ordinal, triage: null } });
+              start: { ...citation.start }, end: { ...citation.end }, quote: citation.quote, locator: citation.locator, ordinal: citation.ordinal, triage: null, color: edit.kind === 'highlight' ? edit.color ?? null : null } });
           if (edit.kind === 'highlight') caret = { id, offset: edit.text.length };
           break;
         }
@@ -828,6 +837,12 @@ export class Document implements PageDocument {
           const citation = this.capabilities(edit.id).citations?.find(item => item.id === edit.citationId);
           if (!citation) throw new Error('Citation not found.');
           if (citation.triage !== edit.triage) actions.push({ kind: 'citationTriage', id: edit.id, citationId: edit.citationId, triage: edit.triage, previous: citation.triage, baseRevision: this.snapshot(edit.id).revision });
+          break;
+        }
+        case 'highlightColor': {
+          const citation = this.capabilities(edit.id).citations?.find(item => item.id === edit.citationId);
+          if (!citation) throw new Error('Citation not found.');
+          if (citation.color !== edit.color) actions.push({ kind: 'highlightColor', id: edit.id, citationId: edit.citationId, color: edit.color, previous: citation.color, baseRevision: this.snapshot(edit.id).revision });
           break;
         }
         case 'task':

@@ -56,7 +56,7 @@ pub(crate) fn citations(
                  WHERE a.snapshot_id = c.snapshot_id
                  ORDER BY a.change_seq, a.rowid
                  LIMIT 1),
-                first.locator, p.ordinal, p.text, first.ordinal, last.ordinal, c.triage
+                first.locator, p.ordinal, p.text, first.ordinal, last.ordinal, c.triage, c.color
          FROM citations c
          JOIN blocks b ON b.id = c.block_id
          JOIN passages first ON first.id = c.start_passage
@@ -101,6 +101,7 @@ pub(crate) fn citations(
                 locator: r.get(8)?,
                 ordinal: r.get(11)?,
                 triage: r.get(13)?,
+                color: r.get(14)?,
             });
         }
         let c = result.last_mut().expect("citation inserted");
@@ -468,6 +469,10 @@ impl Notebook {
         })
     }
     pub fn highlights(&self, query: &HighlightQuery) -> Result<HighlightResult> {
+        for color in &query.colors {
+            crate::library_store::validate_color(Some(color))?;
+        }
+        let tags: Vec<_> = query.tags.iter().map(|tag| tag.to_lowercase()).collect();
         let citations = citations(&self.conn, None, None, true, None)?;
         let mut statement = self.conn.prepare_cached(concat!(
             hidden_blocks!(),
@@ -485,14 +490,23 @@ impl Notebook {
                  SELECT 1 FROM links l
                  JOIN blocks incoming ON incoming.id = l.source_id
                  WHERE l.target_id = b.id AND incoming.deletion_id IS NULL
-             )
+             ), (SELECT json_group_array(title) FROM (
+                 SELECT title FROM memberships WHERE block_id = b.id AND manual = 0 ORDER BY title_key
+             ))
              FROM blocks b
              JOIN blocks p ON p.id = b.page_id
              WHERE b.deletion_id IS NULL AND b.id NOT IN (SELECT id FROM hidden)
-             AND EXISTS(SELECT 1 FROM citations c WHERE c.block_id = b.id AND c.active = 1)"
+             AND EXISTS(SELECT 1 FROM citations c WHERE c.block_id = b.id AND c.active = 1)
+             AND NOT EXISTS(
+                 SELECT 1 FROM json_each(?1) wanted
+                 WHERE NOT EXISTS(
+                     SELECT 1 FROM memberships m
+                     WHERE m.block_id = b.id AND m.manual = 0 AND m.title_key = wanted.value
+                 )
+             )"
         ))?;
-        let mut blocks: HashMap<String, (BlockInPage, bool)> = statement
-            .query_map([], |r| {
+        let mut blocks: HashMap<String, (BlockInPage, bool, Vec<String>)> = statement
+            .query_map([json(&tags)], |r| {
                 let block = block_at(r, 0)?;
                 Ok((
                     block.id.clone(),
@@ -502,6 +516,7 @@ impl Notebook {
                             page: block_at(r, 10)?,
                         },
                         r.get(20)?,
+                        json_at(r, 21)?,
                     ),
                 ))
             })?
@@ -532,7 +547,15 @@ impl Notebook {
             {
                 continue;
             }
-            let Some((block, derived)) = blocks.get_mut(&citation.block_id) else {
+            if !query.colors.is_empty()
+                && !citation
+                    .color
+                    .as_ref()
+                    .is_some_and(|color| query.colors.contains(color))
+            {
+                continue;
+            }
+            let Some((block, derived, tags)) = blocks.get_mut(&citation.block_id) else {
                 continue;
             };
             let processed = citation
@@ -547,6 +570,8 @@ impl Notebook {
                 block: block.clone(),
                 source_title: titles.get(&citation.source_id).cloned().unwrap_or_default(),
                 triage: citation.triage.clone(),
+                color: citation.color.clone(),
+                tags: tags.clone(),
                 created_at: created[&citation.id],
                 citation,
                 processed,

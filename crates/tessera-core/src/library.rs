@@ -208,6 +208,7 @@ pub struct Citation {
     /// Reading-order position of the start passage in its snapshot.
     pub ordinal: i64,
     pub triage: Option<String>,
+    pub color: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -368,6 +369,8 @@ pub struct LibraryResult {
 pub struct HighlightQuery {
     pub source_id: Option<String>,
     pub unprocessed: bool,
+    pub colors: Vec<String>,
+    pub tags: Vec<String>,
     pub limit: Option<usize>,
 }
 
@@ -378,6 +381,8 @@ pub struct HighlightRow {
     pub source_title: String,
     pub processed: bool,
     pub triage: Option<String>,
+    pub color: Option<String>,
+    pub tags: Vec<String>,
     pub created_at: i64,
 }
 

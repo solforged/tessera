@@ -158,6 +158,7 @@ fn cite(n: &mut Notebook, block: &str, snapshot: &str) -> String {
             base_revision: rev,
             citation_id: citation.clone(),
             snapshot_id: snapshot.into(),
+            color: None,
             start: PassagePoint {
                 passage_id: passages[0].id.clone(),
                 offset: 6,
@@ -330,7 +331,7 @@ fn citation_triage_migration_preserves_existing_evidence() {
     let (dir, n, citation) = highlighted_source();
     drop(n);
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
-    conn.execute_batch("ALTER TABLE citations DROP COLUMN triage; PRAGMA user_version = 12;")
+    conn.execute_batch("ALTER TABLE citations DROP COLUMN color; ALTER TABLE citations DROP COLUMN triage; PRAGMA user_version = 12;")
         .unwrap();
     drop(conn);
     let n = Notebook::open(dir.path()).unwrap();
@@ -340,6 +341,200 @@ fn citation_triage_migration_preserves_existing_evidence() {
     );
     assert_eq!(
         n.highlights(&HighlightQuery::default()).unwrap().rows[0].triage,
+        None
+    );
+}
+
+fn set_color(
+    n: &mut Notebook,
+    citation: &Citation,
+    color: Option<&str>,
+) -> tessera_core::Committed {
+    let base_revision = n.block(&citation.block_id).unwrap().revision;
+    apply(
+        n,
+        vec![Operation::SetCitationColor {
+            id: citation.id.clone(),
+            base_revision,
+            color: color.map(str::to_owned),
+        }],
+    )
+}
+
+#[test]
+fn citation_color_set_change_clear_receipts_and_inverse_data() {
+    let (_dir, mut n, citation) = highlighted_source();
+    assert_eq!(citation.color, None);
+    let green = set_color(&mut n, &citation, Some("green"));
+    assert_eq!(green.revisions[0].id, citation.block_id);
+    assert_eq!(green.revisions[0].revision, 3);
+    let previous = green.capabilities[0].citations[0].clone();
+    assert_eq!(previous.color.as_deref(), Some("green"));
+    let blue = set_color(&mut n, &citation, Some("blue"));
+    assert_eq!(blue.revisions[0].revision, 4);
+    assert_eq!(
+        blue.capabilities[0].citations[0].color.as_deref(),
+        Some("blue")
+    );
+    assert_eq!(
+        n.changes_since(blue.seq - 1, 1).unwrap()[0].capabilities[0].citations[0]
+            .color
+            .as_deref(),
+        Some("blue")
+    );
+    let inverse = set_color(&mut n, &citation, previous.color.as_deref());
+    assert_eq!(inverse.capabilities[0].citations[0], previous);
+    let cleared = set_color(&mut n, &citation, None);
+    assert_eq!(cleared.capabilities[0].citations[0].color, None);
+    assert!(set_color(&mut n, &citation, None).revisions.is_empty());
+}
+
+#[test]
+fn citation_color_checks_revision_values_and_live_ownership() {
+    let (_dir, mut n, citation) = highlighted_source();
+    set_color(&mut n, &citation, Some("yellow"));
+    assert!(matches!(n.apply(&batch(vec![Operation::SetCitationColor {
+        id: citation.id.clone(), base_revision: 2, color: None,
+    }])), Err(Error::Conflict { id, .. }) if id == citation.block_id));
+    assert!(matches!(
+        n.apply(&batch(vec![Operation::SetCitationColor {
+            id: citation.id.clone(),
+            base_revision: 3,
+            color: Some("orange".into()),
+        }])),
+        Err(Error::Validation { .. })
+    ));
+    assert_eq!(n.block(&citation.block_id).unwrap().revision, 3);
+    apply(
+        &mut n,
+        vec![Operation::Uncite {
+            id: citation.block_id.clone(),
+            base_revision: 3,
+            citation_id: citation.id.clone(),
+        }],
+    );
+    assert!(
+        n.apply(&batch(vec![Operation::SetCitationColor {
+            id: citation.id,
+            base_revision: 4,
+            color: None,
+        }]))
+        .is_err()
+    );
+}
+
+#[test]
+fn citation_creation_validates_color_and_defaults_legacy_operations() {
+    let (_dir, mut n, citation) = highlighted_source();
+    let make = |color| Operation::Cite {
+        id: citation.block_id.clone(),
+        base_revision: 2,
+        citation_id: id(),
+        snapshot_id: citation.snapshot_id.clone(),
+        start: citation.start.clone(),
+        end: citation.end.clone(),
+        color,
+    };
+    assert!(matches!(
+        n.apply(&batch(vec![make(Some("orange".into()))])),
+        Err(Error::Validation { .. })
+    ));
+    let mut legacy = serde_json::to_value(make(None)).unwrap();
+    legacy.as_object_mut().unwrap().remove("color");
+    assert!(matches!(
+        serde_json::from_value::<Operation>(legacy).unwrap(),
+        Operation::Cite { color: None, .. }
+    ));
+    let receipt = apply(&mut n, vec![make(Some("purple".into()))]);
+    assert_eq!(
+        receipt.capabilities[0].citations[1].color.as_deref(),
+        Some("purple")
+    );
+}
+
+#[test]
+fn highlight_color_and_tags_survive_text_edits_and_filter_together() {
+    let (_dir, mut n, citation) = highlighted_source();
+    set_color(&mut n, &citation, Some("green"));
+    edit(
+        &mut n,
+        &citation.block_id,
+        "Edited highlight #key #Other #key",
+    );
+    note(&mut n, &citation.block_id, "Child #child");
+    let second = note(&mut n, &citation.source_id, "Another #key");
+    cite(&mut n, &second, &citation.snapshot_id);
+    let row = n
+        .highlights(&HighlightQuery {
+            colors: vec!["green".into()],
+            ..Default::default()
+        })
+        .unwrap()
+        .rows
+        .remove(0);
+    assert_eq!(row.color.as_deref(), Some("green"));
+    assert_eq!(row.citation.color, row.color);
+    assert_eq!(row.citation.quote, citation.quote);
+    assert_eq!(row.tags, ["key", "Other"]);
+    let query = HighlightQuery {
+        colors: vec!["green".into(), "blue".into()],
+        tags: vec!["KEY".into(), "other".into()],
+        ..Default::default()
+    };
+    assert_eq!(n.highlights(&query).unwrap().total, 1);
+    assert_eq!(
+        n.highlights(&HighlightQuery {
+            tags: vec!["key".into()],
+            ..Default::default()
+        })
+        .unwrap()
+        .total,
+        2
+    );
+    for query in [
+        HighlightQuery {
+            colors: vec!["red".into()],
+            ..Default::default()
+        },
+        HighlightQuery {
+            tags: vec!["child".into()],
+            ..Default::default()
+        },
+        HighlightQuery {
+            tags: vec!["key".into(), "missing".into()],
+            ..Default::default()
+        },
+    ] {
+        assert_eq!(n.highlights(&query).unwrap().total, 0);
+    }
+    edit(&mut n, &citation.block_id, "No tags");
+    let row = n
+        .highlights(&HighlightQuery {
+            colors: vec!["green".into()],
+            ..Default::default()
+        })
+        .unwrap()
+        .rows
+        .remove(0);
+    assert!(row.tags.is_empty());
+    assert_eq!(row.citation.quote, citation.quote);
+}
+
+#[test]
+fn citation_color_migration_preserves_existing_evidence_with_null_color() {
+    let (dir, n, citation) = highlighted_source();
+    drop(n);
+    let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
+    conn.execute_batch("ALTER TABLE citations DROP COLUMN color; PRAGMA user_version = 13;")
+        .unwrap();
+    drop(conn);
+    let n = Notebook::open(dir.path()).unwrap();
+    assert_eq!(
+        n.capabilities(&citation.block_id).unwrap().citations,
+        vec![citation]
+    );
+    assert_eq!(
+        n.highlights(&HighlightQuery::default()).unwrap().rows[0].color,
         None
     );
 }
@@ -825,7 +1020,8 @@ fn citation_ranges_reactivation_sidecars_merge_and_visibility() {
                 citation_id: id(),
                 snapshot_id: snapshot.clone(),
                 start,
-                end
+                end,
+                color: None,
             }])),
             Err(Error::Validation { .. })
         ));
@@ -861,6 +1057,7 @@ fn citation_ranges_reactivation_sidecars_merge_and_visibility() {
             snapshot_id: snapshot.clone(),
             start: citation.start,
             end: citation.end,
+            color: None,
         }],
     );
     let destination = note(&mut n, &source, "destination");
@@ -1099,6 +1296,7 @@ fn export_markdown_document_reading_order_notes_and_locations() {
                 passage_id: passages[1].id.clone(),
                 offset: 20,
             },
+            color: None,
         }],
     );
     let first = note(&mut n, &source, "Edited highlight, not the frozen quote");
@@ -1259,6 +1457,7 @@ fn export_markdown_current_snapshot_before_history_and_offset_order() {
                     passage_id: passage.id.clone(),
                     offset: end,
                 },
+                color: None,
             }],
         );
     }

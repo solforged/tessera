@@ -1296,6 +1296,9 @@ impl Engine<'_, '_> {
             }
             Operation::SetCitationTriage {
                 id, base_revision, ..
+            }
+            | Operation::SetCitationColor {
+                id, base_revision, ..
             } => {
                 let block_id: String = self
                     .tx

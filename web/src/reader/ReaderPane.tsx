@@ -7,7 +7,7 @@ import type { Citation, HighlightRow, Passage, PassageHit, PassagePage, SourceVi
 import type { NotebookClient } from '../document/contract';
 import type { OpenTarget, PaneId, ReaderViewState } from '../shell/contract';
 import { formatProgress, highlightLocation } from '../library/query';
-import { createHighlightActions, highlightSections } from '../library/highlights';
+import { createHighlightActions, highlightColors, highlightSections } from '../library/highlights';
 import type { HighlightSection } from '../library/highlights';
 import { documentReady } from '../tasks/JournalAgenda';
 import { Button } from '../ui/Button';
@@ -311,14 +311,14 @@ export function ReaderPane(props: ReaderPaneProps) {
     setEditError('');
   }
 
-  async function highlight(withNote: boolean) {
+  async function highlight(withNote: boolean, color: Citation['color'] = null) {
     const value = selection();
     if (!value || editing()) return;
     setEditing(true); setEditError('');
     const sourceId = props.target.sourceId, doc = props.notebook.open(sourceId);
     try {
       await documentReady(doc);
-      const result = doc.edit({ kind: 'highlight', parentId: sourceId, text: value.quote, citation: {
+      const result = doc.edit({ kind: 'highlight', parentId: sourceId, text: value.quote, color, citation: {
         id: ulid(), sourceId, snapshotId: value.snapshotId, start: value.start, end: value.end, quote: value.quote, locator: value.locator, ordinal: value.first,
       } });
       if (!result.ok) { setEditError(result.reason); return; }
@@ -340,6 +340,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     if ((event.target as Element)?.closest('input, textarea, [contenteditable="true"]')) return;
     const key = event.key.toLowerCase();
     if (key === 'h' || key === 'n') { event.preventDefault(); event.stopImmediatePropagation(); void highlight(key === 'n'); }
+    else if (/^[1-5]$/.test(key)) { event.preventDefault(); event.stopImmediatePropagation(); void highlight(false, highlightColors[Number(key) - 1]!); }
     else if (event.key === 'Escape') { event.preventDefault(); setSelection(null); }
   };
 
@@ -436,7 +437,9 @@ export function ReaderPane(props: ReaderPaneProps) {
       style={{ left: `${Math.max(8, Math.min(value().rect.left, window.innerWidth - 320))}px`, top: `${Math.max(0, value().rect.top)}px` }}
       onPointerDown={event => event.preventDefault()}>
       <div class="reader-selection-actions"><Button icon="highlight" disabled={editing()} onClick={() => { void highlight(false); }}>Highlight <kbd>H</kbd></Button><Button disabled={editing()} onClick={() => { void highlight(true); }}>Highlight and note <kbd>N</kbd></Button></div>
+      <div class="reader-selection-actions"><For each={highlightColors}>{(color, index) => <Button aria-label={`Highlight ${color}`} title={`Highlight ${color} (${index() + 1})`} disabled={editing()} onClick={() => { void highlight(false, color); }}><span class={`highlight-color-dot highlight-color-${color}`} aria-hidden="true" /><kbd>{index() + 1}</kbd></Button>}</For></div>
       <Show when={editError()}><p class="error" role="alert">{editError()}</p></Show>
     </div></Portal>}</Show>
+    <actions.TagPopup />
   </div>;
 }

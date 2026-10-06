@@ -1612,6 +1612,44 @@ describe('source and citation document commands', () => {
     shared.release();
   });
 
+  test('highlight colours reconcile remotely, undo, redo, clear and survive text and uncite edits', async () => {
+    const instance = await client();
+    const { id, doc, citation } = await sourcePage(instance);
+    const blockId = success(doc.edit({ kind: 'highlight', parentId: id, text: citation.quote, citation, color: 'green' })).created[0]!;
+    expect(doc.block(blockId)?.citations[0]?.color).toBe('green');
+    await doc.flush();
+    const remote = await client(), shared = remote.open(id);
+    await eventually(() => shared.status() === 'ready' && remote.connection() === 'live', 'Colour observer not ready');
+    success(doc.edit({ kind: 'highlightColor', id: blockId, citationId: citation.id, color: 'blue' }));
+    expect(instance.commands(id).at(-1)?.inverse).toMatchObject([{ kind: 'highlightColor', id: blockId, citationId: citation.id, color: 'green', previous: 'blue' }]);
+    await doc.flush();
+    await eventually(() => shared.block(blockId)?.citations[0]?.color === 'blue', 'Remote colour did not arrive');
+    doc.undo();
+    expect(doc.block(blockId)?.citations[0]?.color).toBe('green');
+    await doc.flush();
+    expect((await api.highlights({ source_id: id, colors: ['green'] })).total).toBe(1);
+    doc.redo();
+    await doc.flush();
+    success(doc.edit({ kind: 'highlightColor', id: blockId, citationId: citation.id, color: null }));
+    await doc.flush();
+    expect(doc.block(blockId)?.citations[0]?.color).toBeNull();
+    doc.undo();
+    await doc.flush();
+    expect(doc.block(blockId)?.citations[0]?.color).toBe('blue');
+    success(doc.edit({ kind: 'text', id: blockId, text: `${citation.quote} #key` }));
+    await doc.flush();
+    const tagged = (await api.highlights({ source_id: id, colors: ['blue'], tags: ['key'] })).rows[0]!;
+    expect(tagged.tags).toEqual(['key']);
+    expect(tagged.color).toBe('blue');
+    expect(tagged.citation.quote).toBe(citation.quote);
+    success(doc.edit({ kind: 'uncite', id: blockId, citationIds: [citation.id] }));
+    await doc.flush();
+    doc.undo();
+    await doc.flush();
+    expect((await api.capabilities(blockId)).citations?.[0]?.color).toBe('blue');
+    shared.release();
+  });
+
   test('multiple citations are removed and restored in one undo step in creation order', async () => {
     const instance = await client();
     const { id, doc, citation } = await sourcePage(instance);

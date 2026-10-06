@@ -38,3 +38,11 @@
 .library-add { width: var(--search-width); }
 .library-add form { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-12); }
 .library-add .library-error { margin: 0; }
+.highlight-color-dot { display: inline-block; flex-shrink: 0; width: 0.65rem; height: 0.65rem; border-radius: 50%; background: var(--faint); }
+.highlight-color-yellow { background: #dab342; }
+.highlight-color-green { background: #52b777; }
+.highlight-color-blue { background: #589ee0; }
+.highlight-color-red { background: #e66d71; }
+.highlight-color-purple { background: #b186da; }
+.library-highlight-text > .highlight-color-dot { margin-right: var(--space-8); }
+.library-highlight-tags { display: flex; flex-wrap: wrap; gap: var(--space-4); }

@@ -136,6 +136,7 @@ impl FieldChanges {
             | Operation::Cite { .. }
             | Operation::Uncite { .. }
             | Operation::SetCitationTriage { .. }
+            | Operation::SetCitationColor { .. }
             | Operation::SetTask { .. }
             | Operation::RestoreTaskState { .. }
             | Operation::CompleteTask { .. }

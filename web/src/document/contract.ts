@@ -100,11 +100,12 @@ export type Edit =
   /** Remove the selected citations together in one undo step. */
   | { kind: 'uncite'; id: string; citationIds: string[] }
   | { kind: 'citationTriage'; id: string; citationId: string; triage: Citation['triage'] }
+  | { kind: 'highlightColor'; id: string; citationId: string; color: Citation['color'] }
   /**
    * Append a block with `text` under `parentId` (after `after`, or last when
    * omitted) that cites `citation`; one undo step. `created[0]` is its ID.
    */
-  | { kind: 'highlight'; parentId: string; after?: string | null; text: string; citation: NewCitation }
+  | { kind: 'highlight'; parentId: string; after?: string | null; text: string; citation: NewCitation; color?: Citation['color'] }
   /**
    * Enter: the original keeps its ID, children and text before `offset`.
    * At a parent's end, insert its first child; otherwise insert a sibling.

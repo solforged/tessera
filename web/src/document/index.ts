@@ -352,6 +352,7 @@ export class Notebook implements NotebookClient, DocumentHost {
         case 'cite':
         case 'uncite':
         case 'citationTriage':
+        case 'highlightColor':
         case 'completeTask':
         case 'reverseTaskCompletion':
         case 'startWork':
@@ -379,7 +380,7 @@ export class Notebook implements NotebookClient, DocumentHost {
             value.source = action.value ? { block_id: action.id, added_at: 0, state_changed_at: 0, last_read_at: null, current_snapshot_id: null, ...value.source, ...action.value } : null;
           } else if (action.kind === 'cite') {
             const citation = action.citation;
-            operations.push({ op: 'cite', id: action.id, base_revision: block.revision, citation_id: citation.id, snapshot_id: citation.snapshot_id, start: citation.start, end: citation.end });
+            operations.push({ op: 'cite', id: action.id, base_revision: block.revision, citation_id: citation.id, snapshot_id: citation.snapshot_id, start: citation.start, end: citation.end, color: citation.color });
             changed = !(value.citations ?? []).some(item => item.id === citation.id);
             if (changed) value.citations = [...value.citations ?? [], citation];
           } else if (action.kind === 'uncite') {
@@ -392,6 +393,12 @@ export class Notebook implements NotebookClient, DocumentHost {
             operations.push({ op: 'set_citation_triage', id: action.citationId, base_revision: block.revision, triage: action.triage });
             changed = citation.triage !== action.triage;
             citation.triage = action.triage;
+          } else if (action.kind === 'highlightColor') {
+            const citation = value.citations?.find(item => item.id === action.citationId);
+            if (!citation || citation.color !== action.previous) throw new Error('Highlight colour changed. Rejected command kept.');
+            operations.push({ op: 'set_citation_color', id: action.citationId, base_revision: block.revision, color: action.color });
+            changed = citation.color !== action.color;
+            citation.color = action.color;
           } else if (action.kind === 'completeTask') {
             if (!sameState(value.task, action.previous)) throw new Error('Task metadata changed before completion. Rejected command kept.');
             operations.push({ op: 'complete_task', id: action.id, base_revision: block.revision, occurrence_id: action.occurrenceId, completed_on: action.completedOn });

@@ -11,8 +11,9 @@ import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
 import type { MenuItem } from '../ui/Menu';
 import { Popup } from '../ui/Popup';
+import { Picker } from '../ui/Picker';
 import { formatProgress, highlightMeta, jobLabel, libraryQuery, recentJobs, retryTime, selectSources, sourceByline, sourceStateOperation, visibleJobs } from './query';
-import { createHighlightActions, highlightSections } from './highlights';
+import { createHighlightActions, highlightColors, highlightSections } from './highlights';
 import type { HighlightSection } from './highlights';
 import './library.css';
 
@@ -28,6 +29,7 @@ export interface LibraryPaneProps {
 
 type LibraryPopup =
   | { kind: 'add'; anchor: HTMLElement }
+  | { kind: 'tags'; anchor: HTMLElement }
   | { kind: 'name'; anchor: HTMLElement; saved: LibraryView | null; id: string }
   | { kind: 'delete'; anchor: HTMLElement; saved: LibraryView }
   | { kind: 'menu'; anchor: HTMLElement; label: string; items: MenuItem[] };
@@ -51,17 +53,21 @@ export function LibraryPane(props: LibraryPaneProps) {
   const text = createMemo(() => view().text);
   const sort = createMemo(() => view().sort);
   const unprocessedOnly = createMemo(() => view().unprocessedOnly);
+  const colors = createMemo(() => view().colors);
+  const tags = createMemo(() => view().tags);
+  const [tagQuery, setTagQuery] = createSignal('');
   const [views, setViews] = createSignal<LibraryView[]>([]);
   const [viewsError, setViewsError] = createSignal('');
   const saved = createMemo(() => views().find(value => value.id === view().view));
   const currentQuery = createMemo(() => saved()?.query ?? libraryQuery({ tab: tab(), text: text(), sort: sort() }));
-  const queryKey = createMemo(() => JSON.stringify([view().view, tab(), currentQuery(), unprocessedOnly()]));
+  const queryKey = createMemo(() => JSON.stringify([view().view, tab(), currentQuery(), unprocessedOnly(), colors(), tags()]));
   const [selected, setSelected] = createSignal<Set<string>>(new Set());
   let selectionAnchor: string | null = null;
   createEffect(on(queryKey, () => { setSelected(new Set<string>()); selectionAnchor = null; }));
   const [loadedKey, setLoadedKey] = createSignal('');
   const [library, setLibrary] = createSignal<LibraryResult>();
   const [highlights, setHighlights] = createSignal<HighlightResult>();
+  const tagOptions = createMemo(() => [...new Set([...(highlights()?.rows.flatMap(row => row.tags) ?? []), ...tags()])].sort().filter(tag => tag.toLocaleLowerCase().includes(tagQuery().toLocaleLowerCase())));
   const [loading, setLoading] = createSignal(true);
   const [error, setError] = createSignal('');
   const [commandError, setCommandError] = createSignal('');
@@ -118,8 +124,9 @@ export function LibraryPane(props: LibraryPaneProps) {
   };
   createEffect(on(() => props.view, next => {
     const previous = view();
-    if (next.view === previous.view && next.tab === previous.tab && next.text === previous.text && next.sort === previous.sort && next.unprocessedOnly === previous.unprocessedOnly && next.scroll === previous.scroll) return;
-    restoreScroll = next.view !== previous.view || next.tab !== previous.tab || next.text !== previous.text || next.sort !== previous.sort || next.unprocessedOnly !== previous.unprocessedOnly ? next.scroll : null;
+    const filtersChanged = JSON.stringify([next.colors, next.tags]) !== JSON.stringify([previous.colors, previous.tags]);
+    if (next.view === previous.view && next.tab === previous.tab && next.text === previous.text && next.sort === previous.sort && next.unprocessedOnly === previous.unprocessedOnly && !filtersChanged && next.scroll === previous.scroll) return;
+    restoreScroll = next.view !== previous.view || next.tab !== previous.tab || next.text !== previous.text || next.sort !== previous.sort || next.unprocessedOnly !== previous.unprocessedOnly || filtersChanged ? next.scroll : null;
     setView({ ...next });
     scroll.scrollTop = next.scroll;
   }, { defer: true }));
@@ -150,6 +157,7 @@ export function LibraryPane(props: LibraryPaneProps) {
     const currentTab = tab();
     const query = currentQuery();
     const unprocessed = unprocessedOnly();
+    const highlightColors = colors(), highlightTags = tags();
     const currentKey = queryKey();
     props.notebook.changeSequence(); refresh();
     const controller = new AbortController();
@@ -157,7 +165,7 @@ export function LibraryPane(props: LibraryPaneProps) {
     const timer = setTimeout(() => {
       void Promise.all([
         props.notebook.api.library(query, controller.signal),
-        currentTab === 'highlights' ? props.notebook.api.highlights({ unprocessed, limit: 200 }, controller.signal) : Promise.resolve(undefined),
+        currentTab === 'highlights' ? props.notebook.api.highlights({ unprocessed, colors: highlightColors, tags: highlightTags, limit: 200 }, controller.signal) : Promise.resolve(undefined),
       ]).then(([sources, cited]) => {
         if (controller.signal.aborted) return;
         const focused = scroll.contains(document.activeElement) ? (document.activeElement as HTMLElement)?.dataset.libraryRow : undefined;
@@ -338,6 +346,11 @@ export function LibraryPane(props: LibraryPaneProps) {
         <Show when={tab() !== 'highlights'} fallback={<div class="library-filter"><div class="library-tabs" role="group" aria-label="Highlight processing">
           <Button aria-pressed={unprocessedOnly()} onClick={() => update({ unprocessedOnly: true, scroll: 0 })}>Unprocessed</Button>
           <Button aria-pressed={!unprocessedOnly()} onClick={() => update({ unprocessedOnly: false, scroll: 0 })}>All</Button>
+        </div><div class="library-tabs" role="group" aria-label="Highlight colours">
+          <For each={highlightColors}>{color => <Button aria-label={`Filter ${color}`} aria-pressed={colors().includes(color)} onClick={() => update({ colors: colors().includes(color) ? colors().filter(value => value !== color) : [...colors(), color], scroll: 0 })}><span class={`highlight-color-dot highlight-color-${color}`} aria-hidden="true" />{color[0]!.toUpperCase() + color.slice(1)}</Button>}</For>
+          <Button aria-haspopup="dialog" onClick={event => { setTagQuery(''); setPopup({ kind: 'tags', anchor: event.currentTarget }); }}>Filter tags</Button>
+          <For each={tags()}>{tag => <Button class="outline-tag" aria-label={`Remove tag filter ${tag}`} onClick={() => update({ tags: tags().filter(value => value !== tag), scroll: 0 })}>#{tag}<Icon name="close" /></Button>}</For>
+          <Show when={colors().length || tags().length}><Button onClick={() => update({ colors: [], tags: [], scroll: 0 })}>Clear filters</Button></Show>
         </div><p class="library-message">A highlight counts as processed once it has a note, a card or a link, or when you mark it.</p></div>}>
           <input class="input library-search" type="search" aria-label="Search library" placeholder="Search library" value={text()} onInput={event => update({ view: null, text: event.currentTarget.value, scroll: 0 })} />
           <Button aria-haspopup="menu" label="Sort sources" onClick={event => setPopup({ kind: 'menu', anchor: event.currentTarget, label: 'Sort sources', items: sorts.map(item => ({ label: item.label, icon: sort() === item.id ? 'check' : undefined, action: () => update({ view: null, sort: item.id, scroll: 0 }) })) })}>{sorts.find(item => item.id === sort())!.label}<Icon name="down" /></Button>
@@ -386,12 +399,13 @@ export function LibraryPane(props: LibraryPaneProps) {
         <Show when={error()}><div class="library-error" role="alert">{error()}<Button onClick={() => setRefresh(value => value + 1)}>Retry</Button></div></Show>
         <Show when={loadedKey() === queryKey() && !error()}>
           <Show when={tab() !== 'highlights'} fallback={
-            <Show when={highlights()?.rows.length} fallback={<p class="library-empty">No unprocessed highlights.</p>}>
+            <Show when={highlights()?.rows.length} fallback={<p class="library-empty">No matching highlights.</p>}>
               <div class="library-highlights" role="list"><For each={highlights()?.rows}>{row => {
                 const target: OpenTarget = { kind: 'page', pageId: row.block.page.id, blockId: row.block.block.id };
                 return <div class="library-row" role="listitem"><Button class="library-highlight" data-library-row={row.citation.id} onClick={event => props.onOpen(target, event.shiftKey)} onKeyDown={event => rowKey(event, target)}>
-                  <span class="library-highlight-text"><BlockText text={row.block.block.text} notebook={props.notebook} interactive={false} /></span>
+                  <span class="library-highlight-text"><span class={`highlight-color-dot${row.color ? ` highlight-color-${row.color}` : ''}`} role="img" aria-label={row.color ? `${row.color} highlight` : 'No colour'} /><BlockText text={row.block.block.text} notebook={props.notebook} interactive={false} /></span>
                   <Show when={props.notebook.settings()}>{settings => <span class="library-highlight-meta">{highlightMeta(row, highlightContents().get(row.citation.snapshot_id) ?? [], settings().time_zone)}</span>}</Show>
+                  <Show when={row.tags.length}><span class="library-highlight-tags"><For each={row.tags}>{tag => <span class="outline-tag">#{tag}</span>}</For></span></Show>
                   <span class="library-highlight-source">{row.source_title}</span>
                   <Show when={row.block.block.text.trim() !== row.citation.quote.trim()}><span class="library-highlight-quote">{row.citation.quote}</span></Show>
                 </Button><Button icon="more" label="Actions for highlight" aria-haspopup="menu" aria-expanded={popup()?.kind === 'menu' && popup()?.anchor.dataset.highlightId === row.citation.id} data-highlight-id={row.citation.id} onClick={event => { void highlightMenu(row, event.currentTarget); }} /></div>;
@@ -425,6 +439,9 @@ export function LibraryPane(props: LibraryPaneProps) {
     <Show keyed when={popup()}>{state => {
       const dismiss = () => { if (popup() === state) setPopup(null); };
       if (state.kind === 'menu') return <Menu anchor={state.anchor} label={state.label} items={state.items} onDismiss={dismiss} />;
+      if (state.kind === 'tags') return <Picker anchor={state.anchor} label="Filter highlight tags" placeholder="Find a tag" query={tagQuery()} onQuery={setTagQuery} items={tagOptions()} key={tag => tag}
+        row={tag => <><Show when={tags().includes(tag)}><Icon name="check" /></Show><span class="outline-tag">#{tag}</span></>}
+        onPick={tag => { update({ tags: tags().includes(tag) ? tags().filter(value => value !== tag) : [...tags(), tag], scroll: 0 }); dismiss(); }} empty="No tags in these highlights" onDismiss={dismiss} />;
       if (state.kind === 'name') return <LibraryViewNamePopup anchor={state.anchor} saved={state.saved} busy={saving()} onDismiss={dismiss} onSave={name => saveView(name, state.id, state.saved)} />;
       if (state.kind === 'delete') return <Popup anchor={state.anchor} label="Delete library view?" onDismiss={dismiss}>
         <p>Delete “{state.saved.name}”? Sources are not deleted.</p>
@@ -439,6 +456,7 @@ export function LibraryPane(props: LibraryPaneProps) {
         </form>
       </Popup>;
     }}</Show>
+    <highlightActions.TagPopup />
   </div>;
 }
 
