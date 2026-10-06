@@ -124,7 +124,7 @@ export function ReviewCard(props: ReviewCardProps) {
   return <div ref={region} class="review-card" role="region" aria-label="Review card" aria-busy={locked()} tabIndex={0}>
     <div class="review-card-meta">
       <Button class="review-card-source" title="Open source · Shift opens beside" disabled={locked()} onClick={event => props.onSource(event.shiftKey)}>
-        <Icon name="page" /><span><BlockBreadcrumb block={props.item.source.block} notebook={props.notebook} /></span>
+        <Icon name={props.notebook.lookup(props.item.source.block.page_id)()?.kind === 'journal' ? 'calendar' : 'page'} /><span><BlockBreadcrumb block={props.item.source.block} notebook={props.notebook} /></span>
       </Button>
       <Show when={props.item.card.kind !== 'forward'}><span class="review-card-kind">{props.item.card.kind === 'reverse' ? 'Reverse' : `Cloze ${props.item.card.key.slice('cloze:c'.length)}`}</span></Show>
       <Show when={revealed() && props.item.card.schedule.last_reviewed_at !== null}>

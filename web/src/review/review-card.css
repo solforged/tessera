@@ -8,9 +8,9 @@
 .review-card-reset-trigger.button { margin-left: auto; color: var(--muted); font-weight: var(--weight-body); }
 .review-card-change-notice { margin: 0; color: var(--warning); font-size: var(--text-control); line-height: var(--line-control); }
 .review-card-side { min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--text-h2); line-height: var(--line-h2); }
-.review-card-answer { padding-top: var(--space-16); border-top: 1px solid var(--line); }
+.review-card-answer { padding-top: var(--space-16); border-top: 1px solid var(--line); animation: fade-in var(--motion-ui) var(--motion-ease) both; }
 .review-cloze-gap { display: inline-block; min-width: calc(3 * var(--space-16)); padding-inline: var(--space-8); border-radius: var(--radius-control); background: var(--raised); color: var(--muted); text-align: center; font-style: italic; }
-.review-cloze-answer { padding-inline: var(--space-2); border-radius: var(--radius-control); font-weight: var(--weight-body); }
+.review-cloze-answer { padding-inline: var(--space-2); border-radius: var(--radius-control); font-weight: var(--weight-body); animation: fade-in var(--motion-ui) var(--motion-ease) both; }
 .review-card h2 { margin: 0; color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); font-weight: var(--weight-control); }
 .review-card-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--text-body); line-height: var(--line-body); }
 .review-card-comparison { display: flex; flex-direction: column; gap: var(--space-12); padding: var(--space-12); background: var(--surface); border-radius: var(--radius-control); }
