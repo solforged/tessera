@@ -125,7 +125,7 @@ Three layers, each reaching the same actions as the palette and the block menu.
 
 ## Fields
 
-The notebook menu opens a searchable index with Name, Kind, Used by and Templates columns. Names open the definition in its source outline; template names open their type table. Used by opens the distinct owning blocks, including entries with no values. Shift opens any of these beside the index. Controls remain visible on narrow panes.
+The notebook menu opens a searchable index with Name, Kind, Used by and Templates columns. Names open the definition in its source outline; template pills open their type table. Kind reads as muted text and shows its menu chevron on row hover or focus. Used by opens the distinct owning blocks, including entries with no values; a field no block uses says Unused in `--faint`. New field asks for a name, refuses duplicates and the characters `Name::` shorthand refuses, and appends a Text definition to the Fields page. Shift opens any of these beside the index. Controls remain visible on narrow panes.
 
 Changing kind preserves value text and supports undo and redo from the index. Edit definitions opens the Fields page, where names and choice options remain ordinary blocks. Filtering the index does not change definitions; an empty result offers Clear filter.
 
