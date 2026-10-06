@@ -11,21 +11,27 @@ embed-web = ["dep:include_dir"]
 
 [dependencies]
 tessera-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+parking_lot = "0.12"
+tracing.workspace = true
+
+[target.'cfg(not(all(target_arch = "wasm32", target_os = "unknown")))'.dependencies]
 anyhow.workspace = true
 axum.workspace = true
 dirs.workspace = true
 jiff = { version = "0.2", default-features = false, features = ["std"] }
-serde.workspace = true
-serde_json.workspace = true
 tokio.workspace = true
 tessera-ingest.workspace = true
 reqwest.workspace = true
 percent-encoding = "2"
-parking_lot = "0.12"
 include_dir = { version = "0.7", optional = true }
-tracing.workspace = true
 
-[dev-dependencies]
+[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
+axum = { version = "0.8", default-features = false, features = ["json", "query", "matched-path", "original-uri"] }
+tokio = { version = "1", default-features = false, features = ["sync"] }
+
+[target.'cfg(not(all(target_arch = "wasm32", target_os = "unknown")))'.dev-dependencies]
 tempfile.workspace = true
 tower.workspace = true
 tokio-tungstenite.workspace = true

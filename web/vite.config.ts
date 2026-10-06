@@ -1,8 +1,14 @@
 import { defineConfig } from 'vite';
 import solid from 'vite-plugin-solid';
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [solid()],
+  define: { __TESSERA_DEMO__: mode === 'demo' },
+  ...(mode === 'demo' ? {
+    build: { outDir: 'dist-demo', rollupOptions: { input: 'demo.html' } },
+    publicDir: false,
+    worker: { format: 'es' as const },
+  } : {}),
   server: {
     host: '127.0.0.1',
     port: 5173,
@@ -13,4 +19,4 @@ export default defineConfig({
     proxy: { '/api': { target: 'http://127.0.0.1:4320', changeOrigin: true, ws: true } },
   },
   preview: { host: '127.0.0.1', port: 5173, strictPort: true },
-});
+}));

@@ -78,8 +78,9 @@ impl Notebook {
     }
 }
 
+/// The current Unix time in milliseconds, using the browser clock on wasm.
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-pub(crate) fn now_ms() -> i64 {
+pub fn now_ms() -> i64 {
     use std::time::{SystemTime, UNIX_EPOCH};
     let elapsed = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -87,8 +88,9 @@ pub(crate) fn now_ms() -> i64 {
     i64::try_from(elapsed.as_millis()).expect("timestamp fits in i64")
 }
 
+/// The current Unix time in milliseconds, using the browser clock on wasm.
 #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
-pub(crate) fn now_ms() -> i64 {
+pub fn now_ms() -> i64 {
     js_sys::Date::now() as i64
 }
 

@@ -84,7 +84,7 @@ A stale operation fails without writing. Clean remote changes merge into the loc
 
 ## Why not the alternatives
 
-- **WASM with SQLite in the browser:** the notebook would live in origin-private storage, out of reach of the CLI, agents and ordinary backups. `tessera-core` still builds for `wasm32-unknown-unknown`, reading the clock through `js_sys` and skipping directory creation, so a throwaway browser demo can run it. On macOS, build with `AR_wasm32_unknown_unknown` pointing at rustup's `llvm-ar`, since Apple's `ar` cannot index the bundled SQLite.
+- **WASM with SQLite in the browser:** the notebook would live in origin-private storage, out of reach of the CLI, agents and ordinary backups. The public browser demo uses this anyway, because a demo needs no durability beyond one browser: `crates/tessera-web` runs `tessera-core` and the service's notebook router in a worker over the OPFS SQLite pool, and the editor reaches it through a swappable transport in `web/src/api/client.ts`. On macOS, build it with `AR_wasm32_unknown_unknown` pointing at rustup's `llvm-ar`, since Apple's `ar` cannot index the bundled SQLite.
 - **React:** the larger ecosystem, but its list reconciliation added about 7 ms per structural edit at 10,000 mounted rows in spike 2, against about 1 ms for Solid, for the same correctness.
 - **ProseMirror or Lexical as one big editor:** better cross-block text selection, but no usable outline-aware Vim. In spike 2, ProseMirror matched CodeMirror on IME, undo and cross-block selection and failed only on Vim.
 - **Canvas rendering:** would mean rebuilding selection, IME and accessibility.

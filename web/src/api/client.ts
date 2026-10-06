@@ -1,3 +1,4 @@
+import { DEMO } from '../demo/mode';
 import type {
   Agenda,
   Backlink,
@@ -49,6 +50,26 @@ import type {
 } from './types';
 
 export type ExportFormat = 'bibtex' | 'csl' | 'markdown';
+
+export type Transport = (url: string, init: RequestInit) => Promise<Response>;
+let transport: Transport = (url, init) => fetch(url, init);
+export function setTransport(value: Transport): void { transport = value; }
+
+export const CHANGE_CONNECTING = 0;
+export const CHANGE_OPEN = 1;
+export const CHANGE_CLOSING = 2;
+export const CHANGE_CLOSED = 3;
+export interface ChangeSocket {
+  readonly readyState: number;
+  onopen: ((event: Event) => void) | null;
+  onmessage: ((event: MessageEvent<string>) => void) | null;
+  onerror: ((event: Event) => void) | null;
+  onclose: ((event: CloseEvent) => void) | null;
+  close(): void;
+}
+type StreamFactory = (after: number) => ChangeSocket;
+let streamFactory: StreamFactory | undefined;
+export function setStreamFactory(value: StreamFactory): void { streamFactory = value; }
 export const exportExtensions: Record<ExportFormat, string> = { bibtex: 'bib', csl: 'json', markdown: 'md' };
 
 /** A failed request. `status` is 0 when the service could not be reached. */
@@ -81,7 +102,7 @@ async function request<T>(base: string, method: 'GET' | 'POST', path: string, bo
 async function send<T>(url: string, init: RequestInit & { signal?: AbortSignal }, decode?: (response: Response) => Promise<T>): Promise<T> {
   let response: Response;
   try {
-    response = await fetch(url, init);
+    response = await transport(url, init);
   } catch (error) {
     if (init.signal?.aborted) throw error;
     throw new ApiError('The notebook service is not reachable.', 0, 'unreachable');
@@ -151,7 +172,7 @@ export interface ApiClient {
   changes(after: number, limit?: number, signal?: AbortSignal): Promise<ChangeEvent[]>;
   submit(batch: Batch, signal?: AbortSignal): Promise<Committed>;
   submitFrozen(json: string, signal?: AbortSignal): Promise<Committed>;
-  streamUrl(after: number): string;
+  stream(after: number): ChangeSocket;
   library(value: LibraryQuery, signal?: AbortSignal): Promise<LibraryResult>;
   libraryViews(signal?: AbortSignal): Promise<LibraryView[]>;
   ingestJobs(limit?: number, signal?: AbortSignal): Promise<IngestJob[]>;
@@ -176,13 +197,17 @@ export interface ApiClient {
   exportQuery(format: ExportFormat, query: LibraryQuery, signal?: AbortSignal): Promise<Blob>;
 }
 
+type NativeMethod = 'service' | 'backups' | 'createBackup' | 'library' | 'libraryViews' | 'ingestJobs' | 'queueUrl' | 'upload' | 'retryJob' | 'source' | 'extracted' | 'passages' | 'locate' | 'resourceUrl' | 'readingPosition' | 'searchPassages' | 'highlights' | 'resurfacing' | 'recordSurfacing' | 'exportUrl' | 'exportQuery';
+
 export function createApi(base = ''): ApiClient {
   const get = <T>(path: string, signal?: AbortSignal) => request<T>(base, 'GET', path, undefined, signal);
   return {
     notebook: (signal?: AbortSignal) => get<NotebookInfo>('/notebook', signal),
-    service: (signal?: AbortSignal) => get<ServiceInfo>('/service', signal),
-    backups: (signal?: AbortSignal) => get<BackupInfo[]>('/backups', signal),
-    createBackup: (signal?: AbortSignal) => request<CreatedBackup>(base, 'POST', '/backups', undefined, signal),
+    ...(!DEMO ? {
+      service: (signal?: AbortSignal) => get<ServiceInfo>('/service', signal),
+      backups: (signal?: AbortSignal) => get<BackupInfo[]>('/backups', signal),
+      createBackup: (signal?: AbortSignal) => request<CreatedBackup>(base, 'POST', '/backups', undefined, signal),
+    } : {}),
     settings: (signal?: AbortSignal) => get<SettingsView>('/settings', signal),
     roots: (signal?: AbortSignal) => get<Block[]>('/roots', signal),
     page: (id: string, signal?: AbortSignal) => get<PageView>(`/pages/${segment(id)}`, signal),
@@ -233,40 +258,40 @@ export function createApi(base = ''): ApiClient {
     changes: (after: number, limit = 500, signal?: AbortSignal) => get<ChangeEvent[]>(`/changes${query({ after, limit })}`, signal),
     submit: (batch: Batch, signal?: AbortSignal) => request<Committed>(base, 'POST', '/batches', batch, signal),
     submitFrozen: (json: string, signal?: AbortSignal) => request<Committed>(base, 'POST', '/batches', undefined, signal, json),
-    streamUrl: (after: number) => {
+    stream: (after: number) => {
+      if (streamFactory) return streamFactory(after);
       const url = new URL(`${base}/api/changes/stream${query({ after })}`, typeof location === 'undefined' ? 'http://127.0.0.1' : location.href);
       url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-      return url.href;
+      return new WebSocket(url.href);
     },
-    library: (value: LibraryQuery, signal?: AbortSignal) => request<LibraryResult>(base, 'POST', '/library/query', value, signal),
-    libraryViews: (signal?: AbortSignal) => get<LibraryView[]>('/library/views', signal),
-    ingestJobs: (limit = 50, signal?: AbortSignal) => get<IngestJob[]>(`/library/jobs${query({ limit })}`, signal),
-    queueUrl: (url: string, targetSource?: string, signal?: AbortSignal) => request<IngestJob>(base, 'POST', '/library/jobs', { url, target_source: targetSource ?? null }, signal),
-    upload: (file: Blob, name: string, targetSource?: string, signal?: AbortSignal) => send<IngestJob>(`${base}/api/library/uploads${query({ target_source: targetSource })}`, {
-      method: 'POST', signal, body: file,
-      headers: { 'Content-Type': file.type || 'application/octet-stream', 'X-Filename': encodeURIComponent(name) },
-    }),
-    retryJob: (id: string, signal?: AbortSignal) => request<IngestJob>(base, 'POST', `/library/jobs/${segment(id)}/retry`, undefined, signal),
-    source: (id: string, signal?: AbortSignal) => get<SourceView>(`/sources/${segment(id)}`, signal),
-    extracted: (id: string, signal?: AbortSignal) => get<[string, string[]][]>(`/sources/${segment(id)}/extracted`, signal),
-    passages: (snapshotId: string, from: number, limit = 200, signal?: AbortSignal) => get<PassagePage>(`/snapshots/${segment(snapshotId)}/passages${query({ from, limit })}`, signal),
-    locate: (snapshotId: string, at: string, signal?: AbortSignal) => get<number | null>(`/snapshots/${segment(snapshotId)}/locate${query({ at })}`, signal),
-    resourceUrl: (snapshotId: string, href: string) => `${base}/api/snapshots/${segment(snapshotId)}/resources/${href.split('/').map(segment).join('/')}`,
-    readingPosition: (snapshotId: string, ordinal: number, signal?: AbortSignal) => request<ReadingProgress>(base, 'POST', `/snapshots/${segment(snapshotId)}/position`, { ordinal }, signal),
-    searchPassages: (q: string, sourceId?: string, limit = 40, signal?: AbortSignal) => get<PassageHit[]>(`/passages/search${query({ q, source: sourceId, limit })}`, signal),
-    highlights: (value: HighlightQuery, signal?: AbortSignal) => request<HighlightResult>(base, 'POST', '/highlights/query', value, signal),
-    resurfacing: (date: string, limit = 3, signal?: AbortSignal) => get<Surfacing[]>(`/highlights/resurface${query({ date, limit })}`, signal),
-    recordSurfacing: (citationId: string, date: string, action: SurfacingAction, signal?: AbortSignal) => request<void>(base, 'POST', `/highlights/${segment(citationId)}/resurface`, { date, action }, signal),
-    exportUrl: (format: ExportFormat, ids: readonly string[]) => `${base}/api/library/export${query({ format, ids: ids.length ? ids.join(',') : undefined })}`,
-    exportQuery: (format: ExportFormat, query: LibraryQuery, signal?: AbortSignal) => send<Blob>(`${base}/api/library/export`, {
-      method: 'POST', signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ format, query }),
-    }, response => response.blob()),
-  };
+    ...(!DEMO ? {
+      library: (value: LibraryQuery, signal?: AbortSignal) => request<LibraryResult>(base, 'POST', '/library/query', value, signal),
+      libraryViews: (signal?: AbortSignal) => get<LibraryView[]>('/library/views', signal),
+      ingestJobs: (limit = 50, signal?: AbortSignal) => get<IngestJob[]>(`/library/jobs${query({ limit })}`, signal),
+      queueUrl: (url: string, targetSource?: string, signal?: AbortSignal) => request<IngestJob>(base, 'POST', '/library/jobs', { url, target_source: targetSource ?? null }, signal),
+      upload: (file: Blob, name: string, targetSource?: string, signal?: AbortSignal) => send<IngestJob>(`${base}/api/library/uploads${query({ target_source: targetSource })}`, {
+        method: 'POST', signal, body: file,
+        headers: { 'Content-Type': file.type || 'application/octet-stream', 'X-Filename': encodeURIComponent(name) },
+      }),
+      retryJob: (id: string, signal?: AbortSignal) => request<IngestJob>(base, 'POST', `/library/jobs/${segment(id)}/retry`, undefined, signal),
+      source: (id: string, signal?: AbortSignal) => get<SourceView>(`/sources/${segment(id)}`, signal),
+      extracted: (id: string, signal?: AbortSignal) => get<[string, string[]][]>(`/sources/${segment(id)}/extracted`, signal),
+      passages: (snapshotId: string, from: number, limit = 200, signal?: AbortSignal) => get<PassagePage>(`/snapshots/${segment(snapshotId)}/passages${query({ from, limit })}`, signal),
+      locate: (snapshotId: string, at: string, signal?: AbortSignal) => get<number | null>(`/snapshots/${segment(snapshotId)}/locate${query({ at })}`, signal),
+      resourceUrl: (snapshotId: string, href: string) => `${base}/api/snapshots/${segment(snapshotId)}/resources/${href.split('/').map(segment).join('/')}`,
+      readingPosition: (snapshotId: string, ordinal: number, signal?: AbortSignal) => request<ReadingProgress>(base, 'POST', `/snapshots/${segment(snapshotId)}/position`, { ordinal }, signal),
+      searchPassages: (q: string, sourceId?: string, limit = 40, signal?: AbortSignal) => get<PassageHit[]>(`/passages/search${query({ q, source: sourceId, limit })}`, signal),
+      highlights: (value: HighlightQuery, signal?: AbortSignal) => request<HighlightResult>(base, 'POST', '/highlights/query', value, signal),
+      resurfacing: (date: string, limit = 3, signal?: AbortSignal) => get<Surfacing[]>(`/highlights/resurface${query({ date, limit })}`, signal),
+      recordSurfacing: (citationId: string, date: string, action: SurfacingAction, signal?: AbortSignal) => request<void>(base, 'POST', `/highlights/${segment(citationId)}/resurface`, { date, action }, signal),
+      exportUrl: (format: ExportFormat, ids: readonly string[]) => `${base}/api/library/export${query({ format, ids: ids.length ? ids.join(',') : undefined })}`,
+      exportQuery: (format: ExportFormat, query: LibraryQuery, signal?: AbortSignal) => send<Blob>(`${base}/api/library/export`, {
+        method: 'POST', signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ format, query }),
+      }, response => response.blob()),
+    } : {}),
+    // Native-only methods are absent in demo builds; their surfaces are compile-time guarded.
+  } satisfies Omit<ApiClient, NativeMethod> as ApiClient;
 }
 
 export const api = createApi();
 
-/** WebSocket URL for change events after `seq`. */
-export function changeStreamUrl(after: number): string {
-  return api.streamUrl(after);
-}

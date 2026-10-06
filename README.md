@@ -116,6 +116,17 @@ The service binds to loopback only and rejects other hosts and browser origins. 
 
 Checks: `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`, and `bun run --cwd web build`. Backend budgets: `cargo run --release -p tessera-bench -- --root /tmp/tessera-bench --fail-on budgets`.
 
+### Browser demo
+
+<https://tessera.solforged.io> runs the real notebook engine in the browser: `tessera-core` and the service's notebook routes compile to wasm (`crates/tessera-web`) and run in a worker over SQLite in the browser's private storage. The library, backups and service details are left out. Build it with `rustup target add wasm32-unknown-unknown`, `rustup component add llvm-tools` and `cargo install wasm-bindgen-cli --version 0.2.129 --locked`, then:
+
+```sh
+scripts/build-demo-wasm.sh
+bun run --cwd web build:demo
+```
+
+The output in `web/dist-demo` is static; serve it with every non-asset path rewritten to `demo.html` (see `web/vercel.json`). `.github/workflows/demo.yml` builds and deploys it to Vercel on each push to `main` once the `VERCEL_TOKEN`, `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID` secrets exist.
+
 ## Acknowledgments
 
 Tessera borrows ideas from tools and thinkers its author admires:
