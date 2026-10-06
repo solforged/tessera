@@ -30,7 +30,7 @@
 .reader-note { padding: var(--space-12); max-width: var(--measure); font-size: var(--text-control); line-height: var(--line-control); }
 .reader-note p { margin: 0; white-space: pre-wrap; }
 .reader-status, .reader-error { margin: var(--space-8) var(--space-24); font-size: var(--text-control); }
-.reader-selection-toolbar { position: fixed; z-index: 100; transform: translateY(calc(-100% - var(--space-4))); max-width: calc(100vw - var(--space-16)); background: var(--raised); border: 1px solid var(--line); border-radius: var(--radius-popup); box-shadow: var(--popup-shadow); padding: var(--space-4); font-size: var(--text-control); }
+.reader-selection-toolbar { position: fixed; z-index: 100; transform: translateY(calc(-100% - var(--space-4))); max-width: calc(100vw - var(--space-16)); background: var(--raised); border: 1px solid var(--line); border-radius: var(--radius-popup); box-shadow: var(--popup-shadow); padding: var(--space-4); font-size: var(--text-control); animation: rise-in var(--motion-ui) var(--motion-ease) both; }
 .reader-selection-actions { display: flex; flex-wrap: wrap; gap: var(--space-4); }
 .reader-selection-toolbar p { margin: var(--space-4); }
 .reader-selection-toolbar kbd { font-size: var(--text-meta); color: var(--muted); }

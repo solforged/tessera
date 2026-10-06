@@ -31,6 +31,11 @@ const paths = {
   contents: 'M2 3h2 M6 3h8 M4 7h2 M8 7h6 M4 11h2 M8 11h6',
   upload: 'M8 11V2 M4 6l4-4 4 4 M2 11v3h12v-3',
   download: 'M8 2v9 M4 7l4 4 4-4 M2 11v3h12v-3',
+  clock: 'M14 8a6 6 0 1 1-12 0 6 6 0 0 1 12 0Z M8 4.5V8l2.5 1.5',
+  repeat: 'M2 8V6.5A2.5 2.5 0 0 1 4.5 4H13 M11 2l2 2-2 2 M14 8v1.5a2.5 2.5 0 0 1-2.5 2.5H3 M5 14l-2-2 2-2',
+  heading: 'M4 3v10 M12 3v10 M4 8h8',
+  flag: 'M3 15V2 M3 2.5h9l-2 3 2 3H3',
+  play: 'm5 3 8 5-8 5z',
 } as const;
 export type IconName = keyof typeof paths;
 export function Icon(props: { name: IconName; class?: string }): JSX.Element {

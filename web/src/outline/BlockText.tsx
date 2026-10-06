@@ -31,6 +31,10 @@ export function referenceLabel(token: Token, target: Block | null | undefined): 
   if (target === null) return `Unresolved ${token.id}`;
   return token.alias || target.text || 'Empty block';
 }
+/** One line of display text: references read as their targets and tags keep their `#`, for breadcrumbs and labels. */
+export function plainText(text: string, lookup: NotebookClient['lookup']): string {
+  return textTokens(text).map(token => isStableReference(token) ? referenceLabel(token, lookup(token.id!)()) : token.kind === 'tag' ? `#${token.value}` : token.value).join('');
+}
 interface DisplayToken extends Token { label: string; visibleStart: number; target: Block | null | undefined; literal: boolean }
 interface TokenGroup { mark?: CardMark; tokens: Token[] }
 const operators = { '>>': { label: 'then', text: '→' }, '<<': { label: 'from', text: '←' }, '<>': { label: 'both ways', text: '↔' } };
@@ -138,7 +142,7 @@ export function BlockBreadcrumb(props: { block: Block; notebook: NotebookClient 
       seen.add(parent);
       const block = props.notebook.lookup(parent)();
       if (!block) break;
-      ancestors.unshift(block.text || 'Empty block');
+      ancestors.unshift(plainText(block.text, id => props.notebook.lookup(id)) || 'Empty block');
       parent = block.parent_id;
     }
     const page = props.notebook.lookup(props.block.page_id)();

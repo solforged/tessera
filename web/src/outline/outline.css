@@ -19,14 +19,16 @@
 
 /* Rows: [handle][fold] in the gutter, then (bullet) text within the measure. */
 .outline-list { position: relative; }
-.outline-row { display: flex; align-items: flex-start; position: absolute; top: 0; left: 0; right: 0; min-height: var(--row-height); padding-block: var(--space-2); padding-left: calc(var(--depth) * var(--indent-width)); border-left: 2px solid transparent; border-radius: var(--radius-control); }
+.outline-row { display: flex; align-items: flex-start; position: absolute; top: 0; left: 0; right: 0; min-height: var(--row-height); padding-block: var(--space-2); padding-left: calc(var(--depth) * var(--indent-width)); border-left: 2px solid transparent; border-radius: var(--radius-control); transition: background-color var(--motion-fast) var(--motion-ease); }
 .outline-row:hover { background: var(--hover); }
 .outline-row.row-selected { background: var(--selection); border-left-color: var(--accent); }
-.outline-row .icon-button { width: var(--target-size); height: var(--target-size); min-width: var(--target-size); padding: var(--space-4); flex: none; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--faint); display: inline-flex; align-items: center; justify-content: center; }
+.outline-row .icon-button { width: var(--target-size); height: var(--target-size); min-width: var(--target-size); padding: var(--space-4); flex: none; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--faint); display: inline-flex; align-items: center; justify-content: center; transition: color var(--motion-fast) var(--motion-ease), background-color var(--motion-fast) var(--motion-ease), opacity var(--motion-fast) var(--motion-ease); }
 .outline-row .icon-button:hover { color: var(--text); background: var(--selection); }
 .row-menu, .row-fold { opacity: 0; }
 .outline-row:hover .row-menu, .outline-row:hover .row-fold, .outline-row:focus-within .row-menu, .outline-row:focus-within .row-fold, .row-selected .row-menu, .row-selected .row-fold { opacity: 1; }
 .row-fold.fold-empty { visibility: hidden; }
+.row-fold .icon { transition: rotate var(--motion-fast) var(--motion-ease); }
+.row-fold.folded .icon { rotate: -90deg; }
 .row-bullet { color: var(--muted); cursor: pointer; }
 .row-bullet .icon { fill: currentColor; }
 .row-bullet.bullet-collapsed { opacity: 1; }
@@ -75,9 +77,9 @@
 .outline-running-task { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-4); color: var(--muted); }
 
 /* Type pills: a hue tint behind the name. The hue is a CSS variable the renderer may set; default is neutral. */
-.outline-tag { --pill-hue: var(--type-6); display: inline-block; font: inherit; font-size: var(--text-meta); line-height: var(--line-meta); font-weight: var(--weight-control); color: var(--text); background: color-mix(in srgb, var(--pill-hue) 12%, transparent); border: 1px solid color-mix(in srgb, var(--pill-hue) 30%, transparent); border-radius: var(--radius-pill); padding: 1px var(--space-8); margin: 0 var(--space-2); vertical-align: 2px; cursor: pointer; }
+.outline-tag { --pill-hue: var(--type-6); display: inline-block; font: inherit; font-size: var(--text-meta); line-height: var(--line-meta); font-weight: var(--weight-control); color: var(--text); background: color-mix(in srgb, var(--pill-hue) 12%, transparent); border: 1px solid color-mix(in srgb, var(--pill-hue) 30%, transparent); border-radius: var(--radius-pill); padding: 1px var(--space-8); margin: 0 var(--space-2); vertical-align: 2px; cursor: pointer; transition: background-color var(--motion-fast) var(--motion-ease); }
 .outline-tag:hover { background: color-mix(in srgb, var(--pill-hue) 22%, transparent); }
-.outline-body mark { background: var(--selection); color: inherit; }
+.outline-body mark { background: var(--text-selection); color: inherit; }
 .row-archived { color: var(--muted); }
 .archive-badge { font-size: var(--text-meta); line-height: var(--line-meta); border: 1px solid var(--line); border-radius: var(--radius-control); padding: 0 var(--space-4); }
 .archive-notice, .outline-message { font-size: var(--text-control); line-height: var(--line-control); }

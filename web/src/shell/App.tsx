@@ -5,6 +5,7 @@ import type { Block, NotebookInfo, View } from '../api/types';
 import { createNotebookClient } from '../document';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import { OutlinePane } from '../outline/OutlinePane';
+import { plainText } from '../outline/BlockText';
 import { TablePane } from '../table/TablePane';
 import { FieldsPane } from '../fields/FieldsPane';
 import { SettingsPane } from '../settings/SettingsPane';
@@ -325,12 +326,13 @@ export function App() {
   });
   const unregister = commands.register([
     { id: 'shell.search', title: 'Find or create', section: 'Navigation', keys: ['⌃⇧F'], run: () => showPalette('search') },
-    { id: 'shell.commands', title: 'Show Commands', section: 'Navigation', keys: ['⌃⇧P'], run: () => showPalette('commands') },
-    { id: 'shell.settings', title: 'Open Settings', section: 'Navigation', run: () => open({ kind: 'settings' }) },
+    { id: 'shell.commands', title: 'Show commands', section: 'Navigation', keys: ['⌃⇧P'], run: () => showPalette('commands') },
+    { id: 'shell.settings', title: 'Open settings', section: 'Navigation', run: () => open({ kind: 'settings' }) },
     { id: 'shell.today', title: 'Open today’s journal', section: 'Navigation', keys: ['⌃⇧J'], run: () => { void today(); } },
-    { id: 'shell.fields', title: 'Open Fields', section: 'Navigation', run: () => open({ kind: 'fields' }) },
+    { id: 'shell.fields', title: 'Open fields', section: 'Navigation', run: () => open({ kind: 'fields' }) },
     { id: 'shell.agenda', title: 'Open agenda', section: 'Navigation', run: () => open({ kind: 'agenda', date: journalDate(active()) }) },
     { id: 'shell.review', title: 'Open review', section: 'Navigation', run: () => open({ kind: 'review' }) },
+    { id: 'shell.library', title: 'Open library', section: 'Navigation', run: () => open({ kind: 'library' }) },
     { id: 'shell.previous-day', title: 'Previous journal day', section: 'Navigation', run: () => shiftDate(-1) },
     { id: 'shell.next-day', title: 'Next journal day', section: 'Navigation', run: () => shiftDate(1) },
     { id: 'shell.calendar', title: 'Choose journal date', section: 'Navigation', run: () => chooseDate() },
@@ -459,7 +461,7 @@ export function App() {
 }
 
 function PageLinks(props: { roots: Block[]; notebook: NotebookClient; activeId?: string; onOpen(target: OpenTarget, beside?: boolean): void }) {
-  return <For each={props.roots}>{root => <Button class={root.id === props.activeId ? 'selected' : ''} icon={root.kind === 'journal' ? 'calendar' : 'page'} title={props.notebook.lookup(root.id)()?.text ?? root.text} onClick={event => props.onOpen({ kind: 'page', pageId: root.id }, event.shiftKey)}>{props.notebook.lookup(root.id)()?.text ?? root.text}</Button>}</For>;
+  return <For each={props.roots}>{root => <Button class={root.id === props.activeId ? 'selected' : ''} icon={root.kind === 'journal' ? 'calendar' : 'page'} title={props.notebook.lookup(root.id)()?.text ?? root.text} onClick={event => props.onOpen({ kind: 'page', pageId: root.id }, event.shiftKey)}><span>{props.notebook.lookup(root.id)()?.text ?? root.text}</span></Button>}</For>;
 }
 
 function ViewLinks(props: { views: View[]; pinned: boolean; activeId?: string; onOpen(view: View, beside: boolean): void; onPin(id: string): void }) {
@@ -540,7 +542,7 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
     { label: props.pinned ? 'Unpin' : 'Pin', icon: 'pin', action: props.onPin },
     { label: 'Open page beside', icon: 'panes', action: props.onPageBeside },
     { label: root()?.task ? 'Task' : 'Make task', icon: 'check', disabledReason: root() ? undefined : 'Page is still loading', action: () => rootCapability('task') },
-    { label: root()?.project ? 'Project' : 'Make project', icon: 'page', disabledReason: root() ? undefined : 'Page is still loading', action: () => rootCapability('project') },
+    { label: root()?.project ? 'Project' : 'Make project', icon: 'flag', disabledReason: root() ? undefined : 'Page is still loading', action: () => rootCapability('project') },
     { label: 'Undo', icon: 'undo', shortcut: '⌘Z', disabledReason: !doc()?.canUndo() ? 'Nothing to undo' : undefined, action: () => undo(false) },
     { label: 'Redo', icon: 'redo', shortcut: '⌘⇧Z', disabledReason: !doc()?.canRedo() ? 'Nothing to redo' : undefined, action: () => undo(true) },
     { label: outlineView().showArchived ? 'Hide archived' : 'Show archived', icon: 'archive', action: props.onArchived },
@@ -550,13 +552,13 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
     <header class="pane-header">
       <div class="pane-navigation"><Button icon="left" label="Back" shortcut="⌃⇧H" disabled={props.session().index <= 0} onClick={() => props.onTravel(-1)} /><Button icon="right" label="Forward" shortcut="⌃⇧L" disabled={props.session().index >= props.session().entries.length - 1} onClick={() => props.onTravel(1)} /></div>
       <Show when={pageId()}>
-        <nav class="pane-breadcrumbs" aria-label="Page breadcrumbs"><Button onClick={() => props.onRestoreView({ ...outlineView(), zoom: null })}>{root()?.text ?? 'Loading…'}</Button><For each={breadcrumbs()}>{block => <><span class="breadcrumb-separator">/</span><Button onClick={() => props.onRestoreView({ ...outlineView(), zoom: block.id })}>{block.text || 'Empty block'}</Button></>}</For></nav>
+        <nav class="pane-breadcrumbs" aria-label="Page breadcrumbs"><Button onClick={() => props.onRestoreView({ ...outlineView(), zoom: null })}>{root()?.text ?? 'Loading…'}</Button><For each={breadcrumbs()}>{block => <><span class="breadcrumb-separator">/</span><Button onClick={() => props.onRestoreView({ ...outlineView(), zoom: block.id })}>{plainText(block.text, id => props.notebook.lookup(id)) || 'Empty block'}</Button></>}</For></nav>
         <Show when={root()?.kind === 'journal'}><nav class="journal-navigation" aria-label="Journal navigation">
           <Button icon="left" label="Previous journal day" onClick={() => props.onShiftDate(-1)} />
           <Button class="journal-date" icon="calendar" label="Choose journal date" aria-haspopup="dialog" onClick={event => props.onChooseDate(event.currentTarget)} />
           <Button icon="right" label="Next journal day" onClick={() => props.onShiftDate(1)} />
         </nav></Show>
-        <span class="pane-save-state" title={doc()?.saveMessage()}><Icon name={doc()?.saveState() === 'saved' ? 'check' : doc()?.saveState() === 'offline' ? 'offline' : doc()?.saveState() === 'error' || doc()?.saveState() === 'conflict' ? 'warning' : 'saving'} />{status()}</span>
+        <span class="pane-save-state" data-state={doc()?.saveState()} title={doc()?.saveMessage()}><Icon name={doc()?.saveState() === 'saved' ? 'check' : doc()?.saveState() === 'offline' ? 'offline' : doc()?.saveState() === 'error' || doc()?.saveState() === 'conflict' ? 'warning' : 'saving'} />{status()}</span>
         <Show when={props.vim}><span class="vim-mode">Vim: {vimLabels[props.vimMode ?? 'outline']}</span></Show>
       </Show>
       <Show when={!pageId()}><Show when={current().target.kind === 'reader' ? current().target as Extract<OpenTarget, { kind: 'reader' }> : undefined} fallback={<span class="pane-breadcrumbs">{paneLabel(current().target)}</span>}>{target =>
