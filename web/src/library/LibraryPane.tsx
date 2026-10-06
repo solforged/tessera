@@ -67,6 +67,8 @@ export function LibraryPane(props: LibraryPaneProps) {
   createEffect(on(queryKey, () => { setSelected(new Set<string>()); selectionAnchor = null; }));
   const [loadedKey, setLoadedKey] = createSignal('');
   const [library, setLibrary] = createSignal<LibraryResult>();
+  // Keep each row kind until its replacement arrives, even when the other tab loads.
+  const [sourceRows, setSourceRows] = createSignal<LibraryRow[]>();
   const [highlights, setHighlights] = createSignal<HighlightResult>();
   const [unprocessedCount, setUnprocessedCount] = createSignal<number>();
   const [countError, setCountError] = createSignal('');
@@ -83,6 +85,15 @@ export function LibraryPane(props: LibraryPaneProps) {
   const tagOptions = createMemo(() => [...new Set([...(highlights()?.rows.flatMap(row => row.tags) ?? []), ...tags()])].sort().filter(tag => tag.toLocaleLowerCase().includes(tagQuery().toLocaleLowerCase())));
   const [loading, setLoading] = createSignal(true);
   const [error, setError] = createSignal('');
+  const displayedSources = createMemo(() => tab() === 'highlights' || error() ? [] : sourceRows() ?? []);
+  const hasResult = createMemo(() => tab() === 'highlights' ? highlights() !== undefined : sourceRows() !== undefined);
+  const [slowLoad, setSlowLoad] = createSignal(false);
+  createEffect(() => {
+    setSlowLoad(false);
+    if (!loading() || hasResult()) return;
+    const timer = setTimeout(() => setSlowLoad(true), 300);
+    onCleanup(() => clearTimeout(timer));
+  });
   const [commandError, setCommandError] = createSignal('');
   const [saving, setSaving] = createSignal(false);
   const [refresh, setRefresh] = createSignal(0);
@@ -114,7 +125,7 @@ export function LibraryPane(props: LibraryPaneProps) {
   const [addError, setAddError] = createSignal('');
   const doneJobs = new Set<string>();
   // Jobs concern sources; the Highlights tab shows none.
-  const shownJobs = createMemo(() => tab() === 'highlights' ? [] : visibleJobs(jobs().filter(job => !(job.state === 'failed' && dismissedJobs().has(job.id))), new Set(loadedKey() !== queryKey() ? [] : library()?.rows.map(row => row.page.id) ?? [])));
+  const shownJobs = createMemo(() => tab() === 'highlights' || error() ? [] : visibleJobs(jobs().filter(job => !(job.state === 'failed' && dismissedJobs().has(job.id))), new Set(displayedSources().map(row => row.page.id))));
   const sourceTitles = createMemo(() => new Map(props.notebook.roots().map(root => [root.id, root.text])));
   let scroll!: HTMLDivElement;
   let fileInput!: HTMLInputElement;
@@ -150,17 +161,24 @@ export function LibraryPane(props: LibraryPaneProps) {
 
   const update = (patch: Partial<LibraryViewState>) => {
     const next = { ...view(), ...patch, scroll: patch.scroll ?? scroll.scrollTop };
-    if (patch.scroll !== undefined) { restoreScroll = null; scroll.scrollTop = patch.scroll; }
-    setView(next);
+    batch(() => {
+      const previousKey = queryKey();
+      setView(next);
+      if (patch.scroll !== undefined) {
+        if (queryKey() !== previousKey) restoreScroll = patch.scroll;
+        else { restoreScroll = null; scroll.scrollTop = patch.scroll; }
+      }
+    });
     props.onViewChange({ ...next });
   };
   createEffect(on(() => props.view, next => {
     const previous = view();
     const filtersChanged = JSON.stringify([next.colors, next.tags]) !== JSON.stringify([previous.colors, previous.tags]);
     if (next.view === previous.view && next.tab === previous.tab && next.text === previous.text && next.sort === previous.sort && next.unprocessedOnly === previous.unprocessedOnly && !filtersChanged && next.scroll === previous.scroll) return;
-    restoreScroll = next.view !== previous.view || next.tab !== previous.tab || next.text !== previous.text || next.sort !== previous.sort || next.unprocessedOnly !== previous.unprocessedOnly || filtersChanged ? next.scroll : null;
+    const queryChanged = next.view !== previous.view || next.tab !== previous.tab || next.text !== previous.text || next.sort !== previous.sort || next.unprocessedOnly !== previous.unprocessedOnly || filtersChanged;
+    restoreScroll = queryChanged ? next.scroll : null;
     setView({ ...next });
-    scroll.scrollTop = next.scroll;
+    if (!queryChanged) scroll.scrollTop = next.scroll;
   }, { defer: true }));
 
   function viewFields(query: LibraryQuery): Pick<LibraryViewState, 'tab' | 'text' | 'sort'> {
@@ -209,7 +227,17 @@ export function LibraryPane(props: LibraryPaneProps) {
       ]).then(([sources, cited]) => {
         if (controller.signal.aborted) return;
         const focused = scroll.contains(document.activeElement) ? (document.activeElement as HTMLElement)?.dataset.libraryRow : undefined;
-        batch(() => { setLibrary(sources); setHighlights(cited); setLoadedKey(currentKey); setLoading(false); });
+        batch(() => {
+          setLibrary(sources);
+          if (cited) setHighlights(cited);
+          else {
+            setSourceRows(sources.rows);
+            const ids = new Set(sources.rows.map(row => row.page.id));
+            setSelected(previous => new Set([...previous].filter(id => ids.has(id))));
+            if (selectionAnchor && !ids.has(selectionAnchor)) selectionAnchor = null;
+          }
+          setLoadedKey(currentKey); setLoading(false);
+        });
         requestAnimationFrame(() => {
           if (controller.signal.aborted) return;
           if (restoreScroll !== null) { scroll.scrollTop = restoreScroll; restoreScroll = null; }
@@ -289,7 +317,7 @@ export function LibraryPane(props: LibraryPaneProps) {
   function clearSelection() { setSelected(new Set<string>()); selectionAnchor = null; }
   async function changeSelectedState(state: ReadingState) {
     if (saving()) return;
-    const operations = (library()?.rows ?? []).filter(row => selected().has(row.page.id)).map(row => sourceStateOperation(row, state));
+    const operations = displayedSources().filter(row => selected().has(row.page.id)).map(row => sourceStateOperation(row, state));
     if (!operations.length) return;
     setSaving(true); setCommandError('');
     try {
@@ -300,7 +328,7 @@ export function LibraryPane(props: LibraryPaneProps) {
     } finally { if (!disposed) setSaving(false); }
   }
   function toggleSelection(id: string, range: boolean) {
-    setSelected(previous => selectSources(library()?.rows.map(row => row.page.id) ?? [], previous, id, selectionAnchor, range));
+    setSelected(previous => selectSources(displayedSources().map(row => row.page.id), previous, id, selectionAnchor, range));
     selectionAnchor = id;
   }
   function chooseView(value: LibraryView) {
@@ -396,9 +424,13 @@ export function LibraryPane(props: LibraryPaneProps) {
     onDrop={event => { if (event.dataTransfer?.files.length) { event.preventDefault(); void upload(Array.from(event.dataTransfer.files)); } }}>
     <header class="library-toolbar">
       <div class="library-tabs" role="group" aria-label="Library state">
-        <For each={tabs}>{item => <Button aria-pressed={!view().view && tab() === item.id} onClick={() => update({ view: null, tab: item.id, scroll: 0 })}>
-          {item.label}<Show when={item.id === 'highlights' ? unprocessedCount() !== undefined : library()}><span class="library-count">{item.id === 'highlights' ? unprocessedCount() : item.id === 'all' ? Object.values(library()!.counts).reduce((sum, count) => sum + count, 0) : library()!.counts[item.id as ReadingState]}</span></Show>
-        </Button>}</For>
+        <For each={tabs}>{item => {
+          // Zero counts are left out so the tabs fit a narrow pane.
+          const count = () => item.id === 'highlights' ? unprocessedCount() : !library() ? undefined : item.id === 'all' ? Object.values(library()!.counts).reduce((sum, value) => sum + value, 0) : library()!.counts[item.id as ReadingState];
+          return <Button aria-pressed={!view().view && tab() === item.id} onClick={() => update({ view: null, tab: item.id, scroll: 0 })}>
+            {item.label}<Show when={count()}><span class="library-count">{count()}</span></Show>
+          </Button>;
+        }}</For>
         <For each={views()}>{value => <div class="library-tabs">
           <Button aria-pressed={view().view === value.id} onClick={() => chooseView(value)}>{value.name}</Button>
           <Button icon="more" label={`Actions for view ${value.name}`} aria-haspopup="menu" disabled={saving()} onClick={event => viewMenu(value, event.currentTarget)} />
@@ -462,9 +494,9 @@ export function LibraryPane(props: LibraryPaneProps) {
             <Show when={job.state === 'failed'}><div class="library-job-actions"><Button disabled={retrying().includes(job.id)} onClick={() => { void retryJob(job); }}>Retry</Button><Button onClick={() => dismissJob(job.id)}>Dismiss</Button></div></Show>
             <Show when={job.error}><span class="library-job-error" role={job.state === 'failed' ? 'alert' : undefined}>{job.error}</span></Show>
           </div>; }}</For></div></Show>
-        <Show when={loading()}><p class="library-message" role="status">Loading…</p></Show>
+        <Show when={loading() && !hasResult() && slowLoad()}><p class="library-message" role="status">Loading…</p></Show>
         <Show when={error()}><div class="library-error" role="alert">{error()}<Button onClick={() => setRefresh(value => value + 1)}>Retry</Button></div></Show>
-        <Show when={loadedKey() === queryKey() && !error()}>
+        <Show when={hasResult() && !error()}>
           <Show when={tab() !== 'highlights'} fallback={
             <Show when={highlights()?.rows.length} fallback={<div class="library-empty"><Show when={unprocessedOnly()} fallback={<p>No matching highlights.</p>}><p>No unprocessed highlights.</p><p>{processedExplanation}</p></Show></div>}>
               <div class="library-highlights" role="list"><For each={highlightGroups()}>{group => <div class="library-highlight-group" role="listitem">
@@ -483,12 +515,12 @@ export function LibraryPane(props: LibraryPaneProps) {
               </div>}</For></div>
             </Show>
           }>
-            <Show when={library()?.rows.length} fallback={<div class="library-empty">
+            <Show when={displayedSources().length} fallback={<div class="library-empty">
               <Show when={text().trim()} fallback={<Show when={tab() === 'inbox'} fallback={<p>No sources.</p>}>
                 <p>Nothing in your inbox. Add a book or article.</p>
               </Show>}><p>No sources match.</p><Button onClick={() => update({ view: null, text: '', scroll: 0 })}>Clear search</Button></Show>
             </div>}>
-              <div role="list"><For each={library()?.rows}>{row => {
+              <div role="list"><For each={displayedSources()}>{row => {
                 const target: OpenTarget = { kind: 'page', pageId: row.page.id };
                 return <div class="library-row library-source-row" classList={{ 'library-row-selected': selected().has(row.page.id) }} role="listitem">
                   <div class="library-leading">
@@ -526,7 +558,10 @@ export function LibraryPane(props: LibraryPaneProps) {
         <form onSubmit={event => { event.preventDefault(); void queueUrl(); }}>
           <input class="input" aria-label="URL" placeholder="URL" inputmode="url" value={url()} disabled={adding()} onInput={event => setUrl(event.currentTarget.value)} />
           <Show when={addError()}><p class="library-error" role="alert">{addError()}</p></Show>
-          <Button icon="upload" disabled={adding()} onClick={() => { dismiss(); fileInput.click(); }}>Choose EPUB…</Button>
+          <div class="library-add-actions">
+            <Button type="submit" class="bordered" disabled={!url().trim() || adding()}>{adding() ? 'Adding…' : 'Add'}</Button>
+            <Button icon="upload" disabled={adding()} onClick={() => { dismiss(); fileInput.click(); }}>Choose EPUB…</Button>
+          </div>
         </form>
       </Popup>;
     }}</Show>

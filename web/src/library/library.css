@@ -43,8 +43,10 @@
 .library-empty p { margin: 0 0 var(--space-8); }
 .library-jobs { display: flex; flex-direction: column; }
 .library-job { flex-wrap: wrap; font-size: var(--text-control); line-height: var(--line-control); }
-.library-job-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-inline: var(--space-8); }
-.library-job-actions { display: flex; margin-left: auto; }
+/* The name gives way first, so state and actions stay on the job's first line in a narrow pane. */
+.library-job-name { flex: 1 1 0; min-width: var(--space-48); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-inline: var(--space-8); }
+.library-job > .library-message, .library-job-actions { flex: none; }
+.library-job-actions { display: flex; }
 .library-job-error { flex-basis: 100%; padding-left: calc(var(--row-height) + var(--space-4) + var(--space-8)); padding-bottom: var(--space-8); }
 .library-highlight.button { display: flex; flex: 1; min-width: 0; flex-direction: column; align-items: stretch; height: auto; padding: var(--space-8); gap: var(--space-4); text-align: left; white-space: normal; font-weight: var(--weight-body); border-radius: 0; }
 .library-highlight-heading { display: flex; align-items: center; justify-content: space-between; padding-block: var(--space-8); font-size: var(--text-control); color: var(--faint); }
@@ -58,6 +60,7 @@
 .library-highlight-quote { color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; border-left: 2px solid var(--line); padding-left: var(--space-8); }
 .library-add { width: var(--search-width); }
 .library-add form { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-12); }
+.library-add-actions { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); }
 .library-add .library-error { margin: 0; }
 .highlight-color-dot { display: inline-block; flex-shrink: 0; width: var(--space-12); height: var(--space-12); border-radius: 50%; background: var(--faint); }
 .highlight-color-yellow { background: var(--highlight-yellow); }
