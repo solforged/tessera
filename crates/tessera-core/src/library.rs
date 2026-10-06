@@ -387,6 +387,13 @@ pub struct HighlightRow {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Surfacing {
+    #[serde(flatten)]
+    pub row: HighlightRow,
+    pub action: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HighlightResult {
     pub rows: Vec<HighlightRow>,
     pub total: usize,
