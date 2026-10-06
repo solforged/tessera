@@ -42,6 +42,10 @@ export class Document implements PageDocument {
   private cells = new Map<string, Cell>();
   private presence = new Map<string, Signal<number>>();
   private conflictVersion = createSignal(0);
+  /** Archived block ids outside the stores, so visible-row walks avoid a store read per row. */
+  private archived = new Set<string>();
+  private archiveChange = createSignal(0);
+  archivedVersion = this.archiveChange[0];
   private loadStatus = createSignal<'loading' | 'ready' | 'missing' | 'error'>('loading');
   private loadMessage = createSignal('');
   private undoStack: HistoryEntry[] = [];
@@ -70,6 +74,12 @@ export class Document implements PageDocument {
     return this.cells.get(id)?.state;
   }
   private presenceChanged(id: string) { this.presence.get(id)?.[1](value => value + 1); }
+  isArchived(id: string) { return this.archived.has(id); }
+  private markArchived(id: string, archived: boolean) {
+    if (this.archived.has(id) === archived) return;
+    if (archived) this.archived.add(id); else this.archived.delete(id);
+    this.archiveChange[1](value => value + 1);
+  }
   needsRefresh(blocks: readonly Block[], removed: readonly string[]) {
     if (this.status() !== 'ready') return true;
     return blocks.some(block => block.page_id === this.pageId && (this.baseBlocks.get(block.id)?.revision ?? -1) < block.revision)
@@ -108,6 +118,7 @@ export class Document implements PageDocument {
   private put(block: Block, pending = false, manual_types = this.cells.get(block.id)?.state.manual_types ?? this.baseManualTypes.get(block.id) ?? [], capability = this.capabilities(block.id)) {
     const cell = this.cells.get(block.id);
     const sidecar = { task: capability.task, project: capability.project, source: capability.source ?? null, citations: capability.citations ?? [], history: capability.history, mergeProtected: capability.merge_protected, reviewedCards: capability.reviewed_cards };
+    this.markArchived(block.id, block.archived);
     if (cell) cell.set({ ...stateOf(block), ...sidecar, manual_types, pending, conflict: cell.state.conflict });
     else {
       const [state, set] = createStore<MutableBlockState>({ ...stateOf(block), ...sidecar, manual_types, pending });
@@ -134,8 +145,9 @@ export class Document implements PageDocument {
   }
   capabilities(id: string, base = false): BlockCapabilities {
     const cell = !base && this.cells.get(id)?.state;
-    const value = cell ? { block_id: id, task: cell.task, project: cell.project, source: cell.source, citations: cell.citations, history: cell.history, merge_protected: cell.mergeProtected, reviewed_cards: cell.reviewedCards } : this.baseCapabilities.get(id) ?? emptyCapabilities(id);
-    return JSON.parse(JSON.stringify(value)) as BlockCapabilities;
+    const value = cell ? { block_id: id, task: cell.task, project: cell.project, source: cell.source, citations: cell.citations, history: cell.history, merge_protected: cell.mergeProtected, reviewed_cards: cell.reviewedCards } : this.baseCapabilities.get(id);
+    // Most blocks have no capabilities; a fresh empty value needs no defensive copy.
+    return value ? JSON.parse(JSON.stringify(value)) as BlockCapabilities : emptyCapabilities(id);
   }
   private updateCapabilities(value: BlockCapabilities, base: boolean) {
     value.merge_protected = value.task !== null || value.project !== null || value.history || value.reviewed_cards;
@@ -437,7 +449,8 @@ export class Document implements PageDocument {
           return true;
         });
       }
-      this.refreshPending();
+      // put() wrote every saved cell above; only local commands, conflicts and resolutions can differ from it.
+      this.refreshPending(new Set([...this.pendingIds(), ...this.conflicts, ...this.resolving]));
       this.conflictVersion[1](value => value + 1);
       if (!this.outline.size() && this.root() && this.root()!.revision > 0) {
         const block: Block = { id: ulid(), kind: 'block', parent_id: this.pageId, page_id: this.pageId, text: '', heading: null, archived: false, revision: 0, created_at: Date.now(), updated_at: Date.now() };
@@ -630,7 +643,7 @@ export class Document implements PageDocument {
     }
     return changed ? this.syncHistoryCommands(changed) : [];
   }
-  refreshPending(touched?: Set<string>) {
+  private pendingIds() {
     const pending = new Set<string>();
     for (const command of this.host.commands(this.pageId)) for (const action of command.actions) {
       pending.add(action.kind === 'insert' ? action.block.id : action.id);
@@ -638,6 +651,10 @@ export class Document implements PageDocument {
       if (action.kind === 'merge') pending.add(action.destinationId);
       if (action.kind === 'restore') for (const snapshot of action.snapshots) pending.add(snapshot.block.id);
     }
+    return pending;
+  }
+  refreshPending(touched?: Set<string>) {
+    const pending = this.pendingIds();
     for (const id of touched ?? this.cells.keys()) {
       const cell = this.cells.get(id);
       if (!cell) continue;
@@ -648,6 +665,7 @@ export class Document implements PageDocument {
       const saved = this.baseBlocks.get(id);
       if (saved && !pending.has(id) && !cell.state.conflict && !this.resolving.has(id)) {
         const value = this.capabilities(id, true);
+        this.markArchived(id, saved.archived);
         cell.set({ text: saved.text, heading: saved.heading, archived: saved.archived, parentId: saved.parent_id, manual_types: this.baseManualTypes.get(id) ?? [], task: value.task, project: value.project, source: value.source ?? null, citations: value.citations ?? [], history: value.history, mergeProtected: value.merge_protected, reviewedCards: value.reviewed_cards });
       }
       this.host.publish(this.snapshot(id));

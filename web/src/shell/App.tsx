@@ -318,11 +318,23 @@ export function App() {
       setNavigationId(notebookInfo.id);
     })().catch(reportError);
   });
+  // Caret and scroll reports change navigation on most keystrokes; storage writes trail them off the input path.
+  let navigationWrite: { key: string; value: unknown } | null = null;
+  let navigationTimer = 0;
+  const writeNavigation = () => {
+    clearTimeout(navigationTimer);
+    const pending = navigationWrite; navigationWrite = null;
+    if (pending) try { localStorage.setItem(pending.key, JSON.stringify(pending.value)); } catch { /* Storage-denied browsers keep preferences for this tab. */ }
+  };
+  window.addEventListener('pagehide', writeNavigation);
+  onCleanup(() => { window.removeEventListener('pagehide', writeNavigation); writeNavigation(); });
   createEffect(() => {
     const id = navigationId(); if (!id) return;
     const panes: Partial<Record<PaneId, HistoryEntry>> = {};
     for (const pane of paneIds) { const current = entry(pane); if (current) panes[pane] = current; }
-    try { localStorage.setItem(`tessera.navigation.${id}`, JSON.stringify({ pinned: pinned(), pinnedViews: pinnedViews(), recent: recent(), vim: vim(), panes, active: active() })); } catch { /* Storage-denied browsers keep preferences for this tab. */ }
+    navigationWrite = { key: `tessera.navigation.${id}`, value: { pinned: pinned(), pinnedViews: pinnedViews(), recent: recent(), vim: vim(), panes, active: active() } };
+    clearTimeout(navigationTimer);
+    navigationTimer = window.setTimeout(writeNavigation, 500);
   });
   const unregister = commands.register([
     { id: 'shell.search', title: 'Find or create', section: 'Navigation', keys: ['⌃⇧F'], run: () => showPalette('search') },
@@ -461,7 +473,14 @@ export function App() {
 }
 
 function PageLinks(props: { roots: Block[]; notebook: NotebookClient; activeId?: string; onOpen(target: OpenTarget, beside?: boolean): void }) {
-  return <For each={props.roots}>{root => <Button class={root.id === props.activeId ? 'selected' : ''} icon={root.kind === 'journal' ? 'calendar' : 'page'} title={props.notebook.lookup(root.id)()?.text ?? root.text} onClick={event => props.onOpen({ kind: 'page', pageId: root.id }, event.shiftKey)}><span>{props.notebook.lookup(root.id)()?.text ?? root.text}</span></Button>}</For>;
+  // Roots arrive as fresh objects whenever any root changes; keying rows by id keeps them mounted.
+  const byId = createMemo(() => new Map(props.roots.map(root => [root.id, root])));
+  const ids = createMemo(() => props.roots.map(root => root.id), undefined, { equals: (a, b) => a.length === b.length && a.every((id, index) => id === b[index]) });
+  return <For each={ids()}>{id => {
+    const root = () => byId().get(id)!;
+    const title = () => props.notebook.lookup(id)()?.text ?? root().text;
+    return <Button class={id === props.activeId ? 'selected' : ''} icon={root().kind === 'journal' ? 'calendar' : 'page'} title={title()} onClick={event => props.onOpen({ kind: 'page', pageId: id }, event.shiftKey)}><span>{title()}</span></Button>;
+  }}</For>;
 }
 
 function ViewLinks(props: { views: View[]; pinned: boolean; activeId?: string; onOpen(view: View, beside: boolean): void; onPin(id: string): void }) {
