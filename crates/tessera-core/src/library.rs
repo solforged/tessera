@@ -182,6 +182,8 @@ pub struct SourceRecord {
     pub siglum: String,
     #[serde(default)]
     pub siglum_basis: String,
+    #[serde(default)]
+    pub siglum_authored: bool,
 }
 
 impl SourceRecord {

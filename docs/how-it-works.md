@@ -171,6 +171,8 @@ Task queries compute a view from active, visible task sources. Optional source s
 
 Task rows sort by planning date, planning time, priority and block ID. The planning key prefers scheduled date to deadline; missing dates/times come last. The total is counted before the outer limit. Saved task views store the JSON task query in `task_views`. See `crates/tessera-core/src/task_query.rs:139`, `156`, `216`, `339`; migration `009_action_learning.sql:67`.
 
+Tasks mode edits that query through a synchronous query-line parser, with cached page titles for types and cached project-capability titles for projects. It delegates dates to `parseTaskDate` using the pane's context date, keeps field predicates and hidden source settings intact, and applies only an error-free line. Chips render the line outside editing; a device-level `tessera.task-filters.open` preference reveals the existing controls, which write back to the same query and line. Pane history and named views still persist `TaskQuery`, not text. See `web/src/tasks/task-query-line.ts`, `TaskQueryLine.tsx` and `AgendaPane.tsx`.
+
 The agenda is calculated for a displayed civil date. Unfinished tasks contribute scheduled, deadline, warning, overdue or unplanned reasons. For a task completed that day, the latest unreversed same-day occurrence supplies historical planning and a projected done row, including for a repeater already advanced to its next date. Currently cancelled tasks are excluded. See `crates/tessera-core/src/task_query.rs:165`, `348` (`Notebook::agenda`).
 
 ### Work sessions

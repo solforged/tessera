@@ -58,9 +58,20 @@ export function dateTokenAt(text: string, caret: number): DateToken | null {
   const from = text.lastIndexOf('@', caret - 1);
   if (from < 0 || from > 0 && !/\s/.test(text[from - 1]!) || insideProtectedSyntax(text, from)) return null;
   const query = text.slice(from + 1, caret);
-  if (query.length > 24 || /^\s/.test(query) || /[\r\n]/.test(query)) return null;
-  if (/^due(?: +|$)/i.test(query)) return { from, to: caret, query: query.slice(3).replace(/^ +/, ''), field: 'deadline' };
+  if (/^\s/.test(query) || /[\r\n]/.test(query)) return null;
+  const deadline = /^(?:by|due)(?: +|$)/i.exec(query);
+  if (deadline) return { from, to: caret, query: query.slice(deadline[0].length), field: 'deadline' };
   return { from, to: caret, query, field: 'scheduled' };
+}
+
+/** Tab changes only the planning field, retaining the query, surrounding text and live caret. */
+export function flipDateToken(text: string, token: DateToken): { text: string; caret: number } {
+  const query = text.slice(token.from + 1, token.to);
+  const next = token.field === 'scheduled' ? `by ${query}` : query.replace(/^(?:by|due)(?: +|$)/i, '');
+  return {
+    text: text.slice(0, token.from + 1) + next + text.slice(token.to),
+    caret: token.from + 1 + next.length,
+  };
 }
 
 const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -71,7 +82,8 @@ function weekdayLabel(date: string): string {
   return weekdays[day]!;
 }
 function parsedLabel(query: string, date: string): string {
-  const name = query.toLowerCase().replace(/\s+/g, ' ').replace(/ \d{2}:\d{2}$/, '');
+  const name = query.toLowerCase().replace(/\s+/g, ' ').replace(/(?:^| )(?:\d{1,2}:\d{2}(?:am|pm)?|\d{1,2}(?:am|pm))$/, '');
+  if (!name) return 'Today';
   if (name === 'today' || name === 'tomorrow' || name === 'yesterday') return name[0]!.toUpperCase() + name.slice(1);
   const next = name.startsWith('next ');
   const weekday = next ? name.slice(5) : name;

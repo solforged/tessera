@@ -33,10 +33,10 @@ describe('task date input', () => {
     expect(parseTaskDate(' IN   2   WEEKS ', context)).toEqual({ ok: true, date: '2026-10-17', time: null });
   });
 
-  test('bare weekdays include the context day but next weekdays are strictly future', () => {
+  test('bare weekdays include the context day and next weekdays use the following Monday-start week', () => {
     const cases = [
       ['Saturday', '2026-10-03', '2026-10-10'],
-      ['Sunday', '2026-10-04', '2026-10-04'],
+      ['Sunday', '2026-10-04', '2026-10-11'],
       ['Monday', '2026-10-05', '2026-10-05'],
       ['Tuesday', '2026-10-06', '2026-10-06'],
       ['Wednesday', '2026-10-07', '2026-10-07'],
@@ -51,6 +51,62 @@ describe('task date input', () => {
     }
     expect(parseTaskDate('Friday', '2026-12-31')).toEqual({ ok: true, date: '2027-01-01', time: null });
     expect(parseTaskDate('next Thursday', '2026-12-31')).toEqual({ ok: true, date: '2027-01-07', time: null });
+  });
+
+  test('resolves next weekdays at both ends of a Monday-start week', () => {
+    const cases = [
+      ['next mon', '2026-10-05', '2026-10-12'],
+      ['next mon', '2026-10-11', '2026-10-12'],
+      ['next fri', '2026-10-05', '2026-10-16'],
+      ['next sun', '2026-10-05', '2026-10-18'],
+      ['next sun', '2026-10-11', '2026-10-18'],
+    ] as const;
+    for (const [input, from, date] of cases) expect(parseTaskDate(input, from)).toEqual({ ok: true, date, time: null });
+    expect(parseTaskDate('mon', '2026-10-05')).toEqual({ ok: true, date: '2026-10-05', time: null });
+    expect(parseTaskDate('sun', '2026-10-11')).toEqual({ ok: true, date: '2026-10-11', time: null });
+  });
+
+  test('accepts full month names and abbreviations in either order with an optional year', () => {
+    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    for (const [index, month] of months.entries()) {
+      const date = `2027-${String(index + 1).padStart(2, '0')}-12`;
+      for (const name of [month, month.slice(0, 3), ...(month === 'September' ? ['SePt'] : [])]) {
+        for (const input of [`${name} 12`, `12 ${name}`]) {
+          expect(parseTaskDate(input, '2027-01-01')).toEqual({ ok: true, date, time: null });
+          expect(parseTaskDate(`@ ${input} 2027`, context)).toEqual({ ok: true, date, time: null });
+          expect(parseTaskDate(`@${input} 2027 3pm`, context)).toEqual({ ok: true, date, time: '15:00' });
+        }
+      }
+    }
+    for (const input of ['oct 12', '12 oct', 'OCTOBER 12', '12 October']) {
+      expect(parseTaskDate(input, context)).toEqual({ ok: true, date: '2026-10-12', time: null });
+      expect(parseTaskDate(input, '2026-10-12')).toEqual({ ok: true, date: '2026-10-12', time: null });
+      expect(parseTaskDate(input, '2026-10-13')).toEqual({ ok: true, date: '2027-10-12', time: null });
+    }
+    expect(parseTaskDate('  12   OCTOBER  2027  ', context)).toEqual({ ok: true, date: '2027-10-12', time: null });
+    expect(parseTaskDate('oct 1 2025', context)).toEqual({ ok: true, date: '2025-10-01', time: null });
+  });
+
+  test('finds the next valid named day across year and leap-year boundaries without rolling impossible dates', () => {
+    const cases = [
+      ['jan 3', '2026-12-28', '2027-01-03'],
+      ['3 january', '2026-01-03', '2026-01-03'],
+      ['jan 3', '2026-01-04', '2027-01-03'],
+      ['feb 29', '2028-02-28', '2028-02-29'],
+      ['29 feb', '2028-02-29', '2028-02-29'],
+      ['feb 29', '2028-03-01', '2032-02-29'],
+      ['feb 29', '2026-01-01', '2028-02-29'],
+      ['feb 29', '2096-03-01', '2104-02-29'],
+      ['february 29 2000', context, '2000-02-29'],
+      ['29 feb 2028', context, '2028-02-29'],
+      ['dec 31', '9999-12-31', '9999-12-31'],
+      ['jan 1 0001', context, '0001-01-01'],
+    ] as const;
+    for (const [input, from, date] of cases) expect(parseTaskDate(input, from)).toEqual({ ok: true, date, time: null });
+    for (const input of ['feb 30', '30 feb 2028', 'feb 29 2027', '29 february 1900', 'feb 29 2100', 'apr 31', 'oct 0', 'oct 32', 'oct 12 0000', 'oct 12 10000', 'octo 12', '12 oct 27']) {
+      expect(parseTaskDate(input, context).ok).toBe(false);
+    }
+    for (const input of ['jan 3', 'feb 29']) expect(parseTaskDate(input, '9999-12-31').ok).toBe(false);
   });
 
   test('crosses month, year and Gregorian leap-day boundaries without overflow', () => {
@@ -107,9 +163,28 @@ describe('task date input', () => {
     expect(parseTaskDate('next Friday', '9999-12-31').ok).toBe(false);
   });
 
-  test('rejects orphan times and requires a strict local HH:MM without zones or seconds', () => {
-    for (const input of ['12:30', '@12:30', '00:00', '@ 23:59']) expect(parseTaskDate(input, context).ok).toBe(false);
-    for (const time of ['9:30', '09:3', '24:00', '12:60', '-1:00', '001:00', '09:30:00', '09:30Z', '09:30+01:00', '12:30pm', '12:30 13:30']) {
+  test('normalizes twelve-hour and one-digit-hour times, including times without a date', () => {
+    const times = [
+      ['9am', '09:00'], ['3pm', '15:00'], ['3:30pm', '15:30'],
+      ['12pm', '12:00'], ['12am', '00:00'], ['12:30am', '00:30'],
+      ['12:30pm', '12:30'], ['9:30', '09:30'], ['09:30', '09:30'],
+      ['0:00', '00:00'], ['23:59', '23:59'],
+    ] as const;
+    const dates = [
+      ['today', context], ['2027-01-02', '2027-01-02'], ['fri', '2026-10-09'],
+      ['next fri', '2026-10-09'], ['+2d', '2026-10-05'], ['in 2 weeks', '2026-10-17'],
+      ['oct 12', '2026-10-12'], ['12 october 2027', '2027-10-12'],
+    ] as const;
+    for (const [input, time] of times) {
+      expect(parseTaskDate(input, context)).toEqual({ ok: true, date: context, time });
+      expect(parseTaskDate(`@${input.toUpperCase()}`, context)).toEqual({ ok: true, date: context, time });
+      for (const [form, date] of dates) expect(parseTaskDate(`${form} ${input}`, context)).toEqual({ ok: true, date, time });
+    }
+  });
+
+  test('rejects malformed local times, zones, seconds and multiple times', () => {
+    for (const time of ['09:3', '24:00', '12:60', '-1:00', '001:00', '09:30:00', '09:30Z', '09:30+01:00', '0am', '13pm', '3:60pm', '3:3pm', '12:30 13:30', '3 pm']) {
+      expect(parseTaskDate(time, context).ok).toBe(false);
       expect(parseTaskDate(`today ${time}`, context).ok).toBe(false);
       expect(parseTaskDate(`@2026-10-03 ${time}`, context).ok).toBe(false);
     }
@@ -120,6 +195,8 @@ describe('task date input', () => {
       expect(parseTaskDate('today', invalid).ok).toBe(false);
       expect(parseTaskDate('+1w', invalid).ok).toBe(false);
       expect(parseTaskDate('Monday', invalid).ok).toBe(false);
+      expect(parseTaskDate('oct 12', invalid).ok).toBe(false);
+      expect(parseTaskDate('3pm', invalid).ok).toBe(false);
     }
   });
 });

@@ -3,6 +3,7 @@ type CivilDate = { year: number; month: number; day: number };
 
 const monthStarts = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
 const weekdays = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+const months = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
 const leapYear = (year: number) => year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
 const monthDays = (year: number, month: number) => month === 2 ? (leapYear(year) ? 29 : 28) : month === 4 || month === 6 || month === 9 || month === 11 ? 30 : 31;
 const daysBeforeYear = (year: number) => {
@@ -49,21 +50,44 @@ export function parseTaskDate(input: string, contextDate: string): DateResult {
   text = text.toLowerCase().replace(/\s+/g, ' ');
 
   let time: string | null = null;
-  const clock = /(?:^| )(\S*:\S*)$/.exec(text);
+  const clock = /(?:^| )(\S*(?::\S*|am|pm))$/.exec(text);
   if (clock) {
-    if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(clock[1]!)) return { ok: false, error: 'Use a time from 00:00 to 23:59 (HH:MM).' };
-    time = clock[1]!;
+    const value = clock[1]!;
+    const meridiem = /^(0?[1-9]|1[0-2])(?::([0-5]\d))?(am|pm)$/.exec(value);
+    if (meridiem) {
+      const hour = Number(meridiem[1]) % 12 + (meridiem[3] === 'pm' ? 12 : 0);
+      time = `${String(hour).padStart(2, '0')}:${meridiem[2] ?? '00'}`;
+    } else if (/^(?:[01]?\d|2[0-3]):[0-5]\d$/.test(value)) {
+      time = value.padStart(5, '0');
+    } else return { ok: false, error: 'Use a time from 00:00 to 23:59, or a time such as 9am or 3:30pm.' };
     text = text.slice(0, clock.index).trim();
-    if (!text) return { ok: false, error: 'Enter a date before a time.' };
   }
 
   const context = civilDate(contextDate);
   if (!context) return { ok: false, error: 'The context date must be a valid YYYY-MM-DD date.' };
+  if (!text && time) return { ok: true, date: contextDate, time };
   if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
     return civilDate(text) ? { ok: true, date: text, time } : { ok: false, error: 'Enter a valid calendar date.' };
   }
 
   const base = ordinal(context);
+  const monthFirst = /^([a-z]+) (\d{1,2})(?: (\d{4}))?$/.exec(text);
+  const dayFirst = /^(\d{1,2}) ([a-z]+)(?: (\d{4}))?$/.exec(text);
+  const named = monthFirst ?? dayFirst;
+  if (named) {
+    const name = named[monthFirst ? 1 : 2]!;
+    const month = months.findIndex(value => value === name || value.slice(0, 3) === name || value === 'september' && name === 'sept') + 1;
+    const day = Number(named[monthFirst ? 2 : 1]);
+    if (!month || day < 1 || day > monthDays(2000, month)) return { ok: false, error: 'Enter a valid calendar date.' };
+    let year = named[3] ? Number(named[3]) : context.year;
+    if (named[3]) {
+      if (year < 1 || day > monthDays(year, month)) return { ok: false, error: 'Enter a valid calendar date.' };
+    } else {
+      while (year <= 9999 && (day > monthDays(year, month) || ordinal({ year, month, day }) < base)) year++;
+    }
+    if (year > 9999) return { ok: false, error: 'Choose a date from 0001-01-01 to 9999-12-31.' };
+    return { ok: true, date: dateAt(ordinal({ year, month, day })), time };
+  }
   let offset: number;
   if (text === 'today') offset = 0;
   else if (text === 'tomorrow') offset = 1;
@@ -75,9 +99,10 @@ export function parseTaskDate(input: string, contextDate: string): DateResult {
       const next = text.startsWith('next ');
       const name = next ? text.slice(5) : text;
       const weekday = weekdays.findIndex(day => day === name || day.slice(0, 3) === name);
-      if (weekday === -1) return { ok: false, error: 'Use YYYY-MM-DD, today, tomorrow, yesterday, a weekday, +Nd/+Nw, or in N days/weeks.' };
-      offset = (weekday - base % 7 + 7) % 7;
-      if (next && offset === 0) offset = 7;
+      if (weekday === -1) return { ok: false, error: 'Use YYYY-MM-DD, a month and day, today, tomorrow, yesterday, a weekday, +Nd/+Nw, or in N days/weeks.' };
+      offset = next
+        ? 7 - (base % 7 + 6) % 7 + (weekday + 6) % 7
+        : (weekday - base % 7 + 7) % 7;
     }
   }
   const target = base + offset;

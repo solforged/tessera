@@ -21,7 +21,7 @@ describe('library queries', () => {
 test('source state edits preserve authored identifiers and use the owning revision', () => {
   const row = {
     page: { id: 'source', revision: 9 },
-    source: { block_id: 'source', format: 'epub', state: 'inbox', origin: 'book.epub', match_key: 'isbn:123', citation_key: 'author2026book', added_at: 1, state_changed_at: 2, last_read_at: null, current_snapshot_id: 'snapshot', siglum: 'A', siglum_basis: 'author' },
+    source: { block_id: 'source', format: 'epub', state: 'inbox', origin: 'book.epub', match_key: 'isbn:123', citation_key: 'author2026book', added_at: 1, state_changed_at: 2, last_read_at: null, current_snapshot_id: 'snapshot', siglum: 'AUT', siglum_basis: 'AUTHOR', siglum_authored: false },
   } as LibraryRow;
   expect(sourceStateOperation(row, 'finished')).toEqual({
     op: 'set_source', id: 'source', base_revision: 9,

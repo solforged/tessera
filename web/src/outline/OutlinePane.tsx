@@ -16,7 +16,7 @@ import type { OutlineIndex } from '../document/outline-index';
 import { ProjectControls } from '../projects/ProjectControls';
 import { parseCardText } from '../review/card-text';
 import { DatePicker } from '../tasks/DatePicker';
-import { dateSuggestions, dateTokenAt, newTask, planDateToken, removeToken } from '../tasks/quick-date';
+import { dateSuggestions, dateTokenAt, flipDateToken, newTask, planDateToken, removeToken } from '../tasks/quick-date';
 import type { DateSuggestion, DateToken } from '../tasks/quick-date';
 import { JournalAgenda } from '../tasks/JournalAgenda';
 import { JournalResurface } from '../tasks/JournalResurface';
@@ -39,6 +39,7 @@ import type { DepthFilter } from './visibility';
 import { completeReferences } from './completion';
 import { nextClozeNumber, rankSlash, slashTokenAt } from './slash';
 import type { SlashEntry, SlashToken } from './slash';
+import { typeSpelling, typeTokenAt } from './type-completion';
 import { TypePill } from './references';
 import { CitationChip, SourceHeader } from './SourceHeader';
 import { GLOSS_FIELD, glossEntry, isGistName, isGlossName } from './gloss';
@@ -52,10 +53,10 @@ import './outline.css';
 const questionLabels: Record<QuestionStatus, string> = { open: 'Open', answered: 'Answered', parked: 'Parked', unsettled: 'Unsettled' };
 
 /**
- * An open `[[` page reference or `((` block reference, `::` at the start of a block naming a field, the
- * value of a choice field picking an option, or the manual Add type picker.
+ * An open `[[` page reference or `((` block reference, a `#` type query, `::` at the start of a block
+ * naming a field, the value of a choice field picking an option, or the manual Add type picker.
  */
-interface Completion { from: number; to: number; query: string; blocks?: boolean; fields?: boolean; choice?: FieldDefinition; manual?: { blockId: string; anchor: HTMLElement } }
+interface Completion { from: number; to: number; query: string; types?: boolean; blocks?: boolean; fields?: boolean; choice?: FieldDefinition; manual?: { blockId: string; anchor: HTMLElement } }
 interface MenuState { anchor: HTMLElement; items: MenuItem[]; label: string }
 /** A slash-menu row: a block verb (`run`) or syntax that replaces the token (`insert`), or both. */
 interface SlashItem extends SlashEntry {
@@ -150,10 +151,8 @@ function Pane(props: OutlinePaneProps) {
   const contextDate = () => doc.root()?.kind === 'journal' ? doc.root()!.text : props.notebook.todayDate();
   const rowAnchor = (id: string) => id === props.pageId ? heading ?? null : hosts.get(id)?.closest<HTMLElement>('[data-block-id]') ?? null;
   const capabilities = createOutlineCapabilities({ doc, notebook: props.notebook, contextDate, caret, anchor: rowAnchor, onOpen: props.onOpen });
-  /** `@` offers dates; choosing one makes the block a task scheduled (or, after `@due`, due) that day and removes the token. */
+  /** `@` offers dates; choosing one makes the block a scheduled task (or a deadline after `@by`/`@due`) and removes the token. */
   const dateRows = createMemo<DateSuggestion[]>(() => { const state = dateCompletion(); return state ? dateSuggestions(state.query, contextDate()) : []; });
-  /** `@d…` hints at the deadline form before it is typed out. */
-  const offerDeadline = createMemo(() => { const state = dateCompletion(); return !!state && state.field === 'scheduled' && 'due'.startsWith(state.query.toLowerCase()); });
   createEffect(() => { if (dateCompletion() && editing() !== dateCompletion()!.id) setDateCompletion(null); });
   createEffect(() => { if (slashCompletion() && editing() !== slashCompletion()!.id) setSlashCompletion(null); });
   let dismissedDate: { id: string; from: number } | null = null;
@@ -172,7 +171,10 @@ function Pane(props: OutlinePaneProps) {
     setSlashCompletion(null);
     if (dismissedDate && (dismissedDate.id !== at.id || text[dismissedDate.from] !== '@')) dismissedDate = null;
     const token = idle ? null : dateTokenAt(text, at.offset);
-    if (!token || dismissedDate?.from === token.from) { setDateCompletion(null); return; }
+    // Once a multi-word `@` query matches no date it is prose (`@sam about the report`), so the picker
+    // closes and Enter splits the block as usual; it reopens if the words become a date again.
+    const prose = token && /\s/.test(token.query.trim()) && !dateSuggestions(token.query, contextDate()).length;
+    if (!token || prose || dismissedDate?.from === token.from) { setDateCompletion(null); return; }
     if (dateCompletion()?.query !== token.query || dateCompletion()?.field !== token.field) setDateIndex(0);
     setDateCompletion({ ...token, id: at.id });
   }
@@ -196,11 +198,6 @@ function Pane(props: OutlinePaneProps) {
     const id = editing();
     if (!state || !editor || id !== state.id || editor.id !== id) return;
     const text = editor.view.state.doc.toString();
-    if (offerDeadline() && index === dateRows().length) {
-      const typed = '@due ';
-      if (rewriteEditing(id, { text: text.slice(0, state.from) + typed + text.slice(state.to), caret: state.from + typed.length })) updateTriggers(editor.view.state.doc.toString(), { id, offset: state.from + typed.length });
-      return;
-    }
     const choice = dateRows()[index] ?? null;
     const plan = planDateToken(text, state, choice, doc.block(id)?.task ?? null);
     setDateCompletion(null);
@@ -213,11 +210,19 @@ function Pane(props: OutlinePaneProps) {
     if (!choice) capabilities.open(id, state.field === 'deadline' ? 'deadline' : 'schedule');
     scheduleReport();
   }
+  function flipDateField() {
+    const state = dateCompletion();
+    const id = editing();
+    if (!state || !editor || id !== state.id || editor.id !== id) return;
+    const next = flipDateToken(editor.view.state.doc.toString(), state);
+    if (rewriteEditing(id, next)) updateTriggers(next.text, { id, offset: next.caret });
+  }
   function dateKey(event: KeyboardEvent) {
     if (!dateCompletion()) return false;
-    const count = dateRows().length + (offerDeadline() ? 2 : 1);
+    const count = dateRows().length + 1;
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { setDateIndex(index => Math.max(0, Math.min(count - 1, index + (event.key === 'ArrowDown' ? 1 : -1)))); return true; }
-    if ((event.key === 'Enter' || event.key === 'Tab') && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) { chooseDate(); return true; }
+    if (event.key === 'Tab' && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) { flipDateField(); return true; }
+    if (event.key === 'Enter' && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) { chooseDate(); return true; }
     if (event.key === 'Escape') { dismissDate(); return true; }
     return false;
   }
@@ -389,7 +394,7 @@ function Pane(props: OutlinePaneProps) {
     return seen;
   }, undefined, { equals: (a, b) => a.length === b.length && a.every((id, index) => id === b[index]) });
   const [siglumRecords] = createResource(() => citedSources().length ? citedSources() : false, ids => Promise.all(ids.map(id =>
-    api.source(id).then(view => ({ id, siglum: view.source.siglum, basis: view.source.siglum_basis }), () => null))));
+    api.source(id).then(view => ({ id, siglum: view.source.siglum, basis: view.source.siglum_basis, authored: view.source.siglum_authored }), () => null))));
   const sigla = createMemo(() => pageSigla((siglumRecords.error ? [] : siglumRecords() ?? []).filter(record => record !== null)));
   const sourceDetails = createMemo(() => {
     const fields = new Map<string, string>();
@@ -951,6 +956,8 @@ function Pane(props: OutlinePaneProps) {
     const parent = doc.outline.parentOf(at.id);
     const field = parent ? definitionsById().get(fieldEntryId(doc.block(parent)?.text ?? '') ?? '') : undefined;
     if (field?.kind === 'choice') return text.includes('[[') || text.includes('\n') ? null : { from: 0, to: text.length, query: text, choice: field };
+    const typeToken = typeTokenAt(text, at.offset);
+    if (typeToken) return { ...typeToken, types: true };
     const prefix = text.slice(0, at.offset);
     const page = prefix.lastIndexOf('[['), block = prefix.lastIndexOf('((');
     const blocks = block > page, from = Math.max(page, block);
@@ -970,12 +977,12 @@ function Pane(props: OutlinePaneProps) {
   // A primitive key: every keystroke sets a fresh completion object, and the same query must not fetch twice.
   const completionKey = createMemo(() => {
     const state = completion();
-    return state && !state.fields && !state.choice ? `${state.manual ? 'manual' : state.blocks ? 'blocks' : 'text'}:${state.query}` : false;
+    return state && !state.fields && !state.choice ? `${state.manual || state.types ? 'types' : state.blocks ? 'blocks' : 'text'}:${state.query}` : false;
   });
   const [matches] = createResource(completionKey, async key => {
     const mode = key.slice(0, key.indexOf(':'));
     const query = key.slice(key.indexOf(':') + 1);
-    if (mode === 'manual') return completeReferences(props.notebook, query, []);
+    if (mode === 'types') return completeReferences(props.notebook, query, []);
     if (mode === 'blocks') return { rows: query.trim() ? (await api.search(query, 20)).map(hit => hit.block).filter(block => block.kind === 'block') : [], canCreate: false };
     return { rows: await api.complete(query), canCreate: false };
   });
@@ -991,7 +998,7 @@ function Pane(props: OutlinePaneProps) {
       return state.choice.options.filter(option => option.text.toLowerCase().includes(query)).map(option => ({ kind: 'option', option }));
     }
     const found = matches.error ? [] : matches()?.rows ?? [];
-    if (state?.manual) return found.filter(block => block.kind === 'page').map(block => ({ kind: 'block', block }));
+    if (state?.manual || state?.types) return found.filter(block => block.kind === 'page').map(block => ({ kind: 'block', block }));
     if (state?.blocks) return found.map(block => ({ kind: 'block', block }));
     const query = state?.query.toLowerCase() ?? '';
     const matchingFields = definitions().filter(field => field.name.toLowerCase().includes(query));
@@ -1012,7 +1019,7 @@ function Pane(props: OutlinePaneProps) {
     if (state.fields) return !/[\\`[\]#:]/.test(title) && !definitions().some(field => field.name.toLocaleLowerCase() === title);
     if (state.choice) return !state.choice.options.some(option => option.text.toLocaleLowerCase() === title);
     if (matches.error) return false;
-    if (state.manual) return !matches.loading && !!matches()?.canCreate;
+    if (state.manual || state.types) return !matches.loading && !!matches()?.canCreate;
     if (fields.loading || fields.error) return false;
     return !completionRows().some(row => (row.kind === 'field' ? row.field.name : row.kind === 'option' || row.block.kind === 'block' ? '' : row.block.text).toLocaleLowerCase() === title);
   });
@@ -1026,7 +1033,7 @@ function Pane(props: OutlinePaneProps) {
   });
   /** The open query plus the closing brackets the editor paired with it. */
   function completionRange(state: Completion, text: string) {
-    const paired = !state.fields && !state.choice && text.startsWith(state.blocks ? '))' : ']]', state.to);
+    const paired = !state.types && !state.fields && !state.choice && text.startsWith(state.blocks ? '))' : ']]', state.to);
     return { from: state.from, to: paired ? state.to + 2 : state.to };
   }
   let drafted = false;
@@ -1092,6 +1099,18 @@ function Pane(props: OutlinePaneProps) {
       return;
     }
     if (matches.loading) { chooseWhenReady = state.query; return; }
+    if (state.types) {
+      const source = editing();
+      const title = row?.kind === 'block' ? row.block.text : canCreate() ? state.query.trim() : null;
+      if (!source || !editor || !title || matches.error) return;
+      const inserted = `${typeSpelling(title)} `;
+      const selectionBefore = activeRange() ?? undefined;
+      setCompletion(null);
+      // Text tags and Add type share the notebook's type-page derivation, including new page creation.
+      replaceSelection(inserted, 'text', { anchor: { id: source, offset: state.from }, head: { id: source, offset: state.to } }, selectionBefore);
+      referenceSpace = { id: source, offset: state.from + inserted.length };
+      return;
+    }
     if (row?.kind === 'field') { insertReference(row.field.id); return; }
     if (matches.error) return;
     if (row?.kind === 'block') { insertReference(row.block.id); return; }
@@ -1223,11 +1242,11 @@ function Pane(props: OutlinePaneProps) {
     { id: 'work-sessions', title: 'Work sessions', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.task ? undefined : 'Select a task.', run: () => selected() && capabilities.open(selected()!, 'work') },
     { id: 'add-card', title: 'Add card', section: 'Editing', keys: ['Space c', '>>'], run: () => selected() && addCard(selected()!) },
     { id: 'leader', title: 'Show leader keys', section: 'Editing', keys: ['Space'], run: () => selected() && leaderMenu(selected()!) },
-    { id: 'make-project', title: 'Make project', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.project ? 'Already a project.' : undefined, run: () => selected() && capabilities.invoke(capabilities.edit(selected()!, { kind: 'project', id: selected()!, value: { status: 'active', outcome: '', deadline: null } })) },
-    { id: 'make-perspective', title: 'Make perspective', section: 'Block', disabledReason: () => doc.block(selected() ?? '')?.kind !== 'block' ? 'Select an ordinary block.' : doc.block(selected()!)?.position ? 'Already a perspective.' : undefined, run: () => selected() && capabilities.invoke(capabilities.edit(selected()!, { kind: 'position', id: selected()!, value: true })) },
-    { id: 'remove-perspective', title: 'Remove perspective', section: 'Block', disabledReason: () => doc.block(selected() ?? '')?.kind !== 'block' ? 'Select an ordinary block.' : !doc.block(selected()!)?.position ? 'Select a perspective.' : undefined, run: () => selected() && capabilities.invoke(capabilities.edit(selected()!, { kind: 'position', id: selected()!, value: false })) },
+    { id: 'make-project', title: 'Make project', section: 'Outline', keys: ['Space o'], disabledReason: () => selected() && doc.block(selected()!)?.project ? 'Already a project.' : undefined, run: () => selected() && capabilities.invoke(capabilities.edit(selected()!, { kind: 'project', id: selected()!, value: { status: 'active', outcome: '', deadline: null } })) },
+    { id: 'make-perspective', title: 'Make perspective', section: 'Block', keys: ['Space v'], disabledReason: () => doc.block(selected() ?? '')?.kind !== 'block' ? 'Select an ordinary block.' : doc.block(selected()!)?.position ? 'Already a perspective.' : undefined, run: () => selected() && capabilities.invoke(capabilities.edit(selected()!, { kind: 'position', id: selected()!, value: true })) },
+    { id: 'remove-perspective', title: 'Remove perspective', section: 'Block', keys: ['Space v'], disabledReason: () => doc.block(selected() ?? '')?.kind !== 'block' ? 'Select an ordinary block.' : !doc.block(selected()!)?.position ? 'Select a perspective.' : undefined, run: () => selected() && capabilities.invoke(capabilities.edit(selected()!, { kind: 'position', id: selected()!, value: false })) },
     ...['Make question', 'Make answer', 'Accept answer', 'Record aporia', 'Clear aporia', 'Park question', 'Resume question', 'Keep open', 'Let it settle', 'Set review date', 'Remove question', 'Remove answer'].map((title): Command => ({
-      id: title.toLowerCase().replaceAll(' ', '-'), title, section: 'Outline',
+      id: title.toLowerCase().replaceAll(' ', '-'), title, section: 'Outline', keys: title === 'Make question' || title === 'Make answer' ? ['Space q'] : undefined,
       disabledReason: () => {
         const item = selected() && investigationItems(selected()!).find(item => item.label === title);
         return item ? item.disabledReason : 'Select a matching question or answer.';
@@ -1237,7 +1256,7 @@ function Pane(props: OutlinePaneProps) {
         if (item && !item.disabledReason) item.action();
       },
     })),
-    { id: 'project', title: 'Project', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.project ? undefined : 'Select a project.', run: () => selected() && capabilities.open(selected()!, 'project') },
+    { id: 'project', title: 'Project', section: 'Outline', keys: ['Space o'], disabledReason: () => selected() && doc.block(selected()!)?.project ? undefined : 'Select a project.', run: () => selected() && capabilities.open(selected()!, 'project') },
     { id: 'project-actions', title: 'Show actions', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.project ? undefined : 'Select a project.', run: () => selected() && capabilities.showActions(selected()!) },
     { id: 'review-cards', title: 'Review cards', section: 'View', run: () => props.onOpen({ kind: 'review' }, false) },
     { id: 'card-source', title: 'Show card source', section: 'Navigation', run: () => selected() && capabilities.source(selected()!) },
@@ -1350,6 +1369,13 @@ function Pane(props: OutlinePaneProps) {
   /** Space on a selected row (or in Vim normal mode): one more letter acts on the block. */
   function leaderMenu(id: string) {
     const leader = (key: string, label: string, run: () => void, section?: string): MenuItem => ({ key, shortcut: key, label, section, action: run });
+    const commandItem = (key: string, commandId: string, section?: string): MenuItem => {
+      const command = commandDefinitions.find(command => command.id === commandId)!;
+      return { key, shortcut: key, label: command.title, section, disabledReason: command.disabledReason?.(), action: command.run };
+    };
+    const block = doc.block(id);
+    let ancestor = block?.parentId ?? null;
+    while (ancestor && !doc.block(ancestor)?.question) ancestor = doc.block(ancestor)?.parentId ?? null;
     keyboardMenu(id, 'Leader keys', [
       leader('t', 'Status…', () => statusMenu(id), 'Task'),
       leader('s', 'Schedule…', () => openPlanning(id, 'schedule')),
@@ -1357,7 +1383,12 @@ function Pane(props: OutlinePaneProps) {
       leader('p', 'Priority…', () => priorityMenu(id)),
       leader('r', 'Repeat…', () => openPlanning(id, 'repeat')),
       leader('w', doc.block(id)?.task ? 'Clock in / out' : 'Clock in', () => capabilities.invoke(capabilities.clock(id))),
-      leader('c', 'Add card', () => addCard(id), 'Block'),
+      commandItem('o', block?.project ? 'project' : 'make-project', 'Project'),
+      ...(block?.question
+        ? [leader('q', 'Question…', () => keyboardMenu(id, 'Question', investigationItems(id)), 'Question')]
+        : [commandItem('q', ancestor ? 'make-answer' : 'make-question', 'Question')]),
+      commandItem('v', block?.position ? 'remove-perspective' : 'make-perspective', 'Block'),
+      leader('c', 'Add card', () => addCard(id)),
       leader('z', 'Zoom in', () => zoomTo(id)),
     ]);
   }
@@ -1377,11 +1408,11 @@ function Pane(props: OutlinePaneProps) {
       { id: 'repeat', title: 'Repeat', aliases: ['recur', 'recurring', 'every'], section: 'Task', icon: 'repeat', keys: keys('repeat-task'), run: id => openPlanning(id, 'repeat') },
       { id: 'clock', title: 'Clock in / out', aliases: ['timer', 'start work', 'stop work'], section: 'Task', icon: 'clock', keys: keys('clock'), run: id => capabilities.invoke(capabilities.clock(id)) },
       { id: 'remove-task', title: 'Remove task', aliases: ['plain'], section: 'Task', icon: 'close', when: block => !!block?.task, run: id => capabilities.invoke(capabilities.status(id, null)) },
-      { id: 'project', title: 'Project', aliases: ['outcome'], section: 'Project', icon: 'flag', run: openProject },
-      { id: 'perspective', title: 'Make perspective', aliases: ['position', 'view'], section: 'Block', icon: 'link', when: block => block?.kind === 'block' && !block.position, run: id => capabilities.invoke(capabilities.edit(id, { kind: 'position', id, value: true })) },
-      { id: 'remove-perspective', title: 'Remove perspective', aliases: ['remove position', 'remove view'], section: 'Block', icon: 'close', when: block => block?.kind === 'block' && !!block.position, run: id => capabilities.invoke(capabilities.edit(id, { kind: 'position', id, value: false })) },
+      { id: 'project', title: 'Project', aliases: ['outcome'], section: 'Project', icon: 'flag', keys: 'Space o', run: openProject },
+      { id: 'perspective', title: 'Make perspective', aliases: ['position', 'view'], section: 'Block', icon: 'link', keys: 'Space v', when: block => block?.kind === 'block' && !block.position, run: id => capabilities.invoke(capabilities.edit(id, { kind: 'position', id, value: true })) },
+      { id: 'remove-perspective', title: 'Remove perspective', aliases: ['remove position', 'remove view'], section: 'Block', icon: 'close', keys: 'Space v', when: block => block?.kind === 'block' && !!block.position, run: id => capabilities.invoke(capabilities.edit(id, { kind: 'position', id, value: false })) },
       ...(['question', 'answer'] as const).map((kind): SlashItem => ({
-        id: kind, title: `Make ${kind}`, aliases: [kind], section: 'Question', icon: kind === 'question' ? 'question-open' : 'question-settled',
+        id: kind, title: `Make ${kind}`, aliases: [kind], section: 'Question', icon: kind === 'question' ? 'question-open' : 'question-settled', keys: 'Space q',
         disabledReason: id => investigationItems(id).find(item => item.label === `Make ${kind}`)?.disabledReason ?? (doc.block(id)?.[kind === 'question' ? 'question' : 'assessment'] ? `Already a ${kind}.` : undefined),
         run: id => {
           const item = investigationItems(id).find(item => item.label === `Make ${kind}`);
@@ -1392,11 +1423,11 @@ function Pane(props: OutlinePaneProps) {
       { id: 'heading-normal', title: 'Normal text', aliases: ['paragraph'], section: 'Text', icon: 'edit', when: block => !!block?.heading, run: id => apply({ kind: 'heading', id, level: null }) },
       { id: 'reference', title: 'Reference', aliases: ['link', 'page', 'mention'], section: 'Text', icon: 'link', keys: '[[', insert: () => ({ text: '[[', caret: 2 }) },
       { id: 'type', title: 'Type', aliases: ['tag', 'supertag'], section: 'Text', icon: 'tag', keys: '#', insert: () => ({ text: '#', caret: 1 }) },
-      { id: 'card', title: 'Card', aliases: ['flashcard', 'question'], section: 'Cards', icon: 'right', keys: '>>', insert: () => ({ text: '>> ', caret: 3 }) },
+      { id: 'card', title: 'Card', aliases: ['flashcard'], section: 'Cards', icon: 'right', keys: '>>', insert: () => ({ text: '>> ', caret: 3 }) },
       { id: 'reversible-card', title: 'Reversible card', aliases: ['both ways', 'flashcard'], section: 'Cards', icon: 'panes', keys: '<>', insert: () => ({ text: '<> ', caret: 3 }) },
       { id: 'cloze', title: 'Cloze', aliases: ['blank', 'fill in', 'flashcard'], section: 'Cards', icon: 'select', keys: '{{c1::}}', insert: text => { const cloze = `{{c${nextClozeNumber(text)}::}}`; return { text: cloze, caret: cloze.length - 2 }; } },
       { id: 'zoom', title: 'Zoom in', aliases: ['focus'], section: 'Block', icon: 'bullet', keys: '⌘.', run: id => zoomTo(id) },
-      { id: 'copy-reference', title: 'Copy reference', aliases: ['link'], section: 'Block', icon: 'copy', run: id => copy(`[[${id}]]`) },
+      { id: 'copy-reference', title: 'Copy reference', section: 'Block', icon: 'copy', run: id => copy(`[[${id}]]`) },
     ];
   }
 
@@ -1825,7 +1856,7 @@ function Pane(props: OutlinePaneProps) {
     </details>;
   }
 
-  return <div ref={scroll} class="outline-pane" classList={{ 'has-apparatus': apparatus() }} data-pane={props.pane} tabIndex={0} role="tree" aria-label="Page outline" aria-owns={[...virtualItems().keys()].map(id => `outline-${props.pane}-${id}`).join(' ')} onFocusIn={props.onActivate} onFocusOut={report} onKeyDown={structuralKey} onWheel={() => { anchorEpoch++; cancelAnimationFrame(anchorFrame); }} onScroll={scrolled}>
+  return <div ref={scroll} class="outline-pane" classList={{ 'has-apparatus': apparatus(), 'has-sigla': sigla().size > 0 }} data-pane={props.pane} tabIndex={0} role="tree" aria-label="Page outline" aria-owns={[...virtualItems().keys()].map(id => `outline-${props.pane}-${id}`).join(' ')} onFocusIn={props.onActivate} onFocusOut={report} onKeyDown={structuralKey} onWheel={() => { anchorEpoch++; cancelAnimationFrame(anchorFrame); }} onScroll={scrolled}>
     <Show when={apparatus()}><Apparatus notebook={props.notebook} holders={holders()} linked={linkedPages()} sources={citedSources().flatMap(id => sigla().has(id) ? [{ id, siglum: sigla().get(id)! }] : [])} onOpen={props.onOpen} /></Show>
     <div ref={heading} class="outline-heading">
       <Show when={zoom()}><nav class="outline-breadcrumbs" aria-label="Zoom breadcrumbs"><button type="button" onClick={() => zoomTo(null)}>{doc.root()?.text}</button><For each={breadcrumbs()}>{id => <><Icon name="right" /><button type="button" onClick={() => zoomTo(id)}>{plainText(doc.block(id)?.text ?? '', reference => props.notebook.lookup(reference)) || 'Empty block'}</button></>}</For></nav></Show>
@@ -1899,7 +1930,7 @@ function Pane(props: OutlinePaneProps) {
         <Show when={capabilities.error(state.id)}><p class="error" role="alert">{capabilities.error(state.id)}</p></Show>
       </Popup>}
     </>}</Show>
-    <Show when={completion()}><Popup anchor={completionAnchor} width={480} class="picker" label={completion()?.manual ? 'Add type…' : completion()?.fields ? 'Field' : completion()?.choice ? `${completion()!.choice!.name} options` : completion()?.blocks ? 'Block reference' : 'Reference completion'} role={completion()?.manual ? 'dialog' : 'listbox'} onDismiss={dismissCompletion} autofocus={!!completion()?.manual}>
+    <Show when={completion()}><Popup anchor={completionAnchor} width={480} class="picker" label={completion()?.manual ? 'Add type…' : completion()?.types ? 'Type' : completion()?.fields ? 'Field' : completion()?.choice ? `${completion()!.choice!.name} options` : completion()?.blocks ? 'Block reference' : 'Reference completion'} role={completion()?.manual ? 'dialog' : 'listbox'} onDismiss={dismissCompletion} autofocus={!!completion()?.manual}>
       <Show when={completion()?.manual}><div class="picker-query"><Icon name="tag" class="picker-prefix" /><input class="picker-input" aria-label="Type title" placeholder="Type title" value={completion()?.query ?? ''} onInput={event => { setCompletion(state => state ? { ...state, query: event.currentTarget.value } : null); setCompletionIndex(0); }} onKeyDown={event => { if (!event.isComposing && popupKey(event)) { event.preventDefault(); event.stopPropagation(); } }} /></div></Show>
       <div ref={completionList} class="picker-list" onMouseDown={event => event.preventDefault()}>
         <Show when={completionKey() && matches.loading && !completionRows().length && !canCreate()}><p class="empty-state">Searching…</p></Show>
@@ -1909,7 +1940,7 @@ function Pane(props: OutlinePaneProps) {
           <Show when={row.kind === 'field' ? row.field : null}>{field => <><Icon name="field" /><span class="picker-text">{field().name}</span><span class="picker-meta">{completion()?.fields ? kindLabels[field().kind] : 'Field'}</span></>}</Show>
           <Show when={row.kind === 'option' ? row.option : null}>{option => <><Icon name="bullet" /><span class="picker-text">{option().text}</span></>}</Show>
         </div>}</For>
-        <Show when={canCreate()}><div role="option" aria-selected={completionIndex() === completionRows().length} class="picker-row" classList={{ selected: completionIndex() === completionRows().length }} onClick={() => void chooseCompletion(completionRows().length)}><Icon name="plus" /><span class="picker-text">{completion()?.fields ? 'Create field' : completion()?.choice ? 'Add option' : 'Create page'} “{completion()?.query.trim()}”</span></div></Show>
+        <Show when={canCreate()}><div role="option" aria-selected={completionIndex() === completionRows().length} class="picker-row" classList={{ selected: completionIndex() === completionRows().length }} onClick={() => void chooseCompletion(completionRows().length)}><Icon name="plus" /><span class="picker-text">{completion()?.fields ? 'Create field' : completion()?.choice ? 'Add option' : completion()?.types ? 'Create type' : 'Create page'} “{completion()?.query.trim()}”</span></div></Show>
         <Show when={!(completionKey() && (matches.loading || matches.error)) && !canCreate() && !completionRows().length}><p class="empty-state">{
           completion()?.fields ? 'Type a field name.' : completion()?.choice ? 'Type an option to add it.' : completion()?.blocks && !completion()?.query.trim() ? 'Type to search blocks.' : 'No matching blocks.'
         }</p></Show>
@@ -1917,17 +1948,14 @@ function Pane(props: OutlinePaneProps) {
     </Popup></Show>
     <Show keyed when={valueDate()}>{state => <DatePicker notebook={props.notebook} anchor={state.anchor} label="Date" value={null} contextDate={contextDate()}
       onDismiss={() => { setValueDate(null); if (editing() === state.id) editAt(state.id, doc.block(state.id)?.text.length ?? 0, true); }} onSelect={value => chooseValueDate(state.id, value.date)} />}</Show>
-    <Show when={dateCompletion()}><Popup anchor={() => caretRect(dateCompletion()?.from ?? 0)} width={320} class="picker" label={dateCompletion()?.field === 'deadline' ? 'Deadline' : 'Schedule task'} role="listbox" onDismiss={dismissDate}>
+    <Show when={dateCompletion()}><Popup anchor={() => caretRect(dateCompletion()?.from ?? 0)} width={320} class="picker" label={dateCompletion()?.field === 'deadline' ? 'Deadline' : 'Scheduled'} role="listbox" onDismiss={dismissDate}>
       <div class="picker-list" onMouseDown={event => event.preventDefault()}>
-        <Show when={dateCompletion()?.field === 'deadline'}><div class="picker-section">Deadline</div></Show>
+        <div class="picker-row" role="presentation"><span class="picker-text">{dateCompletion()?.field === 'deadline' ? 'Deadline' : 'Scheduled'}</span><span class="picker-meta"><kbd>Tab</kbd></span></div>
         <For each={dateRows()}>{(row, index) => <div role="option" aria-selected={dateIndex() === index()} class="picker-row" classList={{ selected: dateIndex() === index() }} onClick={() => chooseDate(index())}>
           <Icon name={dateCompletion()?.field === 'deadline' ? 'warning' : 'calendar'} /><span class="picker-text">{row.label}</span><span class="picker-meta">{row.date}</span>
         </div>}</For>
-        <Show when={!dateRows().length && !offerDeadline()}><p class="empty-state">No matching date</p></Show>
-        <Show when={offerDeadline()}><div role="option" aria-selected={dateIndex() === dateRows().length} class="picker-row" classList={{ selected: dateIndex() === dateRows().length }} onClick={() => chooseDate(dateRows().length)}>
-          <Icon name="warning" /><span class="picker-text">Deadline…</span><span class="picker-meta"><kbd>@due</kbd></span>
-        </div></Show>
-        <div role="option" aria-selected={dateIndex() === dateRows().length + (offerDeadline() ? 1 : 0)} class="picker-row" classList={{ selected: dateIndex() === dateRows().length + (offerDeadline() ? 1 : 0) }} onClick={() => chooseDate(dateRows().length + (offerDeadline() ? 1 : 0))}>
+        <Show when={!dateRows().length}><p class="empty-state">No matching date</p></Show>
+        <div role="option" aria-selected={dateIndex() === dateRows().length} class="picker-row" classList={{ selected: dateIndex() === dateRows().length }} onClick={() => chooseDate(dateRows().length)}>
           <Icon name="more" /><span class="picker-text">Pick a date…</span>
         </div>
       </div>
