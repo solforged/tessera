@@ -15,7 +15,7 @@
     "@codemirror/state": "^6.7.6",
     "@codemirror/view": "^6.43.13",
     "@fontsource-variable/ibm-plex-sans": "^5.3.0",
-    "@fontsource-variable/literata": "5.3.0",
+    "@fontsource-variable/piazzolla": "5.3.0",
     "@replit/codemirror-vim": "^6.4.0",
     "@tanstack/solid-virtual": "^3.13.40",
     "idb": "^8.0.3",

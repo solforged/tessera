@@ -1,4 +1,6 @@
 import '@fontsource-variable/ibm-plex-sans';
+import '@fontsource-variable/piazzolla/standard.css';
+import '@fontsource-variable/piazzolla/standard-italic.css';
 import { render } from 'solid-js/web';
 import { App } from './shell/App';
 import './styles.css';

@@ -4,7 +4,7 @@
 .review-scroll > * { width: 100%; max-width: var(--measure); margin-inline: auto; }
 .review-queue-controls { display: flex; flex-wrap: wrap; gap: var(--space-4); margin-right: auto; }
 .review-queue-controls .button { font-weight: var(--weight-body); }
-.review-count { margin-left: var(--space-4); color: var(--faint); font-variant-numeric: tabular-nums; }
+.review-count { margin-left: var(--space-4); color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .review-queue-controls [aria-pressed="true"] .review-count { color: inherit; }
 .review-open-sessions.button { font-weight: var(--weight-body); }
 .review-scroll { flex: 1; min-height: 0; overflow: auto; padding: 0 var(--space-16) var(--space-24); }

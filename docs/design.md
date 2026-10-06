@@ -1,6 +1,6 @@
 # Design
 
-How the browser client looks and behaves. Tokens live in `web/src/tokens.css`; components use tokens, never raw values. This carries over the system remcard settled on in its `design-language.md`, keeps what worked, and adds the surfaces tessera has that remcard did not: saved views, a Fields destination and settings as panes.
+How the browser client looks and behaves. Tokens live in `web/src/tokens.css`; components use tokens, never raw values. Orrery gives the notebook a midnight desk, an ink-blue canvas and gilt focus. This pass changes colour and type. Pane structure, bullets, gutters and row mechanics stay as they are.
 
 Status: applied to the shell, the outline and the table. The permanent global rail and inset workspace are being evaluated in the running app. Later stages add their sections here before they are built.
 
@@ -11,31 +11,40 @@ Status: applied to the shell, the outline and the table. The permanent global ra
 3. **One meaning, one form.** Structure is a neutral bullet. A type is a tinted pill with its name. Task state is a glyph. Colour never carries meaning alone, and type hues never reuse status hues.
 4. **Work happens in panes.** Tables, views, fields, settings, search results and references open in a pane. Dialogs are for short controls and confirmations only.
 5. **Summaries in the row, details on selection.** A block shows its state as compact trailing metadata; field rows appear as children under it.
-6. **Calm dark.** A slightly lighter shell frames the darker canvas. One accent marks focus and primary actions. Only floating layers cast shadows.
-7. **Built for long sessions.** 28 px rows, 15 px body text, a 760 px measure. Nothing below 12 px.
+6. **Calm dark.** A midnight shell frames the ink-blue canvas. Gilt marks focus and primary actions. Only floating layers cast shadows.
+7. **Built for long sessions.** 28 px rows, 15 px writing, a 760 px measure. Apparatus is 11.5 px; other labels start at 12 px.
 8. **Keyboard and pointer parity.** Menus show shortcuts beside actions. Vim is optional.
 
 ## Tokens
 
 ### Type
 
-IBM Plex Sans Variable, bundled; weights 400, 500, 600.
+Three voices separate writing from publication and apparatus. IBM Plex Sans Variable is bundled for your writing, inputs and ordinary controls. Piazzolla Variable is bundled in normal and italic for page titles, heading rows, library titles, displayed highlights, quotes and the reader. Writing and title editing stay in Plex. Berkeley Mono is used when installed, with system monospace fallbacks. Its commercial font files are not bundled.
+
+Apparatus uses `--apparatus`: 400 at 11.5 / 16, with tabular numerals and slight tracking. It covers breadcrumbs, save state, Vim mode, shortcuts, sidebar section headings, picker metadata, counts, progress and resurfaced metadata. UI labels stay in sentence case.
 
 | Token | Size / line | Use |
 |---|---|---|
-| `--text-meta` | 12 / 16 | Pills, labels, breadcrumbs, status, table headers |
+| `--text-apparatus` | 11.5 / 16 | Apparatus in Berkeley Mono |
+| `--text-meta` | 12 / 16 | Pills and labels |
 | `--text-control` | 13 / 18 | Buttons, menus, sidebar, table cells |
-| `--text-body` | 15 / 24 | Block text, inputs |
+| `--text-body` | 15 / 24 | Writing and inputs in Plex |
+| `--text-quote` | 16 / 24 | Quotes and displayed highlights in Piazzolla |
 | `--text-h3` | 16 / 24 | Heading 3 |
-| `--text-h2` | 18 / 26 | Heading 2, pane and section titles |
+| `--text-h2` | 18 / 26 | Pane and section titles |
+| `--text-outline-h2` | 19 / 26 | Heading 2 in the outline |
 | `--text-h1` | 24 / 30 | Heading 1, view and dialog headings |
-| `--text-title` | 30 / 36 | Page titles |
+| `--text-title` | 32 / 38 | Page titles in Piazzolla |
+
+Piazzolla page titles use weight 430 and optical size 30. Heading rows use weight 480 and optical size 20. Quotes use optical size 16; the reader uses 17.
 
 ### Space and size
 
 Steps 2, 4, 8, 12, 16, 24, 32, 48 px. Row height 28 px; indent 24 px; measure 760 px; gutter 48 px left of the measure; sidebar 208 px; global rail 48 px; pane header 36 px. Pointer targets 24 px, touch targets 44 px. Icons 16 px, 14 px inline.
 
 ### Colour
+
+Orrery uses midnight `--shell` (#0a0d13), ink-blue `--canvas` (#0e121a), parchment `--text` (#e6e1d6) and gilt `--accent` (#d8aa55). Muted text is cool grey. Rubric red `--danger` (#d97a6b) marks danger and short insertion rules; `--warning` is warm orange. Doing and scheduled work are blue; done is sage. Type and highlight hues stay separate from these roles.
 
 | Role | Token |
 |---|---|
@@ -46,17 +55,19 @@ Steps 2, 4, 8, 12, 16, 24, 32, 48 px. Row height 28 px; indent 24 px; measure 76
 | Hover, selection, divider, control border | `--hover` `--selection` `--line` `--control-border` |
 | Selected text, in the editor, static rows and the reader | `--text-selection` |
 | Text primary, secondary, tertiary | `--text` `--muted` `--faint` |
-| Accent and focus ring | `--accent` |
+| Gilt accent and focus ring | `--accent` |
 | Warning, danger | `--warning` `--danger` |
 | Type hues, pills only | `--type-1` to `--type-6` |
 | Task states, stage 3 | `--status-*` |
 | Highlight colours: reader tints at 24%, dots at full strength | `--highlight-yellow` `-green` `-blue` `-red` `-purple` |
 
-Pills take a 12% tint of their hue with a 30% border. A selected row adds a 2 px accent bar at its left edge.
+Pills take a 12% tint of their hue with a 30% border. A selected row adds a 2 px gilt bar at its left edge. Selected library tabs use a gilt underline.
 
 ### Shape and elevation
 
-Radius 4 px for controls, 8 px for popups and the workspace frame, full for pills. Popups have a 1 px `--line` border and `--popup-shadow`; dialogs `--dialog-shadow`. The workspace frame has a 1 px `--line` border and no shadow. Rows and tables cast none.
+Radius 2 px for controls, 3 px for popups, zero for the workspace and resurfaced slips, full for pills. Popups have a 1 px `--line` border and `--popup-shadow`; dialogs `--dialog-shadow`. The workspace frame has a 1 px `--line` border and no shadow. Rows and tables cast none.
+
+Each pane has 9 px registration corners inside its content, gilt when active and `--line` otherwise. Popups and resurfaced cards carry a 24 × 2 px rubric mark at the top. Resurfaced cards sit on `--raised` with a bottom rule. The rail notebook name has an oculus mark in gilt.
 
 ### Motion
 
@@ -66,7 +77,7 @@ Motion acknowledges an action without delaying it: 140 ms for popup entry and si
 
 - **Global rail.** Permanent across one or two panes. The left holds the sidebar toggle and notebook-name menu (Fields, Settings); Vim is toggled only in Settings. The right groups Find or create and the Commands icon in one 320 px search-shaped control, followed by an icon-only Layout button. Find or create opens its picker beneath the search trigger; Commands opens the command palette. Layout opens the active view beside, switches panes, closes the active pane or toggles the sidebar. Global controls are never duplicated inside pane headers.
 - **Sidebar**, 208 px. Today, Agenda, Review and Library; Pinned, shown only when a page or saved table view is pinned; unpinned saved Views; and collapsible Recent. Saved table views have a pin control on hover or keyboard focus; pinning is stored per notebook alongside page pins. Task views and decks are selected in their own destinations. Rows are 28 px with one left edge: icons at 8 px, text and section headings at 32 px. The row for the active pane's target gets the 2 px accent bar. Destinations open in the active pane; Shift-click opens beside.
-- **Workspace frame.** The panes share one inset canvas, with a 12 px outside gutter at the right and bottom and an 8 px corner radius. Collapsing the sidebar adds the same gutter on the left. The rail and sidebar use the same shell surface.
+- **Workspace frame.** The panes share one square inset canvas, with a 12 px outside gutter at the right and bottom. Collapsing the sidebar adds the same gutter on the left. The rail and sidebar use the same shell surface.
 - **Panes.** Up to two, split equally. Each has a header: back and forward, breadcrumbs or the pane title, the page menu, save state, the Vim mode when on, and Close while split. Journal headers also hold their own previous-day, calendar and next-day controls; these always target the owning pane. Page errors stay under their owning header. Notebook recovery feedback appears once above both panes, so activating a pane cannot move a control between pointer-down and click. Non-page panes (table, fields, settings, agenda, review, library, reader) share the workspace frame.
 - **Narrow layouts.** Below 1048 px the sidebar becomes a toggleable overlay. Hidden navigation is inert immediately, including during its exit. Below 840 px working-pane tabs show one pane at a time. Below 600 px Find or create, Commands and Layout retain accessible labels on icon controls, and the workspace gutter shrinks to 4 px. The global rail remains visible in every layout.
 - **Measure.** Outline content is at most 760 px, centred, with a 48 px gutter to its left for row controls. Two panes split the width; text never shrinks to fit.
@@ -84,13 +95,13 @@ One picker searches pages and blocks; a leading `>` switches to commands. A case
 ```
 
 - **Handle** and **fold** live in the gutter and show on hover, focus and selection. The handle opens the block menu and drags. The fold is hidden on leaf rows; a collapsed block shows a ringed bullet.
-- **Bullet** is a filled dot in `--muted`, 24 px target. Click or ⌘. to zoom (⌘⇧. zooms out), drag to move. The page title aligns with the bullet column.
+- **Bullet** is a filled dot in `--faint`, 24 px target, gilt on hover and selection. Click or ⌘. to zoom (⌘⇧. zooms out), drag to move. The page title aligns with the bullet column.
 - **Text** is the block body. References render inline in the accent with a soft underline; wrapped references align left.
 - **Type pills** follow the text at meta size. Clicking a pill opens a menu: open the table, open the type page, remove a manual membership. A text membership says so instead of offering removal.
 - **Field entries** are children rendered with a field icon and muted name; editing one shows the name as an atomic widget, never the reference ID. Values are ordinary child blocks. A field with one leaf value shares one row: the field icon takes the bullet slot, the name sits in a 144 px muted column, and the value follows, edited in place. Clicking the name edits the entry, which then shows as two rows; so do fields with several values or nested values. Backspace at the start of an inline value does nothing. A page that opens on a field selects its value row instead of editing. Choice and instance values render as pills outside editing.
 - **Capability metadata** follows the source text without replacing it. Task glyphs open status choices; planning summaries show schedule, deadline, priority and repeat. Project and review controls open the attached capability. Source text keeps its natural width; controls wrap beneath it when they cannot fit beside it. Wrapped planning values stay left-aligned.
 - **Cards** show their syntax quietly outside editing: `>>`, `<<` and `<>` become →, ← and ↔ in `--faint`, and cloze answers carry a dotted accent underline with the hint in their tooltip. Clicking places the caret at the same source offset. The summary reads `2 cards · 1 due` and opens a Cards popup listing each card's kind, front and state (New, Due, In 6 days), Reset with confirmation for reviewed cards, and Review. Shift opens Review beside.
-- **Headings** are block styles at the h1 to h3 tokens, semibold. `# ` at block start sets one.
+- **Headings** are Piazzolla block styles at the h1, outline-h2 and h3 tokens, weight 480. `# ` at block start sets one.
 - Rows highlight on hover with `--hover`; selection uses `--selection` plus the accent bar.
 - Opening a page selects nothing, so no row lights up that you did not choose; journals still open editing their last empty block. ↓ or `j` then selects the first visible row and ↑ or `k` the last; other keys wait for a selection. Back and forward restore the row you had selected. An open that names a block selects it, and one that names a caret (Add note, Make card, Highlight and note) starts editing there.
 - An inline field's label edits its value, caret at the end, and the field stays on one line. ← on a selected inline value selects the field entry itself; Enter then edits its name.
@@ -198,7 +209,7 @@ A highlight's menu, in the reader and on Highlights cards, starts with its quote
 
 A source page shows a header under its title: the current snapshot's cover (which opens the reader), a byline of creators, year, publisher and site in `--muted`, the snapshot's description clamped to three lines with More, then a state menu button, progress as `N% read`, Read, and a menu with Copy citation key, Export BibTeX, Export CSL JSON, Export Markdown and Snapshots. It has no Table button; ⌘⇧T and the palette still open the table. The pane header reads Library / title, and Library opens the Library pane (Shift beside); zoomed into a block, Library gives way to the zoom path. Metadata stays ordinary fields beneath it, drawn as a compact details group: control size, labels in `--muted`, field icons only on hover. Languages show their English name and identifiers their scheme (`ISBN 978…`) until edited. A value that differs from what the current snapshot extracted offers Reset to extracted in its field menu. The first top-level block after the fields carries a "Highlights N" section label. Recent shows a book or article icon for source pages.
 
-The reader is a pane: the pane header reads Library / source title, and the title opens the source page. Inside, one toolbar line at the reading measure holds Contents labelled with the current section, Highlights with its count, Find in source, the reading position through the text (its tooltip gives coverage as `N% read`), `Aa` for reader settings and an actions menu (Open source page, then every reader shortcut with its key). A 2 px rule under it fills to the reading position. The text starts with the title and byline. Reader settings are a device preference shared by every reader pane: Sans (Plex) or Serif (Literata); size 15 to 22 px, default 17; width Narrow 28em, Medium 34em (default, about 68 characters) or Wide at the outline measure; line spacing 1.5, 1.65 or 1.8. Changing one keeps the first visible passage in place. Headings scale from the reader size, footnote references are superscript links that open the note in a popover, images keep their natural size up to the measure and 70% of the viewport height, dimmed to 85% brightness on the dark canvas until hovered, and code sits on `--surface` in a horizontally scrolling block. Contents opens on the current section, marked with a check; the Highlights picker lists each highlight's colour, quote and section; Find marks matches and counts passages. Reading position and coverage save while scrolling; opening from a citation scrolls to the passage and flashes it without counting as reading. Selecting text shows a small toolbar beside the selection, centred on it and below it when there is no room above, with Highlight (`H`), Highlight and note (`N`) and the five colours (`1`–`5`); both append a block quoting the selection to the source page, and the second also starts an empty child and opens the highlight beside the reader with the caret there. An empty note does not mark the highlight processed. Highlights tint their ranges in their colour, or a neutral 12% `--text` tint without one; one with notes ends in a small note icon in `--faint` that opens them. Clicking a highlight opens its menu; Shift-click opens its block beside the reader.
+The reader is a pane: the pane header reads Library / source title, and the title opens the source page. Inside, one toolbar line at the reading measure holds Contents labelled with the current section, Highlights with its count, Find in source, the reading position through the text (its tooltip gives coverage as `N% read`), `Aa` for reader settings and an actions menu (Open source page, then every reader shortcut with its key). A 2 px rule under it fills to the reading position. The text starts with a Piazzolla title and a mono byline. Reader settings are a device preference shared by every reader pane: Sans (Plex) or Serif (Piazzolla), default Serif; saved choices are preserved. Size is 15 to 22 px, default 17; width Narrow 28em, Medium 34em (default) or Wide at the outline measure; line spacing 1.5, 1.65 or 1.8. Changing one keeps the first visible passage in place. Headings scale from the reader size, footnote references are superscript links that open the note in a popover, images keep their natural size up to the measure and 70% of the viewport height, dimmed to 85% brightness on the dark canvas until hovered, and code sits on `--surface` in a horizontally scrolling block. Contents opens on the current section, marked with a check; the Highlights picker lists each highlight's colour, quote and section; Find marks matches and counts passages. Reading position and coverage save while scrolling; opening from a citation scrolls to the passage and flashes it without counting as reading. Selecting text shows a small toolbar beside the selection, centred on it and below it when there is no room above, with Highlight (`H`), Highlight and note (`N`) and the five colours (`1`–`5`); both append a block quoting the selection to the source page, and the second also starts an empty child and opens the highlight beside the reader with the caret there. An empty note does not mark the highlight processed. Highlights tint their ranges in their colour, or a neutral 12% `--text` tint without one; one with notes ends in a small note icon in `--faint` that opens them. Clicking a highlight opens its menu; Shift-click opens its block beside the reader.
 
 A block with a citation shows a citation chip in its capability metadata: the highlight's colour dot (a quote icon without colour), the source's short title (before any subtitle colon, cut at a word within 40 characters) and the passage number, `¶231`. On the source's own page the chip shows only `¶231` in `--faint` and stays at the end of the block's first line, the text wrapping beside it. Clicking opens the reader at that passage; Shift opens it beside. A block whose text no longer equals the quote shows the quote beneath it in `--muted` with a quotation rule, so a paraphrase or cloze keeps its evidence visible.
 
@@ -236,7 +247,7 @@ Resting the mouse on a `[[reference]]` for 350 ms opens a preview card, in the o
 
 ## Decisions
 
-1. Font: IBM Plex Sans. Density: 28 px rows.
+1. Three voices: Plex for writing, Piazzolla for publication, Berkeley Mono for apparatus. Orrery palette. Density: 28 px rows.
 2. Handle and fold in a gutter outside the measure; bullets inside it, filled.
 3. Shift is the one "open beside" modifier.
 4. Fields, Settings, tables and views are panes, not dialogs.
