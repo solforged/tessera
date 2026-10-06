@@ -33,6 +33,27 @@ jobs:
       - name: Test
         run: cargo test --workspace --locked
 
+  browser:
+    name: browser wasm build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Rust
+        run: |
+          rustup show active-toolchain || rustup toolchain install
+          rustup target add wasm32-unknown-unknown
+          rustup component add llvm-tools
+
+      - name: Clippy for the browser demo
+        run: |
+          host=$(rustc -vV | sed -n 's/^host: //p')
+          export AR_wasm32_unknown_unknown="$(rustc --print sysroot)/lib/rustlib/$host/bin/llvm-ar"
+          cargo clippy -p tessera-web -p tessera-service -p tessera-core --target wasm32-unknown-unknown --locked -- -D warnings
+
   bench:
     name: backend correctness and scaling
     runs-on: ubuntu-latest

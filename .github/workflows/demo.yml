@@ -1,0 +1,67 @@
+name: Demo
+
+# Builds the in-browser demo (tessera-core as wasm over OPFS) and deploys it
+# to the Vercel project behind tessera.solforged.io. Vercel's build image has
+# no Rust toolchain, so the build runs here and Vercel receives prebuilt output.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: demo
+  cancel-in-progress: true
+
+env:
+  WASM_BINDGEN_VERSION: 0.2.129
+  WASM_BINDGEN_SHA256: 82d12bb940e2d4e72e0d5605387fc1b8ca179044e012b620f0ce4e7440e8320e
+  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+  VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Rust
+        run: |
+          rustup show active-toolchain || rustup toolchain install
+          rustup target add wasm32-unknown-unknown
+          rustup component add llvm-tools
+
+      - name: Install wasm-bindgen
+        run: |
+          archive="wasm-bindgen-${WASM_BINDGEN_VERSION}-x86_64-unknown-linux-musl"
+          curl -fsSLO "https://github.com/wasm-bindgen/wasm-bindgen/releases/download/${WASM_BINDGEN_VERSION}/${archive}.tar.gz"
+          echo "${WASM_BINDGEN_SHA256}  ${archive}.tar.gz" | sha256sum -c -
+          tar -xzf "${archive}.tar.gz"
+          echo "$PWD/${archive}" >> "$GITHUB_PATH"
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+
+      - name: Install dependencies
+        run: bun install --cwd web --frozen-lockfile
+
+      - name: Build wasm
+        run: scripts/build-demo-wasm.sh
+
+      - name: Build demo
+        if: env.VERCEL_TOKEN == ''
+        run: bun run --cwd web build:demo
+
+      - name: Build and deploy to Vercel
+        if: env.VERCEL_TOKEN != ''
+        run: |
+          bunx vercel@62.5.0 pull --yes --environment=production --token="$VERCEL_TOKEN"
+          bunx vercel@62.5.0 build --prod --token="$VERCEL_TOKEN"
+          bunx vercel@62.5.0 deploy --prebuilt --prod --token="$VERCEL_TOKEN"
