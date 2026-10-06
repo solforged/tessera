@@ -13,7 +13,9 @@
 .library-tabs .library-count { color: var(--faint); }
 .library-tabs [aria-pressed="true"] .library-count { color: inherit; }
 .library-rows { border-top: 1px solid var(--line); }
-.library-row { display: flex; align-items: center; min-height: var(--row-height); gap: var(--space-4); border-bottom: 1px solid var(--line); transition: background-color var(--motion-fast) var(--motion-ease); }
+.library-row { display: flex; align-items: center; min-height: var(--row-height); gap: var(--space-4); border-bottom: 1px solid var(--line); transition: background-color var(--motion-fast) var(--motion-ease); content-visibility: auto; contain-intrinsic-size: auto var(--row-height); }
+/* Rows contain their paint, so rings sit inside the row. */
+.library-row :focus-visible { outline-offset: -2px; }
 .library-row-open.button { display: flex; flex: 1; min-width: 0; height: var(--row-height); justify-content: flex-start; gap: var(--space-8); text-align: left; font-weight: var(--weight-body); }
 .library-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
 .library-byline { flex: 0 1 auto; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 45%; margin-right: auto; }

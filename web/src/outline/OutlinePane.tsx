@@ -99,6 +99,7 @@ function Pane(props: OutlinePaneProps) {
   let focusEpoch = 0;
   let focusRequest: { id: string; offset: number; insert: boolean; epoch: number } | null = null;
   let reportingFrame = 0;
+  let scrollSettle = 0;
   let anchorFrame = 0;
   let anchorEpoch = 0;
   let drag: { anchor: Caret; moved: boolean; native: boolean } | null = null;
@@ -304,7 +305,7 @@ function Pane(props: OutlinePaneProps) {
   const virtualizer = createVirtualizer<HTMLDivElement, HTMLDivElement>({
     get count() { return ids().length; },
     getScrollElement: () => scroll,
-    // One unwrapped line; a mismatch makes every mounted row re-measure the whole list.
+    // One unwrapped line, and constant: TanStack re-estimates every unmeasured row whenever any row resizes.
     estimateSize: () => 28,
     overscan: 8,
     get scrollMargin() { return margin(); },
@@ -338,6 +339,11 @@ function Pane(props: OutlinePaneProps) {
   function scheduleReport() {
     cancelAnimationFrame(reportingFrame);
     reportingFrame = requestAnimationFrame(report);
+  }
+  /** Measuring the scroll anchor forces layout, so a scroll reports once it settles rather than every frame. */
+  function scrolled() {
+    clearTimeout(scrollSettle);
+    scrollSettle = window.setTimeout(scheduleReport, 150);
   }
   function restoreAnchor(anchor: ViewState['scroll']) {
     if (!anchor || !indices().has(anchor.id) || disposed) return;
@@ -1289,6 +1295,7 @@ function Pane(props: OutlinePaneProps) {
     doc.release();
     editor?.destroy();
     cancelAnimationFrame(reportingFrame);
+    clearTimeout(scrollSettle);
     cancelAnimationFrame(anchorFrame);
   });
 
@@ -1419,7 +1426,7 @@ function Pane(props: OutlinePaneProps) {
     </details>;
   }
 
-  return <div ref={scroll} class="outline-pane" data-pane={props.pane} tabIndex={0} role="tree" aria-label="Page outline" aria-owns={[...virtualItems().keys()].map(id => `outline-${props.pane}-${id}`).join(' ')} onFocusIn={props.onActivate} onFocusOut={report} onKeyDown={structuralKey} onWheel={() => { anchorEpoch++; cancelAnimationFrame(anchorFrame); }} onScroll={scheduleReport}>
+  return <div ref={scroll} class="outline-pane" data-pane={props.pane} tabIndex={0} role="tree" aria-label="Page outline" aria-owns={[...virtualItems().keys()].map(id => `outline-${props.pane}-${id}`).join(' ')} onFocusIn={props.onActivate} onFocusOut={report} onKeyDown={structuralKey} onWheel={() => { anchorEpoch++; cancelAnimationFrame(anchorFrame); }} onScroll={scrolled}>
     <div ref={heading} class="outline-heading">
       <Show when={zoom()}><nav class="outline-breadcrumbs" aria-label="Zoom breadcrumbs"><button type="button" onClick={() => zoomTo(null)}>{doc.root()?.text}</button><For each={breadcrumbs()}>{id => <><Icon name="right" /><button type="button" onClick={() => zoomTo(id)}>{plainText(doc.block(id)?.text ?? '', reference => props.notebook.lookup(reference)) || 'Empty block'}</button></>}</For></nav></Show>
       <div class="outline-title-row">
