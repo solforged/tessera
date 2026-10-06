@@ -19,10 +19,25 @@ describe('source outline metadata', () => {
 
   test('resets only differing values in matching extracted lists', () => {
     const values = [{ id: 'one', text: 'Authored' }, { id: 'two', text: 'Second' }];
-    expect(extractedResets(values.slice(0, 1), ['Original'])).toEqual([{ id: 'one', text: 'Original' }]);
-    expect(extractedResets(values, ['First', 'Second'])).toEqual([{ id: 'one', text: 'First' }]);
-    expect(extractedResets(values, ['Only one'])).toEqual([]);
-    expect(extractedResets(values, undefined)).toEqual([]);
-    expect(extractedResets([], [])).toEqual([]);
+    expect(extractedResets(values.slice(0, 1), ['Original'])).toEqual({ set: [{ id: 'one', text: 'Original' }], insert: [] });
+    expect(extractedResets(values, ['First', 'Second'])).toEqual({ set: [{ id: 'one', text: 'First' }], insert: [] });
+  });
+
+  test('shorter extracted lists leave authored extras alone', () => {
+    expect(extractedResets([{ id: 'one', text: 'Authored' }, { id: 'two', text: 'Extra' }], ['First']))
+      .toEqual({ set: [{ id: 'one', text: 'First' }], insert: [] });
+  });
+
+  test('longer extracted lists insert missing positions after existing values', () => {
+    expect(extractedResets([{ id: 'one', text: 'First' }], ['First', 'Second', 'Third']))
+      .toEqual({ set: [], insert: ['Second', 'Third'] });
+    expect(extractedResets([], ['First'])).toEqual({ set: [], insert: ['First'] });
+  });
+
+  test('empty or unavailable extracted lists leave authored values alone', () => {
+    const values = [{ id: 'one', text: 'Authored' }];
+    expect(extractedResets(values, [])).toEqual({ set: [], insert: [] });
+    expect(extractedResets(values, undefined)).toEqual({ set: [], insert: [] });
+    expect(extractedResets([], [])).toEqual({ set: [], insert: [] });
   });
 });

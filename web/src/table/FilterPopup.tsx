@@ -1,5 +1,6 @@
 import { Show, createMemo, createSignal } from 'solid-js';
 import type { FieldDefinition, FilterOp } from '../api/types';
+import { partialDatePlaceholder } from '../fields/kinds';
 import { Icon } from '../ui/Icon';
 import { Picker } from '../ui/Picker';
 import { filterLabels } from './query';
@@ -44,7 +45,7 @@ export function FilterPopup(props: { anchor: HTMLElement; fields: readonly Field
     else if (row.kind === 'op') { setOp(row.op); if (row.op === 'present' || row.op === 'set' || row.op === 'empty') void finish(null); }
     else void finish(row.value);
   };
-  const placeholder = () => step() === 'field' ? 'Field name' : step() === 'op' ? 'Condition' : definition()?.kind === 'date' ? 'YYYY-MM-DD' : definition()?.kind === 'choice' ? 'Choose or type a value' : 'Value';
+  const placeholder = () => step() === 'field' ? 'Field name' : step() === 'op' ? 'Condition' : definition()?.kind === 'date' ? partialDatePlaceholder : definition()?.kind === 'choice' ? 'Choose or type a value' : 'Value';
   return <Picker<FilterRow> anchor={props.anchor} width={320} label="Add filter" onDismiss={props.onDismiss}
     query={query()} onQuery={setQuery} placeholder={placeholder()}
     prefix={<><Show when={field()}>{chosen => <span class="table-chip">{chosen().name}</span>}</Show><Show when={op()}>{chosen => <span class="table-chip">{filterLabels[chosen()]}</span>}</Show></>}

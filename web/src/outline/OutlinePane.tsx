@@ -1,13 +1,13 @@
-import { For, Show, createEffect, createMemo, createResource, createRoot, createSignal, onCleanup, onMount, untrack } from 'solid-js';
+import { For, Show, createEffect, createMemo, createResource, createSignal, onCleanup, onMount, untrack } from 'solid-js';
 import type { Accessor } from 'solid-js';
 import { createVirtualizer, defaultRangeExtractor } from '@tanstack/solid-virtual';
 import type { EditorView } from '@codemirror/view';
 import type { VirtualItem } from '@tanstack/solid-virtual';
 import type { Block, FieldDefinition, TaskStatus, WorkSession } from '../api/types';
 import { api } from '../api/client';
-import type { BlockState, Caret, Edit, EditResult, NotebookClient, PageDocument, TextRange } from '../document/contract';
+import type { BlockState, Caret, Edit, EditResult, PageDocument, TextRange } from '../document/contract';
 import type { Command, OutlinePaneProps, ViewState } from '../shell/contract';
-import { fieldEntryId, fieldEntryText, matchFieldEntry } from '../table/query';
+import { fieldEntryId } from '../table/query';
 import { ProjectControls } from '../projects/ProjectControls';
 import { parseCardText } from '../review/card-text';
 import { DatePicker } from '../tasks/DatePicker';
@@ -34,7 +34,7 @@ import { nextClozeNumber, rankSlash, slashTokenAt } from './slash';
 import type { SlashEntry, SlashToken } from './slash';
 import { TypePill } from './references';
 import { CitationChip, SourceHeader } from './SourceHeader';
-import { extractedResets, sourceFieldName } from './source';
+import { createFieldEntryConversion, createSourceFieldResets } from './source-fields';
 import './outline.css';
 
 interface Completion { from: number; to: number; query: string; manual?: { blockId: string; anchor: HTMLElement } }
@@ -53,55 +53,6 @@ interface WorkHistory { sessions: WorkSession[]; active: WorkSession | null; sou
 type CompletionRow = { kind: 'block'; block: Block } | { kind: 'field'; field: FieldDefinition };
 const storedFolds = new Map<string, Set<string>>();
 const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
-const fieldCreations = new WeakMap<NotebookClient, Map<string, Promise<FieldDefinition>>>();
-
-function documentReady(doc: PageDocument): Promise<void> {
-  const { promise, resolve, reject } = Promise.withResolvers<void>();
-  createRoot(dispose => {
-    createEffect(() => {
-      const status = doc.status();
-      if (status === 'loading') return;
-      const message = doc.statusMessage();
-      dispose();
-      if (status === 'ready') resolve();
-      else reject(new Error(message));
-    });
-  });
-  return promise;
-}
-
-function ensureField(notebook: NotebookClient, name: string): Promise<FieldDefinition> {
-  const pending = fieldCreations.get(notebook) ?? new Map<string, Promise<FieldDefinition>>();
-  fieldCreations.set(notebook, pending);
-  const key = name.toLowerCase();
-  const existing = pending.get(key);
-  if (existing) return existing;
-  const creation = (async () => {
-    const result = await api.fields();
-    const definition = result.fields.find(field => field.name.toLowerCase() === key);
-    if (definition) return definition;
-    const fieldsDoc = notebook.open(result.page_id);
-    try {
-      await documentReady(fieldsDoc);
-      // An empty page is seeded with one blank block on load; name it instead of adding a sibling.
-      let blank: string | undefined;
-      for (const id of fieldsDoc.outline.children(result.page_id)) {
-        const block = fieldsDoc.block(id);
-        if (!block || block.archived) continue;
-        if (block.text.toLowerCase() === key) return { id, name: block.text, kind: 'text' as const, revision: block.revision, options: [] };
-        if (!block.text.trim() && !blank) blank = id;
-      }
-      const written = blank
-        ? fieldsDoc.edit({ kind: 'text', id: blank, text: name })
-        : fieldsDoc.edit({ kind: 'insert', parentId: result.page_id, after: fieldsDoc.outline.children(result.page_id).at(-1) ?? null, text: name });
-      if (!written.ok) throw new Error(written.reason);
-      return { id: blank ?? written.created[0]!, name, kind: 'text' as const, revision: 0, options: [] };
-    } finally { fieldsDoc.release(); }
-  })();
-  pending.set(key, creation);
-  void creation.then(() => pending.delete(key), () => pending.delete(key));
-  return creation;
-}
 
 export function OutlinePane(props: OutlinePaneProps) {
   return <Show keyed when={props.pageId}>{pageId => <Pane {...props} pageId={pageId} />}</Show>;
@@ -151,7 +102,6 @@ function Pane(props: OutlinePaneProps) {
   let drag: { anchor: Caret; moved: boolean; native: boolean } | null = null;
   let compositionSelection: { range: TextRange; id: string; original: string; from: number; to: number; committed?: string } | null = null;
   let compositionFrame = 0;
-  const pendingFieldEntries = new Set<string>();
   const [createdFields, setCreatedFields] = createSignal<FieldDefinition[]>([]);
   const [fields] = createResource(() => props.notebook.changeSequence(), () => api.fields());
   const definitions = createMemo(() => {
@@ -167,10 +117,7 @@ function Pane(props: OutlinePaneProps) {
     () => doc.root()?.kind === 'page' ? [props.pageId, props.notebook.changeSequence()] as const : false,
     ([pageId]) => api.type(pageId),
   );
-  const [extracted] = createResource(
-    () => doc.root()?.source ? [props.pageId, props.notebook.changeSequence()] as const : false,
-    ([pageId]) => api.extracted(pageId),
-  );
+  const sourceResets = createSourceFieldResets({ doc, notebook: props.notebook, definitions: definitionsById, caret, onError: setMessage });
 
   const contextDate = () => doc.root()?.kind === 'journal' ? doc.root()!.text : props.notebook.todayDate();
   const rowAnchor = (id: string) => id === props.pageId ? heading ?? null : hosts.get(id)?.closest<HTMLElement>('[data-block-id]') ?? null;
@@ -297,61 +244,25 @@ function Pane(props: OutlinePaneProps) {
     return true;
   }
 
-  function commitFieldEntry(id: string, focus = true): boolean {
-    if (disposed || composition()) return false;
-    if (pendingFieldEntries.has(id)) return true;
-    const original = doc.block(id)?.text;
-    if (original === undefined) return false;
-    const match = matchFieldEntry(original);
-    if (!match) return false;
-    pendingFieldEntries.add(id);
-    const before = caret()?.id === id ? { ...caret()! } : { id, offset: original.length };
-    const epoch = focusEpoch;
-    const heldDoc = props.notebook.open(props.pageId);
-    setCompletion(null);
-    void (async () => {
-      try {
-        const field = await ensureField(props.notebook, match.name);
-        if (!disposed) setCreatedFields(previous => previous.some(existing => existing.id === field.id) ? previous : [...previous, field]);
-        if (heldDoc.block(id)?.text !== original) return;
-        let result: EditResult;
-        // The existing paste transaction rewrites the label and inserts a
-        // first child atomically. Literal leading whitespace needs two edits.
-        if (match.value === match.value.trimStart()) {
-          result = heldDoc.edit({
-            kind: 'replaceRange', range: { anchor: { id, offset: 0 }, head: { id, offset: original.length } },
-            between: [], text: `${fieldEntryText(field.id)}\n  ${match.value}`, mode: 'paste',
-          }, before);
-        } else {
-          result = heldDoc.edit({ kind: 'text', id, text: fieldEntryText(field.id) }, before);
-          if (result.ok) {
-            result = heldDoc.edit({ kind: 'insert', parentId: id, after: null, text: match.value }, before);
-            if (result.ok && result.caret) result = { ...result, caret: { ...result.caret, offset: match.value.length } };
-          }
-        }
-        if (!result.ok) throw new Error(result.reason);
-        if (disposed) return;
-        setMessage('');
-        setFolds(previous => { const next = new Set(previous); next.delete(id); return next; });
-        if (result.caret && focusEpoch === epoch) {
-          const next = result.caret;
-          setSelected(next.id);
-          setCaret(next);
-          setRowRange(null);
-          setTextRange(null);
-          setEditing(next.id);
-          if (focus && props.active) queueMicrotask(() => editAt(next.id, next.offset, true, true, false));
-        }
-        scheduleReport();
-      } catch (error) {
-        if (!disposed) setMessage(error instanceof Error ? error.message : String(error));
-      } finally {
-        pendingFieldEntries.delete(id);
-        heldDoc.release();
+  const commitFieldEntry = createFieldEntryConversion({
+    doc, notebook: props.notebook, disposed: () => disposed, composing: composition, caret, focusEpoch: () => focusEpoch,
+    onStart: () => setCompletion(null),
+    onField: field => setCreatedFields(previous => previous.some(existing => existing.id === field.id) ? previous : [...previous, field]),
+    onCommitted: (id, next, epoch, focus) => {
+      setMessage('');
+      setFolds(previous => { const next = new Set(previous); next.delete(id); return next; });
+      if (next && focusEpoch === epoch) {
+        setSelected(next.id);
+        setCaret(next);
+        setRowRange(null);
+        setTextRange(null);
+        setEditing(next.id);
+        if (focus && props.active) queueMicrotask(() => editAt(next.id, next.offset, true, true, false));
       }
-    })();
-    return true;
-  }
+      scheduleReport();
+    },
+    onError: setMessage,
+  });
 
   const ids = createMemo(() => {
     doc.outline.version();
@@ -1008,21 +919,8 @@ function Pane(props: OutlinePaneProps) {
       return { ...options, label: command.title, shortcut: command.keys?.[0], disabledReason: command.disabledReason?.(), action: command.run };
     };
     const entry = doc.block(id);
-    const fieldName = entry?.parentId === props.pageId ? sourceFieldName(entry.text, definitionsById()) : undefined;
-    const resetValues = doc.root()?.source && fieldName && !extracted.error
-      ? extractedResets(doc.outline.children(id).flatMap(child => {
-        const value = doc.block(child);
-        return value && !value.archived ? [value] : [];
-      }), extracted()?.find(([name]) => name.toLowerCase() === fieldName.toLowerCase())?.[1])
-      : [];
     setMenu({ anchor, label: 'Block actions', items: [
-      ...(resetValues.length ? [{ label: 'Reset to extracted', action: () => {
-        for (const value of resetValues) {
-          const result = doc.edit({ kind: 'text', ...value }, caret());
-          if (!result.ok) { setMessage(result.reason); return; }
-        }
-        void doc.flush().catch(reason => setMessage(String(reason)));
-      } }] : []),
+      ...sourceResets(id),
       ...(entry?.citations.length ? [{ label: 'Remove citation', action: () => apply({ kind: 'uncite', id, citationIds: entry.citations.map(citation => citation.id) }, false) }] : []),
       { label: 'Add type…', icon: 'tag', action: () => { setCompletionIndex(0); setCompletion({ from: 0, to: 0, query: '', manual: { blockId: id, anchor } }); } },
       item('zoom', { icon: 'bullet' }),
@@ -1474,7 +1372,7 @@ function Pane(props: OutlinePaneProps) {
       </Show>
       <Show when={doc.root()?.kind === 'page'}><div class="outline-header-actions"><Button icon="table" label="Table" shortcut="⌘⇧T" onClick={event => openTable(event.metaKey)}>Table<Show when={!type.error && (type()?.members ?? 0) > 0}><span class="table-member-count">{type()?.members}</span></Show></Button></div></Show>
       </div>
-      <Show when={doc.root()?.source}><SourceHeader doc={doc} notebook={props.notebook} definitions={definitionsById()} onOpen={props.onOpen} onError={setMessage} /></Show>
+      <Show when={doc.root()?.source}><SourceHeader doc={doc} notebook={props.notebook} definitions={definitionsById()} resetItems={sourceResets} onOpen={props.onOpen} onError={setMessage} /></Show>
       <Show when={doc.root()?.task || doc.root()?.project || doc.root()?.citations.length}><div class="outline-root-capabilities outline-capability-metadata">
         <Show when={doc.root()?.task}>
           <TaskStatusButton task={doc.root()?.task ?? null} disabled={capabilities.busy(props.pageId)} onChange={status => capabilities.status(props.pageId, status)} />

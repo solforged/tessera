@@ -11,7 +11,7 @@ import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
 import type { MenuItem } from '../ui/Menu';
 import { Popup } from '../ui/Popup';
-import { kindLabels } from '../fields/kinds';
+import { kindLabels, partialDatePlaceholder } from '../fields/kinds';
 import { FilterPopup } from './FilterPopup';
 import { addFilter, chooseSort, copyQuery, fieldEntryId, fieldEntryText, filterLabel, queriesEqual, removeFilter, removeSort, sortLabel } from './query';
 import './table.css';
@@ -26,7 +26,7 @@ type PopupState = { kind: 'menu'; anchor: HTMLElement; items: MenuItem[]; label:
   | { kind: 'filter'; anchor: HTMLElement; field: string }
   | { kind: 'name'; anchor: HTMLElement; action: 'save' | 'rename' | 'field'; addColumn?: boolean }
   | null;
-const valuePlaceholders: Partial<Record<FieldKind, string>> = { date: 'YYYY-MM-DD', url: 'https://', identifier: 'ISBN, DOI or arXiv ID' };
+const valuePlaceholders: Partial<Record<FieldKind, string>> = { date: partialDatePlaceholder, url: 'https://', identifier: 'ISBN, DOI or arXiv ID' };
 
 export function TablePane(props: TablePaneProps) {
   const [query, setQuery] = createSignal(copyQuery(props.view.query));

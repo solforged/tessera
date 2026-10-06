@@ -37,11 +37,14 @@ pub(crate) fn field_readings(
             None
         };
         if let Reading::Value {
-            ok: true,
-            value: ReadingValue::Text(value),
-            ..
+            ok: true, value, ..
         } = crate::fields::reading(definition.kind, &field, &text, target.as_ref())
         {
+            let value = match value {
+                ReadingValue::Text(value) => value,
+                ReadingValue::Number(_) => text,
+                ReadingValue::Checkbox(_) => continue,
+            };
             result
                 .entry(row.get(12)?)
                 .or_default()

@@ -1,5 +1,6 @@
 use tessera_core::{
-    Actor, Batch, Direction, Error, Notebook, Operation, Query, Reading, ReadingValue, library::*,
+    Actor, Batch, Direction, Error, FieldKind, Notebook, Operation, Query, Reading, ReadingValue,
+    library::*,
 };
 fn id() -> String {
     ulid::Ulid::generate().to_string()
@@ -270,6 +271,273 @@ fn reingest_updates_only_extracted_values_and_preserves_state() {
             .unwrap()
             .unchanged
     );
+}
+
+#[test]
+fn reingest_shorter_list_archives_extracted_surplus() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut doc = document();
+    let (source, _) = ingest(&mut n, &doc, b"short-before");
+    let before = field(&n, &source, "Author");
+    doc.metadata.creators = vec![ExtractedCreator {
+        name: "New Author".into(),
+        role: CreatorRole::Author,
+    }];
+    ingest(&mut n, &doc, b"short-after");
+    let after = field(&n, &source, "Author");
+    assert_eq!(after.len(), 1);
+    assert_eq!(after[0].id, before[0].id);
+    assert_ne!(after[0].text, before[0].text);
+    assert!(n.block(&before[1].id).unwrap().archived);
+    assert_eq!(n.block(&before[1].id).unwrap().text, before[1].text);
+}
+
+#[test]
+fn reingest_longer_list_inserts_missing_positions() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut doc = document();
+    doc.metadata.creators.truncate(1);
+    let (source, _) = ingest(&mut n, &doc, b"long-before");
+    let before = field(&n, &source, "Author");
+    doc.metadata.creators.push(ExtractedCreator {
+        name: "Second Author".into(),
+        role: CreatorRole::Author,
+    });
+    doc.metadata.creators.push(ExtractedCreator {
+        name: "Third Author".into(),
+        role: CreatorRole::Author,
+    });
+    ingest(&mut n, &doc, b"long-after");
+    let after = field(&n, &source, "Author");
+    assert_eq!(after.len(), 3);
+    assert_eq!(after[0], before[0]);
+    let expected = n
+        .extracted_values(&source)
+        .unwrap()
+        .into_iter()
+        .find(|(name, _)| name == "Author")
+        .unwrap()
+        .1;
+    assert_eq!(
+        after
+            .iter()
+            .map(|value| value.text.clone())
+            .collect::<Vec<_>>(),
+        expected
+    );
+    // Archived surplus does not occupy a position on the next growth.
+    doc.metadata.creators.truncate(1);
+    ingest(&mut n, &doc, b"long-shrink");
+    doc.metadata.creators.push(ExtractedCreator {
+        name: "Fourth Author".into(),
+        role: CreatorRole::Author,
+    });
+    ingest(&mut n, &doc, b"long-regrow");
+    let regrown = field(&n, &source, "Author");
+    assert_eq!(regrown.len(), 2);
+    assert_ne!(regrown[1].id, after[1].id);
+    assert!(n.block(&after[1].id).unwrap().archived);
+    assert!(n.block(&after[2].id).unwrap().archived);
+}
+
+#[test]
+fn reingest_empty_list_archives_all_extracted_values() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut doc = document();
+    let (source, _) = ingest(&mut n, &doc, b"empty-before");
+    let before = field(&n, &source, "Author");
+    doc.metadata.creators.clear();
+    ingest(&mut n, &doc, b"empty-after");
+    assert!(field(&n, &source, "Author").is_empty());
+    for value in before {
+        let block = n.block(&value.id).unwrap();
+        assert!(block.archived);
+        assert_eq!(block.text, value.text);
+    }
+}
+
+#[test]
+fn reingest_authored_override_survives_shrink() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut doc = document();
+    let (source, _) = ingest(&mut n, &doc, b"authored-before");
+    let before = field(&n, &source, "Author");
+    edit(&mut n, &before[1].id, "Authored extra");
+    doc.metadata.creators.truncate(1);
+    ingest(&mut n, &doc, b"authored-shorter");
+    assert_eq!(field(&n, &source, "Author")[1].text, "Authored extra");
+    doc.metadata.creators.clear();
+    ingest(&mut n, &doc, b"authored-empty");
+    let after = field(&n, &source, "Author");
+    assert_eq!(after.len(), 1);
+    assert_eq!(after[0].id, before[1].id);
+    assert_eq!(after[0].text, "Authored extra");
+    assert!(!n.block(&after[0].id).unwrap().archived);
+}
+
+fn define_field(n: &mut Notebook, name: &str, kind: FieldKind) -> String {
+    let fields = n.fields().unwrap();
+    let field = fields
+        .fields
+        .into_iter()
+        .find(|field| field.definition.name == name)
+        .map(|field| field.definition.id)
+        .unwrap_or_else(|| note(n, &fields.page_id, name));
+    let revision = n.block(&field).unwrap().revision;
+    apply(
+        n,
+        vec![Operation::SetFieldKind {
+            id: field.clone(),
+            base_revision: revision,
+            kind,
+        }],
+    );
+    field
+}
+
+#[test]
+fn ingest_preserves_existing_author_kind_and_extracted_text() {
+    for kind in [FieldKind::Text, FieldKind::Number, FieldKind::Choice] {
+        let dir = tempfile::tempdir().unwrap();
+        let mut n = Notebook::open(dir.path()).unwrap();
+        let definition = define_field(&mut n, "Author", kind);
+        let mut doc = document();
+        doc.metadata.creators.truncate(1);
+        let (source, _) = ingest(&mut n, &doc, b"existing-kind");
+        let value = &field(&n, &source, "Author")[0];
+        assert_eq!(
+            n.fields()
+                .unwrap()
+                .fields
+                .into_iter()
+                .find(|field| field.definition.id == definition)
+                .unwrap()
+                .definition
+                .kind,
+            kind
+        );
+        match kind {
+            FieldKind::Number => {
+                assert_eq!(value.text, "Ana García");
+                assert!(matches!(value.reading, Reading::Problem { .. }));
+            }
+            FieldKind::Text => {
+                assert_eq!(value.text, "Ana García");
+                assert_eq!(
+                    value.reading,
+                    Reading::Value {
+                        ok: true,
+                        value: ReadingValue::Text("Ana García".into()),
+                        target: None,
+                    }
+                );
+                assert!(n.page_by_title("Ana García").unwrap().is_none());
+            }
+            FieldKind::Choice => assert!(matches!(&value.reading,
+                Reading::Value { value: ReadingValue::Text(text), target: Some(_), .. } if text == "Ana García")),
+            _ => unreachable!(),
+        }
+        doc.metadata.creators[0].name = "New Author".into();
+        ingest(&mut n, &doc, b"existing-kind-again");
+        let values = field(&n, &source, "Author");
+        let extracted = n
+            .extracted_values(&source)
+            .unwrap()
+            .into_iter()
+            .find(|(name, _)| name == "Author")
+            .unwrap()
+            .1;
+        assert_eq!(values[0].text, extracted[0]);
+    }
+}
+
+#[test]
+fn export_field_kind_matrix() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut doc = document();
+    doc.metadata = ExtractedMetadata {
+        title: Some("Kind matrix".into()),
+        unique_id: Some("matrix".into()),
+        ..Default::default()
+    };
+    let (source, _) = ingest(&mut n, &doc, b"matrix");
+    let mut date_value = String::new();
+    for (name, kind, text) in [
+        ("Publisher", FieldKind::Text, "Plain Press"),
+        ("Language", FieldKind::Number, "001.50"),
+        ("Published", FieldKind::Date, "2020"),
+        ("Translator", FieldKind::Checkbox, "yes"),
+        ("Site", FieldKind::Choice, "Chosen journal"),
+        ("Author", FieldKind::Instance, "Ada Reader"),
+        ("URL", FieldKind::Url, "https://example.test/matrix"),
+        ("Identifier", FieldKind::Identifier, "DOI:10.1234/MATRIX"),
+    ] {
+        let field = define_field(&mut n, name, kind);
+        let text = match kind {
+            FieldKind::Instance => {
+                let person = id();
+                apply(
+                    &mut n,
+                    vec![Operation::CreatePage {
+                        id: person.clone(),
+                        title: text.into(),
+                    }],
+                );
+                format!("[[{person}]]")
+            }
+            FieldKind::Choice => format!("[[{}]]", note(&mut n, &field, text)),
+            _ => text.into(),
+        };
+        let entry = note(&mut n, &source, &format!("[[{field}]]"));
+        let value = note(&mut n, &entry, &text);
+        if kind == FieldKind::Date {
+            date_value = value;
+        }
+    }
+    for (date, parts) in [
+        ("2020", vec![2020]),
+        ("2020-04", vec![2020, 4]),
+        ("2020-04-09", vec![2020, 4, 9]),
+    ] {
+        edit(&mut n, &date_value, date);
+        let bib = n
+            .export(std::slice::from_ref(&source), ExportFormat::Bibtex)
+            .unwrap();
+        let csl: serde_json::Value = serde_json::from_str(
+            &n.export(std::slice::from_ref(&source), ExportFormat::CslJson)
+                .unwrap(),
+        )
+        .unwrap();
+        for fragment in [
+            "publisher = {Plain Press}",
+            "language = {001.50}",
+            "organization = {Chosen journal}",
+            "author = {Reader, Ada}",
+            "url = {https://example.test/matrix}",
+            "doi = {10.1234/matrix}",
+        ] {
+            assert!(bib.contains(fragment), "{bib}");
+        }
+        assert!(bib.contains(&format!("date = {{{date}}}")));
+        assert!(!bib.contains("translator"));
+        let item = &csl[0];
+        assert_eq!(item["publisher"], "Plain Press");
+        assert_eq!(item["language"], "001.50");
+        assert_eq!(item["container-title"], "Chosen journal");
+        assert_eq!(
+            item["author"][0],
+            serde_json::json!({"family": "Reader", "given": "Ada"})
+        );
+        assert_eq!(item["URL"], "https://example.test/matrix");
+        assert_eq!(item["DOI"], "10.1234/matrix");
+        assert_eq!(item["issued"]["date-parts"], serde_json::json!([parts]));
+        assert!(item.get("translator").is_none());
+    }
 }
 #[test]
 fn collision_titles_and_keys_and_origin_fallback() {
