@@ -32,7 +32,7 @@ pub enum Error {
     },
     #[error(transparent)]
     Sqlite(#[from] rusqlite::Error),
-    #[error("object store: {0}")]
+    #[error("notebook I/O: {0}")]
     Io(#[from] std::io::Error),
 }
 

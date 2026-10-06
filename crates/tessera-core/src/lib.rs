@@ -1,6 +1,7 @@
 //! Tessera's domain rules and storage. Clients use [`Notebook`]; nothing else
 //! writes to the database.
 
+mod backup;
 pub mod calendar;
 pub mod capabilities;
 mod card_query;
@@ -19,6 +20,7 @@ mod migrate;
 mod model;
 mod notebook;
 mod operations;
+mod ownership;
 mod query;
 mod reads;
 mod review_store;
@@ -29,6 +31,7 @@ mod task_query;
 mod task_store;
 mod work_store;
 
+pub use backup::{BackupManifest, backup, restore};
 pub use capabilities::{
     Agenda, AgendaItem, AgendaReason, BlockCapabilities, CardPreviews, CardQuery, CardQueryResult,
     CardRow, CardSelection, CardUnit, DateRange, Deck, GradePreview, ProjectRecord, ProjectState,
@@ -46,3 +49,4 @@ pub use model::{
     View,
 };
 pub use notebook::{DATABASE_FILE, Notebook, NotebookInfo};
+pub use ownership::NotebookOwnership;

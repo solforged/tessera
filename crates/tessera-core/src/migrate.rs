@@ -75,6 +75,9 @@ pub(crate) fn migrate(conn: &mut Connection) -> Result<()> {
     }
     tx.pragma_update(None, "user_version", SCHEMA_VERSION)?;
     tx.commit()?;
+    for version in found + 1..=SCHEMA_VERSION {
+        tracing::info!(version, "migration applied");
+    }
     Ok(())
 }
 

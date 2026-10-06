@@ -104,7 +104,13 @@ pub(crate) async fn protect(
         .into_response()
     };
     let headers = response.headers_mut();
-    headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    // Only successful static asset responses opt into immutable caching.
+    if !headers
+        .get(header::CACHE_CONTROL)
+        .is_some_and(|value| value == "public, max-age=31536000, immutable")
+    {
+        headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    }
     headers.insert(
         header::X_CONTENT_TYPE_OPTIONS,
         HeaderValue::from_static("nosniff"),

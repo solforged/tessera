@@ -440,12 +440,14 @@ impl Worker {
             let job = match self.access(|n| n.claim_ingest()).await {
                 Ok(job) => job,
                 Err(error) => {
-                    eprintln!("tessera ingestion: {error}");
+                    tracing::error!(%error, "ingest worker could not claim a job");
                     return;
                 }
             };
             if let Some(job) = job {
+                tracing::info!(job_id = %job.id, attempt = job.attempts, "ingest job started");
                 if let Err(error) = self.process(&job).await {
+                    tracing::warn!(job_id = %job.id, error = %error.message, "ingest job failed");
                     let delay = if error.retryable {
                         match job.attempts {
                             1 => Some(30_000),
@@ -461,16 +463,18 @@ impl Worker {
                         .access(move |n| n.fail_ingest(&job.id, &error.message, retry_at))
                         .await
                     {
-                        eprintln!("tessera ingestion: {error}");
+                        tracing::error!(%error, "ingest worker could not record failure");
                         return;
                     }
+                } else {
+                    tracing::info!(job_id = %job.id, "ingest job finished");
                 }
                 continue;
             }
             let next = match self.access(|n| n.next_ingest_at()).await {
                 Ok(next) => next,
                 Err(error) => {
-                    eprintln!("tessera ingestion: {error}");
+                    tracing::error!(%error, "ingest worker could not schedule next job");
                     return;
                 }
             };

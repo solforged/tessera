@@ -58,6 +58,8 @@ Ingestion runs in one service worker. Network fetches and parsing happen off the
 
 The service binds to loopback and rejects untrusted hosts and origins. Remote access is out of scope.
 
+Local deployment uses one binary built with `embed-web`, which compiles the built editor into `tessera-service`; `--assets` remains a development override. On macOS, `tessera install` registers a per-user launch agent with restart-on-exit and file logging, while `tessera uninstall` leaves notebook data intact. Structured `tracing` events cover migrations, service lifecycle and ingestion, with filtering through `RUST_LOG`. Online backups use a fresh SQLite backup connection and copy the immutable object store. Restore holds the same OS ownership lock as the service and opens the restored notebook to check migrations. Remote access is still out of scope.
+
 ## Browser editor
 
 The editor is split into layers that the prototype mixed together:

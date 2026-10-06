@@ -6,6 +6,9 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[features]
+embed-web = ["dep:include_dir"]
+
 [dependencies]
 tessera-core.workspace = true
 anyhow.workspace = true
@@ -17,6 +20,8 @@ tessera-ingest.workspace = true
 reqwest.workspace = true
 percent-encoding = "2"
 parking_lot = "0.12"
+include_dir = { version = "0.7", optional = true }
+tracing.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
