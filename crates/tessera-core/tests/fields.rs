@@ -238,6 +238,8 @@ fn fields_page_is_idempotent_recreated_after_deletion_and_migration_backfills_en
          DROP TABLE views;
          ALTER TABLE citations DROP COLUMN triage;
          ALTER TABLE citations DROP COLUMN color;
+         DROP TABLE highlight_surfacings;
+         ALTER TABLE citations DROP COLUMN resurface_muted_at;
          DROP TABLE citations;
          DROP TABLE reading_positions;
          DROP TABLE source_snapshots;

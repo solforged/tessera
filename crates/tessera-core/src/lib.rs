@@ -23,6 +23,7 @@ mod operations;
 mod ownership;
 mod query;
 mod reads;
+mod resurface;
 mod review_store;
 pub mod scheduler;
 mod settings;

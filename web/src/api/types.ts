@@ -422,6 +422,8 @@ export interface LibraryResult {
 export interface HighlightQuery { source_id?: string | null; unprocessed?: boolean; colors?: string[]; tags?: string[]; limit?: number | null }
 export interface HighlightRow { block: BlockInPage; citation: Citation; source_title: string; processed: boolean; triage: Citation['triage']; color: Citation['color']; tags: string[]; created_at: number }
 export interface HighlightResult { rows: HighlightRow[]; total: number }
+export type SurfacingAction = 'kept' | 'opened' | 'muted';
+export interface Surfacing extends HighlightRow { action: SurfacingAction | null }
 export interface IngestJob {
   id: string; input_kind: 'url' | 'file'; input: string; name: string; target_source: string | null;
   state: 'queued' | 'running' | 'failed' | 'done'; attempts: number; error: string | null;

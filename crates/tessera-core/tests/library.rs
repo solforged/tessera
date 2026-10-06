@@ -331,8 +331,14 @@ fn citation_triage_migration_preserves_existing_evidence() {
     let (dir, n, citation) = highlighted_source();
     drop(n);
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
-    conn.execute_batch("ALTER TABLE citations DROP COLUMN color; ALTER TABLE citations DROP COLUMN triage; PRAGMA user_version = 12;")
-        .unwrap();
+    conn.execute_batch(
+        "DROP TABLE highlight_surfacings;
+         ALTER TABLE citations DROP COLUMN resurface_muted_at;
+         ALTER TABLE citations DROP COLUMN color;
+         ALTER TABLE citations DROP COLUMN triage;
+         PRAGMA user_version = 12;",
+    )
+    .unwrap();
     drop(conn);
     let n = Notebook::open(dir.path()).unwrap();
     assert_eq!(
@@ -525,8 +531,13 @@ fn citation_color_migration_preserves_existing_evidence_with_null_color() {
     let (dir, n, citation) = highlighted_source();
     drop(n);
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
-    conn.execute_batch("ALTER TABLE citations DROP COLUMN color; PRAGMA user_version = 13;")
-        .unwrap();
+    conn.execute_batch(
+        "DROP TABLE highlight_surfacings;
+         ALTER TABLE citations DROP COLUMN resurface_muted_at;
+         ALTER TABLE citations DROP COLUMN color;
+         PRAGMA user_version = 13;",
+    )
+    .unwrap();
     drop(conn);
     let n = Notebook::open(dir.path()).unwrap();
     assert_eq!(
@@ -1638,4 +1649,266 @@ fn journal_citations_keep_identity_across_split_delete_and_restore() {
         }]))
         .is_err()
     );
+}
+
+fn resurface_fixture(count: usize) -> (tempfile::TempDir, Notebook, String, String, Vec<String>) {
+    let dir = tempfile::tempdir().unwrap();
+    let mut n = Notebook::open(dir.path()).unwrap();
+    apply(
+        &mut n,
+        vec![Operation::SetSetting {
+            key: "time_zone".into(),
+            base_revision: None,
+            value: "UTC".into(),
+        }],
+    );
+    let (source, snapshot) = ingest(&mut n, &document(), b"resurface");
+    let mut citations = Vec::new();
+    for _ in 0..count {
+        let block = note(&mut n, &source, "highlight");
+        citations.push(cite(&mut n, &block, &snapshot));
+    }
+    let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
+    conn.execute(
+        "UPDATE changes SET created_at = 0 WHERE seq IN (SELECT created_seq FROM citations)",
+        [],
+    )
+    .unwrap();
+    (dir, n, source, snapshot, citations)
+}
+
+#[test]
+fn resurfacing_keeps_daily_picks_after_new_highlights_and_reload() {
+    let (dir, mut n, source, snapshot, _) = resurface_fixture(4);
+    let picks = n.resurfacing("2020-01-01", 3).unwrap();
+    assert_eq!(picks.len(), 3);
+    let block = note(&mut n, &source, "new highlight");
+    cite(&mut n, &block, &snapshot);
+    let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
+    conn.execute(
+        "UPDATE changes SET created_at = 0 WHERE seq IN (SELECT created_seq FROM citations)",
+        [],
+    )
+    .unwrap();
+    assert_eq!(n.resurfacing("2020-01-01", 3).unwrap(), picks);
+    drop(n);
+    let mut n = Notebook::open(dir.path()).unwrap();
+    assert_eq!(n.resurfacing("2020-01-01", 3).unwrap(), picks);
+    assert_eq!(n.resurfacing("2020-01-01", 1).unwrap(), picks[..1]);
+}
+
+#[test]
+fn resurfacing_uses_notebook_date_and_excludes_same_day_and_newer_highlights() {
+    let (dir, mut n, _, _, citations) = resurface_fixture(3);
+    apply(
+        &mut n,
+        vec![Operation::SetSetting {
+            key: "time_zone".into(),
+            base_revision: Some(1),
+            value: "Pacific/Kiritimati".into(),
+        }],
+    );
+    let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
+    // Midnight in UTC+14 falls on the previous UTC date.
+    let midnight = "2020-01-01T10:00:00Z"
+        .parse::<jiff::Timestamp>()
+        .unwrap()
+        .as_millisecond();
+    for (citation, created) in citations
+        .iter()
+        .zip([midnight - 1, midnight, midnight + 86_400_000])
+    {
+        conn.execute("UPDATE changes SET created_at = ?2 WHERE seq = (SELECT created_seq FROM citations WHERE id = ?1)", rusqlite::params![citation, created]).unwrap();
+    }
+    let picks = n.resurfacing("2020-01-02", 3).unwrap();
+    assert_eq!(picks.len(), 1);
+    assert_eq!(picks[0].row.citation.id, citations[0]);
+}
+
+#[test]
+fn resurfacing_kept_rests_fourteen_days_without_change_rows() {
+    let (dir, mut n, _, _, citations) = resurface_fixture(1);
+    let changes = n.changes_since(0, 1000).unwrap();
+    let revisions = n
+        .block(
+            &n.highlights(&HighlightQuery::default()).unwrap().rows[0]
+                .citation
+                .block_id,
+        )
+        .unwrap()
+        .revision;
+    n.resurfacing("2020-01-01", 3).unwrap();
+    n.record_surfacing(&citations[0], "2020-01-01", "kept")
+        .unwrap();
+    assert_eq!(
+        n.resurfacing("2020-01-01", 3).unwrap()[0].action.as_deref(),
+        Some("kept")
+    );
+    assert!(n.resurfacing("2020-01-14", 3).unwrap().is_empty());
+    let picks = n.resurfacing("2020-01-15", 3).unwrap();
+    assert_eq!(picks[0].row.citation.id, citations[0]);
+    n.record_surfacing(&citations[0], "2020-01-15", "opened")
+        .unwrap();
+    assert_eq!(
+        n.resurfacing("2020-01-15", 3).unwrap()[0].action.as_deref(),
+        Some("opened")
+    );
+    assert_eq!(n.changes_since(0, 1000).unwrap(), changes);
+    assert_eq!(
+        n.block(&picks[0].row.citation.block_id).unwrap().revision,
+        revisions
+    );
+    let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
+    assert!(
+        conn.query_row::<i64, _, _>(
+            "SELECT acted_at FROM highlight_surfacings WHERE date = '2020-01-01'",
+            [],
+            |row| row.get(0)
+        )
+        .unwrap()
+            > 0
+    );
+}
+
+#[test]
+fn resurfacing_muted_never_returns_or_refills_its_day() {
+    let (_dir, mut n, _, _, _) = resurface_fixture(4);
+    let picks = n.resurfacing("2020-01-01", 3).unwrap();
+    let muted = &picks[0].row.citation.id;
+    n.record_surfacing(muted, "2020-01-01", "muted").unwrap();
+    assert_eq!(n.resurfacing("2020-01-01", 3).unwrap(), picks[1..]);
+    let later = n.resurfacing("2020-03-01", 4).unwrap();
+    assert_eq!(later.len(), 3);
+    assert!(later.iter().all(|pick| &pick.row.citation.id != muted));
+}
+
+#[test]
+fn resurfacing_future_zero_limit_and_invalid_requests_do_not_record_picks() {
+    let (dir, mut n, _, _, citations) = resurface_fixture(4);
+    assert!(n.resurfacing("9999-12-31", 3).unwrap().is_empty());
+    assert!(n.resurfacing("2020-01-01", 0).unwrap().is_empty());
+    for date in ["2020-02-30", "2020-1-01", "0000-01-01", "no-date"] {
+        assert!(matches!(
+            n.resurfacing(date, 3),
+            Err(Error::Validation { .. })
+        ));
+        assert!(matches!(
+            n.record_surfacing(&citations[0], date, "kept"),
+            Err(Error::Validation { .. })
+        ));
+    }
+    assert!(matches!(
+        n.record_surfacing(&citations[0], "2020-01-01", "keep"),
+        Err(Error::Validation { .. })
+    ));
+    assert!(matches!(
+        n.record_surfacing(&citations[0], "9999-12-31", "kept"),
+        Err(Error::Validation { .. })
+    ));
+    assert!(
+        n.record_surfacing(&citations[0], "2020-01-01", "kept")
+            .is_err()
+    );
+    let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
+    assert_eq!(
+        conn.query_row::<i64, _, _>("SELECT COUNT(*) FROM highlight_surfacings", [], |row| row
+            .get(0))
+            .unwrap(),
+        0
+    );
+    assert_eq!(n.resurfacing("2020-01-01", 2).unwrap().len(), 2);
+    assert_eq!(
+        conn.query_row::<i64, _, _>("SELECT COUNT(*) FROM highlight_surfacings", [], |row| row
+            .get(0))
+            .unwrap(),
+        2
+    );
+}
+
+#[test]
+fn resurfacing_requires_live_visible_citations_and_sources() {
+    for target_source in [false, true] {
+        for state in ["archived", "deleted", "inactive"] {
+            let (_dir, mut n, source, _, citations) = resurface_fixture(1);
+            let highlight = n
+                .highlights(&HighlightQuery::default())
+                .unwrap()
+                .rows
+                .remove(0);
+            let target = if target_source {
+                &source
+            } else {
+                &highlight.citation.block_id
+            };
+            let base_revision = n.block(target).unwrap().revision;
+            let op = match state {
+                "archived" => Operation::SetArchived {
+                    id: target.clone(),
+                    base_revision,
+                    archived: true,
+                },
+                "deleted" => Operation::Delete {
+                    id: target.clone(),
+                    base_revision,
+                },
+                _ if target_source => Operation::SetSource {
+                    id: target.clone(),
+                    base_revision,
+                    source: None,
+                },
+                _ => Operation::Uncite {
+                    id: target.clone(),
+                    base_revision,
+                    citation_id: citations[0].clone(),
+                },
+            };
+            n.resurfacing("2020-01-01", 3).unwrap();
+            apply(&mut n, vec![op]);
+            assert!(
+                n.resurfacing("2020-01-01", 3).unwrap().is_empty(),
+                "{target_source} {state}"
+            );
+            assert!(
+                n.resurfacing("2020-02-01", 3).unwrap().is_empty(),
+                "{target_source} {state}"
+            );
+        }
+    }
+}
+
+#[test]
+fn resurfacing_prioritizes_never_shown_then_oldest_and_shuffles_by_date() {
+    let (dir, mut n, _, _, citations) = resurface_fixture(3);
+    let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
+    for (citation, date) in citations[..2].iter().zip(["2019-01-02", "2019-01-01"]) {
+        conn.execute(
+            "INSERT INTO highlight_surfacings(citation_id, date, shown_at) VALUES (?1, ?2, 0)",
+            rusqlite::params![citation, date],
+        )
+        .unwrap();
+    }
+    let picks = n.resurfacing("2020-01-01", 3).unwrap();
+    assert_eq!(
+        picks
+            .iter()
+            .map(|pick| &pick.row.citation.id)
+            .collect::<Vec<_>>(),
+        vec![&citations[2], &citations[1], &citations[0]]
+    );
+    let mut orders = std::collections::HashSet::new();
+    for day in 1..=10 {
+        conn.execute("DELETE FROM highlight_surfacings", [])
+            .unwrap();
+        let date = format!("2020-02-{day:02}");
+        let picks = n.resurfacing(&date, 3).unwrap();
+        let order: Vec<_> = picks
+            .iter()
+            .map(|pick| pick.row.citation.id.clone())
+            .collect();
+        conn.execute("DELETE FROM highlight_surfacings", [])
+            .unwrap();
+        assert_eq!(n.resurfacing(&date, 3).unwrap(), picks);
+        orders.insert(order);
+    }
+    assert!(orders.len() > 1);
 }

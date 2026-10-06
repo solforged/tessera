@@ -37,3 +37,7 @@
 .journal-agenda-body > .journal-agenda-toggle { align-self: flex-start; }
 .journal-agenda-body { display: flex; flex-direction: column; gap: var(--space-4); margin-top: var(--space-4); }
 .journal-agenda .agenda-source { font-size: var(--text-control); line-height: var(--line-control); }
+.resurface-card { min-width: 0; padding: var(--space-8); border: 1px solid var(--line); border-radius: var(--radius-control); }
+.resurface-quote { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; font-size: var(--text-body); line-height: var(--line-body); }
+.resurface-meta { margin: var(--space-4) 0; color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); overflow-wrap: anywhere; }
+.resurface-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); }

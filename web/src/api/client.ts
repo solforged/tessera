@@ -37,6 +37,8 @@ import type {
   ServiceInfo,
   SettingsView,
   TaskOccurrence,
+  Surfacing,
+  SurfacingAction,
   TaskQuery,
   TaskQueryResult,
   TaskView,
@@ -162,6 +164,8 @@ export interface ApiClient {
   readingPosition(snapshotId: string, ordinal: number, from: number, to: number, signal?: AbortSignal): Promise<ReadingProgress>;
   searchPassages(q: string, sourceId?: string, limit?: number, signal?: AbortSignal): Promise<PassageHit[]>;
   highlights(value: HighlightQuery, signal?: AbortSignal): Promise<HighlightResult>;
+  resurfacing(date: string, limit?: number, signal?: AbortSignal): Promise<Surfacing[]>;
+  recordSurfacing(citationId: string, date: string, action: SurfacingAction, signal?: AbortSignal): Promise<void>;
   /** Download URL; all active sources when `ids` is empty. */
   exportUrl(format: ExportFormat, ids: readonly string[]): string;
   exportQuery(format: ExportFormat, query: LibraryQuery, signal?: AbortSignal): Promise<Blob>;
@@ -232,6 +236,8 @@ export function createApi(base = ''): ApiClient {
     readingPosition: (snapshotId: string, ordinal: number, from: number, to: number, signal?: AbortSignal) => request<ReadingProgress>(base, 'POST', `/snapshots/${segment(snapshotId)}/position`, { ordinal, from, to }, signal),
     searchPassages: (q: string, sourceId?: string, limit = 40, signal?: AbortSignal) => get<PassageHit[]>(`/passages/search${query({ q, source: sourceId, limit })}`, signal),
     highlights: (value: HighlightQuery, signal?: AbortSignal) => request<HighlightResult>(base, 'POST', '/highlights/query', value, signal),
+    resurfacing: (date: string, limit = 3, signal?: AbortSignal) => get<Surfacing[]>(`/highlights/resurface${query({ date, limit })}`, signal),
+    recordSurfacing: (citationId: string, date: string, action: SurfacingAction, signal?: AbortSignal) => request<void>(base, 'POST', `/highlights/${segment(citationId)}/resurface`, { date, action }, signal),
     exportUrl: (format: ExportFormat, ids: readonly string[]) => `${base}/api/library/export${query({ format, ids: ids.length ? ids.join(',') : undefined })}`,
     exportQuery: (format: ExportFormat, query: LibraryQuery, signal?: AbortSignal) => send<Blob>(`${base}/api/library/export`, {
       method: 'POST', signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ format, query }),

@@ -33,6 +33,8 @@ pub(crate) fn routes() -> Router<AppState> {
         .route("/api/snapshots/{id}/position", post(position))
         .route("/api/passages/search", get(search))
         .route("/api/highlights/query", post(highlights))
+        .route("/api/highlights/resurface", get(resurfacing))
+        .route("/api/highlights/{id}/resurface", post(record_surfacing))
         .layer(DefaultBodyLimit::max(2 * 1024 * 1024))
         .route(
             "/api/library/uploads",
@@ -280,6 +282,40 @@ async fn highlights(
 ) -> Result<Json<HighlightResult>, ApiError> {
     let Json(q) = body.map_err(ApiError::from)?;
     run(&state, move |n| n.highlights(&q)).await.map(Json)
+}
+#[derive(Deserialize)]
+struct ResurfaceQuery {
+    date: String,
+    limit: Option<usize>,
+}
+async fn resurfacing(
+    State(state): State<AppState>,
+    query: Result<Query<ResurfaceQuery>, QueryRejection>,
+) -> Result<Json<Vec<Surfacing>>, ApiError> {
+    let Query(query) = query.map_err(ApiError::from)?;
+    run(&state, move |n| {
+        n.resurfacing(&query.date, query.limit.unwrap_or(3))
+    })
+    .await
+    .map(Json)
+}
+#[derive(Deserialize)]
+struct SurfacingBody {
+    date: String,
+    action: String,
+}
+async fn record_surfacing(
+    State(state): State<AppState>,
+    path: Result<Path<String>, PathRejection>,
+    body: Result<Json<SurfacingBody>, JsonRejection>,
+) -> Result<Json<()>, ApiError> {
+    let Path(id) = path.map_err(ApiError::from)?;
+    let Json(body) = body.map_err(ApiError::from)?;
+    run(&state, move |n| {
+        n.record_surfacing(&id, &body.date, &body.action)
+    })
+    .await
+    .map(Json)
 }
 #[derive(Deserialize)]
 struct ExportQuery {
@@ -1041,5 +1077,89 @@ mod tests {
         .await;
         assert_eq!(passages.status(), StatusCode::OK);
         assert_eq!(value(passages).await["toc"][0]["title"], "Old opening");
+    }
+}
+
+#[cfg(test)]
+mod resurface_tests {
+    use super::*;
+    use axum::{
+        body::{Body, to_bytes},
+        http::Request,
+    };
+    use tower::ServiceExt;
+
+    #[tokio::test]
+    async fn resurfacing_routes_validate_dates_actions_and_limits() {
+        let dir = tempfile::tempdir().unwrap();
+        let notebook = Arc::new(Mutex::new(Notebook::open(dir.path()).unwrap()));
+        let changes = broadcast::channel(32).0;
+        let mut events = changes.subscribe();
+        let library = Library::start(notebook.clone(), changes.clone(), extract).unwrap();
+        let app = routes().with_state(AppState {
+            notebook,
+            changes,
+            library,
+            assets: None,
+            port: crate::DEFAULT_PORT,
+            backup: Arc::new(tokio::sync::Mutex::new(())),
+        });
+        let get = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/highlights/resurface?date=2020-01-01")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(get.status(), StatusCode::OK);
+        let rows: Vec<Surfacing> =
+            serde_json::from_slice(&to_bytes(get.into_body(), usize::MAX).await.unwrap()).unwrap();
+        assert!(rows.is_empty());
+        for (date, action, status) in [
+            ("2020-01-01", "kept", StatusCode::NOT_FOUND),
+            ("2020-01-01", "invalid", StatusCode::UNPROCESSABLE_ENTITY),
+            ("2020-02-30", "opened", StatusCode::UNPROCESSABLE_ENTITY),
+        ] {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .method("POST")
+                        .uri("/api/highlights/missing/resurface")
+                        .header("Content-Type", "application/json")
+                        .body(Body::from(
+                            serde_json::json!({ "date": date, "action": action }).to_string(),
+                        ))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), status);
+        }
+        for (query, status) in [
+            ("date=2020-02-30", StatusCode::UNPROCESSABLE_ENTITY),
+            ("date=2020-01-01&limit=bad", StatusCode::BAD_REQUEST),
+            ("date=2020-01-01&limit=-1", StatusCode::BAD_REQUEST),
+            ("limit=3", StatusCode::BAD_REQUEST),
+        ] {
+            let invalid = app
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .uri(format!("/api/highlights/resurface?{query}"))
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(invalid.status(), status);
+        }
+        assert!(matches!(
+            events.try_recv(),
+            Err(broadcast::error::TryRecvError::Empty)
+        ));
     }
 }
