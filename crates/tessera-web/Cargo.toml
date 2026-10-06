@@ -1,0 +1,29 @@
+[package]
+name = "tessera-web"
+description = "Browser worker bridge to the Tessera notebook API"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
+tessera-core.workspace = true
+tessera-service.workspace = true
+axum = { version = "0.8", default-features = false }
+tower.workspace = true
+tokio = { version = "1", default-features = false, features = ["sync"] }
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+serde_json.workspace = true
+js-sys = "0.3"
+wasm-bindgen = "=0.2.129"
+wasm-bindgen-futures = "0.4"
+sqlite-wasm-rs = "0.5"
+sqlite-wasm-vfs = "0.2"
+console_error_panic_hook = "0.1"
+
+[lints]
+workspace = true

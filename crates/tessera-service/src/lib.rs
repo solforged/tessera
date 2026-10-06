@@ -3,30 +3,41 @@
 //! `GET /api/service` reports local runtime details. `POST /api/backups` takes a
 //! portable snapshot, and `GET /api/backups` lists completed snapshots newest first.
 
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 mod assets;
 mod capabilities;
 mod error;
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 pub mod library;
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 mod security;
 
 use parking_lot::Mutex;
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 use std::net::Ipv4Addr;
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 use std::path::PathBuf;
 use std::sync::Arc;
 
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 use anyhow::Context;
 use axum::{
     Json, Router,
     extract::{
         DefaultBodyLimit, Path, Query, State,
         rejection::{JsonRejection, PathRejection, QueryRejection},
-        ws::{Message, WebSocket, WebSocketUpgrade},
     },
-    middleware,
-    response::Response,
     routing::{get, post},
 };
-use serde::{Deserialize, Serialize};
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+use axum::{
+    extract::ws::{Message, WebSocket, WebSocketUpgrade},
+    middleware,
+    response::Response,
+};
+use serde::Deserialize;
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+use serde::Serialize;
 use tessera_core::{
     Backlink, Batch, Block, BlockInPage, ChangeEvent, Committed, FieldsView, Notebook,
     NotebookInfo, PageView, QueryResult, SettingsView, TypeInfo, View,
@@ -34,19 +45,24 @@ use tessera_core::{
 use tokio::sync::broadcast;
 
 use crate::error::ApiError;
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 pub use crate::security::validate_dev_origin;
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 use tessera_core::NotebookOwnership;
 
 pub const DEFAULT_PORT: u16 = 4318;
 
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 pub const LAUNCH_AGENT_LABEL: &str = "dev.tessera.serve";
 
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 /// The per-user launch agent location. This does not invoke launchctl.
 pub fn launch_agent_path(home: &std::path::Path) -> PathBuf {
     home.join("Library/LaunchAgents")
         .join(format!("{LAUNCH_AGENT_LABEL}.plist"))
 }
 
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 pub struct Config {
     /// Notebook directory; created if missing.
     pub notebook: PathBuf,
@@ -60,13 +76,18 @@ pub struct Config {
 #[derive(Clone)]
 pub(crate) struct AppState {
     notebook: Arc<Mutex<Notebook>>,
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     assets: Option<Arc<PathBuf>>,
     changes: broadcast::Sender<i64>,
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     library: library::Library,
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     port: u16,
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     backup: Arc<tokio::sync::Mutex<()>>,
 }
 
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 /// Build the HTTP router. `port` must be the port the listener actually bound,
 /// because host and origin checks compare against it.
 pub fn router(
@@ -88,10 +109,46 @@ pub fn router(
         port,
         backup: Arc::new(tokio::sync::Mutex::new(())),
     };
-    Ok(Router::new()
-        .route("/api/notebook", get(notebook_info))
+    Ok(notebook_routes()
         .route("/api/service", get(service_info))
         .route("/api/backups", get(backups).post(create_backup))
+        .route("/api/changes/stream", get(change_stream))
+        .method_not_allowed_fallback(|| async { ApiError::method_not_allowed() })
+        .fallback(assets::serve)
+        .layer(DefaultBodyLimit::max(2 * 1024 * 1024))
+        .merge(library::routes())
+        .layer(middleware::from_fn_with_state(policy, security::protect))
+        .with_state(state))
+}
+
+/// The notebook and commit notifications backing a browser router.
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+pub struct BrowserHandles {
+    pub notebook: Arc<Mutex<Notebook>>,
+    pub changes: broadcast::Sender<i64>,
+}
+
+/// Build the same notebook API without native runtime or library endpoints.
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+pub fn browser_router(notebook: Notebook) -> (Router, BrowserHandles) {
+    let notebook = Arc::new(Mutex::new(notebook));
+    let changes = broadcast::channel(256).0;
+    let handles = BrowserHandles {
+        notebook: notebook.clone(),
+        changes: changes.clone(),
+    };
+    let state = AppState { notebook, changes };
+    let router = notebook_routes()
+        .method_not_allowed_fallback(|| async { ApiError::method_not_allowed() })
+        .fallback(|| async { ApiError::not_found() })
+        .layer(DefaultBodyLimit::max(2 * 1024 * 1024))
+        .with_state(state);
+    (router, handles)
+}
+
+fn notebook_routes() -> Router<AppState> {
+    Router::new()
+        .route("/api/notebook", get(notebook_info))
         .route("/api/settings", get(settings))
         .route("/api/roots", get(roots))
         .route("/api/pages/{id}", get(page))
@@ -140,16 +197,10 @@ pub fn router(
         .route("/api/complete", get(complete))
         .route("/api/search", get(search))
         .route("/api/changes", get(changes))
-        .route("/api/changes/stream", get(change_stream))
         .route("/api/batches", post(apply))
-        .method_not_allowed_fallback(|| async { ApiError::method_not_allowed() })
-        .fallback(assets::serve)
-        .layer(DefaultBodyLimit::max(2 * 1024 * 1024))
-        .merge(library::routes())
-        .layer(middleware::from_fn_with_state(policy, security::protect))
-        .with_state(state))
 }
 
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 /// Hold exclusive notebook ownership, bind loopback, and drain on termination.
 pub async fn serve(config: Config) -> anyhow::Result<()> {
     if let Some(origin) = &config.dev_origin {
@@ -183,6 +234,7 @@ pub async fn serve(config: Config) -> anyhow::Result<()> {
     Ok(())
 }
 
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 fn shutdown_signal() -> std::io::Result<impl Future<Output = ()>> {
     #[cfg(unix)]
     let mut terminate = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
@@ -209,12 +261,14 @@ async fn notebook_info(State(state): State<AppState>) -> Result<Json<NotebookInf
     run(&state, |notebook| notebook.info()).await.map(Json)
 }
 
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 #[derive(Serialize)]
 struct LaunchAgentInfo {
     installed: bool,
     path: Option<PathBuf>,
 }
 
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 #[derive(Serialize)]
 struct ServiceInfo {
     version: &'static str,
@@ -225,6 +279,7 @@ struct ServiceInfo {
     launch_agent: LaunchAgentInfo,
 }
 
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 async fn service_info(State(state): State<AppState>) -> Result<Json<ServiceInfo>, ApiError> {
     tokio::task::spawn_blocking(move || {
         let path = dirs::home_dir().map(|home| launch_agent_path(&home));
@@ -252,6 +307,7 @@ async fn service_info(State(state): State<AppState>) -> Result<Json<ServiceInfo>
     .map_err(ApiError::internal)?
 }
 
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 #[derive(Serialize)]
 struct BackupInfo {
     path: PathBuf,
@@ -259,6 +315,7 @@ struct BackupInfo {
     object_count: u64,
 }
 
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 #[derive(Serialize)]
 struct CreatedBackup {
     path: PathBuf,
@@ -266,6 +323,7 @@ struct CreatedBackup {
     manifest: tessera_core::BackupManifest,
 }
 
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 fn backup_directory(info: &NotebookInfo) -> Result<PathBuf, ApiError> {
     let parent = info
         .path
@@ -274,6 +332,7 @@ fn backup_directory(info: &NotebookInfo) -> Result<PathBuf, ApiError> {
     Ok(parent.join("backups").join(&info.id))
 }
 
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 async fn backups(State(state): State<AppState>) -> Result<Json<Vec<BackupInfo>>, ApiError> {
     let info = run(&state, |notebook| notebook.info()).await?;
     tokio::task::spawn_blocking(move || {
@@ -317,6 +376,7 @@ async fn backups(State(state): State<AppState>) -> Result<Json<Vec<BackupInfo>>,
     .map_err(ApiError::internal)?
 }
 
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 async fn create_backup(State(state): State<AppState>) -> Result<Json<CreatedBackup>, ApiError> {
     let guard = state.backup.clone().try_lock_owned().map_err(|_| {
         ApiError::new(
@@ -491,10 +551,7 @@ async fn views(State(state): State<AppState>) -> Result<Json<Vec<View>>, ApiErro
 
 async fn settings(State(state): State<AppState>) -> Result<Json<SettingsView>, ApiError> {
     run(&state, |notebook| {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .expect("system clock is after 1970");
-        notebook.settings_view(i64::try_from(now.as_millis()).expect("timestamp fits in i64"))
+        notebook.settings_view(tessera_core::now_ms())
     })
     .await
     .map(Json)
@@ -546,12 +603,14 @@ async fn changes(
     .map(Json)
 }
 
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 #[derive(Deserialize)]
 struct StreamQuery {
     #[serde(default)]
     after: i64,
 }
 
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 async fn change_stream(
     State(state): State<AppState>,
     query: Result<Query<StreamQuery>, QueryRejection>,
@@ -564,6 +623,7 @@ async fn change_stream(
     Ok(upgrade.on_upgrade(move |socket| stream_changes(socket, state, receiver, query.after)))
 }
 
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 async fn catch_up(socket: &mut WebSocket, state: &AppState, after: &mut i64) -> Result<(), ()> {
     loop {
         let cursor = *after;
@@ -586,6 +646,7 @@ async fn catch_up(socket: &mut WebSocket, state: &AppState, after: &mut i64) -> 
     }
 }
 
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 async fn stream_changes(
     mut socket: WebSocket,
     state: AppState,
@@ -635,21 +696,28 @@ async fn apply(
     .map(Json)
 }
 
-/// Run a notebook operation off the async runtime.
+/// Run on a blocking runtime thread natively, or inline in the browser worker.
 async fn run<T: Send + 'static>(
     state: &AppState,
     operation: impl FnOnce(&mut Notebook) -> tessera_core::Result<T> + Send + 'static,
 ) -> Result<T, ApiError> {
-    let notebook = state.notebook.clone();
-    tokio::task::spawn_blocking(move || {
-        let mut notebook = notebook.lock();
-        operation(&mut notebook).map_err(ApiError::from)
-    })
-    .await
-    .map_err(ApiError::internal)?
+    #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+    {
+        operation(&mut state.notebook.lock()).map_err(ApiError::from)
+    }
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+    {
+        let notebook = state.notebook.clone();
+        tokio::task::spawn_blocking(move || {
+            let mut notebook = notebook.lock();
+            operation(&mut notebook).map_err(ApiError::from)
+        })
+        .await
+        .map_err(ApiError::internal)?
+    }
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(all(target_arch = "wasm32", target_os = "unknown"))))]
 mod tests {
     use super::*;
     use axum::{

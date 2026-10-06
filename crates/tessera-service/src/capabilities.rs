@@ -5,6 +5,7 @@ use axum::{
         rejection::{JsonRejection, PathRejection, QueryRejection},
     },
 };
+use tessera_core::now_ms;
 use tessera_core::{
     Agenda, BlockCapabilities, CardPreviews, CardQuery, CardQueryResult, CardUnit, Deck,
     PositionQuery, PositionRow, ProjectRecord, ReviewEvent, ReviewSession, TaskOccurrence,
@@ -201,11 +202,4 @@ pub(crate) async fn review_session(
     run(&state, move |notebook| notebook.review_session(&id))
         .await
         .map(Json)
-}
-
-fn now_ms() -> i64 {
-    let elapsed = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .expect("system clock is after 1970");
-    i64::try_from(elapsed.as_millis()).expect("timestamp fits in i64")
 }
