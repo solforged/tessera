@@ -18,6 +18,7 @@ export interface JournalAgendaProps {
 }
 
 const collapsedKey = 'tessera.journal-agenda.collapsed';
+const JOURNAL_AGENDA_ROWS = 12;
 // One device preference shared by every journal pane.
 const [collapsed, setCollapsedSignal] = createRoot(() => createSignal((() => { try { return localStorage.getItem(collapsedKey) === '1'; } catch { return false; } })()));
 const setCollapsed = (value: boolean) => {
@@ -75,15 +76,24 @@ export function JournalAgenda(props: JournalAgendaProps) {
     </Button>
     <Show when={!collapsed()}><div id={id} class="journal-agenda-body" aria-busy={loading()}>
       <Show when={error()}><div class="agenda-error" role="alert"><span>{error()}</span><Button onClick={() => setRefresh(value => value + 1)}>Retry</Button></div></Show>
-      <Show when={groups().planned.length || groups().done.length}><TaskSourceRows rows={[...groups().planned, ...groups().done]} {...rowProps} /></Show>
+      <Show when={groups().planned.length || groups().done.length}><CappedTaskRows rows={[...groups().planned, ...groups().done]} {...rowProps} /></Show>
       <Show when={groups().open.length}>
         <Button class="journal-agenda-toggle" aria-expanded={showUnplanned()} onClick={() => setShowUnplanned(value => !value)}>
           <Icon name="down" />Unplanned<span class="agenda-summary">{groups().open.length}</span>
         </Button>
-        <Show when={showUnplanned()}><TaskSourceRows rows={groups().open} {...rowProps} /></Show>
+        <Show when={showUnplanned()}><CappedTaskRows rows={groups().open} {...rowProps} /></Show>
       </Show>
     </div></Show>
   </section>;
+}
+
+/** A day with hundreds of overdue tasks would otherwise push the journal's own blocks out of view. */
+function CappedTaskRows(props: Parameters<typeof TaskSourceRows>[0]) {
+  const [all, setAll] = createSignal(false);
+  return <>
+    <TaskSourceRows {...props} rows={all() ? props.rows : props.rows.slice(0, JOURNAL_AGENDA_ROWS)} />
+    <Show when={props.rows.length > JOURNAL_AGENDA_ROWS}><Button class="journal-agenda-more" onClick={() => setAll(value => !value)}>{all() ? 'Show fewer' : `Show ${props.rows.length - JOURNAL_AGENDA_ROWS} more`}</Button></Show>
+  </>;
 }
 
 const statusLabels = { doing: 'Doing', waiting: 'Waiting' } as const;
