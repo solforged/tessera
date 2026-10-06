@@ -2,27 +2,41 @@
 
 Tessera is a local-first outline workstation for notes, questions, evidence, tasks and study. You write in an outline of small addressable blocks. Each block is one tile; pages, journals, agendas, investigations and review sessions are different ways of arranging the same tiles.
 
-Status: the daily outline, structure, action, learning, library and reading workflows are working. Pages, journals, references, search, fields, saved tables and two panes share operation-based autosave, undo and conflict handling. Tasks support planning, recurrence, projects, clocked work and historical agendas. Cards derive from authored notes and vocabulary, with query-backed decks, review sessions and retained scheduling history. EPUB books and web articles are ingested as immutable snapshots, read beside the outline, highlighted into cited blocks and exported as BibTeX or CSL JSON. Capture and inquiry follow the [roadmap](docs/roadmap.md).
+Status: the daily outline, structure, action, learning, library and reading workflows are working. Pages, journals, references, search, fields, saved tables and two panes share operation-based autosave, undo and conflict handling. Tasks support planning, recurrence, projects, clocked work and historical agendas. Cards derive from authored notes and vocabulary, with query-backed decks, review sessions and retained scheduling history. EPUB books and web articles are ingested as immutable snapshots, read beside the outline, highlighted into cited blocks and exported as BibTeX or CSL JSON. Questions, perspectives and side-by-side comparison have started; capture and the rest of inquiry follow the [roadmap](docs/roadmap.md).
 
 ## Screenshots
 
-### Linked research
+The notebook below studies anacyclosis, Polybius's cycle of constitutions. Its quotations come from W. R. Paton's public-domain 1923 translation.
 
-Follow references into a second pane without leaving the source outline.
+### Perspectives on one idea
 
-![Linked research outlines showing an LLM overview beside notes on causal self-attention](docs/images/research.png)
+Each thinker's position sits under the idea it answers, with its source's siglum in the margin and a constellation of every holder beside the page.
+
+![The Anacyclosis page at Perspectives depth, with six positions marked PLA, ARI, POL, CIC, MAC and KHA beside a constellation of their holders](docs/images/perspectives.png)
+
+### Compare positions
+
+Compare lays the positions side by side over their shared fields. Shared values are marked, and a field where every perspective differs is ruled in red.
+
+![A light comparison table of six perspectives on anacyclosis across Shape, Engine and Exit fields](docs/images/compare.png)
+
+### Read and cite sources
+
+A source page sits beside its reader. Highlighting a passage writes an ordinary block on the source page that cites it.
+
+![The Polybius Book 6 source page with its metadata and one cited highlight, beside the reader with that passage highlighted](docs/images/reader.png)
 
 ### Tasks and agenda
 
-Project tasks stay in their source outline while the agenda collects schedules, deadlines and completed occurrences.
+Project tasks stay in their outline. In Agenda's Tasks view, one query line filters by project, state and dates, and each term becomes a removable chip.
 
-![A project outline with readable task titles and wrapped planning details beside its daily agenda](docs/images/agenda.png)
+![An essay project's tasks beside the Tasks view filtered by the chips show:open, the project and a date range](docs/images/tasks.png)
 
-### Review and source notes
+### Review beside the notes
 
-Review a saved deck beside its source notes, with interval previews and retained review history.
+Review a deck beside the notes its cards come from, with interval previews for each grade and the card's retained history.
 
-![A revealed study card with four grade intervals and review history beside its original notes](docs/images/review.png)
+![A revealed card with four grade intervals and its review history beside the study notes that define it](docs/images/review.png)
 
 ## What it is for
 
@@ -39,7 +53,7 @@ Review a saved deck beside its source notes, with interval previews and retained
 2. Identity outlives wording. Moving, editing or referencing a block keeps its ID, its cards and its history.
 3. Structure is added, not chosen up front. A block can gain a task, a question, a card or a type without becoming a different object.
 4. Don't drop a frame. Typing, scrolling and navigation have explicit budgets, measured on large notebooks.
-5. Dark, quiet and keyboard-first, with every action also reachable by a visible control.
+5. Quiet and keyboard-first, in a dark or light theme, with every action also reachable by a visible control.
 
 ## Documents
 
