@@ -151,6 +151,8 @@ function cloze(text: string, start: number): { end: number; cloze?: Cloze; probl
 interface ClozePiece { id: string; before: string; answer: string; hint: string | null }
 
 function derive(text: string): { parse: CardParse; pieces: ClozePiece[]; suffix: string; marks: CardMark[] } {
+  // Cards need an operator or a cloze opener; most blocks have neither, so skip the character walk.
+  if (!/>>|<<|<>|\{\{/.test(text)) return { parse: { cards: [], problems: [] }, pieces: [], suffix: text, marks: [] };
   const result: CardParse = { cards: [], problems: [] };
   const operators: number[] = [];
   const clozes: Cloze[] = [];
