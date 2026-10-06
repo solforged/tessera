@@ -9,6 +9,7 @@ export type CapabilityAction =
   | { kind: 'source'; id: string; value: SourceState | null; previous: SourceState | null; baseRevision: number }
   | { kind: 'cite'; id: string; citation: Citation; index?: number; baseRevision: number }
   | { kind: 'uncite'; id: string; citationId: string; baseRevision: number }
+  | { kind: 'citationTriage'; id: string; citationId: string; triage: Citation['triage']; previous: Citation['triage']; baseRevision: number }
   | { kind: 'completeTask'; id: string; occurrenceId: string; completedOn: string; previous: TaskState; baseRevision: number }
   | { kind: 'reverseTaskCompletion'; id: string; occurrenceId: string; completedOn: string; value: TaskState; previous: TaskState; baseRevision: number }
   | { kind: 'startWork'; id: string; session: WorkSession; baseRevision: number }
@@ -16,7 +17,7 @@ export type CapabilityAction =
   | { kind: 'workNote'; id: string; session: WorkSession; note: string; baseRevision: number }
   | { kind: 'workState'; id: string; session: WorkSession; endedAt: number | null; reversed: boolean; baseRevision: number };
 export function isCapabilityAction(action: Action): action is CapabilityAction {
-  return ['task', 'project', 'source', 'cite', 'uncite', 'completeTask', 'reverseTaskCompletion', 'startWork', 'stopWork', 'workNote', 'workState'].includes(action.kind);
+  return ['task', 'project', 'source', 'cite', 'uncite', 'citationTriage', 'completeTask', 'reverseTaskCompletion', 'startWork', 'stopWork', 'workNote', 'workState'].includes(action.kind);
 }
 export const emptyCapabilities = (id: string): BlockCapabilities => ({ block_id: id, task: null, project: null, source: null, citations: [], history: false, merge_protected: false, reviewed_cards: false });
 export function sourceState(source: SourceState | null | undefined): SourceState | null {

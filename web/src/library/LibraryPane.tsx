@@ -1,6 +1,6 @@
 import { For, Show, batch, createEffect, createMemo, createSignal, on, onCleanup } from 'solid-js';
 import { ulid } from 'ulid';
-import type { HighlightResult, IngestJob, LibraryQuery, LibraryResult, LibraryRow, LibraryView, ReadingState } from '../api/types';
+import type { HighlightResult, HighlightRow, IngestJob, LibraryQuery, LibraryResult, LibraryRow, LibraryView, ReadingState } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { BlockText } from '../outline/BlockText';
 import type { LibraryTab, LibraryViewState, OpenTarget, PaneId } from '../shell/contract';
@@ -9,7 +9,9 @@ import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
 import type { MenuItem } from '../ui/Menu';
 import { Popup } from '../ui/Popup';
-import { formatProgress, jobLabel, libraryQuery, recentJobs, retryTime, selectSources, sourceByline, sourceStateOperation, visibleJobs } from './query';
+import { formatProgress, highlightMeta, jobLabel, libraryQuery, recentJobs, retryTime, selectSources, sourceByline, sourceStateOperation, visibleJobs } from './query';
+import { createHighlightActions, highlightSections } from './highlights';
+import type { HighlightSection } from './highlights';
 import './library.css';
 
 export interface LibraryPaneProps {
@@ -79,6 +81,32 @@ export function LibraryPane(props: LibraryPaneProps) {
   let restoreScroll: number | null = props.view.scroll;
   let disposed = false;
   onCleanup(() => { disposed = true; });
+
+  const highlightActions = createHighlightActions(props.notebook, props.onOpen, setCommandError);
+  const [highlightContents, setHighlightContents] = createSignal(new Map<string, HighlightSection[]>());
+  const sectionCache = new Map<string, HighlightSection[]>();
+  createEffect(() => {
+    const snapshots = [...new Set(highlights()?.rows.map(row => row.citation.snapshot_id) ?? [])];
+    const controller = new AbortController();
+    void Promise.all(snapshots.map(async id => {
+      const sections = sectionCache.get(id) ?? await highlightSections(props.notebook.api, id, controller.signal);
+      if (!controller.signal.aborted) sectionCache.set(id, sections);
+      return [id, sections] as const;
+    })).then(entries => { if (!controller.signal.aborted) setHighlightContents(new Map(entries)); })
+      .catch(reason => { if (!controller.signal.aborted) setCommandError(reason instanceof Error ? reason.message : String(reason)); });
+    onCleanup(() => controller.abort());
+  });
+
+  async function highlightMenu(row: HighlightRow, anchor: HTMLElement) {
+    setCommandError('');
+    try {
+      const items = await highlightActions(row);
+      if (!disposed && anchor.isConnected) setPopup({ kind: 'menu', anchor, label: 'Actions for highlight', items: [
+        { label: 'Open in reader', action: () => props.onOpen({ kind: 'reader', sourceId: row.citation.source_id, snapshotId: row.citation.snapshot_id, citationId: row.citation.id }, true) },
+        ...items,
+      ] });
+    } catch (reason) { if (!disposed) setCommandError(reason instanceof Error ? reason.message : String(reason)); }
+  }
 
   const update = (patch: Partial<LibraryViewState>) => {
     const next = { ...view(), ...patch, scroll: patch.scroll ?? scroll.scrollTop };
@@ -303,10 +331,10 @@ export function LibraryPane(props: LibraryPaneProps) {
         </div>}</For>
       </div>
       <div class="library-controls">
-        <Show when={tab() !== 'highlights'} fallback={<div class="library-tabs library-filter" role="group" aria-label="Highlight processing">
+        <Show when={tab() !== 'highlights'} fallback={<div class="library-filter"><div class="library-tabs" role="group" aria-label="Highlight processing">
           <Button aria-pressed={unprocessedOnly()} onClick={() => update({ unprocessedOnly: true, scroll: 0 })}>Unprocessed</Button>
           <Button aria-pressed={!unprocessedOnly()} onClick={() => update({ unprocessedOnly: false, scroll: 0 })}>All</Button>
-        </div>}>
+        </div><p class="library-message">A highlight counts as processed once it has a note, a card or a link, or when you mark it.</p></div>}>
           <input class="input library-search" type="search" aria-label="Search library" placeholder="Search library" value={text()} onInput={event => update({ view: null, text: event.currentTarget.value, scroll: 0 })} />
           <Button aria-haspopup="menu" label="Sort sources" onClick={event => setPopup({ kind: 'menu', anchor: event.currentTarget, label: 'Sort sources', items: sorts.map(item => ({ label: item.label, icon: sort() === item.id ? 'check' : undefined, action: () => update({ view: null, sort: item.id, scroll: 0 }) })) })}>{sorts.find(item => item.id === sort())!.label}<Icon name="down" /></Button>
         </Show>
@@ -356,11 +384,12 @@ export function LibraryPane(props: LibraryPaneProps) {
             <Show when={highlights()?.rows.length} fallback={<p class="library-empty">No unprocessed highlights.</p>}>
               <div class="library-highlights" role="list"><For each={highlights()?.rows}>{row => {
                 const target: OpenTarget = { kind: 'page', pageId: row.block.page.id, blockId: row.block.block.id };
-                return <div role="listitem"><Button class="library-highlight" data-library-row={row.citation.id} onClick={event => props.onOpen(target, event.shiftKey)} onKeyDown={event => rowKey(event, target)}>
+                return <div class="library-row" role="listitem"><Button class="library-highlight" data-library-row={row.citation.id} onClick={event => props.onOpen(target, event.shiftKey)} onKeyDown={event => rowKey(event, target)}>
                   <span class="library-highlight-text"><BlockText text={row.block.block.text} notebook={props.notebook} interactive={false} /></span>
+                  <Show when={props.notebook.settings()}>{settings => <span class="library-highlight-meta">{highlightMeta(row, highlightContents().get(row.citation.snapshot_id) ?? [], settings().time_zone)}</span>}</Show>
                   <span class="library-highlight-source">{row.source_title}</span>
                   <Show when={row.block.block.text.trim() !== row.citation.quote.trim()}><span class="library-highlight-quote">{row.citation.quote}</span></Show>
-                </Button></div>;
+                </Button><Button icon="more" label="Actions for highlight" aria-haspopup="menu" aria-expanded={popup()?.kind === 'menu' && popup()?.anchor.dataset.highlightId === row.citation.id} data-highlight-id={row.citation.id} onClick={event => { void highlightMenu(row, event.currentTarget); }} /></div>;
               }}</For></div>
             </Show>
           }>

@@ -3,12 +3,16 @@ import { Dynamic, Portal } from 'solid-js/web';
 import { createVirtualizer, defaultRangeExtractor } from '@tanstack/solid-virtual';
 import type { VirtualItem } from '@tanstack/solid-virtual';
 import { ulid } from 'ulid';
-import type { Citation, Passage, PassageHit, PassagePage, SourceView, TocEntry } from '../api/types';
+import type { Citation, HighlightRow, Passage, PassageHit, PassagePage, SourceView, TocEntry } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import type { OpenTarget, PaneId, ReaderViewState } from '../shell/contract';
-import { formatProgress } from '../library/query';
+import { formatProgress, highlightLocation } from '../library/query';
+import { createHighlightActions, highlightSections } from '../library/highlights';
+import type { HighlightSection } from '../library/highlights';
 import { documentReady } from '../tasks/JournalAgenda';
 import { Button } from '../ui/Button';
+import { Menu } from '../ui/Menu';
+import type { MenuItem } from '../ui/Menu';
 import { Picker } from '../ui/Picker';
 import { Popup } from '../ui/Popup';
 import { PassageText } from './PassageText';
@@ -28,7 +32,7 @@ export interface ReaderPaneProps {
 }
 
 const PAGE_SIZE = 200;
-type ReaderPopup = { kind: 'contents' | 'find'; anchor: HTMLElement } | { kind: 'note'; anchor: HTMLElement; text: string; loading: boolean };
+type ReaderPopup = { kind: 'contents' | 'find' | 'highlights'; anchor: HTMLElement } | { kind: 'note'; anchor: HTMLElement; text: string; loading: boolean } | { kind: 'menu'; anchor: HTMLElement; items: MenuItem[] };
 type SelectionToolbar = PassageSelection & { rect: DOMRect; snapshotId: string };
 
 export function ReaderPane(props: ReaderPaneProps) {
@@ -50,6 +54,11 @@ export function ReaderPane(props: ReaderPaneProps) {
   const [editError, setEditError] = createSignal('');
   const [editing, setEditing] = createSignal(false);
   const [flash, setFlash] = createSignal<Citation | null>(null);
+  const [highlights, setHighlights] = createSignal<HighlightRow[]>([]);
+  const [sections, setSections] = createSignal<HighlightSection[]>([]);
+  const [highlightsLoading, setHighlightsLoading] = createSignal(false);
+  const [highlightsError, setHighlightsError] = createSignal('');
+  const actions = createHighlightActions(props.notebook, props.onOpen, setError);
   const pages = new Map<number, PassagePage>();
   const passages = new Map<number, Passage>();
   const ordinals = new Map<string, number>();
@@ -84,6 +93,33 @@ export function ReaderPane(props: ReaderPaneProps) {
     return [...values.values()];
   });
   const toc = createMemo(() => contents().filter(entry => entry.title.toLocaleLowerCase().includes(query().toLocaleLowerCase())));
+  const sourceHighlights = createMemo(() => highlights()
+    .filter(row => row.citation.snapshot_id === snapshot())
+    .sort((a, b) => a.citation.ordinal - b.citation.ordinal || a.citation.start.offset - b.citation.start.offset || a.citation.id.localeCompare(b.citation.id)));
+  const highlightLabel = (row: HighlightRow) => `${highlightLocation(row.citation, sections())} · ${row.citation.quote.slice(0, 80)}`;
+  const filteredHighlights = createMemo(() => sourceHighlights().filter(row => highlightLabel(row).toLocaleLowerCase().includes(query().toLocaleLowerCase())));
+
+  createEffect(() => {
+    const id = snapshot();
+    if (!id) return;
+    const controller = new AbortController();
+    setSections([]);
+    void highlightSections(api, id, controller.signal).then(values => { if (!controller.signal.aborted) setSections(values); })
+      .catch(reason => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : String(reason)); });
+    onCleanup(() => controller.abort());
+  });
+  createEffect(() => {
+    const sourceId = props.target.sourceId;
+    props.notebook.changeSequence();
+    const controller = new AbortController();
+    setHighlightsLoading(true); setHighlightsError('');
+    void api.highlights({ source_id: sourceId, unprocessed: false, limit: Number.MAX_SAFE_INTEGER }, controller.signal).then(result => {
+      if (!controller.signal.aborted) { setHighlights(result.rows); setHighlightsLoading(false); }
+    }).catch(reason => {
+      if (!controller.signal.aborted) { setHighlightsError(reason instanceof Error ? reason.message : String(reason)); setHighlightsLoading(false); }
+    });
+    onCleanup(() => controller.abort());
+  });
 
   async function locate(at: string): Promise<number | null> {
     const cached = ordinals.get(at);
@@ -228,10 +264,42 @@ export function ReaderPane(props: ReaderPaneProps) {
     } catch (reason) { if (!disposed && popup() === state) setPopup({ kind: 'note', anchor, text: reason instanceof Error ? reason.message : String(reason), loading: false }); }
   }
 
-  async function openCitation(citation: Citation, same: boolean) {
+  async function openCitation(citation: Citation) {
     try {
       const block = props.notebook.lookup(citation.block_id)() ?? await api.block(citation.block_id);
-      if (!disposed) props.onOpen({ kind: 'page', pageId: block.page_id, blockId: citation.block_id }, !same);
+      if (!disposed) props.onOpen({ kind: 'page', pageId: block.page_id, blockId: citation.block_id }, true);
+    } catch (reason) { if (!disposed) setError(reason instanceof Error ? reason.message : String(reason)); }
+  }
+
+  async function citationMenu(citation: Citation, anchor: HTMLElement) {
+    try {
+      const result = await api.highlights({ source_id: citation.source_id, unprocessed: false, limit: Number.MAX_SAFE_INTEGER }, requests.signal);
+      const row = result.rows.find(value => value.citation.id === citation.id);
+      if (!row) throw new Error('Citation not found.');
+      const items = await actions(row, `“${row.citation.quote}” — ${row.source_title}, ${highlightLocation(row.citation, sections())}`);
+      if (!disposed && anchor.isConnected) setPopup({ kind: 'menu', anchor, items });
+    } catch (reason) { if (!disposed) setError(reason instanceof Error ? reason.message : String(reason)); }
+  }
+
+  function clickedCitation(values: Citation[], anchor: HTMLElement, beside: boolean) {
+    if (beside) { void openCitation(values[0]!); return; }
+    if (values.length === 1) { void citationMenu(values[0]!, anchor); return; }
+    setPopup({ kind: 'menu', anchor, items: values.map(citation => ({
+      label: `“${citation.quote.slice(0, 40)}…”`, action: () => { void citationMenu(citation, anchor); },
+    })) });
+  }
+
+  async function jumpHighlight(citation: Citation) {
+    setPopup(null); suppressed = true;
+    try {
+      await locate(citation.end.passage_id);
+      const ordinal = await locate(citation.start.passage_id);
+      if (ordinal === null) throw new Error('Passage not found.');
+      await jump(ordinal);
+      if (!disposed) {
+        clearTimeout(flashTimer); setFlash(citation);
+        flashTimer = window.setTimeout(() => setFlash(null), 1500);
+      }
     } catch (reason) { if (!disposed) setError(reason instanceof Error ? reason.message : String(reason)); }
   }
 
@@ -290,7 +358,7 @@ export function ReaderPane(props: ReaderPaneProps) {
       let citation: Citation | undefined;
       await loadPage(ordinal);
       if (target.citationId) {
-        citation = (await api.highlights({ source_id: target.sourceId, unprocessed: false, limit: null }, requests.signal)).rows.find(row => row.citation.id === target.citationId)?.citation;
+        citation = (await api.highlights({ source_id: target.sourceId, unprocessed: false, limit: Number.MAX_SAFE_INTEGER }, requests.signal)).rows.find(row => row.citation.id === target.citationId)?.citation;
         if (!citation) throw new Error('Citation not found.');
         switchSnapshot(citation.snapshot_id);
         await loadPage(0);
@@ -325,7 +393,7 @@ export function ReaderPane(props: ReaderPaneProps) {
       <Show when={passage()} fallback={<div class="reader-placeholder" aria-hidden="true" />}>{value => <Dynamic
         component={value().kind === 'heading' ? `h${Math.min(3, Math.max(1, value().level ?? 1))}` : value().kind === 'quote' ? 'blockquote' : value().kind === 'code' ? 'pre' : 'div'}
         class={`reader-passage reader-${value().kind}`} data-passage-id={value().id} data-ordinal={value().ordinal} style={{ '--level': Math.max(0, value().level ?? 0) }}>
-        <Show when={value().kind === 'image' && value().resource} fallback={<PassageText passage={value()} citations={citations()} ordinals={(() => { version(); return ordinals; })()} flashId={flash()?.id ?? null} onLocate={at => { void jumpTo(at); }} onNote={(at, anchor) => { void note(at, anchor); }} onCitation={(citation, same) => { void openCitation(citation, same); }} />}>
+        <Show when={value().kind === 'image' && value().resource} fallback={<PassageText passage={value()} citations={citations()} ordinals={(() => { version(); return ordinals; })()} flashId={flash()?.id ?? null} onLocate={at => { void jumpTo(at); }} onNote={(at, anchor) => { void note(at, anchor); }} onCitation={clickedCitation} />}>
           <img src={api.resourceUrl(snapshot(), value().resource!)} alt={value().text} onLoad={() => virtualizer.measureElement(element)} />
         </Show>
       </Dynamic>}</Show>
@@ -335,6 +403,7 @@ export function ReaderPane(props: ReaderPaneProps) {
   return <div class="reader-pane" onPointerDown={props.onActivate} onFocusIn={props.onActivate}>
     <div class="reader-header">
       <Show when={contents().length}><Button icon="contents" aria-haspopup="dialog" onClick={event => { setQuery(''); setPopup({ kind: 'contents', anchor: event.currentTarget }); }}>Contents</Button></Show>
+      <Button icon="highlight" aria-haspopup="dialog" disabled={!snapshot()} onClick={event => { setQuery(''); setPopup({ kind: 'highlights', anchor: event.currentTarget }); }}>Highlights</Button>
       <Button icon="search" aria-haspopup="dialog" disabled={!snapshot()} onClick={event => { setQuery(''); setPopup({ kind: 'find', anchor: event.currentTarget }); }}>Find in source</Button>
       <span class="reader-progress" aria-label="Reading progress">{formatProgress(progress())}</span>
     </div>
@@ -351,6 +420,10 @@ export function ReaderPane(props: ReaderPaneProps) {
       <Show when={state().kind === 'contents'}><Picker anchor={state().anchor} label="Contents" placeholder="Find a section" query={query()} onQuery={setQuery} items={toc()} key={entry => entry.locator}
         row={entry => <span class="reader-toc-entry" style={{ '--level': Math.max(0, entry.level - 1) }}>{entry.title}</span>}
         onPick={entry => { void jumpTo(entry.locator); }} empty="No sections" onDismiss={() => setPopup(null)} /></Show>
+      <Show when={state().kind === 'highlights'}><Picker anchor={state().anchor} label="Highlights" placeholder="Highlights" query={query()} onQuery={setQuery} items={filteredHighlights()} key={row => row.citation.id}
+        row={row => <span class="reader-search-snippet">{highlightLabel(row)}</span>} busy={highlightsLoading()} error={highlightsError()} empty="No highlights"
+        onPick={row => { void jumpHighlight(row.citation); }} onDismiss={() => setPopup(null)} /></Show>
+      <Show when={state().kind === 'menu'}><Menu anchor={state().anchor} label="Actions for highlight" items={(() => { const value = state(); return value.kind === 'menu' ? value.items : []; })()} onDismiss={() => setPopup(null)} /></Show>
       <Show when={state().kind === 'find'}><Picker anchor={state().anchor} label="Find in source" placeholder="Find in source" query={query()} onQuery={setQuery} items={hits()} key={hit => `${hit.snapshot_id}:${hit.passage.id}`}
         row={hit => <span class="reader-search-snippet">{hit.snippet}</span>} busy={searching()} error={searchError()} empty={query().trim() ? 'No passages found' : 'Search this source'}
         onPick={hit => { setPopup(null); switchSnapshot(hit.snapshot_id); void jump(hit.passage.ordinal).catch(reason => { restoring = false; setError(reason instanceof Error ? reason.message : String(reason)); }); }}

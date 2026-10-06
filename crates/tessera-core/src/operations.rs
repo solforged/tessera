@@ -1294,6 +1294,25 @@ impl Engine<'_, '_> {
                 }
                 Ok(())
             }
+            Operation::SetCitationTriage {
+                id, base_revision, ..
+            } => {
+                let block_id: String = self
+                    .tx
+                    .query_row(
+                        "SELECT block_id FROM citations WHERE id = ?1 AND active = 1",
+                        [id],
+                        |row| row.get(0),
+                    )
+                    .optional()?
+                    .ok_or_else(|| crate::storage::not_found(id))?;
+                let current = self.checked(&block_id, *base_revision, index, false)?;
+                if crate::library_store::apply(self.tx, operation, self.now, self.seq)? {
+                    self.bump(&current, false)?;
+                    self.capability_sources.insert(block_id);
+                }
+                Ok(())
+            }
             Operation::SetTask {
                 id, base_revision, ..
             }

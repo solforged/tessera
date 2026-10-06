@@ -207,6 +207,7 @@ pub struct Citation {
     pub locator: String,
     /// Reading-order position of the start passage in its snapshot.
     pub ordinal: i64,
+    pub triage: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -376,6 +377,8 @@ pub struct HighlightRow {
     pub citation: Citation,
     pub source_title: String,
     pub processed: bool,
+    pub triage: Option<String>,
+    pub created_at: i64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

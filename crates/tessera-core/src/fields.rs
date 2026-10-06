@@ -135,6 +135,7 @@ impl FieldChanges {
             | Operation::AttachSnapshot { .. }
             | Operation::Cite { .. }
             | Operation::Uncite { .. }
+            | Operation::SetCitationTriage { .. }
             | Operation::SetTask { .. }
             | Operation::RestoreTaskState { .. }
             | Operation::CompleteTask { .. }

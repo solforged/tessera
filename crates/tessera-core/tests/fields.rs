@@ -236,6 +236,7 @@ fn fields_page_is_idempotent_recreated_after_deletion_and_migration_backfills_en
          DROP TABLE type_fields;
          DROP TABLE fields;
          DROP TABLE views;
+         ALTER TABLE citations DROP COLUMN triage;
          DROP TABLE citations;
          DROP TABLE reading_positions;
          DROP TABLE source_snapshots;

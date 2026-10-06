@@ -170,6 +170,179 @@ fn cite(n: &mut Notebook, block: &str, snapshot: &str) -> String {
     );
     citation
 }
+
+fn highlighted_source() -> (tempfile::TempDir, Notebook, Citation) {
+    let dir = tempfile::tempdir().unwrap();
+    let mut n = Notebook::open(dir.path()).unwrap();
+    let (source, snapshot) = ingest(&mut n, &document(), b"triage");
+    let block = note(&mut n, &source, "highlight");
+    cite(&mut n, &block, &snapshot);
+    let citation = n.capabilities(&block).unwrap().citations.remove(0);
+    (dir, n, citation)
+}
+
+fn set_triage(
+    n: &mut Notebook,
+    citation: &Citation,
+    triage: Option<&str>,
+) -> tessera_core::Committed {
+    let base_revision = n.block(&citation.block_id).unwrap().revision;
+    apply(
+        n,
+        vec![Operation::SetCitationTriage {
+            id: citation.id.clone(),
+            base_revision,
+            triage: triage.map(str::to_owned),
+        }],
+    )
+}
+
+#[test]
+fn explicit_processed_wins_without_children() {
+    let (_dir, mut n, citation) = highlighted_source();
+    let receipt = set_triage(&mut n, &citation, Some("processed"));
+    let row = n
+        .highlights(&HighlightQuery::default())
+        .unwrap()
+        .rows
+        .remove(0);
+    assert!(row.processed);
+    assert_eq!(row.triage.as_deref(), Some("processed"));
+    assert_eq!(receipt.revisions[0].id, citation.block_id);
+    assert_eq!(receipt.revisions[0].revision, 3);
+    assert_eq!(receipt.capabilities[0].citations[0].id, citation.id);
+    assert_eq!(receipt.capabilities[0].citations[0].triage, row.triage);
+    let changes = n.changes_since(receipt.seq - 1, 1).unwrap();
+    assert_eq!(changes[0].capabilities[0].citations[0].triage, row.triage);
+    assert_eq!(
+        n.highlights(&HighlightQuery {
+            unprocessed: true,
+            ..Default::default()
+        })
+        .unwrap()
+        .total,
+        0
+    );
+    assert_eq!(
+        n.library(&LibraryQuery::default()).unwrap().rows[0].unprocessed,
+        0
+    );
+}
+
+#[test]
+fn explicit_unprocessed_wins_over_a_note() {
+    let (_dir, mut n, citation) = highlighted_source();
+    note(&mut n, &citation.block_id, "A note");
+    set_triage(&mut n, &citation, Some("unprocessed"));
+    let result = n
+        .highlights(&HighlightQuery {
+            source_id: Some(citation.source_id.clone()),
+            unprocessed: true,
+            ..Default::default()
+        })
+        .unwrap();
+    assert_eq!(result.total, 1);
+    assert!(!result.rows[0].processed);
+    assert_eq!(result.rows[0].triage.as_deref(), Some("unprocessed"));
+    assert_eq!(
+        n.highlights(&HighlightQuery {
+            source_id: Some(id()),
+            ..Default::default()
+        })
+        .unwrap()
+        .total,
+        0
+    );
+}
+
+#[test]
+fn null_triage_falls_back_to_derived_processing() {
+    let (_dir, mut n, citation) = highlighted_source();
+    set_triage(&mut n, &citation, Some("processed"));
+    set_triage(&mut n, &citation, None);
+    assert!(!n.highlights(&HighlightQuery::default()).unwrap().rows[0].processed);
+    note(&mut n, &citation.block_id, "A note");
+    set_triage(&mut n, &citation, Some("unprocessed"));
+    set_triage(&mut n, &citation, None);
+    let row = n
+        .highlights(&HighlightQuery::default())
+        .unwrap()
+        .rows
+        .remove(0);
+    assert!(row.processed);
+    assert_eq!(row.triage, None);
+}
+
+#[test]
+fn citation_triage_checks_revision_values_and_live_ownership() {
+    let (_dir, mut n, citation) = highlighted_source();
+    set_triage(&mut n, &citation, Some("processed"));
+    assert!(matches!(n.apply(&batch(vec![Operation::SetCitationTriage {
+        id: citation.id.clone(), base_revision: 2, triage: None,
+    }])), Err(Error::Conflict { id, .. }) if id == citation.block_id));
+    assert!(matches!(
+        n.apply(&batch(vec![Operation::SetCitationTriage {
+            id: citation.id.clone(),
+            base_revision: 3,
+            triage: Some("other".into()),
+        }])),
+        Err(Error::Validation { .. })
+    ));
+    assert_eq!(n.block(&citation.block_id).unwrap().revision, 3);
+    assert!(
+        set_triage(&mut n, &citation, Some("processed"))
+            .revisions
+            .is_empty()
+    );
+    apply(
+        &mut n,
+        vec![Operation::Uncite {
+            id: citation.block_id.clone(),
+            base_revision: 3,
+            citation_id: citation.id.clone(),
+        }],
+    );
+    assert!(
+        n.apply(&batch(vec![Operation::SetCitationTriage {
+            id: citation.id,
+            base_revision: 4,
+            triage: None
+        }]))
+        .is_err()
+    );
+}
+
+#[test]
+fn highlight_creation_date_uses_citation_change_and_survives_triage() {
+    let (dir, mut n, citation) = highlighted_source();
+    let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
+    conn.execute("UPDATE changes SET created_at = 12345 WHERE seq = (SELECT created_seq FROM citations WHERE id = ?1)", [&citation.id]).unwrap();
+    set_triage(&mut n, &citation, Some("processed"));
+    edit(&mut n, &citation.block_id, "Edited quote");
+    assert_eq!(
+        n.highlights(&HighlightQuery::default()).unwrap().rows[0].created_at,
+        12345
+    );
+}
+
+#[test]
+fn citation_triage_migration_preserves_existing_evidence() {
+    let (dir, n, citation) = highlighted_source();
+    drop(n);
+    let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
+    conn.execute_batch("ALTER TABLE citations DROP COLUMN triage; PRAGMA user_version = 12;")
+        .unwrap();
+    drop(conn);
+    let n = Notebook::open(dir.path()).unwrap();
+    assert_eq!(
+        n.capabilities(&citation.block_id).unwrap().citations,
+        vec![citation]
+    );
+    assert_eq!(
+        n.highlights(&HighlightQuery::default()).unwrap().rows[0].triage,
+        None
+    );
+}
 #[test]
 fn staging_ingestion_fields_and_immutable_objects() {
     let dir = tempfile::tempdir().unwrap();

@@ -11,7 +11,7 @@ export function PassageText(props: {
   flashId: string | null;
   onLocate(locator: string): void;
   onNote(locator: string, anchor: HTMLElement): void;
-  onCitation(citation: Citation, same: boolean): void;
+  onCitation(citations: Citation[], anchor: HTMLElement, beside: boolean): void;
 }) {
   const segments = createMemo(() => passageSegments(props.passage, props.citations.flatMap(citation => citationRange(props.passage, citation, props.ordinals) ?? []), props.flashId));
   const marked = (text: JSX.Element, marks: readonly Mark[], linked = true, index = 0): JSX.Element => {
@@ -28,8 +28,8 @@ export function PassageText(props: {
       case 'note_ref': return <sup>{linked ? <Button class="reader-inline-link" onClick={event => props.onNote(kind.locator, event.currentTarget)}>{content}</Button> : content}</sup>;
     }
   };
-  return <For each={segments()}>{segment => segment.citations.length ? <span class="reader-highlight" classList={{ 'reader-flash': segment.flash }} data-citation-id={segment.citations[0]!.id} role="link" tabIndex={0}
-    onClick={event => { if (!window.getSelection()?.isCollapsed) return; event.preventDefault(); event.stopPropagation(); props.onCitation(segment.citations[0]!, event.shiftKey); }}
-    onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); props.onCitation(segment.citations[0]!, event.shiftKey); } }}
+  return <For each={segments()}>{segment => segment.citations.length ? <span class="reader-highlight" classList={{ 'reader-flash': segment.flash, 'reader-highlight-overlap': segment.citations.length > 1 }} data-citation-id={segment.citations[0]!.id} role="button" aria-haspopup="menu" tabIndex={0}
+    onClick={event => { if (!window.getSelection()?.isCollapsed) return; event.preventDefault(); event.stopPropagation(); props.onCitation(segment.citations, event.currentTarget, event.shiftKey); }}
+    onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); props.onCitation(segment.citations, event.currentTarget, event.shiftKey); } }}
   >{marked(segment.text, segment.marks, false)}</span> : marked(segment.text, segment.marks)}</For>;
 }

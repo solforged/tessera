@@ -5,7 +5,7 @@ import { citationRange, passageSegments, selectedPassages } from './passages';
 const passages: Passage[] = ['First 😀 passage', 'Middle marked text', 'Final passage'].map((text, ordinal) => ({
   id: `p${ordinal}`, ordinal, text, kind: 'paragraph', level: null, locator: `chapter#${ordinal}`, anchor: null, resource: null, marks: [], start: 0,
 }));
-const citation: Citation = { id: 'c1', block_id: 'block', source_id: 'source', snapshot_id: 'snapshot', start: { passage_id: 'p0', offset: 6 }, end: { passage_id: 'p2', offset: 5 }, quote: '😀 passage\n\nMiddle marked text\n\nFinal', locator: 'chapter#0', ordinal: 0 };
+const citation: Citation = { id: 'c1', block_id: 'block', source_id: 'source', snapshot_id: 'snapshot', start: { passage_id: 'p0', offset: 6 }, end: { passage_id: 'p2', offset: 5 }, quote: '😀 passage\n\nMiddle marked text\n\nFinal', locator: 'chapter#0', ordinal: 0, triage: null };
 
 describe('reader selection', () => {
   test('normalizes backwards cross-passage selections and UTF-16 offsets', () => {
@@ -14,14 +14,43 @@ describe('reader selection', () => {
   test('slices both offsets in a single passage', () => {
     expect(selectedPassages({ passage_id: 'p0', offset: 8 }, { passage_id: 'p0', offset: 6 }, passages)?.quote).toBe('😀');
   });
-  test('retains paragraph separators even at passage boundaries', () => {
-    expect(selectedPassages({ passage_id: 'p0', offset: passages[0]!.text.length }, { passage_id: 'p1', offset: 0 }, passages)?.quote).toBe('\n\n');
+  test('rejects whitespace between passage boundaries', () => {
+    expect(selectedPassages({ passage_id: 'p0', offset: passages[0]!.text.length }, { passage_id: 'p1', offset: 0 }, passages)).toBeNull();
   });
   test('rejects collapsed, missing, invalid and incomplete selections', () => {
     expect(selectedPassages(citation.start, citation.start, passages)).toBeNull();
     expect(selectedPassages(citation.start, { passage_id: 'missing', offset: 0 }, passages)).toBeNull();
     expect(selectedPassages(citation.start, { passage_id: 'p0', offset: 500 }, passages)).toBeNull();
     expect(selectedPassages(citation.start, citation.end, [passages[0]!, passages[2]!])).toBeNull();
+  });
+  test('snaps a mid-word start to the word start', () => {
+    const result = selectedPassages({ passage_id: 'p1', offset: 3 }, { passage_id: 'p1', offset: 13 }, passages)!;
+    expect([result.quote, result.start.offset, result.end.offset]).toEqual(['Middle marked', 0, 13]);
+  });
+  test('snaps a mid-word end to the word end', () => {
+    const result = selectedPassages({ passage_id: 'p1', offset: 7 }, { passage_id: 'p1', offset: 10 }, passages)!;
+    expect([result.quote, result.start.offset, result.end.offset]).toEqual(['marked', 7, 13]);
+  });
+  test('trims leading comma and trailing edge punctuation after snapping', () => {
+    const values = [{ ...passages[0]!, text: ', whose life;:  ' }];
+    const result = selectedPassages({ passage_id: 'p0', offset: 0 }, { passage_id: 'p0', offset: 15 }, values)!;
+    expect([result.quote, result.start.offset, result.end.offset]).toEqual(['whose life', 2, 12]);
+  });
+  test('rejects selections containing only punctuation', () => {
+    const values = [{ ...passages[0]!, text: ',;: …!?' }];
+    expect(selectedPassages({ passage_id: 'p0', offset: 0 }, { passage_id: 'p0', offset: 7 }, values)).toBeNull();
+  });
+  test('snaps Unicode letters, digits and apostrophes in either direction', () => {
+    const text = '東京42 l’homme d’Ávila 𐐀𐐁';
+    const values = [{ ...passages[0]!, text }];
+    expect(selectedPassages({ passage_id: 'p0', offset: 10 }, { passage_id: 'p0', offset: 2 }, values)?.quote).toBe('東京42 l’homme');
+    const result = selectedPassages({ passage_id: 'p0', offset: text.length - 3 }, { passage_id: 'p0', offset: text.length - 1 }, values)!;
+    expect([result.quote, result.start.offset, result.end.offset]).toEqual(['𐐀𐐁', text.length - 4, text.length]);
+  });
+  test('trims empty edge passages and updates the locator and ordinals', () => {
+    const values = passages.map((passage, index) => ({ ...passage, text: index === 1 ? '  Middle:  ' : ',; ' }));
+    const result = selectedPassages({ passage_id: 'p0', offset: 0 }, { passage_id: 'p2', offset: 3 }, values)!;
+    expect(result).toEqual({ start: { passage_id: 'p1', offset: 2 }, end: { passage_id: 'p1', offset: 8 }, first: 1, last: 1, quote: 'Middle', locator: 'chapter#1' });
   });
 });
 
