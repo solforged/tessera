@@ -177,7 +177,10 @@ pub struct SourceRecord {
     pub state_changed_at: i64,
     pub last_read_at: Option<i64>,
     pub current_snapshot_id: Option<String>,
+    /// Empty in change results stored before sigla existed; current reads always fill it.
+    #[serde(default)]
     pub siglum: String,
+    #[serde(default)]
     pub siglum_basis: String,
 }
 
