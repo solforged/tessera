@@ -56,7 +56,7 @@ pub(crate) fn citations(
                  WHERE a.snapshot_id = c.snapshot_id
                  ORDER BY a.change_seq, a.rowid
                  LIMIT 1),
-                first.locator, p.ordinal, p.text, first.ordinal, last.ordinal
+                first.locator, p.ordinal, p.text, first.ordinal, last.ordinal, c.triage
          FROM citations c
          JOIN blocks b ON b.id = c.block_id
          JOIN passages first ON first.id = c.start_passage
@@ -100,6 +100,7 @@ pub(crate) fn citations(
                 quote: String::new(),
                 locator: r.get(8)?,
                 ordinal: r.get(11)?,
+                triage: r.get(13)?,
             });
         }
         let c = result.last_mut().expect("citation inserted");
@@ -513,6 +514,14 @@ impl Notebook {
         let titles: HashMap<String, String> = statement
             .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
             .collect::<rusqlite::Result<_>>()?;
+        let mut statement = self.conn.prepare_cached(
+            "SELECT c.id, changes.created_at
+             FROM citations c JOIN changes ON changes.seq = c.created_seq
+             WHERE c.active = 1",
+        )?;
+        let created: HashMap<String, i64> = statement
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
+            .collect::<rusqlite::Result<_>>()?;
         let mut rows = vec![];
         // Newest first; the helper returns creation order.
         for citation in citations.into_iter().rev() {
@@ -523,17 +532,24 @@ impl Notebook {
             {
                 continue;
             }
-            let Some((block, processed)) = blocks.get_mut(&citation.block_id) else {
+            let Some((block, derived)) = blocks.get_mut(&citation.block_id) else {
                 continue;
             };
-            if query.unprocessed && *processed {
+            let processed = citation
+                .triage
+                .as_deref()
+                .map(|value| value == "processed")
+                .unwrap_or(*derived);
+            if query.unprocessed && processed {
                 continue;
             }
             rows.push(HighlightRow {
                 block: block.clone(),
                 source_title: titles.get(&citation.source_id).cloned().unwrap_or_default(),
+                triage: citation.triage.clone(),
+                created_at: created[&citation.id],
                 citation,
-                processed: *processed,
+                processed,
             });
         }
         let total = rows.len();

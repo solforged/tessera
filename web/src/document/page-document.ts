@@ -212,6 +212,15 @@ export class Document implements PageDocument {
         this.updateCapabilities(value, base);
         return [{ kind: 'cite', id: action.id, citation: citation!, index, baseRevision: action.baseRevision }];
       }
+      case 'citationTriage': {
+        const value = this.capabilities(action.id, base);
+        const citation = value.citations?.find(item => item.id === action.citationId);
+        if (!citation) return [];
+        const previous = citation.triage;
+        citation.triage = action.triage;
+        this.updateCapabilities(value, base);
+        return [{ ...action, triage: previous, previous: action.triage }];
+      }
       case 'completeTask': {
         const value = this.capabilities(action.id, base);
         // Recurrence is authoritative server state, never a second client calendar.
@@ -804,7 +813,7 @@ export class Document implements PageDocument {
           const citation = edit.citation;
           actions.push({ kind: 'cite', id, baseRevision: edit.kind === 'highlight' ? 0 : this.snapshot(id).revision,
             citation: { id: citation.id, block_id: id, source_id: citation.sourceId, snapshot_id: citation.snapshotId,
-              start: { ...citation.start }, end: { ...citation.end }, quote: citation.quote, locator: citation.locator, ordinal: citation.ordinal } });
+              start: { ...citation.start }, end: { ...citation.end }, quote: citation.quote, locator: citation.locator, ordinal: citation.ordinal, triage: null } });
           if (edit.kind === 'highlight') caret = { id, offset: edit.text.length };
           break;
         }
@@ -813,6 +822,12 @@ export class Document implements PageDocument {
           for (const citationId of new Set(edit.citationIds)) {
             if (this.block(edit.id)!.citations.some(citation => citation.id === citationId)) actions.push({ kind: 'uncite', id: edit.id, citationId, baseRevision });
           }
+          break;
+        }
+        case 'citationTriage': {
+          const citation = this.capabilities(edit.id).citations?.find(item => item.id === edit.citationId);
+          if (!citation) throw new Error('Citation not found.');
+          if (citation.triage !== edit.triage) actions.push({ kind: 'citationTriage', id: edit.id, citationId: edit.citationId, triage: edit.triage, previous: citation.triage, baseRevision: this.snapshot(edit.id).revision });
           break;
         }
         case 'task':

@@ -1578,6 +1578,40 @@ describe('source and citation document commands', () => {
     expect(doc.block(blockId)?.citations).toEqual([]);
   });
 
+  test('citation triage reconciles remotely, undoes to null, redoes and survives highlight deletion', async () => {
+    const instance = await client();
+    const { id, doc, citation } = await sourcePage(instance);
+    const blockId = success(doc.edit({ kind: 'highlight', parentId: id, text: citation.quote, citation })).created[0]!;
+    await doc.flush();
+    const remote = await client(), shared = remote.open(id);
+    await eventually(() => shared.status() === 'ready' && remote.connection() === 'live', 'Triage observer not ready');
+    success(doc.edit({ kind: 'citationTriage', id: blockId, citationId: citation.id, triage: 'processed' }));
+    expect(doc.block(blockId)?.citations[0]?.triage).toBe('processed');
+    expect(instance.commands(id).at(-1)?.inverse).toMatchObject([{ kind: 'citationTriage', id: blockId, citationId: citation.id, triage: null, previous: 'processed' }]);
+    await doc.flush();
+    await eventually(() => shared.block(blockId)?.citations[0]?.triage === 'processed', 'Remote triage did not arrive');
+    expect((await api.highlights({ source_id: id, unprocessed: true })).rows).toHaveLength(0);
+    doc.undo();
+    expect(doc.block(blockId)?.citations[0]?.triage).toBeNull();
+    await doc.flush();
+    expect((await api.highlights({ source_id: id, unprocessed: true })).rows).toHaveLength(1);
+    doc.redo();
+    await doc.flush();
+    success(doc.edit({ kind: 'insert', parentId: blockId, after: null, text: 'A note' }));
+    await doc.flush();
+    success(doc.edit({ kind: 'citationTriage', id: blockId, citationId: citation.id, triage: 'unprocessed' }));
+    await doc.flush();
+    expect((await api.highlights({ source_id: id, unprocessed: true })).rows[0]?.triage).toBe('unprocessed');
+    success(doc.edit({ kind: 'delete', ids: [blockId] }));
+    await doc.flush();
+    expect((await api.highlights({ source_id: id })).rows).toHaveLength(0);
+    doc.undo();
+    await doc.flush();
+    expect(doc.block(blockId)?.citations[0]?.triage).toBe('unprocessed');
+    expect((await api.highlights({ source_id: id, unprocessed: true })).rows).toHaveLength(1);
+    shared.release();
+  });
+
   test('multiple citations are removed and restored in one undo step in creation order', async () => {
     const instance = await client();
     const { id, doc, citation } = await sourcePage(instance);

@@ -351,6 +351,7 @@ export class Notebook implements NotebookClient, DocumentHost {
         case 'source':
         case 'cite':
         case 'uncite':
+        case 'citationTriage':
         case 'completeTask':
         case 'reverseTaskCompletion':
         case 'startWork':
@@ -385,6 +386,12 @@ export class Notebook implements NotebookClient, DocumentHost {
             operations.push({ op: 'uncite', id: action.id, base_revision: block.revision, citation_id: action.citationId });
             changed = (value.citations ?? []).some(item => item.id === action.citationId);
             value.citations = (value.citations ?? []).filter(item => item.id !== action.citationId);
+          } else if (action.kind === 'citationTriage') {
+            const citation = value.citations?.find(item => item.id === action.citationId);
+            if (!citation || citation.triage !== action.previous) throw new Error('Citation triage changed. Rejected command kept.');
+            operations.push({ op: 'set_citation_triage', id: action.citationId, base_revision: block.revision, triage: action.triage });
+            changed = citation.triage !== action.triage;
+            citation.triage = action.triage;
           } else if (action.kind === 'completeTask') {
             if (!sameState(value.task, action.previous)) throw new Error('Task metadata changed before completion. Rejected command kept.');
             operations.push({ op: 'complete_task', id: action.id, base_revision: block.revision, occurrence_id: action.occurrenceId, completed_on: action.completedOn });

@@ -99,6 +99,7 @@ export type Edit =
   | { kind: 'cite'; id: string; citation: NewCitation }
   /** Remove the selected citations together in one undo step. */
   | { kind: 'uncite'; id: string; citationIds: string[] }
+  | { kind: 'citationTriage'; id: string; citationId: string; triage: Citation['triage'] }
   /**
    * Append a block with `text` under `parentId` (after `after`, or last when
    * omitted) that cites `citation`; one undo step. `created[0]` is its ID.

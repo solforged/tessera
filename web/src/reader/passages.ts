@@ -17,13 +17,37 @@ export function selectedPassages(anchor: PassagePoint, focus: PassagePoint, pass
   const a = byId.get(anchor.passage_id), b = byId.get(focus.passage_id);
   if (!a || !b) return null;
   const backwards = a.ordinal > b.ordinal || a.ordinal === b.ordinal && anchor.offset > focus.offset;
-  const start = backwards ? focus : anchor, end = backwards ? anchor : focus;
-  const first = backwards ? b : a, last = backwards ? a : b;
-  if (start.offset < 0 || start.offset > first.text.length || end.offset < 0 || end.offset > last.text.length) return null;
+  const start = { ...(backwards ? focus : anchor) }, end = { ...(backwards ? anchor : focus) };
+  let first = backwards ? b : a, last = backwards ? a : b;
+  if (start.offset < 0 || start.offset > first.text.length || end.offset < 0 || end.offset > last.text.length || first === last && start.offset === end.offset) return null;
   const selected = passages.filter(p => p.ordinal >= first.ordinal && p.ordinal <= last.ordinal).sort((x, y) => x.ordinal - y.ordinal);
   if (selected.length !== last.ordinal - first.ordinal + 1) return null;
-  const quote = selected.map(p => p.text.slice(p.id === start.passage_id ? start.offset : 0, p.id === end.passage_id ? end.offset : p.text.length)).join('\n\n');
-  return quote ? { start, end, first: first.ordinal, last: last.ordinal, quote, locator: first.locator } : null;
+  const wordBefore = (text: string, offset: number) => text.slice(0, offset).match(/[\p{L}\p{N}'’]+$/u)?.[0].length ?? 0;
+  const wordAfter = (text: string, offset: number) => text.slice(offset).match(/^[\p{L}\p{N}'’]+/u)?.[0].length ?? 0;
+  // DOM offsets are UTF-16 and may even bisect a supplementary letter.
+  if (/[\uDC00-\uDFFF]/u.test(first.text[start.offset] ?? '') && /[\uD800-\uDBFF]/u.test(first.text[start.offset - 1] ?? '')) start.offset--;
+  if (/[\uDC00-\uDFFF]/u.test(last.text[end.offset] ?? '') && /[\uD800-\uDBFF]/u.test(last.text[end.offset - 1] ?? '')) end.offset++;
+  if (wordAfter(first.text, start.offset)) start.offset -= wordBefore(first.text, start.offset);
+  if (wordBefore(last.text, end.offset)) end.offset += wordAfter(last.text, end.offset);
+  let left = 0, right = selected.length - 1;
+  while (left <= right) {
+    first = selected[left]!;
+    const stop = left === right ? end.offset : first.text.length;
+    start.offset += first.text.slice(start.offset, stop).match(/^[\s,;:]+/u)?.[0].length ?? 0;
+    if (start.offset < stop || left === right) break;
+    first = selected[++left]!;
+    start.passage_id = first.id; start.offset = 0;
+  }
+  while (right >= left) {
+    last = selected[right]!;
+    const from = left === right ? start.offset : 0;
+    end.offset -= last.text.slice(from, end.offset).match(/[\s,;:]+$/u)?.[0].length ?? 0;
+    if (end.offset > from || left === right) break;
+    last = selected[--right]!;
+    end.passage_id = last.id; end.offset = last.text.length;
+  }
+  const quote = selected.slice(left, right + 1).map(p => p.text.slice(p.id === start.passage_id ? start.offset : 0, p.id === end.passage_id ? end.offset : p.text.length)).join('\n\n');
+  return /[^\p{P}\s]/u.test(quote) ? { start, end, first: first.ordinal, last: last.ordinal, quote, locator: first.locator } : null;
 }
 
 export function citationRange(passage: Passage, citation: Citation, ordinals: ReadonlyMap<string, number>): CitationRange | null {
