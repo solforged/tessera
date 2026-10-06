@@ -16,8 +16,10 @@ import type { MenuItem } from '../ui/Menu';
 import { Picker } from '../ui/Picker';
 import { Popup } from '../ui/Popup';
 import { PassageText } from './PassageText';
-import { selectionInPassages } from './passages';
+import { passageNode, selectionInPassages } from './passages';
 import type { PassageSelection } from './passages';
+import { extendSelection, sentenceAt, shrinkSelection } from './sentences';
+import type { SelectionUnit, SentenceSelection } from './sentences';
 import './reader.css';
 
 export interface ReaderPaneProps {
@@ -51,6 +53,8 @@ export function ReaderPane(props: ReaderPaneProps) {
   const [searching, setSearching] = createSignal(false);
   const [searchError, setSearchError] = createSignal('');
   const [selection, setSelection] = createSignal<SelectionToolbar | null>(null);
+  const [cursor, setCursor] = createSignal<number | null>(null);
+  const [keyboardRange, setKeyboardRange] = createSignal<{ first: number; last: number } | null>(null);
   const [editError, setEditError] = createSignal('');
   const [editing, setEditing] = createSignal(false);
   const [flash, setFlash] = createSignal<Citation | null>(null);
@@ -68,6 +72,7 @@ export function ReaderPane(props: ReaderPaneProps) {
   let disposed = false, restoring = true, generation = 0, jumpVersion = 0;
   let suppressed = !!(props.target.at || props.target.citationId), jumpOrigin = 0, userScroll = false;
   let reportTimer = 0, positionTimer = 0, flashTimer = 0;
+  let keyboardQueue = Promise.resolve(), keyboardPending = 0, keyboardVersion = 0, rewritingSelection = false;
   const requests = new AbortController();
   const virtualizer = createVirtualizer<HTMLDivElement, HTMLDivElement>({
     get count() { return total(); },
@@ -75,10 +80,11 @@ export function ReaderPane(props: ReaderPaneProps) {
     estimateSize: () => 112,
     overscan: 8,
     get rangeExtractor() {
-      const selected = selection();
+      const selected = keyboardRange() ?? selection(), current = cursor();
       return (range: Parameters<typeof defaultRangeExtractor>[0]) => {
         const indices = defaultRangeExtractor(range);
         if (selected) for (let i = selected.first; i <= selected.last; i++) if (!indices.includes(i)) indices.push(i);
+        if (current !== null && !indices.includes(current)) indices.push(current);
         return indices.sort((a, b) => a - b);
       };
     },
@@ -156,6 +162,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     generation++;
     pages.clear(); passages.clear(); ordinals.clear(); pending.clear(); locating.clear();
     clearTimeout(positionTimer);
+    setCursor(null); setKeyboardRange(null);
     batch(() => {
       setSelection(null); setFlash(null); setSnapshot(id);
       setContents([]);
@@ -169,6 +176,7 @@ export function ReaderPane(props: ReaderPaneProps) {
   async function jump(ordinal: number, offset = 0) {
     const token = ++jumpVersion, epoch = generation;
     restoring = true; userScroll = false; clearTimeout(positionTimer); setSelection(null);
+    keyboardVersion++; setCursor(null);
     const index = Math.max(0, Math.min(ordinal, total() - 1));
     await loadPage(index);
     if (disposed || epoch !== generation || token !== jumpVersion || !total()) return;
@@ -228,7 +236,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     if (suppressed && userScroll && Math.abs(scroll.scrollTop - jumpOrigin) > scroll.clientHeight) suppressed = false;
     clearTimeout(positionTimer);
     if (!suppressed && userScroll) positionTimer = window.setTimeout(() => { void savePosition(); }, 2000);
-    if (!editing()) setSelection(null);
+    if (!editing() && !rewritingSelection) setSelection(null);
   }
 
   createEffect(() => {
@@ -304,7 +312,7 @@ export function ReaderPane(props: ReaderPaneProps) {
   }
 
   function selected() {
-    if (editing()) return;
+    if (editing() || rewritingSelection) return;
     const dom = window.getSelection();
     const value = dom && selectionInPassages(scroll, dom, [...passages.values()]);
     setSelection(value && dom!.rangeCount ? { ...value, rect: dom!.getRangeAt(0).getBoundingClientRect(), snapshotId: snapshot() } : null);
@@ -335,18 +343,128 @@ export function ReaderPane(props: ReaderPaneProps) {
     finally { doc.release(); if (!disposed) setEditing(false); }
   }
 
+  function readerKeyBlocked(event: KeyboardEvent) {
+    if (!props.active || loading() || popup() || editing() || event.isComposing || event.metaKey || event.ctrlKey || event.altKey) return true;
+    if (event.shiftKey && event.key !== '{' && event.key !== '}') return true;
+    const target = event.target;
+    return target instanceof Element && (!!target.closest('input, textarea') || target instanceof HTMLElement && target.isContentEditable);
+  }
+
+  function visibleCursor() {
+    if (cursor() !== null) return cursor()!;
+    const viewport = scroll.getBoundingClientRect();
+    for (const row of scroll.querySelectorAll<HTMLElement>('[data-passage-id]')) {
+      const top = row.getBoundingClientRect().top;
+      if (top >= viewport.top && top < viewport.bottom) return Number(row.dataset.ordinal);
+    }
+    return visibleRange()?.ordinal ?? 0;
+  }
+
+  async function moveCursor(direction: number) {
+    if (!total()) return;
+    const ordinal = Math.max(0, Math.min(total() - 1, visibleCursor() + direction)), epoch = generation, token = keyboardVersion;
+    setCursor(ordinal);
+    await loadPage(ordinal);
+    if (disposed || epoch !== generation || token !== keyboardVersion || !props.active || popup()) return;
+    userScroll = true;
+    virtualizer.scrollToIndex(ordinal, { align: 'auto' });
+  }
+
+  async function writeSelection(range: SentenceSelection) {
+    const first = ordinals.get(range.start.passage_id), last = ordinals.get(range.end.passage_id), epoch = generation, token = keyboardVersion;
+    if (first === undefined || last === undefined) return;
+    rewritingSelection = true;
+    setKeyboardRange({ first, last });
+    try {
+      // Keep both endpoints mounted while scrolling to the new selection end.
+      for (let frame = 0; frame < 3; frame++) {
+        virtualizer.scrollToIndex(last, { align: 'auto' });
+        await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+        if (disposed || epoch !== generation || token !== keyboardVersion || !props.active || popup()) return;
+      }
+      const rows = [...scroll.querySelectorAll<HTMLElement>('[data-passage-id]')];
+      const startRow = rows.find(row => row.dataset.passageId === range.start.passage_id);
+      const endRow = rows.find(row => row.dataset.passageId === range.end.passage_id);
+      const start = startRow && passageNode(startRow, range.start.offset), end = endRow && passageNode(endRow, range.end.offset);
+      const dom = window.getSelection();
+      if (!start || !end || !dom) return;
+      const value = document.createRange();
+      value.setStart(start.node, start.offset); value.setEnd(end.node, end.offset);
+      dom.removeAllRanges(); dom.addRange(value);
+      rewritingSelection = false;
+      selected();
+    } finally {
+      rewritingSelection = false;
+      setKeyboardRange(null);
+    }
+  }
+
+  async function selectSentence() {
+    const ordinal = visibleCursor(), epoch = generation, token = keyboardVersion;
+    setCursor(ordinal);
+    await loadPage(ordinal);
+    if (disposed || epoch !== generation || token !== keyboardVersion || !props.active || popup()) return;
+    const passage = passages.get(ordinal), range = passage && sentenceAt(passage.text, 0);
+    if (passage && range) await writeSelection({ start: { passage_id: passage.id, offset: range.start }, end: { passage_id: passage.id, offset: range.end } });
+  }
+
+  async function resizeSelection(extend: boolean, unit: SelectionUnit) {
+    const value = selection(), epoch = generation, token = keyboardVersion;
+    if (!value) return;
+    const ordered: Passage[] = [];
+    for (let ordinal = value.first; ordinal <= value.last; ordinal++) {
+      const passage = passages.get(ordinal);
+      if (!passage) return;
+      ordered.push(passage);
+    }
+    let range = extend ? extendSelection(value, ordered, unit) : shrinkSelection(value, ordered, unit);
+    for (let ordinal = value.last + 1; extend && range === value && ordinal < total(); ordinal++) {
+      await loadPage(ordinal);
+      const current = selection();
+      if (disposed || epoch !== generation || token !== keyboardVersion || !props.active || popup() || current?.first !== value.first || current.last !== value.last || current.start.offset !== value.start.offset || current.end.offset !== value.end.offset) return;
+      const passage = passages.get(ordinal);
+      if (!passage) return;
+      ordered.push(passage);
+      range = extendSelection(value, ordered, unit);
+    }
+    if (range !== value) await writeSelection(range);
+  }
+
+  const readerKey = (event: KeyboardEvent) => {
+    if (readerKeyBlocked(event)) return;
+    const key = event.key, moving = key === 'j' || key === 'k' || key === 's', resizing = '][}{'.includes(key) && key.length === 1;
+    if (!moving && !resizing || moving && selection() || resizing && !selection() && !keyboardPending) return;
+    if (moving && !window.getSelection()?.isCollapsed) return;
+    event.preventDefault(); event.stopImmediatePropagation();
+    const epoch = generation, token = keyboardVersion;
+    keyboardPending++;
+    keyboardQueue = keyboardQueue.then(async () => {
+      if (disposed || epoch !== generation || token !== keyboardVersion || !props.active || popup() || editing()) return;
+      if (key === 's' && !selection()) await selectSentence();
+      else if ((key === 'j' || key === 'k') && !selection()) await moveCursor(key === 'j' ? 1 : -1);
+      else if (resizing && selection()) await resizeSelection(key === ']' || key === '}', key === ']' || key === '[' ? 'sentence' : 'passage');
+    }).catch(reason => { if (!disposed) setError(reason instanceof Error ? reason.message : String(reason)); })
+      .finally(() => { keyboardPending--; });
+  };
+
   const selectionKey = (event: KeyboardEvent) => {
-    if (!props.active || !selection() || popup() || event.isComposing || event.metaKey || event.ctrlKey || event.altKey) return;
-    if ((event.target as Element)?.closest('input, textarea, [contenteditable="true"]')) return;
+    if (readerKeyBlocked(event) || !selection() && !keyboardPending) return;
     const key = event.key.toLowerCase();
-    if (key === 'h' || key === 'n') { event.preventDefault(); event.stopImmediatePropagation(); void highlight(key === 'n'); }
-    else if (/^[1-5]$/.test(key)) { event.preventDefault(); event.stopImmediatePropagation(); void highlight(false, highlightColors[Number(key) - 1]!); }
-    else if (event.key === 'Escape') { event.preventDefault(); setSelection(null); }
+    const color = /^[1-5]$/.test(key) ? highlightColors[Number(key) - 1] : undefined;
+    if (key === 'h' || key === 'n' || color) {
+      event.preventDefault(); event.stopImmediatePropagation();
+      const epoch = generation, token = keyboardVersion;
+      keyboardQueue = keyboardQueue.then(async () => {
+        if (!disposed && epoch === generation && token === keyboardVersion && props.active && !popup()) await highlight(key === 'n', color);
+      });
+    }
+    else if (event.key === 'Escape') { event.preventDefault(); keyboardVersion++; setSelection(null); window.getSelection()?.removeAllRanges(); }
   };
 
   onMount(() => {
     document.addEventListener('selectionchange', selected);
     document.addEventListener('keydown', selectionKey, true);
+    document.addEventListener('keydown', readerKey, true);
     const initialView = { ...props.view }, target = { ...props.target };
     void (async () => {
       const value = await api.source(target.sourceId, requests.signal);
@@ -384,6 +502,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     clearTimeout(reportTimer); clearTimeout(positionTimer); clearTimeout(flashTimer);
     document.removeEventListener('selectionchange', selected);
     document.removeEventListener('keydown', selectionKey, true);
+    document.removeEventListener('keydown', readerKey, true);
   });
 
   function PassageRow(row: { ordinal: number; item: () => VirtualItem }) {
@@ -393,7 +512,8 @@ export function ReaderPane(props: ReaderPaneProps) {
     return <div ref={element} class="reader-row" data-index={row.ordinal} style={{ transform: `translateY(${row.item().start}px)` }}>
       <Show when={passage()} fallback={<div class="reader-placeholder" aria-hidden="true" />}>{value => <Dynamic
         component={value().kind === 'heading' ? `h${Math.min(3, Math.max(1, value().level ?? 1))}` : value().kind === 'quote' ? 'blockquote' : value().kind === 'code' ? 'pre' : 'div'}
-        class={`reader-passage reader-${value().kind}`} data-passage-id={value().id} data-ordinal={value().ordinal} style={{ '--level': Math.max(0, value().level ?? 0) }}>
+        class={`reader-passage reader-${value().kind}`} classList={{ 'reader-cursor': props.active && cursor() === row.ordinal }} aria-current={props.active && cursor() === row.ordinal ? 'true' : undefined}
+        data-passage-id={value().id} data-ordinal={value().ordinal} style={{ '--level': Math.max(0, value().level ?? 0) }}>
         <Show when={value().kind === 'image' && value().resource} fallback={<PassageText passage={value()} citations={citations()} ordinals={(() => { version(); return ordinals; })()} flashId={flash()?.id ?? null} onLocate={at => { void jumpTo(at); }} onNote={(at, anchor) => { void note(at, anchor); }} onCitation={clickedCitation} />}>
           <img src={api.resourceUrl(snapshot(), value().resource!)} alt={value().text} onLoad={() => virtualizer.measureElement(element)} />
         </Show>
@@ -407,6 +527,7 @@ export function ReaderPane(props: ReaderPaneProps) {
       <Button icon="highlight" aria-haspopup="dialog" disabled={!snapshot()} onClick={event => { setQuery(''); setPopup({ kind: 'highlights', anchor: event.currentTarget }); }}>Highlights</Button>
       <Button icon="search" aria-haspopup="dialog" disabled={!snapshot()} onClick={event => { setQuery(''); setPopup({ kind: 'find', anchor: event.currentTarget }); }}>Find in source</Button>
       <span class="reader-progress" aria-label="Reading progress">{formatProgress(progress())}</span>
+      <Show when={props.active}><span class="reader-progress reader-keys">Keys: j k move · s select sentence · ] [ extend · h highlight</span></Show>
     </div>
     <Show when={error()}><p class="reader-error error" role="alert">{error()}</p></Show>
     <Show when={loading()}><p class="reader-status" role="status">Loading…</p></Show>

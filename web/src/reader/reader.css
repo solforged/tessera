@@ -1,10 +1,13 @@
 .reader-pane { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; color: var(--text); }
 .reader-header { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: var(--space-8); width: 100%; max-width: calc(var(--measure) + 2 * var(--space-24)); margin-inline: auto; padding: var(--space-12) var(--space-24); }
 .reader-progress { color: var(--muted); font-size: var(--text-control); font-variant-numeric: tabular-nums; }
+.reader-keys { white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .reader-scroll { flex: 1; min-height: 0; overflow: auto; overflow-anchor: none; padding: 0 var(--space-24) var(--space-48); }
 .reader-list { position: relative; max-width: var(--measure); margin-inline: auto; }
 .reader-row { position: absolute; top: 0; left: 0; width: 100%; padding-bottom: var(--space-16); }
 .reader-passage { margin: 0; color: var(--text); font-size: var(--text-h3); line-height: var(--line-body); font-weight: var(--weight-body); white-space: pre-wrap; overflow-wrap: anywhere; }
+.reader-cursor { position: relative; }
+.reader-cursor::before { content: ''; position: absolute; inset-block: 0; left: calc(-1 * var(--space-12)); border-left: 2px solid var(--line); }
 .reader-passage h1, h1.reader-passage { font-size: var(--text-h1); line-height: var(--line-h1); font-weight: var(--weight-heading); }
 .reader-passage h2, h2.reader-passage { font-size: var(--text-h2); line-height: var(--line-h2); font-weight: var(--weight-heading); }
 .reader-passage h3, h3.reader-passage { font-size: var(--text-h3); line-height: var(--line-h3); font-weight: var(--weight-heading); }
