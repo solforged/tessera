@@ -1,5 +1,7 @@
 use crate::library::*;
-use crate::library_store::{enum_at, json, json_at, source, source_at, source_columns};
+use crate::library_store::{
+    enum_at, json, json_at, source, source_at, source_columns, source_siglum,
+};
 use crate::reads::{fts_query, hidden_blocks};
 use crate::storage::{block_at, block_columns, not_found, validation};
 use crate::{Actor, Batch, BlockCapabilities, BlockInPage, Direction, Notebook, Operation, Result};
@@ -160,16 +162,28 @@ pub(crate) fn hydrate(
     let mut statement = conn.prepare_cached(concat!(
         "SELECT ",
         source_columns!(),
-        " FROM sources s
+        ", b.text FROM sources s
          JOIN blocks b ON b.id = s.block_id
          WHERE s.active = 1 AND b.deletion_id IS NULL
          AND s.block_id IN (SELECT value FROM json_each(?1))"
     ))?;
-    let mut sources: HashMap<_, _> = statement
-        .query_map([json(&ids)], source_at)?
-        .collect::<rusqlite::Result<Vec<_>>>()?
+    let source_rows = statement
+        .query_map([json(&ids)], |row| {
+            Ok((source_at(row)?, row.get::<_, String>(10)?))
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    let source_ids: Vec<_> = source_rows
+        .iter()
+        .map(|(source, _)| source.block_id.clone())
+        .collect();
+    let mut fields = crate::library_export::field_readings(conn, &source_ids)?;
+    let mut sources: HashMap<_, _> = source_rows
         .into_iter()
-        .map(|s| (s.block_id.clone(), s))
+        .map(|(mut source, title)| {
+            let readings = fields.remove(&source.block_id).unwrap_or_default();
+            source_siglum(&mut source, &title, &readings);
+            (source.block_id.clone(), source)
+        })
         .collect();
     let mut cited: HashMap<String, Vec<Citation>> = HashMap::new();
     for c in citations(conn, Some(&ids), None, false, None)? {
@@ -632,7 +646,7 @@ impl Notebook {
             .query_map([], |r| Ok((source_at(r)?, block_at(r, 10)?)))?
             .collect::<rusqlite::Result<Vec<_>>>()?;
         let ids: Vec<_> = sources.iter().map(|(s, _)| s.block_id.clone()).collect();
-        let mut fields_by_source = crate::library_export::field_readings(self, &ids)?;
+        let mut fields_by_source = crate::library_export::field_readings(&self.conn, &ids)?;
         let snapshot_ids: Vec<_> = sources
             .iter()
             .filter_map(|(s, _)| s.current_snapshot_id.as_ref())
@@ -679,7 +693,7 @@ impl Notebook {
             .as_ref()
             .map(|s| s.to_lowercase())
             .filter(|s| !s.is_empty());
-        for (source, page) in sources {
+        for (mut source, page) in sources {
             match source.state {
                 ReadingState::Inbox => counts.inbox += 1,
                 ReadingState::Reading => counts.reading += 1,
@@ -694,6 +708,7 @@ impl Notebook {
             let fields = fields_by_source
                 .remove(&source.block_id)
                 .unwrap_or_default();
+            source_siglum(&mut source, &page.text, &fields);
             let creators = fields.get("author").cloned().unwrap_or_default();
             if let Some(text) = &text
                 && !page.text.to_lowercase().contains(text.as_str())

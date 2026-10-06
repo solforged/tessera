@@ -191,6 +191,37 @@ macro_rules! source_columns {
     };
 }
 pub(crate) use source_columns;
+pub(crate) fn source_siglum(
+    source: &mut SourceRecord,
+    title: &str,
+    fields: &crate::library_export::FieldReadings,
+) {
+    let first = |name: &str| {
+        fields
+            .get(name)
+            .and_then(|values| values.first())
+            .map(|value| value.trim())
+            .filter(|value| !value.is_empty())
+    };
+    if let Some(authored) = first("siglum") {
+        source.siglum = authored.to_owned();
+        source.siglum_basis = authored.to_owned();
+        return;
+    }
+    let family = first("author")
+        .or_else(|| first("editor"))
+        .map(crate::library_ingest::family_name);
+    for candidate in family.into_iter().chain(first("site")).chain(Some(title)) {
+        let basis = crate::library_ingest::fold(candidate);
+        if let Some(letter) = basis.chars().find(char::is_ascii_alphabetic) {
+            source.siglum = letter.to_ascii_uppercase().to_string();
+            source.siglum_basis = basis;
+            return;
+        }
+    }
+    source.siglum = "?".into();
+    source.siglum_basis = "?".into();
+}
 pub(crate) fn source_at(row: &rusqlite::Row<'_>) -> rusqlite::Result<SourceRecord> {
     Ok(SourceRecord {
         block_id: row.get(0)?,
@@ -203,17 +234,28 @@ pub(crate) fn source_at(row: &rusqlite::Row<'_>) -> rusqlite::Result<SourceRecor
         state_changed_at: row.get(7)?,
         last_read_at: row.get(8)?,
         current_snapshot_id: row.get(9)?,
+        siglum: String::new(),
+        siglum_basis: String::new(),
     })
 }
 pub(crate) fn source(conn: &Connection, id: &str) -> Result<Option<SourceRecord>> {
     let mut statement = conn.prepare_cached(concat!(
         "SELECT ",
         source_columns!(),
-        " FROM sources s
+        ", b.text FROM sources s
          JOIN blocks b ON b.id = s.block_id
          WHERE s.block_id = ?1 AND s.active = 1 AND b.deletion_id IS NULL"
     ))?;
-    Ok(statement.query_row([id], source_at).optional()?)
+    let Some((mut source, title)) = statement
+        .query_row([id], |row| Ok((source_at(row)?, row.get::<_, String>(10)?)))
+        .optional()?
+    else {
+        return Ok(None);
+    };
+    let mut fields =
+        crate::library_export::field_readings(conn, std::slice::from_ref(&source.block_id))?;
+    source_siglum(&mut source, &title, &fields.remove(id).unwrap_or_default());
+    Ok(Some(source))
 }
 
 pub(crate) fn apply(conn: &Connection, operation: &Operation, now: i64, seq: i64) -> Result<bool> {

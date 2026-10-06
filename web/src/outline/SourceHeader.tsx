@@ -75,11 +75,14 @@ export function SourceHeader(props: {
       <Show when={snapshot()?.metadata.cover}>{cover => <Button class="outline-source-cover" label="Read" onClick={event => props.onOpen({ kind: 'reader', sourceId: props.doc.pageId }, event.shiftKey)}>
         <img src={api.resourceUrl(snapshot()!.id, cover())} loading="lazy" alt="" />
       </Button>}</Show>
-      <Show when={summary().length}><span class="outline-source-summary"><For each={summary()}>{(part, index) => <>
-        {index() > 0 ? ' · ' : ''}<Show when={part.url} fallback={part.text}>
-          <a class="reference-url" href={part.url} target="_blank" rel="noopener noreferrer" onMouseDown={event => event.stopPropagation()} onClick={event => event.stopPropagation()}>{part.text}</a>
-        </Show>
-      </>}</For></span></Show>
+      <span class="outline-source-summary">
+        <Show when={source()?.source.siglum}>{siglum => <span class="source-siglum" title="Siglum: add a Siglum field to change it">{siglum()}</span>}</Show>
+        <For each={summary()}>{(part, index) => <>
+          {index() > 0 ? ' · ' : ''}<Show when={part.url} fallback={part.text}>
+            <a class="reference-url" href={part.url} target="_blank" rel="noopener noreferrer" onMouseDown={event => event.stopPropagation()} onClick={event => event.stopPropagation()}>{part.text}</a>
+          </Show>
+        </>}</For>
+      </span>
       <Show when={snapshot()?.metadata.description}>{description => <div class="outline-source-description">
         <p ref={setDescriptionElement} classList={{ expanded: expanded() }}>{description()}</p>
         <Show when={overflows()}><Button class="text-button" aria-expanded={expanded()} onClick={() => setExpanded(value => !value)}>{expanded() ? 'Less' : 'More'}</Button></Show>

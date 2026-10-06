@@ -366,6 +366,7 @@ export interface SourceState {
 export interface SourceRecord extends SourceState {
   block_id: string; added_at: number; state_changed_at: number;
   last_read_at: number | null; current_snapshot_id: string | null;
+  siglum: string; siglum_basis: string;
 }
 export interface PassagePoint { passage_id: string; offset: number }
 export interface Citation {

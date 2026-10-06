@@ -177,6 +177,8 @@ pub struct SourceRecord {
     pub state_changed_at: i64,
     pub last_read_at: Option<i64>,
     pub current_snapshot_id: Option<String>,
+    pub siglum: String,
+    pub siglum_basis: String,
 }
 
 impl SourceRecord {

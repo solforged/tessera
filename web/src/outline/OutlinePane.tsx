@@ -11,6 +11,8 @@ import type { Command, Depth, OutlinePaneProps, ViewState } from '../shell/contr
 import { fieldEntryId, matchFieldEntry } from '../table/query';
 import { kindLabels } from '../fields/kinds';
 import { linkedCitation, setLinkedCitation } from '../library/highlights';
+import { pageSigla } from '../library/sigla';
+import type { OutlineIndex } from '../document/outline-index';
 import { ProjectControls } from '../projects/ProjectControls';
 import { parseCardText } from '../review/card-text';
 import { DatePicker } from '../tasks/DatePicker';
@@ -364,6 +366,18 @@ function Pane(props: OutlinePaneProps) {
   const ids = createMemo(() => { const inline = inlineFields(); const visible = unfoldedIds(); return inline.size ? visible.filter(id => !inline.has(id)) : visible; });
   const indices = createMemo(() => new Map(ids().map((id, index) => [id, index])));
   const baseDepth = createMemo(() => zoom() ? doc.outline.depth(zoom()!) : 0);
+  // Sources cited on this page, in order of first appearance, give the sigla shown beside citing rows. A
+  // source page's own highlights need no mark.
+  const citedSources = createMemo(() => {
+    const seen: string[] = [];
+    (doc.outline as OutlineIndex).each(0, doc.outline.size(), row => {
+      for (const citation of doc.block(row.id)?.citations ?? []) if (citation.source_id !== props.pageId && !seen.includes(citation.source_id)) seen.push(citation.source_id);
+    });
+    return seen;
+  }, undefined, { equals: (a, b) => a.length === b.length && a.every((id, index) => id === b[index]) });
+  const [siglumRecords] = createResource(() => citedSources().length ? citedSources() : false, ids => Promise.all(ids.map(id =>
+    api.source(id).then(view => ({ id, siglum: view.source.siglum, basis: view.source.siglum_basis }), () => null))));
+  const sigla = createMemo(() => pageSigla((siglumRecords.error ? [] : siglumRecords() ?? []).filter(record => record !== null)));
   const sourceDetails = createMemo(() => {
     const fields = new Map<string, string>();
     let firstHighlight: string | undefined;
@@ -1641,6 +1655,7 @@ function Pane(props: OutlinePaneProps) {
       onPointerEnter={() => setLinkedCitation(block()?.citations[0]?.id ?? null)} onPointerLeave={() => setLinkedCitation(null)}
       style={{ transform: `translateY(${propsRow.item().start - margin()}px)`, '--depth': depth() }}>
       <Show when={sourceDetails().firstHighlight === id()}><div class="outline-highlights-label">Highlights <span>{sourceDetails().highlightCount}</span></div></Show>
+      <Show when={block()?.citations[0] && sigla().get(block()!.citations[0]!.source_id)}>{mark => <span class="row-siglum" title={props.notebook.lookup(block()!.citations[0]!.source_id)()?.text}>{mark()}</span>}</Show>
       <button type="button" class="row-menu icon-button" aria-label="Block actions" onClick={event => blockMenu(id(), event.currentTarget)}><Icon name="more" /></button>
       <button type="button" class="row-fold icon-button" classList={{ 'fold-empty': !children(), folded: folds().has(id()) }} aria-label={folds().has(id()) ? 'Unfold children' : 'Fold children'} disabled={!children()} onClick={() => fold(id())}><Icon name="down" /></button>
       <Show when={!inline()}><button type="button" class="row-bullet icon-button" classList={{ 'bullet-collapsed': children() && folds().has(id()) }} aria-label="Zoom into block" onClick={() => zoomTo(id())}><Icon name="bullet" /></button></Show>
