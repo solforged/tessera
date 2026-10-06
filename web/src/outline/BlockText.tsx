@@ -59,7 +59,7 @@ export function BlockText(props: Props) {
       const literal = group.mark?.kind !== 'operator' && (token.kind === 'text' || token.kind === 'reference' && !isStableReference(token));
       const target = isStableReference(token) ? props.notebook.lookup(token.id!)() : undefined;
       const field = props.field?.id === token.id ? props.field : undefined;
-      const label = group.mark?.kind === 'operator' || literal ? token.value : token.kind === 'tag' ? `#${token.value}` : field ? token.alias || field.name : referenceLabel(token, target);
+      const label = group.mark?.kind === 'operator' || literal || token.kind === 'url' ? token.value : token.kind === 'tag' ? `#${token.value}` : field ? token.alias || field.name : referenceLabel(token, target);
       const result: DisplayToken = { ...token, label, target, literal, visibleStart };
       visibleStart += label.length;
       return result;
@@ -101,12 +101,17 @@ export function BlockText(props: Props) {
           <Show when={props.field?.id === token.id}><Icon name="field" /></Show><Show when={token.target === null}><Icon name="brokenLink" /></Show>{text(token)}
         </span>}>
           <button class="outline-reference" type="button" data-source-start={token.start} data-source-end={token.end}
+            onMouseDown={event => event.stopPropagation()}
             onClick={event => { event.stopPropagation(); const block = token.target; if (block) props.onOpen?.({ kind: 'page', pageId: block.page_id, blockId: block.kind === 'block' ? block.id : undefined }, true); }}
             onContextMenu={event => { event.preventDefault(); event.stopPropagation(); props.onReferenceMenu?.(token.id!, event.currentTarget); }}
             title={token.target ? 'Open reference beside · right-click for more actions' : token.target === null ? `Unresolved reference: ${token.id}` : 'Loading reference…'}>
             <Show when={props.field?.id === token.id}><Icon name="field" /></Show><Show when={token.target === null}><Icon name="brokenLink" /></Show>{text(token)}
           </button>
         </Show>
+      </Show>
+      <Show when={token.kind === 'url'}>
+        <a class="reference-url" href={token.value} target="_blank" rel="noopener noreferrer" data-source-start={token.start} data-source-end={token.end}
+          onMouseDown={event => event.stopPropagation()} onClick={event => event.stopPropagation()}>{text(token)}</a>
       </Show>
       <Show when={token.kind === 'tag'}>
         <Show when={props.interactive !== false} fallback={<span class="outline-tag" data-source-start={token.start} data-source-end={token.end}>{text(token)}</span>}>

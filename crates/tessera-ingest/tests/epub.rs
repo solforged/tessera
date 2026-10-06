@@ -267,7 +267,7 @@ fn epub2(publication: &str, body: &str) -> Vec<u8> {
 }
 
 #[test]
-fn epub2_ncx_roles_and_cover() {
+fn epub2_sparse_ncx_falls_back_while_roles_and_cover_are_preserved() {
     let bytes = epub2(
         "<dc:date>1998-04</dc:date>",
         r#"<html><body><h1 id="start">Start</h1><p id="detail">Details</p></body></html>"#,
@@ -289,11 +289,10 @@ fn epub2_ncx_roles_and_cover() {
     );
     assert_eq!(document.metadata.cover.as_deref(), Some("OPS/cover.jpg"));
     assert_eq!(document.resources[0].bytes, b"old cover");
-    assert_eq!(document.toc.len(), 2);
+    assert_eq!(document.toc.len(), 1);
     assert_eq!(document.toc[0].locator, "OPS/chapter.xhtml#start");
     assert_eq!(document.toc[0].level, 1);
-    assert_eq!(document.toc[1].locator, "OPS/chapter.xhtml#detail");
-    assert_eq!(document.toc[1].level, 2);
+    assert_eq!(document.toc[0].title, "Start");
 }
 
 #[test]
@@ -379,4 +378,104 @@ fn metadata_identifiers_preserve_raw_values() {
         document.metadata.identifiers,
         ["raw:id", "custom:  spaced identifier"]
     );
+}
+
+fn spine_book(nav_entries: usize) -> Vec<u8> {
+    let package = format!(
+        r#"<package xmlns="http://www.idpf.org/2007/opf" version="3.0">
+        <metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>Spine Book</dc:title></metadata>
+        <manifest>
+          <item id="cover" href="cover.xhtml" media-type="application/xhtml+xml"/>
+          <item id="first" href="first.xhtml" media-type="application/xhtml+xml"/>
+          <item id="second" href="second.xhtml" media-type="application/xhtml+xml"/>
+          <item id="third" href="third.xhtml" media-type="application/xhtml+xml"/>
+          {}
+        </manifest><spine><itemref idref="cover"/><itemref idref="first"/><itemref idref="second"/><itemref idref="third"/></spine></package>"#,
+        if nav_entries > 0 {
+            r#"<item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>"#
+        } else {
+            ""
+        }
+    );
+    let mut nav = String::from(
+        r#"<html xmlns:epub="http://www.idpf.org/2007/ops"><body><nav epub:type="toc"><ol>"#,
+    );
+    let mut first =
+        String::from(r#"<html><body><p id="intro">Before the heading.</p><h2>First chapter</h2>"#);
+    for index in 0..10 {
+        first.push_str(&format!(r#"<p id="part{index}">Part {index} text.</p>"#));
+        if index < nav_entries {
+            nav.push_str(&format!(
+                r#"<li><a href="first.xhtml#part{index}">Navigation {index}</a></li>"#
+            ));
+        }
+    }
+    first.push_str("</body></html>");
+    nav.push_str("</ol></nav></body></html>");
+    let mut entries = vec![
+        ("mimetype", b"application/epub+zip".as_slice()),
+        ("META-INF/container.xml", CONTAINER.as_bytes()),
+        ("OPS/package.opf", package.as_bytes()),
+        ("OPS/cover.xhtml", b"<html><body><img src='cover.png' alt='Cover label'/></body></html>"),
+        ("OPS/first.xhtml", first.as_bytes()),
+        ("OPS/second.xhtml", "<html><body><p id='opening'>Évidence 😀 begins with a paragraph that keeps enough words for a useful chapter label and more text.</p></body></html>".as_bytes()),
+        ("OPS/third.xhtml", b"<html><body><p id='short'>Last short paragraph.</p></body></html>"),
+    ];
+    if nav_entries > 0 {
+        entries.push(("OPS/nav.xhtml", nav.as_bytes()));
+    }
+    archive(&entries)
+}
+
+#[test]
+fn epub_without_navigation_uses_text_spine_entries() {
+    let document = epub(&spine_book(0)).unwrap();
+    assert_eq!(
+        document
+            .toc
+            .iter()
+            .map(|entry| (entry.title.as_str(), entry.locator.as_str(), entry.level))
+            .collect::<Vec<_>>(),
+        [
+            ("First chapter", "OPS/first.xhtml#intro", 1),
+            (
+                "Évidence 😀 begins with a paragraph that keeps enough words…",
+                "OPS/second.xhtml#opening",
+                1
+            ),
+            ("Last short paragraph.", "OPS/third.xhtml#short", 1),
+        ]
+    );
+    assert!(
+        document
+            .toc
+            .iter()
+            .all(|entry| entry.title.chars().count() <= 60)
+    );
+}
+
+#[test]
+fn epub_ten_entry_navigation_keeps_titles_targets_and_order() {
+    let document = epub(&spine_book(10)).unwrap();
+    assert_eq!(document.toc.len(), 10);
+    for (index, entry) in document.toc.iter().enumerate() {
+        assert_eq!(entry.title, format!("Navigation {index}"));
+        assert_eq!(entry.locator, format!("OPS/first.xhtml#part{index}"));
+        assert_eq!(entry.level, 1);
+    }
+}
+
+#[test]
+fn epub_two_resolved_navigation_entries_use_the_whole_spine() {
+    assert_eq!(
+        epub(&spine_book(2)).unwrap().toc,
+        epub(&spine_book(0)).unwrap().toc
+    );
+}
+
+#[test]
+fn epub_three_resolved_navigation_entries_are_kept() {
+    let document = epub(&spine_book(3)).unwrap();
+    assert_eq!(document.toc.len(), 3);
+    assert_eq!(document.toc[0].title, "Navigation 0");
 }
