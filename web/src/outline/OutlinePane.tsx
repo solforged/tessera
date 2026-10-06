@@ -1395,7 +1395,6 @@ function Pane(props: OutlinePaneProps) {
           <p class="outline-citation-quote" title={citation.quote}>{citation.quote}</p>
         </Show>}</For>
         <For each={cards().problems}>{problem => <p class="outline-card-problem" role="alert">{problem.message}</p>}</For>
-        <Show when={capabilities.busy(id()) || (block()?.pending && (block()?.task || block()?.project))}><span class="outline-capability-notice" role="status">{doc.saveState() === 'offline' ? 'Waiting to save' : 'Saving…'}</span></Show>
         <Show when={capabilities.error(id())}><p class="outline-capability-error" role="alert">{capabilities.error(id())}</p></Show>
         <Show when={block()?.archived}><span class="archive-badge">Archived</span> <button class="text-button" type="button" onClick={() => apply({ kind: 'archive', id: id(), archived: false }, false)}>Unarchive</button></Show>
         <Show when={block()?.conflict}><button type="button" class="conflict-label" onClick={() => setConflicts(previous => { const next = new Set(previous); next.has(id()) ? next.delete(id()) : next.add(id()); return next; })}><Icon name="warning" />Conflict</button></Show>
@@ -1449,7 +1448,6 @@ function Pane(props: OutlinePaneProps) {
       <For each={doc.root()?.citations}>{citation => <Show when={doc.root()?.text.trim() !== citation.quote.trim()}>
         <p class="outline-citation-quote" title={citation.quote}>{citation.quote}</p>
       </Show>}</For>
-      <Show when={capabilities.busy(props.pageId) || (doc.root()?.pending && (doc.root()?.task || doc.root()?.project))}><p class="outline-capability-notice" role="status">{doc.saveState() === 'offline' ? 'Waiting to save' : 'Saving…'}</p></Show>
       <Show when={capabilities.error(props.pageId)}><p class="outline-capability-error" role="alert">{capabilities.error(props.pageId)}</p></Show>
       <Show when={showArchived()}><p class="archive-notice">Showing archived blocks <button type="button" class="text-button" onClick={() => { setShowArchived(false); scheduleReport(); }}>Hide archived</button></p></Show>
       <Show when={message()}><p class="outline-message" role="alert">{message()} <button class="text-button" type="button" onClick={() => setMessage('')}>Dismiss</button></p></Show>

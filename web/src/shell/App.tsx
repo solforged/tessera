@@ -45,6 +45,7 @@ type VimMode = 'insert' | 'normal' | 'visual' | 'outline' | null;
 const vimLabels: Record<Exclude<VimMode, null>, string> = { insert: 'Insert', normal: 'Normal', visual: 'Visual', outline: 'Outline' };
 type PopupState = { kind: 'search' | 'commands' | 'calendar' | 'new' | 'delete' | 'notebook' | 'layout'; anchor: HTMLElement; pane: PaneId; date?: string } | null;
 const paneIds: PaneId[] = ['main', 'side'];
+const SAVE_NOTICE_DELAY = 1000;
 
 /** Views are snapshots: fold arrays and caret/scroll objects never alias history. */
 function copyView(view: ViewState): ViewState {
@@ -563,8 +564,19 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
     while (block && block.id !== page.pageId) { result.unshift(block); block = block.parentId ? page.block(block.parentId) : undefined; }
     return result;
   });
+  // Typing queues edits in the local outbox for at most a second before sending, and most sends are
+  // acknowledged within milliseconds; announcing each one would flash the header on every keystroke.
+  // Saving… appears only when a send stays unacknowledged for longer than SAVE_NOTICE_DELAY.
+  const sending = createMemo(() => doc()?.saveState() === 'saving');
+  const [slowSave, setSlowSave] = createSignal(false);
+  createEffect(() => {
+    if (!sending()) { setSlowSave(false); return; }
+    const timer = setTimeout(() => setSlowSave(true), SAVE_NOTICE_DELAY);
+    onCleanup(() => clearTimeout(timer));
+  });
+  const saveState = () => { const state = doc()?.saveState(); return state === 'queued' || state === 'saving' && !slowSave() ? 'saved' : state; };
   const status = () => {
-    const state = doc()?.saveState();
+    const state = saveState();
     return state === 'conflict' ? 'Conflict · Both versions kept' : state === 'error' ? 'Couldn’t save · Local changes kept' : state === 'offline' ? 'Offline' : state === 'saved' ? 'Saved' : 'Saving…';
   };
   const undo = (redo: boolean) => {
@@ -592,7 +604,7 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
           <Button class="journal-date" icon="calendar" label="Choose journal date" aria-haspopup="dialog" onClick={event => props.onChooseDate(event.currentTarget)} />
           <Button icon="right" label="Next journal day" onClick={() => props.onShiftDate(1)} />
         </nav></Show>
-        <span class="pane-save-state" data-state={doc()?.saveState()} title={doc()?.saveMessage()}><Icon name={doc()?.saveState() === 'saved' ? 'check' : doc()?.saveState() === 'offline' ? 'offline' : doc()?.saveState() === 'error' || doc()?.saveState() === 'conflict' ? 'warning' : 'saving'} />{status()}</span>
+        <span class="pane-save-state" data-state={saveState()} title={doc()?.saveMessage()}><Icon name={saveState() === 'saved' ? 'check' : saveState() === 'offline' ? 'offline' : saveState() === 'error' || saveState() === 'conflict' ? 'warning' : 'saving'} />{status()}</span>
         <Show when={props.vim}><span class="vim-mode">Vim: {vimLabels[props.vimMode ?? 'outline']}</span></Show>
       </Show>
       <Show when={!pageId()}><Show when={current().target.kind === 'reader' ? current().target as Extract<OpenTarget, { kind: 'reader' }> : undefined} fallback={<span class="pane-breadcrumbs">{paneLabel(current().target)}</span>}>{target =>
