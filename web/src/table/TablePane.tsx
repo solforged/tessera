@@ -183,7 +183,7 @@ export function TablePane(props: TablePaneProps) {
       ...(field ? [
         { label: 'Filter…', action: () => showFilter(anchor, field.id) },
         ...Object.entries(kindLabels).map(([kind, label], index): MenuItem => ({ label, section: index === 0 ? 'Field kind' : undefined, icon: field.kind === kind ? 'check' : undefined, action: () => { void withDocument(definitions()!.page_id, doc => { const result = doc.edit({ kind: 'fieldKind', definition: field, value: kind as FieldKind }); if (!result.ok) throw new Error(result.reason); }).catch(message); } })),
-        ...(query().type && type()?.fields.includes(field.id) ? [{ label: 'Remove column', action: () => { const current = type()!; void submit({ op: 'set_type_fields', type_id: current.page.id, base_revision: current.page.revision, fields: current.fields.filter(id => id !== field.id) }).catch(message); } }] : []),
+        ...(query().type && type()?.fields.includes(field.id) ? [{ label: 'Remove from template', section: 'Template', icon: 'close' as const, action: () => { const current = type()!; void submit({ op: 'set_type_fields', type_id: current.page.id, base_revision: current.page.revision, fields: current.fields.filter(id => id !== field.id) }).catch(message); } }] : []),
       ] : []),
     ] });
   };
@@ -298,23 +298,32 @@ export function TablePane(props: TablePaneProps) {
   </div>;
 }
 
+/** One observer for every clamped cell; a table can mount thousands of them. */
+const cellMeasures = new WeakMap<Element, () => void>();
+let cellResize: ResizeObserver | undefined;
+function observeCell(element: Element, measure: () => void): () => void {
+  cellResize ??= new ResizeObserver(entries => { for (const entry of entries) cellMeasures.get(entry.target)?.(); });
+  cellMeasures.set(element, measure);
+  cellResize.observe(element);
+  return () => { cellResize?.unobserve(element); cellMeasures.delete(element); };
+}
+
 function TableCellText(props: { children: JSX.Element }) {
   const [open, setOpen] = createSignal(false);
   const [clipped, setClipped] = createSignal(false);
   let content!: HTMLDivElement;
   onMount(() => {
     const measure = () => { if (!open()) setClipped(content.scrollHeight > content.clientHeight); };
-    const resize = new ResizeObserver(measure);
+    const unobserve = observeCell(content, measure);
     const mutation = new MutationObserver(measure);
-    resize.observe(content);
     mutation.observe(content, { subtree: true, childList: true, characterData: true });
     measure();
-    onCleanup(() => { resize.disconnect(); mutation.disconnect(); });
+    onCleanup(() => { unobserve(); mutation.disconnect(); });
   });
   return <>
     <div ref={content} class="table-cell-clamp" classList={{ 'table-cell-open': open() }}>{props.children}</div>
-    <Show when={clipped()}><Button aria-expanded={open()} onMouseDown={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()} onDblClick={event => event.stopPropagation()}
-      onClick={event => { event.stopPropagation(); setOpen(value => !value); }}>More</Button></Show>
+    <Show when={clipped()}><Button class="table-cell-more" aria-expanded={open()} onMouseDown={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()} onDblClick={event => event.stopPropagation()}
+      onClick={event => { event.stopPropagation(); setOpen(value => !value); }}>{open() ? 'Less' : 'More'}</Button></Show>
   </>;
 }
 

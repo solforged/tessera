@@ -11,7 +11,7 @@ import './task-controls.css';
 
 export const statuses: TaskStatus[] = ['todo', 'doing', 'waiting', 'done', 'cancelled'];
 export const statusLabels: Record<TaskStatus, string> = { todo: 'Todo', doing: 'Doing', waiting: 'Waiting', done: 'Done', cancelled: 'Cancelled' };
-export const statusIcons: Record<TaskStatus, IconName> = { todo: 'select', doing: 'saving', waiting: 'more', done: 'check', cancelled: 'close' };
+export const statusIcons: Record<TaskStatus, IconName> = { todo: 'select', doing: 'play', waiting: 'more', done: 'check', cancelled: 'close' };
 type Priority = TaskState['priority'];
 type Repeater = NonNullable<TaskState['repeater']>;
 export const priorities: Priority[] = [null, 'high', 'medium', 'low'];

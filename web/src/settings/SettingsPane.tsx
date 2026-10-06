@@ -72,7 +72,7 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; not
       <Show when={info()}>{value => <dl>
         <dt>Id</dt><dd>{value().id}</dd>
         <dt>Path</dt><dd>{value().path}</dd>
-        <dt>Created</dt><dd>{new Date(value().created_at).toLocaleDateString()}</dd>
+        <dt>Created</dt><dd>{new Date(value().created_at).toLocaleDateString(undefined, { dateStyle: 'medium' })}</dd>
       </dl>}</Show>
     </section>
     <section aria-labelledby={`settings-service-${props.pane}`}>

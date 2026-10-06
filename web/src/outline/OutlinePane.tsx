@@ -22,7 +22,7 @@ import { Menu } from '../ui/Menu';
 import type { IconName } from '../ui/Icon';
 import type { MenuItem } from '../ui/Menu';
 import { Popup } from '../ui/Popup';
-import { BlockBreadcrumb, BlockText, offsetAtPoint } from './BlockText';
+import { BlockBreadcrumb, BlockText, offsetAtPoint, plainText } from './BlockText';
 import { textTokens } from '../document/text-tokens';
 import { boundaryDeletion } from '../document/outline-mechanics';
 import { PaneEditor } from './editor';
@@ -750,12 +750,13 @@ function Pane(props: OutlinePaneProps) {
     if (completion()?.query !== next.query) setCompletionIndex(0);
     setCompletion(next);
   }
-  const [matches] = createResource(() => {
-    const state = completion();
-    return state ? { query: state.query, manual: !!state.manual } : false;
-  }, async state => state.manual
-    ? completeReferences(props.notebook, state.query, [])
-    : { rows: await api.complete(state.query), canCreate: false });
+  // A primitive key: every keystroke sets a fresh completion object, and the same query must not fetch twice.
+  const completionKey = createMemo(() => { const state = completion(); return state ? `${state.manual ? 'manual' : 'text'}:${state.query}` : false; });
+  const [matches] = createResource(completionKey, async key => {
+    const manual = key.startsWith('manual:');
+    const query = key.slice(key.indexOf(':') + 1);
+    return manual ? completeReferences(props.notebook, query, []) : { rows: await api.complete(query), canCreate: false };
+  });
   const completionRows = createMemo<CompletionRow[]>(() => {
     const query = completion()?.query.toLowerCase() ?? '';
     if (completion()?.manual) return (matches.error ? [] : matches()?.rows ?? []).filter(block => block.kind === 'page').map(block => ({ kind: 'block', block }));
@@ -949,8 +950,10 @@ function Pane(props: OutlinePaneProps) {
         { label: 'Project', section: 'Project', action: () => capabilities.open(id, 'project', anchor) },
         { label: 'Show actions', action: () => capabilities.showActions(id) },
       ] : [{ label: 'Make project', section: 'Project', action: () => capabilities.invoke(capabilities.edit(id, { kind: 'project', id, value: { status: 'active', outcome: '', deadline: null } })) }]),
-      { label: 'Review cards', section: 'Cards', action: () => props.onOpen({ kind: 'review' }, false) },
-      { label: 'Show card source', action: () => capabilities.source(id) },
+      ...(parseCardText(doc.block(id)?.text ?? '').cards.length ? [
+        { label: 'Review cards', section: 'Cards', action: () => props.onOpen({ kind: 'review' }, false) },
+        { label: 'Show card source', action: () => capabilities.source(id) },
+      ] : [{ label: 'Add card', section: 'Cards', shortcut: 'Space c', action: () => addCard(id) }]),
       item('insert-below', { section: 'Move', icon: 'plus' }),
       item('indent', { icon: 'right' }),
       item('outdent', { icon: 'left' }),
@@ -1028,11 +1031,11 @@ function Pane(props: OutlinePaneProps) {
       { id: 'schedule', title: 'Schedule', aliases: ['date', 'scheduled', 'when'], section: 'Task', icon: 'calendar', keys: '@', run: id => openPlanning(id, 'schedule') },
       { id: 'deadline', title: 'Deadline', aliases: ['due'], section: 'Task', icon: 'warning', keys: '@due', run: id => openPlanning(id, 'deadline') },
       { id: 'priority', title: 'Priority', aliases: ['important', 'urgent'], section: 'Task', icon: 'up', keys: keys('priority-task'), run: priorityMenu },
-      { id: 'repeat', title: 'Repeat', aliases: ['recur', 'recurring', 'every'], section: 'Task', icon: 'redo', keys: keys('repeat-task'), run: id => openPlanning(id, 'repeat') },
-      { id: 'clock', title: 'Clock in / out', aliases: ['timer', 'start work', 'stop work'], section: 'Task', icon: 'saving', keys: keys('clock'), run: id => capabilities.invoke(capabilities.clock(id)) },
+      { id: 'repeat', title: 'Repeat', aliases: ['recur', 'recurring', 'every'], section: 'Task', icon: 'repeat', keys: keys('repeat-task'), run: id => openPlanning(id, 'repeat') },
+      { id: 'clock', title: 'Clock in / out', aliases: ['timer', 'start work', 'stop work'], section: 'Task', icon: 'clock', keys: keys('clock'), run: id => capabilities.invoke(capabilities.clock(id)) },
       { id: 'remove-task', title: 'Remove task', aliases: ['plain'], section: 'Task', icon: 'close', when: block => !!block?.task, run: id => capabilities.invoke(capabilities.status(id, null)) },
-      { id: 'project', title: 'Project', aliases: ['outcome'], section: 'Project', icon: 'pin', run: openProject },
-      ...([1, 2, 3] as const).map((level): SlashItem => ({ id: `heading-${level}`, title: `Heading ${level}`, aliases: [`h${level}`], section: 'Text', icon: 'edit', keys: '#'.repeat(level), run: id => apply({ kind: 'heading', id, level }) })),
+      { id: 'project', title: 'Project', aliases: ['outcome'], section: 'Project', icon: 'flag', run: openProject },
+      ...([1, 2, 3] as const).map((level): SlashItem => ({ id: `heading-${level}`, title: `Heading ${level}`, aliases: [`h${level}`], section: 'Text', icon: 'heading', keys: '#'.repeat(level), run: id => apply({ kind: 'heading', id, level }) })),
       { id: 'heading-normal', title: 'Normal text', aliases: ['paragraph'], section: 'Text', icon: 'edit', when: block => !!block?.heading, run: id => apply({ kind: 'heading', id, level: null }) },
       { id: 'reference', title: 'Reference', aliases: ['link', 'page', 'mention'], section: 'Text', icon: 'link', keys: '[[', insert: () => ({ text: '[[', caret: 2 }) },
       { id: 'type', title: 'Type', aliases: ['tag', 'supertag'], section: 'Text', icon: 'tag', keys: '#', insert: () => ({ text: '#', caret: 1 }) },
@@ -1351,7 +1354,7 @@ function Pane(props: OutlinePaneProps) {
       class="outline-row" classList={{ 'row-selected': selectedSet().has(id()) && editing() !== id(), 'row-editing': editing() === id(), 'row-archived': block()?.archived ?? false, 'field-entry': !!field(), 'inline-field-value': inline(), 'choice-value': pill() }}
       style={{ transform: `translateY(${propsRow.item().start - margin()}px)`, '--depth': depth() }}>
       <button type="button" class="row-menu icon-button" aria-label="Block actions" onClick={event => blockMenu(id(), event.currentTarget)}><Icon name="more" /></button>
-      <button type="button" class="row-fold icon-button" classList={{ 'fold-empty': !children() }} aria-label={folds().has(id()) ? 'Unfold children' : 'Fold children'} disabled={!children()} onClick={() => fold(id())}><Icon name={folds().has(id()) ? 'right' : 'down'} /></button>
+      <button type="button" class="row-fold icon-button" classList={{ 'fold-empty': !children(), folded: folds().has(id()) }} aria-label={folds().has(id()) ? 'Unfold children' : 'Fold children'} disabled={!children()} onClick={() => fold(id())}><Icon name="down" /></button>
       <Show when={!inline()}><button type="button" class="row-bullet icon-button" classList={{ 'bullet-collapsed': children() && folds().has(id()) }} aria-label="Zoom into block" onClick={() => zoomTo(id())}><Icon name="bullet" /></button></Show>
       <Show when={inline()}><button type="button" class="outline-field-label" title={valueField()?.name} onClick={() => { const entry = parent(); setSelected(entry); editAt(entry, 0, true); }}><Icon name="field" /><span>{valueField()?.name}</span></button></Show>
       <Show when={block()?.task}><TaskStatusButton task={block()?.task ?? null} disabled={capabilities.busy(id())} onChange={status => capabilities.status(id(), status)} /></Show>
@@ -1405,7 +1408,7 @@ function Pane(props: OutlinePaneProps) {
 
   return <div ref={scroll} class="outline-pane" data-pane={props.pane} tabIndex={0} role="tree" aria-label="Page outline" aria-owns={[...virtualItems().keys()].map(id => `outline-${props.pane}-${id}`).join(' ')} onFocusIn={props.onActivate} onFocusOut={report} onKeyDown={structuralKey} onWheel={() => { anchorEpoch++; cancelAnimationFrame(anchorFrame); }} onScroll={scheduleReport}>
     <div ref={heading} class="outline-heading">
-      <Show when={zoom()}><nav class="outline-breadcrumbs" aria-label="Zoom breadcrumbs"><button type="button" onClick={() => zoomTo(null)}>{doc.root()?.text}</button><For each={breadcrumbs()}>{id => <><Icon name="right" /><button type="button" onClick={() => zoomTo(id)}>{doc.block(id)?.text || 'Empty block'}</button></>}</For></nav></Show>
+      <Show when={zoom()}><nav class="outline-breadcrumbs" aria-label="Zoom breadcrumbs"><button type="button" onClick={() => zoomTo(null)}>{doc.root()?.text}</button><For each={breadcrumbs()}>{id => <><Icon name="right" /><button type="button" onClick={() => zoomTo(id)}>{plainText(doc.block(id)?.text ?? '', reference => props.notebook.lookup(reference)) || 'Empty block'}</button></>}</For></nav></Show>
       <div class="outline-title-row">
       <Show when={renaming()} fallback={<h1><button class="outline-title" type="button" disabled={doc.root()?.kind !== 'page'} onClick={rename}>{doc.root()?.text || 'Loading…'}</button></h1>}>
         <input ref={titleInput} class="title-input" aria-label="Page title" value={title()} onInput={event => setTitle(event.currentTarget.value)} onKeyDown={event => { if (event.isComposing) return; if (event.key === 'Enter') { event.preventDefault(); commitTitle(); } if (event.key === 'Escape') { setRenaming(false); setMessage(''); } }} />
@@ -1475,7 +1478,7 @@ function Pane(props: OutlinePaneProps) {
         <Show when={matches.loading}><p class="empty-state">Searching…</p></Show>
         <Show when={matches.error}><p class="error" role="alert">Couldn't load completion.</p></Show>
         <For each={completionRows()}>{(row, index) => <div role="option" aria-selected={completionIndex() === index()} class="picker-row" classList={{ selected: completionIndex() === index() }} onClick={() => void chooseCompletion(index())}>
-          <Show when={row.kind === 'block' ? row.block : null}>{block => <><Icon name={block().kind === 'journal' ? 'calendar' : block().kind === 'page' ? 'page' : 'bullet'} /><span class="picker-text">{block().text || 'Empty block'}</span><Show when={block().kind === 'block'}><span class="picker-meta"><BlockBreadcrumb block={block()} notebook={props.notebook} /></span></Show></>}</Show>
+          <Show when={row.kind === 'block' ? row.block : null}>{block => <><Icon name={block().kind === 'journal' ? 'calendar' : block().kind === 'page' ? 'page' : 'bullet'} /><span class="picker-text">{block().text ? <BlockText text={block().text} notebook={props.notebook} interactive={false} /> : 'Empty block'}</span><Show when={block().kind === 'block'}><span class="picker-meta"><BlockBreadcrumb block={block()} notebook={props.notebook} /></span></Show></>}</Show>
           <Show when={row.kind === 'field' ? row.field : null}>{field => <><Icon name="field" /><span class="picker-text">{field().name}</span><span class="picker-meta">Field</span></>}</Show>
         </div>}</For>
         <Show when={canCreate()}><div role="option" aria-selected={completionIndex() === completionRows().length} class="picker-row" classList={{ selected: completionIndex() === completionRows().length }} onClick={() => void chooseCompletion(completionRows().length)}><Icon name="plus" /><span class="picker-text">Create page “{completion()?.query}”</span></div></Show>

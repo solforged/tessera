@@ -127,6 +127,8 @@ export function Popup(props: PopupProps) {
     document.addEventListener('pointerdown', outside, true);
     window.addEventListener('resize', reposition);
     window.addEventListener('scroll', reposition, true);
+    // Caret anchors move when the text around them reflows, without any scroll or resize.
+    if (typeof props.anchor === 'function') { document.addEventListener('input', reposition, true); document.addEventListener('selectionchange', reposition); }
     const observer = new ResizeObserver(reposition);
     observer.observe(panel);
     // max-height pins the panel, so growth only shows up on its content.
@@ -144,6 +146,8 @@ export function Popup(props: PopupProps) {
     document.removeEventListener('pointerdown', outside, true);
     window.removeEventListener('resize', reposition);
     window.removeEventListener('scroll', reposition, true);
+    document.removeEventListener('input', reposition, true);
+    document.removeEventListener('selectionchange', reposition);
     if (panel && position().visible) retirePanel(panel);
   });
   return <Portal><div ref={panel} class={`popup${position().visible ? ' popup-enter' : ''} ${props.class ?? ''}`} role={props.role ?? 'dialog'} aria-label={props.label} style={{ left: `${position().left}px`, top: `${position().top}px`, width: props.width ? `${Math.min(props.width, window.innerWidth - 16)}px` : undefined, 'max-height': `${position().height}px`, visibility: position().visible ? 'visible' : 'hidden' }}>{props.children}</div></Portal>;

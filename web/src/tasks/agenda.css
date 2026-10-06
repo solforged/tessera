@@ -16,7 +16,7 @@
 /* One line per task: status, source with its page, then planning on the right; wraps under the source when narrow. */
 .agenda-row { display: flex; flex-wrap: wrap; align-items: flex-start; column-gap: var(--space-8); min-width: 0; }
 .agenda-status { display: inline-flex; flex: 0 0 var(--target-size); justify-content: center; align-items: center; width: var(--target-size); min-height: var(--row-height); padding: 0; color: var(--muted); }
-.agenda-source { flex: 1 1 auto; min-width: 0; min-height: var(--row-height); display: flex; flex-wrap: wrap; align-items: baseline; align-content: center; column-gap: var(--space-8); border: 0; border-radius: var(--radius-control); padding: var(--space-2) var(--space-4); background: transparent; color: var(--text); text-align: left; cursor: pointer; font: var(--weight-body) var(--text-body)/var(--line-body) var(--font-body); }
+.agenda-source { flex: 1 1 auto; min-width: 0; min-height: var(--row-height); display: flex; flex-wrap: wrap; align-items: baseline; align-content: center; column-gap: var(--space-8); border: 0; border-radius: var(--radius-control); padding: var(--space-2) var(--space-4); background: transparent; color: var(--text); text-align: left; cursor: pointer; font: var(--weight-body) var(--text-body)/var(--line-body) var(--font-body); transition: background-color var(--motion-fast) var(--motion-ease); }
 .agenda-source:hover { background: var(--hover); }
 .agenda-source:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-offset); }
 .agenda-source-text { min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -30,7 +30,10 @@
 .agenda-row-completed .agenda-source-text { color: var(--muted); }
 .agenda-row > .agenda-error, .agenda-row > .agenda-message { flex-basis: 100%; margin-left: calc(var(--target-size) + var(--space-8)); }
 .journal-agenda { margin-block: var(--space-8) var(--space-12); font-weight: var(--weight-body); }
+/* The chevron starts on the title's edge; the hover fill extends into the gutter. */
 .journal-agenda-toggle { gap: var(--space-8); font-size: var(--text-control); line-height: var(--line-control); }
+.journal-agenda > .journal-agenda-toggle { margin-left: calc(-1 * (var(--space-8) + 1px)); }
+.journal-agenda-toggle[aria-expanded="false"] > .icon { rotate: -90deg; }
 .journal-agenda-body > .journal-agenda-toggle { align-self: flex-start; }
 .journal-agenda-body { display: flex; flex-direction: column; gap: var(--space-4); margin-top: var(--space-4); }
 .journal-agenda .agenda-source { font-size: var(--text-control); line-height: var(--line-control); }

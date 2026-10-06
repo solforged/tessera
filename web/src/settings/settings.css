@@ -3,9 +3,12 @@
 .settings-pane > * { max-width: var(--measure); margin-inline: auto; }
 .settings-pane section + section { margin-top: var(--space-32); }
 .settings-pane h2 { margin: 0 0 var(--space-12); font-size: var(--text-h2); line-height: var(--line-h2); font-weight: var(--weight-heading); }
-.settings-pane dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--space-4) var(--space-16); margin: 0; font-size: var(--text-control); line-height: var(--line-control); }
+/* One label column across sections, so values line up down the page. */
+.settings-pane dl { display: grid; grid-template-columns: calc(var(--space-48) * 2) minmax(0, 1fr); gap: var(--space-4) var(--space-16); margin: 0; font-size: var(--text-control); line-height: var(--line-control); }
 .settings-pane dt { color: var(--muted); }
 .settings-pane dd { margin: 0; overflow-wrap: anywhere; font-family: var(--font-mono); }
+.settings-pane section p, .settings-pane section ul { margin: var(--space-8) 0 0; color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
+.settings-pane section ul { padding-left: var(--space-16); }
 .settings-pane select.input { width: auto; min-width: 20rem; max-width: 100%; }
 .settings-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-8); min-height: var(--row-height); margin-bottom: var(--space-16); color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); }
 .settings-actions [role="status"] { flex: 1; }

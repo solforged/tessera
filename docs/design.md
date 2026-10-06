@@ -44,6 +44,7 @@ Steps 2, 4, 8, 12, 16, 24, 32, 48 px. Row height 28 px; indent 24 px; measure 76
 | Canvas: panes | `--canvas` |
 | Raised: popups, pills, chips | `--raised` |
 | Hover, selection, divider, control border | `--hover` `--selection` `--line` `--control-border` |
+| Selected text, in the editor, static rows and the reader | `--text-selection` |
 | Text primary, secondary, tertiary | `--text` `--muted` `--faint` |
 | Accent and focus ring | `--accent` |
 | Warning, danger | `--warning` `--danger` |
@@ -58,7 +59,7 @@ Radius 4 px for controls, 8 px for popups and the workspace frame, full for pill
 
 ### Motion
 
-Motion acknowledges an action without delaying it: 140 ms for popup entry and sidebar movement, 90 ms for popup exit and hover feedback, with a short ease-out and no bounce. Popups travel 4 px; clickable button icons scale subtly on hover, focus and press. Recent expands and collapses in place. Reduced motion sets durations and travel to zero and disables icon scaling.
+Motion acknowledges an action without delaying it: 140 ms for popup entry and sidebar movement, 90 ms for popup exit and hover feedback, with a short ease-out and no bounce. Popups travel 4 px; toasts and the reader's selection toolbar rise the same distance. Clickable button icons scale subtly on hover, focus and press. Rows, pills and list items fade their hover fill. Fold and disclosure chevrons turn rather than swap, a menu trigger's trailing chevron turns while its menu is open, and Recent, related sections and review history expand and collapse in place. A revealed answer fades in. The save state icon turns while saving. Reduced motion sets durations and travel to zero and disables icon scaling.
 
 ## Shell
 

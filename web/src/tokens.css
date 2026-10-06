@@ -12,6 +12,7 @@
   --raised: #1d2a2e;    /* popups, pills, chips */
   --hover: #1b272a;
   --selection: #213236; /* rows add a 2 px accent bar at the left */
+  --text-selection: #94c8b34d; /* selected text: the accent at 30%, distinct from highlights */
   --line: #304247;      /* dividers */
   --control-border: #627b80;
 

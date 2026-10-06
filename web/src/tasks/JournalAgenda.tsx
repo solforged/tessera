@@ -70,7 +70,7 @@ export function JournalAgenda(props: JournalAgendaProps) {
   const rowProps = { get date() { return props.date; }, get pageId() { return props.pageId; }, notebook: props.notebook, get disabled() { return loading() || !!error(); }, onOpen: props.onOpen, onChanged: () => setRefresh(value => value + 1) };
   return <section class="journal-agenda" aria-label="Agenda">
     <Button class="journal-agenda-toggle" aria-expanded={!collapsed()} aria-controls={id} onClick={() => setCollapsed(!collapsed())}>
-      <Icon name={collapsed() ? 'right' : 'down'} />Agenda
+      <Icon name="down" />Agenda
       <span class="agenda-summary">{loading() && !agenda() ? 'Loading…' : summary().length ? <For each={summary()}>{(part, index) => <>{index() ? ' · ' : ''}<span classList={{ 'agenda-late': !!part.late }}>{part.text}</span></>}</For> : groups().here ? 'Nothing else planned' : 'Nothing planned'}</span>
     </Button>
     <Show when={!collapsed()}><div id={id} class="journal-agenda-body" aria-busy={loading()}>
@@ -78,7 +78,7 @@ export function JournalAgenda(props: JournalAgendaProps) {
       <Show when={groups().planned.length || groups().done.length}><TaskSourceRows rows={[...groups().planned, ...groups().done]} {...rowProps} /></Show>
       <Show when={groups().open.length}>
         <Button class="journal-agenda-toggle" aria-expanded={showUnplanned()} onClick={() => setShowUnplanned(value => !value)}>
-          <Icon name={showUnplanned() ? 'down' : 'right'} />Unplanned<span class="agenda-summary">{groups().open.length}</span>
+          <Icon name="down" />Unplanned<span class="agenda-summary">{groups().open.length}</span>
         </Button>
         <Show when={showUnplanned()}><TaskSourceRows rows={groups().open} {...rowProps} /></Show>
       </Show>
