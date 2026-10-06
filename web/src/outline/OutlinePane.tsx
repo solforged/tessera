@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createMemo, createResource, createSignal, onCleanup, onMount, untrack } from 'solid-js';
+import { For, Show, createEffect, createMemo, createResource, createSignal, mapArray, onCleanup, onMount, untrack } from 'solid-js';
 import type { Accessor } from 'solid-js';
 import { createVirtualizer, defaultRangeExtractor } from '@tanstack/solid-virtual';
 import type { EditorView } from '@codemirror/view';
@@ -28,12 +28,13 @@ import { boundaryDeletion } from '../document/outline-mechanics';
 import { PaneEditor } from './editor';
 import { createOutlineCapabilities } from './capabilities';
 import type { CapabilityPopup } from './capabilities';
-import { orderedRange, selectedText, selectionIds, selectionRoots, visibleIds } from './visibility';
+import { inlineFieldValue, orderedRange, selectedText, selectionIds, selectionRoots, visibleIds } from './visibility';
 import { completeReferences } from './completion';
 import { nextClozeNumber, rankSlash, slashTokenAt } from './slash';
 import type { SlashEntry, SlashToken } from './slash';
 import { TypePill } from './references';
 import { CitationChip, SourceHeader } from './SourceHeader';
+import { CardSummary } from './CardSummary';
 import { createFieldEntryConversion, createSourceFieldResets } from './source-fields';
 import './outline.css';
 
@@ -264,10 +265,20 @@ function Pane(props: OutlinePaneProps) {
     onError: setMessage,
   });
 
-  const ids = createMemo(() => {
-    doc.outline.version();
-    return visibleIds(doc, zoom(), folds(), showArchived());
+  const unfoldedIds = createMemo(() => visibleIds(doc, zoom(), folds(), showArchived()));
+  // Per-row memos keep ordinary typing from rebuilding the page's visible list.
+  const fieldCandidates = mapArray(unfoldedIds, id => ({ id, value: createMemo(() => inlineFieldValue(doc, id, definitionsById())) }));
+  const inlineFields = createMemo(() => {
+    const visible = new Set(unfoldedIds());
+    const retained = new Set([editing(), selected(), rowRange()?.anchor, rowRange()?.head, textRange()?.anchor.id, textRange()?.head.id]);
+    const result = new Set<string>();
+    for (const candidate of fieldCandidates()) {
+      const value = candidate.value();
+      if (value && visible.has(value) && !retained.has(candidate.id)) result.add(candidate.id);
+    }
+    return result;
   });
+  const ids = createMemo(() => visibleIds(doc, zoom(), folds(), showArchived(), inlineFields()));
   const indices = createMemo(() => new Map(ids().map((id, index) => [id, index])));
   const baseDepth = createMemo(() => zoom() ? doc.outline.depth(zoom()!) : 0);
   const selectedIds = createMemo(() => {
@@ -555,7 +566,7 @@ function Pane(props: OutlinePaneProps) {
     if (selection.head !== (forward ? view.state.doc.length : 0)) return false;
     const row = indices().get(id) ?? 0;
     const previous = ids()[row - 1] ?? null;
-    const intent = boundaryDeletion(doc, id, forward ? 'forward' : 'backward', previous);
+    const intent = boundaryDeletion(doc, id, forward ? 'forward' : 'backward', previous, inlineFields());
     if (intent?.kind === 'delete') {
       const neighbor = previous ?? ids()[row + 1];
       apply(intent);
@@ -1191,6 +1202,7 @@ function Pane(props: OutlinePaneProps) {
       mode: mode => { if (editing()) props.onVimMode(props.vim ? mode : null); },
     });
     editor.configure(props.vim);
+    editor.configureFields(id => definitionsById().get(id)?.name);
     const observer = new ResizeObserver(() => { setMargin(list.offsetTop); });
     observer.observe(scroll.querySelector('.outline-heading')!);
     setMargin(list.offsetTop);
@@ -1199,6 +1211,7 @@ function Pane(props: OutlinePaneProps) {
     onCleanup(() => { observer.disconnect(); document.removeEventListener('mousemove', pointerMove); document.removeEventListener('mouseup', pointerEnd); });
   });
   createEffect(() => { const enabled = props.vim; if (editor) { editor.configure(enabled); props.onVimMode(enabled ? editing() ? editor.mode() : 'outline' : null); } });
+  createEffect(() => { const definitions = definitionsById(); editor?.configureFields(id => definitions.get(id)?.name); });
   createEffect(() => {
     if (doc.status() !== 'ready' || !scroll || !editor) return;
     if (restoring) {
@@ -1218,7 +1231,12 @@ function Pane(props: OutlinePaneProps) {
           if (result.ok) first = result.caret;
           else setMessage(result.reason);
         }
-      } else if (!first) { const id = ids()[0]; first = id ? { id, offset: 0 } : null; }
+      } else if (!first) {
+        // A page that opens on a field keeps it inline: select the value row instead of editing the reference.
+        const id = ids()[0];
+        if (id && inlineFields().has(doc.outline.parentOf(id))) setSelected(id);
+        else first = id ? { id, offset: 0 } : null;
+      }
       if (first) editAt(first.id, first.offset, !props.vim, !initial.scroll, false);
       if (initial.scroll) requestAnimationFrame(() => restoreAnchor(initial.scroll));
     }
@@ -1300,30 +1318,35 @@ function Pane(props: OutlinePaneProps) {
     const block = () => doc.block(id());
     const children = () => doc.outline.children(id()).length > 0;
     const field = createMemo(() => definitionsById().get(fieldEntryId(block()?.text ?? '') ?? ''));
+    const parent = () => doc.outline.parentOf(id());
+    const valueField = createMemo(() => definitionsById().get(fieldEntryId(doc.block(parent())?.text ?? '') ?? ''));
+    const inline = () => inlineFields().has(parent());
+    const depth = () => (inline() ? doc.outline.depth(parent()) : doc.outline.depth(id())) - baseDepth();
+    const pill = () => valueField()?.kind === 'choice' || valueField()?.kind === 'instance';
     const cardText = createMemo(() => block()?.text ?? '');
     const cards = createMemo(() => parseCardText(cardText()));
     let row!: HTMLDivElement;
     onMount(() => virtualizer.measureElement(row));
     onCleanup(() => { const host = hosts.get(id()); if (host && row.contains(host)) hosts.delete(id()); });
-    return <div ref={row} id={`outline-${props.pane}-${id()}`} data-index={propsRow.item().index} data-block-id={id()} role="treeitem" aria-level={doc.outline.depth(id()) - baseDepth() + 1}
+    return <div ref={row} id={`outline-${props.pane}-${id()}`} data-index={propsRow.item().index} data-block-id={id()} role="treeitem" aria-level={depth() + 1}
       aria-expanded={children() ? !folds().has(id()) : undefined} aria-selected={selectedSet().has(id())}
-      class="outline-row" classList={{ 'row-selected': selectedSet().has(id()) && editing() !== id(), 'row-editing': editing() === id(), 'row-archived': block()?.archived ?? false, 'field-entry': !!field() }}
-      style={{ transform: `translateY(${propsRow.item().start - margin()}px)`, '--depth': doc.outline.depth(id()) - baseDepth() }}>
+      class="outline-row" classList={{ 'row-selected': selectedSet().has(id()) && editing() !== id(), 'row-editing': editing() === id(), 'row-archived': block()?.archived ?? false, 'field-entry': !!field(), 'inline-field-value': inline(), 'choice-value': pill() }}
+      style={{ transform: `translateY(${propsRow.item().start - margin()}px)`, '--depth': depth() }}>
       <button type="button" class="row-menu icon-button" aria-label="Block actions" onClick={event => blockMenu(id(), event.currentTarget)}><Icon name="more" /></button>
       <button type="button" class="row-fold icon-button" classList={{ 'fold-empty': !children() }} aria-label={folds().has(id()) ? 'Unfold children' : 'Fold children'} disabled={!children()} onClick={() => fold(id())}><Icon name={folds().has(id()) ? 'right' : 'down'} /></button>
-      <button type="button" class="row-bullet icon-button" classList={{ 'bullet-collapsed': children() && folds().has(id()) }} aria-label="Zoom into block" onClick={() => zoomTo(id())}><Icon name="bullet" /></button>
+      <Show when={!inline()}><button type="button" class="row-bullet icon-button" classList={{ 'bullet-collapsed': children() && folds().has(id()) }} aria-label="Zoom into block" onClick={() => zoomTo(id())}><Icon name="bullet" /></button></Show>
+      <Show when={inline()}><button type="button" class="outline-field-label" title={valueField()?.name} onClick={() => { const entry = parent(); setSelected(entry); editAt(entry, 0, true); }}><Icon name="field" /><span>{valueField()?.name}</span></button></Show>
       <Show when={block()?.task}><TaskStatusButton task={block()?.task ?? null} disabled={capabilities.busy(id())} onChange={status => capabilities.status(id(), status)} /></Show>
       <div class="outline-body" classList={{ 'heading-1': block()?.heading === 1, 'heading-2': block()?.heading === 2, 'heading-3': block()?.heading === 3 }} onMouseDown={event => pointerStart(event, id(), event.currentTarget)}>
         <div class="outline-source-line"><div class="outline-source">
-        <Show when={field() && editing() === id()}><Icon name="field" class="field-entry-icon" /></Show>
         <div class="editor-host" classList={{ 'host-active': editing() === id() }} ref={host => attach(id(), host)} />
-        <Show when={editing() !== id()}><div class="static-text"><BlockText text={block()?.text ?? ''} field={field()} notebook={props.notebook} onOpen={props.onOpen} onReferenceMenu={referenceMenu} selection={selectedOffsets(id())} /><Show when={!block()?.text && ids().length === 1}><span class="empty-block">Start writing</span></Show></div></Show>
+        <Show when={editing() !== id()}><div class="static-text"><span classList={{ 'outline-value-pill': pill() }}><BlockText text={block()?.text ?? ''} cards field={field()} notebook={props.notebook} onOpen={props.onOpen} onReferenceMenu={referenceMenu} selection={selectedOffsets(id())} /></span><Show when={!block()?.text && ids().length === 1}><span class="empty-block">Start writing</span></Show></div></Show>
         <For each={block()?.manual_types ?? []}>{title => <TypePill title={title} notebook={props.notebook} onOpen={props.onOpen} onRemove={() => { const result = doc.removeType(id(), title); if (!result.ok) setMessage(result.reason); }} />}</For>
         </div>
         <Show when={block()?.task || block()?.project || cards().cards.length || block()?.citations.length}><span class="outline-capability-metadata">
           <TaskSummary id={id()} />
           <Show when={block()?.project}><Button class="outline-planning" label="Project" aria-haspopup="dialog" onClick={event => capabilities.open(id(), 'project', event.currentTarget)}>Project</Button></Show>
-          <Show when={cards().cards.length}><Button class="outline-planning" label="Review cards" onClick={event => props.onOpen({ kind: 'review' }, event.shiftKey)}>{cards().cards.length} {cards().cards.length === 1 ? 'card' : 'cards'}</Button></Show>
+          <Show when={cards().cards.length}><CardSummary blockId={id()} cards={cards().cards} notebook={props.notebook} onOpen={props.onOpen} /></Show>
           <For each={block()?.citations}>{citation => <CitationChip citation={citation} notebook={props.notebook} onOpen={props.onOpen} />}</For>
         </span></Show>
         </div>

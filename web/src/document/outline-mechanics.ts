@@ -1,7 +1,7 @@
 import type { Edit, PageDocument } from './contract';
 
-/** Plan a row-boundary deletion; the pane supplies the previous visible row. */
-export function boundaryDeletion(doc: PageDocument, id: string, direction: 'backward' | 'forward', previousVisible: string | null = null): Edit | null {
+/** Plan a row-boundary deletion using the pane's visible rows and inline fields. */
+export function boundaryDeletion(doc: PageDocument, id: string, direction: 'backward' | 'forward', previousVisible: string | null = null, inlineFields?: ReadonlySet<string>): Edit | null {
   const block = doc.block(id);
   if (!block) return null;
   const siblings = doc.outline.children(doc.outline.parentOf(id));
@@ -9,6 +9,7 @@ export function boundaryDeletion(doc: PageDocument, id: string, direction: 'back
     const next = siblings[siblings.indexOf(id) + 1];
     return next ? { kind: 'merge', sourceId: next, destinationId: id } : null;
   }
+  if (inlineFields?.has(doc.outline.parentOf(id))) return null;
   if (block.task) return !block.text && !doc.outline.children(id).length
     ? { kind: 'delete', ids: [id] }
     : { kind: 'task', id, value: null };

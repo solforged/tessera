@@ -1,8 +1,17 @@
 import type { Caret, PageDocument, TextRange } from '../document/contract';
 import type { OutlineIndex } from '../document/outline-index';
+import { fieldEntryId } from '../table/query';
 
-/** Rebuilt only for structure, folds, archive visibility or zoom; never typing. */
-export function visibleIds(doc: PageDocument, zoom: string | null, folds: ReadonlySet<string>, archived: boolean): string[] {
+/** The sole leaf value that can replace a known field entry in the visible list. */
+export function inlineFieldValue(doc: PageDocument, id: string, definitions: ReadonlyMap<string, unknown>): string | null {
+  const field = fieldEntryId(doc.block(id)?.text ?? '');
+  if (!field || !definitions.has(field)) return null;
+  const children = doc.outline.children(id);
+  return children.length === 1 && !doc.outline.children(children[0]!).length ? children[0]! : null;
+}
+
+/** Rebuilt for structure, folds, archive visibility, zoom or inline-field eligibility. */
+export function visibleIds(doc: PageDocument, zoom: string | null, folds: ReadonlySet<string>, archived: boolean, inlineFields?: ReadonlySet<string>): string[] {
   const outline = doc.outline;
   const result: string[] = [];
   const start = zoom ? outline.indexOf(zoom) : 0;
@@ -15,7 +24,7 @@ export function visibleIds(doc: PageDocument, zoom: string | null, folds: Readon
       hiddenDepth = row.depth;
       continue;
     }
-    result.push(row.id);
+    if (!inlineFields?.has(row.id)) result.push(row.id);
     if (folds.has(row.id)) hiddenDepth = row.depth;
   }
   return result;
