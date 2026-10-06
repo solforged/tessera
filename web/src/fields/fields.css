@@ -12,7 +12,8 @@
 .fields-index th:not(:last-child) { padding-inline: calc(var(--space-8) + var(--space-4) + 1px); }
 .fields-index th:first-child { padding-left: calc(var(--space-16) + var(--space-4) + 1px); }
 .fields-index .fields-kind { width: calc(var(--row-height) * 3 + var(--space-24)); }
-.fields-index .fields-count { width: calc(var(--row-height) * 2 + var(--space-8)); text-align: right; font-variant-numeric: tabular-nums; }
+.fields-index .fields-count { width: calc(var(--row-height) * 2 + var(--space-8)); text-align: right; font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.fields-index .fields-count .button { font: inherit; letter-spacing: inherit; }
 .fields-count .fields-unused { padding-right: calc(var(--space-4) + 1px); }
 .fields-index tbody tr { transition: background-color var(--motion-fast) var(--motion-ease); }
 .fields-index tbody tr:hover, .fields-index tbody tr:focus-within { background: var(--hover); }
@@ -29,4 +30,4 @@
 .fields-new { width: var(--search-width); font-size: var(--text-control); line-height: var(--line-control); }
 .fields-new p { font-size: var(--text-meta); line-height: var(--line-meta); }
 .fields-actions { display: flex; gap: var(--space-4); }
-.fields-footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: var(--space-8); padding: var(--space-8) var(--space-16); border-top: 1px solid var(--line); color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); }
+.fields-footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: var(--space-8); padding: var(--space-8) var(--space-16); border-top: 1px solid var(--line); color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }

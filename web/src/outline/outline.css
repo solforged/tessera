@@ -8,12 +8,12 @@
 .outline-title-row { display: flex; align-items: center; gap: var(--space-8); flex-wrap: wrap; }
 .outline-title-row h1 { flex: 1; min-width: 0; }
 .outline-header-actions { display: flex; align-items: center; gap: var(--space-8); margin-left: auto; }
-.table-member-count { min-width: 18px; padding: 0 var(--space-4); border-radius: var(--radius-pill); background: var(--raised); color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); text-align: center; }
-.outline-heading h1 { margin: 0; }
-.outline-title { font: inherit; font-size: var(--text-title); line-height: var(--line-title); font-weight: var(--weight-heading); text-align: left; border: 0; padding: 0; background: transparent; color: var(--text); cursor: text; }
+.table-member-count { min-width: 18px; padding: 0 var(--space-4); border-radius: var(--radius-pill); background: var(--raised); color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); text-align: center; }
+.outline-heading h1 { margin: 0; font-family: var(--font-display); font-size: var(--text-title); line-height: var(--line-title); font-weight: var(--weight-title); letter-spacing: var(--tracking-title); font-variation-settings: var(--optical-title); }
+.outline-title { font: inherit; font-size: var(--text-title); line-height: var(--line-title); font-weight: var(--weight-title); text-align: left; border: 0; padding: 0; background: transparent; color: var(--text); cursor: text; }
 .outline-title:disabled { color: var(--text); opacity: 1; cursor: default; }
 .title-input { width: 100%; font-size: var(--text-title); line-height: var(--line-title); }
-.outline-breadcrumbs { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4); margin-bottom: var(--space-8); font-size: var(--text-meta); line-height: var(--line-meta); color: var(--muted); }
+.outline-breadcrumbs { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4); margin-bottom: var(--space-8); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); color: var(--muted); }
 .outline-breadcrumbs button { background: transparent; border: 0; padding: var(--space-2); color: inherit; max-width: 220px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; }
 .outline-breadcrumbs .icon { width: var(--icon-size-small); height: var(--icon-size-small); }
 
@@ -29,7 +29,8 @@
 .row-fold.fold-empty { visibility: hidden; }
 .row-fold .icon { transition: rotate var(--motion-fast) var(--motion-ease); }
 .row-fold.folded .icon { rotate: -90deg; }
-.row-bullet { color: var(--muted); cursor: pointer; }
+.row-bullet { color: var(--faint); cursor: pointer; }
+.outline-row.row-selected .row-bullet, .outline-row .row-bullet:hover { color: var(--accent); }
 .row-bullet .icon { fill: currentColor; }
 .row-bullet.bullet-collapsed { opacity: 1; }
 .row-bullet.bullet-collapsed .icon { background: var(--raised); border: 1px solid var(--muted); border-radius: 50%; padding: 1px; }
@@ -38,10 +39,12 @@
 .empty-block { color: var(--faint); opacity: 0.65; }
 .editor-host { display: none; }
 .editor-host.host-active { display: block; }
-.outline-body.heading-1 { font-size: var(--text-h1); line-height: var(--line-h1); font-weight: var(--weight-heading); }
-.outline-body.heading-2 { font-size: var(--text-h2); line-height: var(--line-h2); font-weight: var(--weight-heading); }
-.outline-body.heading-3 { font-size: var(--text-h3); line-height: var(--line-h3); font-weight: var(--weight-heading); }
-.outline-reference { display: inline; font: inherit; color: var(--accent); border: 0; padding: 0; background: transparent; text-align: left; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent); cursor: pointer; }
+.outline-body:is(.heading-1, .heading-2, .heading-3) { font-family: var(--font-display); font-weight: var(--weight-display-heading); font-variation-settings: var(--optical-heading); letter-spacing: var(--tracking-heading); }
+.outline-body.heading-1 { font-size: var(--text-h1); line-height: var(--line-h1); }
+.outline-body.heading-2 { font-size: var(--text-outline-h2); line-height: var(--line-h2); }
+.outline-body.heading-3 { font-size: var(--text-h3); line-height: var(--line-h3); }
+.outline-reference { display: inline; font: inherit; color: var(--accent); border: 0; padding: 0; background: transparent; text-align: left; text-decoration: underline; text-decoration-thickness: var(--rule-width); text-underline-offset: var(--space-4); text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent); cursor: pointer; }
+.outline-reference:hover { text-decoration-color: var(--danger); }
 /* The `[[query]]` a picker is completing: accent text on a tint, so the pending link reads as one span. */
 .outline-reference-draft { color: var(--accent); background: var(--accent-tint); border-radius: var(--radius-control); }
 .outline-reference .icon { width: var(--icon-size-small); height: var(--icon-size-small); display: inline; vertical-align: -2px; margin-right: var(--space-4); }
@@ -101,7 +104,8 @@
 .outline-source-line:has(.outline-citation-local) > .outline-source { flex-basis: 0; }
 .outline-source-line:has(.outline-citation-local) > .outline-capability-metadata { flex: none; }
 .outline-citation-local { color: var(--faint); }
-.outline-citation-quote { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; margin: var(--space-4) 0; padding-left: var(--space-8); border-left: 2px solid var(--line); white-space: pre-wrap; color: var(--muted); font-size: var(--text-body); line-height: var(--line-body); font-weight: var(--weight-body); }
+.outline-citation-quote { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; margin: var(--space-4) 0; padding-left: var(--space-8); border-left: var(--space-2) solid var(--line); white-space: pre-wrap; color: var(--muted); font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); font-variation-settings: var(--optical-quote); }
+.outline-row:has(.outline-citation) .outline-body:not(.heading-1, .heading-2, .heading-3) .outline-source .static-text { font-family: var(--font-display); font-size: var(--text-quote); line-height: var(--line-quote); font-variation-settings: var(--optical-quote); }
 .outline-running-task { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-4); color: var(--muted); }
 
 /* Type pills: a hue tint behind the name. The hue is a CSS variable the renderer may set; default is neutral. */
