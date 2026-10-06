@@ -6,6 +6,7 @@ import { textTokens } from '../document/text-tokens';
 import { Button } from '../ui/Button';
 import { Popup } from '../ui/Popup';
 import { BlockBreadcrumb, BlockText, isStableReference } from './BlockText';
+import { glossEntry, glossText, isGlossName } from './gloss';
 import './reference-preview.css';
 
 /** Resting on a reference this long opens its card; moving to another reference while one is open takes a third of it. */
@@ -184,15 +185,15 @@ export function ReferencePreviews(props: ReferencePreviewsProps) {
 
 interface Row { id: string; depth: number; role: 'context' | 'focus' | 'body' }
 
-/** Live rows to show: a page's first visible blocks, or a block under its parent with its first descendants. */
-function previewRows(doc: PageDocument, id: string, isPage: boolean): Row[] {
+/** Live rows to show: a page's first visible blocks (its gloss shows in the header instead), or a block under its parent with its first descendants. */
+function previewRows(doc: PageDocument, id: string, isPage: boolean, gloss: string | null): Row[] {
   doc.outline.version(); doc.archivedVersion();
   const outline = doc.outline;
   const rows: Row[] = [];
   const collect = (from: number, end: number, base: number, limit: number) => {
     for (let index = from; index < end && rows.length < limit;) {
       const row = outline.idAt(index);
-      if (doc.isArchived(row)) { index = outline.subtreeEnd(index); continue; }
+      if (doc.isArchived(row) || row === gloss) { index = outline.subtreeEnd(index); continue; }
       rows.push({ id: row, depth: outline.depth(row) - base, role: 'body' });
       index++;
     }
@@ -228,7 +229,9 @@ function ReferenceCard(props: {
   });
   const isPage = () => target()?.kind !== 'block';
   const state = () => doc()?.block(props.id);
-  const rows = createMemo(() => { const value = doc(); return value?.status() === 'ready' ? previewRows(value, props.id, isPage()) : []; });
+  // A gloss entry references a Gloss field definition, an ordinary block on the Fields page.
+  const gloss = createMemo(() => { const value = doc(); return value?.status() === 'ready' && isPage() ? glossEntry(value, id => { const field = props.notebook.lookup(id)(); return field?.kind === 'block' && isGlossName(field.text); }) : null; });
+  const rows = createMemo(() => { const value = doc(); return value?.status() === 'ready' ? previewRows(value, props.id, isPage(), gloss()) : []; });
   const [references] = createResource(() => props.id, id => props.notebook.api.backlinks(id, REFERENCE_LIMIT).then(list => list.length, () => null));
   const referenceCount = () => {
     const count = references();
@@ -250,6 +253,7 @@ function ReferenceCard(props: {
           <Show when={isPage()} fallback={<span class="reference-preview-kind">Block</span>}><h2>{block().text || 'Untitled'}</h2></Show>
           <span class="reference-preview-pin">{props.pinned ? 'Pinned' : 'Pin ⌘'}</span>
         </div>
+        <Show when={gloss() && glossText(doc()!, gloss())}>{text => <p class="reference-preview-gloss"><BlockText text={text()} notebook={props.notebook} onOpen={props.onNested} /></p>}</Show>
         <Show when={(state()?.manual_types.length ?? 0) > 0 || state()?.source || state()?.task || state()?.project}>
           <div class="reference-preview-pills">
             <For each={state()?.manual_types}>{title => <span class="outline-tag">#{title}</span>}</For>

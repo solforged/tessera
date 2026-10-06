@@ -117,6 +117,13 @@ kbd { color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular
 .pane-save-state:is([data-state="saving"], [data-state="queued"]) > .icon { animation: spin calc(var(--motion-ui) * 7) linear infinite; }
 .save-dot { width: var(--space-4); height: var(--space-4); border-radius: var(--radius-pill); background: var(--control-border); }
 @keyframes spin { to { rotate: -360deg; } }
+/* The depth dial: four irises, the current one gilt in a well, and only its name spoken. */
+.depth-dial { display: flex; align-items: center; gap: var(--space-2); flex: none; }
+.depth-stop { display: grid; place-items: center; width: var(--target-size); height: var(--target-size); padding: 0; border: 1px solid transparent; border-radius: var(--radius-control); background: transparent; color: var(--faint); cursor: pointer; }
+.depth-stop .icon { width: var(--icon-size-small); height: var(--icon-size-small); }
+.depth-stop:hover { color: var(--text); }
+.depth-stop[aria-pressed="true"] { border-color: var(--line); background: var(--surface); color: var(--accent); }
+.depth-label { min-width: 84px; margin-left: var(--space-4); color: var(--text); font-size: var(--text-meta); line-height: var(--line-meta); white-space: nowrap; }
 .vim-mode { color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
 .pane-content { position: relative; display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; }
 .pane-content::before, .pane-content::after { content: ''; position: absolute; width: var(--registration-size); height: var(--registration-size); pointer-events: none; z-index: 1; border: 0 solid var(--line); }

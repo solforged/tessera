@@ -19,7 +19,8 @@ import { Calendar } from './Calendar';
 import { localDate } from '../ui/MonthGrid';
 import { createCommandRegistry } from './commands';
 import { deskCounts, shortDay } from './desk-counts';
-import type { AgendaViewState, CommandRegistry, FieldsViewState, LibraryViewState, OpenTarget, PaneId, ReaderViewState, ReviewViewState, SettingsViewState, TableViewState, ViewState } from './contract';
+import { depthLabels, depthStops } from './contract';
+import type { AgendaViewState, CommandRegistry, Depth, FieldsViewState, LibraryViewState, OpenTarget, PaneId, ReaderViewState, ReviewViewState, SettingsViewState, TableViewState, ViewState } from './contract';
 import { Palette } from './Palette';
 
 // Panes other than the outline load on demand and are prefetched once the app is idle.
@@ -600,11 +601,16 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
     const caret = redo ? doc()?.redo() : doc()?.undo(); if (caret) props.onRestoreView({ ...outlineView(), caret });
   };
   const rootCapability = (kind: 'task' | 'project') => props.commands.list().find(command => command.id === `outline.${props.pane}.${kind}-root`)?.run();
+  const outlineCommand = (id: string) => props.commands.list().find(command => command.id === `outline.${props.pane}.${id}`);
+  const depth = (): Depth => outlineView().depth ?? 'full';
+  // The dial shows on titled pages at their top level; a zoomed page always shows in full.
+  const showDial = () => root()?.kind === 'page' && !outlineView().zoom;
   const items = (): MenuItem[] => [
     { label: 'Rename', icon: 'edit', disabledReason: root()?.kind === 'journal' ? 'Journal dates cannot be renamed' : undefined, action: props.onRename },
     { label: props.pinned ? 'Unpin' : 'Pin', icon: 'pin', action: props.onPin },
     { label: 'Open page beside', icon: 'panes', action: props.onPageBeside },
     { label: pageStyle() === 'prose' ? 'Show bullets' : 'Hide bullets', icon: 'bullet', disabledReason: root() ? undefined : 'Page is still loading', action: () => props.onPageStyle(pageId()!, pageStyle() === 'prose' ? 'bullets' : 'prose', defaultStyle()) },
+    { label: 'Gloss', icon: 'edit', disabledReason: root()?.kind === 'page' ? undefined : root() ? 'Journal days have no gloss' : 'Page is still loading', action: () => outlineCommand('gloss')?.run() },
     { label: root()?.task ? 'Task' : 'Make task', icon: 'check', disabledReason: root() ? undefined : 'Page is still loading', action: () => rootCapability('task') },
     { label: root()?.project ? 'Project' : 'Make project', icon: 'flag', disabledReason: root() ? undefined : 'Page is still loading', action: () => rootCapability('project') },
     { label: 'Undo', icon: 'undo', shortcut: '⌘Z', disabledReason: !doc()?.canUndo() ? 'Nothing to undo' : undefined, action: () => undo(false) },
@@ -629,6 +635,10 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
           <Button class="journal-date" icon="calendar" label="Choose journal date" aria-haspopup="dialog" onClick={event => props.onChooseDate(event.currentTarget)} />
           <Button icon="right" label="Next journal day" onClick={() => props.onShiftDate(1)} />
         </nav></Show>
+        <Show when={showDial()}><div class="depth-dial" role="group" aria-label="Depth">
+          <For each={depthStops}>{stop => <button type="button" class="depth-stop" aria-pressed={depth() === stop} title={`${depthLabels[stop]} (${stop === 'gloss' ? '[' : stop === 'full' ? ']' : '[ ]'})`} onClick={() => outlineCommand(`depth-${stop}`)?.run()}><Icon name={`depth-${stop}`} /><span class="visually-hidden">{depthLabels[stop]}</span></button>}</For>
+          <span class="depth-label" aria-hidden="true">{depthLabels[depth()]}</span>
+        </div></Show>
         <span class="pane-save-state" data-state={saveState()} title={doc()?.saveMessage()}><Show when={saveState() !== 'saved'} fallback={<><span class="save-dot" /><span class="visually-hidden">Saved</span></>}><Icon name={saveState() === 'offline' ? 'offline' : saveState() === 'error' || saveState() === 'conflict' ? 'warning' : 'saving'} />{status()}</Show></span>
         <Show when={props.vim}><span class="vim-mode" title="Vim mode">{vimLabels[props.vimMode ?? 'outline']}</span></Show>
       </Show>
