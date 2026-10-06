@@ -61,13 +61,15 @@ Orrery uses midnight `--shell` (#0a0d13), ink-blue `--canvas` (#0e121a), parchme
 | Task states, stage 3 | `--status-*` |
 | Highlight colours: reader tints at 24%, dots at full strength | `--highlight-yellow` `-green` `-blue` `-red` `-purple` |
 
-Pills take a 12% tint of their hue with a 30% border. A selected row adds a 2 px gilt bar at its left edge. Selected library tabs use a gilt underline.
+Pills take a 12% tint of their hue with a 30% border. A selected row adds a 2 px gilt bar at its left edge; keyboard focus inside a menu looks the same, never a ring.
+
+Controls share four shapes. Modes and tabs (Library states, Highlights processing, Agenda, Week and Tasks, Review's Due, New and All) are mono labels with faint counts; the current one is gilt with a 1 px gilt rule beneath, never a box or fill. Menu triggers and date ranges are bordered buttons with a `--line` hairline that brightens to `--control-border` on hover. Text fields sit on `--surface` with a `--line` hairline that brightens while hovered or typed in; Agenda's add field is a bare row on a hairline under the plus. Section heads (sidebar, journal Agenda and Resurfaced, Settings) are mono: an optional rubric numeral, the name, a hairline rule, then state or count at the right in `--faint`, with the chevron last on collapsible ones. Counts, dates and result lines (`1 of 1 task`, `15 of 15 rows`) are mono; sentences never are. Civil dates in the apparatus read as ISO, `2026-10-03`.
 
 ### Shape and elevation
 
 Radius 2 px for controls, 3 px for popups, zero for the workspace and resurfaced slips, full for pills. Popups have a 1 px `--line` border and `--popup-shadow`; dialogs `--dialog-shadow`. The workspace frame has a 1 px `--line` border and no shadow. Rows and tables cast none.
 
-Each pane has 9 px registration corners inside its content, gilt when active and `--line` otherwise. Popups and resurfaced cards carry a 24 × 2 px rubric mark at the top. Resurfaced cards sit on `--raised` with a bottom rule. The rail notebook name has an oculus mark in gilt.
+Each pane has 9 px registration corners 4 px inside its content, clear of toolbars, gilt when active and `--line` otherwise. Popups and resurfaced cards carry a 24 × 2 px rubric mark at the top. Resurfaced cards sit on `--raised` with a bottom rule, 8 px apart; their meta line is the short source title, location and date, and Open, Keep and Mute are quiet text starting on the quote's edge. The rail notebook name has an oculus mark in gilt.
 
 ### Motion
 

@@ -116,7 +116,7 @@ export function FieldsPane(props: FieldsPaneProps) {
         </Show>
       </Show>
     </div>
-    <footer class="fields-footer"><span role="status">{visibleFields().length} of {fields().length} fields</span><span>Changing kind leaves value text unchanged.</span></footer>
+    <footer class="fields-footer"><span role="status">{visibleFields().length} of {fields().length} fields</span><span class="fields-hint">Changing kind leaves value text unchanged.</span></footer>
     <Show keyed when={kindMenu()}>{state => <Menu anchor={state.anchor} label={`Kind for ${state.field.name}`} onDismiss={() => setKindMenu(null)} items={(Object.keys(kindLabels) as FieldKind[]).map(kind => ({ label: kindLabels[kind], icon: kind === state.field.kind ? 'check' : undefined, action: () => changeKind(state.field, kind) }))} />}</Show>
     <Show when={creating()}>{anchor => <Popup anchor={anchor()} label="New field" class="fields-new" onDismiss={() => setCreating(null)}>
       <form onSubmit={event => { event.preventDefault(); addField(); }}>

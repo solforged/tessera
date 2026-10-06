@@ -301,13 +301,13 @@ export function WeekCalendar(props: WeekCalendarProps) {
     <div ref={scroll} class="week-calendar-scroll" style={sheetStyle()} onScroll={updateDrop}>
       <div class="week-calendar-sheet">
         <div class="week-calendar-top">
-          <div class="week-calendar-header"><span class="week-calendar-corner">24-hour</span><For each={dates()}>{(date, index) => <div class="week-calendar-day-header" classList={{ 'week-calendar-today': date === props.notebook.todayDate(), 'week-calendar-selected': date === props.date }} aria-current={date === props.notebook.todayDate() ? 'date' : undefined}>
+          <div class="week-calendar-header"><span class="week-calendar-corner" title="24-hour time">24h</span><For each={dates()}>{(date, index) => <div class="week-calendar-day-header" classList={{ 'week-calendar-today': date === props.notebook.todayDate(), 'week-calendar-selected': date === props.date }} aria-current={date === props.notebook.todayDate() ? 'date' : undefined}>
             <span>{weekdays[index()]}</span><strong>{date ? new Date(`${date}T12:00:00Z`).toLocaleDateString(undefined, { day: 'numeric', month: 'short', timeZone: 'UTC' }) : 'Unavailable'}</strong>
           </div>}</For></div>
-          <div class="week-calendar-all-day"><span class="week-calendar-corner">All-day<br />and due</span><For each={dates()}>{(date, index) => {
+          <div class="week-calendar-all-day"><span class="week-calendar-corner" title="All-day tasks and deadlines">All day</span><For each={dates()}>{(date, index) => {
             const keys = createMemo(() => days()[index()]!.allDay.map(entry => entry.key));
             return <div class="week-calendar-all-day-column" data-week-drop={date ? 'all-day' : undefined} data-week-date={date ?? undefined} classList={{ 'week-calendar-drop': drop()?.date === date && drop()?.minutes === null }} aria-label={date ? `All-day tasks and deadlines for ${date}` : 'Outside supported dates'}>
-              <Show when={!keys().length}><span class="week-calendar-empty-day">{date ? 'No all-day tasks' : 'Outside supported dates'}</span></Show>
+              <Show when={!date}><span class="week-calendar-empty-day">Outside supported dates</span></Show>
               <For each={keys()}>{key => {
                 const initial = byKey().get(key)!;
                 return <WeekTaskCard entry={byKey().get(key) ?? initial} notebook={props.notebook} instructionsId={instructionsId} busy={!!optimistic().get(initial.row.source.block.id)?.pending} dragging={draggingId() === initial.row.source.block.id} onOpen={props.onOpen} onPointerDown={beginDrag} onKeyDown={taskKeyDown} />;

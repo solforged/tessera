@@ -99,13 +99,13 @@ test('highlight meta uses the covering chapter and the notebook date', () => {
     { title: 'Next chapter', ordinal: 8, locator: 'next', level: 1 },
   ];
   const row = { citation: { ordinal: 7 } as Citation, created_at: Date.parse('2026-10-06T00:30:00Z') };
-  expect(highlightMeta(row, sections, 'UTC')).toBe('Opening · ¶8 · 6 Oct 2026');
-  expect(highlightMeta(row, sections, 'America/Los_Angeles')).toBe('Opening · ¶8 · 5 Oct 2026');
+  expect(highlightMeta(row, sections, 'UTC')).toBe('Opening · ¶8 · 2026-10-06');
+  expect(highlightMeta(row, sections, 'America/Los_Angeles')).toBe('Opening · ¶8 · 2026-10-05');
   expect(highlightLocation({ ordinal: 8 }, sections)).toBe('Next chapter');
   expect(highlightLocation({ ordinal: 1 }, sections)).toBe('¶2');
 });
 
 test('highlight meta falls back to a one-based passage number without contents', () => {
   const row = { citation: { ordinal: 0 } as Citation, created_at: Date.parse('2026-12-31T16:30:00Z') };
-  expect(highlightMeta(row, [], 'Asia/Tokyo')).toBe('¶1 · 1 Jan 2027');
+  expect(highlightMeta(row, [], 'Asia/Tokyo')).toBe('¶1 · 2027-01-01');
 });

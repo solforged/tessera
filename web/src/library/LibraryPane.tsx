@@ -423,7 +423,7 @@ export function LibraryPane(props: LibraryPaneProps) {
     onDragOver={event => { if (event.dataTransfer?.types.includes('Files')) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; } }}
     onDrop={event => { if (event.dataTransfer?.files.length) { event.preventDefault(); void upload(Array.from(event.dataTransfer.files)); } }}>
     <header class="library-toolbar">
-      <div class="library-tabs" role="group" aria-label="Library state">
+      <div class="library-tabs mode-tabs" role="group" aria-label="Library state">
         <For each={tabs}>{item => {
           // Zero counts are left out so the tabs fit a narrow pane.
           const count = () => item.id === 'highlights' ? unprocessedCount() : !library() ? undefined : item.id === 'all' ? Object.values(library()!.counts).reduce((sum, value) => sum + value, 0) : library()!.counts[item.id as ReadingState];
@@ -431,14 +431,14 @@ export function LibraryPane(props: LibraryPaneProps) {
             {item.label}<Show when={count()}><span class="library-count">{count()}</span></Show>
           </Button>;
         }}</For>
-        <For each={views()}>{value => <div class="library-tabs">
+        <For each={views()}>{value => <div class="library-tabs mode-tabs">
           <Button aria-pressed={view().view === value.id} onClick={() => chooseView(value)}>{value.name}</Button>
           <Button icon="more" label={`Actions for view ${value.name}`} aria-haspopup="menu" disabled={saving()} onClick={event => viewMenu(value, event.currentTarget)} />
         </div>}</For>
       </div>
       <div class="library-controls">
         <Show when={tab() !== 'highlights'} fallback={<div class="library-filter">
-          <div class="library-tabs" role="group" aria-label="Highlight processing">
+          <div class="library-tabs mode-tabs" role="group" aria-label="Highlight processing">
             <Button title={processedExplanation} aria-pressed={unprocessedOnly()} onClick={() => update({ unprocessedOnly: true, scroll: 0 })}>Unprocessed</Button>
             <Button aria-pressed={!unprocessedOnly()} onClick={() => update({ unprocessedOnly: false, scroll: 0 })}>All</Button>
           </div>

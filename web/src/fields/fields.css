@@ -18,7 +18,7 @@
 .fields-index tbody tr { transition: background-color var(--motion-fast) var(--motion-ease); }
 .fields-index tbody tr:hover, .fields-index tbody tr:focus-within { background: var(--hover); }
 .fields-index .button { min-height: var(--row-height); max-width: 100%; padding: var(--space-2) var(--space-4); }
-.fields-index .field-name { justify-content: flex-start; color: var(--text); }
+.fields-index .field-name { justify-content: flex-start; color: var(--text); font-weight: var(--weight-body); }
 .fields-index .field-name:hover { text-decoration: underline; text-underline-offset: var(--space-4); }
 /* Kind reads as text; its menu affordance appears with the row's hover or focus. */
 .fields-kind-button.button { font-weight: var(--weight-body); color: var(--muted); }
@@ -31,3 +31,4 @@
 .fields-new p { font-size: var(--text-meta); line-height: var(--line-meta); }
 .fields-actions { display: flex; gap: var(--space-4); }
 .fields-footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: var(--space-8); padding: var(--space-8) var(--space-16); border-top: 1px solid var(--line); color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.fields-hint { font: var(--weight-body) var(--text-meta)/var(--line-meta) var(--font-body); letter-spacing: normal; }

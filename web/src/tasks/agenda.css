@@ -3,9 +3,11 @@
 .agenda-content-week { max-width: var(--week-measure); }
 .agenda-toolbar, .agenda-modes, .agenda-date, .agenda-filters, .agenda-date-range { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-8); }
 .agenda-toolbar { justify-content: space-between; }
-.agenda-modes .button[aria-pressed="true"] { background: var(--selection); color: var(--accent); }
 .agenda-date-range { font-size: var(--text-control); line-height: var(--line-control); color: var(--muted); }
 .agenda-number { display: inline-flex; align-items: center; gap: var(--space-8); color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
+/* The displayed date and the result count are the machine's: mono, the count faint like a table footer. */
+.agenda-date-button.button { font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); color: var(--text); }
+.agenda-count { margin: 0; color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .agenda-number .input { width: calc(var(--space-48) + var(--space-32)); min-height: var(--row-height); }
 .agenda-message { color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); font-weight: var(--weight-body); }
 .agenda-summary { color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
@@ -13,8 +15,11 @@
 .agenda-error { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); color: var(--danger); font-size: var(--text-control); line-height: var(--line-control); margin: 0; }
 .agenda-results { display: flex; flex-direction: column; gap: var(--space-12); }
 .agenda-rows { list-style: none; margin: 0; padding: 0; }
-.agenda-add { display: flex; align-items: center; gap: var(--space-8); color: var(--muted); }
-.agenda-add .input { flex: 1; min-width: 0; min-height: var(--row-height); }
+/* Adding reads as the next row: the plus in the status column, then a field on a hairline instead of a box. */
+.agenda-add { display: flex; align-items: center; gap: var(--space-8); color: var(--faint); }
+.agenda-add > .icon { width: var(--target-size); }
+.agenda-add .input { flex: 1; min-width: 0; min-height: var(--row-height); border-width: 0 0 var(--rule-width); border-radius: 0; padding-inline: var(--space-4); background: transparent; }
+.agenda-add .input:focus-visible { outline: none; border-color: var(--accent); }
 /* One line per task: status, source with its page, then planning on the right; wraps under the source when narrow. */
 .agenda-row { display: flex; flex-wrap: wrap; align-items: flex-start; column-gap: var(--space-8); min-width: 0; content-visibility: auto; contain-intrinsic-size: auto var(--row-height); }
 .agenda-status { display: inline-flex; flex: 0 0 var(--target-size); justify-content: center; align-items: center; width: var(--target-size); min-height: var(--row-height); padding: 0; color: var(--muted); }
@@ -34,13 +39,15 @@
 .agenda-row-completed .agenda-status { color: var(--status-done); }
 .agenda-row-completed .agenda-source-text { color: var(--muted); }
 .agenda-row > .agenda-error, .agenda-row > .agenda-message { flex-basis: 100%; margin-left: calc(var(--target-size) + var(--space-8)); }
-.journal-agenda { margin-block: var(--space-8) var(--space-12); font-weight: var(--weight-body); }
-/* The chevron starts on the title's edge; the hover fill extends into the gutter. */
-.journal-agenda-toggle { gap: var(--space-8); font-size: var(--text-control); line-height: var(--line-control); }
-.journal-agenda > .journal-agenda-toggle { margin-left: calc(-1 * (var(--space-8) + 1px)); }
+.journal-agenda { margin-block: var(--space-4) var(--space-8); font-weight: var(--weight-body); }
+/* Journal sections head like the sidebar's: the name, a hairline rule, then the state and the chevron at the right. */
+.journal-agenda-toggle.button { display: flex; width: 100%; justify-content: flex-start; gap: var(--space-8); min-height: var(--target-size); padding: 0 var(--space-4) 0 0; color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.journal-agenda-toggle.button:hover:not(:disabled) { background: transparent; color: var(--text); }
+.journal-agenda-toggle .agenda-summary { color: var(--faint); }
+.journal-agenda-toggle > .icon { width: var(--icon-size-small); height: var(--icon-size-small); color: var(--faint); transition: rotate var(--motion-fast) var(--motion-ease); }
 .journal-agenda-toggle[aria-expanded="false"] > .icon { rotate: -90deg; }
-.journal-agenda-body > .journal-agenda-toggle { align-self: flex-start; }
-.journal-agenda-body { display: flex; flex-direction: column; gap: var(--space-4); margin-top: var(--space-4); }
+.journal-agenda-body > .journal-agenda-toggle { padding-left: calc(var(--target-size) + var(--space-8)); }
+.journal-agenda-body { display: flex; flex-direction: column; gap: var(--space-8); margin-top: var(--space-4); }
 /* Its label starts on the task text's edge. */
 .journal-agenda-more.button { align-self: flex-start; margin-left: calc(var(--target-size) + var(--space-4) - 1px); color: var(--muted); font-weight: var(--weight-body); }
 .journal-agenda .agenda-source { font-size: var(--text-control); line-height: var(--line-control); }
@@ -48,4 +55,7 @@
 .resurface-card::before { content: ''; position: absolute; top: 0; left: var(--space-12); width: var(--rubric-width); height: var(--rubric-height); background: var(--danger); pointer-events: none; }
 .resurface-quote { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); font-variation-settings: var(--optical-quote); }
 .resurface-meta { margin: var(--space-4) 0; color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); overflow-wrap: anywhere; }
-.resurface-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); }
+/* Actions are quiet text whose labels start on the quote's edge; the hover fill reaches into the padding. */
+.resurface-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4); margin-left: calc(-1 * var(--space-8)); }
+.resurface-actions .button { color: var(--muted); font-weight: var(--weight-body); }
+.resurface-actions .button:hover:not(:disabled) { color: var(--text); }

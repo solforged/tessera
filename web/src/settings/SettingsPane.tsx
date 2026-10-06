@@ -68,15 +68,15 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; not
     </div>
     <Show when={error()}><p class="error" role="alert">{error()}</p></Show>
     <section aria-labelledby={`settings-notebook-${props.pane}`}>
-      <h2 id={`settings-notebook-${props.pane}`}>Notebook</h2>
+      <h2 id={`settings-notebook-${props.pane}`}><span class="section-number">01</span>Notebook<span class="section-rule" /></h2>
       <Show when={info()}>{value => <dl>
         <dt>Id</dt><dd>{value().id}</dd>
         <dt>Path</dt><dd>{value().path}</dd>
-        <dt>Created</dt><dd>{new Date(value().created_at).toLocaleDateString(undefined, { dateStyle: 'medium' })}</dd>
+        <dt>Created</dt><dd>{new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(value().created_at)}</dd>
       </dl>}</Show>
     </section>
     <section aria-labelledby={`settings-service-${props.pane}`}>
-      <h2 id={`settings-service-${props.pane}`}>Service</h2>
+      <h2 id={`settings-service-${props.pane}`}><span class="section-number">02</span>Service<span class="section-rule" /></h2>
       <Show when={service()}>{value => <dl>
         <dt>Version</dt><dd>{value().version}</dd>
         <Show when={value().build}>{build => <><dt>Build</dt><dd>{build()}</dd></>}</Show>
@@ -86,7 +86,7 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; not
       </dl>}</Show>
     </section>
     <section aria-labelledby={`settings-backups-${props.pane}`} aria-busy={backingUp()}>
-      <h2 id={`settings-backups-${props.pane}`}>Backups</h2>
+      <h2 id={`settings-backups-${props.pane}`}><span class="section-number">03</span>Backups<span class="section-rule" /></h2>
       <Button class="bordered" disabled={backingUp()} onClick={() => { void backUp(); }}>Back up now</Button>
       <Show when={backups()}>{values => <>
         <p role="status">{values()[0] ? `Last backup: ${backupLabel(values()[0]!)}` : 'No backups yet'}</p>
@@ -94,7 +94,7 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; not
       </>}</Show>
     </section>
     <section aria-labelledby={`settings-zone-${props.pane}`}>
-      <h2 id={`settings-zone-${props.pane}`}>Time zone</h2>
+      <h2 id={`settings-zone-${props.pane}`}><span class="section-number">04</span>Time zone<span class="section-rule" /></h2>
       <Button class="bordered" aria-label="Time zone" aria-haspopup="listbox" disabled={props.notebook.settingsBusy()} onClick={event => setZoneAnchor(event.currentTarget)}>{zone() === deviceZone ? `Device time zone (${deviceZone})` : zone()} <Icon name="down" /></Button>
       <Show when={zoneAnchor()}>{anchor => <Picker<string> anchor={anchor()} width={360} label="Choose time zone" onDismiss={() => { setZoneAnchor(null); setZoneQuery(''); }}
         query={zoneQuery()} onQuery={setZoneQuery} placeholder="Search time zones"
@@ -103,7 +103,7 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; not
         row={value => <><Show when={value === zone()} fallback={<span class="icon" />}><Icon name="check" /></Show><span class="picker-text">{value === deviceZone ? `Device time zone (${deviceZone})` : value}</span></>} />}</Show>
     </section>
     <section aria-labelledby={`settings-editing-${props.pane}`}>
-      <h2 id={`settings-editing-${props.pane}`}>Editing</h2>
+      <h2 id={`settings-editing-${props.pane}`}><span class="section-number">05</span>Editing<span class="section-rule" /></h2>
       <label class="settings-checkbox"><input type="checkbox" checked={props.notebook.vim()} disabled={props.notebook.settingsBusy()} onChange={event => { void change('vim', String(event.currentTarget.checked)); }} /> Vim</label>
     </section>
   </div>;

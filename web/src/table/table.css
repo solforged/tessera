@@ -1,5 +1,5 @@
 /* Type tables and saved views. Layout is in docs/design.md under "Tables and views". */
-.table-pane { display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; outline-offset: -2px; }
+.table-pane { display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; outline: none; }
 .table-header { display: flex; align-items: center; gap: var(--space-8); min-height: var(--touch-size); padding: var(--space-8) var(--space-16); }
 .table-title { min-width: var(--target-size); font-size: var(--text-h2); line-height: var(--line-h2); font-weight: var(--weight-heading); }
 .table-view-status { margin-left: auto; color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
