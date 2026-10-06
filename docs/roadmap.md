@@ -101,6 +101,8 @@ Exit: run the "which model fits my work" investigation twice, a month apart, and
 
 Exit: an agent does bounded work on a real project; every change is attributed and reversible; a restore from backup loses nothing acknowledged.
 
+Progress: `tessera backup` and `tessera restore` cover the database and object store from the command line, landed with the local install pass. Backup from inside the app and the soak and concurrency spikes remain.
+
 ## 9. Perspectives
 
 - Ideas: break a book or paper down into an outline of its ideas, each citing its passages.
