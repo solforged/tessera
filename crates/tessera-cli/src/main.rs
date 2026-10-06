@@ -28,9 +28,9 @@ enum Command {
         #[arg(long)]
         wait: bool,
     },
-    /// Export source fields as BibTeX or CSL JSON.
+    /// Export source fields as BibTeX or CSL JSON, or highlights as Markdown.
     Export {
-        #[arg(long, default_value = "bibtex", value_parser = ["bibtex", "csl"])]
+        #[arg(long, default_value = "bibtex", value_parser = ["bibtex", "csl", "markdown"])]
         format: String,
         source_ids: Vec<String>,
         /// Export a saved library view by name instead of source IDs.

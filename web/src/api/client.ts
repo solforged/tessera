@@ -43,6 +43,9 @@ import type {
   WorkSession,
 } from './types';
 
+export type ExportFormat = 'bibtex' | 'csl' | 'markdown';
+export const exportExtensions: Record<ExportFormat, string> = { bibtex: 'bib', csl: 'json', markdown: 'md' };
+
 /** A failed request. `status` is 0 when the service could not be reached. */
 export class ApiError extends Error {
   constructor(
@@ -160,8 +163,8 @@ export interface ApiClient {
   searchPassages(q: string, sourceId?: string, limit?: number, signal?: AbortSignal): Promise<PassageHit[]>;
   highlights(value: HighlightQuery, signal?: AbortSignal): Promise<HighlightResult>;
   /** Download URL; all active sources when `ids` is empty. */
-  exportUrl(format: 'bibtex' | 'csl', ids: readonly string[]): string;
-  exportQuery(format: 'bibtex' | 'csl', query: LibraryQuery, signal?: AbortSignal): Promise<Blob>;
+  exportUrl(format: ExportFormat, ids: readonly string[]): string;
+  exportQuery(format: ExportFormat, query: LibraryQuery, signal?: AbortSignal): Promise<Blob>;
 }
 
 export function createApi(base = ''): ApiClient {
@@ -229,8 +232,8 @@ export function createApi(base = ''): ApiClient {
     readingPosition: (snapshotId: string, ordinal: number, from: number, to: number, signal?: AbortSignal) => request<ReadingProgress>(base, 'POST', `/snapshots/${segment(snapshotId)}/position`, { ordinal, from, to }, signal),
     searchPassages: (q: string, sourceId?: string, limit = 40, signal?: AbortSignal) => get<PassageHit[]>(`/passages/search${query({ q, source: sourceId, limit })}`, signal),
     highlights: (value: HighlightQuery, signal?: AbortSignal) => request<HighlightResult>(base, 'POST', '/highlights/query', value, signal),
-    exportUrl: (format: 'bibtex' | 'csl', ids: readonly string[]) => `${base}/api/library/export${query({ format, ids: ids.length ? ids.join(',') : undefined })}`,
-    exportQuery: (format: 'bibtex' | 'csl', query: LibraryQuery, signal?: AbortSignal) => send<Blob>(`${base}/api/library/export`, {
+    exportUrl: (format: ExportFormat, ids: readonly string[]) => `${base}/api/library/export${query({ format, ids: ids.length ? ids.join(',') : undefined })}`,
+    exportQuery: (format: ExportFormat, query: LibraryQuery, signal?: AbortSignal) => send<Blob>(`${base}/api/library/export`, {
       method: 'POST', signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ format, query }),
     }, response => response.blob()),
   };

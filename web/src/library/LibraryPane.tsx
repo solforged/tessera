@@ -1,5 +1,7 @@
 import { For, Show, batch, createEffect, createMemo, createSignal, on, onCleanup } from 'solid-js';
 import { ulid } from 'ulid';
+import { exportExtensions } from '../api/client';
+import type { ExportFormat } from '../api/client';
 import type { HighlightResult, HighlightRow, IngestJob, LibraryQuery, LibraryResult, LibraryRow, LibraryView, ReadingState } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { BlockText } from '../outline/BlockText';
@@ -270,28 +272,29 @@ export function LibraryPane(props: LibraryPaneProps) {
       { label: 'Delete', action: () => { setCommandError(''); setPopup({ kind: 'delete', anchor, saved: value }); } },
       { label: 'Export BibTeX', action: () => { void downloadQuery('bibtex', value.query); } },
       { label: 'Export CSL JSON', action: () => { void downloadQuery('csl', value.query); } },
+      { label: 'Export Markdown', action: () => { void downloadQuery('markdown', value.query); } },
     ] });
   }
-  async function downloadQuery(format: 'bibtex' | 'csl', query: LibraryQuery) {
+  async function downloadQuery(format: ExportFormat, query: LibraryQuery) {
     setCommandError('');
     try {
       const blob = await props.notebook.api.exportQuery(format, query);
       if (disposed) return;
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
-      anchor.href = url; anchor.download = format === 'bibtex' ? 'library.bib' : 'library.json';
+      anchor.href = url; anchor.download = `library.${exportExtensions[format]}`;
       document.body.append(anchor); anchor.click(); anchor.remove();
       setTimeout(() => URL.revokeObjectURL(url), 0);
     } catch (reason) {
       if (!disposed) setCommandError(reason instanceof Error ? reason.message : String(reason));
     }
   }
-  function download(format: 'bibtex' | 'csl', ids: string[]) {
+  function download(format: ExportFormat, ids: string[]) {
     // An empty ID list means every source to the API, not the empty result set.
     if (!ids.length) return;
     const anchor = document.createElement('a');
     anchor.href = props.notebook.api.exportUrl(format, ids);
-    anchor.download = format === 'bibtex' ? 'library.bib' : 'library.json';
+    anchor.download = `library.${exportExtensions[format]}`;
     document.body.append(anchor); anchor.click(); anchor.remove();
   }
   function rowMenu(row: LibraryRow, anchor: HTMLElement) {
@@ -303,6 +306,7 @@ export function LibraryPane(props: LibraryPaneProps) {
       })),
       { label: 'Export BibTeX', icon: 'download', action: () => download('bibtex', [row.page.id]) },
       { label: 'Export CSL JSON', icon: 'download', action: () => download('csl', [row.page.id]) },
+      { label: 'Export Markdown', icon: 'download', action: () => download('markdown', [row.page.id]) },
     ] });
   }
   function rowKey(event: KeyboardEvent, target: OpenTarget) {
@@ -344,6 +348,7 @@ export function LibraryPane(props: LibraryPaneProps) {
           setPopup({ kind: 'menu', anchor: event.currentTarget, label: 'Export sources', items: [
             { label: 'BibTeX', action: () => { if (ids.length) download('bibtex', ids); else void downloadQuery('bibtex', query); } },
             { label: 'CSL JSON', action: () => { if (ids.length) download('csl', ids); else void downloadQuery('csl', query); } },
+            { label: 'Export Markdown', action: () => { if (ids.length) download('markdown', ids); else void downloadQuery('markdown', query); } },
           ] });
         }}>{selected().size ? `Export ${selected().size} selected` : 'Export this view'}</Button></Show>
         <Button icon="more" label="Library actions" aria-haspopup="menu" onClick={event => {

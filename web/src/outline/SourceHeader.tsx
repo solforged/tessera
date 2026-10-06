@@ -1,5 +1,6 @@
 import { For, Show, createMemo, createResource, createSignal } from 'solid-js';
-import { api } from '../api/client';
+import { api, exportExtensions } from '../api/client';
+import type { ExportFormat } from '../api/client';
 import type { Citation, FieldDefinition, ReadingState } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import type { OutlinePaneProps } from '../shell/contract';
@@ -33,10 +34,10 @@ export function SourceHeader(props: {
       },
     })) });
   }
-  function exportSource(format: 'bibtex' | 'csl') {
+  function exportSource(format: ExportFormat) {
     const link = document.createElement('a');
     link.href = api.exportUrl(format, [props.doc.pageId]);
-    link.download = `${props.doc.root()?.source?.citation_key ?? props.doc.pageId}.${format === 'bibtex' ? 'bib' : 'json'}`;
+    link.download = `${props.doc.root()?.source?.citation_key ?? props.doc.pageId}.${exportExtensions[format]}`;
     link.click();
   }
   function sourceMenu(anchor: HTMLElement) {
@@ -45,6 +46,7 @@ export function SourceHeader(props: {
       { label: 'Copy citation key', icon: 'copy', disabledReason: props.doc.root()?.source?.citation_key ? undefined : 'No citation key', action: () => { void navigator.clipboard.writeText(props.doc.root()!.source!.citation_key!).catch(fail); } },
       { label: 'Export BibTeX', icon: 'download', action: () => exportSource('bibtex') },
       { label: 'Export CSL JSON', icon: 'download', action: () => exportSource('csl') },
+      { label: 'Export Markdown', icon: 'download', action: () => exportSource('markdown') },
       { label: 'Snapshots', disabledReason: source.error ? String(source.error) : !source()?.snapshots.length ? 'No snapshots' : undefined,
         action: () => setMenu({ anchor, label: 'Snapshots', items: (source()?.snapshots ?? []).map(snapshot => ({
           label: `${new Date(snapshot.attached_at).toLocaleDateString()} · ${snapshot.passage_count} ${snapshot.passage_count === 1 ? 'passage' : 'passages'}`,
