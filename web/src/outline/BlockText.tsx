@@ -104,11 +104,10 @@ export function BlockText(props: Props) {
         <Show when={props.interactive !== false} fallback={<span class="outline-reference" data-source-start={token.start} data-source-end={token.end}>
           <Show when={props.field?.id === token.id}><Icon name="field" /></Show><Show when={token.target === null}><Icon name="brokenLink" /></Show>{text(token)}
         </span>}>
-          <button class="outline-reference" type="button" data-source-start={token.start} data-source-end={token.end}
+          <button class="outline-reference" type="button" data-source-start={token.start} data-source-end={token.end} data-reference={isStableReference(token) ? token.id : undefined}
             onMouseDown={event => event.stopPropagation()}
             onClick={event => { event.stopPropagation(); const block = token.target; if (block) props.onOpen?.({ kind: 'page', pageId: block.page_id, blockId: block.kind === 'block' ? block.id : undefined }, true); }}
-            onContextMenu={event => { event.preventDefault(); event.stopPropagation(); props.onReferenceMenu?.(token.id!, event.currentTarget); }}
-            title={token.target ? 'Open reference beside · right-click for more actions' : token.target === null ? `Unresolved reference: ${token.id}` : 'Loading reference…'}>
+            onContextMenu={event => { event.preventDefault(); event.stopPropagation(); props.onReferenceMenu?.(token.id!, event.currentTarget); }}>
             <Show when={props.field?.id === token.id}><Icon name="field" /></Show><Show when={token.target === null}><Icon name="brokenLink" /></Show>{text(token)}
           </button>
         </Show>

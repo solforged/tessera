@@ -193,11 +193,12 @@ A block with a citation shows a citation chip in its capability metadata: the so
 
 Floating layers open below the element or caret that opened them, with a 4 px gap, start-aligned unless the anchor is in the viewport's right half, flipping above only when below is too short, clamped to the viewport, never covering the anchor. Find or create opens beneath the global search trigger; the dedicated command palette centres near the top of the viewport. Escape closes the topmost one and returns focus. Closing retires input handlers immediately; only an inert, accessibility-hidden visual remains for the brief exit animation. It has no IDs and cannot steal focus from a successor popup. Reduced motion removes it immediately.
 
-Three shapes only, so every popup is recognisable at a glance:
+Four shapes only, so every popup is recognisable at a glance:
 
 - **Menu**: 28 px rows with an icon slot, label and shortcut at the right; sections as 12 px labels; danger last. The icon column is reserved whenever any item has one, so labels align.
 - **Picker**: an input on top and 28 px rows below. Arrows move, Enter picks, typing filters, the mouse hovers to highlight. Chips before the input show steps already chosen. Used by the palette, reference completion, Add type, Add filter and the time zone.
 - **Confirm**: 13 px body text and two buttons.
+- **Preview**: a read-only card for a reference's target, described under "Reference previews" below.
 
 | Surface | Shape | Placement |
 |---|---|---|
@@ -210,10 +211,15 @@ Three shapes only, so every popup is recognisable at a glance:
 | Block menu | Menu in sections Block, Move, Select; navigation stays in the palette | Below the handle |
 | Page, notebook, layout, pill, column, view, sort and field kind menus | Menu | Below their trigger |
 | New page, Delete page | Confirm | Below their trigger |
+| Reference preview | Preview, 380 px | Below the line of the reference under the pointer, or the reference at the caret |
 | Undo toast | Bottom centre, one at a time |
 | Save state | Pane header, never a toolbar or a row; it says Saving… only when a save takes longer than a second |
 
 Native `<select>` is never used; a bordered menu button or a picker replaces it.
+
+### Reference previews
+
+Resting the mouse on a `[[reference]]` for 350 ms opens a preview card, in the outline, the active editor and every other surface that renders references. Moving to another reference while a card is open takes a third of the delay, and a 200 ms grace period covers the gap between a reference and its card. A page card shows its breadcrumb, title, types, source or task state, and its first ten visible blocks; a block card shows its path, its parent in `--faint`, the block on the accent tint and its first descendants. The body clips at `--preview-body-height` and fades only when it overflows. The footer counts backlinks and offers Beside and Open (Go to block for blocks). References inside a card open stacked cards; leaving closes every card above the one under the pointer. ⌘ pins the topmost card, which then stays open and scrolls. ⌥Space opens the card for the reference at the editor caret or the focused reference; Enter opens it, Shift+Enter opens it beside, Escape closes it without leaving the editor, and any other key closes it and types. A deleted target shows a one-line notice. The card never takes focus, and touch input never opens one.
 
 ## Decisions
 
