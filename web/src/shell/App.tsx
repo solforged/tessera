@@ -1,4 +1,4 @@
-import { batch, createEffect, createMemo, createResource, createSignal, For, Match, onCleanup, onMount, Show, Switch } from 'solid-js';
+import { batch, createEffect, createMemo, createResource, createSignal, For, lazy, Match, onCleanup, onMount, Show, Switch } from 'solid-js';
 import type { Accessor } from 'solid-js';
 import { api } from '../api/client';
 import type { Block, NotebookInfo, View } from '../api/types';
@@ -6,13 +6,6 @@ import { createNotebookClient } from '../document';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import { OutlinePane } from '../outline/OutlinePane';
 import { plainText } from '../outline/BlockText';
-import { TablePane } from '../table/TablePane';
-import { FieldsPane } from '../fields/FieldsPane';
-import { SettingsPane } from '../settings/SettingsPane';
-import { AgendaPane } from '../tasks/AgendaPane';
-import { ReviewPane } from '../review/ReviewPane';
-import { LibraryPane } from '../library/LibraryPane';
-import { ReaderPane } from '../reader/ReaderPane';
 import { copyTaskQuery, createTaskQuery } from '../tasks/query';
 import { copyQuery } from '../table/query';
 import { Button } from '../ui/Button';
@@ -25,6 +18,24 @@ import { localDate } from '../ui/MonthGrid';
 import { createCommandRegistry } from './commands';
 import type { AgendaViewState, CommandRegistry, FieldsViewState, LibraryViewState, OpenTarget, PaneId, ReaderViewState, ReviewViewState, SettingsViewState, TableViewState, ViewState } from './contract';
 import { Palette } from './Palette';
+
+// Panes other than the outline load on demand and are prefetched once the app is idle.
+const paneModules = {
+  table: () => import('../table/TablePane'),
+  fields: () => import('../fields/FieldsPane'),
+  settings: () => import('../settings/SettingsPane'),
+  agenda: () => import('../tasks/AgendaPane'),
+  review: () => import('../review/ReviewPane'),
+  library: () => import('../library/LibraryPane'),
+  reader: () => import('../reader/ReaderPane'),
+};
+const TablePane = lazy(() => paneModules.table().then(module => ({ default: module.TablePane })));
+const FieldsPane = lazy(() => paneModules.fields().then(module => ({ default: module.FieldsPane })));
+const SettingsPane = lazy(() => paneModules.settings().then(module => ({ default: module.SettingsPane })));
+const AgendaPane = lazy(() => paneModules.agenda().then(module => ({ default: module.AgendaPane })));
+const ReviewPane = lazy(() => paneModules.review().then(module => ({ default: module.ReviewPane })));
+const LibraryPane = lazy(() => paneModules.library().then(module => ({ default: module.LibraryPane })));
+const ReaderPane = lazy(() => paneModules.reader().then(module => ({ default: module.ReaderPane })));
 
 type PaneView = ViewState | TableViewState | FieldsViewState | SettingsViewState | AgendaViewState | ReviewViewState | LibraryViewState | ReaderViewState;
 type HistoryEntry = { target: OpenTarget; view: PaneView };
@@ -271,6 +282,10 @@ export function App() {
     };
     window.addEventListener('keydown', onKey);
     onCleanup(() => window.removeEventListener('keydown', onKey));
+    // Prefetching after startup keeps first paint lean without delaying the first open of each pane.
+    const prefetch = () => { for (const load of Object.values(paneModules)) void load().catch(() => undefined); };
+    const idle = typeof requestIdleCallback === 'function' ? requestIdleCallback(prefetch, { timeout: 4000 }) : window.setTimeout(prefetch, 2000);
+    onCleanup(() => { if (typeof cancelIdleCallback === 'function') cancelIdleCallback(idle); else clearTimeout(idle); });
   });
   let initializing = false;
   createEffect(() => {

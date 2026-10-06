@@ -3,7 +3,7 @@ import { Compartment, EditorSelection, EditorState, Facet, Prec, StateEffect, St
 import type { Extension } from '@codemirror/state';
 import { Decoration, drawSelection, EditorView, keymap, ViewPlugin, WidgetType } from '@codemirror/view';
 import type { DecorationSet, ViewUpdate } from '@codemirror/view';
-import { getCM, Vim, vim } from '@replit/codemirror-vim';
+import type * as VimModule from '@replit/codemirror-vim';
 import type { Caret } from '../document/contract';
 import { textTokens } from '../document/text-tokens';
 import { fieldEntryId } from '../table/query';
@@ -117,6 +117,8 @@ export interface EditorHooks {
   mode(mode: 'insert' | 'normal' | 'visual'): void;
 }
 
+/** Vim loads on first use; most sessions never turn it on. */
+let vimModule: Promise<typeof VimModule> | undefined;
 /** A single retained CM instance moves between row hosts; composition never moves it. */
 export class PaneEditor {
   readonly view: EditorView;
@@ -126,6 +128,8 @@ export class PaneEditor {
   id = '';
   composing = false;
   private useVim = false;
+  private wantVim = false;
+  private vimApi: typeof VimModule | null = null;
 
   constructor(private readonly hooks: EditorHooks) {
     this.view = new EditorView({ state: EditorState.create({ extensions: [
@@ -174,10 +178,22 @@ export class PaneEditor {
   }
 
   configure(enabled: boolean): void {
-    if (enabled === this.useVim) return;
-    this.useVim = enabled;
-    this.view.dispatch({ effects: this.vimConfig.reconfigure(enabled ? vim() : []) });
-    this.reportMode();
+    this.wantVim = enabled;
+    if (!enabled) {
+      if (!this.useVim) return;
+      this.useVim = false;
+      this.view.dispatch({ effects: this.vimConfig.reconfigure([]) });
+      this.reportMode();
+      return;
+    }
+    if (this.useVim) return;
+    void (vimModule ??= import('@replit/codemirror-vim')).then(api => {
+      if (!this.wantVim || this.useVim) return;
+      this.vimApi = api;
+      this.useVim = true;
+      this.view.dispatch({ effects: this.vimConfig.reconfigure(api.vim()) });
+      this.reportMode();
+    });
   }
 
   configureFields(resolve: FieldResolver): void {
@@ -185,18 +201,18 @@ export class PaneEditor {
   }
 
   mode(): 'insert' | 'normal' | 'visual' {
-    const state = getCM(this.view)?.state.vim;
+    const state = this.useVim ? this.vimApi?.getCM(this.view)?.state.vim : undefined;
     return !this.useVim || state?.insertMode ? 'insert' : state?.visualMode ? 'visual' : 'normal';
   }
 
   reportMode(): void { this.hooks.mode(this.mode()); }
   forwardVim(event: KeyboardEvent): boolean {
-    if (!this.useVim || this.mode() === 'insert' || event.metaKey || event.altKey) return false;
+    if (!this.useVim || !this.vimApi || this.mode() === 'insert' || event.metaKey || event.altKey) return false;
     const keys: Record<string, string> = { Backspace: '<BS>', Delete: '<Del>', Enter: '<CR>', Escape: '<Esc>', ArrowLeft: '<Left>', ArrowRight: '<Right>', ArrowUp: '<Up>', ArrowDown: '<Down>', Tab: '<Tab>' };
     const key = keys[event.key] ?? (event.key.length === 1 ? event.ctrlKey ? `<C-${event.key}>` : event.key : null);
-    const cm = getCM(this.view);
+    const cm = this.vimApi.getCM(this.view);
     if (!key || !cm) return false;
-    Vim.handleKey(cm, key, 'outline');
+    this.vimApi.Vim.handleKey(cm, key, 'outline');
     this.reportMode();
     return true;
   }
@@ -213,9 +229,9 @@ export class PaneEditor {
     else this.view.dispatch({ selection: EditorSelection.cursor(Math.min(offset, text.length)) });
     host.append(this.view.dom);
     this.replacing = false;
-    if (this.useVim && insert) {
-      const cm = getCM(this.view);
-      if (cm && !cm.state.vim?.insertMode) Vim.handleKey(cm, 'i', 'outline');
+    if (this.useVim && this.vimApi && insert) {
+      const cm = this.vimApi.getCM(this.view);
+      if (cm && !cm.state.vim?.insertMode) this.vimApi.Vim.handleKey(cm, 'i', 'outline');
     }
     if (focus) this.view.focus();
     this.view.requestMeasure();
