@@ -33,10 +33,12 @@ export function sourceSummary(doc: PageDocument, definitions: ReadonlyMap<string
   return [values.author?.join(', '), year, values.site?.join(', ')].filter(Boolean).join(' · ');
 }
 
-/** Only reset a complete matching set; never discard authored extra values. */
-export function extractedResets(values: readonly Pick<BlockState, 'id' | 'text'>[], extracted: readonly string[] | undefined): { id: string; text: string }[] {
-  if (!extracted?.length || values.length !== extracted.length) return [];
-  return values.flatMap((value, index) => value.text === extracted[index] ? [] : [{ id: value.id, text: extracted[index]! }]);
+/** Reset extracted positions without discarding authored extra values. */
+export function extractedResets(values: readonly Pick<BlockState, 'id' | 'text'>[], extracted: readonly string[] | undefined): { set: { id: string; text: string }[]; insert: string[] } {
+  return {
+    set: values.flatMap((value, index) => extracted?.[index] === undefined || value.text === extracted[index] ? [] : [{ id: value.id, text: extracted[index]! }]),
+    insert: extracted?.slice(values.length) ?? [],
+  };
 }
 
 /** Title before any subtitle colon, cut at a word boundary within 40 characters. */

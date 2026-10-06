@@ -443,6 +443,36 @@ pub enum FieldKind {
     Identifier,
 }
 
+impl FieldKind {
+    pub const ALL: [Self; 8] = [
+        Self::Text,
+        Self::Number,
+        Self::Date,
+        Self::Checkbox,
+        Self::Choice,
+        Self::Instance,
+        Self::Url,
+        Self::Identifier,
+    ];
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Text => "text",
+            Self::Number => "number",
+            Self::Date => "date",
+            Self::Checkbox => "checkbox",
+            Self::Choice => "choice",
+            Self::Instance => "instance",
+            Self::Url => "url",
+            Self::Identifier => "identifier",
+        }
+    }
+
+    pub(crate) fn from_str(value: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|kind| kind.as_str() == value)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Direction {

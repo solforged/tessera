@@ -3,6 +3,7 @@
  * `crates/tessera-core/src/` field for field (snake_case, as serialized).
  * Change both together.
  */
+import type { fieldKinds } from '../fields/kinds';
 
 export type BlockKind = 'block' | 'page' | 'journal';
 
@@ -178,7 +179,7 @@ export interface ConflictDetails {
   found: number | null;
 }
 
-export type FieldKind = 'text' | 'number' | 'date' | 'checkbox' | 'choice' | 'instance' | 'url' | 'identifier';
+export type FieldKind = typeof fieldKinds[number];
 export type Direction = 'asc' | 'desc';
 export type FilterOp = 'is' | 'is_not' | 'contains' | 'gt' | 'gte' | 'lt' | 'lte' | 'present' | 'set' | 'empty';
 export interface Filter { field: string; op: FilterOp; value: string | null }
