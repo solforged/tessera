@@ -96,6 +96,11 @@
 .outline-highlights-label span { margin-left: var(--space-8); }
 .outline-source-progress { color: var(--muted); font-variant-numeric: tabular-nums; }
 .outline-citation { max-width: 100%; overflow-wrap: anywhere; text-align: left; }
+/* On the source's own page the chip is only `¶N`: it stays at the end of the first line, and the text wraps beside it. */
+.outline-source-line:has(.outline-citation-local) { flex-wrap: nowrap; }
+.outline-source-line:has(.outline-citation-local) > .outline-source { flex-basis: 0; }
+.outline-source-line:has(.outline-citation-local) > .outline-capability-metadata { flex: none; }
+.outline-citation-local { color: var(--faint); }
 .outline-citation-quote { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; margin: var(--space-4) 0; padding-left: var(--space-8); border-left: 2px solid var(--line); white-space: pre-wrap; color: var(--muted); font-size: var(--text-body); line-height: var(--line-body); font-weight: var(--weight-body); }
 .outline-running-task { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-4); color: var(--muted); }
 
@@ -137,3 +142,4 @@
 .outline-cards-front { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .outline-cards-state { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .outline-cards-confirm { display: flex; flex-direction: column; gap: var(--space-8); padding-block: var(--space-8); border-block: 1px solid var(--line); }
+.outline-row-linked > .outline-body { border-radius: var(--radius-control); background: var(--hover); box-shadow: 0 0 0 var(--space-4) var(--hover); }

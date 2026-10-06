@@ -1199,6 +1199,51 @@ fn coverage_changes_state_once_and_library_filters_sort() {
     );
 }
 #[test]
+fn highlight_notes_count_only_nonempty_live_unarchived_children() {
+    let (_dir, mut n, citation) = highlighted_source();
+    assert_eq!(
+        n.highlights(&HighlightQuery::default()).unwrap().rows[0].notes,
+        0
+    );
+    note(&mut n, &citation.block_id, "");
+    note(&mut n, &citation.block_id, " \t\n ");
+    let archived = note(&mut n, &citation.block_id, "Archived note");
+    let deleted = note(&mut n, &citation.block_id, "Deleted note");
+    apply(
+        &mut n,
+        vec![
+            Operation::SetArchived {
+                id: archived,
+                base_revision: 1,
+                archived: true,
+            },
+            Operation::Delete {
+                id: deleted,
+                base_revision: 1,
+            },
+        ],
+    );
+    let row = n
+        .highlights(&HighlightQuery::default())
+        .unwrap()
+        .rows
+        .remove(0);
+    assert_eq!(row.notes, 0);
+    assert!(!row.processed);
+    let first = note(&mut n, &citation.block_id, "First note");
+    note(&mut n, &first, "Nested note");
+    assert_eq!(
+        n.highlights(&HighlightQuery::default()).unwrap().rows[0].notes,
+        1
+    );
+    note(&mut n, &citation.block_id, "Second note");
+    assert_eq!(
+        n.highlights(&HighlightQuery::default()).unwrap().rows[0].notes,
+        2
+    );
+}
+
+#[test]
 fn highlight_processing_uses_children_cards_and_incoming_links() {
     let dir = tempfile::tempdir().unwrap();
     let mut n = Notebook::open(dir.path()).unwrap();

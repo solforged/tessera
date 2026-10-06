@@ -1,13 +1,23 @@
-import { onCleanup } from 'solid-js';
+import { For, createSignal, onCleanup } from 'solid-js';
+import type { Component } from 'solid-js';
 import type { ApiClient } from '../api/client';
 import type { Citation, HighlightRow, TocEntry } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import type { OpenTarget } from '../shell/contract';
 import { documentReady } from '../tasks/JournalAgenda';
+import { Button } from '../ui/Button';
 import type { MenuItem } from '../ui/Menu';
 import { createHighlightTagPrompt } from './HighlightTagPopup';
+import './library.css';
 
 export const highlightColors = ['yellow', 'green', 'blue', 'red', 'purple'] as const;
+export const [linkedCitation, setLinkedCitation] = createSignal<string | null>(null);
+
+export interface HighlightMenu {
+  items: MenuItem[];
+  Header: Component<{ onDismiss(): void }>;
+  openNote(): void;
+}
 
 export type HighlightSection = TocEntry & { ordinal: number };
 
@@ -23,19 +33,21 @@ export function createHighlightActions(notebook: NotebookClient, onOpen: (target
   const tagPrompt = createHighlightTagPrompt();
   let disposed = false;
   onCleanup(() => { disposed = true; for (const doc of documents.values()) doc.release(); });
-  const menu = async (row: HighlightRow, copyText?: string): Promise<MenuItem[]> => {
+  const menu = async (row: HighlightRow, copyText?: string): Promise<HighlightMenu> => {
     const id = row.citation.block_id, pageId = row.block.page.id;
     let doc = documents.get(pageId);
     if (!doc) { doc = notebook.open(pageId); documents.set(pageId, doc); }
     await documentReady(doc);
     const document = doc;
-    const hasNote = document.outline.children(id).some(child => !!document.block(child)?.text.trim());
+    const hasNote = document.outline.children(id).some(child => !document.block(child)?.archived && !!document.block(child)?.text.trim());
     const run = (action: 'note' | 'card' | 'triage' | 'remove') => {
       void (async () => {
         await documentReady(document);
         let caretId: string | undefined;
         if (action === 'note' || action === 'card') {
-          caretId = action === 'note' ? document.outline.children(id).find(child => !!document.block(child)?.text.trim()) : undefined;
+          // Open the first written note, else reuse a blank one left from an earlier Add note.
+          const notes = document.outline.children(id).filter(child => !document.block(child)?.archived);
+          caretId = action === 'note' ? notes.find(child => !!document.block(child)?.text.trim()) ?? notes.find(child => document.block(child)?.text === '' && !document.outline.children(child).length) : undefined;
           if (!caretId) {
             const result = document.edit({ kind: 'insert', parentId: id, after: document.outline.children(id).at(-1) ?? null, text: action === 'card' ? '>> ' : '' });
             if (!result.ok) throw new Error(result.reason);
@@ -66,11 +78,20 @@ export function createHighlightActions(notebook: NotebookClient, onOpen: (target
     items.push(
       { label: row.processed ? 'Mark unprocessed' : 'Mark processed', action: () => run('triage') },
       { label: 'Add tag…', action: () => tagPrompt.open(document, id) },
-      ...highlightColors.map((value, index): MenuItem => ({ label: value[0]!.toUpperCase() + value.slice(1), section: index === 0 ? 'Colour' : undefined, icon: color === value ? 'check' : undefined, action: () => setColor(value) })),
-      { label: 'No colour', icon: color === null ? 'check' : undefined, action: () => setColor(null) },
       { label: 'Remove highlight', danger: true, action: () => run('remove') },
     );
-    return items;
+    const Header: HighlightMenu['Header'] = props => <>
+      <p class="highlight-menu-quote">{row.citation.quote}</p>
+      <div class="highlight-menu-colors">
+        <For each={[...highlightColors, null]}>{value => {
+          const label = value ? value[0]!.toUpperCase() + value.slice(1) : 'No colour';
+          return <Button class="icon-only" aria-label={label} aria-pressed={color === value} data-menu-key={value ? String(highlightColors.indexOf(value) + 1) : '0'} onClick={() => { props.onDismiss(); setColor(value); }}>
+            <span class={`highlight-color-dot ${value ? `highlight-color-${value}` : 'highlight-color-none'}`} aria-hidden="true" />
+          </Button>;
+        }}</For>
+      </div>
+    </>;
+    return { items, Header, openNote: () => run('note') };
   };
   return Object.assign(menu, { TagPopup: tagPrompt.TagPopup });
 }

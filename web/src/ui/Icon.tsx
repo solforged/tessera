@@ -29,6 +29,7 @@ const paths = {
   article: 'M2 2h12v12H2z M5 5h6 M5 8h6 M5 11h4',
   quote: 'M3 4h10 M3 8h10 M3 12h6 M1 3v10',
   highlight: 'M3 13h10 M5 10l6-7 2 2-6 7H5z',
+  note: 'M2 2h12v8l-4 4H2z M10 14v-4h4 M5 5h6 M5 8h4',
   contents: 'M2 3h2 M6 3h8 M4 7h2 M8 7h6 M4 11h2 M8 11h6',
   upload: 'M8 11V2 M4 6l4-4 4 4 M2 11v3h12v-3',
   download: 'M8 2v9 M4 7l4 4 4-4 M2 11v3h12v-3',
