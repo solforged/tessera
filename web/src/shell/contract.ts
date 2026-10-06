@@ -47,6 +47,8 @@ export interface ViewState {
   folds: string[] | null;
   /** Archived rows shown. */
   showArchived: boolean;
+  /** Set only by an open that names `caretId`: the pane starts editing at the caret instead of selecting its row. Never reported back, so history does not re-enter editing. */
+  edit?: boolean;
 }
 
 export type OpenTarget =

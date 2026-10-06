@@ -30,7 +30,7 @@ import { boundaryDeletion } from '../document/outline-mechanics';
 import { PaneEditor } from './editor';
 import { createOutlineCapabilities } from './capabilities';
 import type { CapabilityPopup } from './capabilities';
-import { initialRow, inlineFieldValue, orderedRange, selectedText, selectionIds, selectionRoots, visibleIds } from './visibility';
+import { inlineFieldValue, orderedRange, selectedText, selectionIds, selectionRoots, visibleIds } from './visibility';
 import { completeReferences } from './completion';
 import { nextClozeNumber, rankSlash, slashTokenAt } from './slash';
 import type { SlashEntry, SlashToken } from './slash';
@@ -637,13 +637,15 @@ function Pane(props: OutlinePaneProps) {
     if (!id) return;
     if (direction === 'left') {
       if (doc.outline.children(id).length && !folds().has(id)) fold(id);
-      else { const parent = doc.outline.parentOf(id); if (indices().has(parent)) rowFocus(parent); }
+      else { const parent = doc.outline.parentOf(id); if (inlineFields().has(parent)) setSelected(parent); if (indices().has(parent)) rowFocus(parent); }
     } else if (folds().has(id)) fold(id);
     else { const child = doc.outline.children(id)[0]; if (child && indices().has(child)) rowFocus(child); }
   }
   function adjacent(direction: number, extend = false) {
-    const index = indices().get(selected() ?? '') ?? 0;
-    const id = ids()[Math.max(0, Math.min(ids().length - 1, index + direction))];
+    const index = indices().get(selected() ?? '');
+    const id = index === undefined
+      ? direction > 0 ? ids()[0] : ids().at(-1)
+      : ids()[Math.max(0, Math.min(ids().length - 1, index + direction))];
     if (id) rowFocus(id, extend);
   }
   function split(_view: EditorView) {
@@ -771,8 +773,8 @@ function Pane(props: OutlinePaneProps) {
   function commonKey(event: KeyboardEvent) {
     if (event.metaKey && event.shiftKey && event.key.toLowerCase() === 't') { openTable(false); return true; }
     if (event.metaKey && event.key.toLowerCase() === 'z') { undo(event.shiftKey); return true; }
-    if (event.metaKey && event.code === 'Period') { event.shiftKey ? zoomOut() : selected() && zoomTo(selected()); return true; }
     const id = editing() ?? selected();
+    if (event.metaKey && event.code === 'Period') { if (id) event.shiftKey ? zoomOut() : zoomTo(id); return true; }
     if (id && !rowRange() && !textRange() && event.metaKey && event.shiftKey && event.key === 'Enter' && !event.altKey && !event.ctrlKey) {
       if (!event.repeat) statusMenu(id);
       return true;
@@ -781,7 +783,7 @@ function Pane(props: OutlinePaneProps) {
       if (!event.repeat) capabilities.invoke(capabilities.toggle(id));
       return true;
     }
-    if (event.altKey && ['ArrowUp', 'ArrowDown'].includes(event.key)) { apply({ kind: 'move', ids: roots(), direction: event.key === 'ArrowUp' ? 'up' : 'down' }); return true; }
+    if (event.altKey && ['ArrowUp', 'ArrowDown'].includes(event.key)) { if (id) apply({ kind: 'move', ids: roots(), direction: event.key === 'ArrowUp' ? 'up' : 'down' }); return true; }
     return false;
   }
   function clearSelection() {
@@ -821,6 +823,13 @@ function Pane(props: OutlinePaneProps) {
     let handled = false;
     if (textRange() && (event.key === 'Backspace' || event.key === 'Delete')) { deleteTextRange(); handled = true; }
     if (!handled) handled = commonKey(event);
+    if (!handled && !selected() && !textRange()) {
+      if (!event.metaKey && !event.ctrlKey && !event.altKey && ['ArrowDown', 'ArrowUp', 'j', 'k'].includes(event.key)) {
+        adjacent(event.key === 'ArrowDown' || event.key === 'j' ? 1 : -1);
+        event.preventDefault();
+      } else if (['Enter', 'Tab', 'Escape', 'Backspace', 'Delete'].includes(event.key) || event.key.length === 1 && !event.metaKey && !event.ctrlKey) event.preventDefault();
+      return;
+    }
     if (!handled && event.key === 'Tab') { apply({ kind: event.shiftKey ? 'outdent' : 'indent', ids: roots() }, false); handled = true; }
     if (!handled && event.key === 'Escape') { clearSelection(); handled = true; }
     if (!handled && event.key === 'ArrowDown') { adjacent(1, event.shiftKey); handled = true; }
@@ -1440,7 +1449,13 @@ function Pane(props: OutlinePaneProps) {
       restoring = false;
       const saved = initial.caret;
       if (doc.root()?.kind !== 'journal') {
-        const id = saved && doc.block(saved.id) && indices().has(saved.id) ? saved.id : initialRow(ids(), id => doc.block(id));
+        const id = saved && doc.block(saved.id) && indices().has(saved.id) ? saved.id : null;
+        if (id && initial.edit) {
+          editAt(id, saved!.offset, !props.vim, !initial.scroll, true);
+          scheduleReport();
+          if (initial.scroll) requestAnimationFrame(() => restoreAnchor(initial.scroll));
+          return;
+        }
         setEditing(null);
         setSelected(id);
         setCaret(id ? { id, offset: id === saved?.id ? saved.offset : 0 } : null);
@@ -1585,7 +1600,7 @@ function Pane(props: OutlinePaneProps) {
       <button type="button" class="row-menu icon-button" aria-label="Block actions" onClick={event => blockMenu(id(), event.currentTarget)}><Icon name="more" /></button>
       <button type="button" class="row-fold icon-button" classList={{ 'fold-empty': !children(), folded: folds().has(id()) }} aria-label={folds().has(id()) ? 'Unfold children' : 'Fold children'} disabled={!children()} onClick={() => fold(id())}><Icon name="down" /></button>
       <Show when={!inline()}><button type="button" class="row-bullet icon-button" classList={{ 'bullet-collapsed': children() && folds().has(id()) }} aria-label="Zoom into block" onClick={() => zoomTo(id())}><Icon name="bullet" /></button></Show>
-      <Show when={inline()}><button type="button" class="outline-field-label" title={valueField()?.name} onClick={() => { const entry = parent(); setSelected(entry); editAt(entry, 0, true); }}><Icon name="field" /><span>{valueField()?.name}</span></button></Show>
+      <Show when={inline()}><button type="button" class="outline-field-label" title={valueField()?.name} onClick={() => editAt(id(), block()?.text.length ?? 0, true)}><Icon name="field" /><span>{valueField()?.name}</span></button></Show>
       <Show when={block()?.task}><TaskStatusButton task={block()?.task ?? null} disabled={capabilities.busy(id())} onChange={status => capabilities.status(id(), status)} /></Show>
       <div class="outline-body" classList={{ 'heading-1': block()?.heading === 1, 'heading-2': block()?.heading === 2, 'heading-3': block()?.heading === 3 }} onMouseDown={event => pointerStart(event, id(), event.currentTarget)}>
         <div class="outline-source-line"><div class="outline-source">
@@ -1642,7 +1657,7 @@ function Pane(props: OutlinePaneProps) {
         <input ref={titleInput} class="title-input" aria-label="Page title" value={title()} onInput={event => setTitle(event.currentTarget.value)} onKeyDown={event => { if (event.isComposing) return; if (event.key === 'Enter') { event.preventDefault(); commitTitle(); } if (event.key === 'Escape') { setRenaming(false); setMessage(''); } }} />
         <button type="button" onClick={commitTitle}>Save title</button><button type="button" onClick={() => setRenaming(false)}>Cancel</button>
       </Show>
-      <Show when={doc.root()?.kind === 'page'}><div class="outline-header-actions"><Button icon="table" label="Table" shortcut="⌘⇧T" onClick={event => openTable(event.metaKey)}>Table<Show when={!type.error && (type()?.members ?? 0) > 0}><span class="table-member-count">{type()?.members}</span></Show></Button></div></Show>
+      <Show when={doc.root()?.kind === 'page' && !doc.root()?.source}><div class="outline-header-actions"><Button icon="table" label="Table" shortcut="⌘⇧T" onClick={event => openTable(event.metaKey)}>Table<Show when={!type.error && (type()?.members ?? 0) > 0}><span class="table-member-count">{type()?.members}</span></Show></Button></div></Show>
       </div>
       <Show when={doc.root()?.source}><SourceHeader doc={doc} notebook={props.notebook} definitions={definitionsById()} resetItems={sourceResets} onOpen={props.onOpen} onError={setMessage} /></Show>
       <Show when={doc.root()?.task || doc.root()?.project || doc.root()?.citations.length}><div class="outline-root-capabilities outline-capability-metadata">
