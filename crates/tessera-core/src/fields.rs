@@ -18,7 +18,7 @@ pub(crate) fn ensure_page(conn: &Connection) -> Result<()> {
     if exists {
         return Ok(());
     }
-    let id = ulid::Ulid::generate().to_string();
+    let id = crate::notebook::new_ulid().to_string();
     conn.execute(
         "INSERT INTO blocks(id, kind, page_id, ordinal, text, title_key, revision, created_at, updated_at)
          VALUES (?1, 'page', ?1, 1024, 'Fields', 'fields', 1, ?2, ?2)",

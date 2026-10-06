@@ -709,7 +709,7 @@ impl Engine<'_, '_> {
     }
 
     fn event(&mut self) -> Result<String> {
-        let id = ulid::Ulid::generate().to_string();
+        let id = crate::notebook::new_ulid().to_string();
         self.tx.execute(
             "INSERT INTO deletion_events(id, change_seq, created_at) VALUES (?1, ?2, ?3)",
             params![id, self.seq, self.now],

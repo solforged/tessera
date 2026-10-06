@@ -18,6 +18,10 @@ tempfile.workspace = true
 deunicode = "1"
 tracing.workspace = true
 
+[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
+getrandom = { version = "0.4", features = ["wasm_js"] }
+js-sys = "0.3"
+jiff = { version = "0.2", default-features = false, features = ["js"] }
 
 [lints]
 workspace = true

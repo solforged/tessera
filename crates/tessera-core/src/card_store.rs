@@ -161,7 +161,7 @@ pub(crate) fn derive_sources(conn: &Connection, ids: &[String], now: i64) -> Res
                     revision: old.revision + 1,
                 });
             } else {
-                let id = ulid::Ulid::generate().to_string();
+                let id = crate::notebook::new_ulid().to_string();
                 let schedule = initial_schedule.get_or_insert_with(|| {
                     serde_json::to_string(&scheduler::new_card(now))
                         .expect("new card schedule serializes")

@@ -47,7 +47,7 @@ impl Notebook {
         {
             return Err(validation("The ingestion target is not an active source."));
         }
-        let id = ulid::Ulid::generate().to_string();
+        let id = crate::notebook::new_ulid().to_string();
         let now = now_ms();
         self.conn.execute(
             "INSERT INTO ingest_jobs(

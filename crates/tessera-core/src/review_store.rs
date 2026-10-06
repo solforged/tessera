@@ -270,7 +270,9 @@ fn write_review(
     });
     if let Some(after) = reset_json.as_deref() {
         // The client event ID always identifies the grade when both are committed.
-        let reset_id = review.grade.map(|_| ulid::Ulid::generate().to_string());
+        let reset_id = review
+            .grade
+            .map(|_| crate::notebook::new_ulid().to_string());
         insert_event(
             conn,
             Evidence {

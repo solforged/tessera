@@ -104,7 +104,7 @@ impl Notebook {
         {
             return Ok(StagedSnapshot { id, existing: true });
         }
-        let id = ulid::Ulid::generate().to_string();
+        let id = crate::notebook::new_ulid().to_string();
         let length: usize = doc
             .passages
             .iter()
@@ -136,7 +136,7 @@ impl Notebook {
             )?;
             for (ordinal, p) in doc.passages.iter().enumerate() {
                 insert.execute(params![
-                    ulid::Ulid::generate().to_string(),
+                    crate::notebook::new_ulid().to_string(),
                     id,
                     ordinal as i64,
                     name(&p.kind),
