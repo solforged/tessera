@@ -175,6 +175,16 @@ export interface NotebookInfo {
   sqlite_version: string;
 }
 
+export interface ServiceInfo {
+  version: string;
+  port: number;
+  assets: 'embedded' | 'directory' | 'none';
+  launch_agent: { installed: boolean; path: string | null };
+}
+
+export interface BackupInfo { path: string; created_at: number; object_count: number }
+export interface CreatedBackup extends BackupInfo { notebook_id: string; schema_version: number; db_page_count: number }
+
 /** `error.details` of a 409 response. */
 export interface ConflictDetails {
   op_index: number;
