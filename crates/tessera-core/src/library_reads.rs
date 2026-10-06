@@ -469,11 +469,19 @@ impl Notebook {
         })
     }
     pub fn highlights(&self, query: &HighlightQuery) -> Result<HighlightResult> {
+        self.highlight_rows(query, None)
+    }
+    pub(crate) fn highlight_rows(
+        &self,
+        query: &HighlightQuery,
+        ids: Option<&[String]>,
+    ) -> Result<HighlightResult> {
         for color in &query.colors {
             crate::library_store::validate_color(Some(color))?;
         }
         let tags: Vec<_> = query.tags.iter().map(|tag| tag.to_lowercase()).collect();
-        let citations = citations(&self.conn, None, None, true, None)?;
+        let citations = citations(&self.conn, ids, None, true, None)?;
+        let ids_json = ids.map(json);
         let mut statement = self.conn.prepare_cached(concat!(
             hidden_blocks!(),
             "SELECT ",
@@ -503,10 +511,11 @@ impl Notebook {
                      SELECT 1 FROM memberships m
                      WHERE m.block_id = b.id AND m.manual = 0 AND m.title_key = wanted.value
                  )
-             )"
+             )
+             AND (?2 IS NULL OR b.id IN (SELECT value FROM json_each(?2)))"
         ))?;
         let mut blocks: HashMap<String, (BlockInPage, bool, Vec<String>)> = statement
-            .query_map([json(&tags)], |r| {
+            .query_map(params![json(&tags), ids_json.as_deref()], |r| {
                 let block = block_at(r, 0)?;
                 Ok((
                     block.id.clone(),
@@ -524,18 +533,21 @@ impl Notebook {
         let mut statement = self.conn.prepare_cached(
             "SELECT id, text
              FROM blocks
-             WHERE kind = 'page'",
+             WHERE kind = 'page' AND (?1 IS NULL OR id IN (
+                 SELECT a.source_id FROM source_snapshots a JOIN citations c ON c.snapshot_id = a.snapshot_id
+                 WHERE c.block_id IN (SELECT value FROM json_each(?1))
+             ))",
         )?;
         let titles: HashMap<String, String> = statement
-            .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
+            .query_map([ids_json.as_deref()], |r| Ok((r.get(0)?, r.get(1)?)))?
             .collect::<rusqlite::Result<_>>()?;
         let mut statement = self.conn.prepare_cached(
             "SELECT c.id, changes.created_at
              FROM citations c JOIN changes ON changes.seq = c.created_seq
-             WHERE c.active = 1",
+             WHERE c.active = 1 AND (?1 IS NULL OR c.block_id IN (SELECT value FROM json_each(?1)))",
         )?;
         let created: HashMap<String, i64> = statement
-            .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?
+            .query_map([ids_json.as_deref()], |r| Ok((r.get(0)?, r.get(1)?)))?
             .collect::<rusqlite::Result<_>>()?;
         let mut rows = vec![];
         // Newest first; the helper returns creation order.

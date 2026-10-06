@@ -14,6 +14,7 @@ import { DatePicker } from '../tasks/DatePicker';
 import { dateSuggestions, dateTokenAt, newTask, planDateToken, removeToken } from '../tasks/quick-date';
 import type { DateSuggestion, DateToken } from '../tasks/quick-date';
 import { JournalAgenda } from '../tasks/JournalAgenda';
+import { JournalResurface } from '../tasks/JournalResurface';
 import { RepeatPopup, TaskControls, TaskStatusButton, priorities, priorityLabel, statusIcons, statusLabels, statuses } from '../tasks/TaskControls';
 import { WorkSessions } from '../tasks/WorkSessions';
 import { Button } from '../ui/Button';
@@ -1434,7 +1435,10 @@ function Pane(props: OutlinePaneProps) {
       <Show when={showArchived()}><p class="archive-notice">Showing archived blocks <button type="button" class="text-button" onClick={() => { setShowArchived(false); scheduleReport(); }}>Hide archived</button></p></Show>
       <Show when={message()}><p class="outline-message" role="alert">{message()} <button class="text-button" type="button" onClick={() => setMessage('')}>Dismiss</button></p></Show>
       <Show when={doc.status() === 'error' || doc.status() === 'missing'}><p role="alert">{doc.statusMessage()}</p></Show>
-      <Show when={doc.root()?.kind === 'journal'}><JournalAgenda date={doc.root()!.text} pageId={props.pageId} notebook={props.notebook} onOpen={props.onOpen} /></Show>
+      <Show when={doc.root()?.kind === 'journal'}>
+        <JournalAgenda date={doc.root()!.text} pageId={props.pageId} notebook={props.notebook} onOpen={props.onOpen} />
+        <JournalResurface date={doc.root()!.text} notebook={props.notebook} onOpen={props.onOpen} />
+      </Show>
     </div>
     <div ref={list} class="outline-list" style={{ height: `${virtualizer.getTotalSize()}px` }}>
       <For each={[...virtualItems().keys()].filter(id => id !== editing())}>{id => <Row id={id} item={() => virtualItems().get(id)!} />}</For>
