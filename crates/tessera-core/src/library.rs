@@ -344,6 +344,8 @@ pub struct LibraryRow {
     pub source: SourceRecord,
     pub creators: Vec<String>,
     pub published: Option<String>,
+    pub site: Option<String>,
+    pub cover: Option<String>,
     pub progress: f64,
     pub highlights: usize,
     pub unprocessed: usize,

@@ -414,6 +414,7 @@ export interface LibraryQuery {
 export interface LibraryView { id: string; name: string; query: LibraryQuery; revision: number; created_at: number; updated_at: number }
 export interface LibraryRow {
   page: Block; source: SourceRecord; creators: string[]; published: string | null;
+  site: string | null; cover: string | null;
   progress: number; highlights: number; unprocessed: number;
 }
 export interface LibraryResult {

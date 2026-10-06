@@ -47,8 +47,14 @@
   --calendar-deadline: var(--warning);
   --calendar-related: var(--muted);
 
+  /* Highlight hues: reader tints at 24%, dots and chips at full strength.
+     Distinct from the accent and status hues so a colour reads as a label. */
+  --highlight-yellow: #dab342; --highlight-green: #52b777; --highlight-blue: #589ee0;
+  --highlight-red: #e66d71; --highlight-purple: #b186da;
+
   /* Type. IBM Plex Sans Variable is bundled. */
   --font-body: "IBM Plex Sans Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-reading-serif: "Literata Variable", Georgia, serif;
   --font-mono: "SFMono-Regular", Menlo, Consolas, monospace;
   --text-meta: 12px; --line-meta: 16px;       /* pills, labels, breadcrumbs, status */
   --text-control: 13px; --line-control: 18px; /* buttons, menus, sidebar, tables */

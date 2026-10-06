@@ -617,6 +617,13 @@ impl Notebook {
             .filter_map(|(s, _)| s.current_snapshot_id.as_ref())
             .collect();
         let mut statement = self.conn.prepare_cached(
+            "SELECT id, json_extract(metadata, '$.cover') FROM snapshots
+             WHERE id IN (SELECT value FROM json_each(?1))",
+        )?;
+        let covers: HashMap<String, Option<String>> = statement
+            .query_map([json(&snapshot_ids)], |r| Ok((r.get(0)?, r.get(1)?)))?
+            .collect::<rusqlite::Result<_>>()?;
+        let mut statement = self.conn.prepare_cached(
             "SELECT s.id,
                     CAST(SUM(COALESCE(next.start, s.text_length) - p.start) AS REAL) / s.text_length
              FROM snapshots s
@@ -682,11 +689,19 @@ impl Notebook {
                 .copied()
                 .unwrap_or(0.0);
             let (highlights, unprocessed) = totals.remove(&source.block_id).unwrap_or_default();
+            let cover = source
+                .current_snapshot_id
+                .as_ref()
+                .and_then(|id| covers.get(id))
+                .cloned()
+                .flatten();
             rows.push(LibraryRow {
                 page,
                 source,
                 creators,
                 published: fields.get("published").and_then(|v| v.first()).cloned(),
+                site: fields.get("site").and_then(|v| v.first()).cloned(),
+                cover,
                 progress,
                 highlights,
                 unprocessed,
