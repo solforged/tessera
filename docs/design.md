@@ -112,13 +112,16 @@ Three layers, each reaching the same actions as the palette and the block menu.
 
    | Trigger | Means |
    |---|---|
-   | `[[` | reference |
+   | `[[` | reference to a page, field or block |
+   | `((` | reference to a block, searching blocks only |
    | `#` | type |
    | `@` | when: `@fri` schedules, `@due fri` sets a deadline |
    | `/` | every block verb: statuses, schedule, deadline, priority, repeat, clock, project, headings, references, types, cards |
    | `::` | field shorthand |
    | `[] `, `# ` | todo, heading |
    | `>>`, `<<`, `<>`, `{{c1::}}` | cards |
+
+   `[[` and `((` close their pair as in Roam and Logseq, and a typed closer steps over the paired one. The picker opens under the opening brackets and stays there while the query grows; the open `[[query]]` is tinted in the accent until a choice replaces it with a reference. Enter or Tab picks, including when pressed before results arrive. The caret lands after the reference, with a space when a word or the end of the block follows; punctuation or a space typed next takes that space's place. Backspace in an empty `[[]]` removes both pairs. A query that names no page or field exactly offers Create page after the matches.
 
 2. **Chords** for what happens constantly. ⌘ acts on the current block: ⌘Enter toggles todo and done, ⌘⇧Enter opens the status menu, ⌘. zooms in and ⌘⇧. out, ⌘⇧T opens the table. ⌃⇧ is shell navigation. ⌥↑ and ⌥↓ move blocks. No ⌥-letter chords: on macOS they type accented letters.
 3. **Leader.** Space on a selected row, or in Vim normal mode, opens a menu of single letters: `t` status, `s` schedule, `d` deadline, `p` priority, `r` repeat, `w` clock in or out, `c` add card, `z` zoom in.
@@ -200,7 +203,7 @@ Three shapes only, so every popup is recognisable at a glance:
 |---|---|---|
 | Find or create: pages, blocks and explicit page creation; `>` finds commands | Picker, one line per hit with the page path in meta size; Tab drills into children | Below the global search trigger, 560 px |
 | Dedicated command palette | Picker, with action sections and shortcuts | Top centre, 560 px |
-| `[[`, `#`, `Name::` completion and Add type | Picker | Below the caret or the block |
+| `[[`, `((`, `#`, `Name::` completion and Add type | Picker | Below the opening brackets, the caret or the block |
 | `@` dates and `/` commands | Picker without an input; the block text is the query, sections label `/` rows, faster keys at the right | Below the token |
 | Leader, status and priority menus | Menu; leader letters at the right and pressed directly | Below the row |
 | Add filter | Picker in three steps: field, condition, value; Backspace on an empty query steps back | Below its trigger |
