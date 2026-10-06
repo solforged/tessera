@@ -1,4 +1,6 @@
 import { createEffect, createMemo, createSignal, For, on, Show } from 'solid-js';
+import { planningCountLabel } from '../tasks/planning-marks';
+import type { PlanningMarks } from '../tasks/planning-marks';
 import { Button } from './Button';
 import './month-grid.css';
 
@@ -16,6 +18,12 @@ export interface MonthGridProps {
   today: string;
   /** Other dates worth seeing while choosing, such as a task's deadline, with a short label. */
   marks?: Record<string, string>;
+  /** Notebook-wide open-task counts, independent of the picker’s related dates. */
+  planningMarks?: PlanningMarks;
+  planningLoading?: boolean;
+  planningError?: string;
+  /** The first civil date of the visible month, including keyboard navigation. */
+  onMonthChange?(month: string): void;
   disabled?: boolean;
   onPick(date: string): void;
 }
@@ -30,6 +38,11 @@ export function MonthGrid(props: MonthGridProps) {
     setFocused(value);
     setMonth(noon(value));
   }, { defer: true }));
+  const visibleMonth = createMemo(() => {
+    const value = month();
+    return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-01`;
+  });
+  createEffect(() => { props.onMonthChange?.(visibleMonth()); });
   const cells = createMemo(() => {
     const value = month();
     const first = new Date(value.getFullYear(), value.getMonth(), 1, 12);
@@ -55,20 +68,38 @@ export function MonthGrid(props: MonthGridProps) {
       <strong>{month().toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</strong>
       <Button icon="right" label="Next month" disabled={props.disabled} onClick={() => showMonth(1)} />
     </div>
-    <div ref={grid} class="month-grid-days" role="group" aria-label={month().toLocaleDateString(undefined, { month: 'long', year: 'numeric' })} onKeyDown={keydown}>
+    <div ref={grid} class="month-grid-days" role="group" aria-label={month().toLocaleDateString(undefined, { month: 'long', year: 'numeric' })} aria-busy={props.planningLoading} onKeyDown={keydown}>
       <For each={['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']}>{day => <span class="month-grid-weekday" aria-hidden="true">{day}</span>}</For>
       <For each={cells()}>{day => {
         const date = localDate(day);
-        const mark = () => props.marks?.[date];
+        const planning = createMemo(() => props.planningMarks?.[date]);
+        const label = createMemo(() => {
+          const related = props.marks?.[date];
+          const counts = planningCountLabel(planning());
+          return related && counts ? `${related} · ${counts}` : related || counts;
+        });
         return <button type="button" class="month-grid-day"
           classList={{ 'month-grid-outside': day.getMonth() !== month().getMonth(), selected: date === props.value }}
           tabIndex={date === focused() ? 0 : -1} disabled={props.disabled}
-          aria-label={`${day.toLocaleDateString(undefined, { dateStyle: 'full' })}${mark() ? `, ${mark()}` : ''}`}
-          aria-pressed={date === props.value} aria-current={date === props.today ? 'date' : undefined} title={mark()}
+          aria-label={`${day.toLocaleDateString(undefined, { dateStyle: 'full' })}${label() ? `, ${label()}` : ''}`}
+          aria-pressed={date === props.value} aria-current={date === props.today ? 'date' : undefined} title={label() || undefined}
           onFocus={() => setFocused(date)} onClick={() => props.onPick(date)}>
-          {day.getDate()}<Show when={mark()}><span class="month-grid-mark" aria-hidden="true" /></Show>
+          {day.getDate()}<span class="month-grid-markers" aria-hidden="true">
+            <Show when={planning()?.scheduled}><span class="month-grid-scheduled" /></Show>
+            <Show when={planning()?.deadline}><span class="month-grid-deadline" /></Show>
+            <Show when={props.marks?.[date]}><span class="month-grid-mark" /></Show>
+          </span>
         </button>;
       }}</For>
     </div>
+    <Show when={props.planningMarks}>
+      <div class="month-grid-planning-key" role="status" title={props.planningError || undefined}>
+        <Show when={!props.planningError} fallback={<span class="error">Planning counts unavailable</span>}>
+          <span class="month-grid-key-item"><span class="month-grid-scheduled" aria-hidden="true" />Scheduled</span>
+          <span class="month-grid-key-item"><span class="month-grid-deadline" aria-hidden="true" />Deadlines</span>
+          <span class="visually-hidden">{props.planningLoading ? 'Loading planning counts' : ''}</span>
+        </Show>
+      </div>
+    </Show>
   </div>;
 }
