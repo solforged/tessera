@@ -43,6 +43,7 @@ import { TypePill } from './references';
 import { CitationChip, SourceHeader } from './SourceHeader';
 import { GLOSS_FIELD, glossEntry, isGistName, isGlossName } from './gloss';
 import { positionSource as sharedPositionSource } from './perspectives';
+import { Apparatus } from './Apparatus';
 import { CardSummary } from './CardSummary';
 import { addFieldOption, createFieldEntryConversion, createSourceFieldResets } from './source-fields';
 import { formatSourceValue, sourceFieldName } from './source';
@@ -1514,7 +1515,23 @@ function Pane(props: OutlinePaneProps) {
       held: held.map(row => row.block),
       // Perspectives on this page filed elsewhere, such as under a highlight on a source page.
       about: about.filter(row => row.block.page.id !== props.pageId).map(row => row.block),
+      aboutHolders: about.filter(row => row.block.page.id !== props.pageId).map(row => row.holder_id),
     };
+  });
+  /** Holders of the perspectives filed under this page, here or elsewhere, each once, in page order. */
+  const holders = createMemo(() => {
+    const seen: string[] = [];
+    const add = (id: string | null | undefined) => { if (id && id !== props.pageId && !seen.includes(id)) seen.push(id); };
+    (doc.outline as OutlineIndex).each(0, doc.outline.size(), row => { const position = doc.block(row.id)?.position; if (position?.subject_id === props.pageId) add(position.holder_id); });
+    for (const id of related()?.aboutHolders ?? []) add(id);
+    return seen;
+  }, undefined, { equals: (a, b) => a.length === b.length && a.every((id, index) => id === b[index]) });
+  // The margin appears on titled pages with three or more perspectives; CSS shows it only when the pane is wide.
+  const apparatus = () => doc.root()?.kind === 'page' && !zoom() && localPositions() + (related()?.aboutHolders.length ?? 0) >= 3;
+  const linkedPages = createMemo(() => {
+    const seen: string[] = [];
+    for (const row of related()?.backlinks ?? []) if (row.page.id !== props.pageId && !holders().includes(row.page.id) && !seen.includes(row.page.id)) seen.push(row.page.id);
+    return seen.slice(0, 12);
   });
   const breadcrumbs = createMemo(() => {
     doc.outline.version();
@@ -1808,7 +1825,8 @@ function Pane(props: OutlinePaneProps) {
     </details>;
   }
 
-  return <div ref={scroll} class="outline-pane" data-pane={props.pane} tabIndex={0} role="tree" aria-label="Page outline" aria-owns={[...virtualItems().keys()].map(id => `outline-${props.pane}-${id}`).join(' ')} onFocusIn={props.onActivate} onFocusOut={report} onKeyDown={structuralKey} onWheel={() => { anchorEpoch++; cancelAnimationFrame(anchorFrame); }} onScroll={scrolled}>
+  return <div ref={scroll} class="outline-pane" classList={{ 'has-apparatus': apparatus() }} data-pane={props.pane} tabIndex={0} role="tree" aria-label="Page outline" aria-owns={[...virtualItems().keys()].map(id => `outline-${props.pane}-${id}`).join(' ')} onFocusIn={props.onActivate} onFocusOut={report} onKeyDown={structuralKey} onWheel={() => { anchorEpoch++; cancelAnimationFrame(anchorFrame); }} onScroll={scrolled}>
+    <Show when={apparatus()}><Apparatus notebook={props.notebook} holders={holders()} linked={linkedPages()} sources={citedSources().flatMap(id => sigla().has(id) ? [{ id, siglum: sigla().get(id)! }] : [])} onOpen={props.onOpen} /></Show>
     <div ref={heading} class="outline-heading">
       <Show when={zoom()}><nav class="outline-breadcrumbs" aria-label="Zoom breadcrumbs"><button type="button" onClick={() => zoomTo(null)}>{doc.root()?.text}</button><For each={breadcrumbs()}>{id => <><Icon name="right" /><button type="button" onClick={() => zoomTo(id)}>{plainText(doc.block(id)?.text ?? '', reference => props.notebook.lookup(reference)) || 'Empty block'}</button></>}</For></nav></Show>
       <div class="outline-title-row">
