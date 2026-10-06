@@ -86,7 +86,8 @@ kbd { color: var(--muted); font: var(--text-meta)/var(--line-meta) var(--font-bo
 .pane-header > .button, .pane-save-state, .vim-mode { flex-shrink: 0; }
 .pane-navigation { display: flex; flex-shrink: 0; margin-right: var(--space-4); }
 .pane-breadcrumbs { display: flex; align-items: center; flex: 1; min-width: 0; overflow: hidden; color: var(--muted); }
-.pane-breadcrumbs .button { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 28px; color: inherit; }
+/* Block, not inline-flex: a centred flex button clips both ends of a long title instead of showing an ellipsis. */
+.pane-breadcrumbs .button { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 28px; color: inherit; }
 .pane-breadcrumbs .button:last-child { color: var(--text); }
 .is-split .pane:not(.active) .pane-header { color: var(--muted); }
 .is-split .pane:not(.active) .pane-breadcrumbs .button:last-child { color: var(--muted); }
