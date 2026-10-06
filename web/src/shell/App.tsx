@@ -11,12 +11,14 @@ import { copyTaskQuery, createTaskQuery } from '../tasks/query';
 import { copyQuery } from '../table/query';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
+import type { IconName } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
 import type { MenuItem } from '../ui/Menu';
 import { Popup } from '../ui/Popup';
 import { Calendar } from './Calendar';
 import { localDate } from '../ui/MonthGrid';
 import { createCommandRegistry } from './commands';
+import { deskCounts, shortDay } from './desk-counts';
 import type { AgendaViewState, CommandRegistry, FieldsViewState, LibraryViewState, OpenTarget, PaneId, ReaderViewState, ReviewViewState, SettingsViewState, TableViewState, ViewState } from './contract';
 import { Palette } from './Palette';
 
@@ -44,7 +46,7 @@ type PaneSession = { entries: HistoryEntry[]; index: number; generation: number 
 type SavedNavigation = { pinned?: string[]; pinnedViews?: string[]; recent?: string[]; vim?: boolean; panes?: Partial<Record<PaneId, HistoryEntry>>; active?: PaneId };
 type VimMode = 'insert' | 'normal' | 'visual' | 'outline' | null;
 const vimLabels: Record<Exclude<VimMode, null>, string> = { insert: 'Insert', normal: 'Normal', visual: 'Visual', outline: 'Outline' };
-type PopupState = { kind: 'search' | 'commands' | 'calendar' | 'new' | 'delete' | 'notebook' | 'layout'; anchor: HTMLElement; pane: PaneId; date?: string } | null;
+type PopupState = { kind: 'search' | 'commands' | 'calendar' | 'new' | 'delete' | 'layout'; anchor: HTMLElement; pane: PaneId; date?: string } | null;
 const paneIds: PaneId[] = ['main', 'side'];
 const SAVE_NOTICE_DELAY = 1000;
 
@@ -124,6 +126,7 @@ export function App() {
   const [offlineUnavailable, setOfflineUnavailable] = createSignal(false);
   const [deleted, setDeleted] = createSignal<{ id: string; title: string } | null>(null);
   const todayDate = () => notebook.todayDate();
+  const counts = deskCounts(notebook, todayDate);
   let searchButton!: HTMLButtonElement;
   const entry = (pane: PaneId) => sessions()[pane].entries[sessions()[pane].index];
   const split = () => sessions().main.index >= 0 && sessions().side.index >= 0;
@@ -394,40 +397,49 @@ export function App() {
   const pinnedViewList = createMemo(() => (views() ?? []).filter(view => pinnedViews().includes(view.id)));
   const otherViews = createMemo(() => (views() ?? []).filter(view => !pinnedViews().includes(view.id)));
   const activeViewId = () => { const target = entry(active())?.target; return target?.kind === 'table' ? target.viewId ?? undefined : undefined; };
+  // Sidebar sections carry rubric numerals counted over the sections actually shown.
+  const sectionNumber = (section: 'pinned' | 'views' | 'recent') => {
+    const shown = [...pinnedRoots().length || pinnedViewList().length ? ['pinned'] : [], ...otherViews().length ? ['views'] : [], 'recent'];
+    return String(shown.indexOf(section) + 1).padStart(2, '0');
+  };
   return <div class={`app ${split() ? 'is-split' : ''} ${sidebar() ? 'sidebar-expanded' : ''} ${sidebarCollapsed() ? 'sidebar-collapsed' : ''}`} onPointerDown={() => { focusEpoch++; }}>
     <header class="global-rail" aria-label="Global navigation">
-      <div class="rail-notebook">
+      <div class="rail-start">
         <Button icon="sidebar" label="Toggle sidebar" aria-expanded={sidebarVisible()} onClick={toggleSidebar} />
-        <Button class="notebook-name" title={info()?.path} aria-haspopup="menu" aria-expanded={popup()?.kind === 'notebook'} onClick={event => setPopup({ kind: 'notebook', anchor: event.currentTarget, pane: active() })}><span>{info()?.path.split('/').filter(Boolean).at(-1) ?? 'Tessera'}</span><Icon name="down" /></Button>
+        <span class="wordmark" title={info()?.path}>Tessera</span>
       </div>
-      <div class="rail-actions">
-        <div class="rail-finder" role="group" aria-label="Find and commands">
-          <Button ref={searchButton} class="global-search" icon="search" label="Find or create" shortcut="⌃⇧F" aria-haspopup="dialog" aria-expanded={popup()?.kind === 'search'} onClick={() => showPalette('search')}><span>Find or create…</span><kbd>⌃⇧F</kbd></Button>
-          <Button class="global-commands" icon="command" label="Commands" shortcut="⌃⇧P" aria-haspopup="dialog" aria-expanded={popup()?.kind === 'commands'} onClick={() => showPalette('commands')} />
-        </div>
+      <div class="rail-finder" role="group" aria-label="Find and commands">
+        <Button ref={searchButton} class="global-search" icon="find" label="Find or create" shortcut="⌃⇧F" aria-haspopup="dialog" aria-expanded={popup()?.kind === 'search'} onClick={() => showPalette('search')}><span>Find or create…</span><kbd>⌃⇧F</kbd></Button>
+        <Button class="global-commands" icon="command" label="Commands" shortcut="⌃⇧P" aria-haspopup="dialog" aria-expanded={popup()?.kind === 'commands'} onClick={() => showPalette('commands')} />
+      </div>
+      <div class="rail-end">
         <Button icon="panes" label="Layout" aria-haspopup="menu" aria-expanded={popup()?.kind === 'layout'} onClick={event => setPopup({ kind: 'layout', anchor: event.currentTarget, pane: active() })} />
       </div>
     </header>
     <aside class="sidebar" aria-label="Notebook navigation" aria-hidden={!sidebarVisible()} inert={!sidebarVisible()}>
       <nav class="primary-navigation" aria-label="Notebook">
-        <Button icon="calendar" class={activeRoot()?.kind === 'journal' && activeRoot()?.text === todayDate() ? 'selected' : ''} onClick={event => { void today(active(), event.shiftKey); }}>Today <kbd>⌃⇧J</kbd></Button>
-        <Button icon="check" class={entry(active())?.target.kind === 'agenda' ? 'selected' : ''} onClick={event => open({ kind: 'agenda', date: journalDate(active()) }, event.shiftKey)}>Agenda</Button>
-        <Button icon="copy" class={entry(active())?.target.kind === 'review' ? 'selected' : ''} onClick={event => open({ kind: 'review' }, event.shiftKey)}>Review</Button>
-        <Button icon="book" class={entry(active())?.target.kind === 'library' ? 'selected' : ''} onClick={event => open({ kind: 'library' }, event.shiftKey)}>Library</Button>
+        <Button icon="today" title="Today (⌃⇧J)" class={activeRoot()?.kind === 'journal' && activeRoot()?.text === todayDate() ? 'selected' : ''} onClick={event => { void today(active(), event.shiftKey); }}><span>Today</span><span class="desk-count">{shortDay(todayDate())}</span></Button>
+        <Button icon="agenda" class={entry(active())?.target.kind === 'agenda' ? 'selected' : ''} onClick={event => open({ kind: 'agenda', date: journalDate(active()) }, event.shiftKey)}><span>Agenda</span><Show when={counts()?.planned}>{planned => <span class={`desk-count ${counts()!.overdue ? 'late' : ''}`} title={counts()!.overdue ? `${planned()} to do today · ${counts()!.overdue} overdue` : `${planned()} to do today`}>{planned()}</span>}</Show></Button>
+        <Button icon="review" class={entry(active())?.target.kind === 'review' ? 'selected' : ''} onClick={event => open({ kind: 'review' }, event.shiftKey)}><span>Review</span><Show when={counts()?.cards}>{cards => <span class="desk-count" title={`${cards()} ${cards() === 1 ? 'card' : 'cards'} due`}>{cards()}</span>}</Show></Button>
+        <Button icon="library" class={entry(active())?.target.kind === 'library' ? 'selected' : ''} onClick={event => open({ kind: 'library' }, event.shiftKey)}><span>Library</span><Show when={counts()?.highlights}>{highlights => <span class="desk-count" title={`${highlights()} unprocessed ${highlights() === 1 ? 'highlight' : 'highlights'}`}>{highlights()}</span>}</Show></Button>
       </nav>
       <Show when={pinnedRoots().length || pinnedViewList().length}><section class="page-list" aria-label="Pinned">
-        <h2>Pinned</h2>
+        <h2><span class="section-number">{sectionNumber('pinned')}</span>Pinned<span class="section-rule" /><span class="section-count">{pinnedRoots().length + pinnedViewList().length}</span></h2>
         <PageLinks roots={pinnedRoots()} notebook={notebook} activeId={pageIdOf(entry(active()))} onOpen={open} />
         <ViewLinks views={pinnedViewList()} pinned activeId={activeViewId()} onOpen={openView} onPin={pinView} />
       </section></Show>
       <Show when={otherViews().length}><section class="page-list" aria-label="Saved views">
-        <h2>Views</h2>
+        <h2><span class="section-number">{sectionNumber('views')}</span>Views<span class="section-rule" /><span class="section-count">{otherViews().length}</span></h2>
         <ViewLinks views={otherViews()} pinned={false} activeId={activeViewId()} onOpen={openView} onPin={pinView} />
       </section></Show>
       <details class="page-list" open>
-        <summary>Recent<Icon name="down" /></summary>
+        <summary><span class="section-number">{sectionNumber('recent')}</span>Recent<span class="section-rule" /><Icon name="down" /></summary>
         <Show when={recentRoots().length} fallback={<p class="sidebar-empty">Pages you open appear here</p>}><PageLinks roots={recentRoots()} sourceIcons notebook={notebook} activeId={pageIdOf(entry(active()))} onOpen={open} /></Show>
       </details>
+      <div class="sidebar-foot">
+        <Button icon="settings" class={entry(active())?.target.kind === 'settings' ? 'selected' : ''} onClick={event => open({ kind: 'settings' }, event.shiftKey)}><span>Settings</span></Button>
+        <Button icon="field" label="Fields" class={`icon-only ${entry(active())?.target.kind === 'fields' ? 'selected' : ''}`} onClick={event => open({ kind: 'fields' }, event.shiftKey)} />
+      </div>
     </aside>
     <main class="workspace">
       <Show when={split()}><div class="pane-tabs" role="tablist" aria-label="Working panes"><For each={paneIds}>{pane => <Button role="tab" aria-selected={active() === pane} onClick={() => { if (active() !== pane) switchPane(); }}>{pane === 'main' ? 'Pane 1' : 'Pane 2'} · {rootById().get(pageIdOf(entry(pane)) ?? '')?.text ?? paneLabel(entry(pane)?.target)}</Button>}</For></div></Show>
@@ -470,12 +482,6 @@ export function App() {
           <div class="popup-actions"><Button onClick={() => setPopup(null)}>Cancel</Button><Button icon="trash" class="danger bordered" onClick={() => { void deletePage(state.pane); }}>Delete page</Button></div>
         </Popup>
       </Show>
-      <Show when={state.kind === 'notebook'}>
-        <Menu anchor={state.anchor} label="Notebook" onDismiss={() => setPopup(null)} items={[
-          { label: 'Fields', icon: 'field', action: () => open({ kind: 'fields' }, false, state.pane) },
-          { label: 'Settings', icon: 'settings', action: () => open({ kind: 'settings' }, false, state.pane) },
-        ]} />
-      </Show>
       <Show when={state.kind === 'layout'}>
         <Menu anchor={state.anchor} label="Layout" onDismiss={() => setPopup(null)} items={[
           { label: 'Open active view beside', icon: 'panes', shortcut: '⌃⇧O', disabledReason: entry(state.pane) ? undefined : 'No view is open', action: () => openPageBeside(state.pane) },
@@ -499,7 +505,7 @@ function PageLinks(props: { roots: Block[]; sourceIcons?: boolean; notebook: Not
     const title = () => props.notebook.lookup(id)()?.text ?? root().text;
     // A page gains a source only on ingest, so one lookup per mounted row is enough.
     const [capabilities] = createResource(() => props.sourceIcons && root().kind === 'page' ? id : false, id => props.notebook.api.capabilities(id));
-    return <Button class={id === props.activeId ? 'selected' : ''} icon={root().kind === 'journal' ? 'calendar' : capabilities.error || !capabilities()?.source ? 'page' : capabilities()!.source!.format === 'article' ? 'article' : 'book'} title={title()} onClick={event => props.onOpen({ kind: 'page', pageId: id }, event.shiftKey)}><span>{title()}</span></Button>;
+    return <Button class={id === props.activeId ? 'selected' : ''} icon={root().kind === 'journal' ? 'today' : capabilities.error || !capabilities()?.source ? 'page' : capabilities()!.source!.format === 'article' ? 'article' : 'book'} title={title()} onClick={event => props.onOpen({ kind: 'page', pageId: id }, event.shiftKey)}><span>{title()}</span></Button>;
   }}</For>;
 }
 
@@ -581,7 +587,7 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
   const saveState = () => { const state = doc()?.saveState(); return state === 'queued' || state === 'saving' && !slowSave() ? 'saved' : state; };
   const status = () => {
     const state = saveState();
-    return state === 'conflict' ? 'Conflict · Both versions kept' : state === 'error' ? 'Couldn’t save · Local changes kept' : state === 'offline' ? 'Offline' : state === 'saved' ? 'Saved' : 'Saving…';
+    return state === 'conflict' ? 'Conflict · Both versions kept' : state === 'error' ? 'Couldn’t save · Local changes kept' : state === 'offline' ? 'Offline' : 'Saving…';
   };
   const undo = (redo: boolean) => {
     const caret = redo ? doc()?.redo() : doc()?.undo(); if (caret) props.onRestoreView({ ...outlineView(), caret });
@@ -598,9 +604,16 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
     { label: outlineView().showArchived ? 'Hide archived' : 'Show archived', icon: 'archive', action: props.onArchived },
     { label: 'Delete', icon: 'trash', danger: true, action: () => props.onDelete(menuButton) },
   ];
+  // The place or kind the pane shows, in the same glyphs the sidebar uses.
+  const kindIcon = (): IconName => {
+    if (pageId()) return root()?.kind === 'journal' ? 'today' : root()?.source ? 'library' : 'page';
+    const kind = current().target.kind;
+    return kind === 'agenda' ? 'agenda' : kind === 'review' ? 'review' : kind === 'library' || kind === 'reader' ? 'library' : kind === 'table' ? 'table' : kind === 'fields' ? 'field' : kind === 'settings' ? 'settings' : 'page';
+  };
   return <section class={`pane ${props.active ? 'active' : ''}`} data-pane={props.pane} aria-label={props.pane === 'main' ? 'Pane 1' : 'Pane 2'} onPointerDown={props.onActivate} onFocusIn={props.onActivate}>
     <header class="pane-header">
       <div class="pane-navigation"><Button icon="left" label="Back" shortcut="⌃⇧H" disabled={props.session().index <= 0} onClick={() => props.onTravel(-1)} /><Button icon="right" label="Forward" shortcut="⌃⇧L" disabled={props.session().index >= props.session().entries.length - 1} onClick={() => props.onTravel(1)} /></div>
+      <Icon class="pane-kind" name={kindIcon()} />
       <Show when={pageId()}>
         <nav class="pane-breadcrumbs" aria-label="Page breadcrumbs"><Show when={root()?.source && !breadcrumbs().length}><Button onClick={event => props.onOpen({ kind: 'library' }, event.shiftKey)}>Library</Button><span class="breadcrumb-separator">/</span></Show><Button onClick={() => props.onRestoreView({ ...outlineView(), zoom: null })}>{root()?.text ?? 'Loading…'}</Button><For each={breadcrumbs()}>{block => <><span class="breadcrumb-separator">/</span><Button onClick={() => props.onRestoreView({ ...outlineView(), zoom: block.id })}>{plainText(block.text, id => props.notebook.lookup(id)) || 'Empty block'}</Button></>}</For></nav>
         <Show when={root()?.kind === 'journal'}><nav class="journal-navigation" aria-label="Journal navigation">
@@ -608,8 +621,8 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
           <Button class="journal-date" icon="calendar" label="Choose journal date" aria-haspopup="dialog" onClick={event => props.onChooseDate(event.currentTarget)} />
           <Button icon="right" label="Next journal day" onClick={() => props.onShiftDate(1)} />
         </nav></Show>
-        <span class="pane-save-state" data-state={saveState()} title={doc()?.saveMessage()}><Icon name={saveState() === 'saved' ? 'check' : saveState() === 'offline' ? 'offline' : saveState() === 'error' || saveState() === 'conflict' ? 'warning' : 'saving'} />{status()}</span>
-        <Show when={props.vim}><span class="vim-mode">Vim: {vimLabels[props.vimMode ?? 'outline']}</span></Show>
+        <span class="pane-save-state" data-state={saveState()} title={doc()?.saveMessage()}><Show when={saveState() !== 'saved'} fallback={<><span class="save-dot" /><span class="visually-hidden">Saved</span></>}><Icon name={saveState() === 'offline' ? 'offline' : saveState() === 'error' || saveState() === 'conflict' ? 'warning' : 'saving'} />{status()}</Show></span>
+        <Show when={props.vim}><span class="vim-mode" title="Vim mode">{vimLabels[props.vimMode ?? 'outline']}</span></Show>
       </Show>
       <Show when={!pageId()}><Show when={current().target.kind === 'reader' ? current().target as Extract<OpenTarget, { kind: 'reader' }> : undefined} fallback={<span class="pane-breadcrumbs">{paneLabel(current().target)}</span>}>{target =>
         <nav class="pane-breadcrumbs" aria-label="Source breadcrumbs"><Button onClick={event => props.onOpen({ kind: 'library' }, event.shiftKey)}>Library</Button><span class="breadcrumb-separator">/</span><Button onClick={event => props.onOpen({ kind: 'page', pageId: target().sourceId }, event.shiftKey)}>{props.notebook.lookup(target().sourceId)()?.text ?? 'Reader'}</Button></nav>

@@ -1,4 +1,7 @@
-import type { JSX } from 'solid-js';
+import { Show, type JSX } from 'solid-js';
+
+/** A glyph is a stroked path, optionally with a filled part such as a pupil or a hub. */
+type Glyph = string | readonly [stroke: string, fill: string];
 
 const paths = {
   search: 'm11 11 4 4 M12.5 7a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0Z',
@@ -22,7 +25,8 @@ const paths = {
   archive: 'M1 2h14v3H1z M3 5v9h10V5 M6 8h4',
   table: 'M1 2h14v12H1z M1 6h14 M6 2v12 M11 6v8',
   field: 'M2 3h12 M2 8h8 M2 13h5 M12 10v5 M10 12h4',
-  settings: 'M2 4h12 M2 12h12 M5 2v4 M11 10v4',
+  // A gear: the clockwork of the notebook itself.
+  settings: 'M12.6 8a4.6 4.6 0 1 1-9.2 0 4.6 4.6 0 0 1 9.2 0Z M9.8 8a1.8 1.8 0 1 1-3.6 0 1.8 1.8 0 0 1 3.6 0Z M12.6 8h1.8 M11.25 11.25l1.28 1.28 M8 12.6v1.8 M4.75 11.25l-1.28 1.28 M3.4 8H1.6 M4.75 4.75 3.47 3.47 M8 3.4V1.6 M11.25 4.75l1.28-1.28',
   tag: 'M2 2h6l6 6-6 6-6-6z M5 5h.01',
   select: 'M2 2h5 M9 2h5 M2 14h5 M9 14h5 M2 2v5 M2 9v5 M14 2v5 M14 9v5',
   book: 'M2 2.5h4.5A1.5 1.5 0 0 1 8 4v10a1.5 1.5 0 0 0-1.5-1.5H2z M14 2.5H9.5A1.5 1.5 0 0 0 8 4v10a1.5 1.5 0 0 1 1.5-1.5H14z',
@@ -39,8 +43,18 @@ const paths = {
   heading: 'M4 3v10 M12 3v10 M4 8h8',
   flag: 'M3 15V2 M3 2.5h9l-2 3 2 3H3',
   play: 'm5 3 8 5-8 5z',
-} as const;
+  // Places on the desk, drawn from circles and rules like the oculus.
+  today: 'M2 12h12 M4.5 12a3.5 3.5 0 0 1 7 0 M8 4.5V6 M3.6 6.6l1 1 M12.4 6.6l-1 1',
+  agenda: ['M14 8a6 6 0 1 1-12 0 6 6 0 0 1 12 0Z M8 2.8V4 M13.2 8H12 M8 13.2V12 M2.8 8H4 M8 8l2.6-2.2', 'M9 8a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z'],
+  review: ['M12.9 9.4A5 5 0 1 1 12.3 5.4 M12.8 2.6v3.1H9.7', 'M9.1 8a1.1 1.1 0 1 1-2.2 0 1.1 1.1 0 0 1 2.2 0Z'],
+  library: 'M2.5 3.5h3v9h-3z M6.5 2.5h3v10h-3z M11 4.2l2.5 8.1',
+  find: ['M1.8 8s2.4-4.2 6.2-4.2S14.2 8 14.2 8s-2.4 4.2-6.2 4.2S1.8 8 1.8 8Z M10 8a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z', 'M8.8 8a.8.8 0 1 1-1.6 0 .8.8 0 0 1 1.6 0Z'],
+} as const satisfies Record<string, Glyph>;
 export type IconName = keyof typeof paths;
 export function Icon(props: { name: IconName; class?: string }): JSX.Element {
-  return <svg class={`icon ${props.class ?? ''}`} viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d={paths[props.name]} /></svg>;
+  const glyph = (): Glyph => paths[props.name];
+  return <svg class={`icon ${props.class ?? ''}`} viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d={typeof glyph() === 'string' ? glyph() as string : glyph()[0]} />
+    <Show when={typeof glyph() !== 'string' && glyph()[1]}>{fill => <path d={fill()} fill="currentColor" stroke="none" />}</Show>
+  </svg>;
 }
