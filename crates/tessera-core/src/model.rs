@@ -77,6 +77,11 @@ pub enum Operation {
         base_revision: i64,
         citation_id: String,
     },
+    SetCitationTriage {
+        id: String,
+        base_revision: i64,
+        triage: Option<String>,
+    },
     /// Create a named root. Titles are unique among live pages, ignoring case.
     CreatePage {
         id: String,

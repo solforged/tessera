@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import type { IngestJob, LibraryRow } from '../api/types';
-import { jobLabel, libraryQuery, recentJobs, retryTime, selectSources, sourceByline, sourceStateOperation, visibleJobs } from './query';
+import type { Citation, IngestJob, LibraryRow } from '../api/types';
+import { highlightLocation, highlightMeta, jobLabel, libraryQuery, recentJobs, retryTime, selectSources, sourceByline, sourceStateOperation, visibleJobs } from './query';
 
 describe('library queries', () => {
   test('selects a state and trims search text', () => {
@@ -89,4 +89,21 @@ test('source selection toggles and extends inclusive ranges in either direction'
   expect([...selectSources(ids, forward, 'b', 'd', true)]).toEqual([]);
   expect([...selectSources(ids, original, 'd', 'missing', true)]).toEqual(['b', 'd']);
   expect([...selectSources(ids, original, 'b', null, false)]).toEqual([]);
+});
+
+test('highlight meta uses the covering chapter and the notebook date', () => {
+  const sections = [
+    { title: 'Opening', ordinal: 2, locator: 'opening', level: 1 },
+    { title: 'Next chapter', ordinal: 8, locator: 'next', level: 1 },
+  ];
+  const row = { citation: { ordinal: 7 } as Citation, created_at: Date.parse('2026-10-06T00:30:00Z') };
+  expect(highlightMeta(row, sections, 'UTC')).toBe('Opening · 6 Oct 2026');
+  expect(highlightMeta(row, sections, 'America/Los_Angeles')).toBe('Opening · 5 Oct 2026');
+  expect(highlightLocation({ ordinal: 8 }, sections)).toBe('Next chapter');
+  expect(highlightLocation({ ordinal: 1 }, sections)).toBe('¶2');
+});
+
+test('highlight meta falls back to a one-based passage number without contents', () => {
+  const row = { citation: { ordinal: 0 } as Citation, created_at: Date.parse('2026-12-31T16:30:00Z') };
+  expect(highlightMeta(row, [], 'Asia/Tokyo')).toBe('¶1 · 1 Jan 2027');
 });

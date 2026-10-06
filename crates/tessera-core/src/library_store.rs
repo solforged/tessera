@@ -410,8 +410,10 @@ pub(crate) fn apply(conn: &Connection, operation: &Operation, now: i64, seq: i64
                 )?;
             } else {
                 conn.execute(
-                    "INSERT INTO citations
-                     VALUES (?1, ?2, 1, ?3, ?4, ?5, ?6, ?7, ?8)",
+                    "INSERT INTO citations(
+                         id, block_id, active, snapshot_id, start_passage, start_offset,
+                         end_passage, end_offset, created_seq
+                     ) VALUES (?1, ?2, 1, ?3, ?4, ?5, ?6, ?7, ?8)",
                     params![
                         citation_id,
                         id,
@@ -452,6 +454,21 @@ pub(crate) fn apply(conn: &Connection, operation: &Operation, now: i64, seq: i64
                 }
                 _ => Err(validation("The citation does not belong to this block.")),
             }
+        }
+        Operation::SetCitationTriage { id, triage, .. } => {
+            if triage
+                .as_deref()
+                .is_some_and(|value| !matches!(value, "processed" | "unprocessed"))
+            {
+                return Err(validation(
+                    "Citation triage must be processed or unprocessed.",
+                ));
+            }
+            Ok(conn.execute(
+                "UPDATE citations SET triage = ?2
+                 WHERE id = ?1 AND active = 1 AND triage IS NOT ?2",
+                params![id, triage],
+            )? > 0)
         }
         _ => Err(validation("Not a library operation.")),
     }

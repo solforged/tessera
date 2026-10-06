@@ -1,5 +1,6 @@
-import type { IngestJob, LibraryQuery, LibraryRow, Operation, ReadingState } from '../api/types';
+import type { Citation, HighlightRow, IngestJob, LibraryQuery, LibraryRow, Operation, ReadingState } from '../api/types';
 import type { LibraryViewState } from '../shell/contract';
+import type { HighlightSection } from './highlights';
 
 export function libraryQuery(view: Pick<LibraryViewState, 'tab' | 'text' | 'sort'>): LibraryQuery {
   return {
@@ -25,6 +26,18 @@ export function sourceByline(row: Pick<LibraryRow, 'creators' | 'published'>): s
 /** Whole percent; a started source never reads as 0%. */
 export function formatProgress(progress: number): string {
   return progress > 0 && progress < 0.01 ? '<1%' : `${Math.round(progress * 100)}%`;
+}
+
+export function highlightLocation(citation: Pick<Citation, 'ordinal'>, sections: readonly HighlightSection[]): string {
+  for (let index = sections.length - 1; index >= 0; index--) {
+    if (sections[index]!.ordinal <= citation.ordinal) return sections[index]!.title;
+  }
+  return `¶${citation.ordinal + 1}`;
+}
+
+export function highlightMeta(row: Pick<HighlightRow, 'citation' | 'created_at'>, sections: readonly HighlightSection[], timeZone: string): string {
+  const date = new Intl.DateTimeFormat('en-GB', { timeZone, year: 'numeric', month: 'short', day: 'numeric' }).format(row.created_at);
+  return `${highlightLocation(row.citation, sections)} · ${date}`;
 }
 
 export function recentJobs(jobs: readonly IngestJob[], now: number): IngestJob[] {
