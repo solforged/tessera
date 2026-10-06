@@ -18,6 +18,8 @@
 .type-table tbody tr:hover .table-title-column { background: var(--hover); }
 .type-table .table-add-column { min-width: var(--space-32); width: var(--space-32); text-align: center; }
 .table-cell { min-height: var(--row-height); white-space: pre-wrap; }
+.table-cell-clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
+.table-cell-open { display: block; -webkit-line-clamp: unset; overflow: visible; }
 .table-cell:focus { outline: var(--focus-ring); outline-offset: -2px; background: var(--selection); }
 .table-cell.table-title-column { cursor: pointer; }
 .type-table td.table-number { text-align: right; font-variant-numeric: tabular-nums; }

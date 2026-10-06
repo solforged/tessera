@@ -9,7 +9,7 @@ import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
 import type { MenuItem } from '../ui/Menu';
 import { Popup } from '../ui/Popup';
-import { formatProgress, libraryQuery, recentJobs, retryTime, selectSources, sourceByline, sourceStateOperation } from './query';
+import { formatProgress, jobLabel, libraryQuery, recentJobs, retryTime, selectSources, sourceByline, sourceStateOperation, visibleJobs } from './query';
 import './library.css';
 
 export interface LibraryPaneProps {
@@ -72,6 +72,8 @@ export function LibraryPane(props: LibraryPaneProps) {
   const [adding, setAdding] = createSignal(false);
   const [addError, setAddError] = createSignal('');
   const doneJobs = new Set<string>();
+  const shownJobs = createMemo(() => visibleJobs(jobs(), new Set(tab() === 'highlights' || loadedKey() !== queryKey() ? [] : library()?.rows.map(row => row.page.id) ?? [])));
+  const sourceTitles = createMemo(() => new Map(props.notebook.roots().map(root => [root.id, root.text])));
   let scroll!: HTMLDivElement;
   let fileInput!: HTMLInputElement;
   let restoreScroll: number | null = props.view.scroll;
@@ -337,13 +339,15 @@ export function LibraryPane(props: LibraryPaneProps) {
       <Show when={commandError()}><p class="library-error" role="alert">{commandError()}</p></Show>
       <Show when={jobsError()}><div class="library-error" role="alert">{jobsError()}<Button onClick={() => setJobsRefresh(value => value + 1)}>Retry</Button></div></Show>
       <Show when={viewsError()}><div class="library-error" role="alert">{viewsError()}<Button onClick={() => setRefresh(value => value + 1)}>Retry</Button></div></Show>
-      <Show when={jobs().length}><section class="library-jobs" aria-label="Ingestion jobs"><For each={jobs()}>{job => <div class="library-job">
-        <span class="library-job-name">{job.name}</span><span class="library-message">{job.state}</span>
-        <span class="library-message">attempt {job.attempts}</span>
+      <Show when={shownJobs().length}><section class="library-jobs" aria-label="Ingestion jobs"><For each={shownJobs()}>{job => {
+        const label = () => jobLabel(job, sourceTitles());
+        return <div class="library-job">
+        <span class="library-job-name">{label().name}</span><span class="library-message">{label().state}</span>
+        <Show when={label().attempt}><span class="library-message">{label().attempt}</span></Show>
         <Show when={job.next_attempt_at !== null && props.notebook.settings()}><span class="library-message">retries at {retryTime(job.next_attempt_at!, props.notebook.settings()!.time_zone)}</span></Show>
         <Show when={job.state === 'failed'}><Button disabled={retrying().includes(job.id)} onClick={() => { void retryJob(job); }}>Retry</Button></Show>
         <Show when={job.error}><span class="library-job-error" role={job.state === 'failed' ? 'alert' : undefined}>{job.error}</span></Show>
-      </div>}</For></section></Show>
+      </div>; }}</For></section></Show>
       <section aria-label={tab() === 'highlights' ? 'Highlights' : 'Sources'} aria-busy={loading()}>
         <Show when={loading()}><p class="library-message" role="status">Loading…</p></Show>
         <Show when={error()}><div class="library-error" role="alert">{error()}<Button onClick={() => setRefresh(value => value + 1)}>Retry</Button></div></Show>

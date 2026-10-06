@@ -2,6 +2,14 @@ import type { Caret, PageDocument, TextRange } from '../document/contract';
 import type { OutlineIndex } from '../document/outline-index';
 import { fieldEntryId } from '../table/query';
 
+/** Opening a non-journal page selects a readable row without starting an edit. */
+export function initialRow(ids: readonly string[], block: (id: string) => { text: string; archived: boolean } | undefined): string | null {
+  return ids.find(id => {
+    const row = block(id);
+    return row && !row.archived && fieldEntryId(row.text) === null;
+  }) ?? ids[0] ?? null;
+}
+
 /** The sole leaf value that can replace a known field entry in the visible list. */
 export function inlineFieldValue(doc: PageDocument, id: string, definitions: ReadonlyMap<string, unknown>): string | null {
   const field = fieldEntryId(doc.block(id)?.text ?? '');

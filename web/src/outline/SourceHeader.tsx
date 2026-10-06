@@ -1,4 +1,4 @@
-import { Show, createMemo, createResource, createSignal } from 'solid-js';
+import { For, Show, createMemo, createResource, createSignal } from 'solid-js';
 import { api } from '../api/client';
 import type { Citation, FieldDefinition, ReadingState } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
@@ -54,7 +54,11 @@ export function SourceHeader(props: {
   }
   return <>
     <div class="outline-source-header">
-      <Show when={summary()}><span class="outline-source-summary">{summary()}</span></Show>
+      <Show when={summary().length}><span class="outline-source-summary"><For each={summary()}>{(part, index) => <>
+        {index() > 0 ? ' · ' : ''}<Show when={part.url} fallback={part.text}>
+          <a class="reference-url" href={part.url} target="_blank" rel="noopener noreferrer" onMouseDown={event => event.stopPropagation()} onClick={event => event.stopPropagation()}>{part.text}</a>
+        </Show>
+      </>}</For></span></Show>
       <Button class="bordered" aria-haspopup="menu" onClick={event => stateMenu(event.currentTarget)}>{stateLabels[props.doc.root()!.source!.state]}<Icon name="down" /></Button>
       <Show when={!source.error && source() && source()!.progress > 0}><span class="outline-source-progress" aria-label="Reading progress">{formatProgress(source()!.progress)}</span></Show>
       <Button icon="book" onClick={event => props.onOpen({ kind: 'reader', sourceId: props.doc.pageId }, event.shiftKey)}>Read</Button>

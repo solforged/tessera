@@ -357,6 +357,26 @@ describe('real notebook operations and recovery', () => {
     expect(doc.outline.parentOf(tail)).toBe(middle);
   });
 
+  test('both split paths treat a URL as editable plain text', async () => {
+    const instance = await client();
+    for (const ranged of [false, true]) {
+      const text = 'https://example.org/path';
+      const { doc, first, id } = await page(instance, text);
+      const caret = { id: first, offset: 12 };
+      const edit = ranged
+        ? { kind: 'replaceRange' as const, range: { anchor: caret, head: caret }, between: [], text: '', mode: 'split' as const }
+        : { kind: 'split' as const, id: first, offset: caret.offset };
+      success(doc.edit(edit, caret));
+      expect(ids(doc).map(id => doc.block(id)?.text)).toEqual([text.slice(0, 12), text.slice(12)]);
+      await instance.flush();
+      expect((await api.page(id)).rows.map(row => row.block.text)).toEqual([text.slice(0, 12), text.slice(12)]);
+      doc.undo();
+      await instance.flush();
+      expect(ids(doc).map(id => doc.block(id)?.text)).toEqual([text]);
+      doc.release();
+    }
+  });
+
   test('heading Enter chooses normal continuation, heading split, clear-empty, and first zoom child', async () => {
     const instance = await client();
     const { doc, first } = await page(instance, 'Heading');
