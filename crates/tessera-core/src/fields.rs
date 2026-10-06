@@ -79,27 +79,27 @@ pub(crate) fn reference(text: &str) -> Option<&str> {
 }
 
 /// Retain old and new ancestry and incoming entries when definitions move or
-/// stop being definitions. Work per text edit is local, not a page rebuild.
+/// stop being definitions. Work per text edit is local, not a page rebuild:
+/// a block's siblings are never rescanned, so editing one row of a large
+/// page derives only that row and the entry it may be a value of.
 #[derive(Default)]
 pub(crate) struct FieldChanges {
     owners: HashSet<String>,
+    entries: HashSet<String>,
 }
 impl FieldChanges {
     pub(crate) fn capture(&mut self, conn: &Connection, id: &str) -> Result<()> {
         let mut statement = conn.prepare_cached(
-            "WITH RECURSIVE ancestors(id, depth) AS (
-                SELECT ?1, 0 UNION ALL SELECT b.parent_id, a.depth + 1
-                FROM ancestors a JOIN blocks b ON b.id = a.id WHERE a.depth < 2 AND b.parent_id IS NOT NULL
-             ) SELECT id FROM ancestors
-             UNION SELECT e.parent_id FROM links l JOIN blocks e ON e.id = l.source_id
-               WHERE l.target_id = ?1 AND e.parent_id IS NOT NULL
-             UNION SELECT e.parent_id FROM blocks p JOIN blocks d ON d.parent_id = p.id
-               JOIN links l ON l.target_id = d.id JOIN blocks e ON e.id = l.source_id
-               WHERE p.id = ?1 AND p.kind = 'page' AND p.title_key = 'fields' AND e.parent_id IS NOT NULL",
+            "SELECT ?1 UNION SELECT parent_id FROM blocks WHERE id = ?1 AND parent_id IS NOT NULL
+             UNION SELECT l.source_id FROM links l WHERE l.target_id = ?1
+             UNION SELECT l.source_id FROM blocks p JOIN blocks d ON d.parent_id = p.id
+               JOIN links l ON l.target_id = d.id
+               WHERE p.id = ?1 AND p.kind = 'page' AND p.title_key = 'fields'",
         )?;
         for row in statement.query_map([id], |row| row.get::<_, String>(0))? {
-            self.owners.insert(row?);
+            self.entries.insert(row?);
         }
+        self.owners.insert(id.to_owned());
         Ok(())
     }
     pub(crate) fn before(&mut self, conn: &Connection, op: &Operation) -> Result<()> {
@@ -112,10 +112,7 @@ impl FieldChanges {
                 self.capture(conn, source_id)?;
                 self.capture(conn, destination_id)
             }
-            Operation::Move { id, parent_id, .. } => {
-                self.capture(conn, id)?;
-                self.capture(conn, parent_id)
-            }
+            Operation::Move { id, .. } => self.capture(conn, id),
             Operation::CreatePage { id, .. }
             | Operation::CreateJournal { id, .. }
             | Operation::Insert { id, .. }
@@ -163,8 +160,11 @@ impl FieldChanges {
         }
     }
     pub(crate) fn derive(self, conn: &Connection) -> Result<()> {
-        for owner in self.owners {
-            derive_owner(conn, &owner)?;
+        for owner in &self.owners {
+            derive_owner(conn, owner)?;
+        }
+        for entry in &self.entries {
+            derive_entry(conn, entry)?;
         }
         Ok(())
     }
@@ -183,20 +183,46 @@ fn derive_owner(conn: &Connection, owner: &str) -> Result<()> {
          WHERE o.id = ?1 AND o.deletion_id IS NULL AND o.archived = 0
          AND e.deletion_id IS NULL AND e.archived = 0",
     )?;
-    let mut insert = conn.prepare_cached(
-        "INSERT INTO field_values(owner_id, field_id, entry_id, value_id, ordinal)
-         SELECT ?1, ?2, ?3, id, ordinal FROM blocks
-         WHERE parent_id = ?3 AND deletion_id IS NULL AND archived = 0",
-    )?;
     for row in entries.query_map([owner], |row| {
         Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
     })? {
         let (entry, text) = row?;
-        if let Some(field) = reference(&text)
-            && is_definition(conn, field)?
-        {
-            insert.execute(params![owner, field, entry])?;
-        }
+        insert_values(conn, owner, &entry, &text)?;
+    }
+    Ok(())
+}
+
+/// Rederive one entry under its current owner, dropping rows it left behind
+/// under a previous owner.
+fn derive_entry(conn: &Connection, entry: &str) -> Result<()> {
+    conn.prepare_cached("DELETE FROM field_values WHERE entry_id = ?1")?
+        .execute([entry])?;
+    let row = conn
+        .prepare_cached(
+            "SELECT o.id, e.text FROM blocks e JOIN blocks o ON o.id = e.parent_id
+             WHERE e.id = ?1 AND o.deletion_id IS NULL AND o.archived = 0
+             AND e.deletion_id IS NULL AND e.archived = 0",
+        )?
+        .query_row([entry], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })
+        .optional()?;
+    if let Some((owner, text)) = row {
+        insert_values(conn, &owner, entry, &text)?;
+    }
+    Ok(())
+}
+
+fn insert_values(conn: &Connection, owner: &str, entry: &str, text: &str) -> Result<()> {
+    if let Some(field) = reference(text)
+        && is_definition(conn, field)?
+    {
+        conn.prepare_cached(
+            "INSERT INTO field_values(owner_id, field_id, entry_id, value_id, ordinal)
+             SELECT ?1, ?2, ?3, id, ordinal FROM blocks
+             WHERE parent_id = ?3 AND deletion_id IS NULL AND archived = 0",
+        )?
+        .execute(params![owner, field, entry])?;
     }
     Ok(())
 }
