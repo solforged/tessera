@@ -384,6 +384,7 @@ pub struct HighlightRow {
     pub citation: Citation,
     pub source_title: String,
     pub processed: bool,
+    pub notes: u32,
     pub triage: Option<String>,
     pub color: Option<String>,
     pub tags: Vec<String>,
