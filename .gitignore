@@ -1,6 +1,8 @@
 /target/
 /web/node_modules/
 /web/dist/
+/web/dist-demo/
+/web/src/demo/pkg/
 /spikes/editor/node_modules/
 /spikes/editor/*/node_modules/
 /spikes/editor/*/dist/

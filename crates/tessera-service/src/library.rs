@@ -13,8 +13,8 @@ use axum::{
 use parking_lot::Mutex;
 use serde::Deserialize;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use tessera_core::{Actor, Batch, Notebook, library::*};
+use std::time::Duration;
+use tessera_core::{Actor, Batch, Notebook, library::*, now_ms};
 use tokio::sync::{Notify, broadcast};
 
 pub(crate) fn routes() -> Router<AppState> {
@@ -449,12 +449,6 @@ impl From<String> for Failure {
             retryable: false,
         }
     }
-}
-fn now_ms() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("clock after 1970")
-        .as_millis() as i64
 }
 impl Worker {
     async fn access<T: Send + 'static>(

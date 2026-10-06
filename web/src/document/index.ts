@@ -1,9 +1,9 @@
 import { createSignal } from 'solid-js';
 import type { Accessor } from 'solid-js';
 import { ulid } from 'ulid';
-import { ApiError, createApi } from '../api/client';
+import { ApiError, CHANGE_CONNECTING, CHANGE_OPEN, createApi } from '../api/client';
 import type { Batch, Block, BlockCapabilities, ChangeEvent, Committed, Operation, PageView, SettingsView, WorkSession } from '../api/types';
-import type { ApiClient } from '../api/client';
+import type { ApiClient, ChangeSocket } from '../api/client';
 import type { Caret, NotebookClient, PageDocument, SaveState } from './contract';
 import { Document } from './page-document';
 import type { DocumentHost } from './page-document';
@@ -56,7 +56,7 @@ export class Notebook implements NotebookClient, DocumentHost {
   private activeCommand?: string;
   private timer?: ReturnType<typeof setTimeout>;
   private reconnectTimer?: ReturnType<typeof setTimeout>;
-  private socket?: WebSocket;
+  private socket?: ChangeSocket;
   private connecting?: Promise<void>;
   private closed = false;
   private initialized = false;
@@ -862,7 +862,7 @@ export class Notebook implements NotebookClient, DocumentHost {
   }
   private serviceReached() {
     if (this.closed) return;
-    if (this.socket?.readyState === WebSocket.OPEN) {
+    if (this.socket?.readyState === CHANGE_OPEN) {
       const recovered = this.connection() !== 'live';
       this.connectionSignal[1]('live');
       this.reconnectDelay = 500;
@@ -892,9 +892,9 @@ export class Notebook implements NotebookClient, DocumentHost {
       }
       if (this.closed) return;
       this.retryLookups();
-      if (this.socket?.readyState === WebSocket.OPEN) { this.serviceReached(); return; }
-      if (this.socket?.readyState === WebSocket.CONNECTING) return;
-      const socket = new WebSocket(this.api.streamUrl(this.seq));
+      if (this.socket?.readyState === CHANGE_OPEN) { this.serviceReached(); return; }
+      if (this.socket?.readyState === CHANGE_CONNECTING) return;
+      const socket = this.api.stream(this.seq);
       this.socket = socket;
       socket.onopen = () => {
         if (this.closed || this.socket !== socket) return;

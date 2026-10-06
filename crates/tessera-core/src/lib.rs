@@ -56,5 +56,5 @@ pub use model::{
     Revision, Row, Setting, SettingRevision, SettingsView, SortBy, SortKey, TextRewrite, TypeInfo,
     View,
 };
-pub use notebook::{DATABASE_FILE, Notebook, NotebookInfo};
+pub use notebook::{DATABASE_FILE, Notebook, NotebookInfo, now_ms};
 pub use ownership::NotebookOwnership;

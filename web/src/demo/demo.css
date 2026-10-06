@@ -1,0 +1,7 @@
+.demo-shell { display: flex; flex-direction: column; height: 100dvh; min-width: 0; background: var(--shell); color: var(--text); font-family: var(--font-body); }
+.demo-shell > .app { flex: 1; min-height: 0; height: auto; }
+.demo-notice { flex: none; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-8); padding: var(--space-8) var(--space-16); border-bottom: var(--rule-width) solid var(--line); background: var(--surface); font-size: var(--text-control); line-height: var(--line-control); color: var(--muted); }
+.demo-notice .button { flex: none; color: var(--text); }
+.demo-state { width: min(100%, var(--measure)); margin: auto; padding: var(--space-32); }
+.demo-state h1 { margin: 0 0 var(--space-16); font-family: var(--font-display); font-size: var(--text-h1); line-height: var(--line-h1); font-weight: var(--weight-display-heading); }
+.demo-state p { margin: 0 0 var(--space-24); color: var(--muted); font-size: var(--text-body); line-height: var(--line-body); }

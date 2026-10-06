@@ -1,5 +1,6 @@
 import { For, Show, createMemo, createResource, createSignal, onMount } from 'solid-js';
 import { api } from '../api/client';
+import { DEMO } from '../demo/mode';
 import type { NotebookClient } from '../document/contract';
 import type { PaneId, SettingsViewState } from '../shell/contract';
 import { Button } from '../ui/Button';
@@ -15,11 +16,11 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; not
     try { return await api.notebook(); }
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); return undefined; }
   });
-  const [service] = createResource(async () => {
+  const [service] = createResource(() => !DEMO, async () => {
     try { return await api.service(); }
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); return undefined; }
   });
-  const [backups, { refetch: refreshBackups }] = createResource(async () => {
+  const [backups, { refetch: refreshBackups }] = createResource(() => !DEMO, async () => {
     try { return await api.backups(); }
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); return undefined; }
   });
@@ -76,7 +77,7 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; not
         <dt>Created</dt><dd>{new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(value().created_at)}</dd>
       </dl>}</Show>
     </section>
-    <section aria-labelledby={`settings-service-${props.pane}`}>
+    {!DEMO && <section aria-labelledby={`settings-service-${props.pane}`}>
       <h2 id={`settings-service-${props.pane}`}><span class="section-number">02</span>Service<span class="section-rule" /></h2>
       <Show when={service()}>{value => <dl>
         <dt>Version</dt><dd>{value().version}</dd>
@@ -85,17 +86,17 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; not
         <dt>Assets</dt><dd>{value().assets}</dd>
         <dt>Launch agent</dt><dd>{value().launch_agent.installed ? 'Installed' : 'Not installed · run tessera install'}</dd>
       </dl>}</Show>
-    </section>
-    <section aria-labelledby={`settings-backups-${props.pane}`} aria-busy={backingUp()}>
+    </section>}
+    {!DEMO && <section aria-labelledby={`settings-backups-${props.pane}`} aria-busy={backingUp()}>
       <h2 id={`settings-backups-${props.pane}`}><span class="section-number">03</span>Backups<span class="section-rule" /></h2>
       <Button class="bordered" disabled={backingUp()} onClick={() => { void backUp(); }}>Back up now</Button>
       <Show when={backups()}>{values => <>
         <p role="status">{values()[0] ? `Last backup: ${backupLabel(values()[0]!)}` : 'No backups yet'}</p>
         <Show when={values().length > 1}><ul><For each={values().slice(1)}>{backup => <li>{backupLabel(backup)}</li>}</For></ul></Show>
       </>}</Show>
-    </section>
+    </section>}
     <section aria-labelledby={`settings-zone-${props.pane}`}>
-      <h2 id={`settings-zone-${props.pane}`}><span class="section-number">04</span>Time zone<span class="section-rule" /></h2>
+      <h2 id={`settings-zone-${props.pane}`}><span class="section-number">{DEMO ? '02' : '04'}</span>Time zone<span class="section-rule" /></h2>
       <Button class="bordered" aria-label="Time zone" aria-haspopup="listbox" disabled={props.notebook.settingsBusy()} onClick={event => setZoneAnchor(event.currentTarget)}>{zone() === deviceZone ? `Device time zone (${deviceZone})` : zone()} <Icon name="down" /></Button>
       <Show when={zoneAnchor()}>{anchor => <Picker<string> anchor={anchor()} width={360} label="Choose time zone" onDismiss={() => { setZoneAnchor(null); setZoneQuery(''); }}
         query={zoneQuery()} onQuery={setZoneQuery} placeholder="Search time zones"
@@ -104,11 +105,11 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; not
         row={value => <><Show when={value === zone()} fallback={<span class="icon" />}><Icon name="check" /></Show><span class="picker-text">{value === deviceZone ? `Device time zone (${deviceZone})` : value}</span></>} />}</Show>
     </section>
     <section aria-labelledby={`settings-editing-${props.pane}`}>
-      <h2 id={`settings-editing-${props.pane}`}><span class="section-number">05</span>Editing<span class="section-rule" /></h2>
+      <h2 id={`settings-editing-${props.pane}`}><span class="section-number">{DEMO ? '03' : '05'}</span>Editing<span class="section-rule" /></h2>
       <label class="settings-checkbox"><input type="checkbox" checked={props.notebook.vim()} disabled={props.notebook.settingsBusy()} onChange={event => { void change('vim', String(event.currentTarget.checked)); }} /> Vim</label>
     </section>
     <section aria-labelledby={`settings-appearance-${props.pane}`}>
-      <h2 id={`settings-appearance-${props.pane}`}><span class="section-number">06</span>Appearance<span class="section-rule" /></h2>
+      <h2 id={`settings-appearance-${props.pane}`}><span class="section-number">{DEMO ? '04' : '06'}</span>Appearance<span class="section-rule" /></h2>
       <div class="mode-tabs" role="group" aria-label="Theme">
         <For each={[['system', 'System'], ['light', 'Light'], ['dark', 'Dark']] as const}>{([value, label]) =>
           <Button aria-pressed={themePreference() === value} onClick={() => setThemePreference(value)}>{label}</Button>}</For>
