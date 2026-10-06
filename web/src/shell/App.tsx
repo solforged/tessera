@@ -426,7 +426,7 @@ export function App() {
       </section></Show>
       <details class="page-list" open>
         <summary>Recent<Icon name="down" /></summary>
-        <Show when={recentRoots().length} fallback={<p class="sidebar-empty">Pages you open appear here</p>}><PageLinks roots={recentRoots()} notebook={notebook} activeId={pageIdOf(entry(active()))} onOpen={open} /></Show>
+        <Show when={recentRoots().length} fallback={<p class="sidebar-empty">Pages you open appear here</p>}><PageLinks roots={recentRoots()} sourceIcons notebook={notebook} activeId={pageIdOf(entry(active()))} onOpen={open} /></Show>
       </details>
     </aside>
     <main class="workspace">
@@ -490,14 +490,16 @@ export function App() {
   </div>;
 }
 
-function PageLinks(props: { roots: Block[]; notebook: NotebookClient; activeId?: string; onOpen(target: OpenTarget, beside?: boolean): void }) {
+function PageLinks(props: { roots: Block[]; sourceIcons?: boolean; notebook: NotebookClient; activeId?: string; onOpen(target: OpenTarget, beside?: boolean): void }) {
   // Roots arrive as fresh objects whenever any root changes; keying rows by id keeps them mounted.
   const byId = createMemo(() => new Map(props.roots.map(root => [root.id, root])));
   const ids = createMemo(() => props.roots.map(root => root.id), undefined, { equals: (a, b) => a.length === b.length && a.every((id, index) => id === b[index]) });
   return <For each={ids()}>{id => {
     const root = () => byId().get(id)!;
     const title = () => props.notebook.lookup(id)()?.text ?? root().text;
-    return <Button class={id === props.activeId ? 'selected' : ''} icon={root().kind === 'journal' ? 'calendar' : 'page'} title={title()} onClick={event => props.onOpen({ kind: 'page', pageId: id }, event.shiftKey)}><span>{title()}</span></Button>;
+    // A page gains a source only on ingest, so one lookup per mounted row is enough.
+    const [capabilities] = createResource(() => props.sourceIcons && root().kind === 'page' ? id : false, id => props.notebook.api.capabilities(id));
+    return <Button class={id === props.activeId ? 'selected' : ''} icon={root().kind === 'journal' ? 'calendar' : capabilities.error || !capabilities()?.source ? 'page' : capabilities()!.source!.format === 'article' ? 'article' : 'book'} title={title()} onClick={event => props.onOpen({ kind: 'page', pageId: id }, event.shiftKey)}><span>{title()}</span></Button>;
   }}</For>;
 }
 
