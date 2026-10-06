@@ -179,6 +179,7 @@ export interface NotebookInfo {
 
 export interface ServiceInfo {
   version: string;
+  build: string | null;
   port: number;
   assets: 'embedded' | 'directory' | 'none';
   launch_agent: { installed: boolean; path: string | null };
