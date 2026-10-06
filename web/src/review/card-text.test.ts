@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { parseCardText } from './card-text';
+import { clozeSegments, parseCardText } from './card-text';
 
 describe('card text', () => {
   test('ordinary prose, fields, and shielded syntax do not create cards', () => {
@@ -107,6 +107,22 @@ describe('card text', () => {
     expect(parseCardText(`{{c${id}::answer}} {{c0${id}::again}}`).cards).toEqual([
       { key: `cloze:c${id}`, kind: 'cloze', front: '[…] […]', back: 'answer again' },
     ]);
+  });
+
+  test('cloze segments mark only their own gaps and rejoin into the derived sides', () => {
+    for (const text of [
+      ' A {{c1::one}} B {{c2::two::number}} C {{c01::uno::hint}}. ', '{{c1::a>>b}}', '🧠 {{c1::café::飲}} + {{c2::答🙂}}',
+      String.raw`{{c1::a\::b\}}c::h\::i}} tail`, '\u2003{{c3::lead}} and {{c3::again}}\u0085',
+    ]) {
+      for (const card of parseCardText(text).cards) {
+        const segments = clozeSegments(text, card.key)!;
+        const join = (side: 'front' | 'back') => segments.map(segment => 'text' in segment ? segment.text : side === 'back' ? segment.answer : segment.hint ?? '[…]').join('');
+        expect([join('front'), join('back')]).toEqual([card.front, card.back]);
+      }
+    }
+    expect(clozeSegments('A {{c1::one}} B {{c2::two::number}}', 'cloze:c2')).toEqual([{ text: 'A one B ' }, { answer: 'two', hint: 'number' }]);
+    expect(clozeSegments('A {{c1::one}}', 'cloze:c2')).toBeNull();
+    expect(clozeSegments('A >> B', 'forward')).toBeNull();
   });
 
   test('malformed clozes suppress all units rather than returning partial groups', () => {

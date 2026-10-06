@@ -34,6 +34,7 @@ export function DeckEditor(props: DeckEditorProps) {
   const [saved, setSaved] = createSignal(false);
   const [retry, setRetry] = createSignal(0);
   const [selectionAnchor, setSelectionAnchor] = createSignal<HTMLElement | null>(null);
+  const [matching, setMatching] = createSignal<number | null>(null);
   const stale = () => !!base() && current()?.revision !== base()!.revision;
   const locked = () => pending() || saved() || ['saving', 'queued', 'offline'].includes(props.notebook.commandState());
   let disposed = false;
@@ -50,6 +51,17 @@ export function DeckEditor(props: DeckEditorProps) {
       }).catch(reason => {
         if (!cancelled) { setLoadError(reason instanceof Error ? reason.message : String(reason)); setLoading(false); }
       });
+    onCleanup(() => { cancelled = true; });
+  });
+
+  // The count previews the draft query; it never blocks saving.
+  createEffect(() => {
+    const draft = copyCardQuery(query());
+    props.notebook.changeSequence();
+    let cancelled = false;
+    void props.notebook.api.cardQuery({ ...draft, limit: 1 })
+      .then(result => { if (!cancelled) setMatching(result.total); })
+      .catch(() => { if (!cancelled) setMatching(null); });
     onCleanup(() => { cancelled = true; });
   });
 
@@ -79,7 +91,9 @@ export function DeckEditor(props: DeckEditorProps) {
     <form onSubmit={event => { event.preventDefault(); void save(); }}>
       <label class="deck-editor-name">Name<input class="input" value={name()} maxLength={120} disabled={locked()} onInput={event => setName(event.currentTarget.value)} /></label>
       <SourceQueryControls query={query().source} types={props.notebook.roots()} fields={fields()} disabled={locked() || loading()} onChange={source => setQuery(value => ({ ...value, source }))} />
-      <div class="review-toolbar"><span>Queue</span><Button class="bordered" disabled={locked()} aria-haspopup="menu" onClick={event => setSelectionAnchor(event.currentTarget)}>{selectionLabels[query().selection]}<Icon name="down" /></Button></div>
+      <div class="deck-editor-queue"><span>Queue</span><Button class="bordered" disabled={locked()} aria-haspopup="menu" onClick={event => setSelectionAnchor(event.currentTarget)}>{selectionLabels[query().selection]}<Icon name="down" /></Button>
+        <Show when={matching() !== null}><span class="deck-editor-match" role="status">{matching()} {matching() === 1 ? 'card matches' : 'cards match'}</span></Show>
+      </div>
       <Show when={loading()}><p role="status">Loading source filters…</p></Show>
       <Show when={loadError()}><p class="error" role="alert">{loadError()} <Button disabled={pending()} onClick={() => setRetry(value => value + 1)}>Retry</Button></p></Show>
       <Show when={stale()}><p class="error" role="alert">This deck changed elsewhere. Your draft has not been saved. <Button disabled={locked()} onClick={discard}>Discard changes</Button></p></Show>

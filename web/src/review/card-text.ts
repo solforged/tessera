@@ -144,9 +144,9 @@ function cloze(text: string, start: number): { end: number; cloze?: Cloze; probl
   return { end: text.length, problem: problem('Close the cloze with }}.', start, text.length) };
 }
 
-/** Offsets are UTF-16 indices for CodeMirror. Invalid explicit syntax produces
- * diagnostics and no cards; keys depend only on direction or authored cloze ID. */
-export function parseCardText(text: string): CardParse {
+interface ClozePiece { id: string; before: string; answer: string; hint: string | null }
+
+function derive(text: string): { parse: CardParse; pieces: ClozePiece[]; suffix: string } {
   const result: CardParse = { cards: [], problems: [] };
   const operators: number[] = [];
   const clozes: Cloze[] = [];
@@ -167,41 +167,77 @@ export function parseCardText(text: string): CardParse {
       cursor++;
     }
   }
+  const none = { parse: result, pieces: [], suffix: '' };
   const first = operators[0];
   if (first !== undefined) {
     if (operators.length > 1) result.problems.push(problem('Use only one card operator per block.', first, operators[operators.length - 1]! + 2));
     if (firstCloze !== null) result.problems.push(problem('Do not mix card operators and clozes.', Math.min(first, firstCloze), text.length));
   }
   result.problems.sort((a, b) => a.start - b.start || a.end - b.end);
-  if (result.problems.length) return result;
+  if (result.problems.length) return none;
   if (first !== undefined) {
     const left = trim(literal(text, 0, first));
     const right = trim(literal(text, first + 2, text.length));
     if (!left || !right) {
       result.problems.push(problem('Both sides of a card need text.', first, first + 2));
-      return result;
+      return none;
     }
     const op = text.slice(first, first + 2);
     if (op !== '<<') result.cards.push({ key: 'forward', kind: 'forward', front: left, back: right });
     if (op !== '>>') result.cards.push({ key: 'reverse', kind: 'reverse', front: right, back: left });
-  } else if (clozes.length) {
-    let previous = 0;
-    const pieces = clozes.map(cloze => {
-      const before = literal(text, previous, cloze.start);
-      const answer = literal(text, cloze.answerStart, cloze.answerEnd);
-      const hint = cloze.hintStart === null ? '[…]' : literal(text, cloze.hintStart, cloze.end - 2);
-      previous = cloze.end;
-      return { id: cloze.id, before, answer, hint };
-    });
-    const suffix = literal(text, previous, text.length);
-    const back = trim(pieces.map(piece => piece.before + piece.answer).join('') + suffix);
-    const seen = new Set<string>();
-    for (const group of clozes) {
-      if (seen.has(group.id)) continue;
-      seen.add(group.id);
-      const front = trim(pieces.map(piece => piece.before + (piece.id === group.id ? piece.hint : piece.answer)).join('') + suffix);
-      result.cards.push({ key: `cloze:c${group.id}`, kind: 'cloze', front, back });
-    }
+    return none;
   }
-  return result;
+  let previous = 0;
+  const pieces = clozes.map(cloze => {
+    const before = literal(text, previous, cloze.start);
+    const answer = literal(text, cloze.answerStart, cloze.answerEnd);
+    const hint = cloze.hintStart === null ? null : literal(text, cloze.hintStart, cloze.end - 2);
+    previous = cloze.end;
+    return { id: cloze.id, before, answer, hint };
+  });
+  const suffix = literal(text, previous, text.length);
+  const back = trim(pieces.map(piece => piece.before + piece.answer).join('') + suffix);
+  const seen = new Set<string>();
+  for (const group of clozes) {
+    if (seen.has(group.id)) continue;
+    seen.add(group.id);
+    const front = trim(pieces.map(piece => piece.before + (piece.id === group.id ? piece.hint ?? '[…]' : piece.answer)).join('') + suffix);
+    result.cards.push({ key: `cloze:c${group.id}`, kind: 'cloze', front, back });
+  }
+  return { parse: result, pieces, suffix };
+}
+
+/** Offsets are UTF-16 indices for CodeMirror. Invalid explicit syntax produces
+ * diagnostics and no cards; keys depend only on direction or authored cloze ID. */
+export function parseCardText(text: string): CardParse {
+  return derive(text).parse;
+}
+
+/** Plain text, or one of this card's gaps with its answer and optional hint. */
+export type ClozeSegment = { text: string } | { answer: string; hint: string | null };
+
+/** Lays out one cloze card from its source text, so review can mark the gaps
+ * that the derived front and back flatten. Null when the source no longer
+ * derives that card. Joining the segments reproduces the derived sides. */
+export function clozeSegments(text: string, key: string): ClozeSegment[] | null {
+  const { parse, pieces, suffix } = derive(text);
+  if (!key.startsWith('cloze:') || !parse.cards.some(card => card.key === key)) return null;
+  const id = key.slice('cloze:c'.length);
+  const segments: ClozeSegment[] = [];
+  let plain = '';
+  for (const piece of pieces) {
+    plain += piece.before;
+    if (piece.id !== id) { plain += piece.answer; continue; }
+    if (plain) segments.push({ text: plain });
+    plain = '';
+    segments.push({ answer: piece.answer, hint: piece.hint });
+  }
+  plain += suffix;
+  if (plain) segments.push({ text: plain });
+  // The derived sides are trimmed as a whole; trim the outer plain text to match.
+  const head = segments[0];
+  if (head && 'text' in head) head.text = head.text.replace(/^\p{White_Space}+/u, '');
+  const tail = segments[segments.length - 1];
+  if (tail && 'text' in tail) tail.text = tail.text.replace(/\p{White_Space}+$/u, '');
+  return segments.filter(segment => !('text' in segment) || segment.text);
 }
