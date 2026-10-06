@@ -64,6 +64,9 @@
 .row-gloss .outline-field-label { display: none; }
 .row-gloss .outline-body { margin-left: var(--target-size); padding-bottom: var(--space-8); color: var(--muted); font: var(--weight-body) var(--text-gloss)/var(--line-gloss) var(--font-display); font-variation-settings: var(--optical-quote); }
 .row-gloss .empty-block { font: inherit; }
+/* A source's siglum hangs in the margin beside rows that cite it, as in a critical edition. */
+.row-siglum { position: absolute; right: 100%; top: calc((var(--row-height) - var(--line-apparatus)) / 2); min-width: var(--target-size); margin-right: var(--space-4); padding: 0 var(--space-4); border: 1px solid var(--control-border); border-radius: var(--radius-control); background: var(--canvas); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); text-align: center; white-space: nowrap; }
+.outline-row-linked .row-siglum, .outline-row.row-selected .row-siglum { border-color: var(--accent); background: var(--accent); color: var(--canvas); }
 .field-entry-widget .icon { flex: none; width: var(--icon-size-small); height: var(--icon-size-small); }
 .field-entry-widget { display: inline-flex; align-items: center; gap: var(--space-4); color: var(--muted); }
 /* `Name:: value` while typed: the name already reads as a field label, with a quiet hint at the end. */
@@ -93,6 +96,7 @@
 .outline-source-cover.button { float: left; width: calc(var(--space-48) * 2); padding: 0; margin-right: var(--space-16); margin-bottom: var(--space-8); border: 0; border-radius: var(--radius-control); overflow: hidden; }
 .outline-source-cover img { display: block; width: 100%; height: auto; aspect-ratio: auto; }
 .outline-source-summary { display: block; overflow: hidden; color: var(--muted); }
+.source-siglum { display: inline-block; min-width: var(--target-size); margin-right: var(--space-8); padding: 0 var(--space-4); border: 1px solid var(--control-border); border-radius: var(--radius-control); color: var(--text); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); text-align: center; vertical-align: 1px; }
 .outline-source-description { display: flex; align-items: flex-end; gap: var(--space-8); overflow: hidden; margin-top: var(--space-8); }
 .outline-source-description p { flex: 1; min-width: 0; margin: 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; color: var(--muted); font-size: var(--text-body); line-height: var(--line-body); }
 .outline-source-description p.expanded { display: block; }

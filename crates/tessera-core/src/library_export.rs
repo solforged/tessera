@@ -8,13 +8,16 @@ use std::fmt::Write;
 
 pub(crate) type FieldReadings = BTreeMap<String, Vec<String>>;
 pub(crate) fn field_readings(
-    notebook: &Notebook,
+    conn: &rusqlite::Connection,
     ids: &[String],
 ) -> Result<HashMap<String, FieldReadings>> {
-    let definitions = crate::fields::definitions(&notebook.conn)?;
+    if ids.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let definitions = crate::fields::definitions(conn)?;
     let definitions = crate::fields::definition_map(&definitions);
     let mut result: HashMap<String, FieldReadings> = HashMap::new();
-    let mut statement = notebook.conn.prepare_cached(concat!(
+    let mut statement = conn.prepare_cached(concat!(
         "SELECT f.field_id, v.text, ",
         block_columns!("target"),
         ", f.owner_id
@@ -146,7 +149,7 @@ impl Notebook {
         }
         let mut bib = String::new();
         let mut csl = vec![];
-        let mut readings_by_source = field_readings(self, ids)?;
+        let mut readings_by_source = field_readings(&self.conn, ids)?;
         for id in ids {
             let source = self.source(id)?;
             let key =
@@ -164,6 +167,7 @@ impl Notebook {
             let mut item = serde_json::Map::new();
             item.insert("id".into(), json!(key));
             item.insert("title".into(), json!(source.page.text));
+            item.insert("citation-label".into(), json!(source.source.siglum));
             let book = source.source.format == SourceFormat::Epub;
             let mut has_doi = false;
             for role in ["author", "editor", "translator"] {
@@ -290,7 +294,7 @@ impl Notebook {
     }
 
     fn export_markdown(&self, ids: &[String]) -> Result<String> {
-        let mut readings = field_readings(self, ids)?;
+        let mut readings = field_readings(&self.conn, ids)?;
         let mut highlights: HashMap<String, Vec<HighlightRow>> = HashMap::new();
         for row in self
             .highlights(&HighlightQuery {

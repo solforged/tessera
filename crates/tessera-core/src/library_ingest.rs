@@ -66,12 +66,18 @@ fn metadata_values(metadata: &ExtractedMetadata) -> Vec<(&'static str, FieldKind
     ));
     values
 }
-fn fold(value: &str) -> String {
+pub(crate) fn fold(value: &str) -> String {
     deunicode::deunicode(value)
         .to_ascii_lowercase()
         .chars()
         .filter(char::is_ascii_alphanumeric)
         .collect()
+}
+pub(crate) fn family_name(name: &str) -> &str {
+    name.split_once(',').map_or_else(
+        || name.split_whitespace().last().unwrap_or("anon"),
+        |(family, _)| family,
+    )
 }
 fn suffix(mut n: usize) -> String {
     let mut bytes = vec![];
@@ -97,12 +103,7 @@ fn citation_key(notebook: &Notebook, metadata: &ExtractedMetadata, title: &str) 
                 .find(|c| c.role == CreatorRole::Editor)
         });
     let family = creator
-        .map(|c| {
-            c.name.split_once(',').map_or_else(
-                || c.name.split_whitespace().last().unwrap_or("anon"),
-                |(family, _)| family,
-            )
-        })
+        .map(|c| family_name(&c.name))
         // A site name such as `www.karpathy.github.io` keys as `karpathy`.
         .or(metadata.site.as_deref().map(|site| {
             let site = site.strip_prefix("www.").unwrap_or(site);
