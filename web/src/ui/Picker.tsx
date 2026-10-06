@@ -18,6 +18,7 @@ export interface PickerProps<T> {
   /** Shown between the input and the rows, such as a scope bar. */
   status?: JSX.Element;
   items: T[];
+  initial?: number;
   key(item: T): string;
   row(item: T, selected: boolean): JSX.Element;
   disabledReason?(item: T): string | undefined;
@@ -31,15 +32,24 @@ export interface PickerProps<T> {
 
 /** Input on top, rows below. Arrows move, Enter picks, typing filters. */
 export function Picker<T>(props: PickerProps<T>) {
-  const [selected, setSelected] = createSignal(0);
+  const [selected, setSelected] = createSignal(props.initial ?? 0);
   let list!: HTMLDivElement;
   let input!: HTMLInputElement;
-  createEffect(() => { props.items.length; props.query; setSelected(0); });
+  let opening = true, firstScroll = true;
+  createEffect(() => {
+    const count = props.items.length; props.query;
+    setSelected(opening ? Math.max(0, Math.min(props.initial ?? 0, count - 1)) : 0);
+    opening = false;
+  });
   createEffect(() => {
     selected(); props.items.length;
-    queueMicrotask(() => {
-      if (list?.isConnected) list.querySelector<HTMLElement>('.picker-row.selected')?.scrollIntoView({ block: 'nearest' });
-    });
+    const center = firstScroll && props.initial !== undefined;
+    firstScroll = false;
+    const reveal = () => {
+      if (list?.isConnected) list.querySelector<HTMLElement>('.picker-row.selected')?.scrollIntoView({ block: center ? 'center' : 'nearest' });
+    };
+    if (center) requestAnimationFrame(reveal);
+    else queueMicrotask(reveal);
   });
   const current = () => props.items[selected()];
   const pick = (item: T, event: KeyboardEvent | MouseEvent) => {

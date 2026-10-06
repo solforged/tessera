@@ -1038,6 +1038,7 @@ mod tests {
             title: "Old opening".into(),
             locator: "body#one".into(),
             level: 1,
+            ordinal: None,
         }];
         let hash = notebook.put_object(b"old book").unwrap();
         let old = notebook.stage_snapshot(&document, &hash, &[]).unwrap();

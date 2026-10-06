@@ -14,8 +14,7 @@ export type HighlightSection = TocEntry & { ordinal: number };
 /** Resolve chapter boundaries in the citation's snapshot, not the newest version. */
 export async function highlightSections(api: ApiClient, snapshotId: string, signal?: AbortSignal): Promise<HighlightSection[]> {
   const { toc } = await api.passages(snapshotId, 0, 1, signal);
-  const entries = await Promise.all(toc.map(async entry => ({ ...entry, ordinal: await api.locate(snapshotId, entry.locator, signal) })));
-  return entries.filter((entry): entry is HighlightSection => entry.ordinal !== null).sort((a, b) => a.ordinal - b.ordinal);
+  return toc.filter((entry): entry is HighlightSection => entry.ordinal !== null).sort((a, b) => a.ordinal - b.ordinal);
 }
 
 /** Keep edited documents alive with the surface so their undo history survives the menu. */
