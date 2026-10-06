@@ -39,7 +39,8 @@ import { CardSummary } from './CardSummary';
 import { createFieldEntryConversion, createSourceFieldResets } from './source-fields';
 import './outline.css';
 
-interface Completion { from: number; to: number; query: string; manual?: { blockId: string; anchor: HTMLElement } }
+/** An open `[[` page reference or `((` block reference, or the manual Add type picker. */
+interface Completion { from: number; to: number; query: string; blocks?: boolean; manual?: { blockId: string; anchor: HTMLElement } }
 interface MenuState { anchor: HTMLElement; items: MenuItem[]; label: string }
 /** A slash-menu row: a block verb (`run`) or syntax that replaces the token (`insert`), or both. */
 interface SlashItem extends SlashEntry {
@@ -575,6 +576,9 @@ function Pane(props: OutlinePaneProps) {
     if (!id) return false;
     const selection = view.state.selection.main;
     if (!selection.empty) { replaceSelection('', 'text'); return true; }
+    // An empty `[[]]` or `(())` left by the bracket pairing goes in one Backspace, as it arrived.
+    const pair = !forward && selection.head >= 2 ? view.state.doc.sliceString(selection.head - 2, selection.head + 2) : '';
+    if (pair === '[[]]' || pair === '(())') { replaceSelection('', 'text', { anchor: { id, offset: selection.head - 2 }, head: { id, offset: selection.head + 2 } }); return true; }
     const token = textTokens(view.state.doc.toString()).find(token => token.kind === 'reference' &&
       (forward ? selection.head >= token.start && selection.head < token.end : selection.head > token.start && selection.head <= token.end));
     if (token) {
@@ -633,12 +637,24 @@ function Pane(props: OutlinePaneProps) {
     if (!completion()) return false;
     const count = completionRows().length + (canCreate() ? 1 : 0);
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { setCompletionIndex(index => Math.max(0, Math.min(count - 1, index + (event.key === 'ArrowDown' ? 1 : -1)))); return true; }
-    if (event.key === 'Enter') { void chooseCompletion(); return true; }
+    if (event.key === 'Enter' || event.key === 'Tab' && !event.shiftKey) { void chooseCompletion(); return true; }
     if (event.key === 'Escape') { dismissCompletion(); return true; }
     return false;
   }
+  /** Where a chosen reference left a separating space, punctuation or a space typed next takes its place. */
+  let referenceSpace: Caret | null = null;
+  function afterReference(event: KeyboardEvent, view: EditorView) {
+    if (['Shift', 'CapsLock'].includes(event.key)) return false;
+    const at = referenceSpace;
+    referenceSpace = null;
+    if (!at || at.id !== editing() || event.metaKey || event.ctrlKey || event.altKey || props.vim && editor?.mode() !== 'insert' || !/^[ .,;:!?)]$/.test(event.key)) return false;
+    const selection = view.state.selection.main;
+    if (!selection.empty || selection.head !== at.offset || view.state.doc.sliceString(at.offset - 1, at.offset) !== ' ') return false;
+    if (event.key !== ' ') replaceSelection(event.key, 'text', { anchor: { id: at.id, offset: at.offset - 1 }, head: at });
+    return true;
+  }
   function editorKey(event: KeyboardEvent, view: EditorView) {
-    if (slashKey(event) || dateKey(event) || popupKey(event)) return true;
+    if (afterReference(event, view) || slashKey(event) || dateKey(event) || popupKey(event)) return true;
     if (commonKey(event)) return true;
     if (event.key === 'Escape' && (!props.vim || editor?.mode() === 'normal')) { if (editing()) rowFocus(editing()!); return true; }
     if (props.vim && editor?.mode() !== 'insert') {
@@ -751,37 +767,45 @@ function Pane(props: OutlinePaneProps) {
     return false;
   }
 
-  /** Escape closes the completion; it stays closed while the same `[[` query is under the caret, and reopens once the text changes. */
+  /** Escape closes the completion; it stays closed while the same query is under the caret, and reopens once the text changes. */
   let dismissedCompletion: { id: string; from: number; query: string } | null = null;
   function dismissCompletion() {
     const state = completion();
     if (state && !state.manual && editor) dismissedCompletion = { id: editor.id, from: state.from, query: state.query };
     setCompletion(null);
   }
+  /** `[[` completes pages, fields and blocks; `((` searches blocks only. Both insert a `[[id]]` reference. */
   function updateCompletion(text: string, at: Caret) {
     if (completion()?.manual) return;
     const prefix = text.slice(0, at.offset);
-    const from = prefix.lastIndexOf('[[');
-    if (from < 0 || prefix.slice(from + 2).includes(']') || prefix[from - 1] === '#' || prefix.slice(from + 2).includes('\n')) { setCompletion(null); return; }
-    const next = { from, to: at.offset, query: prefix.slice(from + 2) };
+    const page = prefix.lastIndexOf('[['), block = prefix.lastIndexOf('((');
+    const blocks = block > page, from = Math.max(page, block);
+    const query = prefix.slice(from + 2);
+    if (from < 0 || query.includes(blocks ? ')' : ']') || query.includes('\n') || !blocks && prefix[from - 1] === '#') { setCompletion(null); return; }
+    const next = { from, to: at.offset, query, blocks };
     if (dismissedCompletion && dismissedCompletion.id === at.id && dismissedCompletion.from === from && dismissedCompletion.query === next.query) return;
     dismissedCompletion = null;
     if (completion()?.query !== next.query) setCompletionIndex(0);
     setCompletion(next);
   }
   // A primitive key: every keystroke sets a fresh completion object, and the same query must not fetch twice.
-  const completionKey = createMemo(() => { const state = completion(); return state ? `${state.manual ? 'manual' : 'text'}:${state.query}` : false; });
+  const completionKey = createMemo(() => { const state = completion(); return state ? `${state.manual ? 'manual' : state.blocks ? 'blocks' : 'text'}:${state.query}` : false; });
   const [matches] = createResource(completionKey, async key => {
-    const manual = key.startsWith('manual:');
+    const mode = key.slice(0, key.indexOf(':'));
     const query = key.slice(key.indexOf(':') + 1);
-    return manual ? completeReferences(props.notebook, query, []) : { rows: await api.complete(query), canCreate: false };
+    if (mode === 'manual') return completeReferences(props.notebook, query, []);
+    if (mode === 'blocks') return { rows: query.trim() ? (await api.search(query, 20)).map(hit => hit.block).filter(block => block.kind === 'block') : [], canCreate: false };
+    return { rows: await api.complete(query), canCreate: false };
   });
   const completionRows = createMemo<CompletionRow[]>(() => {
-    const query = completion()?.query.toLowerCase() ?? '';
-    if (completion()?.manual) return (matches.error ? [] : matches()?.rows ?? []).filter(block => block.kind === 'page').map(block => ({ kind: 'block', block }));
+    const state = completion();
+    const found = matches.error ? [] : matches()?.rows ?? [];
+    if (state?.manual) return found.filter(block => block.kind === 'page').map(block => ({ kind: 'block', block }));
+    if (state?.blocks) return found.map(block => ({ kind: 'block', block }));
+    const query = state?.query.toLowerCase() ?? '';
     const matchingFields = definitions().filter(field => field.name.toLowerCase().includes(query));
     const byId = new Map(matchingFields.map(field => [field.id, field]));
-    const rows: CompletionRow[] = (matches.error ? [] : matches()?.rows ?? []).map(block => {
+    const rows: CompletionRow[] = found.map(block => {
       const field = byId.get(block.id);
       byId.delete(block.id);
       return field ? { kind: 'field', field } : { kind: 'block', block };
@@ -789,8 +813,15 @@ function Pane(props: OutlinePaneProps) {
     for (const field of byId.values()) rows.push({ kind: 'field', field });
     return rows;
   });
-  const canCreate = createMemo(() => !!completion()?.query.trim() && !matches.loading && !matches.error
-    && (completion()?.manual ? !!matches()?.canCreate : !fields.loading && !fields.error && completionRows().length === 0));
+  /** As in Find or create, a query that names no page or field exactly offers Create page after the matches. */
+  const canCreate = createMemo(() => {
+    const state = completion();
+    const title = state?.query.trim().toLocaleLowerCase();
+    if (!state || !title || state.blocks || matches.error) return false;
+    if (state.manual) return !matches.loading && !!matches()?.canCreate;
+    if (fields.loading || fields.error) return false;
+    return !completionRows().some(row => (row.kind === 'field' ? row.field.name : row.block.kind === 'block' ? '' : row.block.text).toLocaleLowerCase() === title);
+  });
   createEffect(() => {
     completionIndex();
     completionRows();
@@ -799,18 +830,46 @@ function Pane(props: OutlinePaneProps) {
       if (completionList?.isConnected) completionList.querySelector<HTMLElement>('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
     });
   });
+  /** The open query plus the closing brackets the editor paired with it. */
+  function completionRange(state: Completion, text: string) {
+    return { from: state.from, to: text.startsWith(state.blocks ? '))' : ']]', state.to) ? state.to + 2 : state.to };
+  }
+  let drafted = false;
+  createEffect(() => {
+    const state = completion();
+    if (!editor) return;
+    if (state && !state.manual) { drafted = true; editor.markDraft(completionRange(state, editor.view.state.doc.toString())); }
+    else if (drafted) { drafted = false; editor.markDraft(null); }
+  });
   function insertReference(id: string) {
     const state = completion();
     const source = editing();
     if (!state || !editor || !source) return;
+    const range = completionRange(state, editor.view.state.doc.toString());
+    const next = editor.view.state.doc.sliceString(range.to, range.to + 1);
+    // A word after the reference, or the end of the block, gets a separating space so typing continues as prose.
+    const space = !next || /[\p{L}\p{N}]/u.test(next) ? ' ' : '';
+    const inserted = `[[${id}]]${space}`;
     const selectionBefore = activeRange() ?? undefined;
     setCompletion(null);
-    replaceSelection(`[[${id}]]`, 'text', { anchor: { id: source, offset: state.from }, head: { id: source, offset: state.to } }, selectionBefore);
+    replaceSelection(inserted, 'text', { anchor: { id: source, offset: range.from }, head: { id: source, offset: range.to } }, selectionBefore);
+    referenceSpace = space ? { id: source, offset: range.from + inserted.length } : null;
   }
+  /** Enter pressed before results arrive picks once they do, unless typing has changed the query since. */
+  let chooseWhenReady: string | null = null;
+  createEffect(() => {
+    const loading = matches.loading;
+    const query = completion()?.query;
+    if (loading || chooseWhenReady === null) return;
+    const wanted = chooseWhenReady;
+    chooseWhenReady = null;
+    if (query === wanted) void chooseCompletion();
+  });
   async function chooseCompletion(index = completionIndex()) {
     const row = completionRows()[index];
     const state = completion();
-    if (state?.manual) {
+    if (!state) return;
+    if (state.manual) {
       if (matches.loading || matches.error) return;
       const title = row?.kind === 'block' ? row.block.text : canCreate() ? state.query.trim() : null;
       if (title) {
@@ -820,11 +879,12 @@ function Pane(props: OutlinePaneProps) {
       }
       return;
     }
+    if (matches.loading) { chooseWhenReady = state.query; return; }
     if (row?.kind === 'field') { insertReference(row.field.id); return; }
-    if (matches.loading || matches.error) return;
+    if (matches.error) return;
     if (row) { insertReference(row.block.id); return; }
     if (canCreate()) {
-      try { const id = await props.notebook.createPage(completion()!.query.trim()); insertReference(id); }
+      try { const id = await props.notebook.createPage(state.query.trim()); insertReference(id); }
       catch (error) { setMessage(error instanceof Error ? error.message : String(error)); }
     }
   }
@@ -832,10 +892,11 @@ function Pane(props: OutlinePaneProps) {
     const rect = editor?.view.coordsAtPos(offset);
     return rect ? new DOMRect(rect.left, rect.top, Math.max(1, rect.right - rect.left), rect.bottom - rect.top) : null;
   }
+  /** The picker stays under the opening brackets while the query grows. */
   function completionAnchor(): DOMRect | null {
-    const manual = completion()?.manual;
-    if (manual) return manual.anchor.getBoundingClientRect();
-    return editor ? caretRect(editor.view.state.selection.main.head) : null;
+    const state = completion();
+    if (state?.manual) return state.manual.anchor.getBoundingClientRect();
+    return state && editor ? caretRect(state.from) : null;
   }
 
   function rename() { if (doc.root()?.kind !== 'page') return; setTitle(doc.root()!.text); setRenaming(true); queueMicrotask(() => { titleInput?.focus(); titleInput?.select(); }); }
@@ -1493,17 +1554,17 @@ function Pane(props: OutlinePaneProps) {
         <Show when={capabilities.error(state.id)}><p class="error" role="alert">{capabilities.error(state.id)}</p></Show>
       </Popup>}
     </>}</Show>
-    <Show when={completion()}><Popup anchor={completionAnchor} width={480} class="picker" label={completion()?.manual ? 'Add type…' : 'Reference completion'} role={completion()?.manual ? 'dialog' : 'listbox'} onDismiss={dismissCompletion} autofocus={!!completion()?.manual}>
+    <Show when={completion()}><Popup anchor={completionAnchor} width={480} class="picker" label={completion()?.manual ? 'Add type…' : completion()?.blocks ? 'Block reference' : 'Reference completion'} role={completion()?.manual ? 'dialog' : 'listbox'} onDismiss={dismissCompletion} autofocus={!!completion()?.manual}>
       <Show when={completion()?.manual}><div class="picker-query"><Icon name="tag" class="picker-prefix" /><input class="picker-input" aria-label="Type title" placeholder="Type title" value={completion()?.query ?? ''} onInput={event => { setCompletion(state => state ? { ...state, query: event.currentTarget.value } : null); setCompletionIndex(0); }} onKeyDown={event => { if (!event.isComposing && popupKey(event)) { event.preventDefault(); event.stopPropagation(); } }} /></div></Show>
       <div ref={completionList} class="picker-list" onMouseDown={event => event.preventDefault()}>
-        <Show when={matches.loading}><p class="empty-state">Searching…</p></Show>
+        <Show when={matches.loading && !completionRows().length && !canCreate()}><p class="empty-state">Searching…</p></Show>
         <Show when={matches.error}><p class="error" role="alert">Couldn't load completion.</p></Show>
         <For each={completionRows()}>{(row, index) => <div role="option" aria-selected={completionIndex() === index()} class="picker-row" classList={{ selected: completionIndex() === index() }} onClick={() => void chooseCompletion(index())}>
           <Show when={row.kind === 'block' ? row.block : null}>{block => <><Icon name={block().kind === 'journal' ? 'calendar' : block().kind === 'page' ? 'page' : 'bullet'} /><span class="picker-text">{block().text ? <BlockText text={block().text} notebook={props.notebook} interactive={false} /> : 'Empty block'}</span><Show when={block().kind === 'block'}><span class="picker-meta"><BlockBreadcrumb block={block()} notebook={props.notebook} /></span></Show></>}</Show>
           <Show when={row.kind === 'field' ? row.field : null}>{field => <><Icon name="field" /><span class="picker-text">{field().name}</span><span class="picker-meta">Field</span></>}</Show>
         </div>}</For>
         <Show when={canCreate()}><div role="option" aria-selected={completionIndex() === completionRows().length} class="picker-row" classList={{ selected: completionIndex() === completionRows().length }} onClick={() => void chooseCompletion(completionRows().length)}><Icon name="plus" /><span class="picker-text">Create page “{completion()?.query}”</span></div></Show>
-        <Show when={!matches.loading && !matches.error && !canCreate() && !completionRows().length}><p class="empty-state">No matching blocks.</p></Show>
+        <Show when={!matches.loading && !matches.error && !canCreate() && !completionRows().length}><p class="empty-state">{completion()?.blocks && !completion()?.query.trim() ? 'Type to search blocks.' : 'No matching blocks.'}</p></Show>
       </div>
     </Popup></Show>
     <Show when={dateCompletion()}><Popup anchor={() => caretRect(dateCompletion()?.from ?? 0)} width={320} class="picker" label={dateCompletion()?.field === 'deadline' ? 'Deadline' : 'Schedule task'} role="listbox" onDismiss={dismissDate}>

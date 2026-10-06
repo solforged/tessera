@@ -107,6 +107,51 @@ function references(label: EditorHooks['label']) {
   });
 }
 
+const pairs: Record<string, { open: string; close: string }> = { '[': { open: '[[', close: ']]' }, '(': { open: '((', close: '))' } };
+const closers: Record<string, { open: string; close: string }> = { ']': pairs['[']!, ')': pairs['(']! };
+/**
+ * As in Roam and Logseq, a second `[` or `(` closes its pair, and typing a closer inside an open pair steps
+ * over the one already there. Returns the text to insert at `at` and the caret after it, or null for plain input.
+ */
+export function pairInput(doc: string, at: number, text: string): { insert: string; caret: number } | null {
+  const pair = pairs[text];
+  if (pair) {
+    const before = doc.slice(Math.max(0, at - 2), at);
+    if (before.at(-1) !== text || before === pair.open || doc[at] === pair.close[0]) return null;
+    return { insert: text + pair.close, caret: at + 1 };
+  }
+  const closer = closers[text];
+  if (!closer || doc[at] !== text) return null;
+  const prefix = doc.slice(0, at);
+  return prefix.lastIndexOf(closer.open) > prefix.lastIndexOf(closer.close) ? { insert: '', caret: at + 1 } : null;
+}
+const bracketPairs = EditorView.inputHandler.of((view, from, to, text) => {
+  const range = view.state.selection.main;
+  if (from !== to || view.state.selection.ranges.length > 1 || range.from !== from) return false;
+  const result = pairInput(view.state.doc.toString(), from, text);
+  if (!result) return false;
+  view.dispatch(result.insert
+    ? { changes: { from, insert: result.insert }, selection: { anchor: result.caret }, userEvent: 'input.type' }
+    : { selection: { anchor: result.caret }, userEvent: 'select' });
+  return true;
+});
+
+const setDraft = StateEffect.define<{ from: number; to: number } | null>();
+const draftMark = Decoration.mark({ class: 'outline-reference-draft' });
+/** The `[[query]]` a picker is completing, tinted until a choice replaces it. */
+const draftReference = StateField.define<DecorationSet>({
+  create: () => Decoration.none,
+  update: (value, transaction) => {
+    for (const effect of transaction.effects) if (effect.is(setDraft)) {
+      const range = effect.value;
+      const to = range ? Math.min(range.to, transaction.state.doc.length) : 0;
+      return range && to > range.from ? Decoration.set([draftMark.range(range.from, to)]) : Decoration.none;
+    }
+    return value.map(transaction.changes);
+  },
+  provide: field => EditorView.decorations.from(field),
+});
+
 export interface EditorHooks {
   text(text: string, caret: Caret): void;
   label(id: string): string | undefined;
@@ -136,6 +181,8 @@ export class PaneEditor {
       EditorView.lineWrapping,
       drawSelection(),
       references(hooks.label),
+      bracketPairs,
+      draftReference,
       keymap.of(standardKeymap),
       EditorView.theme({
         '&': { background: 'transparent', color: 'inherit', font: 'inherit' },
@@ -247,6 +294,10 @@ export class PaneEditor {
   }
 
   refreshLabels(): void { this.view.dispatch({ effects: refreshLabels.of(null) }); }
+  /** Completion state changes inside editor updates, so the mark follows in a microtask. */
+  markDraft(range: { from: number; to: number } | null): void {
+    queueMicrotask(() => { if (this.view.dom.isConnected) this.view.dispatch({ effects: setDraft.of(range) }); });
+  }
 
   destroy(): void { this.view.destroy(); }
 }
