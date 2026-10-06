@@ -39,6 +39,31 @@ pub(crate) fn passage(conn: &Connection, id: &str) -> Result<Passage> {
         .ok_or_else(|| not_found(id))
 }
 
+fn toc(conn: &Connection, snapshot: &str) -> Result<Vec<TocEntry>> {
+    let mut statement = conn.prepare_cached(
+        "SELECT json_extract(e.value, '$.title'), json_extract(e.value, '$.locator'),
+                json_extract(e.value, '$.level'), MIN(p.ordinal)
+         FROM snapshots s, json_each(s.toc) e
+         LEFT JOIN passages p ON p.snapshot_id = s.id
+             AND (p.id = json_extract(e.value, '$.locator')
+                 OR p.locator = json_extract(e.value, '$.locator')
+                 OR p.anchor = json_extract(e.value, '$.locator'))
+         WHERE s.id = ?1
+         GROUP BY e.key
+         ORDER BY CAST(e.key AS INTEGER)",
+    )?;
+    Ok(statement
+        .query_map([snapshot], |r| {
+            Ok(TocEntry {
+                title: r.get(0)?,
+                locator: r.get(1)?,
+                level: r.get(2)?,
+                ordinal: r.get(3)?,
+            })
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?)
+}
+
 // Each range is joined to its passages once; capability sidecars do not query per block.
 pub(crate) fn citations(
     conn: &Connection,
@@ -235,13 +260,7 @@ impl Notebook {
             .collect::<rusqlite::Result<Vec<_>>>()?;
         let (toc, pos, progress) = if let Some(snapshot) = &source.current_snapshot_id {
             (
-                self.conn.query_row(
-                    "SELECT toc
-                         FROM snapshots
-                         WHERE id = ?1",
-                    [snapshot],
-                    |r| json_at(r, 0),
-                )?,
+                toc(&self.conn, snapshot)?,
                 position(&self.conn, snapshot)?,
                 progress(&self.conn, snapshot)?,
             )
@@ -266,14 +285,14 @@ impl Notebook {
                 "Passages require a nonnegative ordinal and a limit of at most 500.",
             ));
         }
-        let (total, toc) = self
+        let total = self
             .conn
             .query_row(
-                "SELECT passage_count, toc
+                "SELECT passage_count
                  FROM snapshots
                  WHERE id = ?1",
                 [snapshot],
-                |r| Ok((r.get(0)?, json_at(r, 1)?)),
+                |r| r.get(0),
             )
             .optional()?
             .ok_or_else(|| not_found(snapshot))?;
@@ -303,7 +322,7 @@ impl Notebook {
             passages,
             citations,
             total,
-            toc,
+            toc: toc(&self.conn, snapshot)?,
         })
     }
     /// The ordinal of the passage with this ID, locator or element anchor.
