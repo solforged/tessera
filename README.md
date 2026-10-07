@@ -16,9 +16,9 @@ Each thinker's position sits under the idea it answers, with its source's siglum
 
 ### Compare positions
 
-Compare lays the positions side by side over their shared fields. Shared values are marked, and a field where every perspective differs is ruled in red.
+Compare presents selected readings side by side, with source sigla, shape marks beside the holders and each account's prose. Authored questions sit below the sheet; fields remain in the source outline.
 
-![A light comparison table of six perspectives on anacyclosis across Shape, Engine and Exit fields](docs/images/compare.png)
+![A light reading sheet comparing Plato, Polybius and Machiavelli on anacyclosis, with their source titles, prose and an authored question below](docs/images/compare.png)
 
 ### Read and cite sources
 

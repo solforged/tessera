@@ -76,7 +76,7 @@ function snapshotView(view: PaneView): PaneView {
   if ('deckId' in view) return { ...view, selection: view.selection ?? null };
   if ('tab' in view) return { ...view, view: view.view ?? null, colors: [...view.colors ?? []], tags: [...view.tags ?? []] };
   if ('ordinal' in view) return { ...view };
-  return 'query' in view ? { query: copyQuery(view.query), scroll: view.scroll } : 'zoom' in view ? copyView(view) : { scroll: view.scroll };
+  return 'query' in view ? { ...view, query: copyQuery(view.query), hiddenFields: view.hiddenFields ? [...view.hiddenFields] : undefined } : 'zoom' in view ? copyView(view) : { scroll: view.scroll };
 }
 function targetFromView(entry: HistoryEntry): OpenTarget {
   const { target, view } = entry;
