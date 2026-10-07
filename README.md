@@ -28,13 +28,13 @@ A source page sits beside its reader. Highlighting a passage writes an ordinary 
 
 ### Tasks and agenda
 
-Project tasks stay in their outline. In Agenda's Tasks view, one query line filters by project, state and dates, and each term becomes a removable chip.
+Project tasks stay in their outline. In Agenda's Tasks view, one query line filters by project, state and dates, and each term becomes a removable chip. Add condition brings task, source and field filters into one searchable picker.
 
 ![An essay project's tasks beside the Tasks view filtered by the chips show:open, the project and a date range](docs/images/tasks.png)
 
 ### Review beside the notes
 
-Review a deck beside the notes its cards come from, with interval previews for each grade and the card's retained history.
+Review a deck beside the notes its cards come from, on a quiet reading sheet with a compact grading strip, interval previews and the card's retained history.
 
 ![A revealed card with four grade intervals and its review history beside the study notes that define it](docs/images/review.png)
 

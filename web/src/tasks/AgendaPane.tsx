@@ -1,9 +1,8 @@
-import { For, Show, batch, createEffect, createMemo, createRoot, createSignal, createUniqueId, on, onCleanup } from 'solid-js';
+import { Show, batch, createEffect, createMemo, createSignal, on, onCleanup } from 'solid-js';
 import { ulid } from 'ulid';
-import type { Agenda, DateRange, FieldDefinition, ProjectRecord, TaskFilter, TaskPriority, TaskQuery, TaskQueryResult, TaskSelection, TaskStatus, TaskView } from '../api/types';
+import type { Agenda, FieldDefinition, ProjectRecord, TaskQuery, TaskQueryResult, TaskView } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import type { AgendaViewState, OpenTarget, PaneId } from '../shell/contract';
-import { SourceQueryControls } from '../table/SourceQueryControls';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
@@ -14,7 +13,8 @@ import { DatePicker } from './DatePicker';
 import { TaskSourceRows, documentReady } from './JournalAgenda';
 import { parseTaskDate } from './date-input';
 import { dateSuggestions, dateTokenAt, newTask, planDateToken } from './quick-date';
-import { copyTaskQuery, createTaskQuery, refreshedTaskQuery, taskQueriesEqual, taskRange } from './query';
+import { copyTaskQuery, createTaskQuery, refreshedTaskQuery, taskQueriesEqual } from './query';
+import { TaskConditions } from './TaskConditions';
 import { TaskQueryLine } from './TaskQueryLine';
 import type { TaskQueryLineContext } from './task-query-line';
 import { WeekCalendar } from './WeekCalendar';
@@ -34,22 +34,9 @@ export interface AgendaPaneProps {
 type AgendaPopup =
   | { kind: 'menu'; anchor: HTMLElement; label: string; items: MenuItem[] }
   | { kind: 'date'; anchor: HTMLElement }
-  | { kind: 'range'; anchor: HTMLElement; field: 'scheduled' | 'deadline'; edge: keyof DateRange }
-  | { kind: 'views' | 'projects'; anchor: HTMLElement }
+  | { kind: 'views'; anchor: HTMLElement }
   | { kind: 'name'; anchor: HTMLElement; action: 'create' | 'rename'; id: string; saved: TaskView | null }
   | { kind: 'delete'; anchor: HTMLElement; saved: TaskView };
-const selectionLabels: Record<TaskSelection, string> = { unfinished: 'Unfinished', unfinished_or_recent: 'Unfinished or recently completed', all: 'All' };
-const statusLabels: Record<TaskStatus, string> = { todo: 'Todo', doing: 'Doing', waiting: 'Waiting', done: 'Done', cancelled: 'Cancelled' };
-const statuses: TaskStatus[] = ['todo', 'doing', 'waiting', 'done', 'cancelled'];
-const priorityLabels = { high: 'High', medium: 'Medium', low: 'Low' };
-type ProjectChoice = { id: string | null; name: string };
-
-const filtersOpenKey = 'tessera.task-filters.open';
-const [filtersOpen, setFiltersOpenSignal] = createRoot(() => createSignal((() => { try { return localStorage.getItem(filtersOpenKey) === '1'; } catch { return false; } })()));
-const setFiltersOpen = (value: boolean) => {
-  setFiltersOpenSignal(value);
-  try { if (value) localStorage.setItem(filtersOpenKey, '1'); else localStorage.removeItem(filtersOpenKey); } catch { /* The preference lasts for this tab. */ }
-};
 
 export function AgendaPane(props: AgendaPaneProps) {
   const [view, setView] = createSignal<AgendaViewState>({ ...props.view, query: copyTaskQuery(props.view.query) });
@@ -82,7 +69,6 @@ export function AgendaPane(props: AgendaPaneProps) {
   const [limitInput, setLimitInput] = createSignal(query().limit === null ? '' : String(query().limit));
   const [queryLineDirty, setQueryLineDirty] = createSignal(false);
   const [queryLineError, setQueryLineError] = createSignal('');
-  const filtersId = createUniqueId();
   const typeTitles = createMemo(() => new Map(props.notebook.roots().filter(block => block.kind === 'page' && !block.archived).map(block => [block.id, block.text])));
   const typeIds = createMemo(() => new Map([...typeTitles()].map(([id, title]) => [title.toLocaleLowerCase(), id])));
   const projectTitles = createMemo(() => new Map(projects().map(project => [project.block_id, props.notebook.lookup(project.block_id)()?.text || project.state.outcome || project.block_id])));
@@ -136,7 +122,6 @@ export function AgendaPane(props: AgendaPaneProps) {
     props.onViewChange({ ...next, query: copyTaskQuery(next.query) });
     if (patch.scroll !== undefined && scroll) scroll.scrollTop = patch.scroll;
   };
-  const updateFilter = (patch: Partial<TaskFilter>) => update({ query: { ...query(), filter: { ...query().filter, ...patch } } });
 
   createEffect(() => {
     const currentMode = mode(); const currentDate = date(); const value = copyTaskQuery(query());
@@ -212,10 +197,6 @@ export function AgendaPane(props: AgendaPaneProps) {
       if (current) { setLatestSaved(null); setSavedError(reason instanceof Error ? reason.message : String(reason)); setSavedLoading(false); }
     });
     onCleanup(() => { current = false; });
-  });
-  const projectChoices = createMemo((): ProjectChoice[] => {
-    const needle = pickerSearch().trim().toLocaleLowerCase();
-    return [{ id: null, name: 'Any project' }, ...[...projectTitles()].map(([id, name]) => ({ id, name })).filter(project => project.name.toLocaleLowerCase().includes(needle))];
   });
   const viewChoices = createMemo(() => views().filter(value => value.name.toLocaleLowerCase().includes(pickerSearch().trim().toLocaleLowerCase())));
   const selectView = (value: TaskView | null) => {
@@ -337,8 +318,8 @@ export function AgendaPane(props: AgendaPaneProps) {
         </div>
       </header>
       <Show when={mode() === 'tasks'}>
-        <div class="agenda-toolbar">
-          <Button class="bordered" disabled={busy()} aria-haspopup="dialog" aria-expanded={popup()?.kind === 'views'} onClick={event => { setPickerSearch(''); setPopup({ kind: 'views', anchor: event.currentTarget }); }}>{viewId() ? saved()?.name ?? (savedLoading() ? 'Loading view…' : 'Unavailable view') : 'Unsaved task query'}<Icon name="down" /></Button>
+        <div class="task-query-heading">
+          <Button class="task-query-view" disabled={busy()} aria-haspopup="dialog" aria-expanded={popup()?.kind === 'views'} onClick={event => { setPickerSearch(''); setPopup({ kind: 'views', anchor: event.currentTarget }); }}>{viewId() ? saved()?.name ?? (savedLoading() ? 'Loading view…' : 'Unavailable view') : 'Task query'}<Icon name="down" /></Button>
           <Button icon="more" label="Task view actions" disabled={busy() || !!viewId() && savedLoading()} onClick={event => viewMenu(event.currentTarget)} />
           <Show when={saved()}><span class="agenda-message">{dirty() ? 'Unsaved changes' : 'Saved view'}</span></Show>
           <Show when={dirty()}><Button disabled={busy() || !!filterError()} onClick={() => { const value = saved()!; void saveView(value.name, value.id, value, false).catch(() => {}); }}>Save changes</Button></Show>
@@ -347,27 +328,10 @@ export function AgendaPane(props: AgendaPaneProps) {
         <Show when={viewsError() || savedError()}><div class="agenda-error" role="alert"><span>{viewsError() || savedError()}</span><Button onClick={() => setRefresh(value => value + 1)}>Retry views</Button></div></Show>
         <div class="task-query-toolbar">
           <TaskQueryLine query={query()} context={queryLineContext()} disabled={busy()} onChange={value => update({ query: value, scroll: 0 })} onDraftState={(draft, message) => { setQueryLineDirty(draft); setQueryLineError(message); }} />
-          <Button class="bordered" disabled={busy()} aria-expanded={filtersOpen()} aria-controls={filtersId} onClick={() => setFiltersOpen(!filtersOpen())}>Filters<Icon name="down" /></Button>
         </div>
-        <Show when={!loading() && !error()}><p class="agenda-count" role="status">{rows().length === total() ? `${total()} task${total() === 1 ? '' : 's'}` : `${rows().length} of ${total()} tasks`}</p></Show>
-        <SourceQueryControls sections="fields" query={query().source} types={props.notebook.roots()} fields={fields()} disabled={busy()} onChange={source => update({ query: { ...query(), source } })} />
-        <Show when={filtersOpen()}><div id={filtersId} class="task-filters-panel">
-        <div class="agenda-filters" role="group" aria-label="Task filters">
-          <Button class="bordered" disabled={busy()} aria-haspopup="menu" onClick={event => setPopup({ kind: 'menu', anchor: event.currentTarget, label: 'Task selection', items: (['unfinished', 'unfinished_or_recent', 'all'] as TaskSelection[]).map(selection => ({ label: selectionLabels[selection], icon: query().filter.selection === selection ? 'check' as const : undefined, action: () => updateFilter({ selection }) })) })}>{selectionLabels[query().filter.selection]}<Icon name="down" /></Button>
-          <Show when={query().filter.selection === 'unfinished_or_recent'}><label class="agenda-number">Recent days<input class="input" type="number" min="1" max="3660" step="1" disabled={busy()} value={recentInput()} onInput={event => { const text = event.currentTarget.value; setRecentInput(text); const value = Number(text); if (Number.isInteger(value) && value >= 1 && value <= 3660) updateFilter({ recent_days: value }); }} /></label></Show>
-          <Button class="bordered" disabled={busy()} aria-haspopup="menu" onClick={event => setPopup({ kind: 'menu', anchor: event.currentTarget, label: 'Task statuses', items: [
-            { label: 'Any status', icon: !query().filter.statuses.length ? 'check' : undefined, action: () => updateFilter({ statuses: [] }) },
-            ...statuses.map(status => ({ label: statusLabels[status], icon: query().filter.statuses.includes(status) ? 'check' as const : undefined, action: () => updateFilter({ statuses: query().filter.statuses.includes(status) ? query().filter.statuses.filter(value => value !== status) : [...query().filter.statuses, status] }) })),
-          ] })}>{query().filter.statuses.length ? query().filter.statuses.map(status => statusLabels[status]).join(', ') : 'Any status'}<Icon name="down" /></Button>
-          <Button class="bordered" disabled={busy()} aria-haspopup="menu" onClick={event => setPopup({ kind: 'menu', anchor: event.currentTarget, label: 'Task priority', items: ([null, 'high', 'medium', 'low'] as (TaskPriority | null)[]).map(priority => ({ label: priority ? priorityLabels[priority] : 'Any priority', icon: query().filter.priority === priority ? 'check' as const : undefined, action: () => updateFilter({ priority }) })) })}>{query().filter.priority ? priorityLabels[query().filter.priority!] : 'Any priority'}<Icon name="down" /></Button>
-          <Button class="bordered" disabled={busy()} aria-haspopup="dialog" onClick={event => { setPickerSearch(''); setPopup({ kind: 'projects', anchor: event.currentTarget }); }}>{query().filter.project_id ? props.notebook.lookup(query().filter.project_id!)()?.text || projects().find(project => project.block_id === query().filter.project_id)?.state.outcome || 'Selected project' : 'Any project'}<Icon name="down" /></Button>
-          <For each={['scheduled', 'deadline'] as const}>{field => <div class="agenda-date-range" role="group" aria-label={field === 'scheduled' ? 'Scheduled range' : 'Deadline range'}><span>{field === 'scheduled' ? 'Scheduled' : 'Deadline'}</span>
-            <For each={['from', 'through'] as const}>{edge => <Button class="bordered" disabled={busy()} aria-haspopup="dialog" label={`${field === 'scheduled' ? 'Scheduled' : 'Deadline'} ${edge}: ${query().filter[field]?.[edge] ?? 'Any date'}`} onClick={event => setPopup({ kind: 'range', anchor: event.currentTarget, field, edge })}>{edge === 'from' ? 'From' : 'Through'} {query().filter[field]?.[edge] ?? 'any date'}</Button>}</For>
-          </div>}</For>
-          <label class="agenda-number">Result limit<input class="input" type="number" min="1" max="2000" step="1" placeholder="Default" disabled={busy()} value={limitInput()} onInput={event => { const text = event.currentTarget.value; setLimitInput(text); const value = Number(text); if (!text || Number.isInteger(value) && value >= 1 && value <= 2000) update({ query: { ...query(), limit: text ? value : null } }); }} /></label>
-        </div>
-        <SourceQueryControls sections="source" query={query().source} types={props.notebook.roots()} fields={fields()} disabled={busy()} onChange={source => update({ query: { ...query(), source } })} />
-        </div></Show>
+        <TaskConditions notebook={props.notebook} query={query()} date={date()} fields={fields()} projects={projectTitles()} metadataLoading={metadataLoading()} metadataError={metadataError()} disabled={busy()} recentInput={recentInput()} limitInput={limitInput()} onRecentInput={setRecentInput} onLimitInput={setLimitInput} onChange={value => update({ query: value })}>
+          <Show when={!loading() && !error()}><span class="agenda-count" role="status">{rows().length === total() ? `${total()} task${total() === 1 ? '' : 's'}` : `${rows().length} of ${total()} tasks`}</span></Show>
+        </TaskConditions>
         <Show when={filterError() && !queryLineError()}><p class="agenda-error" role="alert">{filterError()}</p></Show>
         <Show when={metadataLoading()}><p class="agenda-message" role="status">Loading source filters…</p></Show>
         <Show when={metadataError()}><div class="agenda-error" role="alert"><span>{metadataError()}</span><Button onClick={() => setRefresh(value => value + 1)}>Retry filters</Button></div></Show>
@@ -399,8 +363,6 @@ export function AgendaPane(props: AgendaPaneProps) {
         const dismiss = () => { if (!busy() && popup() === state) setPopup(null); };
         if (state.kind === 'menu') return <Menu anchor={state.anchor} label={state.label} items={state.items} onDismiss={dismiss} />;
         if (state.kind === 'date') return <DatePicker notebook={props.notebook} anchor={state.anchor} label="Displayed date" value={date()} contextDate={date()} onDismiss={dismiss} onSelect={value => { if (!value.date) throw new Error('Choose a displayed date.'); update({ date: value.date, scroll: 0 }); }} />;
-        if (state.kind === 'range') return <DatePicker notebook={props.notebook} anchor={state.anchor} label={`${state.field === 'scheduled' ? 'Scheduled' : 'Deadline'} ${state.edge}`} value={query().filter[state.field]?.[state.edge] ?? null} contextDate={date()} onDismiss={dismiss} onSelect={value => update({ query: taskRange(query(), state.field, state.edge, value.date) })} />;
-        if (state.kind === 'projects') return <Picker<ProjectChoice> anchor={state.anchor} label="Project" query={pickerSearch()} onQuery={setPickerSearch} placeholder="Find a project" items={projectChoices()} key={item => item.id ?? 'any'} busy={metadataLoading()} error={metadataError()} onDismiss={dismiss} onPick={item => { updateFilter({ project_id: item.id }); dismiss(); }} row={item => <><Icon name={query().filter.project_id === item.id ? 'check' : 'page'} /><span class="picker-text">{item.name}</span></>} empty="No matching projects." />;
         if (state.kind === 'views') return <Picker<TaskView | null> anchor={state.anchor} label="Saved task views" query={pickerSearch()} onQuery={setPickerSearch} placeholder="Find a task view" items={[null, ...viewChoices()]} key={item => item?.id ?? 'unsaved'} busy={viewsLoading()} error={viewsError()} onDismiss={dismiss} onPick={selectView} row={item => <><Icon name={viewId() === (item?.id ?? null) ? 'check' : 'page'} /><span class="picker-text">{item?.name ?? 'New task query'}</span></>} empty="No matching task views." />;
         if (state.kind === 'name') return <TaskViewNamePopup anchor={state.anchor} name={state.saved?.name ?? ''} rename={state.action === 'rename'} busy={busy()} onDismiss={dismiss} onSave={name => saveView(name, state.id, state.saved, state.action === 'rename')} />;
         if (state.kind === 'delete') return <Popup anchor={state.anchor} label="Delete task view?" onDismiss={dismiss}><p>Delete “{state.saved.name}”? Tasks are not deleted.</p><Show when={commandError()}><p class="error" role="alert">{commandError()}</p></Show><div class="popup-actions"><Button disabled={busy()} onClick={dismiss}>Cancel</Button><Button class="bordered danger" disabled={busy()} onClick={() => { void deleteView(state.saved); }}>Delete view</Button></div></Popup>;

@@ -1018,6 +1018,15 @@ export class Document implements PageDocument {
           if (edit.archived) this.guardHide(edit.id);
           actions.push({ kind: 'archive', id: edit.id, archived: edit.archived });
           break;
+        case 'addField': {
+          const root = this.root();
+          if (root?.kind !== 'page' || root.text.toLowerCase() !== 'fields') throw new Error('Field definitions belong on the Fields page.');
+          if (!edit.name.trim()) throw new Error('A field needs a name.');
+          const id = insert(this.pageId, this.outline.children(this.pageId).at(-1) ?? null, edit.name);
+          if (edit.value !== 'text') actions.push({ kind: 'fieldKind', id, value: edit.value, previous: 'text' });
+          caret = { id, offset: 0 };
+          break;
+        }
         case 'fieldKind': {
           const definition = edit.definition;
           if (this.snapshot(definition.id).revision !== definition.revision || this.block(definition.id)?.pending) throw new Error('The field changed. Refresh before changing its kind.');

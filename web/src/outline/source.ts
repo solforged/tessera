@@ -1,5 +1,5 @@
 import type { FieldDefinition } from '../api/types';
-import type { BlockState, NotebookClient, PageDocument } from '../document/contract';
+import type { BlockState, NotebookClient } from '../document/contract';
 import { textTokens } from '../document/text-tokens';
 import { fieldEntryId, matchFieldEntry } from '../table/query';
 
@@ -20,34 +20,6 @@ export function formatSourceValue(name: string, value: string): string {
 
 export function valueLabel(text: string, lookup: NotebookClient['lookup']): string {
   return textTokens(text).map(token => token.kind === 'reference' ? token.alias ?? lookup(token.id!)()?.text ?? token.id : token.value).join('');
-}
-
-export function sourceSummary(doc: PageDocument, definitions: ReadonlyMap<string, FieldDefinition>, lookup: NotebookClient['lookup']): { text: string; url?: string }[] {
-  const values: Record<string, string[]> = {};
-  for (const id of doc.outline.children(doc.pageId)) {
-    const entry = doc.block(id);
-    if (!entry || entry.archived) continue;
-    const name = sourceFieldName(entry.text, definitions)?.toLowerCase();
-    if (name !== 'author' && name !== 'published' && name !== 'publisher' && name !== 'site' && name !== 'url') continue;
-    const texts = doc.outline.children(id).flatMap(child => {
-      const value = doc.block(child);
-      return value && !value.archived ? [valueLabel(value.text, lookup)] : [];
-    });
-    if (!texts.length) {
-      const inline = matchFieldEntry(entry.text)?.value;
-      if (inline) texts.push(valueLabel(inline, lookup));
-    }
-    (values[name] ??= []).push(...texts);
-  }
-  const published = values.published?.[0];
-  const year = published?.match(/\d{4}/)?.[0] ?? published;
-  const url = values.url?.find(value => /^https?:\/\/[^\s<>"']+$/.test(value));
-  return [
-    { text: values.author?.join(', ') ?? '' },
-    { text: year ?? '' },
-    { text: values.publisher?.join(', ') ?? '' },
-    { text: values.site?.join(', ') ?? '', url },
-  ].filter(part => part.text);
 }
 
 /** Reset extracted positions without discarding authored extra values. */

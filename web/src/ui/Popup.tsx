@@ -14,6 +14,8 @@ export interface PopupProps {
   label: string;
   width?: number;
   placement?: PopupPlacement;
+  /** Flip upward when it fits the content; unset keeps growing lists stable. */
+  fitContent?: boolean;
   /** Defaults to the first input or enabled button. false retains editor focus. */
   autofocus?: boolean;
 }
@@ -87,14 +89,29 @@ export function Popup(props: PopupProps) {
     if (!rect) return;
     const below = Math.max(0, window.innerHeight - rect.bottom - 12);
     const above = Math.max(0, rect.top - 12);
-    const needed = Math.min(panel.scrollHeight, 560);
-    // A menu's items are fixed, so it opens upward whenever only the space above holds all of them; growing lists flip only when cramped.
-    const flip = above > below && (below < Math.min(needed, 180) || (props.role === 'menu' && below < needed && above >= needed));
+    let contentHeight: number;
+    if (props.fitContent) {
+      // Measure the full body without losing scroll positions when it temporarily expands.
+      const scrolled: [Element, number, number][] = [[panel, panel.scrollTop, panel.scrollLeft]];
+      for (const element of panel.querySelectorAll('*')) {
+        if (element.scrollTop || element.scrollLeft) scrolled.push([element, element.scrollTop, element.scrollLeft]);
+      }
+      const maxHeight = panel.style.maxHeight;
+      panel.style.maxHeight = 'none';
+      contentHeight = panel.scrollHeight + panel.offsetHeight - panel.clientHeight;
+      panel.style.maxHeight = maxHeight;
+      for (const [element, top, left] of scrolled) { element.scrollTop = top; element.scrollLeft = left; }
+    } else contentHeight = panel.scrollHeight;
+    const needed = Math.min(contentHeight, 560);
+    // Fixed menus and opt-in dialogs flip to fit; growing lists flip only when cramped.
+    const flip = above > below && (props.fitContent ? below < needed : below < Math.min(needed, 180) || (props.role === 'menu' && below < needed && above >= needed));
     const height = Math.min(needed, flip ? above : below);
     const start = rect.left > window.innerWidth / 2 ? rect.right - width : rect.left;
     setPosition({ left: Math.max(8, Math.min(start, window.innerWidth - width - 8)), top: flip ? rect.top - height - 4 : rect.bottom + 4, height, visible: true });
   };
   const reposition = () => { if (!disposed) { cancelAnimationFrame(frame); frame = requestAnimationFrame(place); } };
+  // Internal scrolling does not move the anchor and must not trigger another fit measurement.
+  const scroll = (event: Event) => { if (!props.fitContent || !(event.target instanceof Node) || !panel.contains(event.target)) reposition(); };
   const topmost = () => !disposed && stack.at(-1) === token;
   const dismiss = (restore: boolean) => {
     const version = mountVersion;
@@ -127,7 +144,7 @@ export function Popup(props: PopupProps) {
     document.addEventListener('keydown', keydown, true);
     document.addEventListener('pointerdown', outside, true);
     window.addEventListener('resize', reposition);
-    window.addEventListener('scroll', reposition, true);
+    window.addEventListener('scroll', scroll, true);
     // Caret anchors move when the text around them reflows, without any scroll or resize.
     if (typeof props.anchor === 'function') { document.addEventListener('input', reposition, true); document.addEventListener('selectionchange', reposition); }
     const observer = new ResizeObserver(reposition);
@@ -146,7 +163,7 @@ export function Popup(props: PopupProps) {
     document.removeEventListener('keydown', keydown, true);
     document.removeEventListener('pointerdown', outside, true);
     window.removeEventListener('resize', reposition);
-    window.removeEventListener('scroll', reposition, true);
+    window.removeEventListener('scroll', scroll, true);
     document.removeEventListener('input', reposition, true);
     document.removeEventListener('selectionchange', reposition);
     if (panel && position().visible) retirePanel(panel);

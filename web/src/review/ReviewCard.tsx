@@ -16,6 +16,7 @@ export interface ReviewCardProps {
   previews: readonly { grade: Grade; interval_days: number }[];
   resetPreviews: readonly { grade: Grade; interval_days: number }[];
   busy?: boolean;
+  remaining?: number;
   onGrade(grade: Grade, reset: boolean): void | Promise<void>;
   onSource(beside: boolean): void;
   onReset(): void | Promise<void>;
@@ -127,6 +128,7 @@ export function ReviewCard(props: ReviewCardProps) {
         <Icon name={props.notebook.lookup(props.item.source.block.page_id)()?.kind === 'journal' ? 'calendar' : 'page'} /><span><BlockBreadcrumb block={props.item.source.block} notebook={props.notebook} /></span>
       </Button>
       <Show when={props.item.card.kind !== 'forward'}><span class="review-card-kind">{props.item.card.kind === 'reverse' ? 'Reverse' : `Cloze ${props.item.card.key.slice('cloze:c'.length)}`}</span></Show>
+      <Show when={props.remaining !== undefined}><span class="review-card-remaining" role="status">{props.remaining} left</span></Show>
       <Show when={revealed() && props.item.card.schedule.last_reviewed_at !== null}>
         <Button class="review-card-reset-trigger" disabled={locked()} aria-haspopup="dialog" aria-expanded={!!resetAnchor()} onClick={event => setResetAnchor(event.currentTarget)}>Reset progress</Button>
       </Show>
@@ -166,7 +168,7 @@ export function ReviewCard(props: ReviewCardProps) {
         </div>
       </section>}</Show>
       <div class="review-card-grades" role="group" aria-label="Grade answer">
-        <For each={grades}>{choice => <Button class="bordered review-card-grade" label={choice.label} shortcut={choice.shortcut} aria-keyshortcuts={choice.shortcut} aria-label={`${choice.label}${interval(choice.grade) ? ` · ${interval(choice.grade)}` : ''}`} disabled={locked()} onClick={() => grade(choice.grade)}>
+        <For each={grades}>{choice => <Button class="review-card-grade" label={choice.label} shortcut={choice.shortcut} aria-keyshortcuts={choice.shortcut} aria-label={`${choice.label}${interval(choice.grade) ? ` · ${interval(choice.grade)}` : ''}`} disabled={locked()} onClick={() => grade(choice.grade)}>
           <span class="review-card-grade-label">{choice.label} <kbd>{choice.shortcut}</kbd></span>
           <Show when={interval(choice.grade)}>{value => <span class="review-card-interval">{value()}</span>}</Show>
         </Button>}</For>

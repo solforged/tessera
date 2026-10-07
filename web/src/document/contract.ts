@@ -165,6 +165,8 @@ export type Edit =
   /** Paste plain text at a caret; lines become sibling blocks, leading indentation nests them. */
   | { kind: 'paste'; at: Caret; text: string }
   | { kind: 'heading'; id: string; level: 1 | 2 | 3 | null }
+  /** Append a definition to the Fields page with its kind in one undo step. */
+  | { kind: 'addField'; name: string; value: FieldKind }
   /** The definition snapshot supplies the previous kind and revision for undo. */
   | { kind: 'fieldKind'; definition: FieldDefinition; value: FieldKind }
   | { kind: 'archive'; id: string; archived: boolean }

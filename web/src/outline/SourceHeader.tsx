@@ -1,7 +1,7 @@
-import { For, Show, createEffect, createMemo, createResource, createSignal, onCleanup } from 'solid-js';
+import { Show, createEffect, createMemo, createResource, createSignal, onCleanup } from 'solid-js';
 import { api, exportExtensions } from '../api/client';
 import type { ExportFormat } from '../api/client';
-import type { Citation, FieldDefinition, ReadingState } from '../api/types';
+import type { Citation, ReadingState } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import type { OutlinePaneProps } from '../shell/contract';
 import { Button } from '../ui/Button';
@@ -9,19 +9,18 @@ import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
 import type { MenuItem } from '../ui/Menu';
 import { formatProgress } from '../library/query';
-import { shortSourceTitle, sourceSummary } from './source';
+import { shortSourceTitle } from './source';
 import '../library/library.css';
 
 const stateLabels: Record<ReadingState, string> = { inbox: 'Inbox', reading: 'Reading', finished: 'Finished', abandoned: 'Abandoned' };
 
 export function SourceHeader(props: {
-  doc: PageDocument; notebook: NotebookClient; definitions: ReadonlyMap<string, FieldDefinition>;
+  doc: PageDocument; notebook: NotebookClient;
   onOpen: OutlinePaneProps['onOpen']; onError(message: string): void;
   resetItems(): MenuItem[];
 }) {
   const [source] = createResource(() => props.notebook.changeSequence(), () => api.source(props.doc.pageId));
   const [menu, setMenu] = createSignal<{ anchor: HTMLElement; label: string; items: MenuItem[] } | null>(null);
-  const summary = createMemo(() => sourceSummary(props.doc, props.definitions, id => props.notebook.lookup(id)));
   const snapshot = createMemo(() => source()?.snapshots.find(snapshot => snapshot.id === source()?.source.current_snapshot_id));
   const [expanded, setExpanded] = createSignal(false);
   const [overflows, setOverflows] = createSignal(false);
@@ -75,23 +74,21 @@ export function SourceHeader(props: {
       <Show when={snapshot()?.metadata.cover}>{cover => <Button class="outline-source-cover" label="Read" onClick={event => props.onOpen({ kind: 'reader', sourceId: props.doc.pageId }, event.shiftKey)}>
         <img src={api.resourceUrl(snapshot()!.id, cover())} loading="lazy" alt="" />
       </Button>}</Show>
-      <span class="outline-source-summary">
-        <Show when={source()?.source.siglum}>{siglum => <span class="source-siglum" title="Siglum: add a Siglum field to change it">{siglum()}</span>}</Show>
-        <For each={summary()}>{(part, index) => <>
-          {index() > 0 ? ' · ' : ''}<Show when={part.url} fallback={part.text}>
-            <a class="reference-url" href={part.url} target="_blank" rel="noopener noreferrer" onMouseDown={event => event.stopPropagation()} onClick={event => event.stopPropagation()}>{part.text}</a>
-          </Show>
-        </>}</For>
-      </span>
-      <Show when={snapshot()?.metadata.description}>{description => <div class="outline-source-description">
-        <p ref={setDescriptionElement} classList={{ expanded: expanded() }}>{description()}</p>
-        <Show when={overflows()}><Button class="text-button" aria-expanded={expanded()} onClick={() => setExpanded(value => !value)}>{expanded() ? 'Less' : 'More'}</Button></Show>
-      </div>}</Show>
-      <div class="outline-source-actions">
-        <Button class="bordered" aria-haspopup="menu" onClick={event => stateMenu(event.currentTarget)}>{stateLabels[props.doc.root()!.source!.state]}<Icon name="down" /></Button>
-        <Show when={!source.error && source() && source()!.progress > 0}><span class="outline-source-progress" aria-label="Reading position" title="Reading position">{formatProgress(source()!.progress)}</span></Show>
-        <Button icon="book" onClick={event => props.onOpen({ kind: 'reader', sourceId: props.doc.pageId }, event.shiftKey)}>Read</Button>
-        <Button icon="more" label="Source actions" aria-haspopup="menu" onClick={event => sourceMenu(event.currentTarget)} />
+      <div class="outline-source-info">
+        <div class="outline-source-summary">
+          <Show when={source()?.source.siglum}>{siglum => <span class="source-siglum" title="Siglum: add a Siglum field to change it">{siglum()}</span>}</Show>
+          <span>{props.doc.root()!.source!.format === 'epub' ? 'EPUB' : 'Article'}</span>
+          <Show when={!source.error && source() && source()!.progress > 0}><span class="outline-source-progress" aria-label="Reading position" title="Reading position">{formatProgress(source()!.progress)}</span></Show>
+        </div>
+        <div class="outline-source-actions">
+          <Button aria-haspopup="menu" onClick={event => stateMenu(event.currentTarget)}>{stateLabels[props.doc.root()!.source!.state]}<Icon name="down" /></Button>
+          <Button class="bordered" icon="book" onClick={event => props.onOpen({ kind: 'reader', sourceId: props.doc.pageId }, event.shiftKey)}>Read</Button>
+          <Button icon="more" label="Source actions" aria-haspopup="menu" onClick={event => sourceMenu(event.currentTarget)} />
+        </div>
+        <Show when={snapshot()?.metadata.description}>{description => <div class="outline-source-description">
+          <p ref={setDescriptionElement} classList={{ expanded: expanded() }}>{description()}</p>
+          <Show when={overflows()}><Button class="text-button" aria-expanded={expanded()} onClick={() => setExpanded(value => !value)}>{expanded() ? 'Less' : 'More'}</Button></Show>
+        </div>}</Show>
       </div>
     </div>
     <Show when={source.error}><p class="outline-capability-error" role="alert">{String(source.error)}</p></Show>

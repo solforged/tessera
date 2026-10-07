@@ -1,7 +1,11 @@
-.date-picker { width: var(--search-width); }
-.date-picker-form { display: flex; flex-direction: column; gap: var(--space-12); }
+:is(.popup, .popup-exit).date-picker { display: flex; width: var(--search-width); padding: 0; overflow: hidden; }
+.date-picker-form { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; }
+.date-picker-body { display: flex; flex: 1 1 auto; flex-direction: column; gap: var(--space-8); min-height: 0; overflow: auto; padding: var(--space-12); }
+.date-picker-footer { display: flex; flex: none; flex-direction: column; gap: var(--space-8); padding: var(--space-8) var(--space-12); border-top: var(--rule-width) solid var(--line); }
+.date-picker-footer .date-picker-field { display: grid; grid-template-columns: 1fr minmax(0, 8rem); align-items: center; gap: var(--space-8); }
+.date-picker .date-picker-footer label { margin: 0; color: var(--muted); }
 .date-picker .month-grid { padding-block: var(--space-8); border-block: 1px solid var(--line); }
-.date-picker .date-picker-field label { margin-bottom: var(--space-4); }
+.date-picker-body .date-picker-field label { margin-bottom: var(--space-4); }
 .date-picker-time { font-variant-numeric: tabular-nums; }
 .date-picker-quick-picks { display: flex; flex-wrap: wrap; gap: var(--space-4); }
 .date-picker-actions { display: flex; justify-content: space-between; gap: var(--space-8); }

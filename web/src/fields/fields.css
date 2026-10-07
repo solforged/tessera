@@ -1,13 +1,19 @@
-/* Fields index: one row per definition, styled like the type table. */
+/* Definitions use the same heading, apparatus and row rhythm as registers. */
 .fields-pane { display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; outline: none; }
-.fields-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-8); min-height: var(--touch-size); padding: var(--space-8) var(--space-16); border-bottom: 1px solid var(--line); }
-.fields-search { flex: 1; min-width: 0; width: 100%; max-width: var(--search-width); }
+.fields-heading { padding: var(--space-16) var(--space-16) var(--space-8); }
+.fields-register { margin-bottom: var(--space-4); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.fields-title { margin: 0; font: var(--weight-display-heading) var(--text-h1)/var(--line-h1) var(--font-display); font-variation-settings: var(--optical-heading); }
+.fields-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-8); padding: 0 var(--space-16) var(--space-12); border-bottom: var(--rule-width) solid var(--line); }
+.fields-search { flex: 1 1 16rem; min-width: 0; width: 100%; max-width: 16rem; min-height: var(--row-height); border-width: 0 0 var(--rule-width); border-radius: 0; background: transparent; padding-inline: 0; font-size: var(--text-control); }
+.fields-search:focus-visible { outline: none; border-color: var(--accent); }
 .fields-scroll { flex: 1; min-height: 0; overflow: auto; }
 .fields-scroll > .empty-state { margin: var(--space-16) var(--space-24); }
-.fields-index { width: 100%; table-layout: fixed; border-spacing: 0; font-size: var(--text-control); line-height: var(--line-control); }
-.fields-index th, .fields-index td { padding: var(--space-4) var(--space-8); border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; overflow-wrap: anywhere; }
-.fields-index th { position: sticky; top: 0; z-index: 1; background: var(--surface); color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); font-weight: var(--weight-control); white-space: nowrap; }
-.fields-index th:first-child, .fields-index td:first-child { padding-left: var(--space-16); }
+.fields-index { width: 100%; min-width: calc(var(--space-48) * 10 + var(--space-32)); table-layout: fixed; border-spacing: 0; font-size: var(--text-control); line-height: var(--line-control); }
+.fields-index th, .fields-index td { padding: 0 var(--space-8); border-bottom: var(--rule-width) solid var(--line); text-align: left; vertical-align: middle; overflow-wrap: anywhere; }
+.fields-index th { position: sticky; top: 0; z-index: 2; height: var(--row-height); background: var(--canvas); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
+.fields-index th:first-child, .fields-index td:first-child { position: sticky; left: 0; width: calc(var(--space-48) * 4); padding-left: var(--space-16); border-right: var(--rule-width) solid var(--line); background: var(--canvas); }
+.fields-index td:first-child { z-index: 1; }
+.fields-index th:first-child { z-index: 3; }
 /* Name, kind and count are buttons; their labels sit one button inset in from the cell edge, and so do the headers. */
 .fields-index th:not(:last-child) { padding-inline: calc(var(--space-8) + var(--space-4) + 1px); }
 .fields-index th:first-child { padding-left: calc(var(--space-16) + var(--space-4) + 1px); }
@@ -16,7 +22,7 @@
 .fields-index .fields-count .button { font: inherit; letter-spacing: inherit; }
 .fields-count .fields-unused { padding-right: calc(var(--space-4) + 1px); }
 .fields-index tbody tr { transition: background-color var(--motion-fast) var(--motion-ease); }
-.fields-index tbody tr:hover, .fields-index tbody tr:focus-within { background: var(--hover); }
+.fields-index tbody tr:hover, .fields-index tbody tr:focus-within, .fields-index tbody tr:hover td:first-child, .fields-index tbody tr:focus-within td:first-child { background: var(--hover); }
 .fields-index .button { min-height: var(--row-height); max-width: 100%; padding: var(--space-2) var(--space-4); }
 .fields-index .field-name { justify-content: flex-start; color: var(--text); font-weight: var(--weight-body); }
 .fields-index .field-name:hover { text-decoration: underline; text-underline-offset: var(--space-4); }
@@ -27,8 +33,12 @@
 .fields-unused { color: var(--faint); }
 .fields-types { display: flex; flex-wrap: wrap; gap: var(--space-4); }
 .fields-types .outline-tag { margin: 0; }
-.fields-new { width: var(--search-width); font-size: var(--text-control); line-height: var(--line-control); }
+:is(.popup, .popup-exit).fields-new { width: var(--search-width); padding: var(--space-12); font-size: var(--text-control); line-height: var(--line-control); }
 .fields-new p { font-size: var(--text-meta); line-height: var(--line-meta); }
+.field-create-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 8rem); gap: var(--space-12); }
+.fields-new .field-create-fields label { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-4); margin: 0; color: var(--muted); }
+.field-create-fields :is(.input, .button) { min-height: var(--space-32); color: var(--text); }
+.field-create-fields .button { justify-content: space-between; border-color: var(--line); }
 .fields-actions { display: flex; gap: var(--space-4); }
 .fields-footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: var(--space-8); padding: var(--space-8) var(--space-16); border-top: 1px solid var(--line); color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .fields-hint { font: var(--weight-body) var(--text-meta)/var(--line-meta) var(--font-body); letter-spacing: normal; }

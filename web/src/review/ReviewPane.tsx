@@ -327,10 +327,10 @@ export function ReviewPane(props: ReviewPaneProps) {
     <div ref={scroll} class="review-scroll" onScroll={publish}>
       <div class="review-summary">
         <Show when={!openSession() && rows().length}><Button class="bordered" disabled={locked() || loading() || !!readError()} onClick={() => void start()}>Start review</Button></Show>
-        <span role="status">{!ready() ? 'Loading cards…'
+        <Show when={!shown() || !openSession() || !ready() || !rows().length}><span role="status">{!ready() ? 'Loading cards…'
           : rows().length ? `${rows().length} ${openSession() ? 'left' : rows().length === 1 ? 'card' : 'cards'}`
           : openSession() ? 'Queue complete.' : !deckId() && counts().all === 0 ? 'No cards yet. Type >> in any block to make one, or <> for both directions.'
-            : query().selection === 'due' ? 'Nothing due.' : 'No cards in this queue.'}</span>
+            : query().selection === 'due' ? 'Nothing due.' : 'No cards in this queue.'}</span></Show>
         <Show when={openSession() && ready() && !rows().length && !shown()}><Button class="bordered" disabled={locked()} onClick={() => void closeSession('finished')}>Finish review</Button></Show>
         <Show when={pending()}><span class="review-pending" role="status">{pending()}</span></Show>
         <Show when={session() && session()!.state !== 'open'}><p role="status">{session()!.state === 'finished' ? 'Review finished.' : 'Review abandoned.'} Its grades are kept.</p></Show>
@@ -347,7 +347,7 @@ export function ReviewPane(props: ReviewPaneProps) {
         <Button class="bordered" disabled={locked() || loading() || !!readError()} onClick={acceptUpdated}>{updated() ? 'Review current card' : 'Next card'}</Button>
       </section></Show>
       <Show keyed when={shown()}>{snapshot => <>
-        <ReviewCard item={snapshot.item} notebook={props.notebook} previews={snapshot.previews.current} resetPreviews={snapshot.previews.reset} busy={locked() || loading() || !!readError() || !!stale() || needsReload() || !openSession()} onGrade={(value, restart) => grade(value, restart, snapshot)} onReset={() => reset(snapshot)} onSource={beside => {
+        <ReviewCard item={snapshot.item} notebook={props.notebook} remaining={openSession() && ready() && rows().length ? rows().length : undefined} previews={snapshot.previews.current} resetPreviews={snapshot.previews.reset} busy={locked() || loading() || !!readError() || !!stale() || needsReload() || !openSession()} onGrade={(value, restart) => grade(value, restart, snapshot)} onReset={() => reset(snapshot)} onSource={beside => {
           publish(); props.onOpen({ kind: 'page', pageId: snapshot.item.source.page.id, blockId: snapshot.item.source.block.id }, beside);
         }} />
         <Show when={snapshot.item.last_review}><ReviewHistory cardId={snapshot.item.card.id} notebook={props.notebook} /></Show>

@@ -113,8 +113,10 @@ export function BlockText(props: Props) {
         </Show>
       </Show>
       <Show when={token.kind === 'url'}>
-        <a class="reference-url" href={token.value} target="_blank" rel="noopener noreferrer" data-source-start={token.start} data-source-end={token.end}
-          onMouseDown={event => event.stopPropagation()} onClick={event => event.stopPropagation()}>{text(token)}</a>
+        <Show when={props.interactive !== false} fallback={<span class="reference-url" data-source-start={token.start} data-source-end={token.end}>{text(token)}</span>}>
+          <a class="reference-url" href={token.value} target="_blank" rel="noopener noreferrer" data-source-start={token.start} data-source-end={token.end}
+            onMouseDown={event => event.stopPropagation()} onClick={event => event.stopPropagation()}>{text(token)}</a>
+        </Show>
       </Show>
       <Show when={token.kind === 'tag'}>
         <Show when={props.interactive !== false} fallback={<span class="outline-tag" data-source-start={token.start} data-source-end={token.end}>{text(token)}</span>}>
