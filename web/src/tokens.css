@@ -40,7 +40,7 @@
   --status-waiting: var(--warning);
   --status-done: #8fb59a;
   --status-cancelled: var(--faint);
-  --agree: #7f9de0;          /* blued steel: a value two perspectives share */
+  --agree: #7f9de0;          /* blued steel: inquiry links and unsettled questions */
   --status-overdue: var(--danger);
 
   /* Calendar planning marks distinguish dates without relying on hue alone. */

@@ -78,7 +78,11 @@ export type OpenTarget =
 
 export type LibraryTab = ReadingState | 'all' | 'highlights';
 
-export interface TableViewState { query: Query; scroll: number }
+export interface TableViewState {
+  query: Query; scroll: number;
+  /** Pane-local presentation, carried by history rather than the saved query. */
+  hiddenFields?: string[]; titleWidth?: number; horizontalScroll?: number;
+}
 export interface FieldsViewState { scroll: number }
 export interface SettingsViewState { scroll: number }
 export interface CompareViewState { scroll: number }

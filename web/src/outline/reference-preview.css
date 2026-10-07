@@ -1,21 +1,23 @@
-/* Reference hover card. Behaviour is in docs/design.md under "Reference previews". */
-.popup.reference-preview, .popup-exit.reference-preview { padding: 0; font-size: var(--text-control); line-height: var(--line-control); }
+/* Reference slips keep a passing gloss compact; pinning adds actual readings. */
+.popup.reference-preview, .popup-exit.reference-preview { padding: 0; font: var(--weight-body) var(--text-control)/var(--line-control) var(--font-body); }
 .popup.reference-preview.pinned { border-color: var(--control-border); }
 .reference-preview-card { display: flex; flex-direction: column; min-height: 100%; }
-.reference-preview-header { padding: var(--space-12) var(--space-12) var(--space-8); }
-.reference-preview-crumbs { color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.reference-preview-title { display: flex; align-items: baseline; gap: var(--space-8); margin-top: var(--space-2); }
-.reference-preview-title h2 { flex: 1; min-width: 0; margin: 0; font-size: var(--text-h2); line-height: var(--line-h2); font-weight: var(--weight-heading); overflow-wrap: anywhere; }
-.reference-preview-kind { flex: 1; color: var(--muted); font-weight: var(--weight-control); }
-.reference-preview-pin { flex: none; color: var(--faint); font-size: var(--text-meta); line-height: var(--line-meta); }
-.pinned .reference-preview-pin { color: var(--accent); }
-.reference-preview-gloss { margin: var(--space-4) 0 0; color: var(--muted); font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); font-variation-settings: var(--optical-quote); overflow-wrap: anywhere; }
+.reference-preview-header { padding: var(--space-12) var(--space-16); }
+.reference-preview-topline { display: flex; align-items: center; gap: var(--space-8); }
+.reference-preview-crumbs { flex: 1; min-width: 0; color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.reference-preview-pin.button { flex: none; padding: 0 var(--space-4); margin-right: calc(-1 * var(--space-4)); color: var(--muted); font: var(--weight-control) var(--text-meta)/var(--line-meta) var(--font-body); }
+.reference-preview-pin.button[aria-pressed="true"] { background: transparent; color: var(--accent); }
+.reference-preview-pin kbd { color: var(--faint); font: inherit; }
+.reference-preview-title { margin-top: var(--space-4); }
+.reference-preview-title h2 { margin: 0; font: var(--weight-title) var(--text-h1)/var(--line-h1) var(--font-display); font-variation-settings: var(--optical-heading); letter-spacing: var(--tracking-title); overflow-wrap: anywhere; }
+.reference-preview-kind { color: var(--muted); font-weight: var(--weight-control); }
+.reference-preview-gloss { margin: var(--space-8) 0 0; color: var(--muted); font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); font-variation-settings: var(--optical-quote); overflow-wrap: anywhere; }
 .reference-preview-pills { display: flex; flex-wrap: wrap; gap: var(--space-4); margin-top: var(--space-8); }
 .reference-preview-pills .outline-tag { margin: 0; vertical-align: baseline; cursor: default; }
 .reference-preview-pill { padding: 1px var(--space-8); border-radius: var(--radius-pill); background: var(--accent-tint); color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); text-transform: capitalize; }
 
-/* Rows read as a miniature outline: 16 px indent, small bullets, the referenced block tinted. */
-.reference-preview-body { position: relative; max-height: var(--preview-body-height); overflow: hidden; padding: var(--space-8) var(--space-12); border-top: 1px solid var(--line); }
+/* Pages fall back to prose. Blocks retain the small outline around the focused passage. */
+.reference-preview-body { position: relative; max-height: var(--preview-body-height); overflow: hidden; padding: var(--space-12) var(--space-16); border-top: 1px solid var(--line); }
 .reference-preview-body.clipped { -webkit-mask-image: linear-gradient(to bottom, var(--mask-opaque) calc(100% - var(--space-32)), transparent); mask-image: linear-gradient(to bottom, var(--mask-opaque) calc(100% - var(--space-32)), transparent); }
 .reference-preview-body.scrollable { overflow: auto; -webkit-mask-image: none; mask-image: none; }
 .reference-preview-row { display: flex; align-items: flex-start; padding-left: calc(var(--depth) * var(--space-16)); }
@@ -24,9 +26,33 @@
 .reference-preview-bullet { flex: none; display: inline-flex; align-items: center; justify-content: center; width: var(--space-16); height: var(--line-control); }
 .reference-preview-bullet::before { content: ""; width: var(--space-4); height: var(--space-4); border-radius: 50%; background: var(--muted); }
 .reference-preview-text { flex: 1; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-.reference-preview-message { margin: 0; padding: var(--space-8) var(--space-12) var(--space-12); color: var(--muted); }
-.reference-preview-footer { display: flex; align-items: center; gap: var(--space-4); margin-top: auto; padding: var(--space-4) var(--space-8) var(--space-4) var(--space-12); border-top: 1px solid var(--line); color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.reference-preview-body.prose { font-size: var(--text-body); line-height: var(--line-body); }
+.reference-preview-body.prose .reference-preview-row + .reference-preview-row { margin-top: var(--space-8); }
+.reference-preview-message { margin: 0; padding: var(--space-8) var(--space-16) var(--space-12); color: var(--muted); }
+
+.reference-preview-readings { max-height: var(--preview-body-height); overflow: auto; padding: var(--space-12) var(--space-16); border-top: 1px solid var(--line); }
+.reference-preview-section-heading { display: flex; align-items: center; gap: var(--space-8); color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.reference-preview-rule { flex: 1; border-top: 1px solid var(--line); }
+.reference-preview-reading { padding-block: var(--space-8); border-bottom: 1px solid var(--line); }
+.reference-preview-reading:last-child { padding-bottom: 0; border-bottom: 0; }
+.reference-preview-reading-heading { display: flex; align-items: baseline; gap: var(--space-8); }
+.reference-preview-siglum { flex: none; color: var(--accent); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.reference-preview-holder.button { flex: 1; min-width: 0; justify-content: space-between; padding: 0; color: var(--text); font: var(--weight-control) var(--text-quote)/var(--line-quote) var(--font-display); font-variation-settings: var(--optical-quote); }
+.reference-preview-holder > span:first-child { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.reference-preview-holder.button[aria-expanded="true"] { color: var(--accent); }
+.reference-preview-expand { color: var(--faint); font: var(--weight-body) var(--text-control)/var(--line-control) var(--font-body); }
+.reference-preview-holder .shape-glyph { flex: none; width: calc(var(--icon-size) * 1.75); height: var(--icon-size); color: var(--accent); }
+.reference-preview-gist { margin: var(--space-2) 0 0; color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; }
+.reference-preview-reading-message { margin: var(--space-4) 0; color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
+.reference-preview-reading-detail { margin-top: var(--space-8); padding-top: var(--space-8); border-top: 1px solid var(--line); }
+.reference-preview-reading-source.button { display: flex; padding: 0; color: var(--accent); font-family: var(--font-body); }
+.reference-preview-reading-prose { margin: var(--space-8) 0 0; font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-reading-serif); font-variation-settings: var(--optical-quote); white-space: pre-wrap; overflow-wrap: anywhere; }
+.reference-preview-open-reading.button { margin-top: var(--space-8); padding: 0; color: var(--accent); font-family: var(--font-body); }
+.reference-preview-compare.button { align-self: flex-start; margin: var(--space-4) var(--space-16) var(--space-8); padding: 0; color: var(--accent); font-family: var(--font-body); }
+
+.reference-preview-footer { display: flex; align-items: center; gap: var(--space-4); margin-top: auto; padding: var(--space-4) var(--space-12) var(--space-4) var(--space-16); border-top: 1px solid var(--line); }
+.reference-preview-counts { color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .reference-preview-spacer { flex: 1; }
-.reference-preview-footer .button { font-size: var(--text-meta); }
+.reference-preview-footer .button { flex: none; font-family: var(--font-body); }
 .reference-preview-footer .button.primary { color: var(--accent); }
 .reference-preview-footer kbd { margin-left: var(--space-4); color: var(--faint); font: inherit; }

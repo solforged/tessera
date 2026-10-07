@@ -1,7 +1,7 @@
 import { Show } from 'solid-js';
 
 /**
- * A small drawing of a `Shape::` value, so the compare table reads at a glance: a falling line, a closed
+ * A small drawing of a `Shape::` value beside a reading's holder: a falling line, a closed
  * circle, an open arc for a cycle rarely completed, a spiral, or branches. Unknown shapes draw nothing.
  */
 const shapes: [RegExp, string][] = [
