@@ -29,8 +29,17 @@ export function FieldsPane(props: FieldsPaneProps) {
   const [kindMenu, setKindMenu] = createSignal<{ field: FieldSummary; anchor: HTMLElement } | null>(null);
   const [creating, setCreating] = createSignal<HTMLElement | null>(null);
   const [newName, setNewName] = createSignal('');
+  const [newKind, setNewKind] = createSignal<FieldKind>('text');
+  const [newKindMenu, setNewKindMenu] = createSignal<HTMLElement | null>(null);
   const [createError, setCreateError] = createSignal('');
   const ready = () => !loading() && doc()?.status() === 'ready' && doc()?.saveState() === 'saved';
+  const documentError = createMemo(() => {
+    const document = doc();
+    if (!document) return '';
+    if (document.status() === 'error' || document.status() === 'missing') return document.statusMessage() || 'Field definitions are unavailable.';
+    if (document.saveState() === 'error' || document.saveState() === 'conflict' || document.saveState() === 'offline') return document.saveMessage() || 'Field changes have not been saved.';
+    return '';
+  });
   const fields = createMemo(() => [...(data()?.fields ?? [])].sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id)));
   const visibleFields = createMemo(() => {
     const needle = search().trim().toLocaleLowerCase();
@@ -74,17 +83,19 @@ export function FieldsPane(props: FieldsPaneProps) {
     const result = document.edit({ kind: 'fieldKind', definition: field, value });
     if (!result.ok) setError(result.reason);
   };
+  const closeCreation = () => { setNewKindMenu(null); setCreating(null); };
   const addField = () => {
     const document = doc();
-    const id = pageId();
+    if (!document || !ready()) { setCreateError(document?.statusMessage() || document?.saveMessage() || 'Wait for field definitions to finish loading or saving.'); return; }
     const name = newName().trim();
-    if (!document || !id || !name) return;
+    if (!name) { setCreateError('A field needs a name.'); return; }
+    if (name.length > 60) { setCreateError('Field names must be 60 characters or fewer.'); return; }
     // The same characters `Name::` shorthand refuses, so the name stays typeable.
     if (/[\\`[\]#:]/.test(name)) { setCreateError('Field names cannot contain [ ] # : ` or \\.'); return; }
     if (fields().some(field => field.name.toLocaleLowerCase() === name.toLocaleLowerCase())) { setCreateError(`A field named ${name} already exists.`); return; }
-    const result = document.edit({ kind: 'insert', parentId: id, after: document.outline.children(id).at(-1) ?? null, text: name });
+    const result = document.edit({ kind: 'addField', name, value: newKind() });
     if (!result.ok) { setCreateError(result.reason); return; }
-    setCreating(null); setNewName(''); setCreateError(''); setSearch('');
+    closeCreation(); setNewName(''); setCreateError(''); setSearch('');
   };
   return <div class="fields-pane" role="region" tabIndex={0} aria-label="Fields" onFocusIn={props.onActivate} onKeyDown={event => {
     if (!(event.target instanceof HTMLInputElement) && (event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === 'z') {
@@ -92,13 +103,18 @@ export function FieldsPane(props: FieldsPaneProps) {
       if (event.shiftKey) doc()?.redo(); else doc()?.undo();
     }
   }}>
+    <header class="fields-heading">
+      <div class="fields-register">Definitions / Register</div>
+      <h1 class="fields-title">Fields</h1>
+    </header>
     <div class="fields-toolbar">
       <input class="input fields-search" type="search" aria-label="Filter fields" placeholder="Filter fields…" value={search()} onInput={event => setSearch(event.currentTarget.value)} />
-      <Button icon="plus" disabled={!ready()} aria-haspopup="dialog" onClick={event => { setNewName(search().trim()); setCreateError(''); setCreating(event.currentTarget); }}>New field</Button>
+      <Button icon="plus" disabled={!ready()} aria-haspopup="dialog" aria-expanded={!!creating()} onClick={event => { setNewName(search().trim()); setNewKind('text'); setNewKindMenu(null); setCreateError(''); setCreating(event.currentTarget); }}>New field</Button>
       <Button icon="edit" disabled={!pageId()} onClick={event => props.onOpen({ kind: 'page', pageId: pageId()! }, event.shiftKey)}>Edit definitions</Button>
       <div class="fields-actions"><Button icon="undo" label="Undo field changes" disabled={!doc()?.canUndo()} onClick={() => doc()?.undo()} /><Button icon="redo" label="Redo field changes" disabled={!doc()?.canRedo()} onClick={() => doc()?.redo()} /></div>
     </div>
     <Show when={error()}><div class="pane-error" role="alert">{error()} <Button onClick={() => setRetry(value => value + 1)}>Retry</Button></div></Show>
+    <Show when={documentError()}><div class="pane-error" role="alert">{documentError()}</div></Show>
     <Show when={loading() && !data()}><p class="empty-state" role="status">Loading fields…</p></Show>
     <div ref={scroll} class="fields-scroll" onScroll={() => props.onViewChange({ scroll: scroll.scrollTop })}>
       <Show when={data()}>
@@ -118,13 +134,17 @@ export function FieldsPane(props: FieldsPaneProps) {
     </div>
     <footer class="fields-footer"><span role="status">{visibleFields().length} of {fields().length} fields</span><span class="fields-hint">Changing kind leaves value text unchanged.</span></footer>
     <Show keyed when={kindMenu()}>{state => <Menu anchor={state.anchor} label={`Kind for ${state.field.name}`} onDismiss={() => setKindMenu(null)} items={(Object.keys(kindLabels) as FieldKind[]).map(kind => ({ label: kindLabels[kind], icon: kind === state.field.kind ? 'check' : undefined, action: () => changeKind(state.field, kind) }))} />}</Show>
-    <Show when={creating()}>{anchor => <Popup anchor={anchor()} label="New field" class="fields-new" onDismiss={() => setCreating(null)}>
+    <Show when={creating()}>{anchor => <Popup anchor={anchor()} label="New field" class="fields-new" fitContent onDismiss={closeCreation}>
+      <h2 class="popup-title">New field</h2>
       <form onSubmit={event => { event.preventDefault(); addField(); }}>
-        <label>Name<input class="input" value={newName()} maxLength={60} ref={input => queueMicrotask(() => input.focus())} onInput={event => { setNewName(event.currentTarget.value); setCreateError(''); }} /></label>
+        <div class="field-create-fields">
+          <label>Name<input class="input" value={newName()} maxLength={60} ref={input => queueMicrotask(() => input.focus())} onInput={event => { setNewName(event.currentTarget.value); setCreateError(''); }} /></label>
+          <label>Kind<Button aria-label={`Kind: ${kindLabels[newKind()]}`} aria-haspopup="menu" aria-expanded={!!newKindMenu()} onClick={event => setNewKindMenu(event.currentTarget)}>{kindLabels[newKind()]} <Icon name="down" /></Button></label>
+        </div>
         <Show when={createError()}><p class="error" role="alert">{createError()}</p></Show>
-        <p class="muted">New fields are Text; change the kind in the list.</p>
-        <div class="popup-actions"><Button onClick={() => setCreating(null)}>Cancel</Button><Button type="submit" class="bordered" disabled={!newName().trim()}>Add field</Button></div>
+        <div class="popup-actions"><Button onClick={closeCreation}>Cancel</Button><Button type="submit" class="bordered" disabled={!ready() || !newName().trim()}>Add field</Button></div>
       </form>
+      <Show when={newKindMenu()}>{kindAnchor => <Menu anchor={kindAnchor()} label="Kind" onDismiss={() => setNewKindMenu(null)} items={(Object.keys(kindLabels) as FieldKind[]).map(kind => ({ label: kindLabels[kind], icon: kind === newKind() ? 'check' : undefined, action: () => setNewKind(kind) }))} />}</Show>
     </Popup>}</Show>
   </div>;
 }

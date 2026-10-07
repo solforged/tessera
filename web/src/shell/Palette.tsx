@@ -14,6 +14,14 @@ type Entry = SearchEntry | { kind: 'command'; command: Command } | { kind: 'crea
 /** Find or create pages, search blocks, or prefix commands with `>`. Tab drills into a result's children. */
 export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'search' | 'commands'; commands: CommandRegistry; notebook: NotebookClient; onDismiss(): void; onRestoreFocus(): void; onOpen(target: OpenTarget, beside: boolean): void }) {
   const capturedCommands = props.commands.list().map(command => command.capture?.() ?? command);
+  const sections = new Map<Command['section'], Command[]>();
+  for (const command of capturedCommands) {
+    if (command.id === 'shell.commands' || command.id.startsWith('outline.') && !command.id.startsWith(`outline.${props.pane}.`)) continue;
+    const section = sections.get(command.section);
+    if (section) section.push(command);
+    else sections.set(command.section, [command]);
+  }
+  const orderedCommands = [...sections.values()].flat();
   const [query, setQuery] = createSignal(props.mode === 'commands' ? '>' : '');
   const [debounced, setDebounced] = createSignal('');
   const [scopes, setScopes] = createSignal<(BlockInPage & { matching?: boolean })[]>([]);
@@ -31,7 +39,10 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
   const [hits] = createResource(() => mode() === 'search' ? debounced() : null, async q => q ? api.search(q) : props.notebook.roots().map(root => ({ block: root, page: root })));
   const scope = () => scopes().at(-1);
   const [scopedPage] = createResource(() => scope()?.matching ? undefined : scope()?.page.id, id => api.page(id));
-  const commands = createMemo(() => capturedCommands.filter(command => (!command.id.startsWith('outline.') || command.id.startsWith(`outline.${props.pane}.`)) && `${command.title} ${command.section}`.toLocaleLowerCase().includes(text().toLocaleLowerCase())));
+  const commands = createMemo(() => {
+    const search = text().toLocaleLowerCase();
+    return orderedCommands.filter(command => `${command.title} ${command.section}`.toLocaleLowerCase().includes(search));
+  });
   const entries = createMemo((): Entry[] => {
     if (mode() === 'commands') return commands().map(command => ({ kind: 'command', command }));
     if (text() !== debounced() || hits.loading) return [];
@@ -90,6 +101,7 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
     prefix={<Icon name={mode() === 'search' ? 'search' : 'command'} class="picker-prefix" />}
     status={<Show when={scope()}>{parent => <div class="scope-bar"><Icon name="up" /><BlockText text={parent().block.text} notebook={props.notebook} interactive={false} /><kbd>⇧Tab</kbd></div>}</Show>}
     items={entries()} key={entry => entry.kind === 'hit' ? entry.hit.block.id : entry.kind === 'more' ? `more:${entry.page.id}` : entry.kind === 'command' ? entry.command.id : 'create'}
+    section={mode() === 'commands' ? entry => entry.kind === 'command' ? entry.command.section : undefined : undefined}
     disabledReason={entry => creating() ? 'Creating page…' : entry.kind === 'command' ? entry.command.disabledReason?.() : undefined}
     onPick={(entry, event) => {
       if (entry.kind === 'hit') open(entry.hit, event.shiftKey);
@@ -108,7 +120,7 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
     row={(entry, selected) => entry.kind === 'hit'
       ? <HitRow hit={entry.hit} query={text()} notebook={props.notebook} selected={selected} />
       : entry.kind === 'more' ? <><Icon name="page" /><span class="picker-text">+{entry.count} more in {entry.page.text}</span></>
-      : entry.kind === 'command' ? <CommandRow command={entry.command} />
+      : entry.kind === 'command' ? <CommandRow command={entry.command} selected={selected} />
         : <><Icon name="plus" /><span class="picker-text">Create page “{entry.title}”</span><Show when={selected}><kbd class="picker-hint">⇧↵ beside</kbd></Show></>} />;
 }
 
@@ -133,10 +145,9 @@ function HitRow(props: { hit: BlockInPage; query: string; notebook: NotebookClie
   </>;
 }
 
-function CommandRow(props: { command: Command }) {
+function CommandRow(props: { command: Command; selected: boolean }) {
   return <>
-    <span class="picker-text">{props.command.title}<Show when={props.command.disabledReason?.()}>{reason => <small> · {reason()}</small>}</Show></span>
-    <span class="picker-meta">{props.command.section}</span>
+    <span class="picker-text">{props.command.title}<Show when={props.selected && props.command.disabledReason?.()}>{reason => <small class="picker-disabled-reason"> · {reason()}</small>}</Show></span>
     <Show when={props.command.keys?.length}><kbd>{props.command.keys!.join(' / ')}</kbd></Show>
   </>;
 }
