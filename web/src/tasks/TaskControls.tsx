@@ -78,22 +78,24 @@ export function TaskControls(props: { notebook: NotebookClient; task: TaskState;
     try { await change({ priority }); }
     catch (reason) { setFailure({ priority, message: errorMessage(reason) }); }
   };
-  return <span class="task-controls" role="group" aria-label="Task planning" aria-busy={busy()}>
-    <Button class="task-metadata" label={`Scheduled: ${dateLabel(props.task.scheduled, props.task.scheduled_time)}`} disabled={blocked()} aria-haspopup="dialog" aria-expanded={popup()?.kind === 'scheduled'} onClick={event => open('scheduled', event.currentTarget)}>
-      Scheduled<Show when={props.task.scheduled}><span class="task-metadata-value">{dateLabel(props.task.scheduled, props.task.scheduled_time)}</span></Show>
+  return <div class="task-controls" role="group" aria-label="Task planning" aria-busy={busy()}>
+    <Button class="task-metadata task-planning-row" label={`Scheduled: ${dateLabel(props.task.scheduled, props.task.scheduled_time)}`} disabled={blocked()} aria-haspopup="dialog" aria-expanded={popup()?.kind === 'scheduled'} onClick={event => open('scheduled', event.currentTarget)}>
+      <span class="task-planning-label">Scheduled</span><span class="task-metadata-value task-planning-value">{dateLabel(props.task.scheduled, props.task.scheduled_time)}</span>
     </Button>
-    <Button class="task-metadata" label={`Deadline: ${dateLabel(props.task.deadline, props.task.deadline_time)}`} disabled={blocked()} aria-haspopup="dialog" aria-expanded={popup()?.kind === 'deadline'} onClick={event => open('deadline', event.currentTarget)}>
-      Deadline<Show when={props.task.deadline}><span class="task-metadata-value">{dateLabel(props.task.deadline, props.task.deadline_time)}</span></Show>
+    <Button class="task-metadata task-planning-row" label={`Deadline: ${dateLabel(props.task.deadline, props.task.deadline_time)}`} disabled={blocked()} aria-haspopup="dialog" aria-expanded={popup()?.kind === 'deadline'} onClick={event => open('deadline', event.currentTarget)}>
+      <span class="task-planning-label">Deadline</span><span class="task-metadata-value task-planning-value">{dateLabel(props.task.deadline, props.task.deadline_time)}</span>
     </Button>
-    <Button class="task-metadata" label={`Deadline warning: ${warningLabel()}`} disabled={blocked() || !props.task.deadline} aria-haspopup="dialog" aria-expanded={popup()?.kind === 'warning'} onClick={event => open('warning', event.currentTarget)}>
-      Warning<Show when={props.task.warning_days !== null}><span class="task-metadata-value">{warningLabel()}</span></Show>
+    <Button class="task-metadata task-planning-row" label={`Priority: ${priorityLabel(props.task.priority)}`} disabled={blocked()} aria-haspopup="menu" aria-expanded={popup()?.kind === 'priority'} onClick={event => open('priority', event.currentTarget)}>
+      <span class="task-planning-label">Priority</span><span class="task-metadata-value task-planning-value">{priorityLabel(props.task.priority)}</span>
     </Button>
-    <Button class="task-metadata" label={`Priority: ${priorityLabel(props.task.priority)}`} disabled={blocked()} aria-haspopup="menu" aria-expanded={popup()?.kind === 'priority'} onClick={event => open('priority', event.currentTarget)}>
-      Priority<Show when={props.task.priority}><span class="task-metadata-value">{priorityLabel(props.task.priority)}</span></Show>
+    <Button class="task-metadata task-planning-row" label={`Repeat: ${repeatDescription()}`} disabled={blocked()} aria-haspopup="dialog" aria-expanded={popup()?.kind === 'repeat'} onClick={event => open('repeat', event.currentTarget)}>
+      <span class="task-planning-label">Repeat</span><span class="task-metadata-value task-planning-value">{repeatDescription()}</span>
     </Button>
-    <Button class="task-metadata" label={`Repeat: ${repeatDescription()}`} disabled={blocked()} aria-haspopup="dialog" aria-expanded={popup()?.kind === 'repeat'} onClick={event => open('repeat', event.currentTarget)}>
-      Repeat<Show when={props.task.repeater}><span class="task-metadata-value">{repeatDescription()}</span></Show>
-    </Button>
+    <Show when={props.task.deadline}>
+      <Button class="task-metadata task-planning-row" label={`Deadline warning: ${warningLabel()}`} disabled={blocked()} aria-haspopup="dialog" aria-expanded={popup()?.kind === 'warning'} onClick={event => open('warning', event.currentTarget)}>
+        <span class="task-planning-label">Warning</span><span class="task-metadata-value task-planning-value">{warningLabel()}</span>
+      </Button>
+    </Show>
     <Show keyed when={failure()}>{state => <span class="task-control-error" role="alert">
       <span>Priority: {priorityLabel(state.priority)} · {state.message}</span>
       <Button disabled={blocked()} label={`Retry priority: ${priorityLabel(state.priority)}`} onClick={() => { void changePriority(state.priority); }}>Retry</Button>
@@ -108,7 +110,7 @@ export function TaskControls(props: { notebook: NotebookClient; task: TaskState;
       {state.kind === 'warning' && <WarningPopup anchor={state.anchor} value={props.task.warning_days} disabled={blocked() || !props.task.deadline} onDismiss={() => dismiss(state)} onSave={warning_days => change({ warning_days })} />}
       {state.kind === 'repeat' && <RepeatPopup anchor={state.anchor} value={props.task.repeater} disabled={blocked()} onDismiss={() => dismiss(state)} onSave={repeater => change({ repeater })} />}
     </>}</Show>
-  </span>;
+  </div>;
 }
 
 function WarningPopup(props: { anchor: PopupAnchor; value: number | null; disabled: boolean; onDismiss(): void; onSave(value: number | null): Promise<void> }) {
@@ -126,7 +128,7 @@ function WarningPopup(props: { anchor: PopupAnchor; value: number | null; disabl
     catch (reason) { setError(errorMessage(reason)); }
     finally { setBusy(false); }
   };
-  return <Popup anchor={props.anchor} label="Deadline warning" class="task-control-popup" onDismiss={() => { if (!busy()) props.onDismiss(); }}>
+  return <Popup anchor={props.anchor} label="Deadline warning" class="task-control-popup" fitContent onDismiss={() => { if (!busy()) props.onDismiss(); }}>
     <form class="task-control-form" aria-busy={busy()} onSubmit={event => { event.preventDefault(); void submit(); }}>
       <label class="task-control-field">Warning lead (days)<input class="input" inputmode="numeric" value={days()} disabled={blocked()} placeholder="None" onInput={event => setDays(event.currentTarget.value)} /></label>
       <Show when={error()}><p class="error" role="alert">{error()}</p></Show>
@@ -156,7 +158,7 @@ export function RepeatPopup(props: { anchor: PopupAnchor; value: TaskState['repe
     catch (reason) { setError(errorMessage(reason)); }
     finally { setBusy(false); }
   };
-  return <Popup anchor={props.anchor} label="Repeat" class="task-control-popup" onDismiss={() => { if (!busy()) props.onDismiss(); }}>
+  return <Popup anchor={props.anchor} label="Repeat" class="task-control-popup" fitContent onDismiss={() => { if (!busy()) props.onDismiss(); }}>
     <form class="task-control-form" aria-busy={busy()} onSubmit={event => { event.preventDefault(); void submit(); }}>
       <label class="task-control-field">Mode<Button class="bordered" label={`Repeat mode: ${modeLabel()}`} disabled={blocked()} aria-haspopup="menu" aria-expanded={menu()?.kind === 'mode'} onClick={event => setMenu({ kind: 'mode', anchor: event.currentTarget })}>{modeLabel()}</Button></label>
       <Show when={mode() !== null}><div class="task-repeat-interval">

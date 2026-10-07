@@ -140,18 +140,20 @@
 .outline-capability-popup { display: flex; flex-direction: column; gap: var(--space-8); padding: var(--space-12); max-width: var(--measure); font-size: var(--text-control); line-height: var(--line-control); }
 .outline-capability-popup p { margin: 0; }
 .outline-capability-actions { display: flex; flex-wrap: wrap; gap: var(--space-8); }
-.outline-source-header { display: flow-root; margin-top: var(--space-8); font-size: var(--text-control); line-height: var(--line-control); }
-.outline-source-cover.button { float: left; width: calc(var(--space-48) * 2); padding: 0; margin-right: var(--space-16); margin-bottom: var(--space-8); border: 0; border-radius: var(--radius-control); overflow: hidden; }
+.outline-heading:has(.outline-source-header) { padding-bottom: var(--space-8); }
+.outline-source-header { display: flex; align-items: flex-start; gap: var(--space-12); margin-top: var(--space-8); padding-bottom: var(--space-12); border-bottom: var(--rule-width) solid var(--line); font-size: var(--text-control); line-height: var(--line-control); }
+.outline-source-cover.button { flex: none; width: var(--space-48); padding: 0; border: 0; border-radius: var(--radius-control); overflow: hidden; }
 .outline-source-cover img { display: block; width: 100%; height: auto; aspect-ratio: auto; }
-.outline-source-summary { display: block; overflow: hidden; color: var(--muted); }
-/* The source's own siglum leads its byline as a plain gilt mark with a rule after it, like an edition's sigla list; boxes are for the margin, where a siglum stands for a source. */
-.source-siglum { display: inline-flex; align-items: center; gap: var(--space-8); margin-right: var(--space-8); color: var(--accent); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
+.outline-source-info { flex: 1; min-width: 0; }
+.outline-source-summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-8); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+/* The source's own siglum is a bare gilt mark; boxes belong to the citation margin. */
+.source-siglum { display: inline-flex; align-items: center; gap: var(--space-8); color: var(--accent); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
 .source-siglum::after { content: ''; width: var(--space-8); border-top: var(--rule-width) solid var(--line); }
 .outline-source-description { display: flex; align-items: flex-end; gap: var(--space-8); overflow: hidden; margin-top: var(--space-8); }
 .outline-source-description p { flex: 1; min-width: 0; margin: 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; color: var(--muted); font-size: var(--text-body); line-height: var(--line-body); }
 .outline-source-description p.expanded { display: block; }
 .outline-source-description .button { flex: none; }
-.outline-source-actions { display: inline-flex; align-items: center; gap: var(--space-8); margin-top: var(--space-12); white-space: nowrap; }
+.outline-source-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4); margin-top: var(--space-4); margin-left: calc(-1 * var(--space-8)); }
 .source-detail { font-size: var(--text-control); line-height: var(--line-control); }
 .source-detail .static-text { min-height: var(--line-control); padding-block: var(--space-2); color: var(--text); }
 .source-detail.field-entry .static-text { color: var(--muted); }

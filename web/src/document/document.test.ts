@@ -73,6 +73,32 @@ afterAll(async () => {
 });
 
 describe('real notebook operations and recovery', () => {
+  test('a new field keeps its chosen kind through one undo and redo', async () => {
+    const instance = await client();
+    const fields = await api.fields();
+    const doc = instance.open(fields.page_id);
+    await eventually(() => doc.status() === 'ready', doc.statusMessage());
+    const name = `New number field ${++serial}`;
+    const id = success(doc.edit({ kind: 'addField', name, value: 'number' })).created[0]!;
+    await instance.flush();
+    expect((await api.fields()).fields.find(field => field.id === id)).toMatchObject({ id, name, kind: 'number' });
+    expect((await api.page(fields.page_id)).rows.find(row => row.block.id === id)?.block.text).toBe(name);
+
+    doc.undo();
+    expect(doc.block(id)).toBeUndefined();
+    expect(doc.canUndo()).toBe(false);
+    await instance.flush();
+    expect((await api.fields()).fields.some(field => field.id === id)).toBe(false);
+    expect((await api.page(fields.page_id)).rows.some(row => row.block.id === id)).toBe(false);
+
+    doc.redo();
+    expect(doc.block(id)?.text).toBe(name);
+    await instance.flush();
+    expect((await api.fields()).fields.find(field => field.id === id)).toMatchObject({ id, name, kind: 'number' });
+    expect((await api.page(fields.page_id)).rows.find(row => row.block.id === id)?.block.text).toBe(name);
+    doc.release();
+  });
+
   test('field kind edits persist, undo and redo through the document outbox', async () => {
     const instance = await client();
     const fields = await api.fields();

@@ -1,4 +1,4 @@
-import { createEffect, createSignal, For, Show } from 'solid-js';
+import { createEffect, createMemo, createSignal, For, Show } from 'solid-js';
 import type { JSX } from 'solid-js';
 import { Popup } from './Popup';
 import type { PopupAnchor, PopupPlacement } from './Popup';
@@ -21,6 +21,8 @@ export interface PickerProps<T> {
   initial?: number;
   key(item: T): string;
   row(item: T, selected: boolean): JSX.Element;
+  /** Headings for contiguous item groups; item order and keyboard indices stay unchanged. */
+  section?(item: T): string | undefined;
   disabledReason?(item: T): string | undefined;
   onPick(item: T, event: KeyboardEvent | MouseEvent): void;
   /** Extra keys on the highlighted item; return true when handled. */
@@ -56,6 +58,24 @@ export function Picker<T>(props: PickerProps<T>) {
     if (props.disabledReason?.(item)) return;
     props.onPick(item, event);
   };
+  const groups = createMemo(() => {
+    const section = props.section;
+    const result: { section: string | undefined; start: number; items: T[] }[] = [];
+    if (!section) return result;
+    props.items.forEach((item, index) => {
+      const label = section(item);
+      const previous = result.at(-1);
+      if (previous && previous.section === label) previous.items.push(item);
+      else result.push({ section: label, start: index, items: [item] });
+    });
+    return result;
+  });
+  const row = (item: T, index: () => number) => {
+    const reason = () => props.disabledReason?.(item);
+    return <div role="option" aria-selected={index() === selected()} aria-disabled={!!reason()} aria-description={reason()} title={reason()} class={`picker-row ${index() === selected() ? 'selected' : ''}`} onPointerMove={() => setSelected(index())} onClick={event => pick(item, event)}>
+      {props.row(item, index() === selected())}
+    </div>;
+  };
   const keydown = (event: KeyboardEvent) => {
     if (event.isComposing) return;
     const count = props.items.length;
@@ -80,12 +100,16 @@ export function Picker<T>(props: PickerProps<T>) {
     <div ref={list} class="picker-list" role="listbox" aria-label={props.label}>
       <Show when={props.error}><p class="error" role="alert">{props.error}</p></Show>
       <Show when={props.busy}><p class="empty-state">Loading…</p></Show>
-      <For each={props.items}>{(item, index) => {
-        const reason = () => props.disabledReason?.(item);
-        return <div role="option" aria-selected={index() === selected()} aria-disabled={!!reason()} title={reason()} class={`picker-row ${index() === selected() ? 'selected' : ''}`} onPointerMove={() => setSelected(index())} onClick={event => pick(item, event)}>
-          {props.row(item, index() === selected())}
-        </div>;
-      }}</For>
+      <Show when={props.section} fallback={<For each={props.items}>{row}</For>}>
+        <For each={groups()}>{group =>
+          <Show when={group.section !== undefined} fallback={<For each={group.items}>{(item, index) => row(item, () => group.start + index())}</For>}>
+            <div class="picker-group" role="group" aria-label={group.section}>
+              <div class="picker-section" aria-hidden="true">{group.section}</div>
+              <For each={group.items}>{(item, index) => row(item, () => group.start + index())}</For>
+            </div>
+          </Show>
+        }</For>
+      </Show>
       <Show when={!props.busy && !props.error && !props.items.length}><p class="empty-state">{props.empty}</p></Show>
     </div>
   </Popup>;

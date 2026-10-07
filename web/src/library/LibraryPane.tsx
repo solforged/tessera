@@ -554,13 +554,14 @@ export function LibraryPane(props: LibraryPaneProps) {
         <Show when={commandError()}><p class="library-error" role="alert">{commandError()}</p></Show>
         <div class="popup-actions"><Button disabled={saving()} onClick={dismiss}>Cancel</Button><Button class="bordered danger" disabled={saving()} onClick={() => { void deleteView(state.saved); }}>Delete view</Button></div>
       </Popup>;
-      return <Popup anchor={state.anchor} label="Add source" class="library-add" onDismiss={dismiss}>
+      return <Popup anchor={state.anchor} label="Add source" class="library-add" fitContent onDismiss={dismiss}>
+        <h2 class="popup-title">Add source</h2>
         <form onSubmit={event => { event.preventDefault(); void queueUrl(); }}>
-          <input class="input" aria-label="URL" placeholder="URL" inputmode="url" value={url()} disabled={adding()} onInput={event => setUrl(event.currentTarget.value)} />
+          <label class="library-add-url">Article URL<input class="input" aria-label="URL" placeholder="https://…" inputmode="url" value={url()} disabled={adding()} onInput={event => setUrl(event.currentTarget.value)} /></label>
           <Show when={addError()}><p class="library-error" role="alert">{addError()}</p></Show>
           <div class="library-add-actions">
-            <Button type="submit" class="bordered" disabled={!url().trim() || adding()}>{adding() ? 'Adding…' : 'Add'}</Button>
             <Button icon="upload" disabled={adding()} onClick={() => { dismiss(); fileInput.click(); }}>Choose EPUB…</Button>
+            <Button type="submit" class="bordered" disabled={!url().trim() || adding()}>{adding() ? 'Adding…' : 'Add article'}</Button>
           </div>
         </form>
       </Popup>;

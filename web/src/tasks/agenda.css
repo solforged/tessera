@@ -1,9 +1,8 @@
 .agenda-pane { flex: 1; min-height: 0; min-width: 0; overflow: auto; padding: var(--space-24) var(--space-16); }
 .agenda-content { max-width: var(--measure); margin-inline: auto; display: flex; flex-direction: column; gap: var(--space-12); }
 .agenda-content-week { max-width: var(--week-measure); }
-.agenda-toolbar, .agenda-modes, .agenda-date, .agenda-filters, .agenda-date-range { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-8); }
-.agenda-toolbar { justify-content: space-between; }
-.agenda-date-range { font-size: var(--text-control); line-height: var(--line-control); color: var(--muted); }
+.agenda-toolbar, .agenda-modes, .agenda-date { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-8); }
+.agenda-toolbar { justify-content: space-between; width: 100%; max-width: var(--measure); margin-inline: auto; }
 .agenda-number { display: inline-flex; align-items: center; gap: var(--space-8); color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
 /* The displayed date and the result count are the machine's: mono, the count faint like a table footer. */
 .agenda-date-button.button { font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); color: var(--text); }
@@ -15,10 +14,21 @@
 .agenda-error { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); color: var(--danger); font-size: var(--text-control); line-height: var(--line-control); margin: 0; }
 .agenda-results { display: flex; flex-direction: column; gap: var(--space-12); }
 .agenda-rows { list-style: none; margin: 0; padding: 0; }
-/* The task query shares the add row's hairline; syntax and counts belong to apparatus. */
-.task-query-toolbar { display: flex; align-items: flex-start; gap: var(--space-8); min-width: 0; }
-.task-query-toolbar > .button { flex: 0 0 auto; }
-.task-query-toolbar > .button[aria-expanded="true"] > .icon { rotate: 180deg; }
+/* The query is the active condition rail; its builder and count sit together below. */
+.task-query-heading { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-4) var(--space-8); }
+.task-query-view.button { min-width: 0; max-width: 100%; padding-inline: 0; color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); overflow-wrap: anywhere; }
+.task-query-heading > .icon-only { margin-left: auto; }
+.task-query-heading .agenda-message { color: var(--faint); font: var(--apparatus); }
+.task-query-toolbar { display: flex; align-items: flex-start; min-width: 0; }
+.task-condition-bar { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-4) var(--space-8); min-width: 0; }
+.task-condition-bar > .agenda-count { margin-left: auto; }
+.task-condition-chip { min-width: 0; max-width: 100%; padding-left: 0; }
+.task-condition-chip > .button:first-child { min-width: 0; overflow-wrap: anywhere; color: var(--text); text-align: left; }
+.popup.task-condition-popup:not(.picker) { padding: var(--space-12); }
+.task-condition-row { display: flex; align-items: center; gap: var(--space-12); min-height: var(--row-height); margin-block: var(--space-8); color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
+.task-condition-row > :is(.input, .button) { flex: 1; min-width: 0; width: auto; color: var(--text); }
+.task-condition-label { flex: 0 0 4rem; color: var(--muted); }
+.task-condition-value { justify-content: flex-start; }
 .task-query-line { flex: 1; min-width: 0; }
 .task-query-chips, .task-query-input.input, .task-query-highlight { font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .task-query-chips { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4); min-height: var(--row-height); padding: var(--space-2) var(--space-4); border-bottom: var(--rule-width) solid var(--line); cursor: text; }
@@ -35,7 +45,6 @@
 .task-query-invalid { text-decoration: underline wavy var(--danger); text-underline-offset: var(--space-2); }
 .task-query-errors { margin-top: var(--space-4); color: var(--danger); font-size: var(--text-control); line-height: var(--line-control); }
 .task-query-errors p { margin: 0; overflow-wrap: anywhere; }
-.task-filters-panel { display: flex; flex-direction: column; gap: var(--space-8); padding-block: var(--space-8); border-block: var(--rule-width) solid var(--line); }
 /* Adding reads as the next row: the plus in the status column, then a field on a hairline instead of a box. */
 .agenda-add { display: flex; align-items: flex-start; gap: var(--space-8); color: var(--faint); }
 .agenda-add > .icon { flex: none; width: var(--target-size); margin-top: calc((var(--row-height) - var(--icon-size)) / 2); }
