@@ -1,7 +1,6 @@
 import { batch, createEffect, createMemo, createResource, createSignal, For, lazy, Match, onCleanup, onMount, Show, Switch } from 'solid-js';
 import type { Accessor } from 'solid-js';
 import { api } from '../api/client';
-import { DEMO } from '../demo/mode';
 import type { Block, NotebookInfo, View } from '../api/types';
 import { createNotebookClient } from '../document';
 import type { NotebookClient, PageDocument } from '../document/contract';
@@ -31,10 +30,8 @@ const paneModules = {
   settings: () => import('../settings/SettingsPane'),
   agenda: () => import('../tasks/AgendaPane'),
   review: () => import('../review/ReviewPane'),
-  ...(!(typeof __TESSERA_DEMO__ !== 'undefined' && __TESSERA_DEMO__) ? {
-    library: () => import('../library/LibraryPane'),
-    reader: () => import('../reader/ReaderPane'),
-  } : {}),
+  library: () => import('../library/LibraryPane'),
+  reader: () => import('../reader/ReaderPane'),
   compare: () => import('../compare/ComparePane'),
 };
 const TablePane = lazy(() => paneModules.table().then(module => ({ default: module.TablePane })));
@@ -42,10 +39,8 @@ const FieldsPane = lazy(() => paneModules.fields().then(module => ({ default: mo
 const SettingsPane = lazy(() => paneModules.settings().then(module => ({ default: module.SettingsPane })));
 const AgendaPane = lazy(() => paneModules.agenda().then(module => ({ default: module.AgendaPane })));
 const ReviewPane = lazy(() => paneModules.review().then(module => ({ default: module.ReviewPane })));
-const nativePanes = !DEMO ? {
-  LibraryPane: lazy(() => paneModules.library!().then(module => ({ default: module.LibraryPane }))),
-  ReaderPane: lazy(() => paneModules.reader!().then(module => ({ default: module.ReaderPane }))),
-} : undefined;
+const LibraryPane = lazy(() => paneModules.library().then(module => ({ default: module.LibraryPane })));
+const ReaderPane = lazy(() => paneModules.reader().then(module => ({ default: module.ReaderPane })));
 const ComparePane = lazy(() => paneModules.compare().then(module => ({ default: module.ComparePane })));
 
 type PaneView = ViewState | TableViewState | FieldsViewState | SettingsViewState | AgendaViewState | ReviewViewState | LibraryViewState | ReaderViewState | CompareViewState;
@@ -162,7 +157,6 @@ export function App() {
     });
   };
   const open = (target: OpenTarget, beside = false, owner = active(), restore?: PaneView) => {
-    if (DEMO && (target.kind === 'library' || target.kind === 'reader')) return;
     const pane: PaneId = beside ? owner === 'main' ? 'side' : 'main' : owner;
     const request = ++navigationRequests[pane];
     if (target.kind === 'agenda' && target.viewId && !target.query) {
@@ -326,7 +320,6 @@ export function App() {
       for (const pane of paneIds) {
         const saved = stored.panes?.[pane];
         if (!saved?.target || !saved.view) continue;
-        if (DEMO && (saved.target.kind === 'library' || saved.target.kind === 'reader')) continue;
         let current: HistoryEntry;
         if (saved.target.kind === 'table' && 'query' in saved.view && !('mode' in saved.view)) {
           current = { target: targetFromView(saved), view: snapshotView(saved.view) };
@@ -378,7 +371,7 @@ export function App() {
     { id: 'shell.fields', title: 'Open fields', section: 'Navigation', run: () => open({ kind: 'fields' }) },
     { id: 'shell.agenda', title: 'Open agenda', section: 'Navigation', run: () => open({ kind: 'agenda', date: journalDate(active()) }) },
     { id: 'shell.review', title: 'Open review', section: 'Navigation', run: () => open({ kind: 'review' }) },
-    ...(!DEMO ? [{ id: 'shell.library', title: 'Open library', section: 'Navigation' as const, run: () => open({ kind: 'library' }) }] : []),
+    { id: 'shell.library', title: 'Open library', section: 'Navigation', run: () => open({ kind: 'library' }) },
     { id: 'shell.previous-day', title: 'Previous journal day', section: 'Navigation', run: () => shiftDate(-1) },
     { id: 'shell.next-day', title: 'Next journal day', section: 'Navigation', run: () => shiftDate(1) },
     { id: 'shell.calendar', title: 'Choose journal date', section: 'Navigation', run: () => chooseDate() },
@@ -435,7 +428,7 @@ export function App() {
         <Button icon="today" title="Today (⌃⇧J)" class={activeRoot()?.kind === 'journal' && activeRoot()?.text === todayDate() ? 'selected' : ''} onClick={event => { void today(active(), event.shiftKey); }}><span>Today</span><span class="desk-count">{shortDay(todayDate())}</span></Button>
         <Button icon="agenda" class={entry(active())?.target.kind === 'agenda' ? 'selected' : ''} onClick={event => open({ kind: 'agenda', date: journalDate(active()) }, event.shiftKey)}><span>Agenda</span><Show when={counts()?.planned}>{planned => <span class={`desk-count ${counts()!.overdue ? 'late' : ''}`} title={counts()!.overdue ? `${planned()} to do today · ${counts()!.overdue} overdue` : `${planned()} to do today`}>{planned()}</span>}</Show></Button>
         <Button icon="review" class={entry(active())?.target.kind === 'review' ? 'selected' : ''} onClick={event => open({ kind: 'review' }, event.shiftKey)}><span>Review</span><Show when={counts()?.cards}>{cards => <span class="desk-count" title={`${cards()} ${cards() === 1 ? 'card' : 'cards'} due`}>{cards()}</span>}</Show></Button>
-        {!DEMO && <Button icon="library" class={entry(active())?.target.kind === 'library' ? 'selected' : ''} onClick={event => open({ kind: 'library' }, event.shiftKey)}><span>Library</span><Show when={counts()?.highlights}>{highlights => <span class="desk-count" title={`${highlights()} unprocessed ${highlights() === 1 ? 'highlight' : 'highlights'}`}>{highlights()}</span>}</Show></Button>}
+        <Button icon="library" class={entry(active())?.target.kind === 'library' ? 'selected' : ''} onClick={event => open({ kind: 'library' }, event.shiftKey)}><span>Library</span><Show when={counts()?.highlights}>{highlights => <span class="desk-count" title={`${highlights()} unprocessed ${highlights() === 1 ? 'highlight' : 'highlights'}`}>{highlights()}</span>}</Show></Button>
       </nav>
       <Show when={pinnedRoots().length || pinnedViewList().length}><section class="page-list" aria-label="Pinned">
         <h2><span class="section-number">{sectionNumber('pinned')}</span>Pinned<span class="section-rule" /><span class="section-count">{pinnedRoots().length + pinnedViewList().length}</span></h2>
@@ -671,8 +664,8 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
       <Match when={current().target.kind === 'compare' ? current().target as Extract<OpenTarget, { kind: 'compare' }> : undefined}>{target => <ComparePane subjectId={target().subjectId} view={snapshotView(current().view) as CompareViewState} notebook={props.notebook} onActivate={props.onActivate} onOpen={(next, beside) => { if (generation === props.session().generation) props.onOpen(next, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} />}</Match>
       <Match when={current().target.kind === 'agenda'}><AgendaPane pane={props.pane} view={snapshotView(current().view) as AgendaViewState} notebook={props.notebook} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
       <Match when={current().target.kind === 'review'}><ReviewPane pane={props.pane} view={snapshotView(current().view) as ReviewViewState} notebook={props.notebook} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
-      <Match when={!DEMO && current().target.kind === 'library'}>{nativePanes && <nativePanes.LibraryPane pane={props.pane} view={snapshotView(current().view) as LibraryViewState} notebook={props.notebook} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} />}</Match>
-      <Match when={!DEMO && current().target.kind === 'reader'}>{nativePanes && <nativePanes.ReaderPane pane={props.pane} target={current().target as Extract<OpenTarget, { kind: 'reader' }>} view={snapshotView(current().view) as ReaderViewState} notebook={props.notebook} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} />}</Match>
+      <Match when={current().target.kind === 'library'}><LibraryPane pane={props.pane} view={snapshotView(current().view) as LibraryViewState} notebook={props.notebook} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
+      <Match when={current().target.kind === 'reader'}><ReaderPane pane={props.pane} target={current().target as Extract<OpenTarget, { kind: 'reader' }>} view={snapshotView(current().view) as ReaderViewState} notebook={props.notebook} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
     </Switch>}</Show></div>
     <Show when={menu()}>{anchor => <Menu anchor={anchor()} label="Page actions" items={items()} onDismiss={() => setMenu(null)} />}</Show>
   </section>;

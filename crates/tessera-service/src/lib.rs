@@ -7,7 +7,6 @@
 mod assets;
 mod capabilities;
 mod error;
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 pub mod library;
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 mod security;
@@ -79,7 +78,6 @@ pub(crate) struct AppState {
     #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     assets: Option<Arc<PathBuf>>,
     changes: broadcast::Sender<i64>,
-    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     library: library::Library,
     #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     port: u16,
@@ -128,22 +126,29 @@ pub struct BrowserHandles {
     pub changes: broadcast::Sender<i64>,
 }
 
-/// Build the same notebook API without native runtime or library endpoints.
+/// Build the same notebook and library API without native runtime endpoints.
+/// Queued uploads are ingested before this returns.
 #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
-pub fn browser_router(notebook: Notebook) -> (Router, BrowserHandles) {
+pub fn browser_router(notebook: Notebook) -> Result<(Router, BrowserHandles), String> {
     let notebook = Arc::new(Mutex::new(notebook));
     let changes = broadcast::channel(256).0;
+    let library = library::Library::start(notebook.clone(), changes.clone(), library::extract)?;
     let handles = BrowserHandles {
         notebook: notebook.clone(),
         changes: changes.clone(),
     };
-    let state = AppState { notebook, changes };
+    let state = AppState {
+        notebook,
+        changes,
+        library,
+    };
     let router = notebook_routes()
         .method_not_allowed_fallback(|| async { ApiError::method_not_allowed() })
         .fallback(|| async { ApiError::not_found() })
         .layer(DefaultBodyLimit::max(2 * 1024 * 1024))
+        .merge(library::routes())
         .with_state(state);
-    (router, handles)
+    Ok((router, handles))
 }
 
 fn notebook_routes() -> Router<AppState> {

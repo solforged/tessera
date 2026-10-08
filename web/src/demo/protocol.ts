@@ -2,7 +2,7 @@ import type { NotebookInfo } from '../api/types';
 
 export type FailureCode = 'locked' | 'unsupported' | 'internal';
 export type ToWorker =
-  | { id: number; type: 'request'; method: string; path: string; contentType?: string; body: ArrayBuffer | null }
+  | { id: number; type: 'request'; method: string; path: string; headers: [string, string][]; body: ArrayBuffer | null }
   | { id: number; type: 'subscribe'; after: number }
   | { id: number; type: 'unsubscribe' }
   | { id: number; type: 'reset' };

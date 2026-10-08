@@ -54,6 +54,14 @@ impl Notebook {
         conn.pragma_update(None, "foreign_keys", true)?;
         conn.busy_timeout(std::time::Duration::from_secs(5))?;
         migrate(&mut conn)?;
+        // Source objects are files natively; a browser keeps them in the database.
+        #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS browser_objects (
+                 sha256 TEXT PRIMARY KEY,
+                 bytes BLOB NOT NULL
+             )",
+        )?;
         conn.execute(
             "INSERT INTO notebook (singleton, id, created_at) VALUES (1, ?1, ?2)
              ON CONFLICT (singleton) DO NOTHING",

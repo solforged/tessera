@@ -11,6 +11,8 @@ embed-web = ["dep:include_dir"]
 
 [dependencies]
 tessera-core.workspace = true
+tessera-ingest.workspace = true
+percent-encoding = "2"
 serde.workspace = true
 serde_json.workspace = true
 parking_lot = "0.12"
@@ -22,9 +24,7 @@ axum.workspace = true
 dirs.workspace = true
 jiff = { version = "0.2", default-features = false, features = ["std"] }
 tokio.workspace = true
-tessera-ingest.workspace = true
 reqwest.workspace = true
-percent-encoding = "2"
 include_dir = { version = "0.7", optional = true }
 
 [target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]

@@ -13,13 +13,20 @@ use axum::{
 use parking_lot::Mutex;
 use serde::Deserialize;
 use std::sync::Arc;
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 use std::time::Duration;
-use tessera_core::{Actor, Batch, Notebook, library::*, now_ms};
-use tokio::sync::{Notify, broadcast};
+use tessera_core::{Actor, Batch, Notebook, library::*};
+use tokio::sync::broadcast;
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+use {tessera_core::now_ms, tokio::sync::Notify};
 
 pub(crate) fn routes() -> Router<AppState> {
+    let job_list = get(jobs);
+    // Browsers cannot download arbitrary articles across origins.
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+    let job_list = job_list.post(queue);
     Router::new()
-        .route("/api/library/jobs", post(queue).get(jobs))
+        .route("/api/library/jobs", job_list)
         .route("/api/library/jobs/{id}", get(job))
         .route("/api/library/jobs/{id}/retry", post(retry))
         .route("/api/library/query", post(query))
@@ -94,11 +101,13 @@ async fn upload(
     state.library.kick();
     Ok((StatusCode::CREATED, Json(job)))
 }
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 #[derive(Deserialize)]
 struct UrlJob {
     url: String,
     target_source: Option<String>,
 }
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 async fn queue(
     State(state): State<AppState>,
     body: Result<Json<UrlJob>, JsonRejection>,
@@ -388,18 +397,113 @@ pub(crate) fn extract(
     result.map_err(|e| format!("The source could not be extracted: {e}."))
 }
 
+/// Store an extracted document's resources, stage its snapshot, apply the
+/// source plan and finish the job, all under one notebook lock.
+fn commit(
+    n: &mut Notebook,
+    job: &IngestJob,
+    doc: &ExtractedDocument,
+    sha: &str,
+    mut resources: Vec<(String, String, String)>,
+    changes: &broadcast::Sender<i64>,
+) -> tessera_core::Result<()> {
+    for resource in &doc.resources {
+        resources.push((
+            resource.href.clone(),
+            n.put_object(&resource.bytes)?,
+            resource.media_type.clone(),
+        ));
+    }
+    let snapshot = n.stage_snapshot(doc, sha, &resources)?;
+    let plan = n.plan_ingest(&snapshot.id, job.target_source.as_deref(), Some(&job.name))?;
+    if !plan.unchanged {
+        let committed = n.apply(&Batch {
+            actor: Actor::Client {
+                name: "ingest".into(),
+            },
+            reason: None,
+            idempotency_key: Some(format!("ingest:{}", job.id)),
+            operations: plan.operations,
+        })?;
+        if !committed.replayed {
+            let _ = changes.send(committed.seq);
+        }
+    }
+    n.finish_ingest(&job.id, &plan.source_id, &snapshot.id)
+}
+
+/// Ingests uploads inline: a browser worker has no background runtime, and
+/// its requests are already serialized around the one notebook connection.
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+#[derive(Clone)]
+pub struct Library {
+    notebook: Arc<Mutex<Notebook>>,
+    changes: broadcast::Sender<i64>,
+    extractor: Extractor,
+}
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+impl Library {
+    /// Run every due job to completion before returning.
+    pub fn kick(&self) {
+        let mut n = self.notebook.lock();
+        loop {
+            let job = match n.claim_ingest() {
+                Ok(Some(job)) => job,
+                Ok(None) => return,
+                Err(error) => {
+                    tracing::error!(%error, "ingest could not claim a job");
+                    return;
+                }
+            };
+            if let Err(message) = self.process(&mut n, &job) {
+                tracing::warn!(job_id = %job.id, error = %message, "ingest job failed");
+                if let Err(error) = n.fail_ingest(&job.id, &message, None) {
+                    tracing::error!(%error, "ingest could not record failure");
+                    return;
+                }
+            }
+        }
+    }
+    fn process(&self, n: &mut Notebook, job: &IngestJob) -> Result<(), String> {
+        if job.input_kind != IngestInput::File {
+            return Err("The browser demo can only add uploaded EPUB files.".to_owned());
+        }
+        let bytes = n.read_object(&job.input).map_err(|e| e.to_string())?;
+        let doc = (self.extractor)(&bytes, None, &job.name)?;
+        commit(n, job, &doc, &job.input, Vec::new(), &self.changes).map_err(|e| e.to_string())
+    }
+    pub(crate) fn start(
+        notebook: Arc<Mutex<Notebook>>,
+        changes: broadcast::Sender<i64>,
+        extractor: Extractor,
+    ) -> Result<Self, String> {
+        notebook.lock().resume_ingest().map_err(|e| e.to_string())?;
+        let library = Self {
+            notebook,
+            changes,
+            extractor,
+        };
+        library.kick();
+        Ok(library)
+    }
+}
+
 /// Wakes the single persistent ingestion worker. Dropping its last handle stops it.
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 #[derive(Clone)]
 pub struct Library(Arc<Control>);
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 struct Control {
     notify: Arc<Notify>,
     abort: tokio::task::AbortHandle,
 }
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 impl Drop for Control {
     fn drop(&mut self) {
         self.abort.abort();
     }
 }
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 impl Library {
     pub fn kick(&self) {
         self.0.notify.notify_one();
@@ -431,6 +535,7 @@ impl Library {
         })))
     }
 }
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 struct Worker {
     notebook: Arc<Mutex<Notebook>>,
     changes: broadcast::Sender<i64>,
@@ -438,10 +543,12 @@ struct Worker {
     client: reqwest::Client,
     extractor: Extractor,
 }
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 struct Failure {
     message: String,
     retryable: bool,
 }
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 impl From<String> for Failure {
     fn from(message: String) -> Self {
         Self {
@@ -450,6 +557,7 @@ impl From<String> for Failure {
         }
     }
 }
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 impl Worker {
     async fn access<T: Send + 'static>(
         &self,
@@ -613,33 +721,8 @@ impl Worker {
         }
         let job = job.clone();
         let changes = self.changes.clone();
-        self.access(move |n| {
-            for resource in &doc.resources {
-                resources.push((
-                    resource.href.clone(),
-                    n.put_object(&resource.bytes)?,
-                    resource.media_type.clone(),
-                ));
-            }
-            let snapshot = n.stage_snapshot(&doc, &sha, &resources)?;
-            let plan =
-                n.plan_ingest(&snapshot.id, job.target_source.as_deref(), Some(&job.name))?;
-            if !plan.unchanged {
-                let committed = n.apply(&Batch {
-                    actor: Actor::Client {
-                        name: "ingest".into(),
-                    },
-                    reason: None,
-                    idempotency_key: Some(format!("ingest:{}", job.id)),
-                    operations: plan.operations,
-                })?;
-                if !committed.replayed {
-                    let _ = changes.send(committed.seq);
-                }
-            }
-            n.finish_ingest(&job.id, &plan.source_id, &snapshot.id)
-        })
-        .await?;
+        self.access(move |n| commit(n, &job, &doc, &sha, resources, &changes))
+            .await?;
         Ok(())
     }
 }

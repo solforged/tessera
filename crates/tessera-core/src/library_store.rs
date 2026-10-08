@@ -1,5 +1,7 @@
 use std::fmt::Write as _;
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 use std::io::Write;
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 use std::path::PathBuf;
 
 use rusqlite::{Connection, OptionalExtension, params};
@@ -38,7 +40,7 @@ pub(crate) fn name<T: Serialize>(value: &T) -> String {
         .expect("string enum")
         .to_owned()
 }
-fn validate_sha(sha: &str) -> Result<()> {
+pub(crate) fn validate_sha(sha: &str) -> Result<()> {
     if sha.len() != 64
         || !sha
             .bytes()
@@ -51,6 +53,17 @@ fn validate_sha(sha: &str) -> Result<()> {
     Ok(())
 }
 
+fn sha256_hex(bytes: &[u8]) -> String {
+    Sha256::digest(bytes)
+        .iter()
+        .fold(String::with_capacity(64), |mut hex, byte| {
+            write!(hex, "{byte:02x}").expect("writing to String cannot fail");
+            hex
+        })
+}
+
+/// Content-addressed source bytes live in `objects/` beside the database.
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 impl Notebook {
     pub fn object_path(&self, sha: &str) -> Result<PathBuf> {
         validate_sha(sha)?;
@@ -60,12 +73,7 @@ impl Notebook {
         Ok(std::fs::read(self.object_path(sha)?)?)
     }
     pub fn put_object(&self, bytes: &[u8]) -> Result<String> {
-        let sha = Sha256::digest(bytes)
-            .iter()
-            .fold(String::with_capacity(64), |mut hex, byte| {
-                write!(hex, "{byte:02x}").expect("writing to String cannot fail");
-                hex
-            });
+        let sha = sha256_hex(bytes);
         let path = self.object_path(&sha)?;
         if path.try_exists()? {
             return Ok(sha);
@@ -84,6 +92,35 @@ impl Notebook {
         std::fs::File::open(self.dir.join("objects"))?.sync_all()?;
         Ok(sha)
     }
+}
+
+/// Browsers have no filesystem beside the database, so objects are rows in
+/// the same OPFS-backed SQLite file (`browser_objects`, created on open).
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+impl Notebook {
+    pub fn read_object(&self, sha: &str) -> Result<Vec<u8>> {
+        validate_sha(sha)?;
+        self.conn
+            .query_row(
+                "SELECT bytes FROM browser_objects WHERE sha256 = ?1",
+                [sha],
+                |row| row.get(0),
+            )
+            .optional()?
+            .ok_or_else(|| not_found(sha))
+    }
+    pub fn put_object(&self, bytes: &[u8]) -> Result<String> {
+        let sha = sha256_hex(bytes);
+        self.conn.execute(
+            "INSERT INTO browser_objects (sha256, bytes) VALUES (?1, ?2)
+             ON CONFLICT (sha256) DO NOTHING",
+            params![sha, bytes],
+        )?;
+        Ok(sha)
+    }
+}
+
+impl Notebook {
     pub fn stage_snapshot(
         &mut self,
         doc: &ExtractedDocument,

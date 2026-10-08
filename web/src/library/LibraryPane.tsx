@@ -4,6 +4,7 @@ import { exportExtensions } from '../api/client';
 import type { ExportFormat } from '../api/client';
 import type { HighlightResult, HighlightRow, IngestJob, LibraryQuery, LibraryResult, LibraryRow, LibraryView, ReadingState } from '../api/types';
 import type { NotebookClient } from '../document/contract';
+import { DEMO } from '../demo/mode';
 import { BlockText } from '../outline/BlockText';
 import type { LibraryTab, LibraryViewState, OpenTarget, PaneId } from '../shell/contract';
 import { Button } from '../ui/Button';
@@ -12,9 +13,11 @@ import { Menu } from '../ui/Menu';
 import type { MenuItem } from '../ui/Menu';
 import { Popup } from '../ui/Popup';
 import { Picker } from '../ui/Picker';
+import { downloadBlob } from '../ui/download';
 import { formatProgress, highlightMeta, jobLabel, libraryQuery, recentJobs, retryTime, selectSources, sourceByline, sourceStateOperation, visibleJobs } from './query';
 import { createHighlightActions, highlightColors, highlightSections, setLinkedCitation } from './highlights';
 import type { HighlightMenu, HighlightSection } from './highlights';
+import { ResourceImage } from './ResourceImage';
 import './library.css';
 
 export interface LibraryPaneProps {
@@ -279,7 +282,7 @@ export function LibraryPane(props: LibraryPaneProps) {
     setJobsRefresh(value => value + 1);
   }
   async function queueUrl() {
-    if (!url().trim() || adding()) return;
+    if (DEMO || !url().trim() || adding()) return;
     setAdding(true); setAddError('');
     try {
       const job = await props.notebook.api.queueUrl(url().trim());
@@ -369,29 +372,29 @@ export function LibraryPane(props: LibraryPaneProps) {
     try {
       const blob = await props.notebook.api.exportQuery(format, query);
       if (disposed) return;
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement('a');
-      anchor.href = url; anchor.download = `library.${exportExtensions[format]}`;
-      document.body.append(anchor); anchor.click(); anchor.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 0);
+      downloadBlob(blob, `library.${exportExtensions[format]}`);
     } catch (reason) {
       if (!disposed) setCommandError(reason instanceof Error ? reason.message : String(reason));
     }
   }
-  function download(format: ExportFormat, ids: string[]) {
+  async function download(format: ExportFormat, ids: readonly string[]) {
     // An empty ID list means every source to the API, not the empty result set.
     if (!ids.length) return;
-    const anchor = document.createElement('a');
-    anchor.href = props.notebook.api.exportUrl(format, ids);
-    anchor.download = `library.${exportExtensions[format]}`;
-    document.body.append(anchor); anchor.click(); anchor.remove();
+    setCommandError('');
+    try {
+      const blob = await props.notebook.api.exportSources(format, ids);
+      if (disposed) return;
+      downloadBlob(blob, `library.${exportExtensions[format]}`);
+    } catch (reason) {
+      if (!disposed) setCommandError(reason instanceof Error ? reason.message : String(reason));
+    }
   }
   function exportMenu(anchor: HTMLElement) {
     const ids = [...selected()], query = currentQuery();
     setPopup({ kind: 'menu', anchor, label: 'Export sources', items: [
-      { label: 'BibTeX', action: () => { if (ids.length) download('bibtex', ids); else void downloadQuery('bibtex', query); } },
-      { label: 'CSL JSON', action: () => { if (ids.length) download('csl', ids); else void downloadQuery('csl', query); } },
-      { label: 'Markdown', action: () => { if (ids.length) download('markdown', ids); else void downloadQuery('markdown', query); } },
+      { label: 'BibTeX', action: () => { if (ids.length) void download('bibtex', ids); else void downloadQuery('bibtex', query); } },
+      { label: 'CSL JSON', action: () => { if (ids.length) void download('csl', ids); else void downloadQuery('csl', query); } },
+      { label: 'Markdown', action: () => { if (ids.length) void download('markdown', ids); else void downloadQuery('markdown', query); } },
     ] });
   }
   function rowMenu(row: LibraryRow, anchor: HTMLElement) {
@@ -401,9 +404,9 @@ export function LibraryPane(props: LibraryPaneProps) {
         label: action.label, disabledReason: saving() ? 'Saving…' : undefined,
         action: () => { void changeState(row, action.state); },
       })),
-      { label: 'Export BibTeX', icon: 'download', action: () => download('bibtex', [row.page.id]) },
-      { label: 'Export CSL JSON', icon: 'download', action: () => download('csl', [row.page.id]) },
-      { label: 'Export Markdown', icon: 'download', action: () => download('markdown', [row.page.id]) },
+      { label: 'Export BibTeX', icon: 'download', action: () => { void download('bibtex', [row.page.id]); } },
+      { label: 'Export CSL JSON', icon: 'download', action: () => { void download('csl', [row.page.id]); } },
+      { label: 'Export Markdown', icon: 'download', action: () => { void download('markdown', [row.page.id]); } },
     ] });
   }
   function rowKey(event: KeyboardEvent, target: OpenTarget) {
@@ -452,7 +455,7 @@ export function LibraryPane(props: LibraryPaneProps) {
           <Show when={selected().size > 0} fallback={<>
             <input class="input library-search" type="search" aria-label="Search library" placeholder="Search library" value={text()} onInput={event => update({ view: null, text: event.currentTarget.value, scroll: 0 })} />
             <Button class="library-sort" aria-haspopup="menu" label="Sort sources" onClick={event => setPopup({ kind: 'menu', anchor: event.currentTarget, label: 'Sort sources', items: sorts.map(item => ({ label: item.label, icon: sort() === item.id ? 'check' : undefined, action: () => update({ view: null, sort: item.id, scroll: 0 }) })) })}>{sorts.find(item => item.id === sort())!.label}<Icon name="down" /></Button>
-            <Button icon="plus" aria-haspopup="dialog" aria-expanded={popup()?.kind === 'add'} onClick={event => { setAddError(''); setPopup({ kind: 'add', anchor: event.currentTarget }); }}>Add</Button>
+            <Button icon="plus" aria-haspopup={DEMO ? undefined : 'dialog'} aria-expanded={DEMO ? undefined : popup()?.kind === 'add'} onClick={event => { if (DEMO) { fileInput.click(); return; } setAddError(''); setPopup({ kind: 'add', anchor: event.currentTarget }); }}>Add</Button>
             <Button icon="download" aria-haspopup="menu" disabled={loading() || !!error() || loadedKey() !== queryKey()} onClick={event => exportMenu(event.currentTarget)}>Export<Icon name="down" /></Button>
             <Button icon="more" label="Library actions" aria-haspopup="menu" onClick={event => {
               const anchor = event.currentTarget;
@@ -517,14 +520,14 @@ export function LibraryPane(props: LibraryPaneProps) {
           }>
             <Show when={displayedSources().length} fallback={<div class="library-empty">
               <Show when={text().trim()} fallback={<Show when={tab() === 'inbox'} fallback={<p>No sources.</p>}>
-                <p>Nothing in your inbox. Add a book or article.</p>
+                <p>{DEMO ? 'Nothing in your inbox. Add an EPUB.' : 'Nothing in your inbox. Add a book or article.'}</p>
               </Show>}><p>No sources match.</p><Button onClick={() => update({ view: null, text: '', scroll: 0 })}>Clear search</Button></Show>
             </div>}>
               <div role="list"><For each={displayedSources()}>{row => {
                 const target: OpenTarget = { kind: 'page', pageId: row.page.id };
                 return <div class="library-row library-source-row" classList={{ 'library-row-selected': selected().has(row.page.id) }} role="listitem">
                   <div class="library-leading">
-                    <span class="library-source-image"><Show when={row.cover && row.source.current_snapshot_id} fallback={<Icon name={row.source.format === 'epub' ? 'book' : 'article'} />}><img src={props.notebook.api.resourceUrl(row.source.current_snapshot_id!, row.cover!)} alt="" loading="lazy" /></Show></span>
+                    <span class="library-source-image"><Show when={row.cover && row.source.current_snapshot_id} fallback={<Icon name={row.source.format === 'epub' ? 'book' : 'article'} />}><ResourceImage snapshotId={row.source.current_snapshot_id!} href={row.cover!} alt="" loading="lazy" /></Show></span>
                     <Button role="checkbox" aria-checked={selected().has(row.page.id)} label={`Select ${row.page.text}`} class="icon-only library-checkbox" onClick={event => toggleSelection(row.page.id, event.shiftKey)}>
                       <span class="library-checkbox-square"><Show when={selected().has(row.page.id)}><Icon name="check" /></Show></span>
                     </Button>
@@ -554,6 +557,7 @@ export function LibraryPane(props: LibraryPaneProps) {
         <Show when={commandError()}><p class="library-error" role="alert">{commandError()}</p></Show>
         <div class="popup-actions"><Button disabled={saving()} onClick={dismiss}>Cancel</Button><Button class="bordered danger" disabled={saving()} onClick={() => { void deleteView(state.saved); }}>Delete view</Button></div>
       </Popup>;
+      if (DEMO) return null;
       return <Popup anchor={state.anchor} label="Add source" class="library-add" fitContent onDismiss={dismiss}>
         <h2 class="popup-title">Add source</h2>
         <form onSubmit={event => { event.preventDefault(); void queueUrl(); }}>

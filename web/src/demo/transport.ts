@@ -75,7 +75,7 @@ export class DemoTransport {
     const parsed = new URL(url, typeof location === 'undefined' ? 'http://demo.local' : location.href);
     const request = new Request(parsed, init);
     const body = request.body ? await request.arrayBuffer() : null;
-    const message = await this.exchange({ id: ++this.nextId, type: 'request', method: request.method, path: `${parsed.pathname}${parsed.search}`, contentType: request.headers.get('content-type') ?? undefined, body }, body ? [body] : [], request.signal);
+    const message = await this.exchange({ id: ++this.nextId, type: 'request', method: request.method, path: `${parsed.pathname}${parsed.search}`, headers: [...request.headers], body }, body ? [body] : [], request.signal);
     if (message.type !== 'response') throw new Error('The notebook worker did not return a response.');
     return new Response([204, 205, 304].includes(message.status) ? null : message.body, { status: message.status, headers: { 'content-type': message.contentType } });
   };

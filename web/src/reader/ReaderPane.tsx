@@ -9,6 +9,7 @@ import type { OpenTarget, PaneId, ReaderViewState } from '../shell/contract';
 import { formatProgress, highlightLocation } from '../library/query';
 import { createHighlightActions, highlightColors, setLinkedCitation } from '../library/highlights';
 import type { HighlightMenu, HighlightSection } from '../library/highlights';
+import { ResourceImage } from '../library/ResourceImage';
 import { documentReady } from '../tasks/JournalAgenda';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
@@ -583,7 +584,7 @@ export function ReaderPane(props: ReaderPaneProps) {
         class={`reader-passage reader-${value().kind}`} classList={{ 'reader-cursor': props.active && cursor() === row.ordinal }} aria-current={props.active && cursor() === row.ordinal ? 'true' : undefined}
         data-passage-id={value().id} data-ordinal={value().ordinal} style={{ '--level': Math.max(0, value().level ?? 0) }}>
         <Show when={value().kind === 'image' && value().resource} fallback={<PassageText passage={value()} citations={citations()} notes={highlightNotes()} ordinals={(() => { version(); return ordinals; })()} flashId={flash()?.id ?? null} onLocate={at => { void jumpTo(at); }} onNote={(at, anchor) => { void note(at, anchor); }} onCitation={clickedCitation} onHighlightNote={row => { void openHighlightNote(row); }} />}>
-          <img src={api.resourceUrl(snapshot(), value().resource!)} alt={value().text} onLoad={() => virtualizer.measureElement(element)} />
+          <ResourceImage snapshotId={snapshot()} href={value().resource!} alt={value().text} onLoad={() => virtualizer.measureElement(element)} />
         </Show>
       </Dynamic>}</Show>
     </div>;
