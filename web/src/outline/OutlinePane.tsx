@@ -423,6 +423,21 @@ function Pane(props: OutlinePaneProps) {
     return a < 0 || b < 0 ? [] : ids().slice(Math.min(a, b), Math.max(a, b) + 1);
   });
   const selectedSet = createMemo(() => new Set(selectedIds()));
+  // Rows under a selected block move, copy and delete with it, so they read as selected too.
+  // Field values hang under hidden field entries, so walk every ancestor, not just the parent.
+  const coveredSet = createMemo(() => {
+    const covered = new Set<string>();
+    if (!rowRange()) return covered;
+    const selection = selectedSet();
+    for (const id of ids()) {
+      if (selection.has(id)) continue;
+      // parentOf returns the root for the root itself, so stop at that fixed point.
+      for (let child = id, parent = doc.outline.parentOf(id); parent !== child; child = parent, parent = doc.outline.parentOf(parent)) {
+        if (selection.has(parent)) { covered.add(id); break; }
+      }
+    }
+    return covered;
+  });
   const virtualizer = createVirtualizer<HTMLDivElement, HTMLDivElement>({
     get count() { return ids().length; },
     getScrollElement: () => scroll,
@@ -1439,6 +1454,8 @@ function Pane(props: OutlinePaneProps) {
   }
   function pointerStart(event: MouseEvent, id: string, element: HTMLElement) {
     if (event.button !== 0 || (event.target as HTMLElement).closest('button')) return;
+    // Shift-click inside the block being edited extends its text selection; elsewhere it selects rows.
+    if (event.shiftKey && editing() === id && editor?.id === id) return;
     if (event.shiftKey) { event.preventDefault(); rowFocus(id, true); return; }
     if (editing() && editing() !== id && commitFieldEntry(editing()!)) { event.preventDefault(); return; }
     const text = doc.block(id)?.text ?? '';
@@ -1795,7 +1812,7 @@ function Pane(props: OutlinePaneProps) {
     onCleanup(() => { const host = hosts.get(id()); if (host && row.contains(host)) hosts.delete(id()); });
     return <div ref={row} id={`outline-${props.pane}-${id()}`} data-index={propsRow.item().index} data-block-id={id()} role="treeitem" aria-level={depth() + 1}
       aria-expanded={children() ? !folds().has(id()) : undefined} aria-selected={selectedSet().has(id())}
-      class="outline-row" classList={{ 'row-position': !!block()?.position, 'row-gist': gist(), 'row-question': !!block()?.question, 'row-assessment': !!block()?.assessment, 'row-selected': selectedSet().has(id()) && editing() !== id(), 'row-editing': editing() === id(), 'row-archived': block()?.archived ?? false, 'field-entry': !!field(), 'inline-field-value': inline(), 'row-gloss': inline() && parent() === glossId(), 'choice-value': pill(), 'source-detail': !!sourceField(), 'source-highlights-start': sourceDetails().firstHighlight === id(), 'outline-row-linked': block()?.citations.some(citation => citation.id === linkedCitation()) ?? false }}
+      class="outline-row" classList={{ 'row-position': !!block()?.position, 'row-gist': gist(), 'row-question': !!block()?.question, 'row-assessment': !!block()?.assessment, 'row-selected': selectedSet().has(id()) && editing() !== id(), 'row-covered': coveredSet().has(id()), 'row-editing': editing() === id(), 'row-archived': block()?.archived ?? false, 'field-entry': !!field(), 'inline-field-value': inline(), 'row-gloss': inline() && parent() === glossId(), 'choice-value': pill(), 'source-detail': !!sourceField(), 'source-highlights-start': sourceDetails().firstHighlight === id(), 'outline-row-linked': block()?.citations.some(citation => citation.id === linkedCitation()) ?? false }}
       data-holder={block()?.position?.holder_id ?? undefined}
       data-question-status={block()?.question?.status} data-accepted={block()?.assessment ? String(block()!.assessment!.accepted) : undefined} data-aporia={block()?.assessment?.state.aporia ? 'true' : undefined}
       onPointerEnter={() => setLinkedCitation(block()?.citations[0]?.id ?? null)} onPointerLeave={() => setLinkedCitation(null)}
