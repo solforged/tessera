@@ -16,13 +16,14 @@ export interface ReviewCardProps {
   previews: readonly { grade: Grade; interval_days: number }[];
   resetPreviews: readonly { grade: Grade; interval_days: number }[];
   busy?: boolean;
-  remaining?: number;
   onGrade(grade: Grade, reset: boolean): void | Promise<void>;
   onSource(beside: boolean): void;
   onReset(): void | Promise<void>;
 }
 
 const grades = (['again', 'hard', 'good', 'easy'] as const).map((grade, index) => ({ grade, label: gradeLabels[grade], shortcut: String(index + 1) }));
+/** A word or short phrase, such as a vocabulary card, is set large; sentences keep reading size. */
+const terse = (text: string) => text.length <= 40 && !text.includes('\n');
 
 export function ReviewCard(props: ReviewCardProps) {
   const [revealed, setRevealed] = createSignal(false);
@@ -128,16 +129,15 @@ export function ReviewCard(props: ReviewCardProps) {
         <Icon name={props.notebook.lookup(props.item.source.block.page_id)()?.kind === 'journal' ? 'calendar' : 'page'} /><span><BlockBreadcrumb block={props.item.source.block} notebook={props.notebook} /></span>
       </Button>
       <Show when={props.item.card.kind !== 'forward'}><span class="review-card-kind">{props.item.card.kind === 'reverse' ? 'Reverse' : `Cloze ${props.item.card.key.slice('cloze:c'.length)}`}</span></Show>
-      <Show when={props.remaining !== undefined}><span class="review-card-remaining" role="status">{props.remaining} left</span></Show>
       <Show when={revealed() && props.item.card.schedule.last_reviewed_at !== null}>
         <Button class="review-card-reset-trigger" disabled={locked()} aria-haspopup="dialog" aria-expanded={!!resetAnchor()} onClick={event => setResetAnchor(event.currentTarget)}>Reset progress</Button>
       </Show>
     </div>
     <Show when={changed()}><p class="review-card-change-notice">Wording changed since your last review.</p></Show>
     <Show when={gaps()} fallback={<>
-      <section class="review-card-side" aria-label="Front"><BlockText text={props.item.card.front} notebook={props.notebook} interactive={false} /></section>
+      <section class="review-card-side" classList={{ 'review-card-terse': terse(props.item.card.front) }} aria-label="Front"><BlockText text={props.item.card.front} notebook={props.notebook} interactive={false} /></section>
       <Show when={revealed()}>
-        <section id={answerId} class="review-card-side review-card-answer" aria-label="Answer"><BlockText text={props.item.card.back} notebook={props.notebook} interactive={false} /></section>
+        <section id={answerId} class="review-card-side review-card-answer" classList={{ 'review-card-terse': terse(props.item.card.back) }} aria-label="Answer"><BlockText text={props.item.card.back} notebook={props.notebook} interactive={false} /></section>
       </Show>
     </>}>{segments => <section id={revealed() ? answerId : undefined} class="review-card-side" aria-label={revealed() ? 'Answer' : 'Front'}>
       <ClozeText segments={segments()} revealed={revealed()} notebook={props.notebook} />
