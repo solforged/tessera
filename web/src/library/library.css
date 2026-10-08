@@ -58,7 +58,8 @@
 .library-highlight-quote { color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; border-left: var(--space-2) solid var(--line); padding-left: var(--space-8); font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); font-variation-settings: var(--optical-quote); }
 .highlight-menu-quote { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; max-width: var(--search-width); margin: var(--space-8); padding-left: var(--space-8); border-left: var(--space-2) solid var(--line); color: var(--muted); white-space: pre-wrap; font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); font-variation-settings: var(--optical-quote); }
 .highlight-menu-colors { display: flex; gap: var(--space-4); margin-bottom: var(--space-4); padding: var(--space-4) var(--space-8) var(--space-8); border-bottom: 1px solid var(--line); }
-.highlight-menu-colors .highlight-color-none { background: transparent; box-shadow: inset 0 0 0 1px var(--faint); }
+/* An uncoloured highlight is a hollow ring wherever it appears: rows, the reader list, citation chips and the colour menu. */
+.highlight-color-dot.highlight-color-none { background: transparent; box-shadow: inset 0 0 0 1px var(--faint); }
 .highlight-menu-colors [aria-pressed="true"] .highlight-color-dot { outline: 2px solid var(--text); outline-offset: 2px; }
 :is(.popup, .popup-exit).library-add { width: var(--search-width); padding: var(--space-12); }
 .library-add form { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-12); }
