@@ -6,7 +6,7 @@
 # set, the build also writes the signed updater archive.
 set -euo pipefail
 
-root=$(git rev-parse --show-toplevel)
+root=$(git -C "$(dirname "$0")" rev-parse --show-toplevel)
 cd "$root"
 if [ -z "${TESSERA_BUILD:-}" ]; then
   TESSERA_BUILD=$(git rev-parse --short HEAD)
