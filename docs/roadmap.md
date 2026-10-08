@@ -92,6 +92,8 @@ Exit: subscribe to two feeds and a newsletter, save an article and a highlighted
 
 Exit: run the "which model fits my work" investigation twice, a month apart, and trace each answer to its evidence.
 
+Progress: questions are open, answered, parked or unsettled, accept one answer, carry a review date and record aporia. Perspectives name a holder and subject with a gist and a source siglum, and a Compare pane sets them side by side. Criteria and assessments that cite positions and passages remain.
+
 ## 8. Trust
 
 - Change history with actors; agent plans previewed and applied atomically.
@@ -101,7 +103,7 @@ Exit: run the "which model fits my work" investigation twice, a month apart, and
 
 Exit: an agent does bounded work on a real project; every change is attributed and reversible; a restore from backup loses nothing acknowledged.
 
-Progress: `tessera backup` and `tessera restore` cover the database and object store from the command line, landed with the local install pass. Backup from inside the app and the soak and concurrency spikes remain.
+Progress: `tessera backup` and `tessera restore` cover the database and object store from the command line, landed with the local install pass, and Settings › Backups makes a backup from inside the app. Restore from the app, change history with actors, agent plans and the soak and concurrency spikes remain.
 
 ## 9. Perspectives
 
@@ -112,6 +114,8 @@ Progress: `tessera backup` and `tessera restore` cover the database and object s
 - Agent-assisted study: cards and quizzes drawn from a source's passages, with a study plan against a date.
 
 Exit: break a chapter into ideas, link two authors' positions on one idea and state your own, then be quizzed on the chapter by an agent and review the resulting cards.
+
+Progress: perspective lenses and comparison arrived with stage 7's positions. Titled pages read as prose with page glosses, a depth dial from gloss to full, and an apparatus margin whose constellation links holders and pages. Idea breakdowns, more source types and agent-assisted study remain.
 
 ## Not planned
 
