@@ -54,6 +54,8 @@ Each committed change gets a sequence number. The service pushes `{seq, changed 
 
 Capability endpoints expose task plans and occurrences, project descendants, work sessions, card previews and review history, saved task views, decks and review sessions. Writes remain batches, not separate unchecked resource mutations. Their receipts and stream events carry changed capability/resource IDs as well as block changes, so an open source and its agenda or review stay consistent.
 
+Agents write through `POST /api/notes`, which appends an outline to a page, journal day or block named by title, date or ID. Under the writer lock it reads the target's last child, creates a missing target page or day, links hand-written `[[Title]]` references by the editor's rule and commits everything as one attributed batch, so a failure writes nothing. `tessera mcp` wraps it and the search and page reads as Model Context Protocol tools over stdio, so the service stays the only writer.
+
 Ingestion runs in one service worker. Network fetches and parsing happen off the write connection; the worker stages content-addressed snapshots, then commits the source attachment and metadata as an attributed batch. Extractors live in `tessera-ingest`, which has no database access, so each format is tested on files alone. Persistent jobs resume after restart and retry transient network/server failures after 30 seconds, two minutes and ten minutes before failing the fourth attempt. The worker never holds the notebook mutex across network I/O.
 
 The service binds to loopback and rejects untrusted hosts and origins. Remote access is out of scope.
