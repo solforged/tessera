@@ -1,78 +1,43 @@
 import { For, Show, createEffect, createMemo, createResource, createSignal, mapArray, onCleanup, onMount, untrack } from 'solid-js';
-import type { Accessor } from 'solid-js';
 import { createVirtualizer, defaultRangeExtractor } from '@tanstack/solid-virtual';
-import type { EditorView } from '@codemirror/view';
-import type { VirtualItem } from '@tanstack/solid-virtual';
-import type { Block, FieldDefinition, QuestionStatus, TaskStatus, WorkSession } from '../api/types';
+import type { FieldDefinition } from '../api/types';
 import { api } from '../api/client';
-import type { BlockState, Caret, Edit, EditResult, PageDocument, TextRange } from '../document/contract';
+import type { Caret, Edit, EditResult, PageDocument, TextRange } from '../document/contract';
 import { depthStops } from '../shell/contract';
-import type { Command, Depth, OutlinePaneProps, ViewState } from '../shell/contract';
-import { fieldEntryId, matchFieldEntry } from '../table/query';
-import { kindLabels } from '../fields/kinds';
-import { linkedCitation, setLinkedCitation } from '../library/highlights';
+import type { Depth, OutlinePaneProps, ViewState } from '../shell/contract';
+import { fieldEntryId } from '../table/query';
+import { setLinkedCitation } from '../library/highlights';
 import { pageSigla } from '../library/sigla';
 import type { OutlineIndex } from '../document/outline-index';
-import { ProjectControls } from '../projects/ProjectControls';
-import { parseCardText } from '../review/card-text';
-import { DatePicker } from '../tasks/DatePicker';
-import { dateSuggestions, dateTokenAt, flipDateToken, newTask, planDateToken, removeToken } from '../tasks/quick-date';
-import type { DateSuggestion, DateToken } from '../tasks/quick-date';
 import { JournalAgenda } from '../tasks/JournalAgenda';
 import { JournalResurface } from '../tasks/JournalResurface';
-import { RepeatPopup, TaskControls, TaskStatusButton, priorities, priorityLabel, statusIcons, statusLabels, statuses } from '../tasks/TaskControls';
-import { WorkSessions } from '../tasks/WorkSessions';
+import { TaskStatusButton } from '../tasks/TaskControls';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
-import type { IconName } from '../ui/Icon';
-import type { MenuItem } from '../ui/Menu';
-import { Popup } from '../ui/Popup';
-import { BlockBreadcrumb, BlockText, isStableReference, offsetAtPoint, plainText } from './BlockText';
+import { isStableReference, plainText } from './BlockText';
 import { textTokens } from '../document/text-tokens';
-import { boundaryDeletion } from '../document/outline-mechanics';
 import { PaneEditor } from './editor';
 import { createOutlineCapabilities } from './capabilities';
-import type { CapabilityPopup } from './capabilities';
-import { inlineFieldValue, orderedRange, selectedText, selectionIds, selectionRoots, visibleIds } from './visibility';
+import { inlineFieldValue, selectionIds, selectionRoots, visibleIds } from './visibility';
 import type { DepthFilter } from './visibility';
-import { completeReferences } from './completion';
-import { nextClozeNumber, rankSlash, slashTokenAt } from './slash';
-import type { SlashEntry, SlashToken } from './slash';
-import { typeSpelling, typeTokenAt } from './type-completion';
-import { TypePill } from './references';
 import { CitationChip, SourceHeader } from './SourceHeader';
 import { GLOSS_FIELD, glossEntry, isGistName, isGlossName } from './gloss';
 import { positionSource as sharedPositionSource } from './perspectives';
 import { Apparatus } from './Apparatus';
-import { CardSummary } from './CardSummary';
-import { addFieldOption, createFieldEntryConversion, createSourceFieldResets } from './source-fields';
-import { formatSourceValue, sourceFieldName } from './source';
+import { createFieldEntryConversion, createSourceFieldResets } from './source-fields';
+import { sourceFieldName } from './source';
+import { createOutlineCompletions } from './completions';
+import { createOutlineCommands } from './commands';
+import { createOutlineKeyboard } from './keyboard';
+import { createOutlineInteractions } from './interactions';
+import { createOutlineRows } from './Row';
+import { createOutlineRelated } from './Related';
+import { createCapabilityPopups } from './CapabilityPopups';
+import type { MenuState, OutlineContext, RowRange } from './context';
 import './outline.css';
 
-const questionLabels: Record<QuestionStatus, string> = { open: 'Open', answered: 'Answered', parked: 'Parked', unsettled: 'Unsettled' };
-
-/**
- * An open `[[` page reference or `((` block reference, a `#` type query, `::` at the start of a block
- * naming a field, the value of a choice field picking an option, or the manual Add type picker.
- */
-interface Completion { from: number; to: number; query: string; types?: boolean; blocks?: boolean; fields?: boolean; choice?: FieldDefinition; manual?: { blockId: string; anchor: HTMLElement } }
-interface MenuState { anchor: HTMLElement; items: MenuItem[]; label: string }
-/** A slash-menu row: a block verb (`run`) or syntax that replaces the token (`insert`), or both. */
-interface SlashItem extends SlashEntry {
-  section: string;
-  icon: IconName;
-  keys?: string;
-  when?(block: BlockState | undefined): boolean;
-  disabledReason?(id: string): string | undefined;
-  insert?(text: string): { text: string; caret: number };
-  run?(id: string): void;
-}
-interface RowRange { anchor: string; head: string }
-interface WorkHistory { sessions: WorkSession[]; active: WorkSession | null; source: Block | null }
-type CompletionRow = { kind: 'block'; block: Block } | { kind: 'field'; field: FieldDefinition } | { kind: 'option'; option: FieldDefinition['options'][number] };
 const storedFolds = new Map<string, Set<string>>();
-const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 
 export function OutlinePane(props: OutlinePaneProps) {
   return <Show keyed when={props.pageId}>{pageId => <Pane {...props} pageId={pageId} />}</Show>;
@@ -93,12 +58,6 @@ function Pane(props: OutlinePaneProps) {
   const [composition, setComposition] = createSignal(false);
   const [message, setMessage] = createSignal('');
   const [menu, setMenu] = createSignal<MenuState | null>(null);
-  const [completion, setCompletion] = createSignal<Completion | null>(null);
-  const [completionIndex, setCompletionIndex] = createSignal(0);
-  const [dateCompletion, setDateCompletion] = createSignal<(DateToken & { id: string }) | null>(null);
-  const [dateIndex, setDateIndex] = createSignal(0);
-  const [slashCompletion, setSlashCompletion] = createSignal<(SlashToken & { id: string }) | null>(null);
-  const [slashIndex, setSlashIndex] = createSignal(0);
   const [renaming, setRenaming] = createSignal(false);
   const [title, setTitle] = createSignal('');
   const [conflicts, setConflicts] = createSignal(new Set<string>());
@@ -108,11 +67,8 @@ function Pane(props: OutlinePaneProps) {
   let list!: HTMLDivElement;
   let heading!: HTMLDivElement;
   let titleInput: HTMLInputElement | undefined;
-  let completionList: HTMLDivElement | undefined;
-  let slashList: HTMLDivElement | undefined;
   const hosts = new Map<string, HTMLElement>();
   let editor: PaneEditor | undefined;
-  let rowKey = '';
   let restoring = true;
   let disposed = false;
   let focusEpoch = 0;
@@ -121,7 +77,6 @@ function Pane(props: OutlinePaneProps) {
   let scrollSettle = 0;
   let anchorFrame = 0;
   let anchorEpoch = 0;
-  let drag: { anchor: Caret; moved: boolean; native: boolean } | null = null;
   let compositionSelection: { range: TextRange; id: string; original: string; from: number; to: number; committed?: string } | null = null;
   let compositionFrame = 0;
   const [createdFields, setCreatedFields] = createSignal<FieldDefinition[]>([]);
@@ -151,133 +106,6 @@ function Pane(props: OutlinePaneProps) {
   const contextDate = () => doc.root()?.kind === 'journal' ? doc.root()!.text : props.notebook.todayDate();
   const rowAnchor = (id: string) => id === props.pageId ? heading ?? null : hosts.get(id)?.closest<HTMLElement>('[data-block-id]') ?? null;
   const capabilities = createOutlineCapabilities({ doc, notebook: props.notebook, contextDate, caret, anchor: rowAnchor, onOpen: props.onOpen });
-  /** `@` offers dates; choosing one makes the block a scheduled task (or a deadline after `@by`/`@due`) and removes the token. */
-  const dateRows = createMemo<DateSuggestion[]>(() => { const state = dateCompletion(); return state ? dateSuggestions(state.query, contextDate()) : []; });
-  createEffect(() => { if (dateCompletion() && editing() !== dateCompletion()!.id) setDateCompletion(null); });
-  createEffect(() => { if (slashCompletion() && editing() !== slashCompletion()!.id) setSlashCompletion(null); });
-  let dismissedDate: { id: string; from: number } | null = null;
-  let dismissedSlash: { id: string; from: number } | null = null;
-  /** One trigger at a time: a slash command being typed wins over an `@` before it. */
-  function updateTriggers(text: string, at: Caret) {
-    const idle = textRange() || composition();
-    if (dismissedSlash && (dismissedSlash.id !== at.id || text[dismissedSlash.from] !== '/')) dismissedSlash = null;
-    const slash = idle ? null : slashTokenAt(text, at.offset);
-    if (slash && dismissedSlash?.from !== slash.from) {
-      if (slashCompletion()?.query !== slash.query) setSlashIndex(0);
-      setSlashCompletion({ ...slash, id: at.id });
-      setDateCompletion(null);
-      return;
-    }
-    setSlashCompletion(null);
-    if (dismissedDate && (dismissedDate.id !== at.id || text[dismissedDate.from] !== '@')) dismissedDate = null;
-    const token = idle ? null : dateTokenAt(text, at.offset);
-    // Once a multi-word `@` query matches no date it is prose (`@sam about the report`), so the picker
-    // closes and Enter splits the block as usual; it reopens if the words become a date again.
-    const prose = token && /\s/.test(token.query.trim()) && !dateSuggestions(token.query, contextDate()).length;
-    if (!token || prose || dismissedDate?.from === token.from) { setDateCompletion(null); return; }
-    if (dateCompletion()?.query !== token.query || dateCompletion()?.field !== token.field) setDateIndex(0);
-    setDateCompletion({ ...token, id: at.id });
-  }
-  function dismissDate() {
-    const state = dateCompletion();
-    if (state) dismissedDate = { id: state.id, from: state.from };
-    setDateCompletion(null);
-  }
-  /** Replaces the live token in the editor with `next`, keeping the document and caret in step. */
-  function rewriteEditing(id: string, next: { text: string; caret: number }): boolean {
-    if (!editor || editor.id !== id) return false;
-    const result = doc.edit({ kind: 'text', id, text: next.text }, caret());
-    if (!result.ok) { capabilities.failure(id, result.reason); return false; }
-    editor.sync(next.text);
-    editor.view.dispatch({ selection: { anchor: next.caret } });
-    setCaret({ id, offset: next.caret });
-    return true;
-  }
-  function chooseDate(index = dateIndex()) {
-    const state = dateCompletion();
-    const id = editing();
-    if (!state || !editor || id !== state.id || editor.id !== id) return;
-    const text = editor.view.state.doc.toString();
-    const choice = dateRows()[index] ?? null;
-    const plan = planDateToken(text, state, choice, doc.block(id)?.task ?? null);
-    setDateCompletion(null);
-    const result = doc.edit({ kind: 'planTask', id, text: plan.text, value: plan.value }, caret());
-    if (!result.ok) { capabilities.failure(id, result.reason); return; }
-    editor.sync(plan.text);
-    editor.view.dispatch({ selection: { anchor: plan.caret } });
-    setCaret({ id, offset: plan.caret });
-    void doc.flush().catch(reason => capabilities.failure(id, reason));
-    if (!choice) capabilities.open(id, state.field === 'deadline' ? 'deadline' : 'schedule');
-    scheduleReport();
-  }
-  function flipDateField() {
-    const state = dateCompletion();
-    const id = editing();
-    if (!state || !editor || id !== state.id || editor.id !== id) return;
-    const next = flipDateToken(editor.view.state.doc.toString(), state);
-    if (rewriteEditing(id, next)) updateTriggers(next.text, { id, offset: next.caret });
-  }
-  function dateKey(event: KeyboardEvent) {
-    if (!dateCompletion()) return false;
-    const count = dateRows().length + 1;
-    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { setDateIndex(index => Math.max(0, Math.min(count - 1, index + (event.key === 'ArrowDown' ? 1 : -1)))); return true; }
-    if (event.key === 'Tab' && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) { flipDateField(); return true; }
-    if (event.key === 'Enter' && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) { chooseDate(); return true; }
-    if (event.key === 'Escape') { dismissDate(); return true; }
-    return false;
-  }
-  const slashRows = createMemo<SlashItem[]>(() => {
-    const state = slashCompletion();
-    if (!state) return [];
-    const block = doc.block(state.id);
-    return rankSlash(slashItems().filter(item => !item.when || item.when(block)), state.query);
-  });
-  function dismissSlash() {
-    const state = slashCompletion();
-    if (state) dismissedSlash = { id: state.id, from: state.from };
-    setSlashCompletion(null);
-  }
-  /** Removes `/query` (or swaps it for the item's syntax), then runs the item on the block. */
-  function chooseSlash(index = slashIndex()) {
-    const state = slashCompletion();
-    const id = editing();
-    const item = slashRows()[index];
-    if (!state || !item || !editor || id !== state.id || editor.id !== id) return;
-    const disabled = item.disabledReason?.(id);
-    if (disabled) { setMessage(disabled); return; }
-    const text = editor.view.state.doc.toString();
-    const insertion = item.insert?.(text);
-    const next = insertion
-      ? { text: text.slice(0, state.from) + insertion.text + text.slice(state.to), caret: state.from + insertion.caret }
-      : removeToken(text, state);
-    setSlashCompletion(null);
-    if (!rewriteEditing(id, next)) return;
-    if (insertion) { updateCompletion(next.text, { id, offset: next.caret }); updateTriggers(next.text, { id, offset: next.caret }); }
-    void doc.flush().catch(reason => capabilities.failure(id, reason));
-    item.run?.(id);
-    scheduleReport();
-  }
-  createEffect(() => { slashIndex(); slashRows(); requestAnimationFrame(() => slashList?.querySelector<HTMLElement>('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' })); });
-  function slashKey(event: KeyboardEvent) {
-    if (!slashCompletion()) return false;
-    const count = slashRows().length;
-    if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && count) { setSlashIndex(index => Math.max(0, Math.min(count - 1, index + (event.key === 'ArrowDown' ? 1 : -1)))); return true; }
-    if ((event.key === 'Enter' || event.key === 'Tab') && count && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) { chooseSlash(); return true; }
-    if (event.key === 'Escape') { dismissSlash(); return true; }
-    return false;
-  }
-  /** Typing `[] ` or `[ ] ` at the start of a plain block makes it a task. */
-  function taskPrefix(text: string, at: Caret): boolean {
-    const prefix = /^\[ ?\] /.exec(text)?.[0];
-    if (!prefix || at.offset !== prefix.length || composition() || doc.block(at.id)?.task) return false;
-    const rest = text.slice(prefix.length);
-    const result = doc.edit({ kind: 'planTask', id: at.id, text: rest, value: newTask() }, caret());
-    if (!result.ok) { setMessage(result.reason); return true; }
-    queueMicrotask(() => { if (editor?.id !== at.id) return; editor.sync(rest); editor.view.dispatch({ selection: { anchor: 0 } }); });
-    setCaret({ id: at.id, offset: 0 });
-    void doc.flush().catch(reason => capabilities.failure(at.id, reason));
-    return true;
-  }
 
   const fieldConversion = createFieldEntryConversion({
     doc, notebook: props.notebook, disposed: () => disposed, composing: composition, caret, focusEpoch: () => focusEpoch,
@@ -335,23 +163,6 @@ function Pane(props: OutlinePaneProps) {
         if (!disposed) setMessage(error instanceof Error ? error.message : String(error));
       } finally { linking.delete(id); }
     })();
-  }
-  const [valueDate, setValueDate] = createSignal<{ id: string; anchor: HTMLElement } | null>(null);
-  /** A new entry for a choice or date field opens the matching picker for its empty value. */
-  function offerValue(id: string, field: FieldDefinition) {
-    if (field.kind !== 'choice' && field.kind !== 'date') return;
-    requestAnimationFrame(() => {
-      if (disposed || editing() !== id || doc.block(id)?.text) return;
-      if (field.kind === 'choice') { setCompletionIndex(0); setCompletion({ from: 0, to: 0, query: '', choice: field }); return; }
-      const anchor = rowAnchor(id);
-      if (anchor) setValueDate({ id, anchor });
-    });
-  }
-  function chooseValueDate(id: string, date: string | null) {
-    if (!date) return;
-    const result = doc.edit({ kind: 'text', id, text: date }, caret());
-    if (!result.ok) { setMessage(result.reason); return; }
-    editAt(id, date.length, true);
   }
 
   const unfoldedIds = createMemo(() => visibleIds(doc, zoom(), folds(), showArchived(), undefined, depthFilter()));
@@ -716,160 +527,6 @@ function Pane(props: OutlinePaneProps) {
     if (!result.ok) { setMessage(result.reason); return; }
     fieldConversion.entry(result.created[0]!, GLOSS_FIELD, 0, true);
   }
-  function horizontal(direction: 'left' | 'right') {
-    const id = selected();
-    if (!id) return;
-    if (direction === 'left') {
-      if (doc.outline.children(id).length && !folds().has(id)) fold(id);
-      else { const parent = doc.outline.parentOf(id); if (inlineFields().has(parent)) setSelected(parent); if (indices().has(parent)) rowFocus(parent); }
-    } else if (folds().has(id)) fold(id);
-    else { const child = doc.outline.children(id)[0]; if (child && indices().has(child)) rowFocus(child); }
-  }
-  function adjacent(direction: number, extend = false) {
-    const index = indices().get(selected() ?? '');
-    const id = index === undefined
-      ? direction > 0 ? ids()[0] : ids().at(-1)
-      : ids()[Math.max(0, Math.min(ids().length - 1, index + direction))];
-    if (id) rowFocus(id, extend);
-  }
-  function split(_view: EditorView) {
-    if (editing() && commitFieldEntry(editing()!)) return;
-    replaceSelection('', 'split');
-  }
-  function backspace(view: EditorView, forward = false) {
-    if (textRange()) { deleteTextRange(); return true; }
-    const id = editing();
-    if (!id) return false;
-    const selection = view.state.selection.main;
-    if (!selection.empty) { replaceSelection('', 'text'); return true; }
-    // An empty `[[]]` or `(())` left by the bracket pairing goes in one Backspace, as it arrived.
-    const pair = !forward && selection.head >= 2 ? view.state.doc.sliceString(selection.head - 2, selection.head + 2) : '';
-    if (pair === '[[]]' || pair === '(())') { replaceSelection('', 'text', { anchor: { id, offset: selection.head - 2 }, head: { id, offset: selection.head + 2 } }); return true; }
-    const token = textTokens(view.state.doc.toString()).find(token => token.kind === 'reference' &&
-      (forward ? selection.head >= token.start && selection.head < token.end : selection.head > token.start && selection.head <= token.end));
-    if (token) {
-      const at = { id, offset: selection.head };
-      replaceSelection('', 'text', { anchor: { id, offset: token.start }, head: { id, offset: token.end } }, { anchor: at, head: at });
-      return true;
-    }
-    if (selection.head !== (forward ? view.state.doc.length : 0)) return false;
-    const row = indices().get(id) ?? 0;
-    const previous = ids()[row - 1] ?? null;
-    const intent = boundaryDeletion(doc, id, forward ? 'forward' : 'backward', previous, inlineFields());
-    if (intent?.kind === 'delete') {
-      const neighbor = previous ?? ids()[row + 1];
-      apply(intent);
-      if (!doc.block(id) && neighbor) editAt(neighbor, doc.block(neighbor)?.text.length ?? 0, true);
-    } else if (intent) apply(intent);
-    return true;
-  }
-  function crossArrow(event: KeyboardEvent, view: EditorView) {
-    const direction = event.key === 'ArrowUp' || event.key === 'ArrowLeft' ? -1 : 1;
-    const head = view.state.selection.main.head;
-    const rect = view.coordsAtPos(head);
-    const first = view.coordsAtPos(0);
-    const vertical = event.key === 'ArrowUp' || event.key === 'ArrowDown';
-    const lineStart = vertical ? view.coordsAtPos(view.moveToLineBoundary(view.state.selection.main, false, true).head) : null;
-    const column = rect && lineStart ? rect.left - lineStart.left : 0;
-    const last = view.coordsAtPos(view.state.doc.length);
-    const boundary = event.key === 'ArrowLeft' ? head === 0 : event.key === 'ArrowRight' ? head === view.state.doc.length
-      : direction < 0 ? !!rect && !!first && rect.top <= first.top + 2 : !!rect && !!last && rect.bottom >= last.bottom - 2;
-    if (!boundary) return false;
-    const index = indices().get(editing() ?? '') ?? -1;
-    const id = ids()[index + direction];
-    if (!id) return false;
-    if (editing() && commitFieldEntry(editing()!)) return true;
-    const offset = direction < 0 ? (doc.block(id)?.text.length ?? 0) : 0;
-    const anchor = textRange()?.anchor ?? { id: editing()!, offset: view.state.selection.main.anchor };
-    editAt(id, offset, true);
-    setTextRange(event.shiftKey ? { anchor, head: { id, offset } } : null);
-    queueMicrotask(() => {
-      if (editor?.id !== id) return;
-      let target = offset;
-      if (vertical) {
-        const edge = editor.view.coordsAtPos(offset);
-        if (edge) {
-          const line = editor.view.moveToLineBoundary(editor.view.state.selection.main, false, true);
-          const start = editor.view.coordsAtPos(line.head);
-          if (start) target = editor.view.posAtCoords({ x: start.left + column, y: (edge.top + edge.bottom) / 2 }) ?? offset;
-        }
-      }
-      if (vertical || event.shiftKey) editor.view.dispatch({ selection: { anchor: event.shiftKey ? anchor.id === id ? anchor.offset : direction > 0 ? 0 : editor.view.state.doc.length : target, head: target } });
-      if (event.shiftKey) setTextRange({ anchor, head: { id, offset: target } });
-    });
-    return true;
-  }
-  function popupKey(event: KeyboardEvent) {
-    if (!completion()) return false;
-    const count = completionRows().length + (canCreate() ? 1 : 0);
-    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { setCompletionIndex(index => Math.max(0, Math.min(count - 1, index + (event.key === 'ArrowDown' ? 1 : -1)))); return true; }
-    if (event.key === 'Enter' || event.key === 'Tab' && !event.shiftKey) { void chooseCompletion(); return true; }
-    if (event.key === 'Escape') { dismissCompletion(); return true; }
-    return false;
-  }
-  /** Where a chosen reference left a separating space, punctuation or a space typed next takes its place. */
-  let referenceSpace: Caret | null = null;
-  function afterReference(event: KeyboardEvent, view: EditorView) {
-    if (['Shift', 'CapsLock'].includes(event.key)) return false;
-    const at = referenceSpace;
-    referenceSpace = null;
-    if (!at || at.id !== editing() || event.metaKey || event.ctrlKey || event.altKey || props.vim && editor?.mode() !== 'insert' || !/^[ .,;:!?)]$/.test(event.key)) return false;
-    const selection = view.state.selection.main;
-    if (!selection.empty || selection.head !== at.offset || view.state.doc.sliceString(at.offset - 1, at.offset) !== ' ') return false;
-    if (event.key !== ' ') replaceSelection(event.key, 'text', { anchor: { id: at.id, offset: at.offset - 1 }, head: at });
-    return true;
-  }
-  /** Space right after `Name::`, or Tab anywhere in the name, makes the entry at once with the caret in its value. */
-  function fieldKey(event: KeyboardEvent, view: EditorView) {
-    if (event.key !== ' ' && event.key !== 'Tab' || event.shiftKey || event.metaKey || event.ctrlKey || event.altKey || props.vim && editor?.mode() !== 'insert') return false;
-    const id = editing();
-    const selection = view.state.selection.main;
-    const text = view.state.doc.toString();
-    if (!id || !selection.empty || !matchFieldEntry(text)) return false;
-    const nameEnd = text.indexOf('::') + 2;
-    if (event.key === ' ' ? selection.head !== nameEnd : selection.head > nameEnd) return false;
-    return commitFieldEntry(id);
-  }
-  function editorKey(event: KeyboardEvent, view: EditorView) {
-    if (afterReference(event, view) || slashKey(event) || dateKey(event) || popupKey(event) || fieldKey(event, view)) return true;
-    if (commonKey(event)) return true;
-    if (event.key === 'Escape' && (!props.vim || editor?.mode() === 'normal')) { if (editing()) rowFocus(editing()!); return true; }
-    if (props.vim && editor?.mode() !== 'insert') {
-      if (event.key === ' ' && editor?.mode() === 'normal' && editing() && !event.metaKey && !event.ctrlKey && !event.altKey) { leaderMenu(editing()!); return true; }
-      if (event.key === 'u') { undo(); return true; }
-      if (event.ctrlKey && event.key.toLowerCase() === 'r') { undo(true); return true; }
-      return false;
-    }
-    if (event.key === 'Enter') {
-      if (event.shiftKey) replaceSelection('\n', 'text');
-      else split(view);
-      return true;
-    }
-    if (event.key === 'Tab') { apply({ kind: event.shiftKey ? 'outdent' : 'indent', ids: [editing()!] }); return true; }
-    if (event.key === 'Backspace') return backspace(view);
-    if (event.key === 'Delete') return backspace(view, true);
-    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key) && !event.altKey && !event.metaKey && !event.ctrlKey) {
-      if (!event.shiftKey) setTextRange(null);
-      return crossArrow(event, view);
-    }
-    return false;
-  }
-  function commonKey(event: KeyboardEvent) {
-    if (event.metaKey && event.shiftKey && event.key.toLowerCase() === 't') { openTable(false); return true; }
-    if (event.metaKey && event.key.toLowerCase() === 'z') { undo(event.shiftKey); return true; }
-    const id = editing() ?? selected();
-    if (event.metaKey && event.code === 'Period') { if (id) event.shiftKey ? zoomOut() : zoomTo(id); return true; }
-    if (id && !rowRange() && !textRange() && event.metaKey && event.shiftKey && event.key === 'Enter' && !event.altKey && !event.ctrlKey) {
-      if (!event.repeat) statusMenu(id);
-      return true;
-    }
-    if (id && !rowRange() && !textRange() && (event.altKey || event.metaKey) && event.key === 'Enter' && !(event.altKey && event.metaKey) && !event.ctrlKey && !event.shiftKey) {
-      if (!event.repeat) capabilities.invoke(capabilities.toggle(id));
-      return true;
-    }
-    if (event.altKey && ['ArrowUp', 'ArrowDown'].includes(event.key)) { if (id) apply({ kind: 'move', ids: roots(), direction: event.key === 'ArrowUp' ? 'up' : 'down' }); return true; }
-    return false;
-  }
   function clearSelection() {
     focusEpoch++;
     focusRequest = null;
@@ -878,271 +535,8 @@ function Pane(props: OutlinePaneProps) {
     setCaret(null);
     setRowRange(null);
     setTextRange(null);
-    rowKey = '';
+    resetRowKey();
     scheduleReport();
-  }
-  function structuralKey(event: KeyboardEvent) {
-    if (!event.defaultPrevented && !event.isComposing && !composition() && props.active && event.metaKey && event.shiftKey && event.key.toLowerCase() === 't') {
-      event.preventDefault();
-      openTable(false);
-      return;
-    }
-    if (event.target === scroll && !event.isComposing && !composition()) {
-      if (textRange() && event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey) { event.preventDefault(); replaceSelection(event.key, 'text'); return; }
-      if (editing() && editor?.id === editing()) {
-        editor.view.focus();
-        if (editorKey(event, editor.view) || editor.forwardVim(event)) { event.preventDefault(); return; }
-        const selection = editor.view.state.selection.main;
-        if (event.key === 'Backspace' || event.key === 'Delete') {
-          let from = selection.from, to = selection.to;
-          if (selection.empty && event.key === 'Backspace') for (const segment of graphemes.segment(editor.view.state.doc.sliceString(0, from))) from = segment.index;
-          else if (selection.empty) { const next = graphemes.segment(editor.view.state.doc.sliceString(to))[Symbol.iterator]().next(); to += next.value?.segment.length ?? 0; }
-          editor.view.dispatch({ changes: { from, to, insert: '' }, selection: { anchor: from } });
-          event.preventDefault();
-        } else if (event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey) { editor.view.dispatch(editor.view.state.replaceSelection(event.key)); event.preventDefault(); }
-        return;
-      }
-    }
-    if (event.target !== scroll || event.isComposing || composition()) return;
-    let handled = false;
-    if (textRange() && (event.key === 'Backspace' || event.key === 'Delete')) { deleteTextRange(); handled = true; }
-    if (!handled) handled = commonKey(event);
-    if (!handled && (event.key === '[' || event.key === ']') && !event.metaKey && !event.ctrlKey && !event.altKey && !depthReason()) { stepDepth(event.key === '[' ? -1 : 1); handled = true; }
-    if (!handled && !selected() && !textRange()) {
-      if (!event.metaKey && !event.ctrlKey && !event.altKey && ['ArrowDown', 'ArrowUp', 'j', 'k'].includes(event.key)) {
-        adjacent(event.key === 'ArrowDown' || event.key === 'j' ? 1 : -1);
-        event.preventDefault();
-      } else if (['Enter', 'Tab', 'Escape', 'Backspace', 'Delete'].includes(event.key) || event.key.length === 1 && !event.metaKey && !event.ctrlKey) event.preventDefault();
-      return;
-    }
-    if (!handled && event.key === 'Tab') { apply({ kind: event.shiftKey ? 'outdent' : 'indent', ids: roots() }, false); handled = true; }
-    if (!handled && event.key === 'Escape') { clearSelection(); handled = true; }
-    if (!handled && event.key === 'ArrowDown') { adjacent(1, event.shiftKey); handled = true; }
-    if (!handled && event.key === 'ArrowUp') { adjacent(-1, event.shiftKey); handled = true; }
-    if (!handled && event.key === 'ArrowLeft') { horizontal('left'); handled = true; }
-    if (!handled && event.key === 'ArrowRight') { horizontal('right'); handled = true; }
-    if (!handled && event.key === 'Enter' && selected()) { props.vim ? zoomTo(selected()) : editAt(selected()!, caret()?.id === selected() ? caret()!.offset : 0, true); handled = true; }
-    if (!handled && event.key === 'Backspace') { props.vim ? zoomOut() : apply({ kind: 'delete', ids: roots() }, false); handled = true; }
-    if (!handled && event.key === ' ' && selected() && !rowRange() && !textRange() && !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey) { rowKey = ''; leaderMenu(selected()!); handled = true; }
-    if (!handled && props.vim && !event.metaKey && !event.altKey) handled = vimStructural(event);
-    if (handled) event.preventDefault();
-  }
-  function vimStructural(event: KeyboardEvent): boolean {
-    const key = event.key;
-    const previous = rowKey;
-    rowKey = '';
-    if (key === 'j' || key === 'k') { adjacent(key === 'j' ? 1 : -1, !!rowRange()); return true; }
-    if (key === 'h' || key === 'l') { horizontal(key === 'h' ? 'left' : 'right'); return true; }
-    if (key === 'G' || (key === 'g' && previous === 'g')) { const id = key === 'G' ? ids().at(-1) : ids()[0]; if (id) rowFocus(id); return true; }
-    if ((key === '>' && previous === '>') || (key === '<' && previous === '<')) { apply({ kind: key === '>' ? 'indent' : 'outdent', ids: roots() }, false); return true; }
-    if (key === 'd' && (previous === 'd' || rowRange())) { apply({ kind: 'delete', ids: roots() }, false); return true; }
-    if (['g', '>', '<', 'd'].includes(key)) { rowKey = key; return true; }
-    if (key === 'V' && selected()) { setRowRange({ anchor: selected()!, head: selected()! }); return true; }
-    if (key === 'Escape') { setRowRange(null); setTextRange(null); return true; }
-    if (['i', 'a', 'I', 'A'].includes(key) && selected()) { const id = selected()!; editAt(id, key === 'A' || key === 'a' ? doc.block(id)!.text.length : key === 'i' && caret()?.id === id ? caret()!.offset : 0, true); return true; }
-    if ((key === 'o' || key === 'O') && selected()) {
-      const id = selected()!;
-      const parentId = doc.outline.parentOf(id);
-      const siblings = doc.outline.children(parentId);
-      apply({ kind: 'insert', parentId, after: key === 'o' ? id : siblings[siblings.indexOf(id) - 1] ?? null }, true);
-      return true;
-    }
-    if (key === 'u') { undo(); return true; }
-    if (event.ctrlKey && key.toLowerCase() === 'r') { undo(true); return true; }
-    return false;
-  }
-
-  /** Escape closes the completion; it stays closed while the same query is under the caret, and reopens once the text changes. */
-  let dismissedCompletion: { id: string; from: number; query: string } | null = null;
-  function dismissCompletion() {
-    const state = completion();
-    if (state && !state.manual && editor) dismissedCompletion = { id: editor.id, from: state.from, query: state.query };
-    setCompletion(null);
-  }
-  /**
-   * `::` at the start of a block picks a field, and a choice field's value picks an option. Otherwise `[[`
-   * completes pages, fields and blocks and `((` searches blocks only; both insert a `[[id]]` reference.
-   */
-  function completionAt(text: string, at: Caret): Completion | null {
-    if (text.startsWith('::') && at.offset >= 2) {
-      const query = text.slice(2, at.offset);
-      return /[\\`[\]#:\n]/.test(query) ? null : { from: 0, to: at.offset, query, fields: true };
-    }
-    const parent = doc.outline.parentOf(at.id);
-    const field = parent ? definitionsById().get(fieldEntryId(doc.block(parent)?.text ?? '') ?? '') : undefined;
-    if (field?.kind === 'choice') return text.includes('[[') || text.includes('\n') ? null : { from: 0, to: text.length, query: text, choice: field };
-    const typeToken = typeTokenAt(text, at.offset);
-    if (typeToken) return { ...typeToken, types: true };
-    const prefix = text.slice(0, at.offset);
-    const page = prefix.lastIndexOf('[['), block = prefix.lastIndexOf('((');
-    const blocks = block > page, from = Math.max(page, block);
-    const query = prefix.slice(from + 2);
-    if (from < 0 || query.includes(blocks ? ')' : ']') || query.includes('\n') || !blocks && prefix[from - 1] === '#') return null;
-    return { from, to: at.offset, query, blocks };
-  }
-  function updateCompletion(text: string, at: Caret) {
-    if (completion()?.manual) return;
-    const next = completionAt(text, at);
-    if (!next) { setCompletion(null); return; }
-    if (dismissedCompletion && dismissedCompletion.id === at.id && dismissedCompletion.from === next.from && dismissedCompletion.query === next.query) return;
-    dismissedCompletion = null;
-    if (completion()?.query !== next.query) setCompletionIndex(0);
-    setCompletion(next);
-  }
-  // A primitive key: every keystroke sets a fresh completion object, and the same query must not fetch twice.
-  const completionKey = createMemo(() => {
-    const state = completion();
-    return state && !state.fields && !state.choice ? `${state.manual || state.types ? 'types' : state.blocks ? 'blocks' : 'text'}:${state.query}` : false;
-  });
-  const [matches] = createResource(completionKey, async key => {
-    const mode = key.slice(0, key.indexOf(':'));
-    const query = key.slice(key.indexOf(':') + 1);
-    if (mode === 'types') return completeReferences(props.notebook, query, []);
-    if (mode === 'blocks') return { rows: query.trim() ? (await api.search(query, 20)).map(hit => hit.block).filter(block => block.kind === 'block') : [], canCreate: false };
-    return { rows: await api.complete(query), canCreate: false };
-  });
-  const completionRows = createMemo<CompletionRow[]>(() => {
-    const state = completion();
-    if (state?.fields) {
-      const query = state.query.trim().toLowerCase();
-      const named = definitions().filter(field => field.name.toLowerCase().includes(query));
-      return [...named.filter(field => field.name.toLowerCase().startsWith(query)), ...named.filter(field => !field.name.toLowerCase().startsWith(query))].map(field => ({ kind: 'field', field }));
-    }
-    if (state?.choice) {
-      const query = state.query.trim().toLowerCase();
-      return state.choice.options.filter(option => option.text.toLowerCase().includes(query)).map(option => ({ kind: 'option', option }));
-    }
-    const found = matches.error ? [] : matches()?.rows ?? [];
-    if (state?.manual || state?.types) return found.filter(block => block.kind === 'page').map(block => ({ kind: 'block', block }));
-    if (state?.blocks) return found.map(block => ({ kind: 'block', block }));
-    const query = state?.query.toLowerCase() ?? '';
-    const matchingFields = definitions().filter(field => field.name.toLowerCase().includes(query));
-    const byId = new Map(matchingFields.map(field => [field.id, field]));
-    const rows: CompletionRow[] = found.map(block => {
-      const field = byId.get(block.id);
-      byId.delete(block.id);
-      return field ? { kind: 'field', field } : { kind: 'block', block };
-    });
-    for (const field of byId.values()) rows.push({ kind: 'field', field });
-    return rows;
-  });
-  /** As in Find or create, a query that names nothing exactly offers Create page, Create field or Add option after the matches. */
-  const canCreate = createMemo(() => {
-    const state = completion();
-    const title = state?.query.trim().toLocaleLowerCase();
-    if (!state || !title || state.blocks) return false;
-    if (state.fields) return !/[\\`[\]#:]/.test(title) && !definitions().some(field => field.name.toLocaleLowerCase() === title);
-    if (state.choice) return !state.choice.options.some(option => option.text.toLocaleLowerCase() === title);
-    if (matches.error) return false;
-    if (state.manual || state.types) return !matches.loading && !!matches()?.canCreate;
-    if (fields.loading || fields.error) return false;
-    return !completionRows().some(row => (row.kind === 'field' ? row.field.name : row.kind === 'option' || row.block.kind === 'block' ? '' : row.block.text).toLocaleLowerCase() === title);
-  });
-  createEffect(() => {
-    completionIndex();
-    completionRows();
-    if (!completion()) return;
-    requestAnimationFrame(() => {
-      if (completionList?.isConnected) completionList.querySelector<HTMLElement>('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
-    });
-  });
-  /** The open query plus the closing brackets the editor paired with it. */
-  function completionRange(state: Completion, text: string) {
-    const paired = !state.types && !state.fields && !state.choice && text.startsWith(state.blocks ? '))' : ']]', state.to);
-    return { from: state.from, to: paired ? state.to + 2 : state.to };
-  }
-  let drafted = false;
-  createEffect(() => {
-    const state = completion();
-    if (!editor) return;
-    if (state && !state.manual && !state.choice) { drafted = true; editor.markDraft(completionRange(state, editor.view.state.doc.toString())); }
-    else if (drafted) { drafted = false; editor.markDraft(null); }
-  });
-  function insertReference(id: string) {
-    const state = completion();
-    const source = editing();
-    if (!state || !editor || !source) return;
-    const range = completionRange(state, editor.view.state.doc.toString());
-    const next = editor.view.state.doc.sliceString(range.to, range.to + 1);
-    // A word after the reference, or the end of the block, gets a separating space so typing continues as prose.
-    const space = !next || /[\p{L}\p{N}]/u.test(next) ? ' ' : '';
-    const inserted = `[[${id}]]${space}`;
-    const selectionBefore = activeRange() ?? undefined;
-    setCompletion(null);
-    replaceSelection(inserted, 'text', { anchor: { id: source, offset: range.from }, head: { id: source, offset: range.to } }, selectionBefore);
-    referenceSpace = space ? { id: source, offset: range.from + inserted.length } : null;
-  }
-  /** Enter pressed before results arrive picks once they do, unless typing has changed the query since. */
-  let chooseWhenReady: string | null = null;
-  createEffect(() => {
-    const loading = matches.loading;
-    const query = completion()?.query;
-    if (loading || chooseWhenReady === null) return;
-    const wanted = chooseWhenReady;
-    chooseWhenReady = null;
-    if (query === wanted) void chooseCompletion();
-  });
-  async function chooseCompletion(index = completionIndex()) {
-    const row = completionRows()[index];
-    const state = completion();
-    if (!state) return;
-    if (state.fields) {
-      const id = editing();
-      const target = row?.kind === 'field' ? row.field : canCreate() ? state.query.trim() : null;
-      if (id && target) fieldConversion.entry(id, target, state.to);
-      return;
-    }
-    if (state.choice) {
-      const id = editing();
-      if (!id) return;
-      try {
-        const option = row?.kind === 'option' ? row.option.id : canCreate() ? await addFieldOption(props.notebook, state.choice, state.query.trim()) : null;
-        if (!option || completion() !== state) return;
-        setCompletion(null);
-        replaceSelection(`[[${option}]]`, 'text', { anchor: { id, offset: 0 }, head: { id, offset: doc.block(id)?.text.length ?? 0 } });
-      } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); }
-      return;
-    }
-    if (state.manual) {
-      if (matches.loading || matches.error) return;
-      const title = row?.kind === 'block' ? row.block.text : canCreate() ? state.query.trim() : null;
-      if (title) {
-        const result = doc.addType(state.manual.blockId, title);
-        if (!result.ok) setMessage(result.reason);
-        setCompletion(null);
-      }
-      return;
-    }
-    if (matches.loading) { chooseWhenReady = state.query; return; }
-    if (state.types) {
-      const source = editing();
-      const title = row?.kind === 'block' ? row.block.text : canCreate() ? state.query.trim() : null;
-      if (!source || !editor || !title || matches.error) return;
-      const inserted = `${typeSpelling(title)} `;
-      const selectionBefore = activeRange() ?? undefined;
-      setCompletion(null);
-      // Text tags and Add type share the notebook's type-page derivation, including new page creation.
-      replaceSelection(inserted, 'text', { anchor: { id: source, offset: state.from }, head: { id: source, offset: state.to } }, selectionBefore);
-      referenceSpace = { id: source, offset: state.from + inserted.length };
-      return;
-    }
-    if (row?.kind === 'field') { insertReference(row.field.id); return; }
-    if (matches.error) return;
-    if (row?.kind === 'block') { insertReference(row.block.id); return; }
-    if (canCreate()) {
-      try { const id = await props.notebook.createPage(state.query.trim()); insertReference(id); }
-      catch (error) { setMessage(error instanceof Error ? error.message : String(error)); }
-    }
-  }
-  function caretRect(offset: number): DOMRect | null {
-    const rect = editor?.view.coordsAtPos(offset);
-    return rect ? new DOMRect(rect.left, rect.top, Math.max(1, rect.right - rect.left), rect.bottom - rect.top) : null;
-  }
-  /** The picker stays under the opening brackets while the query grows. */
-  function completionAnchor(): DOMRect | null {
-    const state = completion();
-    if (state?.manual) return state.manual.anchor.getBoundingClientRect();
-    return state && editor ? caretRect(state.from) : null;
   }
 
   function rename() { if (doc.root()?.kind !== 'page') return; setTitle(doc.root()!.text); setRenaming(true); queueMicrotask(() => { titleInput?.focus(); titleInput?.select(); }); }
@@ -1151,376 +545,7 @@ function Pane(props: OutlinePaneProps) {
     if (result.ok) { setRenaming(false); setMessage(''); }
     else { setMessage(result.reason); titleInput?.focus(); }
   }
-  function openTable(beside: boolean) {
-    if (doc.root()?.kind !== 'page') return;
-    if (editing()) commitFieldEntry(editing()!, false);
-    props.onOpen({ kind: 'table', typeId: props.pageId, viewId: null, query: { type: props.pageId, text: null, filters: [], sort: [], limit: null } }, beside);
-  }
-  function openSelected(beside: boolean) {
-    const id = selected();
-    if (!id) return;
-    const reference = textTokens(doc.block(id)?.text ?? '').find(token => token.kind === 'reference');
-    const target = reference?.id ? props.notebook.lookup(reference.id)() : null;
-    props.onOpen(target ? { kind: 'page', pageId: target.page_id, blockId: target.kind === 'block' ? target.id : undefined } : { kind: 'page', pageId: props.pageId, blockId: id }, beside);
-  }
-  function copy(text: string) { void navigator.clipboard.writeText(text).catch(error => setMessage(`Couldn't copy: ${String(error)}`)); }
-  function referenceMenu(id: string, anchor: HTMLElement) {
-    const block = props.notebook.lookup(id)();
-    const open = (beside: boolean) => block && props.onOpen({ kind: 'page', pageId: block.page_id, blockId: block.kind === 'block' ? id : undefined }, beside);
-    setMenu({ anchor, label: 'Reference actions', items: [
-      { label: 'Open here', icon: 'link', disabledReason: block ? undefined : 'The reference is unresolved.', action: () => open(false) },
-      { label: 'Open beside', icon: 'panes', disabledReason: block ? undefined : 'The reference is unresolved.', action: () => open(true) },
-      { label: 'Copy reference', icon: 'copy', action: () => copy(`[[${id}]]`) },
-    ] });
-  }
-  function investigationItems(id: string): MenuItem[] {
-    const block = doc.block(id);
-    if (!block) return [];
-    const question = block.question?.state;
-    const assessment = block.assessment;
-    let ownerId = block.parentId;
-    while (ownerId && !doc.block(ownerId)?.question) ownerId = doc.block(ownerId)?.parentId ?? null;
-    const owner = ownerId ? doc.block(ownerId)?.question : null;
-    const edit = (intent: Extract<Edit, { kind: 'question' | 'assessment' }>) => capabilities.invoke(capabilities.edit(intent.id, intent));
-    return [
-      ...(question ? [
-        { label: question.parked ? 'Resume question' : 'Park question', action: () => edit({ kind: 'question', id, value: { ...question, parked: !question.parked } }) },
-        { label: question.unsettled ? 'Let it settle' : 'Keep open', action: () => edit({ kind: 'question', id, value: { ...question, unsettled: !question.unsettled } }) },
-        { label: 'Set review date', action: () => capabilities.open(id, 'review-date') },
-        { label: 'Remove question', disabledReason: question.parked && question.accepted ? 'Resume the question before accepting an answer.' : undefined, action: () => edit({ kind: 'question', id, value: null }) },
-      ] : [{ label: 'Make question', disabledReason: assessment ? 'Remove the answer first.' : block.kind === 'journal' ? 'Make an ordinary block or page a question.' : undefined,
-        action: () => edit({ kind: 'question', id, value: { unsettled: false, parked: false, accepted: null, review_on: null } }) }]),
-      ...(assessment ? [
-        { label: 'Accept answer', disabledReason: !owner ? 'Put the answer under a question first.' : owner.state.parked ? 'Resume the question before accepting an answer.' : assessment.accepted ? 'Already accepted.' : undefined,
-          action: () => { if (ownerId && owner) edit({ kind: 'question', id: ownerId, value: { ...owner.state, accepted: id } }); } },
-        { label: assessment.state.aporia ? 'Clear aporia' : 'Record aporia', action: () => edit({ kind: 'assessment', id, value: { ...assessment.state, aporia: !assessment.state.aporia } }) },
-        { label: 'Remove answer', action: () => edit({ kind: 'assessment', id, value: null }) },
-      ] : [{ label: 'Make answer', disabledReason: question ? 'Remove the question first.' : !owner ? 'Put the answer under a question first.' : owner.state.parked ? 'Resume the question before answering it.' : undefined,
-        action: () => edit({ kind: 'assessment', id, value: { assessed_on: props.notebook.todayDate(), aporia: false } }) }]),
-    ];
-  }
-  const commandDefinitions: Command[] = [
-    { id: 'rename', title: 'Rename page', section: 'Page', disabledReason: () => doc.root()?.kind === 'page' ? undefined : 'Journal dates cannot be renamed.', run: rename },
-    { id: 'open-table', title: 'Open as table', section: 'Page', keys: ['⌘⇧T'], disabledReason: () => doc.root()?.kind === 'page' ? undefined : 'Journal days cannot be opened as tables.', run: () => openTable(false) },
-    { id: 'task-root', title: 'Task', section: 'Page', disabledReason: () => doc.status() !== 'ready' || capabilities.busy(props.pageId) ? 'Page is unavailable.' : undefined, run: () => {
-      if (!doc.root()?.task) capabilities.invoke(capabilities.status(props.pageId, 'todo'));
-      capabilities.open(props.pageId, 'task');
-    } },
-    { id: 'project-root', title: 'Project', section: 'Page', disabledReason: () => doc.status() !== 'ready' || capabilities.busy(props.pageId) ? 'Page is unavailable.' : undefined, run: () => {
-      if (!doc.root()?.project) capabilities.invoke(capabilities.edit(props.pageId, { kind: 'project', id: props.pageId, value: { status: 'active', outcome: '', deadline: null } }));
-      capabilities.open(props.pageId, 'project');
-    } },
-    { id: 'gloss', title: 'Add or edit gloss', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Page is unavailable.' : doc.root()?.kind !== 'page' ? 'Journal days have no gloss.' : undefined, run: addGloss },
-    { id: 'compare', title: 'Compare perspectives', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Page is unavailable.' : localPositions() < 2 ? 'Compare needs two perspectives on this page.' : undefined, run: () => props.onOpen({ kind: 'compare', subjectId: props.pageId }, false) },
-    ...depthStops.map((stop): Command => ({ id: `depth-${stop}`, title: depthTitles[stop], section: 'Page', disabledReason: depthReason, run: () => setStop(stop) })),
-    { id: 'depth-less', title: 'Show less of the page', section: 'Page', keys: ['['], disabledReason: () => depthReason() ?? (depth() === 'gloss' ? 'Only the gloss is showing.' : undefined), run: () => stepDepth(-1) },
-    { id: 'depth-more', title: 'Show more of the page', section: 'Page', keys: [']'], disabledReason: () => depthReason() ?? (depth() === 'full' ? 'The whole page is showing.' : undefined), run: () => stepDepth(1) },
-    { id: 'question-root', title: 'Make question', section: 'Page', disabledReason: () => doc.root()?.kind !== 'page' || capabilities.busy(props.pageId) ? 'Page is unavailable.' : undefined, run: () => {
-      const item = investigationItems(props.pageId).find(item => item.label === 'Make question');
-      if (item && !item.disabledReason) item.action();
-      else if (heading) setMenu({ anchor: heading, label: 'Question', items: investigationItems(props.pageId) });
-    } },
-    { id: 'previous-row', title: 'Select previous block', section: 'Navigation', keys: ['↑', 'k'], run: () => adjacent(-1) },
-    { id: 'next-row', title: 'Select next block', section: 'Navigation', keys: ['↓', 'j'], run: () => adjacent(1) },
-    { id: 'parent', title: 'Fold children / select parent', section: 'Navigation', keys: ['←', 'h'], run: () => horizontal('left') },
-    { id: 'child', title: 'Unfold children / select first child', section: 'Navigation', keys: ['→', 'l'], run: () => horizontal('right') },
-    { id: 'first-row', title: 'Select first block', section: 'Navigation', keys: ['gg'], run: () => ids()[0] && rowFocus(ids()[0]!) },
-    { id: 'last-row', title: 'Select last block', section: 'Navigation', keys: ['G'], run: () => ids().at(-1) && rowFocus(ids().at(-1)!) },
-    { id: 'extend-up', title: 'Extend block selection up', section: 'Outline', keys: ['⇧↑'], run: () => adjacent(-1, true) },
-    { id: 'extend-down', title: 'Extend block selection down', section: 'Outline', keys: ['⇧↓'], run: () => adjacent(1, true) },
-    { id: 'edit', title: 'Edit block', section: 'Editing', keys: ['Enter', 'i'], run: () => selected() && editAt(selected()!, caret()?.offset ?? 0, true) },
-    { id: 'split', title: 'Split block', section: 'Editing', keys: ['Enter'], run: () => editing() && editor && split(editor.view) },
-    { id: 'newline', title: 'Insert newline', section: 'Editing', keys: ['⇧Enter'], run: () => editor?.view.dispatch(editor.view.state.replaceSelection('\n')) },
-    { id: 'insert-below', title: 'Insert block below', section: 'Editing', keys: ['o'], run: () => selected() && apply({ kind: 'insert', parentId: doc.outline.parentOf(selected()!), after: selected() }, true) },
-    { id: 'insert-above', title: 'Insert block above', section: 'Editing', keys: ['O'], run: () => { const id = selected(); if (!id) return; const parentId = doc.outline.parentOf(id); const siblings = doc.outline.children(parentId); apply({ kind: 'insert', parentId, after: siblings[siblings.indexOf(id) - 1] ?? null }, true); } },
-    { id: 'indent', title: 'Indent blocks', section: 'Outline', keys: ['Tab', '>>'], run: () => apply({ kind: 'indent', ids: roots() }) },
-    { id: 'outdent', title: 'Outdent blocks', section: 'Outline', keys: ['⇧Tab', '<<'], run: () => apply({ kind: 'outdent', ids: roots() }) },
-    { id: 'move-up', title: 'Move blocks up', section: 'Outline', keys: ['⌥↑'], run: () => apply({ kind: 'move', ids: roots(), direction: 'up' }) },
-    { id: 'move-down', title: 'Move blocks down', section: 'Outline', keys: ['⌥↓'], run: () => apply({ kind: 'move', ids: roots(), direction: 'down' }) },
-    { id: 'select', title: 'Select blocks', section: 'Outline', keys: ['V', '⇧↑/↓'], run: () => selected() && rowFocus(selected()!, true) },
-    { id: 'select-all', title: 'Select all visible blocks', section: 'Outline', run: () => { const first = ids()[0]; const last = ids().at(-1); if (first && last) { rowFocus(last); setRowRange({ anchor: first, head: last }); } } },
-    { id: 'fold', title: 'Fold / unfold children', section: 'View', keys: ['←/→', 'h/l'], run: () => fold() },
-    { id: 'zoom', title: 'Zoom into block', section: 'Navigation', keys: ['⌘.', 'Space z'], run: () => selected() && zoomTo(selected()) },
-    { id: 'zoom-out', title: 'Zoom out', section: 'Navigation', keys: ['⌘⇧.'], disabledReason: () => zoom() ? undefined : 'Already at the page root.', run: zoomOut },
-    { id: 'open-beside', title: 'Open selected target beside', section: 'Navigation', keys: ['⌃⇧O'], run: () => openSelected(true) },
-    { id: 'copy-reference', title: 'Copy block reference', section: 'Editing', run: () => selected() && copy(`[[${selected()}]]`) },
-    { id: 'make-task', title: 'Make task', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.task ? 'Already a task.' : undefined, run: () => selected() && capabilities.invoke(capabilities.status(selected()!, 'todo')) },
-    { id: 'remove-task', title: 'Remove task', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.task ? undefined : 'Select a task.', run: () => selected() && capabilities.invoke(capabilities.status(selected()!, null)) },
-    { id: 'toggle-task', title: 'Toggle task', section: 'Outline', keys: ['⌘Enter'], run: () => selected() && capabilities.invoke(capabilities.toggle(selected()!)) },
-    { id: 'task-status', title: 'Set task status…', section: 'Outline', keys: ['⌘⇧Enter', 'Space t'], run: () => selected() && statusMenu(selected()!) },
-    { id: 'plan-task', title: 'Plan task', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.task ? undefined : 'Select a task.', run: () => selected() && capabilities.open(selected()!, 'task') },
-    { id: 'schedule-task', title: 'Schedule task', section: 'Outline', keys: ['Space s', '@'], run: () => selected() && openPlanning(selected()!, 'schedule') },
-    { id: 'deadline-task', title: 'Set deadline', section: 'Outline', keys: ['Space d', '@due'], run: () => selected() && openPlanning(selected()!, 'deadline') },
-    { id: 'priority-task', title: 'Set priority', section: 'Outline', keys: ['Space p'], run: () => selected() && priorityMenu(selected()!) },
-    { id: 'repeat-task', title: 'Repeat task', section: 'Outline', keys: ['Space r'], run: () => selected() && openPlanning(selected()!, 'repeat') },
-    { id: 'clock', title: 'Clock in / out', section: 'Outline', keys: ['Space w'], run: () => selected() && capabilities.invoke(capabilities.clock(selected()!)) },
-    { id: 'work-sessions', title: 'Work sessions', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.task ? undefined : 'Select a task.', run: () => selected() && capabilities.open(selected()!, 'work') },
-    { id: 'add-card', title: 'Add card', section: 'Editing', keys: ['Space c', '>>'], run: () => selected() && addCard(selected()!) },
-    { id: 'leader', title: 'Show leader keys', section: 'Editing', keys: ['Space'], run: () => selected() && leaderMenu(selected()!) },
-    { id: 'make-project', title: 'Make project', section: 'Outline', keys: ['Space o'], disabledReason: () => selected() && doc.block(selected()!)?.project ? 'Already a project.' : undefined, run: () => selected() && capabilities.invoke(capabilities.edit(selected()!, { kind: 'project', id: selected()!, value: { status: 'active', outcome: '', deadline: null } })) },
-    { id: 'make-perspective', title: 'Make perspective', section: 'Block', keys: ['Space v'], disabledReason: () => doc.block(selected() ?? '')?.kind !== 'block' ? 'Select an ordinary block.' : doc.block(selected()!)?.position ? 'Already a perspective.' : undefined, run: () => selected() && capabilities.invoke(capabilities.edit(selected()!, { kind: 'position', id: selected()!, value: true })) },
-    { id: 'remove-perspective', title: 'Remove perspective', section: 'Block', keys: ['Space v'], disabledReason: () => doc.block(selected() ?? '')?.kind !== 'block' ? 'Select an ordinary block.' : !doc.block(selected()!)?.position ? 'Select a perspective.' : undefined, run: () => selected() && capabilities.invoke(capabilities.edit(selected()!, { kind: 'position', id: selected()!, value: false })) },
-    ...['Make question', 'Make answer', 'Accept answer', 'Record aporia', 'Clear aporia', 'Park question', 'Resume question', 'Keep open', 'Let it settle', 'Set review date', 'Remove question', 'Remove answer'].map((title): Command => ({
-      id: title.toLowerCase().replaceAll(' ', '-'), title, section: 'Outline', keys: title === 'Make question' || title === 'Make answer' ? ['Space q'] : undefined,
-      disabledReason: () => {
-        const item = selected() && investigationItems(selected()!).find(item => item.label === title);
-        return item ? item.disabledReason : 'Select a matching question or answer.';
-      },
-      run: () => {
-        const item = selected() && investigationItems(selected()!).find(item => item.label === title);
-        if (item && !item.disabledReason) item.action();
-      },
-    })),
-    { id: 'project', title: 'Project', section: 'Outline', keys: ['Space o'], disabledReason: () => selected() && doc.block(selected()!)?.project ? undefined : 'Select a project.', run: () => selected() && capabilities.open(selected()!, 'project') },
-    { id: 'project-actions', title: 'Show actions', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.project ? undefined : 'Select a project.', run: () => selected() && capabilities.showActions(selected()!) },
-    { id: 'review-cards', title: 'Review cards', section: 'View', run: () => props.onOpen({ kind: 'review' }, false) },
-    { id: 'card-source', title: 'Show card source', section: 'Navigation', run: () => selected() && capabilities.source(selected()!) },
-    { id: 'archive', title: 'Archive / unarchive block', section: 'Outline', run: () => selected() && apply({ kind: 'archive', id: selected()!, archived: !doc.block(selected()!)?.archived }, false) },
-    { id: 'show-archived', title: 'Show / hide archived blocks', section: 'View', run: () => { anchored(() => setShowArchived(value => !value)); scheduleReport(); } },
-    { id: 'delete', title: 'Delete selected subtrees', section: 'Outline', keys: ['Backspace', 'dd'], run: () => apply({ kind: 'delete', ids: roots() }, false) },
-    { id: 'undo', title: 'Undo', section: 'Editing', keys: ['⌘Z', 'u'], disabledReason: () => doc.canUndo() ? undefined : 'Nothing to undo.', run: () => undo() },
-    { id: 'redo', title: 'Redo', section: 'Editing', keys: ['⌘⇧Z', '⌃R'], disabledReason: () => doc.canRedo() ? undefined : 'Nothing to redo.', run: () => undo(true) },
-    { id: 'review-conflict', title: 'Review conflict', section: 'Editing', disabledReason: () => {
-      doc.outline.version();
-      for (let index = 0; index < doc.outline.size(); index++) if (doc.block(doc.outline.idAt(index))?.conflict) return undefined;
-      return 'No conflicting blocks.';
-    }, run: () => {
-      for (let index = 0; index < doc.outline.size(); index++) {
-        const id = doc.outline.idAt(index);
-        if (!doc.block(id)?.conflict) continue;
-        setConflicts(previous => new Set([...previous, id]));
-        if (!indices().has(id)) { setFolds(new Set<string>()); setShowArchived(true); setZoom(null); }
-        editAt(id, 0, false);
-        break;
-      }
-    } },
-    ...([null, 1, 2, 3] as const).map(level => ({ id: `heading-${level ?? 'normal'}`, title: level ? `Heading ${level}` : 'Normal text', section: 'Editing' as const, run: () => selected() && apply({ kind: 'heading', id: selected()!, level }) })),
-  ];
-  const commands = commandDefinitions.map(command => ({ ...command, id: `outline.${props.pane}.${command.id}`, disabledReason: () => !props.active ? 'This pane is not active.' : command.disabledReason?.() ?? (command.section !== 'Page' && !['zoom-out', 'show-archived', 'undo', 'redo'].includes(command.id) && !selected() ? 'Select a block first.' : undefined) }));
-  const unregister = props.commands.register(commands);
-  /** Sections: Block, Move, Select. Pure navigation stays in the command palette and the shortcut list. */
-  function blockMenu(id: string, anchor: HTMLElement) {
-    if (!selectedSet().has(id)) rowFocus(id);
-    const item = (commandId: string, options: { icon?: IconName; section?: string; danger?: boolean } = {}): MenuItem => {
-      const command = commandDefinitions.find(candidate => candidate.id === commandId)!;
-      return { ...options, label: command.title, shortcut: command.keys?.[0], disabledReason: command.disabledReason?.(), action: command.run };
-    };
-    const entry = doc.block(id);
-    setMenu({ anchor, label: 'Block actions', items: [
-      ...sourceResets(id),
-      ...(entry?.citations.length ? [{ label: 'Remove citation', action: () => apply({ kind: 'uncite', id, citationIds: entry.citations.map(citation => citation.id) }, false) }] : []),
-      { label: 'Add type…', icon: 'tag', action: () => { setCompletionIndex(0); setCompletion({ from: 0, to: 0, query: '', manual: { blockId: id, anchor } }); } },
-      item('zoom', { icon: 'bullet' }),
-      item('open-beside', { icon: 'panes' }),
-      item('copy-reference', { icon: 'copy' }),
-      { label: doc.block(id)?.task ? 'Remove task' : 'Make task', section: 'Task', action: () => capabilities.invoke(capabilities.status(id, doc.block(id)?.task ? null : 'todo')) },
-      item('toggle-task'),
-      item('task-status'),
-      ...(doc.block(id)?.task ? [
-        { label: 'Plan task', action: () => capabilities.open(id, 'task', anchor) },
-        { ...item('schedule-task'), action: () => capabilities.open(id, 'schedule', anchor) },
-        { label: 'Work sessions', action: () => capabilities.open(id, 'work', anchor) },
-      ] : []),
-      ...(doc.block(id)?.project ? [
-        { label: 'Project', section: 'Project', action: () => capabilities.open(id, 'project', anchor) },
-        { label: 'Show actions', action: () => capabilities.showActions(id) },
-      ] : [{ label: 'Make project', section: 'Project', action: () => capabilities.invoke(capabilities.edit(id, { kind: 'project', id, value: { status: 'active', outcome: '', deadline: null } })) }]),
-      item(entry?.position ? 'remove-perspective' : 'make-perspective', { section: 'Block' }),
-      ...investigationItems(id).map((item, index) => ({ ...item, section: index === 0 ? 'Question' : undefined })),
-      ...(parseCardText(doc.block(id)?.text ?? '').cards.length ? [
-        { label: 'Review cards', section: 'Cards', action: () => props.onOpen({ kind: 'review' }, false) },
-        { label: 'Show card source', action: () => capabilities.source(id) },
-      ] : [{ label: 'Add card', section: 'Cards', shortcut: 'Space c', action: () => addCard(id) }]),
-      item('insert-below', { section: 'Move', icon: 'plus' }),
-      item('indent', { icon: 'right' }),
-      item('outdent', { icon: 'left' }),
-      item('move-up', { icon: 'up' }),
-      item('move-down', { icon: 'down' }),
-      item('select', { section: 'Select', icon: 'select' }),
-      item('select-all'),
-      item('archive', { section: 'Block', icon: 'archive' }),
-      item('delete', { icon: 'trash', danger: true }),
-    ] });
-  }
-  /** Keyboard menus hand focus back to the row or editor that opened them before their action runs. */
-  function keyboardMenu(id: string, label: string, items: MenuItem[]) {
-    const anchor = rowAnchor(id);
-    if (!anchor) return;
-    const prior = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const refocus = () => { if (prior?.isConnected) prior.focus({ preventScroll: true }); };
-    setMenu({ anchor, label, items: items.map(item => ({ ...item, action: () => { refocus(); item.action(); } })) });
-  }
-  function statusMenu(id: string) {
-    const task = doc.block(id)?.task;
-    keyboardMenu(id, 'Task status', [
-      ...statuses.map((status): MenuItem => ({ label: statusLabels[status], icon: task?.status === status ? 'check' : undefined, action: () => capabilities.invoke(capabilities.status(id, status)) })),
-      ...(task ? [{ label: 'Remove task', icon: 'close' as const, action: () => capabilities.invoke(capabilities.status(id, null)) }] : []),
-    ]);
-  }
-  function priorityMenu(id: string) {
-    const current = doc.block(id)?.task?.priority ?? null;
-    keyboardMenu(id, 'Priority', priorities.map((priority): MenuItem => ({ label: priorityLabel(priority), icon: current === priority ? 'check' : undefined, action: () => {
-      const task = doc.block(id)?.task ?? newTask();
-      capabilities.invoke(capabilities.edit(id, { kind: 'task', id, value: { ...task, priority } }));
-    } })));
-  }
-  function openPlanning(id: string, kind: 'schedule' | 'deadline' | 'repeat') {
-    capabilities.ensureTask(id);
-    capabilities.open(id, kind);
-  }
-  function openProject(id: string) {
-    if (!doc.block(id)?.project) capabilities.invoke(capabilities.edit(id, { kind: 'project', id, value: { status: 'active', outcome: '', deadline: null } }));
-    capabilities.open(id, 'project');
-  }
-  /** Appends ` >> ` and edits the back of the card. */
-  function addCard(id: string) {
-    const front = (doc.block(id)?.text ?? '').trimEnd();
-    const text = `${front}${front ? ' ' : ''}>> `;
-    if (editor?.id === id && editing() === id) { if (rewriteEditing(id, { text, caret: text.length })) editAt(id, text.length, true); return; }
-    const result = doc.edit({ kind: 'text', id, text }, caret());
-    if (!result.ok) { setMessage(result.reason); return; }
-    editAt(id, text.length, true);
-  }
-  /** Space on a selected row (or in Vim normal mode): one more letter acts on the block. */
-  function leaderMenu(id: string) {
-    const leader = (key: string, label: string, run: () => void, section?: string): MenuItem => ({ key, shortcut: key, label, section, action: run });
-    const commandItem = (key: string, commandId: string, section?: string): MenuItem => {
-      const command = commandDefinitions.find(command => command.id === commandId)!;
-      return { key, shortcut: key, label: command.title, section, disabledReason: command.disabledReason?.(), action: command.run };
-    };
-    const block = doc.block(id);
-    let ancestor = block?.parentId ?? null;
-    while (ancestor && !doc.block(ancestor)?.question) ancestor = doc.block(ancestor)?.parentId ?? null;
-    keyboardMenu(id, 'Leader keys', [
-      leader('t', 'Status…', () => statusMenu(id), 'Task'),
-      leader('s', 'Schedule…', () => openPlanning(id, 'schedule')),
-      leader('d', 'Deadline…', () => openPlanning(id, 'deadline')),
-      leader('p', 'Priority…', () => priorityMenu(id)),
-      leader('r', 'Repeat…', () => openPlanning(id, 'repeat')),
-      leader('w', doc.block(id)?.task ? 'Clock in / out' : 'Clock in', () => capabilities.invoke(capabilities.clock(id))),
-      commandItem('o', block?.project ? 'project' : 'make-project', 'Project'),
-      ...(block?.question
-        ? [leader('q', 'Question…', () => keyboardMenu(id, 'Question', investigationItems(id)), 'Question')]
-        : [commandItem('q', ancestor ? 'make-answer' : 'make-question', 'Question')]),
-      commandItem('v', block?.position ? 'remove-perspective' : 'make-perspective', 'Block'),
-      leader('c', 'Add card', () => addCard(id)),
-      leader('z', 'Zoom in', () => zoomTo(id)),
-    ]);
-  }
-  /** The slash menu: block verbs from the command list plus syntax inserts; each row shows its faster key. */
-  function slashItems(): SlashItem[] {
-    const keys = (commandId: string) => commandDefinitions.find(command => command.id === commandId)?.keys?.[0];
-    const status = (value: TaskStatus, aliases: string[]): SlashItem => ({ id: `status-${value}`, title: statusLabels[value], aliases, section: 'Task', icon: statusIcons[value], keys: value === 'todo' || value === 'done' ? keys('toggle-task') : undefined, run: id => capabilities.invoke(capabilities.status(id, value)) });
-    return [
-      status('todo', ['task', 'checkbox']),
-      status('doing', ['start', 'in progress']),
-      status('waiting', ['blocked', 'hold']),
-      status('done', ['complete', 'finish']),
-      status('cancelled', ['cancel']),
-      { id: 'schedule', title: 'Schedule', aliases: ['date', 'scheduled', 'when'], section: 'Task', icon: 'calendar', keys: '@', run: id => openPlanning(id, 'schedule') },
-      { id: 'deadline', title: 'Deadline', aliases: ['due'], section: 'Task', icon: 'warning', keys: '@due', run: id => openPlanning(id, 'deadline') },
-      { id: 'priority', title: 'Priority', aliases: ['important', 'urgent'], section: 'Task', icon: 'up', keys: keys('priority-task'), run: priorityMenu },
-      { id: 'repeat', title: 'Repeat', aliases: ['recur', 'recurring', 'every'], section: 'Task', icon: 'repeat', keys: keys('repeat-task'), run: id => openPlanning(id, 'repeat') },
-      { id: 'clock', title: 'Clock in / out', aliases: ['timer', 'start work', 'stop work'], section: 'Task', icon: 'clock', keys: keys('clock'), run: id => capabilities.invoke(capabilities.clock(id)) },
-      { id: 'remove-task', title: 'Remove task', aliases: ['plain'], section: 'Task', icon: 'close', when: block => !!block?.task, run: id => capabilities.invoke(capabilities.status(id, null)) },
-      { id: 'project', title: 'Project', aliases: ['outcome'], section: 'Project', icon: 'flag', keys: 'Space o', run: openProject },
-      { id: 'perspective', title: 'Make perspective', aliases: ['position', 'view'], section: 'Block', icon: 'link', keys: 'Space v', when: block => block?.kind === 'block' && !block.position, run: id => capabilities.invoke(capabilities.edit(id, { kind: 'position', id, value: true })) },
-      { id: 'remove-perspective', title: 'Remove perspective', aliases: ['remove position', 'remove view'], section: 'Block', icon: 'close', keys: 'Space v', when: block => block?.kind === 'block' && !!block.position, run: id => capabilities.invoke(capabilities.edit(id, { kind: 'position', id, value: false })) },
-      ...(['question', 'answer'] as const).map((kind): SlashItem => ({
-        id: kind, title: `Make ${kind}`, aliases: [kind], section: 'Question', icon: kind === 'question' ? 'question-open' : 'question-settled', keys: 'Space q',
-        disabledReason: id => investigationItems(id).find(item => item.label === `Make ${kind}`)?.disabledReason ?? (doc.block(id)?.[kind === 'question' ? 'question' : 'assessment'] ? `Already a ${kind}.` : undefined),
-        run: id => {
-          const item = investigationItems(id).find(item => item.label === `Make ${kind}`);
-          if (item && !item.disabledReason) item.action();
-        },
-      })),
-      ...([1, 2, 3] as const).map((level): SlashItem => ({ id: `heading-${level}`, title: `Heading ${level}`, aliases: [`h${level}`], section: 'Text', icon: 'heading', keys: '#'.repeat(level), run: id => apply({ kind: 'heading', id, level }) })),
-      { id: 'heading-normal', title: 'Normal text', aliases: ['paragraph'], section: 'Text', icon: 'edit', when: block => !!block?.heading, run: id => apply({ kind: 'heading', id, level: null }) },
-      { id: 'reference', title: 'Reference', aliases: ['link', 'page', 'mention'], section: 'Text', icon: 'link', keys: '[[', insert: () => ({ text: '[[', caret: 2 }) },
-      { id: 'type', title: 'Type', aliases: ['tag', 'supertag'], section: 'Text', icon: 'tag', keys: '#', insert: () => ({ text: '#', caret: 1 }) },
-      { id: 'card', title: 'Card', aliases: ['flashcard'], section: 'Cards', icon: 'right', keys: '>>', insert: () => ({ text: '>> ', caret: 3 }) },
-      { id: 'reversible-card', title: 'Reversible card', aliases: ['both ways', 'flashcard'], section: 'Cards', icon: 'panes', keys: '<>', insert: () => ({ text: '<> ', caret: 3 }) },
-      { id: 'cloze', title: 'Cloze', aliases: ['blank', 'fill in', 'flashcard'], section: 'Cards', icon: 'select', keys: '{{c1::}}', insert: text => { const cloze = `{{c${nextClozeNumber(text)}::}}`; return { text: cloze, caret: cloze.length - 2 }; } },
-      { id: 'zoom', title: 'Zoom in', aliases: ['focus'], section: 'Block', icon: 'bullet', keys: '⌘.', run: id => zoomTo(id) },
-      { id: 'copy-reference', title: 'Copy reference', section: 'Block', icon: 'copy', run: id => copy(`[[${id}]]`) },
-    ];
-  }
 
-  function selectedOffsets(id: string): [number, number] | null {
-    const range = textRange();
-    if (!range || !selectionIds(ids(), range).includes(id)) return null;
-    const [start, end] = orderedRange(doc, range);
-    return [id === start.id ? start.offset : 0, id === end.id ? end.offset : doc.block(id)?.text.length ?? 0];
-  }
-  function pointerStart(event: MouseEvent, id: string, element: HTMLElement) {
-    if (event.button !== 0 || (event.target as HTMLElement).closest('button')) return;
-    // Shift-click inside the block being edited extends its text selection; elsewhere it selects rows.
-    if (event.shiftKey && editing() === id && editor?.id === id) return;
-    if (event.shiftKey) { event.preventDefault(); rowFocus(id, true); return; }
-    if (editing() && editing() !== id && commitFieldEntry(editing()!)) { event.preventDefault(); return; }
-    const text = doc.block(id)?.text ?? '';
-    const native = editor?.id === id && editor.view.dom.contains(event.target as Node);
-    const offset = native ? editor!.view.posAtCoords({ x: event.clientX, y: event.clientY }) ?? 0 : offsetAtPoint(element, text, event.clientX, event.clientY);
-    drag = { anchor: { id, offset }, moved: false, native };
-    setTextRange(null);
-    if (!native) { event.preventDefault(); editAt(id, offset, true); }
-  }
-  function pointerMove(event: MouseEvent) {
-    if (!drag || !(event.buttons & 1)) return;
-    const element = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>('[data-block-id]');
-    const id = element?.dataset.blockId;
-    if (!element || !id || !scroll.contains(element) || id === drag.anchor.id && drag.native && !drag.moved) return;
-    const body = element.querySelector<HTMLElement>('.outline-body')!;
-    const offset = editing() === id && editor?.id === id ? editor.view.posAtCoords({ x: event.clientX, y: event.clientY }) ?? 0 : offsetAtPoint(body, doc.block(id)?.text ?? '', event.clientX, event.clientY);
-    if (!drag.moved && id === drag.anchor.id && offset === drag.anchor.offset) return;
-    drag.moved = true;
-    const range = { anchor: drag.anchor, head: { id, offset } };
-    setTextRange(range);
-    if (editor?.id === id && editing() === id) restoreSelection(range);
-    event.preventDefault();
-    if (event.clientY > scroll.getBoundingClientRect().bottom - 24) scroll.scrollTop += 24;
-    else if (event.clientY < scroll.getBoundingClientRect().top + 24) scroll.scrollTop -= 24;
-  }
-  function pointerEnd() {
-    if (drag?.moved && textRange()) {
-      const range = textRange()!;
-      if (editing() && editing() !== range.head.id && commitFieldEntry(editing()!)) { drag = null; return; }
-      editAt(range.head.id, range.head.offset, true, false);
-      setTextRange(range);
-      queueMicrotask(() => { if (!disposed && props.active) restoreSelection(range); });
-    }
-    drag = null;
-  }
-  function textInputTarget(event: Event) { return !(event.target instanceof Element) || !event.target.closest('input, textarea'); }
-  function clipboard(event: ClipboardEvent, cut = false) {
-    if (!textInputTarget(event) || composition()) return;
-    const range = activeRange();
-    const rows = rowRange();
-    const hasText = range && (range.anchor.id !== range.head.id || range.anchor.offset !== range.head.offset);
-    if (!hasText && !rows) return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    const payload = hasText ? selectedText(doc, ids(), range!) : selectedIds().map(id => doc.block(id)?.text ?? '').join('\n');
-    event.clipboardData?.setData('text/plain', payload);
-    if (cut) hasText ? replaceSelection('', 'text', range) : apply({ kind: 'delete', ids: roots() }, false);
-  }
-  function paste(event: ClipboardEvent) {
-    if (!textInputTarget(event) || composition()) return;
-    const text = event.clipboardData?.getData('text/plain');
-    if (text === undefined || !activeRange()) return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    replaceSelection(text, 'paste');
-  }
-  function beforeInput(event: InputEvent) {
-    if (!textRange() || !textInputTarget(event) || composition() || compositionSelection || event.isComposing) return;
-    if (event.inputType === 'insertText' || event.inputType === 'insertReplacementText') {
-      if (event.data === null) return;
-      event.preventDefault(); event.stopImmediatePropagation(); replaceSelection(event.data, 'text');
-    } else if (event.inputType.startsWith('delete')) {
-      event.preventDefault(); event.stopImmediatePropagation(); deleteTextRange();
-    }
-  }
   function composing(active: boolean, committed?: string) {
     if (active && textRange() && editor) {
       const selection = editor.view.state.selection.main;
@@ -1543,44 +568,6 @@ function Pane(props: OutlinePaneProps) {
     }
   }
 
-  const [relatedOpen, setRelatedOpen] = createSignal(new Set<string>());
-  const [relatedVersion, setRelatedVersion] = createSignal(0);
-  let relatedTimer: number | undefined;
-  createEffect(() => {
-    props.notebook.changeSequence();
-    window.clearTimeout(relatedTimer);
-    if (!relatedOpen().size) return;
-    relatedTimer = window.setTimeout(() => setRelatedVersion(value => value + 1), 500);
-  });
-  onCleanup(() => window.clearTimeout(relatedTimer));
-  const [related] = createResource(() => `${props.pageId}:${relatedVersion()}`, async () => {
-    const [backlinks, tagged, held, about] = await Promise.all([api.backlinks(props.pageId), api.members(props.pageId), api.positions({ holder: props.pageId }), api.positions({ subject: props.pageId })]);
-    // A position links its holder and often its subject, so it shows once, as a perspective, not again as a backlink.
-    const positions = new Set([...held, ...about].map(row => row.block.block.id));
-    return {
-      backlinks: backlinks.filter(item => !positions.has(item.source.id)).map(item => ({ block: item.source, page: item.page })),
-      tagged,
-      held: held.map(row => row.block),
-      // Perspectives on this page filed elsewhere, such as under a highlight on a source page.
-      about: about.filter(row => row.block.page.id !== props.pageId).map(row => row.block),
-      aboutHolders: about.filter(row => row.block.page.id !== props.pageId).map(row => row.holder_id),
-    };
-  });
-  /** Holders of the perspectives filed under this page, here or elsewhere, each once, in page order. */
-  const holders = createMemo(() => {
-    const seen: string[] = [];
-    const add = (id: string | null | undefined) => { if (id && id !== props.pageId && !seen.includes(id)) seen.push(id); };
-    (doc.outline as OutlineIndex).each(0, doc.outline.size(), row => { const position = doc.block(row.id)?.position; if (position?.subject_id === props.pageId) add(position.holder_id); });
-    for (const id of related()?.aboutHolders ?? []) add(id);
-    return seen;
-  }, undefined, { equals: (a, b) => a.length === b.length && a.every((id, index) => id === b[index]) });
-  // The margin appears on titled pages with three or more perspectives; CSS shows it only when the pane is wide.
-  const apparatus = () => doc.root()?.kind === 'page' && !zoom() && localPositions() + (related()?.aboutHolders.length ?? 0) >= 3;
-  const linkedPages = createMemo(() => {
-    const seen: string[] = [];
-    for (const row of related()?.backlinks ?? []) if (row.page.id !== props.pageId && !holders().includes(row.page.id) && !seen.includes(row.page.id)) seen.push(row.page.id);
-    return seen.slice(0, 12);
-  });
   const breadcrumbs = createMemo(() => {
     doc.outline.version();
     const path: string[] = [];
@@ -1588,6 +575,116 @@ function Pane(props: OutlinePaneProps) {
     while (id && id !== props.pageId) { path.unshift(id); const parent = doc.outline.parentOf(id); if (parent === id) break; id = parent; }
     return path;
   });
+
+  // Factories share the pane's owner. Keep signals callable and late-mounted state behind getters;
+  // forwarding callbacks connect factories without reading another factory before it is initialized.
+  const context: OutlineContext = {
+    contextDate,
+    editing,
+    textRange,
+    composition,
+    caret,
+    get editor() { return editor; },
+    doc,
+    capabilities,
+    setCaret,
+    scheduleReport,
+    setMessage,
+    get disposed() { return disposed; },
+    rowAnchor,
+    editAt,
+    props,
+    replaceSelection,
+    fields,
+    definitionsById,
+    definitions,
+    activeRange,
+    fieldConversion,
+    get commandDefinitions() { return commandDefinitions; },
+    openPlanning: (id, kind) => openPlanning(id, kind),
+    priorityMenu: (id) => priorityMenu(id),
+    openProject: (id) => openProject(id),
+    investigationItems: (id) => investigationItems(id),
+    apply,
+    zoomTo,
+    copy: (text) => copy(text),
+    commitFieldEntry,
+    selected,
+    setMenu,
+    rename,
+    addGloss,
+    localPositions,
+    depthTitles,
+    depthReason,
+    setStop,
+    depth,
+    stepDepth,
+    get heading() { return heading; },
+    adjacent: (direction, extend) => adjacent(direction, extend),
+    horizontal: (direction) => horizontal(direction),
+    ids,
+    rowFocus,
+    split: (view) => split(view),
+    roots,
+    setRowRange,
+    fold,
+    zoom,
+    zoomOut,
+    anchored,
+    setShowArchived,
+    undo,
+    setConflicts,
+    indices,
+    setFolds,
+    setZoom,
+    selectedSet,
+    sourceResets,
+    get setCompletionIndex() { return setCompletionIndex; },
+    get setCompletion() { return setCompletion; },
+    rewriteEditing: (id, next) => rewriteEditing(id, next),
+    folds,
+    inlineFields,
+    setSelected,
+    deleteTextRange,
+    setTextRange,
+    afterReference: (event, view) => afterReference(event, view),
+    slashKey: (event) => slashKey(event),
+    dateKey: (event) => dateKey(event),
+    popupKey: (event) => popupKey(event),
+    leaderMenu: (id) => leaderMenu(id),
+    openTable: (beside) => openTable(beside),
+    rowRange,
+    statusMenu: (id) => statusMenu(id),
+    get scroll() { return scroll; },
+    clearSelection,
+    restoreSelection,
+    selectedIds,
+    get compositionSelection() { return !!compositionSelection; },
+    baseDepth,
+    positionSource,
+    sourceDetails,
+    virtualizer,
+    hosts,
+    coveredSet,
+    glossId,
+    margin,
+    sigla,
+    blockMenu: (id, anchor) => blockMenu(id, anchor),
+    pointerStart: (event, id, element) => pointerStart(event, id, element),
+    attach,
+    referenceMenu: (id, anchor) => referenceMenu(id, anchor),
+    selectedOffsets: (id) => selectedOffsets(id),
+    conflicts,
+    editedConflicts,
+    setEditedConflicts,
+  };
+  const { setCompletion, setCompletionIndex, offerValue, updateCompletion, updateTriggers, taskPrefix, rewriteEditing, afterReference, slashKey, dateKey, popupKey, CompletionPopups } = createOutlineCompletions(context);
+  const { openTable, investigationItems, commandDefinitions, unregister, blockMenu, statusMenu, priorityMenu, openPlanning, openProject, leaderMenu, referenceMenu, copy } = createOutlineCommands(context);
+  const { horizontal, adjacent, split, editorKey, structuralKey, resetRowKey } = createOutlineKeyboard(context);
+  const { selectedOffsets, pointerStart, pointerMove, pointerEnd, clipboard, paste, beforeInput } = createOutlineInteractions(context);
+  const { Row, TaskSummary, QuestionSummary } = createOutlineRows(context);
+  const { related, apparatus, holders, linkedPages, Related } = createOutlineRelated(context);
+  const { CapabilityPopups } = createCapabilityPopups(context);
 
   onMount(() => {
     const copy = (event: ClipboardEvent) => clipboard(event);
@@ -1712,167 +809,6 @@ function Pane(props: OutlinePaneProps) {
     cancelAnimationFrame(anchorFrame);
   });
 
-  function WorkPopup(propsWork: { state: CapabilityPopup }) {
-    const state = propsWork.state;
-    const load = async () => {
-      await doc.flush();
-      const [sessions, active] = await Promise.all([props.notebook.api.workSessions(state.id), props.notebook.api.activeWorkSession()]);
-      const source = active ? await props.notebook.api.block(active.block_id) : null;
-      return { sessions, active, source };
-    };
-    const [history, { refetch, mutate }] = createResource(() => props.notebook.changeSequence(), load);
-    const [shown, setShown] = createSignal<WorkHistory>();
-    createEffect(() => { if (!history.error) { const value = history(); if (value) setShown(value); } });
-    const another = () => shown()?.active && shown()!.active!.block_id !== state.id;
-    async function start() {
-      const startedAt = Date.now();
-      await capabilities.run(state.id, async () => {
-        const current = await load();
-        mutate(current);
-        if (current.active) throw new Error(current.active.block_id === state.id ? 'Work is already running on this task.' : 'Work is already running on another task.');
-        await capabilities.save({ kind: 'startWork', id: state.id, startedAt });
-        await refetch();
-      });
-    }
-    async function change(kind: 'stopWork' | 'workNote', sessionId: string, note: string) {
-      const session = shown()?.sessions.find(session => session.id === sessionId) ?? (shown()?.active?.id === sessionId ? shown()?.active : null);
-      if (!session || session.block_id !== state.id) throw new Error('The work session is no longer available.');
-      await capabilities.edit(state.id, kind === 'stopWork'
-        ? { kind, id: state.id, session, endedAt: Date.now(), note }
-        : { kind, id: state.id, session, note });
-      await refetch();
-    }
-    return <Popup anchor={state.anchor} label="Work sessions" class="outline-capability-popup" onDismiss={() => capabilities.dismiss(state)}>
-      <Show when={history.loading}><p class="outline-capability-notice" role="status">Loading work sessions…</p></Show>
-      <Show when={history.error}><p class="error" role="alert">{String(history.error)} <Button onClick={() => { void refetch(); }}>Retry</Button></p></Show>
-      <Show when={another() && shown()?.source}>{source => <div class="outline-running-task">
-        <span>Work is running on</span>
-        <BlockText text={source().text} notebook={props.notebook} onOpen={props.onOpen} />
-        <Button onClick={event => props.onOpen({ kind: 'page', pageId: source().page_id, blockId: source().id }, event.shiftKey)}>Open running task</Button>
-      </div>}</Show>
-      <Show when={shown()}>{value => <WorkSessions sessions={value().sessions} active={value().active?.block_id === state.id ? value().active : null}
-        disabled={history.loading || !!history.error || capabilities.busy(state.id)}
-        onStart={start} onStop={(id, note) => change('stopWork', id, note)} onEdit={(id, note) => change('workNote', id, note)} />}</Show>
-      <Show when={capabilities.error(state.id)}><p class="error" role="alert">{capabilities.error(state.id)}</p></Show>
-    </Popup>;
-  }
-
-  function TaskSummary(propsTask: { id: string }) {
-    return <Show when={doc.block(propsTask.id)?.task}>{task => <Button class="outline-planning" label="Plan task" disabled={capabilities.busy(propsTask.id)} aria-haspopup="dialog" onClick={event => capabilities.open(propsTask.id, 'task', event.currentTarget)}>
-      <Show when={task().scheduled}><span aria-label={`Scheduled: ${task().scheduled}${task().scheduled_time ? ` ${task().scheduled_time}` : ''}`}>Scheduled {task().scheduled} {task().scheduled_time}</span></Show>
-      <Show when={task().deadline}><span aria-label={`Deadline: ${task().deadline}${task().deadline_time ? ` ${task().deadline_time}` : ''}`}>Deadline {task().deadline} {task().deadline_time}</span></Show>
-      <Show when={task().priority}><span>Priority: {task().priority}</span></Show>
-      <Show when={task().repeater}>{repeat => <span aria-label={`Repeat: ${repeat().mode}, every ${repeat().every} ${repeat().unit}`}>Repeat {repeat().every} {repeat().unit}</span>}</Show>
-      <Show when={!task().scheduled && !task().deadline && !task().priority && !task().repeater}>Plan task</Show>
-    </Button>}</Show>;
-  }
-
-  /** A question's state as one control: its glyph, its state and any review date. Clicking opens the question menu. */
-  function QuestionSummary(propsQuestion: { id: string }) {
-    return <Show when={doc.block(propsQuestion.id)?.question}>{question => <Button class="outline-planning outline-question" data-question-status={question().status} label="Question" aria-haspopup="menu" disabled={capabilities.busy(propsQuestion.id)}
-      onClick={event => setMenu({ anchor: event.currentTarget, label: 'Question', items: investigationItems(propsQuestion.id) })}>
-      <Icon name={question().status === 'answered' ? 'question-settled' : 'question-open'} />{questionLabels[question().status]}
-      <Show when={question().state.review_on}>{date => <span>Review {date()}</span>}</Show>
-    </Button>}</Show>;
-  }
-
-  /** An answer's date, whether its question accepted it, and aporia when it records that no answer holds. */
-  function AnswerSummary(propsAnswer: { id: string }) {
-    return <Show when={doc.block(propsAnswer.id)?.assessment}>{answer => <Button class="outline-planning outline-answer" data-accepted={String(answer().accepted)} label="Answer" aria-haspopup="menu" disabled={capabilities.busy(propsAnswer.id)}
-      onClick={event => setMenu({ anchor: event.currentTarget, label: 'Answer', items: investigationItems(propsAnswer.id) })}>
-      {answer().accepted ? 'Accepted' : 'Answer'} {answer().state.assessed_on}<Show when={answer().state.aporia}><span>Aporia</span></Show>
-    </Button>}</Show>;
-  }
-
-  function Row(propsRow: { id: string; item: Accessor<VirtualItem> }) {
-    const id = () => propsRow.id;
-    const block = () => doc.block(id());
-    const children = () => doc.outline.children(id()).length > 0;
-    const field = createMemo(() => definitionsById().get(fieldEntryId(block()?.text ?? '') ?? ''));
-    const parent = () => doc.outline.parentOf(id());
-    const valueField = createMemo(() => definitionsById().get(fieldEntryId(doc.block(parent())?.text ?? '') ?? ''));
-    const inline = () => inlineFields().has(parent());
-    const depth = () => (inline() ? doc.outline.depth(parent()) : doc.outline.depth(id())) - baseDepth();
-    const pill = () => valueField()?.kind === 'choice' || valueField()?.kind === 'instance';
-    const rowSource = createMemo(() => block()?.citations[0]?.source_id ?? (block()?.position ? positionSource(id()) : null));
-    const gist = () => inline() && isGistName(valueField()?.name) && !!doc.block(doc.outline.parentOf(parent()))?.position;
-    const sourceField = createMemo(() => sourceDetails().fields.get(id()) ?? sourceDetails().fields.get(parent()));
-    const displayText = createMemo(() => {
-      const text = block()?.text ?? '';
-      const name = sourceField();
-      if (!name) return text;
-      if (sourceDetails().fields.has(parent())) return formatSourceValue(name, text);
-      const entry = matchFieldEntry(text);
-      return entry ? `${entry.name}:: ${formatSourceValue(name, entry.value)}` : text;
-    });
-    const cardText = createMemo(() => block()?.text ?? '');
-    const cards = createMemo(() => parseCardText(cardText()));
-    let row!: HTMLDivElement;
-    onMount(() => virtualizer.measureElement(row));
-    onCleanup(() => { const host = hosts.get(id()); if (host && row.contains(host)) hosts.delete(id()); });
-    return <div ref={row} id={`outline-${props.pane}-${id()}`} data-index={propsRow.item().index} data-block-id={id()} role="treeitem" aria-level={depth() + 1}
-      aria-expanded={children() ? !folds().has(id()) : undefined} aria-selected={selectedSet().has(id())}
-      class="outline-row" classList={{ 'row-position': !!block()?.position, 'row-gist': gist(), 'row-question': !!block()?.question, 'row-assessment': !!block()?.assessment, 'row-selected': selectedSet().has(id()) && editing() !== id(), 'row-covered': coveredSet().has(id()), 'row-editing': editing() === id(), 'row-archived': block()?.archived ?? false, 'field-entry': !!field(), 'inline-field-value': inline(), 'row-gloss': inline() && parent() === glossId(), 'choice-value': pill(), 'source-detail': !!sourceField(), 'source-highlights-start': sourceDetails().firstHighlight === id(), 'outline-row-linked': block()?.citations.some(citation => citation.id === linkedCitation()) ?? false }}
-      data-holder={block()?.position?.holder_id ?? undefined}
-      data-question-status={block()?.question?.status} data-accepted={block()?.assessment ? String(block()!.assessment!.accepted) : undefined} data-aporia={block()?.assessment?.state.aporia ? 'true' : undefined}
-      onPointerEnter={() => setLinkedCitation(block()?.citations[0]?.id ?? null)} onPointerLeave={() => setLinkedCitation(null)}
-      style={{ transform: `translateY(${propsRow.item().start - margin()}px)`, '--depth': depth() }}>
-      <Show when={sourceDetails().firstHighlight === id()}><div class="outline-highlights-label">Highlights <span>{sourceDetails().highlightCount}</span></div></Show>
-      <Show when={rowSource() && sigla().get(rowSource()!)}>{mark => <span class="row-siglum" title={props.notebook.lookup(rowSource()!)()?.text}>{mark()}</span>}</Show>
-      <button type="button" class="row-menu icon-button" aria-label="Block actions" onClick={event => blockMenu(id(), event.currentTarget)}><Icon name="more" /></button>
-      <button type="button" class="row-fold icon-button" classList={{ 'fold-empty': !children(), folded: folds().has(id()) }} aria-label={folds().has(id()) ? 'Unfold children' : 'Fold children'} disabled={!children()} onClick={() => fold(id())}><Icon name="down" /></button>
-      <Show when={!inline()}><button type="button" class="row-bullet icon-button" classList={{ 'bullet-collapsed': children() && folds().has(id()) }} aria-label="Zoom into block" onClick={() => zoomTo(id())}><Icon name="bullet" /></button></Show>
-      <Show when={inline()}><button type="button" class="outline-field-label" title={valueField()?.name} onClick={() => editAt(id(), block()?.text.length ?? 0, true)}><Icon name="field" /><span>{valueField()?.name}</span></button></Show>
-      <Show when={block()?.task}><TaskStatusButton task={block()?.task ?? null} disabled={capabilities.busy(id())} onChange={status => capabilities.status(id(), status)} /></Show>
-      <div class="outline-body" classList={{ 'heading-1': block()?.heading === 1, 'heading-2': block()?.heading === 2, 'heading-3': block()?.heading === 3 }} onMouseDown={event => pointerStart(event, id(), event.currentTarget)}>
-        <div class="outline-source-line"><div class="outline-source">
-        <div class="editor-host" classList={{ 'host-active': editing() === id() }} ref={host => attach(id(), host)} />
-        <Show when={editing() !== id()}><div class="static-text"><span classList={{ 'outline-value-pill': pill() }}><BlockText text={displayText()} cards field={field()} notebook={props.notebook} onOpen={props.onOpen} onReferenceMenu={referenceMenu} selection={selectedOffsets(id())} /></span><Show when={!block()?.text && (ids().length === 1 || (inline() && parent() === glossId()))}><span class="empty-block">{inline() && parent() === glossId() ? 'One or two sentences on what this is' : 'Start writing'}</span></Show></div></Show>
-        <For each={block()?.manual_types ?? []}>{title => <TypePill title={title} notebook={props.notebook} onOpen={props.onOpen} onRemove={() => { const result = doc.removeType(id(), title); if (!result.ok) setMessage(result.reason); }} />}</For>
-        </div>
-        <Show when={block()?.task || block()?.project || block()?.question || block()?.assessment || cards().cards.length || block()?.citations.length}><span class="outline-capability-metadata">
-          <TaskSummary id={id()} />
-          <Show when={block()?.project}><Button class="outline-planning" label="Project" aria-haspopup="dialog" onClick={event => capabilities.open(id(), 'project', event.currentTarget)}>Project</Button></Show>
-          <QuestionSummary id={id()} />
-          <AnswerSummary id={id()} />
-          <Show when={cards().cards.length}><CardSummary blockId={id()} cards={cards().cards} notebook={props.notebook} onOpen={props.onOpen} /></Show>
-          <For each={block()?.citations}>{citation => <CitationChip citation={citation} pageId={props.pageId} notebook={props.notebook} onOpen={props.onOpen} />}</For>
-        </span></Show>
-        </div>
-        <For each={block()?.citations}>{citation => <Show when={block()?.text.trim() !== citation.quote.trim()}>
-          <p class="outline-citation-quote" title={citation.quote}>{citation.quote}</p>
-        </Show>}</For>
-        <For each={cards().problems}>{problem => <p class="outline-card-problem" role="alert">{problem.message}</p>}</For>
-        <Show when={capabilities.error(id())}><p class="outline-capability-error" role="alert">{capabilities.error(id())}</p></Show>
-        <Show when={block()?.archived}><span class="archive-badge">Archived</span> <button class="text-button" type="button" onClick={() => apply({ kind: 'archive', id: id(), archived: false }, false)}>Unarchive</button></Show>
-        <Show when={block()?.conflict}><button type="button" class="conflict-label" onClick={() => setConflicts(previous => { const next = new Set(previous); next.has(id()) ? next.delete(id()) : next.add(id()); return next; })}><Icon name="warning" />Conflict</button></Show>
-        <Show when={block()?.conflict && conflicts().has(id())}><div class="conflict-panel">
-          <strong>Your version</strong><pre>{block()?.text}</pre><strong>Notebook version</strong><pre>{block()?.conflict?.remoteText}</pre>
-          <div class="conflict-actions"><button type="button" onClick={() => doc.resolveConflict(id(), 'mine')}>Use yours</button><button type="button" onClick={() => doc.resolveConflict(id(), 'theirs')}>Use notebook</button>
-            <Show when={!editedConflicts().has(id())} fallback={<button type="button" onClick={() => doc.resolveConflict(id(), 'mine')}>Use edited text</button>}><button type="button" onClick={() => { setEditedConflicts(previous => new Set([...previous, id()])); editAt(id(), 0, true); }}>Edit merged text</button></Show></div>
-        </div></Show>
-      </div>
-    </div>;
-  }
-
-  function Related(propsRelated: { title: string; rows: { block: Block; page: Block }[] }) {
-    return <details class="related-section" onToggle={event => setRelatedOpen(previous => {
-      const next = new Set(previous);
-      event.currentTarget.open ? next.add(propsRelated.title) : next.delete(propsRelated.title);
-      return next;
-    })}><summary>{propsRelated.title} <span>{related.error ? 'Unavailable' : related.loading && !related() ? 'Loading…' : propsRelated.rows.length}</span></summary>
-      <Show when={!related.error} fallback={<p role="alert">Couldn't load related blocks.</p>}>
-      <For each={propsRelated.rows}>{result => {
-        const live = props.notebook.lookup(result.block.id);
-        return <div class="related-block"><div class="related-open" role="link" tabIndex={0} onKeyDown={event => { if (event.key === 'Enter') props.onOpen({ kind: 'page', pageId: result.page.id, blockId: result.block.id }, event.shiftKey); }} onClick={event => props.onOpen({ kind: 'page', pageId: result.page.id, blockId: result.block.id }, event.shiftKey)}>
-          <span class="related-breadcrumb"><BlockBreadcrumb block={result.block} notebook={props.notebook} /></span>
-          <BlockText text={live()?.text ?? result.block.text} notebook={props.notebook} onOpen={props.onOpen} />
-        </div><button type="button" class="text-button" onClick={() => props.onOpen({ kind: 'page', pageId: result.page.id, blockId: result.block.id }, true)}>Open beside</button></div>;
-      }}</For>
-      </Show>
-    </details>;
-  }
-
   return <div ref={scroll} class="outline-pane" classList={{ 'has-apparatus': apparatus(), 'has-sigla': sigla().size > 0 }} data-pane={props.pane} tabIndex={0} role="tree" aria-label="Page outline" aria-owns={[...virtualItems().keys()].map(id => `outline-${props.pane}-${id}`).join(' ')} onFocusIn={props.onActivate} onFocusOut={report} onKeyDown={structuralKey} onWheel={() => { anchorEpoch++; cancelAnimationFrame(anchorFrame); }} onScroll={scrolled}>
     <Show when={apparatus()}><Apparatus notebook={props.notebook} holders={holders()} linked={linkedPages()} sources={citedSources().flatMap(id => sigla().has(id) ? [{ id, siglum: sigla().get(id)! }] : [])} onOpen={props.onOpen} /></Show>
     <div ref={heading} class="outline-heading">
@@ -1919,79 +855,7 @@ function Pane(props: OutlinePaneProps) {
       <Show when={related.error || related()?.tagged.length}><Related title="Tagged blocks" rows={related.error ? [] : related()?.tagged ?? []} /></Show>
     </div></Show>
     <Show keyed when={menu()}>{state => <Menu anchor={state.anchor} label={state.label} items={state.items} onDismiss={() => setMenu(null)} />}</Show>
-    <Show keyed when={capabilities.popup()}>{state => <>
-      {state.kind === 'task' && <Popup anchor={state.anchor} label="Task" class="outline-capability-popup task-planning-slip" fitContent onDismiss={() => capabilities.dismiss(state)}>
-        <header class="task-planning-header">
-          <p class="task-planning-kicker">Planning</p>
-          <h2 class="popup-title task-planning-title"><BlockText text={doc.block(state.id)?.text ?? ''} notebook={props.notebook} interactive={false} /></h2>
-        </header>
-        <Show when={doc.block(state.id)?.task} fallback={<p class="outline-capability-notice">Task removed.</p>}>{task => <TaskControls notebook={props.notebook} task={task()} contextDate={contextDate()} disabled={capabilities.busy(state.id)} onChange={value => capabilities.edit(state.id, { kind: 'task', id: state.id, value })} />}</Show>
-        <Show when={capabilities.busy(state.id)}><p class="outline-capability-notice" role="status">Saving…</p></Show>
-        <Show when={capabilities.error(state.id)}><p class="error" role="alert">{capabilities.error(state.id)}</p></Show>
-      </Popup>}
-      {state.kind === 'review-date' && <Show when={doc.block(state.id)?.question}>{question => <DatePicker notebook={props.notebook} anchor={state.anchor} label="Set review date" value={question().state.review_on} contextDate={props.notebook.todayDate()} onDismiss={() => capabilities.dismiss(state)}
-        onSelect={value => capabilities.edit(state.id, { kind: 'question', id: state.id, value: { ...question().state, review_on: value.date } })} />}</Show>}
-      {state.kind === 'schedule' && <Show when={doc.block(state.id)?.task}>{task => <DatePicker notebook={props.notebook} anchor={state.anchor} label="Schedule task" value={task().scheduled} time={task().scheduled_time} contextDate={contextDate()} marks={task().deadline ? { [task().deadline!]: 'Deadline' } : undefined} onDismiss={() => capabilities.dismiss(state)}
-        onSelect={value => capabilities.edit(state.id, { kind: 'task', id: state.id, value: { ...task(), scheduled: value.date, scheduled_time: value.date ? value.time : null } })} />}</Show>}
-      {state.kind === 'deadline' && <Show when={doc.block(state.id)?.task}>{task => <DatePicker notebook={props.notebook} anchor={state.anchor} label="Deadline" value={task().deadline} time={task().deadline_time} contextDate={contextDate()} marks={task().scheduled ? { [task().scheduled!]: 'Scheduled' } : undefined} onDismiss={() => capabilities.dismiss(state)}
-        onSelect={value => capabilities.edit(state.id, { kind: 'task', id: state.id, value: { ...task(), deadline: value.date, deadline_time: value.date ? value.time : null, warning_days: value.date ? task().warning_days : null } })} />}</Show>}
-      {state.kind === 'repeat' && <Show when={doc.block(state.id)?.task}>{task => <RepeatPopup anchor={state.anchor} value={task().repeater} disabled={capabilities.busy(state.id)} onDismiss={() => capabilities.dismiss(state)}
-        onSave={repeater => capabilities.edit(state.id, { kind: 'task', id: state.id, value: { ...task(), repeater } })} />}</Show>}
-      {state.kind === 'project' && <Popup anchor={state.anchor} label="Project" class="outline-capability-popup" onDismiss={() => capabilities.dismiss(state)}>
-        <ProjectControls notebook={props.notebook} project={doc.block(state.id)?.project ?? null} contextDate={contextDate()} disabled={capabilities.busy(state.id)} onChange={value => capabilities.edit(state.id, { kind: 'project', id: state.id, value })} />
-        <Show when={doc.block(state.id)?.project}><Button onClick={event => capabilities.showActions(state.id, event.shiftKey)}>Show actions</Button></Show>
-        <Show when={capabilities.busy(state.id)}><p class="outline-capability-notice" role="status">Saving…</p></Show>
-        <Show when={capabilities.error(state.id)}><p class="error" role="alert">{capabilities.error(state.id)}</p></Show>
-      </Popup>}
-      {state.kind === 'work' && <WorkPopup state={state} />}
-      {state.kind === 'complete' && <Popup anchor={state.anchor} label="Stop work and complete?" class="outline-capability-popup" onDismiss={() => capabilities.dismiss(state)}>
-        <p>Stop work and complete?</p>
-        <div class="outline-capability-actions"><Button class="bordered" disabled={capabilities.busy(state.id)} onClick={() => capabilities.invoke(capabilities.complete(state))}>Stop and complete</Button><Button onClick={() => capabilities.dismiss(state)}>Cancel</Button></div>
-        <Show when={capabilities.busy(state.id)}><p class="outline-capability-notice" role="status">Saving…</p></Show>
-        <Show when={capabilities.error(state.id)}><p class="error" role="alert">{capabilities.error(state.id)}</p></Show>
-      </Popup>}
-    </>}</Show>
-    <Show when={completion()}><Popup anchor={completionAnchor} width={480} class="picker" label={completion()?.manual ? 'Add type…' : completion()?.types ? 'Type' : completion()?.fields ? 'Field' : completion()?.choice ? `${completion()!.choice!.name} options` : completion()?.blocks ? 'Block reference' : 'Reference completion'} role={completion()?.manual ? 'dialog' : 'listbox'} onDismiss={dismissCompletion} autofocus={!!completion()?.manual}>
-      <Show when={completion()?.manual}><div class="picker-query"><Icon name="tag" class="picker-prefix" /><input class="picker-input" aria-label="Type title" placeholder="Type title" value={completion()?.query ?? ''} onInput={event => { setCompletion(state => state ? { ...state, query: event.currentTarget.value } : null); setCompletionIndex(0); }} onKeyDown={event => { if (!event.isComposing && popupKey(event)) { event.preventDefault(); event.stopPropagation(); } }} /></div></Show>
-      <div ref={completionList} class="picker-list" onMouseDown={event => event.preventDefault()}>
-        <Show when={completionKey() && matches.loading && !completionRows().length && !canCreate()}><p class="empty-state">Searching…</p></Show>
-        <Show when={completionKey() && matches.error}><p class="error" role="alert">Couldn't load completion.</p></Show>
-        <For each={completionRows()}>{(row, index) => <div role="option" aria-selected={completionIndex() === index()} class="picker-row" classList={{ selected: completionIndex() === index() }} onClick={() => void chooseCompletion(index())}>
-          <Show when={row.kind === 'block' ? row.block : null}>{block => <><Icon name={block().kind === 'journal' ? 'calendar' : block().kind === 'page' ? 'page' : 'bullet'} /><span class="picker-text">{block().text ? <BlockText text={block().text} notebook={props.notebook} interactive={false} /> : 'Empty block'}</span><Show when={block().kind === 'block'}><span class="picker-meta"><BlockBreadcrumb block={block()} notebook={props.notebook} /></span></Show></>}</Show>
-          <Show when={row.kind === 'field' ? row.field : null}>{field => <><Icon name="field" /><span class="picker-text">{field().name}</span><span class="picker-meta">{completion()?.fields ? kindLabels[field().kind] : 'Field'}</span></>}</Show>
-          <Show when={row.kind === 'option' ? row.option : null}>{option => <><Icon name="bullet" /><span class="picker-text">{option().text}</span></>}</Show>
-        </div>}</For>
-        <Show when={canCreate()}><div role="option" aria-selected={completionIndex() === completionRows().length} class="picker-row" classList={{ selected: completionIndex() === completionRows().length }} onClick={() => void chooseCompletion(completionRows().length)}><Icon name="plus" /><span class="picker-text">{completion()?.fields ? 'Create field' : completion()?.choice ? 'Add option' : completion()?.types ? 'Create type' : 'Create page'} “{completion()?.query.trim()}”</span></div></Show>
-        <Show when={!(completionKey() && (matches.loading || matches.error)) && !canCreate() && !completionRows().length}><p class="empty-state">{
-          completion()?.fields ? 'Type a field name.' : completion()?.choice ? 'Type an option to add it.' : completion()?.blocks && !completion()?.query.trim() ? 'Type to search blocks.' : 'No matching blocks.'
-        }</p></Show>
-      </div>
-    </Popup></Show>
-    <Show keyed when={valueDate()}>{state => <DatePicker notebook={props.notebook} anchor={state.anchor} label="Date" value={null} contextDate={contextDate()}
-      onDismiss={() => { setValueDate(null); if (editing() === state.id) editAt(state.id, doc.block(state.id)?.text.length ?? 0, true); }} onSelect={value => chooseValueDate(state.id, value.date)} />}</Show>
-    <Show when={dateCompletion()}><Popup anchor={() => caretRect(dateCompletion()?.from ?? 0)} width={320} class="picker" label={dateCompletion()?.field === 'deadline' ? 'Deadline' : 'Scheduled'} role="listbox" onDismiss={dismissDate}>
-      <div class="picker-list" onMouseDown={event => event.preventDefault()}>
-        <div class="picker-row" role="presentation"><span class="picker-text">{dateCompletion()?.field === 'deadline' ? 'Deadline' : 'Scheduled'}</span><span class="picker-meta"><kbd>Tab</kbd></span></div>
-        <For each={dateRows()}>{(row, index) => <div role="option" aria-selected={dateIndex() === index()} class="picker-row" classList={{ selected: dateIndex() === index() }} onClick={() => chooseDate(index())}>
-          <Icon name={dateCompletion()?.field === 'deadline' ? 'warning' : 'calendar'} /><span class="picker-text">{row.label}</span><span class="picker-meta">{row.date}</span>
-        </div>}</For>
-        <Show when={!dateRows().length}><p class="empty-state">No matching date</p></Show>
-        <div role="option" aria-selected={dateIndex() === dateRows().length} class="picker-row" classList={{ selected: dateIndex() === dateRows().length }} onClick={() => chooseDate(dateRows().length)}>
-          <Icon name="more" /><span class="picker-text">Pick a date…</span>
-        </div>
-      </div>
-    </Popup></Show>
-    <Show when={slashCompletion()}><Popup anchor={() => caretRect(slashCompletion()?.from ?? 0)} width={320} class="picker" label="Commands" role="listbox" onDismiss={dismissSlash}>
-      <div ref={slashList} class="picker-list" onMouseDown={event => event.preventDefault()}>
-        <For each={slashRows()}>{(row, index) => <>
-          <Show when={index() === 0 || slashRows()[index() - 1]!.section !== row.section}><div class="picker-section">{row.section}</div></Show>
-          <div role="option" aria-selected={slashIndex() === index()} aria-disabled={!!row.disabledReason?.(slashCompletion()!.id)} title={row.disabledReason?.(slashCompletion()!.id)} class="picker-row" classList={{ selected: slashIndex() === index() }} onClick={() => chooseSlash(index())}>
-            <Icon name={row.icon} /><span class="picker-text">{row.title}</span><Show when={row.keys}><span class="picker-meta"><kbd>{row.keys}</kbd></span></Show>
-            <Show when={row.disabledReason?.(slashCompletion()!.id)}>{reason => <span class="picker-meta">{reason()}</span>}</Show>
-          </div>
-        </>}</For>
-        <Show when={!slashRows().length}><p class="empty-state">No matching command. Escape keeps the text.</p></Show>
-      </div>
-    </Popup></Show>
+    <CapabilityPopups />
+    <CompletionPopups />
   </div>;
 }
