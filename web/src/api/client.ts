@@ -1,5 +1,6 @@
 import { DEMO } from '../demo/mode';
 import type {
+  Actor,
   Agenda,
   Backlink,
   BackupInfo,
@@ -50,6 +51,22 @@ import type {
 } from './types';
 
 export type ExportFormat = 'bibtex' | 'csl' | 'markdown';
+
+export interface AgentChange {
+  seq: number;
+  actor: Actor;
+  reason: string | null;
+  created_at: number;
+  summary: string;
+  page: Block | null;
+  undone_by: number | null;
+}
+
+export interface UndoReceipt {
+  undone: number;
+  kept_pages: Block[];
+  committed: Committed;
+}
 
 export type Transport = (url: string, init: RequestInit) => Promise<Response>;
 let transport: Transport = (url, init) => fetch(url, init);
@@ -134,6 +151,8 @@ export interface ApiClient {
   service(signal?: AbortSignal): Promise<ServiceInfo>;
   backups(signal?: AbortSignal): Promise<BackupInfo[]>;
   createBackup(signal?: AbortSignal): Promise<CreatedBackup>;
+  agentChanges(limit?: number, signal?: AbortSignal): Promise<AgentChange[]>;
+  undoAgentChange(seq: number, signal?: AbortSignal): Promise<UndoReceipt>;
   settings(signal?: AbortSignal): Promise<SettingsView>;
   roots(signal?: AbortSignal): Promise<Block[]>;
   page(id: string, signal?: AbortSignal): Promise<PageView>;
@@ -211,6 +230,8 @@ export function createApi(base = ''): ApiClient {
       createBackup: (signal?: AbortSignal) => request<CreatedBackup>(base, 'POST', '/backups', undefined, signal),
       queueUrl: (url: string, targetSource?: string, signal?: AbortSignal) => request<IngestJob>(base, 'POST', '/library/jobs', { url, target_source: targetSource ?? null }, signal),
     } : {}),
+    agentChanges: (limit = 50, signal?: AbortSignal) => get<AgentChange[]>(`/agent-changes${query({ limit })}`, signal),
+    undoAgentChange: (seq: number, signal?: AbortSignal) => request<UndoReceipt>(base, 'POST', `/agent-changes/${seq}/undo`, { actor: { kind: 'person' } }, signal),
     settings: (signal?: AbortSignal) => get<SettingsView>('/settings', signal),
     roots: (signal?: AbortSignal) => get<Block[]>('/roots', signal),
     page: (id: string, signal?: AbortSignal) => get<PageView>(`/pages/${segment(id)}`, signal),

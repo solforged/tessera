@@ -20,6 +20,16 @@ const GAP: i64 = 1024;
 impl Notebook {
     /// Commit a revision-checked batch atomically, including derived indexes.
     pub fn apply(&mut self, batch: &Batch) -> Result<Committed> {
+        self.apply_with(batch, |_, _| Ok(()))
+    }
+
+    /// [`Notebook::apply`], running `record` in the same transaction just
+    /// before commit. A replayed batch does not run it.
+    pub(crate) fn apply_with(
+        &mut self,
+        batch: &Batch,
+        record: impl FnOnce(&Transaction, &Committed) -> Result<()>,
+    ) -> Result<Committed> {
         let operations = serde_json::to_string(&batch.operations).expect("operations serialize");
         let hash = Sha256::digest(operations.as_bytes()).iter().fold(
             String::with_capacity(64),
@@ -151,6 +161,7 @@ impl Notebook {
                 serde_json::to_string(&views).expect("view IDs serialize")
             ],
         )?;
+        record(&tx, &committed)?;
         tx.commit()?;
         Ok(committed)
     }

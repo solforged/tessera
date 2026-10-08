@@ -126,9 +126,21 @@ claude mcp add tessera -- tessera mcp
 
 Other clients take the same command in their JSON configuration: `{"command": "tessera", "args": ["mcp"]}`, adding `--notebook /path` before `mcp` for a non-default notebook.
 
-It offers four tools. `tessera_search` finds blocks by text, `tessera_list_pages` lists page titles and `tessera_read_page` returns a page or journal day as an indented Markdown outline with block IDs. `tessera_add_note` appends a Markdown outline to the end of a page, a journal day or a block, creating a missing page or day; without a target it writes to today's journal. List items nest by indentation and headings contain what follows them. `[[Title]]` links the page with that title and creates it when missing, as typing it in the editor does. Each note is one batch attributed to the agent by its MCP client name, and open windows show it at once.
+Three tools read: `tessera_search` finds blocks by text, `tessera_list_pages` lists page titles and `tessera_read_page` returns a page or journal day as an indented Markdown outline, marking tasks and giving each block's ID and revision. Five tools write:
 
-Agents without MCP can post the same note to `POST /api/notes` on the service port, with a body like `{"actor": {"kind": "agent", "name": "my-agent"}, "target": {"kind": "page", "title": "Inbox"}, "blocks": [{"text": "A thought", "children": []}]}`. The target kind can also be `journal` with an optional `date`, or `block` with an `id`.
+| Tool | Change |
+|---|---|
+| `tessera_add_note` | Appends a Markdown outline to the end of a page, a journal day or a block, creating a missing page or day; without a target it writes to today's journal. List items nest by indentation, headings contain what follows them, and `- [ ]` or `- [x]` items become tasks. |
+| `tessera_edit_block` | Replaces a block's text or heading level; editing a page's root renames the page. |
+| `tessera_move_block` | Moves a block and its children after a sibling, or first or last under a parent. |
+| `tessera_delete_block` | Deletes a block and its children, or a page. |
+| `tessera_set_task` | Makes a block a task or changes its status, scheduled date, deadline or priority; done records a completion. |
+
+In written text, `[[Title]]` links the page with that title and creates it when missing, as typing it in the editor does. A write given a block's revision is refused if the block changed since it was read.
+
+Each write is one change attributed to the agent by its MCP client name, and open windows show it at once. `tessera_recent_changes` lists agent changes and `tessera_undo` reverses one; Settings › Agent changes lists them too, with an Undo button. Undo refuses rather than overwrite a later edit by anyone else, so undo several changes newest first. A page the change created stays while other blocks link to it or live on it.
+
+Agents without MCP use the same endpoints: `POST /api/agent-changes` with a body like `{"actor": {"kind": "agent", "name": "my-agent"}, "kind": "add_note", "target": {"kind": "page", "title": "Inbox"}, "blocks": [{"text": "A thought", "children": []}]}`, `GET /api/agent-changes` to list and `POST /api/agent-changes/{seq}/undo` with `{"actor": …}` to undo. The other kinds are `edit_block`, `move_block`, `delete_block` and `set_task`; `crates/tessera-core/src/agent.rs` defines their fields.
 
 ## Development
 
