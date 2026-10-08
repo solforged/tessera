@@ -12,49 +12,9 @@ permissions:
   contents: write
 
 jobs:
-  linux:
-    name: release (x86_64-unknown-linux-gnu)
-    runs-on: ubuntu-latest
-    env:
-      TARGET: x86_64-unknown-linux-gnu
-      TAG: ${{ github.ref_name }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Check the tag matches the version
-        run: test "$TAG" = "v$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml)"
-
-      - name: Install Rust
-        run: rustup show active-toolchain || rustup toolchain install
-
-      - name: Install Bun
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
-
-      - name: Install dependencies
-        run: bun install --cwd web --frozen-lockfile
-
-      - name: Build web
-        run: bun run --cwd web build
-
-      - name: Build release
-        run: TESSERA_BUILD="$(git rev-parse --short HEAD)" cargo build --release --locked -p tessera-cli --features embed-web --target "$TARGET"
-
-      - name: Package binary
-        run: tar -czf "tessera-${TAG}-${TARGET}.tar.gz" -C "target/${TARGET}/release" tessera
-
-      - name: Upload release
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
-        with:
-          files: tessera-${{ github.ref_name }}-x86_64-unknown-linux-gnu.tar.gz
-          fail_on_unmatched_files: true
-
   macos:
     name: release (macOS app)
-    # After the Linux job, so the two uploads never race to create the release.
-    needs: linux
+    # Creates the release, so it is never the latest one without latest.json.
     runs-on: macos-latest
     env:
       TAG: ${{ github.ref_name }}
@@ -64,6 +24,9 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - name: Check the tag matches the version
+        run: test "$TAG" = "v$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml)"
 
       - name: Install Rust
         run: rustup show active-toolchain || rustup toolchain install
@@ -103,3 +66,41 @@ jobs:
         with:
           files: dist/*
           fail_on_unmatched_files: true
+
+  linux:
+    name: release (x86_64-unknown-linux-gnu)
+    needs: macos
+    runs-on: ubuntu-latest
+    env:
+      TARGET: x86_64-unknown-linux-gnu
+      TAG: ${{ github.ref_name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Rust
+        run: rustup show active-toolchain || rustup toolchain install
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+
+      - name: Install dependencies
+        run: bun install --cwd web --frozen-lockfile
+
+      - name: Build web
+        run: bun run --cwd web build
+
+      - name: Build release
+        run: TESSERA_BUILD="$(git rev-parse --short HEAD)" cargo build --release --locked -p tessera-cli --features embed-web --target "$TARGET"
+
+      - name: Package binary
+        run: tar -czf "tessera-${TAG}-${TARGET}.tar.gz" -C "target/${TARGET}/release" tessera
+
+      - name: Upload release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          files: tessera-${{ github.ref_name }}-x86_64-unknown-linux-gnu.tar.gz
+          fail_on_unmatched_files: true
+
