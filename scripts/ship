@@ -48,9 +48,14 @@ if [ -n "$previous" ] && [ -x "$previous" ]; then
 fi
 
 running=false
-if pgrep -qf "$app/Contents/MacOS/tessera-desktop"; then
+window="$app/Contents/MacOS/tessera-desktop"
+if pgrep -qf "$window"; then
   running=true
-  osascript -e 'quit app id "dev.tessera.app"'
+  osascript -e "quit app \"$app\""
+  for _ in $(seq 50); do
+    pgrep -qf "$window" || break
+    sleep 0.2
+  done
 fi
 rm -rf "$app.next" "$app.prev"
 ditto "$src/target/release/bundle/macos/Tessera.app" "$app.next"
