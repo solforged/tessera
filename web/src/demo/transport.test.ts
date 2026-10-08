@@ -43,10 +43,10 @@ describe('browser demo transport', () => {
     expect(response).toBeInstanceOf(Response);
     expect(response.headers.get('content-type')).toBe('application/json');
     expect(await response.json()).toEqual([]);
-    const second = transport.fetch('https://tessera.solforged.io/api/batches', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"operations":[]}' });
+    const second = transport.fetch('https://tessera.solforged.io/api/batches', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Filename': 'book.epub' }, body: '{"operations":[]}' });
     await worker.until(2);
     const post = worker.messages[1]!;
-    expect(post).toMatchObject({ type: 'request', method: 'POST', path: '/api/batches', contentType: 'application/json' });
+    expect(post).toMatchObject({ type: 'request', method: 'POST', path: '/api/batches', headers: [['content-type', 'application/json'], ['x-filename', 'book.epub']] });
     if (post.type !== 'request') throw new Error('Missing request');
     expect(new TextDecoder().decode(post.body!)).toBe('{"operations":[]}');
     expect(worker.transfers[1]).toEqual([post.body!]);

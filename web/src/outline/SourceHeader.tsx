@@ -8,6 +8,8 @@ import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
 import type { MenuItem } from '../ui/Menu';
+import { downloadBlob } from '../ui/download';
+import { ResourceImage } from '../library/ResourceImage';
 import { formatProgress } from '../library/query';
 import { shortSourceTitle } from './source';
 import '../library/library.css';
@@ -49,19 +51,19 @@ export function SourceHeader(props: {
       },
     })) });
   }
-  function exportSource(format: ExportFormat) {
-    const link = document.createElement('a');
-    link.href = api.exportUrl(format, [props.doc.pageId]);
-    link.download = `${props.doc.root()?.source?.citation_key ?? props.doc.pageId}.${exportExtensions[format]}`;
-    link.click();
+  async function exportSource(format: ExportFormat) {
+    try {
+      const blob = await api.exportSources(format, [props.doc.pageId]);
+      downloadBlob(blob, `${props.doc.root()?.source?.citation_key ?? props.doc.pageId}.${exportExtensions[format]}`);
+    } catch (error) { fail(error); }
   }
   function sourceMenu(anchor: HTMLElement) {
     setMenu({ anchor, label: 'Source actions', items: [
       ...props.resetItems(),
       { label: 'Copy citation key', icon: 'copy', disabledReason: props.doc.root()?.source?.citation_key ? undefined : 'No citation key', action: () => { void navigator.clipboard.writeText(props.doc.root()!.source!.citation_key!).catch(fail); } },
-      { label: 'Export BibTeX', icon: 'download', action: () => exportSource('bibtex') },
-      { label: 'Export CSL JSON', icon: 'download', action: () => exportSource('csl') },
-      { label: 'Export Markdown', icon: 'download', action: () => exportSource('markdown') },
+      { label: 'Export BibTeX', icon: 'download', action: () => { void exportSource('bibtex'); } },
+      { label: 'Export CSL JSON', icon: 'download', action: () => { void exportSource('csl'); } },
+      { label: 'Export Markdown', icon: 'download', action: () => { void exportSource('markdown'); } },
       { label: 'Snapshots', icon: 'history', disabledReason: source.error ? String(source.error) : !source()?.snapshots.length ? 'No snapshots' : undefined,
         action: () => setMenu({ anchor, label: 'Snapshots', items: (source()?.snapshots ?? []).map(snapshot => ({
           label: `${new Date(snapshot.attached_at).toLocaleDateString()} · ${snapshot.passage_count} ${snapshot.passage_count === 1 ? 'passage' : 'passages'}`,
@@ -72,7 +74,7 @@ export function SourceHeader(props: {
   return <>
     <div class="outline-source-header">
       <Show when={snapshot()?.metadata.cover}>{cover => <Button class="outline-source-cover" label="Read" onClick={event => props.onOpen({ kind: 'reader', sourceId: props.doc.pageId }, event.shiftKey)}>
-        <img src={api.resourceUrl(snapshot()!.id, cover())} loading="lazy" alt="" />
+        <ResourceImage snapshotId={snapshot()!.id} href={cover()} loading="lazy" alt="" />
       </Button>}</Show>
       <div class="outline-source-info">
         <div class="outline-source-summary">
