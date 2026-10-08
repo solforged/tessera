@@ -116,6 +116,20 @@ tessera --notebook /path/to/restored-notebook restore /path/to/new-backup
 
 Backup can run while the service is running. Its destination must be empty. It contains an online SQLite snapshot (`notebook.db`), immutable `objects/` files and `manifest.json` with the notebook ID, schema version, backup timestamp, object count and database page count. Restore preserves notebook identity and checks migrations. Stop the destination service first. Restore refuses a non-empty destination unless `--force` is passed; that flag never bypasses a live service lock.
 
+### Agents
+
+`tessera mcp` is a Model Context Protocol server on stdin and stdout. It talks to the running service, so start the service first (`tessera install` or `tessera serve`). Register it with an MCP client, for example Claude Code:
+
+```sh
+claude mcp add tessera -- tessera mcp
+```
+
+Other clients take the same command in their JSON configuration: `{"command": "tessera", "args": ["mcp"]}`, adding `--notebook /path` before `mcp` for a non-default notebook.
+
+It offers four tools. `tessera_search` finds blocks by text, `tessera_list_pages` lists page titles and `tessera_read_page` returns a page or journal day as an indented Markdown outline with block IDs. `tessera_add_note` appends a Markdown outline to the end of a page, a journal day or a block, creating a missing page or day; without a target it writes to today's journal. List items nest by indentation and headings contain what follows them. `[[Title]]` links the page with that title and creates it when missing, as typing it in the editor does. Each note is one batch attributed to the agent by its MCP client name, and open windows show it at once.
+
+Agents without MCP can post the same note to `POST /api/notes` on the service port, with a body like `{"actor": {"kind": "agent", "name": "my-agent"}, "target": {"kind": "page", "title": "Inbox"}, "blocks": [{"text": "A thought", "children": []}]}`. The target kind can also be `journal` with an optional `date`, or `block` with an `id`.
+
 ## Development
 
 Requires Rust (stable) and Bun.

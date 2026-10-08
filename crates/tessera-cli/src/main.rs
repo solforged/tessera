@@ -1,4 +1,5 @@
 mod install;
+mod mcp;
 
 use std::path::PathBuf;
 
@@ -37,6 +38,9 @@ enum Command {
         #[arg(long, conflicts_with = "source_ids")]
         view: Option<String>,
     },
+    /// Serve the running notebook to agents as a Model Context Protocol
+    /// server on stdin and stdout.
+    Mcp,
     /// Serve the notebook and the browser editor on loopback.
     Serve {
         #[arg(long, default_value_t = tessera_service::DEFAULT_PORT)]
@@ -109,6 +113,9 @@ fn main() -> anyhow::Result<()> {
                 &source_ids,
                 view.as_deref(),
             ))?;
+        }
+        Command::Mcp => {
+            tokio::runtime::Runtime::new()?.block_on(mcp::serve(&notebook))?;
         }
         Command::Serve {
             port,
