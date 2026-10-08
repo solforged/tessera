@@ -34,7 +34,7 @@ mod task_query;
 mod task_store;
 mod work_store;
 
-pub use backup::{BackupManifest, backup, restore};
+pub use backup::{BackupManifest, backup, backup_beside, backup_directory, restore};
 pub use capabilities::{
     Agenda, AgendaItem, AgendaReason, BlockCapabilities, CardPreviews, CardQuery, CardQueryResult,
     CardRow, CardSelection, CardUnit, DateRange, Deck, GradePreview, PositionInfo, PositionQuery,

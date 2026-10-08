@@ -126,36 +126,153 @@ fn bootout(domain: &str) -> anyhow::Result<()> {
 }
 
 #[cfg(target_os = "macos")]
-pub fn install(notebook: Option<&Path>, port: u16, allow_debug: bool) -> anyhow::Result<()> {
-    use anyhow::Context;
-    let executable = std::fs::canonicalize(std::env::current_exe()?)?;
-    check_executable(&executable, allow_debug)?;
-    let home = dirs::home_dir().context("no home directory for the launch agent")?;
-    let path = tessera_service::launch_agent_path(&home);
-    let logs = home.join("Library/Logs/tessera");
-    let notebook = notebook.map(std::path::absolute).transpose()?;
-    let content = plist(
-        &executable,
-        notebook.as_deref(),
-        port,
-        &logs.join("serve.log"),
-    )?;
-    std::fs::create_dir_all(path.parent().context("launch agent path has no parent")?)?;
-    std::fs::create_dir_all(&logs)?;
-    std::fs::write(&path, content)?;
-    let domain = domain()?;
-    bootout(&domain)?;
+fn bootstrap(domain: &str, plist: &Path) -> anyhow::Result<()> {
     let output = std::process::Command::new("/bin/launchctl")
-        .args(["bootstrap", &domain])
-        .arg(&path)
+        .args(["bootstrap", domain])
+        .arg(plist)
         .output()?;
     anyhow::ensure!(
         output.status.success(),
         "launchctl bootstrap failed: {}",
         String::from_utf8_lossy(&output.stderr).trim()
     );
-    println!("http://127.0.0.1:{port}");
     Ok(())
+}
+
+/// Wait until the service on `url` reports this executable's version and build.
+#[cfg(target_os = "macos")]
+fn wait_for_build(url: &str) -> anyhow::Result<()> {
+    use std::time::{Duration, Instant};
+    let expected = format!(
+        "{} {}",
+        tessera_service::VERSION,
+        tessera_service::BUILD.unwrap_or("(development)")
+    );
+    tokio::runtime::Runtime::new()?.block_on(async {
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(2))
+            .build()?;
+        let deadline = Instant::now() + Duration::from_secs(60);
+        let mut last = "nothing answered".to_string();
+        while Instant::now() < deadline {
+            if let Ok(response) = client.get(format!("{url}/api/service")).send().await
+                && let Ok(info) = response.json::<serde_json::Value>().await
+            {
+                let found = format!(
+                    "{} {}",
+                    info["version"].as_str().unwrap_or("?"),
+                    info["build"].as_str().unwrap_or("(development)")
+                );
+                if found == expected {
+                    return Ok(());
+                }
+                last = format!("{found} answered");
+            }
+            tokio::time::sleep(Duration::from_millis(500)).await;
+        }
+        anyhow::bail!("Tessera {expected} did not answer at {url} within 60 seconds; {last}")
+    })
+}
+
+#[cfg(target_os = "macos")]
+fn log_tail(log: &Path) -> String {
+    let text = std::fs::read_to_string(log).unwrap_or_default();
+    let lines: Vec<&str> = text.lines().collect();
+    lines[lines.len().saturating_sub(20)..].join("\n")
+}
+
+/// Make this executable the launch agent's service. Stops the old service,
+/// backs up the notebook, starts this build and waits for it to answer. If it
+/// does not, and `rollback` names the previous executable, restores the backup
+/// with that executable and puts it back as the service.
+#[cfg(target_os = "macos")]
+pub fn install(
+    notebook: &Path,
+    explicit_notebook: bool,
+    port: u16,
+    allow_debug: bool,
+    rollback: Option<&Path>,
+) -> anyhow::Result<()> {
+    use anyhow::Context;
+    let executable = std::fs::canonicalize(std::env::current_exe()?)?;
+    check_executable(&executable, allow_debug)?;
+    let rollback = rollback
+        .map(|path| {
+            std::fs::canonicalize(path)
+                .with_context(|| format!("no rollback executable at {}", path.display()))
+        })
+        .transpose()?;
+    let home = dirs::home_dir().context("no home directory for the launch agent")?;
+    let path = tessera_service::launch_agent_path(&home);
+    let logs = home.join("Library/Logs/tessera");
+    let log = logs.join("serve.log");
+    let notebook = std::path::absolute(notebook)?;
+    let pinned = explicit_notebook.then_some(notebook.as_path());
+    let content = plist(&executable, pinned, port, &log)?;
+    std::fs::create_dir_all(path.parent().context("launch agent path has no parent")?)?;
+    std::fs::create_dir_all(&logs)?;
+    let domain = domain()?;
+    // Stop first, so the backup holds every edit the old service acknowledged.
+    bootout(&domain)?;
+    let backup = if notebook.join(tessera_core::DATABASE_FILE).exists() {
+        match tessera_core::backup_beside(&notebook) {
+            Ok((backup, _)) => {
+                eprintln!("tessera: backed up the notebook to {}", backup.display());
+                Some(backup)
+            }
+            Err(error) => {
+                // The old plist is untouched; bring its service back.
+                if path.exists() {
+                    bootstrap(&domain, &path)?;
+                }
+                return Err(anyhow::Error::from(error)
+                    .context("cannot back up the notebook; the previous service is unchanged"));
+            }
+        }
+    } else {
+        None
+    };
+    std::fs::write(&path, content)?;
+    bootstrap(&domain, &path)?;
+    let url = format!("http://127.0.0.1:{port}");
+    let error = match wait_for_build(&url) {
+        Ok(()) => {
+            println!("{url}");
+            return Ok(());
+        }
+        Err(error) => error,
+    };
+    let tail = log_tail(&log);
+    let backup_note = backup.as_ref().map_or(String::new(), |backup| {
+        format!("; the pre-install backup is {}", backup.display())
+    });
+    let Some(previous) = rollback else {
+        anyhow::bail!("{error}{backup_note}\n{tail}");
+    };
+    bootout(&domain)?;
+    if let Some(backup) = &backup {
+        // The previous build restores, so the notebook keeps a schema it can open.
+        let status = std::process::Command::new(&previous)
+            .arg("--notebook")
+            .arg(&notebook)
+            .arg("restore")
+            .arg(backup)
+            .arg("--force")
+            .stdout(std::process::Stdio::null())
+            .status()?;
+        anyhow::ensure!(
+            status.success(),
+            "{error}; restoring {} with {} also failed",
+            backup.display(),
+            previous.display()
+        );
+    }
+    std::fs::write(&path, plist(&previous, pinned, port, &log)?)?;
+    bootstrap(&domain, &path)?;
+    anyhow::bail!(
+        "{error}; rolled back to {}{backup_note}\n{tail}",
+        previous.display()
+    )
 }
 
 #[cfg(target_os = "macos")]
@@ -172,7 +289,13 @@ pub fn uninstall() -> anyhow::Result<()> {
 }
 
 #[cfg(not(target_os = "macos"))]
-pub fn install(_: Option<&std::path::Path>, _: u16, _: bool) -> anyhow::Result<()> {
+pub fn install(
+    _: &std::path::Path,
+    _: bool,
+    _: u16,
+    _: bool,
+    _: Option<&std::path::Path>,
+) -> anyhow::Result<()> {
     anyhow::bail!("tessera install is only supported on macOS")
 }
 
