@@ -333,7 +333,8 @@ fn citation_triage_migration_preserves_existing_evidence() {
     drop(n);
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
     conn.execute_batch(
-        "ALTER TABLE reading_positions ADD COLUMN covered TEXT NOT NULL DEFAULT '[]';
+        "DROP TABLE agent_changes;
+         ALTER TABLE reading_positions ADD COLUMN covered TEXT NOT NULL DEFAULT '[]';
          DROP TABLE questions;
          DROP TABLE assessments;
          DROP TABLE positions;
@@ -537,7 +538,8 @@ fn citation_color_migration_preserves_existing_evidence_with_null_color() {
     drop(n);
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
     conn.execute_batch(
-        "ALTER TABLE reading_positions ADD COLUMN covered TEXT NOT NULL DEFAULT '[]';
+        "DROP TABLE agent_changes;
+         ALTER TABLE reading_positions ADD COLUMN covered TEXT NOT NULL DEFAULT '[]';
          DROP TABLE questions;
          DROP TABLE assessments;
          DROP TABLE positions;

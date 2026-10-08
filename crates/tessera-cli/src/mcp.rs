@@ -10,7 +10,9 @@ use anyhow::Context;
 use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
 use serde_json::{Value, json};
 use tessera_core::{
-    Actor, Block, BlockInPage, BlockKind, Note, NoteBlock, NoteReceipt, NoteTarget, PageView,
+    Actor, AgentChange, AgentEdit, AgentReceipt, AgentRequest, Block, BlockCapabilities,
+    BlockInPage, BlockKind, NoteBlock, NoteTarget, PageView, TaskPriority, TaskState, TaskStatus,
+    UndoReceipt,
 };
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
 
@@ -21,15 +23,21 @@ const PROTOCOL_VERSIONS: [&str; 3] = ["2025-06-18", "2025-03-26", "2024-11-05"];
 
 const INSTRUCTIONS: &str = "Tessera is a local outline notebook. Every note is a tree of \
 blocks on a named page or a journal day. Search or read before writing to avoid duplicates. \
-Write with tessera_add_note, which appends to the end of a page, journal day or block.";
+tessera_add_note appends to the end of a page, journal day or block; tessera_edit_block, \
+tessera_move_block, tessera_delete_block and tessera_set_task change existing blocks by the \
+IDs tessera_read_page shows. Every write is one change attributed to you and can be reversed \
+with tessera_undo; tessera_recent_changes lists them.";
 
 const SYNTAX: &str = "Markdown outline: `- ` or `1. ` items nest by indentation; `#`, `##` \
 and `###` headings become heading blocks that contain the content below them; other lines \
-become blocks; indented lines under an item continue that item. In block text, `[[Page \
-title]]` links a page by title and creates it if missing, `[[Page title|label]]` links with a \
-label, `[[2026-10-07]]` links an existing journal day, `[[BLOCK_ID]]` references a block, \
-`#Tag` or `#[[Multi word tag]]` gives the block a type, and `front >> back` makes a \
-flashcard.";
+become blocks; indented lines under an item continue that item; `- [ ] ` and `- [x] ` items \
+become open and done tasks. In block text, `[[Page title]]` links a page by title and \
+creates it if missing, `[[Page title|label]]` links with a label, `[[2026-10-07]]` links an \
+existing journal day, `[[BLOCK_ID]]` references a block, `#Tag` or `#[[Multi word tag]]` \
+gives the block a type, and `front >> back` makes a flashcard.";
+
+const REVISION: &str = "The block's revision from tessera_read_page (`r3` is 3). When given, \
+the change is refused if the block changed since; read it again and retry.";
 
 pub async fn serve(notebook: &Path) -> anyhow::Result<()> {
     let mut lines = tokio::io::BufReader::new(tokio::io::stdin()).lines();
@@ -104,6 +112,12 @@ impl Session<'_> {
                     "tessera_list_pages" => self.list_pages(&arguments).await,
                     "tessera_read_page" => self.read_page(&arguments).await,
                     "tessera_add_note" => self.add_note(&arguments).await,
+                    "tessera_edit_block" => self.edit_block(&arguments).await,
+                    "tessera_move_block" => self.move_block(&arguments).await,
+                    "tessera_delete_block" => self.delete_block(&arguments).await,
+                    "tessera_set_task" => self.set_task(&arguments).await,
+                    "tessera_recent_changes" => self.recent_changes(&arguments).await,
+                    "tessera_undo" => self.undo(&arguments).await,
                     _ => return Some(failure(id, -32602, &format!("Unknown tool: {name}"))),
                 };
                 let (text, error) = match result {
@@ -230,19 +244,173 @@ impl Session<'_> {
             (None, None, Some(id)) => NoteTarget::Block { id: id.to_owned() },
             _ => anyhow::bail!("Give at most one of page, journal or parent_id."),
         };
-        let note = Note {
-            actor: Actor::Agent {
-                name: self.agent.clone(),
+        self.submit(arguments, AgentEdit::AddNote { target, blocks })
+            .await
+    }
+
+    async fn edit_block(&self, arguments: &Value) -> anyhow::Result<String> {
+        let text = string(arguments, "text")?.map(str::to_owned);
+        let heading = integer(arguments, "heading")?
+            .map(|level| u8::try_from(level).context("heading must be 0 to 3"))
+            .transpose()?;
+        anyhow::ensure!(
+            text.is_some() || heading.is_some(),
+            "Give text, heading or both."
+        );
+        self.submit(
+            arguments,
+            AgentEdit::EditBlock {
+                id: required(arguments, "id")?,
+                revision: integer(arguments, "revision")?,
+                text,
+                heading,
             },
-            reason: string(arguments, "reason")?.map(str::to_owned),
-            target,
-            blocks,
+        )
+        .await
+    }
+
+    async fn move_block(&self, arguments: &Value) -> anyhow::Result<String> {
+        let first = match arguments.get("first") {
+            None | Some(Value::Null) => false,
+            Some(Value::Bool(first)) => *first,
+            Some(_) => anyhow::bail!("first must be a boolean"),
         };
+        self.submit(
+            arguments,
+            AgentEdit::MoveBlock {
+                id: required(arguments, "id")?,
+                revision: integer(arguments, "revision")?,
+                parent_id: string(arguments, "parent_id")?.map(str::to_owned),
+                after: string(arguments, "after")?.map(str::to_owned),
+                first,
+            },
+        )
+        .await
+    }
+
+    async fn delete_block(&self, arguments: &Value) -> anyhow::Result<String> {
+        self.submit(
+            arguments,
+            AgentEdit::DeleteBlock {
+                id: required(arguments, "id")?,
+                revision: integer(arguments, "revision")?,
+            },
+        )
+        .await
+    }
+
+    /// Merge the given fields into the block's current task state.
+    async fn set_task(&self, arguments: &Value) -> anyhow::Result<String> {
+        let id = required(arguments, "id")?;
         let (client, base) = service(self.notebook).await?;
-        let receipt: NoteReceipt = checked(
+        let current: BlockCapabilities = checked(
             client
-                .post(format!("{base}/api/notes"))
-                .json(&note)
+                .get(format!("{base}/api/blocks/{}/capabilities", segment(&id)))
+                .send()
+                .await?,
+        )
+        .await?
+        .json()
+        .await?;
+        let task = match string(arguments, "status")? {
+            Some("none") => None,
+            status => {
+                let mut task = current.task.clone().unwrap_or_default();
+                if let Some(status) = status {
+                    task.status = serde_json::from_value(json!(status)).with_context(|| {
+                        format!(
+                            "status must be todo, doing, waiting, done, cancelled or none, not {status:?}"
+                        )
+                    })?;
+                }
+                if task.status != TaskStatus::Done {
+                    task.completed_on = None;
+                }
+                if let Some(date) = string(arguments, "completed_on")? {
+                    task.completed_on = Some(date.to_owned());
+                }
+                for (key, field) in [
+                    ("scheduled", &mut task.scheduled),
+                    ("deadline", &mut task.deadline),
+                ] {
+                    if let Some(date) = string(arguments, key)? {
+                        *field = (!date.is_empty()).then(|| date.to_owned());
+                    }
+                }
+                if task.scheduled.is_none() {
+                    task.scheduled_time = None;
+                }
+                if task.deadline.is_none() {
+                    task.deadline_time = None;
+                    task.warning_days = None;
+                }
+                if let Some(priority) = string(arguments, "priority")? {
+                    task.priority = match priority {
+                        "" | "none" => None,
+                        priority => Some(serde_json::from_value::<TaskPriority>(json!(priority))
+                            .with_context(|| {
+                                format!("priority must be high, medium, low or none, not {priority:?}")
+                            })?),
+                    };
+                }
+                Some(task)
+            }
+        };
+        self.submit(
+            arguments,
+            AgentEdit::SetTask {
+                id,
+                revision: integer(arguments, "revision")?,
+                task,
+            },
+        )
+        .await
+    }
+
+    async fn recent_changes(&self, arguments: &Value) -> anyhow::Result<String> {
+        let limit = integer(arguments, "limit")?.unwrap_or(20);
+        let (client, base) = service(self.notebook).await?;
+        let changes: Vec<AgentChange> = checked(
+            client
+                .get(format!("{base}/api/agent-changes"))
+                .query(&[("limit", limit)])
+                .send()
+                .await?,
+        )
+        .await?
+        .json()
+        .await?;
+        if changes.is_empty() {
+            return Ok("No agent changes yet.".into());
+        }
+        let now = tessera_core::now_ms();
+        let mut text = String::new();
+        for change in changes {
+            let who = match &change.actor {
+                Actor::Agent { name } | Actor::Client { name } => name.as_str(),
+                Actor::Person => "a person",
+            };
+            text.push_str(&format!(
+                "- change {}: {} (by {who}, {})",
+                change.seq,
+                change.summary,
+                age(now - change.created_at)
+            ));
+            if let Some(by) = change.undone_by {
+                text.push_str(&format!(", undone by change {by}"));
+            }
+            text.push('\n');
+        }
+        Ok(text)
+    }
+
+    async fn undo(&self, arguments: &Value) -> anyhow::Result<String> {
+        let seq = integer(arguments, "change")?.context("change is required")?;
+        let (client, base) = service(self.notebook).await?;
+        let receipt: UndoReceipt = checked(
+            client
+                .post(format!("{base}/api/agent-changes/{seq}/undo"))
+                .json(&json!({ "actor": self.actor() }))
                 .send()
                 .await?,
         )
@@ -250,23 +418,84 @@ impl Session<'_> {
         .json()
         .await?;
         let mut text = format!(
-            "Added {} block{} to {} {:?} (page {}).",
-            receipt.blocks.len(),
-            if receipt.blocks.len() == 1 { "" } else { "s" },
-            kind_label(receipt.page.kind),
-            receipt.page.text,
-            receipt.page.id,
+            "Undid change {} as change {}.",
+            receipt.undone, receipt.committed.seq
         );
-        if !receipt.created_pages.is_empty() {
-            let titles: Vec<_> = receipt
-                .created_pages
-                .iter()
-                .map(|page| format!("{:?}", page.text))
-                .collect();
-            text.push_str(&format!(" Created pages: {}.", titles.join(", ")));
+        if !receipt.kept_pages.is_empty() {
+            text.push_str(&format!(
+                " Kept pages still in use: {}.",
+                quoted(&receipt.kept_pages)
+            ));
         }
-        text.push_str(&format!(" New block IDs: {}.", receipt.blocks.join(", ")));
         Ok(text)
+    }
+
+    fn actor(&self) -> Actor {
+        Actor::Agent {
+            name: self.agent.clone(),
+        }
+    }
+
+    async fn submit(&self, arguments: &Value, edit: AgentEdit) -> anyhow::Result<String> {
+        let request = AgentRequest {
+            actor: self.actor(),
+            reason: string(arguments, "reason")?.map(str::to_owned),
+            edit,
+        };
+        let (client, base) = service(self.notebook).await?;
+        let receipt: AgentReceipt = checked(
+            client
+                .post(format!("{base}/api/agent-changes"))
+                .json(&request)
+                .send()
+                .await?,
+        )
+        .await?
+        .json()
+        .await?;
+        let mut text = format!("{}. This is change {}", receipt.summary, receipt.seq);
+        if let Some(page) = &receipt.page {
+            text.push_str(&format!(
+                " on {} {:?} (page {})",
+                kind_label(page.kind),
+                page.text,
+                page.id
+            ));
+        }
+        text.push('.');
+        if !receipt.created_pages.is_empty() {
+            text.push_str(&format!(
+                " Created pages: {}.",
+                quoted(&receipt.created_pages)
+            ));
+        }
+        if !receipt.blocks.is_empty() {
+            let blocks: Vec<_> = receipt
+                .blocks
+                .iter()
+                .map(|block| format!("{} r{}", block.id, block.revision))
+                .collect();
+            text.push_str(&format!(" Blocks: {}.", blocks.join(", ")));
+        }
+        Ok(text)
+    }
+}
+
+fn quoted(pages: &[Block]) -> String {
+    pages
+        .iter()
+        .map(|page| format!("{:?}", page.text))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn age(ms: i64) -> String {
+    let minutes = ms.max(0) / 60_000;
+    match minutes {
+        0 => "just now".into(),
+        1..60 => format!("{minutes} min ago"),
+        60..2880 => format!("{} h ago", minutes / 60),
+        _ => format!("{} days ago", minutes / 1440),
     }
 }
 
@@ -329,6 +558,101 @@ fn tools() -> Value {
                 "required": ["markdown"]
             },
             "annotations": { "readOnlyHint": false, "destructiveHint": false, "idempotentHint": false }
+        },
+        {
+            "name": "tessera_edit_block",
+            "title": "Edit a block",
+            "description": "Replace a block's text, its heading level, or both. Editing a page's root block renames the page. [[Title]] in the text links pages as in tessera_add_note.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "id": { "type": "string", "description": "Block ID." },
+                    "text": { "type": "string", "description": "The block's new text, one block only." },
+                    "heading": { "type": "integer", "minimum": 0, "maximum": 3, "description": "Heading level 1 to 3, or 0 for none." },
+                    "revision": { "type": "integer", "description": REVISION },
+                    "reason": { "type": "string" }
+                },
+                "required": ["id"]
+            },
+            "annotations": { "readOnlyHint": false, "destructiveHint": true, "idempotentHint": false }
+        },
+        {
+            "name": "tessera_move_block",
+            "title": "Move a block",
+            "description": "Move a block with its children: after the block `after`, first under `parent_id` when `first` is true, or last under `parent_id`. Moving to another page works the same way; pages themselves cannot be moved.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "id": { "type": "string", "description": "Block ID." },
+                    "parent_id": { "type": "string", "description": "New parent: a block or a page's root ID." },
+                    "after": { "type": "string", "description": "Sibling to place it after." },
+                    "first": { "type": "boolean", "description": "Place it first under parent_id, or first among its current siblings." },
+                    "revision": { "type": "integer", "description": REVISION },
+                    "reason": { "type": "string" }
+                },
+                "required": ["id"]
+            },
+            "annotations": { "readOnlyHint": false, "destructiveHint": false, "idempotentHint": false }
+        },
+        {
+            "name": "tessera_delete_block",
+            "title": "Delete a block",
+            "description": "Delete a block and its children, or a whole page by its root ID. tessera_undo restores it.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "id": { "type": "string", "description": "Block or page root ID." },
+                    "revision": { "type": "integer", "description": REVISION },
+                    "reason": { "type": "string" }
+                },
+                "required": ["id"]
+            },
+            "annotations": { "readOnlyHint": false, "destructiveHint": true, "idempotentHint": false }
+        },
+        {
+            "name": "tessera_set_task",
+            "title": "Set a task",
+            "description": "Make a block a task or change its task state. Only the given fields change. Setting status done records a completion, which advances a repeating task instead.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "id": { "type": "string", "description": "Block ID." },
+                    "status": { "type": "string", "enum": ["todo", "doing", "waiting", "done", "cancelled", "none"], "description": "none makes it an ordinary block again." },
+                    "scheduled": { "type": "string", "description": "YYYY-MM-DD, or empty to clear." },
+                    "deadline": { "type": "string", "description": "YYYY-MM-DD, or empty to clear." },
+                    "priority": { "type": "string", "enum": ["high", "medium", "low", "none"] },
+                    "completed_on": { "type": "string", "description": "Completion date for done, YYYY-MM-DD; defaults to today." },
+                    "revision": { "type": "integer", "description": REVISION },
+                    "reason": { "type": "string" }
+                },
+                "required": ["id"]
+            },
+            "annotations": { "readOnlyHint": false, "destructiveHint": false, "idempotentHint": false }
+        },
+        {
+            "name": "tessera_recent_changes",
+            "title": "Recent agent changes",
+            "description": "Changes made through these tools by any agent, newest first, with their change numbers for tessera_undo.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "limit": { "type": "integer", "minimum": 1, "default": 20 }
+                }
+            },
+            "annotations": { "readOnlyHint": true }
+        },
+        {
+            "name": "tessera_undo",
+            "title": "Undo a change",
+            "description": "Reverse one change made through these tools. Refused when a block it touched was changed since by someone else; undo later changes first. Pages it created are kept while other blocks use them.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "change": { "type": "integer", "description": "Change number from a write result or tessera_recent_changes." }
+                },
+                "required": ["change"]
+            },
+            "annotations": { "readOnlyHint": false, "destructiveHint": true, "idempotentHint": false }
         }
     ])
 }
@@ -350,6 +674,24 @@ fn string<'a>(arguments: &'a Value, key: &str) -> anyhow::Result<Option<&'a str>
     }
 }
 
+fn required(arguments: &Value, key: &str) -> anyhow::Result<String> {
+    Ok(string(arguments, key)?
+        .with_context(|| format!("{key} is required"))?
+        .to_owned())
+}
+
+/// An optional integer argument; present but not an integer is an error.
+fn integer(arguments: &Value, key: &str) -> anyhow::Result<Option<i64>> {
+    match arguments.get(key) {
+        None | Some(Value::Null) => Ok(None),
+        Some(value) => Ok(Some(
+            value
+                .as_i64()
+                .with_context(|| format!("{key} must be an integer"))?,
+        )),
+    }
+}
+
 fn segment(value: &str) -> String {
     utf8_percent_encode(value, NON_ALPHANUMERIC).to_string()
 }
@@ -361,8 +703,9 @@ fn kind_label(kind: BlockKind) -> &'static str {
     }
 }
 
-/// The page as an indented outline. References to pages and journal days
-/// show their title so an agent can write them back as `[[Title]]`.
+/// The page as an indented outline. Each block's comment holds its ID and
+/// revision, then any task dates. References to pages and journal days show
+/// their title so an agent can write them back as `[[Title]]`.
 fn render(page: &PageView) -> String {
     let titles: HashMap<&str, &str> = page
         .targets
@@ -370,7 +713,15 @@ fn render(page: &PageView) -> String {
         .filter(|block| block.kind != BlockKind::Block)
         .map(|block| (block.id.as_str(), block.text.as_str()))
         .collect();
-    let mut text = format!("# {} <!-- {} -->\n", page.root.text, page.root.id);
+    let tasks: HashMap<&str, &TaskState> = page
+        .capabilities
+        .iter()
+        .filter_map(|caps| Some((caps.block_id.as_str(), caps.task.as_ref()?)))
+        .collect();
+    let mut text = format!(
+        "# {} <!-- {} r{} -->\n",
+        page.root.text, page.root.id, page.root.revision
+    );
     for row in &page.rows {
         let indent = "  ".repeat(row.depth as usize);
         let heading = row
@@ -378,15 +729,42 @@ fn render(page: &PageView) -> String {
             .heading
             .map(|level| format!("{} ", "#".repeat(level as usize)))
             .unwrap_or_default();
+        let task = tasks.get(row.block.id.as_str());
+        let marker = match task.map(|task| task.status) {
+            None => "",
+            Some(TaskStatus::Todo) => "[ ] ",
+            Some(TaskStatus::Done) => "[x] ",
+            Some(TaskStatus::Doing) => "[doing] ",
+            Some(TaskStatus::Waiting) => "[waiting] ",
+            Some(TaskStatus::Cancelled) => "[cancelled] ",
+        };
         let body = titled(&row.block.text, &titles).replace('\n', &format!("\n{indent}  "));
         let archived = if row.block.archived {
             " (archived)"
         } else {
             ""
         };
+        let mut note = format!("{} r{}", row.block.id, row.block.revision);
+        if let Some(task) = task {
+            for (label, value) in [
+                ("scheduled", task.scheduled.as_deref()),
+                ("deadline", task.deadline.as_deref()),
+                ("completed", task.completed_on.as_deref()),
+            ] {
+                if let Some(value) = value {
+                    note.push_str(&format!(" {label} {value}"));
+                }
+            }
+            if let Some(priority) = task.priority {
+                let priority = serde_json::to_value(priority).expect("priority serializes");
+                note.push_str(&format!(
+                    " priority {}",
+                    priority.as_str().unwrap_or_default()
+                ));
+            }
+        }
         text.push_str(&format!(
-            "{indent}- {heading}{body}{archived} <!-- {} -->\n",
-            row.block.id
+            "{indent}- {marker}{heading}{body}{archived} <!-- {note} -->\n"
         ));
     }
     text
@@ -477,6 +855,7 @@ fn outline(markdown: &str) -> Vec<NoteBlock> {
                 NoteBlock {
                     text: title.to_owned(),
                     heading: Some(level),
+                    task: None,
                     children: Vec::new(),
                 },
             );
@@ -499,7 +878,7 @@ fn outline(markdown: &str) -> Vec<NoteBlock> {
             push(
                 &mut blocks,
                 headings.len() + items.len() - 1,
-                text_block(content.to_owned()),
+                item_block(content),
             );
             open = Some(Continuation::Item(indent + (trimmed.len() - content.len())));
             continue;
@@ -528,7 +907,29 @@ fn text_block(text: String) -> NoteBlock {
     NoteBlock {
         text,
         heading: None,
+        task: None,
         children: Vec::new(),
+    }
+}
+
+/// A list item's block; a leading `[ ]` or `[x]` makes it a task.
+fn item_block(content: &str) -> NoteBlock {
+    let (status, text) = if let Some(text) = content.strip_prefix("[ ] ") {
+        (Some(TaskStatus::Todo), text)
+    } else if let Some(text) = content
+        .strip_prefix("[x] ")
+        .or_else(|| content.strip_prefix("[X] "))
+    {
+        (Some(TaskStatus::Done), text)
+    } else {
+        (None, content)
+    };
+    NoteBlock {
+        task: status.map(|status| TaskState {
+            status,
+            ..TaskState::default()
+        }),
+        ..text_block(text.trim_start().to_owned())
     }
 }
 
