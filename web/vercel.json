@@ -3,6 +3,7 @@
   "framework": null,
   "buildCommand": "bun run build:demo",
   "outputDirectory": "dist-demo",
+  "git": { "deploymentEnabled": false },
   "headers": [
     {
       "source": "/assets/(.*)",
