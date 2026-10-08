@@ -738,7 +738,8 @@ fn membership_title_upgrade_preserves_unresolved_mentions_without_resurrecting_p
     drop(nb);
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
     conn.execute_batch(
-        "DROP TABLE memberships;
+        "DROP TABLE agent_changes;
+         DROP TABLE memberships;
          CREATE TABLE memberships (
              block_id TEXT NOT NULL REFERENCES blocks(id),
              type_id TEXT NOT NULL REFERENCES blocks(id),
@@ -1240,7 +1241,8 @@ fn manual_membership_migration_retains_authored_text_tags_and_unresolved_titles(
     drop(nb);
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
     conn.execute_batch(
-        "ALTER TABLE memberships RENAME TO modern_memberships;
+        "DROP TABLE agent_changes;
+         ALTER TABLE memberships RENAME TO modern_memberships;
          DROP INDEX memberships_type;
          DROP INDEX memberships_title;
          CREATE TABLE memberships (block_id TEXT NOT NULL REFERENCES blocks(id), title_key TEXT NOT NULL, type_id TEXT REFERENCES blocks(id), PRIMARY KEY(block_id, title_key)) STRICT;

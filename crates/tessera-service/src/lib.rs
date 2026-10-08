@@ -38,8 +38,9 @@ use serde::Deserialize;
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 use serde::Serialize;
 use tessera_core::{
-    Backlink, Batch, Block, BlockInPage, ChangeEvent, Committed, FieldsView, Note, NoteReceipt,
-    Notebook, NotebookInfo, PageView, QueryResult, SettingsView, TypeInfo, View,
+    Actor, AgentChange, AgentReceipt, AgentRequest, Backlink, Batch, Block, BlockInPage,
+    ChangeEvent, Committed, FieldsView, Notebook, NotebookInfo, PageView, QueryResult,
+    SettingsView, TypeInfo, UndoReceipt, View,
 };
 use tokio::sync::broadcast;
 
@@ -209,7 +210,8 @@ fn notebook_routes() -> Router<AppState> {
         .route("/api/search", get(search))
         .route("/api/changes", get(changes))
         .route("/api/batches", post(apply))
-        .route("/api/notes", post(add_note))
+        .route("/api/agent-changes", get(agent_changes).post(agent_edit))
+        .route("/api/agent-changes/{seq}/undo", post(undo_agent_change))
 }
 
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
@@ -697,16 +699,48 @@ async fn apply(
     .map(Json)
 }
 
-/// Append an outline to a page, journal day or block, creating a missing
-/// target and pages named by `[[Title]]`; the agent-facing write.
-async fn add_note(
+/// The agent write path: add a note, edit, move or delete a block, or set a
+/// task, as one attributed batch that records its own undo.
+async fn agent_edit(
     State(state): State<AppState>,
-    body: Result<Json<Note>, JsonRejection>,
-) -> Result<Json<NoteReceipt>, ApiError> {
-    let Json(note) = body.map_err(ApiError::from)?;
+    body: Result<Json<AgentRequest>, JsonRejection>,
+) -> Result<Json<AgentReceipt>, ApiError> {
+    let Json(request) = body.map_err(ApiError::from)?;
     let changes = state.changes.clone();
     run(&state, move |notebook| {
-        let receipt = notebook.add_note(&note)?;
+        let receipt = notebook.agent_edit(&request)?;
+        let _ = changes.send(receipt.committed.seq);
+        Ok(receipt)
+    })
+    .await
+    .map(Json)
+}
+
+async fn agent_changes(
+    State(state): State<AppState>,
+    query: Result<Query<Limit>, QueryRejection>,
+) -> Result<Json<Vec<AgentChange>>, ApiError> {
+    let Query(Limit { limit }) = query.map_err(ApiError::from)?;
+    run(&state, move |notebook| notebook.agent_changes(limit))
+        .await
+        .map(Json)
+}
+
+#[derive(Deserialize)]
+struct UndoRequest {
+    actor: Actor,
+}
+
+async fn undo_agent_change(
+    State(state): State<AppState>,
+    path: Result<Path<i64>, PathRejection>,
+    body: Result<Json<UndoRequest>, JsonRejection>,
+) -> Result<Json<UndoReceipt>, ApiError> {
+    let Path(seq) = path.map_err(ApiError::from)?;
+    let Json(UndoRequest { actor }) = body.map_err(ApiError::from)?;
+    let changes = state.changes.clone();
+    run(&state, move |notebook| {
+        let receipt = notebook.undo_agent_change(seq, &actor)?;
         let _ = changes.send(receipt.committed.seq);
         Ok(receipt)
     })

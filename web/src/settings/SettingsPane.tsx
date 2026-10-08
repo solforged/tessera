@@ -2,7 +2,7 @@ import { For, Show, createMemo, createResource, createSignal, onMount } from 'so
 import { api } from '../api/client';
 import { DEMO } from '../demo/mode';
 import type { NotebookClient } from '../document/contract';
-import type { PaneId, SettingsViewState } from '../shell/contract';
+import type { OpenTarget, PaneId, SettingsViewState } from '../shell/contract';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Picker } from '../ui/Picker';
@@ -10,7 +10,7 @@ import { setThemePreference, themePreference } from '../shell/theme';
 import { backupLabel } from './backup';
 import './settings.css';
 
-export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; notebook: NotebookClient; onViewChange(view: SettingsViewState): void }) {
+export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; notebook: NotebookClient; onOpen(target: OpenTarget, beside: boolean): void; onViewChange(view: SettingsViewState): void }) {
   const [error, setError] = createSignal('');
   const [info] = createResource(async () => {
     try { return await api.notebook(); }
@@ -24,6 +24,18 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; not
     try { return await api.backups(); }
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); return undefined; }
   });
+  const [agentChanges, { refetch: refreshAgentChanges }] = createResource(() => props.notebook.changeSequence(), async () => {
+    try { return await api.agentChanges(20); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); return undefined; }
+  });
+  const [undoing, setUndoing] = createSignal<number | null>(null);
+  const undoAgentChange = async (seq: number) => {
+    if (undoing() !== null) return;
+    setUndoing(seq); setError('');
+    try { await api.undoAgentChange(seq); await refreshAgentChanges(); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
+    finally { setUndoing(null); }
+  };
   const [backingUp, setBackingUp] = createSignal(false);
   const backUp = async () => {
     if (backingUp()) return;
@@ -113,8 +125,23 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; not
         <ul><For each={backups()!.slice(1)}>{backup => <li>{backupLabel(backup)}</li>}</For></ul>
       </details></Show>
     </section>}
+    <section aria-labelledby={`settings-agent-changes-${props.pane}`} aria-busy={undoing() !== null}>
+      <h2 id={`settings-agent-changes-${props.pane}`}><span class="section-number">{DEMO ? '04' : '05'}</span>Agent changes<span class="section-rule" /></h2>
+      <Show when={agentChanges()}>{values => <Show when={values().length > 0} fallback={<p class="settings-empty">No agent changes yet.</p>}>
+        <For each={values().slice(0, 20)}>{change => <div class="settings-row settings-agent-change">
+          <div class="settings-label">{change.summary}
+            <p>{change.actor.kind === 'person' ? 'Person' : change.actor.name} · <time dateTime={new Date(change.created_at).toISOString()}>{new Date(change.created_at).toLocaleString()}</time>
+              <Show when={change.page}>{page => <> · <button type="button" class="settings-page-link" title="Open page · Shift to open beside" onClick={event => props.onOpen({ kind: 'page', pageId: page().id }, event.shiftKey)}>{page().text}</button></>}</Show>
+            </p>
+          </div>
+          <Show when={change.undone_by === null} fallback={<span class="settings-undone">Undone</span>}>
+            <Button class="bordered" disabled={undoing() !== null} onClick={() => { void undoAgentChange(change.seq); }}>{undoing() === change.seq ? 'Undoing…' : 'Undo'}</Button>
+          </Show>
+        </div>}</For>
+      </Show>}</Show>
+    </section>
     <section aria-labelledby={`settings-notebook-${props.pane}`}>
-      <h2 id={`settings-notebook-${props.pane}`}><span class="section-number">{DEMO ? '04' : '05'}</span>Notebook<span class="section-rule" /></h2>
+      <h2 id={`settings-notebook-${props.pane}`}><span class="section-number">{DEMO ? '05' : '06'}</span>Notebook<span class="section-rule" /></h2>
       <Show when={info()}>{value => <dl>
         <dt>Path</dt><dd>{value().path}</dd>
         <dt>Created</dt><dd>{new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(value().created_at)}</dd>
@@ -122,7 +149,7 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; not
       </dl>}</Show>
     </section>
     {!DEMO && <section aria-labelledby={`settings-service-${props.pane}`}>
-      <h2 id={`settings-service-${props.pane}`}><span class="section-number">06</span>Service<span class="section-rule" /></h2>
+      <h2 id={`settings-service-${props.pane}`}><span class="section-number">07</span>Service<span class="section-rule" /></h2>
       <Show when={service()}>{value => <dl>
         <dt>Version</dt><dd>{value().version}<Show when={value().build}>{build => <> · {build()}</>}</Show></dd>
         <dt>URL</dt><dd>{`http://127.0.0.1:${value().port}`}</dd>
