@@ -103,7 +103,7 @@ Progress: questions are open, answered, parked or unsettled, accept one answer, 
 
 Exit: an agent does bounded work on a real project; every change is attributed and reversible; a restore from backup loses nothing acknowledged.
 
-Progress: `tessera backup` and `tessera restore` cover the database and object store from the command line, landed with the local install pass, and Settings › Backups makes a backup from inside the app. Restore from the app, change history with actors, agent plans and the soak and concurrency spikes remain.
+Progress: `tessera backup` and `tessera restore` cover the database and object store from the command line, landed with the local install pass, and Settings › Backups makes a backup from inside the app. Agents can search, read and append attributed notes through `tessera mcp` or `POST /api/notes`. Restore from the app, change history with actors, agent plans and the soak and concurrency spikes remain.
 
 ## 9. Perspectives
 
