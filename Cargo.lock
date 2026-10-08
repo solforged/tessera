@@ -5153,7 +5153,7 @@ dependencies = [
 
 [[package]]
 name = "tessera-bench"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -5172,7 +5172,7 @@ dependencies = [
 
 [[package]]
 name = "tessera-cli"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -5190,7 +5190,7 @@ dependencies = [
 
 [[package]]
 name = "tessera-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "deunicode",
  "getrandom 0.4.3",
@@ -5208,7 +5208,7 @@ dependencies = [
 
 [[package]]
 name = "tessera-desktop"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "jiff",
  "parking_lot",
@@ -5226,7 +5226,7 @@ dependencies = [
 
 [[package]]
 name = "tessera-ingest"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "percent-encoding",
  "roxmltree",
@@ -5240,7 +5240,7 @@ dependencies = [
 
 [[package]]
 name = "tessera-service"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -5265,7 +5265,7 @@ dependencies = [
 
 [[package]]
 name = "tessera-web"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "axum",
  "console_error_panic_hook",
