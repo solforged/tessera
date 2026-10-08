@@ -70,7 +70,7 @@ fn with_app<T>(operation: impl FnOnce(&App) -> Result<T, JsValue>) -> Result<T, 
 fn reopen() -> Result<String, JsValue> {
     let notebook = Notebook::open("/demo").map_err(internal)?;
     let info = serde_json::to_string(&notebook.info().map_err(internal)?).map_err(internal)?;
-    let (router, handles) = tessera_service::browser_router(notebook);
+    let (router, handles) = tessera_service::browser_router(notebook).map_err(internal)?;
     RUNTIME.with(|runtime| runtime.borrow_mut().app = Some(App { router, handles }));
     Ok(info)
 }
@@ -144,17 +144,18 @@ impl WebResponse {
 }
 
 /// Dispatch an HTTP request to exactly the same notebook handlers as the service.
+/// `headers` alternates names and values.
 #[wasm_bindgen]
 pub async fn handle(
     method: String,
     path: String,
-    #[wasm_bindgen(unchecked_param_type = "string | undefined")] content_type: Option<String>,
+    headers: Vec<String>,
     body: Vec<u8>,
 ) -> Result<WebResponse, JsValue> {
     let router = with_app(|app| Ok(app.router.clone()))?;
     let mut request = Request::builder().method(method.as_str()).uri(path);
-    if let Some(content_type) = content_type {
-        request = request.header(CONTENT_TYPE, content_type);
+    for [name, value] in headers.as_chunks::<2>().0 {
+        request = request.header(name.as_str(), value.as_str());
     }
     let request = request.body(Body::from(body)).map_err(internal)?;
     let response = router.oneshot(request).await.map_err(internal)?;

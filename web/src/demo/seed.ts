@@ -1,12 +1,37 @@
 import { ulid } from 'ulid';
-import type { Batch, Operation, TaskState } from '../api/types';
+import type { Batch, Citation, Operation, Passage, PassagePoint, TaskState } from '../api/types';
 
 export function localToday(now = new Date()): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
 
-/** One atomic batch: a failed seed cannot leave a half-finished tour. */
-export function seedBatch(fieldsPage: string, today = localToday()): Batch {
+/** Passages of the bundled Meditations the tour highlights, with the blocks written beneath them. */
+export const bookHighlights: readonly { quote: string; color: Citation['color']; children: readonly string[] }[] = [
+  { quote: 'Remember how long thou hast already put off these things', color: 'yellow', children: [
+    'The problem is the postponing, not a lack of time.',
+    'What does Marcus say about putting things off? >> That the day set for them has passed many times already, and the time left is limited.',
+  ] },
+  { quote: 'it is in thy power to retire into thyself, and to be at rest, and free from all businesses', color: 'green', children: [] },
+  { quote: 'our life is short; we must endeavour to gain the present time with best discretion and justice', color: 'blue', children: [] },
+];
+
+export interface BookHighlight { quote: string; color: Citation['color']; children: readonly string[]; start: PassagePoint; end: PassagePoint }
+/** The ingested sample book: its source page, the page's last child and the highlights found in its snapshot. */
+export interface SeedBook { id: string; after: string | null; snapshotId: string; highlights: BookHighlight[] }
+
+/** Find each highlight's quote within one passage; offsets are UTF-16, like the reader's. Quotes not found are dropped. */
+export function locateHighlights(passages: readonly Passage[]): BookHighlight[] {
+  return bookHighlights.flatMap(highlight => {
+    for (const passage of passages) {
+      const offset = passage.text.indexOf(highlight.quote);
+      if (offset >= 0) return [{ ...highlight, start: { passage_id: passage.id, offset }, end: { passage_id: passage.id, offset: offset + highlight.quote.length } }];
+    }
+    return [];
+  });
+}
+
+/** One atomic batch: a failed seed cannot leave a half-finished tour. `book` is present when the sample book was ingested. */
+export function seedBatch(fieldsPage: string, today = localToday(), book?: SeedBook): Batch {
   const operations: Operation[] = [];
   const page = (title: string) => {
     const id = ulid(); operations.push({ op: 'create_page', id, title }); return id;
@@ -32,7 +57,19 @@ export function seedBatch(fieldsPage: string, today = localToday()): Batch {
   insert(outline, 'Try undo and redo, fold a branch, or open a linked page beside this one with Shift+click.');
   insert(welcome, `Follow ${link(ideas, 'Small ideas')} for an outline with typed fields and a saved table, or ${link(learning, 'Learning by doing')} for a few flashcards.`);
   insert(welcome, 'Today opens your daily journal. Agenda collects tasks and their dates. Review lets you study cards. Find or create searches your pages; the command palette lists the rest.');
-  insert(welcome, 'The installed app also has a source library and reader, exports and backups. Those are not part of this local browser demo.');
+  insert(welcome, book
+    ? `Open ${link(book.id, 'Meditations')} by Marcus Aurelius and choose Read. A few passages are already highlighted; select another to highlight it, then turn it into a note or a card. Library lists your sources and highlights; add an EPUB of your own there.`
+    : 'Library lists your sources and opens them in the reader; add an EPUB there to highlight passages and turn them into notes or cards.');
+  insert(welcome, 'The installed app also saves web articles and makes backups. Those are not part of this local browser demo.');
+  if (book) {
+    // The reader's highlight: the quote as a block at the end of the source page, citing its passage range.
+    if (book.after) lastChild.set(book.id, book.after);
+    for (const highlight of book.highlights) {
+      const id = insert(book.id, highlight.quote);
+      operations.push({ op: 'cite', id, base_revision: 1, citation_id: ulid(), snapshot_id: book.snapshotId, start: highlight.start, end: highlight.end, color: highlight.color });
+      for (const child of highlight.children) insert(id, child);
+    }
+  }
 
   insert(journal, `Hello, today. Start with ${link(welcome, 'Welcome to Tessera')} — or put a thought of your own below.`);
   const planned = insert(journal, 'Try editing this task, then tick it off');

@@ -34,7 +34,7 @@ impl Notebook {
     ) -> Result<IngestJob> {
         match input_kind {
             IngestInput::File => {
-                self.object_path(input)?;
+                crate::library_store::validate_sha(input)?;
             }
             IngestInput::Url => {
                 if !input.starts_with("http://") && !input.starts_with("https://") {

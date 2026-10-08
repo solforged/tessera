@@ -5,7 +5,6 @@ import type { EditorView } from '@codemirror/view';
 import type { VirtualItem } from '@tanstack/solid-virtual';
 import type { Block, FieldDefinition, QuestionStatus, TaskStatus, WorkSession } from '../api/types';
 import { api } from '../api/client';
-import { DEMO } from '../demo/mode';
 import type { BlockState, Caret, Edit, EditResult, PageDocument, TextRange } from '../document/contract';
 import { depthStops } from '../shell/contract';
 import type { Command, Depth, OutlinePaneProps, ViewState } from '../shell/contract';
@@ -1888,7 +1887,7 @@ function Pane(props: OutlinePaneProps) {
       <Show when={doc.status() === 'error' || doc.status() === 'missing'}><p role="alert">{doc.statusMessage()}</p></Show>
       <Show when={doc.root()?.kind === 'journal'}>
         <JournalAgenda date={doc.root()!.text} pageId={props.pageId} notebook={props.notebook} onOpen={props.onOpen} />
-        {!DEMO && <JournalResurface date={doc.root()!.text} notebook={props.notebook} onOpen={props.onOpen} />}
+        <JournalResurface date={doc.root()!.text} notebook={props.notebook} onOpen={props.onOpen} />
       </Show>
     </div>
     <div ref={list} class="outline-list" style={{ height: `${virtualizer.getTotalSize()}px` }}>
