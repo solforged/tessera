@@ -3,6 +3,9 @@
 /web/dist/
 /web/dist-demo/
 /web/src/demo/pkg/
+/crates/tessera-desktop/node_modules/
+/crates/tessera-desktop/binaries/
+/crates/tessera-desktop/gen/
 /spikes/editor/node_modules/
 /spikes/editor/*/node_modules/
 /spikes/editor/*/dist/
