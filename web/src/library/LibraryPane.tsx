@@ -507,7 +507,7 @@ export function LibraryPane(props: LibraryPaneProps) {
                 <div role="list"><For each={group.rows}>{row => {
                   const target: OpenTarget = { kind: 'page', pageId: row.block.page.id, blockId: row.block.block.id };
                   return <div class="library-row" role="listitem" onPointerEnter={() => setLinkedCitation(row.citation.id)} onPointerLeave={() => setLinkedCitation(null)}><Button class="library-highlight" data-library-row={row.citation.id} onClick={event => props.onOpen(target, event.shiftKey)} onKeyDown={event => rowKey(event, target)}>
-                    <span class="library-highlight-text"><span class={`highlight-color-dot${row.color ? ` highlight-color-${row.color}` : ''}`} role="img" aria-label={row.color ? `${row.color} highlight` : 'No colour'} /><BlockText text={row.block.block.text} notebook={props.notebook} interactive={false} /></span>
+                    <span class="library-highlight-text"><span class={`highlight-color-dot highlight-color-${row.color ?? 'none'}`} role="img" aria-label={row.color ? `${row.color} highlight` : 'No colour'} /><BlockText text={row.block.block.text} notebook={props.notebook} interactive={false} /></span>
                     <span class="library-highlight-details">
                       <Show when={props.notebook.settings()}>{settings => <span class="library-highlight-meta">{highlightMeta(row, highlightContents().get(row.citation.snapshot_id) ?? [], settings().time_zone)}<Show when={row.notes > 0}> · {row.notes} {row.notes === 1 ? 'note' : 'notes'}</Show></span>}</Show>
                       <Show when={row.tags.length}><span class="library-highlight-tags"><For each={row.tags}>{tag => <span class="outline-tag">#{tag}</span>}</For></span></Show>
