@@ -1,8 +1,30 @@
 .review-pane { display: flex; flex-direction: column; min-height: 0; height: 100%; min-width: 0; }
-/* Toolbar, status, card and footer share the outline measure, like Library and Agenda. */
-.review-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); width: 100%; max-width: calc(var(--measure) + 2 * var(--space-16)); margin-inline: auto; padding: var(--space-24) var(--space-16) var(--space-12); }
+/* Header, toolbar, status, card and footer share the outline measure, like Library and Agenda.
+   The deck is the page title, set like a table's view name, with the queue tabs beneath. */
+.review-header { display: flex; align-items: flex-end; gap: var(--space-8); width: 100%; max-width: calc(var(--measure) + 2 * var(--space-16)); margin-inline: auto; padding: var(--space-24) var(--space-16) var(--space-8); }
+.review-heading { flex: 1; min-width: 0; }
+.review-register { color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.review-heading h1 { margin: var(--space-2) 0 0; font-size: var(--text-h1); line-height: var(--line-h1); }
+.review-deck-title.button { justify-content: flex-start; max-width: 100%; min-width: 0; padding: 0; font-family: var(--font-display); font-size: inherit; line-height: inherit; font-weight: var(--weight-title); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
+.review-deck-title > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.review-deck-title > .icon { color: var(--faint); }
+.review-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8) var(--space-16); width: 100%; max-width: calc(var(--measure) + 2 * var(--space-16)); margin-inline: auto; padding: 0 var(--space-16) var(--space-12); }
 .review-scroll > * { width: 100%; max-width: var(--measure); margin-inline: auto; }
 .review-queue-controls { display: flex; flex-wrap: wrap; gap: var(--space-4); margin-right: auto; }
+/* Session progress: a hairline that fills gilt, with the count in apparatus beside it. */
+.review-progress { display: flex; align-items: center; gap: var(--space-8); flex: 0 1 calc(var(--measure) / 3); min-width: 0; }
+.review-progress-track { flex: 1; min-width: var(--space-48); height: var(--rule-width); background: var(--line); }
+.review-progress-fill { display: block; height: 100%; background: var(--accent); transition: width var(--motion-ui) var(--motion-ease); }
+.review-progress-label { flex: none; color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
+/* The landing names what is waiting: the head of the queue, front text in the reading voice. */
+.review-queue { border-top: var(--rule-width) solid var(--line); }
+.review-queue-row { display: flex; align-items: baseline; gap: var(--space-12); width: 100%; min-height: var(--row-height); padding: var(--space-4) var(--space-8); border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; color: var(--text); text-align: left; cursor: pointer; transition: background-color var(--motion-fast) var(--motion-ease); }
+.review-queue-row:hover { background: var(--hover); }
+.review-queue-row:focus-visible { outline: var(--focus-ring); outline-offset: calc(-1 * var(--space-2)); }
+.review-queue-front { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); font-variation-settings: var(--optical-quote); }
+.review-queue-meta { display: flex; gap: var(--space-8); flex: 0 1 auto; min-width: 0; max-width: 45%; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
+.review-queue-source { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.review-queue-more { margin: var(--space-8) var(--space-8) 0; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .review-queue-controls .button { font-weight: var(--weight-body); }
 .review-count { margin-left: var(--space-4); color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .review-queue-controls [aria-pressed="true"] .review-count { color: inherit; }
