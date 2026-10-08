@@ -26,7 +26,7 @@ Browser editor      CLI        Agents       Terminal (later)
 | Text editing | CodeMirror 6, one active editor per pane, with its Vim extension | Real Vim motions and IME handling without writing a text engine |
 | Outline rendering | Plain DOM rows, virtualized with TanStack Virtual for Solid | Bounded memory, mount time and layout cost on large pages |
 | Drafts | IndexedDB outbox of pending operations | Asynchronous, incremental, no quota cliff at a few megabytes |
-| Packaging | Browser first; Tauri only if native integration is needed | Tauri uses WebKit on macOS and does not by itself make IPC faster |
+| Packaging | Browser, plus a Tauri macOS app that wraps the same pages and updates itself | The app adds a window, menus and signed updates; the service stays the single owner, so the CLI and agents work with the window closed |
 
 Each choice has a spike that can overturn it. See [performance](performance.md).
 
@@ -58,7 +58,13 @@ Ingestion runs in one service worker. Network fetches and parsing happen off the
 
 The service binds to loopback and rejects untrusted hosts and origins. Remote access is out of scope.
 
-Local deployment uses one binary built with `embed-web`, which compiles the built editor into `tessera-service`; `--assets` remains a development override. On macOS, `tessera install` registers a per-user launch agent with restart-on-exit and file logging, while `tessera uninstall` leaves notebook data intact. Structured `tracing` events cover migrations, service lifecycle and ingestion, with filtering through `RUST_LOG`. Online backups use a fresh SQLite backup connection and copy the immutable object store. Restore holds the same OS ownership lock as the service and opens the restored notebook to check migrations. Remote access is still out of scope.
+Local deployment uses one binary built with `embed-web`, which compiles the built editor into `tessera-service`; `--assets` remains a development override. On macOS, `tessera install` registers a per-user launch agent with restart-on-exit and file logging, while `tessera uninstall` leaves notebook data intact. Install stops the old service, backs up the notebook with the read-only snapshot path (so a newer build can back up a notebook before migrating it), starts the new build and waits for it to report its version and build; given a previous executable, it rolls back by restoring the backup with that executable and reinstalling it. Structured `tracing` events cover migrations, service lifecycle and ingestion, with filtering through `RUST_LOG`. Online backups use a fresh SQLite backup connection and copy the immutable object store. Restore holds the same OS ownership lock as the service and opens the restored notebook to check migrations. Remote access is still out of scope.
+
+## Desktop app
+
+`crates/tessera-desktop` is a Tauri 2 app for macOS. `Tessera.app` holds two executables: the window (`tessera-desktop`) and the command line (`tessera`), which the launch agent runs. The window holds no notebook state. At launch it reads the agent's plist; if the agent runs another executable, or the service reports another version or build, it runs the bundled `tessera install` with a rollback target, keeping the agent's notebook and port. A build that failed to start is remembered and not retried until a newer one arrives. The window then loads the service's own origin, so the page's requests pass the service's host and origin checks unchanged, and Tauri commands stay unreachable from the notebook page. Other origins open in the default browser; downloads go to `~/Downloads`.
+
+Updates come from `latest.json` on the latest GitHub release, signed with a minisign key whose public half is in `tauri.conf.json`. The app installs a downloaded update only when the user restarts, after copying the outgoing `tessera` aside as the rollback target. The page reloads when the service's build changes. WebKit, not Chromium, renders the editor in the app; the outline, undo, clipboard, reader, export and external links were checked there.
 
 ## Browser editor
 
@@ -96,6 +102,7 @@ A stale operation fails without writing. Clean remote changes merge into the loc
 crates/tessera-core      domain model, migrations, operations
 crates/tessera-service   HTTP and WebSocket service
 crates/tessera-cli       command line
+crates/tessera-desktop   macOS app: window, launch agent handover, updates
 crates/tessera-bench     corpus generator and backend budget checks
 crates/tessera-ingest    extractors for EPUB books and web articles
 web/                     Solid editor

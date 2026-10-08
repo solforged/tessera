@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Build Tessera.app for this Mac's architecture into
+# target/release/bundle/macos. Extra arguments go to `tauri build`, e.g.
+# `--bundles app`. TESSERA_BUILD names the build; it defaults to the short
+# commit, marked -dirty for uncommitted edits. With TAURI_SIGNING_PRIVATE_KEY
+# set, the build also writes the signed updater archive.
+set -euo pipefail
+
+root=$(git rev-parse --show-toplevel)
+cd "$root"
+if [ -z "${TESSERA_BUILD:-}" ]; then
+  TESSERA_BUILD=$(git rev-parse --short HEAD)
+  [ -z "$(git status --porcelain)" ] || TESSERA_BUILD="$TESSERA_BUILD-dirty"
+fi
+export TESSERA_BUILD
+host=$(rustc -vV | sed -n 's/^host: //p')
+
+bun install --cwd web --frozen-lockfile --silent
+# Vite's chunk-size warning is noise here; show the output only on failure.
+if ! out=$(bun run --silent --cwd web build 2>&1); then
+  echo "$out" >&2
+  exit 1
+fi
+cargo build --quiet --release --locked -p tessera-cli --features embed-web
+mkdir -p crates/tessera-desktop/binaries
+cp target/release/tessera "crates/tessera-desktop/binaries/tessera-$host"
+
+config='"externalBin":["binaries/tessera"]'
+if [ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then
+  config="$config,\"createUpdaterArtifacts\":false"
+fi
+bun install --cwd crates/tessera-desktop --frozen-lockfile --silent
+bun run --silent --cwd crates/tessera-desktop tauri build --ci --config "{\"bundle\":{$config}}" "$@"

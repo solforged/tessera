@@ -67,6 +67,16 @@ Review a deck beside the notes its cards come from, on a quiet reading sheet wit
 
 ## Install
 
+### macOS app
+
+Download `Tessera_<version>_aarch64.dmg` from the [latest release](https://github.com/solforged/tessera/releases/latest) and drag Tessera into Applications. The app is ad-hoc signed, not notarized, so macOS blocks the first launch: open it once, then choose Open Anyway under System Settings → Privacy & Security (or run `xattr -dr com.apple.quarantine /Applications/Tessera.app`). Later updates install without that step.
+
+The app is a window onto the notebook service, which keeps running as a launch agent when the window is closed, so the command line, agents and ingestion jobs keep working. At launch it makes sure the agent runs the `tessera` inside the app: if the agent runs another build, it stops the service, backs up the notebook, starts the app's build and waits for it to answer. If that build does not answer, the previous build restores the backup and runs again, and the app says so. An existing agent keeps its notebook and port.
+
+The app checks the latest GitHub release a minute after launch, every six hours, and from Tessera → Check for Updates…. It downloads and verifies a signed update, then asks to restart; restarting moves the service onto the new build with a backup first. Closing the window hides it; Quit stops the window, not the service. View → Reload reloads the page, and the window reloads by itself when another build starts serving. Help → Show Service Log opens `~/Library/Logs/tessera/serve.log`; the app writes its own steps to `desktop.log` beside it. To use the bundled command line, link it onto your path: `ln -s /Applications/Tessera.app/Contents/MacOS/tessera ~/.local/bin/tessera`.
+
+### Command line
+
 Build a self-contained binary with Rust (stable) and Bun:
 
 ```sh
@@ -78,15 +88,23 @@ tessera install
 
 On macOS, `tessera install` starts a launch agent and opens the service at <http://127.0.0.1:4318>. Open that URL in a browser. The agent starts at login and restarts the service if it exits. It writes stdout and stderr to `~/Library/Logs/tessera/serve.log`. `tessera uninstall` stops the agent and removes its plist, not the notebook. Install and uninstall are macOS-only; on Linux run `tessera serve` directly.
 
+Install stops the running service, backs up the notebook beside it (listed under Settings → Backups), starts the new service and waits up to a minute for this build to answer. With `--rollback /path/to/previous/tessera`, a build that does not answer is replaced by that executable, which first restores the backup.
+
 To choose a notebook or port, use `tessera --notebook /absolute/path/to/notebook install --port 4397`. `TESSERA_NOTEBOOK` also persists that notebook choice in the agent. Without either, the service uses the platform data directory. Install refuses a binary under `target/debug` unless `--allow-debug` is given.
 
 The `embed-web` feature compiles `web/dist` into the binary. `tessera serve` needs no `--assets` flag; `--assets web/dist` still overrides the embedded editor during development. Builds without that feature serve only the API unless given `--assets`. The service remains loopback-only.
 
 Logs go to stderr through `tracing`. `RUST_LOG` selects the filter, defaulting to `info`; the launch agent sets `RUST_LOG=info`. CLI JSON and exports remain on stdout.
 
+### Building the app
+
+`scripts/build-desktop` builds the editor, the command line and `target/release/bundle/macos/Tessera.app` for this Mac; extra arguments go to `tauri build`, such as `--bundles app`. To develop the window against a development service, run the built app's binary with `TESSERA_DESKTOP_URL=http://127.0.0.1:4320/`; it then leaves the launch agent alone and never updates itself.
+
+Releases come from `v*` tags matching the workspace version. `.github/workflows/release.yml` builds the Linux command line, then the app, its DMG, the macOS command line, the signed updater archive and `latest.json`, which installed apps poll. Signing the updater archive needs the `TAURI_SIGNING_PRIVATE_KEY` secret, whose public half is in `crates/tessera-desktop/tauri.conf.json`. Losing the private key strands installed apps on their version.
+
 ### Shipping a build
 
-`scripts/ship [commit]` makes a commit (default `HEAD`) the installed app on this Mac. It builds in a separate worktree under `~/Library/Caches/tessera/ship`, so uncommitted edits never ship. It backs up the live notebook (listed under Settings → Backups), copies the binary to `~/.local/bin/tessera`, reinstalls the launch agent on port 4318 and waits for the new build to answer. Settings shows the build's commit. If the new build does not answer within 20 seconds, the script puts back the previous binary, restores the backup and exits with an error.
+`scripts/ship [commit]` makes a commit (default `HEAD`) the installed app on this Mac. It builds Tessera.app in a separate worktree under `~/Library/Caches/tessera/ship`, so uncommitted edits never ship. It quits the app if it is running, replaces `/Applications/Tessera.app`, and runs the app's `tessera install` with the agent's previous executable as the rollback, so the notebook is backed up and the new build must answer. On success it links `~/.local/bin/tessera` to the app's command line; on failure it also puts back the previous app. It reopens the app if it was running. Settings shows the build's commit. A release newer than the shipped version replaces it through the app's updates.
 
 ### Backup and restore
 

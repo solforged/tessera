@@ -51,6 +51,12 @@ use tessera_core::NotebookOwnership;
 
 pub const DEFAULT_PORT: u16 = 4318;
 
+/// The workspace version shared by every Tessera binary.
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// The commit a release or `scripts/ship` built from; absent in development builds.
+pub const BUILD: Option<&str> = option_env!("TESSERA_BUILD");
+
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 pub const LAUNCH_AGENT_LABEL: &str = "dev.tessera.serve";
 
@@ -277,7 +283,7 @@ struct LaunchAgentInfo {
 #[derive(Serialize)]
 struct ServiceInfo {
     version: &'static str,
-    /// The commit `scripts/ship` built from; absent in development builds.
+    /// See [`BUILD`].
     build: Option<&'static str>,
     port: u16,
     assets: &'static str,
@@ -295,8 +301,8 @@ async fn service_info(State(state): State<AppState>) -> Result<Json<ServiceInfo>
             .map_err(ApiError::internal)?
             .unwrap_or(false);
         Ok(Json(ServiceInfo {
-            version: env!("CARGO_PKG_VERSION"),
-            build: option_env!("TESSERA_BUILD"),
+            version: VERSION,
+            build: BUILD,
             port: state.port,
             assets: if state.assets.is_some() {
                 "directory"
@@ -330,11 +336,7 @@ struct CreatedBackup {
 
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 fn backup_directory(info: &NotebookInfo) -> Result<PathBuf, ApiError> {
-    let parent = info
-        .path
-        .parent()
-        .ok_or_else(|| ApiError::internal("The notebook has no parent directory."))?;
-    Ok(parent.join("backups").join(&info.id))
+    tessera_core::backup_directory(&info.path, &info.id).map_err(ApiError::internal)
 }
 
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
@@ -394,26 +396,19 @@ async fn create_backup(State(state): State<AppState>) -> Result<Json<CreatedBack
     tokio::task::spawn_blocking(move || {
         // Keep the guard here so cancelling the HTTP request cannot release it early.
         let _guard = guard;
-        let directory = backup_directory(&info)?;
-        std::fs::create_dir_all(&directory).map_err(ApiError::internal)?;
-        let path = directory.join(
-            jiff::Timestamp::now()
-                .strftime("%Y-%m-%dT%H-%M-%S")
-                .to_string(),
-        );
-        match std::fs::create_dir(&path) {
-            Ok(()) => (),
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-                return Err(ApiError::new(
+        match tessera_core::backup_beside(&info.path) {
+            Ok((path, manifest)) => Ok(Json(CreatedBackup { path, manifest })),
+            Err(tessera_core::Error::Io(error))
+                if error.kind() == std::io::ErrorKind::AlreadyExists =>
+            {
+                Err(ApiError::new(
                     axum::http::StatusCode::CONFLICT,
                     "conflict",
                     "A backup already exists for this second.",
-                ));
+                ))
             }
-            Err(error) => return Err(ApiError::internal(error)),
+            Err(error) => Err(ApiError::from(error)),
         }
-        let manifest = tessera_core::backup(&info.path, &path).map_err(ApiError::from)?;
-        Ok(Json(CreatedBackup { path, manifest }))
     })
     .await
     .map_err(ApiError::internal)?

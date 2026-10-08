@@ -48,12 +48,17 @@ enum Command {
         #[arg(long)]
         dev_origin: Option<String>,
     },
-    /// Install the local service as a macOS launch agent.
+    /// Install the local service as a macOS launch agent. Stops the old
+    /// service, backs up the notebook, and waits for this build to answer.
     Install {
         #[arg(long, default_value_t = tessera_service::DEFAULT_PORT, value_parser = clap::value_parser!(u16).range(1..))]
         port: u16,
         #[arg(long)]
         allow_debug: bool,
+        /// Previous executable to restore the backup with and reinstall if
+        /// this build does not answer.
+        #[arg(long)]
+        rollback: Option<PathBuf>,
     },
     /// Remove the macOS launch agent without deleting the notebook.
     Uninstall,
@@ -119,11 +124,17 @@ fn main() -> anyhow::Result<()> {
                 },
             ))?;
         }
-        Command::Install { port, allow_debug } => {
+        Command::Install {
+            port,
+            allow_debug,
+            rollback,
+        } => {
             install::install(
-                explicit_notebook.then_some(notebook.as_path()),
+                &notebook,
+                explicit_notebook,
                 port,
                 allow_debug,
+                rollback.as_deref(),
             )?;
         }
         Command::Uninstall => install::uninstall()?,

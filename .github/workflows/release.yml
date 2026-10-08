@@ -1,5 +1,9 @@
 name: Release
 
+# A v* tag publishes the Linux command line, the macOS app with its command
+# line, and latest.json, which installed apps poll for signed updates. The tag
+# must match the workspace version.
+
 on:
   push:
     tags: ['v*']
@@ -8,22 +12,20 @@ permissions:
   contents: write
 
 jobs:
-  release:
-    name: release (${{ matrix.target }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-latest
-            target: aarch64-apple-darwin
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
+  linux:
+    name: release (x86_64-unknown-linux-gnu)
+    runs-on: ubuntu-latest
+    env:
+      TARGET: x86_64-unknown-linux-gnu
+      TAG: ${{ github.ref_name }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - name: Check the tag matches the version
+        run: test "$TAG" = "v$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml)"
 
       - name: Install Rust
         run: rustup show active-toolchain || rustup toolchain install
@@ -38,16 +40,66 @@ jobs:
         run: bun run --cwd web build
 
       - name: Build release
-        run: cargo build --release --locked -p tessera-cli --features embed-web --target "${{ matrix.target }}"
+        run: TESSERA_BUILD="$(git rev-parse --short HEAD)" cargo build --release --locked -p tessera-cli --features embed-web --target "$TARGET"
 
       - name: Package binary
-        env:
-          TAG: ${{ github.ref_name }}
-          TARGET: ${{ matrix.target }}
         run: tar -czf "tessera-${TAG}-${TARGET}.tar.gz" -C "target/${TARGET}/release" tessera
 
       - name: Upload release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
-          files: tessera-${{ github.ref_name }}-${{ matrix.target }}.tar.gz
+          files: tessera-${{ github.ref_name }}-x86_64-unknown-linux-gnu.tar.gz
+          fail_on_unmatched_files: true
+
+  macos:
+    name: release (macOS app)
+    # After the Linux job, so the two uploads never race to create the release.
+    needs: linux
+    runs-on: macos-latest
+    env:
+      TAG: ${{ github.ref_name }}
+      REPOSITORY: ${{ github.repository }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Rust
+        run: rustup show active-toolchain || rustup toolchain install
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+
+      - name: Build app
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
+        run: |
+          test -n "$TAURI_SIGNING_PRIVATE_KEY"
+          TESSERA_BUILD="$(git rev-parse --short HEAD)" scripts/build-desktop --bundles app,dmg
+
+      - name: Package release
+        run: |
+          version="${TAG#v}"
+          bundle=target/release/bundle
+          mkdir dist
+          tar -czf "dist/tessera-${TAG}-aarch64-apple-darwin.tar.gz" -C target/release tessera
+          cp "$bundle/dmg/Tessera_${version}_aarch64.dmg" dist/
+          archive="Tessera_${version}_aarch64.app.tar.gz"
+          cp "$bundle/macos/Tessera.app.tar.gz" "dist/$archive"
+          cp "$bundle/macos/Tessera.app.tar.gz.sig" "dist/$archive.sig"
+          jq -n \
+            --arg version "$version" \
+            --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --arg signature "$(cat "dist/$archive.sig")" \
+            --arg url "https://github.com/${REPOSITORY}/releases/download/${TAG}/${archive}" \
+            '{version: $version, notes: "Tessera \($version)", pub_date: $date,
+              platforms: {"darwin-aarch64": {signature: $signature, url: $url}}}' \
+            > dist/latest.json
+
+      - name: Upload release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          files: dist/*
           fail_on_unmatched_files: true

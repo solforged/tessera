@@ -61,6 +61,42 @@ pub fn backup(source: impl AsRef<Path>, destination: impl AsRef<Path>) -> Result
     Ok(manifest)
 }
 
+/// Where the service lists a notebook's backups: `<parent>/backups/<id>`.
+pub fn backup_directory(notebook: &Path, id: &str) -> Result<PathBuf> {
+    let parent = notebook
+        .parent()
+        .ok_or_else(|| validation("The notebook has no parent directory."))?;
+    Ok(parent.join("backups").join(id))
+}
+
+/// Back up into the notebook's [`backup_directory`] under the current UTC
+/// second. Reads the notebook ID without opening, so a newer build can back
+/// up before it migrates.
+pub fn backup_beside(notebook: impl AsRef<Path>) -> Result<(PathBuf, BackupManifest)> {
+    let notebook = fs::canonicalize(notebook.as_ref())?;
+    let id: String = {
+        let conn = Connection::open_with_flags(
+            notebook.join(DATABASE_FILE),
+            OpenFlags::SQLITE_OPEN_READ_ONLY,
+        )?;
+        conn.busy_timeout(Duration::from_secs(5))?;
+        conn.query_row("SELECT id FROM notebook WHERE singleton = 1", [], |r| {
+            r.get(0)
+        })?
+    };
+    let directory = backup_directory(&notebook, &id)?;
+    fs::create_dir_all(&directory)?;
+    let path = directory.join(
+        jiff::Timestamp::now()
+            .strftime("%Y-%m-%dT%H-%M-%S")
+            .to_string(),
+    );
+    // Fails with AlreadyExists for a second backup within the same second.
+    fs::create_dir(&path)?;
+    let manifest = backup(&notebook, &path)?;
+    Ok((path, manifest))
+}
+
 /// Restore into an offline notebook. Hold the same OS lock as the service for
 /// the entire replacement, including migration. Never unlink `service.lock`.
 pub fn restore(
