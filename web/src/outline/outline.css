@@ -50,7 +50,7 @@
 .outline-list { position: relative; }
 .outline-row { display: flex; align-items: flex-start; position: absolute; top: 0; left: 0; right: 0; min-height: var(--row-height); padding-block: var(--space-2); padding-left: calc(var(--depth) * var(--indent-width)); border-left: 2px solid transparent; border-radius: var(--radius-control); transition: background-color var(--motion-fast) var(--motion-ease); }
 .outline-row:hover { background: var(--hover); }
-.outline-row.row-selected { background: var(--selection); border-left-color: var(--accent); }
+.outline-row:is(.row-selected, .row-covered) { background: var(--selection); border-left-color: var(--accent); }
 .outline-row .icon-button { width: var(--target-size); height: var(--target-size); min-width: var(--target-size); padding: var(--space-4); flex: none; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--faint); display: inline-flex; align-items: center; justify-content: center; transition: color var(--motion-fast) var(--motion-ease), background-color var(--motion-fast) var(--motion-ease), opacity var(--motion-fast) var(--motion-ease); }
 .outline-row .icon-button:hover { color: var(--text); background: var(--selection); }
 .row-menu, .row-fold { opacity: 0; }
