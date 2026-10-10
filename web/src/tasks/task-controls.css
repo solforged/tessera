@@ -5,6 +5,8 @@
 .task-status-button[data-status="waiting"] { color: var(--status-waiting); }
 .task-status-button[data-status="done"] { color: var(--status-done); }
 .task-status-button[data-status="cancelled"] { color: var(--status-cancelled); }
+/* Hovering an open task previews the check its click will make. */
+.task-status-button:is([data-status="todo"], [data-status="doing"], [data-status="waiting"]):hover:not(:disabled) { color: var(--status-done); }
 :is(.popup, .popup-exit).task-planning-slip { width: var(--search-width); padding: var(--space-12); }
 .task-planning-header { padding-bottom: var(--space-8); margin-bottom: var(--space-4); border-bottom: var(--rule-width) solid var(--line); }
 .task-planning-header .task-planning-kicker { margin: 0; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
@@ -12,7 +14,8 @@
 .task-controls { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-2); min-width: 0; }
 .task-controls .task-planning-row { display: grid; grid-template-columns: minmax(0, 6rem) minmax(0, 1fr); gap: var(--space-12); min-height: var(--row-height); padding: var(--space-4); font-size: var(--text-control); line-height: var(--line-control); font-weight: var(--weight-body); }
 .task-planning-label { color: var(--muted); }
-.task-metadata-value { color: var(--text); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.task-metadata-value { color: var(--text); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); overflow-wrap: anywhere; }
+.task-planning-value.task-planning-empty { color: var(--faint); }
 .task-planning-value { min-width: 0; text-align: left; }
 .task-control-error { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--space-4); flex-basis: 100%; color: var(--danger); font-size: var(--text-meta); line-height: var(--line-meta); overflow-wrap: anywhere; }
 .task-control-popup { width: var(--search-width); }
@@ -23,3 +26,5 @@
 .task-repeat-interval { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-8); }
 .task-control-form .popup-actions { gap: var(--space-8); margin-top: var(--space-4); }
 .task-control-form .error { margin: 0; font-size: var(--text-control); line-height: var(--line-control); }
+.task-control-note { margin: 0; color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); }
+.task-control-date { font: var(--apparatus); letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
