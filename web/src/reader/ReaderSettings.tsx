@@ -6,13 +6,16 @@ const sizes = [15, 16, 17, 18, 20, 22] as const;
 // Widths in em follow the reader size: a compact or medium reading measure.
 const widths = { Narrow: '28em', Medium: '34em', Wide: 'var(--measure)' } as const;
 const spacings = { Compact: 1.5, Normal: 1.65, Relaxed: 1.8 } as const;
+const layouts = { scroll: 'Scroll', pages: 'Pages' } as const;
 interface ReaderSettings {
   typeface: 'sans' | 'serif';
   size: typeof sizes[number];
   width: keyof typeof widths;
   spacing: keyof typeof spacings;
+  /** Pages turn sideways and show two columns when the pane fits them. */
+  layout: keyof typeof layouts;
 }
-const defaults: ReaderSettings = { typeface: 'serif', size: 17, width: 'Medium', spacing: 'Normal' };
+const defaults: ReaderSettings = { typeface: 'serif', size: 17, width: 'Medium', spacing: 'Normal', layout: 'scroll' };
 const storageKey = 'tessera.reader';
 function storedSettings(): ReaderSettings {
   try {
@@ -23,6 +26,7 @@ function storedSettings(): ReaderSettings {
       size: sizes.includes(value.size) ? value.size : defaults.size,
       width: Object.hasOwn(widths, value.width) ? value.width : defaults.width,
       spacing: Object.hasOwn(spacings, value.spacing) ? value.spacing : defaults.spacing,
+      layout: Object.hasOwn(layouts, value.layout) ? value.layout : defaults.layout,
     };
   } catch { return defaults; }
 }
@@ -44,6 +48,9 @@ export const readerStyle = () => ({
 export function ReaderSettingsPopup(props: { anchor: HTMLElement; onDismiss(): void }) {
   const sizeIndex = () => sizes.indexOf(readerSettings().size);
   return <Popup anchor={props.anchor} label="Reader settings" class="reader-settings" onDismiss={props.onDismiss}>
+    <div class="reader-setting"><span>Layout</span><div class="mode-tabs" role="group" aria-label="Layout"><For each={Object.keys(layouts) as (keyof typeof layouts)[]}>{layout =>
+      <Button aria-pressed={readerSettings().layout === layout} onClick={() => setSettings({ layout })}>{layouts[layout]}</Button>
+    }</For></div></div>
     <div class="reader-setting"><span>Typeface</span><div class="mode-tabs" role="group" aria-label="Typeface">
       <Button aria-pressed={readerSettings().typeface === 'sans'} onClick={() => setSettings({ typeface: 'sans' })}>Sans</Button>
       <Button aria-pressed={readerSettings().typeface === 'serif'} onClick={() => setSettings({ typeface: 'serif' })}>Serif</Button>
