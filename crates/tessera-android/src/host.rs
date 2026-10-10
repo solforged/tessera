@@ -9,11 +9,11 @@ use axum::{
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use parking_lot::Mutex;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tauri::ipc::{Channel, Response};
 use tauri::webview::PageLoadEvent;
 use tauri::{AppHandle, Manager};
-use tessera_core::{Notebook, NotebookOwnership};
+use tessera_core::{Notebook, NotebookOwnership, library::IngestJob};
 use tessera_service::EmbeddedHandles;
 use tokio::sync::{OnceCell, broadcast};
 use tokio::task::AbortHandle;
@@ -113,6 +113,106 @@ async fn notebook_request(app: AppHandle, request: NotebookRequest) -> Result<Re
     Ok(Response::new(reply))
 }
 
+#[derive(Default, Serialize)]
+struct OpenedFiles {
+    jobs: Vec<IngestJob>,
+    errors: Vec<String>,
+}
+
+static INBOX: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
+/// Kotlin has already copied URI-granted streams into this private, atomic inbox.
+#[tauri::command]
+async fn take_opened_files(app: AppHandle) -> Result<OpenedFiles, String> {
+    let _guard = INBOX.lock().await;
+    let directory = app
+        .path()
+        .app_cache_dir()
+        .map_err(|error| error.to_string())?
+        .join("inbox");
+    let mut files = match tokio::fs::read_dir(directory).await {
+        Ok(files) => files,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(OpenedFiles::default());
+        }
+        Err(error) => return Err(format!("cannot read the import inbox: {error}")),
+    };
+    let host = host(&app).await?;
+    let mut result = OpenedFiles::default();
+    while let Some(file) = files
+        .next_entry()
+        .await
+        .map_err(|error| error.to_string())?
+    {
+        let path = file.path();
+        let filename = file.file_name();
+        let filename = filename.to_string_lossy();
+        if filename.ends_with(".error") {
+            result.errors.push(
+                tokio::fs::read_to_string(&path)
+                    .await
+                    .map_err(|error| error.to_string())?,
+            );
+        } else if path
+            .extension()
+            .and_then(std::ffi::OsStr::to_str)
+            .is_some_and(|extension| extension.eq_ignore_ascii_case("epub"))
+        {
+            let name = filename
+                .split_once('_')
+                .map_or(filename.as_ref(), |(_, name)| name);
+            match upload_opened_file(host, &path, name).await {
+                Ok(job) => result.jobs.push(job),
+                Err(error) => result.errors.push(format!("{name}: {error}")),
+            }
+        } else {
+            // A .part stream is still being copied, and must not be consumed yet.
+            continue;
+        }
+        if let Err(error) = tokio::fs::remove_file(&path).await {
+            result
+                .errors
+                .push(format!("cannot clear the import inbox: {error}"));
+        }
+    }
+    Ok(result)
+}
+
+async fn upload_opened_file(
+    host: &Host,
+    path: &std::path::Path,
+    name: &str,
+) -> Result<IngestJob, String> {
+    let bytes = tokio::fs::read(path)
+        .await
+        .map_err(|error| error.to_string())?;
+    let filename =
+        percent_encoding::utf8_percent_encode(name, percent_encoding::NON_ALPHANUMERIC).to_string();
+    let request = Request::builder()
+        .method("POST")
+        .uri("/api/library/uploads")
+        .header(CONTENT_TYPE, "application/epub+zip")
+        .header("X-Filename", filename)
+        .body(Body::from(bytes))
+        .map_err(|error| error.to_string())?;
+    let response = host
+        .router
+        .clone()
+        .oneshot(request)
+        .await
+        .map_err(|error| error.to_string())?;
+    let status = response.status();
+    let body = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .map_err(|error| error.to_string())?;
+    if !status.is_success() {
+        return Err(format!(
+            "upload failed ({status}): {}",
+            String::from_utf8_lossy(&body)
+        ));
+    }
+    serde_json::from_slice(&body).map_err(|error| error.to_string())
+}
 /// Deliver committed changes after `after` in cursor order until the page closes
 /// the stream; the command returns then, or fails if the stream cannot continue.
 #[tauri::command]
@@ -204,7 +304,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             notebook_request,
             stream_changes,
-            close_changes
+            close_changes,
+            take_opened_files
         ])
         .on_page_load(|_, payload| {
             // A reloaded page cannot receive its old streams' changes.

@@ -113,6 +113,8 @@ Logs go to stderr through `tracing`. `RUST_LOG` selects the filter, defaulting t
 
 `scripts/build-desktop` builds the editor, the command line and `target/release/bundle/macos/Tessera.app` for this Mac; extra arguments go to `tauri build`, such as `--bundles app`. To develop the window against a development service, run the built app's binary with `TESSERA_DESKTOP_URL=http://127.0.0.1:4320/`; it then leaves the launch agent alone and never updates itself.
 
+The macOS app accepts EPUBs opened from Finder, imports them into its notebook and shows the Library. To make it the default, select an `.epub` in Finder, choose **Get Info → Open with → Tessera → Change All…**. On Android, choose **Tessera** in the EPUB's **Open with** chooser, then **Always**; **Share → Tessera** also imports an EPUB. Android reads the sender's content URI while its permission grant is active, copies it into a private inbox, and clears that copy after submitting the import. Both shells show upload errors and ingestion progress through the Library.
+
 Releases come from `v*` tags matching the workspace version. `.github/workflows/release.yml` first publishes the app, its DMG, the macOS command line, the signed updater archive and `latest.json`, which installed apps poll, then adds the Linux command line. Signing the updater archive needs the `TAURI_SIGNING_PRIVATE_KEY` secret, whose public half is in `crates/tessera-desktop/tauri.conf.json`. Losing the private key strands installed apps on their version.
 
 ### Shipping a build

@@ -24,6 +24,7 @@ import { deskCounts, shortDay } from './desk-counts';
 import { depthLabels, depthStops } from './contract';
 import type { AgendaViewState, CommandRegistry, CompareViewState, Depth, FieldsViewState, LibraryViewState, OpenTarget, PaneId, ReaderViewState, ReviewViewState, SettingsViewState, TableViewState, ViewState } from './contract';
 import { Palette } from './Palette';
+import { installOpenedFiles } from '../library/opened-files';
 
 // Panes other than the outline load on demand and are prefetched once the app is idle.
 const paneModules = {
@@ -361,6 +362,7 @@ export function App() {
       setNavigationId(notebookInfo.id);
     })().catch(reportError);
   });
+  installOpenedFiles(() => navigationId() !== null, () => open({ kind: 'library', tab: 'inbox' }, false, 'main'), reportError);
   // Caret and scroll reports change navigation on most keystrokes; storage writes trail them off the input path.
   let navigationWrite: { key: string; value: unknown } | null = null;
   let navigationTimer = 0;

@@ -5158,6 +5158,7 @@ dependencies = [
  "axum",
  "base64 0.22.1",
  "parking_lot",
+ "percent-encoding",
  "serde",
  "serde_json",
  "tauri",
@@ -5229,6 +5230,7 @@ version = "0.2.0"
 dependencies = [
  "jiff",
  "parking_lot",
+ "percent-encoding",
  "reqwest",
  "serde",
  "serde_json",

@@ -21,9 +21,10 @@ tessera-service.workspace = true
 axum = { version = "0.8", default-features = false }
 base64 = "0.22"
 parking_lot = "0.12"
+percent-encoding = "2"
 serde.workspace = true
 serde_json.workspace = true
-tokio = { version = "1", default-features = false, features = ["rt", "sync"] }
+tokio = { version = "1", default-features = false, features = ["fs", "rt", "sync"] }
 tower.workspace = true
 
 # Tauri's Android entry point exports JNI symbols, which the workspace's

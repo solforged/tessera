@@ -6,6 +6,8 @@ mod agent;
 #[cfg(target_os = "macos")]
 mod app;
 #[cfg(target_os = "macos")]
+mod opened_files;
+#[cfg(target_os = "macos")]
 mod updates;
 
 #[cfg(target_os = "macos")]
