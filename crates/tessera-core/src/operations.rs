@@ -106,6 +106,7 @@ impl Notebook {
         }
         engine.rewrite_incoming_tags()?;
         engine.derive_tags()?;
+        engine.cleanup_provisional_pages()?;
         engine.reconcile_titles()?;
         engine.derive_cards()?;
         for revision in &engine.revisions {
@@ -588,6 +589,71 @@ impl Engine<'_, '_> {
             position += 1;
         }
         Ok(())
+    }
+
+    fn cleanup_provisional_pages(&mut self) -> Result<()> {
+        // Title changes can resolve memberships on blocks untouched by this batch.
+        self.reconcile_titles()?;
+        // A generated title can itself contain a tag or link. Removing it can
+        // leave another provisional page unused, so repeat until nothing goes.
+        loop {
+            // Unused first: most provisional pages stay in use, so a typing batch
+            // costs a few indexed probes per page and returns early.
+            let candidates = self.tx.prepare_cached(
+                "SELECT b.id, b.title_key FROM provisional_pages p JOIN blocks b ON b.id = p.id
+                 WHERE b.deletion_id IS NULL AND b.revision = 1
+                 AND NOT EXISTS (SELECT 1 FROM memberships m JOIN blocks s ON s.id = m.block_id WHERE m.type_id = b.id AND s.deletion_id IS NULL)
+                 AND NOT EXISTS (SELECT 1 FROM links l JOIN blocks s ON s.id = l.source_id WHERE l.target_id = b.id AND s.deletion_id IS NULL)
+                 AND NOT EXISTS (SELECT 1 FROM blocks c WHERE c.parent_id = b.id AND c.deletion_id IS NULL)
+                 AND NOT EXISTS (SELECT 1 FROM memberships m WHERE m.block_id = b.id AND m.manual = 1)
+                 AND NOT EXISTS (SELECT 1 FROM type_fields f WHERE f.type_id = b.id OR f.field_id = b.id)
+                 AND NOT EXISTS (SELECT 1 FROM fields f WHERE f.block_id = b.id)
+                 AND NOT EXISTS (SELECT 1 FROM field_values f WHERE f.owner_id = b.id OR f.field_id = b.id OR f.entry_id = b.id OR f.value_id = b.id)
+                 AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.block_id = b.id)
+                 AND NOT EXISTS (SELECT 1 FROM projects p WHERE p.block_id = b.id)
+                 AND NOT EXISTS (SELECT 1 FROM positions p WHERE p.block_id = b.id)
+                 AND NOT EXISTS (SELECT 1 FROM questions q WHERE q.block_id = b.id OR json_extract(q.state, '$.accepted') = b.id)
+                 AND NOT EXISTS (SELECT 1 FROM assessments a WHERE a.block_id = b.id)
+                 AND NOT EXISTS (SELECT 1 FROM sources s WHERE s.block_id = b.id)
+                 AND NOT EXISTS (SELECT 1 FROM citations c WHERE c.block_id = b.id)
+                 AND NOT EXISTS (SELECT 1 FROM task_occurrences t WHERE t.block_id = b.id)
+                 AND NOT EXISTS (SELECT 1 FROM work_sessions w WHERE w.block_id = b.id)
+                 AND NOT EXISTS (SELECT 1 FROM card_units c WHERE c.source_block_id = b.id)
+                 AND NOT EXISTS (SELECT 1 FROM ingest_jobs j WHERE j.target_source = b.id)"
+            )?.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            if candidates.is_empty() {
+                return Ok(());
+            }
+            // Queries store IDs (including nested source/filter IDs) and free text.
+            // Search text naming a title also claims that page. Settings currently
+            // hold only time_zone and vim; pins are local client navigation state.
+            let query_values = self.tx.prepare_cached(
+                "SELECT DISTINCT j.atom FROM (
+                     SELECT query FROM views UNION ALL SELECT query FROM decks
+                     UNION ALL SELECT query FROM task_views UNION ALL SELECT query FROM library_views
+                 ) saved, json_tree(saved.query) j WHERE j.type = 'text'"
+            )?.query_map([], |row| row.get::<_, String>(0))?
+                .map(|value| value.map(|value| value.to_lowercase()))
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            let mut deleted = false;
+            for (id, title) in candidates {
+                let claimed = query_values.iter().any(|value| value.eq_ignore_ascii_case(&id)
+                    || value.match_indices(title.as_str()).any(|(start, matched)| {
+                        let boundary = |c: char| !c.is_alphanumeric() && c != '_';
+                        value[..start].chars().next_back().is_none_or(boundary)
+                            && value[start + matched.len()..].chars().next().is_none_or(boundary)
+                    }));
+                if !claimed {
+                    self.delete(&id)?;
+                    self.tx.execute("DELETE FROM provisional_pages WHERE id = ?1", [&id])?;
+                    deleted = true;
+                }
+            }
+            if !deleted {
+                return Ok(());
+            }
+        }
     }
 
     fn reconcile_titles(&self) -> Result<()> {

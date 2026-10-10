@@ -448,3 +448,40 @@ async fn capability_catch_up_and_live_review_protection_do_not_require_text_revi
     socket.close(None).await.unwrap();
     task.abort();
 }
+
+#[tokio::test]
+async fn provisional_tag_cleanup_reaches_receipts_stream_and_completion() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut nb = Notebook::open(dir.path()).unwrap();
+    let seeded = nb.apply(&batch(vec![
+        Operation::CreatePage { id: PAGE.into(), title: "Notes".into() },
+        Operation::Insert { id: BLOCK.into(), parent_id: PAGE.into(), after: None, text: "#p".into(), heading: None },
+    ])).unwrap();
+    let mut previous = nb.page_by_title("p").unwrap().unwrap();
+    let (host, task) = server(nb).await;
+    let client = reqwest::Client::new();
+    let (mut socket, _) = connect_async(format!("ws://{host}/api/changes/stream?after={}", seeded.seq)).await.unwrap();
+    for (revision, title) in [(1, "ph"), (2, "phi"), (3, "phil"), (4, "")] {
+        let text = if title.is_empty() { String::new() } else { format!("#{title}") };
+        let receipt = commit(&client, &host, &edit(revision, &text)).await;
+        assert!(receipt.revisions.iter().any(|r| r.id == previous.id && r.revision == 2));
+        assert_eq!(receipt.deletions.len(), 1);
+        let message = tokio::time::timeout(Duration::from_secs(5), socket.next()).await.unwrap().unwrap().unwrap();
+        let event: ChangeEvent = serde_json::from_str(message.to_text().unwrap()).unwrap();
+        assert_eq!(event.seq, receipt.seq);
+        assert_eq!(event.removed, vec![previous.id.clone()]);
+        assert!(event.restructured_pages.contains(&previous.id));
+        let completion: Vec<Block> = client.get(format!("http://{host}/api/complete?q="))
+            .send().await.unwrap().error_for_status().unwrap().json().await.unwrap();
+        let tags: Vec<_> = completion.into_iter().filter(|b| ["p", "ph", "phi", "phil"].contains(&b.text.as_str())).collect();
+        if title.is_empty() {
+            assert!(tags.is_empty());
+        } else {
+            assert_eq!(tags.len(), 1);
+            assert_eq!(tags[0].text, title);
+            previous = tags.into_iter().next().unwrap();
+        }
+    }
+    socket.close(None).await.unwrap();
+    task.abort();
+}

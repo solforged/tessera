@@ -385,6 +385,8 @@ pub(crate) fn resolve_type(
          VALUES (?1, 'page', ?1, 1024, ?2, ?3, 1, ?4, ?4)",
     )?
     .execute(rusqlite::params![id, title, title_key, now])?;
+    conn.prepare_cached("INSERT INTO provisional_pages(id) VALUES (?1)")?
+        .execute([&id])?;
     derive_links(conn, &id, title)?;
     created.push(Revision {
         id: id.clone(),
