@@ -91,6 +91,10 @@
 .library-creators { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-4); min-width: 0; }
 .library-creator { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: var(--space-8); width: 100%; }
 .library-creator .mode-tabs { gap: 0; }
+/* A near match to a page already in the notebook: one tap takes its exact title, so saving links to that page. */
+.library-creator-same { grid-column: 1 / -1; margin: 0; color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
+.library-creator-page.button { display: inline; min-height: 0; padding: 0; color: var(--accent); font-weight: var(--weight-body); text-decoration: underline; text-decoration-thickness: var(--rule-width); text-underline-offset: var(--space-4); }
+.library-creator-page.button:hover:not(:disabled) { background: transparent; color: var(--text); }
 .library-add-creator.button { margin-left: calc(-1 * var(--space-8)); color: var(--muted); font-weight: var(--weight-body); }
 .library-add-creator.button:hover:not(:disabled) { color: var(--text); }
 .library-details .popup-actions { margin-top: var(--space-8); }
