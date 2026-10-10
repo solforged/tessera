@@ -279,6 +279,8 @@ export interface NotebookClient {
   createPage(title: string): Promise<string>;
   /** The page with this title, created if missing (for tags). */
   pageByTitle(title: string, create: boolean): Promise<string | null>;
+  /** Permanently merge two pages after saving their pending edits; resolves after acknowledgement. */
+  mergePage(from: string, into: string): Promise<void>;
   deletePage(pageId: string): Promise<void>;
   /** Undo the last page deletion in this window. */
   restorePage(pageId: string): Promise<void>;

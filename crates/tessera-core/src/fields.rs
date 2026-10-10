@@ -108,6 +108,11 @@ impl FieldChanges {
                 source_id,
                 destination_id,
                 ..
+            }
+            | Operation::MergePage {
+                source_id,
+                destination_id,
+                ..
             } => {
                 self.capture(conn, source_id)?;
                 self.capture(conn, destination_id)

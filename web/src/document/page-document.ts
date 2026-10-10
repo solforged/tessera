@@ -107,13 +107,39 @@ export class Document implements PageDocument {
     }
   }
   close() { this.closed = true; }
-  private fail(error: unknown) {
-    this.loadStatus[1](error instanceof ApiError && error.status === 404 ? 'missing' : 'error');
-    this.loadMessage[1](error instanceof Error ? error.message : String(error));
+  markMissing(message = 'This page has been deleted.') {
+    this.syncGeneration++;
+    batch(() => {
+      const ids = [...this.cells.keys()];
+      this.cells.clear();
+      this.baseBlocks.clear();
+      this.baseManualTypes.clear();
+      this.baseCapabilities.clear();
+      this.investigationIds.clear();
+      this.work.clear();
+      this.archived.clear();
+      this.archiveChange[1](value => value + 1);
+      this.outline.replace([]);
+      this.baseOutline.replace([]);
+      this.conflicts.clear();
+      this.resolving.clear();
+      this.conflictVersion[1](value => value + 1);
+      this.undoStack = [];
+      this.redoStack = [];
+      this.historyCommands.clear();
+      this.guardHistories.clear();
+      this.historyVersion[1](value => value + 1);
+      for (const id of ids) this.presenceChanged(id);
+      this.host.publish(null, this.pageId);
+      this.host.updateRoot(null, this.pageId);
+      this.loadStatus[1]('missing');
+      this.loadMessage[1](message);
+    });
   }
-  markMissing() {
-    this.loadStatus[1]('missing');
-    this.loadMessage[1]('This page has been deleted.');
+  private fail(error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (error instanceof ApiError && error.status === 404) this.markMissing(message);
+    else { this.loadStatus[1]('error'); this.loadMessage[1](message); }
   }
   isResolving(id: string) { return this.resolving.has(id); }
   private put(block: Block, pending = false, manual_types = this.cells.get(block.id)?.state.manual_types ?? this.baseManualTypes.get(block.id) ?? [], capability = this.capabilities(block.id)) {

@@ -146,29 +146,73 @@ pub(crate) fn derive_links(conn: &Connection, id: &str, text: &str) -> Result<()
     let mut insert = conn.prepare_cached(
         "INSERT INTO links(source_id, occurrence, target_id, alias) VALUES (?1, ?2, ?3, ?4)",
     )?;
-    let mut rest = text;
-    let mut occurrence = 0;
-    while let Some(start) = rest.find("[[") {
-        let prefix = &rest[..start];
-        let is_tag = prefix.strip_suffix('#').is_some_and(|before| {
-            before
-                .chars()
-                .next_back()
-                .is_none_or(|ch| !ch.is_alphanumeric() && ch != '_')
-        });
-        rest = &rest[start + 2..];
-        let Some(end) = rest.find("]]") else { break };
-        let reference = &rest[..end];
-        let (target, alias) = reference
-            .split_once('|')
-            .map_or((reference, None), |(target, alias)| (target, Some(alias)));
-        if !is_tag && validate_id(target).is_ok() {
-            insert.execute(rusqlite::params![id, occurrence, target, alias])?;
-            occurrence += 1;
-        }
-        rest = &rest[end + 2..];
+    for (occurrence, token) in link_tokens(text).enumerate() {
+        insert.execute(rusqlite::params![
+            id,
+            occurrence as i64,
+            token.target,
+            token.alias
+        ])?;
     }
     Ok(())
+}
+
+struct LinkToken<'a> {
+    target: &'a str,
+    alias: Option<&'a str>,
+    target_span: std::ops::Range<usize>,
+}
+
+/// Share reference recognition between indexing and merge rewriting. Tags
+/// containing brackets are title references, not block ID references.
+fn link_tokens(text: &str) -> impl Iterator<Item = LinkToken<'_>> {
+    let mut cursor = 0;
+    std::iter::from_fn(move || {
+        while let Some(relative) = text[cursor..].find("[[") {
+            let start = cursor + relative;
+            let prefix = &text[..start];
+            let is_tag = prefix.strip_suffix('#').is_some_and(|before| {
+                before
+                    .chars()
+                    .next_back()
+                    .is_none_or(|ch| !ch.is_alphanumeric() && ch != '_')
+            });
+            let target_start = start + 2;
+            let rest = &text[target_start..];
+            let Some(end) = rest.find("]]") else {
+                cursor = text.len();
+                return None;
+            };
+            cursor = target_start + end + 2;
+            let reference = &rest[..end];
+            let (target, alias) = reference
+                .split_once('|')
+                .map_or((reference, None), |(target, alias)| (target, Some(alias)));
+            if !is_tag && validate_id(target).is_ok() {
+                return Some(LinkToken {
+                    target,
+                    alias,
+                    target_span: target_start..target_start + target.len(),
+                });
+            }
+        }
+        None
+    })
+}
+
+pub(crate) fn rewrite_links(text: &str, from: &str, into: &str) -> Option<String> {
+    let mut rewritten = None;
+    let mut cursor = 0;
+    for token in link_tokens(text).filter(|token| token.target == from) {
+        let output = rewritten.get_or_insert_with(|| String::with_capacity(text.len()));
+        output.push_str(&text[cursor..token.target_span.start]);
+        output.push_str(into);
+        cursor = token.target_span.end;
+    }
+    if let Some(output) = &mut rewritten {
+        output.push_str(&text[cursor..]);
+    }
+    rewritten
 }
 
 pub(crate) struct TagToken<'a> {

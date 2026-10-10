@@ -146,6 +146,15 @@ pub enum Operation {
         destination_id: String,
         destination_revision: i64,
     },
+    /// Permanently combine two ordinary pages. Redirect incoming references,
+    /// append children (coalescing matching field entries), and tombstone the
+    /// source. Sources, journal days and the Fields page cannot be endpoints.
+    MergePage {
+        source_id: String,
+        source_revision: i64,
+        destination_id: String,
+        destination_revision: i64,
+    },
     /// Move a block and its subtree under `parent_id`, after `after` (first
     /// when `None`). Indent and outdent are moves. The ID never changes.
     Move {
