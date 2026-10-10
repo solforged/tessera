@@ -45,6 +45,8 @@ a { color: var(--accent); }
 .menu-label { flex: 1; }
 /* Keys use the sans voice: the mono face lacks ⌃⇧⌘⌥↵, and fallback glyphs came out mismatched in size. */
 kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--line-apparatus) var(--font-body); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* A touch screen without a hovering pointer has no keyboard to speak of; its hints are noise. */
+@media (hover: none) and (pointer: coarse) { kbd { display: none; } }
 .muted { color: var(--muted); }
 .error { color: var(--danger); }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
