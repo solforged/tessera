@@ -131,7 +131,7 @@ export function App() {
   const [navigationId, setNavigationId] = createSignal<string | null>(null);
   const [error, setError] = createSignal('');
   const [offlineUnavailable, setOfflineUnavailable] = createSignal(false);
-  const [deleted, setDeleted] = createSignal<{ id: string; title: string } | null>(null);
+  const [deleted, setDeleted] = createSignal<{ pages: { id: string; title: string }[]; label: string; reopen: boolean } | null>(null);
   const todayDate = () => notebook.todayDate();
   const counts = deskCounts(notebook, todayDate);
   let searchButton!: HTMLButtonElement;
@@ -257,22 +257,36 @@ export function App() {
   };
   const deletePage = async (pane: PaneId) => {
     const pageId = pageIdOf(entry(pane)); if (!pageId) return;
-    const root = notebook.roots().find(block => block.id === pageId);
-    const title = notebook.lookup(pageId)()?.text ?? root?.text ?? 'Page';
-    try {
-      await notebook.deletePage(pageId);
-      setDeleted({ id: pageId, title }); setPopup(null);
-      const remaining = notebook.roots().find(block => block.id !== pageId);
-      const previousDay = new Date(`${todayDate()}T12:00:00`);
-      previousDay.setDate(previousDay.getDate() - 1);
-      // Do not recreate a deleted journal date: that would prevent restoring its IDs.
-      const replacement = remaining?.id ?? (root?.kind === 'journal' && root.text === todayDate() ? await notebook.journal(localDate(previousDay)) : await notebook.today());
-      for (const owner of paneIds) if (pageIdOf(entry(owner)) === pageId) open({ kind: 'page', pageId: replacement }, false, owner);
-    } catch (reason) { reportError(reason); }
+    const title = notebook.lookup(pageId)()?.text ?? notebook.roots().find(block => block.id === pageId)?.text ?? 'Page';
+    try { await deletePages([{ id: pageId, title }], undefined, true); setPopup(null); } catch (reason) { reportError(reason); }
+  };
+  /** Delete pages in one undoable step, and move panes showing them, or reading their sources, to another page. Undo reopens a page deleted from its own menu. */
+  const deletePages = async (pages: { id: string; title: string }[], label = pages.length === 1 ? `“${pages[0]!.title}”` : `${pages.length} pages`, reopen = false) => {
+    const ids = new Set(pages.map(page => page.id)), roots = notebook.roots(), done: typeof pages = [];
+    try { for (const page of pages) { await notebook.deletePage(page.id); done.push(page); } }
+    finally {
+      if (done.length) {
+        setDeleted({ pages: done, label: done.length === pages.length ? label : `${done.length} pages`, reopen });
+        const remaining = notebook.roots().find(block => !ids.has(block.id));
+        const previousDay = new Date(`${todayDate()}T12:00:00`);
+        previousDay.setDate(previousDay.getDate() - 1);
+        const deletedToday = roots.some(root => ids.has(root.id) && root.kind === 'journal' && root.text === todayDate());
+        // Do not recreate a deleted journal date: that would prevent restoring its IDs.
+        const replacement = async () => remaining?.id ?? (deletedToday ? await notebook.journal(localDate(previousDay)) : await notebook.today());
+        for (const owner of paneIds) {
+          const current = entry(owner);
+          if (ids.has(pageIdOf(current) ?? '') || current?.target.kind === 'reader' && ids.has(current.target.sourceId)) open({ kind: 'page', pageId: await replacement() }, false, owner);
+        }
+      }
+    }
   };
   const restorePage = async () => {
     const value = deleted(); if (!value) return;
-    try { await notebook.restorePage(value.id); setDeleted(null); open({ kind: 'page', pageId: value.id }); } catch (reason) { reportError(reason); }
+    try {
+      for (const page of value.pages) await notebook.restorePage(page.id);
+      setDeleted(null);
+      if (value.reopen) open({ kind: 'page', pageId: value.pages[0]!.id });
+    } catch (reason) { reportError(reason); }
   };
   onMount(() => {
     const onNarrow = () => setNarrow(narrowQuery.matches);
@@ -474,6 +488,7 @@ export function App() {
           onPin={() => { const id = pageIdOf(entry(pane)); if (id) pin(id); }}
           onRename={() => runOutline('rename', pane)}
           onDelete={(anchor, source) => setPopup({ kind: 'delete', anchor, pane, source })}
+          onDeleteSources={sources => deletePages(sources, sources.length === 1 ? undefined : `${sources.length} sources`)}
           onArchived={() => { runOutline('show-archived', pane); focusPane(pane); }}
           onRestoreView={view => changeView(pane, view, true)}
         />
@@ -507,7 +522,7 @@ export function App() {
       </Show>
     </>}</Show>
     <ReferencePreviews notebook={notebook} onOpen={(target, beside, pane) => open(target, beside, pane ?? active())} />
-    <Show when={deleted()}>{value => <div class="undo-toast" role="status"><Icon name="trash" /><span>“{value().title}” deleted</span><Button icon="undo" onClick={() => { void restorePage(); }}>Undo</Button><Button icon="close" label="Dismiss deletion notification" onClick={() => setDeleted(null)} /></div>}</Show>
+    <Show when={deleted()}>{value => <div class="undo-toast" role="status"><Icon name="trash" /><span>{value().label} deleted</span><Button icon="undo" onClick={() => { void restorePage(); }}>Undo</Button><Button icon="close" label="Dismiss deletion notification" onClick={() => setDeleted(null)} /></div>}</Show>
   </div>;
 }
 
@@ -569,7 +584,7 @@ function GlobalBanner(props: { notebook: NotebookClient; onReview(): void }) {
   </div></Show>;
 }
 
-function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boolean; split: boolean; notebook: NotebookClient; commands: CommandRegistry; vim: boolean; vimMode: VimMode; onVimMode(mode: VimMode): void; pinned: boolean; pageStyles: Record<string, PageStyle>; title?: string; onPageStyle(id: string, style: PageStyle, fallback: PageStyle): void; onActivate(): void; onOpen(target: OpenTarget, beside: boolean): void; onTargetChange(target: OpenTarget): void; onPageBeside(): void; onViewChange(view: PaneView): void; onTravel(delta: number): void; onClose(): void; onChooseDate(anchor: HTMLElement): void; onShiftDate(delta: number): void; onPin(): void; onRename(): void; onDelete(anchor: HTMLElement, source?: boolean): void; onArchived(): void; onRestoreView(view: ViewState): void }) {
+function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boolean; split: boolean; notebook: NotebookClient; commands: CommandRegistry; vim: boolean; vimMode: VimMode; onVimMode(mode: VimMode): void; pinned: boolean; pageStyles: Record<string, PageStyle>; title?: string; onPageStyle(id: string, style: PageStyle, fallback: PageStyle): void; onActivate(): void; onOpen(target: OpenTarget, beside: boolean): void; onTargetChange(target: OpenTarget): void; onPageBeside(): void; onViewChange(view: PaneView): void; onTravel(delta: number): void; onClose(): void; onChooseDate(anchor: HTMLElement): void; onShiftDate(delta: number): void; onPin(): void; onRename(): void; onDelete(anchor: HTMLElement, source?: boolean): void; onDeleteSources(sources: { id: string; title: string }[]): Promise<void>; onArchived(): void; onRestoreView(view: ViewState): void }) {
   const current = () => props.session().entries[props.session().index]!;
   const pageId = createMemo(() => pageIdOf(current()));
   const outlineView = () => current().view as ViewState;
@@ -670,7 +685,7 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
       <Match when={current().target.kind === 'compare' ? current().target as Extract<OpenTarget, { kind: 'compare' }> : undefined}>{target => <ComparePane subjectId={target().subjectId} view={snapshotView(current().view) as CompareViewState} notebook={props.notebook} onActivate={props.onActivate} onOpen={(next, beside) => { if (generation === props.session().generation) props.onOpen(next, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} />}</Match>
       <Match when={current().target.kind === 'agenda'}><AgendaPane pane={props.pane} view={snapshotView(current().view) as AgendaViewState} notebook={props.notebook} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
       <Match when={current().target.kind === 'review'}><ReviewPane pane={props.pane} view={snapshotView(current().view) as ReviewViewState} notebook={props.notebook} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
-      <Match when={current().target.kind === 'library'}><LibraryPane pane={props.pane} view={snapshotView(current().view) as LibraryViewState} notebook={props.notebook} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
+      <Match when={current().target.kind === 'library'}><LibraryPane pane={props.pane} view={snapshotView(current().view) as LibraryViewState} notebook={props.notebook} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} onDeleteSources={props.onDeleteSources} /></Match>
       <Match when={current().target.kind === 'reader'}><ReaderPane pane={props.pane} target={current().target as Extract<OpenTarget, { kind: 'reader' }>} view={snapshotView(current().view) as ReaderViewState} notebook={props.notebook} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
     </Switch>}</Show></div>
     <Show when={menu()}>{anchor => <Menu anchor={anchor()} label="Page actions" items={items()} onDismiss={() => setMenu(null)} />}</Show>
