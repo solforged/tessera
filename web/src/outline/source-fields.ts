@@ -24,7 +24,8 @@ export function documentReady(doc: PageDocument): Promise<void> {
   return promise;
 }
 
-function ensureField(notebook: NotebookClient, name: string): Promise<FieldDefinition> {
+/** The definition named `name`, created as a text field when none exists; concurrent calls share one creation. */
+export function ensureField(notebook: NotebookClient, name: string): Promise<FieldDefinition> {
   const pending = fieldCreations.get(notebook) ?? new Map<string, Promise<FieldDefinition>>();
   fieldCreations.set(notebook, pending);
   const key = name.toLowerCase();

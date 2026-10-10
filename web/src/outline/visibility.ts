@@ -3,12 +3,12 @@ import type { OutlineIndex } from '../document/outline-index';
 import type { Depth } from '../shell/contract';
 import { fieldEntryId } from '../table/query';
 
-/** The sole leaf value that can replace a known field entry in the visible list. */
-export function inlineFieldValue(doc: PageDocument, id: string, definitions: ReadonlyMap<string, unknown>): string | null {
+/** The values that replace a known field entry in the visible list: all of its children, when none has children of its own. */
+export function inlineFieldValues(doc: PageDocument, id: string, definitions: ReadonlyMap<string, unknown>): readonly string[] | null {
   const field = fieldEntryId(doc.block(id)?.text ?? '');
   if (!field || !definitions.has(field)) return null;
   const children = doc.outline.children(id);
-  return children.length === 1 && !doc.outline.children(children[0]!).length ? children[0]! : null;
+  return children.length && children.every(child => !doc.outline.children(child).length) ? children : null;
 }
 
 export interface DepthFilter {

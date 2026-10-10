@@ -9,7 +9,8 @@ export function boundaryDeletion(doc: PageDocument, id: string, direction: 'back
     const next = siblings[siblings.indexOf(id) + 1];
     return next ? { kind: 'merge', sourceId: next, destinationId: id } : null;
   }
-  if (inlineFields?.has(doc.outline.parentOf(id))) return null;
+  // The first inline value sits beside the field label, which Backspace must not delete into; later values merge into the value above.
+  if (inlineFields?.has(doc.outline.parentOf(id)) && (!previousVisible || doc.outline.parentOf(previousVisible) !== doc.outline.parentOf(id))) return null;
   if (block.task) return !block.text && !doc.outline.children(id).length
     ? { kind: 'delete', ids: [id] }
     : { kind: 'task', id, value: null };

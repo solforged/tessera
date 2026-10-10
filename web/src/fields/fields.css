@@ -42,3 +42,23 @@
 .fields-actions { display: flex; gap: var(--space-4); }
 .fields-footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: var(--space-8); padding: var(--space-8) var(--space-16); border-top: 1px solid var(--line); color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .fields-hint { font: var(--weight-body) var(--text-meta)/var(--line-meta) var(--font-body); letter-spacing: normal; }
+
+/* A type page's template heads like the journal's sections: name, hairline, the fields in order, chevron. */
+.template-editor { margin-top: var(--space-12); font-weight: var(--weight-body); }
+.template-toggle.button { display: flex; width: 100%; justify-content: flex-start; gap: var(--space-8); min-height: var(--target-size); padding: 0 var(--space-4) 0 0; color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.template-toggle.button:hover:not(:disabled) { background: transparent; color: var(--text); }
+.template-summary { max-width: 60%; overflow: hidden; color: var(--faint); text-overflow: ellipsis; white-space: nowrap; }
+.template-toggle > .icon { flex: none; width: var(--icon-size-small); height: var(--icon-size-small); color: var(--faint); transition: rotate var(--motion-fast) var(--motion-ease); }
+.template-toggle[aria-expanded="false"] > .icon { rotate: -90deg; }
+.template-body { display: flex; flex-direction: column; gap: var(--space-4); margin-top: var(--space-4); font-size: var(--text-control); line-height: var(--line-control); }
+.template-note { margin: 0; color: var(--muted); }
+.template-fields { margin: 0; padding: 0; list-style: none; }
+.template-field { display: flex; align-items: center; gap: var(--space-8); min-height: var(--row-height); border-bottom: var(--rule-width) solid var(--line); }
+.template-field > .icon { flex: none; width: var(--icon-size-small); height: var(--icon-size-small); color: var(--faint); }
+.template-field-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.template-field-kind { color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.template-field-actions { display: flex; opacity: 0; transition: opacity var(--motion-fast) var(--motion-ease); }
+.template-field:is(:hover, :focus-within) .template-field-actions { opacity: 1; }
+.template-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); padding-top: var(--space-4); }
+.template-gap { margin-left: auto; color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+@media (hover: none) { .template-field-actions { opacity: 1; } }

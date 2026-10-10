@@ -9,7 +9,7 @@ import { createNotebookClient } from './index';
 import type { Notebook } from './index';
 import type { EditResult, PageDocument } from './contract';
 import { boundaryDeletion } from './outline-mechanics';
-import { inlineFieldValue, selectionIds, selectionRoots, visibleIds } from '../outline/visibility';
+import { inlineFieldValues, selectionIds, selectionRoots, visibleIds } from '../outline/visibility';
 
 const baseUrl = 'http://127.0.0.1:43862';
 const api = createApi(baseUrl);
@@ -214,7 +214,10 @@ async function fieldFixture() {
   const definitions = new Map([['field-definition', { name: 'Area' }]]);
   const rows = (retained: string | null = null, archived = false, folds: ReadonlySet<string> = new Set(), zoom: string | null = null) => {
     const visible = visibleIds(doc, zoom, folds, archived);
-    const inline = new Set(visible.filter(id => id !== retained && visible.includes(inlineFieldValue(doc, id, definitions) ?? '')));
+    const inline = new Set(visible.filter(id => {
+      const values = id === retained ? null : inlineFieldValues(doc, id, definitions);
+      return !!values?.some(value => visible.includes(value)) && values.every(value => visible.includes(value) || doc.isArchived(value));
+    }));
     return visibleIds(doc, zoom, folds, archived, inline);
   };
   return { ...fixtureState, entry, value, after, rows };
@@ -240,13 +243,21 @@ test('Backspace at the start of an inline field value is a silent no-op without 
   expect(doc.block(entry)?.text).toBe('[[field-definition]]');
 });
 
-test('Enter at the inline value end creates a second value and reveals the field entry', async () => {
+test('Enter at the inline value end creates a second value that lines up under the first', async () => {
   const { doc, first, entry, value, after, rows } = await fieldFixture();
   expect(rows()).toEqual([first, value, after]);
   const at = { id: value, offset: doc.block(value)!.text.length };
   const result = success(doc.edit({ kind: 'replaceRange', range: { anchor: at, head: at }, between: [], text: '', mode: 'split' }, at));
   expect(doc.outline.children(entry)).toEqual([value, result.created[0]!]);
-  expect(rows()).toEqual([first, entry, value, result.created[0]!, after]);
+  expect(rows()).toEqual([first, value, result.created[0]!, after]);
+});
+
+test('Backspace at the start of a later inline value merges it into the value above', async () => {
+  const { doc, first, entry, value } = await fieldFixture();
+  const second = success(doc.edit({ kind: 'insert', parentId: entry, after: value, text: 'Design' })).created[0]!;
+  const intent = boundaryDeletion(doc, second, 'backward', value, new Set([entry]));
+  expect(intent).toEqual({ kind: 'merge', sourceId: second, destinationId: value });
+  expect(boundaryDeletion(doc, value, 'backward', first, new Set([entry]))).toBeNull();
 });
 
 test('deleting an inline value leaves its empty field entry visible', async () => {
@@ -270,11 +281,11 @@ test('undo and redo restore inline field rows across split and deletion', async 
   const at = { id: value, offset: doc.block(value)!.text.length };
   const result = success(doc.edit({ kind: 'split', id: value, offset: at.offset }, at));
   await client.flush();
-  expect(rows()).toEqual([first, entry, value, result.created[0]!, after]);
+  expect(rows()).toEqual([first, value, result.created[0]!, after]);
   expect(doc.undo()).toEqual(at);
   expect(rows()).toEqual([first, value, after]);
   expect(doc.redo()).toEqual(result.caret);
-  expect(rows()).toEqual([first, entry, value, result.created[0]!, after]);
+  expect(rows()).toEqual([first, value, result.created[0]!, after]);
   doc.undo();
   success(doc.edit({ kind: 'delete', ids: [value] }, at));
   await client.flush();

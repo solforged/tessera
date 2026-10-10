@@ -2,7 +2,7 @@ import type { Accessor, Resource, Setter } from 'solid-js';
 import type { Virtualizer } from '@tanstack/solid-virtual';
 import type { EditorView } from '@codemirror/view';
 import type { FieldDefinition, Fields, TaskStatus } from '../api/types';
-import type { Caret, Edit, PageDocument, TextRange } from '../document/contract';
+import type { Caret, Edit, EditResult, PageDocument, TextRange } from '../document/contract';
 import type { Command, Depth, OutlinePaneProps } from '../shell/contract';
 import type { MenuItem } from '../ui/Menu';
 import type { PaneEditor } from './editor';
@@ -58,6 +58,8 @@ export interface OutlineContext {
   fields: Resource<Fields>;
   definitionsById: Accessor<Map<string, FieldDefinition>>;
   definitions: Accessor<FieldDefinition[]>;
+  /** Template fields of the types named by `typeKeys`, first type first. */
+  templateFor: (keys: readonly string[]) => string[];
   activeRange: () => TextRange | null;
   fieldConversion: FieldEntryConversion;
   readonly commandDefinitions: Command[];
@@ -65,7 +67,7 @@ export interface OutlineContext {
   priorityMenu: (id: string) => void;
   openProject: (id: string) => void;
   investigationItems: (id: string) => MenuItem[];
-  apply: (intent: Edit, keepEditing?: boolean) => void;
+  apply: (intent: Edit, keepEditing?: boolean) => EditResult | undefined;
   zoomTo: (id: string | null) => void;
   copy: (text: string) => void;
   commitFieldEntry: (id: string, focus?: boolean) => boolean;

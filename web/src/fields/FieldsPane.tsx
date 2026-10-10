@@ -4,7 +4,7 @@ import type { FieldKind, FieldSummary, Fields } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import type { FieldsViewState, OpenTarget } from '../shell/contract';
 import { typeQuery } from '../table/query';
-import { kindLabels } from './kinds';
+import { fieldNameProblem, kindLabels } from './kinds';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
@@ -88,10 +88,8 @@ export function FieldsPane(props: FieldsPaneProps) {
     const document = doc();
     if (!document || !ready()) { setCreateError(document?.statusMessage() || document?.saveMessage() || 'Wait for field definitions to finish loading or saving.'); return; }
     const name = newName().trim();
-    if (!name) { setCreateError('A field needs a name.'); return; }
-    if (name.length > 60) { setCreateError('Field names must be 60 characters or fewer.'); return; }
-    // The same characters `Name::` shorthand refuses, so the name stays typeable.
-    if (/[\\`[\]#:]/.test(name)) { setCreateError('Field names cannot contain [ ] # : ` or \\.'); return; }
+    const problem = fieldNameProblem(name);
+    if (problem) { setCreateError(problem); return; }
     if (fields().some(field => field.name.toLocaleLowerCase() === name.toLocaleLowerCase())) { setCreateError(`A field named ${name} already exists.`); return; }
     const result = document.edit({ kind: 'addField', name, value: newKind() });
     if (!result.ok) { setCreateError(result.reason); return; }

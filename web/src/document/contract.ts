@@ -173,6 +173,8 @@ export type Edit =
   | { kind: 'addField'; name: string; value: FieldKind }
   /** The definition snapshot supplies the previous kind and revision for undo. */
   | { kind: 'fieldKind'; definition: FieldDefinition; value: FieldKind }
+  /** An entry per field under `parentId` after `after`, each with one value block holding `value`; one undo step, caret at the end of the first value. */
+  | { kind: 'addFieldEntries'; parentId: string; after: string | null; entries: { fieldId: string; value: string }[] }
   | { kind: 'archive'; id: string; archived: boolean }
   | { kind: 'addType' | 'removeType'; id: string; title: string };
 
