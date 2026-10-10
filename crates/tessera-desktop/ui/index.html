@@ -8,11 +8,13 @@
   html, body { height: 100%; margin: 0; }
   body {
     display: grid; place-items: center;
-    background: #0e121a; color: #e6e1d6;
+    background: #0a0d13; color: #e6e1d6;
     font: 14px/1.5 -apple-system, BlinkMacSystemFont, sans-serif;
     -webkit-user-select: none; user-select: none; cursor: default;
   }
-  @media (prefers-color-scheme: light) { body { background: #f4f0e6; color: #26231d; } }
+  /* The shell's own colours (web/src/tokens.css --shell, --text), so the
+     splash hands over to the app without a change of tone. */
+  @media (prefers-color-scheme: light) { body { background: #ebe5d8; color: #1f1b15; } }
   main { max-width: 34rem; padding: 2rem; text-align: center; }
   h1 { font-size: 15px; font-weight: 500; margin: 0 0 .25rem; }
   p { margin: 0; opacity: .7; }
@@ -22,7 +24,6 @@
     background: #151b26; border: 1px solid #232c3b; border-radius: 6px;
     -webkit-user-select: text; user-select: text;
   }
-  @media (prefers-color-scheme: light) { pre { background: #fffdf8; border-color: #ddd5c4; } }
   .actions { display: none; gap: .5rem; justify-content: center; margin-top: 1rem; }
   button {
     font: inherit; padding: .3rem .9rem; border-radius: 6px; cursor: pointer;
@@ -31,6 +32,11 @@
   button.primary { background: #d8aa55; border-color: #d8aa55; color: #14110b; }
   body.failed pre { display: block; }
   body.failed .actions { display: flex; }
+  @media (prefers-color-scheme: light) {
+    pre { background: #fffdf8; border-color: #ddd5c4; }
+    button { border-color: #b3a890; }
+    button.primary { background: #93650f; border-color: #93650f; color: #fffdf8; }
+  }
 </style>
 </head>
 <body>
