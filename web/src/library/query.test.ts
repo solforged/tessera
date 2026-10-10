@@ -11,9 +11,9 @@ describe('library queries', () => {
       expect(libraryQuery({ tab, text: ' ', sort: 'title' })).toEqual({ states: [], text: null, sort: 'title', direction: 'asc' });
     }
   });
-  test('sorts title ascending and every time/progress order descending', () => {
-    for (const sort of ['added', 'title', 'last_read', 'progress'] as const) {
-      expect(libraryQuery({ tab: 'inbox', text: '', sort }).direction).toBe(sort === 'title' ? 'asc' : 'desc');
+  test('sorts title and author ascending and year/time/progress descending', () => {
+    for (const sort of ['added', 'title', 'author', 'year', 'last_read', 'progress'] as const) {
+      expect(libraryQuery({ tab: 'inbox', text: '', sort }).direction).toBe(sort === 'title' || sort === 'author' ? 'asc' : 'desc');
     }
   });
 });
@@ -30,11 +30,11 @@ test('source state edits preserve authored identifiers and use the owning revisi
   expect(row.source.state).toBe('inbox');
 });
 
-test('bylines retain creators and only the publication year without dangling separators', () => {
-  expect(sourceByline({ creators: ['A. Author', 'B. Editor'], site: 'Journal', published: '2026-10-04' })).toBe('A. Author, B. Editor · 2026');
+test('bylines retain creators or site separately from the year column', () => {
+  expect(sourceByline({ creators: ['A. Author', 'B. Editor'], site: 'Journal', published: '2026-10-04' })).toBe('A. Author, B. Editor');
   expect(sourceByline({ creators: ['A. Author'], site: null, published: null })).toBe('A. Author');
-  expect(sourceByline({ creators: [], site: 'karpathy.github.io', published: '2015-05-21' })).toBe('karpathy.github.io · 2015');
-  expect(sourceByline({ creators: [], site: null, published: '1999' })).toBe('1999');
+  expect(sourceByline({ creators: [], site: 'karpathy.github.io', published: '2015-05-21' })).toBe('karpathy.github.io');
+  expect(sourceByline({ creators: [], site: null, published: '1999' })).toBe('');
   expect(sourceByline({ creators: [], site: null, published: null })).toBe('');
 });
 

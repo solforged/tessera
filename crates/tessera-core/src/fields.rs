@@ -435,7 +435,7 @@ pub(crate) fn reading(kind: FieldKind, field: &str, text: &str, target: Option<&
 
 /// A calendar date, or a bare year or year and month for sources dated no
 /// more precisely. ISO order keeps partial dates sortable as text.
-fn partial_date(text: &str) -> bool {
+pub(crate) fn partial_date(text: &str) -> bool {
     let bytes = text.as_bytes();
     let year = |digits: &[u8]| {
         digits.len() == 4 && digits.iter().all(u8::is_ascii_digit) && digits != b"0000"
@@ -495,9 +495,15 @@ pub(crate) fn identifier(text: &str) -> Option<String> {
             return doi(rest.trim());
         }
     }
-    for prefix in ["https://arxiv.org/abs/", "http://arxiv.org/abs/", "arxiv:"] {
+    for prefix in [
+        "https://arxiv.org/abs/",
+        "http://arxiv.org/abs/",
+        "https://arxiv.org/pdf/",
+        "http://arxiv.org/pdf/",
+        "arxiv:",
+    ] {
         if let Some(rest) = strip_prefix_ignore_case(text, prefix) {
-            return arxiv(rest.trim());
+            return arxiv(rest.trim().trim_end_matches(".pdf"));
         }
     }
     if let Some(rest) = strip_prefix_ignore_case(text, "isbn") {

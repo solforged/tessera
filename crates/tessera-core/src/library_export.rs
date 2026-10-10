@@ -168,7 +168,11 @@ impl Notebook {
             item.insert("id".into(), json!(key));
             item.insert("title".into(), json!(source.page.text));
             item.insert("citation-label".into(), json!(source.source.siglum));
-            let book = source.source.format == SourceFormat::Epub;
+            let book = source.source.format == SourceFormat::Epub
+                || source.source.format == SourceFormat::Record
+                    && readings
+                        .get("identifier")
+                        .is_some_and(|ids| ids.iter().any(|id| id.starts_with("isbn:")));
             let mut has_doi = false;
             for role in ["author", "editor", "translator"] {
                 if let Some(names) = readings.get(role).filter(|v| !v.is_empty()) {

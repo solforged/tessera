@@ -8,6 +8,7 @@ import type { Depth, OutlinePaneProps, ViewState } from '../shell/contract';
 import { fieldEntryId } from '../table/query';
 import { setLinkedCitation } from '../library/highlights';
 import { pageSigla } from '../library/sigla';
+import { sourceReadingOrder } from '../library/source-order';
 import type { OutlineIndex } from '../document/outline-index';
 import { JournalAgenda } from '../tasks/JournalAgenda';
 import { JournalResurface } from '../tasks/JournalResurface';
@@ -15,7 +16,7 @@ import { TaskStatusButton } from '../tasks/TaskControls';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
-import { isStableReference, plainText } from './BlockText';
+import { BlockText, isStableReference, plainText } from './BlockText';
 import { textTokens } from '../document/text-tokens';
 import { PaneEditor } from './editor';
 import { createOutlineCapabilities } from './capabilities';
@@ -165,7 +166,10 @@ function Pane(props: OutlinePaneProps) {
     })();
   }
 
-  const unfoldedIds = createMemo(() => visibleIds(doc, zoom(), folds(), showArchived(), undefined, depthFilter()));
+  const unfoldedIds = createMemo(() => {
+    const visible = visibleIds(doc, zoom(), folds(), showArchived(), undefined, depthFilter());
+    return doc.root()?.source && !zoom() ? sourceReadingOrder(doc, visible, definitionsById()) : visible;
+  });
   const unfoldedSet = createMemo(() => new Set(unfoldedIds()));
   // Only field entries can fold their value inline. Field entries come from structural edits (shorthand
   // conversion inserts the value), which rebuild this list; reading text untracked keeps typing out of it.
@@ -207,22 +211,22 @@ function Pane(props: OutlinePaneProps) {
   const [siglumRecords] = createResource(() => citedSources().length ? citedSources() : false, ids => Promise.all(ids.map(id =>
     api.source(id).then(view => ({ id, siglum: view.source.siglum, basis: view.source.siglum_basis, authored: view.source.siglum_authored }), () => null))));
   const sigla = createMemo(() => pageSigla((siglumRecords.error ? [] : siglumRecords() ?? []).filter(record => record !== null)));
+  const [sourceHighlights] = createResource(() => doc.root()?.source ? [props.pageId, props.notebook.changeSequence()] as const : false,
+    ([source_id]) => props.notebook.api.highlights({ source_id, limit: 100000 }));
+  const filedElsewhere = createMemo(() => (sourceHighlights()?.rows ?? []).filter(row => row.block.page.id !== props.pageId)
+    .sort((a, b) => a.citation.ordinal - b.citation.ordinal || a.citation.start.offset - b.citation.start.offset));
   const sourceDetails = createMemo(() => {
     const fields = new Map<string, string>();
     let firstHighlight: string | undefined;
     let highlightCount = 0;
     if (!doc.root()?.source || zoom()) return { fields, firstHighlight, highlightCount };
-    let leadingFields = true;
-    for (const id of doc.outline.children(props.pageId)) {
+    highlightCount = sourceHighlights()?.total ?? 0;
+    for (const id of unfoldedIds().filter(id => doc.outline.parentOf(id) === props.pageId)) {
       const block = doc.block(id);
       if (!block || block.archived && !showArchived()) continue;
-      const name = leadingFields ? sourceFieldName(block.text, definitionsById()) : undefined;
+      const name = sourceFieldName(block.text, definitionsById());
       if (name) fields.set(id, name);
-      else {
-        leadingFields = false;
-        firstHighlight ??= id;
-      }
-      if (block.citations.some(citation => citation.source_id === props.pageId)) highlightCount++;
+      else if (block.citations.some(citation => citation.source_id === props.pageId)) firstHighlight ??= id;
     }
     return { fields, firstHighlight: highlightCount ? firstHighlight : undefined, highlightCount };
   });
@@ -820,7 +824,7 @@ function Pane(props: OutlinePaneProps) {
       </Show>
       <Show when={doc.root()?.kind === 'page' && !doc.root()?.source}><div class="outline-header-actions"><Button icon="table" label="Table" shortcut="⌘⇧T" onClick={event => openTable(event.metaKey)}>Table<Show when={!type.error && (type()?.members ?? 0) > 0}><span class="table-member-count">{type()?.members}</span></Show></Button></div></Show>
       </div>
-      <Show when={doc.root()?.source}><SourceHeader doc={doc} notebook={props.notebook} resetItems={sourceResets} onOpen={props.onOpen} onError={setMessage} /></Show>
+      <Show when={doc.root()?.source}><SourceHeader doc={doc} notebook={props.notebook} resetItems={sourceResets} onOpen={props.onOpen} onError={setMessage} onDelete={props.onDelete} /></Show>
       <Show when={doc.root()?.task || doc.root()?.project || doc.root()?.question || doc.root()?.citations.length}><div class="outline-root-capabilities outline-capability-metadata">
         <Show when={doc.root()?.task}>
           <TaskStatusButton task={doc.root()?.task ?? null} disabled={capabilities.busy(props.pageId)} onChange={status => capabilities.status(props.pageId, status)} />
@@ -850,6 +854,15 @@ function Pane(props: OutlinePaneProps) {
       <For each={[...virtualItems().keys()].filter(id => id !== editing())}>{id => <Row id={id} item={() => virtualItems().get(id)!} />}</For>
       <Show keyed when={editing() && virtualItems().has(editing()!) ? editing() : null}>{id => <Row id={id} item={() => virtualItems().get(id)!} />}</Show>
     </div>
+    <Show when={doc.root()?.source && !zoom() && !sourceDetails().firstHighlight}><div class="outline-list"><div class="outline-highlights-label">Highlights <span>{sourceHighlights()?.total ?? 0}</span></div></div></Show>
+    <Show when={doc.root()?.source && !zoom() && filedElsewhere().length}><section class="related-sections" aria-label="Filed elsewhere">
+      <h3>Filed elsewhere</h3>
+      <For each={filedElsewhere()}>{row => <Button class="library-highlight" onClick={event => props.onOpen({ kind: 'page', pageId: row.block.page.id, blockId: row.block.block.id }, event.shiftKey)}>
+        <BlockText text={row.block.block.text} notebook={props.notebook} interactive={false} />
+        <span class="library-highlight-meta">¶{row.citation.ordinal + 1} · {row.block.page.text}</span>
+      </Button>}</For>
+    </section></Show>
+    <Show when={sourceHighlights.error}><p class="library-error" role="alert">{String(sourceHighlights.error)}</p></Show>
     <Show when={doc.status() === 'ready' && ids().length === 0 && depthFilter() === undefined}><button type="button" class="add-first-block" onClick={() => apply({ kind: 'insert', parentId: zoom() ?? props.pageId, after: null }, true)}><Icon name="plus" />Add a block</button></Show>
     <Show when={doc.status() === 'ready' && (related.error || (related()?.backlinks.length ?? 0) + (related()?.tagged.length ?? 0) + (related()?.held.length ?? 0) + (related()?.about.length ?? 0) > 0)}><div class="related-sections">
       <Show when={related()?.held.length}><Related title="Perspectives held" rows={related()?.held ?? []} /></Show>

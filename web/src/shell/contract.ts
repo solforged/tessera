@@ -88,7 +88,7 @@ export interface SettingsViewState { scroll: number }
 export interface CompareViewState { scroll: number }
 export interface AgendaViewState { date: string; mode: 'agenda' | 'week' | 'tasks'; query: TaskQuery; viewId: string | null; scroll: number }
 export interface ReviewViewState { deckId: string | null; sessionId: string | null; selection: CardSelection | null; scroll: number }
-export interface LibraryViewState { view: string | null; tab: LibraryTab; text: string; sort: 'added' | 'title' | 'last_read' | 'progress'; unprocessedOnly: boolean; colors: string[]; tags: string[]; scroll: number }
+export interface LibraryViewState { view: string | null; tab: LibraryTab; text: string; sort: 'added' | 'title' | 'author' | 'year' | 'last_read' | 'progress'; unprocessedOnly: boolean; colors: string[]; tags: string[]; scroll: number }
 /** `ordinal` is the top passage; `offset` its pixel offset from the pane's top. */
 export interface ReaderViewState { snapshotId: string | null; ordinal: number; offset: number }
 
@@ -98,6 +98,7 @@ export interface OutlinePaneProps {
   /** Initial view; the pane reports changes through `onViewChange`. */
   view: ViewState;
   onViewChange(view: ViewState): void;
+  onDelete?(anchor: HTMLElement): void;
   /** Open a page or block, here or in the other pane. */
   onOpen(target: OpenTarget, beside: boolean): void;
   /** This pane holds keyboard focus. */

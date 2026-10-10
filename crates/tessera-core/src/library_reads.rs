@@ -759,12 +759,18 @@ impl Notebook {
                 .copied()
                 .unwrap_or(0.0);
             let (highlights, unprocessed) = totals.remove(&source.block_id).unwrap_or_default();
-            let cover = source
-                .current_snapshot_id
-                .as_ref()
-                .and_then(|id| covers.get(id))
+            let cover = fields
+                .get("cover")
+                .and_then(|values| values.first())
                 .cloned()
-                .flatten();
+                .or_else(|| {
+                    source
+                        .current_snapshot_id
+                        .as_ref()
+                        .and_then(|id| covers.get(id))
+                        .cloned()
+                        .flatten()
+                });
             rows.push(LibraryRow {
                 page,
                 source,
@@ -781,6 +787,26 @@ impl Notebook {
             let cmp = match query.sort {
                 LibrarySort::Added => a.source.added_at.cmp(&b.source.added_at),
                 LibrarySort::Title => a.page.text.to_lowercase().cmp(&b.page.text.to_lowercase()),
+                LibrarySort::Author => a
+                    .creators
+                    .first()
+                    .map(|s| crate::library_ingest::family_name(s))
+                    .into_iter()
+                    .flat_map(str::chars)
+                    .flat_map(char::to_lowercase)
+                    .cmp(
+                        b.creators
+                            .first()
+                            .map(|s| crate::library_ingest::family_name(s))
+                            .into_iter()
+                            .flat_map(str::chars)
+                            .flat_map(char::to_lowercase),
+                    ),
+                LibrarySort::Year => a
+                    .published
+                    .as_deref()
+                    .and_then(|s| s.get(..4))
+                    .cmp(&b.published.as_deref().and_then(|s| s.get(..4))),
                 LibrarySort::LastRead => a.source.last_read_at.cmp(&b.source.last_read_at),
                 LibrarySort::Progress => a.progress.total_cmp(&b.progress),
             }

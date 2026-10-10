@@ -7,7 +7,7 @@ export function libraryQuery(view: Pick<LibraryViewState, 'tab' | 'text' | 'sort
     states: view.tab === 'all' || view.tab === 'highlights' ? [] : [view.tab],
     text: view.text.trim() || null,
     sort: view.sort,
-    direction: view.sort === 'title' ? 'asc' : 'desc',
+    direction: view.sort === 'title' || view.sort === 'author' ? 'asc' : 'desc',
   };
 }
 
@@ -20,7 +20,7 @@ export function sourceStateOperation(row: LibraryRow, state: ReadingState): Oper
 }
 
 export function sourceByline(row: Pick<LibraryRow, 'creators' | 'site' | 'published'>): string {
-  return [row.creators.join(', ') || row.site, row.published?.slice(0, 4)].filter(Boolean).join(' · ');
+  return row.creators.join(', ') || row.site || '';
 }
 
 /** Whole percent, rounded down so a source never reads 100% before its last passage; a started source never reads as 0%. */
