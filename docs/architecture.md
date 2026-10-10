@@ -26,7 +26,7 @@ Browser editor      CLI        Agents       Terminal (later)
 | Text editing | CodeMirror 6, one active editor per pane, with its Vim extension | Real Vim motions and IME handling without writing a text engine |
 | Outline rendering | Plain DOM rows, virtualized with TanStack Virtual for Solid | Bounded memory, mount time and layout cost on large pages |
 | Drafts | IndexedDB outbox of pending operations | Asynchronous, incremental, no quota cliff at a few megabytes |
-| Packaging | Browser, plus a Tauri macOS app that wraps the same pages and updates itself | The app adds a window, menus and signed updates; the service stays the single owner, so the CLI and agents work with the window closed |
+| Packaging | Browser, plus a Tauri macOS app that wraps the same pages and updates itself, and a Tauri Android app that runs the notebook in process | The macOS app adds a window, menus and signed updates; the service stays the single owner, so the CLI and agents work with the window closed. A phone has no service to own its notebook, so the Android app is the owner |
 
 Each choice has a spike that can overturn it. See [performance](performance.md).
 
@@ -68,6 +68,12 @@ Local deployment uses one binary built with `embed-web`, which compiles the buil
 
 Updates come from `latest.json` on the latest GitHub release, signed with a minisign key whose public half is in `tauri.conf.json`. The app installs a downloaded update only when the user restarts, after copying the outgoing `tessera` aside as the rollback target. The page reloads when the service's build changes. WebKit, not Chromium, renders the editor in the app; the outline, undo, clipboard, reader, export and external links were checked there.
 
+## Android app
+
+`crates/tessera-android` is a Tauri 2 app for Android. It opens a notebook in the app's private data directory and holds its ownership lock for the life of the process, so activities that Android recreates reuse the open notebook rather than open a second writer. `tessera_service::embedded_router` builds the notebook and library routes without the host and origin policy, assets, backups, service details or WebSocket, the same routes the browser demo's worker uses. The page reaches them through `web/src/android/transport.ts`, which sends each request over Tauri IPC: the body travels as base64, because Android's IPC carries JSON only, and the reply is a raw frame of status, content type and body. Changes arrive on a Tauri channel; the `stream_changes` command subscribes before catching up from history, like the WebSocket, and returns when the page closes the stream or reloads. Nothing listens on a port, so other apps on the phone cannot reach the notebook.
+
+The activity handles size and fold changes itself, so folding and unfolding resize the page without reloading it: on a Galaxy Z Fold the reader position, the open note, its caret and the keyboard survived moving to the cover screen and back. The page draws edge to edge and pads the shell by the safe-area insets. Article URLs are not offered: `reqwest`'s platform TLS verifier needs JNI initialization and its Android component, which the app does not set up yet. Release builds need a signing configuration in the Gradle project.
+
 ## Browser editor
 
 The editor is split into layers that the prototype mixed together:
@@ -105,6 +111,7 @@ crates/tessera-core      domain model, migrations, operations
 crates/tessera-service   HTTP and WebSocket service
 crates/tessera-cli       command line
 crates/tessera-desktop   macOS app: window, launch agent handover, updates
+crates/tessera-android   Android app: notebook in process, pages over IPC
 crates/tessera-bench     corpus generator and backend budget checks
 crates/tessera-ingest    extractors for EPUB books and web articles
 web/                     Solid editor

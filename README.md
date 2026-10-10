@@ -75,6 +75,19 @@ The app is a window onto the notebook service, which keeps running as a launch a
 
 The app checks the latest GitHub release a minute after launch, every six hours, and from Tessera → Check for Updates…. It downloads and verifies a signed update, then asks to restart; restarting moves the service onto the new build with a backup first. Closing the window hides it; Quit stops the window, not the service. View → Reload reloads the page, and the window reloads by itself when another build starts serving. Help → Show Service Log opens `~/Library/Logs/tessera/serve.log`; the app writes its own steps to `desktop.log` beside it. To use the bundled command line, link it onto your path: `ln -s /Applications/Tessera.app/Contents/MacOS/tessera ~/.local/bin/tessera`.
 
+### Android app
+
+`crates/tessera-android` is a Tauri 2 app for Android phones and foldables. The notebook runs inside the app, in its private storage, and the pages reach it over Tauri's IPC, so nothing listens on a port. The phone keeps its own notebook; it does not sync with a desktop notebook. Library → Add opens Android's file picker for EPUBs. Web articles, backups and service details are left out, as in the browser demo.
+
+Build a debug APK for arm64 and install it on a phone with USB debugging enabled:
+
+```sh
+scripts/build-android
+adb install -r crates/tessera-android/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk
+```
+
+The script needs a JDK (17 or newer) and the Android SDK with an NDK. It uses `JAVA_HOME`, `ANDROID_HOME` and `NDK_HOME` when set, or else asks mise for `java` and `android-sdk` and takes the newest NDK in the SDK. Extra arguments go to `tauri android build`. The Gradle project in `crates/tessera-android/gen/android` is committed; `tauri android init` regenerates it.
+
 ### Command line
 
 Build a self-contained binary with Rust (stable) and Bun:

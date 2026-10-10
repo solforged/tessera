@@ -22,8 +22,12 @@ use {tessera_core::now_ms, tokio::sync::Notify};
 
 pub(crate) fn routes() -> Router<AppState> {
     let job_list = get(jobs);
-    // Browsers cannot download arbitrary articles across origins.
-    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+    // Browsers cannot download arbitrary articles across origins, and Android's
+    // TLS verifier needs JNI setup that the Android app does not do yet.
+    #[cfg(not(any(
+        all(target_arch = "wasm32", target_os = "unknown"),
+        target_os = "android"
+    )))]
     let job_list = job_list.post(queue);
     Router::new()
         .route("/api/library/jobs", job_list)
@@ -101,13 +105,19 @@ async fn upload(
     state.library.kick();
     Ok((StatusCode::CREATED, Json(job)))
 }
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+#[cfg(not(any(
+    all(target_arch = "wasm32", target_os = "unknown"),
+    target_os = "android"
+)))]
 #[derive(Deserialize)]
 struct UrlJob {
     url: String,
     target_source: Option<String>,
 }
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+#[cfg(not(any(
+    all(target_arch = "wasm32", target_os = "unknown"),
+    target_os = "android"
+)))]
 async fn queue(
     State(state): State<AppState>,
     body: Result<Json<UrlJob>, JsonRejection>,

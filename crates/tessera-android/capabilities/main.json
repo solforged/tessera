@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/mobile-schema.json",
+  "identifier": "main",
+  "description": "The notebook window: Tauri's core IPC for the app's own commands and channels.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

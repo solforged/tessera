@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "build:demo": "tsc --noEmit -p tsconfig.demo.json && vite build --mode demo",
+    "build:android": "tsc --noEmit && vite build --mode android",
     "typecheck": "tsc --noEmit",
     "test": "bun test src"
   },
@@ -19,6 +20,7 @@
     "@fontsource-variable/piazzolla": "5.3.0",
     "@replit/codemirror-vim": "^6.4.0",
     "@tanstack/solid-virtual": "^3.13.40",
+    "@tauri-apps/api": "~2.12.0",
     "idb": "^8.0.3",
     "solid-js": "^1.9.15",
     "ulid": "^3.0.2"
