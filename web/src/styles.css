@@ -125,6 +125,12 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
 .is-split .panes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .pane { position: relative; display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; background: var(--canvas); }
 .pane + .pane { border-left: 1px solid var(--line); }
+/* Full screen: the reader pane fills the window; the rail, sidebar, pane tabs, pane header and the other pane step aside. */
+.app.is-immersive { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); background: var(--canvas); }
+.app.is-immersive > .global-rail, .app.is-immersive > .sidebar, .app.is-immersive .pane-tabs, .app.is-immersive .pane:not(.immersive), .app.is-immersive .pane.immersive > .pane-header { display: none; }
+.app.is-immersive .workspace { grid-column: 1; grid-row: 1; margin: 0; border: 0; border-radius: 0; }
+.app.is-immersive .panes { grid-template-columns: minmax(0, 1fr); }
+.app.is-immersive .pane + .pane { border-left: 0; }
 /* Pane headers carry document navigation and actions, never global search. */
 .pane-header { display: flex; align-items: center; gap: var(--space-4); flex-shrink: 0; min-height: var(--pane-header-height); padding: var(--space-4) var(--space-8); border-bottom: 1px solid var(--line); font-size: var(--text-control); line-height: var(--line-control); }
 .pane-header > .button, .pane-save-state, .vim-mode { flex-shrink: 0; }
