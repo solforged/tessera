@@ -1,5 +1,7 @@
 /* The source, reading and grading strip share one sheet on the text measure. */
-.review-card { display: flex; flex-direction: column; gap: var(--space-16); min-width: 0; padding: var(--space-12) 0 var(--space-24); border-top: var(--rule-width) solid var(--line); transition: border-color var(--motion-fast) var(--motion-ease); }
+.review-card { position: relative; display: flex; flex-direction: column; gap: var(--space-16); min-width: 0; padding: var(--space-12) 0 var(--space-24); border-top: var(--rule-width) solid var(--line); transition: border-color var(--motion-fast) var(--motion-ease); }
+/* The rubric mark that heads popups and resurfaced slips also heads the card sheet. */
+.review-card::before { content: ''; position: absolute; top: calc(-1 * var(--rule-width)); left: 0; width: var(--rubric-width); height: var(--rubric-height); background: var(--danger); pointer-events: none; }
 .review-card:focus-visible { outline: none; border-color: var(--accent); }
 .review-card-meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4) var(--space-12); min-height: var(--target-size); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .review-card-source.button { min-width: 0; max-width: 100%; padding-inline: 0; color: inherit; font: inherit; }
@@ -10,7 +12,14 @@
 .review-card-side { min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: var(--weight-body) var(--text-gloss)/var(--line-gloss) var(--font-display); font-variation-settings: var(--optical-reader); }
 .review-card-side.review-card-terse { font-size: var(--text-h1); line-height: var(--line-h1); font-variation-settings: var(--optical-heading); }
 .review-card-answer { padding-top: var(--space-16); border-top: 1px solid var(--line); animation: fade-in var(--motion-ui) var(--motion-ease) both; }
-.review-answer-outline { margin: 0; padding-inline-start: var(--space-24); }
+/* Child answers read as a quiet outline: small faint bullets in the indent; a list numbers its items in rubric mono. */
+.review-answer-outline { margin: 0; padding-inline-start: var(--indent-width); list-style: none; }
+.review-answer-outline > li { position: relative; }
+.review-answer-outline > li::before { content: ''; position: absolute; top: calc(var(--line-gloss) / 2 - var(--space-2)); left: calc(-1 * var(--space-12)); width: var(--space-4); height: var(--space-4); border-radius: 50%; background: var(--faint); }
+ol.review-answer-outline { counter-reset: answer-item; }
+ol.review-answer-outline > li { counter-increment: answer-item; }
+ol.review-answer-outline > li::before { content: counter(answer-item) '.'; top: calc((var(--line-gloss) - var(--line-apparatus)) / 2); left: auto; right: calc(100% + var(--space-8)); width: auto; height: auto; border-radius: 0; background: none; color: var(--danger); font: var(--apparatus); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.review-list-progress { margin: 0; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); font-variant-numeric: tabular-nums; }
 .review-cloze-gap { display: inline-block; min-width: calc(3 * var(--space-16)); padding-inline: var(--space-8); border-radius: var(--radius-control); background: var(--raised); color: var(--muted); text-align: center; font-style: italic; }
 .review-cloze-answer { padding-inline: var(--space-2); border-radius: var(--radius-control); font-weight: var(--weight-body); animation: fade-in var(--motion-ui) var(--motion-ease) both; }
 .review-card h2 { margin: 0; color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); font-weight: var(--weight-control); }
