@@ -855,8 +855,8 @@ function Pane(props: OutlinePaneProps) {
       <Show keyed when={editing() && virtualItems().has(editing()!) ? editing() : null}>{id => <Row id={id} item={() => virtualItems().get(id)!} />}</Show>
     </div>
     <Show when={doc.root()?.source && !zoom() && !sourceDetails().firstHighlight}><div class="outline-list"><div class="outline-highlights-label">Highlights <span>{sourceHighlights()?.total ?? 0}</span></div></div></Show>
-    <Show when={doc.root()?.source && !zoom() && filedElsewhere().length}><section class="related-sections" aria-label="Filed elsewhere">
-      <h3>Filed elsewhere</h3>
+    <Show when={doc.root()?.source && !zoom() && filedElsewhere().length}><section class="related-sections source-elsewhere" aria-label="Filed elsewhere">
+      <h3 class="outline-highlights-label">Filed elsewhere <span>{filedElsewhere().length}</span></h3>
       <For each={filedElsewhere()}>{row => <Button class="library-highlight" onClick={event => props.onOpen({ kind: 'page', pageId: row.block.page.id, blockId: row.block.block.id }, event.shiftKey)}>
         <BlockText text={row.block.block.text} notebook={props.notebook} interactive={false} />
         <span class="library-highlight-meta">¶{row.citation.ordinal + 1} · {row.block.page.text}</span>
