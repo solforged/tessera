@@ -34,6 +34,7 @@ export type Operation =
   | { op: 'uncite'; id: string; base_revision: number; citation_id: string }
   | { op: 'set_citation_triage'; id: string; base_revision: number; triage: Citation['triage'] }
   | { op: 'set_citation_color'; id: string; base_revision: number; color: Citation['color'] }
+  | { op: 'set_citation_range'; id: string; base_revision: number; start: PassagePoint; end: PassagePoint }
   | { op: 'create_journal'; id: string; date: string }
   | { op: 'insert'; id: string; parent_id: string; after: string | null; text: string; heading: 1 | 2 | 3 | null }
   | { op: 'edit_text'; id: string; base_revision: number; text: string }
@@ -384,6 +385,7 @@ export interface PassagePoint { passage_id: string; offset: number }
 export interface Citation {
   id: string; block_id: string; source_id: string; snapshot_id: string;
   start: PassagePoint; end: PassagePoint; quote: string; locator: string; ordinal: number;
+  chapter_title?: string | null;
   triage: 'processed' | 'unprocessed' | null;
   color: 'yellow' | 'green' | 'blue' | 'red' | 'purple' | null;
 }

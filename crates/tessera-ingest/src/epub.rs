@@ -175,6 +175,36 @@ pub(crate) fn extract(bytes: &[u8]) -> Result<ExtractedDocument> {
     {
         navigation = ncx_entries(&member_text(&mut archive, &ncx.path)?, &ncx.path)?;
     }
+    // Some EPUB 2 exporters write only "Start" into NCX while retaining the
+    // complete, reader-facing contents document in the package guide.
+    if navigation.len() < 3
+        && let Some(path) = root
+            .descendants()
+            .find(|node| node.has_tag_name("reference") && node.attribute("type") == Some("toc"))
+            .and_then(|node| node.attribute("href"))
+            .and_then(|href| base.resource(href))
+    {
+        let contents = member_text(&mut archive, &path)?;
+        let document = Html::parse_document(&contents);
+        let guide_base = Base::Book(path);
+        let entries: Vec<_> = document
+            .select(&selector("a[href]"))
+            .filter_map(|link| {
+                let Target::Internal(target) = guide_base.resolve(link.value().attr("href")?)?
+                else {
+                    return None;
+                };
+                Some(Navigation {
+                    title: text(link),
+                    target,
+                    level: 1,
+                })
+            })
+            .collect();
+        if entries.len() > navigation.len() {
+            navigation = entries;
+        }
+    }
     let referenced: HashSet<_> = navigation
         .iter()
         .map(|entry| entry.target.split('#').next().unwrap_or(""))

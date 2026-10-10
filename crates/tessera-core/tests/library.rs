@@ -2019,3 +2019,124 @@ fn resurfacing_prioritizes_never_shown_then_oldest_and_shuffles_by_date() {
     }
     assert!(orders.len() > 1);
 }
+
+#[test]
+fn sparse_epub_navigation_backfills_without_changing_passage_ids() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut doc = document();
+    doc.toc[0].title = "Start".into();
+    let mut contents = doc.passages[0].clone();
+    contents.locator = "contents#p1".into();
+    contents.text = "One Two Three".into();
+    contents.marks = [
+        (0, 3, "chapter#first"),
+        (4, 7, "chapter#second"),
+        (8, 13, "third#p1"),
+    ]
+    .into_iter()
+    .map(|(start, end, locator)| Mark {
+        start,
+        end,
+        kind: MarkKind::Internal {
+            locator: locator.into(),
+        },
+    })
+    .collect();
+    let mut third = doc.passages[0].clone();
+    third.locator = "third#p1".into();
+    doc.passages.push(third);
+    doc.passages.insert(0, contents);
+    let (source, snapshot) = ingest(&mut n, &doc, b"sparse navigation");
+    let before = n.passages(&snapshot, 0, 100).unwrap();
+    assert_eq!(
+        before
+            .toc
+            .iter()
+            .map(|entry| entry.title.as_str())
+            .collect::<Vec<_>>(),
+        ["One", "Two", "Three"]
+    );
+    assert_eq!(
+        before
+            .toc
+            .iter()
+            .map(|entry| entry.ordinal)
+            .collect::<Vec<_>>(),
+        [Some(1), Some(2), Some(3)]
+    );
+    let ids: Vec<_> = before
+        .passages
+        .into_iter()
+        .map(|passage| passage.id)
+        .collect();
+    drop(n);
+    let n = Notebook::open(dir.path()).unwrap();
+    assert_eq!(n.source(&source).unwrap().toc.len(), 3);
+    assert_eq!(
+        n.passages(&snapshot, 0, 100)
+            .unwrap()
+            .passages
+            .into_iter()
+            .map(|passage| passage.id)
+            .collect::<Vec<_>>(),
+        ids
+    );
+}
+
+#[test]
+fn citation_range_changes_preserve_identity_triage_and_color_and_are_reversible() {
+    let (_dir, mut n, citation) = highlighted_source();
+    set_color(&mut n, &citation, Some("green"));
+    set_triage(&mut n, &citation, Some("processed"));
+    let passages = n.passages(&citation.snapshot_id, 0, 100).unwrap().passages;
+    let end = PassagePoint {
+        passage_id: passages[1].id.clone(),
+        offset: 12,
+    };
+    let revision = n.block(&citation.block_id).unwrap().revision;
+    let result = apply(
+        &mut n,
+        vec![Operation::SetCitationRange {
+            id: citation.id.clone(),
+            base_revision: revision,
+            start: citation.start.clone(),
+            end: end.clone(),
+        }],
+    );
+    let changed = &result
+        .capabilities
+        .iter()
+        .find(|value| value.block_id == citation.block_id)
+        .unwrap()
+        .citations[0];
+    assert_eq!(changed.id, citation.id);
+    assert_eq!(changed.end, end);
+    assert_eq!(changed.color.as_deref(), Some("green"));
+    assert_eq!(changed.triage.as_deref(), Some("processed"));
+    assert_eq!(changed.chapter_title.as_deref(), Some("Opening"));
+    let revision = n.block(&citation.block_id).unwrap().revision;
+    apply(
+        &mut n,
+        vec![Operation::SetCitationRange {
+            id: citation.id.clone(),
+            base_revision: revision,
+            start: citation.start.clone(),
+            end: citation.end.clone(),
+        }],
+    );
+    assert_eq!(
+        n.capabilities(&citation.block_id).unwrap().citations[0].quote,
+        citation.quote
+    );
+    let revision = n.block(&citation.block_id).unwrap().revision;
+    assert!(
+        n.apply(&batch(vec![Operation::SetCitationRange {
+            id: citation.id,
+            base_revision: revision,
+            start: end,
+            end: citation.start,
+        }]))
+        .is_err()
+    );
+}

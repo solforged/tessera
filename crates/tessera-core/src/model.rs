@@ -90,6 +90,12 @@ pub enum Operation {
         base_revision: i64,
         color: Option<String>,
     },
+    SetCitationRange {
+        id: String,
+        base_revision: i64,
+        start: PassagePoint,
+        end: PassagePoint,
+    },
     /// Create a named root. Titles are unique among live pages, ignoring case.
     CreatePage {
         id: String,

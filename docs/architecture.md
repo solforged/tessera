@@ -86,6 +86,10 @@ The editor is split into layers that the prototype mixed together:
 
 Undo is a stack of operations and their inverses, shared by both panes on the same page. Cross-block selection uses block ID plus offset at each end, so it works when rows are off screen.
 
+Reader highlights that overlap or touch form one union. The earliest source-page highlight keeps its block and citation identities, colour, notes and review state; unreferenced duplicates contribute their children before removal. Referenced highlights and citations on other pages remain intact. Range edits, child moves and removals share one document undo step. A reader-level action applies the same merge to existing clusters.
+
+EPUB 2 extraction checks the package guide's HTML contents when NCX contains only sparse navigation. Existing sparse imports lazily backfill navigation from the preserved linked contents passage without replacing source, snapshot or passage IDs. Citation reads return the chapter title rather than exposing an EPUB href as the location label.
+
 Page commands include task/project edits and work-session operations, with capability snapshots and inverses alongside text. Review sessions, decks, grades and saved task views use notebook-level commands in the same ordered outbox; they are not assigned fake page IDs. Commands are persisted before sending, and the first compiled request body is frozen for byte-identical replay after uncertain delivery or reload. Rejected commands stay recoverable until explicitly dismissed.
 
 Review keeps the shown card snapshot until acknowledgement and revalidates it against committed changes. A stale grade cannot advance the queue or silently adopt a new definition. Command-state equality isolates review refreshes from unrelated local page bookkeeping. Recovery feedback is notebook-wide and does not change location when focus moves between panes.

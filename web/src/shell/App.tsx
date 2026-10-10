@@ -7,6 +7,7 @@ import type { NotebookClient, PageDocument } from '../document/contract';
 import { OutlinePane } from '../outline/OutlinePane';
 import { plainText } from '../outline/BlockText';
 import { ReferencePreviews } from '../outline/ReferencePreview';
+import { createPageIcon } from '../outline/source';
 import { copyTaskQuery, createTaskQuery } from '../tasks/query';
 import { copyQuery } from '../table/query';
 import { Button } from '../ui/Button';
@@ -517,9 +518,8 @@ function PageLinks(props: { roots: Block[]; sourceIcons?: boolean; notebook: Not
   return <For each={ids()}>{id => {
     const root = () => byId().get(id)!;
     const title = () => props.notebook.lookup(id)()?.text ?? root().text;
-    // A page gains a source only on ingest, so one lookup per mounted row is enough.
-    const [capabilities] = createResource(() => props.sourceIcons && root().kind === 'page' ? id : false, id => props.notebook.api.capabilities(id));
-    return <Button class={id === props.activeId ? 'selected' : ''} icon={root().kind === 'journal' ? 'today' : capabilities.error || !capabilities()?.source ? 'page' : capabilities()!.source!.format === 'article' ? 'article' : 'book'} title={title()} onClick={event => props.onOpen({ kind: 'page', pageId: id }, event.shiftKey)}><span>{title()}</span></Button>;
+    const icon = createPageIcon(props.notebook, root, () => !!props.sourceIcons, 'today');
+    return <Button class={id === props.activeId ? 'selected' : ''} icon={icon()} title={title()} onClick={event => props.onOpen({ kind: 'page', pageId: id }, event.shiftKey)}><span>{title()}</span></Button>;
   }}</For>;
 }
 

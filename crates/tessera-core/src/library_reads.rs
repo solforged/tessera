@@ -42,6 +42,65 @@ pub(crate) fn passage(conn: &Connection, id: &str) -> Result<Passage> {
 }
 
 fn toc(conn: &Connection, snapshot: &str) -> Result<Vec<TocEntry>> {
+    // Old EPUB imports may have saved the NCX's lone "Start" entry. The
+    // embedded HTML contents survived as linked passage text; repair only
+    // derived navigation, keeping snapshot, passage and citation identities.
+    let sparse: bool = conn.query_row(
+        "SELECT format = 'epub' AND json_array_length(toc) < 3 FROM snapshots WHERE id = ?1",
+        [snapshot],
+        |r| r.get(0),
+    )?;
+    if sparse {
+        let mut candidates = conn.prepare_cached(
+            "SELECT text, marks FROM passages WHERE snapshot_id = ?1
+             AND json_array_length(marks) >= 3 ORDER BY ordinal",
+        )?;
+        let mut rows = candidates.query([snapshot])?;
+        while let Some(row) = rows.next()? {
+            let text: String = row.get(0)?;
+            let marks: Vec<Mark> = json_at(row, 1)?;
+            let links: Vec<_> = marks
+                .iter()
+                .filter(|mark| matches!(mark.kind, MarkKind::Internal { .. }))
+                .collect();
+            let length = text.encode_utf16().count();
+            if links.len() < 3
+                || links
+                    .iter()
+                    .map(|mark| (mark.end - mark.start) as usize)
+                    .sum::<usize>()
+                    * 5
+                    < length * 4
+            {
+                continue;
+            }
+            let units: Vec<_> = text.encode_utf16().collect();
+            let entries: Vec<_> = links
+                .into_iter()
+                .filter_map(|mark| {
+                    let MarkKind::Internal { locator } = &mark.kind else {
+                        return None;
+                    };
+                    let title = String::from_utf16_lossy(
+                        units.get(mark.start as usize..mark.end as usize)?,
+                    );
+                    Some(TocEntry {
+                        title,
+                        locator: locator.clone(),
+                        level: 1,
+                        ordinal: None,
+                    })
+                })
+                .collect();
+            if entries.len() >= 3 {
+                conn.execute(
+                    "UPDATE snapshots SET toc = ?2 WHERE id = ?1",
+                    params![snapshot, json(&entries)],
+                )?;
+                break;
+            }
+        }
+    }
     let mut statement = conn.prepare_cached(
         "SELECT json_extract(e.value, '$.title'), json_extract(e.value, '$.locator'),
                 json_extract(e.value, '$.level'), MIN(p.ordinal)
@@ -127,6 +186,7 @@ pub(crate) fn citations(
                 quote: String::new(),
                 locator: r.get(8)?,
                 ordinal: r.get(11)?,
+                chapter_title: None,
                 triage: r.get(13)?,
                 color: r.get(14)?,
             });
@@ -151,6 +211,24 @@ pub(crate) fn citations(
         };
         let units: Vec<_> = text.encode_utf16().skip(start).take(end - start).collect();
         c.quote.push_str(&String::from_utf16_lossy(&units));
+    }
+    let mut sections = HashMap::new();
+    for citation in &mut result {
+        if !sections.contains_key(&citation.snapshot_id) {
+            sections.insert(
+                citation.snapshot_id.clone(),
+                toc(conn, &citation.snapshot_id)?,
+            );
+        }
+        citation.chapter_title = sections[&citation.snapshot_id]
+            .iter()
+            .filter(|entry| {
+                entry
+                    .ordinal
+                    .is_some_and(|ordinal| ordinal <= citation.ordinal)
+            })
+            .max_by_key(|entry| entry.ordinal)
+            .map(|entry| entry.title.clone());
     }
     Ok(result)
 }
