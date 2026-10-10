@@ -577,6 +577,35 @@ pub(crate) fn apply(conn: &Connection, operation: &Operation, now: i64, seq: i64
                 params![id, triage],
             )? > 0)
         }
+        Operation::SetCitationRange { id, start, end, .. } => {
+            let snapshot: String = conn.query_row(
+                "SELECT snapshot_id FROM citations WHERE id = ?1 AND active = 1",
+                [id],
+                |r| r.get(0),
+            )?;
+            let first = crate::library_reads::passage(conn, &start.passage_id)?;
+            let last = crate::library_reads::passage(conn, &end.passage_id)?;
+            let valid: bool = conn.query_row(
+                "SELECT COUNT(*) = CASE WHEN ?2 = ?3 THEN 1 ELSE 2 END
+                 FROM passages WHERE snapshot_id = ?1 AND id IN (?2, ?3)",
+                params![snapshot, start.passage_id, end.passage_id],
+                |r| r.get(0),
+            )?;
+            if !valid
+                || (first.ordinal, start.offset) >= (last.ordinal, end.offset)
+                || start.offset as usize > first.text.encode_utf16().count()
+                || end.offset as usize > last.text.encode_utf16().count()
+            {
+                return Err(validation(
+                    "Citation endpoints must form a non-empty, ordered range inside one snapshot.",
+                ));
+            }
+            Ok(conn.execute(
+                "UPDATE citations SET start_passage = ?2, start_offset = ?3, end_passage = ?4, end_offset = ?5
+                 WHERE id = ?1 AND (start_passage != ?2 OR start_offset != ?3 OR end_passage != ?4 OR end_offset != ?5)",
+                params![id, start.passage_id, start.offset, end.passage_id, end.offset],
+            )? > 0)
+        }
         Operation::SetCitationColor { id, color, .. } => {
             validate_color(color.as_deref())?;
             Ok(conn.execute(

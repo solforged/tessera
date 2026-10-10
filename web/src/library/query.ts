@@ -28,7 +28,8 @@ export function formatProgress(progress: number): string {
   return progress > 0 && progress < 0.01 ? '<1%' : `${Math.floor(progress * 100)}%`;
 }
 
-export function highlightLocation(citation: Pick<Citation, 'ordinal'>, sections: readonly HighlightSection[]): string {
+export function highlightLocation(citation: Pick<Citation, 'ordinal' | 'chapter_title'>, sections: readonly HighlightSection[]): string {
+  if (citation.chapter_title) return citation.chapter_title;
   for (let index = sections.length - 1; index >= 0; index--) {
     if (sections[index]!.ordinal <= citation.ordinal) return sections[index]!.title;
   }

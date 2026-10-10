@@ -1807,6 +1807,38 @@ describe('source and citation document commands', () => {
     expect(doc.block(blockId)?.citations).toEqual([]);
   });
 
+  test('merging evidence preserves survivor state, moves notes, and undoes the whole union', async () => {
+    const instance = await client();
+    const { id, doc, citation } = await sourcePage(instance);
+    const make = (start: number, end: number, color: 'green' | null = null) => success(doc.edit({
+      kind: 'highlight', parentId: id, text: citation.quote.slice(start, end), color,
+      citation: { ...citation, id: ulid(), start: { ...citation.start, offset: start }, end: { ...citation.end, offset: end }, quote: citation.quote.slice(start, end) },
+    })).created[0]!;
+    const first = make(0, 20, 'green'), second = make(10, 40);
+    const ownNote = success(doc.edit({ kind: 'insert', parentId: first, after: null, text: 'Keep this note' })).created[0]!;
+    const moved = success(doc.edit({ kind: 'insert', parentId: second, after: null, text: 'Move this note' })).created[0]!;
+    await doc.flush();
+    const prior = doc.block(first)!.citations[0]!;
+    success(doc.edit({ kind: 'citationTriage', id: first, citationId: prior.id, triage: 'processed' }));
+    await doc.flush();
+    const before = doc.block(first)!.citations[0]!;
+    success(doc.edit({ kind: 'mergeHighlights', merges: [{ citation: { ...before, end: { ...before.end, offset: 40 }, quote: citation.quote.slice(0, 40) }, removeIds: [second] }] }));
+    await doc.flush();
+    expect(doc.block(second)).toBeUndefined();
+    expect(doc.outline.children(first)).toEqual([ownNote, moved]);
+    expect(doc.block(first)!.citations[0]).toMatchObject({ id: prior.id, color: 'green', triage: 'processed', end: { offset: 40 } });
+    doc.undo();
+    await doc.flush();
+    expect(doc.block(first)!.citations[0]).toEqual(before);
+    expect(doc.outline.children(first)).toEqual([ownNote]);
+    expect(doc.outline.children(second)).toEqual([moved]);
+    doc.redo();
+    await doc.flush();
+    expect(doc.block(second)).toBeUndefined();
+    expect((await api.capabilities(first)).citations![0]!.end.offset).toBe(40);
+    doc.release();
+  });
+
   test('highlight inserts then cites in one command at the root or requested sibling and undoes by deletion', async () => {
     const instance = await client();
     const { id, doc, citation } = await sourcePage(instance);

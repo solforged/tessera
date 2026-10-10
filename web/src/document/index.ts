@@ -377,6 +377,7 @@ export class Notebook implements NotebookClient, DocumentHost {
         case 'uncite':
         case 'citationTriage':
         case 'highlightColor':
+        case 'citationRange':
         case 'completeTask':
         case 'reverseTaskCompletion':
         case 'startWork':
@@ -438,6 +439,12 @@ export class Notebook implements NotebookClient, DocumentHost {
             operations.push({ op: 'set_citation_color', id: action.citationId, base_revision: block.revision, color: action.color });
             changed = citation.color !== action.color;
             citation.color = action.color;
+          } else if (action.kind === 'citationRange') {
+            const citation = value.citations?.find(item => item.id === action.citation.id);
+            if (!citation || !sameState(citation.start, action.previous.start) || !sameState(citation.end, action.previous.end)) throw new Error('Citation range changed. Rejected command kept.');
+            operations.push({ op: 'set_citation_range', id: citation.id, base_revision: block.revision, start: action.citation.start, end: action.citation.end });
+            changed = !sameState(citation.start, action.citation.start) || !sameState(citation.end, action.citation.end);
+            Object.assign(citation, action.citation);
           } else if (action.kind === 'completeTask') {
             if (!sameState(value.task, action.previous)) throw new Error('Task metadata changed before completion. Rejected command kept.');
             operations.push({ op: 'complete_task', id: action.id, base_revision: block.revision, occurrence_id: action.occurrenceId, completed_on: action.completedOn });

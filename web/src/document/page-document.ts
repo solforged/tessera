@@ -295,6 +295,15 @@ export class Document implements PageDocument {
         this.updateCapabilities(value, base);
         return [{ kind: 'cite', id: action.id, citation: citation!, index, baseRevision: action.baseRevision }];
       }
+      case 'citationRange': {
+        const value = this.capabilities(action.id, base);
+        const index = value.citations?.findIndex(item => item.id === action.citation.id) ?? -1;
+        if (index < 0) throw new Error('Citation not found.');
+        const previous = value.citations![index]!;
+        value.citations![index] = action.citation;
+        this.updateCapabilities(value, base);
+        return [{ ...action, citation: previous, previous: action.citation }];
+      }
       case 'citationTriage': {
         const value = this.capabilities(action.id, base);
         const citation = value.citations?.find(item => item.id === action.citationId);
@@ -904,6 +913,41 @@ export class Document implements PageDocument {
           if (!sameState(previous, value)) actions.push({ kind: 'source', id: edit.id, value, previous, baseRevision: this.snapshot(edit.id).revision });
           break;
         }
+        case 'mergeHighlights': {
+          for (const merge of edit.merges) {
+            const id = merge.citation.block_id;
+            const previous = this.capabilities(id).citations?.find(citation => citation.id === merge.citation.id);
+            if (!previous) throw new Error('Citation not found.');
+            const baseRevision = this.snapshot(id).revision;
+            if (!sameState(previous.start, merge.citation.start) || !sameState(previous.end, merge.citation.end)) {
+              actions.push({ kind: 'citationRange', id, citation: { ...merge.citation, color: previous.color }, previous, baseRevision });
+              const block = this.snapshot(id);
+              // Authored notes or card syntax stay intact; only a verbatim quote follows its evidence.
+              if (block.text === previous.quote) setText(block, merge.citation.quote);
+            }
+            if (previous.color !== merge.citation.color) actions.push({ kind: 'highlightColor', id, citationId: previous.id, color: merge.citation.color, previous: previous.color, baseRevision });
+            for (const citationId of merge.removeCitationIds ?? []) actions.push({ kind: 'uncite', id, citationId, baseRevision });
+            let after = this.outline.children(id).at(-1) ?? null;
+            const removedIds = [...merge.removeIds].sort((a, b) => this.outline.indexOf(b) - this.outline.indexOf(a));
+            for (const removed of removedIds) {
+              if (removed === id || !this.block(removed)) throw new Error('Highlight no longer exists.');
+              this.guardHide(removed);
+              // Hoist a survivor nested under a highlight that is being absorbed.
+              let ancestor = this.block(id)?.parentId;
+              while (ancestor && ancestor !== removed) ancestor = this.block(ancestor)?.parentId;
+              if (ancestor === removed) actions.push({ kind: 'move', id, parentId: this.outline.parentOf(removed), after: removed });
+              const children = this.outline.children(removed).filter(child => child !== id && !merge.removeIds.includes(child));
+              for (const child of children) {
+                actions.push({ kind: 'move', id: child, parentId: id, after });
+                after = child;
+              }
+              actions.push({ kind: 'delete', id: removed });
+            }
+            caret = { id, offset: this.block(id)?.text.length ?? 0 };
+            if (edit.note) caret = { id: insert(id, null, ''), offset: 0 };
+          }
+          break;
+        }
         case 'cite':
         case 'highlight': {
           const id = edit.kind === 'highlight'
@@ -913,7 +957,7 @@ export class Document implements PageDocument {
           actions.push({ kind: 'cite', id, baseRevision: edit.kind === 'highlight' ? 0 : this.snapshot(id).revision,
             citation: { id: citation.id, block_id: id, source_id: citation.sourceId, snapshot_id: citation.snapshotId,
               start: { ...citation.start }, end: { ...citation.end }, quote: citation.quote, locator: citation.locator, ordinal: citation.ordinal, triage: null, color: edit.kind === 'highlight' ? edit.color ?? null : null } });
-          if (edit.kind === 'highlight') caret = { id, offset: edit.text.length };
+          if (edit.kind === 'highlight') caret = edit.note ? { id: insert(id, null, ''), offset: 0 } : { id, offset: edit.text.length };
           break;
         }
         case 'uncite': {
