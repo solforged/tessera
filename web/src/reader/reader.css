@@ -59,6 +59,33 @@
 .reader-title-block { position: absolute; top: 0; width: 100%; padding-block: var(--space-24); font-family: var(--reader-font); }
 .reader-title-block h1 { margin: 0; font: var(--weight-title) var(--text-title)/var(--line-title) var(--font-display); letter-spacing: var(--tracking-title); font-variation-settings: var(--optical-title); color: var(--text); }
 .reader-title-block p { margin: var(--space-8) 0 0; color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+/* A new highlight's note on a touch screen: the book's name, the passage in its sentence, then a writing sheet that sits on the keyboard. */
+.reader-compose { position: fixed; inset: 0; z-index: 45; display: flex; flex-direction: column; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); background: var(--canvas); color: var(--text); animation: fade-in var(--motion-ui) var(--motion-ease) both; }
+.reader-compose-header { flex-shrink: 0; width: calc(100% - 2 * var(--space-24)); max-width: var(--reader-measure); margin-inline: auto; padding-block: var(--space-12); font-size: var(--reader-size); }
+.reader-compose-header h2 { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: var(--weight-display-heading) var(--text-h2)/var(--line-h2) var(--font-display); font-variation-settings: var(--optical-heading); }
+.reader-compose-header p { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); }
+.reader-compose .reader-progress-rule { margin-bottom: 0; }
+.reader-compose-context { position: relative; flex: 1; min-height: 0; overflow: auto; width: 100%; padding: var(--space-16) max(var(--space-24), calc((100% - var(--reader-measure)) / 2)); font-family: var(--reader-font); font-size: var(--reader-size); line-height: var(--reader-line); font-variation-settings: var(--optical-reader); }
+.reader-compose-meta { display: flex; justify-content: space-between; gap: var(--space-16); margin-bottom: var(--space-12); color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.reader-compose-meta > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reader-compose-around { margin: 0; color: var(--muted); }
+.reader-compose-context blockquote { margin: var(--space-12) 0; padding: var(--space-8) var(--space-12); border-left: var(--space-2) solid var(--accent); background: color-mix(in srgb, var(--highlight-yellow) 18%, transparent); font-size: calc(var(--reader-size) * 1.2); line-height: 1.35; white-space: pre-wrap; overflow-wrap: anywhere; }
+/* The measure is in ems of the reading size, so the sheet sets that size for its gutters and its rows return to control text. */
+.reader-compose-sheet { display: flex; flex-direction: column; flex-shrink: 0; height: clamp(11rem, 40%, 14rem); padding: var(--space-12) max(var(--space-24), calc((100% - var(--reader-measure)) / 2)) var(--space-4); border-top: 1px solid var(--line); background: var(--surface); font-size: var(--reader-size); }
+.reader-compose-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-12); font-size: var(--text-control); line-height: var(--line-control); }
+.reader-compose-heading label { font-weight: var(--weight-control); }
+.reader-compose-keep.button { padding-inline: var(--space-12); background: var(--accent); color: var(--shell); }
+.reader-compose-keep.button:hover:not(:disabled) { background: var(--accent); filter: brightness(1.08); }
+.reader-compose-keep.button:disabled { background: var(--raised); color: var(--muted); }
+.reader-compose textarea { flex: 1; min-height: 0; width: 100%; resize: none; padding: var(--space-8) 0; border: 0; border-radius: 0; background: transparent; color: var(--text); font: var(--weight-body) var(--text-body)/var(--line-body) var(--font-body); outline: none; }
+.reader-compose textarea:focus-visible { box-shadow: inset 0 -1px var(--accent); }
+.reader-compose textarea::placeholder { color: var(--faint); }
+.reader-compose-footer { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); }
+.reader-compose-footer > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reader-compose-footer > span.error { color: var(--danger); }
+.reader-compose-footer .button { color: var(--muted); }
+/* Above a keyboard the passage keeps the room the byline took. */
+@media (max-height: 560px) { .reader-compose-header { padding-block: var(--space-8); } .reader-compose-header p { display: none; } }
 .reader-settings { padding: var(--space-12); }
 .reader-setting { display: flex; align-items: center; justify-content: space-between; gap: var(--space-16); min-height: var(--row-height); font-size: var(--text-control); }
 .reader-setting > span { color: var(--muted); }
