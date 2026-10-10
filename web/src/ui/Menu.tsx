@@ -15,6 +15,8 @@ export interface MenuItem {
   key?: string;
   disabledReason?: string;
   danger?: boolean;
+  /** The current choice in a set; drawn as a trailing check so the leading icon can name the choice. */
+  checked?: boolean;
   action(): void;
 }
 export function Menu(props: { anchor: PopupAnchor; label: string; items: MenuItem[]; header?: JSX.Element; onDismiss(): void }) {
@@ -34,8 +36,8 @@ export function Menu(props: { anchor: PopupAnchor; label: string; items: MenuIte
       buttons[next]?.focus(); event.preventDefault();
     }}>
       {props.header}
-      <For each={props.items}>{item => <>{item.section && <div class="menu-section">{item.section}</div>}<button type="button" role="menuitem" class={`menu-item ${item.danger ? 'danger' : ''}`} disabled={!!item.disabledReason} title={item.disabledReason} onClick={() => { props.onDismiss(); item.action(); }}>
-        {item.icon ? <Icon name={item.icon} /> : iconed() ? <span class="icon" /> : null}<span class="menu-label">{item.label}</span>{item.shortcut && <kbd>{item.shortcut}</kbd>}
+      <For each={props.items}>{item => <>{item.section && <div class="menu-section">{item.section}</div>}<button type="button" role={item.checked === undefined ? 'menuitem' : 'menuitemradio'} aria-checked={item.checked} class={`menu-item ${item.danger ? 'danger' : ''}`} disabled={!!item.disabledReason} title={item.disabledReason} onClick={() => { props.onDismiss(); item.action(); }}>
+        {item.icon ? <Icon name={item.icon} /> : iconed() ? <span class="icon" /> : null}<span class="menu-label">{item.label}</span>{item.shortcut && <kbd>{item.shortcut}</kbd>}{item.checked && <Icon name="check" class="menu-check" />}
       </button></>}</For>
     </div>
   </Popup>;
