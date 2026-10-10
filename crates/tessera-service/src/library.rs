@@ -1,3 +1,5 @@
+#[path = "library_lookup.rs"]
+mod lookup;
 use crate::{AppState, error::ApiError, run};
 use axum::{
     Json, Router,
@@ -36,6 +38,10 @@ pub(crate) fn routes() -> Router<AppState> {
         .route("/api/library/query", post(query))
         .route("/api/library/export", get(export).post(export_query))
         .route("/api/library/views", get(views))
+        .route("/api/library/lookup", post(lookup::lookup))
+        .route("/api/library/records/plan", post(lookup::record_plan))
+        .route("/api/library/metadata", post(lookup::normalize_metadata))
+        .route("/api/library/covers/{sha}", get(lookup::cover))
         .route("/api/sources/{id}", get(source))
         .route("/api/sources/{id}/extracted", get(extracted))
         .route("/api/snapshots/{id}/passages", get(passages))
@@ -47,6 +53,10 @@ pub(crate) fn routes() -> Router<AppState> {
         .route("/api/highlights/resurface", get(resurfacing))
         .route("/api/highlights/{id}/resurface", post(record_surfacing))
         .layer(DefaultBodyLimit::max(2 * 1024 * 1024))
+        .route(
+            "/api/library/covers",
+            post(lookup::upload_cover).layer(DefaultBodyLimit::max(10 * 1024 * 1024)),
+        )
         .route(
             "/api/library/uploads",
             post(upload).layer(DefaultBodyLimit::max(256 * 1024 * 1024)),
@@ -403,6 +413,7 @@ pub(crate) fn extract(
                 .map_err(|_| "The article is not valid UTF-8.".to_owned())?;
             tessera_ingest::article(html, url)
         }
+        SourceFormat::Record => return Err("A metadata record has no reading content.".into()),
     };
     result.map_err(|e| format!("The source could not be extracted: {e}."))
 }

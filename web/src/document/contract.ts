@@ -104,6 +104,8 @@ export type Edit =
   | { kind: 'workNote'; id: string; session: WorkSession; note: string }
   /** Set, change or remove a page's source capability. */
   | { kind: 'source'; id: string; value: SourceState | null }
+  /** Change source title and ordinary page fields together, retaining their block identities. */
+  | { kind: 'sourceDetails'; title?: string; fields: { id: string; entries: string[]; values: string[] }[] }
   | { kind: 'cite'; id: string; citation: NewCitation }
   /** Remove the selected citations together in one undo step. */
   | { kind: 'uncite'; id: string; citationIds: string[] }

@@ -375,7 +375,7 @@ export interface TaskView { id: string; name: string; query: TaskQuery; revision
 export interface GradePreview { grade: Grade; interval_days: number }
 export interface CardPreviews { current: GradePreview[]; reset: GradePreview[] }
 
-export type SourceFormat = 'epub' | 'article';
+export type SourceFormat = 'epub' | 'article' | 'record';
 export type ReadingState = 'inbox' | 'reading' | 'finished' | 'abandoned';
 export interface SourceState {
   format: SourceFormat; state: ReadingState; origin: string | null;
@@ -402,6 +402,7 @@ export interface ExtractedMetadata {
   identifiers: string[]; unique_id: string | null; url: string | null;
   site: string | null; description: string | null; cover: string | null;
 }
+export interface LookupPreview { metadata: ExtractedMetadata; cover_url: string | null; provider: string }
 export interface TocEntry { title: string; locator: string; level: number; ordinal: number | null }
 export type PassageKind = 'heading' | 'paragraph' | 'quote' | 'list_item' | 'code' | 'footnote' | 'image';
 export type MarkKind = { kind: 'emphasis' | 'strong' | 'code' } | { kind: 'link'; href: string } | { kind: 'internal' | 'note_ref'; locator: string };
@@ -430,7 +431,7 @@ export interface PassagePage { passages: Passage[]; citations: Citation[]; total
 export interface PassageHit { source_id: string; title: string; snapshot_id: string; passage: Passage; snippet: string }
 export interface LibraryQuery {
   states?: ReadingState[]; format?: SourceFormat | null; text?: string | null;
-  sort?: 'added' | 'title' | 'last_read' | 'progress'; direction?: Direction; limit?: number | null;
+  sort?: 'added' | 'title' | 'author' | 'year' | 'last_read' | 'progress'; direction?: Direction; limit?: number | null;
 }
 export interface LibraryView { id: string; name: string; query: LibraryQuery; revision: number; created_at: number; updated_at: number }
 export interface LibraryRow {

@@ -13,6 +13,8 @@ use serde::{Deserialize, Serialize};
 pub enum SourceFormat {
     Epub,
     Article,
+    /// A bibliographic record without attached reading content.
+    Record,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -312,6 +314,8 @@ pub enum LibrarySort {
     #[default]
     Added,
     Title,
+    Author,
+    Year,
     LastRead,
     Progress,
 }
