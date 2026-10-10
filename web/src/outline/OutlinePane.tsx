@@ -353,11 +353,24 @@ function Pane(props: OutlinePaneProps) {
     if (disposed || !host || !block || !editor || editing() !== id) return;
     const request = focusRequest?.id === id && focusRequest.epoch === focusEpoch ? focusRequest : null;
     if (focusRequest?.id === id) focusRequest = null;
-    if (!request && editor.id === id && host.contains(editor.view.dom)) { editor.sync(block.text); return; }
+    const same = editor.id === id;
+    if (!request && same && host.contains(editor.view.dom)) { editor.sync(block.text); followText(id); return; }
     const offset = request?.offset ?? (caret()?.id === id ? caret()!.offset : 0);
     const popupFocused = document.activeElement?.closest('[role="dialog"], [role="menu"], [role="listbox"]');
     editor.mount(host, id, block.text, offset, request?.insert ?? !props.vim, !!request && props.active && !popupFocused && !renaming());
+    if (same) followText(id);
     virtualizer.measureElement(host.closest<HTMLDivElement>('[data-index]')!);
+  }
+  /**
+   * An edit applied through the document (Backspace over a pair or a reference, a chosen completion) reaches
+   * the editor without its update hooks, so the pickers follow the new text here instead of going stale.
+   */
+  function followText(id: string) {
+    if (!editor || editor.id !== id || composition()) return;
+    const text = editor.view.state.doc.toString();
+    const at = { id, offset: editor.view.state.selection.main.head };
+    updateCompletion(text, at);
+    updateTriggers(text, at);
   }
   function editAt(id: string, offset = 0, insert = !props.vim, reveal = true, activate = true) {
     if (disposed || composition() || !indices().has(id)) return;
@@ -672,7 +685,7 @@ function Pane(props: OutlinePaneProps) {
     setSelected,
     deleteTextRange,
     setTextRange,
-    afterReference: (event, view) => afterReference(event, view),
+    forgetReferenceSpace: (event) => forgetReferenceSpace(event),
     slashKey: (event) => slashKey(event),
     dateKey: (event) => dateKey(event),
     popupKey: (event) => popupKey(event),
@@ -703,7 +716,7 @@ function Pane(props: OutlinePaneProps) {
     editedConflicts,
     setEditedConflicts,
   };
-  const { setCompletion, setCompletionIndex, offerValue, updateCompletion, updateTriggers, taskPrefix, rewriteEditing, afterReference, slashKey, dateKey, popupKey, CompletionPopups } = createOutlineCompletions(context);
+  const { setCompletion, setCompletionIndex, offerValue, updateCompletion, updateTriggers, taskPrefix, rewriteEditing, referenceInput, forgetReferenceSpace, slashKey, dateKey, popupKey, CompletionPopups } = createOutlineCompletions(context);
   const { openTable, investigationItems, commandDefinitions, unregister, blockMenu, statusMenu, priorityMenu, openPlanning, openProject, leaderMenu, referenceMenu, copy } = createOutlineCommands(context);
   const { horizontal, adjacent, split, editorKey, structuralKey, resetRowKey } = createOutlineKeyboard(context);
   const { selectedOffsets, pointerStart, pointerMove, pointerEnd, clipboard, paste, beforeInput } = createOutlineInteractions(context);
@@ -728,6 +741,7 @@ function Pane(props: OutlinePaneProps) {
     onCleanup(() => { scroll.removeEventListener('copy', copy, true); scroll.removeEventListener('cut', cut, true); scroll.removeEventListener('paste', paste, true); scroll.removeEventListener('beforeinput', beforeInput, true); cancelAnimationFrame(compositionFrame); });
     editor = new PaneEditor({
       key: editorKey,
+      input: referenceInput,
       label: id => props.notebook.lookup(id)()?.text,
       blur: () => { if (editor?.id && editing() === editor.id) commitFieldEntry(editor.id, false); },
       text: (text, at) => measure('typing', () => {

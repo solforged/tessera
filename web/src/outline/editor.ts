@@ -115,16 +115,21 @@ export function fieldEntryExtension(resolve: FieldResolver, kindOf: FieldKindRes
 const refreshLabels = StateEffect.define<null>();
 
 class ReferenceWidget extends WidgetType {
-  constructor(readonly label: string) { super(); }
-  eq(other: ReferenceWidget): boolean { return this.label === other.label; }
+  constructor(readonly label: string, readonly length: number) { super(); }
+  eq(other: ReferenceWidget): boolean { return this.label === other.label && this.length === other.length; }
   toDOM(view: EditorView): HTMLElement {
     const dom = document.createElement('span');
     dom.className = 'outline-reference';
     dom.textContent = this.label;
     dom.addEventListener('mousedown', event => { event.preventDefault(); event.stopPropagation(); });
+    // A click or tap puts the caret at the nearer end, measured along the label's lines, so the row keeps its shape.
     dom.addEventListener('click', event => {
       event.preventDefault(); event.stopPropagation();
-      view.dispatch({ selection: { anchor: view.posAtDOM(dom) + 2 } });
+      const lines = [...dom.getClientRects()];
+      const line = Math.max(0, lines.findIndex(rect => event.clientY <= rect.bottom));
+      const box = lines[line] ?? dom.getBoundingClientRect();
+      const along = (line + (event.clientX - box.left) / Math.max(1, box.width)) / Math.max(1, lines.length);
+      view.dispatch({ selection: { anchor: view.posAtDOM(dom) + (along > 0.5 ? this.length : 0) } });
       view.focus();
     });
     return dom;
@@ -140,7 +145,7 @@ export function referenceDecorations(text: string, head: number, label: EditorHo
   if (whole !== null && isField(whole)) return Decoration.none;
   return Decoration.set(textTokens(text).flatMap(token => {
     if (token.kind !== 'reference' || /[\r\n]/.test(token.value) || head > token.start && head < token.end) return [];
-    return [Decoration.replace({ inclusive: false, widget: new ReferenceWidget(token.alias || label(token.id!) || token.id!) }).range(token.start, token.end)];
+    return [Decoration.replace({ inclusive: false, widget: new ReferenceWidget(token.alias || label(token.id!) || token.id!, token.end - token.start) }).range(token.start, token.end)];
   }));
 }
 
@@ -206,6 +211,8 @@ const draftReference = StateField.define<DecorationSet>({
 
 export interface EditorHooks {
   text(text: string, caret: Caret): void;
+  /** Typed or composed text before the editor inserts it; true when the hook applied it itself. */
+  input(view: EditorView, from: number, to: number, text: string): boolean;
   label(id: string): string | undefined;
   selection(caret: Caret): void;
   key(event: KeyboardEvent, view: EditorView): boolean;
@@ -233,6 +240,7 @@ export class PaneEditor {
       EditorView.lineWrapping,
       drawSelection(),
       references(hooks.label),
+      EditorView.inputHandler.of((view, from, to, text) => hooks.input(view, from, to, text)),
       bracketPairs,
       draftReference,
       keymap.of(standardKeymap),

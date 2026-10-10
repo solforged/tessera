@@ -1,6 +1,6 @@
 import type { EditorView } from '@codemirror/view';
 import { matchFieldEntry } from '../table/query';
-import { textTokens } from '../document/text-tokens';
+import { referenceBeside } from '../document/text-tokens';
 import { boundaryDeletion } from '../document/outline-mechanics';
 import type { OutlineContext } from './context';
 
@@ -9,7 +9,7 @@ export function createOutlineKeyboard(context: Pick<OutlineContext,
   | 'selected' | 'doc' | 'folds' | 'fold' | 'inlineFields'
   | 'setSelected' | 'indices' | 'rowFocus' | 'ids' | 'editing'
   | 'commitFieldEntry' | 'replaceSelection' | 'textRange' | 'deleteTextRange' | 'apply'
-  | 'editAt' | 'setTextRange' | 'editor' | 'props' | 'afterReference'
+  | 'editAt' | 'setTextRange' | 'editor' | 'props' | 'forgetReferenceSpace'
   | 'slashKey' | 'dateKey' | 'popupKey' | 'leaderMenu' | 'undo'
   | 'openTable' | 'zoomOut' | 'zoomTo' | 'rowRange' | 'statusMenu'
   | 'capabilities' | 'roots' | 'composition' | 'scroll' | 'depthReason'
@@ -19,7 +19,7 @@ export function createOutlineKeyboard(context: Pick<OutlineContext,
     selected, doc, folds, fold, inlineFields, setSelected,
     indices, rowFocus, ids, editing, commitFieldEntry, replaceSelection,
     textRange, deleteTextRange, apply, editAt, setTextRange, props,
-    afterReference, slashKey, dateKey, popupKey, leaderMenu, undo,
+    forgetReferenceSpace, slashKey, dateKey, popupKey, leaderMenu, undo,
     openTable, zoomOut, zoomTo, rowRange, statusMenu, capabilities,
     roots, composition, depthReason, stepDepth, clearSelection, caret,
     setRowRange,
@@ -54,8 +54,7 @@ export function createOutlineKeyboard(context: Pick<OutlineContext,
     // An empty `[[]]` or `(())` left by the bracket pairing goes in one Backspace, as it arrived.
     const pair = !forward && selection.head >= 2 ? view.state.doc.sliceString(selection.head - 2, selection.head + 2) : '';
     if (pair === '[[]]' || pair === '(())') { replaceSelection('', 'text', { anchor: { id, offset: selection.head - 2 }, head: { id, offset: selection.head + 2 } }); return true; }
-    const token = textTokens(view.state.doc.toString()).find(token => token.kind === 'reference' &&
-      (forward ? selection.head >= token.start && selection.head < token.end : selection.head > token.start && selection.head <= token.end));
+    const token = referenceBeside(view.state.doc.toString(), selection.head, forward ? 'forward' : 'backward');
     if (token) {
       const at = { id, offset: selection.head };
       replaceSelection('', 'text', { anchor: { id, offset: token.start }, head: { id, offset: token.end } }, { anchor: at, head: at });
@@ -120,7 +119,7 @@ export function createOutlineKeyboard(context: Pick<OutlineContext,
     return commitFieldEntry(id);
   }
   function editorKey(event: KeyboardEvent, view: EditorView) {
-    if (afterReference(event, view) || slashKey(event) || dateKey(event) || popupKey(event) || fieldKey(event, view)) return true;
+    if (forgetReferenceSpace(event) || slashKey(event) || dateKey(event) || popupKey(event) || fieldKey(event, view)) return true;
     if (commonKey(event)) return true;
     if (event.key === 'Escape' && (!props.vim || context.editor?.mode() === 'normal')) { if (editing()) rowFocus(editing()!); return true; }
     if (props.vim && context.editor?.mode() !== 'insert') {

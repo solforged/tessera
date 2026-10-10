@@ -25,3 +25,13 @@ export function textTokens(text: string): Token[] {
   if (offset < text.length) result.push({ start: offset, end: text.length, kind: 'text', value: text.slice(offset) });
   return result;
 }
+
+/**
+ * The single-line reference that ends at `offset` (deleting backward) or starts there (deleting forward): the
+ * one a deletion would step into while it shows as a label. A caret inside a reference, as while its query is
+ * typed, edits characters instead.
+ */
+export function referenceBeside(text: string, offset: number, direction: 'backward' | 'forward'): Token | undefined {
+  return textTokens(text).find(token => token.kind === 'reference' && !/[\r\n]/.test(token.value)
+    && (direction === 'backward' ? token.end === offset : token.start === offset));
+}

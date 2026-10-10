@@ -1,34 +1,16 @@
 import type { Block } from '../api/types';
-import type { Caret, NotebookClient } from '../document/contract';
+import type { NotebookClient } from '../document/contract';
 import { ApiError, api } from '../api/client';
-import { isStableReference } from './BlockText';
 
-export interface Completion {
-  id: string;
-  from: number;
-  to: number;
-  query: string;
-  expression: string;
-}
-
-export function completionAt(text: string, caret: Caret): Completion | null {
-  if (caret.offset <= 0 || caret.offset > text.length) return null;
-  const from = text.lastIndexOf('[[', caret.offset - 1);
-  if (from < 0 || caret.offset <= from || text[from - 1] === '#') return null;
-  let end = from + 2;
-  while (end < text.length && !'[]\r\n'.includes(text[end]!)) end++;
-  let to = end;
-  if (text[to] === ']') to++;
-  const closed = text[to] === ']';
-  if (closed) to++;
-  if (caret.offset > to) return null;
-  const query = text.slice(from + 2, end);
-  const expression = text.slice(from, to);
-  const alias = query.indexOf('|');
-  if (closed && isStableReference({
-    kind: 'reference', start: from, end: to, value: expression, id: alias < 0 ? query : query.slice(0, alias),
-  })) return null;
-  return { id: caret.id, from, to, query, expression };
+/**
+ * The text a `[[` or `((` completion replaces: from its brackets to the caret, and on through the rest of the
+ * query and its closing pair when one follows, so a choice made mid-query leaves no tail behind.
+ */
+export function openReferenceRange(text: string, from: number, caret: number, blocks: boolean): { from: number; to: number } {
+  const stops = blocks ? '()\r\n' : '[]\r\n';
+  let end = caret;
+  while (end < text.length && !stops.includes(text[end]!)) end++;
+  return { from, to: text.startsWith(blocks ? '))' : ']]', end) ? end + 2 : caret };
 }
 
 const limit = 20;
