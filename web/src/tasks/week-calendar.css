@@ -1,5 +1,6 @@
 .week-calendar { min-width: 0; display: flex; flex-direction: column; gap: var(--space-8); }
-.week-calendar-instructions, .week-calendar-feedback { margin: 0; color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); }
+/* The hint and drop feedback keep the toolbar's measure even when the grid is wider. */
+.week-calendar-instructions, .week-calendar-feedback { width: 100%; max-width: var(--measure); margin: 0 auto; color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); }
 .week-calendar-feedback { min-height: var(--line-meta); color: var(--accent); }
 .week-calendar-scroll { min-width: 0; max-height: var(--week-scroll-height); overflow: auto; border: var(--week-rule-width) solid var(--line); border-radius: var(--radius-control); overscroll-behavior: contain; scroll-padding-top: calc(var(--space-48) + var(--week-all-day-max-height)); scroll-padding-bottom: var(--week-task-height); }
 .week-calendar-sheet { min-width: var(--week-sheet-width); }
@@ -26,8 +27,11 @@
 .week-calendar-task:focus-visible { outline-offset: calc(-1 * var(--focus-offset)); }
 .week-calendar-task-timed { position: absolute; height: var(--week-task-height); }
 .week-calendar-task-text { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.week-calendar-task-meta { display: flex; align-items: center; gap: var(--space-4); min-width: 0; color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); font-variant-numeric: tabular-nums; }
-.week-calendar-task-meta > .icon { width: var(--icon-size-small); height: var(--icon-size-small); color: var(--status-done); }
+.week-calendar-task-meta { display: flex; align-items: center; gap: var(--space-4); min-width: 0; color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.week-calendar-task-meta > .icon { flex: none; width: var(--icon-size-small); height: var(--icon-size-small); color: var(--status-todo); }
+.week-calendar-task[data-week-status="doing"] .week-calendar-task-meta > .icon { color: var(--status-doing); }
+.week-calendar-task[data-week-status="waiting"] .week-calendar-task-meta > .icon { color: var(--status-waiting); }
+.week-calendar-task[data-week-status="done"] .week-calendar-task-meta > .icon { color: var(--status-done); }
 .week-calendar-task[data-week-status="cancelled"] .week-calendar-task-meta > .icon { color: var(--status-cancelled); }
 .week-calendar-task-done .week-calendar-task-text { color: var(--muted); }
 .week-calendar-task-late { border-color: var(--status-overdue); }
