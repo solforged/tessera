@@ -1,4 +1,4 @@
-import type { ExtractedMetadata, FieldDefinition, FieldKind } from '../api/types';
+import type { Block, ExtractedMetadata, FieldDefinition, FieldKind } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import { addFieldOption, documentReady } from '../outline/source-fields';
 import { sourceFieldName, valueLabel } from '../outline/source';
@@ -28,6 +28,36 @@ export function sourceMetadata(doc: PageDocument, notebook: NotebookClient, defi
     creators: (['author', 'editor', 'translator'] as const).flatMap(role => values(role).map(name => ({ name, role }))),
     published: values('published')[0] ?? null, publisher: values('publisher')[0] ?? null, language: values('language')[0] ?? null,
     identifiers: values('identifier'), cover: values('cover')[0] ?? null };
+}
+
+const nameTokens = (name: string) => name.normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+
+/**
+ * Pages that may name the same person: the same words in any order, where a word may be an initial or a prefix of
+ * the other ("Aurelius, Marcus", "M. Aurelius" and "Marcus Aurelius"). One side may carry one extra word. An exact
+ * title is left out, since saving links to it already.
+ */
+export function similarPages(name: string, pages: readonly Block[], limit = 3): Block[] {
+  const query = nameTokens(name);
+  if (!query.some(token => token.length >= 3)) return [];
+  const key = name.trim().toLocaleLowerCase();
+  const matches = (shorter: string[], longer: string[]) => {
+    const free = [...longer];
+    let whole = false;
+    for (const token of shorter) {
+      const index = free.findIndex(other => other.startsWith(token) || token.startsWith(other));
+      if (index < 0) return false;
+      whole ||= token.length >= 3 && free[index] === token;
+      free.splice(index, 1);
+    }
+    return whole;
+  };
+  return pages.filter(page => {
+    if (page.kind !== 'page' || page.archived || page.text.trim().toLocaleLowerCase() === key) return false;
+    const tokens = nameTokens(page.text);
+    if (!tokens.length || Math.abs(tokens.length - query.length) > 1) return false;
+    return query.length <= tokens.length ? matches(query, tokens) : matches(tokens, query);
+  }).slice(0, limit);
 }
 
 /** Prepare references, then change the source's ordinary fields in one undo step. */
@@ -62,8 +92,9 @@ export async function saveDetails(doc: PageDocument, notebook: NotebookClient, m
     }
     if (field.kind === 'instance') {
       values = await Promise.all(values.map(async value => {
+        // An existing page with this exact title wins, comma and all; otherwise "Family, Given" names a new page "Given Family".
         const name = value.includes(',') ? value.split(',').reverse().map(s => s.trim()).join(' ') : value;
-        const id = await notebook.pageByTitle(name, true);
+        const id = await notebook.pageByTitle(value, false) ?? await notebook.pageByTitle(name, true);
         if (!id) throw new Error('Could not create the creator page.');
         return `[[${id}]]`;
       }));

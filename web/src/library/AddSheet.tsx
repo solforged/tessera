@@ -14,7 +14,8 @@ const roleMarks: Record<ExtractedCreator['role'], string> = { author: '', editor
 export function AddSheet(props: { anchor: HTMLElement; notebook: NotebookClient; onDismiss(): void; onChooseFile(): void; onFiles(files: File[]): void; onJob(job: IngestJob): void; onAdded(id: string): void }) {
   const [query, setQuery] = createSignal('');
   const [preview, setPreview] = createSignal<LookupPreview>();
-  const [manual, setManual] = createSignal(false);
+  /** The hand-entry form, blank or seeded from a lookup so its creators can be matched to people already here. */
+  const [editing, setEditing] = createSignal<{ metadata: ExtractedMetadata; coverUrl: string | null } | null>(null);
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal('');
   async function submit() {
@@ -39,10 +40,10 @@ export function AddSheet(props: { anchor: HTMLElement; notebook: NotebookClient;
   return <Popup anchor={props.anchor} fitContent class="library-add" label="Add to library" onDismiss={props.onDismiss}>
     <div onDragOver={event => { if (event.dataTransfer?.types.includes('Files')) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; } }} onDrop={event => { if (event.dataTransfer?.files.length) { event.preventDefault(); event.stopPropagation(); props.onFiles(Array.from(event.dataTransfer.files)); props.onDismiss(); } }}>
       <h2 class="popup-title">Add to library</h2>
-      <Show when={!manual()} fallback={<DetailsForm metadata={emptyMetadata()} submitLabel="Add" onSave={metadata => add(metadata)} onCancel={() => setManual(false)} />}>
+      <Show when={!editing()} fallback={<DetailsForm metadata={editing()!.metadata} pages={props.notebook.roots} submitLabel="Add" onSave={metadata => add(metadata, editing()!.coverUrl)} onCancel={() => setEditing(null)} />}>
         <form onSubmit={event => { event.preventDefault(); void submit(); }}>
           <label class="library-add-url">URL, ISBN, DOI or arXiv ID<input class="input" aria-label="URL, ISBN, DOI or arXiv ID" placeholder="https://… or 978…" value={query()} disabled={busy()} onInput={event => { setQuery(event.currentTarget.value); setPreview(undefined); setError(''); }} /></label>
-          <div class="library-add-actions"><Button icon="upload" disabled={busy()} onClick={props.onChooseFile}>Choose file…</Button><Button icon="edit" disabled={busy()} onClick={() => setManual(true)}>Enter details by hand</Button></div>
+          <div class="library-add-actions"><Button icon="upload" disabled={busy()} onClick={props.onChooseFile}>Choose file…</Button><Button icon="edit" disabled={busy()} onClick={() => setEditing({ metadata: emptyMetadata(), coverUrl: null })}>Enter details by hand</Button></div>
           <Show when={busy()}><p class="library-message" role="status">Looking up…</p></Show>
           <Show when={error()}><p class="library-error" role="alert">{error()}</p></Show>
         </form>
@@ -57,7 +58,7 @@ export function AddSheet(props: { anchor: HTMLElement; notebook: NotebookClient;
               <p class="library-preview-provider">From {value().provider}</p>
             </div>
           </section>
-          <div class="popup-actions"><Button disabled={busy()} onClick={() => setPreview(undefined)}>Cancel</Button><Button class="bordered" disabled={busy()} onClick={() => {
+          <div class="popup-actions"><Button disabled={busy()} onClick={() => setPreview(undefined)}>Cancel</Button><Button disabled={busy()} onClick={() => { setEditing({ metadata: value().metadata, coverUrl: value().cover_url }); setPreview(undefined); }}>Edit details</Button><Button class="bordered" disabled={busy()} onClick={() => {
             setBusy(true); setError(''); void add(value().metadata, value().cover_url).catch(reason => setError(reason instanceof Error ? reason.message : String(reason))).finally(() => setBusy(false));
           }}>Add</Button></div>
         </>}</Show>
