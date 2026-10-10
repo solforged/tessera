@@ -14,7 +14,7 @@ import { Icon } from '../ui/Icon';
 import type { IconName } from '../ui/Icon';
 import { Popup } from '../ui/Popup';
 import { BlockBreadcrumb, BlockText } from './BlockText';
-import { completeReferences } from './completion';
+import { completeReferences, openReferenceRange } from './completion';
 import { nextClozeNumber, rankSlash, slashTokenAt } from './slash';
 import type { SlashEntry, SlashToken } from './slash';
 import { typeSpelling, typeTokenAt } from './type-completion';
@@ -209,17 +209,24 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     if (event.key === 'Escape') { dismissCompletion(); return true; }
     return false;
   }
-  /** Where a chosen reference left a separating space, punctuation or a space typed next takes its place. */
+  /**
+   * Where a chosen reference left a separating space, punctuation or a space typed next takes its place. This
+   * listens to text input, not keys, because phone keyboards report printable keys as `Unidentified`.
+   */
   let referenceSpace: Caret | null = null;
-  function afterReference(event: KeyboardEvent, view: EditorView) {
-    if (['Shift', 'CapsLock'].includes(event.key)) return false;
+  function referenceInput(view: EditorView, from: number, to: number, text: string) {
     const at = referenceSpace;
     referenceSpace = null;
-    if (!at || at.id !== editing() || event.metaKey || event.ctrlKey || event.altKey || props.vim && context.editor?.mode() !== 'insert' || !/^[ .,;:!?)]$/.test(event.key)) return false;
+    if (!at || at.id !== editing() || from !== to || from !== at.offset || !/^[ .,;:!?)]$/.test(text)) return false;
     const selection = view.state.selection.main;
     if (!selection.empty || selection.head !== at.offset || view.state.doc.sliceString(at.offset - 1, at.offset) !== ' ') return false;
-    if (event.key !== ' ') replaceSelection(event.key, 'text', { anchor: { id: at.id, offset: at.offset - 1 }, head: at });
+    if (text !== ' ') view.dispatch({ changes: { from: at.offset - 1, to: at.offset, insert: text }, selection: { anchor: at.offset }, userEvent: 'input.type' });
     return true;
+  }
+  /** A navigation or deletion key first leaves the space as it is. */
+  function forgetReferenceSpace(event: KeyboardEvent) {
+    if (event.key.length > 1 && !['Shift', 'CapsLock', 'Unidentified', 'Process', 'Dead'].includes(event.key)) referenceSpace = null;
+    return false;
   }
   /** Escape closes the completion; it stays closed while the same query is under the caret, and reopens once the text changes. */
   let dismissedCompletion: { id: string; from: number; query: string } | null = null;
@@ -288,7 +295,8 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
       const query = state.query.trim().toLowerCase();
       return state.choice.options.filter(option => option.text.toLowerCase().includes(query)).map(option => ({ kind: 'option', option }));
     }
-    const found = matches.error ? [] : matches()?.rows ?? [];
+    // The block being typed in matches its own saved draft; it is never a useful target.
+    const found = (matches.error ? [] : matches()?.rows ?? []).filter(block => block.id !== editing());
     if (state?.manual || state?.types) return found.filter(block => block.kind === 'page').map(block => ({ kind: 'block', block }));
     if (state?.blocks) return found.map(block => ({ kind: 'block', block }));
     const query = state?.query.toLowerCase() ?? '';
@@ -322,10 +330,9 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
       if (completionList?.isConnected) completionList.querySelector<HTMLElement>('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
     });
   });
-  /** The open query plus the closing brackets the editor paired with it. */
+  /** The open query plus the closing brackets the editor paired with it, including any query text after the caret. */
   function completionRange(state: Completion, text: string) {
-    const paired = !state.types && !state.fields && !state.choice && text.startsWith(state.blocks ? '))' : ']]', state.to);
-    return { from: state.from, to: paired ? state.to + 2 : state.to };
+    return state.types || state.fields || state.choice ? { from: state.from, to: state.to } : openReferenceRange(text, state.from, state.to, !!state.blocks);
   }
   let drafted = false;
   createEffect(() => {
@@ -518,5 +525,5 @@ function CompletionPopups(){ return <>
       </div>
     </Popup></Show>
 </>; }
-  return { setCompletion, setCompletionIndex, offerValue, updateCompletion, updateTriggers, taskPrefix, rewriteEditing, afterReference, slashKey, dateKey, popupKey, CompletionPopups };
+  return { setCompletion, setCompletionIndex, offerValue, updateCompletion, updateTriggers, taskPrefix, rewriteEditing, referenceInput, forgetReferenceSpace, slashKey, dateKey, popupKey, CompletionPopups };
 }

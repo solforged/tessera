@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { textTokens } from './text-tokens';
+import { referenceBeside, textTokens } from './text-tokens';
 
 describe('URL tokens', () => {
   test('links HTTP and HTTPS and stops at whitespace and HTML delimiters', () => {
@@ -35,5 +35,24 @@ describe('URL tokens', () => {
     expect(textTokens(text).filter(token => token.kind !== 'text').map(token => [token.kind, token.value])).toEqual([
       ['reference', '[[id|https://alias.example]]'], ['tag', 'Long tag'], ['tag', 'tag'], ['url', 'https://example.org/#fragment'],
     ]);
+  });
+});
+
+describe('deleting beside a reference', () => {
+  const text = 'see [[01M4M13Q37BGH391ARSJX45F7Y]] and [[Mar]]';
+  test('takes a whole reference only from its outer edge', () => {
+    expect(referenceBeside(text, 34, 'backward')?.value).toBe('[[01M4M13Q37BGH391ARSJX45F7Y]]');
+    expect(referenceBeside(text, 4, 'forward')?.value).toBe('[[01M4M13Q37BGH391ARSJX45F7Y]]');
+    expect(referenceBeside(text, 4, 'backward')).toBeUndefined();
+    expect(referenceBeside(text, 34, 'forward')).toBeUndefined();
+  });
+
+  test('leaves a query being typed to ordinary character deletion', () => {
+    for (let offset = 40; offset < text.length; offset++) expect(referenceBeside(text, offset, 'backward')).toBeUndefined();
+    expect(referenceBeside(text, text.length, 'backward')?.value).toBe('[[Mar]]');
+  });
+
+  test('ignores a reference that spans lines and so never shows as a label', () => {
+    expect(referenceBeside('[[two\nlines]]', 13, 'backward')).toBeUndefined();
   });
 });
