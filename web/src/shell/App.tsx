@@ -8,6 +8,7 @@ import { OutlinePane } from '../outline/OutlinePane';
 import { plainText } from '../outline/BlockText';
 import { ReferencePreviews } from '../outline/ReferencePreview';
 import { createPageIcon } from '../outline/source';
+import { PageMergePicker, pageMergeDisabledReason } from '../outline/PageMerge';
 import { copyTaskQuery, createTaskQuery } from '../tasks/query';
 import { copyQuery } from '../table/query';
 import { Button } from '../ui/Button';
@@ -590,6 +591,7 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
   const outlineView = () => current().view as ViewState;
   const [doc, setDoc] = createSignal<PageDocument>();
   const [menu, setMenu] = createSignal<HTMLElement | null>(null);
+  const [mergeFrom, setMergeFrom] = createSignal<{ id: string; text: string }>();
   let menuButton!: HTMLButtonElement;
   createEffect(() => {
     const id = pageId(); setDoc(undefined); if (!id) return;
@@ -632,6 +634,7 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
   const titled = () => root()?.kind !== 'journal';
   const items = (): MenuItem[] => [
     ...(titled() ? [{ label: 'Rename', icon: 'edit', action: props.onRename } satisfies MenuItem] : []),
+    ...(titled() ? [{ label: 'Merge into…', disabledReason: pageMergeDisabledReason(root()), action: () => { const page = root(); if (page) setMergeFrom({ id: page.id, text: page.text }); } } satisfies MenuItem] : []),
     { label: props.pinned ? 'Unpin' : 'Pin', icon: 'pin', action: props.onPin },
     { label: 'Open page beside', icon: 'panes', action: props.onPageBeside },
     { label: pageStyle() === 'prose' ? 'Show bullets' : 'Hide bullets', icon: 'bullet', disabledReason: root() ? undefined : 'Page is still loading', action: () => props.onPageStyle(pageId()!, pageStyle() === 'prose' ? 'bullets' : 'prose', defaultStyle()) },
@@ -689,5 +692,6 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
       <Match when={current().target.kind === 'reader'}><ReaderPane pane={props.pane} target={current().target as Extract<OpenTarget, { kind: 'reader' }>} view={snapshotView(current().view) as ReaderViewState} notebook={props.notebook} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
     </Switch>}</Show></div>
     <Show when={menu()}>{anchor => <Menu anchor={anchor()} label="Page actions" items={items()} onDismiss={() => setMenu(null)} />}</Show>
+    <Show keyed when={mergeFrom()}>{from => <PageMergePicker anchor={menuButton} notebook={props.notebook} from={from} onDismiss={() => setMergeFrom(undefined)} onMerged={id => { setMergeFrom(undefined); props.onOpen({ kind: 'page', pageId: id }, false); }} />}</Show>
   </section>;
 }

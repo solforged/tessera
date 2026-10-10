@@ -41,6 +41,7 @@ export type Operation =
   | { op: 'set_heading'; id: string; base_revision: number; heading: 1 | 2 | 3 | null }
   | { op: 'split'; id: string; base_revision: number; new_id: string; left: string; right: string }
   | { op: 'merge'; source_id: string; source_revision: number; destination_id: string; destination_revision: number }
+  | { op: 'merge_page'; source_id: string; source_revision: number; destination_id: string; destination_revision: number }
   | { op: 'move'; id: string; base_revision: number; parent_id: string; after: string | null }
   | { op: 'delete'; id: string; base_revision: number }
   | { op: 'restore'; id: string; deletion_id: string; revision: number }
@@ -92,7 +93,7 @@ export interface Committed {
   /** Resulting revision of every block the batch changed, in first-touched order. */
   revisions: Revision[];
   settings: SettingRevision[];
-  /** Deletion events created by `delete` and `merge`, in operation order. */
+  /** Deletion events created by `delete`, `merge` and `merge_page`, in operation order. */
   deletions: string[];
   replayed: boolean;
   /**

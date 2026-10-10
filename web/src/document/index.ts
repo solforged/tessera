@@ -598,27 +598,63 @@ export class Notebook implements NotebookClient, DocumentHost {
     this.touch();
   }
   private async sendNotebook(command: NotebookCommand): Promise<boolean> {
+    let acknowledged = false;
     try {
       await this.persist(command);
       if (!this.persisted.has(command.id)) return false;
       this.activeCommand = command.id; this.touch();
       const ack = await this.api.submitFrozen(command.frozen!);
+      acknowledged = true;
       if (this.closed) return false;
       ack.capabilities = this.acceptCapabilities(ack.capabilities ?? [], ack.seq);
       if (ack.seq < this.workSequence) ack.work_sessions = [];
       this.serviceReached();
-      const blocks = await Promise.all(ack.revisions.map(value => this.api.block(value.id).catch(() => undefined)));
-      for (const block of blocks) if (block) { this.publish(block); this.docs.get(block.page_id)?.receive(block); }
+      const merges = command.operations.filter(operation => operation.op === 'merge_page');
+      const blocks = await Promise.all(ack.revisions.map(async value => {
+        try { return await this.api.block(value.id); }
+        catch (error) {
+          if (!merges.length) return undefined;
+          if (error instanceof ApiError && error.status === 404) { this.publish(null, value.id); return undefined; }
+          throw error;
+        }
+      }));
+      for (const block of blocks) if (block) {
+        this.publish(block);
+        if (!merges.length) this.docs.get(block.page_id)?.receive(block);
+      }
+      if (merges.length) {
+        const removed = new Set(merges.map(operation => operation.source_id));
+        for (const id of removed) {
+          this.publish(null, id);
+          this.updateRoot(null, id);
+          this.docs.get(id)?.markMissing('This page was merged into another page.');
+        }
+        // Own change-stream events are skipped. Reload here, including after an
+        // outbox replay, so moved rows and rewritten manual memberships arrive.
+        await Promise.all([...this.docs.values()].filter(doc => !removed.has(doc.pageId)).map(async doc => {
+          try {
+            const view = await this.api.page(doc.pageId);
+            this.snapshotSequence.set(view, ack.seq);
+            doc.merge(view, true);
+          }
+          catch (error) {
+            if (error instanceof ApiError && error.status === 404) doc.markMissing(error.message);
+            else throw error;
+          }
+        }));
+        await this.refreshRoots();
+      }
       this.receiveReceipt(ack);
       await this.outbox?.capabilities(ack.capabilities ?? [], ack.seq);
-      await this.outbox?.acknowledge(command, blocks.filter((block): block is Block => Boolean(block)), ack.seq, new Map(ack.revisions.map(value => [value.id, value.revision])));
+      await this.outbox?.acknowledge(command, blocks.filter((block): block is Block => Boolean(block)), ack.seq, new Map(ack.revisions.map(value => [value.id, value.revision])), undefined,
+        merges.length ? ack.revisions.filter((_, index) => !blocks[index]).map(value => value.id) : undefined);
       this.queue.shift(); this.persisted.delete(command.id);
       this.commandWaiters.get(command.id)?.resolve(ack); this.commandWaiters.delete(command.id);
       this.activeCommand = undefined; this.touch();
       return true;
     } catch (error) {
       this.activeCommand = undefined;
-      if (error instanceof ApiError && !error.uncertain) { await this.reject(command, undefined, error.message); return true; }
+      if (!acknowledged && error instanceof ApiError && !error.uncertain) { await this.reject(command, undefined, error.message); return true; }
       this.connectionSignal[1]('offline'); this.scheduleReconnect(); this.touch();
       return false;
     }
@@ -729,7 +765,7 @@ export class Notebook implements NotebookClient, DocumentHost {
             this.generations.set(changed.id, (this.generations.get(changed.id) ?? 0) + 1);
             await this.persist(changed);
           }
-          await this.outbox?.acknowledge(command, blocks, ack.seq, revisions, fullPage && doc.root() ? doc.view() : undefined, command.actions.some(action => action.kind === 'delete' && action.id === doc.pageId) ? doc.pageId : undefined).catch(() => undefined);
+          await this.outbox?.acknowledge(command, blocks, ack.seq, revisions, fullPage && doc.root() ? doc.view() : undefined, command.actions.some(action => action.kind === 'delete' && action.id === doc.pageId) ? [doc.pageId] : undefined).catch(() => undefined);
           this.failure = '';
           this.activeCommand = undefined;
           this.touch();
@@ -1106,6 +1142,14 @@ export class Notebook implements NotebookClient, DocumentHost {
       if (this.localPersistence() !== 'failed') this.storageFailed(error);
       throw new Error(this.persistenceFailure);
     } finally { doc.release(); }
+  }
+  async mergePage(from: string, into: string): Promise<void> {
+    await Promise.all([this.flushPage(from), this.flushPage(into)]);
+    const [source, destination] = await Promise.all([this.api.block(from), this.api.block(into)]);
+    await this.commit([{
+      op: 'merge_page', source_id: from, source_revision: source.revision,
+      destination_id: into, destination_revision: destination.revision,
+    }]);
   }
   async deletePage(pageId: string) {
     await this.ready;

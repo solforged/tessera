@@ -82,3 +82,27 @@ test('an end split replays its new sibling and final text even when the source r
     expect(recovered?.capabilities).toEqual([capability]);
   } finally { await outbox.close(); await deleteDB(database); }
 });
+
+test('merge acknowledgement removes every tombstone cache and its durable command together', async () => {
+  const database = `outbox-merge-${ulid()}`;
+  const root = (title: string): Block => {
+    const id = ulid();
+    return { id, page_id: id, kind: 'page', parent_id: null, text: title, heading: null, archived: false, revision: 1, created_at: 0, updated_at: 0 };
+  };
+  const from = root('Duplicate'), into = root('Survivor');
+  const entry: Block = { ...from, id: ulid(), kind: 'block', parent_id: from.id, text: 'Field entry' };
+  const command: NotebookCommand = {
+    kind: 'notebook', id: ulid(), order: 1, pageId: null, actions: [], inverse: [], before: null, after: null,
+    operations: [{ op: 'merge_page', source_id: from.id, source_revision: 1, destination_id: into.id, destination_revision: 1 }],
+  };
+  const outbox = new Outbox('notebook', 'window', error => { throw error; }, database);
+  try {
+    await outbox.page({ root: from, rows: [{ block: entry, depth: 0, manual_types: [] }], targets: [] });
+    await outbox.page({ root: into, rows: [], targets: [] });
+    await outbox.put(command);
+    await outbox.acknowledge(command, [into], 2, new Map([[into.id, 2]]), undefined, [from.id, entry.id]);
+    expect(await outbox.cachedPage(from.id)).toBeUndefined();
+    expect((await outbox.cachedPage(into.id))?.root.id).toBe(into.id);
+    expect((await outbox.load()).commands).toEqual([]);
+  } finally { await outbox.close(); await deleteDB(database); }
+});
