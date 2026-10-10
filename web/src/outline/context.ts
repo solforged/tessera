@@ -109,7 +109,7 @@ export interface OutlineContext {
   setSelected: Setter<string | null>;
   deleteTextRange: () => void;
   setTextRange: Setter<TextRange | null>;
-  afterReference: (event: KeyboardEvent, view: EditorView) => boolean;
+  forgetReferenceSpace: (event: KeyboardEvent) => boolean;
   slashKey: (event: KeyboardEvent) => boolean;
   dateKey: (event: KeyboardEvent) => boolean;
   popupKey: (event: KeyboardEvent) => boolean;
