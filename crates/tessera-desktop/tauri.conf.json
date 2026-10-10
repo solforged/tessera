@@ -15,6 +15,13 @@
     "targets": ["app", "dmg"],
     "category": "Productivity",
     "copyright": "Copyright © 2026 solforged",
+    "fileAssociations": [{
+      "ext": ["epub"],
+      "contentTypes": ["org.idpf.epub-container"],
+      "mimeType": "application/epub+zip",
+      "role": "Viewer",
+      "name": "EPUB"
+    }],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

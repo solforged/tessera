@@ -20,6 +20,7 @@ use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 use tauri_plugin_opener::OpenerExt;
 
 use crate::agent::{self, Agent};
+use crate::opened_files;
 use crate::updates;
 
 const MAIN: &str = "main";
@@ -91,12 +92,15 @@ pub fn previous_cli(app: &AppHandle) -> Option<PathBuf> {
 }
 
 pub fn run() {
+    let shell = Shell::default();
+    let opened_files = opened_files::OpenedFiles::new(shell.client.clone());
     tauri::Builder::default()
         .plugin(tauri_plugin_window_state::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .manage(Shell::default())
+        .manage(shell)
+        .manage(opened_files)
         .menu(menu)
         .on_menu_event(|app, event| match event.id().as_ref() {
             "check-updates" => {
@@ -133,13 +137,15 @@ pub fn run() {
         })
         .build(tauri::generate_context!())
         .expect("cannot start Tessera")
-        .run(|app, event| {
-            if let RunEvent::Reopen { .. } = event
-                && let Some(window) = app.get_webview_window(MAIN)
-            {
-                let _ = window.show();
-                let _ = window.set_focus();
+        .run(|app, event| match event {
+            RunEvent::Opened { urls } => opened_files::open(app, urls),
+            RunEvent::Reopen { .. } => {
+                if let Some(window) = app.get_webview_window(MAIN) {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
             }
+            _ => (),
         });
 }
 
@@ -296,6 +302,17 @@ fn window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
             true
         })
         .on_page_load(move |_, payload| {
+            if payload.event() == PageLoadEvent::Started {
+                opened_files::loading(&loaded);
+            } else if loaded
+                .state::<Shell>()
+                .origin
+                .lock()
+                .as_ref()
+                .is_some_and(|origin| origin.origin() == payload.url().origin())
+            {
+                opened_files::ready(&loaded, payload.url().clone());
+            }
             if payload.event() == PageLoadEvent::Finished && payload.url().scheme() == "tauri" {
                 let status = loaded.state::<Shell>().status.lock().clone();
                 if let (Some(script), Some(window)) = (status, loaded.get_webview_window(MAIN)) {
