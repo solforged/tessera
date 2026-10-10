@@ -31,6 +31,8 @@
 .library-byline { flex: 0 1000 auto; min-width: 0; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 45%; margin-right: auto; }
 .library-row > .button:last-child { opacity: 0; }
 .library-row:hover > .button:last-child, .library-row:focus-within > .button:last-child, .library-row > .button[aria-expanded="true"]:last-child { opacity: 1; }
+/* Without hover the row menu would never show, and tapping the row opens the book. */
+@media (hover: none) { .library-row > .button:last-child { opacity: 1; } }
 .library-row:hover { background: var(--hover); }
 .library-source-row.library-row-selected { background: var(--selection); box-shadow: inset 2px 0 var(--accent); }
 .library-leading { position: relative; display: flex; flex: 0 0 var(--row-height); align-items: center; justify-content: center; height: var(--row-height); color: var(--muted); }

@@ -40,7 +40,7 @@ Piazzolla page titles use weight 430 and optical size 30. Heading rows use weigh
 
 ### Space and size
 
-Steps 2, 4, 8, 12, 16, 24, 32, 48 px. Row height 28 px; indent 24 px; measure 760 px; gutter 48 px left of the measure; sidebar 208 px; global rail 48 px; pane header 36 px. Pointer targets 24 px, touch targets 44 px. Icons 16 px, 14 px inline.
+Steps 2, 4, 8, 12, 16, 24, 32, 48 px. Row height 28 px; indent 24 px; measure 760 px; gutter 48 px left of the measure; sidebar 208 px; global rail 48 px; pane header 36 px. Pointer targets 24 px. On a coarse pointer (a touch screen) targets grow to 32 px and rows to 36 px, and row menus that wait for hover elsewhere stay visible. Icons 16 px, 14 px inline.
 
 ### Colour
 
