@@ -89,7 +89,7 @@ export class Outbox {
     });
   }
   ticket(id: string, ticket: Ticket) { return this.enqueue(db => db.put('tickets', { key: `${this.notebookId}:${id}`, ticket })); }
-  acknowledge(command: Command, blocks: Block[], sequence: number, revisions: Map<string, number>, view?: PageView, deletedPage?: string) {
+  acknowledge(command: Command, blocks: Block[], sequence: number, revisions: Map<string, number>, view?: PageView, deletedIds?: readonly string[]) {
     const actions = command.actions.filter(action => ['insert', 'delete', 'restore', 'move', 'split', 'merge', 'addType', 'removeType'].includes(action.kind));
     return this.enqueue(async db => {
       const tx = db.transaction(['commands', 'blocks', 'pages'], 'readwrite');
@@ -98,12 +98,13 @@ export class Outbox {
       if (view) {
         void pages.put({ key: `${this.notebookId}:${view.root.id}`, view });
         for (const key of await pages.getAllKeys(this.patchRange(view.root.id, sequence))) void pages.delete(key);
-      } else if (actions.length && !deletedPage && command.pageId) {
+      } else if (actions.length && command.pageId && !deletedIds?.includes(command.pageId)) {
         void pages.put({ key: `${this.pagePrefix(command.pageId)}${String(sequence).padStart(16, '0')}:${command.id}`, patch: { sequence, actions, revisions } });
       }
-      if (deletedPage) {
-        void pages.delete(`${this.notebookId}:${deletedPage}`);
-        for (const key of await pages.getAllKeys(this.patchRange(deletedPage))) void pages.delete(key);
+      for (const id of deletedIds ?? []) {
+        void tx.objectStore('blocks').delete(`${this.notebookId}:${id}`);
+        void pages.delete(`${this.notebookId}:${id}`);
+        for (const key of await pages.getAllKeys(this.patchRange(id))) void pages.delete(key);
       }
       void tx.objectStore('commands').delete(`${this.notebookId}:${this.sessionId}:${command.id}`);
       await tx.done;

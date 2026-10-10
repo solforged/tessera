@@ -6,9 +6,9 @@ use sha2::{Digest, Sha256};
 
 use crate::notebook::now_ms;
 use crate::storage::{
-    Stored, derive_links, derive_memberships, not_found, resolve_type, rewrite_tags, stored,
-    tag_names, tag_spelling, tag_title_matches, validate_id, validate_tag_title, validate_text,
-    validation,
+    Stored, derive_links, derive_memberships, not_found, resolve_type, rewrite_links, rewrite_tags,
+    stored, tag_names, tag_spelling, tag_title_matches, validate_id, validate_tag_title,
+    validate_text, validation,
 };
 use crate::{
     Batch, BlockCapabilities, BlockKind, Committed, Error, Notebook, Operation, Result,
@@ -254,6 +254,9 @@ impl Engine<'_, '_> {
     }
 
     fn record_revision(&mut self, id: &str, revision: i64) {
+        if let Some(position) = self.rewrite_positions.get(id) {
+            self.text_rewrites[*position].revision = revision;
+        }
         if let Some(position) = self.positions.get(id) {
             self.revisions[position.position].revision = revision;
         } else {
@@ -338,6 +341,15 @@ impl Engine<'_, '_> {
         if collision {
             return Err(validation(format!("page title already exists: {text}")));
         }
+        self.capture_tag_rename(current, text, old_key)
+    }
+
+    fn capture_tag_rename(
+        &self,
+        current: &Stored,
+        text: &str,
+        old_key: &str,
+    ) -> Result<Option<TagRename>> {
         let mut sources = HashSet::new();
         let mut incoming = self.tx.prepare_cached(
             "SELECT b.id, b.text, m.manual FROM memberships m JOIN blocks b ON b.id = m.block_id
@@ -511,22 +523,26 @@ impl Engine<'_, '_> {
                         current.block.revision + i64::from(!manual_rewrites.is_empty()),
                     )
                 };
-                if let Some(position) = self.rewrite_positions.get(&id) {
-                    self.text_rewrites[*position].after = text;
-                    self.text_rewrites[*position].revision = revision;
-                } else {
-                    self.rewrite_positions
-                        .insert(id.clone(), self.text_rewrites.len());
-                    self.text_rewrites.push(TextRewrite {
-                        id,
-                        before: current.block.text,
-                        after: text,
-                        revision,
-                    });
-                }
+                self.record_text_rewrite(&id, current.block.text, text, revision);
             }
         }
         Ok(())
+    }
+
+    fn record_text_rewrite(&mut self, id: &str, before: String, after: String, revision: i64) {
+        if let Some(position) = self.rewrite_positions.get(id) {
+            self.text_rewrites[*position].after = after;
+            self.text_rewrites[*position].revision = revision;
+        } else {
+            self.rewrite_positions
+                .insert(id.to_owned(), self.text_rewrites.len());
+            self.text_rewrites.push(TextRewrite {
+                id: id.to_owned(),
+                before,
+                after,
+                revision,
+            });
+        }
     }
 
     /// Resolve against the final live titles, so an explicitly-created page
@@ -695,6 +711,9 @@ impl Engine<'_, '_> {
         derive_links(self.tx, &current.block.id, text)?;
         self.touch(&current.block.id, current.block.revision + 1);
         self.tags_changed(&current.block.id);
+        if let Some(position) = self.rewrite_positions.get(&current.block.id) {
+            text.clone_into(&mut self.text_rewrites[*position].after);
+        }
         if let Some(rename) = rename {
             self.pending_renames.push(rename);
         }
@@ -973,6 +992,164 @@ impl Engine<'_, '_> {
         self.delete(&source.block.id)
     }
 
+    fn redirect_links(&mut self, from: &str, into: &str) -> Result<()> {
+        let incoming = self
+            .tx
+            .prepare_cached(
+                "SELECT DISTINCT b.id FROM links l JOIN blocks b ON b.id = l.source_id
+                 WHERE l.target_id = ?1 AND b.deletion_id IS NULL ORDER BY b.id",
+            )?
+            .query_map([from], |row| row.get::<_, String>(0))?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        for id in incoming {
+            let current = self.live(&id)?;
+            if let Some(text) = rewrite_links(&current.block.text, from, into) {
+                self.edit(&current, &text)?;
+                self.record_text_rewrite(&id, current.block.text, text, current.block.revision + 1);
+            }
+        }
+        Ok(())
+    }
+
+    fn page_merge_endpoint(&self, page: &Stored) -> Result<()> {
+        if page.block.kind != BlockKind::Page {
+            return Err(validation("only titled pages can be merged"));
+        }
+        if page.block.text.to_lowercase() == "fields" {
+            return Err(validation("the Fields page cannot be merged"));
+        }
+        let source: bool = self
+            .tx
+            .prepare_cached("SELECT EXISTS(SELECT 1 FROM sources WHERE block_id = ?1)")?
+            .query_row([&page.block.id], |row| row.get(0))?;
+        if source {
+            return Err(validation("source pages cannot be merged"));
+        }
+        Ok(())
+    }
+
+    fn plain_field_entry<'a>(&self, entry: &'a Stored) -> Result<Option<&'a str>> {
+        if entry.block.archived || entry.block.heading.is_some() {
+            return Ok(None);
+        }
+        let Some(field) = crate::fields::reference(&entry.block.text) else {
+            return Ok(None);
+        };
+        if !crate::fields::is_definition(self.tx, field)? {
+            return Ok(None);
+        }
+        for guard in [
+            crate::task_store::guard_merge(self.tx, &entry.block.id),
+            crate::card_store::guard_merge(self.tx, &entry.block.id),
+        ] {
+            match guard {
+                Ok(()) => {}
+                Err(Error::Validation { .. }) => return Ok(None),
+                Err(error) => return Err(error),
+            }
+        }
+        let metadata: bool = self
+            .tx
+            .prepare_cached(
+                "SELECT EXISTS(SELECT 1 FROM citations WHERE block_id = ?1)
+             OR EXISTS(SELECT 1 FROM memberships WHERE block_id = ?1)",
+            )?
+            .query_row([&entry.block.id], |row| row.get(0))?;
+        Ok((!metadata).then_some(field))
+    }
+
+    fn live_children(&self, parent: &str) -> Result<Vec<String>> {
+        Ok(self.tx.prepare_cached(
+            "SELECT id FROM blocks WHERE parent_id = ?1 AND deletion_id IS NULL ORDER BY ordinal, id",
+        )?.query_map([parent], |row| row.get(0))?
+            .collect::<rusqlite::Result<_>>()?)
+    }
+
+    fn last_child(&self, parent: &str) -> Result<Option<String>> {
+        Ok(self
+            .tx
+            .prepare_cached(
+                "SELECT id FROM blocks WHERE parent_id = ?1 AND deletion_id IS NULL
+             ORDER BY ordinal DESC, id DESC LIMIT 1",
+            )?
+            .query_row([parent], |row| row.get(0))
+            .optional()?)
+    }
+
+    fn append_children(&mut self, from: &str, into: &str) -> Result<()> {
+        let children = self.live_children(from)?;
+        let mut after = self.last_child(into)?;
+        for id in children {
+            let child = self.live(&id)?;
+            self.move_block(&child, into, after.as_deref())?;
+            after = Some(id);
+        }
+        Ok(())
+    }
+
+    fn merge_page(&mut self, source: &Stored, destination: &Stored) -> Result<()> {
+        if source.block.id == destination.block.id {
+            return Err(validation("a page cannot be merged into itself"));
+        }
+        self.page_merge_endpoint(source)?;
+        self.page_merge_endpoint(destination)?;
+        crate::task_store::guard_merge(self.tx, &source.block.id)?;
+        crate::card_store::guard_merge(self.tx, &source.block.id)?;
+        let metadata: bool = self
+            .tx
+            .prepare_cached(
+                "SELECT EXISTS(SELECT 1 FROM citations WHERE block_id = ?1)
+             OR EXISTS(SELECT 1 FROM type_fields WHERE type_id = ?1)",
+            )?
+            .query_row([&source.block.id], |row| row.get(0))?;
+        if metadata {
+            return Err(validation(
+                "a page with citations or a field schema cannot be merged away",
+            ));
+        }
+        let old_key = source.block.text.to_lowercase();
+        if let Some(mut rename) =
+            self.capture_tag_rename(source, &destination.block.text, &old_key)?
+        {
+            rename.page_id.clone_from(&destination.block.id);
+            self.pending_renames.push(rename);
+        }
+        // A rename earlier in this batch still belongs to the surviving page.
+        for rename in &mut self.pending_renames {
+            if rename.page_id == source.block.id {
+                rename.page_id.clone_from(&destination.block.id);
+            }
+        }
+        self.redirect_links(&source.block.id, &destination.block.id)?;
+        let mut fields = HashMap::new();
+        let children = self.live_children(&destination.block.id)?;
+        let mut after = children.last().cloned();
+        for id in children {
+            let entry = self.live(&id)?;
+            if let Some(field) = self.plain_field_entry(&entry)? {
+                fields.entry(field.to_owned()).or_insert(id);
+            }
+        }
+        for id in self.live_children(&source.block.id)? {
+            let child = self.live(&id)?;
+            let field = self.plain_field_entry(&child)?.map(str::to_owned);
+            if let Some(target) = field.as_ref().and_then(|field| fields.get(field)) {
+                self.append_children(&id, target)?;
+                self.redirect_links(&id, target)?;
+                self.delete(&id)?;
+            } else {
+                self.move_block(&child, &destination.block.id, after.as_deref())?;
+                if let Some(field) = field {
+                    fields.insert(field, id.clone());
+                }
+                after = Some(id);
+            }
+        }
+        let current = self.live(&destination.block.id)?;
+        self.bump(&current, true)?;
+        self.delete(&source.block.id)
+    }
+
     fn bump(&mut self, current: &Stored, derive_fields: bool) -> Result<()> {
         self.tx.execute(
             "UPDATE blocks SET revision = revision + 1, updated_at = ?1 WHERE id = ?2",
@@ -1002,7 +1179,9 @@ impl Engine<'_, '_> {
             | Operation::Move { id, .. }
             | Operation::Delete { id, .. }
             | Operation::Restore { id, .. } => Some(id),
-            Operation::Merge { source_id, .. } => Some(source_id),
+            Operation::Merge { source_id, .. } | Operation::MergePage { source_id, .. } => {
+                Some(source_id)
+            }
             _ => None,
         };
         if let Some(id) = affected {
@@ -1012,7 +1191,9 @@ impl Engine<'_, '_> {
         if let Some(id) = affected {
             crate::question_store::affected(self.tx, id, &mut self.capability_sources)?;
         }
-        if let Operation::Merge { destination_id, .. } = operation {
+        if let Operation::Merge { destination_id, .. }
+        | Operation::MergePage { destination_id, .. } = operation
+        {
             crate::question_store::affected(self.tx, destination_id, &mut self.capability_sources)?;
         }
         Ok(())
@@ -1189,6 +1370,17 @@ impl Engine<'_, '_> {
                 let destination =
                     self.checked(destination_id, *destination_revision, index, false)?;
                 self.merge(&source, &destination)
+            }
+            Operation::MergePage {
+                source_id,
+                source_revision,
+                destination_id,
+                destination_revision,
+            } => {
+                let source = self.checked(source_id, *source_revision, index, false)?;
+                let destination =
+                    self.checked(destination_id, *destination_revision, index, false)?;
+                self.merge_page(&source, &destination)
             }
             Operation::Delete { id, base_revision } => {
                 self.checked(id, *base_revision, index, false)?;

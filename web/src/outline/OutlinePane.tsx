@@ -1,6 +1,6 @@
 import { For, Show, createEffect, createMemo, createResource, createSignal, mapArray, onCleanup, onMount, untrack } from 'solid-js';
 import { createVirtualizer, defaultRangeExtractor } from '@tanstack/solid-virtual';
-import type { FieldDefinition } from '../api/types';
+import type { Block, FieldDefinition } from '../api/types';
 import { api } from '../api/client';
 import type { Caret, Edit, EditResult, PageDocument, TextRange } from '../document/contract';
 import { depthStops } from '../shell/contract';
@@ -36,6 +36,7 @@ import { createOutlineRows } from './Row';
 import { createOutlineRelated } from './Related';
 import { createCapabilityPopups } from './CapabilityPopups';
 import type { MenuState, OutlineContext, RowRange } from './context';
+import { PageMergeConfirmation, pageMergeDisabledReason } from './PageMerge';
 import './outline.css';
 
 const storedFolds = new Map<string, Set<string>>();
@@ -61,6 +62,11 @@ function Pane(props: OutlinePaneProps) {
   const [menu, setMenu] = createSignal<MenuState | null>(null);
   const [renaming, setRenaming] = createSignal(false);
   const [title, setTitle] = createSignal('');
+  const [mergeTarget, setMergeTarget] = createSignal<{ page: Block; from: { id: string; text: string }; anchor: HTMLElement }>();
+  const titleCollision = createMemo(() => {
+    const value = title().trim().toLocaleLowerCase();
+    return renaming() && value ? props.notebook.roots().find(page => page.id !== props.pageId && page.kind === 'page' && page.text.toLocaleLowerCase() === value) : undefined;
+  });
   const [conflicts, setConflicts] = createSignal(new Set<string>());
   const [editedConflicts, setEditedConflicts] = createSignal(new Set<string>());
   const [margin, setMargin] = createSignal(0);
@@ -545,6 +551,14 @@ function Pane(props: OutlinePaneProps) {
 
   function rename() { if (doc.root()?.kind !== 'page') return; setTitle(doc.root()!.text); setRenaming(true); queueMicrotask(() => { titleInput?.focus(); titleInput?.select(); }); }
   function commitTitle() {
+    const collision = titleCollision();
+    if (collision && titleInput) {
+      const reason = pageMergeDisabledReason(doc.root());
+      if (reason) { setMessage(reason); return; }
+      setMessage('');
+      setMergeTarget({ page: collision, from: { id: props.pageId, text: doc.root()!.text }, anchor: titleInput });
+      return;
+    }
     const result = doc.rename(title());
     if (result.ok) { setRenaming(false); setMessage(''); }
     else { setMessage(result.reason); titleInput?.focus(); }
@@ -820,7 +834,9 @@ function Pane(props: OutlinePaneProps) {
       <div class="outline-title-row">
       <Show when={renaming()} fallback={<h1><button class="outline-title" type="button" disabled={doc.root()?.kind !== 'page'} onClick={rename}>{doc.root()?.text || 'Loading…'}</button></h1>}>
         <input ref={titleInput} class="title-input" aria-label="Page title" value={title()} onInput={event => setTitle(event.currentTarget.value)} onKeyDown={event => { if (event.isComposing) return; if (event.key === 'Enter') { event.preventDefault(); commitTitle(); } if (event.key === 'Escape') { setRenaming(false); setMessage(''); } }} />
-        <button type="button" onClick={commitTitle}>Save title</button><button type="button" onClick={() => setRenaming(false)}>Cancel</button>
+        <Show when={titleCollision()} fallback={<Button class="bordered" onClick={commitTitle}>Save title</Button>}>{page =>
+          <Button class="bordered" disabled={!!pageMergeDisabledReason(doc.root())} title={pageMergeDisabledReason(doc.root())} onClick={event => { setMessage(''); setMergeTarget({ page: page(), from: { id: props.pageId, text: doc.root()!.text }, anchor: event.currentTarget }); }}>Merge into “{page().text}”</Button>
+        }</Show><Button onClick={() => setRenaming(false)}>Cancel</Button>
       </Show>
       <Show when={doc.root()?.kind === 'page' && !doc.root()?.source}><div class="outline-header-actions"><Button icon="table" label="Table" shortcut="⌘⇧T" onClick={event => openTable(event.metaKey)}>Table<Show when={!type.error && (type()?.members ?? 0) > 0}><span class="table-member-count">{type()?.members}</span></Show></Button></div></Show>
       </div>
@@ -871,6 +887,7 @@ function Pane(props: OutlinePaneProps) {
       <Show when={related.error || related()?.tagged.length}><Related title="Tagged blocks" rows={related.error ? [] : related()?.tagged ?? []} /></Show>
     </div></Show>
     <Show keyed when={menu()}>{state => <Menu anchor={state.anchor} label={state.label} items={state.items} onDismiss={() => setMenu(null)} />}</Show>
+    <Show keyed when={mergeTarget()}>{target => <PageMergeConfirmation anchor={target.anchor} notebook={props.notebook} from={target.from} into={target.page} onDismiss={() => setMergeTarget(undefined)} onMerged={id => { setMergeTarget(undefined); props.onOpen({ kind: 'page', pageId: id }, false); }} />}</Show>
     <CapabilityPopups />
     <CompletionPopups />
   </div>;
