@@ -9,6 +9,8 @@
 .library-sort.button { margin-right: auto; font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .library-clear-selection { margin-left: auto; }
 .library-filter { flex-wrap: wrap; }
+/* A phone gives the search its own line; sort, export and add follow beneath it. */
+@media (max-width: 599px) { .library-controls { flex-wrap: wrap; } .library-search { flex: 1 0 100%; } }
 .library-selection-count { font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
 .library-scroll { flex: 1; min-height: 0; overflow: auto; padding: 0 var(--space-16) var(--space-24); }
 .library-count, .library-progress, .library-highlight-count { display: inline-flex; align-items: center; gap: var(--space-4); flex-shrink: 0; font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); color: var(--muted); }

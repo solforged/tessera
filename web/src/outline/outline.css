@@ -221,7 +221,16 @@
 .empty-state { font-size: var(--text-control); color: var(--faint); }
 .add-first-block { display: flex; align-items: center; gap: var(--space-8); border: 0; background: transparent; color: var(--muted); }
 
-@media (max-width: 479px) { .outline-pane { padding-inline: var(--space-12); } .outline-heading, .related-sections, .add-first-block { padding-left: var(--target-size); } .outline-row .row-menu { display: none; } }
+/* Phones: the gutter keeps only the fold, so text starts one target from the edge. The block menu moves to the
+   end of the row being edited or selected, where a thumb can still reach it. */
+@media (max-width: 599px) {
+  .outline-pane { padding-inline: var(--space-12); }
+  .outline-heading, .related-sections, .add-first-block { padding-left: var(--target-size); }
+  .outline-row .row-menu { order: 1; }
+  .outline-row:not(:focus-within, .row-selected) .row-menu { display: none; }
+  /* Field names keep a narrower column, so values are not pushed past the middle of the screen. */
+  .outline-field-label { flex-basis: calc(var(--target-size) + var(--space-48) * 1.5); width: calc(var(--target-size) + var(--space-48) * 1.5); }
+}
 
 .card-operator { color: var(--faint); }
 .card-cloze { text-decoration: underline dotted var(--accent) 1px; text-underline-offset: var(--space-4); }
