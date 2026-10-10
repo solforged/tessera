@@ -81,7 +81,7 @@ export function Popup(props: PopupProps) {
     const width = Math.min(props.width ?? panel.offsetWidth, window.innerWidth - 16);
     if (props.placement === 'top') {
       const top = Math.min(64, Math.round(window.innerHeight * 0.08));
-      const height = Math.min(panel.scrollHeight, window.innerHeight - top - 16, 560);
+      const height = Math.min(panel.scrollHeight + panel.offsetHeight - panel.clientHeight, window.innerHeight - top - 16, 560);
       setPosition({ left: Math.max(8, Math.round((window.innerWidth - width) / 2)), top, height, visible: true });
       return;
     }
@@ -101,7 +101,8 @@ export function Popup(props: PopupProps) {
       contentHeight = panel.scrollHeight + panel.offsetHeight - panel.clientHeight;
       panel.style.maxHeight = maxHeight;
       for (const [element, top, left] of scrolled) { element.scrollTop = top; element.scrollLeft = left; }
-    } else contentHeight = panel.scrollHeight;
+    // scrollHeight leaves out the border that max-height includes; without it a short menu scrolls by 2 px and WebKit shows a scrollbar.
+    } else contentHeight = panel.scrollHeight + panel.offsetHeight - panel.clientHeight;
     const needed = Math.min(contentHeight, 560);
     // Fixed menus and opt-in dialogs flip to fit; growing lists flip only when cramped.
     const flip = above > below && (props.fitContent ? below < needed : below < Math.min(needed, 180) || (props.role === 'menu' && below < needed && above >= needed));
