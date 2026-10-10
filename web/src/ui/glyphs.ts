@@ -10,6 +10,7 @@ export const paths = {
   plus: 'M8 2v12 M2 8h12', close: 'm3 3 10 10 M13 3 3 13',
   more: 'M3 8h.01 M8 8h.01 M13 8h.01',
   sidebar: 'M2 2h12v12H2z M6 2v12', panes: 'M1 2h14v12H1z M8 2v12',
+  expand: 'M2 6V2h4 M10 2h4v4 M14 10v4h-4 M6 14H2v-4', contract: 'M6 2v4H2 M10 2v4h4 M14 10h-4v4 M2 10h4v4',
   calendar: 'M2 4h12v10H2z M5 2v4 M11 2v4 M2 7h12',
   page: 'M3 1h7l3 3v11H3z M10 1v4h3',
   pin: 'm6 1 5 2-2 4 2 3-8-3 3-1z M6 9l-3 6',

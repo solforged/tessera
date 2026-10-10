@@ -40,6 +40,9 @@ export interface ReaderPaneProps {
   onActivate(): void;
   onOpen(target: OpenTarget, beside: boolean): void;
   onViewChange(view: ReaderViewState): void;
+  /** The reader fills the app window, without the sidebar, rail or pane header. */
+  immersive: boolean;
+  onImmersive(immersive: boolean): void;
 }
 
 const PAGE_SIZE = 200;
@@ -781,6 +784,7 @@ export function ReaderPane(props: ReaderPaneProps) {
       { label: 'Shrink by passage', shortcut: '{', disabledReason: needsSelection, action: () => { void resizeSelection(false, 'passage'); } },
       { label: 'Highlight', shortcut: 'H', disabledReason: needsSelection, action: () => { void highlight(false); } },
       { label: 'Highlight and note', shortcut: 'N', disabledReason: needsSelection, action: () => { void highlight(true); } },
+      { label: props.immersive ? 'Exit full screen' : 'Full screen', shortcut: 'F', action: () => props.onImmersive(!props.immersive) },
     ];
   });
   const trackShift = (event: KeyboardEvent | PointerEvent) => { shiftPressed = event.shiftKey; };
@@ -799,6 +803,12 @@ export function ReaderPane(props: ReaderPaneProps) {
       return;
     }
     if (readerKeyBlocked(event)) return;
+    // Escape first clears a selection (selectionKey prevents it); the next one leaves full screen.
+    if (event.key === 'f' || event.key === 'Escape' && props.immersive && !event.defaultPrevented && !selection() && window.getSelection()?.isCollapsed !== false) {
+      event.preventDefault(); event.stopImmediatePropagation();
+      props.onImmersive(event.key === 'f' ? !props.immersive : false);
+      return;
+    }
     const key = event.key, moving = key === 'j' || key === 'k' || key === 's', resizing = '][}{'.includes(key) && key.length === 1;
     if (!moving && !resizing || moving && selection() || resizing && !selection() && !keyboardPending) return;
     if (moving && !window.getSelection()?.isCollapsed) return;
@@ -969,6 +979,7 @@ export function ReaderPane(props: ReaderPaneProps) {
       <Button icon="search" label="Find in source" aria-haspopup="dialog" disabled={!snapshot()} onClick={event => { setQuery(''); setPopup({ kind: 'find', anchor: event.currentTarget }); }} />
       <span class="reader-progress" aria-label="Reading position">{formatProgress(position())}</span>
       <Button label="Reader settings" aria-haspopup="dialog" onClick={event => setPopup({ kind: 'settings', anchor: event.currentTarget })}>Aa</Button>
+      <Button icon={props.immersive ? 'contract' : 'expand'} label={props.immersive ? 'Exit full screen' : 'Full screen'} shortcut={props.immersive ? 'F or Esc' : 'F'} onClick={() => props.onImmersive(!props.immersive)} />
       <Button icon="more" label="Reader actions" aria-haspopup="menu" onPointerDown={event => event.preventDefault()} onClick={event => setPopup({ kind: 'actions', anchor: event.currentTarget })} />
     </div>
     <div class="reader-progress-rule" aria-hidden="true"><span style={{ width: `${position() * 100}%` }} /></div>
