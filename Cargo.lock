@@ -5152,6 +5152,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "tessera-android"
+version = "0.2.0"
+dependencies = [
+ "axum",
+ "base64 0.22.1",
+ "parking_lot",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tessera-core",
+ "tessera-service",
+ "tokio",
+ "tower",
+]
+
+[[package]]
 name = "tessera-bench"
 version = "0.2.0"
 dependencies = [

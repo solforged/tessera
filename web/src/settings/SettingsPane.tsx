@@ -1,6 +1,6 @@
 import { For, Show, createMemo, createResource, createSignal, onMount } from 'solid-js';
 import { api } from '../api/client';
-import { DEMO } from '../demo/mode';
+import { EMBEDDED } from '../demo/mode';
 import type { NotebookClient } from '../document/contract';
 import type { OpenTarget, PaneId, SettingsViewState } from '../shell/contract';
 import { Button } from '../ui/Button';
@@ -16,11 +16,11 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; not
     try { return await api.notebook(); }
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); return undefined; }
   });
-  const [service] = createResource(() => !DEMO, async () => {
+  const [service] = createResource(() => !EMBEDDED, async () => {
     try { return await api.service(); }
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); return undefined; }
   });
-  const [backups, { refetch: refreshBackups }] = createResource(() => !DEMO, async () => {
+  const [backups, { refetch: refreshBackups }] = createResource(() => !EMBEDDED, async () => {
     try { return await api.backups(); }
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); return undefined; }
   });
@@ -114,7 +114,7 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; not
         onPick={value => { setZoneAnchor(null); setZoneQuery(''); void change('time_zone', value); }}
         row={value => <><Show when={value === zone()} fallback={<span class="icon" />}><Icon name="check" /></Show><span class="picker-text">{value === deviceZone ? `Device time zone (${deviceZone})` : value}</span></>} />}</Show>
     </section>
-    {!DEMO && <section aria-labelledby={`settings-backups-${props.pane}`} aria-busy={backingUp()}>
+    {!EMBEDDED && <section aria-labelledby={`settings-backups-${props.pane}`} aria-busy={backingUp()}>
       <h2 id={`settings-backups-${props.pane}`}><span class="section-number">04</span>Backups<span class="section-rule" /></h2>
       <div class="settings-row">
         <div class="settings-label">Database and files<Show when={backups()}>{values => <p role="status">{values()[0] ? `Last backup ${backupLabel(values()[0]!)}` : 'No backups yet.'}</p>}</Show></div>
@@ -126,7 +126,7 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; not
       </details></Show>
     </section>}
     <section aria-labelledby={`settings-agent-changes-${props.pane}`} aria-busy={undoing() !== null}>
-      <h2 id={`settings-agent-changes-${props.pane}`}><span class="section-number">{DEMO ? '04' : '05'}</span>Agent changes<span class="section-rule" /></h2>
+      <h2 id={`settings-agent-changes-${props.pane}`}><span class="section-number">{EMBEDDED ? '04' : '05'}</span>Agent changes<span class="section-rule" /></h2>
       <Show when={agentChanges()}>{values => <Show when={values().length > 0} fallback={<p class="settings-empty">No agent changes yet.</p>}>
         <For each={values().slice(0, 20)}>{change => <div class="settings-row settings-agent-change">
           <div class="settings-label">{change.summary}
@@ -141,14 +141,14 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; not
       </Show>}</Show>
     </section>
     <section aria-labelledby={`settings-notebook-${props.pane}`}>
-      <h2 id={`settings-notebook-${props.pane}`}><span class="section-number">{DEMO ? '05' : '06'}</span>Notebook<span class="section-rule" /></h2>
+      <h2 id={`settings-notebook-${props.pane}`}><span class="section-number">{EMBEDDED ? '05' : '06'}</span>Notebook<span class="section-rule" /></h2>
       <Show when={info()}>{value => <dl>
         <dt>Path</dt><dd>{value().path}</dd>
         <dt>Created</dt><dd>{new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(value().created_at)}</dd>
         <dt>Id</dt><dd>{value().id}</dd>
       </dl>}</Show>
     </section>
-    {!DEMO && <section aria-labelledby={`settings-service-${props.pane}`}>
+    {!EMBEDDED && <section aria-labelledby={`settings-service-${props.pane}`}>
       <h2 id={`settings-service-${props.pane}`}><span class="section-number">07</span>Service<span class="section-rule" /></h2>
       <Show when={service()}>{value => <dl>
         <dt>Version</dt><dd>{value().version}<Show when={value().build}>{build => <> · {build()}</>}</Show></dd>

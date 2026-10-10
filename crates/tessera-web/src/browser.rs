@@ -9,7 +9,7 @@ use futures_util::future::{AbortHandle, Abortable};
 use js_sys::{Function, JsString, Uint8Array};
 use sqlite_wasm_vfs::sahpool::{OpfsSAHError, OpfsSAHPoolCfg, OpfsSAHPoolUtil};
 use tessera_core::Notebook;
-use tessera_service::BrowserHandles;
+use tessera_service::EmbeddedHandles;
 use tokio::sync::broadcast;
 use tower::ServiceExt;
 use wasm_bindgen::prelude::*;
@@ -28,7 +28,7 @@ extern "C" {
 
 struct App {
     router: Router,
-    handles: BrowserHandles,
+    handles: EmbeddedHandles,
 }
 
 #[derive(Default)]
@@ -70,7 +70,7 @@ fn with_app<T>(operation: impl FnOnce(&App) -> Result<T, JsValue>) -> Result<T, 
 fn reopen() -> Result<String, JsValue> {
     let notebook = Notebook::open("/demo").map_err(internal)?;
     let info = serde_json::to_string(&notebook.info().map_err(internal)?).map_err(internal)?;
-    let (router, handles) = tessera_service::browser_router(notebook).map_err(internal)?;
+    let (router, handles) = tessera_service::embedded_router(notebook).map_err(internal)?;
     RUNTIME.with(|runtime| runtime.borrow_mut().app = Some(App { router, handles }));
     Ok(info)
 }
