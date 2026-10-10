@@ -248,6 +248,7 @@ struct NewBlock<'a> {
 
 impl Engine<'_, '_> {
     fn touch(&mut self, id: &str, revision: i64) {
+        self.card_sources.insert(id.to_owned());
         self.record_revision(id, revision);
         self.positions.get_mut(id).expect("touched block").fields = true;
     }
@@ -646,9 +647,6 @@ impl Engine<'_, '_> {
         self.unused(id)?;
         Self::heading(heading)?;
         validate_text(kind, text)?;
-        if kind == BlockKind::Block {
-            self.card_sources.insert(id.to_owned());
-        }
         let (kind, title_key) = match kind {
             BlockKind::Block => ("block", None),
             BlockKind::Page => ("page", Some(text.to_lowercase())),
@@ -697,9 +695,6 @@ impl Engine<'_, '_> {
         derive_links(self.tx, &current.block.id, text)?;
         self.touch(&current.block.id, current.block.revision + 1);
         self.tags_changed(&current.block.id);
-        if current.block.kind == BlockKind::Block {
-            self.card_sources.insert(current.block.id.clone());
-        }
         if let Some(rename) = rename {
             self.pending_renames.push(rename);
         }
@@ -915,6 +910,9 @@ impl Engine<'_, '_> {
         self.restructured_pages
             .insert(current.block.page_id.clone());
         self.restructured_pages.insert(parent.block.page_id.clone());
+        if let Some(old_parent) = &current.block.parent_id {
+            self.card_sources.insert(old_parent.clone());
+        }
         self.tx.prepare_cached(
             "UPDATE blocks SET parent_id = ?1, page_id = ?2, ordinal = ?3, revision = revision + 1,
              updated_at = ?4 WHERE id = ?5",

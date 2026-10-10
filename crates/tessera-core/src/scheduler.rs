@@ -1,15 +1,22 @@
-//! Remcard's SM-2 scheduler, with explicit timestamps and saturating boundaries.
+//! Deterministic FSRS-6, default weights and 90% desired retention.
 //!
-//! Hard and Good use the same interval formula with different ease adjustments.
-//! Easy multiplies that formula's result by 1.3, including the first two reviews.
+//! Memory equations follow the official py-fsrs implementation, pinned at
+//! https://github.com/open-spaced-repetition/py-fsrs/tree/9446cb06605c597a063aeee49f7d188d42e34dc2
+//! (fsrs/scheduler.py). A small in-house port keeps the native and wasm paths
+//! identical without an optimizer, random source, clock or learning-step engine.
+//! Session requeueing belongs to the caller; scheduled intervals are whole days.
 
 use serde::{Deserialize, Serialize};
 
-pub const SCHEDULER_VERSION: u32 = 1;
-
-const DEFAULT_EASE: f64 = 2.5;
-const MIN_EASE: f64 = 1.3;
+pub const SCHEDULER_VERSION: &str = "fsrs-6";
 const MS_PER_DAY: i64 = 86_400_000;
+const MAX_INTERVAL: u32 = 36_500;
+const MIN_STABILITY: f64 = 0.001;
+const W: [f64; 21] = [
+    0.212, 1.2931, 2.3065, 8.2956, 6.4133, 0.8334, 3.0194, 0.001, 1.8722, 0.1666, 0.796, 1.4835,
+    0.0614, 0.2629, 1.6483, 0.6014, 1.8729, 0.5425, 0.0912, 0.0658, 0.1542,
+];
+const GRADES: [Grade; 4] = [Grade::Again, Grade::Hard, Grade::Good, Grade::Easy];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -21,20 +28,20 @@ pub enum Grade {
 }
 
 impl Grade {
-    /// The predecessor's SM-2 quality score, not the grade's UI position.
-    pub const fn quality(self) -> u8 {
+    const fn index(self) -> usize {
         match self {
-            Self::Again => 1,
-            Self::Hard => 3,
-            Self::Good => 4,
-            Self::Easy => 5,
+            Self::Again => 0,
+            Self::Hard => 1,
+            Self::Good => 2,
+            Self::Easy => 3,
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SchedulingState {
-    pub ease_factor: f64,
+    pub stability: Option<f64>,
+    pub difficulty: Option<f64>,
     pub interval_days: u32,
     pub repetitions: u32,
     pub lapses: u32,
@@ -43,10 +50,11 @@ pub struct SchedulingState {
     pub last_reviewed_at: Option<i64>,
 }
 
-/// New cards are immediately due at the caller's timestamp.
+/// New cards have no memory estimate and are immediately due.
 pub fn new_card(now_ms: i64) -> SchedulingState {
     SchedulingState {
-        ease_factor: DEFAULT_EASE,
+        stability: None,
+        difficulty: None,
         interval_days: 0,
         repetitions: 0,
         lapses: 0,
@@ -55,222 +63,213 @@ pub fn new_card(now_ms: i64) -> SchedulingState {
     }
 }
 
-/// Apply one review without changing the input or consulting a wall clock.
-pub fn schedule(state: &SchedulingState, grade: Grade, now_ms: i64) -> SchedulingState {
-    let q = f64::from(grade.quality());
-    let ease = state.ease_factor + (0.1 - (5.0 - q) * (0.08 + (5.0 - q) * 0.02));
-    let ease = ease.max(MIN_EASE);
-    // NaN and negative infinity take the floor above; positive infinity saturates
-    // here so every result remains representable in the wire format.
-    let ease = if ease.is_finite() { ease } else { f64::MAX };
-
-    let (repetitions, lapses, interval) = if matches!(grade, Grade::Again) {
-        (0, state.lapses.saturating_add(1), 1.0)
-    } else {
-        let repetitions = state.repetitions.saturating_add(1);
-        let interval = match repetitions {
-            1 => 1.0,
-            2 => 6.0,
-            _ => (f64::from(state.interval_days) * ease).max(1.0),
-        };
-        let interval = if matches!(grade, Grade::Easy) {
-            interval * 1.3
-        } else {
-            interval
-        };
-        (repetitions, state.lapses, interval)
-    };
-
-    // Float-to-integer casts saturate, including when interval growth overflows.
-    let interval_days = interval.round().max(1.0) as u32;
-    // Even u32::MAX days fits in i64 milliseconds; only the timestamp can overflow.
-    let due_at = now_ms.saturating_add(i64::from(interval_days) * MS_PER_DAY);
-    SchedulingState {
-        ease_factor: ease,
-        interval_days,
-        repetitions,
-        lapses,
-        due_at,
-        last_reviewed_at: Some(now_ms),
-    }
+fn initial_difficulty(rating: f64) -> f64 {
+    W[4] - (W[5] * (rating - 1.0)).exp() + 1.0
 }
 
-/// Independent outcomes in the fixed Again, Hard, Good, Easy display order.
+fn memory(state: &SchedulingState, grade: Grade, now_ms: i64) -> (f64, f64) {
+    let rating = grade.index() as f64 + 1.0;
+    let (Some(stability), Some(difficulty), Some(last)) =
+        (state.stability, state.difficulty, state.last_reviewed_at)
+    else {
+        return (
+            W[grade.index()],
+            initial_difficulty(rating).clamp(1.0, 10.0),
+        );
+    };
+    let elapsed_days = now_ms.saturating_sub(last).max(0) / MS_PER_DAY;
+    let next_difficulty = (W[7] * initial_difficulty(4.0)
+        + (1.0 - W[7]) * (difficulty - W[6] * (rating - 3.0) * (10.0 - difficulty) / 9.0))
+        .clamp(1.0, 10.0);
+    let next_stability = if elapsed_days == 0 {
+        let increase = (W[17] * (rating - 3.0 + W[18])).exp() * stability.powf(-W[19]);
+        stability
+            * if grade == Grade::Again {
+                increase
+            } else {
+                increase.max(1.0)
+            }
+    } else {
+        let decay = -W[20];
+        let factor = 0.9_f64.powf(1.0 / decay) - 1.0;
+        let retrievability = (1.0 + factor * elapsed_days as f64 / stability).powf(decay);
+        if grade == Grade::Again {
+            let long = W[11]
+                * difficulty.powf(-W[12])
+                * ((stability + 1.0).powf(W[13]) - 1.0)
+                * ((1.0 - retrievability) * W[14]).exp();
+            long.min(stability / (W[17] * W[18]).exp())
+        } else {
+            let hard = if grade == Grade::Hard { W[15] } else { 1.0 };
+            let easy = if grade == Grade::Easy { W[16] } else { 1.0 };
+            stability
+                * (1.0
+                    + W[8].exp()
+                        * (11.0 - difficulty)
+                        * stability.powf(-W[9])
+                        * (((1.0 - retrievability) * W[10]).exp() - 1.0)
+                        * hard
+                        * easy)
+        }
+    };
+    (next_stability.max(MIN_STABILITY), next_difficulty)
+}
+
+/// At retention 0.9 the FSRS interval formula simplifies exactly to stability.
+fn interval(stability: f64) -> u32 {
+    stability
+        .round_ties_even()
+        .clamp(1.0, f64::from(MAX_INTERVAL)) as u32
+}
+
+/// Independent memory outcomes in Again, Hard, Good, Easy display order.
+/// Integer rounding and the ceiling can tie intervals. Reserve two days at the
+/// ceiling, then separate Hard/Good/Easy by at least one day. This changes only
+/// scheduling dates, never the FSRS memory estimates, and also applies on grade.
 pub fn previews(state: &SchedulingState, now_ms: i64) -> [(Grade, SchedulingState); 4] {
-    [Grade::Again, Grade::Hard, Grade::Good, Grade::Easy]
-        .map(|grade| (grade, schedule(state, grade, now_ms)))
+    let memories = GRADES.map(|grade| memory(state, grade, now_ms));
+    let hard = interval(memories[1].0).min(MAX_INTERVAL - 2);
+    let good = interval(memories[2].0).clamp(hard + 1, MAX_INTERVAL - 1);
+    let easy = interval(memories[3].0).clamp(good + 1, MAX_INTERVAL);
+    let days = [interval(memories[0].0).min(hard), hard, good, easy];
+    std::array::from_fn(|index| {
+        let grade = GRADES[index];
+        let (stability, difficulty) = memories[index];
+        let interval_days = days[index];
+        (
+            grade,
+            SchedulingState {
+                stability: Some(stability),
+                difficulty: Some(difficulty),
+                interval_days,
+                repetitions: if grade == Grade::Again {
+                    0
+                } else {
+                    state.repetitions.saturating_add(1)
+                },
+                lapses: state
+                    .lapses
+                    .saturating_add(u32::from(grade == Grade::Again)),
+                due_at: now_ms.saturating_add(i64::from(interval_days) * MS_PER_DAY),
+                last_reviewed_at: Some(now_ms),
+            },
+        )
+    })
+}
+
+/// Apply one review without consulting a clock. Exactly matches its preview.
+pub fn schedule(state: &SchedulingState, grade: Grade, now_ms: i64) -> SchedulingState {
+    let outcomes = previews(state, now_ms);
+    outcomes
+        .into_iter()
+        .nth(grade.index())
+        .expect("four grades")
+        .1
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn assert_ease(actual: f64, expected: f64) {
-        assert!((actual - expected).abs() < 1e-12, "{actual} != {expected}");
-    }
-
-    fn mature_card() -> SchedulingState {
-        SchedulingState {
-            interval_days: 10,
-            repetitions: 2,
-            lapses: 3,
-            ..new_card(0)
-        }
-    }
-
     #[test]
-    fn new_card_is_due_at_the_explicit_time() {
-        for now_ms in [i64::MIN, -1, 0, 1_000, i64::MAX] {
-            let state = new_card(now_ms);
-            assert_eq!(state.due_at, now_ms);
-            assert_eq!(state.last_reviewed_at, None);
-            let reviewed = schedule(&state, Grade::Good, now_ms);
-            assert_eq!(reviewed.repetitions, 1);
-            assert_eq!(reviewed.interval_days, 1);
-            assert_eq!(reviewed.due_at, now_ms.saturating_add(MS_PER_DAY));
-            assert_eq!(reviewed.last_reviewed_at, Some(now_ms));
-        }
-    }
-
-    #[test]
-    fn first_two_successful_reviews_keep_the_predecessor_easy_bonus() {
-        for (grade, second_days, second_ease) in [
-            (Grade::Hard, 6, 2.22),
-            (Grade::Good, 6, 2.5),
-            (Grade::Easy, 8, 2.7),
+    fn official_py_fsrs_memo_state_vector() {
+        // tests/test_basic.py::TestPyFSRS::test_memo_state at the pinned commit.
+        // Explicit elapsed days make learning-step/fuzz choices irrelevant.
+        let mut state = new_card(0);
+        let mut now = 0;
+        for (grade, days) in [
+            (Grade::Again, 0),
+            (Grade::Good, 0),
+            (Grade::Good, 1),
+            (Grade::Good, 3),
+            (Grade::Good, 8),
+            (Grade::Good, 21),
         ] {
-            let first = schedule(&new_card(17), grade, 29);
-            assert_eq!(first.interval_days, 1);
-            assert_eq!(first.repetitions, 1);
-            assert_eq!(first.due_at, 29 + MS_PER_DAY);
-
-            let second = schedule(&first, grade, 41);
-            assert_eq!(second.interval_days, second_days);
-            assert_eq!(second.repetitions, 2);
-            assert_eq!(second.lapses, 0);
-            assert_ease(second.ease_factor, second_ease);
-            assert_eq!(second.due_at, 41 + i64::from(second_days) * MS_PER_DAY);
+            now += days * MS_PER_DAY;
+            state = schedule(&state, grade, now);
         }
+        assert!((state.stability.unwrap() - 53.62691).abs() < 1e-4);
+        assert!((state.difficulty.unwrap() - 6.3574867).abs() < 1e-4);
     }
 
     #[test]
-    fn mature_intervals_use_updated_ease_and_round_after_the_easy_bonus() {
-        for (grade, days, ease, repetitions, lapses) in [
-            (Grade::Again, 1, 1.96, 0, 4),
-            (Grade::Hard, 24, 2.36, 3, 3),
-            (Grade::Good, 25, 2.5, 3, 3),
-            (Grade::Easy, 34, 2.6, 3, 3),
+    fn official_py_fsrs_review_sequence_including_forgetting() {
+        // test_review_card's exact review times: its learning/relearning steps
+        // are sub-day, but its memory updates are the same as ours.
+        let mut state = new_card(0);
+        let mut now = 0;
+        for (grade, elapsed, expected) in [
+            (Grade::Good, 0, Some(2)),
+            (Grade::Good, 0, Some(2)),
+            (Grade::Good, 2, Some(11)),
+            (Grade::Good, 11, Some(46)),
+            (Grade::Good, 46, Some(163)),
+            (Grade::Good, 163, Some(498)),
+            (Grade::Again, 498, None),
+            (Grade::Again, 0, None),
+            (Grade::Good, 0, Some(2)),
+            (Grade::Good, 2, Some(4)),
+            (Grade::Good, 4, Some(7)),
+            (Grade::Good, 7, Some(12)),
+            (Grade::Good, 12, Some(21)),
         ] {
-            let reviewed = schedule(&mature_card(), grade, -123);
-            assert_eq!(reviewed.interval_days, days);
-            assert_ease(reviewed.ease_factor, ease);
-            assert_eq!(reviewed.repetitions, repetitions);
-            assert_eq!(reviewed.lapses, lapses);
-            assert_eq!(reviewed.due_at, -123 + i64::from(days) * MS_PER_DAY);
-            assert_eq!(reviewed.last_reviewed_at, Some(-123));
-        }
-    }
-
-    #[test]
-    fn again_restarts_progression_without_erasing_lapses() {
-        let again = schedule(&mature_card(), Grade::Again, 101);
-        assert_eq!(again.repetitions, 0);
-        assert_eq!(again.lapses, 4);
-        assert_eq!(again.interval_days, 1);
-        let first = schedule(&again, Grade::Good, 102);
-        assert_eq!(first.repetitions, 1);
-        assert_eq!(first.interval_days, 1);
-        assert_eq!(first.lapses, 4);
-        let second = schedule(&first, Grade::Good, 103);
-        assert_eq!(second.repetitions, 2);
-        assert_eq!(second.interval_days, 6);
-        assert_eq!(second.lapses, 4);
-    }
-
-    #[test]
-    fn ease_reaches_the_floor_and_can_recover() {
-        for grade in [Grade::Again, Grade::Hard] {
-            let mut state = new_card(0);
-            for _ in 0..20 {
-                state = schedule(&state, grade, state.due_at);
-                assert!(state.ease_factor >= MIN_EASE);
-            }
-            assert_eq!(state.ease_factor, MIN_EASE);
-            assert_ease(schedule(&state, Grade::Easy, 0).ease_factor, 1.4);
-        }
-    }
-
-    #[test]
-    fn previews_are_independent_deterministic_review_outcomes() {
-        let state = mature_card();
-        let preview = previews(&state, 321);
-        assert_eq!(preview, previews(&state, 321));
-        for ((grade, outcome), (expected_grade, days, ease, repetitions, lapses)) in
-            preview.into_iter().zip([
-                (Grade::Again, 1, 1.96, 0, 4),
-                (Grade::Hard, 24, 2.36, 3, 3),
-                (Grade::Good, 25, 2.5, 3, 3),
-                (Grade::Easy, 34, 2.6, 3, 3),
-            ])
-        {
-            assert_eq!(grade, expected_grade);
-            assert_eq!(outcome.interval_days, days);
-            assert_ease(outcome.ease_factor, ease);
-            assert_eq!(outcome.repetitions, repetitions);
-            assert_eq!(outcome.lapses, lapses);
-            assert_eq!(outcome.due_at, 321 + i64::from(days) * MS_PER_DAY);
-            assert_eq!(outcome.last_reviewed_at, Some(321));
-        }
-        assert_eq!(state, mature_card());
-    }
-
-    #[test]
-    fn interval_counters_and_due_time_saturate_without_wrapping() {
-        let state = SchedulingState {
-            ease_factor: f64::MAX,
-            interval_days: u32::MAX,
-            repetitions: u32::MAX,
-            lapses: u32::MAX,
-            ..new_card(0)
-        };
-        for grade in [Grade::Hard, Grade::Good, Grade::Easy] {
-            let reviewed = schedule(&state, grade, i64::MAX - 1);
-            assert_eq!(reviewed.interval_days, u32::MAX);
-            assert_eq!(reviewed.repetitions, u32::MAX);
-            assert_eq!(reviewed.lapses, u32::MAX);
-            assert_eq!(reviewed.due_at, i64::MAX);
-            assert_eq!(reviewed.last_reviewed_at, Some(i64::MAX - 1));
-            assert_eq!(reviewed.ease_factor, f64::MAX);
-        }
-        let again = schedule(&state, Grade::Again, i64::MAX);
-        assert_eq!(again.repetitions, 0);
-        assert_eq!(again.lapses, u32::MAX);
-        assert_eq!(again.interval_days, 1);
-        assert_eq!(again.due_at, i64::MAX);
-        let early = schedule(&state, Grade::Good, i64::MIN);
-        assert_eq!(early.due_at, i64::MIN + i64::from(u32::MAX) * MS_PER_DAY);
-    }
-
-    #[test]
-    fn invalid_ease_stays_finite_and_zero_mature_interval_becomes_one_day() {
-        for ease in [f64::NAN, f64::NEG_INFINITY, -1.0, 0.0] {
-            let state = SchedulingState {
-                ease_factor: ease,
-                interval_days: 0,
-                ..mature_card()
-            };
-            for (_, reviewed) in previews(&state, 0) {
-                assert_eq!(reviewed.ease_factor, MIN_EASE);
-                assert_eq!(reviewed.interval_days, 1);
-                assert_eq!(reviewed.due_at, MS_PER_DAY);
+            now += elapsed * MS_PER_DAY;
+            state = schedule(&state, grade, now);
+            if let Some(expected) = expected {
+                assert_eq!(interval(state.stability.unwrap()), expected);
             }
         }
-        let state = SchedulingState {
-            ease_factor: f64::INFINITY,
-            ..mature_card()
-        };
-        let reviewed = schedule(&state, Grade::Good, 0);
-        assert_eq!(reviewed.ease_factor, f64::MAX);
-        assert_eq!(reviewed.interval_days, u32::MAX);
+    }
+
+    #[test]
+    fn default_initial_memory_and_intervals() {
+        let outcomes = previews(&new_card(0), 123);
+        for (index, (grade, state)) in outcomes.iter().enumerate() {
+            assert_eq!(state.stability, Some(W[index]));
+            assert_eq!(state.interval_days, [1, 1, 2, 8][index]);
+            assert_eq!(state, &schedule(&new_card(0), *grade, 123));
+        }
+    }
+
+    #[test]
+    fn all_outcomes_are_ordered_bounded_and_deterministic() {
+        for stability in [0.001, 0.212, 1.0, 2.3065, 100.0, 36_500.0, 1e9] {
+            for difficulty in [1.0, 5.0, 10.0] {
+                for days in [0, 1, 30, 100_000] {
+                    let state = SchedulingState {
+                        stability: Some(stability),
+                        difficulty: Some(difficulty),
+                        last_reviewed_at: Some(0),
+                        repetitions: u32::MAX,
+                        lapses: u32::MAX,
+                        ..new_card(0)
+                    };
+                    let now = days * MS_PER_DAY;
+                    let outcomes = previews(&state, now);
+                    let intervals = outcomes.each_ref().map(|(_, value)| value.interval_days);
+                    assert!(intervals[0] <= intervals[1]);
+                    assert!(intervals[1] < intervals[2] && intervals[2] < intervals[3]);
+                    for (grade, value) in outcomes {
+                        assert!((1..=MAX_INTERVAL).contains(&value.interval_days));
+                        assert!(value.stability.unwrap().is_finite());
+                        assert!((1.0..=10.0).contains(&value.difficulty.unwrap()));
+                        assert_eq!(value, schedule(&state, grade, now));
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn new_cards_and_timestamp_boundaries() {
+        for now in [i64::MIN, -1, 0, i64::MAX] {
+            let state = new_card(now);
+            assert_eq!(state.stability, None);
+            assert_eq!(state.difficulty, None);
+            assert_eq!(state.due_at, now);
+            let outcome = schedule(&state, Grade::Good, now);
+            assert_eq!(outcome.due_at, now.saturating_add(2 * MS_PER_DAY));
+            assert_eq!(outcome.last_reviewed_at, Some(now));
+        }
     }
 }

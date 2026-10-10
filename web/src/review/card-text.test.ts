@@ -33,6 +33,22 @@ describe('card text', () => {
     ]);
   });
 
+  test('child-answer syntax is terminal, distinct, and protected like other operators', () => {
+    for (const [op, kind] of [['>>>', 'multiline'], ['>>1.', 'list']] as const) {
+      const text = `  Front ${op}\u0085`;
+      expect(parseCardText(text)).toEqual({ cards: [{ key: kind, kind, front: 'Front', back: '' }], problems: [] });
+      expect(cardMarks(text)).toEqual([{ kind: 'operator', start: 8, end: 8 + op.length, op }]);
+      for (const invalid of [`${op}`, `Front ${op} answer`, `Front >> answer ${op}`, `Front ${op} ${op}`, `{{c1::answer}} ${op}`]) {
+        expect(parseCardText(invalid).cards).toEqual([]);
+        expect(parseCardText(invalid).problems.length).toBeGreaterThan(0);
+      }
+      for (const shielded of [`Front \\${op}`, `\`Front ${op}\``, `[[ref|Front ${op}]]`, `~~~\nFront ${op}\n~~~`]) {
+        expect(parseCardText(shielded)).toEqual({ cards: [], problems: [] });
+      }
+      expect(parseCardText(`Front \\\\${op}`).cards[0]?.kind).toBe(kind);
+    }
+  });
+
   test('syntax escapes render literally, preserve unknown escapes, and respect backslash parity', () => {
     const cases: [string, string, string][] = [
       [String.raw`a\>>b>>c`, 'a>>b', 'c'],
@@ -142,7 +158,7 @@ describe('card text', () => {
   test('mixed, overlapping, and empty operator cards have actionable ranges', () => {
     const ambiguous: [string, number, number][] = [
       ['a >> b << c', 2, 9], ['a >> b >> c', 2, 9],
-      ['a>>>b', 1, 4], ['a<>>b', 1, 4], ['a<<<b', 1, 4],
+      ['a>>>b', 1, 5], ['a<>>b', 1, 4], ['a<<<b', 1, 4],
     ];
     for (const [text, start, end] of ambiguous) {
       const parsed = parseCardText(text);

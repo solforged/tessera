@@ -47,9 +47,9 @@ export function CardSummary(props: { blockId: string; cards: ParsedCard[]; noteb
     return props.cards.flatMap(card => byKey.get(card.key) ?? []);
   });
   const label = createMemo(() => {
-    const count = props.cards.length;
-    const due = loading() || error() ? 0 : stored().filter(card => card.schedule.due_at <= now()).length;
-    return `${count} ${count === 1 ? 'card' : 'cards'}${due ? ` · ${due} due` : ''}`;
+    const count = ordered().length;
+    const due = loading() || error() ? 0 : ordered().filter(card => card.schedule.due_at <= now()).length;
+    return `${count} ${count === 1 ? 'card' : 'cards'} · ${due} due`;
   });
   const confirmation = createMemo(() => stored().find(card => card.id === confirm()));
   function dismiss() { setAnchor(null); setConfirm(null); setResetError(''); }
@@ -68,16 +68,16 @@ export function CardSummary(props: { blockId: string; cards: ParsedCard[]; noteb
   }
 
   return <>
-    <Button class="outline-planning" title="Show cards" aria-haspopup="dialog" aria-expanded={!!anchor()} onClick={event => {
+    <Show when={loading() || error() || ordered().length}><Button class="outline-planning" title="Show cards" aria-haspopup="dialog" aria-expanded={!!anchor()} onClick={event => {
       if (event.shiftKey) { dismiss(); props.onOpen({ kind: 'review' }, true); return; }
       setNow(Date.now()); setAnchor(event.currentTarget);
-    }}>{label()}</Button>
+    }}>{label()}</Button></Show>
     <Show when={anchor()}>{trigger => <Popup anchor={trigger()} label="Cards" class="outline-capability-popup outline-cards-popup" onDismiss={dismiss}>
       <Show when={loading()}><p class="outline-capability-notice" role="status">Loading cards…</p></Show>
       <Show when={error()}><p class="error" role="alert">{error()} <Button onClick={() => setRetry(value => value + 1)}>Retry</Button></p></Show>
       <Show when={!loading() && !error()}><div class="outline-cards-list">
         <For each={ordered()}>{card => <div class="outline-cards-row">
-          <span class="outline-cards-kind">{card.kind === 'cloze' ? `Cloze ${card.key.slice('cloze:c'.length)}` : card.kind === 'forward' ? 'Forward' : 'Reverse'}</span>
+          <span class="outline-cards-kind">{card.kind === 'cloze' ? `Cloze ${card.key.slice('cloze:c'.length)}` : card.kind === 'forward' ? 'Forward' : card.kind === 'reverse' ? 'Reverse' : card.kind === 'multiline' ? 'Multi-line' : 'List'}</span>
           <span class="outline-cards-front"><BlockText text={card.front} notebook={props.notebook} interactive={false} /></span>
           <span class="outline-cards-state">{card.schedule.last_reviewed_at === null ? 'New' : card.schedule.due_at <= now() ? 'Due' : `In ${formatInterval(Math.ceil((card.schedule.due_at - now()) / 86_400_000))}`}</span>
           <Show when={card.schedule.last_reviewed_at !== null}><Button disabled={busy()} onClick={() => { setConfirm(card.id); setResetError(''); }}>Reset</Button></Show>

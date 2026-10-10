@@ -11,6 +11,8 @@ pub enum CardKind {
     Forward,
     Reverse,
     Cloze,
+    Multiline,
+    List,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -52,8 +54,10 @@ fn problem(message: &str, start: usize, end: usize) -> CardProblem {
     }
 }
 
-fn operator(text: &str, at: usize) -> bool {
-    text[at..].starts_with(">>") || text[at..].starts_with("<<") || text[at..].starts_with("<>")
+fn operator(text: &str, at: usize) -> Option<&'static str> {
+    [">>1.", ">>>", ">>", "<<", "<>"]
+        .into_iter()
+        .find(|token| text[at..].starts_with(token))
 }
 
 // Escape complete syntax tokens, not just their first character. Paired slashes
@@ -63,11 +67,13 @@ fn escape_end(text: &str, at: usize) -> Option<usize> {
         return None;
     }
     let rest = &text[at + 1..];
-    if [">>", "<<", "<>", "{{", "}}", "::", "[[", "]]"]
-        .iter()
-        .any(|&token| rest.starts_with(token))
+    if let Some(token) = [
+        ">>1.", ">>>", ">>", "<<", "<>", "{{", "}}", "::", "[[", "]]",
+    ]
+    .iter()
+    .find(|&&token| rest.starts_with(token))
     {
-        return Some(at + 3);
+        return Some(at + 1 + token.len());
     }
     if rest
         .as_bytes()
@@ -291,7 +297,7 @@ fn cloze(text: &str, start: usize) -> (usize, Result<Cloze<'_>, CardProblem>) {
 /// partially valid set. Keys depend only on direction or the authored cloze ID.
 pub fn parse_card_text(text: &str) -> CardParse {
     let mut result = CardParse::default();
-    let mut operators: Option<(usize, usize)> = None;
+    let mut operators: Option<(usize, usize, &str)> = None;
     let mut clozes = Vec::new();
     let mut first_cloze = None;
     let mut cursor = 0;
@@ -307,24 +313,27 @@ pub fn parse_card_text(text: &str) -> CardParse {
             }
             cursor = end;
         } else {
-            if operator(text, cursor) {
-                if let Some((_, last)) = &mut operators {
+            if let Some(token) = operator(text, cursor) {
+                if let Some((_, last, _)) = &mut operators {
                     *last = cursor;
                 } else {
-                    operators = Some((cursor, cursor));
+                    operators = Some((cursor, cursor, token));
+                }
+                if token.len() > 2 {
+                    cursor += token.len();
+                    continue;
                 }
             }
-            // Advance one character so overlapping operators (>>> or <>>) are
-            // ambiguous too, rather than silently changing one card's wording.
+            // Ordinary overlapping operators (<>>) remain ambiguous.
             cursor += text[cursor..].chars().next().expect("in bounds").len_utf8();
         }
     }
-    if let Some((first, last)) = operators {
+    if let Some((first, last, _)) = operators {
         if first != last {
             result.problems.push(problem(
                 "Use only one card operator per block.",
                 first,
-                last + 2,
+                last + operator(text, last).expect("recognized operator").len(),
             ));
         }
         if let Some(cloze) = first_cloze {
@@ -341,9 +350,37 @@ pub fn parse_card_text(text: &str) -> CardParse {
     if !result.problems.is_empty() {
         return result;
     }
-    if let Some((at, _)) = operators {
+    if let Some((at, _, token)) = operators {
         let left = trim_owned(literal(text, 0, at).into_owned());
-        let right = trim_owned(literal(text, at + 2, text.len()).into_owned());
+        let right = trim_owned(literal(text, at + token.len(), text.len()).into_owned());
+        if token.len() > 2 {
+            if left.is_empty() {
+                result.problems.push(problem(
+                    "The front of a card needs text.",
+                    at,
+                    at + token.len(),
+                ));
+            } else if !right.is_empty() {
+                result.problems.push(problem(
+                    "Child-answer operators must end the block.",
+                    at,
+                    text.len(),
+                ));
+            } else {
+                let (key, kind) = if token == ">>>" {
+                    ("multiline", CardKind::Multiline)
+                } else {
+                    ("list", CardKind::List)
+                };
+                result.cards.push(ParsedCard {
+                    key: key.to_owned(),
+                    kind,
+                    front: left,
+                    back: String::new(),
+                });
+            }
+            return result;
+        }
         if left.is_empty() || right.is_empty() {
             result
                 .problems
@@ -509,6 +546,42 @@ mod tests {
                 "updated question"
             ),]
         );
+    }
+
+    #[test]
+    fn child_answer_operators_are_terminal_distinct_and_shielded() {
+        for (op, key, kind) in [
+            (">>>", "multiline", CardKind::Multiline),
+            (">>1.", "list", CardKind::List),
+        ] {
+            assert_eq!(
+                parse_card_text(&format!("  Front {op}\u{0085}")).cards,
+                [card(key, kind, "Front", "")]
+            );
+            for invalid in [
+                op.to_owned(),
+                format!("Front {op} answer"),
+                format!("Front >> answer {op}"),
+                format!("Front {op} {op}"),
+                format!("{{{{c1::answer}}}} {op}"),
+            ] {
+                let parsed = parse_card_text(&invalid);
+                assert!(parsed.cards.is_empty(), "{invalid}");
+                assert!(!parsed.problems.is_empty(), "{invalid}");
+            }
+            for shielded in [
+                format!(r"Front \{op}"),
+                format!("`Front {op}`"),
+                format!("[[ref|Front {op}]]"),
+                format!("~~~\nFront {op}\n~~~"),
+            ] {
+                assert_eq!(parse_card_text(&shielded), CardParse::default());
+            }
+            assert_eq!(
+                parse_card_text(&format!(r"Front \\{op}")).cards[0].kind,
+                kind
+            );
+        }
     }
 
     #[test]
@@ -757,7 +830,7 @@ mod tests {
         for (text, start, end) in [
             ("a >> b << c", 2, 9),
             ("a >> b >> c", 2, 9),
-            ("a>>>b", 1, 4),
+            ("a>>>b", 1, 5),
             ("a<>>b", 1, 4),
             ("a<<<b", 1, 4),
         ] {
