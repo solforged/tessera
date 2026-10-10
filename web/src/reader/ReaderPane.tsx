@@ -25,6 +25,8 @@ import type { PassageSelection } from './passages';
 import { extendSelection, followOn, leadIn, sentenceAt, shrinkSelection } from './sentences';
 import type { SelectionUnit, SentenceSelection } from './sentences';
 import { ReaderSettingsPopup, readerSettings, readerStyle } from './ReaderSettings';
+import { pageChunk } from './paged';
+import type { PageChunk } from './paged';
 import { mergeMembers, overlappingHighlights } from './highlight-merge';
 import './reader.css';
 
@@ -40,6 +42,11 @@ export interface ReaderPaneProps {
 }
 
 const PAGE_SIZE = 200;
+/** The gutter between columns, and between one page and the next. */
+const PAGE_GAP = 48;
+const pageTurns: Record<string, 1 | -1> = { ArrowRight: 1, ArrowLeft: -1, PageDown: 1, PageUp: -1, ' ': 1 };
+/** A place in the paged flow: a passage and a character offset into its text. */
+type PageAnchor = { ordinal: number; offset: number };
 type ReaderPopup = { kind: 'contents' | 'find' | 'highlights' | 'settings' | 'actions'; anchor: HTMLElement } | { kind: 'note'; anchor: HTMLElement; text: string; loading: boolean } | { kind: 'menu'; anchor: HTMLElement; items: MenuItem[]; Header?: HighlightMenu['Header'] };
 type SelectionToolbar = PassageSelection & { rect: DOMRect; snapshotId: string };
 /** Touch screens write a new highlight's note beside the passage, not in the source page. */
@@ -72,6 +79,15 @@ export function ReaderPane(props: ReaderPaneProps) {
   const [flash, setFlash] = createSignal<Citation | null>(null);
   const [highlights, setHighlights] = createSignal<HighlightRow[]>([]);
   const [composing, setComposing] = createSignal<HighlightNoteDraft | null>(null);
+  const paged = () => readerSettings().layout === 'pages';
+  const [chunk, setChunk] = createSignal<PageChunk | null>(null);
+  const [pageIndex, setPageIndex] = createSignal(0);
+  const [pageCount, setPageCount] = createSignal(1);
+  const [pageFrame, setPageFrame] = createSignal({ width: 0, columns: 1 });
+  const chunkOrdinals = createMemo(() => {
+    const value = chunk();
+    return value ? Array.from({ length: value.last - value.first + 1 }, (_, index) => value.first + index) : [];
+  });
   const sections = createMemo(() => contents().filter((entry): entry is HighlightSection => entry.ordinal !== null).sort((a, b) => a.ordinal - b.ordinal));
   const [highlightsLoading, setHighlightsLoading] = createSignal(false);
   const [highlightsError, setHighlightsError] = createSignal('');
@@ -81,13 +97,17 @@ export function ReaderPane(props: ReaderPaneProps) {
   const ordinals = new Map<string, number>();
   const pending = new Map<number, Promise<void>>();
   const locating = new Map<string, Promise<number | null>>();
-  let scroll!: HTMLDivElement;
+  let scroll!: HTMLDivElement, probe!: HTMLDivElement, frame: HTMLDivElement | undefined;
+  let pointerStart: { x: number; y: number; touch: boolean } | null = null, wheelTotal = 0, lastWheel = 0, lastTurn = 0, countFrame = 0;
+  // The character that relayouts keep on screen: set by turning, jumping and the cursor, never by a relayout itself.
+  // A passage alone is not enough: a long one spans pages, and returning to its start would walk back a page each time.
+  let pageAnchor: PageAnchor = { ordinal: 0, offset: 0 };
   let disposed = false, restoring = true, generation = 0, jumpVersion = 0;
   let suppressed = !!(props.target.at || props.target.citationId), jumpOrigin = 0, userScroll = false;
   let reportTimer = 0, positionTimer = 0, flashTimer = 0;
   let keyboardQueue = Promise.resolve(), keyboardPending = 0, keyboardVersion = 0, rewritingSelection = false;
   let shiftPressed = false;
-  let settingsViewport: { ordinal: number; offset: number } | null = null, settingsAtStart = false, settingsVersion = 0;
+  let settingsViewport: { ordinal: number; offset: number } | null = null, settingsAtStart = false, settingsFromPages = false, settingsVersion = 0;
   const requests = new AbortController();
   const virtualizer = createVirtualizer<HTMLDivElement, HTMLDivElement>({
     get count() { return total(); },
@@ -154,7 +174,11 @@ export function ReaderPane(props: ReaderPaneProps) {
   });
 
   createComputed(on(readerSettings, () => {
-    if (!settingsViewport) { settingsViewport = visibleRange(); settingsAtStart = scroll?.scrollTop === 0; }
+    if (!settingsViewport) {
+      settingsFromPages = !!scroll?.classList.contains('reader-paged') && !!chunk();
+      settingsViewport = settingsFromPages ? { ordinal: pageAnchor.ordinal, offset: 0 } : visibleRange();
+      settingsAtStart = !settingsFromPages && scroll?.scrollTop === 0;
+    }
     const range = settingsViewport;
     if (!range) return;
     const epoch = generation, token = ++settingsVersion;
@@ -167,7 +191,7 @@ export function ReaderPane(props: ReaderPaneProps) {
         // (images, short headings) then fall back to the estimate. Re-measure mounted rows
         // only; rows mounted later measure themselves.
         for (const row of scroll.querySelectorAll<HTMLDivElement>('.reader-row')) virtualizer.measureElement(row);
-        await jump(range.ordinal, range.offset);
+        await (settingsFromPages && paged() ? relayoutPages() : jump(range.ordinal, range.offset));
         if (!disposed && epoch === generation && token === settingsVersion) {
           if (settingsAtStart) { scroll.scrollTop = 0; report(); }
           settingsViewport = null;
@@ -213,13 +237,173 @@ export function ReaderPane(props: ReaderPaneProps) {
     clearTimeout(positionTimer);
     setCursor(null); setKeyboardRange(null);
     batch(() => {
-      setSelection(null); setFlash(null); setSnapshot(id);
+      setSelection(null); setFlash(null); setSnapshot(id); setChunk(null);
       setContents([]);
       setFirstVisible(0);
       setTotal(source()?.snapshots.find(value => value.id === id)?.passage_count ?? 0);
       setVersion(value => value + 1);
     });
     virtualizer.measure();
+  }
+
+  const nextFrame = () => new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+  const pageStride = () => pageFrame().width + PAGE_GAP;
+
+  /**
+   * One column per page, or two when the pane fits two of at least 22em; never wider than the measure allows.
+   * The frame takes a whole number of pixels no wider than the pane's fractional width, so pages are exactly
+   * one frame and gap apart; a clamped fractional frame would drift a fraction of a pixel per page.
+   */
+  function layoutPages() {
+    const style = getComputedStyle(scroll);
+    const available = Math.floor(scroll.getBoundingClientRect().width - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight));
+    const em = parseFloat(getComputedStyle(probe).fontSize), measure = probe.getBoundingClientRect().width;
+    const columns = available >= 2 * 22 * em + PAGE_GAP ? 2 : 1;
+    setPageFrame({ width: Math.floor(Math.min(available, columns * measure + (columns - 1) * PAGE_GAP)), columns });
+  }
+
+  function applyPage(index: number) {
+    setPageIndex(index);
+    if (frame) frame.scrollLeft = index * pageStride();
+  }
+
+  /** Overflowing columns run to the right of the frame, one page per frame width and gap. */
+  function countPages() {
+    if (!frame?.isConnected) return;
+    const count = Math.max(1, Math.round((frame.scrollWidth + PAGE_GAP) / pageStride()));
+    setPageCount(count);
+    applyPage(Math.min(pageIndex(), count - 1));
+  }
+  const scheduleCount = () => { cancelAnimationFrame(countFrame); countFrame = requestAnimationFrame(countPages); };
+  // Highlights, notes and late images reflow the chunk.
+  createEffect(on(version, () => { if (paged()) scheduleCount(); }, { defer: true }));
+
+  /** Text nodes of a passage in reading order, each with its offset into the passage's text. */
+  function passageText(row: HTMLElement) {
+    const nodes: { node: Text; start: number }[] = [], walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
+    let start = 0;
+    // SHOW_TEXT yields only Text nodes.
+    for (let node = walker.nextNode() as Text | null; node; node = walker.nextNode() as Text | null) {
+      if (node.length) nodes.push({ node, start });
+      start += node.length;
+    }
+    return nodes;
+  }
+  function characterRect(node: Text, index: number): DOMRect | undefined {
+    const range = document.createRange();
+    range.setStart(node, index); range.setEnd(node, index + 1);
+    return range.getClientRects()[0];
+  }
+
+  /** The first character on the current page; characters run left to right across columns and pages. */
+  function firstOnPage(): PageAnchor | null {
+    if (!frame?.isConnected) return null;
+    const view = frame.getBoundingClientRect(), past = (rect: DOMRect | undefined) => !!rect && rect.right > view.left + 1;
+    for (const row of frame.querySelectorAll<HTMLElement>('[data-passage-id]')) {
+      const rects = [...row.getClientRects()].filter(rect => rect.width);
+      if (!rects.some(rect => past(rect) && rect.left < view.right - 1)) continue;
+      const ordinal = Number(row.dataset.ordinal);
+      if (rects[0]!.left > view.left - 1) return { ordinal, offset: 0 };
+      for (const { node, start } of passageText(row)) {
+        if (!past(characterRect(node, node.length - 1))) continue;
+        let low = 0, high = node.length - 1;
+        while (low < high) { const middle = (low + high) >> 1; if (past(characterRect(node, middle))) high = middle; else low = middle + 1; }
+        return { ordinal, offset: start + low };
+      }
+      return { ordinal, offset: 0 };
+    }
+    return null;
+  }
+
+  /** The page holding an anchor's character. A column starts every stride / columns; 8 px absorbs rounding, well under the gap. */
+  function pageOf(anchor: PageAnchor) {
+    const row = frame?.querySelector<HTMLElement>(`[data-ordinal="${anchor.ordinal}"]`);
+    if (!frame || !row) return 0;
+    let rect = row.getClientRects()[0];
+    if (anchor.offset) for (const { node, start } of passageText(row)) {
+      if (anchor.offset < start + node.length) { rect = characterRect(node, anchor.offset - start) ?? rect; break; }
+    }
+    if (!rect) return 0;
+    const { columns } = pageFrame(), x = rect.left - frame.getBoundingClientRect().left + frame.scrollLeft;
+    return Math.max(0, Math.floor(Math.floor((x + 8) / (pageStride() / columns)) / columns));
+  }
+
+  /** Lay out the chunk holding an anchor, then turn to the anchor's page or the chunk's last page. */
+  async function showPassage(anchor: PageAnchor, stale: () => boolean, edge?: 'last') {
+    const target = pageChunk(sections(), total(), anchor.ordinal);
+    for (let from = Math.floor(target.first / PAGE_SIZE) * PAGE_SIZE; from <= target.last; from += PAGE_SIZE) await loadPage(from);
+    await document.fonts.ready;
+    if (stale()) return;
+    layoutPages();
+    const current = chunk();
+    if (current?.first !== target.first || current.last !== target.last) setChunk(target);
+    await nextFrame(); await nextFrame();
+    if (stale() || !frame) return;
+    countPages();
+    applyPage(edge === 'last' ? pageCount() - 1 : Math.min(pageOf(anchor), pageCount() - 1));
+  }
+
+  /** Lay the pages out again around the anchor after the pane or the type changes. */
+  async function relayoutPages() {
+    const token = ++jumpVersion, epoch = generation, anchor = pageAnchor, stale = () => disposed || epoch !== generation || token !== jumpVersion;
+    restoring = true;
+    await showPassage(anchor, stale);
+    if (stale()) return;
+    restoring = false;
+    report();
+  }
+
+  async function revealPassage(ordinal: number) {
+    pageAnchor = { ordinal, offset: 0 };
+    const value = chunk();
+    if (value && ordinal >= value.first && ordinal <= value.last) applyPage(pageOf(pageAnchor));
+    else await showPassage(pageAnchor, () => disposed);
+  }
+
+  /** Turn a page; past a chunk's edge, lay out the neighbouring chunk. */
+  async function turn(direction: 1 | -1) {
+    const value = chunk();
+    if (!value || restoring || editing()) return;
+    userScroll = true; suppressed = false; lastTurn = performance.now();
+    setSelection(null); setCursor(null);
+    const next = pageIndex() + direction;
+    if (next >= 0 && next < pageCount()) applyPage(next);
+    else {
+      const ordinal = direction > 0 ? value.last + 1 : value.first - 1;
+      if (ordinal < 0 || ordinal >= total()) return;
+      const token = ++jumpVersion, epoch = generation;
+      restoring = true;
+      try { await showPassage({ ordinal, offset: 0 }, () => disposed || epoch !== generation || token !== jumpVersion, direction < 0 ? 'last' : undefined); }
+      finally { if (token === jumpVersion) restoring = false; }
+    }
+    pageAnchor = firstOnPage() ?? pageAnchor;
+    report();
+    clearTimeout(positionTimer);
+    positionTimer = window.setTimeout(() => { void savePosition(); }, 2000);
+  }
+
+  /** Swipe sideways to turn; on a touch screen a tap in the outer sixth of the page turns too. */
+  function pagePointerUp(event: PointerEvent) {
+    const start = pointerStart;
+    pointerStart = null;
+    if (!start?.touch || !frame || window.getSelection()?.isCollapsed === false) return;
+    const dx = event.clientX - start.x, dy = event.clientY - start.y;
+    if (Math.abs(dx) > 48 && Math.abs(dx) > 1.5 * Math.abs(dy)) { void turn(dx < 0 ? 1 : -1); return; }
+    if (Math.abs(dx) > 8 || Math.abs(dy) > 8 || event.target instanceof Element && event.target.closest('button, a, .reader-highlight')) return;
+    const rect = frame.getBoundingClientRect(), x = event.clientX - rect.left;
+    if (x < rect.width / 6) void turn(-1);
+    else if (x > rect.width * 5 / 6) void turn(1);
+  }
+
+  function pageWheel(event: WheelEvent) {
+    const now = performance.now();
+    if (now - lastWheel > 300) wheelTotal = 0;
+    lastWheel = now;
+    wheelTotal += Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+    if (Math.abs(wheelTotal) < 40 || now - lastTurn < 400) return;
+    const direction = wheelTotal > 0 ? 1 : -1;
+    wheelTotal = 0;
+    void turn(direction);
   }
 
   async function jump(ordinal: number, offset = 0) {
@@ -229,6 +413,14 @@ export function ReaderPane(props: ReaderPaneProps) {
     const index = Math.max(0, Math.min(ordinal, total() - 1));
     await loadPage(index);
     if (disposed || epoch !== generation || token !== jumpVersion || !total()) return;
+    if (paged()) {
+      pageAnchor = { ordinal: index, offset: 0 };
+      await showPassage(pageAnchor, () => disposed || epoch !== generation || token !== jumpVersion);
+      if (disposed || epoch !== generation || token !== jumpVersion) return;
+      restoring = false;
+      report();
+      return;
+    }
     virtualizer.scrollToIndex(index, { align: 'start' });
     // The destination's real height replaces its estimate after Solid mounts it.
     for (let frame = 0; frame < 3; frame++) {
@@ -253,6 +445,14 @@ export function ReaderPane(props: ReaderPaneProps) {
 
   function visibleRange() {
     if (!scroll || !scroll.getClientRects().length || scroll.closest('[inert], [aria-hidden="true"]') || document.visibilityState === 'hidden') return null;
+    if (scroll.classList.contains('reader-paged')) {
+      if (!frame?.isConnected) return null;
+      const view = frame.getBoundingClientRect();
+      for (const row of frame.querySelectorAll<HTMLElement>('[data-passage-id]')) {
+        for (const rect of row.getClientRects()) if (rect.width && rect.right > view.left + 1 && rect.left < view.right - 1) return { ordinal: Number(row.dataset.ordinal), offset: 0 };
+      }
+      return null;
+    }
     const viewport = scroll.getBoundingClientRect();
     let first: { ordinal: number; offset: number } | null = null;
     for (const row of scroll.querySelectorAll<HTMLElement>('[data-passage-id]')) {
@@ -289,6 +489,7 @@ export function ReaderPane(props: ReaderPaneProps) {
   }
 
   createEffect(() => {
+    if (paged()) return;
     const rows = virtualizer.getVirtualItems();
     snapshot(); total();
     const needed = new Set(rows.map(row => Math.floor(row.index / PAGE_SIZE) * PAGE_SIZE));
@@ -470,15 +671,16 @@ export function ReaderPane(props: ReaderPaneProps) {
     finally { if (!disposed) setEditing(false); }
   }
 
-  function readerKeyBlocked(event: KeyboardEvent) {
+  function readerKeyBlocked(event: KeyboardEvent, shifted = false) {
     if (!props.active || loading() || popup() || editing() || event.isComposing || event.metaKey || event.ctrlKey || event.altKey) return true;
-    if (event.shiftKey && event.key !== '{' && event.key !== '}') return true;
+    if (event.shiftKey && !shifted && event.key !== '{' && event.key !== '}') return true;
     const target = event.target;
     return target instanceof Element && (!!target.closest('input, textarea') || target instanceof HTMLElement && target.isContentEditable);
   }
 
   function visibleCursor() {
     if (cursor() !== null) return cursor()!;
+    if (scroll.classList.contains('reader-paged')) return visibleRange()?.ordinal ?? 0;
     const viewport = scroll.getBoundingClientRect();
     for (const row of scroll.querySelectorAll<HTMLElement>('[data-passage-id]')) {
       const top = row.getBoundingClientRect().top;
@@ -494,7 +696,8 @@ export function ReaderPane(props: ReaderPaneProps) {
     await loadPage(ordinal);
     if (disposed || epoch !== generation || token !== keyboardVersion || !props.active || popup()) return;
     userScroll = true;
-    virtualizer.scrollToIndex(ordinal, { align: 'auto' });
+    if (paged()) await revealPassage(ordinal);
+    else virtualizer.scrollToIndex(ordinal, { align: 'auto' });
   }
 
   async function writeSelection(range: SentenceSelection) {
@@ -505,7 +708,8 @@ export function ReaderPane(props: ReaderPaneProps) {
     try {
       // Keep both endpoints mounted while scrolling to the new selection end.
       for (let frame = 0; frame < 3; frame++) {
-        virtualizer.scrollToIndex(last, { align: 'auto' });
+        if (paged()) await revealPassage(last);
+        else virtualizer.scrollToIndex(last, { align: 'auto' });
         await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
         if (disposed || epoch !== generation || token !== keyboardVersion || !props.active || popup()) return;
       }
@@ -582,6 +786,12 @@ export function ReaderPane(props: ReaderPaneProps) {
       void readerDocument.flush().catch(reason => setError(String(reason)));
       return;
     }
+    const turnBy = pageTurns[event.key];
+    if (turnBy && paged() && !readerKeyBlocked(event, event.key === ' ') && window.getSelection()?.isCollapsed !== false) {
+      event.preventDefault(); event.stopImmediatePropagation();
+      void turn(event.key === ' ' && event.shiftKey ? -1 : turnBy);
+      return;
+    }
     if (readerKeyBlocked(event)) return;
     const key = event.key, moving = key === 'j' || key === 'k' || key === 's', resizing = '][}{'.includes(key) && key.length === 1;
     if (!moving && !resizing || moving && selection() || resizing && !selection() && !keyboardPending) return;
@@ -619,6 +829,20 @@ export function ReaderPane(props: ReaderPaneProps) {
     document.addEventListener('keydown', trackShift, true);
     document.addEventListener('keyup', trackShift, true);
     document.addEventListener('pointerdown', trackShift, true);
+    // Folding, unfolding and the sidebar change the page; keep the passage being read in view.
+    let pageSize = '', resizeFrame = 0;
+    const resizer = new ResizeObserver(() => {
+      // A hidden or collapsing pane has no page to lay out; wait for its real size.
+      if (!scroll.clientWidth || !scroll.clientHeight) return;
+      const size = `${scroll.clientWidth}x${scroll.clientHeight}`;
+      if (size === pageSize) return;
+      pageSize = size;
+      if (!paged() || loading() || !chunk()) return;
+      cancelAnimationFrame(resizeFrame);
+      resizeFrame = requestAnimationFrame(() => { void relayoutPages(); });
+    });
+    resizer.observe(scroll);
+    onCleanup(() => { resizer.disconnect(); cancelAnimationFrame(resizeFrame); cancelAnimationFrame(countFrame); });
     const initialView = { ...props.view }, target = { ...props.target };
     void (async () => {
       const value = await api.source(target.sourceId, requests.signal);
@@ -664,19 +888,23 @@ export function ReaderPane(props: ReaderPaneProps) {
     document.removeEventListener('pointerdown', trackShift, true);
   });
 
-  function PassageRow(row: { ordinal: number; item: () => VirtualItem }) {
+  function PassageContent(row: { ordinal: number; onImageLoad(): void }) {
     const passage = createMemo(() => { version(); return passages.get(row.ordinal); });
+    return <Show when={passage()} fallback={<div class="reader-placeholder" aria-hidden="true" />}>{value => <Dynamic
+      component={value().kind === 'heading' ? `h${Math.min(3, Math.max(1, value().level ?? 1))}` : value().kind === 'quote' ? 'blockquote' : value().kind === 'code' ? 'pre' : 'div'}
+      class={`reader-passage reader-${value().kind}`} classList={{ 'reader-cursor': props.active && cursor() === row.ordinal }} aria-current={props.active && cursor() === row.ordinal ? 'true' : undefined}
+      data-passage-id={value().id} data-ordinal={value().ordinal} style={{ '--level': Math.max(0, value().level ?? 0) }}>
+      <Show when={value().kind === 'image' && value().resource} fallback={<PassageText passage={value()} citations={citations()} notes={highlightNotes()} ordinals={(() => { version(); return ordinals; })()} flashId={flash()?.id ?? null} onLocate={at => { void jumpTo(at); }} onNote={(at, anchor) => { void note(at, anchor); }} onCitation={clickedCitation} onHighlightNote={row => { void openHighlightNote(row); }} />}>
+        <ResourceImage snapshotId={snapshot()} href={value().resource!} alt={value().text} onLoad={row.onImageLoad} />
+      </Show>
+    </Dynamic>}</Show>;
+  }
+
+  function PassageRow(row: { ordinal: number; item: () => VirtualItem }) {
     let element!: HTMLDivElement;
     onMount(() => virtualizer.measureElement(element));
     return <div ref={element} class="reader-row" data-index={row.ordinal} style={{ transform: `translateY(${row.item().start}px)` }}>
-      <Show when={passage()} fallback={<div class="reader-placeholder" aria-hidden="true" />}>{value => <Dynamic
-        component={value().kind === 'heading' ? `h${Math.min(3, Math.max(1, value().level ?? 1))}` : value().kind === 'quote' ? 'blockquote' : value().kind === 'code' ? 'pre' : 'div'}
-        class={`reader-passage reader-${value().kind}`} classList={{ 'reader-cursor': props.active && cursor() === row.ordinal }} aria-current={props.active && cursor() === row.ordinal ? 'true' : undefined}
-        data-passage-id={value().id} data-ordinal={value().ordinal} style={{ '--level': Math.max(0, value().level ?? 0) }}>
-        <Show when={value().kind === 'image' && value().resource} fallback={<PassageText passage={value()} citations={citations()} notes={highlightNotes()} ordinals={(() => { version(); return ordinals; })()} flashId={flash()?.id ?? null} onLocate={at => { void jumpTo(at); }} onNote={(at, anchor) => { void note(at, anchor); }} onCitation={clickedCitation} onHighlightNote={row => { void openHighlightNote(row); }} />}>
-          <ResourceImage snapshotId={snapshot()} href={value().resource!} alt={value().text} onLoad={() => virtualizer.measureElement(element)} />
-        </Show>
-      </Dynamic>}</Show>
+      <PassageContent ordinal={row.ordinal} onImageLoad={() => virtualizer.measureElement(element)} />
     </div>;
   }
 
@@ -741,13 +969,31 @@ export function ReaderPane(props: ReaderPaneProps) {
     <Show when={error()}><p class="reader-error error" role="alert">{error()}</p></Show>
     <Show when={loading()}><p class="reader-status" role="status">Loading…</p></Show>
     <Show when={mergeMessage()}><p class="reader-status" role="status">{mergeMessage()}</p></Show>
-    <div ref={scroll} class="reader-scroll" tabIndex={0} aria-label="Source passages" onScroll={scrolled}
+    <div class="reader-measure-probe" aria-hidden="true"><div ref={probe} /></div>
+    <div ref={scroll} class="reader-scroll" classList={{ 'reader-paged': paged() }} tabIndex={0} aria-label="Source passages" onScroll={scrolled}
       onWheel={() => { userScroll = true; }} onTouchMove={() => { userScroll = true; }} onPointerDown={() => { userScroll = true; }}
       onKeyDown={event => { if (['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp', 'Home', 'End', ' '].includes(event.key)) userScroll = true; }}>
-      <div class="reader-list" style={{ height: `${virtualizer.getTotalSize()}px` }}>
+      <Show when={paged()} fallback={<div class="reader-list" style={{ height: `${virtualizer.getTotalSize()}px` }}>
         <Show when={currentSnapshot()?.metadata.title}><TitleBlock /></Show>
         <For each={[...items().keys()]}>{ordinal => <PassageRow ordinal={ordinal} item={() => items().get(ordinal)!} />}</For>
-      </div>
+      </div>}>
+        <div ref={frame} class="reader-page-frame" style={{ width: `${pageFrame().width}px` }} onWheel={pageWheel}
+          onPointerDown={event => { pointerStart = { x: event.clientX, y: event.clientY, touch: event.pointerType !== 'mouse' }; }}
+          onPointerUp={pagePointerUp} onPointerCancel={() => { pointerStart = null; }}>
+          <div class="reader-flow" style={{ 'column-count': pageFrame().columns, 'column-gap': `${PAGE_GAP}px` }}>
+            <Show when={chunk()?.first === 0 && currentSnapshot()?.metadata.title}><div class="reader-title-block reader-page-title">
+              <h1>{currentSnapshot()?.metadata.title}</h1>
+              <Show when={byline()}><p>{byline()}</p></Show>
+            </div></Show>
+            <For each={chunkOrdinals()}>{ordinal => <PassageContent ordinal={ordinal} onImageLoad={scheduleCount} />}</For>
+          </div>
+        </div>
+        <div class="reader-page-bar">
+          <Button icon="left" label="Previous page" disabled={pageIndex() === 0 && !chunk()?.first} onClick={() => { void turn(-1); }} />
+          <span>{pageIndex() + 1} / {pageCount()}</span>
+          <Button icon="right" label="Next page" disabled={pageIndex() >= pageCount() - 1 && (chunk()?.last ?? 0) >= total() - 1} onClick={() => { void turn(1); }} />
+        </div>
+      </Show>
     </div>
     <Show when={popup()}>{state => <>
       <Show when={state().kind === 'settings'}><ReaderSettingsPopup anchor={state().anchor} onDismiss={() => setPopup(null)} /></Show>

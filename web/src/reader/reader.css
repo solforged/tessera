@@ -9,6 +9,18 @@
 .reader-scroll { flex: 1; min-height: 0; overflow: auto; overflow-anchor: none; padding: 0 var(--space-24) var(--space-48); }
 .reader-list { position: relative; max-width: var(--reader-measure); margin-inline: auto; font-size: var(--reader-size); }
 .reader-row { position: absolute; top: 0; left: 0; width: 100%; padding-bottom: var(--space-16); }
+/* Pages: the chunk flows through columns of the pane's height; overflowing columns run off to the right and the frame shows one page of them at a time. */
+.reader-measure-probe { position: absolute; width: 0; height: 0; overflow: hidden; visibility: hidden; font-size: var(--reader-size); }
+.reader-measure-probe > div { width: var(--reader-measure); }
+.reader-scroll.reader-paged { display: flex; flex-direction: column; align-items: center; overflow: hidden; padding: 0 var(--space-24); }
+.reader-page-frame { flex: 1; min-height: 0; max-width: 100%; overflow: hidden; touch-action: pan-y pinch-zoom; }
+.reader-flow { height: 100%; column-fill: auto; font-size: var(--reader-size); orphans: 2; widows: 2; }
+.reader-flow > .reader-passage { margin-bottom: var(--space-16); }
+.reader-flow > :is(h1, h2, h3) { break-after: avoid; }
+.reader-flow > :is(.reader-image, .reader-code) { break-inside: avoid; }
+.reader-flow .reader-image img { max-height: 50vh; }
+.reader-flow > .reader-page-title { position: static; padding-top: 0; }
+.reader-page-bar { display: flex; flex-shrink: 0; align-items: center; gap: var(--space-8); padding-block: var(--space-4); color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .reader-passage { margin: 0; color: var(--text); font-family: var(--reader-font); font-size: var(--reader-size); line-height: var(--reader-line); font-weight: var(--weight-body); font-variation-settings: var(--optical-reader); white-space: pre-wrap; overflow-wrap: anywhere; }
 /* An opaque selection keeps inline highlight tints from changing its paint. */
 .reader-passage::selection, .reader-passage *::selection { background: var(--selection); color: var(--text); }
