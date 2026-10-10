@@ -27,6 +27,9 @@ a { color: var(--accent); }
 .mode-tabs > .button { font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); color: var(--muted); }
 .mode-tabs > .button:hover:not(:disabled) { color: var(--text); }
 .mode-tabs > .button[aria-pressed="true"] { background: transparent; color: var(--accent); box-shadow: inset 0 calc(-1 * var(--rule-width)) var(--accent); }
+/* Keyboard focus on a tab is a faint rule, never a ring; on the current tab the gilt rule thickens. */
+.mode-tabs > .button:focus-visible { outline: none; color: var(--text); box-shadow: inset 0 calc(-1 * var(--rule-width)) var(--faint); }
+.mode-tabs > .button[aria-pressed="true"]:focus-visible { color: var(--accent); box-shadow: inset 0 calc(-2 * var(--rule-width)) var(--accent); }
 :is(.popup, .popup-exit) { position: fixed; z-index: 50; max-width: calc(100vw - var(--space-16)); overflow: auto; background: var(--raised); border: 1px solid var(--line); border-radius: var(--radius-popup); box-shadow: var(--popup-shadow); padding: var(--space-8); }
 :is(.popup, .popup-exit)::before { content: ''; position: absolute; top: 0; left: var(--space-12); width: var(--rubric-width); height: var(--rubric-height); background: var(--danger); pointer-events: none; }
 .popup-enter { animation: popup-in var(--motion-ui) var(--motion-ease) both; }
@@ -47,7 +50,12 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 /* Fields sit in a dark well with a hairline; the frame brightens only while hovered or typed in. */
 .input { width: 100%; min-height: 32px; border: 1px solid var(--line); border-radius: var(--radius-control); padding: var(--space-4) var(--space-8); background: var(--surface); transition: border-color var(--motion-fast) var(--motion-ease); }
-.input:hover:not(:disabled), .input:focus { border-color: var(--control-border); }
+.input:hover:not(:disabled) { border-color: var(--control-border); }
+/* Focus turns the hairline gilt instead of adding a ring outside it, so a field never shows two frames. */
+.input:is(:focus, :focus-visible):not(:disabled) { outline: none; border-color: var(--accent); }
+/* WebKit draws its own grey clear button in search fields; redraw it as a faint cross in the text colour. */
+.input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; width: var(--icon-size); height: var(--icon-size); background: var(--faint); cursor: pointer; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 4l8 8M12 4l-8 8' stroke='black' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 4l8 8M12 4l-8 8' stroke='black' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat; }
+.input[type="search"]::-webkit-search-cancel-button:hover { background: var(--text); }
 .input::placeholder { color: var(--faint); }
 .empty-state { margin: var(--space-12) var(--space-8); color: var(--muted); font-size: var(--text-control); }
 
