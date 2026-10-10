@@ -43,6 +43,7 @@ a { color: var(--accent); }
 .menu-item:focus-visible { outline: none; background: var(--selection); box-shadow: inset var(--rule-width) 0 var(--accent); }
 .menu-item.danger { color: var(--danger); }
 .menu-label { flex: 1; }
+.menu-item > .menu-check { color: var(--accent); }
 /* Keys use the sans voice: the mono face lacks ⌃⇧⌘⌥↵, and fallback glyphs came out mismatched in size. */
 kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--line-apparatus) var(--font-body); font-variant-numeric: tabular-nums; white-space: nowrap; }
 /* A touch screen without a hovering pointer has no keyboard to speak of; its hints are noise. */
