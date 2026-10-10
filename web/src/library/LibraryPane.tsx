@@ -29,6 +29,8 @@ export interface LibraryPaneProps {
   onActivate(): void;
   onOpen(target: OpenTarget, beside: boolean): void;
   onViewChange(view: LibraryViewState): void;
+  /** Delete sources with their highlights; the shell offers undo. */
+  onDeleteSources(sources: { id: string; title: string }[]): Promise<void>;
 }
 
 type LibraryPopup =
@@ -36,6 +38,7 @@ type LibraryPopup =
   | { kind: 'tags'; anchor: HTMLElement }
   | { kind: 'name'; anchor: HTMLElement; saved: LibraryView | null; id: string }
   | { kind: 'delete'; anchor: HTMLElement; saved: LibraryView }
+  | { kind: 'delete-sources'; anchor: HTMLElement; sources: { id: string; title: string }[] }
   | { kind: 'menu'; anchor: HTMLElement; label: string; items: MenuItem[]; Header?: HighlightMenu['Header'] };
 const tabs: { id: LibraryTab; label: string }[] = [
   { id: 'inbox', label: 'Inbox' }, { id: 'reading', label: 'Reading' },
@@ -334,6 +337,21 @@ export function LibraryPane(props: LibraryPaneProps) {
       if (!disposed) setCommandError(reason instanceof Error ? reason.message : String(reason));
     } finally { if (!disposed) setSaving(false); }
   }
+  function confirmDelete(anchor: HTMLElement, rows: LibraryRow[]) {
+    if (!rows.length) return;
+    setCommandError('');
+    setPopup({ kind: 'delete-sources', anchor, sources: rows.map(row => ({ id: row.page.id, title: row.page.text })) });
+  }
+  async function deleteSources(sources: { id: string; title: string }[]) {
+    if (saving()) return;
+    setSaving(true); setCommandError('');
+    try {
+      await props.onDeleteSources(sources);
+      if (!disposed) { setPopup(null); clearSelection(); }
+    } catch (reason) {
+      if (!disposed) setCommandError(reason instanceof Error ? reason.message : String(reason));
+    } finally { if (!disposed) { setSaving(false); setRefresh(value => value + 1); } }
+  }
   function toggleSelection(id: string, range: boolean) {
     setSelected(previous => selectSources(displayedSources().map(row => row.page.id), previous, id, selectionAnchor, range));
     selectionAnchor = id;
@@ -411,6 +429,7 @@ export function LibraryPane(props: LibraryPaneProps) {
       { label: 'Export BibTeX', icon: 'download', action: () => { void download('bibtex', [row.page.id]); } },
       { label: 'Export CSL JSON', icon: 'download', action: () => { void download('csl', [row.page.id]); } },
       { label: 'Export Markdown', icon: 'download', action: () => { void download('markdown', [row.page.id]); } },
+      { label: 'Delete…', icon: 'trash', danger: true, disabledReason: saving() ? 'Saving…' : undefined, action: () => confirmDelete(anchor, [row]) },
     ] });
   }
   function rowKey(event: KeyboardEvent, target: OpenTarget) {
@@ -471,6 +490,7 @@ export function LibraryPane(props: LibraryPaneProps) {
             <span class="library-selection-count">{selected().size} selected</span>
             <Button aria-haspopup="menu" disabled={saving()} onClick={event => setPopup({ kind: 'menu', anchor: event.currentTarget, label: 'Mark as', items: tabs.filter(item => item.id !== 'all' && item.id !== 'highlights').map(item => ({ label: item.label, action: () => { void changeSelectedState(item.id as ReadingState); } })) })}>Mark as<Icon name="down" /></Button>
             <Button aria-haspopup="menu" disabled={loading() || !!error() || loadedKey() !== queryKey()} onClick={event => exportMenu(event.currentTarget)}>Export<Icon name="down" /></Button>
+            <Button icon="trash" class="danger" aria-haspopup="dialog" disabled={saving()} onClick={event => confirmDelete(event.currentTarget, displayedSources().filter(row => selected().has(row.page.id)))}>Delete</Button>
             <Button class="library-clear-selection" onClick={clearSelection}>Clear selection</Button>
           </Show>
         </Show>
@@ -561,6 +581,12 @@ export function LibraryPane(props: LibraryPaneProps) {
         <p>Delete “{state.saved.name}”? Sources are not deleted.</p>
         <Show when={commandError()}><p class="library-error" role="alert">{commandError()}</p></Show>
         <div class="popup-actions"><Button disabled={saving()} onClick={dismiss}>Cancel</Button><Button class="bordered danger" disabled={saving()} onClick={() => { void deleteView(state.saved); }}>Delete view</Button></div>
+      </Popup>;
+      if (state.kind === 'delete-sources') return <Popup anchor={state.anchor} label={state.sources.length === 1 ? 'Delete source?' : 'Delete sources?'} onDismiss={dismiss} width={320}>
+        <p>Delete {state.sources.length === 1 ? `“${state.sources[0]!.title}”` : `${state.sources.length} sources`} and {state.sources.length === 1 ? 'its' : 'their'} highlights?</p>
+        <p class="muted">You can undo this deletion.</p>
+        <Show when={commandError()}><p class="library-error" role="alert">{commandError()}</p></Show>
+        <div class="popup-actions"><Button disabled={saving()} onClick={dismiss}>Cancel</Button><Button icon="trash" class="bordered danger" disabled={saving()} onClick={() => { void deleteSources(state.sources); }}>{state.sources.length === 1 ? 'Delete source' : `Delete ${state.sources.length} sources`}</Button></div>
       </Popup>;
       if (EMBEDDED) return null;
       return <AddSheet anchor={state.anchor} notebook={props.notebook} onDismiss={dismiss} onChooseFile={() => fileInput.click()} onFiles={files => { void upload(files); }} onJob={recordJob} onAdded={pageId => props.onOpen({ kind: 'page', pageId }, false)} />;
