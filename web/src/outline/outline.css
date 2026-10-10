@@ -74,6 +74,9 @@
 .empty-block { color: var(--faint); opacity: 0.65; }
 .editor-host { display: none; }
 .editor-host.host-active { display: block; }
+/* The caret marks the block being edited. CodeMirror's own `outline: none` does not reach the Android WebView,
+   which then draws the global gilt ring around the whole block. */
+.editor-host .cm-content:focus-visible { outline: none; }
 .outline-body:is(.heading-1, .heading-2, .heading-3) { font-family: var(--font-display); font-weight: var(--weight-display-heading); font-variation-settings: var(--optical-heading); letter-spacing: var(--tracking-heading); }
 .outline-body.heading-1 { font-size: var(--text-h1); line-height: var(--line-h1); }
 .outline-body.heading-2 { font-size: var(--text-outline-h2); line-height: var(--line-h2); }
