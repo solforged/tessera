@@ -129,6 +129,179 @@ fn merge(nb: &Notebook, source: u128, destination: u128) -> Operation {
 }
 
 #[test]
+fn child_answers_ignore_blank_typing_rows() {
+    for (syntax, key) in [(">>>", "multiline"), (">>1.", "list")] {
+        let (_dir, mut nb) = fixture(&format!("Question {syntax}"));
+        apply(&mut nb, vec![insert(20, 10, ""), insert(21, 10, "Answer")]);
+        let card = unit(&nb, 10, key);
+        assert_eq!(card.answer_blocks.len(), 1);
+        assert_eq!(card.answer_blocks[0].text, "Answer");
+        edit(&mut nb, 21, " ");
+        assert!(!unit(&nb, 10, key).active);
+    }
+}
+
+#[test]
+fn child_answers_follow_subtree_edits_order_moves_and_visibility_without_resetting() {
+    for (syntax, key) in [(">>>", "multiline"), (">>1.", "list")] {
+        let (_dir, mut nb) = fixture(&format!("Front {syntax}"));
+        assert!(nb.source_cards(&id(10)).unwrap().is_empty());
+        apply(&mut nb, vec![insert(20, 10, "  ")]);
+        assert!(nb.source_cards(&id(10)).unwrap().is_empty());
+        apply(
+            &mut nb,
+            vec![insert(21, 20, "Nested [[link]]"), insert(22, 10, "First")],
+        );
+        let reviewed = grade(&mut nb, 10, key, 100);
+        assert_eq!(
+            reviewed
+                .answer_blocks
+                .iter()
+                .map(|b| &b.id)
+                .collect::<Vec<_>>(),
+            [&id(22), &id(20)]
+        );
+        assert_eq!(
+            reviewed.answer_blocks[1].children[0].text,
+            "Nested [[link]]"
+        );
+        edit(&mut nb, 21, "Changed nested answer");
+        let changed = unit(&nb, 10, key);
+        assert_eq!(changed.id, reviewed.id);
+        assert_eq!(changed.schedule, reviewed.schedule);
+        assert!(changed.definition_revision > reviewed.definition_revision);
+        assert_ne!(changed.back, reviewed.back);
+        assert_eq!(
+            changed.answer_blocks[1].children[0].text,
+            "Changed nested answer"
+        );
+        let revision = nb.block(&id(22)).unwrap().revision;
+        apply(
+            &mut nb,
+            vec![Operation::Move {
+                id: id(22),
+                base_revision: revision,
+                parent_id: id(10),
+                after: Some(id(20)),
+            }],
+        );
+        assert_eq!(unit(&nb, 10, key).answer_blocks[0].id, id(20));
+
+        let revision = nb.block(&id(22)).unwrap().revision;
+        let deleted = apply(
+            &mut nb,
+            vec![Operation::Delete {
+                id: id(22),
+                base_revision: revision,
+            }],
+        );
+        assert_eq!(unit(&nb, 10, key).answer_blocks.len(), 1);
+        let revision = deleted
+            .revisions
+            .iter()
+            .find(|r| r.id == id(22))
+            .unwrap()
+            .revision;
+        apply(
+            &mut nb,
+            vec![Operation::Restore {
+                id: id(22),
+                deletion_id: deleted.deletions[0].clone(),
+                revision,
+            }],
+        );
+        assert_eq!(unit(&nb, 10, key).answer_blocks.len(), 2);
+        apply(&mut nb, vec![insert(11, 1, &format!("Other {syntax}"))]);
+        for child in [20, 22] {
+            let revision = nb.block(&id(child)).unwrap().revision;
+            apply(
+                &mut nb,
+                vec![Operation::Move {
+                    id: id(child),
+                    base_revision: revision,
+                    parent_id: id(11),
+                    after: None,
+                }],
+            );
+        }
+        let dormant = unit(&nb, 10, key);
+        assert!(!dormant.active);
+        assert_eq!(dormant.schedule, reviewed.schedule);
+        assert_eq!(unit(&nb, 11, key).answer_blocks.len(), 2);
+        for child in [20, 22] {
+            let revision = nb.block(&id(child)).unwrap().revision;
+            apply(
+                &mut nb,
+                vec![Operation::SetArchived {
+                    id: id(child),
+                    base_revision: revision,
+                    archived: true,
+                }],
+            );
+        }
+        assert!(!unit(&nb, 11, key).active);
+        let revision = nb.block(&id(20)).unwrap().revision;
+        apply(
+            &mut nb,
+            vec![Operation::SetArchived {
+                id: id(20),
+                base_revision: revision,
+                archived: false,
+            }],
+        );
+        assert!(unit(&nb, 11, key).active);
+        let revision = nb.block(&id(20)).unwrap().revision;
+        apply(
+            &mut nb,
+            vec![Operation::Move {
+                id: id(20),
+                base_revision: revision,
+                parent_id: id(10),
+                after: None,
+            }],
+        );
+        let restored = unit(&nb, 10, key);
+        assert!(restored.active);
+        assert_eq!(restored.id, reviewed.id);
+        assert_eq!(restored.schedule, reviewed.schedule);
+        assert_eq!(
+            nb.review_events(&restored.id).unwrap()[0].shown_back,
+            reviewed.back
+        );
+    }
+}
+
+#[test]
+fn child_edits_before_a_grade_reject_stale_answer_evidence_atomically() {
+    let (_dir, mut nb) = fixture("Question >>>");
+    apply(&mut nb, vec![insert(20, 10, "Answer")]);
+    let card = unit(&nb, 10, "multiline");
+    let result = nb.apply(&batch(vec![
+        Operation::EditText {
+            id: id(20),
+            base_revision: 1,
+            text: "Changed".into(),
+        },
+        Operation::GradeCard {
+            id: card.id.clone(),
+            base_revision: card.revision,
+            definition_revision: card.definition_revision,
+            event_id: id(100),
+            session_id: None,
+            grade: Grade::Good,
+            reset: false,
+            shown_front: card.front.clone(),
+            shown_back: card.back.clone(),
+            reviewed_at: 1000,
+        },
+    ]));
+    assert!(matches!(result, Err(Error::Conflict { .. })));
+    assert_eq!(nb.block(&id(20)).unwrap().text, "Answer");
+    assert_eq!(unit(&nb, 10, "multiline"), card);
+    assert!(nb.review_events(&card.id).unwrap().is_empty());
+}
+
+#[test]
 fn unicode_wording_and_direction_changes_keep_role_identity_and_progress() {
     let (_dir, mut nb) = fixture("東京>>日本");
     let original = unit(&nb, 10, "forward");

@@ -5,7 +5,7 @@ use rusqlite::{Connection, OptionalExtension, params};
 use crate::card_text::{CardKind, parse_card_text};
 use crate::scheduler;
 use crate::storage::{not_found, validate_id, validation};
-use crate::{CardUnit, Notebook, Result, Revision};
+use crate::{CardAnswerBlock, CardUnit, Notebook, Result, Revision};
 
 fn text_at<'row>(row: &'row rusqlite::Row<'_>, offset: usize) -> rusqlite::Result<&'row str> {
     row.get_ref(offset)?.as_str().map_err(|error| {
@@ -22,6 +22,8 @@ fn kind_at(row: &rusqlite::Row<'_>, offset: usize) -> rusqlite::Result<CardKind>
         "forward" => Ok(CardKind::Forward),
         "reverse" => Ok(CardKind::Reverse),
         "cloze" => Ok(CardKind::Cloze),
+        "multiline" => Ok(CardKind::Multiline),
+        "list" => Ok(CardKind::List),
         kind => Err(rusqlite::Error::FromSqlConversionFailure(
             offset,
             rusqlite::types::Type::Text,
@@ -38,6 +40,8 @@ fn kind_name(kind: CardKind) -> &'static str {
         CardKind::Forward => "forward",
         CardKind::Reverse => "reverse",
         CardKind::Cloze => "cloze",
+        CardKind::Multiline => "multiline",
+        CardKind::List => "list",
     }
 }
 
@@ -51,15 +55,29 @@ pub(crate) fn card_at(row: &rusqlite::Row<'_>, offset: usize) -> rusqlite::Resul
             Box::new(error),
         )
     })?;
+    let kind = kind_at(row, offset + 3)?;
+    let back: String = row.get(offset + 7)?;
+    let answer_blocks = if matches!(kind, CardKind::Multiline | CardKind::List) {
+        serde_json::from_str(&back).map_err(|error| {
+            rusqlite::Error::FromSqlConversionFailure(
+                offset + 7,
+                rusqlite::types::Type::Text,
+                Box::new(error),
+            )
+        })?
+    } else {
+        Vec::new()
+    };
     Ok(CardUnit {
         id: row.get(offset)?,
         source_block_id: row.get(offset + 1)?,
         key: row.get(offset + 2)?,
-        kind: kind_at(row, offset + 3)?,
+        kind,
         active: row.get(offset + 4)?,
         definition_revision: row.get(offset + 5)?,
         front: row.get(offset + 6)?,
-        back: row.get(offset + 7)?,
+        back,
+        answer_blocks,
         revision: row.get(offset + 8)?,
         schedule,
     })
@@ -87,11 +105,60 @@ struct Definition {
     revision: i64,
 }
 
+/// Read the authored child outline in sibling order. Hidden branches and empty
+/// leaves are not answer items; empty parents still retain non-empty descendants.
+fn answer_blocks(conn: &Connection, source: &str) -> Result<Vec<CardAnswerBlock>> {
+    let mut statement = conn.prepare_cached(
+        "WITH RECURSIVE subtree(id, parent_id, text, ordinal, depth) AS (
+             SELECT id, parent_id, text, ordinal, 0 FROM blocks
+             WHERE parent_id = ?1 AND deletion_id IS NULL AND archived = 0
+             UNION ALL
+             SELECT b.id, b.parent_id, b.text, b.ordinal, s.depth + 1
+             FROM blocks b JOIN subtree s ON b.parent_id = s.id
+             WHERE b.deletion_id IS NULL AND b.archived = 0
+         ) SELECT id, parent_id, text FROM subtree
+           ORDER BY depth DESC, parent_id, ordinal, id",
+    )?;
+    let mut children: HashMap<String, Vec<CardAnswerBlock>> = HashMap::new();
+    let mut rows = statement.query([source])?;
+    while let Some(row) = rows.next()? {
+        let id: String = row.get(0)?;
+        let text: String = row.get(2)?;
+        let nested = children.remove(&id).unwrap_or_default();
+        if text.trim().is_empty() && nested.is_empty() {
+            continue;
+        }
+        children
+            .entry(row.get(1)?)
+            .or_default()
+            .push(CardAnswerBlock {
+                id,
+                text,
+                children: nested,
+            });
+    }
+    Ok(children.remove(source).unwrap_or_default())
+}
+
 pub(crate) fn derive_sources(conn: &Connection, ids: &[String], now: i64) -> Result<Vec<Revision>> {
     if ids.is_empty() {
         return Ok(Vec::new());
     }
+    // Child edits, moves, deletion, restoration and reordering invalidate every
+    // ancestor definition, not just cards on the edited row itself.
     let ids = serde_json::to_string(ids).expect("source IDs serialize");
+    let ids = conn
+        .prepare_cached(
+            "WITH RECURSIVE affected(id) AS (
+             SELECT value FROM json_each(?1)
+             UNION
+             SELECT b.parent_id FROM blocks b JOIN affected a ON b.id = a.id
+             WHERE b.parent_id IS NOT NULL
+         ) SELECT id FROM affected ORDER BY id",
+        )?
+        .query_map([ids], |row| row.get::<_, String>(0))?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    let ids = serde_json::to_string(&ids).expect("source IDs serialize");
     let mut existing: HashMap<String, HashMap<String, Definition>> = HashMap::new();
     let mut definitions = conn.prepare_cached(
         "SELECT c.source_block_id, c.key, c.id, c.kind, c.active, c.front, c.back, c.revision
@@ -140,7 +207,14 @@ pub(crate) fn derive_sources(conn: &Connection, ids: &[String], now: i64) -> Res
         let source_id = text_at(row, 0)?;
         let parsed = parse_card_text(text_at(row, 1)?);
         let mut previous = existing.remove(source_id).unwrap_or_default();
-        for parsed in parsed.cards {
+        for mut parsed in parsed.cards {
+            if matches!(parsed.kind, CardKind::Multiline | CardKind::List) {
+                let answer = answer_blocks(conn, source_id)?;
+                if answer.is_empty() {
+                    continue;
+                }
+                parsed.back = serde_json::to_string(&answer).expect("answer blocks serialize");
+            }
             if let Some(old) = previous.remove(&parsed.key) {
                 if old.active
                     && old.kind == parsed.kind

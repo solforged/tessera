@@ -180,6 +180,13 @@ pub struct WorkSession {
     pub revision: i64,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CardAnswerBlock {
+    pub id: String,
+    pub text: String,
+    pub children: Vec<CardAnswerBlock>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CardUnit {
     pub id: String,
@@ -190,6 +197,7 @@ pub struct CardUnit {
     pub definition_revision: i64,
     pub front: String,
     pub back: String,
+    pub answer_blocks: Vec<CardAnswerBlock>,
     pub revision: i64,
     pub schedule: SchedulingState,
 }
@@ -219,6 +227,21 @@ pub enum ReviewEventKind {
     Reset,
 }
 
+/// Retained evidence is not rewritten when changing scheduling algorithms.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ReviewSchedulingState {
+    Legacy {
+        ease_factor: f64,
+        interval_days: u32,
+        repetitions: u32,
+        lapses: u32,
+        due_at: i64,
+        last_reviewed_at: Option<i64>,
+    },
+    Fsrs(SchedulingState),
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ReviewEvent {
     pub id: String,
@@ -229,9 +252,9 @@ pub struct ReviewEvent {
     pub shown_front: String,
     pub shown_back: String,
     pub definition_revision: i64,
-    pub scheduler_version: u32,
-    pub before: SchedulingState,
-    pub after: SchedulingState,
+    pub scheduler_version: String,
+    pub before: ReviewSchedulingState,
+    pub after: ReviewSchedulingState,
     pub created_at: i64,
     pub change_seq: i64,
 }

@@ -26,6 +26,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/017_questions.sql"),
     include_str!("../migrations/018_reading_position.sql"),
     include_str!("../migrations/019_agent_changes.sql"),
+    include_str!("../migrations/020_fsrs_child_cards.sql"),
 ];
 
 pub const SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
@@ -77,7 +78,8 @@ pub(crate) fn migrate(conn: &mut Connection) -> Result<()> {
     }
     crate::fields::ensure_page(&tx)?;
     crate::fields::rebuild(&tx)?;
-    if found < 9 {
+    if found < 20 {
+        crate::review_store::backfill_fsrs(&tx)?;
         crate::card_store::rebuild(&tx, now_ms())?;
     }
     tx.pragma_update(None, "user_version", SCHEMA_VERSION)?;
@@ -93,6 +95,146 @@ mod tests {
     use rusqlite::params;
 
     use super::*;
+
+    #[test]
+    fn fsrs_replays_history_and_resets_without_rewriting_evidence() {
+        use crate::scheduler::{Grade, new_card, schedule};
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.pragma_update(None, "foreign_keys", true).unwrap();
+        for migration in &MIGRATIONS[..19] {
+            conn.execute_batch(migration).unwrap();
+        }
+        conn.pragma_update(None, "user_version", 19).unwrap();
+        let id = |n: u128| ulid::Ulid::from(n).to_string();
+        conn.execute(
+            "INSERT INTO blocks(id, kind, page_id, ordinal, text, title_key, revision, created_at, updated_at)
+             VALUES (?1, 'page', ?1, 1024, 'Cards', 'cards', 1, 0, 0)", [id(1)],
+        ).unwrap();
+        let legacy = r#"{"ease_factor":2.5,"interval_days":6,"repetitions":2,"lapses":0,"due_at":999,"last_reviewed_at":123}"#;
+        for n in 2..=4 {
+            conn.execute(
+                "INSERT INTO blocks(id, kind, parent_id, page_id, ordinal, text, revision, created_at, updated_at)
+                 VALUES (?1, 'block', ?2, ?2, ?3, 'front>>back', 1, 0, 0)",
+                params![id(n), id(1), n as i64],
+            ).unwrap();
+            conn.execute(
+                "INSERT INTO card_units VALUES (?1, ?2, 'forward', 'forward', 1, 1, 'front', 'back', 7, ?3, 0, 0)",
+                params![id(n + 10), id(n), legacy],
+            ).unwrap();
+        }
+        conn.execute(
+            "INSERT INTO changes(seq, actor, created_at, operations_hash, operations, committed)
+             VALUES (1, 'person', 0, '', '[]', '{}')",
+            [],
+        )
+        .unwrap();
+        let day = 86_400_000;
+        let histories = [
+            (
+                12,
+                vec![
+                    (Some(Grade::Good), day),
+                    (Some(Grade::Again), 9 * day),
+                    (Some(Grade::Easy), 9 * day),
+                ],
+            ),
+            (
+                13,
+                vec![
+                    (Some(Grade::Good), day),
+                    (None, 2 * day),
+                    (Some(Grade::Hard), 2 * day),
+                ],
+            ),
+        ];
+        let mut expected = Vec::new();
+        let mut event_id = 100;
+        for (card_id, history) in &histories {
+            let mut state = new_card(0);
+            for &(grade, at) in history {
+                let grade_json = grade.map(|grade| {
+                    serde_json::to_value(grade)
+                        .unwrap()
+                        .as_str()
+                        .unwrap()
+                        .to_owned()
+                });
+                conn.execute(
+                    "INSERT INTO review_events VALUES (?1, ?2, NULL, ?3, ?4, 'front', 'back', 1, 1, ?5, ?5, ?6, 1)",
+                    params![id(event_id), id(*card_id), if grade.is_some() { "grade" } else { "reset" }, grade_json, legacy, at],
+                ).unwrap();
+                // Deliberately reverse IDs; equal timestamps must sort by rowid.
+                event_id -= 1;
+                state = grade.map_or_else(|| new_card(at), |grade| schedule(&state, grade, at));
+            }
+            expected.push((*card_id, state));
+        }
+        let evidence = |conn: &Connection| {
+            conn.prepare(
+                "SELECT rowid, id, before_state, after_state FROM review_events ORDER BY rowid",
+            )
+            .unwrap()
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                ))
+            })
+            .unwrap()
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .unwrap()
+        };
+        let before = evidence(&conn);
+        migrate(&mut conn).unwrap();
+        assert_eq!(evidence(&conn), before);
+        for (card_id, expected) in expected {
+            let card = crate::card_store::card(&conn, &id(card_id)).unwrap();
+            assert_eq!(card.schedule, expected);
+            assert_eq!(card.revision, 7);
+            assert!(card.schedule.stability.is_some());
+        }
+        assert_eq!(
+            crate::card_store::card(&conn, &id(14)).unwrap().schedule,
+            new_card(0)
+        );
+        assert_eq!(
+            conn.query_row(
+                "SELECT COUNT(*) FROM review_events WHERE scheduler_version = 'sm-2'",
+                [],
+                |r| r.get::<_, i64>(0)
+            )
+            .unwrap(),
+            6
+        );
+        assert!(
+            conn.prepare("PRAGMA foreign_key_check")
+                .unwrap()
+                .query([])
+                .unwrap()
+                .next()
+                .unwrap()
+                .is_none()
+        );
+        let schedule_before: String = conn
+            .query_row(
+                "SELECT schedule FROM card_units WHERE id = ?1",
+                [id(12)],
+                |r| r.get(0),
+            )
+            .unwrap();
+        migrate(&mut conn).unwrap();
+        assert_eq!(
+            conn.query_row(
+                "SELECT schedule FROM card_units WHERE id = ?1",
+                [id(12)],
+                |r| r.get::<_, String>(0)
+            )
+            .unwrap(),
+            schedule_before
+        );
+    }
 
     #[test]
     fn action_learning_backfills_literal_cards_without_replacing_sources() {

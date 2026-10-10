@@ -1,5 +1,5 @@
 import { For, Show, createEffect, createMemo, createSignal, createUniqueId, on, onCleanup, onMount } from 'solid-js';
-import type { CardRow, Grade } from '../api/types';
+import type { CardAnswerBlock, CardKind, CardRow, Grade } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { BlockBreadcrumb, BlockText } from '../outline/BlockText';
 import { Button } from '../ui/Button';
@@ -7,7 +7,7 @@ import { Icon } from '../ui/Icon';
 import { Popup } from '../ui/Popup';
 import { clozeSegments } from './card-text';
 import type { ClozeSegment } from './card-text';
-import { formatInterval, gradeLabels } from './query';
+import { gradeIntervals, gradeLabels } from './query';
 import './review-card.css';
 
 export interface ReviewCardProps {
@@ -26,7 +26,9 @@ const grades = (['again', 'hard', 'good', 'easy'] as const).map((grade, index) =
 const terse = (text: string) => text.length <= 40 && !text.includes('\n');
 
 export function ReviewCard(props: ReviewCardProps) {
-  const [revealed, setRevealed] = createSignal(false);
+  const [revealedItems, setRevealedItems] = createSignal(0);
+  const itemCount = () => props.item.card.kind === 'list' ? props.item.card.answer_blocks.length : 1;
+  const revealed = () => revealedItems() >= itemCount();
   const [resetOnGrade, setResetOnGrade] = createSignal(false);
   const [pending, setPending] = createSignal(false);
   const [error, setError] = createSignal('');
@@ -46,10 +48,8 @@ export function ReviewCard(props: ReviewCardProps) {
     const side = (back: boolean) => segments.map(segment => 'text' in segment ? segment.text : back ? segment.answer : segment.hint ?? '[…]').join('');
     return side(false) === card.front && side(true) === card.back ? segments : null;
   });
-  const interval = (grade: Grade) => {
-    const preview = (resetOnGrade() ? props.resetPreviews : props.previews).find(value => value.grade === grade);
-    return preview ? formatInterval(preview.interval_days) : undefined;
-  };
+  const intervals = createMemo(() => gradeIntervals(resetOnGrade() ? props.resetPreviews : props.previews));
+  const interval = (grade: Grade) => intervals()[grade];
   let region!: HTMLDivElement;
   let generation = 0;
   let disposed = false;
@@ -57,7 +57,7 @@ export function ReviewCard(props: ReviewCardProps) {
   createEffect(on(() => props.item.card.id, () => {
     const focused = region?.contains(region.ownerDocument.activeElement);
     generation++;
-    setRevealed(false);
+    setRevealedItems(0);
     setResetOnGrade(false);
     setPending(false);
     setError('');
@@ -83,7 +83,7 @@ export function ReviewCard(props: ReviewCardProps) {
   function reveal() {
     if (locked() || revealed()) return;
     const focused = region.contains(region.ownerDocument.activeElement);
-    setRevealed(true);
+    setRevealedItems(value => value + 1);
     if (focused) region.focus({ preventScroll: true });
   }
   function grade(value: Grade) {
@@ -128,7 +128,7 @@ export function ReviewCard(props: ReviewCardProps) {
       <Button class="review-card-source" title="Open source · Shift opens beside" disabled={locked()} onClick={event => props.onSource(event.shiftKey)}>
         <Icon name={props.notebook.lookup(props.item.source.block.page_id)()?.kind === 'journal' ? 'calendar' : 'page'} /><span><BlockBreadcrumb block={props.item.source.block} notebook={props.notebook} /></span>
       </Button>
-      <Show when={props.item.card.kind !== 'forward'}><span class="review-card-kind">{props.item.card.kind === 'reverse' ? 'Reverse' : `Cloze ${props.item.card.key.slice('cloze:c'.length)}`}</span></Show>
+      <Show when={props.item.card.kind !== 'forward'}><span class="review-card-kind">{props.item.card.kind === 'reverse' ? 'Reverse' : props.item.card.kind === 'multiline' ? 'Multi-line' : props.item.card.kind === 'list' ? 'List' : `Cloze ${props.item.card.key.slice('cloze:c'.length)}`}</span></Show>
       <Show when={revealed() && props.item.card.schedule.last_reviewed_at !== null}>
         <Button class="review-card-reset-trigger" disabled={locked()} aria-haspopup="dialog" aria-expanded={!!resetAnchor()} onClick={event => setResetAnchor(event.currentTarget)}>Reset progress</Button>
       </Show>
@@ -136,14 +136,15 @@ export function ReviewCard(props: ReviewCardProps) {
     <Show when={changed()}><p class="review-card-change-notice">Wording changed since your last review.</p></Show>
     <Show when={gaps()} fallback={<>
       <section class="review-card-side" classList={{ 'review-card-terse': terse(props.item.card.front) }} aria-label="Front"><BlockText text={props.item.card.front} notebook={props.notebook} interactive={false} /></section>
-      <Show when={revealed()}>
-        <section id={answerId} class="review-card-side review-card-answer" classList={{ 'review-card-terse': terse(props.item.card.back) }} aria-label="Answer"><BlockText text={props.item.card.back} notebook={props.notebook} interactive={false} /></section>
+      <Show when={revealedItems() > 0}>
+        <section id={answerId} class="review-card-side review-card-answer" classList={{ 'review-card-terse': !props.item.card.answer_blocks.length && terse(props.item.card.back) }} aria-label="Answer"><CardBack kind={props.item.card.kind} back={props.item.card.back} blocks={props.item.card.answer_blocks} visibleItems={revealedItems()} notebook={props.notebook} /></section>
       </Show>
     </>}>{segments => <section id={revealed() ? answerId : undefined} class="review-card-side" aria-label={revealed() ? 'Answer' : 'Front'}>
       <ClozeText segments={segments()} revealed={revealed()} notebook={props.notebook} />
     </section>}</Show>
+    <Show when={props.item.card.kind === 'list' && revealedItems() > 0}><p class="review-card-kind" role="status">{revealedItems()} of {itemCount()}</p></Show>
     <Show when={revealed()} fallback={<div class="review-card-actions">
-      <Button class="bordered" label="Reveal answer" shortcut="Space" aria-keyshortcuts="Space" aria-expanded={false} aria-controls={answerId} disabled={locked()} onClick={reveal}>Reveal answer <kbd>Space</kbd></Button>
+      <Button class="bordered" label={revealedItems() ? 'Reveal next item' : 'Reveal answer'} shortcut="Space" aria-keyshortcuts="Space" aria-expanded={revealedItems() > 0} aria-controls={answerId} disabled={locked()} onClick={reveal}>{revealedItems() ? 'Reveal next item' : 'Reveal answer'} <kbd>Space</kbd></Button>
     </div>}>
       <Show when={changed() && props.item.last_review}>{last => <section class="review-card-comparison" aria-label="Changed card text">
         <div class="review-card-comparison-versions">
@@ -151,14 +152,14 @@ export function ReviewCard(props: ReviewCardProps) {
             <h2>Last reviewed</h2>
             <dl>
               <dt>Front</dt><dd class="review-card-text"><BlockText text={last().shown_front} notebook={props.notebook} interactive={false} /></dd>
-              <dt>Answer</dt><dd class="review-card-text"><BlockText text={last().shown_back} notebook={props.notebook} interactive={false} /></dd>
+              <dt>Answer</dt><dd class="review-card-text"><CardBack kind={props.item.card.kind} back={last().shown_back} notebook={props.notebook} /></dd>
             </dl>
           </div>
           <div class="review-card-comparison-version">
             <h2>Current</h2>
             <dl>
               <dt>Front</dt><dd class="review-card-text"><BlockText text={props.item.card.front} notebook={props.notebook} interactive={false} /></dd>
-              <dt>Answer</dt><dd class="review-card-text"><BlockText text={props.item.card.back} notebook={props.notebook} interactive={false} /></dd>
+              <dt>Answer</dt><dd class="review-card-text"><CardBack kind={props.item.card.kind} back={props.item.card.back} blocks={props.item.card.answer_blocks} notebook={props.notebook} /></dd>
             </dl>
           </div>
         </div>
@@ -184,6 +185,23 @@ export function ReviewCard(props: ReviewCardProps) {
       </div>
     </Popup>}</Show>
   </div>;
+}
+
+/** Canonical child snapshots also render in history and stale-definition views. */
+export function CardBack(props: { kind: CardKind; back: string; blocks?: CardAnswerBlock[]; visibleItems?: number; notebook: NotebookClient }) {
+  const blocks = createMemo(() => {
+    if (props.kind !== 'multiline' && props.kind !== 'list') return null;
+    const answer: CardAnswerBlock[] = props.blocks ?? JSON.parse(props.back);
+    return props.kind === 'list' && props.visibleItems !== undefined ? answer.slice(0, props.visibleItems) : answer;
+  });
+  return <Show when={blocks()} fallback={<BlockText text={props.back} notebook={props.notebook} interactive={false} />}>{answer => <AnswerOutline blocks={answer()} notebook={props.notebook} />}</Show>;
+}
+
+function AnswerOutline(props: { blocks: CardAnswerBlock[]; notebook: NotebookClient }) {
+  return <ul class="review-answer-outline"><For each={props.blocks}>{block => <li>
+    <BlockText text={block.text} cards notebook={props.notebook} interactive={false} />
+    <Show when={block.children.length}><AnswerOutline blocks={block.children} notebook={props.notebook} /></Show>
+  </li>}</For></ul>;
 }
 
 function ClozeText(props: { segments: ClozeSegment[]; revealed: boolean; notebook: NotebookClient }) {

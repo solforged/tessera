@@ -37,7 +37,7 @@ export function plainText(text: string, lookup: NotebookClient['lookup']): strin
 }
 interface DisplayToken extends Token { label: string; visibleStart: number; target: Block | null | undefined; literal: boolean }
 interface TokenGroup { mark?: CardMark; tokens: Token[] }
-const operators = { '>>': { label: 'then', text: '→' }, '<<': { label: 'from', text: '←' }, '<>': { label: 'both ways', text: '↔' } };
+const operators = { '>>': { label: 'then', text: '→' }, '<<': { label: 'from', text: '←' }, '<>': { label: 'both ways', text: '↔' }, '>>>': { label: 'child answer', text: '↓' }, '>>1.': { label: 'list answer', text: '↓1.' } };
 
 export function BlockText(props: Props) {
   const groups = createMemo(() => {

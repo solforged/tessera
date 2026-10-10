@@ -1,6 +1,6 @@
 import { For, Show, batch, createEffect, createMemo, createSignal, on, onCleanup, onMount } from 'solid-js';
 import { ulid } from 'ulid';
-import type { CardPreviews, CardQuery, CardRow, CardSelection, Deck, Grade, ReviewEvent, ReviewSession } from '../api/types';
+import type { CardKind, CardPreviews, CardQuery, CardRow, CardSelection, Deck, Grade, ReviewEvent, ReviewSession } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { BlockBreadcrumb, BlockText } from '../outline/BlockText';
 import type { OpenTarget, PaneId, ReviewViewState } from '../shell/contract';
@@ -10,7 +10,7 @@ import { Menu } from '../ui/Menu';
 import { Picker } from '../ui/Picker';
 import { Popup } from '../ui/Popup';
 import { DeckEditor } from './DeckEditor';
-import { ReviewCard } from './ReviewCard';
+import { CardBack, ReviewCard } from './ReviewCard';
 import { copyCardQuery, formatInterval, gradeLabels, gradeOperation, openReviewSession, reviewedInSession, sameCardSnapshot, selectionLabels } from './query';
 import './review.css';
 
@@ -364,7 +364,7 @@ export function ReviewPane(props: ReviewPaneProps) {
       <Show when={!openSession() && ready() && rows().length}><section class="review-queue" aria-label="Cards in this queue">
         <For each={rows().slice(0, QUEUE_PREVIEW)}>{row => <button type="button" class="review-queue-row" title="Open source · Shift opens beside" onClick={event => { publish(); props.onOpen({ kind: 'page', pageId: row.source.page.id, blockId: row.source.block.id }, event.shiftKey); }}>
           <span class="review-queue-front"><BlockText text={row.card.front} notebook={props.notebook} interactive={false} /></span>
-          <span class="review-queue-meta"><Show when={row.card.kind !== 'forward'}><span>{row.card.kind === 'reverse' ? 'Reverse' : `Cloze ${row.card.key.slice('cloze:c'.length)}`}</span></Show><span class="review-queue-source"><BlockBreadcrumb block={row.source.block} notebook={props.notebook} /></span></span>
+          <span class="review-queue-meta"><Show when={row.card.kind !== 'forward'}><span>{row.card.kind === 'reverse' ? 'Reverse' : row.card.kind === 'multiline' ? 'Multi-line' : row.card.kind === 'list' ? 'List' : `Cloze ${row.card.key.slice('cloze:c'.length)}`}</span></Show><span class="review-queue-source"><BlockBreadcrumb block={row.source.block} notebook={props.notebook} /></span></span>
         </button>}</For>
         <Show when={rows().length > QUEUE_PREVIEW}><p class="review-queue-more">and {rows().length - QUEUE_PREVIEW} more</p></Show>
       </section></Show>
@@ -372,8 +372,8 @@ export function ReviewPane(props: ReviewPaneProps) {
         <p role="alert">{stale()}</p>
         <Show when={updated() && shown() && (updated()!.item.card.front !== shown()!.item.card.front || updated()!.item.card.back !== shown()!.item.card.back)}>
           <div class="review-stale-versions">
-            <section><h2>Shown text</h2><div><BlockText text={shown()!.item.card.front} notebook={props.notebook} interactive={false} /></div><div><BlockText text={shown()!.item.card.back} notebook={props.notebook} interactive={false} /></div></section>
-            <section><h2>Current text</h2><div><BlockText text={updated()!.item.card.front} notebook={props.notebook} interactive={false} /></div><div><BlockText text={updated()!.item.card.back} notebook={props.notebook} interactive={false} /></div></section>
+            <section><h2>Shown text</h2><div><BlockText text={shown()!.item.card.front} notebook={props.notebook} interactive={false} /></div><div><CardBack kind={shown()!.item.card.kind} back={shown()!.item.card.back} blocks={shown()!.item.card.answer_blocks} notebook={props.notebook} /></div></section>
+            <section><h2>Current text</h2><div><BlockText text={updated()!.item.card.front} notebook={props.notebook} interactive={false} /></div><div><CardBack kind={updated()!.item.card.kind} back={updated()!.item.card.back} blocks={updated()!.item.card.answer_blocks} notebook={props.notebook} /></div></section>
           </div>
         </Show>
         <Button class="bordered" disabled={locked() || loading() || !!readError()} onClick={acceptUpdated}>{updated() ? 'Review current card' : 'Next card'}</Button>
@@ -382,7 +382,7 @@ export function ReviewPane(props: ReviewPaneProps) {
         <ReviewCard item={snapshot.item} notebook={props.notebook} previews={snapshot.previews.current} resetPreviews={snapshot.previews.reset} busy={locked() || loading() || !!readError() || !!stale() || needsReload() || !openSession()} onGrade={(value, restart) => grade(value, restart, snapshot)} onReset={() => reset(snapshot)} onSource={beside => {
           publish(); props.onOpen({ kind: 'page', pageId: snapshot.item.source.page.id, blockId: snapshot.item.source.block.id }, beside);
         }} />
-        <Show when={snapshot.item.last_review}><ReviewHistory cardId={snapshot.item.card.id} notebook={props.notebook} /></Show>
+        <Show when={snapshot.item.last_review}><ReviewHistory cardId={snapshot.item.card.id} kind={snapshot.item.card.kind} notebook={props.notebook} /></Show>
       </>}</Show>
     </div>
     <Show when={openSession() && (rows().length || shown())}><footer class="review-session-actions">
@@ -411,7 +411,7 @@ export function ReviewPane(props: ReviewPaneProps) {
   </div>;
 }
 
-function ReviewHistory(props: { cardId: string; notebook: NotebookClient }) {
+function ReviewHistory(props: { cardId: string; kind: CardKind; notebook: NotebookClient }) {
   const [open, setOpen] = createSignal(false);
   const [events, setEvents] = createSignal<ReviewEvent[]>([]);
   const [loading, setLoading] = createSignal(false);
@@ -437,7 +437,7 @@ function ReviewHistory(props: { cardId: string; notebook: NotebookClient }) {
       <Show when={!loading() && !error() && !events().length}><p>No review events.</p></Show>
       <ul><For each={[...events()].reverse()}>{event => <li>
         <div><time dateTime={new Date(event.created_at).toISOString()}>{new Date(event.created_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</time> · {event.kind === 'reset' ? 'Reset' : gradeLabels[event.grade!]} · {event.before.interval_days ? formatInterval(event.before.interval_days) : 'New'} → {formatInterval(event.after.interval_days)}</div>
-        <details><summary>Shown text</summary><div class="review-history-text"><BlockText text={event.shown_front} notebook={props.notebook} interactive={false} /></div><div class="review-history-text"><BlockText text={event.shown_back} notebook={props.notebook} interactive={false} /></div></details>
+        <details><summary>Shown text</summary><div class="review-history-text"><BlockText text={event.shown_front} notebook={props.notebook} interactive={false} /></div><div class="review-history-text"><CardBack kind={props.kind} back={event.shown_back} notebook={props.notebook} /></div></details>
       </li>}</For></ul>
     </Show>
   </details>;

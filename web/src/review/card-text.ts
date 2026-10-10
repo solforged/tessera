@@ -6,9 +6,14 @@ export interface CardParse { cards: ParsedCard[]; problems: CardProblem[] }
 
 interface Cloze { start: number; end: number; id: string; answerStart: number; answerEnd: number; hintStart: number | null }
 
+type CardOperator = '>>' | '<<' | '<>' | '>>>' | '>>1.';
 export type CardMark =
-  | { kind: 'operator'; start: number; end: number; op: '>>' | '<<' | '<>' }
+  | { kind: 'operator'; start: number; end: number; op: CardOperator }
   | ({ kind: 'cloze'; hintEnd: number | null } & Cloze);
+
+function operator(text: string, at: number): CardOperator | undefined {
+  return (['>>1.', '>>>', '>>', '<<', '<>'] as const).find(token => text.startsWith(token, at));
+}
 
 function problem(message: string, start: number, end: number): CardProblem { return { message, start, end }; }
 
@@ -16,7 +21,8 @@ function problem(message: string, start: number, end: number): CardProblem { ret
 // following syntax active; unknown escapes keep their backslash in shown text.
 function escapeEnd(text: string, at: number): number | null {
   if (text[at] !== '\\') return null;
-  if (['>>', '<<', '<>', '{{', '}}', '::', '[[', ']]'].some(token => text.startsWith(token, at + 1))) return at + 3;
+  const token = ['>>1.', '>>>', '>>', '<<', '<>', '{{', '}}', '::', '[[', ']]'].find(token => text.startsWith(token, at + 1));
+  if (token) return at + 1 + token.length;
   if (text[at + 1] !== undefined && '\\`~[]{}<>:'.includes(text[at + 1]!)) return at + 2;
   return null;
 }
@@ -168,27 +174,39 @@ function derive(text: string): { parse: CardParse; pieces: ClozePiece[]; suffix:
       if (parsed.problem) result.problems.push(parsed.problem);
       cursor = parsed.end;
     } else {
-      if (text.startsWith('>>', cursor) || text.startsWith('<<', cursor) || text.startsWith('<>', cursor)) operators.push(cursor);
-      // Overlapping operators such as >>> and <>> are ambiguous too.
-      cursor++;
+      const token = operator(text, cursor);
+      if (token) operators.push(cursor);
+      // Ordinary overlapping operators (<>>) remain ambiguous.
+      cursor += token && token.length > 2 ? token.length : 1;
     }
   }
   const none = { parse: result, pieces: [], suffix: '', marks: [] };
   const first = operators[0];
   if (first !== undefined) {
-    if (operators.length > 1) result.problems.push(problem('Use only one card operator per block.', first, operators[operators.length - 1]! + 2));
+    const last = operators[operators.length - 1]!;
+    if (operators.length > 1) result.problems.push(problem('Use only one card operator per block.', first, last + operator(text, last)!.length));
     if (firstCloze !== null) result.problems.push(problem('Do not mix card operators and clozes.', Math.min(first, firstCloze), text.length));
   }
   result.problems.sort((a, b) => a.start - b.start || a.end - b.end);
   if (result.problems.length) return none;
   if (first !== undefined) {
+    const op = operator(text, first)!;
     const left = trim(literal(text, 0, first));
-    const right = trim(literal(text, first + 2, text.length));
+    const right = trim(literal(text, first + op.length, text.length));
+    if (op === '>>>' || op === '>>1.') {
+      if (!left) result.problems.push(problem('The front of a card needs text.', first, first + op.length));
+      else if (right) result.problems.push(problem('Child-answer operators must end the block.', first, text.length));
+      else {
+        const kind = op === '>>>' ? 'multiline' : 'list';
+        result.cards.push({ key: kind, kind, front: left, back: '' });
+        return { ...none, marks: [{ kind: 'operator', start: first, end: first + op.length, op }] };
+      }
+      return none;
+    }
     if (!left || !right) {
       result.problems.push(problem('Both sides of a card need text.', first, first + 2));
       return none;
     }
-    const op = text.slice(first, first + 2) as '>>' | '<<' | '<>';
     if (op !== '<<') result.cards.push({ key: 'forward', kind: 'forward', front: left, back: right });
     if (op !== '>>') result.cards.push({ key: 'reverse', kind: 'reverse', front: right, back: left });
     return { ...none, marks: [{ kind: 'operator', start: first, end: first + 2, op }] };

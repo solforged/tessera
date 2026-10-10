@@ -223,10 +223,11 @@ fn due_boundary_and_new_selection_sort_reviewed_units_before_older_new_units() {
     let early = nb.source_cards(&id(11)).unwrap().remove(0);
     let boundary = nb.source_cards(&id(12)).unwrap().remove(0);
     let future = nb.source_cards(&id(13)).unwrap().remove(0);
-    let now = new.schedule.due_at + DAY + 2;
-    grade(&mut nb, &early.id, 100, Grade::Good, now - DAY - 1);
-    grade(&mut nb, &boundary.id, 101, Grade::Good, now - DAY);
-    grade(&mut nb, &future.id, 102, Grade::Good, now - DAY + 1);
+    let interval = 2 * DAY;
+    let now = new.schedule.due_at + interval + 2;
+    grade(&mut nb, &early.id, 100, Grade::Good, now - interval - 1);
+    grade(&mut nb, &boundary.id, 101, Grade::Good, now - interval);
+    grade(&mut nb, &future.id, 102, Grade::Good, now - interval + 1);
     assert_eq!(nb.card(&boundary.id).unwrap().schedule.due_at, now);
     assert_eq!(nb.card(&future.id).unwrap().schedule.due_at, now + 1);
 
@@ -295,9 +296,8 @@ fn equal_due_times_use_card_id_order() {
     // Grade in reverse ID order: neither insertion nor review order breaks ties.
     grade(&mut nb, &cards[1].id, 100, Grade::Good, 1_000);
     grade(&mut nb, &cards[0].id, 101, Grade::Good, 1_000);
-    let result = nb
-        .card_query(&query(CardSelection::Due), 86_401_000)
-        .unwrap();
+    let due_at = nb.card(&cards[0].id).unwrap().schedule.due_at;
+    let result = nb.card_query(&query(CardSelection::Due), due_at).unwrap();
     assert_eq!(
         card_ids(result),
         cards.into_iter().map(|card| card.id).collect::<Vec<_>>()
@@ -412,7 +412,10 @@ fn latest_shown_grade_ignores_resets_and_breaks_timestamp_ties_by_insertion() {
     assert!(last.definition_revision < reviewed.card.definition_revision);
     assert_eq!(reviewed.card.front, "current");
     assert_eq!(reviewed.card.back, "definition");
-    assert_eq!(last.after.last_reviewed_at, Some(1_000));
+    let tessera_core::ReviewSchedulingState::Fsrs(after) = &last.after else {
+        panic!("new evidence must use FSRS");
+    };
+    assert_eq!(after.last_reviewed_at, Some(1_000));
     assert_eq!(reviewed.card.schedule.last_reviewed_at, None);
     assert!(
         rows.iter()

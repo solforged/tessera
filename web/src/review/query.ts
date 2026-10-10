@@ -4,10 +4,37 @@ import { copyQuery } from '../table/query';
 export const selectionLabels = { due: 'Due', new: 'New', all: 'All' } as const;
 export const gradeLabels: Record<Grade, string> = { again: 'Again', hard: 'Hard', good: 'Good', easy: 'Easy' };
 
-/** Grade buttons and history: days under a month, then months and years to one decimal. */
+/** History and summaries: days under two months, then months and years. */
 export function formatInterval(days: number): string {
-  const [value, unit] = days < 30 ? [days, 'day'] : days < 365 ? [Number((days / 30.44).toFixed(1)), 'month'] : [Number((days / 365.25).toFixed(1)), 'year'];
+  const [value, unit] = days < 60 ? [days, 'day'] : days < 365 ? [Number((days / 30.44).toFixed(1)), 'month'] : [Number((days / 365.25).toFixed(1)), 'year'];
   return `${value} ${unit}${value === 1 ? '' : 's'}`;
+}
+
+/** Keep compact units unless rounding would hide distinct adjacent intervals. */
+export function gradeIntervals(previews: readonly { grade: Grade; interval_days: number }[]): Partial<Record<Grade, string>> {
+  const ordered = (['again', 'hard', 'good', 'easy'] as const).flatMap(grade => previews.find(value => value.grade === grade) ?? []);
+  const labels = ordered.map(value => formatInterval(value.interval_days));
+  const tied = new Set<number>();
+  for (let index = 1; index < ordered.length; index++) {
+    if (labels[index] === labels[index - 1] && ordered[index]!.interval_days !== ordered[index - 1]!.interval_days) {
+      tied.add(index - 1); tied.add(index);
+    }
+  }
+  for (const index of tied) {
+    const days = ordered[index]!.interval_days;
+    labels[index] = days < 60 ? formatInterval(days) : days < 365 ? `${(days / 30.44).toFixed(1)} mo` : `${(days / 365.25).toFixed(1)} yr`;
+  }
+  const daysOnly = new Set<number>();
+  for (let index = 1; index < ordered.length; index++) {
+    if (labels[index] === labels[index - 1] && ordered[index]!.interval_days !== ordered[index - 1]!.interval_days) {
+      daysOnly.add(index - 1); daysOnly.add(index);
+    }
+  }
+  for (const index of daysOnly) {
+    const days = ordered[index]!.interval_days;
+    labels[index] = `${days} ${days === 1 ? 'day' : 'days'}`;
+  }
+  return Object.fromEntries(ordered.map((value, index) => [value.grade, labels[index]!]));
 }
 
 export function copyCardQuery(query: CardQuery): CardQuery {

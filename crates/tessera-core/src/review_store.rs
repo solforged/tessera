@@ -39,7 +39,10 @@ fn enum_at<T: DeserializeOwned>(row: &rusqlite::Row<'_>, column: usize) -> rusql
     })
 }
 
-fn schedule_at(row: &rusqlite::Row<'_>, column: usize) -> rusqlite::Result<SchedulingState> {
+fn schedule_at(
+    row: &rusqlite::Row<'_>,
+    column: usize,
+) -> rusqlite::Result<crate::ReviewSchedulingState> {
     serde_json::from_str(text_at(row, column)?).map_err(|error| {
         rusqlite::Error::FromSqlConversionFailure(
             column,
@@ -47,6 +50,35 @@ fn schedule_at(row: &rusqlite::Row<'_>, column: usize) -> rusqlite::Result<Sched
             Box::new(error),
         )
     })
+}
+
+/// Reconstruct memory from immutable grades, including reset events. Never infer
+/// FSRS state from ease or copy old intervals. Equal timestamps retain row order.
+pub(crate) fn backfill_fsrs(conn: &Connection) -> Result<()> {
+    let mut cards = conn.prepare("SELECT id, created_at FROM card_units ORDER BY id")?;
+    let mut history = conn.prepare(
+        "SELECT grade, created_at FROM review_events WHERE card_id = ?1 ORDER BY created_at, rowid",
+    )?;
+    let mut update = conn.prepare("UPDATE card_units SET schedule = ?2 WHERE id = ?1")?;
+    let mut rows = cards.query([])?;
+    while let Some(row) = rows.next()? {
+        let id = text_at(row, 0)?;
+        let mut state = scheduler::new_card(row.get(1)?);
+        let mut events = history.query([id])?;
+        while let Some(event) = events.next()? {
+            let at = event.get(1)?;
+            state = if matches!(event.get_ref(0)?, rusqlite::types::ValueRef::Null) {
+                scheduler::new_card(at)
+            } else {
+                scheduler::schedule(&state, enum_at(event, 0)?, at)
+            };
+        }
+        update.execute(params![
+            id,
+            serde_json::to_string(&state).expect("schedule serializes")
+        ])?;
+    }
+    Ok(())
 }
 
 // SELECT order: id, card_id, session_id, kind, grade, shown_front, shown_back,

@@ -274,17 +274,21 @@ export interface WorkSession {
   revision: number;
 }
 
-export type CardKind = 'forward' | 'reverse' | 'cloze';
+export type CardKind = 'forward' | 'reverse' | 'cloze' | 'multiline' | 'list';
 export type Grade = 'again' | 'hard' | 'good' | 'easy';
 
 export interface SchedulingState {
-  ease_factor: number;
+  stability: number | null;
+  difficulty: number | null;
   interval_days: number;
   repetitions: number;
   lapses: number;
   due_at: number;
   last_reviewed_at: number | null;
 }
+
+export interface CardAnswerBlock { id: string; text: string; children: CardAnswerBlock[] }
+export type ReviewSchedulingState = SchedulingState | (Omit<SchedulingState, 'stability' | 'difficulty'> & { ease_factor: number });
 
 export interface CardUnit {
   id: string;
@@ -295,6 +299,7 @@ export interface CardUnit {
   definition_revision: number;
   front: string;
   back: string;
+  answer_blocks: CardAnswerBlock[];
   revision: number;
   schedule: SchedulingState;
 }
@@ -321,9 +326,9 @@ export interface ReviewEvent {
   shown_front: string;
   shown_back: string;
   definition_revision: number;
-  scheduler_version: number;
-  before: SchedulingState;
-  after: SchedulingState;
+  scheduler_version: string;
+  before: ReviewSchedulingState;
+  after: ReviewSchedulingState;
   created_at: number;
   change_seq: number;
 }
