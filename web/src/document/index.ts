@@ -236,6 +236,12 @@ export class Notebook implements NotebookClient, DocumentHost {
     }
     else this.cache.set(id, createSignal<Block | null | undefined>(block));
   }
+  /** A save removed this page on the notebook's side, as when the last tag naming an untouched tag page goes. */
+  private receiveRemoval(id: string) {
+    this.publish(null, id);
+    this.updateRoot(null, id);
+    this.docs.get(id)?.markMissing('This page was removed because nothing uses it any more.');
+  }
   updateRoot(block: Block | null, id = block?.id) {
     if (!id) return;
     const current = this.roots();
@@ -610,11 +616,15 @@ export class Notebook implements NotebookClient, DocumentHost {
       if (ack.seq < this.workSequence) ack.work_sessions = [];
       this.serviceReached();
       const merges = command.operations.filter(operation => operation.op === 'merge_page');
+      const removed: string[] = [];
       const blocks = await Promise.all(ack.revisions.map(async value => {
         try { return await this.api.block(value.id); }
         catch (error) {
-          if (!merges.length) return undefined;
-          if (error instanceof ApiError && error.status === 404) { this.publish(null, value.id); return undefined; }
+          if (error instanceof ApiError && error.status === 404) {
+            removed.push(value.id);
+            this.receiveRemoval(value.id);
+            return undefined;
+          }
           throw error;
         }
       }));
@@ -647,7 +657,7 @@ export class Notebook implements NotebookClient, DocumentHost {
       this.receiveReceipt(ack);
       await this.outbox?.capabilities(ack.capabilities ?? [], ack.seq);
       await this.outbox?.acknowledge(command, blocks.filter((block): block is Block => Boolean(block)), ack.seq, new Map(ack.revisions.map(value => [value.id, value.revision])), undefined,
-        merges.length ? ack.revisions.filter((_, index) => !blocks[index]).map(value => value.id) : undefined);
+        removed);
       this.queue.shift(); this.persisted.delete(command.id);
       this.commandWaiters.get(command.id)?.resolve(ack); this.commandWaiters.delete(command.id);
       this.activeCommand = undefined; this.touch();
@@ -748,10 +758,17 @@ export class Notebook implements NotebookClient, DocumentHost {
           }
           const fullPage = command.actions.some(action => action.kind === 'insert' && action.block.kind !== 'block' || action.kind === 'restore' && action.id === doc.pageId);
           const blocks: Block[] = [];
+          const removed = command.actions.some(action => action.kind === 'delete' && action.id === doc.pageId) ? [doc.pageId] : [];
           let extraRoots = false;
           for (const id of revisions.keys()) {
             const saved = doc.baseBlocks.get(id);
-            const block = saved ? { ...saved } : await this.api.block(id).catch(() => undefined);
+            const block = saved ? { ...saved } : await this.api.block(id).catch(error => {
+              if (error instanceof ApiError && error.status === 404) {
+                removed.push(id);
+                this.receiveRemoval(id);
+              }
+              return undefined;
+            });
             if (!block) continue;
             blocks.push(block);
             if (!saved) {
@@ -765,7 +782,7 @@ export class Notebook implements NotebookClient, DocumentHost {
             this.generations.set(changed.id, (this.generations.get(changed.id) ?? 0) + 1);
             await this.persist(changed);
           }
-          await this.outbox?.acknowledge(command, blocks, ack.seq, revisions, fullPage && doc.root() ? doc.view() : undefined, command.actions.some(action => action.kind === 'delete' && action.id === doc.pageId) ? [doc.pageId] : undefined).catch(() => undefined);
+          await this.outbox?.acknowledge(command, blocks, ack.seq, revisions, fullPage && doc.root() ? doc.view() : undefined, removed).catch(() => undefined);
           this.failure = '';
           this.activeCommand = undefined;
           this.touch();

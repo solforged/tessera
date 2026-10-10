@@ -75,6 +75,32 @@ afterAll(async () => {
 });
 
 describe('real notebook operations and recovery', () => {
+  test('own tag saves remove provisional pages from live and recovery caches', async () => {
+    for (const viaNotebook of [false, true]) {
+      const instance = await client();
+      const { doc, first } = await page(instance);
+      const tag = `provisional${++serial}`;
+      success(doc.edit({ kind: 'text', id: first, text: `#${tag}` }));
+      await instance.flush();
+      const target = await api.pageByTitle(tag);
+      expect(target).not.toBeNull();
+      const lookup = instance.lookup(target!.id);
+      await eventually(() => lookup()?.id === target!.id, 'type lookup did not load');
+      expect(instance.roots().some(root => root.id === target!.id)).toBe(true);
+      if (viaNotebook) {
+        await instance.commit([{ op: 'edit_text', id: first, base_revision: (await api.block(first)).revision, text: '' }]);
+      } else {
+        success(doc.edit({ kind: 'text', id: first, text: '' }));
+        await instance.flush();
+      }
+      await expect(api.pageByTitle(tag)).rejects.toMatchObject({ status: 404 });
+      expect((await api.complete(tag)).some(block => block.id === target!.id)).toBe(false);
+      expect(lookup()).toBeNull();
+      expect(instance.roots().some(root => root.id === target!.id)).toBe(false);
+      doc.release();
+    }
+  });
+
   test('a new field keeps its chosen kind through one undo and redo', async () => {
     const instance = await client();
     const fields = await api.fields();
