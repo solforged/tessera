@@ -77,7 +77,7 @@ The app checks the latest GitHub release a minute after launch, every six hours,
 
 ### Android app
 
-`crates/tessera-android` is a Tauri 2 app for Android phones and foldables. The notebook runs inside the app, in its private storage, and the pages reach it over Tauri's IPC, so nothing listens on a port. The phone keeps its own notebook; it does not sync with a desktop notebook. Library → Add opens Android's file picker for EPUBs. Web articles, backups and service details are left out, as in the browser demo.
+`crates/tessera-android` is a Tauri 2 app for Android phones and foldables. The notebook runs inside the app, in its private storage, and the pages reach it over Tauri's IPC, so nothing listens on a port. The phone keeps its own notebook; it does not sync with a desktop notebook. Library → Add opens Android's file picker for EPUBs. Long-pressing the app icon offers New note, which opens today's journal editing an empty block at the end, with the keyboard up. Web articles, backups and service details are left out, as in the browser demo.
 
 Build a debug APK for arm64 and install it on a phone with USB debugging enabled:
 

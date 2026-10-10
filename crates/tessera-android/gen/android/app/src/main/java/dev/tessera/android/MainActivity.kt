@@ -6,12 +6,15 @@ import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.provider.OpenableColumns
+import android.webkit.JavascriptInterface
+import android.view.inputmethod.InputMethodManager
 import android.webkit.WebView
 import androidx.activity.enableEdgeToEdge
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import java.io.File
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.Executors
 
 class MainActivity : TauriActivity() {
@@ -20,6 +23,22 @@ class MainActivity : TauriActivity() {
   override fun onWebViewCreate(webView: WebView) {
     super.onWebViewCreate(webView)
     inboxWebView = webView
+    // The launcher's New note request waits here until the page takes it, so a cold start keeps it too.
+    // Taking it focuses the WebView; the page asks for the keyboard once its editor has focus, since the
+    // WebView raises it only for a tap.
+    webView.addJavascriptInterface(object {
+      @JavascriptInterface fun take(): Boolean {
+        val requested = pendingCapture.getAndSet(false)
+        if (requested) runOnUiThread { webView.requestFocus() }
+        return requested
+      }
+
+      @JavascriptInterface fun showKeyboard() {
+        runOnUiThread {
+          getSystemService(InputMethodManager::class.java)?.showSoftInput(webView, InputMethodManager.SHOW_IMPLICIT)
+        }
+      }
+    }, "TesseraCapture")
   }
 
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -33,13 +52,23 @@ class MainActivity : TauriActivity() {
       view.setPadding(0, 0, 0, insets.getInsets(WindowInsetsCompat.Type.ime()).bottom)
       insets
     }
-    if (savedInstanceState == null) receiveBook(intent)
+    if (savedInstanceState == null) {
+      receiveBook(intent)
+      receiveCapture(intent)
+    }
   }
 
   override fun onNewIntent(intent: Intent) {
     super.onNewIntent(intent)
     setIntent(intent)
     receiveBook(intent)
+    receiveCapture(intent)
+  }
+
+  private fun receiveCapture(intent: Intent) {
+    if (intent.action != ACTION_CAPTURE) return
+    pendingCapture.set(true)
+    inboxWebView?.evaluateJavascript("window.dispatchEvent(new Event('tessera-quick-capture'))", null)
   }
 
   private fun receiveBook(intent: Intent) {
@@ -90,6 +119,8 @@ class MainActivity : TauriActivity() {
   }
 
   companion object {
+    private const val ACTION_CAPTURE = "dev.tessera.android.CAPTURE"
     private val inboxExecutor = Executors.newSingleThreadExecutor()
+    private val pendingCapture = AtomicBoolean(false)
   }
 }
