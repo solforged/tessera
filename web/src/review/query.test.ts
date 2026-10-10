@@ -1,19 +1,19 @@
 import { describe, expect, test } from 'bun:test';
 import type { Block, CardQuery, CardRow, ReviewEvent, ReviewSession, SchedulingState } from '../api/types';
-import { copyCardQuery, gradeOperation, openReviewSession, reviewedInSession, sameCardSnapshot } from './query';
+import { copyCardQuery, gradeIntervals, gradeOperation, openReviewSession, reviewedInSession, sameCardSnapshot } from './query';
 
-const schedule: SchedulingState = { ease_factor: 2.5, interval_days: 8, repetitions: 3, lapses: 0, due_at: 100, last_reviewed_at: 50 };
+const schedule: SchedulingState = { stability: 8, difficulty: 5, interval_days: 8, repetitions: 3, lapses: 0, due_at: 100, last_reviewed_at: 50 };
 const page: Block = { id: 'page', kind: 'page', parent_id: null, page_id: 'page', text: 'Vocabulary', heading: null, archived: false, revision: 1, created_at: 0, updated_at: 0 };
 const source: Block = { ...page, id: 'source', kind: 'block', parent_id: page.id, text: 'amo >> I love' };
 const row: CardRow = {
-  card: { id: 'card', source_block_id: source.id, key: 'forward', kind: 'forward', active: true, definition_revision: 2, front: 'amo', back: 'I love', revision: 4, schedule },
+  card: { id: 'card', source_block_id: source.id, key: 'forward', kind: 'forward', active: true, definition_revision: 2, front: 'amo', back: 'I love', answer_blocks: [], revision: 4, schedule },
   source: { page, block: source }, last_review: null,
 };
 const session: ReviewSession = { id: 'session', deck_id: 'deck', started_at: 100, ended_at: null, state: 'open', revision: 1 };
 const event: ReviewEvent = {
   id: 'grade', card_id: row.card.id, session_id: session.id, kind: 'grade', grade: 'good',
   shown_front: row.card.front, shown_back: row.card.back, definition_revision: row.card.definition_revision,
-  scheduler_version: 1, before: schedule, after: { ...schedule, interval_days: 20 }, created_at: 110, change_seq: 8,
+  scheduler_version: 'fsrs-6', before: schedule, after: { ...schedule, interval_days: 20 }, created_at: 110, change_seq: 8,
 };
 
 describe('review snapshots and retained session evidence', () => {
@@ -81,4 +81,13 @@ describe('review snapshots and retained session evidence', () => {
     expect(saved.source!.filters[0]!.value).toBe('Latin');
     expect(saved.source!.sort[0]!.direction).toBe('asc');
   });
+});
+
+test('rounded interval units cannot collapse distinct grading choices', () => {
+  for (const days of [[1, 1, 2, 8], [1, 60, 61, 62], [1, 36498, 36499, 36500]]) {
+    const previews = (['again', 'hard', 'good', 'easy'] as const).map((grade, index) => ({ grade, interval_days: days[index]! }));
+    const labels = gradeIntervals(previews);
+    expect(labels.hard).not.toBe(labels.good);
+    expect(labels.good).not.toBe(labels.easy);
+  }
 });

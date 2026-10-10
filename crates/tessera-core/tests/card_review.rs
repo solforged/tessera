@@ -4,6 +4,13 @@ use tessera_core::{
     ReviewEventKind, ReviewSessionState, Revision,
 };
 
+fn fsrs(state: &tessera_core::ReviewSchedulingState) -> tessera_core::scheduler::SchedulingState {
+    match state {
+        tessera_core::ReviewSchedulingState::Fsrs(state) => state.clone(),
+        _ => panic!("new evidence must use FSRS"),
+    }
+}
+
 fn id(value: u128) -> String {
     ulid::Ulid::from(value).to_string()
 }
@@ -198,7 +205,7 @@ fn source_edits_before_review_writes_are_flushed_and_roll_back_with_stale_eviden
     assert_eq!(events[0].definition_revision, original.definition_revision);
     let current = nb.card(&original.id).unwrap();
     assert_eq!(current.front, "Different front");
-    assert_eq!(current.schedule, events[0].after);
+    assert_eq!(current.schedule, fsrs(&events[0].after));
     assert!(current.definition_revision > events[0].definition_revision);
 }
 
@@ -218,12 +225,12 @@ fn immutable_evidence_preserves_exact_definition_version_times_and_schedules() {
     assert_eq!(event.scheduler_version, SCHEDULER_VERSION);
     assert_eq!(event.created_at, 1234);
     assert_eq!(event.change_seq, committed.seq);
-    assert_eq!(event.before, original.schedule);
-    assert_eq!(event.after, nb.card(&original.id).unwrap().schedule);
-    assert_eq!(event.after.repetitions, 1);
-    assert_eq!(event.after.interval_days, 1);
-    assert_eq!(event.after.due_at, 1234 + 86_400_000);
-    assert_eq!(event.after.last_reviewed_at, Some(1234));
+    assert_eq!(fsrs(&event.before), original.schedule);
+    assert_eq!(fsrs(&event.after), nb.card(&original.id).unwrap().schedule);
+    assert_eq!(fsrs(&event.after).repetitions, 1);
+    assert_eq!(fsrs(&event.after).interval_days, 2);
+    assert_eq!(fsrs(&event.after).due_at, 1234 + 2 * 86_400_000);
+    assert_eq!(fsrs(&event.after).last_reviewed_at, Some(1234));
 
     let change = edit(&nb, "New question >> New answer");
     apply(&mut nb, vec![change]);
@@ -234,8 +241,8 @@ fn immutable_evidence_preserves_exact_definition_version_times_and_schedules() {
     assert_eq!(events[1].shown_front, "New question");
     assert_eq!(events[1].shown_back, "New answer");
     assert_eq!(events[1].before, first[0].after);
-    assert_eq!(events[1].after.repetitions, 2);
-    assert_eq!(events[1].after.interval_days, 6);
+    assert_eq!(fsrs(&events[1].after).repetitions, 2);
+    assert_eq!(fsrs(&events[1].after).interval_days, 3);
     assert_eq!(events[1].created_at, 2345);
 }
 
@@ -306,15 +313,15 @@ fn reset_then_grade_is_atomic_with_one_revision_and_rowid_event_chronology() {
     assert_eq!(events[1].grade, None);
     assert_ne!(events[1].id, id(100));
     assert!(events[1].id.parse::<ulid::Ulid>().is_ok());
-    assert_eq!(events[1].before, reviewed.schedule);
-    assert_eq!(events[1].after.repetitions, 0);
-    assert_eq!(events[1].after.last_reviewed_at, None);
-    assert_eq!(events[1].after.due_at, 1000);
+    assert_eq!(fsrs(&events[1].before), reviewed.schedule);
+    assert_eq!(fsrs(&events[1].after).repetitions, 0);
+    assert_eq!(fsrs(&events[1].after).last_reviewed_at, None);
+    assert_eq!(fsrs(&events[1].after).due_at, 1000);
     assert_eq!(events[2].id, id(100));
     assert_eq!(events[2].kind, ReviewEventKind::Grade);
     assert_eq!(events[2].before, events[1].after);
-    assert_eq!(events[2].after, current.schedule);
-    assert_eq!(events[2].after.repetitions, 1);
+    assert_eq!(fsrs(&events[2].after), current.schedule);
+    assert_eq!(fsrs(&events[2].after).repetitions, 1);
     assert_eq!(events[1].change_seq, committed.seq);
     assert_eq!(events[2].change_seq, committed.seq);
     assert_eq!(events[1].created_at, events[2].created_at);
@@ -350,8 +357,8 @@ fn reset_then_grade_is_atomic_with_one_revision_and_rowid_event_chronology() {
     assert_eq!(&after_reset[..3], events.as_slice());
     assert_eq!(after_reset[3].id, id(50));
     assert_eq!(after_reset[3].kind, ReviewEventKind::Reset);
-    assert_eq!(after_reset[3].before, current.schedule);
-    assert_eq!(after_reset[3].after, reset_card.schedule);
+    assert_eq!(fsrs(&after_reset[3].before), current.schedule);
+    assert_eq!(fsrs(&after_reset[3].after), reset_card.schedule);
     assert_eq!(reset_card.schedule.repetitions, 0);
     assert_eq!(reset_card.schedule.last_reviewed_at, None);
     assert_eq!(reset_card.definition_revision, current.definition_revision);
@@ -615,8 +622,8 @@ fn source_and_deck_removal_hide_reviews_but_retain_session_and_card_history() {
     apply(&mut nb, vec![grade(&restored, 101, None, false, 1400)]);
     let events = nb.review_events(&original.id).unwrap();
     assert_eq!(events[0], evidence[0]);
-    assert_eq!(events[1].before, reviewed.schedule);
-    assert_eq!(events[1].after.repetitions, 2);
+    assert_eq!(fsrs(&events[1].before), reviewed.schedule);
+    assert_eq!(fsrs(&events[1].after).repetitions, 2);
 }
 
 #[test]
@@ -740,9 +747,9 @@ fn previews_keep_current_and_reset_progress_distinct_without_writing() {
             .collect::<Vec<_>>(),
         vec![
             (Grade::Again, 1),
-            (Grade::Hard, 6),
-            (Grade::Good, 6),
-            (Grade::Easy, 8)
+            (Grade::Hard, 2),
+            (Grade::Good, 3),
+            (Grade::Easy, 4)
         ]
     );
     assert_eq!(
@@ -754,8 +761,8 @@ fn previews_keep_current_and_reset_progress_distinct_without_writing() {
         vec![
             (Grade::Again, 1),
             (Grade::Hard, 1),
-            (Grade::Good, 1),
-            (Grade::Easy, 1)
+            (Grade::Good, 2),
+            (Grade::Easy, 8)
         ]
     );
     assert!(nb.card_previews(&original.id, -1).is_err());

@@ -321,11 +321,11 @@ async fn card_queue_uses_server_time_and_keeps_review_evidence_after_source_and_
     let previews = get(&app, &format!("{card_path}/previews")).await;
     assert_eq!(
         previews["current"][2],
-        json!({"grade": "good", "interval_days": 6})
+        json!({"grade": "good", "interval_days": 3})
     );
     assert_eq!(
         previews["reset"][2],
-        json!({"grade": "good", "interval_days": 1})
+        json!({"grade": "good", "interval_days": 2})
     );
     let original_history = get(&app, &reviews_path).await;
     assert_eq!(original_history.as_array().unwrap().len(), 1);

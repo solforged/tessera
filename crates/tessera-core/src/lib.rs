@@ -40,12 +40,12 @@ pub use agent::{
 };
 pub use backup::{BackupManifest, backup, backup_beside, backup_directory, restore};
 pub use capabilities::{
-    Agenda, AgendaItem, AgendaReason, BlockCapabilities, CardPreviews, CardQuery, CardQueryResult,
-    CardRow, CardSelection, CardUnit, DateRange, Deck, GradePreview, PositionInfo, PositionQuery,
-    PositionRow, ProjectRecord, ProjectState, ProjectStatus, ReviewEvent, ReviewEventKind,
-    ReviewSession, ReviewSessionState, TaskFilter, TaskOccurrence, TaskPriority, TaskQuery,
-    TaskQueryResult, TaskRecord, TaskRow, TaskSelection, TaskState, TaskStatus, TaskView,
-    WorkSession,
+    Agenda, AgendaItem, AgendaReason, BlockCapabilities, CardAnswerBlock, CardPreviews, CardQuery,
+    CardQueryResult, CardRow, CardSelection, CardUnit, DateRange, Deck, GradePreview, PositionInfo,
+    PositionQuery, PositionRow, ProjectRecord, ProjectState, ProjectStatus, ReviewEvent,
+    ReviewEventKind, ReviewSchedulingState, ReviewSession, ReviewSessionState, TaskFilter,
+    TaskOccurrence, TaskPriority, TaskQuery, TaskQueryResult, TaskRecord, TaskRow, TaskSelection,
+    TaskState, TaskStatus, TaskView, WorkSession,
 };
 pub use capabilities::{
     AssessmentInfo, AssessmentState, QuestionInfo, QuestionQuery, QuestionRow, QuestionState,

@@ -191,7 +191,7 @@ Tessera borrows ideas from tools and thinkers its author admires:
 - **Outliners with addressable blocks**, such as Logseq, Roam Research, RemNote, and Tana: outline-first writing, journal days, block references and backlinks.
 - **org-mode and org-roam:** scheduled and deadline dates, repeaters, an agenda and clocked work connected to notes.
 - **Vannevar Bush's memex:** associative trails that keep the context of discovery close.
-- **SuperMemo and SM-2,** and **Anki's** four-grade review.
+- **[FSRS](https://github.com/open-spaced-repetition/py-fsrs)** for memory scheduling, and **Anki's** four-grade review.
 
 ## License
 

@@ -16,6 +16,25 @@ fn batch(operations: Vec<Operation>) -> Batch {
 fn apply(n: &mut Notebook, ops: Vec<Operation>) -> tessera_core::Committed {
     n.apply(&batch(ops)).unwrap()
 }
+
+fn downgrade_card_schema(conn: &rusqlite::Connection) {
+    // These library fixtures have no cards. Restore migration 009's CHECK and
+    // integer version column so migration 020 is exercised on an older schema.
+    let count: i64 = conn
+        .query_row("SELECT COUNT(*) FROM card_units", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(count, 0);
+    conn.execute_batch("DROP TABLE review_events; DROP TABLE card_units;")
+        .unwrap();
+    for sql in include_str!("../migrations/009_action_learning.sql")
+        .split("CREATE TABLE ")
+        .skip(1)
+    {
+        if sql.starts_with("card_units ") || sql.starts_with("review_events ") {
+            conn.execute_batch(&format!("CREATE TABLE {sql}")).unwrap();
+        }
+    }
+}
 fn document() -> ExtractedDocument {
     ExtractedDocument {
         format: SourceFormat::Epub,
@@ -332,6 +351,7 @@ fn citation_triage_migration_preserves_existing_evidence() {
     let (dir, n, citation) = highlighted_source();
     drop(n);
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
+    downgrade_card_schema(&conn);
     conn.execute_batch(
         "DROP TABLE agent_changes;
          ALTER TABLE reading_positions ADD COLUMN covered TEXT NOT NULL DEFAULT '[]';
@@ -537,6 +557,7 @@ fn citation_color_migration_preserves_existing_evidence_with_null_color() {
     let (dir, n, citation) = highlighted_source();
     drop(n);
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
+    downgrade_card_schema(&conn);
     conn.execute_batch(
         "DROP TABLE agent_changes;
          ALTER TABLE reading_positions ADD COLUMN covered TEXT NOT NULL DEFAULT '[]';
