@@ -10,7 +10,7 @@ import type { MenuItem } from '../ui/Menu';
 import { Picker } from '../ui/Picker';
 import { Popup } from '../ui/Popup';
 import { DatePicker } from './DatePicker';
-import { TaskSourceRows, documentReady } from './JournalAgenda';
+import { AgendaSections, TaskSourceRows, documentReady } from './JournalAgenda';
 import { parseTaskDate } from './date-input';
 import { dateSuggestions, dateTokenAt, newTask, planDateToken } from './quick-date';
 import { copyTaskQuery, createTaskQuery, refreshedTaskQuery, taskQueriesEqual } from './query';
@@ -255,6 +255,8 @@ export function AgendaPane(props: AgendaPaneProps) {
   };
   const rows = createMemo(() => mode() === 'agenda' ? agenda()?.items ?? [] : tasks()?.rows ?? []);
   const total = createMemo(() => mode() === 'agenda' ? agenda()?.items.length ?? 0 : tasks()?.total ?? 0);
+  /** The displayed day's journal: its rows need no page label. */
+  const dayPage = createMemo(() => props.notebook.roots().find(root => root.kind === 'journal' && root.text === date())?.id);
   const previousDate = createMemo(() => shiftCalendarDate(date(), mode() === 'week' ? -7 : -1));
   const nextDate = createMemo(() => shiftCalendarDate(date(), mode() === 'week' ? 7 : 1));
   const changeDay = (input: string) => {
@@ -356,7 +358,9 @@ export function AgendaPane(props: AgendaPaneProps) {
           <Show when={mode() === 'agenda' && (rows().length || total())}><p class="agenda-count" role="status">{rows().length} of {total()} agenda item{total() === 1 ? '' : 's'}</p></Show>
           <Show when={!rows().length}><p class="agenda-message">{mode() === 'agenda' ? 'Nothing planned' : 'No tasks match these filters.'}</p></Show>
         </Show>
-        <TaskSourceRows rows={rows()} date={date()} pageId={props.notebook.roots().find(root => root.kind === 'journal' && root.text === date())?.id} notebook={props.notebook} disabled={busy() || loading() || !!error()} onOpen={props.onOpen} onChanged={() => setRefresh(value => value + 1)} />
+        <Show when={mode() === 'agenda'} fallback={<TaskSourceRows rows={rows()} date={date()} pageId={dayPage()} notebook={props.notebook} disabled={busy() || loading() || !!error()} onOpen={props.onOpen} onChanged={() => setRefresh(value => value + 1)} />}>
+          <AgendaSections items={agenda()?.items ?? []} date={date()} pageId={dayPage()} notebook={props.notebook} disabled={busy() || loading() || !!error()} onOpen={props.onOpen} onChanged={() => setRefresh(value => value + 1)} />
+        </Show>
       </section>
       </Show>
       <Show keyed when={popup()}>{state => {

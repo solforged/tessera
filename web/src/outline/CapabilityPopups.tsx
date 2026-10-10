@@ -3,6 +3,7 @@ import type { Block, WorkSession } from '../api/types';
 import { ProjectControls } from '../projects/ProjectControls';
 import { DatePicker } from '../tasks/DatePicker';
 import { RepeatPopup, TaskControls } from '../tasks/TaskControls';
+import { planTask } from '../tasks/task-labels';
 import { WorkSessions } from '../tasks/WorkSessions';
 import { Button } from '../ui/Button';
 import { Popup } from '../ui/Popup';
@@ -61,7 +62,7 @@ function CapabilityPopups(){ return <>
     <Show keyed when={capabilities.popup()}>{state => <>
       {state.kind === 'task' && <Popup anchor={state.anchor} label="Task" class="outline-capability-popup task-planning-slip" fitContent onDismiss={() => capabilities.dismiss(state)}>
         <header class="task-planning-header">
-          <p class="task-planning-kicker">Planning</p>
+          <p class="task-planning-kicker">{doc.block(state.id)?.task?.status === 'done' ? `Planning · done ${doc.block(state.id)?.task?.completed_on ?? ''}` : 'Planning'}</p>
           <h2 class="popup-title task-planning-title"><BlockText text={doc.block(state.id)?.text ?? ''} notebook={props.notebook} interactive={false} /></h2>
         </header>
         <Show when={doc.block(state.id)?.task} fallback={<p class="outline-capability-notice">Task removed.</p>}>{task => <TaskControls notebook={props.notebook} task={task()} contextDate={contextDate()} disabled={capabilities.busy(state.id)} onChange={value => capabilities.edit(state.id, { kind: 'task', id: state.id, value })} />}</Show>
@@ -71,11 +72,11 @@ function CapabilityPopups(){ return <>
       {state.kind === 'review-date' && <Show when={doc.block(state.id)?.question}>{question => <DatePicker notebook={props.notebook} anchor={state.anchor} label="Set review date" value={question().state.review_on} contextDate={props.notebook.todayDate()} onDismiss={() => capabilities.dismiss(state)}
         onSelect={value => capabilities.edit(state.id, { kind: 'question', id: state.id, value: { ...question().state, review_on: value.date } })} />}</Show>}
       {state.kind === 'schedule' && <Show when={doc.block(state.id)?.task}>{task => <DatePicker notebook={props.notebook} anchor={state.anchor} label="Schedule task" value={task().scheduled} time={task().scheduled_time} contextDate={contextDate()} marks={task().deadline ? { [task().deadline!]: 'Deadline' } : undefined} onDismiss={() => capabilities.dismiss(state)}
-        onSelect={value => capabilities.edit(state.id, { kind: 'task', id: state.id, value: { ...task(), scheduled: value.date, scheduled_time: value.date ? value.time : null } })} />}</Show>}
+        onSelect={value => capabilities.edit(state.id, { kind: 'task', id: state.id, value: planTask(task(), { scheduled: value.date, scheduled_time: value.date ? value.time : null }, contextDate()) })} />}</Show>}
       {state.kind === 'deadline' && <Show when={doc.block(state.id)?.task}>{task => <DatePicker notebook={props.notebook} anchor={state.anchor} label="Deadline" value={task().deadline} time={task().deadline_time} contextDate={contextDate()} marks={task().scheduled ? { [task().scheduled!]: 'Scheduled' } : undefined} onDismiss={() => capabilities.dismiss(state)}
-        onSelect={value => capabilities.edit(state.id, { kind: 'task', id: state.id, value: { ...task(), deadline: value.date, deadline_time: value.date ? value.time : null, warning_days: value.date ? task().warning_days : null } })} />}</Show>}
-      {state.kind === 'repeat' && <Show when={doc.block(state.id)?.task}>{task => <RepeatPopup anchor={state.anchor} value={task().repeater} disabled={capabilities.busy(state.id)} onDismiss={() => capabilities.dismiss(state)}
-        onSave={repeater => capabilities.edit(state.id, { kind: 'task', id: state.id, value: { ...task(), repeater } })} />}</Show>}
+        onSelect={value => capabilities.edit(state.id, { kind: 'task', id: state.id, value: planTask(task(), { deadline: value.date, deadline_time: value.date ? value.time : null, warning_days: value.date ? task().warning_days : null }, contextDate()) })} />}</Show>}
+      {state.kind === 'repeat' && <Show when={doc.block(state.id)?.task}>{task => <RepeatPopup anchor={state.anchor} value={task().repeater} firstDate={task().scheduled || task().deadline ? undefined : contextDate()} disabled={capabilities.busy(state.id)} onDismiss={() => capabilities.dismiss(state)}
+        onSave={repeater => capabilities.edit(state.id, { kind: 'task', id: state.id, value: planTask(task(), { repeater }, contextDate()) })} />}</Show>}
       {state.kind === 'project' && <Popup anchor={state.anchor} label="Project" class="outline-capability-popup" onDismiss={() => capabilities.dismiss(state)}>
         <ProjectControls notebook={props.notebook} project={doc.block(state.id)?.project ?? null} contextDate={contextDate()} disabled={capabilities.busy(state.id)} onChange={value => capabilities.edit(state.id, { kind: 'project', id: state.id, value })} />
         <Show when={doc.block(state.id)?.project}><Button onClick={event => capabilities.showActions(state.id, event.shiftKey)}>Show actions</Button></Show>

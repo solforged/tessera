@@ -5,6 +5,7 @@ import type { Caret, Edit, NotebookClient, PageDocument } from '../document/cont
 import type { OpenTarget } from '../shell/contract';
 import type { PopupAnchor } from '../ui/Popup';
 import { newTask } from '../tasks/quick-date';
+import { isFinished } from '../tasks/task-labels';
 
 
 export type CapabilityKind = 'task' | 'schedule' | 'deadline' | 'repeat' | 'project' | 'work' | 'review-date';
@@ -77,7 +78,8 @@ export function createOutlineCapabilities(options: {
       }
     });
   }
-  const toggle = (id: string) => status(id, doc.block(id)?.task?.status === 'done' ? 'todo' : doc.block(id)?.task ? 'done' : 'todo');
+  /** ⌘Enter and the glyph agree: an open task completes, a finished one reopens, a plain block becomes a todo. */
+  const toggle = (id: string) => { const task = doc.block(id)?.task; return status(id, task && !isFinished(task) ? 'done' : 'todo'); };
   async function complete(state: Extract<CapabilityPopup, { kind: 'complete' }>) {
     await edit(state.id, { kind: 'completeTask', id: state.id, completedOn: state.completedOn, stopWork: state.session });
     dismiss(state);

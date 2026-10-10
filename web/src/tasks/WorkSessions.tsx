@@ -1,6 +1,7 @@
 import { For, Show, createEffect, createMemo, createSignal, onCleanup, untrack } from 'solid-js';
 import type { WorkSession } from '../api/types';
 import { Button } from '../ui/Button';
+import { localDate } from '../ui/MonthGrid';
 import './work-sessions.css';
 
 export interface WorkSessionsProps {
@@ -17,6 +18,23 @@ function duration(start: number, end: number): string {
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor(seconds % 3600 / 60);
   return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+}
+
+/** Session times in the notebook's own voice: an ISO day and a 24-hour clock. */
+function stamp(ms: number): string {
+  const date = new Date(ms);
+  return `${localDate(date)} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+}
+
+/** The running session on its task's row: a ticking h:mm that opens Work sessions. */
+export function RunningClock(props: { session: WorkSession; onOpen(anchor: HTMLElement): void }) {
+  const [now, setNow] = createSignal(Date.now());
+  const timer = setInterval(() => setNow(Date.now()), 15_000);
+  onCleanup(() => clearInterval(timer));
+  const elapsed = () => duration(props.session.started_at, now()).replace(/:\d\d$/, '');
+  return <Button class="outline-planning running-clock" label={`Work running for ${elapsed()} · open work sessions`} onClick={event => props.onOpen(event.currentTarget)}>
+    <span class="running-clock-dot" aria-hidden="true" />{elapsed()}
+  </Button>;
 }
 
 export function WorkSessions(props: WorkSessionsProps) {
@@ -96,7 +114,7 @@ export function WorkSessions(props: WorkSessionsProps) {
           <span class="work-session-duration" role="timer" aria-label="Elapsed work time">{duration(session().started_at, now())}</span>
           <Button class="bordered" disabled={blocked()} onClick={stop}>Stop</Button>
         </div>
-        <div class="work-session-times"><span>Started</span> <time dateTime={new Date(session().started_at).toISOString()}>{new Date(session().started_at).toLocaleString()}</time></div>
+        <div class="work-session-times"><span>Started</span> <time dateTime={new Date(session().started_at).toISOString()}>{stamp(session().started_at)}</time></div>
         <label class="work-session-note">Note<textarea class="input" rows={2} value={note(session())} disabled={blocked()} onInput={event => changeNote(session().id, event.currentTarget.value)} /></label>
       </div>}
     </Show>
@@ -107,9 +125,9 @@ export function WorkSessions(props: WorkSessionsProps) {
           const session = () => history().get(id)!;
           return <li class="work-session-row">
             <div class="work-session-times">
-              <span>Started</span> <time dateTime={new Date(session().started_at).toISOString()}>{new Date(session().started_at).toLocaleString()}</time>
+              <span>Started</span> <time dateTime={new Date(session().started_at).toISOString()}>{stamp(session().started_at)}</time>
               <Show when={session().ended_at !== null} fallback={<span>Running</span>}>
-                <span>Ended</span> <time dateTime={new Date(session().ended_at!).toISOString()}>{new Date(session().ended_at!).toLocaleString()}</time>
+                <span>Ended</span> <time dateTime={new Date(session().ended_at!).toISOString()}>{stamp(session().ended_at!)}</time>
               </Show>
               <span class="work-session-duration" aria-label="Work duration">{duration(session().started_at, session().ended_at ?? now())}</span>
             </div>

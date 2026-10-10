@@ -261,6 +261,8 @@ export interface NotebookClient {
   today(): Promise<string>;
   /** Service calendar date, or the device date when offline. */
   todayDate(): string;
+  /** The open work session this window knows of; reactive. */
+  runningWork(): WorkSession | undefined;
   settings(): SettingsView | undefined;
   refreshSettings(): Promise<void>;
   vim(): boolean;

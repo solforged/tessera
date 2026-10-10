@@ -43,6 +43,8 @@ export const paths = {
   heading: 'M4 3v10 M12 3v10 M4 8h8',
   flag: 'M3 15V2 M3 2.5h9l-2 3 2 3H3',
   play: 'm5 3 8 5-8 5z',
+  // An hourglass: the task is held up on something else.
+  waiting: 'M4 2h8 M4 14h8 M5 2v1.5L8 8l3-4.5V2 M5 14v-1.5L8 8l3 4.5V14',
   // Places on the desk, drawn from circles and rules like the oculus.
   today: 'M2 12h12 M4.5 12a3.5 3.5 0 0 1 7 0 M8 4.5V6 M3.6 6.6l1 1 M12.4 6.6l-1 1',
   agenda: ['M14 8a6 6 0 1 1-12 0 6 6 0 0 1 12 0Z M8 2.8V4 M13.2 8H12 M8 13.2V12 M2.8 8H4 M8 8l2.6-2.2', 'M9 8a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z'],
