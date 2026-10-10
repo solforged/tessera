@@ -71,7 +71,10 @@ export class Notebook implements NotebookClient, DocumentHost {
   private generations = new Map<string, number>();
   private commandWaiters = new Map<string, { resolve(value: Committed): void; reject(error: Error): void }>();
   private pageWaiters = new Set<{ pageId: string; ids: Set<string>; resolve(): void; reject(error: Error): void }>();
-  private activeWork?: WorkSession;
+  // A signal, so rows showing the running clock follow starts and stops from any window.
+  private workSignal = createSignal<WorkSession | undefined>();
+  private get activeWork() { return this.workSignal[0](); }
+  private set activeWork(value: WorkSession | undefined) { this.workSignal[1](() => value); }
   private workSequence = 0;
   private capabilitySequence = new Map<string, number>();
   runningWork() { return this.activeWork; }

@@ -54,23 +54,25 @@
 .agenda-add-preview { margin: 0; padding-inline: var(--space-4); color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); overflow-wrap: anywhere; }
 .agenda-add-preview.warning { color: var(--warning); }
 /* One line per task: status, source with its page, then planning on the right; wraps under the source when narrow. */
-.agenda-row { display: flex; flex-wrap: wrap; align-items: flex-start; column-gap: var(--space-8); min-width: 0; content-visibility: auto; contain-intrinsic-size: auto var(--row-height); }
+.agenda-row { display: flex; flex-wrap: wrap; align-items: flex-start; column-gap: var(--space-8); min-width: 0; border-radius: var(--radius-control); content-visibility: auto; contain-intrinsic-size: auto var(--row-height); transition: background-color var(--motion-fast) var(--motion-ease); }
+/* The whole line lights on hover, planning included; the source button inside stays transparent. */
+.agenda-row:hover { background: var(--hover); }
 .agenda-status { display: inline-flex; flex: 0 0 var(--target-size); justify-content: center; align-items: center; width: var(--target-size); min-height: var(--row-height); padding: 0; color: var(--muted); }
+.agenda-row .agenda-status.task-status-button { min-height: var(--row-height); padding: 0; }
 /* A 16rem basis keeps the source beside its status; planning wraps under it before the text does. */
-.agenda-source { flex: 1 1 16rem; min-width: 0; min-height: var(--row-height); display: flex; flex-wrap: wrap; align-items: baseline; align-content: center; column-gap: var(--space-8); border: 0; border-radius: var(--radius-control); padding: var(--space-2) var(--space-4); background: transparent; color: var(--text); text-align: left; cursor: pointer; font: var(--weight-body) var(--text-body)/var(--line-body) var(--font-body); transition: background-color var(--motion-fast) var(--motion-ease); }
-.agenda-source:hover { background: var(--hover); }
+.agenda-source { flex: 1 1 16rem; min-width: 0; min-height: var(--row-height); display: flex; flex-wrap: wrap; align-items: baseline; align-content: center; column-gap: var(--space-8); border: 0; border-radius: var(--radius-control); padding: var(--space-2) var(--space-4); background: transparent; color: var(--text); text-align: left; cursor: pointer; font: var(--weight-body) var(--text-body)/var(--line-body) var(--font-body); }
 /* Rows contain their paint, so the ring sits inside the row. */
 .agenda-row :focus-visible { outline: var(--focus-ring); outline-offset: -2px; }
 /* Long task text clamps at two lines; opening the source shows all of it. */
 .agenda-source-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-.agenda-source-page, .agenda-row-meta { color: var(--faint); font-size: var(--text-meta); line-height: var(--line-meta); }
-.agenda-source-page { overflow-wrap: anywhere; }
-.agenda-row-meta { display: flex; flex-wrap: wrap; justify-content: flex-end; align-content: center; gap: var(--space-4) var(--space-8); min-height: var(--row-height); margin-left: auto; }
+.agenda-source-page { color: var(--faint); font-size: var(--text-meta); line-height: var(--line-meta); overflow-wrap: anywhere; }
+/* Planning is the machine's: dates, times and priority in apparatus mono. */
+.agenda-row-meta { display: flex; flex-wrap: wrap; justify-content: flex-end; align-content: center; gap: var(--space-4) var(--space-8); min-height: var(--row-height); margin-left: auto; padding-right: var(--space-4); color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .agenda-row-meta:empty { display: none; }
-.agenda-time { color: var(--muted); font-variant-numeric: tabular-nums; }
+.agenda-time { color: var(--muted); }
 .agenda-late { color: var(--danger); }
-.agenda-row-completed .agenda-status { color: var(--status-done); }
-.agenda-row-completed .agenda-source-text { color: var(--muted); }
+.agenda-row:is(.agenda-row-completed, .agenda-row-cancelled) .agenda-source-text { color: var(--muted); }
+.agenda-row-cancelled .agenda-source-text { text-decoration: line-through var(--faint); }
 .agenda-row > .agenda-error, .agenda-row > .agenda-message { flex-basis: 100%; margin-left: calc(var(--target-size) + var(--space-8)); }
 .journal-agenda { margin-block: var(--space-4) var(--space-8); font-weight: var(--weight-body); }
 /* Journal sections head like the sidebar's: the name, a hairline rule, then the state and the chevron at the right. */
@@ -80,6 +82,10 @@
 .journal-agenda-toggle > .icon { width: var(--icon-size-small); height: var(--icon-size-small); color: var(--faint); transition: rotate var(--motion-fast) var(--motion-ease); }
 .journal-agenda-toggle[aria-expanded="false"] > .icon { rotate: -90deg; }
 .journal-agenda-body > .journal-agenda-toggle { padding-left: calc(var(--target-size) + var(--space-8)); }
+/* Group headings inside an agenda start on the task text's edge, like Unplanned always did. */
+.agenda-results > .journal-agenda-toggle { padding-left: calc(var(--target-size) + var(--space-8)); }
+div.journal-agenda-toggle { display: flex; align-items: center; gap: var(--space-8); min-height: var(--target-size); padding-right: var(--space-4); color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.agenda-group-heading .agenda-summary.agenda-late { color: var(--danger); }
 .journal-agenda-body { display: flex; flex-direction: column; gap: var(--space-8); margin-top: var(--space-4); }
 /* Its label starts on the task text's edge. */
 .journal-agenda-more.button { align-self: flex-start; margin-left: calc(var(--target-size) + var(--space-4) - 1px); color: var(--muted); font-weight: var(--weight-body); }

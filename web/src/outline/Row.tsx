@@ -1,4 +1,4 @@
-import { For, Show, createMemo, onCleanup, onMount } from 'solid-js';
+import { For, Show, createEffect, createMemo, createSignal, on, onCleanup, onMount } from 'solid-js';
 import type { Accessor } from 'solid-js';
 import type { VirtualItem } from '@tanstack/solid-virtual';
 import type { QuestionStatus } from '../api/types';
@@ -6,6 +6,8 @@ import { fieldEntryId, matchFieldEntry } from '../table/query';
 import { linkedCitation, setLinkedCitation } from '../library/highlights';
 import { parseCardText } from '../review/card-text';
 import { TaskStatusButton } from '../tasks/TaskControls';
+import { RunningClock } from '../tasks/WorkSessions';
+import { isFinished, taskFacts } from '../tasks/task-labels';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { BlockText } from './BlockText';
@@ -18,7 +20,7 @@ import type { OutlineContext } from './context';
 
 const questionLabels: Record<QuestionStatus, string> = { open: 'Open', answered: 'Answered', parked: 'Parked', unsettled: 'Unsettled' };
 export function createOutlineRows(context: Pick<OutlineContext,
-  | 'doc' | 'capabilities' | 'setMenu' | 'investigationItems' | 'definitionsById'
+  | 'doc' | 'capabilities' | 'setMenu' | 'investigationItems' | 'definitionsById' | 'contextDate'
   | 'inlineFields' | 'baseDepth' | 'positionSource' | 'sourceDetails' | 'virtualizer'
   | 'hosts' | 'props' | 'folds' | 'selectedSet' | 'editing'
   | 'coveredSet' | 'glossId' | 'margin' | 'sigla' | 'blockMenu'
@@ -27,21 +29,53 @@ export function createOutlineRows(context: Pick<OutlineContext,
   | 'setConflicts' | 'conflicts' | 'editedConflicts' | 'setEditedConflicts'
 >) {
   const {
-    doc, capabilities, setMenu, investigationItems, definitionsById, inlineFields,
+    doc, capabilities, setMenu, investigationItems, definitionsById, contextDate, inlineFields,
     baseDepth, positionSource, sourceDetails, virtualizer, hosts, props,
     folds, selectedSet, editing, coveredSet, glossId, margin,
     sigla, blockMenu, fold, zoomTo, editAt, pointerStart,
     attach, referenceMenu, selectedOffsets, ids, setMessage, apply,
     setConflicts, conflicts, editedConflicts, setEditedConflicts,
   } = context;
+  /**
+   * A task's trailing facts: subtask progress, a running clock, then planning in mono, which opens the planning slip.
+   * An open task with no plan offers Plan only while its row is hovered or selected; a finished one says when it was done.
+   */
   function TaskSummary(propsTask: { id: string }) {
-    return <Show when={doc.block(propsTask.id)?.task}>{task => <Button class="outline-planning" label="Plan task" disabled={capabilities.busy(propsTask.id)} aria-haspopup="dialog" onClick={event => capabilities.open(propsTask.id, 'task', event.currentTarget)}>
-      <Show when={task().scheduled}><span aria-label={`Scheduled: ${task().scheduled}${task().scheduled_time ? ` ${task().scheduled_time}` : ''}`}>Scheduled {task().scheduled} {task().scheduled_time}</span></Show>
-      <Show when={task().deadline}><span aria-label={`Deadline: ${task().deadline}${task().deadline_time ? ` ${task().deadline_time}` : ''}`}>Deadline {task().deadline} {task().deadline_time}</span></Show>
-      <Show when={task().priority}><span>Priority: {task().priority}</span></Show>
-      <Show when={task().repeater}>{repeat => <span aria-label={`Repeat: ${repeat().mode}, every ${repeat().every} ${repeat().unit}`}>Repeat {repeat().every} {repeat().unit}</span>}</Show>
-      <Show when={!task().scheduled && !task().deadline && !task().priority && !task().repeater}>Plan task</Show>
-    </Button>}</Show>;
+    const task = () => doc.block(propsTask.id)?.task;
+    const facts = createMemo(() => { const value = task(); return value ? taskFacts(value, { date: contextDate(), today: props.notebook.todayDate() }) : []; });
+    const progress = createMemo(() => {
+      let done = 0, total = 0;
+      for (const child of doc.outline.children(propsTask.id)) {
+        const status = doc.block(child)?.task?.status;
+        if (!status || status === 'cancelled') continue;
+        total++;
+        if (status === 'done') done++;
+      }
+      return total ? { done, total } : null;
+    });
+    const running = createMemo(() => { const work = props.notebook.runningWork(); return work?.block_id === propsTask.id ? work : undefined; });
+    // Completing a repeating task moves its dates forward; the facts glow once so the move is seen.
+    const [advanced, setAdvanced] = createSignal('');
+    let glow = 0;
+    onCleanup(() => clearTimeout(glow));
+    createEffect(on(() => task()?.scheduled ?? task()?.deadline, (next, previous) => {
+      if (!task()?.repeater || !next || !previous || next <= previous) return;
+      clearTimeout(glow);
+      setAdvanced(`Repeats. Next: ${facts()[0]?.label ?? next}`);
+      glow = window.setTimeout(() => setAdvanced(''), 1600);
+    }, { defer: true }));
+    return <Show when={task()}>{value => <>
+      <Show when={progress()}>{count => <span class="outline-task-progress" title={`${count().done} of ${count().total} subtasks done`}>{count().done}/{count().total}</span>}</Show>
+      <Show when={running()}>{work => <RunningClock session={work()} onOpen={anchor => capabilities.open(propsTask.id, 'work', anchor)} />}</Show>
+      <Show when={!isFinished(value())} fallback={<For each={facts()}>{fact => <span class="outline-task-facts" title={fact.label}>{fact.text}</span>}</For>}>
+        <Button class={`outline-planning outline-task-facts${facts().length ? '' : ' outline-plan-empty'}${advanced() ? ' outline-task-advanced' : ''}`} label={facts().length ? `Plan task: ${facts().map(fact => fact.label).join(', ')}` : 'Plan task'} disabled={capabilities.busy(propsTask.id)} aria-haspopup="dialog" onClick={event => capabilities.open(propsTask.id, 'task', event.currentTarget)}>
+          <Show when={facts().length} fallback="Plan">
+            <For each={facts()}>{fact => <span classList={{ 'outline-task-late': !!fact.late }} title={fact.label}>{fact.text}</span>}</For>
+          </Show>
+        </Button>
+      </Show>
+      <Show when={advanced()}><span class="visually-hidden" role="status">{advanced()}</span></Show>
+    </>}</Show>;
   }
 
   /** A question's state as one control: its glyph, its state and any review date. Clicking opens the question menu. */
@@ -90,6 +124,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
     return <div ref={row} id={`outline-${props.pane}-${id()}`} data-index={propsRow.item().index} data-block-id={id()} role="treeitem" aria-level={depth() + 1}
       aria-expanded={children() ? !folds().has(id()) : undefined} aria-selected={selectedSet().has(id())}
       class="outline-row" classList={{ 'row-position': !!block()?.position, 'row-gist': gist(), 'row-question': !!block()?.question, 'row-assessment': !!block()?.assessment, 'row-selected': selectedSet().has(id()) && editing() !== id(), 'row-covered': coveredSet().has(id()), 'row-editing': editing() === id(), 'row-archived': block()?.archived ?? false, 'field-entry': !!field(), 'inline-field-value': inline(), 'row-gloss': inline() && parent() === glossId(), 'choice-value': pill(), 'source-detail': !!sourceField(), 'source-highlights-start': sourceDetails().firstHighlight === id(), 'outline-row-linked': block()?.citations.some(citation => citation.id === linkedCitation()) ?? false }}
+      data-task-status={block()?.task?.status}
       data-holder={block()?.position?.holder_id ?? undefined}
       data-question-status={block()?.question?.status} data-accepted={block()?.assessment ? String(block()!.assessment!.accepted) : undefined} data-aporia={block()?.assessment?.state.aporia ? 'true' : undefined}
       onPointerEnter={() => setLinkedCitation(block()?.citations[0]?.id ?? null)} onPointerLeave={() => setLinkedCitation(null)}

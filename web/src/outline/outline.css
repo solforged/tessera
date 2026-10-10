@@ -136,6 +136,21 @@
 .outline-capability-metadata .outline-planning { display: inline-flex; flex-wrap: wrap; justify-content: flex-start; gap: var(--space-8); padding: 0 var(--space-4); color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); }
 /* A card count is a count: apparatus mono, like every other number the notebook reports. */
 .outline-capability-metadata .outline-card-count { font: var(--apparatus); letter-spacing: var(--tracking-apparatus); font-variant-numeric: tabular-nums; }
+/* Task facts are the machine's: dates, progress and the running clock in apparatus mono. Missed plans take the danger colour. */
+.outline-capability-metadata :is(.outline-task-facts, .outline-task-progress) { font: var(--apparatus); letter-spacing: var(--tracking-apparatus); font-variant-numeric: tabular-nums; }
+.outline-capability-metadata .outline-task-facts { display: inline-flex; align-items: center; gap: var(--space-8); padding: 0 var(--space-4); color: var(--muted); }
+.outline-capability-metadata .outline-task-progress { display: inline-flex; align-items: center; padding: 0 var(--space-4); color: var(--faint); }
+.outline-task-late { color: var(--danger); }
+/* An unplanned open task offers Plan only where the pointer or selection is, so a list of todos does not repeat it. */
+.outline-capability-metadata .outline-plan-empty { display: none; color: var(--faint); }
+.outline-row:is(:hover, :focus-within, .row-selected) .outline-plan-empty, .outline-root-capabilities .outline-plan-empty { display: inline-flex; }
+.outline-task-advanced { animation: task-advanced 1600ms var(--motion-ease); }
+@keyframes task-advanced { from, 40% { color: var(--accent); } }
+@media (prefers-reduced-motion: reduce) { .outline-task-advanced { animation: none; } }
+/* Finished work recedes: done text turns muted, cancelled text is struck through as well. */
+.outline-row:is([data-task-status="done"], [data-task-status="cancelled"]) > .outline-body .static-text { color: var(--muted); }
+.outline-row[data-task-status="cancelled"] > .outline-body .static-text { text-decoration: line-through var(--faint); }
+.outline-row:is([data-task-status="done"], [data-task-status="cancelled"]) > .outline-body .outline-task-facts { color: var(--faint); }
 .outline-root-capabilities { justify-content: flex-start; align-items: center; margin-top: var(--space-8); }
 .outline-capability-notice { color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); font-weight: var(--weight-body); }
 .outline-card-problem, .outline-capability-error { margin: var(--space-4) 0; color: var(--warning); font-size: var(--text-meta); line-height: var(--line-meta); font-weight: var(--weight-body); }

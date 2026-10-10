@@ -3,7 +3,8 @@ import { depthStops } from '../shell/contract';
 import type { Command } from '../shell/contract';
 import { parseCardText } from '../review/card-text';
 import { newTask } from '../tasks/quick-date';
-import { priorities, priorityLabel, statusLabels, statuses } from '../tasks/TaskControls';
+import { priorities, priorityLabel, statusMenuItems } from '../tasks/TaskControls';
+import { isFinished } from '../tasks/task-labels';
 import type { IconName } from '../ui/Icon';
 import type { MenuItem } from '../ui/Menu';
 import { textTokens } from '../document/text-tokens';
@@ -126,7 +127,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     { id: 'copy-reference', title: 'Copy block reference', section: 'Editing', run: () => selected() && copy(`[[${selected()}]]`) },
     { id: 'make-task', title: 'Make task', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.task ? 'Already a task.' : undefined, run: () => selected() && capabilities.invoke(capabilities.status(selected()!, 'todo')) },
     { id: 'remove-task', title: 'Remove task', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.task ? undefined : 'Select a task.', run: () => selected() && capabilities.invoke(capabilities.status(selected()!, null)) },
-    { id: 'toggle-task', title: 'Toggle task', section: 'Outline', keys: ['⌘Enter'], run: () => selected() && capabilities.invoke(capabilities.toggle(selected()!)) },
+    { id: 'toggle-task', title: 'Complete or reopen task', section: 'Outline', keys: ['⌘Enter'], run: () => selected() && capabilities.invoke(capabilities.toggle(selected()!)) },
     { id: 'task-status', title: 'Set task status…', section: 'Outline', keys: ['⌘⇧Enter', 'Space t'], run: () => selected() && statusMenu(selected()!) },
     { id: 'plan-task', title: 'Plan task', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.task ? undefined : 'Select a task.', run: () => selected() && capabilities.open(selected()!, 'task') },
     { id: 'schedule-task', title: 'Schedule task', section: 'Outline', keys: ['Space s', '@'], run: () => selected() && openPlanning(selected()!, 'schedule') },
@@ -193,14 +194,13 @@ export function createOutlineCommands(context: Pick<OutlineContext,
       item('zoom', { icon: 'bullet' }),
       item('open-beside', { icon: 'panes' }),
       item('copy-reference', { icon: 'copy' }),
-      { label: doc.block(id)?.task ? 'Remove task' : 'Make task', section: 'Task', action: () => capabilities.invoke(capabilities.status(id, doc.block(id)?.task ? null : 'todo')) },
-      item('toggle-task'),
-      item('task-status'),
       ...(doc.block(id)?.task ? [
+        { ...item('toggle-task', { section: 'Task' }), label: isFinished(doc.block(id)!.task!) ? 'Reopen task' : 'Complete task' },
+        item('task-status'),
         { label: 'Plan task', action: () => capabilities.open(id, 'task', anchor) },
-        { ...item('schedule-task'), action: () => capabilities.open(id, 'schedule', anchor) },
         { label: 'Work sessions', action: () => capabilities.open(id, 'work', anchor) },
-      ] : []),
+        { label: 'Remove task', action: () => capabilities.invoke(capabilities.status(id, null)) },
+      ] : [{ label: 'Make task', section: 'Task', shortcut: '⌘Enter', action: () => capabilities.invoke(capabilities.status(id, 'todo')) }]),
       ...(doc.block(id)?.project ? [
         { label: 'Project', section: 'Project', action: () => capabilities.open(id, 'project', anchor) },
         { label: 'Show actions', action: () => capabilities.showActions(id) },
@@ -232,14 +232,11 @@ export function createOutlineCommands(context: Pick<OutlineContext,
   }
   function statusMenu(id: string) {
     const task = doc.block(id)?.task;
-    keyboardMenu(id, 'Task status', [
-      ...statuses.map((status): MenuItem => ({ label: statusLabels[status], icon: task?.status === status ? 'check' : undefined, action: () => capabilities.invoke(capabilities.status(id, status)) })),
-      ...(task ? [{ label: 'Remove task', icon: 'close' as const, action: () => capabilities.invoke(capabilities.status(id, null)) }] : []),
-    ]);
+    keyboardMenu(id, 'Task status', statusMenuItems(task, status => capabilities.invoke(capabilities.status(id, status))));
   }
   function priorityMenu(id: string) {
     const current = doc.block(id)?.task?.priority ?? null;
-    keyboardMenu(id, 'Priority', priorities.map((priority): MenuItem => ({ label: priorityLabel(priority), icon: current === priority ? 'check' : undefined, action: () => {
+    keyboardMenu(id, 'Priority', priorities.map((priority): MenuItem => ({ label: priorityLabel(priority), checked: current === priority, action: () => {
       const task = doc.block(id)?.task ?? newTask();
       capabilities.invoke(capabilities.edit(id, { kind: 'task', id, value: { ...task, priority } }));
     } })));
