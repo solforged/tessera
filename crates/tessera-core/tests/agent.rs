@@ -551,3 +551,34 @@ fn a_rejected_request_writes_nothing() {
     assert!(nb.page_by_title("Empty").unwrap().is_none());
     assert!(nb.agent_changes(10).unwrap().is_empty());
 }
+
+#[test]
+fn undo_handles_provisional_pages_cleaned_in_this_and_later_changes() {
+    let (_dir, mut nb) = fixture();
+    dune(&mut nb);
+    let added = run(&mut nb, &note(page("Dune"), vec![block("#p", vec![])]));
+    let source = added.blocks[0].id.clone();
+    let prefix = nb.page_by_title("p").unwrap().unwrap();
+    let edited = run(&mut nb, &edit(&source, "#phil"));
+    let final_page = nb.page_by_title("phil").unwrap().unwrap();
+    assert!(nb.block(&prefix.id).is_err());
+    undo(&mut nb, edited.seq).unwrap();
+    assert!(nb.block(&final_page.id).is_err());
+    assert!(nb.page_by_title("p").unwrap().is_some());
+    undo(&mut nb, added.seq).unwrap();
+    assert!(nb.page_by_title("p").unwrap().is_none());
+    assert!(nb.block(&source).is_err());
+    assert_eq!(outline(&nb, &id(1)), ["first", "  nested", "second"]);
+}
+
+#[test]
+fn undo_skips_a_created_page_already_removed_by_another_change() {
+    let (_dir, mut nb) = fixture();
+    dune(&mut nb);
+    let added = run(&mut nb, &note(page("Dune"), vec![block("[[Agent page]] #agenttag", vec![])]));
+    let created = nb.page_by_title("Agent page").unwrap().unwrap();
+    seed(&mut nb, vec![Operation::Delete { id: created.id.clone(), base_revision: created.revision }]);
+    undo(&mut nb, added.seq).unwrap();
+    assert!(nb.page_by_title("agenttag").unwrap().is_none());
+    assert!(nb.block(&created.id).is_err());
+}

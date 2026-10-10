@@ -738,7 +738,8 @@ fn membership_title_upgrade_preserves_unresolved_mentions_without_resurrecting_p
     drop(nb);
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
     conn.execute_batch(
-        "DROP TABLE agent_changes;
+        "DROP TABLE provisional_pages;
+         DROP TABLE agent_changes;
          DROP TABLE memberships;
          CREATE TABLE memberships (
              block_id TEXT NOT NULL REFERENCES blocks(id),
@@ -1052,10 +1053,14 @@ fn manual_membership_add_remove_is_revisioned_and_preserves_authored_title() {
         vec![Revision {
             id: id(10),
             revision: 4
+        }, Revision {
+            id: target.id.clone(),
+            revision: 2
         }]
     );
     assert!(nb.page(&id(1)).unwrap().rows[0].manual_types.is_empty());
     assert!(nb.members(&target.id, 10).unwrap().is_empty());
+    assert!(nb.block(&target.id).is_err());
     assert_eq!(nb.block(&id(10)).unwrap().text, "Reading");
 }
 
@@ -1241,7 +1246,8 @@ fn manual_membership_migration_retains_authored_text_tags_and_unresolved_titles(
     drop(nb);
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
     conn.execute_batch(
-        "DROP TABLE agent_changes;
+        "DROP TABLE provisional_pages;
+         DROP TABLE agent_changes;
          ALTER TABLE memberships RENAME TO modern_memberships;
          DROP INDEX memberships_type;
          DROP INDEX memberships_title;
@@ -1294,4 +1300,114 @@ fn manual_membership_migration_retains_authored_text_tags_and_unresolved_titles(
         .collect::<rusqlite::Result<Vec<_>>>()
         .unwrap();
     assert_eq!(titles, vec![("BOOK".into(), 0), ("Long Title".into(), 0)]);
+}
+
+#[test]
+fn provisional_tag_pages_follow_saved_prefixes_and_emit_normal_deletions() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut nb = Notebook::open(dir.path()).unwrap();
+    apply(&mut nb, vec![page(1, "Notes"), insert(10, 1, "#p")]);
+    for (revision, title) in [(1, "ph"), (2, "phi"), (3, "phil"), (4, "")] {
+        let previous: Vec<_> = nb.complete("p", 100).unwrap().into_iter().filter(|b| b.kind == BlockKind::Page).collect();
+        assert_eq!(previous.len(), 1);
+        let previous = &previous[0];
+        let text = if title.is_empty() { String::new() } else { format!("#{title}") };
+        let committed = apply(&mut nb, vec![edit(10, revision, &text)]);
+        assert!(nb.block(&previous.id).is_err());
+        assert_eq!(committed.deletions.len(), 1);
+        assert!(committed.revisions.contains(&Revision { id: previous.id.clone(), revision: 2 }));
+        let event = nb.changes_since(committed.seq - 1, 1).unwrap().remove(0);
+        assert_eq!(event.removed, vec![previous.id.clone()]);
+        assert!(event.restructured_pages.contains(&previous.id));
+        assert_eq!(nb.complete("p", 100).unwrap().iter().filter(|b| b.kind == BlockKind::Page).map(|b| b.text.as_str()).collect::<Vec<_>>(),
+            if title.is_empty() { vec![] } else { vec![title] });
+    }
+}
+
+#[test]
+fn provisional_pages_count_shared_manual_and_live_link_uses() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut nb = Notebook::open(dir.path()).unwrap();
+    apply(&mut nb, vec![page(1, "Notes"), insert(10, 1, "#shared"), insert(11, 1, "#shared")]);
+    let shared = nb.page_by_title("shared").unwrap().unwrap();
+    apply(&mut nb, vec![edit(10, 1, "")]);
+    assert!(nb.block(&shared.id).is_ok());
+    apply(&mut nb, vec![Operation::AddType { id: id(10), base_revision: 2, title: "shared".into() }, delete(11, 1)]);
+    assert!(nb.block(&shared.id).is_ok());
+    apply(&mut nb, vec![insert(12, 1, &format!("[[{}]]", shared.id)), Operation::RemoveType { id: id(10), base_revision: 3, title: "shared".into() }]);
+    assert!(nb.block(&shared.id).is_ok());
+    apply(&mut nb, vec![delete(12, 1)]);
+    assert!(nb.block(&shared.id).is_err());
+    apply(&mut nb, vec![Operation::AddType { id: id(10), base_revision: 4, title: "manual".into() }]);
+    let manual = nb.page_by_title("manual").unwrap().unwrap();
+    apply(&mut nb, vec![Operation::RemoveType { id: id(10), base_revision: 5, title: "manual".into() }]);
+    assert!(nb.block(&manual.id).is_err());
+}
+
+#[test]
+fn provisional_pages_with_authored_claims_and_explicit_pages_survive() {
+    use tessera_core::{FieldKind, TaskState};
+    let dir = tempfile::tempdir().unwrap();
+    let mut nb = Notebook::open(dir.path()).unwrap();
+    apply(&mut nb, vec![page(1, "Notes"), page(2, "Explicit"), page(3, "Category"),
+        insert(10, 1, "#edited #children #typed #template #task #Explicit")]);
+    let target = |name: &str| nb.page_by_title(name).unwrap().unwrap().id;
+    let edited = target("edited");
+    let children = target("children");
+    let typed = target("typed");
+    let template = target("template");
+    let task = target("task");
+    let fields = nb.fields().unwrap().page_id;
+    apply(&mut nb, vec![
+        Operation::EditText { id: edited.clone(), base_revision: 1, text: "Renamed".into() },
+        Operation::Insert { id: id(20), parent_id: children.clone(), after: None, text: "Child".into(), heading: None },
+        Operation::AddType { id: typed.clone(), base_revision: 1, title: "Category".into() },
+        Operation::Insert { id: id(21), parent_id: fields, after: None, text: "Field".into(), heading: None },
+        Operation::SetFieldKind { id: id(21), base_revision: 1, kind: FieldKind::Text },
+        Operation::SetTypeFields { type_id: template.clone(), base_revision: 1, fields: vec![id(21)] },
+        Operation::SetTask { id: task.clone(), base_revision: 1, task: Some(TaskState::default()) },
+    ]);
+    let revision = nb.block(&id(10)).unwrap().revision;
+    apply(&mut nb, vec![edit(10, revision, "")]);
+    for id in [edited, children, typed, template, task, id(2)] {
+        assert!(nb.block(&id).is_ok(), "{id} was claimed");
+    }
+}
+
+#[test]
+fn provisional_pages_named_by_saved_queries_survive() {
+    use tessera_core::{CardQuery, Query, TaskQuery, library::LibraryQuery};
+    let dir = tempfile::tempdir().unwrap();
+    let mut nb = Notebook::open(dir.path()).unwrap();
+    apply(&mut nb, vec![page(1, "Notes"), insert(10, 1, "#view #deck #tasks #title #library #Éthique")]);
+    let query = |name: &str| Query { r#type: Some(nb.page_by_title(name).unwrap().unwrap().id),
+        text: None, filters: vec![], sort: vec![], limit: None };
+    let view = query("view");
+    let deck = query("deck");
+    let tasks = query("tasks");
+    apply(&mut nb, vec![
+        Operation::SaveView { id: id(20), base_revision: None, name: "View".into(), query: view },
+        Operation::SaveDeck { id: id(21), base_revision: None, name: "Deck".into(), query: CardQuery { source: Some(deck), ..Default::default() } },
+        Operation::SaveTaskView { id: id(22), base_revision: None, name: "Tasks".into(), query: TaskQuery { source: Some(tasks), filter: Default::default(), context_date: "2026-10-10".into(), limit: None } },
+        Operation::SaveView { id: id(23), base_revision: None, name: "Title".into(), query: Query { r#type: None, text: Some("#title ÉTHIQUE".into()), filters: vec![], sort: vec![], limit: None } },
+        Operation::SaveLibraryView { id: id(24), base_revision: None, name: "Library".into(), query: LibraryQuery { text: Some("library".into()), ..Default::default() } },
+        edit(10, 1, ""),
+    ]);
+    for title in ["view", "deck", "tasks", "title", "library", "Éthique"] {
+        assert!(nb.page_by_title(title).unwrap().is_some(), "{title} is named by a query");
+    }
+}
+
+#[test]
+fn provisional_cleanup_does_not_backfill_existing_pages_on_upgrade() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut nb = Notebook::open(dir.path()).unwrap();
+    apply(&mut nb, vec![page(1, "Notes"), insert(10, 1, "#legacy")]);
+    drop(nb);
+    let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
+    conn.execute_batch("DROP TABLE IF EXISTS provisional_pages; PRAGMA user_version = 20;").unwrap();
+    drop(conn);
+    let mut nb = Notebook::open(dir.path()).unwrap();
+    apply(&mut nb, vec![edit(10, 1, "")]);
+    assert!(nb.page_by_title("legacy").unwrap().is_some());
 }
