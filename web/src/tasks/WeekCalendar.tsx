@@ -1,11 +1,13 @@
 import { For, Show, batch, createEffect, createMemo, createSignal, createUniqueId, onCleanup, untrack } from 'solid-js';
 import type { JSX } from 'solid-js';
-import type { TaskRow, TaskState, TaskStatus } from '../api/types';
+import type { TaskRow, TaskState } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { BlockText } from '../outline/BlockText';
 import type { OpenTarget } from '../shell/contract';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
+import { statusIcons, statusLabels } from './TaskControls';
+import { isFinished } from './task-labels';
 import { calendarWeekDates, fetchWeekTaskRange, keyboardWeekSchedule, layoutWeekTimedEntries, mergeWeekTaskRows, mondayWeekStart, scheduleWeekTask, snapWeekMinutes, weekTaskEntries } from './week-calendar';
 import type { IncompleteWeekRange, TimedWeekEntry, WeekEntry } from './week-calendar';
 import './agenda.css';
@@ -38,7 +40,6 @@ interface WeekDrag {
   active: boolean;
 }
 
-const statusLabels: Record<TaskStatus, string> = { todo: 'Todo', doing: 'Doing', waiting: 'Waiting', done: 'Done', cancelled: 'Cancelled' };
 const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const scheduleKeys: Record<string, true> = { ArrowLeft: true, ArrowRight: true, ArrowUp: true, ArrowDown: true, Home: true };
 
@@ -345,7 +346,7 @@ function WeekTaskCard(props: {
   onPointerDown(event: PointerEvent, entry: WeekEntry): void;
   onKeyDown(event: KeyboardEvent, entry: WeekEntry): void;
 }) {
-  const completed = createMemo(() => props.entry.row.task.status === 'done' || props.entry.row.task.status === 'cancelled');
+  const completed = createMemo(() => isFinished(props.entry.row.task));
   const late = createMemo(() => !completed() && props.entry.date < props.notebook.todayDate());
   const label = createMemo(() => `${props.entry.row.source.block.text || 'Empty task'}, ${statusLabels[props.entry.row.task.status]}, ${props.entry.kind === 'due' ? 'due' : 'scheduled'} ${props.entry.date}${props.entry.time ? ` at ${props.entry.time}` : ', all-day'}${props.entry.due && props.entry.kind !== 'due' ? `, due${props.entry.row.task.deadline_time ? ` at ${props.entry.row.task.deadline_time}` : ''}` : ''}${late() ? ', overdue' : ''}, source ${props.entry.row.source.page.text}`);
   const position = createMemo((): JSX.CSSProperties | undefined => {
@@ -361,7 +362,7 @@ function WeekTaskCard(props: {
     style={position()} data-week-task={props.entry.row.source.block.id} data-week-kind={props.entry.kind} data-week-status={props.entry.row.task.status} aria-label={label()} aria-describedby={props.instructionsId} aria-busy={props.busy} title={`${label()} · Shift to open beside`}
     onPointerDown={event => props.onPointerDown(event, props.entry)} onKeyDown={event => props.onKeyDown(event, props.entry)}
     onClick={event => props.onOpen({ kind: 'page', pageId: props.entry.row.source.page.id, blockId: props.entry.row.source.block.id }, event.shiftKey)}>
-    <span class="week-calendar-task-meta"><Show when={completed()}><Icon name={props.entry.row.task.status === 'cancelled' ? 'close' : 'check'} /></Show><Show when={props.entry.due}>Due{props.entry.row.task.deadline_time ? ` ${props.entry.row.task.deadline_time}` : ''}</Show><Show when={!props.entry.due}>{props.entry.time ?? statusLabels[props.entry.row.task.status]}</Show></span>
+    <span class="week-calendar-task-meta"><Icon name={statusIcons[props.entry.row.task.status]} /><Show when={props.entry.due}>Due{props.entry.row.task.deadline_time ? ` ${props.entry.row.task.deadline_time}` : ''}</Show><Show when={!props.entry.due && props.entry.time}>{props.entry.time}</Show></span>
     <span class="week-calendar-task-text"><BlockText text={props.entry.row.source.block.text || 'Empty task'} notebook={props.notebook} interactive={false} /></span>
   </button>;
 }
