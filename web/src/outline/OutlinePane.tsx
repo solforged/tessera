@@ -7,6 +7,8 @@ import { depthStops } from '../shell/contract';
 import type { Depth, OutlinePaneProps, ViewState } from '../shell/contract';
 import { fieldEntryId } from '../table/query';
 import { setLinkedCitation } from '../library/highlights';
+import { createTemplateCache } from '../fields/templates';
+import { TemplateEditor } from '../fields/TemplateEditor';
 import { pageSigla } from '../library/sigla';
 import { sourceReadingOrder } from '../library/source-order';
 import type { OutlineIndex } from '../document/outline-index';
@@ -20,7 +22,7 @@ import { BlockText, isStableReference, plainText } from './BlockText';
 import { textTokens } from '../document/text-tokens';
 import { PaneEditor } from './editor';
 import { createOutlineCapabilities } from './capabilities';
-import { inlineFieldValue, selectionIds, selectionRoots, visibleIds } from './visibility';
+import { inlineFieldValues, selectionIds, selectionRoots, visibleIds } from './visibility';
 import type { DepthFilter } from './visibility';
 import { CitationChip, SourceHeader } from './SourceHeader';
 import { GLOSS_FIELD, glossEntry, isGistName, isGlossName } from './gloss';
@@ -34,6 +36,7 @@ import { createOutlineKeyboard } from './keyboard';
 import { createOutlineInteractions } from './interactions';
 import { createOutlineRows } from './Row';
 import { createOutlineRelated } from './Related';
+import { createFieldSheet } from './field-sheet';
 import { createCapabilityPopups } from './CapabilityPopups';
 import type { MenuState, OutlineContext, RowRange } from './context';
 import { PageMergeConfirmation, pageMergeDisabledReason } from './PageMerge';
@@ -101,6 +104,7 @@ function Pane(props: OutlinePaneProps) {
   });
   const definitionsById = createMemo(() => new Map(definitions().map(field => [field.id, field])));
   const definitionsByName = createMemo(() => new Map(definitions().map(field => [field.name.toLowerCase(), field])));
+  const templates = createTemplateCache(() => fields.error ? undefined : fields(), props.notebook.lastChange);
   const glossId = createMemo(() => doc.root()?.kind === 'page' ? glossEntry(doc, id => isGlossName(definitionsById().get(id)?.name)) : null);
   const depthFilter = createMemo<DepthFilter | undefined>(() => doc.root()?.kind === 'page' && depth() !== 'full'
     ? { stop: depth(), gloss: glossId(), position: id => !!doc.block(id)?.position, gist: id => isGistName(definitionsById().get(fieldEntryId(doc.block(id)?.text ?? '') ?? '')?.name) } : undefined);
@@ -177,21 +181,22 @@ function Pane(props: OutlinePaneProps) {
     return doc.root()?.source && !zoom() ? sourceReadingOrder(doc, visible, definitionsById()) : visible;
   });
   const unfoldedSet = createMemo(() => new Set(unfoldedIds()));
-  // Only field entries can fold their value inline. Field entries come from structural edits (shorthand
+  // Only field entries can fold their values inline. Field entries come from structural edits (shorthand
   // conversion inserts the value), which rebuild this list; reading text untracked keeps typing out of it.
   const fieldEntries = createMemo(() => {
     const visible = unfoldedIds(); const definitions = definitionsById();
     return definitions.size ? untrack(() => visible.filter(id => definitions.has(fieldEntryId(doc.block(id)?.text ?? '') ?? ''))) : [];
   });
   // Per-entry memos keep ordinary typing from rebuilding the page's visible list.
-  const fieldCandidates = mapArray(fieldEntries, id => ({ id, value: createMemo(() => inlineFieldValue(doc, id, definitionsById())) }));
+  const fieldCandidates = mapArray(fieldEntries, id => ({ id, values: createMemo(() => inlineFieldValues(doc, id, definitionsById()), undefined, { equals: (a, b) => a === b || !!a && !!b && a.length === b.length && a.every((value, index) => value === b[index]) }) }));
   const inlineFields = createMemo(() => {
     const visible = unfoldedSet();
     const retained = new Set([editing(), selected(), rowRange()?.anchor, rowRange()?.head, textRange()?.anchor.id, textRange()?.head.id]);
     const result = new Set<string>();
     for (const candidate of fieldCandidates()) {
-      const value = candidate.value();
-      if (value && visible.has(value) && !retained.has(candidate.id)) result.add(candidate.id);
+      const values = candidate.values();
+      // Hidden archived values do not keep the rest from lining up; an entry whose values are all hidden shows as empty.
+      if (values?.some(value => visible.has(value)) && values.every(value => visible.has(value) || doc.isArchived(value)) && !retained.has(candidate.id)) result.add(candidate.id);
     }
     return result;
   }, undefined, { equals: (a, b) => a.size === b.size && [...a].every(id => b.has(id)) });
@@ -402,8 +407,8 @@ function Pane(props: OutlinePaneProps) {
     virtualizer.scrollToIndex(indices().get(id) ?? 0, { align: 'auto' });
     scheduleReport();
   }
-  function apply(intent: Edit, keepEditing = editing() !== null) {
-    if (disposed || composition()) return;
+  function apply(intent: Edit, keepEditing = editing() !== null): EditResult | undefined {
+    if (disposed || composition()) return undefined;
     const rearrange = intent.kind === 'indent' || intent.kind === 'outdent' || intent.kind === 'move';
     if (intent.kind === 'indent' || intent.kind === 'outdent' || intent.kind === 'move') intent = { ...intent, zoomRoot: zoom() };
     const before = intent.kind === 'delete' ? ids() : [];
@@ -412,7 +417,7 @@ function Pane(props: OutlinePaneProps) {
     const epoch = focusEpoch;
     let result: EditResult | undefined;
     measure('structural', () => anchored(() => { result = doc.edit(intent, caret()); }));
-    if (!result || !result.ok) { setMessage(result && !result.ok ? result.reason : 'The edit could not be applied.'); return; }
+    if (!result || !result.ok) { setMessage(result && !result.ok ? result.reason : 'The edit could not be applied.'); return result; }
     setMessage('');
     setTextRange(null);
     if (!rearrange) setRowRange(null);
@@ -435,6 +440,7 @@ function Pane(props: OutlinePaneProps) {
       else { setSelected(null); setCaret(null); }
     }
     scheduleReport();
+    return result;
   }
   function roots() { return selectionRoots(doc, selectedIds()); }
   function restoreSelection(range: TextRange) {
@@ -616,6 +622,7 @@ function Pane(props: OutlinePaneProps) {
     fields,
     definitionsById,
     definitions,
+    templateFor: templates.templateFor,
     activeRange,
     fieldConversion,
     get commandDefinitions() { return commandDefinitions; },
@@ -700,7 +707,8 @@ function Pane(props: OutlinePaneProps) {
   const { openTable, investigationItems, commandDefinitions, unregister, blockMenu, statusMenu, priorityMenu, openPlanning, openProject, leaderMenu, referenceMenu, copy } = createOutlineCommands(context);
   const { horizontal, adjacent, split, editorKey, structuralKey, resetRowKey } = createOutlineKeyboard(context);
   const { selectedOffsets, pointerStart, pointerMove, pointerEnd, clipboard, paste, beforeInput } = createOutlineInteractions(context);
-  const { Row, TaskSummary, QuestionSummary } = createOutlineRows(context);
+  const fieldSheet = createFieldSheet(context, { offerValue, onField: field => setCreatedFields(previous => previous.some(existing => existing.id === field.id) ? previous : [...previous, field]) });
+  const { Row, TaskSummary, QuestionSummary } = createOutlineRows(context, fieldSheet);
   const { related, apparatus, holders, linkedPages, Related } = createOutlineRelated(context);
   const { CapabilityPopups } = createCapabilityPopups(context);
 
@@ -840,6 +848,9 @@ function Pane(props: OutlinePaneProps) {
       </Show>
       <Show when={doc.root()?.kind === 'page' && !doc.root()?.source}><div class="outline-header-actions"><Button icon="table" label="Table" shortcut="⌘⇧T" onClick={event => openTable(event.metaKey)}>Table<Show when={!type.error && (type()?.members ?? 0) > 0}><span class="table-member-count">{type()?.members}</span></Show></Button></div></Show>
       </div>
+      <Show when={!zoom() && doc.root()?.kind === 'page' && !doc.root()?.source && doc.root()?.text.toLowerCase() !== 'fields' && !type.error && type()}>{value => <Show when={value().members || value().fields.length}>
+        <TemplateEditor type={value()} fields={definitions()} notebook={props.notebook} onError={setMessage} />
+      </Show>}</Show>
       <Show when={doc.root()?.source}><SourceHeader doc={doc} notebook={props.notebook} resetItems={sourceResets} onOpen={props.onOpen} onError={setMessage} onDelete={props.onDelete} /></Show>
       <Show when={doc.root()?.task || doc.root()?.project || doc.root()?.question || doc.root()?.citations.length}><div class="outline-root-capabilities outline-capability-metadata">
         <Show when={doc.root()?.task}>

@@ -129,6 +129,23 @@
 .outline-value-pill .outline-reference { color: var(--text); text-decoration: none; }
 .outline-value-pill .outline-reference:hover { text-decoration: underline; }
 .choice-value .editor-host { padding-inline: calc(var(--space-8) + 1px); font-size: var(--text-meta); }
+/* The selected block's sheet: its missing template fields and Add field follow its last entry, on the field labels' edge.
+   The slots span the row's full width on the canvas, so the anchor row's hover and selection stay on its own line. */
+.outline-row:has(> .field-slots) { flex-wrap: wrap; padding-bottom: 0; }
+.field-slots { flex: 0 0 calc(100% + var(--depth) * var(--indent-width) + 2px); display: flex; flex-direction: column; box-sizing: border-box; margin: var(--space-2) 0 0 calc(-2px - var(--depth) * var(--indent-width)); padding: 0 0 var(--space-2) calc(2px + var(--gutter) + var(--slot-depth) * var(--indent-width)); background: var(--canvas); }
+.field-slot { display: flex; align-items: center; min-height: var(--row-height); padding: 0; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--faint); font: inherit; text-align: left; cursor: pointer; transition: color var(--motion-fast) var(--motion-ease), background-color var(--motion-fast) var(--motion-ease); }
+.field-slot:is(:hover, :focus-visible) { background: var(--hover); color: var(--muted); }
+.field-slot-label { display: inline-flex; align-items: center; flex: 0 0 calc(var(--target-size) + var(--space-48) * 2.5); min-width: 0; padding-right: var(--space-8); }
+.field-slot-label span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.field-slot-label .icon { flex: none; width: var(--target-size); height: var(--icon-size-small); }
+/* Empty reads like an empty block's prompt, whether it is a real entry or a template slot. */
+.field-slot-empty, .field-empty-value { color: var(--faint); opacity: .65; }
+.field-empty-value { padding: 0; border: 0; background: transparent; font: inherit; cursor: text; }
+.field-empty-value:hover { opacity: 1; }
+/* A checkbox value is a control, not the words yes and no. */
+.field-checkbox { display: inline-flex; align-items: center; justify-content: center; flex: none; width: var(--icon-size); height: var(--icon-size); margin-block: calc((var(--line-body) - var(--icon-size)) / 2); padding: 0; border: 1px solid var(--control-border); border-radius: var(--radius-control); background: transparent; color: var(--accent); cursor: pointer; }
+.field-checkbox[aria-checked="true"] { border-color: var(--accent); }
+.field-checkbox .icon { width: var(--icon-size-small); height: var(--icon-size-small); }
 
 /* Capability details stay anchored; only summaries and task glyphs live in rows. */
 .outline-row > .task-status-control { flex: none; }

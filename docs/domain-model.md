@@ -46,7 +46,7 @@ A field is defined by a block on the Fields system page, which every notebook ha
 
 Changing a field's kind changes only how values are read. Owner counts include entries with no values and count each owning block once; archived or deleted entries and owners do not count.
 
-A type may carry a template: an ordered list of fields that its table shows first. Fields present on members appear after the template, so a template is never required.
+A type may carry a template: an ordered list of fields that its table shows first and its members' field sheets offer as empty slots. Fields present on members appear after the template, so a template is never required; Fill missing fields on the type page writes empty entries for members only when asked.
 
 ## Queries and views
 

@@ -1123,6 +1123,19 @@ export class Document implements PageDocument {
           caret = { id, offset: 0 };
           break;
         }
+        case 'addFieldEntries': {
+          if (!edit.entries.length) throw new Error('Choose a field.');
+          if (edit.after && this.outline.parentOf(edit.after) !== edit.parentId) throw new Error('The destination sibling no longer exists.');
+          let after = edit.after;
+          let first: Caret | undefined;
+          for (const entry of edit.entries) {
+            after = insert(edit.parentId, after, `[[${entry.fieldId}]]`);
+            const value = insert(after, null, entry.value);
+            first ??= { id: value, offset: entry.value.length };
+          }
+          caret = first!;
+          break;
+        }
         case 'fieldKind': {
           const definition = edit.definition;
           if (this.snapshot(definition.id).revision !== definition.revision || this.block(definition.id)?.pending) throw new Error('The field changed. Refresh before changing its kind.');
