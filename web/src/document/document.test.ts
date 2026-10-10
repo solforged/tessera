@@ -101,6 +101,37 @@ describe('real notebook operations and recovery', () => {
     doc.release();
   });
 
+  test('adding field entries with their values is one undo step and persists', async () => {
+    const instance = await client();
+    const fields = await api.fields();
+    const register = instance.open(fields.page_id);
+    await eventually(() => register.status() === 'ready', register.statusMessage());
+    const status = success(register.edit({ kind: 'addField', name: `Sheet status ${++serial}`, value: 'text' })).created[0]!;
+    const read = success(register.edit({ kind: 'addField', name: `Sheet read ${++serial}`, value: 'checkbox' })).created[0]!;
+    await instance.flush();
+    const { id, doc, first } = await page(instance, 'A book');
+    const note = success(doc.edit({ kind: 'insert', parentId: first, after: null, text: 'a note' })).created[0]!;
+    await instance.flush();
+    const shape = async () => (await api.page(id)).rows.filter(row => row.block.id !== first).map(row => [row.block.parent_id === first ? 'child' : 'value', row.block.text]);
+
+    const result = success(doc.edit({ kind: 'addFieldEntries', parentId: first, after: null, entries: [{ fieldId: status, value: 'Reading' }, { fieldId: read, value: 'yes' }] }));
+    expect(result.caret).toEqual({ id: doc.outline.children(doc.outline.children(first)[0]!)[0]!, offset: 'Reading'.length });
+    await instance.flush();
+    const added = [['child', `[[${status}]]`], ['value', 'Reading'], ['child', `[[${read}]]`], ['value', 'yes'], ['child', 'a note']];
+    expect(await shape()).toEqual(added);
+
+    doc.undo();
+    expect(doc.outline.children(first)).toEqual([note]);
+    await instance.flush();
+    expect(await shape()).toEqual([['child', 'a note']]);
+    doc.redo();
+    await instance.flush();
+    expect(await shape()).toEqual(added);
+    expect(doc.edit({ kind: 'addFieldEntries', parentId: first, after: 'not-a-sibling', entries: [{ fieldId: status, value: '' }] }).ok).toBe(false);
+    register.release();
+    doc.release();
+  });
+
   test('field kind edits persist, undo and redo through the document outbox', async () => {
     const instance = await client();
     const fields = await api.fields();

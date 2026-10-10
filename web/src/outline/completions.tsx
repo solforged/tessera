@@ -5,6 +5,7 @@ import { api } from '../api/client';
 import type { BlockState, Caret } from '../document/contract';
 import { fieldEntryId } from '../table/query';
 import { kindLabels } from '../fields/kinds';
+import { typeKeys } from '../fields/templates';
 import { DatePicker } from '../tasks/DatePicker';
 import { dateSuggestions, dateTokenAt, flipDateToken, newTask, planDateToken, removeToken } from '../tasks/quick-date';
 import type { DateSuggestion, DateToken } from '../tasks/quick-date';
@@ -43,14 +44,14 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
   | 'setMessage' | 'disposed' | 'rowAnchor' | 'editAt' | 'props'
   | 'replaceSelection' | 'fields' | 'definitionsById' | 'definitions' | 'activeRange'
   | 'fieldConversion' | 'commandDefinitions' | 'openPlanning' | 'priorityMenu' | 'openProject'
-  | 'investigationItems' | 'apply' | 'zoomTo' | 'copy'
+  | 'investigationItems' | 'apply' | 'zoomTo' | 'copy' | 'templateFor'
 >) {
   const {
     contextDate, editing, textRange, composition, caret, doc,
     capabilities, setCaret, scheduleReport, setMessage, rowAnchor, editAt,
     props, replaceSelection, fields, definitionsById, definitions, activeRange,
     fieldConversion, openPlanning, priorityMenu, openProject, investigationItems, apply,
-    zoomTo, copy,
+    zoomTo, copy, templateFor,
   } = context;
   const [completion, setCompletion] = createSignal<Completion | null>(null);
   const [completionIndex, setCompletionIndex] = createSignal(0);
@@ -176,12 +177,20 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     return false;
   }
   const [valueDate, setValueDate] = createSignal<{ id: string; anchor: HTMLElement } | null>(null);
-  /** A new entry for a choice or date field opens the matching picker for its empty value. */
+  /** A new entry for a choice, date or instance field opens the matching picker for its empty value. */
   function offerValue(id: string, field: FieldDefinition) {
-    if (field.kind !== 'choice' && field.kind !== 'date') return;
+    if (field.kind !== 'choice' && field.kind !== 'date' && field.kind !== 'instance') return;
     requestAnimationFrame(() => {
       if (context.disposed || editing() !== id || doc.block(id)?.text) return;
       if (field.kind === 'choice') { setCompletionIndex(0); setCompletion({ from: 0, to: 0, query: '', choice: field }); return; }
+      if (field.kind === 'instance') {
+        // The editor may still be mounting this new value, so the caret goes in through a focus request, not the live view.
+        const result = doc.edit({ kind: 'text', id, text: '[[]]' }, caret());
+        if (!result.ok) { setMessage(result.reason); return; }
+        editAt(id, 2, true, false, false);
+        queueMicrotask(() => { if (editing() === id) updateCompletion('[[]]', { id, offset: 2 }); });
+        return;
+      }
       const anchor = rowAnchor(id);
       if (anchor) setValueDate({ id, anchor });
     });
@@ -264,9 +273,16 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
   const completionRows = createMemo<CompletionRow[]>(() => {
     const state = completion();
     if (state?.fields) {
+      // Fields the owner's types template and it lacks come first, in template order; fields it already has come last.
       const query = state.query.trim().toLowerCase();
-      const named = definitions().filter(field => field.name.toLowerCase().includes(query));
-      return [...named.filter(field => field.name.toLowerCase().startsWith(query)), ...named.filter(field => !field.name.toLowerCase().startsWith(query))].map(field => ({ kind: 'field', field }));
+      const id = editing();
+      const owner = id ? doc.block(doc.outline.parentOf(id)) : undefined;
+      const template = owner ? templateFor(typeKeys(owner.text, owner.manual_types)) : [];
+      const present = new Set(owner ? doc.outline.children(owner.id).flatMap(child => child !== id && !doc.isArchived(child) ? [fieldEntryId(doc.block(child)?.text ?? '') ?? ''] : []) : []);
+      const rank = (field: FieldDefinition) => present.has(field.id) ? template.length + 2
+        : template.includes(field.id) ? template.indexOf(field.id) : template.length + (field.name.toLowerCase().startsWith(query) ? 0 : 1);
+      return definitions().filter(field => field.name.toLowerCase().includes(query)).map((field, index) => ({ field, index }))
+        .sort((a, b) => rank(a.field) - rank(b.field) || a.index - b.index).map(({ field }) => ({ kind: 'field', field }));
     }
     if (state?.choice) {
       const query = state.query.trim().toLowerCase();
@@ -324,8 +340,9 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     if (!state || !context.editor || !source) return;
     const range = completionRange(state, context.editor.view.state.doc.toString());
     const next = context.editor.view.state.doc.sliceString(range.to, range.to + 1);
-    // A word after the reference, or the end of the block, gets a separating space so typing continues as prose.
-    const space = !next || /[\p{L}\p{N}]/u.test(next) ? ' ' : '';
+    // A word after the reference, or the end of the block, gets a separating space so typing continues as prose; an instance value is only its reference.
+    const instance = definitionsById().get(fieldEntryId(doc.block(doc.outline.parentOf(source))?.text ?? '') ?? '')?.kind === 'instance' && range.from === 0 && !next;
+    const space = !instance && (!next || /[\p{L}\p{N}]/u.test(next)) ? ' ' : '';
     const inserted = `[[${id}]]${space}`;
     const selectionBefore = activeRange() ?? undefined;
     setCompletion(null);

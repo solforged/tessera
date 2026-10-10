@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createMemo, createSignal, on, onCleanup, onMount } from 'solid-js';
+import { For, Match, Show, Switch, createEffect, createMemo, createSignal, on, onCleanup, onMount } from 'solid-js';
 import type { Accessor } from 'solid-js';
 import type { VirtualItem } from '@tanstack/solid-virtual';
 import type { QuestionStatus } from '../api/types';
@@ -17,6 +17,8 @@ import { isGistName } from './gloss';
 import { CardSummary } from './CardSummary';
 import { formatSourceValue } from './source';
 import type { OutlineContext } from './context';
+import type { FieldSheet } from './field-sheet';
+import { checkboxValue } from '../fields/kinds';
 
 const questionLabels: Record<QuestionStatus, string> = { open: 'Open', answered: 'Answered', parked: 'Parked', unsettled: 'Unsettled' };
 export function createOutlineRows(context: Pick<OutlineContext,
@@ -25,15 +27,15 @@ export function createOutlineRows(context: Pick<OutlineContext,
   | 'hosts' | 'props' | 'folds' | 'selectedSet' | 'editing'
   | 'coveredSet' | 'glossId' | 'margin' | 'sigla' | 'blockMenu'
   | 'fold' | 'zoomTo' | 'editAt' | 'pointerStart' | 'attach'
-  | 'referenceMenu' | 'selectedOffsets' | 'ids' | 'setMessage' | 'apply'
+  | 'referenceMenu' | 'selectedOffsets' | 'ids' | 'indices' | 'setMessage' | 'apply'
   | 'setConflicts' | 'conflicts' | 'editedConflicts' | 'setEditedConflicts'
->) {
+>, sheet: FieldSheet) {
   const {
     doc, capabilities, setMenu, investigationItems, definitionsById, contextDate, inlineFields,
     baseDepth, positionSource, sourceDetails, virtualizer, hosts, props,
     folds, selectedSet, editing, coveredSet, glossId, margin,
     sigla, blockMenu, fold, zoomTo, editAt, pointerStart,
-    attach, referenceMenu, selectedOffsets, ids, setMessage, apply,
+    attach, referenceMenu, selectedOffsets, ids, indices, setMessage, apply,
     setConflicts, conflicts, editedConflicts, setEditedConflicts,
   } = context;
   /**
@@ -103,6 +105,11 @@ export function createOutlineRows(context: Pick<OutlineContext,
     const parent = () => doc.outline.parentOf(id());
     const valueField = createMemo(() => definitionsById().get(fieldEntryId(doc.block(parent())?.text ?? '') ?? ''));
     const inline = () => inlineFields().has(parent());
+    // Values of one entry line up in one column; only the first carries the field's name.
+    const labelled = () => { const index = indices().get(id()) ?? 0; return !index || doc.outline.parentOf(ids()[index - 1]!) !== parent(); };
+    // A known entry with no live values reads as its label and an empty slot until it is edited.
+    const emptyEntry = () => { doc.archivedVersion(); return !!field() && editing() !== id() && !doc.outline.children(id()).some(child => !doc.isArchived(child)); };
+    const checked = () => inline() && valueField()?.kind === 'checkbox' && editing() !== id() ? checkboxValue(block()?.text ?? '') : null;
     const depth = () => (inline() ? doc.outline.depth(parent()) : doc.outline.depth(id())) - baseDepth();
     const pill = () => valueField()?.kind === 'choice' || valueField()?.kind === 'instance';
     const rowSource = createMemo(() => block()?.citations[0]?.source_id ?? (block()?.position ? positionSource(id()) : null));
@@ -133,13 +140,22 @@ export function createOutlineRows(context: Pick<OutlineContext,
       <Show when={rowSource() && sigla().get(rowSource()!)}>{mark => <span class="row-siglum" title={props.notebook.lookup(rowSource()!)()?.text}>{mark()}</span>}</Show>
       <button type="button" class="row-menu icon-button" aria-label="Block actions" onClick={event => blockMenu(id(), event.currentTarget)}><Icon name="more" /></button>
       <button type="button" class="row-fold icon-button" classList={{ 'fold-empty': !children(), folded: folds().has(id()) }} aria-label={folds().has(id()) ? 'Unfold children' : 'Fold children'} disabled={!children()} onClick={() => fold(id())}><Icon name="down" /></button>
-      <Show when={!inline()}><button type="button" class="row-bullet icon-button" classList={{ 'bullet-collapsed': children() && folds().has(id()) }} aria-label="Zoom into block" onClick={() => zoomTo(id())}><Icon name="bullet" /></button></Show>
-      <Show when={inline()}><button type="button" class="outline-field-label" title={valueField()?.name} onClick={() => editAt(id(), block()?.text.length ?? 0, true)}><Icon name="field" /><span>{valueField()?.name}</span></button></Show>
+      <Show when={!inline() && !emptyEntry()}><button type="button" class="row-bullet icon-button" classList={{ 'bullet-collapsed': children() && folds().has(id()) }} aria-label="Zoom into block" onClick={() => zoomTo(id())}><Icon name="bullet" /></button></Show>
+      <Show when={inline()}><Show when={labelled()} fallback={<span class="outline-field-label" aria-hidden="true" />}><button type="button" class="outline-field-label" title={valueField()?.name} onClick={() => editAt(id(), block()?.text.length ?? 0, true)}><Icon name="field" /><span>{valueField()?.name}</span></button></Show></Show>
+      <Show when={emptyEntry()}><button type="button" class="outline-field-label" title={field()?.name} onClick={() => editAt(id(), block()?.text.length ?? 0, true)}><Icon name="field" /><span>{field()?.name}</span></button></Show>
       <Show when={block()?.task}><TaskStatusButton task={block()?.task ?? null} disabled={capabilities.busy(id())} onChange={status => capabilities.status(id(), status)} /></Show>
       <div class="outline-body" classList={{ 'heading-1': block()?.heading === 1, 'heading-2': block()?.heading === 2, 'heading-3': block()?.heading === 3 }} onMouseDown={event => pointerStart(event, id(), event.currentTarget)}>
         <div class="outline-source-line"><div class="outline-source">
         <div class="editor-host" classList={{ 'host-active': editing() === id() }} ref={host => attach(id(), host)} />
-        <Show when={editing() !== id()}><div class="static-text"><span classList={{ 'outline-value-pill': pill() }}><BlockText text={displayText()} cards field={field()} notebook={props.notebook} onOpen={props.onOpen} onReferenceMenu={referenceMenu} selection={selectedOffsets(id())} /></span><Show when={!block()?.text && (ids().length === 1 || (inline() && parent() === glossId()))}><span class="empty-block">{inline() && parent() === glossId() ? 'One or two sentences on what this is' : 'Start writing'}</span></Show></div></Show>
+        <Show when={editing() !== id()}><Switch>
+          <Match when={checked() !== null || emptyEntry() && field()?.kind === 'checkbox'}>
+            <button type="button" role="checkbox" class="field-checkbox" aria-checked={!!checked()} aria-label={(valueField() ?? field())?.name} onMouseDown={event => event.stopPropagation()} onClick={() => checked() === null ? sheet.fill(id()) : sheet.toggle(id(), checked()!)}><Show when={checked()}><Icon name="check" /></Show></button>
+          </Match>
+          <Match when={emptyEntry()}><button type="button" class="field-empty-value" onMouseDown={event => event.stopPropagation()} onClick={() => sheet.fill(id())}>Empty</button></Match>
+          <Match when>
+            <div class="static-text"><span classList={{ 'outline-value-pill': pill() && !!block()?.text }}><BlockText text={displayText()} cards field={field()} notebook={props.notebook} onOpen={props.onOpen} onReferenceMenu={referenceMenu} selection={selectedOffsets(id())} /></span><Show when={!block()?.text && (ids().length === 1 || inline())}><span class="empty-block">{inline() && parent() === glossId() ? 'One or two sentences on what this is' : inline() ? 'Empty' : 'Start writing'}</span></Show></div>
+          </Match>
+        </Switch></Show>
         <For each={block()?.manual_types ?? []}>{title => <TypePill title={title} notebook={props.notebook} onOpen={props.onOpen} onRemove={() => { const result = doc.removeType(id(), title); if (!result.ok) setMessage(result.reason); }} />}</For>
         </div>
         <Show when={block()?.task || block()?.project || block()?.question || block()?.assessment || cards().cards.length || block()?.citations.length}><span class="outline-capability-metadata">
@@ -164,6 +180,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
             <Show when={!editedConflicts().has(id())} fallback={<button type="button" onClick={() => doc.resolveConflict(id(), 'mine')}>Use edited text</button>}><button type="button" onClick={() => { setEditedConflicts(previous => new Set([...previous, id()])); editAt(id(), 0, true); }}>Edit merged text</button></Show></div>
         </div></Show>
       </div>
+      <sheet.FieldSlots id={id()} />
     </div>;
   }
   return { Row, TaskSummary, QuestionSummary };
