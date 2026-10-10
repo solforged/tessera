@@ -17,10 +17,12 @@ import { Menu } from '../ui/Menu';
 import type { MenuItem } from '../ui/Menu';
 import { Picker } from '../ui/Picker';
 import { Popup } from '../ui/Popup';
+import { HighlightComposer } from './HighlightComposer';
+import type { HighlightNoteDraft } from './HighlightComposer';
 import { PassageText } from './PassageText';
 import { passageNode, selectionInPassages } from './passages';
 import type { PassageSelection } from './passages';
-import { extendSelection, sentenceAt, shrinkSelection } from './sentences';
+import { extendSelection, followOn, leadIn, sentenceAt, shrinkSelection } from './sentences';
 import type { SelectionUnit, SentenceSelection } from './sentences';
 import { ReaderSettingsPopup, readerSettings, readerStyle } from './ReaderSettings';
 import './reader.css';
@@ -39,6 +41,9 @@ export interface ReaderPaneProps {
 const PAGE_SIZE = 200;
 type ReaderPopup = { kind: 'contents' | 'find' | 'highlights' | 'settings' | 'actions'; anchor: HTMLElement } | { kind: 'note'; anchor: HTMLElement; text: string; loading: boolean } | { kind: 'menu'; anchor: HTMLElement; items: MenuItem[]; Header?: HighlightMenu['Header'] };
 type SelectionToolbar = PassageSelection & { rect: DOMRect; snapshotId: string };
+/** Touch screens write a new highlight's note beside the passage, not in the source page. */
+const coarsePointer = window.matchMedia('(pointer: coarse)');
+const prose: Partial<Record<Passage['kind'], true>> = { paragraph: true, quote: true, list_item: true };
 
 export function ReaderPane(props: ReaderPaneProps) {
   const api = props.notebook.api;
@@ -63,6 +68,7 @@ export function ReaderPane(props: ReaderPaneProps) {
   const [editing, setEditing] = createSignal(false);
   const [flash, setFlash] = createSignal<Citation | null>(null);
   const [highlights, setHighlights] = createSignal<HighlightRow[]>([]);
+  const [composing, setComposing] = createSignal<HighlightNoteDraft | null>(null);
   const sections = createMemo(() => contents().filter((entry): entry is HighlightSection => entry.ordinal !== null).sort((a, b) => a.ordinal - b.ordinal));
   const [highlightsLoading, setHighlightsLoading] = createSignal(false);
   const [highlightsError, setHighlightsError] = createSignal('');
@@ -107,17 +113,19 @@ export function ReaderPane(props: ReaderPaneProps) {
   });
   const toc = createMemo(() => contents().filter(entry => entry.title.toLocaleLowerCase().includes(query().toLocaleLowerCase())));
   const currentSnapshot = createMemo(() => source()?.snapshots.find(value => value.id === snapshot()));
-  const currentSection = createMemo(() => {
-    const entries = sections(), ordinal = firstVisible();
+  const sectionAt = (ordinal: number) => {
+    const entries = sections();
     for (let index = entries.length - 1; index >= 0; index--) if (entries[index]!.ordinal <= ordinal) return entries[index];
     return undefined;
-  });
-  /** The reading position as a share of the text, the same measure the library and source page show. */
-  const position = createMemo(() => {
-    version();
+  };
+  const currentSection = createMemo(() => sectionAt(firstVisible()));
+  /** A passage's place as a share of the text, the same measure the library and source page show. */
+  const share = (ordinal: number) => {
     const length = currentSnapshot()?.text_length ?? 0;
-    return length ? (passages.get(firstVisible())?.start ?? 0) / length : 0;
-  });
+    return length ? (passages.get(ordinal)?.start ?? 0) / length : 0;
+  };
+  /** The reading position. */
+  const position = createMemo(() => { version(); return share(firstVisible()); });
   const byline = createMemo(() => {
     const metadata = currentSnapshot()?.metadata;
     if (!metadata) return '';
@@ -364,6 +372,18 @@ export function ReaderPane(props: ReaderPaneProps) {
     setEditError('');
   }
 
+  /** The quotation with the sentence before and after it, from loaded prose passages. */
+  function noteDraft(value: PassageSelection, noteId: string): HighlightNoteDraft {
+    const first = passages.get(value.first)!, last = passages.get(value.last)!;
+    const neighbour = (ordinal: number) => { const passage = passages.get(ordinal); return passage && prose[passage.kind] ? passage.text : ''; };
+    const before = first.text.slice(0, value.start.offset), after = last.text.slice(value.end.offset);
+    return {
+      sourceId: props.target.sourceId, noteId, title: currentSnapshot()?.metadata.title ?? '', byline: byline(),
+      section: sectionAt(value.first)?.title ?? '', progress: share(value.first), quote: value.quote,
+      before: leadIn(before.trim() ? before : neighbour(value.first - 1)), after: followOn(after.trim() ? after : neighbour(value.last + 1)),
+    };
+  }
+
   async function highlight(withNote: boolean, color: Citation['color'] = null) {
     const value = selection();
     if (!value || editing()) return;
@@ -382,7 +402,8 @@ export function ReaderPane(props: ReaderPaneProps) {
       await doc.flush();
       if (!disposed) {
         setSelection(null); window.getSelection()?.removeAllRanges();
-        if (note?.ok) props.onOpen({ kind: 'page', pageId: sourceId, blockId: highlightId, caretId: note.created[0] }, true);
+        if (note?.ok && coarsePointer.matches) setComposing(noteDraft(value, note.created[0]!));
+        else if (note?.ok) props.onOpen({ kind: 'page', pageId: sourceId, blockId: highlightId, caretId: note.created[0] }, true);
       }
     } catch (reason) { if (!disposed) setEditError(reason instanceof Error ? reason.message : String(reason)); }
     finally { doc.release(); if (!disposed) setEditing(false); }
@@ -678,6 +699,7 @@ export function ReaderPane(props: ReaderPaneProps) {
       </Popup></Show>
     </>}</Show>
     <Show when={selection()}><SelectionTools /></Show>
+    <Show when={composing()}>{draft => <HighlightComposer notebook={props.notebook} draft={draft()} onClose={() => setComposing(null)} />}</Show>
     <actions.TagPopup />
   </div>;
 }

@@ -38,6 +38,24 @@ export function sentenceAt(text: string, offset: number): SentenceRange | null {
   return ranges.find(range => offset < range.end) ?? ranges.at(-1) ?? null;
 }
 
+const CONTEXT_LENGTH = 160;
+
+/** The sentence, or the start of one, that leads into a quotation; long ones keep their end. */
+export function leadIn(text: string): string {
+  const range = sentenceRanges(text).at(-1);
+  if (!range) return '';
+  const value = text.slice(range.start, range.end);
+  return value.length > CONTEXT_LENGTH ? `…${value.slice(-CONTEXT_LENGTH).replace(/^\S*\s+/u, '')}` : value;
+}
+
+/** The rest of the sentence after a quotation, or the next one; long ones keep their start. */
+export function followOn(text: string): string {
+  const range = sentenceRanges(text)[0];
+  if (!range) return '';
+  const value = text.slice(range.start, range.end);
+  return value.length > CONTEXT_LENGTH ? `${value.slice(0, CONTEXT_LENGTH).replace(/\s+\S*$/u, '')}…` : value;
+}
+
 /** Complete the current unit, or add the next nonempty unit at its boundary. */
 export function extendSelection(selection: SentenceSelection, passages: readonly Passage[], unit: SelectionUnit = 'sentence'): SentenceSelection {
   const last = passages.findIndex(passage => passage.id === selection.end.passage_id);
