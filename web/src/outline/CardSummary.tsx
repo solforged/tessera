@@ -46,9 +46,10 @@ export function CardSummary(props: { blockId: string; cards: ParsedCard[]; noteb
     const byKey = new Map(stored().map(card => [card.key, card]));
     return props.cards.flatMap(card => byKey.get(card.key) ?? []);
   });
+  // Every committed change refetches; the last loaded cards stay on screen until the new ones arrive.
   const label = createMemo(() => {
     const count = ordered().length;
-    const due = loading() || error() ? 0 : ordered().filter(card => card.schedule.due_at <= now()).length;
+    const due = error() ? 0 : ordered().filter(card => card.schedule.due_at <= now()).length;
     return `${count} ${count === 1 ? 'card' : 'cards'} · ${due} due`;
   });
   const confirmation = createMemo(() => stored().find(card => card.id === confirm()));
@@ -68,14 +69,14 @@ export function CardSummary(props: { blockId: string; cards: ParsedCard[]; noteb
   }
 
   return <>
-    <Show when={loading() || error() || ordered().length}><Button class="outline-planning outline-card-count" title="Show cards" aria-haspopup="dialog" aria-expanded={!!anchor()} onClick={event => {
+    <Show when={error() || ordered().length}><Button class="outline-planning outline-card-count" title="Show cards" aria-haspopup="dialog" aria-expanded={!!anchor()} onClick={event => {
       if (event.shiftKey) { dismiss(); props.onOpen({ kind: 'review' }, true); return; }
       setNow(Date.now()); setAnchor(event.currentTarget);
     }}>{label()}</Button></Show>
     <Show when={anchor()}>{trigger => <Popup anchor={trigger()} label="Cards" class="outline-capability-popup outline-cards-popup" onDismiss={dismiss}>
-      <Show when={loading()}><p class="outline-capability-notice" role="status">Loading cards…</p></Show>
+      <Show when={loading() && !ordered().length}><p class="outline-capability-notice" role="status">Loading cards…</p></Show>
       <Show when={error()}><p class="error" role="alert">{error()} <Button onClick={() => setRetry(value => value + 1)}>Retry</Button></p></Show>
-      <Show when={!loading() && !error()}><div class="outline-cards-list">
+      <Show when={!error() && ordered().length}><div class="outline-cards-list">
         <For each={ordered()}>{card => <div class="outline-cards-row">
           <span class="outline-cards-kind">{card.kind === 'cloze' ? `Cloze ${card.key.slice('cloze:c'.length)}` : card.kind === 'forward' ? 'Forward' : card.kind === 'reverse' ? 'Reverse' : card.kind === 'multiline' ? 'Multi-line' : 'List'}</span>
           <span class="outline-cards-front"><BlockText text={card.front} notebook={props.notebook} interactive={false} /></span>
