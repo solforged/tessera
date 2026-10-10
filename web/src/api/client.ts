@@ -1,6 +1,9 @@
 import { EMBEDDED } from '../demo/mode';
 import type {
   Actor,
+  ExtractedMetadata,
+  LookupPreview,
+  IngestPlan,
   Agenda,
   Backlink,
   BackupInfo,
@@ -193,6 +196,10 @@ export interface ApiClient {
   submitFrozen(json: string, signal?: AbortSignal): Promise<Committed>;
   stream(after: number): ChangeSocket;
   library(value: LibraryQuery, signal?: AbortSignal): Promise<LibraryResult>;
+  lookup(query: string, signal?: AbortSignal): Promise<LookupPreview>;
+  normalizeMetadata(metadata: ExtractedMetadata): Promise<ExtractedMetadata>;
+  planRecord(metadata: ExtractedMetadata, coverUrl?: string | null): Promise<IngestPlan>;
+  uploadCover(file: Blob): Promise<string>;
   libraryViews(signal?: AbortSignal): Promise<LibraryView[]>;
   ingestJobs(limit?: number, signal?: AbortSignal): Promise<IngestJob[]>;
   queueUrl(url: string, targetSource?: string, signal?: AbortSignal): Promise<IngestJob>;
@@ -221,7 +228,7 @@ type NativeMethod = 'service' | 'backups' | 'createBackup' | 'queueUrl';
 
 export function createApi(base = ''): ApiClient {
   const get = <T>(path: string, signal?: AbortSignal) => request<T>(base, 'GET', path, undefined, signal);
-  const resourceUrl = (snapshotId: string, href: string) => `${base}/api/snapshots/${segment(snapshotId)}/resources/${href.split('/').map(segment).join('/')}`;
+  const resourceUrl = (snapshotId: string, href: string) => href.startsWith('/api/library/covers/') ? `${base}${href}` : `${base}/api/snapshots/${segment(snapshotId)}/resources/${href.split('/').map(segment).join('/')}`;
   return {
     notebook: (signal?: AbortSignal) => get<NotebookInfo>('/notebook', signal),
     ...(!EMBEDDED ? {
@@ -289,6 +296,10 @@ export function createApi(base = ''): ApiClient {
       return new WebSocket(url.href);
     },
     library: (value: LibraryQuery, signal?: AbortSignal) => request<LibraryResult>(base, 'POST', '/library/query', value, signal),
+    lookup: (query: string, signal?: AbortSignal) => request<LookupPreview>(base, 'POST', '/library/lookup', { query }, signal),
+    normalizeMetadata: (metadata: ExtractedMetadata) => request<ExtractedMetadata>(base, 'POST', '/library/metadata', metadata),
+    planRecord: (metadata: ExtractedMetadata, cover_url?: string | null) => request<IngestPlan>(base, 'POST', '/library/records/plan', { metadata, cover_url }),
+    uploadCover: (file: Blob) => send<string>(`${base}/api/library/covers`, { method: 'POST', body: file, headers: { 'Content-Type': file.type } }),
     libraryViews: (signal?: AbortSignal) => get<LibraryView[]>('/library/views', signal),
     ingestJobs: (limit = 50, signal?: AbortSignal) => get<IngestJob[]>(`/library/jobs${query({ limit })}`, signal),
     upload: (file: Blob, name: string, targetSource?: string, signal?: AbortSignal) => send<IngestJob>(`${base}/api/library/uploads${query({ target_source: targetSource })}`, {

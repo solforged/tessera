@@ -8,7 +8,8 @@ import { extractedResets, sourceFieldName } from './source';
 
 const fieldCreations = new WeakMap<NotebookClient, Map<string, Promise<FieldDefinition>>>();
 
-function documentReady(doc: PageDocument): Promise<void> {
+export function documentReady(doc: PageDocument): Promise<void> {
+  if (doc.status() === 'ready') return Promise.resolve();
   const { promise, resolve, reject } = Promise.withResolvers<void>();
   createRoot(dispose => {
     createEffect(() => {

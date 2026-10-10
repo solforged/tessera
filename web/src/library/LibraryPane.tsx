@@ -18,6 +18,7 @@ import { formatProgress, highlightMeta, jobLabel, libraryQuery, recentJobs, retr
 import { createHighlightActions, highlightColors, highlightSections, setLinkedCitation } from './highlights';
 import type { HighlightMenu, HighlightSection } from './highlights';
 import { ResourceImage } from './ResourceImage';
+import { AddSheet } from './AddSheet';
 import './library.css';
 
 export interface LibraryPaneProps {
@@ -43,6 +44,7 @@ const tabs: { id: LibraryTab; label: string }[] = [
 ];
 const sorts: { id: LibraryViewState['sort']; label: string }[] = [
   { id: 'added', label: 'Added' }, { id: 'title', label: 'Title' },
+  { id: 'author', label: 'Author' }, { id: 'year', label: 'Year' },
   { id: 'last_read', label: 'Last read' }, { id: 'progress', label: 'Progress' },
 ];
 const stateActions: { state: ReadingState; label: string }[] = [
@@ -106,15 +108,27 @@ export function LibraryPane(props: LibraryPaneProps) {
   const [retrying, setRetrying] = createSignal<string[]>([]);
   const [dismissedJobs, setDismissedJobs] = createSignal<Set<string>>(new Set());
   let dismissedKey: string | undefined;
+  let tabKey: string | undefined;
+  let tabChosen = false;
   createEffect(() => {
     const controller = new AbortController();
-    void props.notebook.api.notebook(controller.signal).then(info => {
+    void props.notebook.api.notebook(controller.signal).then(async info => {
       if (controller.signal.aborted) return;
       dismissedKey = `tessera.library.dismissed.${info.id}`;
       try {
         const stored: unknown = JSON.parse(localStorage.getItem(dismissedKey) ?? '[]');
         if (Array.isArray(stored)) setDismissedJobs(previous => new Set([...previous, ...stored.filter((id): id is string => typeof id === 'string')]));
       } catch { /* The preference lasts for this tab. */ }
+      tabKey = `tessera.library.tab.${info.id}`;
+      let remembered: string | null = null;
+      try { remembered = localStorage.getItem(tabKey); } catch { /* Session-only preference. */ }
+      if (!tabChosen && !view().view && view().tab === 'inbox') {
+        if (tabs.some(tab => tab.id === remembered)) update({ tab: remembered as LibraryTab, scroll: 0 });
+        else {
+          const result = await props.notebook.api.library({ limit: 0 }, controller.signal);
+          if (!controller.signal.aborted && !tabChosen) update({ tab: result.counts.inbox ? 'inbox' : result.counts.reading ? 'reading' : 'all', scroll: 0 });
+        }
+      }
     }).catch(reason => { if (!controller.signal.aborted) setJobsError(reason instanceof Error ? reason.message : String(reason)); });
     onCleanup(() => controller.abort());
   });
@@ -123,9 +137,6 @@ export function LibraryPane(props: LibraryPaneProps) {
     try { if (dismissedKey) localStorage.setItem(dismissedKey, JSON.stringify([...next])); } catch { /* The preference lasts for this tab. */ }
   }
   const [popup, setPopup] = createSignal<LibraryPopup | null>(null);
-  const [url, setUrl] = createSignal('');
-  const [adding, setAdding] = createSignal(false);
-  const [addError, setAddError] = createSignal('');
   const doneJobs = new Set<string>();
   // Jobs concern sources; the Highlights tab shows none.
   const shownJobs = createMemo(() => tab() === 'highlights' || error() ? [] : visibleJobs(jobs().filter(job => !(job.state === 'failed' && dismissedJobs().has(job.id))), new Set(displayedSources().map(row => row.page.id))));
@@ -163,6 +174,10 @@ export function LibraryPane(props: LibraryPaneProps) {
   }
 
   const update = (patch: Partial<LibraryViewState>) => {
+    if (patch.tab !== undefined) {
+      tabChosen = true;
+      try { if (tabKey) localStorage.setItem(tabKey, patch.tab); } catch { /* Session-only preference. */ }
+    }
     const next = { ...view(), ...patch, scroll: patch.scroll ?? scroll.scrollTop };
     batch(() => {
       const previousKey = queryKey();
@@ -281,17 +296,6 @@ export function LibraryPane(props: LibraryPaneProps) {
     setJobs(previous => recentJobs([job, ...previous.filter(value => value.id !== job.id)], Date.now()));
     setJobsRefresh(value => value + 1);
   }
-  async function queueUrl() {
-    if (EMBEDDED || !url().trim() || adding()) return;
-    setAdding(true); setAddError('');
-    try {
-      const job = await props.notebook.api.queueUrl(url().trim());
-      if (disposed) return;
-      recordJob(job); setUrl(''); setPopup(null);
-    } catch (reason) {
-      if (!disposed) setAddError(reason instanceof Error ? reason.message : String(reason));
-    } finally { if (!disposed) setAdding(false); }
-  }
   async function upload(files: File[]) {
     setCommandError('');
     const errors: string[] = [];
@@ -399,7 +403,7 @@ export function LibraryPane(props: LibraryPaneProps) {
   }
   function rowMenu(row: LibraryRow, anchor: HTMLElement) {
     setPopup({ kind: 'menu', anchor, label: 'Source actions', items: [
-      { label: 'Read', icon: 'book', action: () => props.onOpen({ kind: 'reader', sourceId: row.page.id }, false) },
+      ...(row.source.current_snapshot_id ? [{ label: 'Read', icon: 'book' as const, action: () => props.onOpen({ kind: 'reader', sourceId: row.page.id }, false) }] : []),
       ...stateActions.filter(action => action.state !== row.source.state).map(action => ({
         label: action.label, disabledReason: saving() ? 'Saving…' : undefined,
         action: () => { void changeState(row, action.state); },
@@ -455,7 +459,6 @@ export function LibraryPane(props: LibraryPaneProps) {
           <Show when={selected().size > 0} fallback={<>
             <input class="input library-search" type="search" aria-label="Search library" placeholder="Search library" value={text()} onInput={event => update({ view: null, text: event.currentTarget.value, scroll: 0 })} />
             <Button class="library-sort" aria-haspopup="menu" label="Sort sources" onClick={event => setPopup({ kind: 'menu', anchor: event.currentTarget, label: 'Sort sources', items: sorts.map(item => ({ label: item.label, icon: sort() === item.id ? 'check' : undefined, action: () => update({ view: null, sort: item.id, scroll: 0 }) })) })}>{sorts.find(item => item.id === sort())!.label}<Icon name="down" /></Button>
-            <Button icon="plus" aria-haspopup={EMBEDDED ? undefined : 'dialog'} aria-expanded={EMBEDDED ? undefined : popup()?.kind === 'add'} onClick={event => { if (EMBEDDED) { fileInput.click(); return; } setAddError(''); setPopup({ kind: 'add', anchor: event.currentTarget }); }}>Add</Button>
             <Button icon="download" aria-haspopup="menu" disabled={loading() || !!error() || loadedKey() !== queryKey()} onClick={event => exportMenu(event.currentTarget)}>Export<Icon name="down" /></Button>
             <Button icon="more" label="Library actions" aria-haspopup="menu" onClick={event => {
               const anchor = event.currentTarget;
@@ -471,6 +474,7 @@ export function LibraryPane(props: LibraryPaneProps) {
             <Button class="library-clear-selection" onClick={clearSelection}>Clear selection</Button>
           </Show>
         </Show>
+        <Button icon="plus" aria-haspopup={EMBEDDED ? undefined : 'dialog'} aria-expanded={EMBEDDED ? undefined : popup()?.kind === 'add'} onClick={event => { if (EMBEDDED) { fileInput.click(); return; } setPopup({ kind: 'add', anchor: event.currentTarget }); }}>Add</Button>
       </div>
       <Show when={saving() || props.notebook.commandState() !== 'saved'}><p class="library-message" role="status">{props.notebook.commandMessage() || (saving() ? 'Saving…' : props.notebook.commandState())}</p></Show>
     </header>
@@ -527,13 +531,14 @@ export function LibraryPane(props: LibraryPaneProps) {
                 const target: OpenTarget = { kind: 'page', pageId: row.page.id };
                 return <div class="library-row library-source-row" classList={{ 'library-row-selected': selected().has(row.page.id) }} role="listitem">
                   <div class="library-leading">
-                    <span class="library-source-image"><Show when={row.cover && row.source.current_snapshot_id} fallback={<Icon name={row.source.format === 'epub' ? 'book' : 'article'} />}><ResourceImage snapshotId={row.source.current_snapshot_id!} href={row.cover!} alt="" loading="lazy" /></Show></span>
+                    <span class="library-source-image"><Show when={row.cover} fallback={<Icon name={row.source.format === 'article' ? 'article' : 'book'} />}><ResourceImage snapshotId={row.source.current_snapshot_id ?? ''} href={row.cover!} alt="" loading="lazy" /></Show></span>
                     <Button role="checkbox" aria-checked={selected().has(row.page.id)} label={`Select ${row.page.text}`} class="icon-only library-checkbox" onClick={event => toggleSelection(row.page.id, event.shiftKey)}>
                       <span class="library-checkbox-square"><Show when={selected().has(row.page.id)}><Icon name="check" /></Show></span>
                     </Button>
                   </div>
                   <Button class="library-row-open" data-library-row={row.page.id} onClick={event => props.onOpen(target, event.shiftKey)} onKeyDown={event => rowKey(event, target)}>
                     <span class="library-title">{row.page.text}</span><span class="library-byline">{sourceByline(row)}</span>
+                    <span class="library-count" aria-label="Published year">{row.published?.slice(0, 4)}</span>
                     <span class="library-progress"><Show when={row.progress > 0}>{formatProgress(row.progress)}</Show></span>
                     <span class="library-highlight-count" aria-label={row.unprocessed ? `${row.unprocessed} unprocessed highlights` : undefined}><Show when={row.unprocessed > 0}><Icon name="highlight" />{row.unprocessed}</Show></span>
                   </Button>
@@ -558,17 +563,7 @@ export function LibraryPane(props: LibraryPaneProps) {
         <div class="popup-actions"><Button disabled={saving()} onClick={dismiss}>Cancel</Button><Button class="bordered danger" disabled={saving()} onClick={() => { void deleteView(state.saved); }}>Delete view</Button></div>
       </Popup>;
       if (EMBEDDED) return null;
-      return <Popup anchor={state.anchor} label="Add source" class="library-add" fitContent onDismiss={dismiss}>
-        <h2 class="popup-title">Add source</h2>
-        <form onSubmit={event => { event.preventDefault(); void queueUrl(); }}>
-          <label class="library-add-url">Article URL<input class="input" aria-label="URL" placeholder="https://…" inputmode="url" value={url()} disabled={adding()} onInput={event => setUrl(event.currentTarget.value)} /></label>
-          <Show when={addError()}><p class="library-error" role="alert">{addError()}</p></Show>
-          <div class="library-add-actions">
-            <Button icon="upload" disabled={adding()} onClick={() => { dismiss(); fileInput.click(); }}>Choose EPUB…</Button>
-            <Button type="submit" class="bordered" disabled={!url().trim() || adding()}>{adding() ? 'Adding…' : 'Add article'}</Button>
-          </div>
-        </form>
-      </Popup>;
+      return <AddSheet anchor={state.anchor} notebook={props.notebook} onDismiss={dismiss} onChooseFile={() => fileInput.click()} onFiles={files => { void upload(files); }} onJob={recordJob} onAdded={pageId => props.onOpen({ kind: 'page', pageId }, false)} />;
     }}</Show>
     <highlightActions.TagPopup />
   </div>;

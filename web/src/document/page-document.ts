@@ -907,6 +907,32 @@ export class Document implements PageDocument {
     };
     try {
       switch (edit.kind) {
+        case 'sourceDetails': {
+          if (edit.title !== undefined) {
+            const title = edit.title.trim();
+            if (!title) throw new Error('A title is required.');
+            if (!this.host.titleAvailable(title, this.pageId)) throw new Error('A page with this title already exists.');
+            setText(this.snapshot(this.pageId), title);
+          }
+          let after = this.outline.children(this.pageId).at(-1) ?? null;
+          for (const field of edit.fields) {
+            const current = field.entries.flatMap(id => this.outline.children(id)).filter(id => !this.isArchived(id));
+            let entry = field.entries[0];
+            if (!entry && field.values.length) {
+              entry = insert(this.pageId, after, `[[${field.id}]]`);
+              after = entry;
+            }
+            let childAfter = entry ? this.outline.children(entry).at(-1) ?? null : null;
+            for (let index = 0; index < Math.max(current.length, field.values.length); index++) {
+              const id = current[index], text = field.values[index];
+              if (id && text !== undefined) setText(this.snapshot(id), text);
+              // Keep an empty authored override: reingest must not refill a deliberately cleared field.
+              else if (id) setText(this.snapshot(id), '');
+              else if (entry && text !== undefined) childAfter = insert(entry, childAfter, text);
+            }
+          }
+          break;
+        }
         case 'source': {
           const previous = sourceState(this.capabilities(edit.id).source);
           const value = sourceState(edit.value);

@@ -35,6 +35,7 @@ fn metadata_values(metadata: &ExtractedMetadata) -> Vec<(&'static str, FieldKind
         ));
     }
     for (label, kind, value) in [
+        ("Subtitle", FieldKind::Text, &metadata.subtitle),
         ("Published", FieldKind::Date, &metadata.published),
         ("Publisher", FieldKind::Text, &metadata.publisher),
         ("Site", FieldKind::Text, &metadata.site),
@@ -64,6 +65,13 @@ fn metadata_values(metadata: &ExtractedMetadata) -> Vec<(&'static str, FieldKind
         FieldKind::Url,
         metadata.url.iter().cloned().collect(),
     ));
+    if let Some(cover) = metadata
+        .cover
+        .as_ref()
+        .filter(|s| s.starts_with("/api/library/covers/"))
+    {
+        values.push(("Cover", FieldKind::Text, vec![cover.clone()]));
+    }
     values
 }
 pub(crate) fn fold(value: &str) -> String {
@@ -289,7 +297,7 @@ impl<'a> Planner<'a> {
     }
     fn template(&mut self, format: SourceFormat) -> Result<String> {
         let (title, labels) = match format {
-            SourceFormat::Epub => (
+            SourceFormat::Epub | SourceFormat::Record => (
                 "Book",
                 vec![
                     ("Author", FieldKind::Instance),
@@ -357,6 +365,76 @@ impl<'a> Planner<'a> {
     }
 }
 impl Notebook {
+    pub fn valid_publication_date(value: &str) -> bool {
+        crate::fields::partial_date(value)
+    }
+    /// Normalize lookup and authored identifiers using the field system's rules.
+    pub fn normalize_identifier(value: &str) -> Option<String> {
+        crate::fields::identifier(value)
+    }
+
+    /// Plan a source with no snapshot. Its metadata is stored in ordinary page fields.
+    pub fn plan_source_record(&self, metadata: &ExtractedMetadata) -> Result<IngestPlan> {
+        let title = metadata
+            .title
+            .as_deref()
+            .filter(|s| !s.trim().is_empty())
+            .ok_or_else(|| validation("A title is required."))?;
+        let mut planner = Planner::new(self)?;
+        let values = planner.values(metadata, true)?;
+        let title = planner.unique_title(title.trim(), "record")?;
+        let id = crate::notebook::new_ulid().to_string();
+        planner.operations.push(Operation::CreatePage {
+            id: id.clone(),
+            title: title.clone(),
+        });
+        planner.operations.push(Operation::SetSource {
+            id: id.clone(),
+            base_revision: 1,
+            source: Some(SourceState {
+                format: SourceFormat::Record,
+                state: ReadingState::Inbox,
+                origin: None,
+                match_key: metadata.identifiers.first().cloned(),
+                citation_key: Some(citation_key(self, metadata, &title)?),
+            }),
+        });
+        let mut after = None;
+        for (label, kind, values) in values {
+            if values.is_empty() {
+                continue;
+            }
+            let field = planner.field(label, kind);
+            let entry = crate::notebook::new_ulid().to_string();
+            planner.operations.push(Operation::Insert {
+                id: entry.clone(),
+                parent_id: id.clone(),
+                after,
+                text: format!("[[{field}]]"),
+                heading: None,
+            });
+            after = Some(entry.clone());
+            let mut child_after = None;
+            for text in values {
+                let child = crate::notebook::new_ulid().to_string();
+                planner.operations.push(Operation::Insert {
+                    id: child.clone(),
+                    parent_id: entry.clone(),
+                    after: child_after,
+                    text,
+                    heading: None,
+                });
+                child_after = Some(child);
+            }
+        }
+        Ok(IngestPlan {
+            source_id: id,
+            created: true,
+            unchanged: false,
+            operations: planner.operations,
+        })
+    }
+
     /// Pure plan; callers apply the complete operation list under their own actor.
     pub fn plan_ingest(
         &self,
@@ -378,6 +456,7 @@ impl Notebook {
         let match_key = match format {
             SourceFormat::Epub => metadata.unique_id.as_deref(),
             SourceFormat::Article => metadata.url.as_deref(),
+            SourceFormat::Record => None,
         };
         let existing =
             if let Some(target) = target {
@@ -465,6 +544,7 @@ impl Notebook {
                 .unwrap_or_else(|| match format {
                     SourceFormat::Epub => "Book".into(),
                     SourceFormat::Article => "Article".into(),
+                    SourceFormat::Record => "Source".into(),
                 });
             let title = metadata
                 .title
@@ -478,6 +558,7 @@ impl Notebook {
                 .unwrap_or(match format {
                     SourceFormat::Epub => "epub",
                     SourceFormat::Article => "article",
+                    SourceFormat::Record => "record",
                 });
             let title = planner.unique_title(title, disambiguator)?;
             let id = crate::notebook::new_ulid().to_string();

@@ -13,6 +13,8 @@ import type { EditResult, NewCitation, PageDocument } from './contract';
 import type { Document } from './page-document';
 import { boundaryDeletion } from './outline-mechanics';
 import { questionStatus } from './types';
+import { saveDetails, sourceMetadata } from '../library/details';
+import { sourceReadingOrder } from '../library/source-order';
 
 const baseUrl = 'http://127.0.0.1:4330';
 const api = createApi(baseUrl);
@@ -1653,6 +1655,52 @@ async function sourcePage(instance: Notebook) {
 }
 
 describe('source and citation document commands', () => {
+  test('source details write existing fields in one undo step and fill only missing values', async () => {
+    const instance = await client();
+    const { id, doc } = await sourcePage(instance);
+    // Bun uses Solid's server build, whose effects do not run. Load the shared Fields
+    // document before calling the UI adapter; the edits still use the real service.
+    const fieldsDoc = instance.open((await api.fields()).page_id);
+    await eventually(() => fieldsDoc.status() === 'ready', 'Fields document did not load');
+    const before = sourceMetadata(doc, instance, (await api.fields()).fields);
+    const changed = { ...before, title: `${before.title} edited`, publisher: 'Authored press', language: 'fr', creators: [{ name: 'Changed Writer', role: 'author' as const }, { name: 'New Editor', role: 'editor' as const }] };
+    await saveDetails(doc, instance, changed);
+    expect(sourceMetadata(doc, instance, (await api.fields()).fields)).toMatchObject(changed);
+    doc.undo(); await doc.flush();
+    expect(sourceMetadata(doc, instance, (await api.fields()).fields)).toEqual(before);
+    doc.redo(); await doc.flush();
+    expect(sourceMetadata(doc, instance, (await api.fields()).fields)).toMatchObject(changed);
+    const cover = `/api/library/covers/${'a'.repeat(64)}`;
+    expect(await saveDetails(doc, instance, { ...changed, publisher: 'Fetched publisher', language: 'en', subtitle: 'Missing subtitle', cover }, true)).toBe(2);
+    const filled = sourceMetadata(doc, instance, (await api.fields()).fields);
+    expect(filled.publisher).toBe('Authored press');
+    expect(filled.language).toBe('fr');
+    expect(filled.subtitle).toBe('Missing subtitle');
+    expect(filled.cover).toBe(cover);
+    expect(await saveDetails(doc, instance, { ...filled, cover: `/api/library/covers/${'b'.repeat(64)}` }, true)).toBe(0);
+    expect(sourceMetadata(doc, instance, (await api.fields()).fields).cover).toBe(cover);
+    expect((await api.library({ text: changed.title })).rows.find(row => row.page.id === id)?.creators).toEqual(['Changed Writer']);
+    fieldsDoc.release();
+  });
+
+  test('source reading order preserves notes and global counts include citations filed elsewhere', async () => {
+    const instance = await client();
+    const { id, doc, citation } = await sourcePage(instance);
+    const later = success(doc.edit({ kind: 'highlight', parentId: id, text: 'Later', citation: { ...citation, id: ulid(), start: { ...citation.start, offset: 10 } } })).created[0]!;
+    const note = success(doc.edit({ kind: 'insert', parentId: later, after: null, text: 'A note under the later highlight' })).created[0]!;
+    const earlier = success(doc.edit({ kind: 'highlight', parentId: id, text: 'Earlier', citation })).created[0]!;
+    await doc.flush();
+    const definitions = new Map((await api.fields()).fields.map(field => [field.id, field]));
+    const order = sourceReadingOrder(doc, ids(doc), definitions);
+    expect(order.indexOf(earlier)).toBeLessThan(order.indexOf(later));
+    expect(order[order.indexOf(later) + 1]).toBe(note);
+    const elsewhere = await page(instance);
+    success(elsewhere.doc.edit({ kind: 'highlight', parentId: elsewhere.id, text: 'Filed elsewhere', citation: { ...citation, id: ulid() } }));
+    await elsewhere.doc.flush();
+    expect((await api.highlights({ source_id: id })).total).toBe(3);
+    expect((await api.library({ text: doc.root()!.text })).rows[0]?.highlights).toBe(3);
+  });
+
   test('source creation, removal and state changes invert, reconcile and reach remote documents', async () => {
     const instance = await client();
     const { id, doc } = await page(instance);
