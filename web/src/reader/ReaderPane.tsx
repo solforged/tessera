@@ -1,4 +1,4 @@
-import { For, Show, batch, createComputed, createEffect, createMemo, createSignal, on, onCleanup, onMount } from 'solid-js';
+import { For, Show, batch, createComputed, createEffect, createMemo, createResource, createSignal, on, onCleanup, onMount } from 'solid-js';
 import { Dynamic, Portal } from 'solid-js/web';
 import { createVirtualizer, defaultRangeExtractor } from '@tanstack/solid-virtual';
 import type { VirtualItem } from '@tanstack/solid-virtual';
@@ -6,6 +6,7 @@ import { ulid } from 'ulid';
 import type { Citation, HighlightRow, Passage, PassageHit, PassagePage, SourceView, TocEntry } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import type { OpenTarget, PaneId, ReaderViewState } from '../shell/contract';
+import { sourceMetadata } from '../library/details';
 import { formatProgress, highlightLocation } from '../library/query';
 import { createHighlightActions, highlightColors, setLinkedCitation } from '../library/highlights';
 import type { HighlightMenu, HighlightSection } from '../library/highlights';
@@ -149,10 +150,15 @@ export function ReaderPane(props: ReaderPaneProps) {
   };
   /** The reading position. */
   const position = createMemo(() => { version(); return share(firstVisible()); });
+  // The source page is the record: renaming the book or editing its creators shows here at once. The snapshot keeps
+  // what the file said at import, and stands in only until the page has loaded.
+  const [fieldDefinitions] = createResource(() => props.notebook.api.fields());
+  const details = createMemo(() => sourceMetadata(readerDocument, props.notebook, fieldDefinitions()?.fields ?? []));
+  const title = () => details().title?.trim() || currentSnapshot()?.metadata.title || '';
   const byline = createMemo(() => {
-    const metadata = currentSnapshot()?.metadata;
-    if (!metadata) return '';
-    return [metadata.creators.map(creator => creator.name).join(', ') || metadata.site, metadata.published?.match(/\d{4}/)?.[0]].filter(Boolean).join(' · ');
+    const metadata = currentSnapshot()?.metadata, page = details();
+    const names = page.creators.length ? page.creators.map(creator => creator.name) : metadata?.creators.map(creator => creator.name) ?? [];
+    return [names.join(', ') || metadata?.site, (page.published ?? metadata?.published)?.match(/\d{4}/)?.[0]].filter(Boolean).join(' · ');
   });
   const sourceHighlights = createMemo(() => highlights()
     .filter(row => row.citation.snapshot_id === snapshot())
@@ -582,7 +588,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     const neighbour = (ordinal: number) => { const passage = passages.get(ordinal); return passage && prose[passage.kind] ? passage.text : ''; };
     const before = first.text.slice(0, value.start.offset), after = last.text.slice(value.end.offset);
     return {
-      sourceId: props.target.sourceId, noteId, title: currentSnapshot()?.metadata.title ?? '', byline: byline(),
+      sourceId: props.target.sourceId, noteId, title: title(), byline: byline(),
       section: sectionAt(value.first)?.title ?? '', progress: share(value.first), quote: value.quote,
       before: leadIn(before.trim() ? before : neighbour(value.first - 1)), after: followOn(after.trim() ? after : neighbour(value.last + 1)),
     };
@@ -917,7 +923,7 @@ export function ReaderPane(props: ReaderPaneProps) {
       onCleanup(() => { observer.disconnect(); setTitleHeight(0); });
     });
     return <div ref={element} class="reader-title-block">
-      <h1>{currentSnapshot()?.metadata.title}</h1>
+      <h1>{title()}</h1>
       <Show when={byline()}><p>{byline()}</p></Show>
     </div>;
   }
@@ -974,15 +980,15 @@ export function ReaderPane(props: ReaderPaneProps) {
       onWheel={() => { userScroll = true; }} onTouchMove={() => { userScroll = true; }} onPointerDown={() => { userScroll = true; }}
       onKeyDown={event => { if (['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp', 'Home', 'End', ' '].includes(event.key)) userScroll = true; }}>
       <Show when={paged()} fallback={<div class="reader-list" style={{ height: `${virtualizer.getTotalSize()}px` }}>
-        <Show when={currentSnapshot()?.metadata.title}><TitleBlock /></Show>
+        <Show when={title()}><TitleBlock /></Show>
         <For each={[...items().keys()]}>{ordinal => <PassageRow ordinal={ordinal} item={() => items().get(ordinal)!} />}</For>
       </div>}>
         <div ref={frame} class="reader-page-frame" style={{ width: `${pageFrame().width}px` }} onWheel={pageWheel}
           onPointerDown={event => { pointerStart = { x: event.clientX, y: event.clientY, touch: event.pointerType !== 'mouse' }; }}
           onPointerUp={pagePointerUp} onPointerCancel={() => { pointerStart = null; }}>
           <div class="reader-flow" style={{ 'column-count': pageFrame().columns, 'column-gap': `${PAGE_GAP}px` }}>
-            <Show when={chunk()?.first === 0 && currentSnapshot()?.metadata.title}><div class="reader-title-block reader-page-title">
-              <h1>{currentSnapshot()?.metadata.title}</h1>
+            <Show when={chunk()?.first === 0 && title()}><div class="reader-title-block reader-page-title">
+              <h1>{title()}</h1>
               <Show when={byline()}><p>{byline()}</p></Show>
             </div></Show>
             <For each={chunkOrdinals()}>{ordinal => <PassageContent ordinal={ordinal} onImageLoad={scheduleCount} />}</For>
