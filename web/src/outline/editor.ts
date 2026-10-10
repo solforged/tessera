@@ -9,7 +9,7 @@ import { textTokens } from '../document/text-tokens';
 import type { FieldKind } from '../api/types';
 import { kindLabels } from '../fields/kinds';
 import { fieldEntryId, matchFieldEntry } from '../table/query';
-import { Icon } from '../ui/Icon';
+import { glyphElement } from '../ui/glyphs';
 
 type FieldResolver = (id: string) => string | undefined;
 type FieldKindResolver = (name: string) => FieldKind | undefined;
@@ -22,7 +22,7 @@ class FieldNameWidget extends WidgetType {
   toDOM(): HTMLElement {
     const label = document.createElement('span');
     label.className = 'field-entry-widget';
-    label.append(Icon({ name: 'field' }) as SVGElement, document.createTextNode(this.name));
+    label.append(glyphElement('field'), document.createTextNode(this.name));
     return label;
   }
 }
@@ -48,7 +48,7 @@ class FieldIconWidget extends WidgetType {
   toDOM(): HTMLElement {
     const icon = document.createElement('span');
     icon.className = 'field-draft-icon';
-    icon.append(Icon({ name: 'field' }) as SVGElement);
+    icon.append(glyphElement('field'));
     return icon;
   }
 }
