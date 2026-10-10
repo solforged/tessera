@@ -25,6 +25,7 @@ import { depthLabels, depthStops } from './contract';
 import type { AgendaViewState, CommandRegistry, CompareViewState, Depth, FieldsViewState, LibraryViewState, OpenTarget, PaneId, ReaderViewState, ReviewViewState, SettingsViewState, TableViewState, ViewState } from './contract';
 import { Palette } from './Palette';
 import { installOpenedFiles } from '../library/opened-files';
+import { installQuickCapture } from './quick-capture';
 
 // Panes other than the outline load on demand and are prefetched once the app is idle.
 const paneModules = {
@@ -383,6 +384,8 @@ export function App() {
     })().catch(reportError);
   });
   installOpenedFiles(() => navigationId() !== null, () => open({ kind: 'library', tab: 'inbox' }, false, 'main'), reportError);
+  // New note from the Android launcher: today's journal, editing its last empty block (or a new one at the end).
+  installQuickCapture(() => navigationId() !== null, () => { void today(active()); });
   // Caret and scroll reports change navigation on most keystrokes; storage writes trail them off the input path.
   let navigationWrite: { key: string; value: unknown } | null = null;
   let navigationTimer = 0;

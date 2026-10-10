@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- New note: the app's edit glyph in gilt on parchment. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <path android:fillColor="#F8F5EE" android:pathData="M24,0a24,24 0,1 1,0 48a24,24 0,1 1,0 -48z" />
+    <group android:translateX="12" android:translateY="12" android:scaleX="1.5" android:scaleY="1.5">
+        <path
+            android:pathData="M10,2l4,4l-8,8H2v-4z M8,4l4,4"
+            android:strokeColor="#93650F"
+            android:strokeWidth="1.2"
+            android:strokeLineJoin="round"
+            android:strokeLineCap="round" />
+    </group>
+</vector>
