@@ -1,0 +1,12 @@
+/* Plex lacks the modifier keys, and the shipped subset lacks ← and →. Without this face, each
+   system drew its own: matched on macOS, mismatched on Android. scripts/build-key-font.py draws them
+   in Plex's proportions; the range also replaces Plex's ↑ ↓ so the four arrows match. The file stays
+   a file: font-src is 'self', so an inlined data: URL would be blocked. */
+@font-face {
+  font-family: "IBM Plex Sans Variable";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 700;
+  src: url("./fonts/keys.woff2?no-inline") format("woff2");
+  unicode-range: U+2190-2193, U+21B5, U+21E7, U+2303, U+2318, U+2325;
+}

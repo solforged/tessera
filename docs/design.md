@@ -21,7 +21,7 @@ Status: applied to the shell, the outline and the table. The permanent global ra
 
 Three voices separate writing from publication and apparatus. IBM Plex Sans Variable is bundled for your writing, inputs and ordinary controls. Piazzolla Variable is bundled in normal and italic for page titles, heading rows, library titles, displayed highlights, quotes and the reader. Writing and title editing stay in Plex. Berkeley Mono is used when installed, with system monospace fallbacks. Its commercial font files are not bundled.
 
-Apparatus uses `--apparatus`: 400 at 11.5 / 16, with tabular numerals and slight tracking. It covers breadcrumbs, save state, Vim mode, sidebar section headings, picker metadata, counts, progress and resurfaced metadata. UI labels stay in sentence case. Key hints (`⌃⇧F`, `⇧↵`, `Space`) keep the apparatus size in the sans voice: the mono face lacks the modifier glyphs, and its fallbacks drew them at mismatched sizes.
+Apparatus uses `--apparatus`: 400 at 11.5 / 16, with tabular numerals and slight tracking. It covers breadcrumbs, save state, Vim mode, sidebar section headings, picker metadata, counts, progress and resurfaced metadata. UI labels stay in sentence case. Key hints (`⌃⇧F`, `⇧↵`, `Space`) keep the apparatus size in the sans voice. Plex has no modifier glyphs, so `web/src/ui/keys.css` adds a face to the Plex family with ⌃ ⇧ ⌘ ⌥ ↵ and the four arrows, drawn by `scripts/build-key-font.py` at Plex's cap height and stem; without it each system's fallback drew them, at mismatched sizes on Android.
 
 | Token | Size / line | Use |
 |---|---|---|
