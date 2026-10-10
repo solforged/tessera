@@ -108,6 +108,8 @@ pub fn run() {
                     let _ = window.reload();
                 }
             }
+            "undo" => history(app, false),
+            "redo" => history(app, true),
             "show-log" => show_log(app.clone()),
             _ => (),
         })
@@ -186,8 +188,8 @@ fn menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
                 "Edit",
                 true,
                 &[
-                    &PredefinedMenuItem::undo(app, None)?,
-                    &PredefinedMenuItem::redo(app, None)?,
+                    &MenuItem::with_id(app, "undo", "Undo", true, Some("CmdOrCtrl+Z"))?,
+                    &MenuItem::with_id(app, "redo", "Redo", true, Some("CmdOrCtrl+Shift+Z"))?,
                     &separator()?,
                     &PredefinedMenuItem::cut(app, None)?,
                     &PredefinedMenuItem::copy(app, None)?,
@@ -234,6 +236,25 @@ fn menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     )
 }
 
+/// Undo or Redo chosen from the menu. The page handles ⌘Z itself, so a
+/// key press only reaches the menu when the page left it alone; replay it as
+/// the page's own key event, and fall back to WebKit's undo for plain text
+/// fields. The predefined items sent `undo:` straight to WebKit, which edits
+/// the editor's DOM behind its back.
+fn history(app: &AppHandle, redo: bool) {
+    let Some(window) = app.get_webview_window(MAIN) else {
+        return;
+    };
+    let script = format!(
+        "(() => {{ const redo = {redo}; \
+         const target = document.activeElement || document.body; \
+         const event = new KeyboardEvent('keydown', {{ key: redo ? 'Z' : 'z', code: 'KeyZ', \
+         metaKey: true, shiftKey: redo, bubbles: true, cancelable: true }}); \
+         if (target.dispatchEvent(event)) document.execCommand(redo ? 'redo' : 'undo'); }})()"
+    );
+    let _ = window.eval(script);
+}
+
 fn window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     let navigation = app.clone();
     let popup = app.clone();
@@ -243,6 +264,9 @@ fn window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
         .title("Tessera")
         .inner_size(1360.0, 860.0)
         .min_inner_size(640.0, 420.0)
+        // The page takes dropped files itself (EPUB uploads); Tauri's handler
+        // would swallow the drop before the DOM saw it.
+        .disable_drag_drop_handler()
         .on_navigation(move |url| {
             if allowed(&navigation, url) {
                 return true;
