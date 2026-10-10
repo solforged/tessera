@@ -14,6 +14,10 @@
 .library-count, .library-progress, .library-highlight-count { display: inline-flex; align-items: center; gap: var(--space-4); flex-shrink: 0; font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); color: var(--muted); }
 .library-progress { width: 4ch; min-width: 4ch; justify-content: flex-end; }
 .library-highlight-count { width: 5ch; min-width: 5ch; justify-content: flex-end; }
+/* Rows read as a ledger: shelfmark, title and byline, then year, progress and highlights in fixed mono columns. */
+.library-year { width: 4ch; min-width: 4ch; justify-content: flex-end; color: var(--faint); }
+.library-siglum { flex: none; width: 5ch; font: var(--apparatus); letter-spacing: var(--tracking-apparatus); color: var(--faint); transition: color var(--motion-fast) var(--motion-ease); }
+.library-source-row:hover .library-siglum, .library-source-row:focus-within .library-siglum { color: var(--accent); }
 .library-tabs .library-count { color: var(--faint); }
 .library-tabs [aria-pressed="true"] .library-count { color: inherit; }
 .library-rows { border-top: 1px solid var(--line); }
@@ -29,7 +33,7 @@
 .library-source-row.library-row-selected { background: var(--selection); box-shadow: inset 2px 0 var(--accent); }
 .library-leading { position: relative; display: flex; flex: 0 0 var(--row-height); align-items: center; justify-content: center; height: var(--row-height); color: var(--muted); }
 .library-source-image { display: flex; align-items: center; justify-content: center; width: calc(var(--row-height) * 2 / 3); height: var(--row-height); flex-shrink: 0; }
-.library-source-image img { width: 100%; height: 100%; aspect-ratio: 2 / 3; object-fit: cover; }
+.library-source-image img { width: 100%; height: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 1px; box-shadow: 0 0 0 var(--rule-width) var(--line); }
 .library-checkbox.button { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; }
 .library-checkbox-square { display: flex; align-items: center; justify-content: center; width: var(--space-16); height: var(--space-16); border: 1px solid var(--control-border); border-radius: 2px; }
 .library-source-row:hover .library-checkbox, .library-source-row:focus-within .library-checkbox, .library-has-selection .library-checkbox { opacity: 1; }
@@ -61,12 +65,31 @@
 /* An uncoloured highlight is a hollow ring wherever it appears: rows, the reader list, citation chips and the colour menu. */
 .highlight-color-dot.highlight-color-none { background: transparent; box-shadow: inset 0 0 0 1px var(--faint); }
 .highlight-menu-colors [aria-pressed="true"] .highlight-color-dot { outline: 2px solid var(--text); outline-offset: 2px; }
-:is(.popup, .popup-exit).library-add { width: var(--measure); padding: var(--space-12); }
-.library-add form { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-12); }
-.library-add .library-add-url { display: flex; flex-direction: column; gap: var(--space-4); margin: 0; color: var(--muted); }
-.library-add-url .input { color: var(--text); }
-.library-add-actions { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-8); }
-.library-add .library-error { margin: 0; }
+/* Add and Edit details read as a catalogue card: one column of labelled rows on the search width plus its margin. */
+:is(.popup, .popup-exit).library-add { width: calc(var(--search-width) + var(--apparatus-width) / 2); padding: var(--space-12) var(--space-16) var(--space-16); }
+.library-add form { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-8); }
+.library-add .library-add-url { display: flex; flex-direction: column; gap: var(--space-4); margin: 0; color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
+.library-add .input { height: var(--row-height); min-height: var(--row-height); padding-block: 0; color: var(--text); font-size: var(--text-control); line-height: var(--line-control); }
+.library-add-actions { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-8); margin-inline: calc(-1 * var(--space-8)); }
+.library-add .library-error, .library-add .library-message { margin: 0; }
+/* A lookup result: the cover beside a title in the reading face, creators, then the imprint and identifiers as apparatus. */
+.library-preview { display: flex; align-items: flex-start; gap: var(--space-12); margin-top: var(--space-12); padding-top: var(--space-12); border-top: var(--rule-width) solid var(--line); }
+.library-preview-cover { flex: none; width: var(--space-48); aspect-ratio: 2 / 3; object-fit: cover; border-radius: var(--radius-control); box-shadow: 0 0 0 var(--rule-width) var(--line); }
+.library-preview-text { flex: 1; min-width: 0; }
+.library-preview-text h3 { margin: 0; font: var(--weight-display-heading) var(--text-h2)/var(--line-h2) var(--font-display); font-variation-settings: var(--optical-heading); letter-spacing: var(--tracking-heading); }
+.library-preview-text p { margin: var(--space-2) 0 0; font-size: var(--text-control); line-height: var(--line-control); }
+.library-preview-text .library-preview-subtitle { margin: 0; color: var(--muted); font: italic var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); font-variation-settings: var(--optical-quote); }
+.library-preview-text .library-preview-apparatus { margin-top: var(--space-8); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); font-variant-numeric: tabular-nums; }
+.library-preview-text .library-preview-provider { color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.library-preview + .popup-actions { margin-top: var(--space-12); }
+.library-add .library-details-row { display: grid; grid-template-columns: calc(var(--space-48) * 2) minmax(0, 1fr); align-items: start; gap: var(--space-12); margin: 0; }
+.library-details-row > span { padding-top: var(--space-4); color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
+.library-creators { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-4); min-width: 0; }
+.library-creator { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: var(--space-8); width: 100%; }
+.library-creator .mode-tabs { gap: 0; }
+.library-add-creator.button { margin-left: calc(-1 * var(--space-8)); color: var(--muted); font-weight: var(--weight-body); }
+.library-add-creator.button:hover:not(:disabled) { color: var(--text); }
+.library-details .popup-actions { margin-top: var(--space-8); }
 .highlight-color-dot { display: inline-block; flex-shrink: 0; width: var(--space-12); height: var(--space-12); border-radius: 50%; background: var(--faint); }
 .highlight-color-yellow { background: var(--highlight-yellow); }
 .highlight-color-green { background: var(--highlight-green); }
@@ -75,4 +98,3 @@
 .highlight-color-purple { background: var(--highlight-purple); }
 .library-filter [aria-pressed="true"] .highlight-color-dot { box-shadow: 0 0 0 2px var(--accent); }
 .library-highlight-tags { display: flex; flex-wrap: wrap; gap: var(--space-4); }
-.library-add fieldset { display: flex; flex-direction: column; gap: var(--space-8); min-width: 0; border: none; padding: 0; margin: 0; }

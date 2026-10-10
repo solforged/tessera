@@ -93,7 +93,6 @@
 .reader-setting > span { color: var(--muted); }
 .reader-setting > div { display: flex; align-items: center; gap: var(--space-4); }
 .reader-setting .button { font-weight: var(--weight-body); }
-.reader-setting [aria-pressed="true"] { color: var(--accent); background: var(--selection); }
-.reader-setting output { min-width: var(--space-24); text-align: center; font-variant-numeric: tabular-nums; }
+.reader-setting output { min-width: var(--space-24); text-align: center; font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .reader-picker .picker-query { position: sticky; top: 0; z-index: 1; background: var(--raised); }
 .reader-picker .reader-find-status { position: sticky; top: calc(var(--line-body) + var(--space-16) + 1px); z-index: 1; margin: 0; background: var(--raised); }

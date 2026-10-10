@@ -44,7 +44,7 @@ export const readerStyle = () => ({
 export function ReaderSettingsPopup(props: { anchor: HTMLElement; onDismiss(): void }) {
   const sizeIndex = () => sizes.indexOf(readerSettings().size);
   return <Popup anchor={props.anchor} label="Reader settings" class="reader-settings" onDismiss={props.onDismiss}>
-    <div class="reader-setting"><span>Typeface</span><div>
+    <div class="reader-setting"><span>Typeface</span><div class="mode-tabs" role="group" aria-label="Typeface">
       <Button aria-pressed={readerSettings().typeface === 'sans'} onClick={() => setSettings({ typeface: 'sans' })}>Sans</Button>
       <Button aria-pressed={readerSettings().typeface === 'serif'} onClick={() => setSettings({ typeface: 'serif' })}>Serif</Button>
     </div></div>
@@ -53,10 +53,10 @@ export function ReaderSettingsPopup(props: { anchor: HTMLElement; onDismiss(): v
       <output aria-label="Reader size">{readerSettings().size}</output>
       <Button label="Increase size" disabled={sizeIndex() === sizes.length - 1} onClick={() => setSettings({ size: sizes[sizeIndex() + 1]! })}>+</Button>
     </div></div>
-    <div class="reader-setting"><span>Width</span><div><For each={Object.keys(widths) as (keyof typeof widths)[]}>{width =>
+    <div class="reader-setting"><span>Width</span><div class="mode-tabs" role="group" aria-label="Width"><For each={Object.keys(widths) as (keyof typeof widths)[]}>{width =>
       <Button aria-pressed={readerSettings().width === width} onClick={() => setSettings({ width })}>{width}</Button>
     }</For></div></div>
-    <div class="reader-setting"><span>Line spacing</span><div><For each={Object.keys(spacings) as (keyof typeof spacings)[]}>{spacing =>
+    <div class="reader-setting"><span>Line spacing</span><div class="mode-tabs" role="group" aria-label="Line spacing"><For each={Object.keys(spacings) as (keyof typeof spacings)[]}>{spacing =>
       <Button aria-pressed={readerSettings().spacing === spacing} onClick={() => setSettings({ spacing })}>{spacing}</Button>
     }</For></div></div>
   </Popup>;

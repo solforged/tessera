@@ -1,4 +1,5 @@
 import { For, Show, createEffect, createMemo, createSignal, createUniqueId, on, onCleanup, onMount } from 'solid-js';
+import { Dynamic } from 'solid-js/web';
 import type { CardAnswerBlock, CardKind, CardRow, Grade } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { BlockBreadcrumb, BlockText } from '../outline/BlockText';
@@ -142,7 +143,7 @@ export function ReviewCard(props: ReviewCardProps) {
     </>}>{segments => <section id={revealed() ? answerId : undefined} class="review-card-side" aria-label={revealed() ? 'Answer' : 'Front'}>
       <ClozeText segments={segments()} revealed={revealed()} notebook={props.notebook} />
     </section>}</Show>
-    <Show when={props.item.card.kind === 'list' && revealedItems() > 0}><p class="review-card-kind" role="status">{revealedItems()} of {itemCount()}</p></Show>
+    <Show when={props.item.card.kind === 'list' && revealedItems() > 0}><p class="review-list-progress" role="status">{revealedItems()} of {itemCount()}</p></Show>
     <Show when={revealed()} fallback={<div class="review-card-actions">
       <Button class="bordered" label={revealedItems() ? 'Reveal next item' : 'Reveal answer'} shortcut="Space" aria-keyshortcuts="Space" aria-expanded={revealedItems() > 0} aria-controls={answerId} disabled={locked()} onClick={reveal}>{revealedItems() ? 'Reveal next item' : 'Reveal answer'} <kbd>Space</kbd></Button>
     </div>}>
@@ -194,14 +195,15 @@ export function CardBack(props: { kind: CardKind; back: string; blocks?: CardAns
     const answer: CardAnswerBlock[] = props.blocks ?? JSON.parse(props.back);
     return props.kind === 'list' && props.visibleItems !== undefined ? answer.slice(0, props.visibleItems) : answer;
   });
-  return <Show when={blocks()} fallback={<BlockText text={props.back} notebook={props.notebook} interactive={false} />}>{answer => <AnswerOutline blocks={answer()} notebook={props.notebook} />}</Show>;
+  return <Show when={blocks()} fallback={<BlockText text={props.back} notebook={props.notebook} interactive={false} />}>{answer => <AnswerOutline blocks={answer()} numbered={props.kind === 'list'} notebook={props.notebook} />}</Show>;
 }
 
-function AnswerOutline(props: { blocks: CardAnswerBlock[]; notebook: NotebookClient }) {
-  return <ul class="review-answer-outline"><For each={props.blocks}>{block => <li>
+/** A list answer numbers its items in rubric, as a manuscript numbers its points; nested blocks keep plain bullets. */
+function AnswerOutline(props: { blocks: CardAnswerBlock[]; numbered?: boolean; notebook: NotebookClient }) {
+  return <Dynamic component={props.numbered ? 'ol' : 'ul'} class="review-answer-outline"><For each={props.blocks}>{block => <li>
     <BlockText text={block.text} cards notebook={props.notebook} interactive={false} />
     <Show when={block.children.length}><AnswerOutline blocks={block.children} notebook={props.notebook} /></Show>
-  </li>}</For></ul>;
+  </li>}</For></Dynamic>;
 }
 
 function ClozeText(props: { segments: ClozeSegment[]; revealed: boolean; notebook: NotebookClient }) {

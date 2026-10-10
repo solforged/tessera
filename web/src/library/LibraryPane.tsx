@@ -537,8 +537,8 @@ export function LibraryPane(props: LibraryPaneProps) {
                     </Button>
                   </div>
                   <Button class="library-row-open" data-library-row={row.page.id} onClick={event => props.onOpen(target, event.shiftKey)} onKeyDown={event => rowKey(event, target)}>
-                    <span class="library-title">{row.page.text}</span><span class="library-byline">{sourceByline(row)}</span>
-                    <span class="library-count" aria-label="Published year">{row.published?.slice(0, 4)}</span>
+                    <span class="library-siglum" aria-hidden="true">{row.source.siglum}</span><span class="library-title">{row.page.text}</span><span class="library-byline">{sourceByline(row)}</span>
+                    <span class="library-count library-year" aria-label="Published year">{row.published?.slice(0, 4)}</span>
                     <span class="library-progress"><Show when={row.progress > 0}>{formatProgress(row.progress)}</Show></span>
                     <span class="library-highlight-count" aria-label={row.unprocessed ? `${row.unprocessed} unprocessed highlights` : undefined}><Show when={row.unprocessed > 0}><Icon name="highlight" />{row.unprocessed}</Show></span>
                   </Button>

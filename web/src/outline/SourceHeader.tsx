@@ -137,7 +137,7 @@ export function SourceHeader(props: {
       if (file) void props.notebook.api.uploadCover(file).then(cover => saveDetails(props.doc, props.notebook, { ...metadata(), cover }, false, true)).catch(fail);
     }} />
     <Show when={result()}><p class="library-message" role="status">{result()}</p></Show>
-    <Show when={details()}>{anchor => <Popup anchor={anchor()} placement="top" label="Edit details" class="library-add" onDismiss={closeDetails}>
+    <Show when={details()}>{anchor => <Popup anchor={anchor()} fitContent label="Edit details" class="library-add" onDismiss={closeDetails}>
       <h2 class="popup-title">Edit details</h2>
       <DetailsForm metadata={metadata()} submitLabel="Save" onCancel={closeDetails} onSave={async metadata => { await saveDetails(props.doc, props.notebook, metadata); closeDetails(); }} />
     </Popup>}</Show>
