@@ -68,7 +68,7 @@ export function CardSummary(props: { blockId: string; cards: ParsedCard[]; noteb
   }
 
   return <>
-    <Show when={loading() || error() || ordered().length}><Button class="outline-planning" title="Show cards" aria-haspopup="dialog" aria-expanded={!!anchor()} onClick={event => {
+    <Show when={loading() || error() || ordered().length}><Button class="outline-planning outline-card-count" title="Show cards" aria-haspopup="dialog" aria-expanded={!!anchor()} onClick={event => {
       if (event.shiftKey) { dismiss(); props.onOpen({ kind: 'review' }, true); return; }
       setNow(Date.now()); setAnchor(event.currentTarget);
     }}>{label()}</Button></Show>
