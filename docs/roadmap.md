@@ -119,4 +119,4 @@ Progress: perspective lenses and comparison arrived with stage 7's positions. Ti
 
 ## Not planned
 
-Multi-device sync, collaboration, mobile apps, plugin and schema builders, graph visualization and autonomous background agents. Each may come later; none blocks daily use.
+Multi-device sync, collaboration, an iOS app, plugin and schema builders, graph visualization and autonomous background agents. Each may come later; none blocks daily use. The Android app (`crates/tessera-android`) keeps its own notebook on the phone for reading and annotation; it does not sync with a desktop notebook.

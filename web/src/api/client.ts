@@ -1,4 +1,4 @@
-import { DEMO } from '../demo/mode';
+import { EMBEDDED } from '../demo/mode';
 import type {
   Actor,
   Agenda,
@@ -224,7 +224,7 @@ export function createApi(base = ''): ApiClient {
   const resourceUrl = (snapshotId: string, href: string) => `${base}/api/snapshots/${segment(snapshotId)}/resources/${href.split('/').map(segment).join('/')}`;
   return {
     notebook: (signal?: AbortSignal) => get<NotebookInfo>('/notebook', signal),
-    ...(!DEMO ? {
+    ...(!EMBEDDED ? {
       service: (signal?: AbortSignal) => get<ServiceInfo>('/service', signal),
       backups: (signal?: AbortSignal) => get<BackupInfo[]>('/backups', signal),
       createBackup: (signal?: AbortSignal) => request<CreatedBackup>(base, 'POST', '/backups', undefined, signal),
@@ -311,7 +311,7 @@ export function createApi(base = ''): ApiClient {
     exportQuery: (format: ExportFormat, query: LibraryQuery, signal?: AbortSignal) => send<Blob>(`${base}/api/library/export`, {
       method: 'POST', signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ format, query }),
     }, response => response.blob()),
-    // Only service, backups and article URL ingestion are absent in demo builds; their callers are guarded.
+    // Only service, backups and article URL ingestion are absent in embedded builds; their callers are guarded.
   } satisfies Omit<ApiClient, NativeMethod> as ApiClient;
 }
 

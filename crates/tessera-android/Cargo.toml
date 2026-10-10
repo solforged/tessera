@@ -1,0 +1,32 @@
+[package]
+name = "tessera-android"
+description = "Android app that runs a Tessera notebook in its own process"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[lib]
+name = "tessera_android"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7.1", features = [] }
+
+[target.'cfg(target_os = "android")'.dependencies]
+tauri = { version = "2.12.1", features = [] }
+tessera-core.workspace = true
+tessera-service.workspace = true
+axum = { version = "0.8", default-features = false }
+base64 = "0.22"
+parking_lot = "0.12"
+serde.workspace = true
+serde_json.workspace = true
+tokio = { version = "1", default-features = false, features = ["rt", "sync"] }
+tower.workspace = true
+
+# Tauri's Android entry point exports JNI symbols, which the workspace's
+# `forbid(unsafe_code)` cannot allow; only that entry point opts out.
+[lints.rust]
+unsafe_code = "deny"

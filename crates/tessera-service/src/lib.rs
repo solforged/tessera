@@ -126,28 +126,35 @@ pub fn router(
         .with_state(state))
 }
 
-/// The notebook and commit notifications backing a browser router.
-#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
-pub struct BrowserHandles {
+/// The notebook and commit notifications backing an embedded router.
+pub struct EmbeddedHandles {
     pub notebook: Arc<Mutex<Notebook>>,
     pub changes: broadcast::Sender<i64>,
 }
 
-/// Build the same notebook and library API without native runtime endpoints.
-/// Queued uploads are ingested before this returns.
-#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
-pub fn browser_router(notebook: Notebook) -> Result<(Router, BrowserHandles), String> {
+/// Build the notebook and library API for a host that runs the notebook in its own process,
+/// such as the browser worker or the Android app. It has no socket, so it omits the host and
+/// origin policy, static assets, backups, service details and the WebSocket change stream;
+/// hosts deliver changes from [`EmbeddedHandles`]. Natively, call it inside a Tokio runtime.
+/// The browser worker ingests queued uploads before this returns.
+pub fn embedded_router(notebook: Notebook) -> Result<(Router, EmbeddedHandles), String> {
     let notebook = Arc::new(Mutex::new(notebook));
     let changes = broadcast::channel(256).0;
     let library = library::Library::start(notebook.clone(), changes.clone(), library::extract)?;
-    let handles = BrowserHandles {
+    let handles = EmbeddedHandles {
         notebook: notebook.clone(),
         changes: changes.clone(),
     };
     let state = AppState {
         notebook,
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+        assets: None,
         changes,
         library,
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+        port: 0,
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+        backup: Arc::new(tokio::sync::Mutex::new(())),
     };
     let router = notebook_routes()
         .method_not_allowed_fallback(|| async { ApiError::method_not_allowed() })

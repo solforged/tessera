@@ -4,7 +4,7 @@ import { exportExtensions } from '../api/client';
 import type { ExportFormat } from '../api/client';
 import type { HighlightResult, HighlightRow, IngestJob, LibraryQuery, LibraryResult, LibraryRow, LibraryView, ReadingState } from '../api/types';
 import type { NotebookClient } from '../document/contract';
-import { DEMO } from '../demo/mode';
+import { EMBEDDED } from '../demo/mode';
 import { BlockText } from '../outline/BlockText';
 import type { LibraryTab, LibraryViewState, OpenTarget, PaneId } from '../shell/contract';
 import { Button } from '../ui/Button';
@@ -282,7 +282,7 @@ export function LibraryPane(props: LibraryPaneProps) {
     setJobsRefresh(value => value + 1);
   }
   async function queueUrl() {
-    if (DEMO || !url().trim() || adding()) return;
+    if (EMBEDDED || !url().trim() || adding()) return;
     setAdding(true); setAddError('');
     try {
       const job = await props.notebook.api.queueUrl(url().trim());
@@ -455,7 +455,7 @@ export function LibraryPane(props: LibraryPaneProps) {
           <Show when={selected().size > 0} fallback={<>
             <input class="input library-search" type="search" aria-label="Search library" placeholder="Search library" value={text()} onInput={event => update({ view: null, text: event.currentTarget.value, scroll: 0 })} />
             <Button class="library-sort" aria-haspopup="menu" label="Sort sources" onClick={event => setPopup({ kind: 'menu', anchor: event.currentTarget, label: 'Sort sources', items: sorts.map(item => ({ label: item.label, icon: sort() === item.id ? 'check' : undefined, action: () => update({ view: null, sort: item.id, scroll: 0 }) })) })}>{sorts.find(item => item.id === sort())!.label}<Icon name="down" /></Button>
-            <Button icon="plus" aria-haspopup={DEMO ? undefined : 'dialog'} aria-expanded={DEMO ? undefined : popup()?.kind === 'add'} onClick={event => { if (DEMO) { fileInput.click(); return; } setAddError(''); setPopup({ kind: 'add', anchor: event.currentTarget }); }}>Add</Button>
+            <Button icon="plus" aria-haspopup={EMBEDDED ? undefined : 'dialog'} aria-expanded={EMBEDDED ? undefined : popup()?.kind === 'add'} onClick={event => { if (EMBEDDED) { fileInput.click(); return; } setAddError(''); setPopup({ kind: 'add', anchor: event.currentTarget }); }}>Add</Button>
             <Button icon="download" aria-haspopup="menu" disabled={loading() || !!error() || loadedKey() !== queryKey()} onClick={event => exportMenu(event.currentTarget)}>Export<Icon name="down" /></Button>
             <Button icon="more" label="Library actions" aria-haspopup="menu" onClick={event => {
               const anchor = event.currentTarget;
@@ -520,7 +520,7 @@ export function LibraryPane(props: LibraryPaneProps) {
           }>
             <Show when={displayedSources().length} fallback={<div class="library-empty">
               <Show when={text().trim()} fallback={<Show when={tab() === 'inbox'} fallback={<p>No sources.</p>}>
-                <p>{DEMO ? 'Nothing in your inbox. Add an EPUB.' : 'Nothing in your inbox. Add a book or article.'}</p>
+                <p>{EMBEDDED ? 'Nothing in your inbox. Add an EPUB.' : 'Nothing in your inbox. Add a book or article.'}</p>
               </Show>}><p>No sources match.</p><Button onClick={() => update({ view: null, text: '', scroll: 0 })}>Clear search</Button></Show>
             </div>}>
               <div role="list"><For each={displayedSources()}>{row => {
@@ -557,7 +557,7 @@ export function LibraryPane(props: LibraryPaneProps) {
         <Show when={commandError()}><p class="library-error" role="alert">{commandError()}</p></Show>
         <div class="popup-actions"><Button disabled={saving()} onClick={dismiss}>Cancel</Button><Button class="bordered danger" disabled={saving()} onClick={() => { void deleteView(state.saved); }}>Delete view</Button></div>
       </Popup>;
-      if (DEMO) return null;
+      if (EMBEDDED) return null;
       return <Popup anchor={state.anchor} label="Add source" class="library-add" fitContent onDismiss={dismiss}>
         <h2 class="popup-title">Add source</h2>
         <form onSubmit={event => { event.preventDefault(); void queueUrl(); }}>

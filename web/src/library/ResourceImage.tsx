@@ -1,7 +1,7 @@
 import { Show, createResource, splitProps } from 'solid-js';
 import type { JSX } from 'solid-js';
 import { api } from '../api/client';
-import { DEMO } from '../demo/mode';
+import { EMBEDDED } from '../demo/mode';
 
 // Snapshot resources are immutable. Keep URLs for the tab's lifetime so virtualized
 // reader rows can remount without downloading the same image again.
@@ -22,7 +22,7 @@ export type ResourceImageProps = { snapshotId: string; href: string } & Omit<JSX
 
 export function ResourceImage(props: ResourceImageProps) {
   const [resource, image] = splitProps(props, ['snapshotId', 'href']);
-  if (!DEMO) return <img {...image} src={api.resourceUrl(resource.snapshotId, resource.href)} />;
+  if (!EMBEDDED) return <img {...image} src={api.resourceUrl(resource.snapshotId, resource.href)} />;
   const [url] = createResource(() => [resource.snapshotId, resource.href] as const, ([snapshotId, href]) => resourceUrl(snapshotId, href));
   return <Show when={url()}>{src => <img {...image} src={src()} />}</Show>;
 }
