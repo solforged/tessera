@@ -46,7 +46,8 @@ export function MonthGrid(props: MonthGridProps) {
   const cells = createMemo(() => {
     const value = month();
     const first = new Date(value.getFullYear(), value.getMonth(), 1, 12);
-    const start = new Date(first); start.setDate(1 - first.getDay());
+    // Weeks start on Monday, as in the Week view.
+    const start = new Date(first); start.setDate(1 - (first.getDay() + 6) % 7);
     return Array.from({ length: 42 }, (_, index) => { const day = new Date(start); day.setDate(start.getDate() + index); return day; });
   });
   const showMonth = (amount: number) => setMonth(value => new Date(value.getFullYear(), value.getMonth() + amount, 1, 12));
@@ -69,7 +70,7 @@ export function MonthGrid(props: MonthGridProps) {
       <Button icon="right" label="Next month" disabled={props.disabled} onClick={() => showMonth(1)} />
     </div>
     <div ref={grid} class="month-grid-days" role="group" aria-label={month().toLocaleDateString(undefined, { month: 'long', year: 'numeric' })} aria-busy={props.planningLoading} onKeyDown={keydown}>
-      <For each={['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']}>{day => <span class="month-grid-weekday" aria-hidden="true">{day}</span>}</For>
+      <For each={['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']}>{day => <span class="month-grid-weekday" aria-hidden="true">{day}</span>}</For>
       <For each={cells()}>{day => {
         const date = localDate(day);
         const planning = createMemo(() => props.planningMarks?.[date]);

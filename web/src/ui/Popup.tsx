@@ -104,11 +104,17 @@ export function Popup(props: PopupProps) {
     // scrollHeight leaves out the border that max-height includes; without it a short menu scrolls by 2 px and WebKit shows a scrollbar.
     } else contentHeight = panel.scrollHeight + panel.offsetHeight - panel.clientHeight;
     const needed = Math.min(contentHeight, 560);
+    const start = rect.left > window.innerWidth / 2 ? rect.right - width : rect.left;
+    const left = Math.max(8, Math.min(start, window.innerWidth - width - 8));
+    // A dialog that fits neither side but fits the window slides over its trigger rather than scrolling its own form.
+    if (props.fitContent && needed > Math.max(above, below) && needed <= window.innerHeight - 16) {
+      setPosition({ left, top: Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - needed - 8)), height: needed, visible: true });
+      return;
+    }
     // Fixed menus and opt-in dialogs flip to fit; growing lists flip only when cramped.
     const flip = above > below && (props.fitContent ? below < needed : below < Math.min(needed, 180) || (props.role === 'menu' && below < needed && above >= needed));
     const height = Math.min(needed, flip ? above : below);
-    const start = rect.left > window.innerWidth / 2 ? rect.right - width : rect.left;
-    setPosition({ left: Math.max(8, Math.min(start, window.innerWidth - width - 8)), top: flip ? rect.top - height - 4 : rect.bottom + 4, height, visible: true });
+    setPosition({ left, top: flip ? rect.top - height - 4 : rect.bottom + 4, height, visible: true });
   };
   const reposition = () => { if (!disposed) { cancelAnimationFrame(frame); frame = requestAnimationFrame(place); } };
   // Internal scrolling does not move the anchor and must not trigger another fit measurement.
