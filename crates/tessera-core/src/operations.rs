@@ -1343,6 +1343,9 @@ impl Engine<'_, '_> {
             Operation::SetCitationTriage {
                 id, base_revision, ..
             }
+            | Operation::SetCitationRange {
+                id, base_revision, ..
+            }
             | Operation::SetCitationColor {
                 id, base_revision, ..
             } => {

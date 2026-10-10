@@ -479,3 +479,32 @@ fn epub_three_resolved_navigation_entries_are_kept() {
     assert_eq!(document.toc.len(), 3);
     assert_eq!(document.toc[0].title, "Navigation 0");
 }
+
+#[test]
+fn sparse_ncx_uses_percent_encoded_guide_contents_and_chapter_labels() {
+    let package = r#"<package><metadata/><manifest>
+      <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
+      <item id="toc" href="contents!.html" media-type="application/xhtml+xml"/>
+      <item id="one" href="one.html" media-type="application/xhtml+xml"/>
+      <item id="two" href="two.html" media-type="application/xhtml+xml"/>
+      <item id="three" href="three.html" media-type="application/xhtml+xml"/>
+      </manifest><spine toc="ncx"><itemref idref="toc"/><itemref idref="one"/><itemref idref="two"/><itemref idref="three"/></spine>
+      <guide><reference type="toc" href="contents%21.html"/></guide></package>"#;
+    let bytes = archive(&[
+        ("META-INF/container.xml", CONTAINER.as_bytes()),
+        ("OPS/package.opf", package.as_bytes()),
+        ("OPS/toc.ncx", br#"<ncx><navMap><navPoint><navLabel><text>Start</text></navLabel><content src="one.html"/></navPoint></navMap></ncx>"#),
+        ("OPS/contents!.html", br##"<html><body><p>Table of Contents</p><blockquote><a href="one.html#chapter">Chapter 1 - Beyond the looking glass</a><br/><a href="two.html#chapter">Chapter 2 - Before the beginning</a><br/><a href="three.html#chapter">Chapter 3 - Engravings</a></blockquote></body></html>"##),
+        ("OPS/one.html", br#"<html><body><div id="chapter"><p>CHAPTER 1</p><p>First chapter text.</p></div></body></html>"#),
+        ("OPS/two.html", br#"<html><body><div id="chapter"><p>CHAPTER 2</p><p>Second chapter text.</p></div></body></html>"#),
+        ("OPS/three.html", br#"<html><body><div id="chapter"><p>CHAPTER 3</p><p>Third chapter text.</p></div></body></html>"#),
+    ]);
+    let document = epub(&bytes).unwrap();
+    assert_eq!(document.toc.len(), 3);
+    assert_eq!(
+        document.toc[0].title,
+        "Chapter 1 - Beyond the looking glass"
+    );
+    assert!(document.toc[0].locator.starts_with("OPS/one.html#"));
+    assert_eq!(document.toc[1].title, "Chapter 2 - Before the beginning");
+}

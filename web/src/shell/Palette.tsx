@@ -4,6 +4,7 @@ import type { Block, BlockInPage } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { BlockText } from '../outline/BlockText';
 import { cachedExactPage } from '../outline/completion';
+import { createPageIcon } from '../outline/source';
 import { Icon } from '../ui/Icon';
 import { Picker } from '../ui/Picker';
 import type { Command, CommandRegistry, OpenTarget, PaneId } from './contract';
@@ -137,8 +138,9 @@ function HitRow(props: { hit: BlockInPage; query: string; notebook: NotebookClie
     return result;
   });
   const isPage = () => props.hit.block.id === props.hit.page.id;
+  const icon = createPageIcon(props.notebook, () => props.hit.block);
   return <>
-    <Icon name={isPage() ? (props.hit.page.kind === 'journal' ? 'calendar' : 'page') : 'bullet'} />
+    <Icon name={icon()} />
     <span class="picker-text"><BlockText text={props.notebook.lookup(props.hit.block.id)()?.text ?? props.hit.block.text} notebook={props.notebook} interactive={false} highlight={props.query} /></span>
     <Show when={!isPage()}><span class="picker-meta">{props.notebook.lookup(props.hit.page.id)()?.text ?? props.hit.page.text}<For each={ancestors()}>{block => <> / <BlockText text={block.text} notebook={props.notebook} interactive={false} /></>}</For></span></Show>
     <Show when={props.selected}><kbd class="picker-hint">⇧↵ beside</kbd></Show>

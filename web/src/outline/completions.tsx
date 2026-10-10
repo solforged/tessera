@@ -19,6 +19,7 @@ import type { SlashEntry, SlashToken } from './slash';
 import { typeSpelling, typeTokenAt } from './type-completion';
 import { addFieldOption } from './source-fields';
 import type { OutlineContext } from './context';
+import { createPageIcon } from './source';
 
 /**
  * An open `[[` page reference or `((` block reference, a `#` type query, `::` at the start of a block
@@ -460,7 +461,10 @@ function CompletionPopups(){ return <>
         <Show when={completionKey() && matches.loading && !completionRows().length && !canCreate()}><p class="empty-state">Searching…</p></Show>
         <Show when={completionKey() && matches.error}><p class="error" role="alert">Couldn't load completion.</p></Show>
         <For each={completionRows()}>{(row, index) => <div role="option" aria-selected={completionIndex() === index()} class="picker-row" classList={{ selected: completionIndex() === index() }} onClick={() => void chooseCompletion(index())}>
-          <Show when={row.kind === 'block' ? row.block : null}>{block => <><Icon name={block().kind === 'journal' ? 'calendar' : block().kind === 'page' ? 'page' : 'bullet'} /><span class="picker-text">{block().text ? <BlockText text={block().text} notebook={props.notebook} interactive={false} /> : 'Empty block'}</span><Show when={block().kind === 'block'}><span class="picker-meta"><BlockBreadcrumb block={block()} notebook={props.notebook} /></span></Show></>}</Show>
+          <Show when={row.kind === 'block' ? row.block : null}>{block => {
+            const icon = createPageIcon(props.notebook, block);
+            return <><Icon name={icon()} /><span class="picker-text">{block().text ? <BlockText text={block().text} notebook={props.notebook} interactive={false} /> : 'Empty block'}</span><Show when={block().kind === 'block'}><span class="picker-meta"><BlockBreadcrumb block={block()} notebook={props.notebook} /></span></Show></>;
+          }}</Show>
           <Show when={row.kind === 'field' ? row.field : null}>{field => <><Icon name="field" /><span class="picker-text">{field().name}</span><span class="picker-meta">{completion()?.fields ? kindLabels[field().kind] : 'Field'}</span></>}</Show>
           <Show when={row.kind === 'option' ? row.option : null}>{option => <><Icon name="bullet" /><span class="picker-text">{option().text}</span></>}</Show>
         </div>}</For>

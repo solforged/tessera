@@ -25,6 +25,7 @@ import type { PassageSelection } from './passages';
 import { extendSelection, followOn, leadIn, sentenceAt, shrinkSelection } from './sentences';
 import type { SelectionUnit, SentenceSelection } from './sentences';
 import { ReaderSettingsPopup, readerSettings, readerStyle } from './ReaderSettings';
+import { mergeMembers, overlappingHighlights } from './highlight-merge';
 import './reader.css';
 
 export interface ReaderPaneProps {
@@ -66,6 +67,8 @@ export function ReaderPane(props: ReaderPaneProps) {
   const [keyboardRange, setKeyboardRange] = createSignal<{ first: number; last: number } | null>(null);
   const [editError, setEditError] = createSignal('');
   const [editing, setEditing] = createSignal(false);
+  const [mergeMessage, setMergeMessage] = createSignal('');
+  const readerDocument = props.notebook.open(props.target.sourceId);
   const [flash, setFlash] = createSignal<Citation | null>(null);
   const [highlights, setHighlights] = createSignal<HighlightRow[]>([]);
   const [composing, setComposing] = createSignal<HighlightNoteDraft | null>(null);
@@ -384,29 +387,87 @@ export function ReaderPane(props: ReaderPaneProps) {
     };
   }
 
+  async function prepareMerges(value?: SelectionToolbar, color: Citation['color'] = null) {
+    await documentReady(readerDocument);
+    await readerDocument.flush();
+    const sourceId = props.target.sourceId;
+    const rows = (await api.highlights({ source_id: sourceId, unprocessed: false, limit: Number.MAX_SAFE_INTEGER }, requests.signal)).rows
+      .filter(row => !value || row.citation.snapshot_id === value.snapshotId);
+    const points = new Map<string, number>();
+    for (const row of rows) {
+      points.set(row.citation.start.passage_id, row.citation.ordinal);
+      if (!points.has(row.citation.end.passage_id)) {
+        const ordinal = await api.locate(row.citation.snapshot_id, row.citation.end.passage_id, requests.signal);
+        if (ordinal === null) throw new Error('Passage not found.');
+        points.set(row.citation.end.passage_id, ordinal);
+      }
+    }
+    if (value) { points.set(value.start.passage_id, value.first); points.set(value.end.passage_id, value.last); }
+    const groups = overlappingHighlights(rows, points, value ? { snapshot_id: value.snapshotId, start: value.start, end: value.end } : undefined);
+    const merges: { citation: Citation; removeIds: string[]; removeCitationIds: string[] }[] = [];
+    let selectedRange = value, kept = 0, removed = 0;
+    for (const group of groups) {
+      const referenced = new Set<string>();
+      for (const row of group.rows) if (row.block.block.page_id === sourceId
+        && (await api.backlinks(row.block.block.id, 1, requests.signal)).length) referenced.add(row.block.block.id);
+      const members = mergeMembers(group, sourceId, referenced, color);
+      kept += members.kept.length;
+      const snapshotId = group.rows[0]?.citation.snapshot_id ?? value!.snapshotId;
+      const first = points.get(group.start.passage_id)!, last = points.get(group.end.passage_id)!;
+      const evidence: Passage[] = [];
+      for (let from = first; from <= last; from += PAGE_SIZE) {
+        evidence.push(...(await api.passages(snapshotId, from, Math.min(PAGE_SIZE, last - from + 1), requests.signal)).passages);
+      }
+      const quote = evidence.map(passage => passage.text.slice(passage.id === group.start.passage_id ? group.start.offset : 0, passage.id === group.end.passage_id ? group.end.offset : passage.text.length)).join('\n\n');
+      const range = { start: group.start, end: group.end, quote, locator: evidence[0]!.locator, ordinal: first };
+      if (value) selectedRange = { ...value, ...range, first, last };
+      if (!members.survivor) continue;
+      const previous = members.survivor.citation;
+      merges.push({ citation: { ...previous, ...range, color: members.color },
+        removeIds: [...new Set(members.removed.filter(row => row.block.block.id !== previous.block_id).map(row => row.block.block.id))],
+        removeCitationIds: members.removed.filter(row => row.block.block.id === previous.block_id).map(row => row.citation.id),
+      });
+      removed += members.removed.length;
+    }
+    return { merges, selectedRange, removed, kept };
+  }
+
+  async function mergeOverlapping() {
+    if (editing()) return;
+    setEditing(true); setMergeMessage(''); setError('');
+    try {
+      const plan = await prepareMerges();
+      if (plan.merges.length) {
+        const result = readerDocument.edit({ kind: 'mergeHighlights', merges: plan.merges });
+        if (!result.ok) throw new Error(result.reason);
+        await readerDocument.flush();
+      }
+      setMergeMessage(`${plan.removed ? `Merged ${plan.removed} highlights` : 'No overlapping highlights'}${plan.kept ? `; ${plan.kept} cited elsewhere kept` : ''}`);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
+    finally { setEditing(false); }
+  }
+
   async function highlight(withNote: boolean, color: Citation['color'] = null) {
     const value = selection();
     if (!value || editing()) return;
     setEditing(true); setEditError('');
-    const sourceId = props.target.sourceId, doc = props.notebook.open(sourceId);
+    const sourceId = props.target.sourceId, doc = readerDocument;
     try {
-      await documentReady(doc);
-      const result = doc.edit({ kind: 'highlight', parentId: sourceId, text: value.quote, color, citation: {
-        id: ulid(), sourceId, snapshotId: value.snapshotId, start: value.start, end: value.end, quote: value.quote, locator: value.locator, ordinal: value.first,
-      } });
+      const plan = await prepareMerges(value, color), range = plan.selectedRange!;
+      const result = plan.merges.length ? doc.edit({ kind: 'mergeHighlights', merges: plan.merges, note: withNote })
+        : doc.edit({ kind: 'highlight', parentId: sourceId, text: range.quote, color, note: withNote, citation: {
+          id: ulid(), sourceId, snapshotId: range.snapshotId, start: range.start, end: range.end, quote: range.quote, locator: range.locator, ordinal: range.first,
+        } });
       if (!result.ok) { setEditError(result.reason); return; }
-      const highlightId = result.created[0]!;
-      // An empty note does not mark the highlight processed until it has text.
-      const note = withNote ? doc.edit({ kind: 'insert', parentId: highlightId, after: null }) : null;
-      if (note && !note.ok) { setEditError(note.reason); return; }
+      const highlightId = plan.merges[0]?.citation.block_id ?? result.created[0]!;
       await doc.flush();
       if (!disposed) {
         setSelection(null); window.getSelection()?.removeAllRanges();
-        if (note?.ok && coarsePointer.matches) setComposing(noteDraft(value, note.created[0]!));
-        else if (note?.ok) props.onOpen({ kind: 'page', pageId: sourceId, blockId: highlightId, caretId: note.created[0] }, true);
+        if (withNote && coarsePointer.matches) setComposing(noteDraft(value, result.created.at(-1)!));
+        else if (withNote) props.onOpen({ kind: 'page', pageId: sourceId, blockId: highlightId, caretId: result.created.at(-1) }, true);
       }
     } catch (reason) { if (!disposed) setEditError(reason instanceof Error ? reason.message : String(reason)); }
-    finally { doc.release(); if (!disposed) setEditing(false); }
+    finally { if (!disposed) setEditing(false); }
   }
 
   function readerKeyBlocked(event: KeyboardEvent) {
@@ -500,6 +561,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     const needsSelection = selection() ? undefined : 'Select text first';
     return [
       { label: 'Open source page', icon: 'page', shortcut: 'Shift beside', action: () => props.onOpen({ kind: 'page', pageId: props.target.sourceId }, shiftPressed) },
+      { label: 'Merge overlapping highlights', icon: 'highlight', disabledReason: editing() ? 'Saving…' : undefined, action: () => { void mergeOverlapping(); } },
       { label: 'Next passage', section: 'Keyboard', shortcut: 'J', action: () => { void moveCursor(1); } },
       { label: 'Previous passage', shortcut: 'K', action: () => { void moveCursor(-1); } },
       { label: 'Select sentence', shortcut: 'S', action: () => { void selectSentence(); } },
@@ -514,6 +576,12 @@ export function ReaderPane(props: ReaderPaneProps) {
   const trackShift = (event: KeyboardEvent | PointerEvent) => { shiftPressed = event.shiftKey; };
 
   const readerKey = (event: KeyboardEvent) => {
+    if (props.active && (event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === 'z' && !(event.target instanceof HTMLElement && event.target.closest('input, textarea, [contenteditable="true"]'))) {
+      event.preventDefault(); event.stopImmediatePropagation();
+      if (event.shiftKey) readerDocument.redo(); else readerDocument.undo();
+      void readerDocument.flush().catch(reason => setError(String(reason)));
+      return;
+    }
     if (readerKeyBlocked(event)) return;
     const key = event.key, moving = key === 'j' || key === 'k' || key === 's', resizing = '][}{'.includes(key) && key.length === 1;
     if (!moving && !resizing || moving && selection() || resizing && !selection() && !keyboardPending) return;
@@ -585,6 +653,7 @@ export function ReaderPane(props: ReaderPaneProps) {
   });
   onCleanup(() => {
     disposed = true; requests.abort();
+    readerDocument.release();
     setLinkedCitation(null);
     clearTimeout(reportTimer); clearTimeout(positionTimer); clearTimeout(flashTimer);
     document.removeEventListener('selectionchange', selected);
@@ -671,6 +740,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     <div class="reader-progress-rule" aria-hidden="true"><span style={{ width: `${position() * 100}%` }} /></div>
     <Show when={error()}><p class="reader-error error" role="alert">{error()}</p></Show>
     <Show when={loading()}><p class="reader-status" role="status">Loading…</p></Show>
+    <Show when={mergeMessage()}><p class="reader-status" role="status">{mergeMessage()}</p></Show>
     <div ref={scroll} class="reader-scroll" tabIndex={0} aria-label="Source passages" onScroll={scrolled}
       onWheel={() => { userScroll = true; }} onTouchMove={() => { userScroll = true; }} onPointerDown={() => { userScroll = true; }}
       onKeyDown={event => { if (['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp', 'Home', 'End', ' '].includes(event.key)) userScroll = true; }}>

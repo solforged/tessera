@@ -838,6 +838,9 @@ function Pane(props: OutlinePaneProps) {
       <Show when={showArchived()}><p class="archive-notice">Showing archived blocks <button type="button" class="text-button" onClick={() => { setShowArchived(false); scheduleReport(); }}>Hide archived</button></p></Show>
       <Show when={message()}><p class="outline-message" role="alert">{message()} <button class="text-button" type="button" onClick={() => setMessage('')}>Dismiss</button></p></Show>
       <Show when={doc.status() === 'error' || doc.status() === 'missing'}><p role="alert">{doc.statusMessage()}</p></Show>
+      <Show when={doc.status() === 'ready' && depth() === 'gloss' && !zoom() && !glossId()}>
+        <p class="empty-state">No gloss yet. Choose Gloss in the page menu to write a one-line summary.</p>
+      </Show>
       <Show when={doc.root()?.kind === 'journal'}>
         <JournalAgenda date={doc.root()!.text} pageId={props.pageId} notebook={props.notebook} onOpen={props.onOpen} />
         <JournalResurface date={doc.root()!.text} notebook={props.notebook} onOpen={props.onOpen} />

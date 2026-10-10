@@ -113,7 +113,9 @@ export type Edit =
    * Append a block with `text` under `parentId` (after `after`, or last when
    * omitted) that cites `citation`; one undo step. `created[0]` is its ID.
    */
-  | { kind: 'highlight'; parentId: string; after?: string | null; text: string; citation: NewCitation; color?: Citation['color'] }
+  | { kind: 'highlight'; parentId: string; after?: string | null; text: string; citation: NewCitation; color?: Citation['color']; note?: boolean }
+  /** Update evidence and absorb unreferenced source-page highlights in one undo step. */
+  | { kind: 'mergeHighlights'; merges: { citation: Citation; removeIds: string[]; removeCitationIds?: string[] }[]; note?: boolean }
   /**
    * Enter: the original keeps its ID, children and text before `offset`.
    * At a parent's end, insert its first child; otherwise insert a sibling.

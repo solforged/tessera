@@ -101,7 +101,7 @@ export function SourceHeader(props: {
 /** Short source title and passage number; opens the reader at the cited range. */
 export function CitationChip(props: { citation: Citation; pageId: string; notebook: NotebookClient; onOpen: OutlinePaneProps['onOpen'] }) {
   const title = () => shortSourceTitle(props.notebook.lookup(props.citation.source_id)()?.text ?? 'Source');
-  return <Button class={`outline-planning outline-citation${props.citation.source_id === props.pageId ? ' outline-citation-local' : ''}`} title={`Passage ${props.citation.ordinal + 1} · ${props.citation.locator}`} onClick={event => props.onOpen({
+  return <Button class={`outline-planning outline-citation${props.citation.source_id === props.pageId ? ' outline-citation-local' : ''}`} title={`Passage ${props.citation.ordinal + 1}${props.citation.chapter_title ? ` · ${props.citation.chapter_title}` : ''}`} onClick={event => props.onOpen({
     kind: 'reader', sourceId: props.citation.source_id, snapshotId: props.citation.snapshot_id,
     at: props.citation.start.passage_id, citationId: props.citation.id,
   }, event.shiftKey)}><span class={`highlight-color-dot highlight-color-${props.citation.color ?? 'none'}`} aria-hidden="true" /><span><Show when={props.citation.source_id !== props.pageId}>{title()} · </Show>¶{props.citation.ordinal + 1}</span></Button>;

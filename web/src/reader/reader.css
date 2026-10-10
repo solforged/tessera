@@ -10,6 +10,8 @@
 .reader-list { position: relative; max-width: var(--reader-measure); margin-inline: auto; font-size: var(--reader-size); }
 .reader-row { position: absolute; top: 0; left: 0; width: 100%; padding-bottom: var(--space-16); }
 .reader-passage { margin: 0; color: var(--text); font-family: var(--reader-font); font-size: var(--reader-size); line-height: var(--reader-line); font-weight: var(--weight-body); font-variation-settings: var(--optical-reader); white-space: pre-wrap; overflow-wrap: anywhere; }
+/* An opaque selection keeps inline highlight tints from changing its paint. */
+.reader-passage::selection, .reader-passage *::selection { background: var(--selection); color: var(--text); }
 .reader-cursor { position: relative; }
 .reader-cursor::before { content: ''; position: absolute; inset-block: 0; left: calc(-1 * var(--space-12)); border-left: var(--space-2) solid var(--danger); }
 .reader-passage h1, h1.reader-passage { font-size: calc(var(--reader-size) * 1.6); line-height: 1.3; font-weight: var(--weight-heading); }

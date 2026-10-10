@@ -1,4 +1,6 @@
-import type { FieldDefinition } from '../api/types';
+import { createResource, type Accessor } from 'solid-js';
+import type { Block, FieldDefinition } from '../api/types';
+import type { IconName } from '../ui/Icon';
 import type { BlockState, NotebookClient } from '../document/contract';
 import { textTokens } from '../document/text-tokens';
 import { fieldEntryId, matchFieldEntry } from '../table/query';
@@ -36,4 +38,11 @@ export function shortSourceTitle(title: string): string {
   if (main.length <= 40) return main;
   const cut = main.slice(0, 40);
   return `${cut.slice(0, cut.lastIndexOf(' ') > 0 ? cut.lastIndexOf(' ') : 40).trimEnd()}…`;
+}
+
+/** The same source-aware identity in navigation, Find and reference suggestions. */
+export function createPageIcon(notebook: NotebookClient, block: Accessor<Block>, enabled: Accessor<boolean> = () => true, journal: IconName = 'calendar'): Accessor<IconName> {
+  const [capabilities] = createResource(() => enabled() && block().kind === 'page' ? block().id : false, id => notebook.api.capabilities(id));
+  return () => block().kind === 'journal' ? journal : block().kind === 'block' ? 'bullet'
+    : capabilities.error || !capabilities()?.source ? 'page' : capabilities()!.source!.format === 'article' ? 'article' : 'book';
 }

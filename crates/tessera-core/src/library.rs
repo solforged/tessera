@@ -216,6 +216,8 @@ pub struct Citation {
     pub locator: String,
     /// Reading-order position of the start passage in its snapshot.
     pub ordinal: i64,
+    #[serde(default)]
+    pub chapter_title: Option<String>,
     pub triage: Option<String>,
     pub color: Option<String>,
 }
