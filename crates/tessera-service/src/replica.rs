@@ -34,7 +34,13 @@ impl LastError {
     }
     fn from_ref(error: &anyhow::Error) -> Self {
         for source in error.chain() {
-            if let Some(error) = source.downcast_ref::<HubError>() {
+            let hub = source.downcast_ref::<HubError>().or_else(|| {
+                source
+                    .downcast_ref::<std::io::Error>()
+                    .and_then(std::io::Error::get_ref)
+                    .and_then(|inner| inner.downcast_ref::<HubError>())
+            });
+            if let Some(error) = hub {
                 return Self {
                     code: error.code.clone(),
                     message: error.message.clone(),
@@ -53,6 +59,10 @@ impl LastError {
             code: code.into(),
             message,
         }
+    }
+    /// The hub no longer accepts this phone's key, after Forget on the Mac.
+    fn revoked(&self) -> bool {
+        matches!(self.code.as_str(), "unpaired" | "wrong_device")
     }
     fn new(code: &str, message: &str) -> Self {
         Self {
@@ -235,13 +245,21 @@ async fn join(
 ) -> Result<Json<serde_json::Value>, LastError> {
     let guard = state.replica.gate.clone().lock_owned().await;
     // Reject before consuming the one-time code, including queued duplicate joins.
-    if state
+    // A replica whose key the hub revoked (Forget) may pair again.
+    let replica = state
         .notebook
         .lock()
         .sync_status()
         .map_err(|e| LastError::from_error(e.into()))?
-        .is_some()
-    {
+        .is_some();
+    let revoked = state
+        .replica
+        .memory
+        .lock()
+        .last_error
+        .as_ref()
+        .is_some_and(LastError::revoked);
+    if replica && !revoked {
         return Err(LastError::new(
             "already_replica",
             "This notebook is already a replica.",
@@ -332,11 +350,19 @@ fn replace(state: &AppState, hub: &mut HttpHub, paired: Option<&Pairing>) -> any
             std::fs::remove_file(path)?;
             importer = Some(ticket.device_id);
         }
-        if let Some(device) = &importer {
-            sync::sync_import(&mut local, hub, device)?;
-        }
-        if old.is_some() {
-            sync::sync_send(&mut local, hub)?;
+        // An independent notebook sends its whole log. A re-paired replica's log came
+        // from the hub, so it sends only its outbox, under the new key's replica.
+        match (&importer, &old) {
+            (Some(device), None) => {
+                sync::sync_import(&mut local, hub, device)?;
+            }
+            (Some(device), Some(_)) => {
+                sync::sync_send_as(&mut local, hub, device)?;
+            }
+            (None, Some(_)) if paired.is_none() => {
+                sync::sync_send(&mut local, hub)?;
+            }
+            _ => {}
         }
         let (ticket, path) = hub.download(&directory)?;
         let mut n = state.notebook.lock();
@@ -364,7 +390,8 @@ fn replace(state: &AppState, hub: &mut HttpHub, paired: Option<&Pairing>) -> any
         break;
     }
     // Retirement follows the successful install; failures cannot discard local edits.
-    if let Some(old) = old {
+    // Forget already retired a re-paired phone's old replica.
+    if let Some(old) = old.filter(|_| paired.is_none()) {
         hub.retire(&old.device_id)?;
     }
     if let Some(importer) = importer {

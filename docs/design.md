@@ -124,6 +124,7 @@ The permanent merge confirmation stays a bounded short-control popup, with the s
 - **Cards** show their syntax quietly outside editing: `>>`, `<<` and `<>` become →, ← and ↔ in `--faint`, and cloze answers carry a dotted accent underline with the hint in their tooltip. Clicking places the caret at the same source offset. The summary reads `2 cards · 1 due` and opens a Cards popup listing each card's kind, front and state (New, Due, In 6 days), Reset with confirmation for reviewed cards, and Review. Shift opens Review beside.
 - **Conflicts.** The warning badge opens both retained versions under the row. Resolution actions use the shared hairline buttons; the badge and actions grow to the touch target size on coarse pointers. Long unbroken text wraps inside the panel.
 - **Recovery banners.** Details opens on its own full-width line beneath the status and actions, rather than narrowing the explanation into a side column. Its disclosure takes the shared pointer target size.
+- **Kept copies.** A version that sync kept beside a block sits under it, inset behind a hairline at its left, under a mono label (`Sol's Fold's version, kept beside`). Use this, Discard and Keep both follow as bordered buttons in the control font. Each is one undoable step.
 - **Headings** are Piazzolla block styles at the h1, outline-h2 and h3 tokens, weight 480. `# ` at block start sets one.
 - Rows highlight on hover with `--hover`; selection uses `--selection` plus the accent bar. While a range is selected, every row under a selected block takes the same fill and bar, field values included, because those rows move, copy and delete with it.
 - Shift-click on another row selects the range from the current row; Shift-click inside the block being edited extends its text selection instead.
@@ -188,6 +189,8 @@ Settings is a pane on the outline measure. Its header sticks to the top, so the 
 
 - **Preferences.** Theme, Vim keys, Journal day and Reader display. Each row has its name, a mono scope (This device or Notebook) and one muted sentence on the left, and its control flush right; rows divide with hairlines. Theme uses the mode tabs. The Vim switch is a hairline track with a muted knob; on, the track fills gilt and the knob slides across in canvas. Journal day is one trigger reading Device in sans and the zone in mono. Reader display only says that typeface, size, measure and layout are set in the reader, beside the text.
 - **Backups.** Back up now, the latest backup's time under the label, and earlier backups folded into a disclosure of mono lines.
+- **Devices**, on the Mac. The sharing switch with the tailnet address in mono under it, then Pair a phone (disabled until sharing is on), each paired device with its last sync and Active, and a mono line for the changes kept for devices that have not caught up. Forget waits for hover where there is hover. Pair a phone opens a dialog: the QR code on white with the code under it in spaced mono, three numbered steps beside it, and the wait on a hairline, which turns to `<phone> is paired and copying the notebook.`
+- **Devices**, on the phone. The Mac it copies, with its address in mono, then Sync with the last sync and anything waiting, Sync now, and offline books. A failure reads in plain words in `--danger`, the service's message in its tooltip. A forgotten phone shows Pair again instead of Sync now; a phone without a Mac shows Use my Mac's notebook and Set up.
 - **Agent changes.** The newest three, newest first: the summary, then the agent and time in mono and the page as a quiet link that turns gilt on hover. Undo waits for hover where there is hover; Show N earlier unfolds the rest. An undone change reads muted, with Undone in place of the button.
 - **About.** The notebook's path, creation date and id, then the service's version, URL, assets and launch agent, as two mono lists, since they are read rarely and changed never.
 
@@ -382,6 +385,9 @@ Shared popup patterns:
 | New page, Delete page | Confirm | Below their trigger |
 | Reference preview | Preview, 380 px | Below the line of the reference under the pointer, or the reference at the caret |
 | Undo toast | Bottom centre, one at a time |
+| Sync status | A mono count with a dot at the rail's right, `3 waiting`, `Out of date` or `Not paired`, only while one applies; the dot turns `--danger` after a failure | Global rail, before Layout |
+| Sync sheet | Device → Mac register over the title; Sync now with the last sync, kept and rejected changes leading to Conflicts, offline books; a retired copy offers Download the notebook again, a forgotten one Pair again | Top centre, 480 px; a bottom sheet on touch |
+| Phone setup | Where is your notebook? with two numbered choices: Use my Mac's notebook (Scan code or Type code, then the Mac's address and code) and Start a notebook on this phone. Pair again shows only the first, with the address filled in | Top centre, 560 px; a bottom sheet on touch; on first run |
 | Save state | Pane header, never a toolbar or a row; it says Saving… only when a save takes longer than a second |
 
 Native `<select>` is never used; a bordered menu button or a picker replaces it.

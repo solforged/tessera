@@ -7,7 +7,7 @@ import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Popup } from '../ui/Popup';
 import { SETUP_SEEN_KEY, SyncSetup } from './SyncSetup';
-import { ago, plural, problem, replica, size, sync } from './state';
+import { ago, forgotten, plural, problem, replica, size, sync } from './state';
 import './sync.css';
 
 /**
@@ -25,12 +25,12 @@ export function SyncStatus(props: { notebook: NotebookClient; onOpenPage(pageId:
   });
   // A local commit adds to the outbox; ask again rather than wait for the next poll.
   createEffect(on(() => props.notebook.changeSequence(), () => { if (replica()) void sync.refresh(); }, { defer: true }));
-  const shown = () => { const value = replica(); return !!value && (value.pending > 0 || value.retired); };
+  const shown = () => { const value = replica(); return !!value && (value.pending > 0 || value.retired || forgotten()); };
   return <>
     <Show when={shown()}>
       <Button class="sync-status" aria-haspopup="dialog" aria-expanded={open()} title="Sync" onClick={() => setOpen(true)}>
         <span class="sync-dot" data-error={replica()?.last_error ? '' : undefined} aria-hidden="true" />
-        <span>{replica()!.retired ? 'Out of date' : `${replica()!.pending} waiting`}</span>
+        <span>{forgotten() ? 'Not paired' : replica()!.retired ? 'Out of date' : `${replica()!.pending} waiting`}</span>
       </Button>
     </Show>
     <Show when={open()}><SyncSheet onClose={() => setOpen(false)} onOpenPage={pageId => { setOpen(false); props.onOpenPage(pageId); }} /></Show>
@@ -38,11 +38,12 @@ export function SyncStatus(props: { notebook: NotebookClient; onOpenPage(pageId:
   </>;
 }
 
-/** Sync now, kept copies and offline books; a retired copy offers to download the notebook again. */
+/** Sync now, kept copies and offline books; a retired copy offers to download the notebook again, a forgotten one to pair again. */
 export function SyncSheet(props: { onClose(): void; onOpenPage(pageId: string): void }) {
   const [view, setView] = createSignal<'sync' | 'conflicts'>('sync');
   const [running, setRunning] = createSignal(false);
   const [error, setError] = createSignal('');
+  const [pairing, setPairing] = createSignal(false);
   const [conflicts] = createResource(() => view() === 'conflicts', () => api.syncConflicts());
   const act = async (action: () => Promise<SyncState>) => {
     setRunning(true); setError('');
@@ -51,7 +52,8 @@ export function SyncSheet(props: { onClose(): void; onOpenPage(pageId: string): 
     finally { setRunning(false); }
   };
   const touch = window.matchMedia('(pointer: coarse)').matches;
-  return <Popup anchor={document.body} placement={touch ? 'sheet' : 'top'} width={480} label="Sync" class="sync-sheet" onDismiss={props.onClose}>
+  return <Show when={!pairing()} fallback={<Show when={replica()}>{value => <SyncSetup again={{ url: value().hub_url }} onDone={() => { setPairing(false); props.onClose(); }} />}</Show>}>
+    <Popup anchor={document.body} placement={touch ? 'sheet' : 'top'} width={480} label="Sync" class="sync-sheet" onDismiss={props.onClose}>
     <Show when={replica()}>{value => <>
       <header class="sync-sheet-head">
         <div><p class="sync-register">{value().device_name ?? 'This device'} → {value().hub_name ?? 'Mac'}</p><h2>{view() === 'sync' ? 'Sync' : 'Conflicts'}</h2></div>
@@ -65,7 +67,9 @@ export function SyncSheet(props: { onClose(): void; onOpenPage(pageId: string): 
               <p>{value().syncing || running() ? 'Syncing…' : value().synced_at ? `Synced ${ago(value().synced_at!)}` : 'Not synced yet'}</p>
               <Show when={value().last_error}>{failure => <p class="sync-error" title={failure().message}>{problem(failure())}</p>}</Show>
             </div>
-            <Button class="bordered" disabled={running() || value().syncing} onClick={() => { void act(api.runSync); }}>Sync now</Button>
+            <Show when={forgotten()} fallback={<Button class="bordered" disabled={running() || value().syncing} onClick={() => { void act(api.runSync); }}>Sync now</Button>}>
+              <Button class="bordered sync-primary" onClick={() => setPairing(true)}>Pair again</Button>
+            </Show>
           </div>}>
           <div class="sync-retired">
             <p class="sync-register">{ANDROID ? 'This phone' : 'This device'} · notebook copy</p>
@@ -89,7 +93,8 @@ export function SyncSheet(props: { onClose(): void; onOpenPage(pageId: string): 
         </div>
       </Show>
     </>}</Show>
-  </Popup>;
+    </Popup>
+  </Show>;
 }
 
 function Conflicts(props: { conflicts: SyncConflicts | undefined; loading: boolean; onOpenPage(pageId: string): void; onBack(): void }) {

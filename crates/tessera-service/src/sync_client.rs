@@ -214,7 +214,11 @@ impl HttpHub {
     }
 }
 fn failed(error: anyhow::Error) -> tessera_core::Error {
-    tessera_core::Error::Io(std::io::Error::other(error))
+    // `io::Error::source` skips its payload, so keep the hub's code as the payload itself.
+    tessera_core::Error::Io(match error.downcast::<HubError>() {
+        Ok(hub) => std::io::Error::other(hub),
+        Err(error) => std::io::Error::other(error),
+    })
 }
 impl Hub for HttpHub {
     fn push(

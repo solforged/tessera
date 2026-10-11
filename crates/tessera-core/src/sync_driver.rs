@@ -125,6 +125,27 @@ pub fn sync_import(
     Ok(report)
 }
 
+/// Send a forgotten replica's pending changes and unlogged rows under `device`, a
+/// temporary replica registered by its new pairing key. Unlike `sync_import`, it
+/// sends only what the hub lacks: the rest of the log came from the hub, and
+/// replaying it (old changes may predate change IDs) could undo newer state.
+pub fn sync_send_as(
+    local: &mut impl NotebookAccess,
+    hub: &mut dyn Hub,
+    device: &str,
+) -> Result<SyncReport> {
+    let mut outbox = local.with_notebook(|n| n.sync_outbox())?;
+    outbox.device_id = device.into();
+    for change in &mut outbox.changes {
+        change.stamp.origin = device.into();
+    }
+    let mut report = send_outbox(local, hub, &outbox)?;
+    let (_, rows, _, _) = local.with_notebook(|n| n.sync_unlogged_outbox())?;
+    hub.exchange_rows(device, &rows, i64::MAX)?;
+    report.sent_rows = rows.len();
+    Ok(report)
+}
+
 impl Notebook {
     fn sync_import_outbox(&self, device: &str) -> Result<Outbox> {
         let mut changes = Vec::new();

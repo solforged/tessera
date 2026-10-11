@@ -349,12 +349,9 @@ mod tests {
         serde_json::from_slice(&to_bytes(response.into_body(), 1024 * 1024).await.unwrap()).unwrap()
     }
 
-    #[tokio::test]
-    async fn single_use_keys_bind_replicas_and_forget_revokes_access() {
-        let dir = tempfile::tempdir().unwrap();
-        let notebook = Arc::new(Mutex::new(
-            tessera_core::Notebook::open(dir.path()).unwrap(),
-        ));
+    /// A hub's sync listener with code 4F7K-92QD waiting.
+    fn hub(dir: &std::path::Path) -> (AppState, Router) {
+        let notebook = Arc::new(Mutex::new(tessera_core::Notebook::open(dir).unwrap()));
         let changes = tokio::sync::broadcast::channel(256).0;
         let state = AppState {
             library: crate::library::Library::start(
@@ -377,6 +374,80 @@ mod tests {
             .layer(middleware::from_fn_with_state(state.clone(), authenticate))
             .merge(public_routes())
             .with_state(state.clone());
+        (state, app)
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_forgotten_phone_pairs_again_and_sends_only_its_own_changes() {
+        let hub_dir = tempfile::tempdir().unwrap();
+        let (state, app) = hub(hub_dir.path());
+        let page = |title: &str| tessera_core::Batch {
+            actor: tessera_core::Actor::Person,
+            reason: None,
+            idempotency_key: None,
+            operations: vec![tessera_core::Operation::CreatePage {
+                id: ulid::Ulid::generate().to_string(),
+                title: title.into(),
+            }],
+        };
+        // A change from before change IDs. The phone's copy must not send it back.
+        state
+            .notebook
+            .lock()
+            .apply(&page("Written on the Mac"))
+            .unwrap();
+        rusqlite::Connection::open(hub_dir.path().join(tessera_core::DATABASE_FILE))
+            .unwrap()
+            .execute(
+                "UPDATE changes SET change_id = NULL, origin = NULL WHERE seq = (SELECT MAX(seq) FROM changes)",
+                [],
+            )
+            .unwrap();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        tokio::spawn(async move { axum::serve(listener, app).await });
+        let phone_dir = tempfile::tempdir().unwrap();
+        let (phone, handles) =
+            crate::embedded_router(tessera_core::Notebook::open(phone_dir.path()).unwrap())
+                .unwrap();
+        let join = json!({"url": url, "code": "4f7k-92qd", "name": "Phone"});
+        assert_eq!(
+            request(&phone, "/api/sync/join", None, join.clone())
+                .await
+                .status(),
+            StatusCode::OK
+        );
+        let device = state.notebook.lock().sync_devices().unwrap()[0].id.clone();
+        forget(State(state.clone()), Path(device))
+            .await
+            .unwrap_or_else(|_| panic!("forget failed"));
+        let forgotten = page("Written after Forget");
+        let id = match &forgotten.operations[0] {
+            tessera_core::Operation::CreatePage { id, .. } => id.clone(),
+            _ => unreachable!(),
+        };
+        handles.notebook.lock().apply(&forgotten).unwrap();
+        let synced = value(request(&phone, "/api/sync/run", None, json!({})).await).await;
+        assert_eq!(synced["replica"]["last_error"]["code"], "unpaired");
+        assert_eq!(synced["replica"]["pending"], 1);
+        *state.pairing.lock() = waiting(now_ms() + LIFETIME_MS);
+        let again = request(&phone, "/api/sync/join", None, join).await;
+        let status = again.status();
+        let again = value(again).await;
+        assert_eq!(status, StatusCode::OK, "{again}");
+        assert_eq!(again["replica"]["pending"], 0);
+        assert_eq!(again["replica"]["rejected"], 0);
+        assert!(again["replica"]["last_error"].is_null());
+        assert_eq!(
+            state.notebook.lock().block(&id).unwrap().text,
+            "Written after Forget"
+        );
+    }
+
+    #[tokio::test]
+    async fn single_use_keys_bind_replicas_and_forget_revokes_access() {
+        let dir = tempfile::tempdir().unwrap();
+        let (state, app) = hub(dir.path());
         for key in [None, Some("unknown")] {
             let response = request(&app, "/api/sync/clone", key, json!({})).await;
             assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
