@@ -220,5 +220,17 @@ export class Outbox {
     catch (error) { this.failed(error); return undefined; }
   }
   async settled() { await this.writes; }
+  /**
+   * The newest acknowledged change cached for a page, after pending writes land. The notebook committed it before
+   * anything read now, so a snapshot fetched afterwards already includes it, even before this window has heard of it.
+   */
+  async storedSequence(id: string) {
+    await this.settled();
+    try {
+      const prefix = this.pagePrefix(id);
+      const newest = (await (await this.db).getAllKeys('pages', this.patchRange(id))).at(-1);
+      return newest ? Number(newest.slice(prefix.length, prefix.length + 16)) : 0;
+    } catch { return 0; }
+  }
   async close() { await this.settled(); try { (await this.db).close(); } catch { /* Already reported by failed. */ } }
 }

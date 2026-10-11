@@ -201,7 +201,9 @@ export class Notebook implements NotebookClient, DocumentHost {
   }
   commands(pageId: string): PageCommand[] { this.revision[0](); return this.queue.filter((command): command is PageCommand => command.kind !== 'notebook' && command.pageId === pageId); }
   async loadPage(id: string) {
-    const sequence = this.changeSequence();
+    // A window that reopened before its stream caught up still knows the changes it cached: the snapshot holds them,
+    // and recording it at an older sequence would let their patches replay over it later.
+    const sequence = Math.max(this.changeSequence(), await this.outbox?.storedSequence(id) ?? 0);
     try {
       const view = await this.api.page(id);
       this.snapshotSequence.set(view, sequence);
