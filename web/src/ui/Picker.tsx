@@ -9,12 +9,18 @@ export interface PickerProps<T> {
   label: string;
   width?: number;
   class?: string;
+  style?: JSX.CSSProperties;
   onDismiss(): void;
   query: string;
   onQuery(value: string): void;
   placeholder: string;
   /** Shown before the input, such as a mode chip. */
   prefix?: JSX.Element;
+  /** Controls after the input; omitted by ordinary pickers. */
+  queryActions?: JSX.Element;
+  /** Optional second column, driven by onSelect. */
+  preview?: JSX.Element;
+  onSelect?(item: T | undefined): void;
   /** Shown between the input and the rows, such as a scope bar. */
   status?: JSX.Element;
   items: T[];
@@ -54,6 +60,7 @@ export function Picker<T>(props: PickerProps<T>) {
     else queueMicrotask(reveal);
   });
   const current = () => props.items[selected()];
+  createEffect(() => props.onSelect?.(current()));
   const pick = (item: T, event: KeyboardEvent | MouseEvent) => {
     if (props.disabledReason?.(item)) return;
     props.onPick(item, event);
@@ -91,10 +98,11 @@ export function Picker<T>(props: PickerProps<T>) {
       queueMicrotask(() => { if (input.isConnected) input.focus({ preventScroll: true }); });
     }
   };
-  return <Popup anchor={props.anchor} placement={props.placement} onDismiss={props.onDismiss} label={props.label} width={props.width ?? 560} class={`picker ${props.class ?? ''}`}>
+  return <Popup anchor={props.anchor} placement={props.placement} onDismiss={props.onDismiss} label={props.label} width={props.width ?? 560} class={`picker ${props.class ?? ''}`} style={props.style}>
     <div class="picker-query" onKeyDown={keydown}>
       {props.prefix}
       <input ref={input} class="picker-input" aria-label={props.label} placeholder={props.placeholder} value={props.query} onInput={event => props.onQuery(event.currentTarget.value)} />
+      {props.queryActions}
     </div>
     {props.status}
     <div ref={list} class="picker-list" role="listbox" aria-label={props.label}>
@@ -112,5 +120,6 @@ export function Picker<T>(props: PickerProps<T>) {
       </Show>
       <Show when={!props.busy && !props.error && !props.items.length}><p class="empty-state">{props.empty}</p></Show>
     </div>
+    {props.preview}
   </Popup>;
 }

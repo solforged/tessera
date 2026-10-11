@@ -25,3 +25,15 @@ export function paletteRows(hits: readonly SearchHit[], query: string, pageId?: 
   }
   return result;
 }
+
+/** FTS bracket markers are data, never HTML; preview matches use the same Unicode search terms. */
+export function findMatchSegments(text: string, query: string, snippet = false) {
+  if (snippet) return text.split(/(\[[^\]]+\])/g).filter(Boolean).map(part => ({
+    text: part.startsWith('[') && part.endsWith(']') ? part.slice(1, -1) : part,
+    match: part.startsWith('[') && part.endsWith(']'),
+  }));
+  const terms = query.match(/[\p{L}\p{N}_]+/gu) ?? [];
+  if (!terms.length) return [{ text, match: false }];
+  const pattern = new RegExp(`(${terms.sort((a, b) => b.length - a.length).join('|')})`, 'giu');
+  return text.split(pattern).filter(Boolean).map(part => ({ text: part, match: terms.some(term => part.toLocaleLowerCase() === term.toLocaleLowerCase()) }));
+}
