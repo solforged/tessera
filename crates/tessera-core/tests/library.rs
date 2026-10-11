@@ -353,7 +353,10 @@ fn citation_triage_migration_preserves_existing_evidence() {
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
     downgrade_card_schema(&conn);
     conn.execute_batch(
-        "DROP TABLE replica;
+        "DROP TRIGGER blocks_search_delete;
+         DROP TABLE sync_replicas; DROP TABLE change_patches; DROP TABLE sync_hub;
+         DROP TABLE sync_pending; DROP TABLE id_aliases; DROP TABLE sync_conflicts;
+         DROP TABLE replica;
          DROP INDEX changes_change_id;
          ALTER TABLE changes DROP COLUMN change_id;
          ALTER TABLE changes DROP COLUMN origin;
@@ -564,7 +567,10 @@ fn citation_color_migration_preserves_existing_evidence_with_null_color() {
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
     downgrade_card_schema(&conn);
     conn.execute_batch(
-        "DROP TABLE replica;
+        "DROP TRIGGER blocks_search_delete;
+         DROP TABLE sync_replicas; DROP TABLE change_patches; DROP TABLE sync_hub;
+         DROP TABLE sync_pending; DROP TABLE id_aliases; DROP TABLE sync_conflicts;
+         DROP TABLE replica;
          DROP INDEX changes_change_id;
          ALTER TABLE changes DROP COLUMN change_id;
          ALTER TABLE changes DROP COLUMN origin;

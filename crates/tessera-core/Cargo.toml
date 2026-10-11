@@ -18,6 +18,12 @@ ulid.workspace = true
 tempfile.workspace = true
 deunicode = "1"
 tracing.workspace = true
+base64 = "0.22"
+
+# Sync records each change's row-level effect with SQLite's session
+# extension. The browser build does not sync.
+[target.'cfg(not(all(target_arch = "wasm32", target_os = "unknown")))'.dependencies]
+rusqlite = { workspace = true, features = ["session"] }
 
 [target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
 getrandom = { version = "0.4", features = ["wasm_js"] }

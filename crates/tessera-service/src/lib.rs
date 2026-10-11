@@ -10,6 +10,8 @@ mod error;
 pub mod library;
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 mod security;
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+mod sync;
 
 use parking_lot::Mutex;
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
@@ -122,6 +124,7 @@ pub fn router(
         .fallback(assets::serve)
         .layer(DefaultBodyLimit::max(2 * 1024 * 1024))
         .merge(library::routes())
+        .merge(sync::routes())
         .layer(middleware::from_fn_with_state(policy, security::protect))
         .with_state(state))
 }

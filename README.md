@@ -132,6 +132,17 @@ tessera --notebook /path/to/restored-notebook restore /path/to/new-backup
 
 Backup can run while the service is running. Its destination must be empty. It contains an online SQLite snapshot (`notebook.db`), immutable `objects/` files and `manifest.json` with the notebook ID, schema version, backup timestamp, object count and database page count. Restore preserves notebook identity and checks migrations. Stop the destination service first. Restore refuses a non-empty destination unless `--force` is passed; that flag never bypasses a live service lock.
 
+### Syncing a replica
+
+```sh
+tessera --notebook /path/to/replica sync clone http://127.0.0.1:4318
+tessera --notebook /path/to/replica sync
+tessera --notebook /path/to/replica sync status
+tessera --notebook /path/to/replica sync conflicts
+```
+
+A running service is the hub. `sync clone` copies its notebook, without original book files, into an empty directory and registers it as a new device. `sync` pushes the replica's changes and pulls the hub's. When both sides changed one block's text, the hub keeps its text and adds the replica's wording right after it; `sync conflicts` lists those copies and any changes the hub could not apply. Stop any service using the replica first. Phones and other machines sync this way once the tailnet listener lands; see [sync](docs/sync.md).
+
 ### Agents
 
 `tessera mcp` is a Model Context Protocol server on stdin and stdout. It talks to the running service, so start the service first (`tessera install` or `tessera serve`). Register it with an MCP client, for example Claude Code:
