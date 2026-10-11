@@ -114,6 +114,9 @@ pub fn run() {
                 let app = app.clone();
                 tauri::async_runtime::spawn(async move { updates::check(&app, true).await });
             }
+            "shell.settings" | "shell.new" | "shell.today" | "shell.import-book" => {
+                command(app, event.id().as_ref());
+            }
             "reload" => {
                 if let Some(window) = app.get_webview_window(MAIN) {
                     let _ = window.reload();
@@ -165,12 +168,11 @@ pub fn run() {
 }
 
 fn menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
-    let about = AboutMetadata {
-        name: Some("Tessera".into()),
-        version: Some(agent::identity(agent::VERSION, agent::BUILD)),
-        copyright: app.config().bundle.copyright.clone(),
-        ..AboutMetadata::default()
-    };
+    let about = about_metadata(
+        agent::VERSION,
+        agent::BUILD,
+        app.config().bundle.copyright.clone(),
+    );
     let separator = || PredefinedMenuItem::separator(app);
     Menu::with_items(
         app,
@@ -189,6 +191,14 @@ fn menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
                         None::<&str>,
                     )?,
                     &separator()?,
+                    &MenuItem::with_id(
+                        app,
+                        "shell.settings",
+                        "Settings…",
+                        true,
+                        Some("CmdOrCtrl+,"),
+                    )?,
+                    &separator()?,
                     &PredefinedMenuItem::services(app, None)?,
                     &separator()?,
                     &PredefinedMenuItem::hide(app, None)?,
@@ -203,6 +213,22 @@ fn menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
                 "File",
                 true,
                 &[
+                    &MenuItem::with_id(app, "shell.new", "New Page…", true, Some("CmdOrCtrl+N"))?,
+                    &MenuItem::with_id(
+                        app,
+                        "shell.today",
+                        "Open Today",
+                        true,
+                        Some("CmdOrCtrl+T"),
+                    )?,
+                    &MenuItem::with_id(
+                        app,
+                        "shell.import-book",
+                        "Import Book…",
+                        true,
+                        None::<&str>,
+                    )?,
+                    &separator()?,
                     &MenuItem::with_id(
                         app,
                         "new-capture",
@@ -210,6 +236,7 @@ fn menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
                         true,
                         Some("CmdOrCtrl+E"),
                     )?,
+                    &separator()?,
                     &PredefinedMenuItem::close_window(app, None)?,
                 ],
             )?,
@@ -264,6 +291,35 @@ fn menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
             )?,
         ],
     )
+}
+
+fn about_metadata(
+    version: &str,
+    build: Option<&str>,
+    copyright: Option<String>,
+) -> AboutMetadata<'static> {
+    AboutMetadata {
+        name: Some("Tessera".into()),
+        short_version: Some(version.into()),
+        // An explicit empty build suppresses Cocoa's bundle-version fallback.
+        version: Some(build.map(str::trim).unwrap_or("").into()),
+        copyright,
+        ..AboutMetadata::default()
+    }
+}
+
+/// Menu commands share the web's registry, after revealing the main window.
+fn command(app: &AppHandle, id: &str) {
+    let Some(window) = app.get_webview_window(MAIN) else {
+        return;
+    };
+    let _ = window.show();
+    let _ = window.unminimize();
+    let _ = window.set_focus();
+    let id = serde_json::to_string(id).expect("command id is JSON");
+    let _ = window.eval(format!(
+        "window.dispatchEvent(new CustomEvent('tessera-command', {{ detail: {id} }}))"
+    ));
 }
 
 /// Undo or Redo chosen from the menu. The page handles ⌘Z itself, so a
@@ -573,5 +629,26 @@ async fn watch(app: AppHandle, url: Url) {
             }
         }
         shown = Some(serving);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::about_metadata;
+
+    #[test]
+    fn about_separates_release_and_build() {
+        let about = about_metadata("0.2.0", Some("0c05fa7"), None);
+        assert_eq!(about.short_version.as_deref(), Some("0.2.0"));
+        assert_eq!(about.version.as_deref(), Some("0c05fa7"));
+    }
+
+    #[test]
+    fn about_omits_missing_build_without_bundle_fallback() {
+        for build in [None, Some(""), Some("  ")] {
+            let about = about_metadata("0.2.0", build, None);
+            assert_eq!(about.short_version.as_deref(), Some("0.2.0"));
+            assert_eq!(about.version.as_deref(), Some(""));
+        }
     }
 }
