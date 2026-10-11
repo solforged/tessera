@@ -326,6 +326,14 @@ pub struct LibraryQuery {
     pub states: Vec<ReadingState>,
     pub format: Option<SourceFormat>,
     pub text: Option<String>,
+    /// Person page IDs; matches any author, editor or translator.
+    pub people: Vec<String>,
+    /// Exact first Publisher readings.
+    pub publishers: Vec<String>,
+    /// Publication years floored to the decade.
+    pub decades: Vec<i32>,
+    /// Primary language codes as rows and facets report them, such as `en` for `en-US` or `eng`.
+    pub languages: Vec<String>,
     pub sort: LibrarySort,
     pub direction: crate::Direction,
     pub limit: Option<usize>,
@@ -336,6 +344,10 @@ impl Default for LibraryQuery {
             states: vec![],
             format: None,
             text: None,
+            people: vec![],
+            publishers: vec![],
+            decades: vec![],
+            languages: vec![],
             sort: LibrarySort::Added,
             direction: crate::Direction::Desc,
             limit: Some(100),
@@ -353,11 +365,23 @@ pub struct LibraryView {
     pub updated_at: i64,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LibraryPerson {
+    pub id: Option<String>,
+    pub name: String,
+    pub role: CreatorRole,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LibraryRow {
     pub page: crate::Block,
     pub source: SourceRecord,
     pub creators: Vec<String>,
+    /// Authors, then editors, then translators, in each field's value order.
+    pub people: Vec<LibraryPerson>,
+    pub publisher: Option<String>,
+    /// The first Language reading's primary code, so regional and three-letter forms browse and group together.
+    pub language: Option<String>,
     pub published: Option<String>,
     pub site: Option<String>,
     pub cover: Option<String>,
@@ -381,6 +405,36 @@ pub struct LibraryResult {
     pub rows: Vec<LibraryRow>,
     pub total: usize,
     pub counts: LibraryCounts,
+    pub facets: LibraryFacets,
+}
+
+/// Available values after state, format and text filtering, before facet filters
+/// and the display limit. Each source counts once per distinct facet value.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LibraryFacets {
+    pub people: Vec<PersonFacet>,
+    pub decades: Vec<DecadeFacet>,
+    pub publishers: Vec<ValueFacet>,
+    pub languages: Vec<ValueFacet>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PersonFacet {
+    pub id: Option<String>,
+    pub name: String,
+    pub count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DecadeFacet {
+    pub decade: i32,
+    pub count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ValueFacet {
+    pub value: String,
+    pub count: usize,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
