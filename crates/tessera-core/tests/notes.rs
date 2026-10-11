@@ -114,15 +114,18 @@ fn notes_file_under_built_in_kinds_capabilities_and_types_you_made() {
     );
 
     let historian = nb.page_by_title("Historian").unwrap().unwrap().id;
-    // Built-in kinds first in their fixed order, then capability kinds, then types you made, then Unfiled.
-    // Type pages (Person, Concept, Historian), the Fields page and archived pages are not listed as notes;
-    // a tag inside a page's outline does not file the page.
+    // Built-in kinds first in their fixed order, listed even while empty, then capability kinds, then
+    // types you made, then Unfiled. Type pages (Person, Concept, Historian), the Fields page and
+    // archived pages are not listed as notes; a tag inside a page's outline does not file the page.
     assert_eq!(
         keys(&nb),
         vec![
             ("person".into(), "People".into(), 2),
+            ("group".into(), "Groups".into(), 0),
             ("concept".into(), "Concepts".into(), 1),
+            ("thesis".into(), "Theses".into(), 0),
             ("question".into(), "Questions".into(), 1),
+            ("source".into(), "Sources".into(), 0),
             ("project".into(), "Projects".into(), 1),
             (format!("type:{historian}"), "Historian".into(), 1),
             ("unfiled".into(), "Unfiled".into(), 1),
@@ -257,6 +260,12 @@ fn index_lists_tag_only_types_without_changing_note_counts() {
             .collect::<Vec<_>>(),
         [
             ("People", 0, 1),
+            ("Groups", 0, 0),
+            ("Concepts", 0, 0),
+            ("Theses", 0, 0),
+            ("Questions", 0, 0),
+            ("Sources", 0, 0),
+            ("Projects", 0, 0),
             ("Book", 1, 1),
             ("Excerpt", 0, 2),
             ("Unfiled", 1, 0),

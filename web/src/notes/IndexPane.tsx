@@ -1,7 +1,7 @@
 import { createEffect, createMemo, createResource, createSignal, For, on, onCleanup, onMount, Show, Switch, Match } from 'solid-js';
 import { ulid } from 'ulid';
-import type { NoteEntry, NoteKind, NoteSummary } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { NoteEntry, NoteKind, NoteSummary, Operation } from '../api/types';
+import type { NotebookClient, PageDocument } from '../document/contract';
 import type { IndexViewState, OpenTarget } from '../shell/contract';
 import { plainText } from '../outline/BlockText';
 import { PageMergePicker } from '../outline/PageMerge';
@@ -13,7 +13,7 @@ import { Menu } from '../ui/Menu';
 import { Picker } from '../ui/Picker';
 import { Popup } from '../ui/Popup';
 import { TypeModeTabs } from '../ui/TypeModeTabs';
-import { indexKindTarget, noteKindIcon } from './kinds';
+import { indexKindTarget, noteKindIcon, tagOnly } from './kinds';
 import { filingGroups, filingOperations, groupKindIndex } from './finding-aid';
 import './notes.css';
 
@@ -60,10 +60,10 @@ export function IndexDirectory(props: IndexPaneProps) {
         <Show when={list().kinds.length} fallback={<p class="empty-state">No kinds yet.</p>}>
           <div class="index-directory-list"><For each={list().kinds}>{kind =>
             <div class="index-directory-row">
-              <Icon name={noteKindIcon(kind.key)} />
+              <Icon name={tagOnly(kind) ? 'tag' : noteKindIcon(kind.key)} />
               <Button class="index-directory-name" onClick={event => props.onOpen(indexKindTarget(kind), event.shiftKey)}>{kind.plural}</Button>
-              <span class="index-directory-count">{kind.count === 0 ? `${kind.tagged_block_count.toLocaleString()} tagged` : tally(kind.count, kind.key === 'source' ? 'source' : 'note')}</span>
-              <Button class="index-directory-open" label={`Open ${kind.plural} ${kind.count === 0 ? 'table' : 'index'}`} onClick={event => props.onOpen(indexKindTarget(kind), event.shiftKey)}>Open {kind.count === 0 ? 'table' : 'index'}<Icon name="right" /></Button>
+              <span class="index-directory-count">{tagOnly(kind) ? `${kind.tagged_block_count.toLocaleString()} tagged` : tally(kind.count, kind.key === 'source' ? 'source' : 'note')}</span>
+              <Button class="index-directory-open" label={`Open ${kind.plural} ${tagOnly(kind) ? 'table' : 'index'}`} onClick={event => props.onOpen(indexKindTarget(kind), event.shiftKey)}>Open {tagOnly(kind) ? 'table' : 'index'}<Icon name="right" /></Button>
             </div>
           }</For></div>
         </Show>
@@ -157,7 +157,7 @@ function KindIndexPane(props: IndexPaneProps) {
           </Match>
           <Match when={props.kindKey === 'source'}>
             <div class="index-source-tabs mode-tabs tab-strip" role="group" aria-label="Sources view"><Button aria-pressed="true">Bibliography <span class="faint">{index.latest!.notes.length}</span></Button><Button onClick={event => props.onOpen({ kind: 'library', tab: 'all' }, beside(event))}>Open Library <Icon name="right" /></Button></div>
-            <Show when={index.latest!.notes.length} fallback={<p class="empty-state">No sources yet.</p>}><For each={index.latest!.notes}>{note => <article class="index-source-row">
+            <Show when={index.latest!.notes.length} fallback={<div class="index-empty"><p class="index-empty-title">No sources yet.</p><p class="index-empty-hint">Books and articles you add in the Library are listed here with their sigla and citation keys.</p></div>}><For each={index.latest!.notes}>{note => <article class="index-source-row">
               <span class="index-source-siglum">{summary(note)?.source?.siglum}</span><div class="index-source-main"><button type="button" class="index-source-title" onClick={event => openNote(note, event)}>{note.title}</button>
                 <Show when={summary(note)?.source}>{source => <><Show when={source().authors.length}><p class="index-source-byline">{source().authors.join(' · ')}</p></Show>
                   <p class="index-apparatus">{[source().format.toUpperCase(), source().publisher, source().published?.match(/^\d{4}/)?.[0]].filter(Boolean).join(' · ')}</p>
@@ -167,7 +167,7 @@ function KindIndexPane(props: IndexPaneProps) {
               </div></article>}</For></Show>
           </Match>
           <Match when={true}>
-            <Show when={groups().length} fallback={<p class="empty-state">No notes of this kind yet.</p>}>
+            <Show when={groups().length} fallback={<EmptyKind kindKey={props.kindKey} kind={props.kind} notebook={props.notebook} onOpen={props.onOpen} />}>
               <nav class="index-letters mode-tabs tab-strip" aria-label="Jump to letter"><span class="index-jump-label">Jump</span><For each={groups()}>{group => <Button aria-pressed={(letter() || groups()[0]?.letter) === group.letter} onClick={() => jump(group.letter)}>{group.letter}</Button>}</For></nav>
               <div class="index-columns"><For each={groups()}>{group => <section class="index-group" data-letter={group.letter} aria-label={group.letter}>
                 <h2><span>{group.letter}</span><span class="section-rule" /><span class="index-group-count">{group.noteCount || ''}</span></h2>
@@ -198,6 +198,72 @@ function KindIndexPane(props: IndexPaneProps) {
       </Popup></Match>
     </Switch>}</Show>
   </div>;
+}
+
+/** Built-in kinds a page can start under from their empty finding aid. Sources come from the Library instead. */
+const startable: Record<string, 'type' | 'question' | 'project'> = { person: 'type', group: 'type', concept: 'type', thesis: 'type', question: 'question', project: 'project' };
+
+/** An empty kind says how pages arrive in it and, for built-in kinds, starts one. */
+function EmptyKind(props: { kindKey: string; kind: NoteKind | undefined; notebook: NotebookClient; onOpen(target: OpenTarget, beside: boolean): void }) {
+  const [anchor, setAnchor] = createSignal<HTMLElement>();
+  const mode = () => props.kind ? startable[props.kindKey] : undefined;
+  const hint = () => {
+    const name = props.kind?.name ?? '';
+    switch (mode()) {
+      case 'type': return `File a page under ${name} from Unfiled, or start one here.`;
+      case 'question': return 'Make a page a question from its page menu, or start one here.';
+      case 'project': return 'Make a page a project from its page menu, or start one here.';
+      default: return undefined;
+    }
+  };
+  return <div class="index-empty">
+    <p class="index-empty-title">{props.kind ? `No ${props.kind.plural.toLocaleLowerCase()} yet.` : 'No notes of this kind yet.'}</p>
+    <Show when={hint()}>{text => <p class="index-empty-hint">{text()}</p>}</Show>
+    <Show when={mode()}><Button class="bordered" icon="plus" aria-haspopup="dialog" onClick={event => setAnchor(event.currentTarget)}>New {props.kind!.name.toLocaleLowerCase()}…</Button></Show>
+    <Show when={anchor()}>{target => <NewKindNote kind={props.kind!} mode={mode()!} anchor={target()} notebook={props.notebook} onDismiss={() => setAnchor(undefined)} onOpen={pageId => { setAnchor(undefined); props.onOpen({ kind: 'page', pageId }, false); }} />}</Show>
+  </div>;
+}
+
+/** Names a page and files it under the kind in one acknowledged batch; an existing page of that title is filed instead of duplicated. */
+function NewKindNote(props: { kind: NoteKind; mode: 'type' | 'question' | 'project'; anchor: HTMLElement; notebook: NotebookClient; onDismiss(): void; onOpen(pageId: string): void }) {
+  const [title, setTitle] = createSignal('');
+  const [busy, setBusy] = createSignal(false);
+  const [error, setError] = createSignal('');
+  // Titles are unique without case, as the notebook keys them; the cached roots can miss pages made by other commands.
+  const [existing] = createResource(() => title().trim() || false, text => props.notebook.pageByTitle(text, false).catch(() => null));
+  const typePage = () => props.mode === 'type' && title().trim().toLocaleLowerCase() === props.kind.name.toLocaleLowerCase();
+  const noun = props.kind.name.toLocaleLowerCase();
+  const submit = async () => {
+    const text = title().trim();
+    if (!text || busy() || typePage()) return;
+    setBusy(true); setError('');
+    let doc: PageDocument | undefined;
+    try {
+      const pageId = await props.notebook.pageByTitle(text, false);
+      const id = pageId ?? ulid();
+      let revision = 1;
+      if (pageId) { doc = props.notebook.open(pageId); await documentReady(doc); await doc.flush(); revision = (await props.notebook.api.block(id)).revision; }
+      const kindPage = props.mode === 'type' ? await props.notebook.pageByTitle(props.kind.name, false) : null;
+      const operations: Operation[] = [
+        ...(pageId ? [] : [{ op: 'create_page' as const, id, title: text }]),
+        ...(props.mode === 'type' ? filingOperations(id, revision, props.kind.name, kindPage ? undefined : ulid())
+          : props.mode === 'question' ? [{ op: 'set_question' as const, id, base_revision: revision, question: { unsettled: false, parked: false, review_on: null, accepted: null } }]
+            : [{ op: 'set_project' as const, id, base_revision: revision, project: { status: 'active' as const, outcome: '', deadline: null } }]),
+      ];
+      await props.notebook.commit(operations, `New ${noun}`);
+      props.onOpen(id);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
+    finally { doc?.release(); setBusy(false); }
+  };
+  return <Popup anchor={props.anchor} placement={cover() ? 'sheet' : 'anchor'} class="index-note-popup" label={`New ${noun}`} width={320} onDismiss={() => { if (!busy()) props.onDismiss(); }}>
+    <form onSubmit={event => { event.preventDefault(); void submit(); }}>
+      <label for="new-kind-title">Title</label>
+      <input id="new-kind-title" class="input" value={title()} disabled={busy()} placeholder={`Name the ${noun}`} onInput={event => { setTitle(event.currentTarget.value); setError(''); }} />
+      <Show when={typePage()} fallback={<Show when={existing.latest}>{id => <p class="muted">“{props.notebook.lookup(id())()?.text ?? title().trim()}” already exists; it will be {props.mode === 'type' ? `filed under ${props.kind.name}` : `made a ${noun}`}.</p>}</Show>}><p class="muted">“{props.kind.name}” names the type itself.</p></Show>
+      <Show when={error()}><p class="error" role="alert">{error()}</p></Show>
+      <div class="popup-actions"><Button disabled={busy()} onClick={props.onDismiss}>Cancel</Button><Button type="submit" class="bordered" disabled={!title().trim() || busy() || typePage()}>{busy() ? 'Saving…' : existing.latest ? `File as ${noun}` : `Create ${noun}`}</Button></div>
+    </form>
+  </Popup>;
 }
 
 interface FilingChoice { id: string; title: string; create: boolean }

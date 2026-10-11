@@ -46,7 +46,8 @@ pub struct IndexKind {
     pub tagged_block_count: usize,
 }
 
-/// The sidebar index: kinds with notes or tagged blocks, in index order, and the distinct note total.
+/// The sidebar index: every built-in kind, then other kinds with notes or tagged blocks, in index
+/// order, and the distinct note total.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NoteIndex {
     pub kinds: Vec<IndexKind>,
@@ -114,8 +115,14 @@ impl Notebook {
                 .into_iter()
                 .zip(counts)
                 .zip(filing.tagged_block_counts)
-                .filter(|((_, count), tagged_block_count)| *count > 0 || *tagged_block_count > 0)
-                .map(|((kind, count), tagged_block_count)| IndexKind {
+                .enumerate()
+                // Built-in kinds come first in `Filing::kinds` and stay listed while empty.
+                .filter(|(index, ((_, count), tagged_block_count))| {
+                    *index < TYPE_KINDS.len() + CAPABILITY_KINDS.len()
+                        || *count > 0
+                        || *tagged_block_count > 0
+                })
+                .map(|(_, ((kind, count), tagged_block_count))| IndexKind {
                     kind,
                     count,
                     tagged_block_count,
