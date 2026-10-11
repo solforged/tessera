@@ -125,7 +125,7 @@ export function TemplateEditor(props: { type: Type; fields: readonly FieldDefini
           <tbody><For each={template()}>{(id, index) => <tr>
             <td><Button class="template-definition" onClick={event => register().onOpen({ kind: 'page', pageId: register().pageId, blockId: id }, event.shiftKey)}>{byId().get(id)!.name}</Button></td>
             <td class="template-field-kind">{kindLabels[byId().get(id)!.kind]}</td>
-            <td class="template-field-usage"><Show when={summaries().get(id)?.owners} fallback={<span>Used by 0</span>}><Button onClick={event => register().onOpen({ kind: 'table', typeId: null, viewId: null, query: { type: null, text: null, filters: [{ field: id, op: 'present', value: null }], sort: [], limit: null } }, event.shiftKey)}>Used by {summaries().get(id)!.owners}</Button></Show></td>
+            <td class="template-field-usage"><Show when={summaries().get(id)?.owners} fallback={<span title="No block uses this field yet">Unused</span>}><Button title={`Blocks using ${byId().get(id)!.name}: ${summaries().get(id)!.owners} · Shift to open beside`} onClick={event => register().onOpen({ kind: 'table', typeId: null, viewId: null, query: { type: null, text: null, filters: [{ field: id, op: 'present', value: null }], sort: [], limit: null } }, event.shiftKey)}>{summaries().get(id)!.owners}</Button></Show></td>
             <td>{fieldActions(id, index())}</td>
           </tr>}</For></tbody>
         </table>}</Show>
