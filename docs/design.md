@@ -99,6 +99,8 @@ Command mode starts with Go to: Highlights, Unfiled, Sources, Agenda week, Agend
 
 Renaming a titled page to an existing title offers **Merge into “Title”**; the page menu's **Merge into…** uses the page picker. A confirmation explains that the merge is permanent. The surviving page keeps its title and receives the duplicate's blocks, with matching field entries appending their values. References, aliased references, tags and memberships redirect to the survivor, so its backlinks include both pages' former incoming links. Journal days, the Fields page and library sources cannot be merged; source-details title collisions remain errors.
 
+The permanent merge confirmation stays a bounded short-control popup, with the shared popup heading and control-sized explanation rather than expanding to the titles' intrinsic width.
+
 ## Block row
 
 ```text
