@@ -89,6 +89,23 @@ export function highlightChapters(rows: readonly HighlightRow[]): HighlightChapt
   return chapters;
 }
 
+/** A highlighted contents heading already supplies its chapter's label. */
+export function highlightChapterHeading(chapter: HighlightChapter): string | null {
+  const first = chapter.rows[0];
+  return first?.citation.quote.trim() === chapter.title?.trim() ? null : chapter.title;
+}
+
+/** Move forward through the current reading-order queue, wrapping only to find an unprocessed item. */
+export function nextUnprocessedHighlight(rows: readonly HighlightRow[], id: string): string | null {
+  const index = rows.findIndex(row => row.citation.id === id);
+  if (index < 0) return rows.find(row => !row.processed)?.citation.id ?? null;
+  for (let step = 1; step < rows.length; step++) {
+    const row = rows[(index + step) % rows.length]!;
+    if (!row.processed && row.citation.id !== id) return row.citation.id;
+  }
+  return null;
+}
+
 export function recentJobs(jobs: readonly IngestJob[], now: number): IngestJob[] {
   return jobs.filter(job => job.state !== 'done' || job.created_at >= now - 24 * 60 * 60 * 1000);
 }

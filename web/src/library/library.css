@@ -60,18 +60,98 @@
 .library-job > .library-message, .library-job-actions { flex: none; }
 .library-job-actions { display: flex; }
 .library-job-error { flex-basis: 100%; padding-left: calc(var(--row-height) + var(--space-4) + var(--space-8)); padding-bottom: var(--space-8); }
-.library-highlight.button { display: flex; flex: 1; min-width: 0; flex-direction: column; align-items: stretch; height: auto; padding: var(--space-8); gap: var(--space-4); text-align: left; white-space: normal; font-weight: var(--weight-body); border-radius: 0; }
-.library-highlight-heading { display: flex; align-items: center; justify-content: space-between; padding-block: var(--space-8); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); color: var(--faint); }
+/* The processing desk shares the pane width between a reading-order queue and the full cited passage. */
+.library-highlights-tab .library-toolbar > *, .library-highlights-tab .library-scroll > .library-main { max-width: calc(var(--measure) * 2); margin-inline: auto; }
+.library-highlights-tab .library-scroll { display: block; overflow: hidden; }
+.library-highlights-tab .library-main { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.library-highlights-tab .library-rows { display: flex; flex: 1; flex-direction: column; min-height: 0; }
+.library-highlight-controls { flex: 1; min-width: 0; }
+.library-highlight-selectors { display: flex; flex: 1; justify-content: flex-end; min-width: 0; gap: var(--space-8); }
+.library-highlight-selectors .button { min-width: 0; max-width: 28em; overflow: hidden; text-overflow: ellipsis; justify-content: flex-start; }
+.library-highlight-source-selector.button { font-family: var(--font-display); }
+.library-highlights-workbench { display: grid; flex: 1; min-height: 0; grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr); }
+.library-highlight-queue { display: flex; min-width: 0; min-height: 0; flex-direction: column; border-right: 1px solid var(--line); }
+.library-highlight-queue-head { display: flex; flex: none; align-items: center; justify-content: space-between; gap: var(--space-8); padding: var(--space-12); border-bottom: 1px solid var(--line); color: var(--faint); font: var(--apparatus); }
+.library-highlight-queue-scroll { flex: 1; min-height: 0; overflow: auto; }
+.library-highlight.button { position: relative; display: flex; flex-direction: column; align-items: stretch; width: 100%; height: auto; padding: var(--space-12) var(--space-16); gap: var(--space-4); text-align: left; white-space: normal; font-weight: var(--weight-body); border-radius: 0; border-bottom: 1px solid var(--line); }
+.library-highlight.button::before { content: ''; position: absolute; top: var(--space-12); bottom: var(--space-12); left: var(--space-4); width: 2px; background: var(--highlight-bar); }
+.library-highlight.button[aria-current="true"] { background: var(--selection); box-shadow: inset 2px 0 var(--accent); }
+.library-highlight.button:focus-visible { outline-offset: -2px; }
+.library-highlight-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); padding: var(--space-8); font: var(--apparatus); color: var(--faint); }
 .library-highlight-heading .button { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--text); font: var(--weight-source-title) var(--text-body)/var(--line-source-title) var(--font-display); letter-spacing: 0; }
-/* Chapters subdivide a source's highlights; the title lines up with the highlight text, past the colour dot. */
-.library-highlight-chapter { margin: var(--space-12) 0 var(--space-2); padding-left: calc(var(--space-8) + var(--space-12) + var(--space-8)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
-.library-highlight-details { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-8); padding-left: calc(var(--space-12) + var(--space-8)); }
-/* The dot hangs in its own column so wrapped lines and the meta line share one edge. */
-.library-highlight-text { display: grid; grid-template-columns: var(--space-12) minmax(0, 1fr); column-gap: var(--space-8); align-items: start; color: var(--text); font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); font-variation-settings: var(--optical-quote); white-space: pre-wrap; overflow-wrap: anywhere; }
-.library-highlight-text > .highlight-color-dot { margin-top: calc((var(--line-quote) - var(--space-12)) / 2); }
+.library-highlight-chapter { margin: 0; padding: var(--space-12) var(--space-16) var(--space-4); color: var(--muted); font: var(--apparatus); }
+.library-highlight-details { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-8); }
+.library-highlight-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; color: var(--text); font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); font-variation-settings: var(--optical-quote); white-space: pre-wrap; overflow-wrap: anywhere; }
 .library-highlight-meta { color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
-/* The frozen quote reads as a quotation, as in the outline. */
-.library-highlight-quote { color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; border-left: var(--space-2) solid var(--line); padding-left: var(--space-8); font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); font-variation-settings: var(--optical-quote); }
+.library-highlight-filed { color: var(--faint); font: var(--apparatus); }
+.library-highlight-tags { display: flex; flex-wrap: wrap; gap: var(--space-4); }
+.library-highlight-passage { display: flex; min-width: 0; min-height: 0; flex-direction: column; }
+.library-passage-heading { flex: none; padding: var(--space-16) var(--space-24) var(--space-12); border-bottom: 1px solid var(--line); }
+.library-passage-heading h2 { margin: var(--space-8) 0; color: var(--text); font: var(--weight-display-heading) var(--text-h2)/var(--line-h2) var(--font-display); }
+.library-passage-heading p { margin: 0; }
+.library-passage-topline { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); }
+.library-back-highlights.button { display: none; }
+.library-passage-scroll { flex: 1; min-height: 0; overflow: auto; padding: var(--space-24); }
+.library-passage-quote { margin: 0; padding-left: var(--space-16); border-left: 2px solid var(--highlight-bar); color: var(--text); font: var(--weight-body) var(--text-h2)/var(--line-h2) var(--font-display); font-variation-settings: var(--optical-quote); white-space: pre-wrap; overflow-wrap: anywhere; text-align: left; }
+.library-highlight-authored { margin-bottom: var(--space-16); color: var(--muted); font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); }
+.library-passage-context { margin-top: var(--space-24); }
+.library-passage-context h3 { margin: 0 0 var(--space-8); color: var(--faint); font: var(--apparatus); }
+.library-passage-context p { margin: 0; color: var(--muted); font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); white-space: pre-wrap; overflow-wrap: anywhere; }
+.library-highlight-dock { display: flex; flex: none; flex-direction: column; gap: var(--space-8); padding: var(--space-12) var(--space-16); border-top: 1px solid var(--line); background: var(--canvas); }
+.library-passage-pager { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); }
+.library-highlight-primary { display: grid; grid-template-columns: 1.35fr 1fr 1fr; gap: var(--space-8); }
+.library-highlight-primary .button { min-width: 0; padding-inline: var(--space-8); }
+.library-mark-processed.button { border-color: var(--accent); color: var(--accent); }
+.library-highlight-secondary { display: flex; align-items: center; gap: var(--space-4); }
+.library-highlight-secondary .button:nth-last-child(2) { margin-left: auto; }
+.library-highlight-color-bar { display: inline-block; flex: none; width: 2px; height: var(--space-16); background: var(--highlight-bar); }
+.library-highlight-queue-dock { display: none; }
+.library-highlight-filter-popup { padding: var(--space-16); }
+.library-highlight-filter-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); }
+.library-highlight-filter-head h2 { margin: 0; font: var(--weight-display-heading) var(--text-h2)/var(--line-h2) var(--font-display); }
+.library-highlight-filter-label { margin: var(--space-16) 0 var(--space-8); color: var(--muted); font: var(--apparatus); }
+.library-highlight-filter-colors { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-8); }
+.library-highlight-filter-colors .button { justify-content: flex-start; gap: var(--space-8); padding-inline: var(--space-8); }
+.library-highlight-filter-colors .button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.library-highlight-filter-colors .library-count { margin-left: auto; }
+.library-highlight-filter-tags { display: flex; flex-wrap: wrap; gap: var(--space-4); margin-top: var(--space-8); }
+.library-highlight-filter-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-8); margin-top: var(--space-24); }
+@media (pointer: coarse) {
+  .library-highlight-dock .button, .library-highlight-filter-colors .button { min-height: 44px; }
+}
+@container library-pane (max-width: 719px) {
+  .library-highlight-selectors { flex-basis: 100%; justify-content: flex-start; }
+  .library-highlight-primary { grid-template-columns: 1fr; }
+  .library-highlight-secondary { flex-wrap: wrap; }
+}
+@media (max-width: 599px) and (pointer: coarse) {
+  .library-highlights-tab .library-toolbar { padding-bottom: var(--space-8); }
+  .library-highlights-tab .library-cover-header > .button { display: none; }
+  .library-highlights-tab .library-scroll { padding: 0; }
+  .library-highlights-tab .library-rows { border-top: 0; }
+  .library-highlights-tab .library-empty { padding-inline: var(--space-16); }
+  .library-highlight-controls { gap: var(--space-8); }
+  .library-highlight-filters.button { margin-left: auto; }
+  .library-highlight-selectors { flex-basis: 100%; justify-content: space-between; padding-top: var(--space-8); border-top: 1px solid var(--line); }
+  .library-highlight-selectors .button { white-space: normal; height: auto; text-align: left; }
+  .library-highlight-source-selector.button { flex: 1; font-size: var(--text-h2); line-height: var(--line-h2); }
+  .library-highlights-workbench { display: flex; }
+  .library-highlight-queue { flex: 1; border-right: 0; }
+  .library-highlight-queue-head { padding-inline: var(--space-16); }
+  .library-highlight-passage { display: none; }
+  .library-highlight-queue-dock { display: flex; flex: none; align-items: center; justify-content: space-between; gap: var(--space-8); padding: var(--space-12) var(--space-16); border-top: 1px solid var(--line); background: var(--canvas); }
+  .library-highlight-passage-open .library-toolbar, .library-highlight-passage-open .library-highlight-queue { display: none; }
+  .library-highlight-passage-open .library-highlight-passage { display: flex; flex: 1; }
+  .library-back-highlights.button { display: inline-flex; padding-left: 0; }
+  .library-passage-heading { padding: var(--space-12) var(--space-16); }
+  .library-passage-scroll { padding: var(--space-16); }
+  .library-highlight-primary { grid-template-columns: 1.35fr 1fr 1fr; gap: var(--space-4); }
+  .library-highlight-primary .button { min-height: 48px; white-space: normal; font-size: var(--text-control); }
+  .library-highlight-secondary { flex-wrap: nowrap; }
+  .library-highlight-undo.button { align-self: flex-start; }
+  .library-highlight-filter-shade { position: fixed; inset: 0 0 calc(var(--bottom-nav-height, 56px) + var(--bottom-inset)); z-index: 45; background: color-mix(in srgb, var(--shell) 72%, transparent); }
+  .library-highlight-filter-popup.popup-sheet { top: auto !important; bottom: calc(var(--bottom-nav-height, 56px) + var(--bottom-inset)); max-height: calc(85dvh - var(--bottom-nav-height, 56px) - var(--bottom-inset)) !important; padding-bottom: var(--space-16); }
+}
 .highlight-menu-quote { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; max-width: var(--search-width); margin: var(--space-8); padding-left: var(--space-8); border-left: var(--space-2) solid var(--line); color: var(--muted); white-space: pre-wrap; font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); font-variation-settings: var(--optical-quote); }
 .highlight-menu-colors { display: flex; gap: var(--space-4); margin-bottom: var(--space-4); padding: var(--space-4) var(--space-8) var(--space-8); border-bottom: 1px solid var(--line); }
 /* An uncoloured highlight is a hollow ring wherever it appears: rows, the reader list, citation chips and the colour menu. */

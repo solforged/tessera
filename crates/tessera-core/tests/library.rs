@@ -580,6 +580,30 @@ fn highlight_color_and_tags_survive_text_edits_and_filter_together() {
 }
 
 #[test]
+fn highlight_none_color_filter_matches_only_unassigned_colors_and_combines_with_named_colors() {
+    let (_dir, mut n, citation) = highlighted_source();
+    let second = note(&mut n, &citation.source_id, "Another highlight");
+    cite(&mut n, &second, &citation.snapshot_id);
+    set_color(&mut n, &citation, Some("green"));
+    let query = |colors: &[&str]| HighlightQuery {
+        colors: colors.iter().map(|color| (*color).into()).collect(),
+        ..Default::default()
+    };
+    let result = n.highlights(&query(&["none"])).unwrap();
+    assert_eq!(result.total, 1);
+    assert_eq!(result.rows[0].citation.block_id, second);
+    assert_eq!(result.rows[0].color, None);
+    assert_eq!(n.highlights(&query(&["none", "green"])).unwrap().total, 2);
+    assert_eq!(n.highlights(&query(&["none", "blue"])).unwrap().total, 1);
+    assert!(matches!(
+        n.highlights(&query(&["none", "orange"])),
+        Err(Error::Validation { .. })
+    ));
+    set_color(&mut n, &citation, None);
+    assert_eq!(n.highlights(&query(&["none"])).unwrap().total, 2);
+}
+
+#[test]
 fn citation_color_migration_preserves_existing_evidence_with_null_color() {
     let (dir, n, citation) = highlighted_source();
     drop(n);
