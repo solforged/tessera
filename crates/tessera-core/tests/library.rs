@@ -2676,3 +2676,29 @@ fn library_query_facet_filters_default_and_round_trip() {
         query
     );
 }
+
+#[test]
+fn source_index_summary_is_bibliographic_and_counts_citations_across_pages() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut n = Notebook::open(dir.path()).unwrap();
+    let (source, snapshot) = ingest(&mut n, &document(), b"index bibliography");
+    let own = note(&mut n, &source, "Own highlight");
+    cite(&mut n, &own, &snapshot);
+    let elsewhere = id();
+    apply(&mut n, vec![Operation::CreatePage { id: elsewhere.clone(), title: "Reading notes".into() }]);
+    let external = note(&mut n, &elsewhere, "A highlight filed elsewhere");
+    cite(&mut n, &external, &snapshot);
+    let index = n.kind_notes("source").unwrap();
+    let summary = &index.summaries[&source];
+    let bibliography = summary.source.as_ref().unwrap();
+    assert_eq!(bibliography.siglum, "GAR");
+    assert_eq!(bibliography.authors, ["Ana García", "John Smith"]);
+    assert_eq!(bibliography.publisher.as_deref(), Some("Original Press"));
+    assert_eq!(bibliography.published.as_deref(), Some("2020-04"));
+    assert_eq!(bibliography.format, SourceFormat::Epub);
+    assert_eq!(bibliography.highlights, 2);
+    assert_eq!(summary.backlinks, 0, "citations are not ordinary page backlinks");
+    let revision = n.block(&external).unwrap().revision;
+    apply(&mut n, vec![Operation::Delete { id: external, base_revision: revision }]);
+    assert_eq!(n.kind_notes("source").unwrap().summaries[&source].source.as_ref().unwrap().highlights, 1);
+}

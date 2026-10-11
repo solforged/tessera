@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import type { NoteEntry } from '../api/types';
-import { groupKindIndex } from './finding-aid';
+import type { NoteEntry, NoteSummary } from '../api/types';
+import { filingGroups, filingOperations, groupKindIndex } from './finding-aid';
 
 const note = (id: string, title: string, sort_as: string | null = null): NoteEntry => ({ id, title, sort_as, created_at: 0 });
 
@@ -40,4 +40,21 @@ describe('finding aid groups', () => {
     expect(groupKindIndex(undefined)).toEqual([]);
     expect(groupKindIndex({ notes: [], see: [] })).toEqual([]);
   });
+});
+
+test('blank filing rows can have blocks and backlinks without having text', () => {
+  const summaries: Record<string, NoteSummary> = {
+    a: { preview: null, field: null, block_count: 1, text_blocks: 0, backlinks: 3, referenced_from: [], source: null },
+    b: { preview: 'Prose', field: null, block_count: 2, text_blocks: 1, backlinks: 0, referenced_from: [], source: null },
+  };
+  const groups = filingGroups([note('a', 'Referenced blank'), note('b', 'With prose'), note('c', 'Empty')], summaries);
+  expect(groups.map(group => [group.key, group.notes.map(note => note.id)])).toEqual([['text', ['b']], ['blank', ['a', 'c']]]);
+});
+
+test('create type and file is one ordered batch while an existing type only adds membership', () => {
+  expect(filingOperations('note', 7, 'Concept', 'new-type')).toEqual([
+    { op: 'create_page', id: 'new-type', title: 'Concept' },
+    { op: 'add_type', id: 'note', base_revision: 7, title: 'Concept' },
+  ]);
+  expect(filingOperations('note', 7, 'Concept')).toEqual([{ op: 'add_type', id: 'note', base_revision: 7, title: 'Concept' }]);
 });

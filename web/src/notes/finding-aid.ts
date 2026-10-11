@@ -1,4 +1,4 @@
-import type { CrossReference, KindIndex, NoteEntry } from '../api/types';
+import type { CrossReference, KindIndex, NoteEntry, NoteSummary, Operation } from '../api/types';
 import { foldName } from '../outline/names';
 
 export type FindingAidEntry =
@@ -12,7 +12,7 @@ export interface FindingAidGroup {
 }
 
 /** File notes and cross-references together; apparatus counts only actual notes. */
-export function groupKindIndex(index: KindIndex | undefined): FindingAidGroup[] {
+export function groupKindIndex(index: Pick<KindIndex, 'notes' | 'see'> | undefined): FindingAidGroup[] {
   if (!index) return [];
   const entries: { key: string; tie: string; entry: FindingAidEntry }[] = [];
   for (const note of index.notes) {
@@ -35,4 +35,19 @@ export function groupKindIndex(index: KindIndex | undefined): FindingAidGroup[] 
     if (entry.kind === 'note') group.noteCount++;
   }
   return [...groups.values()].sort((a, b) => a.letter === '#' ? 1 : b.letter === '#' ? -1 : a.letter.localeCompare(b.letter));
+}
+
+export function filingGroups(notes: readonly NoteEntry[], summaries: Readonly<Record<string, NoteSummary>>) {
+  return [
+    { key: 'text' as const, label: 'With text', notes: notes.filter(note => (summaries[note.id]?.text_blocks ?? 0) > 0) },
+    { key: 'blank' as const, label: 'Blank', notes: notes.filter(note => (summaries[note.id]?.text_blocks ?? 0) === 0) },
+  ];
+}
+
+/** Creating the explicitly named type and filing must acknowledge as one atomic batch. */
+export function filingOperations(pageId: string, revision: number, title: string, newTypeId?: string): Operation[] {
+  return [
+    ...(newTypeId ? [{ op: 'create_page' as const, id: newTypeId, title }] : []),
+    { op: 'add_type', id: pageId, base_revision: revision, title },
+  ];
 }

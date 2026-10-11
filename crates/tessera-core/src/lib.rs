@@ -22,6 +22,7 @@ mod migrate;
 mod model;
 mod notebook;
 mod notes;
+mod notes_summary;
 mod operations;
 mod ownership;
 mod position_store;
@@ -73,5 +74,6 @@ pub use model::{
 };
 pub use notebook::{DATABASE_FILE, Notebook, NotebookInfo, now_ms};
 pub use notes::{CrossReference, IndexKind, KindIndex, NoteEntry, NoteIndex, NoteKind, SeeTarget};
+pub use notes_summary::{NoteSummary, SourceSummary, SummaryField};
 pub use ownership::NotebookOwnership;
 pub use review_store::{ReviewForecastDay, ReviewStats};
