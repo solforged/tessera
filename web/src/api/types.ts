@@ -430,18 +430,28 @@ export interface SourceView {
 }
 export interface PassagePage { passages: Passage[]; citations: Citation[]; total: number; toc: TocEntry[] }
 export interface PassageHit { source_id: string; title: string; snapshot_id: string; passage: Passage; snippet: string }
-export interface LibraryQuery {
+/** Browse filters: AND across fields, OR within one; empty means no filter. `people` holds person page ids. */
+export interface LibraryFilters { people: string[]; decades: number[]; publishers: string[]; languages: string[] }
+export interface LibraryQuery extends Partial<LibraryFilters> {
   states?: ReadingState[]; format?: SourceFormat | null; text?: string | null;
   sort?: 'added' | 'title' | 'author' | 'year' | 'last_read' | 'progress'; direction?: Direction; limit?: number | null;
 }
 export interface LibraryView { id: string; name: string; query: LibraryQuery; revision: number; created_at: number; updated_at: number }
+export interface LibraryPerson { id: string | null; name: string; role: ExtractedCreator['role'] }
 export interface LibraryRow {
-  page: Block; source: SourceRecord; creators: string[]; published: string | null;
-  site: string | null; cover: string | null;
+  page: Block; source: SourceRecord; creators: string[]; people: LibraryPerson[]; published: string | null;
+  publisher: string | null; language: string | null; site: string | null; cover: string | null;
   progress: number; section: string | null; highlights: number; unprocessed: number;
+}
+export interface LibraryFacets {
+  people: { id: string | null; name: string; count: number }[];
+  decades: { decade: number; count: number }[];
+  publishers: { value: string; count: number }[];
+  languages: { value: string; count: number }[];
 }
 export interface LibraryResult {
   rows: LibraryRow[]; total: number; counts: { inbox: number; reading: number; finished: number; abandoned: number };
+  facets: LibraryFacets;
 }
 export interface HighlightQuery { source_id?: string | null; unprocessed?: boolean; colors?: string[]; tags?: string[]; limit?: number | null }
 export interface HighlightRow { block: BlockInPage; citation: Citation; source_title: string; processed: boolean; notes: number; triage: Citation['triage']; color: Citation['color']; tags: string[]; created_at: number }

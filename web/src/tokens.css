@@ -92,6 +92,7 @@
   --siglum-width: calc(4ch + var(--space-8) + 2 * var(--rule-width)); /* four mono letters with box padding */
   --shelf-cover-width: 112px; /* narrowest cover in the Library shelf; columns share any spare width */
   --resume-cover-width: 36px; /* covers in the Library's Continue reading strip */
+  --work-cover-width: 72px;   /* covers in the Works shelf on a person's page */
   --sidebar-width: 208px;
   --rail-height: 48px;
   --pane-header-height: 36px;

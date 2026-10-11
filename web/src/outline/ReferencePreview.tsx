@@ -6,6 +6,7 @@ import type { NotebookClient, PageDocument } from '../document/contract';
 import type { OpenTarget, PaneId } from '../shell/contract';
 import { textTokens } from '../document/text-tokens';
 import { pageSigla } from '../library/sigla';
+import { loadWorks } from '../library/PersonWorks';
 import { fieldEntryId, matchFieldEntry } from '../table/query';
 import { Button } from '../ui/Button';
 import { Popup } from '../ui/Popup';
@@ -296,15 +297,20 @@ function ReferenceCard(props: {
   // One subject query provides the count; the referenced pages are opened only after pinning.
   const [positions] = createResource(() => target() && isPage() ? props.id : false, subject => props.notebook.api.positions({ subject }));
   const positionRows = () => positions.error ? [] : positions() ?? [];
-  const [references] = createResource(() => props.id, id => props.notebook.api.backlinks(id, REFERENCE_LIMIT).then(list => list.length));
+  const [references] = createResource(() => props.id, async id => {
+    const list = await props.notebook.api.backlinks(id, REFERENCE_LIMIT);
+    const works = await loadWorks(props.notebook.api, id, list);
+    return { works: works.rows.length, references: list.length - works.creatorLinks.size, capped: list.length >= REFERENCE_LIMIT };
+  });
   const referenceCount = () => {
     if (references.error) return 'References unavailable';
-    const count = references();
-    if (count === undefined) return '';
-    if (count === 0) return 'No references';
-    return `${count >= REFERENCE_LIMIT ? `${REFERENCE_LIMIT}+` : count} ${count === 1 ? 'reference' : 'references'}`;
+    const value = references();
+    if (value === undefined) return '';
+    if (value.references === 0) return value.works ? '' : 'No references';
+    return `${value.capped ? `${value.references}+` : value.references} ${value.references === 1 ? 'reference' : 'references'}`;
   };
   const counts = createMemo(() => [
+    !references.error && references()?.works ? `${references()!.works} ${references()!.works === 1 ? 'work' : 'works'}` : '',
     positions.error ? 'Readings unavailable' : positionRows().length ? `${positionRows().length} ${positionRows().length === 1 ? 'reading' : 'readings'}` : '',
     referenceCount(),
   ].filter(Boolean).join(' · '));

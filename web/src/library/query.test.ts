@@ -1,21 +1,44 @@
 import { describe, expect, test } from 'bun:test';
-import type { Citation, IngestJob, LibraryRow } from '../api/types';
-import { highlightLocation, highlightMeta, jobLabel, libraryQuery, recentJobs, retryTime, selectSources, sourceByline, sourceStateOperation, visibleJobs } from './query';
+import type { Citation, IngestJob, LibraryFilters, LibraryRow } from '../api/types';
+import { groupSources, highlightLocation, highlightMeta, jobLabel, libraryQuery, recentJobs, retryTime, selectSources, sourceByline, sourceStateOperation, visibleJobs } from './query';
+
+const filters: LibraryFilters = { people: [], decades: [], publishers: [], languages: [] };
 
 describe('library queries', () => {
-  test('selects a state and trims search text', () => {
-    expect(libraryQuery({ tab: 'reading', text: '  Tudors  ', sort: 'added' })).toEqual({ states: ['reading'], text: 'Tudors', sort: 'added', direction: 'desc' });
+  test('selects a state, trims search text and carries browse filters', () => {
+    expect(libraryQuery({ tab: 'reading', text: '  Tudors  ', sort: 'added', filters: { ...filters, people: ['wood'], decades: [1840] } })).toEqual({ states: ['reading'], text: 'Tudors', sort: 'added', direction: 'desc', people: ['wood'], decades: [1840], publishers: [], languages: [] });
   });
   test('all and highlights retain global counts without a state filter', () => {
     for (const tab of ['all', 'highlights'] as const) {
-      expect(libraryQuery({ tab, text: ' ', sort: 'title' })).toEqual({ states: [], text: null, sort: 'title', direction: 'asc' });
+      expect(libraryQuery({ tab, text: ' ', sort: 'title', filters })).toMatchObject({ states: [], text: null, sort: 'title', direction: 'asc' });
     }
   });
   test('sorts title and author ascending and year/time/progress descending', () => {
     for (const sort of ['added', 'title', 'author', 'year', 'last_read', 'progress'] as const) {
-      expect(libraryQuery({ tab: 'inbox', text: '', sort }).direction).toBe(sort === 'title' || sort === 'author' ? 'asc' : 'desc');
+      expect(libraryQuery({ tab: 'inbox', text: '', sort, filters }).direction).toBe(sort === 'title' || sort === 'author' ? 'asc' : 'desc');
     }
   });
+});
+
+test('groups keep listed order, use the first author or editor, and put missing values last', () => {
+  const row = (id: string, people: [string | null, string, 'author' | 'editor' | 'translator'][], published: string | null) =>
+    ({ page: { id }, people: people.map(([personId, name, role]) => ({ id: personId, name, role })), published, publisher: null, language: null }) as unknown as LibraryRow;
+  const rows = [
+    row('marx-reader', [['tucker', 'Robert C. Tucker', 'editor'], ['trans', 'A Translator', 'translator']], '1978-03'),
+    row('nameless', [], null),
+    row('wood-1', [['wood', 'Ellen Meiksins Wood', 'author']], '2008'),
+    row('ideology', [['marx', 'Karl Marx', 'author'], ['engels', 'Friedrich Engels', 'author']], '1846'),
+    row('wood-2', [['wood', 'Ellen Meiksins Wood', 'author']], '2011'),
+    row('plain', [[null, 'Jullian, Camille', 'author']], '1908'),
+  ];
+  expect(groupSources(rows, 'author').map(group => [group.label, group.personId, group.rows.map(value => value.page.id)])).toEqual([
+    ['Jullian, Camille', null, ['plain']],
+    ['Karl Marx', 'marx', ['ideology']],
+    ['Robert C. Tucker', 'tucker', ['marx-reader']],
+    ['Ellen Meiksins Wood', 'wood', ['wood-1', 'wood-2']],
+    ['No author', null, ['nameless']],
+  ]);
+  expect(groupSources(rows, 'decade').map(group => [group.label, group.rows.length])).toEqual([['2010s', 1], ['2000s', 1], ['1970s', 1], ['1900s', 1], ['1840s', 1], ['Undated', 1]]);
 });
 
 test('source state edits preserve authored identifiers and use the owning revision', () => {
