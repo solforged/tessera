@@ -139,9 +139,10 @@ tessera --notebook /path/to/replica sync clone http://127.0.0.1:4318
 tessera --notebook /path/to/replica sync
 tessera --notebook /path/to/replica sync status
 tessera --notebook /path/to/replica sync conflicts
+tessera --notebook /path/to/replica sync pin <source-id>
 ```
 
-A running service is the hub. `sync clone` copies its notebook, without original book files, into an empty directory and registers it as a new device. `sync` pushes the replica's changes and pulls the hub's. When both sides changed one block's text, the hub keeps its text and adds the replica's wording right after it; `sync conflicts` lists those copies and any changes the hub could not apply. Stop any service using the replica first. Phones and other machines sync this way once the tailnet listener lands; see [sync](docs/sync.md).
+A running service is the hub. `sync clone` copies its notebook, without original book files, into an empty directory and registers it as a new device. `sync` pushes the replica's changes, files and reading positions and pulls the hub's. When both sides changed one block's text, the hub keeps its text and adds the replica's wording right after it; `sync conflicts` lists those copies and any changes the hub could not apply. A replica keeps every cover; a book's images arrive when it is opened, and `sync pin` keeps a book's original file and images ahead of time. Stop any service using the replica first. Phones and other machines sync this way once the tailnet listener lands; see [sync](docs/sync.md).
 
 ### Agents
 

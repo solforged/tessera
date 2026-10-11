@@ -2,13 +2,15 @@
 
 use axum::{
     Json, Router,
-    extract::{DefaultBodyLimit, State, rejection::JsonRejection},
+    body::Bytes,
+    extract::{DefaultBodyLimit, Path, State, rejection::JsonRejection},
     http::{HeaderMap, HeaderValue, StatusCode, header},
     response::{IntoResponse, Response},
-    routing::post,
+    routing::{get, post},
 };
 use serde::{Deserialize, Serialize};
-use tessera_core::sync::{PULL_LIMIT, PushedChange, SnapshotContent, check_schema};
+use tessera_core::SCHEMA_VERSION;
+use tessera_core::sync::{PULL_LIMIT, PushedChange, SnapshotContent, UnloggedRows, check_schema};
 
 use crate::{AppState, error::ApiError, run};
 
@@ -25,6 +27,9 @@ pub(crate) fn routes() -> Router<AppState> {
         .route("/api/sync/snapshots/missing", post(missing_snapshots))
         .route("/api/sync/snapshots/content", post(snapshot_content))
         .route("/api/sync/snapshots", post(store_snapshots))
+        .route("/api/sync/objects/missing", post(missing_objects))
+        .route("/api/sync/objects/{sha}", get(object).put(store_object))
+        .route("/api/sync/rows", post(exchange_rows))
         // Book text and long offline runs of edits outgrow the default limit.
         .layer(DefaultBodyLimit::max(256 * 1024 * 1024))
 }
@@ -174,4 +179,116 @@ async fn store_snapshots(
     })
     .await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+async fn missing_objects(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    request: Result<Json<SnapshotIds>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    same_schema(&headers)?;
+    let Json(request) = request?;
+    let ids = run(&state, move |notebook| {
+        notebook.sync_missing_objects(&request.ids)
+    })
+    .await?;
+    Ok(Json(SnapshotIds { ids }).into_response())
+}
+
+async fn object(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(sha): Path<String>,
+) -> Result<Response, ApiError> {
+    same_schema(&headers)?;
+    let bytes = run(&state, move |notebook| notebook.sync_object(&sha))
+        .await?
+        .ok_or_else(ApiError::not_found)?;
+    Ok(([(header::CONTENT_TYPE, "application/octet-stream")], bytes).into_response())
+}
+
+async fn store_object(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(sha): Path<String>,
+    body: Bytes,
+) -> Result<StatusCode, ApiError> {
+    same_schema(&headers)?;
+    run(&state, move |notebook| {
+        notebook.sync_store_object(&sha, &body)
+    })
+    .await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Serialize, Deserialize)]
+pub(crate) struct RowsRequest {
+    pub device: String,
+    pub rows: UnloggedRows,
+    pub after: i64,
+}
+
+async fn exchange_rows(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    request: Result<Json<RowsRequest>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    same_schema(&headers)?;
+    let Json(request) = request?;
+    let pull = run(&state, move |notebook| {
+        notebook.sync_exchange_rows(&request.device, &request.rows, request.after)
+    })
+    .await?;
+    Ok(Json(pull).into_response())
+}
+
+/// A stored file. A replica that does not have it yet fetches it from its
+/// hub and keeps it, so opening a book brings its images.
+pub(crate) async fn object_or_fetch(state: &AppState, sha: String) -> Result<Vec<u8>, ApiError> {
+    let (local, hub) = {
+        let sha = sha.clone();
+        run(state, move |notebook| {
+            Ok((
+                notebook.sync_object(&sha)?,
+                notebook.sync_status()?.map(|status| status.hub_url),
+            ))
+        })
+        .await?
+    };
+    if let Some(bytes) = local {
+        return Ok(bytes);
+    }
+    let hub = hub.ok_or_else(ApiError::not_found)?;
+    let unreachable = |error: reqwest::Error| {
+        ApiError::new(
+            StatusCode::BAD_GATEWAY,
+            "hub_unreachable",
+            format!("This file is on the hub, which did not answer: {error}"),
+        )
+    };
+    let response = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(60))
+        .build()
+        .map_err(ApiError::internal)?
+        .get(format!("{hub}/api/sync/objects/{sha}"))
+        .header(SCHEMA_HEADER, SCHEMA_VERSION)
+        .send()
+        .await
+        .map_err(unreachable)?;
+    if response.status() == StatusCode::NOT_FOUND {
+        return Err(ApiError::not_found());
+    }
+    let bytes = response
+        .error_for_status()
+        .map_err(unreachable)?
+        .bytes()
+        .await
+        .map_err(unreachable)?
+        .to_vec();
+    let kept = bytes.clone();
+    run(state, move |notebook| {
+        notebook.sync_store_object(&sha, &kept)
+    })
+    .await?;
+    Ok(bytes)
 }

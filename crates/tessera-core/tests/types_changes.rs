@@ -738,7 +738,12 @@ fn membership_title_upgrade_preserves_unresolved_mentions_without_resurrecting_p
     drop(nb);
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
     conn.execute_batch(
-        "DROP TRIGGER blocks_search_delete;
+        "DROP TABLE sync_pins;
+         DROP INDEX reading_positions_sync; DROP INDEX highlight_surfacings_sync;
+         ALTER TABLE reading_positions DROP COLUMN hlc; ALTER TABLE reading_positions DROP COLUMN device;
+         ALTER TABLE reading_positions DROP COLUMN sync_seq; ALTER TABLE highlight_surfacings DROP COLUMN hlc;
+         ALTER TABLE highlight_surfacings DROP COLUMN device; ALTER TABLE highlight_surfacings DROP COLUMN sync_seq;
+         DROP TRIGGER blocks_search_delete;
          DROP TABLE sync_replicas; DROP TABLE change_patches; DROP TABLE sync_hub;
          DROP TABLE sync_pending; DROP TABLE id_aliases; DROP TABLE sync_conflicts;
          DROP TABLE replica;
@@ -1256,7 +1261,12 @@ fn manual_membership_migration_retains_authored_text_tags_and_unresolved_titles(
     drop(nb);
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
     conn.execute_batch(
-        "DROP TRIGGER blocks_search_delete;
+        "DROP TABLE sync_pins;
+         DROP INDEX reading_positions_sync; DROP INDEX highlight_surfacings_sync;
+         ALTER TABLE reading_positions DROP COLUMN hlc; ALTER TABLE reading_positions DROP COLUMN device;
+         ALTER TABLE reading_positions DROP COLUMN sync_seq; ALTER TABLE highlight_surfacings DROP COLUMN hlc;
+         ALTER TABLE highlight_surfacings DROP COLUMN device; ALTER TABLE highlight_surfacings DROP COLUMN sync_seq;
+         DROP TRIGGER blocks_search_delete;
          DROP TABLE sync_replicas; DROP TABLE change_patches; DROP TABLE sync_hub;
          DROP TABLE sync_pending; DROP TABLE id_aliases; DROP TABLE sync_conflicts;
          DROP TABLE replica;
@@ -1589,7 +1599,12 @@ fn provisional_cleanup_does_not_backfill_existing_pages_on_upgrade() {
     drop(nb);
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
     conn.execute_batch(
-        "DROP TRIGGER blocks_search_delete;
+        "DROP TABLE sync_pins;
+         DROP INDEX reading_positions_sync; DROP INDEX highlight_surfacings_sync;
+         ALTER TABLE reading_positions DROP COLUMN hlc; ALTER TABLE reading_positions DROP COLUMN device;
+         ALTER TABLE reading_positions DROP COLUMN sync_seq; ALTER TABLE highlight_surfacings DROP COLUMN hlc;
+         ALTER TABLE highlight_surfacings DROP COLUMN device; ALTER TABLE highlight_surfacings DROP COLUMN sync_seq;
+         DROP TRIGGER blocks_search_delete;
          DROP TABLE sync_replicas; DROP TABLE change_patches; DROP TABLE sync_hub;
          DROP TABLE sync_pending; DROP TABLE id_aliases; DROP TABLE sync_conflicts;
          DROP TABLE replica;

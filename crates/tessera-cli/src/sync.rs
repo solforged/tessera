@@ -5,7 +5,9 @@ use std::path::Path;
 use anyhow::Context;
 use clap::Subcommand;
 use serde_json::json;
-use tessera_core::sync::{CloneTicket, Hub, Pull, PushReceipt, PushedChange, SnapshotContent};
+use tessera_core::sync::{
+    CloneTicket, Hub, Pull, PushReceipt, PushedChange, SnapshotContent, UnloggedPull, UnloggedRows,
+};
 use tessera_core::{DATABASE_FILE, Notebook, NotebookOwnership, SCHEMA_VERSION};
 
 use crate::checked;
@@ -22,6 +24,13 @@ pub(crate) enum SyncCommand {
     Status,
     /// List kept conflict text and changes the hub rejected.
     Conflicts,
+    /// Keep a source's original file and images on this replica without
+    /// waiting for it to be opened. They arrive with the next sync.
+    Pin { source_id: String },
+    /// Stop keeping a source's files ahead of time.
+    Unpin { source_id: String },
+    /// List pinned sources.
+    Pins,
 }
 
 pub(crate) fn run(notebook: &Path, command: Option<SyncCommand>) -> anyhow::Result<()> {
@@ -34,6 +43,20 @@ pub(crate) fn run(notebook: &Path, command: Option<SyncCommand>) -> anyhow::Resu
         Some(SyncCommand::Conflicts) => {
             let replica = open(notebook)?;
             serde_json::to_value(replica.notebook.sync_conflicts()?)?
+        }
+        Some(SyncCommand::Pin { source_id }) => {
+            let mut replica = open(notebook)?;
+            replica.notebook.sync_pin(&source_id)?;
+            serde_json::to_value(replica.notebook.sync_pins()?)?
+        }
+        Some(SyncCommand::Unpin { source_id }) => {
+            let mut replica = open(notebook)?;
+            replica.notebook.sync_unpin(&source_id)?;
+            serde_json::to_value(replica.notebook.sync_pins()?)?
+        }
+        Some(SyncCommand::Pins) => {
+            let replica = open(notebook)?;
+            serde_json::to_value(replica.notebook.sync_pins()?)?
         }
         None => {
             let mut replica = open(notebook)?;
@@ -139,12 +162,14 @@ impl HttpHub {
                 }
                 anyhow::Ok(response.json().await?)
             })
-            .map_err(|error| {
-                tessera_core::Error::Io(std::io::Error::other(format!(
-                    "hub {}: {error:#}",
-                    self.base
-                )))
-            })
+            .map_err(|error| self.failed(error))
+    }
+
+    fn failed(&self, error: anyhow::Error) -> tessera_core::Error {
+        tessera_core::Error::Io(std::io::Error::other(format!(
+            "hub {}: {error:#}",
+            self.base
+        )))
     }
 }
 
@@ -180,5 +205,57 @@ impl Hub for HttpHub {
 
     fn store_snapshots(&mut self, content: &[SnapshotContent]) -> tessera_core::Result<()> {
         self.call("/api/sync/snapshots", json!(content))
+    }
+
+    fn missing_objects(&mut self, shas: &[String]) -> tessera_core::Result<Vec<String>> {
+        let missing: serde_json::Value =
+            self.call("/api/sync/objects/missing", json!({"ids": shas}))?;
+        serde_json::from_value(missing["ids"].clone())
+            .map_err(|error| tessera_core::Error::Io(std::io::Error::other(error)))
+    }
+
+    fn object(&mut self, sha: &str) -> tessera_core::Result<Option<Vec<u8>>> {
+        self.runtime
+            .block_on(async {
+                let response = self
+                    .client
+                    .get(format!("{}/api/sync/objects/{sha}", self.base))
+                    .header(SCHEMA_HEADER, SCHEMA_VERSION)
+                    .send()
+                    .await?;
+                if response.status() == reqwest::StatusCode::NOT_FOUND {
+                    return Ok(None);
+                }
+                anyhow::Ok(Some(checked(response).await?.bytes().await?.to_vec()))
+            })
+            .map_err(|error| self.failed(error))
+    }
+
+    fn store_object(&mut self, sha: &str, bytes: &[u8]) -> tessera_core::Result<()> {
+        self.runtime
+            .block_on(async {
+                let response = self
+                    .client
+                    .put(format!("{}/api/sync/objects/{sha}", self.base))
+                    .header(SCHEMA_HEADER, SCHEMA_VERSION)
+                    .body(bytes.to_vec())
+                    .send()
+                    .await?;
+                checked(response).await?;
+                anyhow::Ok(())
+            })
+            .map_err(|error| self.failed(error))
+    }
+
+    fn exchange_rows(
+        &mut self,
+        device: &str,
+        rows: &UnloggedRows,
+        after: i64,
+    ) -> tessera_core::Result<UnloggedPull> {
+        self.call(
+            "/api/sync/rows",
+            json!({"device": device, "rows": rows, "after": after}),
+        )
     }
 }

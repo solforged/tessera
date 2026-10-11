@@ -66,6 +66,12 @@ struct Pair {
 }
 
 fn pair() -> Pair {
+    pair_with(|_| {})
+}
+
+/// A hub with a page holding two blocks and whatever `setup` adds, and a
+/// replica cloned from it.
+fn pair_with(setup: impl FnOnce(&mut Notebook)) -> Pair {
     let hub_dir = tempfile::tempdir().unwrap();
     let mut hub = Notebook::open(hub_dir.path()).unwrap();
     apply(
@@ -79,6 +85,7 @@ fn pair() -> Pair {
             insert(3, &id(1), Some(id(2)), "Second"),
         ],
     );
+    setup(&mut hub);
     let replica_dir = tempfile::tempdir().unwrap();
     let ticket = hub
         .sync_clone(&replica_dir.path().join(DATABASE_FILE))
@@ -101,21 +108,36 @@ impl Pair {
 
     /// Both notebooks hold the same replicated rows.
     fn assert_converged(&self) {
-        assert_eq!(
-            state(&self.hub.info().unwrap().path),
-            state(&self.replica.info().unwrap().path)
-        );
+        let hub = state(&self.hub.info().unwrap().path);
+        let replica = state(&self.replica.info().unwrap().path);
+        for ((table, hub_rows), (_, replica_rows)) in hub.iter().zip(&replica) {
+            let only_hub: Vec<_> = hub_rows
+                .iter()
+                .filter(|row| !replica_rows.contains(row))
+                .collect();
+            let only_replica: Vec<_> = replica_rows
+                .iter()
+                .filter(|row| !hub_rows.contains(row))
+                .collect();
+            assert!(
+                only_hub.is_empty() && only_replica.is_empty(),
+                "{table} differs\nhub only: {only_hub:#?}\nreplica only: {only_replica:#?}"
+            );
+        }
         assert_eq!(self.replica.sync_status().unwrap().unwrap().pending, 0);
     }
 }
 
-/// Every row of the tables replicas must agree on, without rowids.
+/// Every row of the tables replicas must agree on, without rowids, the order
+/// rows arrived in, or when each device staged a snapshot.
 fn state(dir: &Path) -> Vec<(String, Vec<String>)> {
     let conn = Connection::open(dir.join(DATABASE_FILE)).unwrap();
     let mut state = Vec::new();
     for (table, class) in TABLES {
-        if !matches!(class, Replication::Applied | Replication::Content)
-            || *table == "browser_objects"
+        if !matches!(
+            class,
+            Replication::Applied | Replication::Content | Replication::Unlogged
+        ) || *table == "browser_objects"
         {
             continue;
         }
@@ -130,7 +152,11 @@ fn state(dir: &Path) -> Vec<(String, Vec<String>)> {
                 Ok(columns
                     .iter()
                     .enumerate()
-                    .filter(|(_, name)| *name != "rowid")
+                    .filter(|(_, name)| {
+                        *name != "rowid"
+                            && *name != "sync_seq"
+                            && !(*table == "snapshots" && *name == "created_at")
+                    })
                     .map(|(index, name)| {
                         format!("{name}={:?}", row.get::<_, Value>(index).unwrap())
                     })
@@ -467,4 +493,254 @@ fn a_book_added_on_the_hub_arrives_with_its_text() {
     p.assert_converged();
     let page = p.replica.passages(&snapshot, 0, 10).unwrap();
     assert_eq!(page.passages[0].text, "An opening line");
+}
+
+/// A book with an identifier, a cover image and two passages.
+fn book(title: &str, unique_id: &str) -> ExtractedDocument {
+    let mut document = document();
+    document.metadata.title = Some(title.into());
+    document.metadata.unique_id = Some(unique_id.into());
+    document.metadata.cover = Some("cover.png".into());
+    document
+}
+
+/// Import a book with its file and images; returns the snapshot, the source
+/// and the hashes of the file and of each image.
+fn import(
+    notebook: &mut Notebook,
+    document: &ExtractedDocument,
+    file: &[u8],
+    images: &[(&str, &[u8])],
+) -> (String, String, Vec<String>) {
+    let file = notebook.put_object(file).unwrap();
+    let mut hashes = vec![file.clone()];
+    let mut resources = Vec::new();
+    for (href, bytes) in images {
+        let sha = notebook.put_object(bytes).unwrap();
+        resources.push(((*href).to_owned(), sha.clone(), "image/png".to_owned()));
+        hashes.push(sha);
+    }
+    let snapshot = notebook
+        .stage_snapshot(document, &file, &resources)
+        .unwrap()
+        .id;
+    let plan = notebook.plan_ingest(&snapshot, None, None).unwrap();
+    let source = plan.source_id.clone();
+    apply(notebook, plan.operations);
+    (snapshot, source, hashes)
+}
+
+/// Quote the second passage of `snapshot` in a new block under `source`.
+fn highlight(notebook: &mut Notebook, source: &str, snapshot: &str, block: u128, citation: u128) {
+    let passage = notebook.passages(snapshot, 0, 10).unwrap().passages[1].clone();
+    apply(
+        notebook,
+        vec![
+            insert(block, source, None, "A line worth keeping"),
+            Operation::Cite {
+                id: id(block),
+                base_revision: 1,
+                citation_id: id(citation),
+                snapshot_id: snapshot.into(),
+                start: PassagePoint {
+                    passage_id: passage.id.clone(),
+                    offset: 0,
+                },
+                end: PassagePoint {
+                    passage_id: passage.id,
+                    offset: 20,
+                },
+                color: None,
+            },
+        ],
+    );
+}
+
+fn has(notebook: &Notebook, sha: &str) -> bool {
+    notebook.read_object(sha).is_ok()
+}
+
+fn reading_ordinal(notebook: &Notebook, snapshot: &str) -> i64 {
+    Connection::open(notebook.info().unwrap().path.join(DATABASE_FILE))
+        .unwrap()
+        .query_row(
+            "SELECT passage_ordinal FROM reading_positions WHERE snapshot_id = ?1",
+            [snapshot],
+            |row| row.get(0),
+        )
+        .unwrap()
+}
+
+#[test]
+fn files_reach_the_hub_and_replicas_keep_covers_and_pinned_books() {
+    let mut p = pair();
+    let (_, _, phone) = import(
+        &mut p.replica,
+        &book("Phone Book", "urn:phone"),
+        b"phone epub",
+        &[("cover.png", b"phone cover"), ("fig.png", b"phone figure")],
+    );
+    let report = p.sync();
+    assert_eq!(report.sent_objects, 3);
+    assert!(phone.iter().all(|sha| has(&p.hub, sha)));
+
+    let (_, source, desk) = import(
+        &mut p.hub,
+        &book("Desk Book", "urn:desk"),
+        b"desk epub",
+        &[("cover.png", b"desk cover"), ("fig.png", b"desk figure")],
+    );
+    // A cover uploaded for a record is linked from a field value.
+    let uploaded = p.hub.put_object(b"uploaded cover").unwrap();
+    let page = p.page.clone();
+    apply(
+        &mut p.hub,
+        vec![insert(
+            50,
+            &page,
+            None,
+            &format!("/api/library/covers/{uploaded}"),
+        )],
+    );
+    let report = p.sync();
+    assert_eq!(report.received_objects, 2);
+    assert!(has(&p.replica, &desk[1]) && has(&p.replica, &uploaded));
+    assert!(!has(&p.replica, &desk[0]) && !has(&p.replica, &desk[2]));
+
+    p.replica.sync_pin(&source).unwrap();
+    let report = p.sync();
+    assert_eq!(report.received_objects, 2);
+    assert!(desk.iter().all(|sha| has(&p.replica, sha)));
+    assert_eq!(p.replica.sync_pins().unwrap(), [source]);
+
+    // A link to a file the hub never had is reported, not fatal.
+    let lost = "0".repeat(64);
+    apply(
+        &mut p.hub,
+        vec![insert(
+            51,
+            &page,
+            None,
+            &format!("/api/library/covers/{lost}"),
+        )],
+    );
+    assert_eq!(p.sync().unavailable_objects, [lost]);
+    p.assert_converged();
+}
+
+#[test]
+fn the_later_reading_position_wins_on_both_devices() {
+    let mut p = pair();
+    let (snapshot, _, _) = import(&mut p.hub, &book("Desk Book", "urn:desk"), b"epub", &[]);
+    p.sync();
+    p.hub.set_reading_position(&snapshot, 0).unwrap();
+    p.replica.set_reading_position(&snapshot, 1).unwrap();
+
+    let report = p.sync();
+    assert_eq!(report.sent_rows, 1);
+    p.assert_converged();
+    assert_eq!(reading_ordinal(&p.hub, &snapshot), 1);
+
+    p.hub.set_reading_position(&snapshot, 0).unwrap();
+    let report = p.sync();
+    assert_eq!((report.sent_rows, report.received_rows), (0, 1));
+    p.assert_converged();
+    assert_eq!(reading_ordinal(&p.replica, &snapshot), 0);
+}
+
+#[test]
+fn a_highlight_muted_on_the_phone_stays_muted_on_the_desk() {
+    let mut citation = String::new();
+    let mut p = pair_with(|hub| {
+        let (snapshot, source, _) = import(hub, &book("Desk Book", "urn:desk"), b"epub", &[]);
+        highlight(hub, &source, &snapshot, 60, 61);
+        citation = id(61);
+        // Highlights resurface from the day after they were made.
+        Connection::open(hub.info().unwrap().path.join(DATABASE_FILE))
+            .unwrap()
+            .execute(
+                "UPDATE changes SET created_at = 0 WHERE seq IN (SELECT created_seq FROM citations)",
+                [],
+            )
+            .unwrap();
+    });
+    let picks = p.replica.resurfacing("2020-01-01", 3).unwrap();
+    assert_eq!(picks[0].row.citation.id, citation);
+    p.replica
+        .record_surfacing(&citation, "2020-01-01", "muted")
+        .unwrap();
+
+    let report = p.sync();
+    assert_eq!(report.sent_rows, 1);
+    p.assert_converged();
+    assert!(p.hub.resurfacing("2020-01-01", 3).unwrap().is_empty());
+    assert!(p.hub.resurfacing("2020-03-01", 3).unwrap().is_empty());
+}
+
+#[test]
+fn reading_and_surfacing_a_book_before_it_syncs_does_not_break_sync() {
+    let mut p = pair();
+    let (snapshot, source, _) = import(
+        &mut p.replica,
+        &book("Phone Book", "urn:phone"),
+        b"epub",
+        &[],
+    );
+    highlight(&mut p.replica, &source, &snapshot, 70, 71);
+    p.replica.set_reading_position(&snapshot, 1).unwrap();
+    // The phone showed the unsynced highlight and it was muted.
+    let device = p.replica.device_id().unwrap();
+    Connection::open(p.replica.info().unwrap().path.join(DATABASE_FILE))
+        .unwrap()
+        .execute(
+            "INSERT INTO highlight_surfacings(citation_id, date, shown_at, device, sync_seq)
+             VALUES (?1, '2020-01-01', 0, ?2, 1000000)",
+            [id(71), device],
+        )
+        .unwrap();
+    p.replica
+        .record_surfacing(&id(71), "2020-01-01", "muted")
+        .unwrap();
+    // Undoing the phone's changes now crosses a change from the desk.
+    let desk = edit(&p.hub, &id(2), "Desk, meanwhile");
+    apply(&mut p.hub, vec![desk]);
+
+    p.sync();
+    p.assert_converged();
+    assert_eq!(reading_ordinal(&p.hub, &snapshot), 1);
+    assert!(p.hub.resurfacing("2020-03-01", 3).unwrap().is_empty());
+}
+
+#[test]
+fn the_same_book_imported_offline_on_both_devices_is_one_source() {
+    // An earlier book, so the type, its fields and the author exist on both.
+    let mut p = pair_with(|hub| {
+        import(
+            hub,
+            &book("Earlier Book", "urn:earlier"),
+            b"earlier epub",
+            &[],
+        );
+    });
+    let document = book("Shared Book", "urn:shared");
+    let (snapshot, desk_source, _) = import(&mut p.hub, &document, b"same epub", &[]);
+    let (phone_snapshot, phone_source, _) = import(&mut p.replica, &document, b"same epub", &[]);
+    assert_eq!(snapshot, phone_snapshot);
+    assert_ne!(desk_source, phone_source);
+    highlight(&mut p.replica, &phone_source, &snapshot, 80, 81);
+    // Reading the book also changes the phone's source.
+    p.replica.set_reading_position(&snapshot, 1).unwrap();
+
+    let report = p.sync();
+    assert!(
+        report
+            .pushed
+            .iter()
+            .all(|receipt| matches!(receipt.outcome, PushOutcome::Accepted { .. }))
+    );
+    p.assert_converged();
+    assert!(p.replica.sync_conflicts().unwrap().is_empty());
+    assert!(p.replica.block(&phone_source).is_err());
+    let quote = p.replica.block(&id(80)).unwrap();
+    assert_eq!(quote.parent_id.as_deref(), Some(desk_source.as_str()));
 }

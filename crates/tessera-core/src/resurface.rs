@@ -79,9 +79,11 @@ impl Notebook {
             }
             candidates.sort_unstable();
             for (_, _, id) in candidates.into_iter().take(limit) {
+                let stamp = crate::unlogged::stamp(&tx, now)?;
                 tx.execute(
-                    "INSERT INTO highlight_surfacings(citation_id, date, shown_at) VALUES (?1, ?2, ?3)",
-                    params![id, date, now],
+                    "INSERT INTO highlight_surfacings(citation_id, date, shown_at, device, sync_seq)
+                     VALUES (?1, ?2, ?3, ?4, ?5)",
+                    params![id, date, now, stamp.device, stamp.seq],
                 )?;
             }
         }
@@ -146,10 +148,11 @@ impl Notebook {
             return Err(validation("cannot record a surfacing for a future date"));
         }
         let tx = self.conn.transaction()?;
+        let stamp = crate::unlogged::stamp(&tx, now)?;
         if tx.execute(
-            "UPDATE highlight_surfacings SET action = ?3, acted_at = ?4
+            "UPDATE highlight_surfacings SET action = ?3, acted_at = ?4, hlc = ?5, device = ?6, sync_seq = ?7
              WHERE citation_id = ?1 AND date = ?2",
-            params![citation_id, date, action, now],
+            params![citation_id, date, action, now, stamp.hlc, stamp.device, stamp.seq],
         )? == 0
         {
             return Err(not_found(citation_id));
