@@ -2,7 +2,7 @@ import { For, Show, createEffect, createMemo, createResource, createSignal, onCl
 import { Portal } from 'solid-js/web';
 import { api, exportExtensions } from '../api/client';
 import type { ExportFormat } from '../api/client';
-import type { Citation, HighlightResult, ReadingState } from '../api/types';
+import type { Citation, FieldDefinition, HighlightResult, ReadingState } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import type { OutlinePaneProps } from '../shell/contract';
 import { Button } from '../ui/Button';
@@ -31,14 +31,16 @@ export function SourceHeader(props: {
   resetItems(): MenuItem[];
   onDelete?: OutlinePaneProps['onDelete'];
   highlights?: HighlightResult; colors: string[]; grouped: boolean; fieldsVisible: boolean;
+  fields: readonly FieldDefinition[]; ready: boolean; onReady(ready: boolean): void;
   onColors(colors: string[]): void; onGrouped(grouped: boolean): void; onFieldsVisible(visible: boolean): void;
 }) {
   const [source] = createResource(() => props.notebook.changeSequence(), () => props.notebook.api.source(props.doc.pageId));
   const [menu, setMenu] = createSignal<{ anchor: HTMLElement; label: string; items: MenuItem[] } | null>(null);
   const snapshot = createMemo(() => source()?.snapshots.find(snapshot => snapshot.id === source()?.source.current_snapshot_id));
-  const [fields, { mutate: setFields }] = createResource(() => props.notebook.changeSequence(), () => props.notebook.api.fields());
-  const metadata = createMemo(() => sourceMetadata(props.doc, props.notebook, fields()?.fields ?? []));
+  const metadata = createMemo(() => sourceMetadata(props.doc, props.notebook, props.fields));
   const cover = createMemo(() => metadata().cover ?? snapshot()?.metadata.cover);
+  const [loadedCover, setLoadedCover] = createSignal<string>();
+  const coverVisibility = createMemo(() => cover() && loadedCover() !== cover() ? 'hidden' as const : undefined);
   const length = createMemo(() => snapshot()?.text_length ?? 0);
   const at = createMemo(() => (source()?.progress ?? 0) * length());
   const chapters = createMemo(() => bookChapters(source()?.toc ?? [], length()));
@@ -57,6 +59,7 @@ export function SourceHeader(props: {
   onCleanup(() => coverMedia.removeEventListener('change', coverChanged));
   // Escape the outline's query-container containment, but keep the owning pane's visibility and nav tokens.
   onMount(() => setActionsHost(header.closest<HTMLElement>('.pane') ?? undefined));
+  createEffect(() => props.onReady(!!(source() || source.error) && (!coverLayout() || !!actionsHost())));
   let coverInput!: HTMLInputElement;
   function closeDetails() {
     const outline = header.closest<HTMLElement>('.outline-pane');
@@ -107,11 +110,7 @@ export function SourceHeader(props: {
       downloadBlob(blob, `${props.doc.root()?.source?.citation_key ?? props.doc.pageId}.${exportExtensions[format]}`);
     } catch (error) { fail(error); }
   }
-  async function sourceMenu(anchor: HTMLElement) {
-    if (!fields()) {
-      try { setFields(await props.notebook.api.fields()); }
-      catch (error) { fail(error); return; }
-    }
+  function sourceMenu(anchor: HTMLElement) {
     setMenu({ anchor, label: 'Source actions', items: [
       ...props.resetItems(),
       { label: 'Copy citation key', icon: 'copy', disabledReason: props.doc.root()?.source?.citation_key ? undefined : 'No citation key', action: () => { void navigator.clipboard.writeText(props.doc.root()!.source!.citation_key!).catch(fail); } },
@@ -130,18 +129,18 @@ export function SourceHeader(props: {
       ...(props.onDelete ? [{ label: 'Delete source…', icon: 'trash' as const, danger: true, action: () => props.onDelete!(anchor) }] : []),
     ] });
   }
-  const ReadingActions = () => <div class="outline-source-actions" classList={{ 'source-cover-actions': coverLayout() && !!actionsHost() }}>
+  const ReadingActions = () => <div class="outline-source-actions" classList={{ 'source-cover-actions': coverLayout() && !!actionsHost() }} style={{ visibility: props.ready ? undefined : 'hidden' }}>
     <Show when={snapshot()}><Button class="outline-source-read" onClick={event => props.onOpen({ kind: 'reader', sourceId: props.doc.pageId }, event.shiftKey)}>{source()?.position ? 'Continue reading' : 'Read'}</Button></Show>
     <Button class="bordered" aria-haspopup="menu" onClick={event => stateMenu(event.currentTarget)}>{stateLabels[props.doc.root()!.source!.state]}<Icon name="down" /></Button>
     <Button class="bordered" icon="more" label="Source actions" aria-haspopup="menu" onClick={event => { void sourceMenu(event.currentTarget); }} />
   </div>;
   return <>
     <div ref={header} class="outline-source-header">
-      <Show when={snapshot()} fallback={<div class="outline-source-cover library-cover">
-        <Show when={cover()} fallback={<span class="library-spine"><span class="library-spine-siglum">{source()?.source.siglum}</span></span>}>{href => <ResourceImage snapshotId="" href={href()} loading="lazy" alt="" />}</Show>
+      <Show when={snapshot()} fallback={<div class="outline-source-cover library-cover" style={{ visibility: coverVisibility() }}>
+        <Show when={cover()} fallback={<span class="library-spine"><span class="library-spine-siglum">{source()?.source.siglum}</span></span>}>{href => <ResourceImage snapshotId="" href={href()} loading="eager" alt="" onLoad={() => setLoadedCover(href())} onError={() => setLoadedCover(href())} />}</Show>
       </div>}>
-        <Button class="outline-source-cover library-cover" label={source()?.position ? 'Continue reading' : 'Read'} onClick={event => props.onOpen({ kind: 'reader', sourceId: props.doc.pageId }, event.shiftKey)}>
-          <Show when={cover()} fallback={<span class="library-spine"><span class="library-spine-siglum">{source()?.source.siglum}</span></span>}>{href => <ResourceImage snapshotId={snapshot()!.id} href={href()} loading="lazy" alt="" />}</Show>
+        <Button class="outline-source-cover library-cover" style={{ visibility: coverVisibility() }} label={source()?.position ? 'Continue reading' : 'Read'} onClick={event => props.onOpen({ kind: 'reader', sourceId: props.doc.pageId }, event.shiftKey)}>
+          <Show when={cover()} fallback={<span class="library-spine"><span class="library-spine-siglum">{source()?.source.siglum}</span></span>}>{href => <ResourceImage snapshotId={snapshot()!.id} href={href()} loading="eager" alt="" onLoad={() => setLoadedCover(href())} onError={() => setLoadedCover(href())} />}</Show>
         </Button>
       </Show>
       <div class="outline-source-info">

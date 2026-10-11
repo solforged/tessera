@@ -180,6 +180,8 @@ function Pane(props: OutlinePaneProps) {
   const unfoldedIds = createMemo(() => {
     const visible = visibleIds(doc, zoom(), folds(), showArchived(), undefined, depthFilter());
     if (!doc.root()?.source || zoom()) return visible;
+    // Field definitions distinguish source metadata from ordinary outline rows; never guess while loading.
+    if (!fields()) return [];
     const roots = new Map<string, string>();
     const colors = sourceColors(), showFields = sourceFieldsVisible();
     const shown = visible.filter(id => {
@@ -236,6 +238,11 @@ function Pane(props: OutlinePaneProps) {
   const sigla = createMemo(() => pageSigla((siglumRecords.error ? [] : siglumRecords() ?? []).filter(record => record !== null)));
   const [sourceHighlights] = createResource(() => doc.root()?.source ? [props.pageId, props.notebook.changeSequence()] as const : false,
     ([source_id]) => props.notebook.api.highlights({ source_id, limit: 100000 }));
+  const [sourceHeaderReady, setSourceHeaderReady] = createSignal(false);
+  // Mount the designed structure for measurement, but reveal it and its portaled dock together.
+  // Keep settled resources visible during background refreshes.
+  const sourceReady = () => !doc.root()?.source || sourceHeaderReady()
+    && !!(fields() || fields.error) && !!(sourceHighlights() || sourceHighlights.error);
   const filedElsewhere = createMemo(() => (sourceHighlights()?.rows ?? []).filter(row => row.block.page.id !== props.pageId && (!sourceColors().length || !!row.color && sourceColors().includes(row.color)))
     .sort((a, b) => a.citation.ordinal - b.citation.ordinal || a.citation.start.offset - b.citation.start.offset));
   const sourceDetails = createMemo(() => {
@@ -826,7 +833,7 @@ function Pane(props: OutlinePaneProps) {
   createEffect(() => { const enabled = props.vim; if (editor) { editor.configure(enabled); props.onVimMode(enabled ? editing() ? editor.mode() : 'outline' : null); } });
   createEffect(() => { const byId = definitionsById(), byName = definitionsByName(); editor?.configureFields(id => byId.get(id)?.name, name => byName.get(name.toLowerCase())?.kind); });
   createEffect(() => {
-    if (doc.status() !== 'ready' || !scroll || !editor) return;
+    if (doc.status() !== 'ready' || !sourceReady() || !scroll || !editor) return;
     if (restoring) {
       restoring = false;
       const saved = initial.caret;
@@ -886,6 +893,7 @@ function Pane(props: OutlinePaneProps) {
     queueMicrotask(() => { if (!disposed && editor?.id === id) editor.refreshLabels(); });
   });
   createEffect(() => {
+    if (!sourceReady()) return;
     const visible = ids();
     const id = editing();
     if (id && !visible.includes(id) && !composition()) { setEditing(null); const first = visible[0] ?? null; setSelected(first); setCaret(first ? { id: first, offset: 0 } : null); }
@@ -905,7 +913,7 @@ function Pane(props: OutlinePaneProps) {
 
   // A titled page at its top level wears the note header; sources keep their own, and the Fields page is not a note.
   const isNote = () => !zoom() && doc.root()?.kind === 'page' && !doc.root()?.source && doc.root()?.text.toLowerCase() !== 'fields';
-  return <div ref={scroll} class="outline-pane" classList={{ 'has-apparatus': apparatus(), 'has-sigla': sigla().size > 0, 'source-page': !!doc.root()?.source && !zoom() }} data-pane={props.pane} tabIndex={0} role="tree" aria-label="Page outline" aria-owns={[...virtualItems().keys()].map(id => `outline-${props.pane}-${id}`).join(' ')} onFocusIn={props.onActivate} onFocusOut={report} onKeyDown={structuralKey} onWheel={() => { anchorEpoch++; cancelAnimationFrame(anchorFrame); }} onScroll={scrolled}>
+  return <div ref={scroll} class="outline-pane" classList={{ 'has-apparatus': apparatus(), 'has-sigla': sigla().size > 0, 'source-page': !!doc.root()?.source && !zoom() }} style={{ visibility: sourceReady() ? undefined : 'hidden' }} aria-busy={!sourceReady()} data-pane={props.pane} tabIndex={0} role="tree" aria-label="Page outline" aria-owns={[...virtualItems().keys()].map(id => `outline-${props.pane}-${id}`).join(' ')} onFocusIn={props.onActivate} onFocusOut={report} onKeyDown={structuralKey} onWheel={() => { anchorEpoch++; cancelAnimationFrame(anchorFrame); }} onScroll={scrolled}>
     <Show when={apparatus()}><Apparatus notebook={props.notebook} holders={holders()} linked={linkedPages()} sources={citedSources().flatMap(id => sigla().has(id) ? [{ id, siglum: sigla().get(id)! }] : [])} onOpen={props.onOpen} /></Show>
     <div ref={heading} class="outline-heading">
       <Show when={zoom()}><nav class="outline-breadcrumbs" aria-label="Zoom breadcrumbs"><button type="button" onClick={() => zoomTo(null)}>{doc.root()?.text}</button><For each={breadcrumbs()}>{id => <><Icon name="right" /><button type="button" onClick={() => zoomTo(id)}>{plainText(doc.block(id)?.text ?? '', reference => props.notebook.lookup(reference)) || 'Empty block'}</button></>}</For></nav></Show>
@@ -924,6 +932,7 @@ function Pane(props: OutlinePaneProps) {
         <TemplateEditor type={value()} fields={definitions()} notebook={props.notebook} onError={setMessage} />
       </Show>}</Show>
       <Show when={doc.root()?.source}><SourceHeader doc={doc} notebook={props.notebook} resetItems={sourceResets} onOpen={props.onOpen} onError={setMessage} onDelete={props.onDelete}
+        fields={definitions()} ready={sourceReady()} onReady={setSourceHeaderReady}
         highlights={zoom() ? undefined : sourceHighlights()} colors={sourceColors()} onColors={setSourceColors} grouped={sourceGrouped()} onGrouped={setSourceGrouped} fieldsVisible={sourceFieldsVisible()} onFieldsVisible={setSourceFieldsVisible} /></Show>
       <Show when={doc.root()?.task || doc.root()?.project || doc.root()?.question || doc.root()?.citations.length}><div class="outline-root-capabilities outline-capability-metadata">
         <Show when={doc.root()?.task}>
@@ -961,6 +970,7 @@ function Pane(props: OutlinePaneProps) {
       </Button>}</For>
     </section></Show>
     <Show when={sourceHighlights.error}><p class="library-error" role="alert">{String(sourceHighlights.error)}</p></Show>
+    <Show when={doc.root()?.source && fields.error}><p class="library-error" role="alert">{String(fields.error)}</p></Show>
     <Show when={doc.status() === 'ready' && ids().length === 0 && depthFilter() === undefined}><button type="button" class="add-first-block" onClick={() => apply({ kind: 'insert', parentId: zoom() ?? props.pageId, after: null }, true)}><Icon name="plus" />Add a block</button></Show>
     <Show when={!zoom() && doc.root()?.kind === 'journal'}><div class="related-sections journal-highlights"><JournalResurface date={doc.root()!.text} notebook={props.notebook} onOpen={props.onOpen} /></div></Show>
     <Show when={doc.status() === 'ready' && !zoom() && related()?.works.length}><PersonWorks pageId={props.pageId} rows={related()!.works} onOpen={props.onOpen} /></Show>
