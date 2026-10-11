@@ -199,6 +199,9 @@
 .library-creator-same { grid-column: 1 / -1; margin: 0; color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
 .library-creator-page.button { display: inline; min-height: 0; padding: 0; color: var(--accent); font-weight: var(--weight-body); text-decoration: underline; text-decoration-thickness: var(--rule-width); text-underline-offset: var(--space-4); }
 .library-creator-page.button:hover:not(:disabled) { background: transparent; color: var(--text); }
+@media (pointer: coarse) {
+  .library-creator-page.button { display: inline-flex; align-items: center; min-height: var(--target-size); vertical-align: middle; }
+}
 .library-add-creator.button { margin-left: calc(-1 * var(--space-8)); color: var(--muted); font-weight: var(--weight-body); }
 .library-add-creator.button:hover:not(:disabled) { color: var(--text); }
 .library-details .popup-actions { margin-top: var(--space-8); }
