@@ -18,6 +18,7 @@ import { formatProgress, highlightMeta, jobLabel, libraryQuery, recentJobs, retr
 import { createHighlightActions, highlightColors, highlightSections, setLinkedCitation } from './highlights';
 import type { HighlightMenu, HighlightSection } from './highlights';
 import { ResourceImage } from './ResourceImage';
+import { pageSigla } from './sigla';
 import { AddSheet } from './AddSheet';
 import './library.css';
 
@@ -54,6 +55,7 @@ const stateActions: { state: ReadingState; label: string }[] = [
   { state: 'reading', label: 'Mark as reading' }, { state: 'finished', label: 'Mark as finished' },
   { state: 'abandoned', label: 'Mark as abandoned' }, { state: 'inbox', label: 'Return to inbox' },
 ];
+const stateLabels: Record<ReadingState, string> = { inbox: 'Inbox', reading: 'Reading', finished: 'Finished', abandoned: 'Abandoned' };
 
 const processedExplanation = 'A highlight counts as processed once it has a note, a card or a link, or when you mark it.';
 export function LibraryPane(props: LibraryPaneProps) {
@@ -141,9 +143,15 @@ export function LibraryPane(props: LibraryPaneProps) {
   }
   const [popup, setPopup] = createSignal<LibraryPopup | null>(null);
   const doneJobs = new Set<string>();
-  // Jobs concern sources; the Highlights tab shows none.
-  const shownJobs = createMemo(() => tab() === 'highlights' || error() ? [] : visibleJobs(jobs().filter(job => !(job.state === 'failed' && dismissedJobs().has(job.id))), new Set(displayedSources().map(row => row.page.id))));
   const sourceTitles = createMemo(() => new Map(props.notebook.roots().map(root => [root.id, root.text])));
+  // Jobs concern sources; the Highlights tab shows none. A finished job leaves once its source exists, whichever view lists it.
+  const shownJobs = createMemo(() => tab() === 'highlights' || error() ? [] : visibleJobs(jobs().filter(job => !(job.state === 'failed' && dismissedJobs().has(job.id))), new Set([...displayedSources().map(row => row.page.id), ...sourceTitles().keys()])));
+  // A view spanning several states names each row's state.
+  const mixedStates = createMemo(() => currentQuery().states?.length !== 1);
+  // Marks stay unique within the list; the earliest-added source keeps the bare one, so sorting never renames.
+  const sigla = createMemo(() => pageSigla([...displayedSources()]
+    .sort((a, b) => a.source.added_at - b.source.added_at || a.page.id.localeCompare(b.page.id))
+    .map(row => ({ id: row.page.id, siglum: row.source.siglum, basis: row.source.siglum_basis, authored: row.source.siglum_authored }))));
   let scroll!: HTMLDivElement;
   let fileInput!: HTMLInputElement;
   let restoreScroll: number | null = props.view.scroll;
@@ -557,7 +565,8 @@ export function LibraryPane(props: LibraryPaneProps) {
                     </Button>
                   </div>
                   <Button class="library-row-open" data-library-row={row.page.id} onClick={event => props.onOpen(target, event.shiftKey)} onKeyDown={event => rowKey(event, target)}>
-                    <span class="library-siglum" aria-hidden="true">{row.source.siglum}</span><span class="library-title">{row.page.text}</span><span class="library-byline">{sourceByline(row)}</span>
+                    <span class="library-siglum" aria-hidden="true">{sigla().get(row.page.id) ?? row.source.siglum}</span><span class="library-title">{row.page.text}</span><span class="library-byline">{sourceByline(row)}</span>
+                    <Show when={mixedStates()}><span class="library-count library-state">{stateLabels[row.source.state]}</span></Show>
                     <span class="library-count library-year" aria-label="Published year">{row.published?.slice(0, 4)}</span>
                     <span class="library-progress"><Show when={row.progress > 0}>{formatProgress(row.progress)}</Show></span>
                     <span class="library-highlight-count" aria-label={row.unprocessed ? `${row.unprocessed} unprocessed highlights` : undefined}><Show when={row.unprocessed > 0}><Icon name="highlight" />{row.unprocessed}</Show></span>

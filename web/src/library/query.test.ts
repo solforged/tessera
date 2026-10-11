@@ -53,7 +53,7 @@ test('jobs retain unfinished work at any age and completed work for one day', ()
   expect(jobs).toHaveLength(6);
 });
 
-test('completed jobs disappear only when their source is in the current row list', () => {
+test('completed jobs disappear once their source is known', () => {
   const jobs = [
     { id: 'visible', state: 'done', source_id: 'source' },
     { id: 'filtered', state: 'done', source_id: 'other' },
