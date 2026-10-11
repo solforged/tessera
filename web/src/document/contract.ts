@@ -41,6 +41,7 @@ export interface BlockState {
   readonly text: string;
   readonly heading: 1 | 2 | 3 | null;
   readonly archived: boolean;
+  readonly keptCopy: Block['kept_copy'];
   readonly manual_types: readonly string[];
   readonly task: TaskState | null;
   readonly project: ProjectState | null;
@@ -92,6 +93,8 @@ export type Edit =
    * heading in the same undo step (the `# ` input rule).
    */
   | { kind: 'text'; id: string; text: string; heading?: 1 | 2 | 3 | null }
+  /** Resolve a version kept beside its original, in one batch and undo step. */
+  | { kind: 'keptCopy'; id: string; choice: 'use' | 'discard' | 'both' }
   | { kind: 'task'; id: string; value: TaskState | null }
   | { kind: 'planTask'; id: string; text: string; value: TaskState }
   | { kind: 'completeTask'; id: string; completedOn: string; stopWork?: WorkSession }

@@ -37,6 +37,17 @@ pub struct Block {
     pub revision: i64,
     pub created_at: i64,
     pub updated_at: i64,
+    #[serde(default)]
+    pub kept_copy: Option<KeptCopy>,
+}
+
+/// A live, unsettled version kept beside its original by sync.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct KeptCopy {
+    pub of: String,
+    pub origin: String,
+    pub origin_name: Option<String>,
+    pub mine: bool,
 }
 
 /// Who committed a batch.
@@ -55,6 +66,10 @@ pub enum Actor {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case")]
 pub enum Operation {
+    SettleSyncCopy {
+        id: String,
+        settled: bool,
+    },
     SetSource {
         id: String,
         base_revision: i64,

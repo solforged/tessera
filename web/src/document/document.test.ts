@@ -16,7 +16,8 @@ import { questionStatus } from './types';
 import { saveDetails, sourceMetadata } from '../library/details';
 import { sourceReadingOrder } from '../library/source-order';
 
-const baseUrl = 'http://127.0.0.1:4330';
+const port = Bun.env.TESSERA_TEST_PORT ?? '4330';
+const baseUrl = `http://127.0.0.1:${port}`;
 const api = createApi(baseUrl);
 const clients: Notebook[] = [];
 const actualFetch = globalThis.fetch;
@@ -53,7 +54,7 @@ function ids(doc: PageDocument) { return Array.from({ length: doc.outline.size()
 beforeAll(async () => {
   directory = await mkdtemp(join(tmpdir(), 'tessera-Document-tests-'));
   const root = resolve(import.meta.dir, '../../..');
-  process = Bun.spawn([Bun.env.TESSERA_TEST_BINARY ?? join(root, 'target/debug/tessera'), '--notebook', directory, 'serve', '--port', '4330'], { cwd: root, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' });
+  process = Bun.spawn([Bun.env.TESSERA_TEST_BINARY ?? join(root, 'target/debug/tessera'), '--notebook', directory, 'serve', '--port', port], { cwd: root, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' });
   const deadline = Date.now() + 5000;
   const expectedPath = await realpath(directory);
   while (true) {
@@ -75,6 +76,80 @@ afterAll(async () => {
 });
 
 describe('real notebook operations and recovery', () => {
+  test('kept-copy choices each save in one batch and undo restores both versions', async () => {
+    for (const choice of ['use', 'discard', 'both'] as const) {
+      const instance = await client();
+      const { id, doc, first } = await page(instance, 'Base wording');
+      const base = await api.block(first);
+      const headers = { 'Content-Type': 'application/json', 'x-tessera-schema': String((await api.notebook()).schema_version) };
+      const clone = await actualFetch(`${baseUrl}/api/sync/clone`, { method: 'POST', headers });
+      expect(clone.ok).toBe(true);
+      const ticket = JSON.parse(clone.headers.get('x-tessera-clone')!) as { device_id: string };
+      await clone.arrayBuffer();
+      success(doc.edit({ kind: 'text', id: first, text: 'Notebook wording' }));
+      await instance.flush();
+      const push = await actualFetch(`${baseUrl}/api/sync/push`, {
+        method: 'POST', headers,
+        body: JSON.stringify({ device: ticket.device_id, changes: [{
+          stamp: { id: ulid(), origin: ticket.device_id, at: Date.now() },
+          batch: { actor: { kind: 'person' }, operations: [{ op: 'edit_text', id: first, base_revision: base.revision, text: 'Phone wording' }] },
+          bases: { [first]: base.text },
+        }] }),
+      });
+      expect(push.ok).toBe(true);
+      const copy = (await api.page(id)).rows.find(row => row.block.kept_copy)!.block;
+      await eventually(() => !!doc.block(copy.id)?.keptCopy, 'kept copy did not stream into the open page');
+      const bodies: Batch[] = [];
+      globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input) === `${baseUrl}/api/batches` && init?.method === 'POST') bodies.push(JSON.parse(String(init.body)));
+        return actualFetch(input, init);
+      }) as typeof fetch;
+      try {
+        success(doc.edit({ kind: 'keptCopy', id: copy.id, choice }));
+        await instance.flush();
+        expect(bodies).toHaveLength(1);
+        expect(bodies[0]!.operations.map(operation => operation.op)).toEqual(choice === 'use' ? ['edit_text', 'delete'] : choice === 'discard' ? ['delete'] : ['settle_sync_copy']);
+        expect((await api.block(first)).text).toBe(choice === 'use' ? 'Phone wording' : 'Notebook wording');
+        if (choice === 'both') {
+          expect(doc.block(copy.id)?.keptCopy).toBeNull();
+          expect((await api.block(copy.id)).kept_copy).toBeNull();
+        } else expect((await api.page(id)).rows.some(row => row.block.id === copy.id)).toBe(false);
+        doc.undo();
+        await instance.flush();
+        expect(bodies).toHaveLength(2);
+        expect((await api.block(first)).text).toBe('Notebook wording');
+        expect((await api.block(copy.id)).text).toBe('Phone wording');
+        expect((await api.block(copy.id)).kept_copy).toEqual(copy.kept_copy);
+        expect(doc.block(copy.id)?.keptCopy).toEqual(copy.kept_copy);
+        doc.redo();
+        await instance.flush();
+        expect(bodies).toHaveLength(3);
+        if (choice === 'both') {
+          success(doc.edit({ kind: 'text', id: copy.id, text: 'Ordinary editable text' }));
+          await instance.flush();
+          expect((await api.block(copy.id)).text).toBe('Ordinary editable text');
+          doc.undo();
+          await instance.flush();
+          doc.undo();
+          await instance.flush();
+          const otherPage = ulid();
+          await api.submit({ actor: { kind: 'person' }, operations: [
+            { op: 'create_page', id: otherPage, title: `Moved original ${++serial}` },
+            { op: 'move', id: first, base_revision: (await api.block(first)).revision, parent_id: otherPage, after: null },
+          ] });
+          await (doc as Document).reload();
+          expect(doc.block(first)).toBeUndefined();
+          const queued = instance.queuedChanges();
+          expect(doc.edit({ kind: 'keptCopy', id: copy.id, choice: 'use' })).toEqual({ ok: false, reason: 'The original is not on this page. Both versions are unchanged.' });
+          expect(instance.queuedChanges()).toBe(queued);
+          expect((await api.block(first)).text).toBe('Notebook wording');
+          expect((await api.block(copy.id)).text).toBe('Phone wording');
+          expect(doc.block(copy.id)?.keptCopy).toEqual(copy.kept_copy);
+        }
+      } finally { globalThis.fetch = actualFetch; doc.release(); }
+    }
+  });
+
   test('own tag saves remove provisional pages from live and recovery caches', async () => {
     for (const viaNotebook of [false, true]) {
       const instance = await client();
@@ -1761,12 +1836,12 @@ describe('durable Action and Learning document commands', () => {
 
 async function sourcePage(instance: Notebook) {
   const title = `Evidence source ${++serial}`;
-  const fixture = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch: () => new Response(
+  const fixture = Bun.serve({ hostname: '127.0.0.1', port: Number(Bun.env.TESSERA_FIXTURE_TEST_PORT ?? 0), fetch: () => new Response(
     `<!doctype html><html><head><title>${title}</title><meta name="author" content="Ada Reader"><meta property="article:published_time" content="2024-06-01"></head><body><article><h1>${title}</h1><p>Frozen evidence stays attached to the passage. A reader can rewrite a highlight without changing what the source said, and return to the exact passage later.</p></article></body></html>`,
     { headers: { 'Content-Type': 'text/html' } },
   ) });
   try {
-    const job = await api.queueUrl(`http://127.0.0.1:${fixture.port}/source`);
+    const job = await api.queueUrl(`http://127.0.0.1:${fixture.port}/source/${serial}`);
     const deadline = Date.now() + 10000;
     let result = job;
     while (result.state !== 'done') {

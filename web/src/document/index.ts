@@ -379,6 +379,13 @@ export class Notebook implements NotebookClient, DocumentHost {
     };
     for (const action of command.actions) {
       switch (action.kind) {
+        case 'settleSyncCopy': {
+          const block = current(action.id);
+          operations.push({ op: 'settle_sync_copy', id: action.id, settled: action.settled });
+          if (Boolean(block.kept_copy) === action.settled) block.revision++;
+          block.kept_copy = action.settled ? null : action.copy;
+          break;
+        }
         case 'task':
         case 'project':
         case 'position':
@@ -1156,7 +1163,7 @@ export class Notebook implements NotebookClient, DocumentHost {
   private async createRoot(kind: 'page' | 'journal', text: string) {
     const id = ulid();
     const doc = this.open(id) as Document;
-    const root: Block = { id, kind, parent_id: null, page_id: id, text, heading: null, archived: false, revision: 0, created_at: Date.now(), updated_at: Date.now() };
+    const root: Block = { id, kind, parent_id: null, page_id: id, text, heading: null, archived: false, kept_copy: null, revision: 0, created_at: Date.now(), updated_at: Date.now() };
     doc.merge({ root, rows: [], targets: [] }, false);
     const action: Action = { kind: 'insert', block: root, after: null };
     const child: Action = { kind: 'insert', block: { ...root, id: ulid(), kind: 'block', parent_id: id, text: '' }, after: null };

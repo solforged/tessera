@@ -579,7 +579,7 @@ impl Notebook {
             .query_row(
                 "SELECT c.id, b.revision FROM sync_conflicts c JOIN blocks b ON b.id = c.id
                  WHERE c.kind = 'copy' AND c.origin = ?1 AND c.block_id = ?2 AND c.text = ?3
-                 AND b.deletion_id IS NULL ORDER BY c.change_seq DESC LIMIT 1",
+                 AND c.settled_at IS NULL AND b.deletion_id IS NULL ORDER BY c.change_seq DESC LIMIT 1",
                 params![origin, block, text],
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )

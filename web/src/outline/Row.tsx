@@ -19,6 +19,7 @@ import { formatSourceValue } from './source';
 import type { OutlineContext } from './context';
 import type { FieldSheet } from './field-sheet';
 import { checkboxValue } from '../fields/kinds';
+import { KeptCopyActions, KeptCopyLabel } from './KeptCopy';
 
 const questionLabels: Record<QuestionStatus, string> = { open: 'Open', answered: 'Answered', parked: 'Parked', unsettled: 'Unsettled' };
 export function createOutlineRows(context: Pick<OutlineContext,
@@ -146,6 +147,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
       <Show when={emptyEntry()}><button type="button" class="outline-field-label" title={field()?.name} onClick={() => editAt(id(), block()?.text.length ?? 0, true)}><Icon name="field" /><span>{field()?.name}</span></button></Show>
       <Show when={block()?.task}><TaskStatusButton task={block()?.task ?? null} disabled={capabilities.busy(id())} onChange={status => capabilities.status(id(), status)} /></Show>
       <div class="outline-body" classList={{ 'heading-1': block()?.heading === 1, 'heading-2': block()?.heading === 2, 'heading-3': block()?.heading === 3 }} onMouseDown={event => pointerStart(event, id(), event.currentTarget)}>
+        <Show when={block()?.keptCopy}>{copy => <KeptCopyLabel copy={copy()} />}</Show>
         <div class="outline-source-line"><div class="outline-source">
         <div class="editor-host" classList={{ 'host-active': editing() === id() }} ref={host => attach(id(), host)} />
         <Show when={editing() !== id()}><Switch>
@@ -168,6 +170,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
           <For each={block()?.citations}>{citation => <CitationChip citation={citation} pageId={props.pageId} notebook={props.notebook} onOpen={props.onOpen} />}</For>
         </span></Show>
         </div>
+        <Show when={block()?.keptCopy}><KeptCopyActions id={id()} apply={edit => apply(edit, false)} /></Show>
         <For each={block()?.citations}>{citation => <Show when={block()?.text.trim() !== citation.quote.trim()}>
           <p class="outline-citation-quote" title={citation.quote}>{citation.quote}</p>
         </Show>}</For>

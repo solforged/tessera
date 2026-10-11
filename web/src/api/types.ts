@@ -6,6 +6,7 @@
 import type { fieldKinds } from '../fields/kinds';
 
 export type BlockKind = 'block' | 'page' | 'journal';
+export interface KeptCopy { of: string; origin: string; origin_name: string | null; mine: boolean }
 
 export interface Block {
   id: string;
@@ -19,6 +20,7 @@ export interface Block {
   revision: number;
   created_at: number;
   updated_at: number;
+  kept_copy?: KeptCopy | null;
 }
 
 export type Completion = Block & { alias: string | null };
@@ -30,6 +32,7 @@ export type Actor =
   | { kind: 'client'; name: string };
 
 export type Operation =
+  | { op: 'settle_sync_copy'; id: string; settled: boolean }
   | { op: 'create_page'; id: string; title: string }
   | { op: 'set_source'; id: string; base_revision: number; source: SourceState | null }
   | { op: 'attach_snapshot'; id: string; base_revision: number; snapshot_id: string }

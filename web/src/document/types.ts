@@ -46,6 +46,7 @@ export type Action =
   | { kind: 'split'; id: string; block: Block; left: string; right: string }
   | { kind: 'merge'; id: string; destinationId: string; text: string }
   | { kind: 'text'; id: string; text: string; baseRevision?: number }
+  | { kind: 'settleSyncCopy'; id: string; settled: boolean; copy: NonNullable<Block['kept_copy']> }
   | { kind: 'heading'; id: string; heading: 1 | 2 | 3 | null }
   | { kind: 'archive'; id: string; archived: boolean }
   | { kind: 'fieldKind'; id: string; value: FieldKind; previous: FieldKind; baseRevision?: number }

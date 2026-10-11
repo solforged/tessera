@@ -11,7 +11,8 @@ import type { EditResult, PageDocument } from './contract';
 import { boundaryDeletion } from './outline-mechanics';
 import { inlineFieldValues, selectionIds, selectionRoots, visibleIds } from '../outline/visibility';
 
-const baseUrl = 'http://127.0.0.1:43862';
+const port = Bun.env.TESSERA_MECHANICS_TEST_PORT ?? '43862';
+const baseUrl = `http://127.0.0.1:${port}`;
 const api = createApi(baseUrl);
 const clients: Notebook[] = [];
 let service: Subprocess<'ignore', 'pipe', 'pipe'>;
@@ -31,7 +32,7 @@ async function eventually(predicate: () => boolean) {
 beforeAll(async () => {
   directory = await mkdtemp(join(tmpdir(), 'tessera-outline-mechanics-'));
   const root = resolve(import.meta.dir, '../../..');
-  service = Bun.spawn([Bun.env.TESSERA_TEST_BINARY ?? join(root, 'target/debug/tessera'), '--notebook', directory, 'serve', '--port', '43862'], { cwd: root, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' });
+  service = Bun.spawn([Bun.env.TESSERA_TEST_BINARY ?? join(root, 'target/debug/tessera'), '--notebook', directory, 'serve', '--port', port], { cwd: root, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' });
   const expectedPath = await realpath(directory);
   const deadline = Date.now() + 5000;
   while (true) {

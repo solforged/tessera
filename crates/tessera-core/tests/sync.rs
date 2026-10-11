@@ -244,6 +244,159 @@ fn text_both_devices_changed_is_kept_beside_the_block_once() {
 }
 
 #[test]
+fn kept_copy_actions_and_their_inverses_replicate() {
+    for choice in ["use", "discard", "both"] {
+        let mut p = pair();
+        let desktop = edit(&p.hub, &id(2), "Desktop wording");
+        apply(&mut p.hub, vec![desktop]);
+        let phone = edit(&p.replica, &id(2), "Phone wording");
+        apply(&mut p.replica, vec![phone]);
+        p.sync();
+        let copy = p.hub.sync_conflicts().unwrap()[0].id.clone();
+        let origin = p.replica.device_id().unwrap();
+        let hub_db = Connection::open(p._hub_dir.path().join(DATABASE_FILE)).unwrap();
+        hub_db.execute("INSERT INTO sync_devices(id, name, key_hash, paired_at) VALUES ('paired', 'Phone', 'hash', 1)", []).unwrap();
+        hub_db
+            .execute(
+                "UPDATE sync_replicas SET paired_device = 'paired' WHERE device_id = ?1",
+                [&origin],
+            )
+            .unwrap();
+        let marker = p.hub.block(&copy).unwrap().kept_copy.unwrap();
+        assert_eq!(marker.of, id(2));
+        assert_eq!(marker.origin, origin);
+        assert_eq!(marker.origin_name.as_deref(), Some("Phone"));
+        assert!(!marker.mine);
+        assert!(p.replica.block(&copy).unwrap().kept_copy.unwrap().mine);
+        assert_eq!(
+            p.hub.page(&p.page).unwrap().rows[1].block.kept_copy,
+            Some(marker)
+        );
+
+        let mut operations = Vec::new();
+        if choice == "use" {
+            operations.push(edit(&p.replica, &id(2), "Phone wording"));
+        }
+        operations.push(if choice == "both" {
+            Operation::SettleSyncCopy {
+                id: copy.clone(),
+                settled: true,
+            }
+        } else {
+            Operation::Delete {
+                id: copy.clone(),
+                base_revision: p.replica.block(&copy).unwrap().revision,
+            }
+        });
+        let committed = apply(&mut p.replica, operations);
+        p.sync();
+        p.assert_converged();
+        for notebook in [&p.hub, &p.replica] {
+            assert_eq!(
+                text(notebook, &id(2)),
+                if choice == "use" {
+                    "Phone wording"
+                } else {
+                    "Desktop wording"
+                }
+            );
+            if choice == "both" {
+                assert!(notebook.block(&copy).unwrap().kept_copy.is_none());
+                assert!(
+                    notebook.page(&p.page).unwrap().rows[1]
+                        .block
+                        .kept_copy
+                        .is_none()
+                );
+            } else {
+                assert!(notebook.block(&copy).is_err());
+            }
+        }
+
+        let mut inverse = vec![if choice == "both" {
+            Operation::SettleSyncCopy {
+                id: copy.clone(),
+                settled: false,
+            }
+        } else {
+            Operation::Restore {
+                id: copy.clone(),
+                deletion_id: committed.deletions[0].clone(),
+                revision: committed
+                    .revisions
+                    .iter()
+                    .find(|revision| revision.id == copy)
+                    .unwrap()
+                    .revision,
+            }
+        }];
+        if choice == "use" {
+            inverse.push(edit(&p.replica, &id(2), "Desktop wording"));
+        }
+        apply(&mut p.replica, inverse);
+        p.sync();
+        p.assert_converged();
+        for notebook in [&p.hub, &p.replica] {
+            assert_eq!(text(notebook, &id(2)), "Desktop wording");
+            assert_eq!(text(notebook, &copy), "Phone wording");
+            assert!(notebook.block(&copy).unwrap().kept_copy.is_some());
+        }
+        // Keep both leaves the block editable at the acknowledged revision.
+        apply(
+            &mut p.replica,
+            vec![Operation::SettleSyncCopy {
+                id: copy.clone(),
+                settled: true,
+            }],
+        );
+        let changed = edit(&p.replica, &copy, "An ordinary block");
+        apply(&mut p.replica, vec![changed]);
+        p.sync();
+        p.assert_converged();
+        assert_eq!(text(&p.hub, &copy), "An ordinary block");
+    }
+}
+
+#[test]
+fn settling_requires_a_copy_conflict() {
+    let mut p = pair();
+    for target in [id(2), id(999)] {
+        assert!(matches!(
+            p.hub.apply(&batch(vec![Operation::SettleSyncCopy {
+                id: target,
+                settled: true
+            }])),
+            Err(tessera_core::Error::Validation { .. })
+        ));
+    }
+    let stale = edit(&p.replica, &id(2), "Rejected text");
+    let revision = p.hub.block(&id(2)).unwrap().revision;
+    apply(
+        &mut p.hub,
+        vec![Operation::Delete {
+            id: id(2),
+            base_revision: revision,
+        }],
+    );
+    apply(&mut p.replica, vec![stale]);
+    p.sync();
+    let rejected = p
+        .hub
+        .sync_conflicts()
+        .unwrap()
+        .into_iter()
+        .find(|row| row.kind == "rejected")
+        .unwrap();
+    assert!(matches!(
+        p.hub.apply(&batch(vec![Operation::SettleSyncCopy {
+            id: rejected.id,
+            settled: false
+        }])),
+        Err(tessera_core::Error::Validation { .. })
+    ));
+}
+
+#[test]
 fn a_move_on_one_device_and_an_edit_on_the_other_both_apply() {
     let mut p = pair();
     let base = p.hub.block(&id(2)).unwrap().revision;
