@@ -3,15 +3,18 @@
 Tessera is a local Rust service that owns one SQLite notebook, plus a browser editor and other clients that talk to it. The prototype's measurements show that its slow paths came from doing page-sized work per edit, not from its framework, SQLite or HTTP. So the stack stays familiar and the work per edit gets small.
 
 ```text
-Browser editor      CLI        Agents       Terminal (later)
-       \             |            |              /
-        WebSocket + HTTP operation API (loopback)
-                         |
-             tessera-service (one writer)
-                         |
-          tessera-core: domain rules, transactions
-                         |
-              SQLite notebook (WAL, FTS5)
+macOS / Linux service              Android app                 Browser demo
+Browser, CLI, agents               the pages                   the pages
+        |                              |                           |
+WebSocket + HTTP (loopback)     Tauri IPC, no port        worker transport
+        |                              |                           |
+tessera-service (one writer)    embedded router           crates/tessera-web
+        \                              |                          /
+         ---------------- tessera-core: domain rules ----------------
+                                    |
+                  SQLite notebook (WAL, FTS5) and objects/
+                  Android: private app storage; it does not sync yet
+                  Demo: OPFS, with objects in browser_objects
 ```
 
 ## Decisions
@@ -114,13 +117,14 @@ A stale operation fails without writing. Clean remote changes merge into the loc
 
 ```text
 crates/tessera-core      domain model, migrations, operations
-crates/tessera-service   HTTP and WebSocket service
+crates/tessera-service   HTTP and WebSocket service; embedded router for Android and the demo
+crates/tessera-web       browser demo: core and routes compiled to wasm
 crates/tessera-cli       command line
 crates/tessera-desktop   macOS app: window, launch agent handover, updates
 crates/tessera-android   Android app: notebook in process, pages over IPC
 crates/tessera-bench     corpus generator and backend budget checks
 crates/tessera-ingest    extractors for EPUB books and web articles
-web/                     Solid editor
+web/                     Solid editor; android/ and demo/ are the other two transports
 spikes/editor/           editor prototypes and their measurement runner
 docs/                    design documents
 ```
