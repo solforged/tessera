@@ -1,4 +1,4 @@
-import { Show, createEffect, createMemo, createSignal, onCleanup } from 'solid-js';
+import { Show, createEffect, createMemo, createSignal, createUniqueId, onCleanup } from 'solid-js';
 import type { Agenda, Citation, LibraryRow, SourceView } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { SourceCover } from '../library/SourceCover';
@@ -12,7 +12,12 @@ import { bookChapters, chapterAt } from '../ui/book-map';
 import { Button } from '../ui/Button';
 import { spokenJournalDate } from './journal-date';
 import { JournalTrail } from './JournalTrail';
-import { groupAgenda } from './task-labels';
+import { groupAgenda, groupDayAgenda } from './task-labels';
+import { createClock } from './clock';
+import { TaskSourceRows } from './JournalAgenda';
+import { movableTo } from './reschedule';
+import { createBulkMove } from './BulkMove';
+import { Icon } from '../ui/Icon';
 import './agenda.css';
 import '../library/library.css';
 
@@ -83,6 +88,19 @@ export function JournalHeader(props: { date: string; notebook: NotebookClient; o
     const current = chapterAt(chapters, at);
     return { length, at, chapters, current };
   });
+  // The Agenda tile opens today's tasks in place: checkable, reschedulable, with carried work folded to one line.
+  const ledgerId = createUniqueId();
+  const ledgerKey = 'tessera.today.ledger';
+  const [ledger, setLedgerOpen] = createSignal(localStorage.getItem(ledgerKey) !== 'closed');
+  const setLedger = (open: boolean) => {
+    setLedgerOpen(open);
+    try { localStorage.setItem(ledgerKey, open ? 'open' : 'closed'); } catch { /* The choice lasts for this page. */ }
+  };
+  const [carriedOpen, setCarriedOpen] = createSignal(false);
+  const clock = createClock(props.notebook);
+  const dayGroups = createMemo(() => { const agenda = desk()?.agenda; return agenda ? groupDayAgenda(agenda.items, [], props.date) : null; });
+  // Every commit refreshes the desk, so the ledger needs no refresh of its own.
+  const carried = createBulkMove(props.notebook, () => {});
   const Placeholder = () => <span class="journal-tile-placeholder" aria-hidden="true"><span /><span /></span>;
   return <section class="journal-header" aria-label={spokenJournalDate(props.date)}>
     <JournalTrail date={props.date} notebook={props.notebook} onSelect={async date => {
@@ -91,8 +109,8 @@ export function JournalHeader(props: { date: string; notebook: NotebookClient; o
     }} />
     <Show when={today()}>
       <div class="journal-tiles" aria-label="Today">
-        <Button class="journal-tile" aria-busy={!desk() && !deskError()} onClick={() => props.onOpen({ kind: 'agenda', date: props.date }, false)}>
-          <span class="journal-tile-heading"><span>Agenda</span><span class="journal-tile-action" aria-hidden="true">›</span></span>
+        <Button class="journal-tile journal-agenda-tile" aria-busy={!desk() && !deskError()} aria-expanded={ledger()} aria-controls={ledgerId} title={ledger() ? 'Hide today’s tasks' : 'Show today’s tasks'} onClick={() => setLedger(!ledger())}>
+          <span class="journal-tile-heading"><span>Agenda</span><Icon name="down" class="journal-tile-chevron" /></span>
           <Show when={agendaSummary()} fallback={deskError() ? <span class="journal-tile-meta journal-tile-unavailable">Agenda unavailable</span> : <Placeholder />}>{summary => <>
             <span class="journal-tile-count">{summary().planned}<small>today · <span classList={{ 'agenda-late': summary().overdue > 0 }}>{summary().overdue} overdue</span></small></span>
             <span class="journal-tile-meta"><Show when={summary().next} fallback="Nothing else planned today">{next => <>Next: <BlockText text={next().source.block.text} notebook={props.notebook} interactive={false} />{next().time ? ` · ${next().time}` : ''}</>}</Show></span>
@@ -117,6 +135,21 @@ export function JournalHeader(props: { date: string; notebook: NotebookClient; o
         </Button>
       </div>
       <Show when={deskError() || readingError()}><p class="agenda-error" role="alert">{[deskError(), readingError()].filter(Boolean).join(' · ')}</p></Show>
+      <Show when={ledger() && dayGroups()}>{groups => <section id={ledgerId} class="today-ledger" data-task-rows aria-label="Today's tasks">
+        <carried.Notice />
+        <Show when={groups().overdue.length}>
+          <div class="today-carried">
+            <Button class="today-carried-toggle" aria-expanded={carriedOpen()} onClick={() => setCarriedOpen(value => !value)}><span class="agenda-late">{groups().overdue.length} carried over</span><Icon name="down" /></Button>
+            <span class="section-rule" />
+            <Show when={movableTo(groups().overdue, props.date).length}><Button class="today-carried-move" onClick={() => carried.move(groups().overdue, props.date)}>Move to today</Button></Show>
+          </div>
+          <Show when={carriedOpen()}><TaskSourceRows rows={groups().overdue} date={props.date} notebook={props.notebook} timetable plan onOpen={props.onOpen} onChanged={() => {}} /></Show>
+        </Show>
+        <Show when={groups().planned.length} fallback={<p class="agenda-message agenda-day-empty">Nothing planned today</p>}>
+          <TaskSourceRows rows={groups().planned} date={props.date} notebook={props.notebook} timetable plan now={clock()} onOpen={props.onOpen} onChanged={() => {}} />
+        </Show>
+        <Button class="today-ledger-open" onClick={event => props.onOpen({ kind: 'agenda', date: props.date }, event.shiftKey)}>Open agenda<span aria-hidden="true">›</span></Button>
+      </section>}</Show>
     </Show>
     <div class="journal-writing-heading"><span>Journal</span><span class="section-rule" /></div>
   </section>;

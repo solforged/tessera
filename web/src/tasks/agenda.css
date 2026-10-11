@@ -213,6 +213,20 @@ div.journal-agenda-toggle { display: flex; align-items: center; gap: var(--space
 .journal-tile-placeholder { display: flex; flex-direction: column; gap: var(--space-12); padding-top: var(--space-8); min-height: 72px; }
 .journal-tile-placeholder > span { height: var(--space-12); width: 70%; background: var(--line); }
 .journal-tile-placeholder > span + span { width: 45%; }
+/* The Agenda tile folds today's tasks open beneath the tiles, like the period trail's ledgers: a chevron, not an arrow. */
+.journal-tile-chevron { width: var(--icon-size-small); height: var(--icon-size-small); color: var(--accent); rotate: -90deg; transition: rotate var(--motion-fast) var(--motion-ease); }
+.journal-agenda-tile[aria-expanded="true"] .journal-tile-chevron { rotate: 0deg; }
+.today-ledger { margin-top: var(--space-12); padding-top: var(--space-4); border-top: var(--rule-width) solid var(--line); }
+.today-carried { display: flex; align-items: center; gap: var(--space-8); min-height: var(--row-height); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.today-carried .button { min-height: var(--target-size); padding-inline: var(--space-4); font: inherit; }
+.today-carried-toggle > .icon { width: var(--icon-size-small); height: var(--icon-size-small); color: var(--faint); rotate: -90deg; transition: rotate var(--motion-fast) var(--motion-ease); }
+.today-carried-toggle[aria-expanded="true"] > .icon { rotate: 0deg; }
+.today-carried-move.button { color: var(--muted); }
+.today-carried-move.button:hover:not(:disabled) { color: var(--text); }
+.today-ledger-open.button { display: flex; gap: var(--space-4); margin: var(--space-4) 0 0 auto; padding-inline: var(--space-4); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.today-ledger-open > span { color: var(--accent); }
+.agenda-moved { display: flex; align-items: center; gap: var(--space-8); }
+.agenda-moved > .button { min-height: var(--target-size); padding-inline: var(--space-4); color: var(--accent); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .journal-reading-book { display: flex; align-items: flex-start; gap: var(--space-8); min-width: 0; }
 .journal-reading-book .library-cover { flex: none; width: var(--resume-cover-width); }
 .journal-reading-text { flex: 1; min-width: 0; }
@@ -227,7 +241,7 @@ div.journal-agenda-toggle { display: flex; align-items: center; gap: var(--space
   .journal-tile.button { display: grid; grid-template-columns: 5.5rem minmax(0, 1fr) auto; grid-template-rows: 1fr; align-items: center; gap: var(--space-8); height: 48px; padding: var(--space-8) 0; border: 0; border-bottom: var(--rule-width) solid var(--line); border-radius: 0; background: transparent; }
   .journal-tile-heading { display: contents; }
   .journal-tile-heading > span:first-child { grid-column: 1; grid-row: 1; }
-  .journal-tile-action { grid-column: 3; grid-row: 1; }
+  .journal-tile-action, .journal-tile-chevron { grid-column: 3; grid-row: 1; }
   .journal-tile-count { grid-column: 2; grid-row: 1; flex-wrap: nowrap; font: var(--apparatus); white-space: nowrap; }
   .journal-tile-count small { font: inherit; }
   .journal-tile > .journal-tile-meta:not(.journal-tile-unavailable) { display: none; }
