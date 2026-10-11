@@ -51,8 +51,9 @@ use serde::Deserialize;
 use serde::Serialize;
 use tessera_core::{
     Actor, AgentChange, AgentReceipt, AgentRequest, Backlink, Batch, Block, BlockInPage,
-    ChangeEvent, Committed, Completion, FieldsView, KindIndex, NameMatch, NoteIndex, NoteKind,
-    Notebook, NotebookInfo, PageView, QueryResult, SettingsView, TypeInfo, UndoReceipt, View,
+    ChangeEvent, Committed, Completion, FieldDetail, FieldKind, FieldsView, KindIndex, NameMatch,
+    NoteIndex, NoteKind, Notebook, NotebookInfo, PageView, QueryResult, SettingsView, TypeInfo,
+    UndoReceipt, View,
 };
 use tokio::sync::broadcast;
 
@@ -294,6 +295,7 @@ fn notebook_routes() -> Router<AppState> {
         .route("/api/types/{id}", get(type_info))
         .route("/api/types/{id}/starting-template", post(starting_template))
         .route("/api/fields", get(fields))
+        .route("/api/fields/{id}", get(field_detail))
         .route("/api/query", post(query))
         .route("/api/views", get(views))
         .route("/api/views/{id}", get(view))
@@ -681,6 +683,26 @@ async fn members(
 
 async fn fields(State(state): State<AppState>) -> Result<Json<FieldsView>, ApiError> {
     run(&state, |notebook| notebook.fields()).await.map(Json)
+}
+
+#[derive(Deserialize)]
+struct FieldDetailQuery {
+    kind: Option<FieldKind>,
+    limit: Option<usize>,
+}
+
+async fn field_detail(
+    State(state): State<AppState>,
+    path: Result<Path<String>, PathRejection>,
+    query: Result<Query<FieldDetailQuery>, QueryRejection>,
+) -> Result<Json<FieldDetail>, ApiError> {
+    let Path(id) = path.map_err(ApiError::from)?;
+    let Query(query) = query.map_err(ApiError::from)?;
+    run(&state, move |notebook| {
+        notebook.field_detail(&id, query.kind, query.limit)
+    })
+    .await
+    .map(Json)
 }
 
 async fn types(State(state): State<AppState>) -> Result<Json<Vec<TypeInfo>>, ApiError> {

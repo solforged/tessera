@@ -2,9 +2,12 @@ use std::collections::{HashMap, HashSet};
 
 use rusqlite::{Connection, OptionalExtension, params};
 
-use crate::model::{FieldSummary, FieldType};
+use crate::model::{
+    FieldDetail, FieldOptionUse, FieldOwner, FieldOwnerValues, FieldSummary, FieldTemplate,
+    FieldType, FieldValue, FieldValueUse,
+};
 use crate::reads::hidden_blocks;
-use crate::storage::{not_found, validate_date, validate_id, validation};
+use crate::storage::{block_at, block_columns, not_found, validate_date, validate_id, validation};
 use crate::{
     Block, BlockKind, FieldDefinition, FieldKind, FieldOption, FieldsView, Notebook, Operation,
     Reading, ReadingValue, Result,
@@ -247,14 +250,19 @@ pub(crate) fn rebuild(conn: &Connection) -> Result<()> {
 }
 
 pub(crate) fn definitions(conn: &Connection) -> Result<Vec<FieldDefinition>> {
+    definitions_for(conn, None)
+}
+
+fn definitions_for(conn: &Connection, id: Option<&str>) -> Result<Vec<FieldDefinition>> {
     let mut statement = conn.prepare_cached(
         "SELECT d.id, d.text, COALESCE(f.kind, 'text'), d.revision, o.id, o.text
          FROM blocks p JOIN blocks d ON d.parent_id = p.id LEFT JOIN fields f ON f.block_id = d.id
          LEFT JOIN blocks o ON o.parent_id = d.id AND o.deletion_id IS NULL AND o.archived = 0
          WHERE p.kind = 'page' AND p.title_key = 'fields' AND p.deletion_id IS NULL
-         AND d.deletion_id IS NULL AND d.archived = 0 ORDER BY d.ordinal, d.id, o.ordinal, o.id",
+         AND d.deletion_id IS NULL AND d.archived = 0 AND (?1 IS NULL OR d.id = ?1)
+         ORDER BY d.ordinal, d.id, o.ordinal, o.id",
     )?;
-    let mut cursor = statement.query([])?;
+    let mut cursor = statement.query([id])?;
     let mut result: Vec<FieldDefinition> = Vec::new();
     while let Some(row) = cursor.next()? {
         let name = row.get_ref(1)?.as_str().map_err(|error| {
@@ -358,6 +366,180 @@ impl Notebook {
             fields,
         })
     }
+
+    /// Read a field and its consequences without changing authored blocks.
+    pub fn field_detail(
+        &self,
+        id: &str,
+        kind: Option<FieldKind>,
+        limit: Option<usize>,
+    ) -> Result<FieldDetail> {
+        validate_id(id)?;
+        let definition = definitions_for(&self.conn, Some(id))?
+            .pop()
+            .ok_or_else(|| not_found(id))?;
+        let kind = kind.unwrap_or(definition.kind);
+        let option_uses = if kind == FieldKind::Choice {
+            definition
+                .options
+                .iter()
+                .map(|option| FieldOptionUse {
+                    option_id: option.id.clone(),
+                    uses: 0,
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
+        let mut detail = FieldDetail {
+            field: FieldSummary {
+                definition,
+                owners: 0,
+                types: Vec::new(),
+            },
+            kind,
+            owners_total: 0,
+            values_total: 0,
+            empty_total: 0,
+            problems_total: 0,
+            templates: Vec::new(),
+            option_uses,
+            owners: Vec::new(),
+            problems: Vec::new(),
+            readable: Vec::new(),
+        };
+        let option_indices: HashMap<_, _> = detail
+            .option_uses
+            .iter()
+            .enumerate()
+            .map(|(index, option)| (option.option_id.clone(), index))
+            .collect();
+        // Entries, including empty ones, follow the register's whole-reference
+        // and hidden-ancestor rules. Values and targets join once, not per row.
+        let mut statement = self.conn.prepare_cached(concat!(
+            hidden_blocks!(),
+            "SELECT o.id, o.text, o.page_id, p.text, e.id, e.text, v.id, v.text, ",
+            block_columns!("t"),
+            " FROM links l JOIN blocks e ON e.id = l.source_id
+              JOIN blocks o ON o.id = e.parent_id JOIN blocks p ON p.id = o.page_id
+              LEFT JOIN blocks v ON v.parent_id = e.id AND v.deletion_id IS NULL AND v.archived = 0
+              LEFT JOIN links vl ON vl.source_id = v.id AND vl.occurrence = 0
+              LEFT JOIN blocks t ON t.id = vl.target_id AND t.deletion_id IS NULL
+              WHERE l.target_id = ?1 AND l.occurrence = 0
+              AND e.deletion_id IS NULL AND o.deletion_id IS NULL AND p.deletion_id IS NULL
+              AND e.rowid NOT IN (SELECT rowid FROM hidden)
+              ORDER BY o.text COLLATE NOCASE, o.id, e.ordinal, e.id, v.ordinal, v.id"
+        ))?;
+        let mut cursor = statement.query([id])?;
+        let limit = limit.unwrap_or(12).min(500);
+        let mut owner_id = String::new();
+        let mut entry_id = String::new();
+        let mut entry_empty = false;
+        while let Some(row) = cursor.next()? {
+            let entry_text: String = row.get(5)?;
+            if reference(&entry_text) != Some(id) {
+                continue;
+            }
+            let owner = FieldOwner {
+                id: row.get(0)?,
+                text: row.get(1)?,
+                page_id: row.get(2)?,
+                page_title: row.get(3)?,
+            };
+            let entry: String = row.get(4)?;
+            if owner.id != owner_id {
+                owner_id.clone_from(&owner.id);
+                detail.owners_total += 1;
+                if detail.owners.len() < limit {
+                    detail.owners.push(FieldOwnerValues {
+                        owner: owner.clone(),
+                        entry_id: entry.clone(),
+                        values: Vec::new(),
+                    });
+                }
+            }
+            if entry != entry_id {
+                detail.empty_total += usize::from(entry_empty);
+                entry_id.clone_from(&entry);
+                entry_empty = true;
+            }
+            let Some(text) = row
+                .get::<_, Option<String>>(7)?
+                .filter(|text| !text.trim().is_empty())
+            else {
+                continue;
+            };
+            entry_empty = false;
+            detail.values_total += 1;
+            let target = if matches!(row.get_ref(8)?, rusqlite::types::ValueRef::Null) {
+                None
+            } else {
+                Some(block_at(row, 8)?)
+            };
+            let reading = reading(kind, id, &text, target.as_ref());
+            if let Reading::Value {
+                target: Some(target),
+                ..
+            } = &reading
+                && let Some(&index) = option_indices.get(target)
+            {
+                detail.option_uses[index].uses += 1;
+            }
+            let value = FieldValue {
+                id: row.get(6)?,
+                text,
+                reading,
+            };
+            if let Some(visible) = detail
+                .owners
+                .last_mut()
+                .filter(|item| item.owner.id == owner.id)
+            {
+                visible.values.push(value.clone());
+            }
+            let destination = if matches!(value.reading, Reading::Problem { .. }) {
+                detail.problems_total += 1;
+                (detail.problems.len() < 100).then_some(&mut detail.problems)
+            } else {
+                (detail.readable.len() < 12).then_some(&mut detail.readable)
+            };
+            if let Some(destination) = destination {
+                destination.push(FieldValueUse {
+                    owner,
+                    entry_id: entry,
+                    value,
+                });
+            }
+        }
+        detail.empty_total += usize::from(entry_empty);
+        detail.field.owners = detail.owners_total;
+        let mut statement = self.conn.prepare_cached(concat!(
+            hidden_blocks!(),
+            "SELECT t.id, t.text, f.position + 1, COUNT(DISTINCT CASE WHEN p.id IS NOT NULL THEN b.id END)
+             FROM type_fields f JOIN blocks t ON t.id = f.type_id
+             LEFT JOIN memberships m ON m.type_id = t.id
+             LEFT JOIN blocks b ON b.id = m.block_id AND b.deletion_id IS NULL
+                 AND b.rowid NOT IN (SELECT rowid FROM hidden)
+             LEFT JOIN blocks p ON p.id = b.page_id AND p.deletion_id IS NULL
+             WHERE f.field_id = ?1 AND t.deletion_id IS NULL
+                 AND t.rowid NOT IN (SELECT rowid FROM hidden)
+             GROUP BY t.id ORDER BY t.text COLLATE NOCASE, t.id"
+        ))?;
+        let mut cursor = statement.query([id])?;
+        while let Some(row) = cursor.next()? {
+            detail.field.types.push(FieldType {
+                id: row.get(0)?,
+                name: row.get(1)?,
+            });
+            detail.templates.push(FieldTemplate {
+                type_id: row.get(0)?,
+                name: row.get(1)?,
+                position: row.get::<_, i64>(2)? as usize,
+                members: row.get::<_, i64>(3)? as usize,
+            });
+        }
+        Ok(detail)
+    }
 }
 
 pub(crate) fn number(text: &str) -> Option<f64> {
@@ -441,14 +623,14 @@ pub(crate) fn reading(kind: FieldKind, field: &str, text: &str, target: Option<&
 }
 
 /// A calendar date, or a bare year or year and month for sources dated no
-/// more precisely. ISO order keeps partial dates sortable as text.
+/// more precisely. Sorting pads bare years, never their authored text.
 pub(crate) fn partial_date(text: &str) -> bool {
     let bytes = text.as_bytes();
     let year = |digits: &[u8]| {
-        digits.len() == 4 && digits.iter().all(u8::is_ascii_digit) && digits != b"0000"
+        digits.iter().all(u8::is_ascii_digit) && digits.iter().any(|digit| *digit != b'0')
     };
     match bytes.len() {
-        4 => year(bytes),
+        1..=4 => year(bytes),
         7 => {
             year(&bytes[..4])
                 && bytes[4] == b'-'

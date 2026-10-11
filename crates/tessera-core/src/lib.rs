@@ -70,7 +70,8 @@ pub use error::{Error, Result};
 pub use migrate::SCHEMA_VERSION;
 pub use model::{
     Actor, Backlink, Batch, Block, BlockInPage, BlockKind, ChangeEvent, ChangeStamp, Committed,
-    Direction, FieldDefinition, FieldKind, FieldOption, FieldSummary, FieldType, FieldValue,
+    Direction, FieldDefinition, FieldDetail, FieldKind, FieldOption, FieldOptionUse, FieldOwner,
+    FieldOwnerValues, FieldSummary, FieldTemplate, FieldType, FieldValue, FieldValueUse,
     FieldsView, Filter, FilterOp, KeptCopy, Operation, PageView, Query, QueryResult, QueryRow,
     Reading, ReadingValue, Revision, Row, Setting, SettingRevision, SettingsView, SortBy, SortKey,
     TextRewrite, TypeInfo, View,

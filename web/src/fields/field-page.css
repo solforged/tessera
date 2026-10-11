@@ -1,0 +1,65 @@
+.field-page-pane { flex: 1; min-width: 0; min-height: 0; overflow: auto; padding: var(--page-top-space) var(--pane-inset) var(--page-bottom-space); outline: none; }
+.field-sheet { width: 100%; max-width: var(--measure); margin-inline: auto; font-size: var(--text-control); line-height: var(--line-control); }
+.field-eyebrow { margin-bottom: var(--page-eyebrow-gap); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.field-eyebrow .button { min-height: 0; padding: 0; border: 0; font: inherit; color: var(--muted); }
+.field-heading { display: flex; align-items: baseline; gap: var(--space-16); justify-content: space-between; }
+.field-heading h1 { min-width: 0; margin: 0; overflow-wrap: anywhere; font: var(--page-title-font); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
+.field-heading > .button { flex: none; }
+.field-summary { margin: var(--page-title-gap) 0 var(--page-head-gap); color: var(--muted); font: var(--apparatus); }
+.field-kind-row { display: flex; align-items: center; gap: var(--space-16); padding-block: var(--space-12); border-block: var(--rule-width) solid var(--line); color: var(--muted); }
+.field-kind-row > :first-child { margin-right: auto; }
+.field-kind-row .button { color: var(--text); }
+.field-section { margin-top: var(--section-gap); }
+.field-section-head { display: flex; align-items: center; gap: var(--space-12); margin: 0 0 var(--section-item-gap); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.field-section-head > :last-child { color: var(--faint); }
+.field-section-head .section-rule { flex: 1; min-width: var(--space-16); }
+.field-sheet .field-rubric { color: var(--danger); }
+.field-apparatus { color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; }
+.field-ledger { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.field-ledger :is(th, td) { min-height: var(--row-height); height: var(--row-height); padding: var(--space-4) var(--space-8) var(--space-4) 0; border-bottom: var(--rule-width) solid var(--line); text-align: left; vertical-align: middle; overflow-wrap: anywhere; }
+.field-ledger th { color: var(--faint); font: var(--apparatus); }
+.field-ledger th:nth-child(1) { width: 28%; }
+.field-ledger:not(.field-options) td:first-child { font-family: var(--font-mono); }
+.field-ledger th:nth-child(2) { width: 43%; }
+.field-ledger .button { min-height: 0; padding: 0; text-align: left; justify-content: flex-start; white-space: normal; font-weight: var(--weight-body); }
+.field-options th:first-child { width: 68%; }
+.field-options th:nth-child(2) { width: 16%; }
+.field-options :is(th, td):nth-child(2), .field-options td:last-child { text-align: right; }
+.field-options td:last-child .button { color: var(--faint); font: var(--apparatus); }
+.field-inline-edit { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-8); padding-block: var(--space-4); }
+.field-inline-edit .input { flex: 1; min-width: 0; width: 100%; }
+.field-add.button { margin-top: var(--space-8); padding-inline: 0; color: var(--muted); font-weight: var(--weight-body); }
+.field-template-row { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-12); min-height: var(--row-height); }
+.field-template-row .outline-tag { margin: 0; }
+.field-member-count { margin-left: auto; }
+.field-template-row .button { padding: 0; font-weight: var(--weight-body); color: var(--muted); }
+.field-owners { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-12); }
+.field-owner { min-width: 0; }
+.field-owner > .button { max-width: 100%; min-height: 0; padding: 0; justify-content: flex-start; text-align: left; white-space: normal; overflow-wrap: anywhere; font-weight: var(--weight-body); }
+.field-owner-values { display: flex; flex-wrap: wrap; gap: var(--space-4) var(--space-8); margin-top: var(--space-4); overflow-wrap: anywhere; }
+.field-view-all.button { padding-inline: 0; margin-top: var(--space-8); color: var(--muted); font-weight: var(--weight-body); }
+.field-note { margin: var(--space-8) 0 0; color: var(--muted); }
+.field-preview-summary { margin-block: var(--section-gap); padding-left: var(--space-16); border-left: var(--space-2) solid var(--danger); }
+.field-preview-summary h2 { margin: 0; font-family: var(--font-display); font-size: var(--text-h1); font-weight: var(--weight-display-heading); line-height: var(--line-h1); }
+.field-preview-summary h2 .field-rubric { font-family: var(--font-mono); }
+.field-preview-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-12); margin-top: var(--section-gap); padding-top: var(--space-16); border-top: var(--rule-width) solid var(--line); }
+.field-preview-actions > :first-child { margin-right: auto; }
+.fields-master-detail { display: flex; align-items: flex-start; gap: var(--space-48); padding-top: var(--space-16); }
+.fields-master { flex: 1; min-width: 0; }
+.fields-master-detail > .field-inspector { flex: 0 0 36%; min-width: 0; padding-left: var(--space-24); border-left: var(--rule-width) solid var(--line); }
+.fields-index tr[aria-selected="true"] td { background: var(--selection); }
+.fields-index tr[aria-selected="true"] td:first-child { box-shadow: inset var(--space-2) 0 var(--accent); }
+.fields-index tr[aria-selected="true"] .field-name { color: var(--accent); }
+.field-inspector .field-heading h1 { font-size: var(--text-h1); }
+.field-inspector .field-owners { display: block; }
+.field-inspector .field-owner { display: flex; align-items: baseline; gap: var(--space-12); padding-block: var(--space-4); border-bottom: var(--rule-width) solid var(--line); }
+.field-inspector .field-owner > .button { flex: 1; }
+.field-inspector .field-owner-values { justify-content: flex-end; max-width: 50%; margin: 0; }
+.field-inspector .field-kind-row { padding-block: var(--space-4); }
+.field-inspector .field-preview-summary h2 { font: var(--apparatus); }
+@media (max-width: 599px) {
+  .field-owners { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .field-template-row { gap: var(--space-8); }
+  .field-ledger th:nth-child(2) { width: 36%; }
+  .field-preview-actions > :first-child { flex-basis: 100%; }
+}
