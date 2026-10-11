@@ -1,4 +1,4 @@
-import type { AgendaItem, TaskState } from '../api/types';
+import type { AgendaItem, TaskRow, TaskState } from '../api/types';
 
 // One vocabulary for a task's planning, shared by outline rows, the agenda and task queries, and the rules that keep a plan saveable.
 
@@ -96,4 +96,58 @@ export function groupAgenda(items: readonly AgendaItem[], date: string, skipPage
     else groups.planned.push(item);
   }
   return groups;
+}
+
+export interface AgendaDayGroup { date: string; rows: (TaskRow | AgendaItem)[] }
+
+/** A day keeps carried work separate and lists each future task once, on its first plan in the next seven days. */
+export function groupDayAgenda(items: readonly AgendaItem[], futureRows: readonly TaskRow[], date: string): AgendaGroups & { upcoming: AgendaDayGroup[] } {
+  const groups = groupAgenda(items, date);
+  const future = (row: TaskRow | AgendaItem) => !isFinished(row.task) && row.task.status !== 'doing'
+    && (!row.task.scheduled || row.task.scheduled > date) && (!row.task.deadline || row.task.deadline > date);
+  const planned = groups.planned.filter(row => !future(row));
+  const listed = new Set([...groups.overdue, ...planned, ...groups.done].map(row => row.source.block.id));
+  const upcoming = new Map<string, TaskRow | AgendaItem>();
+  for (const row of [...groups.planned.filter(future), ...futureRows]) {
+    if (!isFinished(row.task) && !listed.has(row.source.block.id)) upcoming.set(row.source.block.id, row);
+  }
+  const days = new Map<string, (TaskRow | AgendaItem)[]>();
+  for (const row of upcoming.values()) {
+    const next = [row.task.scheduled, row.task.deadline]
+      .filter((plan): plan is string => !!plan && plan > date && daysBetween(date, plan) <= 7).sort()[0];
+    if (!next) continue;
+    const rows = days.get(next) ?? [];
+    rows.push(row);
+    days.set(next, rows);
+  }
+  return {
+    ...groups, planned,
+    upcoming: [...days].sort(([left], [right]) => left.localeCompare(right)).map(([date, rows]) => ({
+      date, rows: rows.sort((left, right) => (agendaTaskTime(left, date) ?? '').localeCompare(agendaTaskTime(right, date) ?? '')
+        || left.source.block.text.localeCompare(right.source.block.text)),
+    })),
+  };
+}
+
+/** Time belongs to the visible plan, not another scheduled day; carried agenda rows retain their original clock. */
+export function agendaTaskTime(row: TaskRow | AgendaItem, date: string): string | null {
+  if (isFinished(row.task) || 'reasons' in row && row.reasons.includes('recently_completed')) return null;
+  if ('time' in row && row.time && ('reasons' in row && !row.task.scheduled || row.task.scheduled === date || !!row.task.scheduled && row.task.scheduled < date)) return row.time;
+  if (row.task.scheduled === date || !!row.task.scheduled && row.task.scheduled < date) return row.task.scheduled_time;
+  if (row.task.deadline === date || !!row.task.deadline && row.task.deadline < date) return row.task.deadline_time;
+  return null;
+}
+
+/** Schedule and deadline on one civil day contribute one count; finished tasks contribute none. */
+export function plannedTaskCounts(rows: readonly TaskRow[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  const seen = new Set<string>();
+  for (const row of rows) {
+    if (isFinished(row.task) || seen.has(row.source.block.id)) continue;
+    seen.add(row.source.block.id);
+    for (const date of new Set([row.task.scheduled, row.task.deadline])) {
+      if (date) counts.set(date, (counts.get(date) ?? 0) + 1);
+    }
+  }
+  return counts;
 }
