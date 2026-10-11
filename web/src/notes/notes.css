@@ -55,6 +55,23 @@
 .index-source-title { padding: 0; border: 0; background: none; color: var(--text); text-align: left; font: var(--weight-display-heading) var(--text-h1)/var(--line-h1) var(--font-display); cursor: pointer; }
 .index-source-byline { margin: var(--space-8) 0; color: var(--muted); font: var(--weight-body) var(--text-body)/var(--line-body) var(--font-body); }
 .index-source-actions { display: flex; flex-wrap: wrap; gap: var(--space-8); margin-top: var(--space-16); }
+/* The directory shares the bounded type register and keeps memberships explicit. */
+.index-directory .index-sheet { width: calc(100% - 2 * var(--space-24)); max-width: calc(var(--measure) + var(--apparatus-width) - var(--space-16)); padding: var(--space-16) 0 var(--space-48); }
+.index-directory .index-eyebrow { margin: 0 0 var(--space-8); color: var(--faint); text-transform: none; }
+.index-directory .index-head { margin: 0 0 var(--space-32); }
+.index-directory .index-tally { color: var(--faint); }
+.index-directory-row { display: grid; grid-template-columns: var(--icon-size) minmax(0, 1fr) calc(3 * var(--space-48)) calc(2 * var(--space-48) + var(--space-16)); align-items: center; gap: var(--space-16); padding: var(--space-16) var(--space-8); border-top: var(--rule-width) solid var(--line); }
+.index-directory-row:last-child { border-bottom: var(--rule-width) solid var(--line); }
+.index-directory-row > .icon { color: var(--faint); }
+.index-directory-name.button { min-width: 0; padding: 0; border: 0; justify-content: flex-start; text-align: left; overflow-wrap: anywhere; font: var(--weight-display-heading) var(--text-h2)/var(--line-h2) var(--font-display); font-variation-settings: var(--optical-heading); }
+.index-directory-count { color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
+.index-directory-open.button { padding: 0; border: 0; justify-content: flex-start; color: var(--muted); font-weight: var(--weight-body); }
+.index-directory-name.button:hover, .index-directory-open.button:hover { color: var(--accent); background: none; }
+@container finding-aid (max-width: 599px) {
+  .index-directory .index-sheet { width: calc(100% - 2 * var(--space-16)); }
+  .index-directory-row { grid-template-columns: var(--icon-size) minmax(0, 1fr) auto; gap: var(--space-8); }
+  .index-directory-open { grid-column: 2 / -1; }
+}
 @container finding-aid (max-width: 839px) {
   .index-columns { columns: 2; }
   .index-queue-layout { gap: var(--space-16); grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); }
@@ -68,6 +85,7 @@
   .index-source-row { gap: var(--space-8); }
 }
 @media (pointer: coarse) {
+  .index-directory-row { min-height: calc(var(--space-48) + var(--space-24)); }
   .index-letters > .button, .index-queue-note { min-height: calc(var(--space-32) + var(--space-12)); }
   .index-letters > .button { min-width: var(--target-size); }
   .index-queue-actions .button, .index-inspector-actions .button { min-height: calc(var(--space-32) + var(--space-12)); }

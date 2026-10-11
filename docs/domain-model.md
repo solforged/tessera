@@ -170,7 +170,7 @@ A note capability on the page holds the stored state, the revisit date and when 
 
 ### Index and views
 
-The index lists notes by kind, each kind with its count, and opens a finding aid of that kind's notes. The finding aid is the unsaved note view for that kind, as a type table is for a type. It is derived from kinds and is never stored.
+The index lists kinds with note members or tagged non-page blocks, keeping their counts independent. Kinds with notes open a finding aid; tag-only types open their member table. Tagged blocks do not increase the distinct-note total or file their containing page under that kind. The finding aid is the unsaved note view for that kind, as a type table is for a type. It is derived from kinds and is never stored.
 
 A note view is a query over notes with a layout and a grouping. Besides the block query's type, text and field predicates, it can select by kind, by state, by revisit (due, set or none), by links to a note, by links from a note, and by a cited source (its siglum, citation key or title). The Find line writes these as `is:settled`, `revisit:due`, `links:Polybius`, `from:Postone` and `cites:MAR`, and other words match the title or gloss; each recognised term shows as a chip. Field predicates stay in the filter picker, as on tables.
 

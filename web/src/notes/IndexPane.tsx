@@ -13,7 +13,7 @@ import { Menu } from '../ui/Menu';
 import { Picker } from '../ui/Picker';
 import { Popup } from '../ui/Popup';
 import { TypeModeTabs } from '../ui/TypeModeTabs';
-import { noteKindIcon } from './kinds';
+import { indexKindTarget, noteKindIcon } from './kinds';
 import { filingGroups, filingOperations, groupKindIndex } from './finding-aid';
 import './notes.css';
 
@@ -34,8 +34,46 @@ const beside = (event: MouseEvent) => event.shiftKey || window.matchMedia('(poin
 const tally = (count: number, noun: string) => `${count} ${noun}${count === 1 ? '' : 's'}`;
 const apparatus = (summary: NoteSummary | undefined) => summary ? `${tally(summary.block_count, 'block')} · ${tally(summary.backlinks, 'backlink')}` : '';
 
-/** Finding aids share one batched read; Unfiled is a queue, Sources a bibliography. */
 export function IndexPane(props: IndexPaneProps) {
+  return <Switch>
+    <Match when={props.kindKey === 'all'}><IndexDirectory {...props} /></Match>
+    <Match when={true}><KindIndexPane {...props} /></Match>
+  </Switch>;
+}
+
+/** A single register lists note kinds and tag-only types in the sidebar's order. */
+export function IndexDirectory(props: IndexPaneProps) {
+  const [version, setVersion] = createSignal(0);
+  const [index] = createResource(version, () => props.notebook.api.noteIndex());
+  createEffect(on(() => [props.notebook.changeSequence(), props.notebook.lastChange()], () => {
+    const timer = setTimeout(() => setVersion(value => value + 1), 300);
+    onCleanup(() => clearTimeout(timer));
+  }, { defer: true }));
+  let scroll!: HTMLDivElement;
+  onMount(() => { scroll.scrollTop = props.view.scroll; });
+  return <div ref={scroll} class="index-pane index-directory" role="region" tabIndex={0} aria-label="Index" onFocusIn={props.onActivate} onScroll={() => props.onViewChange({ scroll: scroll.scrollTop })}>
+    <div class="index-sheet">
+      <p class="index-eyebrow">Index</p>
+      <div class="index-head"><h1>Index</h1><Show when={index.latest}>{list => <span class="index-tally">{tally(list().kinds.length, 'kind')}</span>}</Show></div>
+      <Show when={index.error}><p class="error" role="alert">Couldn’t load the index · {String(index.error)}</p></Show>
+      <Show when={index.latest} fallback={<Show when={!index.error}><p class="empty-state" role="status">Loading kinds…</p></Show>}>{list =>
+        <Show when={list().kinds.length} fallback={<p class="empty-state">No kinds yet.</p>}>
+          <div class="index-directory-list"><For each={list().kinds}>{kind =>
+            <div class="index-directory-row">
+              <Icon name={noteKindIcon(kind.key)} />
+              <Button class="index-directory-name" onClick={event => props.onOpen(indexKindTarget(kind), event.shiftKey)}>{kind.plural}</Button>
+              <span class="index-directory-count">{kind.count === 0 ? `${kind.tagged_block_count.toLocaleString()} tagged` : tally(kind.count, kind.key === 'source' ? 'source' : 'note')}</span>
+              <Button class="index-directory-open" label={`Open ${kind.plural} ${kind.count === 0 ? 'table' : 'index'}`} onClick={event => props.onOpen(indexKindTarget(kind), event.shiftKey)}>Open {kind.count === 0 ? 'table' : 'index'}<Icon name="right" /></Button>
+            </div>
+          }</For></div>
+        </Show>
+      }</Show>
+    </div>
+  </div>;
+}
+
+/** Finding aids share one batched read; Unfiled is a queue, Sources a bibliography. */
+function KindIndexPane(props: IndexPaneProps) {
   const [version, setVersion] = createSignal(0);
   const [letter, setLetter] = createSignal('');
   const [filter, setFilter] = createSignal<'all' | 'text' | 'blank'>('all');

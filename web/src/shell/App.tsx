@@ -28,7 +28,7 @@ import { installOpenedFiles } from '../library/opened-files';
 import { blankCapture, installQuickCapture } from './quick-capture';
 import type { CaptureRequest } from './quick-capture';
 import { CaptureSheet } from '../capture/CaptureSheet';
-import { noteIndex, noteKindIcon } from '../notes/kinds';
+import { indexKindTarget, noteIndex, noteKindIcon } from '../notes/kinds';
 
 // Panes other than the outline load on demand and are prefetched once the app is idle.
 const paneModules = {
@@ -529,10 +529,10 @@ export function App() {
         <ViewLinks views={pinnedViewList()} pinned activeId={activeViewId()} onOpen={openView} onPin={pinView} />
       </section></Show>
       <Show when={index()?.kinds.length}><section class="page-list index-list" aria-label="Index">
-        <h2><span class="section-number">{sectionNumber('index')}</span>Index<span class="section-rule" /><span class="section-count" title={`${index()!.notes} ${index()!.notes === 1 ? 'note' : 'notes'} filed`}>{index()!.notes}</span></h2>
+        <h2><span class="section-number">{sectionNumber('index')}</span><button type="button" class="index-directory-link" aria-current={activeKindKey() === 'all' ? 'page' : undefined} title="Open Index" onClick={event => open({ kind: 'index', key: 'all' }, event.shiftKey)}>Index</button><span class="section-rule" /><span class="section-count">{index()!.kinds.length}</span></h2>
         {/* Kinds re-arrive as fresh objects after each change; Index keeps rows mounted by position. */}
         <Index each={index()!.kinds}>{kind => <>
-          <Button class={`index-kind ${activeKindKey() === kind().key ? 'selected' : ''}`} icon={noteKindIcon(kind().key)} title={kind().plural} onClick={event => open({ kind: 'index', key: kind().key }, event.shiftKey)}><span>{kind().plural}</span><span class="desk-count">{kind().count}</span></Button>
+          <Button class={`index-kind ${activeKindKey() === kind().key || kind().count === 0 && activeTypeId() === kind().type_id ? 'selected' : ''}`} icon={kind().count === 0 ? 'tag' : noteKindIcon(kind().key)} title={kind().plural} onClick={event => open(indexKindTarget(kind()), event.shiftKey)}><span>{kind().plural}</span><span class="desk-count">{(kind().count || kind().tagged_block_count).toLocaleString()}</span></Button>
           <Show when={kind().type_id !== null && otherViews().some(view => view.query.type === kind().type_id)}><div class="index-views"><ViewLinks views={otherViews().filter(view => view.query.type === kind().type_id)} pinned={false} activeId={activeViewId()} onOpen={openView} onPin={pinView} /></div></Show>
         </>}</Index>
       </section></Show>
