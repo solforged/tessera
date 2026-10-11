@@ -192,7 +192,7 @@ impl ClonedSnapshot {
         snapshot.execute_batch(
             "DELETE FROM sync_replicas; DELETE FROM change_patches; DELETE FROM sync_pending;
              DELETE FROM sync_hub; DELETE FROM ingest_jobs; DELETE FROM agent_changes;
-             DELETE FROM sync_pins; VACUUM;",
+             DELETE FROM sync_pins; DELETE FROM sync_devices; VACUUM;",
         )?;
         Ok(self.ticket)
     }

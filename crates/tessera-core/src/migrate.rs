@@ -33,6 +33,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/024_sync_library.sql"),
     include_str!("../migrations/025_reference_indexes.sql"),
     include_str!("../migrations/026_retired_replicas.sql"),
+    include_str!("../migrations/027_paired_devices.sql"),
 ];
 
 pub const SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
