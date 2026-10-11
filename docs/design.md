@@ -398,6 +398,8 @@ Native `<select>` is never used; a bordered menu button or a picker replaces it.
 
 Resting the mouse on a `[[reference]]` for 350 ms opens a slip in the outline, editor or another reference-rendering surface. Moving to another reference while a slip is open takes a third of the delay; a 200 ms grace period covers the gap. A page slip shows its breadcrumb, 24 px Piazzolla title, 16 px gloss, existing type/source/task/project metadata, and reading/backlink counts. Without a gloss it shows a short prose preview, with actual field values as a fallback for field-only pages. A block slip retains its parent, highlighted target and first descendants. The footer uses Plex for Beside and Open (Go to block for blocks), mono for counts.
 
+On touch, holding a reference opens its slip without navigating; tapping still opens the page.
+
 Pin or ⌘ keeps the slip open; Unpin restores its compact form. A pinned page lists its actual attributed readings, with sigla, holders, gists and inline shape glyphs. Selecting a holder expands authored prose, or opens the original position if there is no prose to expand. Open reading and source links preserve access to the original outline; Compare readings opens the subject's sheet. Pages without readings keep their prose preview. Bodies scroll within `--preview-body-height`; unpinned block previews fade only when clipped. References inside a slip open stacked slips. ⌥Space opens the reference at the caret or the focused reference; Enter opens it, Shift+Enter opens it beside, and Escape closes the topmost slip. Opening does not steal focus; focused slip controls retain native keyboard behavior. Deleted targets and failed requests have explicit notices. Touch input does not open hover slips.
 
 ## Icon
