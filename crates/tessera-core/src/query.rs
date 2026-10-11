@@ -330,9 +330,6 @@ impl Notebook {
             });
             rows = keyed.into_iter().map(|(row, _)| row).collect();
         }
-        if truncate {
-            rows.truncate(query.limit.unwrap_or(500));
-        }
         let mut columns = query
             .r#type
             .as_deref()
@@ -373,6 +370,10 @@ impl Notebook {
             .into_iter()
             .filter(|d| needed.contains(d.id.as_str()))
             .collect();
+        if truncate {
+            rows.drain(..query.offset.min(rows.len()));
+            rows.truncate(query.limit.unwrap_or(500));
+        }
         Ok(QueryResult {
             fields,
             columns,

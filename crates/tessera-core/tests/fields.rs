@@ -87,6 +87,7 @@ fn query() -> Query {
         filters: vec![],
         sort: vec![],
         limit: None,
+        offset: 0,
     }
 }
 fn ids(result: QueryResult) -> Vec<String> {
@@ -136,6 +137,119 @@ fn indexed(dir: &tempfile::TempDir, owner: u128) -> Vec<String> {
         .unwrap()
         .collect::<rusqlite::Result<_>>()
         .unwrap()
+}
+
+#[test]
+fn query_pages_keep_totals_columns_and_deterministic_sort_boundaries() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut nb = Notebook::open(dir.path()).unwrap();
+    let fields = nb.fields().unwrap().page_id;
+    let titles = ["zeta", "Alpha", "alpha", "Beta", "beta", "zeta", "alpha"];
+    let years = [
+        Some("2"),
+        Some("1"),
+        None,
+        Some("1"),
+        None,
+        Some("2"),
+        Some("1"),
+    ];
+    let mut operations = vec![
+        page(1, "Books"),
+        page(2, "Notes"),
+        child(10, &fields, "Year"),
+        Operation::SetFieldKind {
+            id: id(10),
+            base_revision: 1,
+            kind: FieldKind::Number,
+        },
+    ];
+    for index in [6, 0, 3, 1, 5, 4, 2] {
+        let member = 100 + index as u128;
+        operations.push(insert(member, 2, &format!("{} #books", titles[index])));
+        if let Some(year) = years[index] {
+            let entry = 1000 + index as u128;
+            operations.push(insert(entry, member, &format!("[[{}]]", id(10))));
+            operations.push(insert(2000 + index as u128, entry, year));
+        }
+    }
+    apply(&mut nb, operations);
+    let mut q = query();
+    q.limit = Some(20);
+    assert_eq!(
+        ids(nb.query(&q).unwrap()),
+        (100..107).map(id).collect::<Vec<_>>()
+    );
+    for sort in [
+        None,
+        Some(SortBy::Title),
+        Some(SortBy::Created),
+        Some(SortBy::Updated),
+        Some(SortBy::Field),
+    ] {
+        for direction in [Direction::Asc, Direction::Desc] {
+            q.sort = sort
+                .map(|by| SortKey {
+                    by,
+                    field: (by == SortBy::Field).then(|| id(10)),
+                    direction,
+                })
+                .into_iter()
+                .collect();
+            q.offset = 0;
+            q.limit = Some(20);
+            let full = nb.query(&q).unwrap();
+            let expected = ids(full.clone());
+            assert_eq!(ids(nb.query(&q).unwrap()), expected);
+            if sort == Some(SortBy::Title) {
+                let order = if direction == Direction::Asc {
+                    [101, 102, 106, 103, 104, 100, 105]
+                } else {
+                    [100, 105, 103, 104, 101, 102, 106]
+                };
+                assert_eq!(expected, order.map(id));
+            }
+            if sort == Some(SortBy::Field) {
+                let order = if direction == Direction::Asc {
+                    [101, 103, 106, 100, 105, 102, 104]
+                } else {
+                    [100, 105, 101, 103, 106, 102, 104]
+                };
+                assert_eq!(expected, order.map(id));
+            }
+            q.limit = Some(3);
+            let mut appended = Vec::new();
+            for offset in [0, 3, 6, 7, 100, usize::MAX] {
+                q.offset = offset;
+                let page = nb.query(&q).unwrap();
+                assert_eq!(page.total, 7);
+                assert_eq!(page.columns, full.columns);
+                assert_eq!(page.fields, full.fields);
+                let start = offset.min(expected.len());
+                let end = start.saturating_add(3).min(expected.len());
+                let page_ids = ids(page);
+                assert_eq!(page_ids, expected[start..end]);
+                if offset < 7 {
+                    appended.extend(page_ids);
+                }
+            }
+            assert_eq!(appended, expected);
+        }
+    }
+    q.sort.clear();
+    q.offset = 1;
+    q.filters = vec![Filter {
+        field: id(10),
+        op: FilterOp::Gte,
+        value: Some("2".into()),
+    }];
+    let filtered = nb.query(&q).unwrap();
+    assert_eq!(filtered.total, 2);
+    assert_eq!(ids(filtered), vec![id(105)]);
+    q.limit = Some(0);
+    let empty = nb.query(&q).unwrap();
+    assert_eq!(empty.total, 2);
+    assert!(empty.rows.is_empty());
 }
 
 #[test]
@@ -1011,13 +1125,13 @@ fn sorting_missing_last_ties_limits_and_columns_are_stable() {
             .collect::<Vec<_>>(),
         vec![id(102), id(103)]
     );
-    assert_eq!(result.columns, vec![id(13), id(10)]);
+    assert_eq!(result.columns, vec![id(13), id(10), id(12)]);
     assert!(result.fields.iter().any(|f| f.id == id(14)));
     q.limit = Some(0);
     let result = nb.query(&q).unwrap();
     assert_eq!(result.total, 4);
     assert!(result.rows.is_empty());
-    assert_eq!(result.columns, vec![id(13)]);
+    assert_eq!(result.columns, vec![id(13), id(10), id(12)]);
     q.limit = Some(2001);
     assert!(matches!(nb.query(&q), Err(Error::Validation { .. })));
     q = query();

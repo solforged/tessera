@@ -84,6 +84,7 @@ fn field_query(nb: &Notebook, field: &str) -> QueryResult {
         }],
         sort: vec![],
         limit: None,
+        offset: 0,
     })
     .unwrap()
 }

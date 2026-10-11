@@ -37,7 +37,7 @@ const valuePlaceholders: Partial<Record<FieldKind, string>> = { date: partialDat
 const titleWidthLimits = { min: 170, max: 340, default: 240 };
 const clampTitleWidth = (width: number | undefined) => Number.isFinite(width) ? Math.max(titleWidthLimits.min, Math.min(titleWidthLimits.max, width!)) : titleWidthLimits.default;
 const refsColumn = '$refs';
-const membersLabel = (count: number) => `${count} ${count === 1 ? 'member' : 'members'}`;
+const membersLabel = (count: number) => `${count.toLocaleString()} ${count === 1 ? 'member' : 'members'}`;
 
 export function TablePane(props: TablePaneProps) {
   const [query, setQuery] = createSignal(copyQuery(props.view.query));
@@ -49,6 +49,10 @@ export function TablePane(props: TablePaneProps) {
   const [type, setType] = createSignal<Type>();
   const [noteIndex, setNoteIndex] = createSignal<NoteIndex>();
   const [loading, setLoading] = createSignal(true);
+  const [appending, setAppending] = createSignal(false);
+  const pageSize = () => query().limit ?? 500;
+  const canAppend = createMemo(() => pageSize() > 0 && !!result() && result()!.rows.length < result()!.total);
+  let appendController: AbortController | undefined;
   const [error, setError] = createSignal('');
   const [popup, setPopup] = createSignal<PopupState>(null);
   const [focused, setFocused] = createSignal({ row: 0, column: 0 });
@@ -131,9 +135,9 @@ export function TablePane(props: TablePaneProps) {
   createEffect(() => {
     const value = copyQuery(query()); props.notebook.changeSequence();
     const controller = new AbortController();
+    appendController?.abort(); setAppending(false); setLoading(true);
     const timer = setTimeout(() => {
-      setLoading(true);
-      void Promise.all([api.query(value, controller.signal), api.fields(controller.signal), value.type ? api.type(value.type, controller.signal) : Promise.resolve(undefined), value.type ? api.noteIndex(controller.signal) : Promise.resolve(undefined)])
+      void Promise.all([api.query({ ...value, offset: 0 }, controller.signal), api.fields(controller.signal), value.type ? api.type(value.type, controller.signal) : Promise.resolve(undefined), value.type ? api.noteIndex(controller.signal) : Promise.resolve(undefined)])
         .then(([rows, allFields, pageType, index]) => {
           if (controller.signal.aborted) return;
           setResult(rows); setDefinitions(allFields); setType(pageType); setNoteIndex(index); setError(''); setLoading(false);
@@ -143,8 +147,36 @@ export function TablePane(props: TablePaneProps) {
           }
         }).catch(reason => { if (!controller.signal.aborted) { message(reason); setLoading(false); } });
     }, 150);
-    onCleanup(() => { clearTimeout(timer); controller.abort(); });
+    onCleanup(() => { clearTimeout(timer); controller.abort(); appendController?.abort(); });
   });
+  const appendRows = async () => {
+    const current = result();
+    if (!current || loading() || appending() || !canAppend()) return;
+    const controller = new AbortController(); appendController = controller;
+    setAppending(true); setError('');
+    try {
+      const next = await api.query({ ...copyQuery(query()), limit: pageSize(), offset: current.rows.length }, controller.signal);
+      if (controller.signal.aborted) return;
+      const top = scroll.scrollTop; const left = scroll.scrollLeft;
+      const viewport = scroll.getBoundingClientRect();
+      const anchor = [...scroll.querySelectorAll<HTMLElement>('[data-block-id]')].find(row => {
+        const bounds = row.getBoundingClientRect();
+        return bounds.width > 0 && bounds.bottom > viewport.top && bounds.top < viewport.bottom;
+      });
+      const anchorTop = anchor?.getBoundingClientRect().top;
+      setResult({ ...next, rows: [...current.rows, ...next.rows] });
+      requestAnimationFrame(() => {
+        if (controller.signal.aborted) return;
+        scroll.scrollTop = top + (anchor && anchorTop !== undefined ? anchor.getBoundingClientRect().top - anchorTop : 0);
+        scroll.scrollLeft = left;
+        reportView(); measureEdge();
+      });
+    } catch (reason) {
+      if (!controller.signal.aborted) message(reason);
+    } finally {
+      if (!controller.signal.aborted) setAppending(false);
+    }
+  };
   onCleanup(() => { clearTimeout(searchTimer); clearTimeout(deletedTimer); });
   const submit = async (operation: Operation) => {
     await api.submit({ actor: { kind: 'client', name: 'tessera-web-table' }, idempotency_key: ulid(), operations: [operation] });
@@ -374,7 +406,7 @@ export function TablePane(props: TablePaneProps) {
           <thead><tr><th scope="col" class="table-title-column"><Button aria-haspopup="menu" onClick={event => columnMenu(event.currentTarget, undefined)}>Title</Button></th>
           <For each={visibleColumns()}>{id => <th scope="col"><Button aria-haspopup="menu" onClick={event => columnMenu(event.currentTarget, fieldById(id))}>{fieldById(id)?.name ?? id}</Button></th>}</For>
           <Show when={showRefs()}><th scope="col" class="table-refs" title={`Derived from ${sourceField()?.name ?? 'Source'}`}>Refs</th></Show>
-        </tr></thead><tbody><For each={members().notes}>{(row, rowIndex) => <tr classList={{ selected: selectedRow() === row.block.block.id }} onClick={event => {
+        </tr></thead><tbody><For each={members().notes}>{(row, rowIndex) => <tr data-block-id={row.block.block.id} classList={{ selected: selectedRow() === row.block.block.id }} onClick={event => {
           if (window.matchMedia('(pointer: coarse) and (min-width: 900px)').matches && !(event.target as HTMLElement).closest('button, input, a')) openRow(row, true);
         }}>
           <td class="table-title-column table-cell" data-row={rowIndex()} data-column={0} tabIndex={focused().row === rowIndex() && focused().column === 0 ? 0 : -1} onFocus={() => { setFocused({ row: rowIndex(), column: 0 }); setSelectedRow(row.block.block.id); }} onClick={event => { event.stopPropagation(); openRow(row, event.shiftKey); }}>
@@ -393,7 +425,7 @@ export function TablePane(props: TablePaneProps) {
             </td>;
           }}</For><Show when={showRefs()}><td class="table-refs"><Show when={(sourcesByRow().get(row.block.block.id) ?? []).length}>{count => <Button class="table-source-count" label={`${count()} ${count() === 1 ? 'reference' : 'references'}`} aria-haspopup="dialog" onClick={event => { event.stopPropagation(); setPopup({ kind: 'sources', anchor: event.currentTarget, label: sourceField()?.name ?? 'Source', sources: sourcesByRow().get(row.block.block.id) ?? [] }); }}>{count()}</Button>}</Show></td></Show>
         </tr>}</For></tbody></table>
-        <div class="table-cards" role="list" aria-label="Notes"><For each={members().notes}>{row => <article class="table-card" classList={{ selected: selectedRow() === row.block.block.id }} role="listitem" onClick={event => {
+        <div class="table-cards" role="list" aria-label="Notes"><For each={members().notes}>{row => <article class="table-card" data-block-id={row.block.block.id} classList={{ selected: selectedRow() === row.block.block.id }} role="listitem" onClick={event => {
           if (!(event.target as HTMLElement).closest('button, [role="button"], a')) openRow(row, event.shiftKey);
         }}>
           <Button class="table-card-title" onClick={event => openRow(row, event.shiftKey)}><BlockText text={props.notebook.lookup(row.block.block.id)()?.text ?? row.block.block.text} notebook={props.notebook} interactive={false} /><span class="table-card-arrow" aria-hidden="true">›</span></Button>
@@ -404,7 +436,7 @@ export function TablePane(props: TablePaneProps) {
         <Show when={!loading() && !error() && !members().notes.length}><p class="table-empty">No note members.</p></Show>
         <Show when={members().blocks.length}><section class="table-tagged-blocks" aria-label="Tagged blocks">
           <h2>Tagged blocks <span class="table-popup-count">{members().blocks.length}</span></h2>
-          <For each={members().blocks}>{row => <div class="table-block-member">
+          <For each={members().blocks}>{row => <div class="table-block-member" data-block-id={row.block.block.id}>
             <div><div class="table-block-text"><BlockText text={preview(props.notebook.lookup(row.block.block.id)()?.text ?? row.block.block.text, false)} notebook={props.notebook} interactive={false} /></div><div class="table-page-title">Block in {row.block.page.text}</div></div>
             <Button class="bordered" onClick={event => openRow(row, event.shiftKey)}>Open ↗</Button>
           </div>}</For>
@@ -412,7 +444,10 @@ export function TablePane(props: TablePaneProps) {
       </div>
       <Show when={edge().hidden}><div class="table-more-right" style={{ height: `${edge().height}px` }}><Button class="table-more-columns" label={`Scroll to ${edge().hidden} more ${edge().hidden === 1 ? 'column' : 'columns'}`} onClick={showMoreColumns}>+{edge().hidden} <Icon name="right" /></Button></div></Show>
       </div>
-      <footer class="table-footer" role="status"><Show when={deleted()} fallback={<>{loading() ? 'Loading…' : error() || `${result()?.rows.length ?? 0} of ${membersLabel(result()?.total ?? 0)}`}</>}>View deleted · <Button onClick={() => { void undoDelete().catch(message); }}>Undo</Button></Show></footer>
+      <footer class="table-footer" role="status"><Show when={deleted()} fallback={<>
+        <span>{loading() ? 'Loading…' : error() || `${(result()?.rows.length ?? 0).toLocaleString()} of ${membersLabel(result()?.total ?? 0)}`}</span>
+        <Show when={!loading() && canAppend()}><span aria-hidden="true">·</span><Button class="table-show-more" disabled={appending()} aria-busy={appending()} onClick={() => { void appendRows(); }}>Show {pageSize().toLocaleString()} more</Button></Show>
+      </>}>View deleted · <Button onClick={() => { void undoDelete().catch(message); }}>Undo</Button></Show></footer>
     </div>
     <Show keyed when={popup()}>{state => <>
       {state.kind === 'menu' && <Menu anchor={state.anchor} label={state.label} header={state.header} items={state.items} onDismiss={() => setPopup(null)} />}

@@ -593,6 +593,9 @@ pub struct Query {
     pub filters: Vec<Filter>,
     pub sort: Vec<SortKey>,
     pub limit: Option<usize>,
+    /// Rows skipped after sorting; total and column metadata cover all matches.
+    #[serde(default)]
+    pub offset: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
