@@ -67,7 +67,21 @@ impl Notebook {
              ON CONFLICT (singleton) DO NOTHING",
             params![new_ulid().to_string(), now_ms()],
         )?;
+        conn.execute(
+            "INSERT INTO replica (singleton, device_id) VALUES (1, ?1)
+             ON CONFLICT (singleton) DO NOTHING",
+            [new_ulid().to_string()],
+        )?;
         Ok(Self { dir, conn })
+    }
+
+    /// This device's ID, recorded as the origin of the changes it makes.
+    pub fn device_id(&self) -> Result<String> {
+        Ok(self.conn.query_row(
+            "SELECT device_id FROM replica WHERE singleton = 1",
+            [],
+            |row| row.get(0),
+        )?)
     }
 
     pub fn info(&self) -> Result<NotebookInfo> {
@@ -112,4 +126,22 @@ pub(crate) fn new_ulid() -> ulid::Ulid {
     let mut random = [0u8; 16];
     getrandom::fill(&mut random).expect("browser crypto is available");
     ulid::Ulid::from_parts(now_ms() as u64, u128::from_le_bytes(random))
+}
+
+/// An ID that every device computes the same way from `parts`, shaped like a
+/// ULID so it mixes with client-chosen IDs. Callers name what the ID is for
+/// in the first part, so different kinds of record never collide.
+pub(crate) fn derived_id(parts: &[&str]) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(b"tessera-id-v1");
+    for part in parts {
+        // Length-prefix each part so ("ab", "c") and ("a", "bc") differ.
+        hasher.update((part.len() as u64).to_le_bytes());
+        hasher.update(part.as_bytes());
+    }
+    let digest = hasher.finalize();
+    let mut bytes = [0u8; 16];
+    bytes.copy_from_slice(&digest[..16]);
+    ulid::Ulid::from_bytes(bytes).to_string()
 }

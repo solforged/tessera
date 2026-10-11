@@ -141,7 +141,9 @@ impl Notebook {
         {
             return Ok(StagedSnapshot { id, existing: true });
         }
-        let id = crate::notebook::new_ulid().to_string();
+        // Content-derived, so devices that import the same file agree. The
+        // SHA-256 is already unique per snapshot, and a locator per passage.
+        let id = crate::notebook::derived_id(&["snapshot", sha256]);
         let length: usize = doc
             .passages
             .iter()
@@ -173,7 +175,7 @@ impl Notebook {
             )?;
             for (ordinal, p) in doc.passages.iter().enumerate() {
                 insert.execute(params![
-                    crate::notebook::new_ulid().to_string(),
+                    crate::notebook::derived_id(&["passage", &id, &p.locator]),
                     id,
                     ordinal as i64,
                     name(&p.kind),
