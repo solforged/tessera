@@ -701,14 +701,16 @@ impl Notebook {
             .query_map([json(&snapshot_ids)], |r| Ok((r.get(0)?, r.get(1)?)))?
             .collect::<rusqlite::Result<_>>()?;
         let mut statement = self.conn.prepare_cached(
-            "SELECT s.id, CAST(p.start AS REAL) / s.text_length
+            "SELECT s.id, CAST(p.start AS REAL) / s.text_length, rp.passage_ordinal
              FROM snapshots s
              JOIN reading_positions rp ON rp.snapshot_id = s.id
              JOIN passages p ON p.snapshot_id = s.id AND p.ordinal = rp.passage_ordinal
              WHERE s.id IN (SELECT value FROM json_each(?1)) AND s.text_length > 0",
         )?;
-        let progresses: HashMap<String, f64> = statement
-            .query_map([json(&snapshot_ids)], |r| Ok((r.get(0)?, r.get(1)?)))?
+        let positions: HashMap<String, (f64, i64)> = statement
+            .query_map([json(&snapshot_ids)], |r| {
+                Ok((r.get(0)?, (r.get(1)?, r.get(2)?)))
+            })?
             .collect::<rusqlite::Result<_>>()?;
         let highlights = self.highlights(&HighlightQuery {
             limit: Some(usize::MAX),
@@ -755,9 +757,8 @@ impl Notebook {
             let progress = source
                 .current_snapshot_id
                 .as_ref()
-                .and_then(|id| progresses.get(id))
-                .copied()
-                .unwrap_or(0.0);
+                .and_then(|id| positions.get(id))
+                .map_or(0.0, |(progress, _)| *progress);
             let (highlights, unprocessed) = totals.remove(&source.block_id).unwrap_or_default();
             let cover = fields
                 .get("cover")
@@ -779,6 +780,7 @@ impl Notebook {
                 site: fields.get("site").and_then(|v| v.first()).cloned(),
                 cover,
                 progress,
+                section: None,
                 highlights,
                 unprocessed,
             });
@@ -819,6 +821,21 @@ impl Notebook {
         });
         let total = rows.len();
         rows.truncate(limit);
+        // The innermost contents entry at or before the reading position.
+        for row in &mut rows {
+            if let Some((snapshot, (_, ordinal))) = row
+                .source
+                .current_snapshot_id
+                .as_ref()
+                .and_then(|id| positions.get(id).map(|position| (id, position)))
+            {
+                row.section = toc(&self.conn, snapshot)?
+                    .into_iter()
+                    .filter(|entry| entry.ordinal.is_some_and(|start| start <= *ordinal))
+                    .max_by_key(|entry| entry.ordinal)
+                    .map(|entry| entry.title);
+            }
+        }
         Ok(LibraryResult {
             rows,
             total,
