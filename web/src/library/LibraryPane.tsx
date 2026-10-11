@@ -1,4 +1,4 @@
-import { For, Show, batch, createEffect, createMemo, createSignal, on, onCleanup } from 'solid-js';
+import { For, Show, batch, createEffect, createMemo, createSignal, on, onCleanup, untrack } from 'solid-js';
 import { ulid } from 'ulid';
 import { exportExtensions } from '../api/client';
 import type { ExportFormat } from '../api/client';
@@ -435,6 +435,7 @@ export function LibraryPane(props: LibraryPaneProps) {
     props.notebook.changeSequence(); refresh();
     const controller = new AbortController();
     setLoading(true); setError('');
+    // Typing and bursts of changes wait for a pause; a tab's first rows load at once.
     const timer = setTimeout(() => {
       void Promise.all([
         props.notebook.api.library(query, controller.signal),
@@ -461,7 +462,7 @@ export function LibraryPane(props: LibraryPaneProps) {
       }).catch(reason => {
         if (!controller.signal.aborted) { setError(reason instanceof Error ? reason.message : String(reason)); setLoading(false); }
       });
-    }, 150);
+    }, untrack(hasResult) ? 150 : 0);
     onCleanup(() => { controller.abort(); clearTimeout(timer); });
   });
 
