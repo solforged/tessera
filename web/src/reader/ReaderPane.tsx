@@ -88,6 +88,8 @@ export function ReaderPane(props: ReaderPaneProps) {
   const [pageIndex, setPageIndex] = createSignal(0);
   const [pageCount, setPageCount] = createSignal(1);
   const [pageFrame, setPageFrame] = createSignal({ width: 0, columns: 1 });
+  /** The text column's width when the contents margin fits beside it, else null. */
+  const [textWidth, setTextWidth] = createSignal<number | null>(null);
   const chunkOrdinals = createMemo(() => {
     const value = chunk();
     return value ? Array.from({ length: value.last - value.first + 1 }, (_, index) => value.first + index) : [];
@@ -101,7 +103,7 @@ export function ReaderPane(props: ReaderPaneProps) {
   const ordinals = new Map<string, number>();
   const pending = new Map<number, Promise<void>>();
   const locating = new Map<string, Promise<number | null>>();
-  let scroll!: HTMLDivElement, probe!: HTMLDivElement, frame: HTMLDivElement | undefined;
+  let scroll!: HTMLDivElement, probe!: HTMLDivElement, frame: HTMLDivElement | undefined, margin: HTMLElement | undefined;
   let pointerStart: { x: number; y: number; touch: boolean } | null = null, wheelTotal = 0, lastWheel = 0, lastTurn = 0, countFrame = 0;
   // The character that relayouts keep on screen: set by turning, jumping and the cursor, never by a relayout itself.
   // A passage alone is not enough: a long one spans pages, and returning to its start would walk back a page each time.
@@ -270,6 +272,22 @@ export function ReaderPane(props: ReaderPaneProps) {
     const columns = available >= 2 * 22 * em + PAGE_GAP ? 2 : 1;
     setPageFrame({ width: Math.floor(Math.min(available, columns * measure + (columns - 1) * PAGE_GAP)), columns });
   }
+
+  /** The contents margin takes `--apparatus-width` and a 48 px gap left of the text, inside the pane's padding; it shows only where both fit. */
+  function fitMargin() {
+    if (!scroll.clientWidth) return;
+    const style = getComputedStyle(scroll);
+    const text = paged() ? pageFrame().width : probe.getBoundingClientRect().width;
+    const room = (scroll.clientWidth - text) / 2 - parseFloat(style.paddingLeft);
+    setTextWidth(room >= parseFloat(style.getPropertyValue('--apparatus-width')) + parseFloat(style.getPropertyValue('--space-48')) ? text : null);
+  }
+  createEffect(on([paged, pageFrame], fitMargin, { defer: true }));
+  // The current section stays in view in the margin as reading moves on.
+  createEffect(on(currentSection, () => {
+    const entry = margin?.querySelector<HTMLElement>('[aria-current]');
+    if (!margin || !entry) return;
+    if (entry.offsetTop < margin.scrollTop || entry.offsetTop + entry.offsetHeight > margin.scrollTop + margin.clientHeight) margin.scrollTop = entry.offsetTop - margin.clientHeight / 3;
+  }));
 
   function applyPage(index: number) {
     setPageIndex(index);
@@ -866,6 +884,10 @@ export function ReaderPane(props: ReaderPaneProps) {
       resizeFrame = requestAnimationFrame(() => { void relayoutPages(); });
     });
     resizer.observe(scroll);
+    // Reader settings change the measure without resizing the pane.
+    const marginFitter = new ResizeObserver(fitMargin);
+    marginFitter.observe(scroll); marginFitter.observe(probe);
+    onCleanup(() => marginFitter.disconnect());
     onCleanup(() => { resizer.disconnect(); cancelAnimationFrame(resizeFrame); cancelAnimationFrame(countFrame); });
     const initialView = { ...props.view }, target = { ...props.target };
     void (async () => {
@@ -995,30 +1017,38 @@ export function ReaderPane(props: ReaderPaneProps) {
     <Show when={loading()}><p class="reader-status" role="status">Loading…</p></Show>
     <Show when={mergeMessage()}><p class="reader-status" role="status">{mergeMessage()}</p></Show>
     <div class="reader-measure-probe" aria-hidden="true"><div ref={probe} /></div>
-    <div ref={scroll} class="reader-scroll" classList={{ 'reader-paged': paged() }} tabIndex={0} aria-label="Source passages" onScroll={scrolled}
-      onWheel={() => { userScroll = true; }} onTouchMove={() => { userScroll = true; }} onPointerDown={() => { userScroll = true; }}
-      onKeyDown={event => { if (['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp', 'Home', 'End', ' '].includes(event.key)) userScroll = true; }}>
-      <Show when={paged()} fallback={<div class="reader-list" style={{ height: `${virtualizer.getTotalSize()}px` }}>
-        <Show when={title()}><TitleBlock /></Show>
-        <For each={[...items().keys()]}>{ordinal => <PassageRow ordinal={ordinal} item={() => items().get(ordinal)!} />}</For>
-      </div>}>
-        <div ref={frame} class="reader-page-frame" style={{ width: `${pageFrame().width}px` }} onWheel={pageWheel}
-          onPointerDown={event => { pointerStart = { x: event.clientX, y: event.clientY, touch: event.pointerType !== 'mouse' }; }}
-          onPointerUp={pagePointerUp} onPointerCancel={() => { pointerStart = null; }}>
-          <div class="reader-flow" style={{ 'column-count': pageFrame().columns, 'column-gap': `${PAGE_GAP}px` }}>
-            <Show when={chunk()?.first === 0 && title()}><div class="reader-title-block reader-page-title">
-              <h1>{title()}</h1>
-              <Show when={byline()}><p>{byline()}</p></Show>
-            </div></Show>
-            <For each={chunkOrdinals()}>{ordinal => <PassageContent ordinal={ordinal} onImageLoad={scheduleCount} />}</For>
-          </div>
-        </div>
-        <div class="reader-page-bar">
-          <Button icon="left" label="Previous page" disabled={pageIndex() === 0 && !chunk()?.first} onClick={() => { void turn(-1); }} />
-          <span>{pageIndex() + 1} / {pageCount()}</span>
-          <Button icon="right" label="Next page" disabled={pageIndex() >= pageCount() - 1 && (chunk()?.last ?? 0) >= total() - 1} onClick={() => { void turn(1); }} />
-        </div>
+    <div class="reader-body" style={{ '--reader-text-width': `${textWidth() ?? 0}px` }}>
+      <Show when={textWidth() !== null && contents().length}>
+        <nav ref={margin} class="reader-margin" aria-label="Contents">
+          <For each={contents()}>{entry => <Button class="reader-margin-entry" aria-current={entry === currentSection() ? 'location' : undefined} style={{ '--level': Math.max(0, entry.level - 1) }}
+            onClick={() => { if (entry.ordinal !== null) void jump(entry.ordinal); else void jumpTo(entry.locator); }}>{entry.title}</Button>}</For>
+        </nav>
       </Show>
+      <div ref={scroll} class="reader-scroll" classList={{ 'reader-paged': paged() }} tabIndex={0} aria-label="Source passages" onScroll={scrolled}
+        onWheel={() => { userScroll = true; }} onTouchMove={() => { userScroll = true; }} onPointerDown={() => { userScroll = true; }}
+        onKeyDown={event => { if (['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp', 'Home', 'End', ' '].includes(event.key)) userScroll = true; }}>
+        <Show when={paged()} fallback={<div class="reader-list" style={{ height: `${virtualizer.getTotalSize()}px` }}>
+          <Show when={title()}><TitleBlock /></Show>
+          <For each={[...items().keys()]}>{ordinal => <PassageRow ordinal={ordinal} item={() => items().get(ordinal)!} />}</For>
+        </div>}>
+          <div ref={frame} class="reader-page-frame" style={{ width: `${pageFrame().width}px` }} onWheel={pageWheel}
+            onPointerDown={event => { pointerStart = { x: event.clientX, y: event.clientY, touch: event.pointerType !== 'mouse' }; }}
+            onPointerUp={pagePointerUp} onPointerCancel={() => { pointerStart = null; }}>
+            <div class="reader-flow" style={{ 'column-count': pageFrame().columns, 'column-gap': `${PAGE_GAP}px` }}>
+              <Show when={chunk()?.first === 0 && title()}><div class="reader-title-block reader-page-title">
+                <h1>{title()}</h1>
+                <Show when={byline()}><p>{byline()}</p></Show>
+              </div></Show>
+              <For each={chunkOrdinals()}>{ordinal => <PassageContent ordinal={ordinal} onImageLoad={scheduleCount} />}</For>
+            </div>
+          </div>
+          <div class="reader-page-bar">
+            <Button icon="left" label="Previous page" disabled={pageIndex() === 0 && !chunk()?.first} onClick={() => { void turn(-1); }} />
+            <span>{pageIndex() + 1} / {pageCount()}</span>
+            <Button icon="right" label="Next page" disabled={pageIndex() >= pageCount() - 1 && (chunk()?.last ?? 0) >= total() - 1} onClick={() => { void turn(1); }} />
+          </div>
+        </Show>
+      </div>
     </div>
     <Show when={popup()}>{state => <>
       <Show when={state().kind === 'settings'}><ReaderSettingsPopup anchor={state().anchor} onDismiss={() => setPopup(null)} /></Show>
