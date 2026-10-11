@@ -226,8 +226,9 @@
 .source-elsewhere > .outline-highlights-label { margin: var(--space-4) 0 var(--space-4) var(--indent-width); font-weight: var(--weight-body); }
 .source-elsewhere > .library-highlight.button { margin-left: calc(var(--indent-width) - var(--space-8)); font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); font-variation-settings: var(--optical-quote); }
 /* A person's works: the Library shelf at a smaller cover, with the same faint label as the sections around it. */
-.person-works > .outline-highlights-label { margin: 0 0 var(--space-8) var(--indent-width); font-weight: var(--weight-body); }
-.person-works-shelf { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--work-cover-width), 1fr)); gap: var(--space-16) var(--space-12); margin-left: var(--indent-width); }
+.person-works > .outline-highlights-label { display: flex; align-items: center; gap: var(--space-8); margin: 0 0 var(--section-item-gap); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.person-works > .outline-highlights-label span { margin-left: 0; }
+.person-works-shelf { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--work-cover-width), 1fr)); gap: var(--space-16) var(--space-12); }
 .person-work.button { display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: var(--space-4); width: 100%; height: auto; padding: 0; white-space: normal; text-align: left; font-weight: var(--weight-body); }
 .person-work.button:hover:not(:disabled) { background: transparent; }
 .person-work:hover .person-work-title { color: var(--accent); }
