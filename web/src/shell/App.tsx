@@ -458,7 +458,7 @@ export function App() {
     return String(shown.indexOf(section) + 1).padStart(2, '0');
   };
   return <div class={`app ${split() ? 'is-split' : ''} ${sidebar() ? 'sidebar-expanded' : ''} ${sidebarCollapsed() ? 'sidebar-collapsed' : ''} ${immersive() ? 'is-immersive' : ''}`} onPointerDown={() => { focusEpoch++; }}>
-    <header class="global-rail" aria-label="Global navigation">
+    <header class="global-rail" aria-label="Global navigation" data-tauri-drag-region="deep">
       <div class="rail-start">
         <Button icon="sidebar" label="Toggle sidebar" aria-expanded={sidebarVisible()} onClick={toggleSidebar} />
         <span class="wordmark" title={info()?.path}>Tessera</span>

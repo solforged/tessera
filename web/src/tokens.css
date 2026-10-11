@@ -95,6 +95,7 @@
   --work-cover-width: 72px;   /* covers in the Works shelf on a person's page */
   --sidebar-width: 208px;
   --rail-height: 48px;
+  --window-controls-width: 84px; /* the macOS window buttons over the rail's left end in the desktop app */
   --pane-header-height: 36px;
   --search-width: 400px;
   --preview-body-height: 320px; /* reference hover card body before it clips */

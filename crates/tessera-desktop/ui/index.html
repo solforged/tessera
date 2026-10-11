@@ -39,11 +39,12 @@
   }
 </style>
 </head>
-<body>
+<!-- The window has no native title bar, so the whole splash moves it; the log stays selectable. -->
+<body data-tauri-drag-region="deep">
 <main>
   <h1 id="status">Starting Tessera…</h1>
   <p id="note"></p>
-  <pre id="detail"></pre>
+  <pre id="detail" data-tauri-drag-region="false"></pre>
   <div class="actions">
     <button class="primary" id="retry">Try again</button>
     <button id="log">Show log</button>
