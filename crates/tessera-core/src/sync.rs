@@ -19,6 +19,7 @@ use crate::notebook::{new_ulid, now_ms};
 use crate::operations::Extras;
 use crate::replication::applied_tables;
 use crate::storage::validation;
+pub use crate::sync_library::{ReadingRow, SurfacingRow, UnloggedPull, UnloggedRows};
 use crate::{Batch, ChangeStamp, Error, Notebook, Operation, Result, SCHEMA_VERSION};
 
 /// A change a replica sends to its hub: the batch as it was made there, its
@@ -143,6 +144,14 @@ pub struct SyncReport {
     pub integrated: IntegrateReport,
     pub sent_snapshots: usize,
     pub received_snapshots: usize,
+    /// Files sent to and fetched from the hub.
+    pub sent_objects: usize,
+    pub received_objects: usize,
+    /// Files this replica wants that the hub does not have.
+    pub unavailable_objects: Vec<String>,
+    /// Reading positions and surfacings sent and taken from the hub.
+    pub sent_rows: usize,
+    pub received_rows: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -189,6 +198,19 @@ pub trait Hub {
     fn missing_snapshots(&mut self, ids: &[String]) -> Result<Vec<String>>;
     fn snapshot_content(&mut self, ids: &[String]) -> Result<Vec<SnapshotContent>>;
     fn store_snapshots(&mut self, content: &[SnapshotContent]) -> Result<()>;
+    /// The files among `shas` the hub does not have.
+    fn missing_objects(&mut self, shas: &[String]) -> Result<Vec<String>>;
+    /// A file by hash, or `None` when the hub does not have it.
+    fn object(&mut self, sha: &str) -> Result<Option<Vec<u8>>>;
+    fn store_object(&mut self, sha: &str, bytes: &[u8]) -> Result<()>;
+    /// Merge the replica's rows written outside the change log and return the
+    /// hub's rows that arrived after `after`.
+    fn exchange_rows(
+        &mut self,
+        device: &str,
+        rows: &UnloggedRows,
+        after: i64,
+    ) -> Result<UnloggedPull>;
 }
 
 /// Hub changes per pull.
@@ -209,6 +231,23 @@ impl Hub for Notebook {
     }
     fn store_snapshots(&mut self, content: &[SnapshotContent]) -> Result<()> {
         self.sync_store_snapshots(content)
+    }
+    fn missing_objects(&mut self, shas: &[String]) -> Result<Vec<String>> {
+        self.sync_missing_objects(shas)
+    }
+    fn object(&mut self, sha: &str) -> Result<Option<Vec<u8>>> {
+        self.sync_object(sha)
+    }
+    fn store_object(&mut self, sha: &str, bytes: &[u8]) -> Result<()> {
+        self.sync_store_object(sha, bytes)
+    }
+    fn exchange_rows(
+        &mut self,
+        device: &str,
+        rows: &UnloggedRows,
+        after: i64,
+    ) -> Result<UnloggedPull> {
+        self.sync_exchange_rows(device, rows, after)
     }
 }
 
@@ -333,34 +372,112 @@ fn parse<T: for<'de> Deserialize<'de>>(text: &str) -> Result<T> {
     serde_json::from_str(text).map_err(|error| validation(format!("invalid sync record: {error}")))
 }
 
-/// Apply a patch, refusing any conflict: a replica's state must match the
-/// state the patch was made from.
-fn apply_patch(conn: &Connection, patch: &[u8]) -> Result<()> {
-    let conflict = Arc::new(Mutex::new(None::<String>));
-    let seen = conflict.clone();
-    let mut input = patch;
-    let result = conn.apply_strm(&mut input, None::<fn(&str) -> bool>, move |kind, item| {
-        // A foreign-key conflict reports a count, not a row.
-        let table = match kind {
-            ConflictType::SQLITE_CHANGESET_FOREIGN_KEY => String::new(),
-            _ => item
-                .op()
-                .map(|op| format!(" in {}", op.table_name()))
-                .unwrap_or_default(),
-        };
-        *seen.lock().expect("conflict note lock") = Some(format!("{kind:?}{table}"));
-        ConflictAction::SQLITE_CHANGESET_ABORT
-    });
-    result.map_err(|error| {
-        let detail = conflict
-            .lock()
-            .expect("conflict note lock")
-            .take()
-            .unwrap_or_else(|| error.to_string());
-        validation(format!(
-            "this notebook no longer matches its hub ({detail}); clone it again"
-        ))
-    })
+/// Columns of applied tables written outside the change log. A row may differ
+/// from a patch there without the notebook having diverged from its hub.
+const UNLOGGED_COLUMNS: &[(&str, &str)] = &[
+    ("sources", "last_read_at"),
+    ("citations", "resurface_muted_at"),
+];
+
+/// Applies patches within one transaction, refusing any conflict that means
+/// this notebook's state is not the state the patch was made from.
+struct Patcher {
+    /// Column positions of [`UNLOGGED_COLUMNS`] by table.
+    unlogged: Arc<BTreeMap<String, Vec<usize>>>,
+    /// Set when a patch left a foreign key unsatisfied. Undoing an
+    /// unconfirmed change can do that briefly, for instance by removing a
+    /// citation a surfacing names, so keys are checked once all are applied.
+    dangling: Arc<std::sync::atomic::AtomicBool>,
+}
+
+impl Patcher {
+    fn new(conn: &Connection) -> Result<Self> {
+        let mut unlogged: BTreeMap<String, Vec<usize>> = BTreeMap::new();
+        for (table, column) in UNLOGGED_COLUMNS {
+            let position: i64 = conn.query_row(
+                "SELECT cid FROM pragma_table_info(?1) WHERE name = ?2",
+                [table, column],
+                |row| row.get(0),
+            )?;
+            unlogged
+                .entry((*table).to_owned())
+                .or_default()
+                .push(position as usize);
+        }
+        Ok(Self {
+            unlogged: Arc::new(unlogged),
+            dangling: Arc::default(),
+        })
+    }
+
+    fn apply(&self, conn: &Connection, patch: &[u8]) -> Result<()> {
+        let conflict = Arc::new(Mutex::new(None::<String>));
+        let seen = conflict.clone();
+        let unlogged = self.unlogged.clone();
+        let dangling = self.dangling.clone();
+        let mut input = patch;
+        let result = conn.apply_strm(&mut input, None::<fn(&str) -> bool>, move |kind, item| {
+            // A foreign-key conflict reports a count, not a row.
+            if kind == ConflictType::SQLITE_CHANGESET_FOREIGN_KEY {
+                dangling.store(true, std::sync::atomic::Ordering::Relaxed);
+                return ConflictAction::SQLITE_CHANGESET_OMIT;
+            }
+            let Ok(op) = item.op() else {
+                return ConflictAction::SQLITE_CHANGESET_ABORT;
+            };
+            if kind == ConflictType::SQLITE_CHANGESET_DATA
+                && let Some(columns) = unlogged.get(op.table_name())
+                && (0..op.number_of_columns() as usize).all(|column| {
+                    match (item.old_value(column), item.conflict(column)) {
+                        (Ok(old), Ok(current)) => old == current || columns.contains(&column),
+                        _ => true,
+                    }
+                })
+            {
+                return ConflictAction::SQLITE_CHANGESET_REPLACE;
+            }
+            *seen.lock().expect("conflict note lock") =
+                Some(format!("{kind:?} in {}", op.table_name()));
+            ConflictAction::SQLITE_CHANGESET_ABORT
+        });
+        result.map_err(|error| {
+            let detail = conflict
+                .lock()
+                .expect("conflict note lock")
+                .take()
+                .unwrap_or_else(|| error.to_string());
+            diverged(&detail)
+        })
+    }
+
+    /// Drop rows outside the change log that name records the patches
+    /// removed, then require every foreign key to hold.
+    fn finish(&self, conn: &Connection) -> Result<()> {
+        if !self.dangling.load(std::sync::atomic::Ordering::Relaxed) {
+            return Ok(());
+        }
+        conn.execute(
+            "DELETE FROM highlight_surfacings WHERE citation_id NOT IN (SELECT id FROM citations)",
+            [],
+        )?;
+        let violation: Option<String> = conn
+            .query_row(
+                "SELECT \"table\" FROM pragma_foreign_key_check LIMIT 1",
+                [],
+                |row| row.get(0),
+            )
+            .optional()?;
+        match violation {
+            Some(table) => Err(diverged(&format!("a missing reference in {table}"))),
+            None => Ok(()),
+        }
+    }
+}
+
+fn diverged(detail: &str) -> Error {
+    validation(format!(
+        "this notebook no longer matches its hub ({detail}); clone it again"
+    ))
 }
 
 fn invert(patch: &[u8]) -> Result<Vec<u8>> {
@@ -402,7 +519,8 @@ impl Notebook {
         snapshot.pragma_update(None, "journal_mode", "DELETE")?;
         snapshot.execute_batch(
             "DELETE FROM sync_replicas; DELETE FROM change_patches; DELETE FROM sync_pending;
-             DELETE FROM sync_hub; DELETE FROM ingest_jobs; DELETE FROM agent_changes;",
+             DELETE FROM sync_hub; DELETE FROM ingest_jobs; DELETE FROM agent_changes;
+             DELETE FROM sync_pins;",
         )?;
         Ok(CloneTicket {
             notebook_id: self.info()?.id,
@@ -428,7 +546,7 @@ impl Notebook {
             .collect::<rusqlite::Result<_>>()?)
     }
 
-    fn known_replica(&self, device: &str) -> Result<()> {
+    pub(crate) fn known_replica(&self, device: &str) -> Result<()> {
         let known: bool = self.conn.query_row(
             "SELECT EXISTS(SELECT 1 FROM sync_replicas WHERE device_id = ?1)",
             [device],
@@ -673,8 +791,10 @@ impl Notebook {
             "UPDATE replica SET device_id = ?1 WHERE singleton = 1",
             [&ticket.device_id],
         )?;
+        // The clone holds every row outside the log the hub had numbered.
         tx.execute(
-            "INSERT INTO sync_hub(singleton, notebook_id, url, confirmed_seq) VALUES (1, ?1, ?2, ?3)",
+            "INSERT INTO sync_hub(singleton, notebook_id, url, confirmed_seq, unlogged_cursor, unlogged_pushed)
+             SELECT 1, ?1, ?2, ?3, unlogged_seq, unlogged_seq FROM replica WHERE singleton = 1",
             params![ticket.notebook_id, hub_url, ticket.seq],
         )?;
         tx.commit()?;
@@ -709,7 +829,7 @@ impl Notebook {
         }))
     }
 
-    fn require_replica(&self) -> Result<SyncStatus> {
+    pub(crate) fn require_replica(&self) -> Result<SyncStatus> {
         self.sync_status()?
             .ok_or_else(|| validation("this notebook is not a replica; clone it from a hub first"))
     }
@@ -768,13 +888,18 @@ impl Notebook {
             )?
             .query_map([], |row| row.get(0))?
             .collect::<rusqlite::Result<_>>()?;
+        // Undoing a change can remove a citation a surfacing names; keep those
+        // surfacings to restore once the change is applied again.
+        let surfacings = crate::sync_library::pending_surfacings(&tx)?;
+        let patcher = Patcher::new(&tx)?;
         for patch in &applied {
-            apply_patch(&tx, &invert(patch)?)?;
+            patcher.apply(&tx, &invert(patch)?)?;
         }
         tx.execute("UPDATE sync_pending SET seq = NULL, patch = NULL", [])?;
         for change in pulled {
-            apply_patch(&tx, &change.patch)?;
+            patcher.apply(&tx, &change.patch)?;
         }
+        patcher.finish(&tx)?;
         if let Some(last) = pulled.last() {
             tx.execute(
                 "UPDATE sync_hub SET confirmed_seq = ?1 WHERE singleton = 1",
@@ -799,6 +924,8 @@ impl Notebook {
                 Err(error) => return Err(error),
             }
         }
+        crate::sync_library::restore_surfacings(&self.conn, &surfacings)?;
+        crate::sync_library::reconcile(&self.conn)?;
         Ok(report)
     }
 
@@ -811,6 +938,14 @@ impl Notebook {
             if !missing.is_empty() {
                 hub.store_snapshots(&self.sync_snapshot_content(&missing)?)?;
                 report.sent_snapshots = missing.len();
+            }
+        }
+        // The hub keeps every file; send the ones these changes need first.
+        let objects = self.sync_outbox_objects(&outbox)?;
+        if !objects.is_empty() {
+            for sha in hub.missing_objects(&objects)? {
+                hub.store_object(&sha, &self.read_object(&sha)?)?;
+                report.sent_objects += 1;
             }
         }
         if !outbox.changes.is_empty() {
@@ -837,6 +972,20 @@ impl Notebook {
             report.received_snapshots = missing.len();
         }
         report.integrated = self.sync_integrate(&pulled)?;
+        // Rows outside the log name citations and snapshots, so they follow
+        // the changes that create those.
+        let (sent, received) = self.sync_unlogged_with(hub)?;
+        report.sent_rows = sent;
+        report.received_rows = received;
+        for sha in self.sync_wanted_objects()? {
+            match hub.object(&sha)? {
+                Some(bytes) => {
+                    self.sync_store_object(&sha, &bytes)?;
+                    report.received_objects += 1;
+                }
+                None => report.unavailable_objects.push(sha),
+            }
+        }
         Ok(report)
     }
 

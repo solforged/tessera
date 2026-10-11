@@ -53,7 +53,7 @@ pub(crate) fn validate_sha(sha: &str) -> Result<()> {
     Ok(())
 }
 
-fn sha256_hex(bytes: &[u8]) -> String {
+pub(crate) fn sha256_hex(bytes: &[u8]) -> String {
     Sha256::digest(bytes)
         .iter()
         .fold(String::with_capacity(64), |mut hex, byte| {

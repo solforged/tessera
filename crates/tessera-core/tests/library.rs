@@ -354,7 +354,12 @@ fn citation_triage_migration_preserves_existing_evidence() {
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
     downgrade_card_schema(&conn);
     conn.execute_batch(
-        "DROP TRIGGER blocks_search_delete;
+        "DROP TABLE sync_pins;
+         DROP INDEX reading_positions_sync; DROP INDEX highlight_surfacings_sync;
+         ALTER TABLE reading_positions DROP COLUMN hlc; ALTER TABLE reading_positions DROP COLUMN device;
+         ALTER TABLE reading_positions DROP COLUMN sync_seq; ALTER TABLE highlight_surfacings DROP COLUMN hlc;
+         ALTER TABLE highlight_surfacings DROP COLUMN device; ALTER TABLE highlight_surfacings DROP COLUMN sync_seq;
+         DROP TRIGGER blocks_search_delete;
          DROP TABLE sync_replicas; DROP TABLE change_patches; DROP TABLE sync_hub;
          DROP TABLE sync_pending; DROP TABLE id_aliases; DROP TABLE sync_conflicts;
          DROP TABLE replica;
@@ -579,7 +584,12 @@ fn citation_color_migration_preserves_existing_evidence_with_null_color() {
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
     downgrade_card_schema(&conn);
     conn.execute_batch(
-        "DROP TRIGGER blocks_search_delete;
+        "DROP TABLE sync_pins;
+         DROP INDEX reading_positions_sync; DROP INDEX highlight_surfacings_sync;
+         ALTER TABLE reading_positions DROP COLUMN hlc; ALTER TABLE reading_positions DROP COLUMN device;
+         ALTER TABLE reading_positions DROP COLUMN sync_seq; ALTER TABLE highlight_surfacings DROP COLUMN hlc;
+         ALTER TABLE highlight_surfacings DROP COLUMN device; ALTER TABLE highlight_surfacings DROP COLUMN sync_seq;
+         DROP TRIGGER blocks_search_delete;
          DROP TABLE sync_replicas; DROP TABLE change_patches; DROP TABLE sync_hub;
          DROP TABLE sync_pending; DROP TABLE id_aliases; DROP TABLE sync_conflicts;
          DROP TABLE replica;

@@ -475,7 +475,7 @@ pub(super) async fn cover(
     State(state): State<AppState>,
     Path(sha): Path<String>,
 ) -> Result<Response, ApiError> {
-    let bytes = run(&state, move |n| n.read_object(&sha)).await?;
+    let bytes = super::object(&state, sha).await?;
     let media = image_type(&bytes).ok_or_else(ApiError::not_found)?;
     Ok((
         [

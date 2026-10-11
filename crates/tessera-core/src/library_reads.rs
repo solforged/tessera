@@ -573,12 +573,14 @@ impl Notebook {
         };
         let now = crate::notebook::now_ms();
         let tx = self.conn.transaction()?;
+        let stamp = crate::unlogged::stamp(&tx, now)?;
         tx.execute(
-            "INSERT INTO reading_positions (snapshot_id, passage_ordinal, updated_at)
-             VALUES (?1, ?2, ?3)
+            "INSERT INTO reading_positions (snapshot_id, passage_ordinal, updated_at, hlc, device, sync_seq)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)
              ON CONFLICT(snapshot_id) DO UPDATE
-             SET passage_ordinal = excluded.passage_ordinal, updated_at = excluded.updated_at",
-            params![snapshot, ordinal, now],
+             SET passage_ordinal = excluded.passage_ordinal, updated_at = excluded.updated_at,
+                 hlc = excluded.hlc, device = excluded.device, sync_seq = excluded.sync_seq",
+            params![snapshot, ordinal, now, stamp.hlc, stamp.device, stamp.seq],
         )?;
         tx.execute(
             "UPDATE sources

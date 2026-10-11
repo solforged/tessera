@@ -1,7 +1,7 @@
 //! Applying a change another device made, resolving what it collides with.
 //! See "Conflicts" and "Natural-key collisions" in `docs/sync.md`.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use rusqlite::{OptionalExtension, TransactionBehavior, params};
 use serde_json::Value;
@@ -62,6 +62,12 @@ impl Notebook {
             origin_batch: Some(&change.batch),
             bases: Some(&change.bases),
         };
+        // Everything the change made already exists here; keep what it
+        // resolved to so later changes that name its IDs still apply.
+        if rewrite.batch.operations.is_empty() {
+            let seq = self.record_without_effect(change, &extras)?;
+            return Ok(PushOutcome::Accepted { seq });
+        }
         let mut attempts = rewrite.batch.operations.len() + 2;
         loop {
             let error =
@@ -120,15 +126,10 @@ impl Notebook {
     /// Record a change that cannot apply as a change without effect, keeping
     /// its batch as a rejected conflict every device sees.
     fn reject(&mut self, change: &PushedChange, error: &Error) -> Result<PushOutcome> {
-        let stamp = &change.stamp;
         let message = error.to_string();
-        let operations = json(&change.batch.operations);
-        let tx = self
-            .conn
-            .transaction_with_behavior(TransactionBehavior::Immediate)?;
         let extras = Extras {
             conflicts: vec![ConflictRow {
-                id: derived_id(&["rejected", &stamp.id]),
+                id: derived_id(&["rejected", &change.stamp.id]),
                 kind: "rejected",
                 block_id: None,
                 text: None,
@@ -137,7 +138,21 @@ impl Notebook {
             }],
             ..Extras::default()
         };
-        let recording = crate::sync::begin(&tx, &change.batch, &extras)?;
+        let seq = self.record_without_effect(change, &extras)?;
+        Ok(PushOutcome::Rejected {
+            seq,
+            error: message,
+        })
+    }
+
+    /// Log a change that writes nothing else, with what `extras` records.
+    fn record_without_effect(&mut self, change: &PushedChange, extras: &Extras) -> Result<i64> {
+        let stamp = &change.stamp;
+        let operations = json(&change.batch.operations);
+        let tx = self
+            .conn
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let recording = crate::sync::begin(&tx, &change.batch, extras)?;
         tx.execute(
             "INSERT INTO changes(actor, reason, created_at, operations_hash, operations, committed, change_id, origin)
              VALUES (?1, ?2, ?3, ?4, ?5, '{}', ?6, ?7)",
@@ -166,13 +181,10 @@ impl Notebook {
         )?;
         extras.write(&tx, stamp, seq)?;
         if let Some(recording) = { recording } {
-            crate::sync::finish(&tx, recording, seq, stamp, &change.batch, &extras)?;
+            crate::sync::finish(&tx, recording, seq, stamp, &change.batch, extras)?;
         }
         tx.commit()?;
-        Ok(PushOutcome::Rejected {
-            seq,
-            error: message,
-        })
+        Ok(seq)
     }
 
     fn rewrite(&self, change: &PushedChange) -> Result<Rewrite> {
@@ -193,9 +205,11 @@ impl Notebook {
             .collect::<rusqlite::Result<_>>()?;
         substitute(&mut operations, &mut bases, &known);
 
+        let mut aliases = Vec::new();
+        self.merge_duplicate_sources(&mut operations, &mut aliases)?;
+
         // A page title or journal day this notebook already has resolves to
         // the existing root; the change's children follow its children.
-        let mut aliases = Vec::new();
         let mut kept = Vec::with_capacity(operations.len());
         for operation in operations {
             let existing = match field(&operation, "op") {
@@ -385,6 +399,108 @@ impl Notebook {
             aliases,
             conflicts,
         })
+    }
+
+    /// A book this notebook already has as a source, imported again on
+    /// another device: the change's new source page resolves to the existing
+    /// source, and what the import put under that page is dropped. A
+    /// snapshot the existing source lacks is attached to it.
+    fn merge_duplicate_sources(
+        &self,
+        operations: &mut Vec<Value>,
+        aliases: &mut Vec<(String, String)>,
+    ) -> Result<()> {
+        let created: BTreeSet<String> = operations
+            .iter()
+            .filter(|operation| field(operation, "op") == Some("create_page"))
+            .filter_map(|operation| field(operation, "id").map(str::to_owned))
+            .collect();
+        // New source pages, with their match key and snapshot.
+        let mut books: BTreeMap<String, (Option<String>, Option<String>)> = BTreeMap::new();
+        for operation in operations.iter() {
+            let Some(id) = field(operation, "id").filter(|id| created.contains(*id)) else {
+                continue;
+            };
+            match field(operation, "op") {
+                Some("set_source") => {
+                    books.entry(id.to_owned()).or_default().0 =
+                        operation["source"]["match_key"].as_str().map(str::to_owned);
+                }
+                Some("attach_snapshot") => {
+                    books.entry(id.to_owned()).or_default().1 =
+                        field(operation, "snapshot_id").map(str::to_owned);
+                }
+                _ => {}
+            }
+        }
+        let mut dropped = BTreeSet::new();
+        let mut attach = BTreeMap::new();
+        for (id, (key, snapshot)) in &books {
+            let Some(target) = self
+                .conn
+                .query_row(
+                    "SELECT s.block_id FROM sources s JOIN blocks b ON b.id = s.block_id
+                     WHERE s.active = 1 AND b.deletion_id IS NULL AND s.block_id <> ?3
+                     AND ((?1 IS NOT NULL AND s.match_key = ?1) OR (?2 IS NOT NULL AND EXISTS(
+                         SELECT 1 FROM source_snapshots a WHERE a.source_id = s.block_id AND a.snapshot_id = ?2)))
+                     ORDER BY CASE WHEN s.match_key = ?1 THEN 0 ELSE 1 END, s.added_at, s.block_id
+                     LIMIT 1",
+                    params![key, snapshot, id],
+                    |row| row.get::<_, String>(0),
+                )
+                .optional()?
+            else {
+                continue;
+            };
+            if let Some(snapshot) = snapshot {
+                let attached: bool = self.conn.query_row(
+                    "SELECT EXISTS(SELECT 1 FROM source_snapshots WHERE source_id = ?1 AND snapshot_id = ?2)",
+                    params![target, snapshot],
+                    |row| row.get(0),
+                )?;
+                if !attached {
+                    let revision: i64 = self.conn.query_row(
+                        "SELECT revision FROM blocks WHERE id = ?1",
+                        [&target],
+                        |row| row.get(0),
+                    )?;
+                    attach.insert(id.clone(), revision);
+                }
+            }
+            dropped.insert(id.clone());
+            aliases.push((id.clone(), target));
+        }
+        if dropped.is_empty() {
+            return Ok(());
+        }
+        // Blocks the import inserted under a dropped page go with it.
+        loop {
+            let before = dropped.len();
+            for operation in operations.iter() {
+                if field(operation, "op") == Some("insert")
+                    && field(operation, "parent_id").is_some_and(|parent| dropped.contains(parent))
+                    && let Some(id) = field(operation, "id")
+                {
+                    dropped.insert(id.to_owned());
+                }
+            }
+            if dropped.len() == before {
+                break;
+            }
+        }
+        operations.retain_mut(|operation| {
+            let Some(id) = field(operation, "id") else {
+                return true;
+            };
+            if field(operation, "op") == Some("attach_snapshot")
+                && let Some(revision) = attach.get(id)
+            {
+                operation["base_revision"] = Value::from(*revision);
+                return true;
+            }
+            !dropped.contains(id)
+        });
+        Ok(())
     }
 
     /// A live copy that `origin` keeps beside `block` and last set to `text`,

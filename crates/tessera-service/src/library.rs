@@ -237,19 +237,19 @@ async fn resource(
     let Path((id, href)) = path.map_err(ApiError::from)?;
     let data = run(&state, move |n| {
         let (sha, media_type) = n.snapshot_resource(&id, &href)?;
-        if !media_type.starts_with("image/") {
-            return Ok(None);
-        }
-        Ok(Some((n.read_object(&sha)?, media_type)))
+        Ok(media_type
+            .starts_with("image/")
+            .then_some((sha, media_type)))
     })
     .await?;
-    let (bytes, media_type) = data.ok_or_else(|| {
+    let (sha, media_type) = data.ok_or_else(|| {
         ApiError::new(
             StatusCode::UNSUPPORTED_MEDIA_TYPE,
             "unsupported_media_type",
             "Only image resources may be served.",
         )
     })?;
+    let bytes = object(&state, sha).await?;
     Ok((
         [
             (header::CONTENT_TYPE, media_type),
@@ -263,6 +263,15 @@ async fn resource(
     )
         .into_response())
 }
+
+/// A stored file; a replica fetches one it lacks from its hub.
+pub(crate) async fn object(state: &AppState, sha: String) -> Result<Vec<u8>, ApiError> {
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+    return crate::sync::object_or_fetch(state, sha).await;
+    #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+    return run(state, move |n| n.read_object(&sha)).await;
+}
+
 #[derive(Deserialize)]
 struct PositionBody {
     ordinal: i64,

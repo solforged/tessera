@@ -38,8 +38,11 @@ mod storage;
 pub mod sync;
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 mod sync_apply;
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+mod sync_library;
 mod task_query;
 mod task_store;
+mod unlogged;
 mod work_store;
 
 pub use agent::{
