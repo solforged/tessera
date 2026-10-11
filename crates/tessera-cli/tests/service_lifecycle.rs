@@ -23,6 +23,8 @@ fn command(notebook: &Path) -> Command {
         .arg("serve")
         .arg("--port")
         .arg("0")
+        .arg("--sync-port")
+        .arg("0")
         .stdout(Stdio::null())
         .stderr(Stdio::piped());
     command

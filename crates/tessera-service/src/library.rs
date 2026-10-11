@@ -854,6 +854,9 @@ mod tests {
             library,
             port: crate::DEFAULT_PORT,
             backup: Arc::new(tokio::sync::Mutex::new(())),
+            sync_port: 4501,
+            pairing: Arc::new(Mutex::new(crate::pairing::Pairing::default())),
+            sharing: Arc::new(tokio::sync::Mutex::new(())),
         }
     }
     async fn response(app: &Router, method: &str, path: &str, body: Vec<u8>) -> Response {
@@ -1210,6 +1213,9 @@ mod resurface_tests {
             assets: None,
             port: crate::DEFAULT_PORT,
             backup: Arc::new(tokio::sync::Mutex::new(())),
+            sync_port: 4501,
+            pairing: Arc::new(Mutex::new(crate::pairing::Pairing::default())),
+            sharing: Arc::new(tokio::sync::Mutex::new(())),
         });
         let get = app
             .clone()

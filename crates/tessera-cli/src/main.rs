@@ -46,6 +46,9 @@ enum Command {
     Serve {
         #[arg(long, default_value_t = tessera_service::DEFAULT_PORT)]
         port: u16,
+        /// Authenticated sync listener; defaults to the editor port plus one.
+        #[arg(long)]
+        sync_port: Option<u16>,
         /// Built browser editor directory, e.g. web/dist.
         #[arg(long)]
         assets: Option<PathBuf>,
@@ -126,6 +129,7 @@ fn main() -> anyhow::Result<()> {
         }
         Command::Serve {
             port,
+            sync_port,
             assets,
             dev_origin,
         } => {
@@ -133,6 +137,7 @@ fn main() -> anyhow::Result<()> {
                 tessera_service::Config {
                     notebook,
                     port,
+                    sync_port,
                     assets,
                     dev_origin,
                 },

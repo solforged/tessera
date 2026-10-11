@@ -19,7 +19,15 @@ const TICKET_HEADER: &str = "x-tessera-clone";
 pub(crate) enum SyncCommand {
     /// Make the notebook directory a new replica of the hub at URL, e.g.
     /// http://127.0.0.1:4318.
-    Clone { url: String },
+    Clone {
+        url: String,
+        /// One-time code shown by the hub. Omit only for loopback editor clones.
+        #[arg(long)]
+        code: Option<String>,
+        /// This device's name on the hub.
+        #[arg(long, requires = "code")]
+        name: Option<String>,
+    },
     /// Show this replica's hub and unpushed changes.
     Status,
     /// List kept conflict text and changes the hub rejected.
@@ -40,7 +48,9 @@ pub(crate) enum SyncCommand {
 
 pub(crate) fn run(notebook: &Path, command: Option<SyncCommand>) -> anyhow::Result<()> {
     let output = match command {
-        Some(SyncCommand::Clone { url }) => serde_json::to_value(clone(notebook, &url)?)?,
+        Some(SyncCommand::Clone { url, code, name }) => {
+            serde_json::to_value(clone(notebook, &url, code.as_deref(), name.as_deref())?)?
+        }
         Some(SyncCommand::Status) => {
             let replica = open(notebook)?;
             serde_json::to_value(replica.notebook.sync_status()?)?
@@ -72,8 +82,14 @@ pub(crate) fn run(notebook: &Path, command: Option<SyncCommand>) -> anyhow::Resu
                     notebook.display()
                 )
             })?;
-            let mut hub = HttpHub::new(&status.hub_url)?;
-            serde_json::to_value(replica.notebook.sync_with(&mut hub)?)?
+            let credentials = replica.notebook.sync_hub_credentials()?;
+            let mut hub = HttpHub::new(
+                &status.hub_url,
+                credentials.as_ref().and_then(|c| c.key.as_deref()),
+            )?;
+            let report = replica.notebook.sync_with(&mut hub)?;
+            replica.notebook.sync_mark_synced()?;
+            serde_json::to_value(report)?
         }
     };
     println!("{}", serde_json::to_string_pretty(&output)?);
@@ -95,20 +111,62 @@ fn open(notebook: &Path) -> anyhow::Result<Replica> {
     })
 }
 
-fn clone(notebook: &Path, url: &str) -> anyhow::Result<Option<tessera_core::sync::SyncStatus>> {
+fn clone(
+    notebook: &Path,
+    url: &str,
+    code: Option<&str>,
+    name: Option<&str>,
+) -> anyhow::Result<Option<tessera_core::sync::SyncStatus>> {
     let database = notebook.join(DATABASE_FILE);
     anyhow::ensure!(
         !database.exists(),
         "{} already holds a notebook; clone into a new directory",
         notebook.display()
     );
-    let hub = HttpHub::new(url)?;
     let _ownership = NotebookOwnership::acquire(notebook, 0)?;
+    let pairing = code.map(|code| pair(url, code, name)).transpose()?;
+    let hub = HttpHub::new(url, pairing.as_ref().map(|p| p.key.as_str()))?;
     let (ticket, partial) = download(&hub, notebook)?;
     std::fs::rename(&partial, &database)?;
     let mut replica = Notebook::open(notebook)?;
     replica.sync_adopt(&hub.base, &ticket)?;
+    if let Some(pairing) = pairing {
+        replica.sync_set_hub_credentials(
+            Some(&pairing.key),
+            Some(&pairing.hub.name),
+            Some(&pairing.device.name),
+        )?;
+    }
     Ok(replica.sync_status()?)
+}
+
+#[derive(serde::Deserialize)]
+struct PairResponse {
+    key: String,
+    device: tessera_core::sync_devices::PairedDevice,
+    hub: PairHub,
+}
+
+#[derive(serde::Deserialize)]
+struct PairHub {
+    name: String,
+    schema_version: u32,
+}
+
+fn pair(url: &str, code: &str, name: Option<&str>) -> anyhow::Result<PairResponse> {
+    let default_name = std::process::Command::new("hostname")
+        .output()
+        .ok()
+        .filter(|output| output.status.success())
+        .and_then(|output| String::from_utf8(output.stdout).ok())
+        .unwrap_or_else(|| "localhost".into());
+    let hub = HttpHub::new(url, None)?;
+    let pairing: PairResponse = hub.call(
+        "/api/sync/pair",
+        json!({"code":code,"name":name.unwrap_or(default_name.trim())}),
+    )?;
+    tessera_core::sync::check_schema(pairing.hub.schema_version)?;
+    Ok(pairing)
 }
 
 /// Write a clone of the hub's notebook beside `notebook`'s database, and
@@ -123,6 +181,7 @@ fn download(hub: &HttpHub, notebook: &Path) -> anyhow::Result<(CloneTicket, Path
             let client = reqwest::Client::builder()
                 .connect_timeout(std::time::Duration::from_secs(30))
                 .read_timeout(std::time::Duration::from_secs(120))
+                .default_headers(hub.headers.clone())
                 .build()?;
             let mut response = checked(
                 client
@@ -163,7 +222,11 @@ fn reclone(notebook: &Path) -> anyhow::Result<serde_json::Value> {
             notebook.display()
         )
     })?;
-    let mut hub = HttpHub::new(&status.hub_url)?;
+    let credentials = old.sync_hub_credentials()?;
+    let mut hub = HttpHub::new(
+        &status.hub_url,
+        credentials.as_ref().and_then(|c| c.key.as_deref()),
+    )?;
     // A retired replica can still send, so nothing made here is lost.
     let sent = old.sync_send(&mut hub)?;
     let pins = old.sync_pins()?;
@@ -187,12 +250,20 @@ fn reclone(notebook: &Path) -> anyhow::Result<serde_json::Value> {
     std::fs::rename(&partial, &database)?;
     let mut replica = Notebook::open(notebook)?;
     replica.sync_adopt(&hub.base, &ticket)?;
+    if let Some(credentials) = credentials {
+        replica.sync_set_hub_credentials(
+            credentials.key.as_deref(),
+            credentials.hub_name.as_deref(),
+            credentials.device_name.as_deref(),
+        )?;
+    }
     // A pinned source the hub deleted cannot be pinned again.
     let unpinned: Vec<String> = pins
         .into_iter()
         .filter(|source| replica.sync_pin(source).is_err())
         .collect();
     let synced = replica.sync_with(&mut hub)?;
+    replica.sync_mark_synced()?;
     Ok(json!({
         "sent": sent,
         "synced": synced,
@@ -207,18 +278,27 @@ struct HttpHub {
     runtime: tokio::runtime::Runtime,
     client: reqwest::Client,
     base: String,
+    headers: reqwest::header::HeaderMap,
 }
 
 impl HttpHub {
-    fn new(url: &str) -> anyhow::Result<Self> {
+    fn new(url: &str, key: Option<&str>) -> anyhow::Result<Self> {
+        let mut headers = reqwest::header::HeaderMap::new();
+        if let Some(key) = key {
+            let mut value = reqwest::header::HeaderValue::from_str(&format!("Bearer {key}"))?;
+            value.set_sensitive(true);
+            headers.insert(reqwest::header::AUTHORIZATION, value);
+        }
         Ok(Self {
             runtime: tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()?,
             client: reqwest::Client::builder()
                 .timeout(std::time::Duration::from_secs(300))
+                .default_headers(headers.clone())
                 .build()?,
             base: url.trim_end_matches('/').to_owned(),
+            headers,
         })
     }
 
