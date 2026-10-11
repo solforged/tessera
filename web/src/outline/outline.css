@@ -177,20 +177,35 @@
 .outline-capability-popup { display: flex; flex-direction: column; gap: var(--space-8); padding: var(--space-12); max-width: var(--measure); font-size: var(--text-control); line-height: var(--line-control); }
 .outline-capability-popup p { margin: 0; }
 .outline-capability-actions { display: flex; flex-wrap: wrap; gap: var(--space-8); }
-.outline-heading:has(.outline-source-header) { padding-bottom: var(--space-8); }
-.outline-source-header { display: flex; align-items: flex-start; gap: var(--space-12); margin-top: var(--space-8); padding-bottom: var(--space-12); border-bottom: var(--rule-width) solid var(--line); font-size: var(--text-control); line-height: var(--line-control); }
-.outline-source-cover.button { flex: none; width: var(--space-48); padding: 0; border: 0; border-radius: var(--radius-control); overflow: hidden; }
-.outline-source-cover img { display: block; width: 100%; height: auto; aspect-ratio: auto; }
-.outline-source-info { flex: 1; min-width: 0; }
-.outline-source-summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-8); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
-/* The source's own siglum is a bare gilt mark; boxes belong to the citation margin. */
-.source-siglum { display: inline-flex; align-items: center; gap: var(--space-8); color: var(--accent); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
-.source-siglum::after { content: ''; width: var(--space-8); border-top: var(--rule-width) solid var(--line); }
-.outline-source-description { display: flex; align-items: flex-end; gap: var(--space-8); overflow: hidden; margin-top: var(--space-8); }
+/* A source's cover stands beside its title and one-line imprint; progress and reading controls span the full measure below. The cover spans a flexible third row, so its height pads below the imprint instead of pushing the imprint away from the title. */
+.outline-heading:has(.outline-source-header) { display: grid; grid-template-columns: calc(var(--work-cover-width) + var(--space-48)) minmax(0, 1fr); grid-template-rows: min-content min-content 1fr; align-items: start; gap: var(--space-8) var(--space-24); padding-bottom: var(--space-8); }
+.outline-heading:has(.outline-source-header) > * { grid-column: 1 / -1; }
+.outline-heading:has(.outline-source-header) > .outline-title-row { grid-column: 2; grid-row: 1; }
+.outline-source-header { display: contents; }
+.outline-source-cover, .outline-source-cover.button { grid-column: 1; grid-row: 1 / span 3; width: 100%; padding: 0; border: 0; border-radius: var(--radius-control); overflow: hidden; }
+.outline-source-cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.outline-source-info { grid-column: 2; grid-row: 2; min-width: 0; }
+.outline-source-subtitle { margin: 0 0 var(--space-8); color: var(--muted); font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); }
+.outline-source-summary { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8) var(--space-12); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.outline-source-creator, .outline-source-creator.button { display: inline-flex; align-items: center; min-height: var(--row-height); padding: var(--space-2) var(--space-12); border: var(--rule-width) solid var(--line); border-radius: var(--radius-pill); color: var(--text); font: var(--weight-body) var(--text-control)/var(--line-control) var(--font-body); }
+.outline-source-progress-block { grid-column: 1 / -1; display: flex; flex-direction: column; gap: var(--space-8); margin-top: var(--space-16); }
+.outline-source-chapter { margin: 0; color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
+.outline-source-time { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-4) var(--space-16); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); font-variant-numeric: tabular-nums; }
+.outline-source-description { grid-column: 1 / -1; display: flex; align-items: flex-end; gap: var(--space-8); overflow: hidden; margin-top: var(--space-8); }
 .outline-source-description p { flex: 1; min-width: 0; margin: 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; color: var(--muted); font-size: var(--text-body); line-height: var(--line-body); }
 .outline-source-description p.expanded { display: block; }
 .outline-source-description .button { flex: none; }
-.outline-source-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4); margin-top: var(--space-4); margin-left: calc(-1 * var(--space-8)); }
+.outline-source-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); margin-top: var(--space-8); }
+.outline-source-read.button { padding-inline: var(--space-16); border-color: var(--accent); background: var(--accent); color: var(--surface); }
+.outline-source-read.button:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 88%, var(--text)); }
+/* Colour filters keep individual touch targets and real highlight hues. Their buttons' padding counts toward the interval before the grouping control, whose own padding hangs past the column so its chevron meets the paragraph numbers' edge. */
+.outline-source-highlight-toolbar { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-8) var(--space-16); margin-top: var(--space-24); }
+.outline-source-highlight-toolbar h2 { margin: 0; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.outline-source-highlight-controls { display: flex; align-items: center; gap: var(--space-8); margin-left: auto; margin-right: calc(-1 * var(--space-8)); }
+.outline-source-highlight-colors { display: flex; align-items: center; gap: var(--space-4); }
+.outline-source-highlight-colors .highlight-color-dot { width: var(--space-8); height: var(--space-8); }
+.outline-source-highlight-colors [aria-pressed="true"] .highlight-color-dot { outline: var(--space-2) solid var(--text); outline-offset: var(--space-2); }
+.outline-source-group.button { color: var(--muted); font-weight: var(--weight-body); }
 .source-detail { font-size: var(--text-control); line-height: var(--line-control); }
 .source-detail .static-text { min-height: var(--line-control); padding-block: var(--space-2); color: var(--text); }
 .source-detail.field-entry .static-text { color: var(--muted); }
@@ -202,7 +217,6 @@
 .outline-highlights-label span { margin-left: var(--space-8); }
 /* Each chapter's first highlight carries the chapter title, in the apparatus face, over the highlight text. */
 .outline-chapter-label { flex: 0 0 calc(100% - var(--gutter) - var(--indent-width)); margin: var(--space-16) 0 var(--space-2) calc(var(--gutter) + var(--indent-width)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
-.outline-highlights-label + .outline-chapter-label { margin-top: var(--space-4); }
 /* Highlights of this source filed on other pages: the same faint label and the same reading face as the highlights above. */
 .source-elsewhere > .outline-highlights-label { margin: var(--space-4) 0 var(--space-4) var(--indent-width); font-weight: var(--weight-body); }
 .source-elsewhere > .library-highlight.button { margin-left: calc(var(--indent-width) - var(--space-8)); font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); font-variation-settings: var(--optical-quote); }
@@ -214,13 +228,12 @@
 .person-work:hover .person-work-title { color: var(--accent); }
 .person-work-title { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; color: var(--text); font-family: var(--font-display); font-size: var(--text-control); line-height: var(--line-control); }
 .person-work-apparatus { color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
-.outline-source-progress { color: var(--muted); font-variant-numeric: tabular-nums; }
 .outline-citation { max-width: 100%; overflow-wrap: anywhere; text-align: left; }
 /* On the source's own page the chip is only `¶N`: it stays at the end of the first line, and the text wraps beside it. */
 .outline-source-line:has(.outline-citation-local) { flex-wrap: nowrap; }
 .outline-source-line:has(.outline-citation-local) > .outline-source { flex-basis: 0; }
 .outline-source-line:has(.outline-citation-local) > .outline-capability-metadata { flex: none; }
-.outline-citation-local { color: var(--faint); }
+.outline-capability-metadata .outline-citation-local { color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); font-variant-numeric: tabular-nums; }
 .outline-citation-quote { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; margin: var(--space-4) 0; padding-left: var(--space-8); border-left: var(--space-2) solid var(--line); white-space: pre-wrap; color: var(--muted); font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); font-variation-settings: var(--optical-quote); }
 .outline-row:has(.outline-citation) .outline-body:not(.heading-1, .heading-2, .heading-3) .outline-source .static-text { font-family: var(--font-display); font-size: var(--text-quote); line-height: var(--line-quote); font-variation-settings: var(--optical-quote); }
 .outline-running-task { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-4); color: var(--muted); }
@@ -273,6 +286,29 @@
 .outline-cards-state { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .outline-cards-confirm { display: flex; flex-direction: column; gap: var(--space-8); padding-block: var(--space-8); border-block: 1px solid var(--line); }
 .outline-row-linked > .outline-body { border-radius: var(--radius-control); background: var(--hover); box-shadow: 0 0 0 var(--space-4) var(--hover); }
+/* Source highlights read at full measure with a 2 px colour bar, not an editor gutter or a trailing colour dot. Controls return on selection. */
+.source-page > :is(.outline-heading, .outline-list) { max-width: var(--measure); }
+.source-page > .outline-heading { padding-left: 0; }
+.source-page .source-highlight { padding-left: 0; padding-block: var(--space-12); border-left: 0; border-bottom: var(--rule-width) solid var(--line); border-radius: 0; }
+.source-page .source-highlight > .outline-body { border-left: var(--space-2) solid var(--quote-color); padding-left: var(--space-16); padding-right: 0; }
+.source-page .source-highlight > :is(.row-menu, .row-fold, .row-bullet) { position: absolute; display: none; }
+.source-page .source-highlight:is(:hover, :focus-within, .row-selected) > :is(.row-menu, .row-fold, .row-bullet) { display: inline-flex; z-index: 1; background: var(--canvas); }
+.source-page .source-highlight > .row-menu { right: 0; bottom: var(--space-4); }
+.source-page .source-highlight > .row-fold { right: var(--target-size); bottom: var(--space-4); }
+.source-page .source-highlight > .row-bullet { right: calc(var(--target-size) * 2); bottom: var(--space-4); }
+.source-page .outline-chapter-label { flex-basis: 100%; margin: 0 0 var(--space-12); }
+/* A split pane and the Fold cover use the compact cover and title without shrinking the reading text. */
+@container outline-pane (max-width: 599px) {
+  .outline-heading:has(.outline-source-header) { grid-template-columns: calc(var(--space-48) + var(--space-24) + var(--space-12)) minmax(0, 1fr); column-gap: var(--space-16); }
+  .outline-heading:has(.outline-source-header) :is(h1, .outline-title, .title-input) { font-size: var(--text-h1); line-height: var(--line-h1); }
+}
+/* The cover keeps reading and status under the thumb, clear of the app's bottom navigation. */
+@media (max-width: 599px) and (pointer: coarse) {
+  .source-page { padding-bottom: calc(var(--space-48) * 2 + var(--space-24)); }
+  .source-cover-actions { position: fixed; z-index: 12; left: var(--space-4); right: var(--space-4); bottom: calc(var(--bottom-nav-height) + var(--bottom-inset)); margin: 0; padding: var(--space-12) var(--space-16); border-top: var(--rule-width) solid var(--line); background: var(--canvas); }
+  .source-cover-actions .outline-source-read { flex: 1; }
+  .app.keyboard-open .source-cover-actions { bottom: var(--bottom-inset); }
+}
 .outline-reference.outline-reference-ambiguous,
 :is(.outline-body, .outline-value-pill, .table-value-pill) .outline-reference.outline-reference-ambiguous { color: var(--warning); text-decoration-line: underline; text-decoration-style: dotted; text-decoration-color: var(--warning); }
 .outline-reference-ambiguous sup { font: var(--apparatus); margin-inline-start: var(--space-2); }

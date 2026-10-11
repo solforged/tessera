@@ -188,9 +188,23 @@ function Pane(props: OutlinePaneProps) {
     })();
   }
 
+  const [sourceFieldsVisible, setSourceFieldsVisible] = createSignal(!!initial.caret);
+  const [sourceColors, setSourceColors] = createSignal<string[]>([]);
+  const [sourceGrouped, setSourceGrouped] = createSignal(true);
   const unfoldedIds = createMemo(() => {
     const visible = visibleIds(doc, zoom(), folds(), showArchived(), undefined, depthFilter());
-    return doc.root()?.source && !zoom() ? sourceReadingOrder(doc, visible, definitionsById()) : visible;
+    if (!doc.root()?.source || zoom()) return visible;
+    const roots = new Map<string, string>();
+    const colors = sourceColors(), showFields = sourceFieldsVisible();
+    const shown = visible.filter(id => {
+      const parent = doc.outline.parentOf(id), root = parent === props.pageId ? id : roots.get(parent) ?? id;
+      roots.set(id, root);
+      const block = doc.block(root);
+      if (sourceFieldName(block?.text ?? '', definitionsById())) return showFields;
+      const citation = block?.citations.find(value => value.source_id === props.pageId);
+      return !citation || !colors.length || !!citation.color && colors.includes(citation.color);
+    });
+    return sourceReadingOrder(doc, shown, definitionsById());
   });
   const unfoldedSet = createMemo(() => new Set(unfoldedIds()));
   // Only field entries can fold their values inline. Field entries come from structural edits (shorthand
@@ -236,16 +250,18 @@ function Pane(props: OutlinePaneProps) {
   const sigla = createMemo(() => pageSigla((siglumRecords.error ? [] : siglumRecords() ?? []).filter(record => record !== null)));
   const [sourceHighlights] = createResource(() => doc.root()?.source ? [props.pageId, props.notebook.changeSequence()] as const : false,
     ([source_id]) => props.notebook.api.highlights({ source_id, limit: 100000 }));
-  const filedElsewhere = createMemo(() => (sourceHighlights()?.rows ?? []).filter(row => row.block.page.id !== props.pageId)
+  const filedElsewhere = createMemo(() => (sourceHighlights()?.rows ?? []).filter(row => row.block.page.id !== props.pageId && (!sourceColors().length || !!row.color && sourceColors().includes(row.color)))
     .sort((a, b) => a.citation.ordinal - b.citation.ordinal || a.citation.start.offset - b.citation.start.offset));
   const sourceDetails = createMemo(() => {
     const fields = new Map<string, string>();
     // The first highlight under each chapter of the contents, in reading order, carries that chapter's title.
     const chapters = new Map<string, string>();
-    let firstHighlight: string | undefined;
-    let highlightCount = 0;
-    if (!doc.root()?.source || zoom()) return { fields, chapters, firstHighlight, highlightCount };
-    highlightCount = sourceHighlights()?.total ?? 0;
+    if (!doc.root()?.source || zoom()) return { fields, chapters };
+    const counts = new Map<string, number>();
+    for (const row of sourceHighlights()?.rows ?? []) {
+      const title = row.citation.chapter_title;
+      if (row.block.page.id === props.pageId && title && (!sourceColors().length || !!row.color && sourceColors().includes(row.color))) counts.set(title, (counts.get(title) ?? 0) + 1);
+    }
     let chapter: string | null | undefined;
     for (const id of unfoldedIds().filter(id => doc.outline.parentOf(id) === props.pageId)) {
       const block = doc.block(id);
@@ -254,13 +270,12 @@ function Pane(props: OutlinePaneProps) {
       const citation = name ? undefined : block.citations.find(value => value.source_id === props.pageId);
       if (name) fields.set(id, name);
       else if (citation) {
-        firstHighlight ??= id;
         const title = citation.chapter_title ?? null;
-        if (title && title !== chapter) chapters.set(id, title);
+        if (sourceGrouped() && title && title !== chapter) chapters.set(id, `${title}${counts.has(title) ? ` · ${counts.get(title)}` : ''}`);
         chapter = title;
       }
     }
-    return { fields, chapters, firstHighlight: highlightCount ? firstHighlight : undefined, highlightCount };
+    return { fields, chapters };
   });
   const selectedIds = createMemo(() => {
     const range = rowRange();
@@ -898,7 +913,7 @@ function Pane(props: OutlinePaneProps) {
 
   // A titled page at its top level wears the note header; sources keep their own, and the Fields page is not a note.
   const isNote = () => !zoom() && doc.root()?.kind === 'page' && !doc.root()?.source && doc.root()?.text.toLowerCase() !== 'fields';
-  return <div ref={scroll} class="outline-pane" classList={{ 'has-apparatus': apparatus(), 'has-sigla': sigla().size > 0 }} data-pane={props.pane} tabIndex={0} role="tree" aria-label="Page outline" aria-owns={[...virtualItems().keys()].map(id => `outline-${props.pane}-${id}`).join(' ')} onFocusIn={props.onActivate} onFocusOut={report} onKeyDown={structuralKey} onWheel={() => { anchorEpoch++; cancelAnimationFrame(anchorFrame); }} onScroll={scrolled}>
+  return <div ref={scroll} class="outline-pane" classList={{ 'has-apparatus': apparatus(), 'has-sigla': sigla().size > 0, 'source-page': !!doc.root()?.source && !zoom() }} data-pane={props.pane} tabIndex={0} role="tree" aria-label="Page outline" aria-owns={[...virtualItems().keys()].map(id => `outline-${props.pane}-${id}`).join(' ')} onFocusIn={props.onActivate} onFocusOut={report} onKeyDown={structuralKey} onWheel={() => { anchorEpoch++; cancelAnimationFrame(anchorFrame); }} onScroll={scrolled}>
     <Show when={apparatus()}><Apparatus notebook={props.notebook} holders={holders()} linked={linkedPages()} sources={citedSources().flatMap(id => sigla().has(id) ? [{ id, siglum: sigla().get(id)! }] : [])} onOpen={props.onOpen} /></Show>
     <div ref={heading} class="outline-heading">
       <Show when={zoom()}><nav class="outline-breadcrumbs" aria-label="Zoom breadcrumbs"><button type="button" onClick={() => zoomTo(null)}>{doc.root()?.text}</button><For each={breadcrumbs()}>{id => <><Icon name="right" /><button type="button" onClick={() => zoomTo(id)}>{plainText(doc.block(id)?.text ?? '', reference => props.notebook.lookup(reference)) || 'Empty block'}</button></>}</For></nav></Show>
@@ -916,7 +931,8 @@ function Pane(props: OutlinePaneProps) {
       <Show when={!zoom() && doc.root()?.kind === 'page' && !doc.root()?.source && doc.root()?.text.toLowerCase() !== 'fields' && !type.error && type()}>{value => <Show when={value().members || value().fields.length || startingTemplateFor(value().page.text, value().fields)}>
         <TemplateEditor type={value()} fields={definitions()} notebook={props.notebook} onError={setMessage} />
       </Show>}</Show>
-      <Show when={doc.root()?.source}><SourceHeader doc={doc} notebook={props.notebook} resetItems={sourceResets} onOpen={props.onOpen} onError={setMessage} onDelete={props.onDelete} /></Show>
+      <Show when={doc.root()?.source}><SourceHeader doc={doc} notebook={props.notebook} resetItems={sourceResets} onOpen={props.onOpen} onError={setMessage} onDelete={props.onDelete}
+        highlights={zoom() ? undefined : sourceHighlights()} colors={sourceColors()} onColors={setSourceColors} grouped={sourceGrouped()} onGrouped={setSourceGrouped} fieldsVisible={sourceFieldsVisible()} onFieldsVisible={setSourceFieldsVisible} /></Show>
       <Show when={doc.root()?.task || doc.root()?.project || doc.root()?.question || doc.root()?.citations.length}><div class="outline-root-capabilities outline-capability-metadata">
         <Show when={doc.root()?.task}>
           <TaskStatusButton task={doc.root()?.task ?? null} disabled={capabilities.busy(props.pageId)} onChange={status => capabilities.status(props.pageId, status)} />
@@ -946,7 +962,6 @@ function Pane(props: OutlinePaneProps) {
       <For each={[...virtualItems().keys()].filter(id => id !== editing())}>{id => <Row id={id} item={() => virtualItems().get(id)!} />}</For>
       <Show keyed when={editing() && virtualItems().has(editing()!) ? editing() : null}>{id => <Row id={id} item={() => virtualItems().get(id)!} />}</Show>
     </div>
-    <Show when={doc.root()?.source && !zoom() && !sourceDetails().firstHighlight}><div class="outline-list"><div class="outline-highlights-label">Highlights <span>{sourceHighlights()?.total ?? 0}</span></div></div></Show>
     <Show when={doc.root()?.source && !zoom() && filedElsewhere().length}><section class="related-sections source-elsewhere" aria-label="Filed elsewhere">
       <h3 class="outline-highlights-label">Filed elsewhere <span>{filedElsewhere().length}</span></h3>
       <For each={filedElsewhere()}>{row => <Button class="library-highlight" onClick={event => props.onOpen({ kind: 'page', pageId: row.block.page.id, blockId: row.block.block.id }, event.shiftKey)}>
