@@ -123,6 +123,13 @@ export function ReaderPane(props: ReaderPaneProps) {
   const ordinals = new Map<string, number>();
   const pending = new Map<number, Promise<void>>();
   const locating = new Map<string, Promise<number | null>>();
+  // Some books mark every paragraph as a quotation; when quotes outnumber plain paragraphs among the loaded passages, they are the body text and get no quote rule.
+  const quotesAreText = createMemo(() => {
+    version();
+    let quotes = 0, plain = 0;
+    for (const passage of passages.values()) { if (passage.kind === 'quote') quotes++; else if (passage.kind === 'paragraph') plain++; }
+    return quotes >= 12 && quotes > plain;
+  });
   let scroll!: HTMLDivElement, probe!: HTMLDivElement, header!: HTMLDivElement, frame: HTMLDivElement | undefined, margin: HTMLElement | undefined;
   let pointerStart: { x: number; y: number; touch: boolean } | null = null, wheelTotal = 0, lastWheel = 0, lastTurn = 0, countFrame = 0;
   // The character that relayouts keep on screen: set by turning, jumping and the cursor, never by a relayout itself.
@@ -733,9 +740,10 @@ export function ReaderPane(props: ReaderPaneProps) {
     const first = passages.get(value.first)!, last = passages.get(value.last)!;
     const neighbour = (ordinal: number) => { const passage = passages.get(ordinal); return passage && prose[passage.kind] ? passage.text : ''; };
     const before = first.text.slice(0, value.start.offset), after = last.text.slice(value.end.offset);
+    const section = sectionAt(value.first)?.title;
     return {
       sourceId: props.target.sourceId, noteId, title: title(), byline: byline(),
-      section: sectionAt(value.first)?.title ?? '', progress: share(value.first), quote: value.quote,
+      section: section ? sectionLabel(section) : '', progress: share(value.first), quote: value.quote,
       before: leadIn(before.trim() ? before : neighbour(value.first - 1)), after: followOn(after.trim() ? after : neighbour(value.last + 1)),
     };
   }
@@ -1064,8 +1072,8 @@ export function ReaderPane(props: ReaderPaneProps) {
         <span class="reader-opening-rule" aria-hidden="true" />
       </div>}</Show>
       <Show when={passage()} fallback={<div class="reader-placeholder" aria-hidden="true" />}>{value => <Dynamic
-        component={value().kind === 'heading' ? `h${Math.min(3, Math.max(1, value().level ?? 1))}` : value().kind === 'quote' ? 'blockquote' : value().kind === 'code' ? 'pre' : 'div'}
-        class={`reader-passage reader-${value().kind}`} classList={{ 'reader-cursor': props.active && cursor() === row.ordinal, 'reader-absorbed': absorbed().hidden.has(row.ordinal), 'reader-first': absorbed().first.has(row.ordinal) }} aria-current={props.active && cursor() === row.ordinal ? 'true' : undefined}
+        component={value().kind === 'heading' ? `h${Math.min(3, Math.max(1, value().level ?? 1))}` : value().kind === 'quote' && !quotesAreText() ? 'blockquote' : value().kind === 'code' ? 'pre' : 'div'}
+        class={`reader-passage reader-${value().kind === 'quote' && quotesAreText() ? 'paragraph' : value().kind}`} classList={{ 'reader-cursor': props.active && cursor() === row.ordinal, 'reader-absorbed': absorbed().hidden.has(row.ordinal), 'reader-first': absorbed().first.has(row.ordinal) }} aria-current={props.active && cursor() === row.ordinal ? 'true' : undefined}
         data-passage-id={value().id} data-ordinal={value().ordinal} style={{ '--level': Math.max(0, value().level ?? 0) }}>
         <Show when={value().kind === 'image' && value().resource} fallback={<PassageText passage={value()} citations={citations()} notes={highlightNotes()} ordinals={(() => { version(); return ordinals; })()} flashId={flash()?.id ?? null} onLocate={at => { void jumpTo(at); }} onNote={(at, anchor) => { void note(at, anchor); }} onCitation={clickedCitation} onHighlightNote={row => { void openHighlightNote(row); }} />}>
           <ResourceImage snapshotId={snapshot()} href={value().resource!} alt={value().text} onLoad={row.onImageLoad} />
@@ -1132,7 +1140,7 @@ export function ReaderPane(props: ReaderPaneProps) {
 
   function SelectionTools() {
     let element!: HTMLDivElement;
-    const [placement, setPlacement] = createSignal({ left: 0, top: 0, width: 0, visible: false });
+    const [placement, setPlacement] = createSignal({ left: 0, top: 0, width: 0, visible: false, docked: false });
     const place = () => {
       const value = selection();
       if (!element || !value) return;
@@ -1140,12 +1148,18 @@ export function ReaderPane(props: ReaderPaneProps) {
       const left = Math.max(0, viewport.left), right = Math.min(window.innerWidth, viewport.right);
       const top = Math.max(0, viewport.top), bottom = Math.min(window.innerHeight, viewport.bottom);
       const gap = parseFloat(getComputedStyle(element).getPropertyValue('--space-4'));
+      // The cover screen docks the toolbar across the foot of the page, in thumb reach, and at the head only when the selection runs down there.
+      if (coverReading()) {
+        const inset = gap * 3, height = element.offsetHeight, foot = bottom - height - gap;
+        setPlacement({ left: left + inset, top: value.rect.bottom > foot - gap ? top + gap : foot, width: right - left - 2 * inset, visible: true, docked: true });
+        return;
+      }
       const width = Math.min(element.offsetWidth, right - left), height = element.offsetHeight;
       const above = value.rect.top - height - gap;
       setPlacement({
         left: Math.max(left, Math.min((value.rect.left + value.rect.right - width) / 2, right - width)),
         top: Math.max(top, Math.min(above < top ? value.rect.bottom + gap : above, bottom - height)),
-        width: right - left, visible: true,
+        width: right - left, visible: true, docked: false,
       });
     };
     createEffect(place);
@@ -1155,8 +1169,8 @@ export function ReaderPane(props: ReaderPaneProps) {
       place();
       onCleanup(() => observer.disconnect());
     });
-    return <Portal><div ref={element} class="reader-selection-toolbar" role="toolbar" aria-label="Highlight selection"
-      style={{ left: `${placement().left}px`, top: `${placement().top}px`, 'max-width': `${placement().width}px`, visibility: placement().visible ? 'visible' : 'hidden' }}
+    return <Portal><div ref={element} class="reader-selection-toolbar" classList={{ 'reader-selection-docked': placement().docked }} role="toolbar" aria-label="Highlight selection"
+      style={{ left: `${placement().left}px`, top: `${placement().top}px`, 'max-width': `${placement().width}px`, width: placement().docked ? `${placement().width}px` : undefined, visibility: placement().visible ? 'visible' : 'hidden' }}
       onPointerDown={event => event.preventDefault()}>
       <div class="reader-selection-actions"><Button icon="highlight" disabled={editing()} onClick={() => { void highlight(false); }}>Highlight <kbd>H</kbd></Button><Button disabled={editing()} onClick={() => { void highlight(true); }}>Highlight and note <kbd>N</kbd></Button></div>
       <div class="reader-selection-actions"><For each={highlightColors}>{(color, index) => <Button aria-label={`Highlight ${color}`} title={`Highlight ${color} (${index() + 1})`} disabled={editing()} onClick={() => { void highlight(false, color); }}><span class={`highlight-color-dot highlight-color-${color}`} aria-hidden="true" /><kbd>{index() + 1}</kbd></Button>}</For></div>
@@ -1164,6 +1178,8 @@ export function ReaderPane(props: ReaderPaneProps) {
     </div></Portal>;
   }
 
+  /** In Pages the toolbar and the foot span the spread; in Scroll they keep the reading measure. */
+  const spreadWidth = () => paged() && pageFrame().width ? `${pageFrame().width}px` : undefined;
   return <div class="reader-pane" classList={{ 'reader-chrome-hidden': chromeHides() && chromeHidden(), 'reader-loading': loading() }} style={readerStyle()} onPointerDown={props.onActivate}
     onFocusIn={props.onActivate} onPointerMove={pointerMoved}>
     {/* The cover screen hides the pane header and bottom nav while reading; the book's name heads the page instead. */}
@@ -1171,7 +1187,7 @@ export function ReaderPane(props: ReaderPaneProps) {
       <Button icon="left" label="Back" onClick={() => props.onBack()} />
       <h2>{title() || 'Reader'}</h2>
     </div>
-    <div ref={header} class="reader-header" onFocusIn={event => { keyboardFocus = (event.target as Element).matches(':focus-visible'); showChrome(true); }}>
+    <div ref={header} class="reader-header" style={{ 'max-width': spreadWidth() }} onFocusIn={event => { keyboardFocus = (event.target as Element).matches(':focus-visible'); showChrome(true); }}>
       <Button class="reader-contents" icon="contents" label="Contents" aria-haspopup="dialog" disabled={!contents().length} onClick={event => { setQuery(''); setPopup({ kind: 'contents', anchor: event.currentTarget }); }}><span><Show when={!loading() && currentSection()} fallback="Contents">{entry => <SectionLabel title={entry().title} />}</Show></span><Icon name="down" /></Button>
       <Button icon="highlight" label="Highlights" aria-haspopup="dialog" disabled={!snapshot()} onClick={event => { setQuery(''); setPopup({ kind: 'highlights', anchor: event.currentTarget }); }}><Show when={sourceHighlights().length}><span>{sourceHighlights().length}</span></Show></Button>
       <Button icon="search" label="Find in source" aria-haspopup="dialog" disabled={!snapshot()} onClick={event => { setQuery(''); setPopup({ kind: 'find', anchor: event.currentTarget }); }} />
@@ -1216,8 +1232,8 @@ export function ReaderPane(props: ReaderPaneProps) {
         </Show>
       </div>
     </div>
-    {/* The foot: the book map, and under it one line naming the chapter with its time left, then the book's share and time left, which opens the progress card. In Pages it spans the spread. */}
-    <div class="reader-foot" style={{ 'max-width': paged() && pageFrame().width ? `${pageFrame().width}px` : undefined }}>
+    {/* The foot: the book map, and under it one line naming the chapter with its time left, then the book's share and time left, which opens the progress card. */}
+    <div class="reader-foot" style={{ 'max-width': spreadWidth() }}>
       <div class="reader-map"><Show when={mapChapters().length} fallback={<div class="reader-progress-rule" aria-hidden="true"><span style={{ width: `${position() * 100}%` }} /></div>}>
         <BookMap chapters={mapChapters()} length={currentSnapshot()!.text_length} at={here()} highlights={marks()} label={`${formatProgress(position())} read`} />
       </Show></div>
