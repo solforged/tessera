@@ -65,7 +65,7 @@ Status: done. Browser proof studied Greek vocabulary and attention-study notes, 
 - Fields that sources need: ordered creators with roles (author, editor, translator) as references to person pages; partial dates such as a bare year; URL and identifier kinds for ISBN, DOI and arXiv; values supplied by a snapshot's extracted metadata until an authored value replaces them, with reset back to the extracted value.
 - A source is a page with a source capability and a source type (`#book`, `#article`), so its metadata is ordinary fields ordered by the type's template. A compact header shows creators, year, reading state and progress instead of one outline row per field.
 - `tessera-ingest`, written fresh with Bibliotheca as reference only. EPUB first, then web articles: immutable, content-hashed snapshots; original files in the notebook's object store; passages with their own search index. Ingestion jobs with retry and resume run in the service.
-- Library joins the sidebar as a saved table over source types, with Inbox, Reading, Finished and Abandoned views.
+- Library joins the sidebar as its own pane over source pages, with Inbox, Reading, Finished, Abandoned and All tabs and Highlights for triage.
 - A reader pane beside the outline, with reading position and progress.
 - Highlighting a passage writes an ordinary block on the source's page that cites it; citations pin source, snapshot and passage. A triage view lists unprocessed highlights across sources.
 - Cards from highlights.

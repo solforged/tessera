@@ -6,7 +6,7 @@ Tessera stores an outline in SQLite. The browser keeps an optimistic document, t
 
 The CLI runs the service; each browser window creates its own notebook client. `tessera serve` calls `tessera_service::serve` in the CLI process. With `embed-web`, the built editor is compiled into that binary, so no asset directory is needed at runtime. `--assets` overrides the embedded files for development. `tessera install` runs the service as a macOS launch agent; `uninstall` removes the agent without deleting data. `info` reads notebook identity directly; `add` and `export` discover an already-running service through `service.lock`. There is no automatic service-starting command dispatcher. See `crates/tessera-cli/src/main.rs`, `install.rs` and `crates/tessera-service/src/assets.rs`.
 
-The service acquires `service.lock`, opens the notebook and binds to loopback. Its `AppState` holds one `Notebook` behind `Arc<Mutex<Notebook>>`. That notebook owns one SQLite connection. **Reads and writes currently share this connection and mutex**; the read pool described in the architecture document is not in this implementation. See `crates/tessera-core/src/ownership.rs`, `NotebookOwnership::acquire`, `crates/tessera-service/src/lib.rs`, `serve` and `run`.
+The service acquires `service.lock`, opens the notebook and binds to loopback. Its `AppState` holds one `Notebook` behind `Arc<Mutex<Notebook>>`. That notebook owns one SQLite connection, which reads and writes share. See `crates/tessera-core/src/ownership.rs`, `NotebookOwnership::acquire`, `crates/tessera-service/src/lib.rs`, `serve` and `run`.
 
 The database is `notebook.db` inside the notebook directory. `Notebook::open` enables WAL, `synchronous=FULL` and foreign keys, then runs migrations. The singleton `notebook` row supplies the notebook ID used to namespace browser recovery data. See `crates/tessera-core/src/notebook.rs:10`, `Notebook::open` and `Notebook::info`; `crates/tessera-core/migrations/001_notebook.sql`.
 
@@ -355,4 +355,4 @@ Start with the layer that owns the symptom. These entries point to the implement
 
 ## Open questions
 
-None for the mechanics covered here. The read pool and automatic CLI startup mentioned in architecture prose are not present in the inspected service/CLI code; this guide describes the current shared-connection service and explicit `serve` entry point instead.
+None for the mechanics covered here.
