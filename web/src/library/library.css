@@ -28,6 +28,13 @@
 /* Rows read as a ledger: shelfmark, title and byline, then state (in views spanning states), year, progress and highlights in fixed mono columns. */
 .library-state { width: 9ch; min-width: 9ch; color: var(--faint); }
 .library-year { width: 4ch; min-width: 4ch; justify-content: flex-end; color: var(--faint); }
+/* A half pane on a wide screen keeps the title: the state and year columns step aside, and progress keeps only its number. Phones lay rows out as cards instead. */
+@media (min-width: 600px) {
+  @container library-pane (max-width: 560px) {
+    .library-row-open :is(.library-state, .library-year), .library-progress > .library-reading-rule { display: none; }
+    .library-progress { width: auto; min-width: 4ch; }
+  }
+}
 .library-siglum { flex: none; width: 5ch; font: var(--apparatus); letter-spacing: var(--tracking-apparatus); color: var(--faint); transition: color var(--motion-fast) var(--motion-ease); }
 .library-source-row:hover .library-siglum, .library-source-row:focus-within .library-siglum { color: var(--accent); }
 .library-tabs .library-count { color: var(--faint); }
