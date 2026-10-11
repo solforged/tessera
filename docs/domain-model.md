@@ -131,6 +131,23 @@ Types you define are kinds too, listed after the built-in ones. A type can refin
 
 A source's form is a built-in Form choice field: book, chapter, article, paper, report, post, thread, video or web page, with more options added as for any choice field. Lookup and ingestion fill it, and export writes it as the CSL type and BibTeX entry type.
 
+Person, Group and Concept start with templates, filled in only when wanted: Person has Aliases, Lived and Affiliated with (an instance of Group); Group has Aliases and Active; Concept has Aliases, Coined by (an instance of Person) and Coined in (an instance of Source). A question page offers an Aliases slot, since it has no type to carry a template. Lived and Active are text, so `c. 1493` and `106–43 BCE` fit where a date field cannot. A Group's members are the people affiliated with it, not a second list. Templates change like any type's and never rewrite notes. Thesis starts without one until it is settled how a thesis answers a question.
+
+### Aliases
+
+A note's aliases are the values of the built-in Aliases field among its top-level blocks, stored like the gloss and available on every page. An alias is a whole other name for the note: Tully for Cicero, sublation for Aufhebung, a short name for a long question. Aliases need not be unique; two Plinys may both have Pliny. Matching ignores case and diacritics.
+
+- **Completion and Find** match titles and aliases. A result found through an alias names that alias. Words inside an alias find it while typing, but only a whole alias links on its own.
+- **Hand-typed references.** `[[Name]]` left as text links to the one page whose title or alias is Name, stored as `[[id|Name]]` so the wording stays. When the name belongs to two or more pages it stays unlinked and is marked, and choosing one links it; nothing is created. A name no page has creates a page as before.
+- **Imports.** A source's creators match people by title or alias, after catalogue forms such as `Cicero, Marcus Tullius` are turned around. One match links; two or more wait for a choice instead of guessing or creating a duplicate, and the chosen person gains the import's spelling as an alias.
+- **Merge.** The page that goes away leaves its title as an alias of the one that stays.
+- **Finding aids** list each alias as a cross-reference, `Tully, see Cicero`; an alias shared by several pages appears once and points to each. Cross-references are not counted as notes, and an alias longer than another alias of the same page is left out of the cross-references but still matches.
+- **Sorting.** A finding aid sorts by the full title. A person sorts by family name only when the page sets a Sort as field, since classical, medieval and many non-European names have no family name to find.
+
+An agent may propose aliases, such as other phrasings of a question that a search might use. Each is an ordinary value written by the agent, marked as suggested until kept or removed, and undone like any agent change.
+
+Events are a likely future built-in kind; the notebook's own types cover them until then.
+
 ### State
 
 A note is working or settled. Working is the default and is not stored. Settle records that you stand behind the note as written; Reopen returns it to working. Editing a settled note does not reopen it; the note's apparatus shows that it changed after settling.
