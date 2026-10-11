@@ -1,6 +1,7 @@
 import { For, Show, createEffect, createMemo, createResource, createSignal, onCleanup } from 'solid-js';
 import type { Block } from '../api/types';
 import { api } from '../api/client';
+import { loadWorks } from '../library/PersonWorks';
 import type { OutlineIndex } from '../document/outline-index';
 import { BlockBreadcrumb, BlockText } from './BlockText';
 import type { OutlineContext } from './context';
@@ -21,8 +22,10 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
     const [backlinks, tagged, held, about] = await Promise.all([api.backlinks(props.pageId), api.members(props.pageId), api.positions({ holder: props.pageId }), api.positions({ subject: props.pageId })]);
     // A position links its holder and often its subject, so it shows once, as a perspective, not again as a backlink.
     const positions = new Set([...held, ...about].map(row => row.block.block.id));
+    const works = await loadWorks(api, props.pageId, backlinks);
     return {
-      backlinks: backlinks.filter(item => !positions.has(item.source.id)).map(item => ({ block: item.source, page: item.page })),
+      works: works.rows,
+      backlinks: backlinks.filter(item => !positions.has(item.source.id) && !works.creatorLinks.has(item.source.id)).map(item => ({ block: item.source, page: item.page })),
       tagged,
       held: held.map(row => row.block),
       // Perspectives on this page filed elsewhere, such as under a highlight on a source page.

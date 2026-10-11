@@ -5,7 +5,7 @@
  */
 
 import type { Caret, NotebookClient } from '../document/contract';
-import type { CardSelection, Query, ReadingState, TaskQuery } from '../api/types';
+import type { CardSelection, LibraryFilters, Query, ReadingState, TaskQuery } from '../api/types';
 
 export type PaneId = 'main' | 'side';
 
@@ -88,7 +88,8 @@ export interface SettingsViewState { scroll: number }
 export interface CompareViewState { scroll: number }
 export interface AgendaViewState { date: string; mode: 'agenda' | 'week' | 'tasks'; query: TaskQuery; viewId: string | null; scroll: number }
 export interface ReviewViewState { deckId: string | null; sessionId: string | null; selection: CardSelection | null; scroll: number }
-export interface LibraryViewState { view: string | null; tab: LibraryTab; text: string; sort: 'added' | 'title' | 'author' | 'year' | 'last_read' | 'progress'; unprocessedOnly: boolean; colors: string[]; tags: string[]; scroll: number }
+export type LibraryGroup = 'none' | 'author' | 'decade' | 'publisher' | 'language';
+export interface LibraryViewState { view: string | null; tab: LibraryTab; text: string; sort: 'added' | 'title' | 'author' | 'year' | 'last_read' | 'progress'; filters: LibraryFilters; group: LibraryGroup; unprocessedOnly: boolean; colors: string[]; tags: string[]; scroll: number }
 /** `ordinal` is the top passage; `offset` its pixel offset from the pane's top. */
 export interface ReaderViewState { snapshotId: string | null; ordinal: number; offset: number }
 

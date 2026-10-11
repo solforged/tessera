@@ -2,11 +2,11 @@ import { For, Show, batch, createEffect, createMemo, createSignal, on, onCleanup
 import { ulid } from 'ulid';
 import { exportExtensions } from '../api/client';
 import type { ExportFormat } from '../api/client';
-import type { HighlightResult, HighlightRow, IngestJob, LibraryQuery, LibraryResult, LibraryRow, LibraryView, ReadingState } from '../api/types';
+import type { HighlightResult, HighlightRow, IngestJob, LibraryFilters, LibraryQuery, LibraryResult, LibraryRow, LibraryView, ReadingState } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { EMBEDDED } from '../demo/mode';
 import { BlockText } from '../outline/BlockText';
-import type { LibraryTab, LibraryViewState, OpenTarget, PaneId } from '../shell/contract';
+import type { LibraryGroup, LibraryTab, LibraryViewState, OpenTarget, PaneId } from '../shell/contract';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
@@ -14,7 +14,8 @@ import type { MenuItem } from '../ui/Menu';
 import { Popup } from '../ui/Popup';
 import { Picker } from '../ui/Picker';
 import { downloadBlob } from '../ui/download';
-import { formatProgress, highlightMeta, jobLabel, libraryQuery, recentJobs, retryTime, selectSources, sourceByline, sourceStateOperation, visibleJobs } from './query';
+import { formatProgress, groupSources, highlightMeta, jobLabel, libraryQuery, recentJobs, retryTime, selectSources, sourceByline, sourceStateOperation, visibleJobs } from './query';
+import { formatSourceValue } from '../outline/source';
 import { createHighlightActions, highlightColors, highlightSections, setLinkedCitation } from './highlights';
 import type { HighlightMenu, HighlightSection } from './highlights';
 import { ResourceImage } from './ResourceImage';
@@ -35,9 +36,26 @@ export interface LibraryPaneProps {
   onDeleteSources(sources: { id: string; title: string }[]): Promise<void>;
 }
 
+type BrowseField = keyof LibraryFilters;
+interface BrowseEntry { field: BrowseField; value: string | number; label: string; count: number }
+const browseFields: { field: BrowseField; label: string }[] = [
+  { field: 'people', label: 'People' }, { field: 'decades', label: 'Decades' },
+  { field: 'publishers', label: 'Publishers' }, { field: 'languages', label: 'Languages' },
+];
+/** The rail lists the commonest values of each field; the rest are a picker away. */
+const browseLimit = 6;
+const browsePlaceholders: Record<BrowseField | 'all', string> = {
+  all: 'Find a person, decade, publisher or language', people: 'Find a person', decades: 'Find a decade', publishers: 'Find a publisher', languages: 'Find a language',
+};
+const groupings: { id: LibraryGroup; label: string }[] = [
+  { id: 'none', label: 'None' }, { id: 'author', label: 'Author' }, { id: 'decade', label: 'Decade' },
+  { id: 'publisher', label: 'Publisher' }, { id: 'language', label: 'Language' },
+];
+
 type LibraryPopup =
   | { kind: 'add'; anchor: HTMLElement }
   | { kind: 'tags'; anchor: HTMLElement }
+  | { kind: 'browse'; anchor: HTMLElement; field: BrowseField | null }
   | { kind: 'name'; anchor: HTMLElement; saved: LibraryView | null; id: string }
   | { kind: 'delete'; anchor: HTMLElement; saved: LibraryView }
   | { kind: 'delete-sources'; anchor: HTMLElement; sources: { id: string; title: string }[] }
@@ -67,11 +85,15 @@ export function LibraryPane(props: LibraryPaneProps) {
   const unprocessedOnly = createMemo(() => view().unprocessedOnly);
   const colors = createMemo(() => view().colors);
   const tags = createMemo(() => view().tags);
+  const filters = createMemo(() => view().filters);
+  const group = createMemo(() => view().group);
+  const filtered = createMemo(() => Object.values(filters()).some(values => values.length > 0));
   const [tagQuery, setTagQuery] = createSignal('');
+  const [browseQuery, setBrowseQuery] = createSignal('');
   const [views, setViews] = createSignal<LibraryView[]>([]);
   const [viewsError, setViewsError] = createSignal('');
   const saved = createMemo(() => views().find(value => value.id === view().view));
-  const currentQuery = createMemo(() => saved()?.query ?? libraryQuery({ tab: tab(), text: text(), sort: sort() }));
+  const currentQuery = createMemo(() => saved()?.query ?? libraryQuery({ tab: tab(), text: text(), sort: sort(), filters: filters() }));
   const queryKey = createMemo(() => JSON.stringify([view().view, tab(), currentQuery(), unprocessedOnly(), colors(), tags()]));
   const [selected, setSelected] = createSignal<Set<string>>(new Set());
   let selectionAnchor: string | null = null;
@@ -98,6 +120,9 @@ export function LibraryPane(props: LibraryPaneProps) {
   const [error, setError] = createSignal('');
   const displayedSources = createMemo(() => tab() === 'highlights' || error() ? [] : sourceRows() ?? []);
   const hasResult = createMemo(() => tab() === 'highlights' ? highlights() !== undefined : sourceRows() !== undefined);
+  const groups = createMemo(() => group() === 'none' || tab() === 'highlights' ? undefined : groupSources(displayedSources(), group() as Exclude<LibraryGroup, 'none'>));
+  // Shift-click ranges follow what is on screen, so a grouped list selects in group order.
+  const orderedSources = createMemo(() => groups()?.flatMap(value => value.rows) ?? displayedSources());
   const [slowLoad, setSlowLoad] = createSignal(false);
   createEffect(() => {
     setSlowLoad(false);
@@ -165,6 +190,27 @@ export function LibraryPane(props: LibraryPaneProps) {
   const sourceTitles = createMemo(() => new Map(props.notebook.roots().map(root => [root.id, root.text])));
   // Jobs concern sources; the Highlights tab shows none. A finished job leaves once its source exists, whichever view lists it.
   const shownJobs = createMemo(() => tab() === 'highlights' || error() ? [] : visibleJobs(jobs().filter(job => !(job.state === 'failed' && dismissedJobs().has(job.id))), new Set([...displayedSources().map(row => row.page.id), ...sourceTitles().keys()])));
+  const browseEntries = createMemo<BrowseEntry[]>(() => {
+    const facets = library()?.facets;
+    if (!facets) return [];
+    // People without a page cannot be filtered by id, so Browse leaves them out.
+    return [
+      ...facets.people.flatMap(person => person.id ? [{ field: 'people' as const, value: person.id, label: person.name, count: person.count }] : []),
+      ...facets.decades.map(decade => ({ field: 'decades' as const, value: decade.decade, label: `${decade.decade}s`, count: decade.count })),
+      ...facets.publishers.map(publisher => ({ field: 'publishers' as const, value: publisher.value, label: publisher.value, count: publisher.count })),
+      ...facets.languages.map(language => ({ field: 'languages' as const, value: language.value, label: formatSourceValue('language', language.value), count: language.count })),
+    ];
+  });
+  const chosen = (field: BrowseField, value: string | number) => (filters()[field] as (string | number)[]).includes(value);
+  const chosenFilters = createMemo(() => browseFields.flatMap(({ field }) => (filters()[field] as (string | number)[]).map(value => ({
+    field, value,
+    label: browseEntries().find(entry => entry.field === field && entry.value === value)?.label
+      ?? (field === 'people' ? sourceTitles().get(String(value)) ?? 'Unknown person' : field === 'decades' ? `${value}s` : field === 'languages' ? formatSourceValue('language', String(value)) : String(value)),
+  }))));
+  function toggleFilter(field: BrowseField, value: string | number) {
+    const values = filters()[field] as (string | number)[];
+    update({ view: null, filters: { ...filters(), [field]: values.includes(value) ? values.filter(item => item !== value) : [...values, value] }, scroll: 0 });
+  }
   // A view spanning several states names each row's state.
   const mixedStates = createMemo(() => currentQuery().states?.length !== 1);
   // Marks stay unique within the list; the earliest-added source keeps the bare one, so sorting never renames.
@@ -221,16 +267,19 @@ export function LibraryPane(props: LibraryPaneProps) {
   };
   createEffect(on(() => props.view, next => {
     const previous = view();
-    const filtersChanged = JSON.stringify([next.colors, next.tags]) !== JSON.stringify([previous.colors, previous.tags]);
-    if (next.view === previous.view && next.tab === previous.tab && next.text === previous.text && next.sort === previous.sort && next.unprocessedOnly === previous.unprocessedOnly && !filtersChanged && next.scroll === previous.scroll) return;
+    const filtersChanged = JSON.stringify([next.colors, next.tags, next.filters]) !== JSON.stringify([previous.colors, previous.tags, previous.filters]);
+    if (next.view === previous.view && next.tab === previous.tab && next.text === previous.text && next.sort === previous.sort && next.group === previous.group && next.unprocessedOnly === previous.unprocessedOnly && !filtersChanged && next.scroll === previous.scroll) return;
     const queryChanged = next.view !== previous.view || next.tab !== previous.tab || next.text !== previous.text || next.sort !== previous.sort || next.unprocessedOnly !== previous.unprocessedOnly || filtersChanged;
     restoreScroll = queryChanged ? next.scroll : null;
     setView({ ...next });
     if (!queryChanged) scroll.scrollTop = next.scroll;
   }, { defer: true }));
 
-  function viewFields(query: LibraryQuery): Pick<LibraryViewState, 'tab' | 'text' | 'sort'> {
-    return { tab: query.states?.length === 1 ? query.states[0]! : 'all', text: query.text ?? '', sort: query.sort ?? 'added' };
+  function viewFields(query: LibraryQuery): Pick<LibraryViewState, 'tab' | 'text' | 'sort' | 'filters'> {
+    return {
+      tab: query.states?.length === 1 ? query.states[0]! : 'all', text: query.text ?? '', sort: query.sort ?? 'added',
+      filters: { people: query.people ?? [], decades: query.decades ?? [], publishers: query.publishers ?? [], languages: query.languages ?? [] },
+    };
   }
   createEffect(() => {
     props.notebook.changeSequence(); props.notebook.lastChange(); refresh();
@@ -380,7 +429,7 @@ export function LibraryPane(props: LibraryPaneProps) {
     } finally { if (!disposed) { setSaving(false); setRefresh(value => value + 1); } }
   }
   function toggleSelection(id: string, range: boolean) {
-    setSelected(previous => selectSources(displayedSources().map(row => row.page.id), previous, id, selectionAnchor, range));
+    setSelected(previous => selectSources(orderedSources().map(row => row.page.id), previous, id, selectionAnchor, range));
     selectionAnchor = id;
   }
   function chooseView(value: LibraryView) {
@@ -465,15 +514,76 @@ export function LibraryPane(props: LibraryPaneProps) {
       event.preventDefault(); event.stopPropagation(); props.onOpen(target, event.shiftKey);
       return;
     }
-    // On the shelf, left and right move one book and up and down one row of covers.
-    const shelf = (event.currentTarget as HTMLElement).closest<HTMLElement>('.library-shelf');
-    const columns = shelf ? getComputedStyle(shelf).gridTemplateColumns.split(' ').length : 1;
-    const steps: Record<string, number> = shelf ? { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -columns, ArrowDown: columns } : { ArrowUp: -1, ArrowDown: 1 };
-    if (!(event.key in steps) && event.key !== 'Home' && event.key !== 'End') return;
+    const current = event.currentTarget as HTMLButtonElement;
+    const shelf = !!current.closest('.library-shelf');
     const rows = Array.from(scroll.querySelectorAll<HTMLButtonElement>('[data-library-row]'));
-    const index = rows.indexOf(event.currentTarget as HTMLButtonElement);
-    const next = event.key === 'Home' ? 0 : event.key === 'End' ? rows.length - 1 : Math.max(0, Math.min(rows.length - 1, index + steps[event.key]!));
+    const index = rows.indexOf(current);
+    let next: number;
+    if (event.key === 'Home') next = 0;
+    else if (event.key === 'End') next = rows.length - 1;
+    else if (shelf && (event.key === 'ArrowUp' || event.key === 'ArrowDown')) {
+      // Up and down go to the nearest cover in the next row of covers, across group headings.
+      const from = current.getBoundingClientRect();
+      const down = event.key === 'ArrowDown';
+      const candidates = rows.map((row, at) => ({ at, rect: row.getBoundingClientRect() })).filter(({ rect }) => down ? rect.top > from.top + 1 : rect.top < from.top - 1);
+      if (!candidates.length) next = index;
+      else {
+        const top = down ? Math.min(...candidates.map(({ rect }) => rect.top)) : Math.max(...candidates.map(({ rect }) => rect.top));
+        next = candidates.filter(({ rect }) => rect.top === top).reduce((best, item) => Math.abs(item.rect.left - from.left) < Math.abs(best.rect.left - from.left) ? item : best).at;
+      }
+    } else {
+      // On the shelf left and right move one book; in the list up and down move one row.
+      const steps: Record<string, number> = shelf ? { ArrowLeft: -1, ArrowRight: 1 } : { ArrowUp: -1, ArrowDown: 1 };
+      if (!(event.key in steps)) return;
+      next = Math.max(0, Math.min(rows.length - 1, index + steps[event.key]!));
+    }
     rows[next]?.focus(); event.preventDefault(); event.stopPropagation();
+  }
+
+  function SourceRows(rowsProps: { rows: LibraryRow[] }) {
+    return <Show when={layout() === 'shelf'} fallback={<div role="list"><For each={rowsProps.rows}>{row => {
+      const target: OpenTarget = { kind: 'page', pageId: row.page.id };
+      return <div class="library-row library-source-row" classList={{ 'library-row-selected': selected().has(row.page.id) }} role="listitem">
+        <div class="library-leading">
+          <span class="library-source-image"><Show when={row.cover} fallback={<Icon name={row.source.format === 'article' ? 'article' : 'book'} />}><ResourceImage snapshotId={row.source.current_snapshot_id ?? ''} href={row.cover!} alt="" loading="lazy" /></Show></span>
+          <Button role="checkbox" aria-checked={selected().has(row.page.id)} label={`Select ${row.page.text}`} class="icon-only library-checkbox" onClick={event => toggleSelection(row.page.id, event.shiftKey)}>
+            <span class="library-checkbox-square"><Show when={selected().has(row.page.id)}><Icon name="check" /></Show></span>
+          </Button>
+        </div>
+        <Button class="library-row-open" data-library-row={row.page.id} onClick={event => props.onOpen(target, event.shiftKey)} onKeyDown={event => rowKey(event, target)}>
+          <span class="library-siglum" aria-hidden="true">{sigla().get(row.page.id) ?? row.source.siglum}</span><span class="library-title">{row.page.text}</span><span class="library-byline">{sourceByline(row)}</span>
+          <Show when={mixedStates()}><span class="library-count library-state">{stateLabels[row.source.state]}</span></Show>
+          <span class="library-count library-year" aria-label="Published year">{row.published?.slice(0, 4)}</span>
+          <span class="library-progress"><Show when={row.progress > 0}>{formatProgress(row.progress)}</Show></span>
+          <span class="library-highlight-count" aria-label={row.unprocessed ? `${row.unprocessed} unprocessed highlights` : undefined}><Show when={row.unprocessed > 0}><Icon name="highlight" />{row.unprocessed}</Show></span>
+        </Button>
+        <Button icon="more" label={`Actions for ${row.page.text}`} aria-haspopup="menu" disabled={saving()} onClick={event => rowMenu(row, event.currentTarget)} />
+      </div>;
+    }}</For></div>}>
+      <div class="library-shelf" role="list"><For each={rowsProps.rows}>{row => {
+        const target: OpenTarget = { kind: 'page', pageId: row.page.id };
+        const siglum = () => sigla().get(row.page.id) ?? row.source.siglum;
+        return <div class="library-book library-source-row" classList={{ 'library-row-selected': selected().has(row.page.id) }} role="listitem">
+          <Button class="library-book-open" data-library-row={row.page.id} onClick={event => props.onOpen(target, event.shiftKey)} onKeyDown={event => rowKey(event, target)}>
+            <SourceCover row={row} siglum={siglum()} />
+            <span class="library-reading-rule" classList={{ 'library-reading-started': row.progress > 0 }} style={{ '--progress': `${row.progress * 100}%` }} aria-hidden="true" />
+            <span class="library-book-title">{row.page.text}</span>
+            <span class="library-book-byline">{sourceByline(row)}</span>
+            <span class="library-book-apparatus">
+              <span class="library-siglum" aria-hidden="true">{siglum()}</span>
+              <Show when={mixedStates()}><span class="library-book-state">{stateLabels[row.source.state]}</span></Show>
+              <Show when={row.published}><span aria-label="Published year">{row.published!.slice(0, 4)}</span></Show>
+              <Show when={row.progress > 0}><span>{formatProgress(row.progress)}</span></Show>
+              <Show when={row.unprocessed > 0}><span class="library-book-highlights" aria-label={`${row.unprocessed} unprocessed highlights`}><Icon name="highlight" />{row.unprocessed}</span></Show>
+            </span>
+          </Button>
+          <Button role="checkbox" aria-checked={selected().has(row.page.id)} label={`Select ${row.page.text}`} class="icon-only library-checkbox" onClick={event => toggleSelection(row.page.id, event.shiftKey)}>
+            <span class="library-checkbox-square"><Show when={selected().has(row.page.id)}><Icon name="check" /></Show></span>
+          </Button>
+          <Button class="library-book-more" icon="more" label={`Actions for ${row.page.text}`} aria-haspopup="menu" disabled={saving()} onClick={event => rowMenu(row, event.currentTarget)} />
+        </div>;
+      }}</For></div>
+    </Show>;
   }
 
   return <div class="library-pane" data-pane={props.pane} aria-label="Library" tabIndex={props.active ? 0 : -1} onFocusIn={props.onActivate} onPointerDown={props.onActivate}
@@ -509,12 +619,16 @@ export function LibraryPane(props: LibraryPaneProps) {
         </div>}>
           <Show when={selected().size > 0} fallback={<>
             <input class="input library-search" type="search" aria-label="Search library" placeholder="Search library" value={text()} onInput={event => update({ view: null, text: event.currentTarget.value, scroll: 0 })} />
-            <Button class="library-sort" aria-haspopup="menu" label="Sort sources" onClick={event => setPopup({ kind: 'menu', anchor: event.currentTarget, label: 'Sort sources', items: sorts.map(item => ({ label: item.label, icon: sort() === item.id ? 'check' : undefined, action: () => update({ view: null, sort: item.id, scroll: 0 }) })) })}>{sorts.find(item => item.id === sort())!.label}<Icon name="down" /></Button>
+            <Button class="library-sort" aria-haspopup="menu" label="Sort and group sources" onClick={event => setPopup({ kind: 'menu', anchor: event.currentTarget, label: 'Sort and group sources', items: [
+              ...sorts.map(item => ({ section: 'Sort', label: item.label, icon: sort() === item.id ? 'check' as const : undefined, action: () => update({ view: null, sort: item.id, scroll: 0 }) })),
+              ...groupings.map(item => ({ section: 'Group', label: item.label, icon: group() === item.id ? 'check' as const : undefined, action: () => update({ group: item.id }) })),
+            ] })}>{sorts.find(item => item.id === sort())!.label}<Show when={group() !== 'none'}><span class="library-sort-group"> · by {groupings.find(item => item.id === group())!.label.toLowerCase()}</span></Show><Icon name="down" /></Button>
             <div class="library-tabs mode-tabs" role="group" aria-label="Library layout">
               <Button icon="rows" label="List" aria-pressed={layout() === 'list'} onClick={() => chooseLayout('list')} />
               <Button icon="shelf" label="Shelf" aria-pressed={layout() === 'shelf'} onClick={() => chooseLayout('shelf')} />
             </div>
-            <Button icon="download" aria-haspopup="menu" disabled={loading() || !!error() || loadedKey() !== queryKey()} onClick={event => exportMenu(event.currentTarget)}>Export<Icon name="down" /></Button>
+            <Show when={browseEntries().length}><Button class="library-browse-button" icon="browse" label="Browse" aria-haspopup="dialog" aria-pressed={filtered()} onClick={event => { setBrowseQuery(''); setPopup({ kind: 'browse', anchor: event.currentTarget, field: null }); }} /></Show>
+            <Button icon="download" label="Export" aria-haspopup="menu" disabled={loading() || !!error() || loadedKey() !== queryKey()} onClick={event => exportMenu(event.currentTarget)}><span class="library-export-label">Export</span><Icon name="down" /></Button>
             <Button icon="more" label="Library actions" aria-haspopup="menu" onClick={event => {
               const anchor = event.currentTarget;
               setPopup({ kind: 'menu', anchor, label: 'Library actions', items: [
@@ -532,6 +646,10 @@ export function LibraryPane(props: LibraryPaneProps) {
         </Show>
         <Button icon="plus" aria-haspopup={EMBEDDED ? undefined : 'dialog'} aria-expanded={EMBEDDED ? undefined : popup()?.kind === 'add'} onClick={event => { if (EMBEDDED) { fileInput.click(); return; } setPopup({ kind: 'add', anchor: event.currentTarget }); }}>Add</Button>
       </div>
+      <Show when={tab() !== 'highlights' && chosenFilters().length}><div class="library-filter library-chosen" role="group" aria-label="Browse filters">
+        <For each={chosenFilters()}>{item => <Button class="bordered library-chip" aria-label={`Remove filter ${item.label}`} onClick={() => toggleFilter(item.field, item.value)}>{item.label}<Icon name="close" /></Button>}</For>
+        <Button onClick={() => update({ view: null, filters: { people: [], decades: [], publishers: [], languages: [] }, scroll: 0 })}>Clear filters</Button>
+      </div></Show>
       <Show when={saving() || props.notebook.commandState() !== 'saved'}><p class="library-message" role="status">{props.notebook.commandMessage() || (saving() ? 'Saving…' : props.notebook.commandState())}</p></Show>
     </header>
     <input ref={fileInput} type="file" hidden aria-label="Choose EPUB files" accept=".epub,application/epub+zip" multiple onChange={event => {
@@ -542,12 +660,29 @@ export function LibraryPane(props: LibraryPaneProps) {
       const next = { ...view(), scroll: scroll.scrollTop };
       setView(next); props.onViewChange({ ...next });
     }}>
+      <Show when={tab() !== 'highlights' && browseEntries().length}>
+        <nav class="library-browse" aria-label="Browse library">
+          <For each={browseFields}>{section => {
+            const entries = () => browseEntries().filter(entry => entry.field === section.field);
+            // The commonest values, plus any chosen value further down.
+            const shown = () => entries().filter((entry, at) => at < browseLimit || chosen(entry.field, entry.value));
+            return <Show when={entries().length}><section class="library-browse-section" aria-label={section.label}>
+              <h3 class="library-browse-heading">{section.label}</h3>
+              <For each={shown()}>{entry => <Button class="library-browse-item" aria-pressed={chosen(entry.field, entry.value)} onClick={() => toggleFilter(entry.field, entry.value)}>
+                <span class="library-browse-label">{entry.label}</span><span class="library-browse-count">{entry.count}</span>
+              </Button>}</For>
+              <Show when={entries().length > shown().length}><Button class="library-browse-more" aria-haspopup="dialog" onClick={event => { setBrowseQuery(''); setPopup({ kind: 'browse', anchor: event.currentTarget, field: section.field }); }}>All {entries().length}</Button></Show>
+            </section></Show>;
+          }}</For>
+        </nav>
+      </Show>
+      <div class="library-main">
       <Show when={commandError()}><p class="library-error" role="alert">{commandError()}</p></Show>
       <Show when={countError()}><div class="library-error" role="alert">{countError()}<Button onClick={() => setRefresh(value => value + 1)}>Retry</Button></div></Show>
       <Show when={jobsError()}><div class="library-error" role="alert">{jobsError()}<Button onClick={() => setJobsRefresh(value => value + 1)}>Retry</Button></div></Show>
       <Show when={viewsError()}><div class="library-error" role="alert">{viewsError()}<Button onClick={() => setRefresh(value => value + 1)}>Retry</Button></div></Show>
-      {/* The Reading tab already lists these books, so it leaves the strip out; it stays while selecting so rows never shift under the pointer. */}
-      <Show when={resume().length && tab() !== 'reading' && tab() !== 'highlights' && !text().trim()}>
+      {/* The Reading tab already lists these books, so it leaves the strip out, as do search and Browse; it stays while selecting so rows never shift under the pointer. */}
+      <Show when={resume().length && tab() !== 'reading' && tab() !== 'highlights' && !text().trim() && !filtered()}>
         <section class="library-resume" aria-labelledby={`${props.pane}-resume-heading`}>
           <h2 class="library-resume-heading" id={`${props.pane}-resume-heading`}>Continue reading</h2>
           <div class="library-resume-books" role="list"><For each={resume()}>{row => <div role="listitem">
@@ -565,7 +700,7 @@ export function LibraryPane(props: LibraryPaneProps) {
           </div>}</For></div>
         </section>
       </Show>
-      <section class="library-rows" classList={{ 'library-has-selection': selected().size > 0, 'library-rows-shelf': layout() === 'shelf' && tab() !== 'highlights' }} aria-label={tab() === 'highlights' ? 'Highlights' : 'Sources'} aria-busy={loading()}>
+      <section class="library-rows" classList={{ 'library-has-selection': selected().size > 0, 'library-rows-shelf': layout() === 'shelf' && tab() !== 'highlights', 'library-rows-grouped': !!groups() }} aria-label={tab() === 'highlights' ? 'Highlights' : 'Sources'} aria-busy={loading()}>
         <Show when={shownJobs().length}><div class="library-jobs" aria-label="Ingestion jobs"><For each={shownJobs()}>{job => {
           const label = () => jobLabel(job, sourceTitles());
           return <div class="library-row library-job">
@@ -598,57 +733,22 @@ export function LibraryPane(props: LibraryPaneProps) {
             </Show>
           }>
             <Show when={displayedSources().length} fallback={<div class="library-empty">
-              <Show when={text().trim()} fallback={<Show when={tab() === 'inbox'} fallback={<p>No sources.</p>}>
+              <Show when={text().trim() || filtered()} fallback={<Show when={tab() === 'inbox'} fallback={<p>No sources.</p>}>
                 <p>{EMBEDDED ? 'Nothing in your inbox. Add an EPUB.' : 'Nothing in your inbox. Add a book or article.'}</p>
-              </Show>}><p>No sources match.</p><Button onClick={() => update({ view: null, text: '', scroll: 0 })}>Clear search</Button></Show>
+              </Show>}><p>No sources match.</p><Button onClick={() => update({ view: null, text: '', filters: { people: [], decades: [], publishers: [], languages: [] }, scroll: 0 })}>{filtered() ? 'Clear search and filters' : 'Clear search'}</Button></Show>
             </div>}>
-              <Show when={layout() === 'shelf'} fallback={<div role="list"><For each={displayedSources()}>{row => {
-                const target: OpenTarget = { kind: 'page', pageId: row.page.id };
-                return <div class="library-row library-source-row" classList={{ 'library-row-selected': selected().has(row.page.id) }} role="listitem">
-                  <div class="library-leading">
-                    <span class="library-source-image"><Show when={row.cover} fallback={<Icon name={row.source.format === 'article' ? 'article' : 'book'} />}><ResourceImage snapshotId={row.source.current_snapshot_id ?? ''} href={row.cover!} alt="" loading="lazy" /></Show></span>
-                    <Button role="checkbox" aria-checked={selected().has(row.page.id)} label={`Select ${row.page.text}`} class="icon-only library-checkbox" onClick={event => toggleSelection(row.page.id, event.shiftKey)}>
-                      <span class="library-checkbox-square"><Show when={selected().has(row.page.id)}><Icon name="check" /></Show></span>
-                    </Button>
-                  </div>
-                  <Button class="library-row-open" data-library-row={row.page.id} onClick={event => props.onOpen(target, event.shiftKey)} onKeyDown={event => rowKey(event, target)}>
-                    <span class="library-siglum" aria-hidden="true">{sigla().get(row.page.id) ?? row.source.siglum}</span><span class="library-title">{row.page.text}</span><span class="library-byline">{sourceByline(row)}</span>
-                    <Show when={mixedStates()}><span class="library-count library-state">{stateLabels[row.source.state]}</span></Show>
-                    <span class="library-count library-year" aria-label="Published year">{row.published?.slice(0, 4)}</span>
-                    <span class="library-progress"><Show when={row.progress > 0}>{formatProgress(row.progress)}</Show></span>
-                    <span class="library-highlight-count" aria-label={row.unprocessed ? `${row.unprocessed} unprocessed highlights` : undefined}><Show when={row.unprocessed > 0}><Icon name="highlight" />{row.unprocessed}</Show></span>
-                  </Button>
-                  <Button icon="more" label={`Actions for ${row.page.text}`} aria-haspopup="menu" disabled={saving()} onClick={event => rowMenu(row, event.currentTarget)} />
-                </div>;
-              }}</For></div>}>
-                <div class="library-shelf" role="list"><For each={displayedSources()}>{row => {
-                  const target: OpenTarget = { kind: 'page', pageId: row.page.id };
-                  const siglum = () => sigla().get(row.page.id) ?? row.source.siglum;
-                  return <div class="library-book library-source-row" classList={{ 'library-row-selected': selected().has(row.page.id) }} role="listitem">
-                    <Button class="library-book-open" data-library-row={row.page.id} onClick={event => props.onOpen(target, event.shiftKey)} onKeyDown={event => rowKey(event, target)}>
-                      <SourceCover row={row} siglum={siglum()} />
-                      <span class="library-reading-rule" classList={{ 'library-reading-started': row.progress > 0 }} style={{ '--progress': `${row.progress * 100}%` }} aria-hidden="true" />
-                      <span class="library-book-title">{row.page.text}</span>
-                      <span class="library-book-byline">{sourceByline(row)}</span>
-                      <span class="library-book-apparatus">
-                        <span class="library-siglum" aria-hidden="true">{siglum()}</span>
-                        <Show when={mixedStates()}><span class="library-book-state">{stateLabels[row.source.state]}</span></Show>
-                        <Show when={row.published}><span aria-label="Published year">{row.published!.slice(0, 4)}</span></Show>
-                        <Show when={row.progress > 0}><span>{formatProgress(row.progress)}</span></Show>
-                        <Show when={row.unprocessed > 0}><span class="library-book-highlights" aria-label={`${row.unprocessed} unprocessed highlights`}><Icon name="highlight" />{row.unprocessed}</span></Show>
-                      </span>
-                    </Button>
-                    <Button role="checkbox" aria-checked={selected().has(row.page.id)} label={`Select ${row.page.text}`} class="icon-only library-checkbox" onClick={event => toggleSelection(row.page.id, event.shiftKey)}>
-                      <span class="library-checkbox-square"><Show when={selected().has(row.page.id)}><Icon name="check" /></Show></span>
-                    </Button>
-                    <Button class="library-book-more" icon="more" label={`Actions for ${row.page.text}`} aria-haspopup="menu" disabled={saving()} onClick={event => rowMenu(row, event.currentTarget)} />
-                  </div>;
-                }}</For></div>
-              </Show>
+              <Show when={groups()} fallback={<SourceRows rows={displayedSources()} />}>{list => <For each={list()}>{value => <section class="library-group" aria-label={value.label}>
+                <h3 class="library-group-heading">
+                  <Show when={value.personId} fallback={<span class="library-group-label">{value.label}</span>}>{id => <Button class="library-group-label" onClick={event => props.onOpen({ kind: 'page', pageId: id() }, event.shiftKey)}>{value.label}</Button>}</Show>
+                  <span class="library-group-count">{value.rows.length}</span>
+                </h3>
+                <SourceRows rows={value.rows} />
+              </section>}</For>}</Show>
             </Show>
           </Show>
         </Show>
       </section>
+      </div>
     </div>
     <Show keyed when={popup()}>{state => {
       const dismiss = () => { if (popup() === state) setPopup(null); };
@@ -656,6 +756,15 @@ export function LibraryPane(props: LibraryPaneProps) {
       if (state.kind === 'tags') return <Picker anchor={state.anchor} label="Filter highlight tags" placeholder="Find a tag" query={tagQuery()} onQuery={setTagQuery} items={tagOptions()} key={tag => tag}
         row={tag => <><Show when={tags().includes(tag)}><Icon name="check" /></Show><span class="outline-tag">#{tag}</span></>}
         onPick={tag => { update({ tags: tags().includes(tag) ? tags().filter(value => value !== tag) : [...tags(), tag], scroll: 0 }); dismiss(); }} empty="No tags in these highlights" onDismiss={dismiss} />;
+      if (state.kind === 'browse') {
+        const field = state.field;
+        const items = () => browseEntries().filter(entry => (!field || entry.field === field) && entry.label.toLocaleLowerCase().includes(browseQuery().trim().toLocaleLowerCase()));
+        return <Picker anchor={state.anchor} label={field ? `Browse ${browseFields.find(item => item.field === field)!.label.toLowerCase()}` : 'Browse library'} class="library-browse-picker" width={360}
+          placeholder={browsePlaceholders[field ?? 'all']} query={browseQuery()} onQuery={setBrowseQuery} items={items()} key={entry => `${entry.field}:${entry.value}`}
+          section={field ? undefined : entry => browseFields.find(item => item.field === entry.field)!.label}
+          row={entry => <><span class="library-browse-check"><Show when={chosen(entry.field, entry.value)}><Icon name="check" /></Show></span><span class="library-browse-label">{entry.label}</span><span class="library-browse-count">{entry.count}</span></>}
+          onPick={entry => { toggleFilter(entry.field, entry.value); dismiss(); }} empty="Nothing matches" onDismiss={dismiss} />;
+      }
       if (state.kind === 'name') return <LibraryViewNamePopup anchor={state.anchor} saved={state.saved} busy={saving()} onDismiss={dismiss} onSave={name => saveView(name, state.id, state.saved)} />;
       if (state.kind === 'delete') return <Popup anchor={state.anchor} label="Delete library view?" onDismiss={dismiss}>
         <p>Delete “{state.saved.name}”? Sources are not deleted.</p>
