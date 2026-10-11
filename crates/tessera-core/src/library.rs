@@ -223,7 +223,9 @@ pub struct Citation {
     /// Reading-order position of the start passage in its snapshot.
     pub ordinal: i64,
     /// UTF-16 offset of the citation's start in its snapshot's whole text, the unit of `text_length` and passage starts.
-    pub position: i64,
+    /// Reads always fill it; change records stored before it existed lack it, so it stays optional there.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub position: Option<i64>,
     #[serde(default)]
     pub chapter_title: Option<String>,
     pub triage: Option<String>,

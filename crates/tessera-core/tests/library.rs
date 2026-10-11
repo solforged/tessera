@@ -494,6 +494,17 @@ fn citation_creation_validates_color_and_defaults_legacy_operations() {
 }
 
 #[test]
+fn citation_position_is_exact_and_absent_from_legacy_records() {
+    let (_dir, n, citation) = highlighted_source();
+    let passage = n.passages(&citation.snapshot_id, citation.ordinal, 1).unwrap().passages.remove(0);
+    assert_eq!(citation.position, Some(passage.start + i64::from(citation.start.offset)));
+    // Change records stored before positions existed must still load.
+    let mut legacy = serde_json::to_value(&citation).unwrap();
+    legacy.as_object_mut().unwrap().remove("position");
+    assert_eq!(serde_json::from_value::<Citation>(legacy).unwrap().position, None);
+}
+
+#[test]
 fn highlight_color_and_tags_survive_text_edits_and_filter_together() {
     let (_dir, mut n, citation) = highlighted_source();
     set_color(&mut n, &citation, Some("green"));
