@@ -115,9 +115,10 @@
 .library-passage-pager { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); }
 .library-highlight-primary { display: grid; grid-template-columns: 1.35fr 1fr 1fr; gap: var(--space-8); }
 .library-highlight-primary .button { min-width: 0; padding-inline: var(--space-8); }
+.library-highlight-primary .button kbd { margin-left: auto; }
 .library-mark-processed.button { border-color: var(--accent); color: var(--accent); }
 .library-highlight-secondary { display: flex; align-items: center; gap: var(--space-4); }
-.library-highlight-secondary .button:nth-last-child(2) { margin-left: auto; }
+.library-highlight-open-reader.button { margin-left: auto; }
 .library-highlight-color-bar { display: inline-block; flex: none; width: 2px; height: var(--space-16); background: var(--highlight-bar); }
 .library-highlight-queue-dock { display: none; }
 .library-highlight-filter-popup { padding: var(--space-16); }
@@ -132,6 +133,7 @@
 .library-highlight-filter-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-8); margin-top: var(--space-24); }
 @media (pointer: coarse) {
   .library-highlight-dock .button, .library-highlight-filter-colors .button { min-height: 44px; }
+  .library-highlight-dock kbd { display: none; }
 }
 @container library-pane (max-width: 719px) {
   .library-highlight-selectors { flex-basis: 100%; justify-content: flex-start; }
@@ -236,6 +238,16 @@
 .library-book .library-checkbox.button { inset: var(--space-4) auto auto var(--space-4); width: var(--target-size); height: var(--target-size); min-height: var(--target-size); padding: 0; background: var(--surface); }
 .library-book-more.button { position: absolute; top: var(--space-4); right: var(--space-4); background: var(--surface); opacity: 0; }
 .library-book:hover .library-book-more, .library-book:focus-within .library-book-more, .library-book-more[aria-expanded="true"] { opacity: 1; }
+@media (pointer: coarse) {
+  .library-book-more.button { opacity: 1; border-radius: var(--radius-pill); width: var(--target-size); height: var(--target-size); padding: 0; }
+}
+.library-source-sheet.popup-sheet { top: auto !important; left: var(--space-8) !important; bottom: calc(var(--bottom-nav-height, 56px) + var(--bottom-inset) + var(--space-8)); width: calc(100vw - var(--space-16)) !important; max-height: calc(85dvh - var(--bottom-nav-height, 56px) - var(--bottom-inset) - var(--space-16)) !important; padding: var(--space-24) var(--space-16) var(--space-16); border: var(--rule-width) solid var(--line); border-radius: var(--radius-popup); }
+.library-source-sheet-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-16); padding-bottom: var(--space-16); margin-bottom: var(--space-8); border-bottom: var(--rule-width) solid var(--line); }
+.library-source-sheet-head h2 { margin: 0 0 var(--space-4); font: var(--weight-display-heading) var(--text-h2)/var(--line-h2) var(--font-display); }
+.library-source-sheet-head p { margin: 0 0 var(--space-4); color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
+.library-source-sheet-head .library-highlight-meta { font: var(--apparatus); }
+.library-source-sheet .menu-item { min-height: calc(var(--space-32) + var(--space-12)); }
+.library-source-sheet .menu-section { height: var(--rule-width); margin: var(--space-8) 0; padding: 0; border-top: var(--rule-width) solid var(--line); font-size: 0; }
 /* Reading now is a real card for every Reading source; the cover and a narrow split pane stack them without dropping books. */
 .library-reading { padding-block: 0 var(--section-gap); }
 .library-reading-heading { margin: 0 0 var(--section-item-gap); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
