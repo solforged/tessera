@@ -15,10 +15,10 @@ Everything a person writes is a block. Behavior is added to blocks as capabiliti
 | Link | The indexed occurrence of a reference; derived |
 | Type | Reusable membership, such as `#book`, with an optional field template |
 | Field | A typed reading of value blocks, such as Author or Read on |
-| Capability | Behavior attached to a block: task, question, assessment, card, source, position, project, note |
+| Capability | Behavior attached to a block: task, question, assessment, card, source, position, project. A note capability is target (roadmap stage 10) |
 | Change | One committed operation, with its actor and the revisions it produced |
 
-Only these words appear in the schema, the API, the code and the interface.
+These words are the vocabulary of the schema, the API, the code and the interface. A paragraph marked **Target** is a settled rule for a later [roadmap](roadmap.md) stage. It is not in the notebook yet.
 
 ## Blocks
 
@@ -70,7 +70,7 @@ An agenda takes the displayed civil date, never an implicit device date. It merg
 
 ## Investigations
 
-A question capability makes a block an enduring question with an optional review date. Criteria are blocks beneath it. An assessment capability turns any block into a dated answer to a question. At most one assessment per question is accepted. Accepting a new one supersedes the old one, which stays readable. An assessment may also record aporia, that no answer holds yet; it is dated and cites its evidence like any other.
+A question capability makes a block an enduring question with an optional review date. An assessment capability turns any block into a dated answer to a question. At most one assessment per question is accepted. Accepting a new one supersedes the old one, which stays readable. An assessment may also record aporia, that no answer holds yet. **Target** ([roadmap](roadmap.md) stage 7): criteria are blocks beneath the question, and an assessment cites the positions and passages behind it. An assessment stores only its date and whether it records aporia.
 
 A question is in one of four states:
 
@@ -81,7 +81,7 @@ A question is in one of four states:
 | Parked | Paused; it accepts nothing new until resumed |
 | Unsettled | Open by design: it recurs or may end in aporia, collects dated assessments and returns on its review date |
 
-Stored with the question are whether it is unsettled, whether it is parked, its review date and which assessment it accepts. The state is derived in this order: parked, then unsettled, then answered when an accepted assessment exists, otherwise open. Answered is never stored, so it cannot disagree with the assessments. Accepting an assessment on an unsettled question records the current reading without settling it. Resuming a parked question returns it to whatever the rest of the rule gives. Export writes the derived state as the site's `state`.
+Stored with the question are whether it is unsettled, whether it is parked, its review date and which assessment it accepts. The state is derived in this order: parked, then unsettled, then answered when an accepted assessment exists, otherwise open. Answered is never stored, so it cannot disagree with the assessments. Accepting an assessment on an unsettled question records the current reading without settling it. Resuming a parked question returns it to whatever the rest of the rule gives. **Target** ([roadmap](roadmap.md) stage 7): export writes the derived state as the site's `state`. That export is not built.
 
 ## Sources, passages and positions
 
@@ -97,7 +97,7 @@ Every source has a siglum, a short mark as in a critical edition. An authored Si
 
 A highlight is an authored block on the source's page that cites a passage. It takes children, types, fields and card syntax like any other block. A highlight with no non-blank children, no card and no incoming reference is unprocessed. Marking a highlight processed or unprocessed overrides that rule until the mark is cleared; it is the only stored triage state. Because passages never change, a passage citation is a frozen quotation by construction.
 
-A position is an attributed claim: who holds it, about which question or subject, supported by which passages. A position capability marks an ordinary block as one; its holder and subject are derived from the block's text and place, never stored. The holder is the page its first link points to. The subject is the block or page its second link points to, else its nearest ancestor question, else its page; so a position can sit under a highlight on a source page and still be filed under the concept it is about. Its fields are ordinary children: by convention Gist (its one-line summary), Work (the source it names, which gives its siglum; otherwise the first passage cited beneath it) and whatever criteria the positions on one subject share. Positions on the same subject are compared side by side and never merged. Assessments cite positions and passages, so a conclusion can be traced to its evidence.
+A position is an attributed claim: who holds it, about which question or subject, supported by which passages. A position capability marks an ordinary block as one; its holder and subject are derived from the block's text and place, never stored. The holder is the page its first link points to. The subject is the block or page its second link points to, else its page. **Target, not wired:** the subject should otherwise be the nearest ancestor question, so a position under a highlight on a source page can still be filed under the concept it is about. `nearest_question_ancestor` in `crates/tessera-core/src/position_store.rs` is a stub that returns nothing. The real lookup is `nearest_question_ancestor` in `crates/tessera-core/src/question_store.rs`, and the position store does not call it. A position's fields are ordinary children: by convention Gist (its one-line summary), Work (the source it names, which gives its siglum; otherwise the first passage cited beneath it) and whatever criteria the positions on one subject share. Positions on the same subject are compared side by side and never merged. **Target** ([roadmap](roadmap.md) stage 7): assessments cite positions and passages, so a conclusion can be traced to its evidence.
 
 A page's gloss is an entry for the Gloss field among its top-level blocks: the one- or two-sentence hover form shown under the title and in reference previews. It is an ordinary field, created on first use.
 
@@ -110,6 +110,8 @@ A project capability gives a block an outcome, an optional deadline and active, 
 ## Notes
 
 A note is a titled page: a root block of kind page. Journal days and the Fields page are not notes. The blocks beneath the title are the note's content; there is no separate note record or copy. Blocks inside a note keep every behaviour of their own, so a note can hold tasks, cards, questions and positions.
+
+The index, finding aids, aliases, gloss and the starting templates for Person, Group and Concept are built. System types, the Form field, suggested aliases, settling, revisits, the note capability, note-view Find terms and spreads are **target** ([roadmap](roadmap.md) stage 10).
 
 ### Kinds
 
@@ -125,11 +127,11 @@ A kind says what a note is about. These are built in:
 | Source | A source capability on the page | Something read, watched or listened to |
 | Project | A project capability on the page | A bounded outcome |
 
-Person and Group are entities: the pages that a position's holder and a source's creators refer to. Person, Group, Concept and Thesis are system types that every notebook has, like the Fields page; they take templates and fields like any type, and cannot be deleted or merged. A notebook that already has a type with one of those titles keeps that page, with its members, fields and template, as the built-in kind. Question, Source and Project come from capabilities and need no tag.
+Person and Group are entities: the pages that a position's holder and a source's creators refer to. **Built:** a kind is read from a type page titled Person, Group, Concept or Thesis, or from a question, source or project capability on the page. The index lists those names before any such page exists. Question, Source and Project need no tag. **Target** ([roadmap](roadmap.md) stage 10): those four titles are system types every notebook has, like the Fields page, and they cannot be deleted or merged. A notebook that already has a type with one of those titles keeps that page, with its members, fields and template, as the built-in kind.
 
-Types you define are kinds too, listed after the built-in ones. A type can refine one built-in kind, as Philosopher refines Person; its members are then filed under both, and positions and creators treat them as that kind. A note can have several kinds and is filed under each; a note with none is unfiled. Tasks and cards are not kinds. They belong to blocks within notes, and Agenda and Review are their places.
+Types you define are kinds too, listed after the built-in ones. **Target** ([roadmap](roadmap.md) stage 10): a type can refine one built-in kind, as Philosopher refines Person; its members are then filed under both, and positions and creators treat them as that kind. A note can have several kinds and is filed under each; a note with none is unfiled. Tasks and cards are not kinds. They belong to blocks within notes, and Agenda and Review are their places.
 
-A source's form is a built-in Form choice field: book, chapter, article, paper, report, post, thread, video or web page, with more options added as for any choice field. Lookup and ingestion fill it, and export writes it as the CSL type and BibTeX entry type.
+**Target** ([roadmap](roadmap.md) stage 10): a source's form is a built-in Form choice field: book, chapter, article, paper, report, post, thread, video or web page, with more options added as for any choice field. Lookup and ingestion fill it, and export writes it as the CSL type and BibTeX entry type.
 
 Person, Group and Concept start with templates, filled in only when wanted: Person has Aliases, Lived and Affiliated with (an instance of Group); Group has Aliases and Active; Concept has Aliases, Coined by (an instance of Person) and Coined in (an instance of Source). A type page with one of those titles gets its template when the app creates it; one that already exists with an empty template offers it instead. A question page takes aliases from Add alias, since it has no type to carry a template. Lived and Active are text, so `c. 1493` and `106–43 BCE` fit where a date field cannot. A Group's members are the people affiliated with it, not a second list. Templates change like any type's and never rewrite notes. Thesis starts without one until it is settled how a thesis answers a question.
 
@@ -144,15 +146,19 @@ A note's aliases are the values of the built-in Aliases field among its top-leve
 - **Finding aids** list each alias as a cross-reference, `Tully, see Cicero`; an alias shared by several pages appears once and points to each. Cross-references are not counted as notes. An alias that only lengthens another alias of the same page, containing all its words, is left out of the cross-references but still matches.
 - **Sorting.** A finding aid sorts by the full title. A person sorts by family name only when the page sets a Sort as field, since classical, medieval and many non-European names have no family name to find.
 
-An agent may propose aliases, such as other phrasings of a question that a search might use. Each is an ordinary value written by the agent, marked as suggested until kept or removed, and undone like any agent change.
+**Target** ([roadmap](roadmap.md) stage 10): an agent may propose aliases, such as other phrasings of a question that a search might use. Each is an ordinary value written by the agent, marked as suggested until kept or removed, and undone like any agent change. Suggested aliases are not stored.
 
 Events are a likely future built-in kind; the notebook's own types cover them until then.
 
 ### State
 
+**Target** ([roadmap](roadmap.md) stage 10). Nothing below is stored yet.
+
 A note is working or settled. Working is the default and is not stored. Settle records that you stand behind the note as written; Reopen returns it to working. Editing a settled note does not reopen it; the note's apparatus shows that it changed after settling.
 
 ### Revisits
+
+**Target** ([roadmap](roadmap.md) stage 10), including the note capability that would hold this date. Nothing below is stored yet.
 
 A note comes back only when it has a revisit date. On a page that is also a question, the revisit date is the question's review date; there is one date, not two. A question block within a page that has a review date comes back as itself.
 
@@ -170,13 +176,15 @@ A note capability on the page holds the stored state, the revisit date and when 
 
 ### Index and views
 
-The index lists kinds with note members or tagged non-page blocks, keeping their counts independent. Kinds with notes open a finding aid; tag-only types open their member table. Tagged blocks do not increase the distinct-note total or file their containing page under that kind. The finding aid is the unsaved note view for that kind, as a type table is for a type. It is derived from kinds and is never stored.
+**Built.** The index lists kinds with note members or tagged non-page blocks, keeping their counts independent. Kinds with notes open a finding aid; tag-only types open their member table. Tagged blocks do not increase the distinct-note total or file their containing page under that kind. The finding aid is derived from kinds and is never stored. It groups titles by letter. It does not yet filter with the Find terms below.
 
-A note view is a query over notes with a layout and a grouping. Besides the block query's type, text and field predicates, it can select by kind, by state, by revisit (due, set or none), by links to a note, by links from a note, and by a cited source (its siglum, citation key or title). The Find line writes these as `is:settled`, `revisit:due`, `links:Polybius`, `from:Postone` and `cites:MAR`, and other words match the title or gloss; each recognised term shows as a chip. Field predicates stay in the filter picker, as on tables.
+**Target** ([roadmap](roadmap.md) stage 10): a note view is a query over notes with a layout and a grouping. Besides the block query's type, text and field predicates, it can select by kind, by state, by revisit (due, set or none), by links to a note, by links from a note, and by a cited source (its siglum, citation key or title). The Find line writes these as `is:settled`, `revisit:due`, `links:Polybius`, `from:Postone` and `cites:MAR`, and other words match the title or gloss; each recognised term shows as a chip. Field predicates stay in the filter picker, as on tables.
 
-One query has two layouts. Index sets titles in columns under headings, with marks for settled and revisit dates. Table sets one note per row, its fields as columns, as type tables do. Index groups by first letter unless another grouping is chosen: source cited, note linked, state, created month, or a field's values. A note is listed under every heading that applies to it, as in a book index, and headings for sources, links and field values are ordered by how many notes they hold. Saving a note view stores its query, layout and grouping as a view, which the sidebar files under the kind it lists.
+Still target: one query has two layouts. Index sets titles in columns under headings, with marks for settled and revisit dates. The built finding aid already groups by first letter; the other groupings, those marks and saving the view are not built. Table sets one note per row, its fields as columns, as type tables do. Index groups by first letter unless another grouping is chosen: source cited, note linked, state, created month, or a field's values. A note is listed under every heading that applies to it, as in a book index, and headings for sources, links and field values are ordered by how many notes they hold. Saving a note view stores its query, layout and grouping as a view, which the sidebar files under the kind it lists.
 
 ### Spreads
+
+**Target** ([roadmap](roadmap.md) stage 10). There is no spread capability.
 
 A spread sets several notes side by side. Selecting two or more notes in a view, up to five, offers Spread. Each note is a column, and rows align across columns: kind, title, gloss and state, then one row for each field any of the notes has, blank where a note lacks it, then the sources it cites, the notes it links to and its opening prose. A value that two or more columns share exactly is marked, and a link from one column to another is marked as such. Nothing is inferred from values that differ.
 
@@ -202,7 +210,7 @@ A notebook has settings: its time zone and editing preferences. Setting one is a
 
 ## Changes and attribution
 
-Every committed operation writes a change row: actor (person, agent name or client), operation, affected IDs and resulting revisions, and an optional reason. Agents may submit plans that are previewed, then applied atomically under an idempotency key. Undo works by applying an inverse operation, so history remains linear and inspectable across clients.
+Every committed operation writes a change row: actor (person, agent name or client), operation, affected IDs and resulting revisions, and an optional reason. A write is one batch under an idempotency key. **Target** ([roadmap](roadmap.md) stage 8): agents may submit plans that are previewed, then applied atomically. There is no preview step. Undo works by applying an inverse operation, so history remains linear and inspectable across clients.
 
 ## Derived data
 
