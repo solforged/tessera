@@ -69,13 +69,17 @@ impl Notebook {
             .optional()?
             .ok_or_else(|| not_found(id))
     }
+    /// Queued, running and failed jobs, then the latest completed ones whose
+    /// source is still in the notebook: a deleted book takes its import with it.
     pub fn ingest_jobs(&self, limit: usize) -> Result<Vec<IngestJob>> {
         let mut statement = self.conn.prepare_cached(&format!(
             "SELECT {JOB_COLUMNS}
              FROM ingest_jobs
              WHERE state != 'done' OR id IN (
-                 SELECT id FROM ingest_jobs WHERE state = 'done'
-                 ORDER BY created_at DESC, id DESC LIMIT ?1
+                 SELECT j.id FROM ingest_jobs j
+                 JOIN blocks b ON b.id = j.source_id AND b.deletion_id IS NULL
+                 WHERE j.state = 'done'
+                 ORDER BY j.created_at DESC, j.id DESC LIMIT ?1
              )
              ORDER BY created_at DESC, id DESC"
         ))?;
