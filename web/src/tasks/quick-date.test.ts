@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { TaskState } from '../api/types';
-import { dateSuggestions, dateTokenAt, flipDateToken, newTask, planDateToken, removeToken } from './quick-date';
+import { captureDateToken, dateSuggestions, dateTokenAt, flipDateToken, newTask, planDateToken, removeToken } from './quick-date';
 
 const context = '2026-10-03';
 const task: TaskState = {
@@ -9,6 +9,27 @@ const task: TaskState = {
   repeater: { every: 2, unit: 'week', mode: 'fixed' }, priority: 'high', completed_on: null,
 };
 const atEnd = (text: string) => dateTokenAt(text, text.length);
+
+describe('agenda capture dates', () => {
+  test('plans a complete plain-word suffix with the same preview and submission choice', () => {
+    const text = 'Draft the note mon 9am';
+    const token = captureDateToken(text, context)!;
+    expect(token).toEqual({ from: 15, to: text.length, query: 'mon 9am', field: 'scheduled' });
+    const plan = planDateToken(text, token, dateSuggestions(token.query, context)[0]!, null);
+    expect(plan.text).toBe('Draft the note');
+    expect(plan.value.scheduled).toBe('2026-10-05');
+    expect(plan.value.scheduled_time).toBe('09:00');
+  });
+  test('supports deadlines while leaving incomplete, protected and ordinary prose alone', () => {
+    expect(captureDateToken('Return books due Monday', context)?.field).toBe('deadline');
+    expect(captureDateToken('Return books @by mon', context)?.field).toBe('deadline');
+    for (const text of ['Read Polybius book 6', 'Read [[Monday]]', 'Read `mon 9am`', 'Read next', 'Read @invalid']) {
+      const token = captureDateToken(text, context);
+      if (text.includes('@')) expect(token?.query).toBe('invalid');
+      else expect(token).toBeNull();
+    }
+  });
+});
 
 describe('date completion tokens', () => {
   test('accepts the start of text and whitespace boundaries, including an empty query', () => {

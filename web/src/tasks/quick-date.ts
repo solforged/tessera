@@ -64,6 +64,23 @@ export function dateTokenAt(text: string, caret: number): DateToken | null {
   return { from, to: caret, query, field: 'scheduled' };
 }
 
+/** Agenda capture also accepts a complete plain-word date suffix; incomplete or protected text stays authored. */
+export function captureDateToken(text: string, contextDate: string): DateToken | null {
+  const explicit = dateTokenAt(text, text.length);
+  if (explicit) return explicit;
+  if (matchFieldEntry(text) || /[\r\n@]/.test(text)) return null;
+  for (const boundary of text.matchAll(/\s+(?=\S)/g)) {
+    const from = boundary.index + boundary[0].length;
+    if (!text.slice(0, from).trim() || insideProtectedSyntax(text, from)) continue;
+    const suffix = text.slice(from);
+    const deadline = /^(?:by|due) +/i.exec(suffix);
+    const query = deadline ? suffix.slice(deadline[0].length) : suffix;
+    const parsed = parseTaskDate(query, contextDate);
+    if (parsed.ok && parsed.date) return { from, to: text.length, query, field: deadline ? 'deadline' : 'scheduled' };
+  }
+  return null;
+}
+
 /** Tab changes only the planning field, retaining the query, surrounding text and live caret. */
 export function flipDateToken(text: string, token: DateToken): { text: string; caret: number } {
   const query = text.slice(token.from + 1, token.to);

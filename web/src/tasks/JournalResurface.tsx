@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createMemo, createRoot, createSignal, createUniqueId, onCleanup } from 'solid-js';
+import { Show, createEffect, createMemo, createRoot, createSignal, createUniqueId, onCleanup } from 'solid-js';
 import type { Surfacing, SurfacingAction } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { highlightSections } from '../library/highlights';
@@ -30,6 +30,8 @@ const setCollapsed = (value: boolean) => {
 export function JournalResurface(props: JournalResurfaceProps) {
   const id = createUniqueId();
   const [items, setItems] = createSignal<Surfacing[]>([]);
+  const [index, setIndex] = createSignal(0);
+  const currentItem = createMemo(() => items()[Math.min(index(), items().length - 1)]);
   const [sections, setSections] = createSignal(new Map<string, HighlightSection[]>());
   const cache = new Map<string, HighlightSection[]>();
   const [loading, setLoading] = createSignal(true);
@@ -45,7 +47,7 @@ export function JournalResurface(props: JournalResurfaceProps) {
     const current = ++generation;
     const controller = new AbortController();
     setLoading(true); setError(''); setFailed(undefined); setPending(false);
-    if (loadedDate !== date) { setItems([]); loadedDate = date; }
+    if (loadedDate !== date) { setItems([]); setIndex(0); loadedDate = date; }
     void props.notebook.api.resurfacing(date, 3, controller.signal).then(async rows => {
       const snapshots = [...new Set(rows.map(row => row.citation.snapshot_id))];
       const entries = await Promise.all(snapshots.map(async snapshot => {
@@ -55,6 +57,7 @@ export function JournalResurface(props: JournalResurfaceProps) {
       }));
       if (!controller.signal.aborted && current === generation) {
         setSections(new Map(entries)); setItems(rows); setLoading(false);
+        setIndex(value => Math.min(value, Math.max(0, rows.length - 1)));
       }
     }).catch(reason => {
       if (!controller.signal.aborted && current === generation) { setError(reason instanceof Error ? reason.message : String(reason)); setLoading(false); }
@@ -62,13 +65,9 @@ export function JournalResurface(props: JournalResurfaceProps) {
     onCleanup(() => controller.abort());
   });
   onCleanup(() => { generation++; });
-  const formatter = createMemo(() => new Intl.DateTimeFormat('en-CA', {
-    timeZone: props.notebook.settings()?.time_zone, year: 'numeric', month: '2-digit', day: '2-digit',
+  const formatter = createMemo(() => new Intl.DateTimeFormat('en-GB', {
+    timeZone: props.notebook.settings()?.time_zone, month: 'short', day: 'numeric',
   }));
-  const highlightedDate = (row: Surfacing) => {
-    const parts = formatter().formatToParts(row.created_at);
-    return ['year', 'month', 'day'].map(part => parts.find(value => value.type === part)!.value).join('-');
-  };
   async function act(row: Surfacing, action: SurfacingAction) {
     if (pending() || loading()) return;
     const date = props.date, current = generation;
@@ -88,22 +87,34 @@ export function JournalResurface(props: JournalResurfaceProps) {
     else setRefresh(value => value + 1);
   };
   return <section class="journal-agenda journal-resurface" aria-label="Resurfaced">
-    <Button class="journal-agenda-toggle" aria-expanded={!collapsed()} aria-controls={id} onClick={() => setCollapsed(!collapsed())}>
-      <span class="journal-section-name">Resurfaced</span><span class="section-rule" />
-      <span class="agenda-summary">{loading() ? 'Loading…' : items().length ? `${items().length} ${items().length === 1 ? 'highlight' : 'highlights'}` : 'Nothing yet'}</span><Icon name="down" />
-    </Button>
+    <div class="resurface-heading">
+      <Button class="journal-agenda-toggle" aria-expanded={!collapsed()} aria-controls={id} onClick={() => setCollapsed(!collapsed())}>
+        <span class="journal-section-name">From your highlights</span>
+        <span class="agenda-summary">{loading() ? 'Loading…' : items().length ? `${Math.min(index() + 1, items().length)} of ${items().length}` : 'Nothing yet'}</span><span class="section-rule" /><Icon name="down" />
+      </Button>
+      <Show when={!collapsed() && items().length > 1}><nav class="resurface-navigation" aria-label="Resurfaced highlights">
+        <Button icon="left" label="Previous highlight" disabled={pending() || loading() || index() === 0} onClick={() => setIndex(value => value - 1)} />
+        <Button icon="right" label="Next highlight" disabled={pending() || loading() || index() >= items().length - 1} onClick={() => setIndex(value => value + 1)} />
+      </nav></Show>
+    </div>
     <Show when={!collapsed()}><div id={id} class="journal-agenda-body" aria-busy={loading() || pending()}>
       <Show when={error()}><div class="agenda-error" role="alert"><span>{error()}</span><Button disabled={pending()} onClick={retry}>Retry</Button></div></Show>
       <Show when={!loading() && !error() && !items().length}><p class="agenda-message">Highlights you make appear here on later days.</p></Show>
-      <For each={items()}>{row => <article class="resurface-card" data-citation-id={row.citation.id}>
-        <p class="resurface-quote">{row.citation.quote}</p>
-        <p class="resurface-meta" title={row.source_title}>{shortSourceTitle(row.source_title)} · {highlightLocation(row.citation, sections().get(row.citation.snapshot_id) ?? [])} · {highlightedDate(row)}</p>
-        <div class="resurface-actions">
-          <Button disabled={pending() || loading()} onClick={() => void act(row, 'opened')}>Open</Button>
-          <Button disabled={pending() || loading()} aria-pressed={row.action === 'kept'} onClick={() => void act(row, 'kept')}><Show when={row.action === 'kept'}><Icon name="check" /></Show>Keep</Button>
-          <Button disabled={pending() || loading()} onClick={() => void act(row, 'muted')}>Mute</Button>
-        </div>
-      </article>}</For>
+      <Show keyed when={currentItem()}>{row => {
+        const location = createMemo(() => highlightLocation(row.citation, sections().get(row.citation.snapshot_id) ?? []));
+        return <article class="resurface-card" data-citation-id={row.citation.id}>
+          <span class={`resurface-color highlight-color-${row.citation.color ?? 'none'}`} aria-hidden="true" />
+          <p class="resurface-quote">{row.citation.quote}</p>
+          <div class="resurface-footer">
+            <p class="resurface-meta" title={row.source_title}>{shortSourceTitle(row.source_title)} · {location()}{location().startsWith('¶') ? '' : ` · ¶${row.citation.ordinal + 1}`} · {formatter().format(row.created_at)}</p>
+            <div class="resurface-actions">
+              <Button disabled={pending() || loading()} onClick={() => void act(row, 'opened')}>Open</Button><span aria-hidden="true">·</span>
+              <Button disabled={pending() || loading()} aria-pressed={row.action === 'kept'} onClick={() => void act(row, 'kept')}><Show when={row.action === 'kept'}><Icon name="check" /></Show>Keep</Button><span aria-hidden="true">·</span>
+              <Button disabled={pending() || loading()} onClick={() => void act(row, 'muted')}>Mute</Button>
+            </div>
+          </div>
+        </article>;
+      }}</Show>
     </div></Show>
   </section>;
 }
