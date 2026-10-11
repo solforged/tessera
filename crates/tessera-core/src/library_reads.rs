@@ -240,7 +240,7 @@ pub(crate) fn citations(
                 quote: String::new(),
                 locator: r.get(8)?,
                 ordinal: r.get(11)?,
-                position: r.get(15)?,
+                position: Some(r.get(15)?),
                 chapter_title: None,
                 triage: r.get(13)?,
                 color: r.get(14)?,
