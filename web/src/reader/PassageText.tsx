@@ -11,6 +11,8 @@ export function PassageText(props: {
   notes: ReadonlyMap<string, HighlightRow>;
   ordinals: ReadonlyMap<string, number>;
   flashId: string | null;
+  /** A highlight just made, drawn under its words once. */
+  inkId: string | null;
   onLocate(locator: string): void;
   onNote(locator: string, anchor: HTMLElement): void;
   onCitation(citations: Citation[], anchor: HTMLElement, beside: boolean): void;
@@ -32,7 +34,7 @@ export function PassageText(props: {
     }
   };
   return <For each={segments()}>{segment => segment.citations.length ? <>
-    <span class={`reader-highlight${segment.citations[0]!.color ? ` reader-highlight-${segment.citations[0]!.color}` : ''}`} classList={{ 'reader-flash': segment.flash, 'reader-highlight-overlap': segment.citations.length > 1, 'reader-highlight-linked': segment.citations.some(citation => citation.id === linkedCitation()) }} data-citation-id={segment.citations[0]!.id} role="button" aria-haspopup="menu" tabIndex={0}
+    <span class={`reader-highlight${segment.citations[0]!.color ? ` reader-highlight-${segment.citations[0]!.color}` : ''}`} classList={{ 'reader-flash': segment.flash, 'reader-highlight-ink': segment.citations.some(citation => citation.id === props.inkId), 'reader-highlight-overlap': segment.citations.length > 1, 'reader-highlight-linked': segment.citations.some(citation => citation.id === linkedCitation()) }} data-citation-id={segment.citations[0]!.id} role="button" aria-haspopup="menu" tabIndex={0}
       onPointerEnter={() => setLinkedCitation(segment.citations[0]!.id)} onPointerLeave={() => setLinkedCitation(null)}
       onClick={event => { if (!window.getSelection()?.isCollapsed) return; event.preventDefault(); event.stopPropagation(); props.onCitation(segment.citations, event.currentTarget, event.shiftKey); }}
       onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); props.onCitation(segment.citations, event.currentTarget, event.shiftKey); } }}

@@ -83,9 +83,11 @@
 .reader-page-edge-previous { left: max(0px, calc(50% - var(--reader-frame-width) / 2 - var(--space-8) - var(--row-height))); }
 .reader-page-edge-next { right: max(0px, calc(50% - var(--reader-frame-width) / 2 - var(--space-8) - var(--row-height))); }
 @media (pointer: coarse) { .reader-page-edge.button { display: none; } }
-/* Full screen and the cover screen: the masthead, toolbar and book map fade out of the way and keep their room, so the text never moves; the line under the map stays. */
-.reader-pane > :is(.reader-masthead, .reader-header), .reader-foot > .reader-map { transition: opacity var(--motion-ui) var(--motion-ease); }
+/* Full screen and the cover screen: the masthead, toolbar and book map fade out of the way, drifting a step toward their edges, and keep their room, so the text never moves; the line under the map stays. */
+.reader-pane > :is(.reader-masthead, .reader-header), .reader-foot > .reader-map { transition: opacity var(--motion-ui) var(--motion-ease), translate var(--motion-ui) var(--motion-ease); }
 .reader-chrome-hidden > :is(.reader-masthead, .reader-header), .reader-chrome-hidden .reader-foot > .reader-map { opacity: 0; pointer-events: none; }
+.reader-chrome-hidden > :is(.reader-masthead, .reader-header) { translate: 0 calc(-1 * var(--motion-distance)); }
+.reader-chrome-hidden .reader-foot > .reader-map { translate: 0 var(--motion-distance); }
 .reader-passage { margin: 0; color: var(--text); font-family: var(--reader-font); font-size: var(--reader-size); line-height: var(--reader-line); font-weight: var(--weight-body); font-variation-settings: var(--optical-reader); white-space: pre-wrap; overflow-wrap: anywhere; }
 /* An opaque selection keeps inline highlight tints from changing its paint. */
 .reader-passage::selection, .reader-passage *::selection { background: var(--selection); color: var(--text); }
@@ -115,7 +117,10 @@
 .reader-passage .reader-inline-link, .reader-passage a { display: inline; min-height: 0; font: inherit; color: var(--accent); padding: 0; border: 0; border-radius: 0; background: transparent; text-decoration: underline; white-space: inherit; }
 .reader-passage sup { font-size: var(--text-meta); line-height: var(--line-meta); }
 /* Highlights are ink, not boxes: a band under the lower half of each line, as a highlighter drawn under the words, so capitals and ascenders keep the canvas and neighbouring lines stay apart. A hovered highlight and its partner deepen the band. */
-.reader-highlight { --band-hue: var(--text); --band-mix: 26%; --band-deep: 40%; --band: color-mix(in srgb, var(--band-hue) var(--band-mix), transparent); background: linear-gradient(transparent 55%, var(--band) 55%, var(--band) 92%, transparent 92%); cursor: pointer; }
+.reader-highlight { --band-hue: var(--text); --band-mix: 26%; --band-deep: 40%; --band: color-mix(in srgb, var(--band-hue) var(--band-mix), transparent); background: linear-gradient(transparent 55%, var(--band) 55%, var(--band) 92%, transparent 92%) no-repeat; cursor: pointer; }
+/* A new highlight draws its band under the words once, left to right, as the pen would; across lines it runs line by line. */
+.reader-highlight-ink { animation: ink var(--motion-ink) var(--motion-ease) both; }
+@keyframes ink { from { background-size: 0% 100%; } to { background-size: 100% 100%; } }
 .reader-highlight-yellow { --band-hue: var(--highlight-yellow); --band-mix: 42%; --band-deep: 62%; }
 .reader-highlight-green { --band-hue: var(--highlight-green); --band-mix: 42%; --band-deep: 62%; }
 .reader-highlight-blue { --band-hue: var(--highlight-blue); --band-mix: 42%; --band-deep: 62%; }
@@ -145,6 +150,8 @@
 .reader-status { width: calc(100% - 2 * var(--space-24)); max-width: var(--reader-measure); margin-inline: auto; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 /* Until the reading position is restored, the text and the foot line are laid out but not drawn, so the start of the book does not flash before the jump. */
 .reader-loading .reader-scroll, .reader-loading .reader-folio { visibility: hidden; }
+/* Once it is, they fade in where they stand. */
+.reader-pane:not(.reader-loading) :is(.reader-scroll, .reader-folio) { animation: fade-in var(--motion-ui) var(--motion-ease) both; }
 .reader-selection-toolbar { position: fixed; z-index: 100; background: var(--raised); border: 1px solid var(--line); border-radius: var(--radius-popup); box-shadow: var(--popup-shadow); padding: var(--space-4); font-size: var(--text-control); animation: rise-in var(--motion-ui) var(--motion-ease) both; }
 .reader-selection-actions { display: flex; flex-wrap: wrap; gap: var(--space-4); }
 .reader-selection-toolbar p { margin: var(--space-4); }
@@ -152,7 +159,7 @@
 /* Docked on the cover screen: one row of colours and one of the two actions, each sharing the width at touch height; the keys are left out. */
 .reader-selection-docked { display: flex; flex-direction: column-reverse; gap: var(--space-4); }
 .reader-selection-docked .reader-selection-actions { flex-wrap: nowrap; }
-.reader-selection-docked .reader-selection-actions > .button { flex: 1; justify-content: center; min-height: 44px; }
+.reader-selection-docked .reader-selection-actions > .button { flex: 1; justify-content: center; min-height: var(--touch-target); }
 .reader-selection-docked kbd { display: none; }
 /* The start of the book: a small cover beside the imprint in mono, the title in display type with its subtitle in italic, the author, a gilt rubric rule, the book's length and where its text begins. */
 .reader-title-block { position: absolute; top: 0; width: 100%; padding-block: calc(var(--reader-size) * 2) calc(var(--reader-size) * 3); font-family: var(--reader-font); }
@@ -169,7 +176,9 @@
 .reader-title-begin.button { margin: var(--space-8) 0 0 calc(-1 * var(--space-4)); padding-inline: var(--space-4); color: var(--accent); font-weight: var(--weight-body); }
 @media (max-width: 599px) { .reader-title-page { gap: var(--space-16); } .reader-title-cover { width: 76px; } }
 /* A new highlight's note on a touch screen: the book's name, the passage in its sentence, then a writing sheet that sits on the keyboard. */
-.reader-compose { position: fixed; inset: 0; z-index: 45; display: flex; flex-direction: column; padding: env(safe-area-inset-top) env(safe-area-inset-right) var(--bottom-inset) env(safe-area-inset-left); background: var(--canvas); color: var(--text); animation: fade-in var(--motion-ui) var(--motion-ease) both; }
+.reader-compose { position: fixed; inset: 0; z-index: 45; display: flex; flex-direction: column; padding: var(--top-inset) env(safe-area-inset-right) var(--bottom-inset) env(safe-area-inset-left); background: var(--canvas); color: var(--text); animation: fade-in var(--motion-ui) var(--motion-ease) both; }
+/* The page shows through again once the note is kept. */
+.reader-compose-leaving { animation: fade-out var(--motion-fast) var(--motion-ease) both; }
 .reader-compose-header { flex-shrink: 0; width: calc(100% - 2 * var(--space-24)); max-width: var(--reader-measure); margin-inline: auto; padding-block: var(--space-12); font-size: var(--reader-size); }
 .reader-compose-header h2 { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: var(--weight-display-heading) var(--text-h2)/var(--line-h2) var(--font-display); font-variation-settings: var(--optical-heading); }
 .reader-compose-header p { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); }
@@ -178,9 +187,9 @@
 .reader-compose-meta { display: flex; justify-content: space-between; gap: var(--space-16); margin-bottom: var(--space-12); color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .reader-compose-meta > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .reader-compose-around { margin: 0; color: var(--muted); }
-.reader-compose-context blockquote { margin: var(--space-12) 0; padding: var(--space-8) var(--space-12); border-left: var(--space-2) solid var(--accent); background: color-mix(in srgb, var(--highlight-yellow) 18%, transparent); font-size: calc(var(--reader-size) * 1.2); line-height: 1.35; white-space: pre-wrap; overflow-wrap: anywhere; }
+.reader-compose-context blockquote { margin: var(--space-12) 0; padding: var(--space-8) var(--space-12); border-left: var(--space-2) solid var(--accent); background: color-mix(in srgb, var(--highlight-yellow) 18%, transparent); font-size: calc(var(--reader-size) * 1.2); line-height: 1.35; white-space: pre-wrap; overflow-wrap: anywhere; animation: rise-in var(--motion-ui) var(--motion-ease) both; }
 /* The measure is in ems of the reading size, so the sheet sets that size for its gutters and its rows return to control text. */
-.reader-compose-sheet { display: flex; flex-direction: column; flex-shrink: 0; height: clamp(11rem, 40%, 14rem); padding: var(--space-12) max(var(--space-24), calc((100% - var(--reader-measure)) / 2)) var(--space-4); border-top: 1px solid var(--line); background: var(--surface); font-size: var(--reader-size); }
+.reader-compose-sheet { display: flex; flex-direction: column; flex-shrink: 0; height: clamp(11rem, 40%, 14rem); padding: var(--space-12) max(var(--space-24), calc((100% - var(--reader-measure)) / 2)) var(--space-4); border-top: 1px solid var(--line); background: var(--surface); font-size: var(--reader-size); animation: sheet-in var(--motion-ui) var(--motion-ease) both; }
 .reader-compose-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-12); font-size: var(--text-control); line-height: var(--line-control); }
 .reader-compose-heading label { font-weight: var(--weight-control); }
 .reader-compose-close.button { color: var(--muted); }
@@ -193,11 +202,22 @@
 .reader-compose-status.error { color: var(--danger); }
 /* Above a keyboard the passage keeps the room the byline took. */
 @media (max-height: 560px) { .reader-compose-header { padding-block: var(--space-8); } .reader-compose-header p { display: none; } }
-.reader-settings { padding: var(--space-12); }
+.reader-settings:not(.popup-sheet) { padding: var(--space-12); }
 .reader-setting { display: flex; align-items: center; justify-content: space-between; gap: var(--space-16); min-height: var(--row-height); font-size: var(--text-control); }
 .reader-setting > span { color: var(--muted); }
 .reader-setting > div { display: flex; align-items: center; gap: var(--space-4); }
 .reader-setting .button { font-weight: var(--weight-body); }
 .reader-setting output { min-width: var(--space-24); text-align: center; font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+/* As a sheet across a touch screen, the settings keep to a column rather than spanning it. */
+.reader-settings.popup-sheet > .reader-setting { width: 100%; max-width: calc(var(--measure) * .6); margin-inline: auto; }
+/* A fingertip reaches every reading control: on touch screens the toolbar, the settings and the note sheet's buttons are full
+   touch targets, and the note marks in the text and the progress at the foot reach as far without growing. */
+@media (pointer: coarse) {
+  :is(.reader-header, .reader-masthead, .reader-setting, .reader-compose-heading) .button { min-width: var(--touch-target); min-height: var(--touch-target); }
+  /* The targets carry their own room, so the toolbar closes its gaps and the running head keeps its width. */
+  .reader-header { gap: var(--space-2); }
+  :is(.reader-highlight-note, .reader-folio-book).button { position: relative; }
+  :is(.reader-highlight-note, .reader-folio-book).button::after { content: ''; position: absolute; inset: min(0px, calc((100% - var(--touch-target)) / 2)); }
+}
 .reader-picker .picker-query { position: sticky; top: 0; z-index: 1; background: var(--raised); }
 .reader-picker .reader-find-status { position: sticky; top: calc(var(--line-body) + var(--space-16) + 1px); z-index: 1; margin: 0; background: var(--raised); }
