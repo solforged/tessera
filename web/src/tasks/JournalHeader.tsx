@@ -21,7 +21,7 @@ import { Icon } from '../ui/Icon';
 import './agenda.css';
 import '../library/library.css';
 
-export function JournalHeader(props: { date: string; notebook: NotebookClient; onOpen(target: OpenTarget, beside: boolean): void }) {
+export function JournalHeader(props: { date: string; journalPeriod?: Extract<OpenTarget, { kind: 'page' }>['journalPeriod']; notebook: NotebookClient; onOpen(target: OpenTarget, beside: boolean): void }) {
   const today = createMemo(() => props.date === props.notebook.todayDate());
   const [desk, setDesk] = createSignal<{ agenda: Agenda; due: number }>();
   const [deskError, setDeskError] = createSignal('');
@@ -103,7 +103,7 @@ export function JournalHeader(props: { date: string; notebook: NotebookClient; o
   const carried = createBulkMove(props.notebook, () => {});
   const Placeholder = () => <span class="journal-tile-placeholder" aria-hidden="true"><span /><span /></span>;
   return <section class="journal-header" aria-label={spokenJournalDate(props.date)}>
-    <JournalTrail date={props.date} notebook={props.notebook} onSelect={async date => {
+    <JournalTrail date={props.date} journalPeriod={props.journalPeriod} notebook={props.notebook} onSelect={async date => {
       const pageId = await props.notebook.journal(date);
       props.onOpen({ kind: 'page', pageId }, false);
     }} />

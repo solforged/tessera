@@ -27,11 +27,11 @@ export const depthLabels: Record<Depth, string> = { gloss: 'Gloss', opening: 'Op
 export interface Command {
   id: string;
   title: string;
-  section: 'Navigation' | 'Outline' | 'Block' | 'Editing' | 'Vim' | 'Page' | 'View';
+  section: 'Go to' | 'Navigation' | 'Outline' | 'Block' | 'Editing' | 'Vim' | 'Page' | 'View';
   keys?: string[];
   /** Why it cannot run now; shown in the palette. Undefined when enabled. */
   disabledReason?(): string | undefined;
-  run(): void;
+  run(beside?: boolean): void;
   /**
    * Bind the command to the target as it is now (pane, selection, caret).
    * The palette captures every command when it opens, so focus moving into
@@ -64,9 +64,9 @@ export interface ViewState {
 
 export type OpenTarget =
   /** `blockId` zooms; `caretId` (default `blockId`) receives the caret at `caretOffset` (default 0). */
-  | { kind: 'page'; pageId: string; blockId?: string; caretId?: string; caretOffset?: number }
+  | { kind: 'page'; pageId: string; blockId?: string; caretId?: string; caretOffset?: number; journalPeriod?: 'week' | 'month' | 'quarter' | 'year' }
   | { kind: 'table'; typeId: string | null; viewId: string | null; query: Query }
-  | { kind: 'agenda'; date?: string; viewId?: string; query?: TaskQuery }
+  | { kind: 'agenda'; date?: string; mode?: AgendaViewState['mode']; viewId?: string; query?: TaskQuery }
   | { kind: 'review'; deckId?: string }
   | { kind: 'fields'; typeId?: string }
   | { kind: 'settings' }
@@ -99,6 +99,8 @@ export interface ReaderViewState { snapshotId: string | null; ordinal: number; o
 export interface OutlinePaneProps {
   pane: PaneId;
   pageId: string;
+  /** One-time request to open a journal ledger on arrival. */
+  journalPeriod?: Extract<OpenTarget, { kind: 'page' }>['journalPeriod'];
   /** Initial view; the pane reports changes through `onViewChange`. */
   view: ViewState;
   onViewChange(view: ViewState): void;

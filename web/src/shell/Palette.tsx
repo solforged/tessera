@@ -26,7 +26,7 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
     if (section) section.push(command);
     else sections.set(command.section, [command]);
   }
-  const orderedCommands = [...sections.values()].flat();
+  const orderedCommands = [...sections.get('Go to') ?? [], ...[...sections].filter(([section]) => section !== 'Go to').flatMap(([, commands]) => commands)];
   const [query, setQuery] = createSignal(props.mode === 'commands' ? '>' : '');
   const [debounced, setDebounced] = createSignal('');
   const [scopes, setScopes] = createSignal<(BlockInPage & { matching?: boolean })[]>([]);
@@ -164,9 +164,9 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
       : { kind: 'reader', sourceId: entry.row.citation.source_id, snapshotId: entry.row.citation.snapshot_id, at: entry.row.citation.start.passage_id, citationId: entry.row.citation.id };
     props.onDismiss(); props.onOpen(target, beside);
   };
-  const run = (command: Command) => {
+  const run = (command: Command, beside: boolean) => {
     if (command.disabledReason?.()) return;
-    props.onDismiss(); command.run();
+    props.onDismiss(); command.run(beside);
     requestAnimationFrame(() => {
       if (document.activeElement === document.body) props.onRestoreFocus();
     });
@@ -221,7 +221,7 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
       if (entry.kind === 'hit') open(entry.hit, event.shiftKey);
       else if (entry.kind === 'highlight' || entry.kind === 'passage') openBook(entry, event.shiftKey);
       else if (entry.kind === 'more') more(entry.page);
-      else if (entry.kind === 'command') run(entry.command);
+      else if (entry.kind === 'command') run(entry.command, event.shiftKey);
       else void create(entry.title, event.shiftKey);
     }}
     onKey={(event, entry) => {
