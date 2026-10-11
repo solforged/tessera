@@ -390,7 +390,7 @@ export function TablePane(props: TablePaneProps) {
         <Show when={members().blocks.length}><section class="table-tagged-blocks" aria-label="Tagged blocks">
           <h2>Tagged blocks <span class="table-popup-count">{members().blocks.length}</span></h2>
           <For each={members().blocks}>{row => <div class="table-block-member">
-            <div><div class="table-block-text"><BlockText text={props.notebook.lookup(row.block.block.id)()?.text ?? row.block.block.text} notebook={props.notebook} interactive={false} /></div><div class="table-page-title">Block in {row.block.page.text}</div></div>
+            <div><div class="table-block-text"><BlockText text={preview(props.notebook.lookup(row.block.block.id)()?.text ?? row.block.block.text, false)} notebook={props.notebook} interactive={false} /></div><div class="table-page-title">Block in {row.block.page.text}</div></div>
             <Button class="bordered" onClick={event => openRow(row, event.shiftKey)}>Open ↗</Button>
           </div>}</For>
         </section></Show>
