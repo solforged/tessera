@@ -738,7 +738,9 @@ fn membership_title_upgrade_preserves_unresolved_mentions_without_resurrecting_p
     drop(nb);
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
     conn.execute_batch(
-        "DROP TABLE sync_pins;
+        "DROP INDEX field_values_entry; DROP INDEX field_values_value; DROP INDEX type_fields_field;
+         DROP INDEX questions_accepted; DROP INDEX ingest_jobs_target;
+         DROP TABLE sync_pins;
          DROP INDEX reading_positions_sync; DROP INDEX highlight_surfacings_sync;
          ALTER TABLE reading_positions DROP COLUMN hlc; ALTER TABLE reading_positions DROP COLUMN device;
          ALTER TABLE reading_positions DROP COLUMN sync_seq; ALTER TABLE highlight_surfacings DROP COLUMN hlc;
@@ -1261,7 +1263,9 @@ fn manual_membership_migration_retains_authored_text_tags_and_unresolved_titles(
     drop(nb);
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
     conn.execute_batch(
-        "DROP TABLE sync_pins;
+        "DROP INDEX field_values_entry; DROP INDEX field_values_value; DROP INDEX type_fields_field;
+         DROP INDEX questions_accepted; DROP INDEX ingest_jobs_target;
+         DROP TABLE sync_pins;
          DROP INDEX reading_positions_sync; DROP INDEX highlight_surfacings_sync;
          ALTER TABLE reading_positions DROP COLUMN hlc; ALTER TABLE reading_positions DROP COLUMN device;
          ALTER TABLE reading_positions DROP COLUMN sync_seq; ALTER TABLE highlight_surfacings DROP COLUMN hlc;
@@ -1599,7 +1603,9 @@ fn provisional_cleanup_does_not_backfill_existing_pages_on_upgrade() {
     drop(nb);
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
     conn.execute_batch(
-        "DROP TABLE sync_pins;
+        "DROP INDEX field_values_entry; DROP INDEX field_values_value; DROP INDEX type_fields_field;
+         DROP INDEX questions_accepted; DROP INDEX ingest_jobs_target;
+         DROP TABLE sync_pins;
          DROP INDEX reading_positions_sync; DROP INDEX highlight_surfacings_sync;
          ALTER TABLE reading_positions DROP COLUMN hlc; ALTER TABLE reading_positions DROP COLUMN device;
          ALTER TABLE reading_positions DROP COLUMN sync_seq; ALTER TABLE highlight_surfacings DROP COLUMN hlc;

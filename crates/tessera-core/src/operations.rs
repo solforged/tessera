@@ -715,21 +715,31 @@ impl Engine<'_, '_> {
         // leave another provisional page unused, so repeat until nothing goes.
         loop {
             // Unused first: most provisional pages stay in use, so a typing batch
-            // costs a few indexed probes per page and returns early.
+            // costs a few indexed probes per page and returns early. CROSS JOIN
+            // keeps provisional_pages the outer loop; otherwise the planner may
+            // walk every live block and run the probes for each. Every probe
+            // must use an index (migration 025), so each column gets its own
+            // probe instead of an OR across columns, and `+b.id` drops the
+            // column's affinity so the JSON expression index applies.
             let candidates = self.tx.prepare_cached(
-                "SELECT b.id, b.title_key FROM provisional_pages p JOIN blocks b ON b.id = p.id
+                "SELECT b.id, b.title_key FROM provisional_pages p CROSS JOIN blocks b ON b.id = p.id
                  WHERE b.deletion_id IS NULL AND b.revision = 1
                  AND NOT EXISTS (SELECT 1 FROM memberships m JOIN blocks s ON s.id = m.block_id WHERE m.type_id = b.id AND s.deletion_id IS NULL)
                  AND NOT EXISTS (SELECT 1 FROM links l JOIN blocks s ON s.id = l.source_id WHERE l.target_id = b.id AND s.deletion_id IS NULL)
                  AND NOT EXISTS (SELECT 1 FROM blocks c WHERE c.parent_id = b.id AND c.deletion_id IS NULL)
                  AND NOT EXISTS (SELECT 1 FROM memberships m WHERE m.block_id = b.id AND m.manual = 1)
-                 AND NOT EXISTS (SELECT 1 FROM type_fields f WHERE f.type_id = b.id OR f.field_id = b.id)
+                 AND NOT EXISTS (SELECT 1 FROM type_fields f WHERE f.type_id = b.id)
+                 AND NOT EXISTS (SELECT 1 FROM type_fields f WHERE f.field_id = b.id)
                  AND NOT EXISTS (SELECT 1 FROM fields f WHERE f.block_id = b.id)
-                 AND NOT EXISTS (SELECT 1 FROM field_values f WHERE f.owner_id = b.id OR f.field_id = b.id OR f.entry_id = b.id OR f.value_id = b.id)
+                 AND NOT EXISTS (SELECT 1 FROM field_values f WHERE f.owner_id = b.id)
+                 AND NOT EXISTS (SELECT 1 FROM field_values f WHERE f.field_id = b.id)
+                 AND NOT EXISTS (SELECT 1 FROM field_values f WHERE f.entry_id = b.id)
+                 AND NOT EXISTS (SELECT 1 FROM field_values f WHERE f.value_id = b.id)
                  AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.block_id = b.id)
                  AND NOT EXISTS (SELECT 1 FROM projects p WHERE p.block_id = b.id)
                  AND NOT EXISTS (SELECT 1 FROM positions p WHERE p.block_id = b.id)
-                 AND NOT EXISTS (SELECT 1 FROM questions q WHERE q.block_id = b.id OR json_extract(q.state, '$.accepted') = b.id)
+                 AND NOT EXISTS (SELECT 1 FROM questions q WHERE q.block_id = b.id)
+                 AND NOT EXISTS (SELECT 1 FROM questions q WHERE json_extract(q.state, '$.accepted') = +b.id)
                  AND NOT EXISTS (SELECT 1 FROM assessments a WHERE a.block_id = b.id)
                  AND NOT EXISTS (SELECT 1 FROM sources s WHERE s.block_id = b.id)
                  AND NOT EXISTS (SELECT 1 FROM citations c WHERE c.block_id = b.id)
