@@ -14,13 +14,14 @@ interface CaptureBodyProps {
   /** After a save that closes the sheet, or on Escape. */
   onDone(): void;
   inputRef?(input: HTMLInputElement): void;
+  bodyRef?(body: HTMLDivElement): void;
 }
 
 /** The sheet's contents: where the line goes, the line, then its keys and Add. */
 function CaptureBody(props: CaptureBodyProps) {
   const [added, setAdded] = createSignal(0);
   const touch = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
-  return <div class="capture">
+  return <div ref={props.bodyRef} class="capture">
     <header class="capture-head">
       <span class="capture-title">Add to today</span>
       <span class="capture-where">{shortDay(props.notebook.todayDate())} · end of journal</span>
@@ -50,7 +51,10 @@ export function CaptureSheet(props: { notebook: NotebookClient; request: Capture
   </Popup>;
 }
 
-type CaptureWindow = Window & { __tesseraCaptureDone?: () => void };
+type CaptureWindow = Window & {
+  __tesseraCaptureDone?: () => void;
+  __tesseraCaptureSize?: (height: number) => void;
+};
 
 /**
  * `?capture`: the desktop's global capture panel. It stays loaded while hidden, so a draft survives clicking away;
@@ -63,12 +67,69 @@ export function CaptureWindow() {
   const notebook = createNotebookClient({ notebookId: cachedIdentity?.id });
   onCleanup(() => { void notebook.dispose(); });
   let input: HTMLInputElement | undefined;
-  const focus = () => requestAnimationFrame(() => input?.focus());
+  let body!: HTMLDivElement;
+  let fontsReady = false;
+  let lastHeight = 0;
+  const panel = window as CaptureWindow;
+  const reportSize = (force = false) => {
+    if (!fontsReady || !panel.__tesseraCaptureSize) return;
+    const choices = document.querySelector<HTMLElement>('.popup.capture-choices');
+    const list = choices?.querySelector<HTMLElement>('.picker-list');
+    // Completions live in a portal, outside the sheet's natural height. Reserve
+    // their full height below the line, then let the native cap bound the list.
+    const line = body.querySelector<HTMLElement>('.capture-line');
+    const gap = Number.parseFloat(getComputedStyle(body).getPropertyValue('--space-4')) || 0;
+    const choicesBottom = choices && list && line
+      ? line.getBoundingClientRect().bottom + gap + list.scrollHeight + choices.offsetHeight - choices.clientHeight + gap * 3
+      : 0;
+    const height = Math.ceil(Math.max(body.getBoundingClientRect().height, choicesBottom));
+    if (height > 0 && (force || height !== lastHeight)) {
+      lastHeight = height;
+      panel.__tesseraCaptureSize(height);
+    }
+  };
+  const focus = () => {
+    // Reopening sends even an unchanged height so the native panel can show
+    // only after fitting its retained draft.
+    reportSize(true);
+    requestAnimationFrame(() => input?.focus());
+  };
   onMount(() => {
     document.documentElement.classList.add('capture-window');
     window.addEventListener('tessera-quick-capture', focus);
-    focus();
+    if (panel.__tesseraCaptureSize) {
+      // Only the native capture panel injects this bridge. No sizing observer
+      // runs for the main sheet, browser or Android.
+      const observer = new ResizeObserver(() => reportSize());
+      observer.observe(body);
+      // Observe portal rows too; mutation tracking only discovers additions or
+      // removals, while ResizeObserver measures changing rendered content.
+      let choices: HTMLElement | null = null;
+      const watchChoices = () => {
+        const next = document.querySelector<HTMLElement>('.popup.capture-choices .picker-list');
+        if (next !== choices) {
+          if (choices) observer.unobserve(choices);
+          choices = next;
+          if (choices) observer.observe(choices);
+        }
+        reportSize();
+      };
+      const portals = new MutationObserver(watchChoices);
+      portals.observe(document.body, { childList: true, subtree: true });
+      let disposed = false;
+      onCleanup(() => { disposed = true; observer.disconnect(); portals.disconnect(); });
+      void document.fonts.ready.then(() => {
+        if (disposed) return;
+        fontsReady = true;
+        focus();
+      });
+    } else {
+      focus();
+    }
   });
-  onCleanup(() => window.removeEventListener('tessera-quick-capture', focus));
-  return <CaptureBody notebook={notebook} request={{ task: false, text: '' }} inputRef={element => { input = element; }} onDone={() => (window as CaptureWindow).__tesseraCaptureDone?.()} />;
+  onCleanup(() => {
+    window.removeEventListener('tessera-quick-capture', focus);
+    document.documentElement.classList.remove('capture-window');
+  });
+  return <CaptureBody notebook={notebook} request={{ task: false, text: '' }} bodyRef={element => { body = element; }} inputRef={element => { input = element; }} onDone={() => panel.__tesseraCaptureDone?.()} />;
 }
