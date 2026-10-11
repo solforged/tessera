@@ -24,8 +24,10 @@ describe('query edits', () => {
     const query = chooseSort(addFilter(addFilter(typeQuery('books'), { field: 'year', op: 'gte', value: '2000' }), { field: 'author', op: 'contains', value: 'Herbert' }), { by: 'title', field: null });
     const copied = copyQuery(query);
     expect(queriesEqual(query, copied)).toBe(true);
+    expect(queriesEqual(query, { ...copied, offset: 0 })).toBe(true);
+    expect(queriesEqual({ ...query, offset: 0 }, copied)).toBe(true);
     expect(queriesEqual(query, { ...copied, filters: [...copied.filters].reverse() })).toBe(false);
-    for (const difference of [{ type: null }, { text: 'Dune' }, { limit: 20 }, { filters: [] }, { sort: [] }]) expect(queriesEqual(query, { ...copied, ...difference })).toBe(false);
+    for (const difference of [{ type: null }, { text: 'Dune' }, { limit: 20 }, { offset: 500 }, { filters: [] }, { sort: [] }]) expect(queriesEqual(query, { ...copied, ...difference })).toBe(false);
     copied.filters[0]!.value = '1999';
     expect(queriesEqual(query, copied)).toBe(false);
     expect(query.filters[0]!.value).toBe('2000');

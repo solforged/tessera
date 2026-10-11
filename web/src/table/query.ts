@@ -12,6 +12,7 @@ export function copyQuery(query: Query): Query {
 }
 export function queriesEqual(left: Query, right: Query): boolean {
   return left.type === right.type && left.text === right.text && left.limit === right.limit
+    && (left.offset ?? 0) === (right.offset ?? 0)
     && left.filters.length === right.filters.length && left.filters.every((filter, index) => {
       const other = right.filters[index]!;
       return filter.field === other.field && filter.op === other.op && filter.value === other.value;

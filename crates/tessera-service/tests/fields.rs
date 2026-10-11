@@ -57,7 +57,7 @@ async fn fields_queries_and_saved_views_round_trip_through_http_and_conflict_env
     )
     .await;
     assert_eq!(status, StatusCode::OK);
-    let query = json!({"type":id(1),"text":null,"filters":[{"field":id(10),"op":"gte","value":"1970"}],"sort":[{"by":"field","field":id(10),"direction":"desc"}],"limit":10});
+    let query = json!({"type":id(1),"text":null,"filters":[{"field":id(10),"op":"gte","value":"1970"}],"sort":[{"by":"field","field":id(10),"direction":"desc"}],"limit":10,"offset":0});
     let (status, result) = request(&app, "POST", "/api/query", query.clone()).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(result["total"], 1);
@@ -99,6 +99,46 @@ async fn fields_queries_and_saved_views_round_trip_through_http_and_conflict_env
     let (_, events) = request(&app, "GET", "/api/changes?after=1", Value::Null).await;
     assert_eq!(events[0]["views"], json!([id(500)]));
     assert_eq!(events[0]["removed"], json!([]));
+}
+
+#[tokio::test]
+async fn query_http_offsets_page_sorted_members_without_changing_total() {
+    let dir = tempfile::tempdir().unwrap();
+    let app =
+        tessera_service::router(Notebook::open(dir.path()).unwrap(), 4318, None, None).unwrap();
+    let (status, _) = request(&app, "POST", "/api/batches", json!({
+        "actor": {"kind": "person"},
+        "operations": [
+            {"op": "create_page", "id": id(1), "title": "Books"},
+            {"op": "insert", "id": id(103), "parent_id": id(1), "after": null, "text": "Beta #books", "heading": null},
+            {"op": "insert", "id": id(101), "parent_id": id(1), "after": null, "text": "Alpha #books", "heading": null},
+            {"op": "insert", "id": id(102), "parent_id": id(1), "after": null, "text": "alpha #books", "heading": null},
+            {"op": "insert", "id": id(104), "parent_id": id(1), "after": null, "text": "Gamma #books", "heading": null},
+            {"op": "insert", "id": id(105), "parent_id": id(1), "after": null, "text": "Delta #books", "heading": null}
+        ]
+    })).await;
+    assert_eq!(status, StatusCode::OK);
+    let mut query = json!({"type": id(1), "text": null, "filters": [], "sort": [{"by": "title", "field": null, "direction": "asc"}], "limit": 2});
+    for (offset, expected) in [
+        (0, vec![id(101), id(102)]),
+        (2, vec![id(103), id(105)]),
+        (4, vec![id(104)]),
+        (5, vec![]),
+    ] {
+        if offset > 0 {
+            query["offset"] = json!(offset);
+        }
+        let (status, result) = request(&app, "POST", "/api/query", query.clone()).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(result["total"], 5);
+        let ids = result["rows"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|row| row["block"]["block"]["id"].as_str().unwrap().to_owned())
+            .collect::<Vec<_>>();
+        assert_eq!(ids, expected);
+    }
 }
 
 #[tokio::test]

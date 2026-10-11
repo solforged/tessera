@@ -209,7 +209,7 @@ export type Direction = 'asc' | 'desc';
 export type FilterOp = 'is' | 'is_not' | 'contains' | 'gt' | 'gte' | 'lt' | 'lte' | 'present' | 'set' | 'empty';
 export interface Filter { field: string; op: FilterOp; value: string | null }
 export interface SortKey { by: 'title' | 'created' | 'updated' | 'field'; field: string | null; direction: Direction }
-export interface Query { type: string | null; text: string | null; filters: Filter[]; sort: SortKey[]; limit: number | null }
+export interface Query { type: string | null; text: string | null; filters: Filter[]; sort: SortKey[]; limit: number | null; offset?: number }
 export type Reading = { ok: true; value: string | number | boolean; target: string | null } | { ok: false; problem: string };
 export interface FieldValue { id: string; text: string; reading: Reading }
 export interface QueryRow { block: BlockInPage; values: Record<string, FieldValue[]> }

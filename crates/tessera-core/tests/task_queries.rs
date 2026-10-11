@@ -660,6 +660,7 @@ fn more_than_five_hundred_source_candidates_are_filtered_before_task_limit() {
         filters: vec![],
         sort: vec![],
         limit: None,
+        offset: 0,
     };
     let public = nb.query(&source).unwrap();
     assert_eq!(public.total, 610);
@@ -724,6 +725,7 @@ fn source_type_text_and_field_filters_intersect_before_task_selection() {
         }],
         sort: vec![],
         limit: Some(0),
+        offset: 0,
     });
     assert_eq!(ids(nb.task_query(&q).unwrap()), vec![id(10)]);
     q.source.as_mut().unwrap().r#type = None;
@@ -796,6 +798,7 @@ fn query_validation_covers_civil_boundaries_ranges_limits_and_live_inputs() {
             filters: vec![],
             sort: vec![],
             limit: None,
+            offset: 0,
         });
         assert!(matches!(nb.task_query(&q), Err(Error::Validation { .. })));
     }
@@ -810,6 +813,7 @@ fn query_validation_covers_civil_boundaries_ranges_limits_and_live_inputs() {
         }],
         sort: vec![],
         limit: None,
+        offset: 0,
     });
     assert!(matches!(nb.task_query(&q), Err(Error::Validation { .. })));
     q.source = Some(Query {
@@ -818,6 +822,7 @@ fn query_validation_covers_civil_boundaries_ranges_limits_and_live_inputs() {
         filters: vec![],
         sort: vec![],
         limit: None,
+        offset: 0,
     });
     archive(&mut nb, 1, true);
     assert!(matches!(nb.task_query(&q), Err(Error::Validation { .. })));
@@ -848,6 +853,7 @@ fn saved_task_views_validate_revisions_replay_and_execute_after_reload() {
         filters: vec![],
         sort: vec![],
         limit: Some(0),
+        offset: 0,
     });
     q.limit = Some(12);
     let mut create = batch(vec![Operation::SaveTaskView {
