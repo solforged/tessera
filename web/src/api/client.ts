@@ -193,6 +193,7 @@ export interface ApiClient {
   backlinks(id: string, limit?: number, signal?: AbortSignal): Promise<Backlink[]>;
   members(id: string, limit?: number, signal?: AbortSignal): Promise<BlockInPage[]>;
   fields(signal?: AbortSignal): Promise<Fields>;
+  types(signal?: AbortSignal): Promise<Type[]>;
   type(id: string, signal?: AbortSignal): Promise<Type>;
   noteIndex(signal?: AbortSignal): Promise<NoteIndex>;
   kindNotes(key: string, signal?: AbortSignal): Promise<KindIndex>;
@@ -294,6 +295,7 @@ export function createApi(base = ''): ApiClient {
     backlinks: (id: string, limit = 100, signal?: AbortSignal) => get<Backlink[]>(`/blocks/${segment(id)}/backlinks${query({ limit })}`, signal),
     members: (id: string, limit = 100, signal?: AbortSignal) => get<BlockInPage[]>(`/types/${segment(id)}/members${query({ limit })}`, signal),
     fields: (signal?: AbortSignal) => get<Fields>('/fields', signal),
+    types: (signal?: AbortSignal) => get<Type[]>('/types', signal),
     type: (id: string, signal?: AbortSignal) => get<Type>(`/types/${segment(id)}`, signal),
     noteIndex: (signal?: AbortSignal) => get<NoteIndex>('/index', signal),
     kindNotes: (key: string, signal?: AbortSignal) => get<KindIndex>(`/index/${segment(key)}`, signal),

@@ -62,8 +62,10 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
 .input::placeholder { color: var(--faint); }
 .empty-state { margin: var(--space-12) var(--space-8); color: var(--muted); font-size: var(--text-control); }
 
-/* Safe-area insets keep the shell clear of system bars where the page draws edge to edge (Android); elsewhere they are zero. */
-.app { height: 100dvh; display: grid; grid-template-columns: var(--sidebar-width) minmax(0, 1fr); grid-template-rows: var(--rail-height) minmax(0, 1fr); overflow: hidden; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); background: var(--shell); transition: grid-template-columns var(--motion-ui) var(--motion-ease); }
+/* Safe-area insets keep the shell clear of system bars where the page draws edge to edge (Android); elsewhere they are zero.
+   Android's WebView can leave the gesture bar out of the bottom inset, so the app reports it as --system-bottom. */
+:root { --bottom-inset: max(env(safe-area-inset-bottom), var(--system-bottom, 0px)); }
+.app { height: 100dvh; display: grid; grid-template-columns: var(--sidebar-width) minmax(0, 1fr); grid-template-rows: var(--rail-height) minmax(0, 1fr); overflow: hidden; padding: env(safe-area-inset-top) env(safe-area-inset-right) var(--bottom-inset) env(safe-area-inset-left); background: var(--shell); transition: grid-template-columns var(--motion-ui) var(--motion-ease); }
 /* The rail: the wordmark at the left, the finder centred on the window, layout at the right. */
 .global-rail { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: var(--space-16); padding: 0 var(--space-12); min-width: 0; }
 .rail-start { display: flex; align-items: center; gap: var(--space-8); min-width: 0; }
@@ -194,7 +196,7 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
 .shell-error, .save-banner.error, .pane-error { color: var(--danger); }
 .pane-error { display: block; }
 .startup-state { padding: 48px 24px; color: var(--muted); }
-.undo-toast { position: fixed; bottom: calc(24px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); z-index: 40; display: flex; align-items: center; gap: 12px; max-width: calc(100vw - 24px); padding: 10px 12px; background: var(--raised); border: 1px solid var(--line); border-radius: var(--radius-popup); box-shadow: var(--popup-shadow); font-size: var(--text-control); animation: rise-in var(--motion-ui) var(--motion-ease) both; }
+.undo-toast { position: fixed; bottom: calc(24px + var(--bottom-inset)); left: 50%; transform: translateX(-50%); z-index: 40; display: flex; align-items: center; gap: 12px; max-width: calc(100vw - 24px); padding: 10px 12px; background: var(--raised); border: 1px solid var(--line); border-radius: var(--radius-popup); box-shadow: var(--popup-shadow); font-size: var(--text-control); animation: rise-in var(--motion-ui) var(--motion-ease) both; }
 /* Toasts and anchored toolbars rise into place; `translate` leaves their positioning transforms alone. */
 @keyframes rise-in { from { opacity: 0; translate: 0 var(--motion-distance); } to { opacity: 1; translate: 0 0; } }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
@@ -233,7 +235,7 @@ details[open]::details-content { opacity: 1; block-size: auto; }
 mark { background: var(--selection); color: var(--accent); font-weight: var(--weight-heading); }
 @media (max-width: 1047px) {
   .app { grid-template-columns: 0 minmax(0, 1fr); }
-  .sidebar { position: fixed; top: calc(var(--rail-height) + env(safe-area-inset-top)); bottom: env(safe-area-inset-bottom); left: env(safe-area-inset-left); z-index: 30; background: var(--shell); border-right: 1px solid var(--line); box-shadow: var(--popup-shadow); visibility: hidden; pointer-events: none; opacity: 0; transform: translateX(-100%); transition-delay: 0s, 0s, var(--motion-ui); }
+  .sidebar { position: fixed; top: calc(var(--rail-height) + env(safe-area-inset-top)); bottom: var(--bottom-inset); left: env(safe-area-inset-left); z-index: 30; background: var(--shell); border-right: 1px solid var(--line); box-shadow: var(--popup-shadow); visibility: hidden; pointer-events: none; opacity: 0; transform: translateX(-100%); transition-delay: 0s, 0s, var(--motion-ui); }
   .sidebar-expanded .sidebar { visibility: visible; pointer-events: auto; opacity: 1; transform: translateX(0); transition-delay: 0s; }
   .workspace { margin-left: var(--space-12); }
   .rail-finder { width: min(var(--search-width), 36vw); }
@@ -256,7 +258,30 @@ mark { background: var(--selection); color: var(--accent); font-weight: var(--we
 @media (max-width: 479px) {
   .pane-header { padding-inline: 4px; gap: 2px; }
   .pane-header > .pane-secondary, .pane-header > .vim-mode { display: none; }
+  /* Only the current iris shows; it opens the depth menu, and the title keeps the width. */
+  .depth-stop:not([aria-pressed="true"]) { display: none; }
   .save-banner { padding: 8px 12px; flex-wrap: wrap; }
   .save-banner details { max-width: 100%; }
   .undo-toast { bottom: 12px; }
+}
+/* The cover screen, a touch screen under 600 px: the rail gives way to a bottom nav within thumb reach, the sidebar
+   opens from the pane header, and a book's breadcrumb is its title alone. */
+@media not all and (max-width: 599px) and (pointer: coarse) {
+  .bottom-nav, .pane-sidebar { display: none; }
+}
+@media (max-width: 599px) and (pointer: coarse) {
+  .app { --bottom-nav-height: 56px; grid-template-rows: minmax(0, 1fr) auto; }
+  .app > .global-rail, .pane-breadcrumbs .breadcrumb-library, .breadcrumb-library + .breadcrumb-separator { display: none; }
+  .workspace, .sidebar-collapsed .workspace { grid-row: 1; margin: var(--space-4) var(--space-4) 0; }
+  .sidebar { top: env(safe-area-inset-top); bottom: calc(var(--bottom-nav-height) + var(--bottom-inset)); }
+  .bottom-nav { grid-column: 1 / -1; grid-row: 2; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); height: var(--bottom-nav-height); padding-inline: var(--space-4); }
+  .bottom-nav .button { flex-direction: column; justify-content: center; gap: var(--space-2); height: 100%; padding: 0; border: 0; border-top: 2px solid transparent; border-radius: 0; background: transparent; color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); font-weight: var(--weight-body); }
+  .bottom-nav .button > .icon { color: var(--faint); }
+  .bottom-nav .button.selected { border-top-color: var(--accent); color: var(--text); }
+  .bottom-nav .button.selected > .icon { color: var(--accent); }
+  .app.keyboard-open .bottom-nav, .app.is-immersive .bottom-nav, .app.is-reading .bottom-nav { display: none; }
+  /* A book reads edge to edge, under its own masthead rather than the pane header. */
+  .app.is-reading .pane.active > .pane-header { display: none; }
+  .app.is-reading .workspace { margin: 0; border: 0; border-radius: 0; background: var(--canvas); }
+  .undo-toast { bottom: calc(var(--bottom-nav-height) + 12px + var(--bottom-inset)); }
 }

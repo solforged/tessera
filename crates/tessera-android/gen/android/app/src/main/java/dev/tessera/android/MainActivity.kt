@@ -19,6 +19,8 @@ import java.util.concurrent.Executors
 
 class MainActivity : TauriActivity() {
   private var inboxWebView: WebView? = null
+  /** The navigation bar's height in CSS pixels; zero while the keyboard covers it. */
+  @Volatile private var systemBottom = 0f
 
   override fun onWebViewCreate(webView: WebView) {
     super.onWebViewCreate(webView)
@@ -39,6 +41,10 @@ class MainActivity : TauriActivity() {
         }
       }
     }, "TesseraCapture")
+    // The WebView reports no bottom safe-area inset under the gesture bar on some devices, so the page asks here.
+    webView.addJavascriptInterface(object {
+      @JavascriptInterface fun bottom(): Float = systemBottom
+    }, "TesseraInsets")
   }
 
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -49,7 +55,9 @@ class MainActivity : TauriActivity() {
     // reports no bottom safe-area inset, since the navigation bar is behind the keyboard.
     val content = findViewById<View>(android.R.id.content)
     ViewCompat.setOnApplyWindowInsetsListener(content) { view, insets ->
-      view.setPadding(0, 0, 0, insets.getInsets(WindowInsetsCompat.Type.ime()).bottom)
+      val ime = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+      view.setPadding(0, 0, 0, ime)
+      systemBottom = if (ime > 0) 0f else insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom / resources.displayMetrics.density
       insets
     }
     if (savedInstanceState == null) {

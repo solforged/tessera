@@ -43,6 +43,8 @@ export interface ReaderPaneProps {
   /** The reader fills the app window, without the sidebar, rail or pane header. */
   immersive: boolean;
   onImmersive(immersive: boolean): void;
+  /** Leaves the reader; the cover screen's masthead has no pane header to do it from. */
+  onBack(): void;
 }
 
 const PAGE_SIZE = 200;
@@ -1079,13 +1081,18 @@ export function ReaderPane(props: ReaderPaneProps) {
 
   return <div class="reader-pane" classList={{ 'reader-chrome-hidden': chromeHides() && chromeHidden() }} style={readerStyle()} onPointerDown={props.onActivate}
     onFocusIn={props.onActivate} onPointerMove={pointerMoved}>
+    {/* The cover screen hides the pane header and bottom nav while reading; the book's name heads the page instead. */}
+    <div class="reader-masthead">
+      <Button icon="left" label="Back" onClick={() => props.onBack()} />
+      <h2>{title() || 'Reader'}</h2>
+    </div>
     <div ref={header} class="reader-header" onFocusIn={event => { keyboardFocus = (event.target as Element).matches(':focus-visible'); showChrome(true); }}>
       <Button class="reader-contents" icon="contents" label="Contents" aria-haspopup="dialog" disabled={!contents().length} onClick={event => { setQuery(''); setPopup({ kind: 'contents', anchor: event.currentTarget }); }}><span>{currentSection()?.title ?? 'Contents'}</span><Icon name="down" /></Button>
       <Button icon="highlight" label="Highlights" aria-haspopup="dialog" disabled={!snapshot()} onClick={event => { setQuery(''); setPopup({ kind: 'highlights', anchor: event.currentTarget }); }}><Show when={sourceHighlights().length}><span>{sourceHighlights().length}</span></Show></Button>
       <Button icon="search" label="Find in source" aria-haspopup="dialog" disabled={!snapshot()} onClick={event => { setQuery(''); setPopup({ kind: 'find', anchor: event.currentTarget }); }} />
       <span class="reader-progress" aria-label="Reading position">{formatProgress(position())}</span>
       <Button label="Reader settings" aria-haspopup="dialog" onClick={event => setPopup({ kind: 'settings', anchor: event.currentTarget })}>Aa</Button>
-      <Button icon={props.immersive ? 'contract' : 'expand'} label={props.immersive ? 'Exit full screen' : 'Full screen'} shortcut={props.immersive ? 'F or Esc' : 'F'} onClick={() => props.onImmersive(!props.immersive)} />
+      <Button class="reader-full-screen" icon={props.immersive ? 'contract' : 'expand'} label={props.immersive ? 'Exit full screen' : 'Full screen'} shortcut={props.immersive ? 'F or Esc' : 'F'} onClick={() => props.onImmersive(!props.immersive)} />
       <Button icon="more" label="Reader actions" aria-haspopup="menu" onPointerDown={event => event.preventDefault()} onClick={event => setPopup({ kind: 'actions', anchor: event.currentTarget })} />
     </div>
     <div class="reader-progress-rule" aria-hidden="true"><span style={{ width: `${position() * 100}%` }} /></div>

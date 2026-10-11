@@ -216,6 +216,7 @@ fn notebook_routes() -> Router<AppState> {
             "/api/review-sessions/{id}",
             get(capabilities::review_session),
         )
+        .route("/api/types", get(types))
         .route("/api/types/{id}", get(type_info))
         .route("/api/types/{id}/starting-template", post(starting_template))
         .route("/api/fields", get(fields))
@@ -542,6 +543,10 @@ async fn members(
 
 async fn fields(State(state): State<AppState>) -> Result<Json<FieldsView>, ApiError> {
     run(&state, |notebook| notebook.fields()).await.map(Json)
+}
+
+async fn types(State(state): State<AppState>) -> Result<Json<Vec<TypeInfo>>, ApiError> {
+    run(&state, |notebook| notebook.types()).await.map(Json)
 }
 
 async fn type_info(
