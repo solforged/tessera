@@ -20,6 +20,7 @@ mod library_views;
 mod migrate;
 mod model;
 mod notebook;
+mod notes;
 mod operations;
 mod ownership;
 mod position_store;
@@ -62,4 +63,5 @@ pub use model::{
     TextRewrite, TypeInfo, View,
 };
 pub use notebook::{DATABASE_FILE, Notebook, NotebookInfo, now_ms};
+pub use notes::{IndexKind, NoteEntry, NoteIndex, NoteKind};
 pub use ownership::NotebookOwnership;

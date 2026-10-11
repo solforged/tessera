@@ -74,7 +74,9 @@ export type OpenTarget =
   /** Read a source. `at` is a passage ID to scroll to; `citationId` flashes that citation's range and does not count as reading. */
   | { kind: 'reader'; sourceId: string; snapshotId?: string; at?: string; citationId?: string }
   /** The perspectives filed under a subject, side by side. */
-  | { kind: 'compare'; subjectId: string };
+  | { kind: 'compare'; subjectId: string }
+  /** One kind's notes by title. `key` is a `NoteKind.key`. */
+  | { kind: 'index'; key: string };
 
 export type LibraryTab = ReadingState | 'all' | 'highlights';
 
@@ -86,6 +88,7 @@ export interface TableViewState {
 export interface FieldsViewState { scroll: number }
 export interface SettingsViewState { scroll: number }
 export interface CompareViewState { scroll: number }
+export interface IndexViewState { scroll: number }
 export interface AgendaViewState { date: string; mode: 'agenda' | 'week' | 'tasks'; query: TaskQuery; viewId: string | null; scroll: number }
 export interface ReviewViewState { deckId: string | null; sessionId: string | null; selection: CardSelection | null; scroll: number }
 export type LibraryGroup = 'none' | 'author' | 'decade' | 'publisher' | 'language';

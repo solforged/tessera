@@ -1,0 +1,22 @@
+/* A kind's finding aid: a book index of its notes, titles only, in columns under rubric letters. */
+.index-pane { flex: 1; min-height: 0; min-width: 0; overflow: auto; outline: none; }
+.index-sheet { max-width: calc(var(--measure) + var(--gutter) + var(--space-48)); margin-inline: auto; padding: var(--space-8) var(--space-24) var(--space-48) var(--gutter); }
+.index-eyebrow { margin: var(--space-16) 0 0; color: var(--danger); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); text-transform: uppercase; }
+.index-head { display: flex; align-items: baseline; gap: var(--space-16); margin-top: var(--space-4); }
+.index-head h1 { display: flex; align-items: baseline; gap: var(--space-12); flex: 1; min-width: 0; margin: 0; font: var(--weight-title) var(--text-title)/var(--line-title) var(--font-display); letter-spacing: var(--tracking-title); font-variation-settings: var(--optical-title); }
+.index-head h1 > .icon { flex: none; align-self: center; color: var(--faint); }
+.index-tally { color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
+.index-letters { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: var(--space-16) 0 var(--space-8); padding-bottom: var(--space-8); border-bottom: var(--rule-width) solid var(--line); }
+.index-letters button { min-width: var(--space-16); padding: 0 var(--space-2); border: var(--rule-width) solid transparent; border-radius: var(--radius-control); background: none; color: var(--muted); font: var(--apparatus); text-align: center; cursor: pointer; }
+.index-letters button:hover { border-color: var(--line); color: var(--accent); }
+.index-letters button:disabled { color: var(--line); cursor: default; }
+.index-columns { columns: 3; column-gap: var(--space-32); }
+.index-group { break-inside: avoid-column; margin-top: var(--space-12); scroll-margin-top: var(--space-16); }
+.index-group h2 { display: flex; align-items: center; gap: var(--space-8); margin: 0 0 var(--space-4); break-after: avoid; color: var(--danger); font: var(--apparatus); font-weight: var(--weight-body); letter-spacing: var(--tracking-apparatus); }
+.index-group-count { color: var(--faint); font-variant-numeric: tabular-nums; }
+.index-entry { display: block; width: calc(100% + 2 * var(--space-4)); margin-inline: calc(-1 * var(--space-4)); padding: 0 var(--space-4); overflow: hidden; border: 0; border-radius: var(--radius-control); background: none; color: var(--text); font: var(--weight-body) var(--text-body)/var(--line-body) var(--font-display); text-align: left; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; break-inside: avoid; }
+.index-entry:hover { background: var(--hover); color: var(--accent); }
+.index-entry:focus-visible { outline: var(--focus-ring); }
+@media (max-width: 839px) { .index-columns { columns: 2; } }
+/* A phone gets one column and entries tall enough to tap. */
+@media (max-width: 599px) { .index-columns { columns: 1; } .index-sheet { padding-inline: var(--space-16); } .index-entry { min-height: var(--target-size); line-height: var(--target-size); } }

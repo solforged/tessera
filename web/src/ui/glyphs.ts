@@ -66,6 +66,11 @@ export const paths = {
   constellation: 'M10 8a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z M4.7 4a1.2 1.2 0 1 1-2.4 0 1.2 1.2 0 0 1 2.4 0Z M14 5a1.2 1.2 0 1 1-2.4 0 1.2 1.2 0 0 1 2.4 0Z M11.7 13a1.2 1.2 0 1 1-2.4 0 1.2 1.2 0 0 1 2.4 0Z M6.3 6.8 4.4 4.8 M9.9 7.3l1.9-1.6 M8.8 9.8l1.2 2',
   'question-open': ['M12.9 5.6A5.5 5.5 0 1 1 10.6 3.1', 'M9.2 8a1.2 1.2 0 1 1-2.4 0 1.2 1.2 0 0 1 2.4 0Z'],
   'question-settled': ['M13.5 8a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0Z', 'M10.2 8a2.2 2.2 0 1 1-4.4 0 2.2 2.2 0 0 1 4.4 0Z'],
+  // Kinds of note: a person's head, two for a group, a concept's lozenge with its hub, a thesis standing on its ground.
+  person: 'M10.5 5a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0Z M3 14a5 5 0 0 1 10 0',
+  group: 'M7 5a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z M13 5a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z M1.5 13a3.5 3.5 0 0 1 7 0 M7.5 13a3.5 3.5 0 0 1 7 0',
+  concept: ['M8 2 14 8 8 14 2 8Z', 'M9 8a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z'],
+  thesis: 'M2 14h12 M8 14V2 M5 5l3-3 3 3',
 } as const satisfies Record<string, Glyph>;
 
 export type IconName = keyof typeof paths;

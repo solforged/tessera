@@ -1,0 +1,8 @@
+/* A note's header: its kinds in rubric capitals above the title, and one apparatus line beneath it. */
+.note-eyebrow { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-4); margin: 0 0 var(--space-4); color: var(--danger); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); text-transform: uppercase; }
+.note-eyebrow button { padding: 0; border: 0; background: none; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer; }
+.note-eyebrow button:hover { color: var(--accent); }
+.note-eyebrow-separator { color: var(--faint); }
+.note-line { display: flex; flex-wrap: wrap; gap: 0 var(--space-8); margin: var(--space-8) 0 0; color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.note-line > span + span::before { content: "·"; margin-right: var(--space-8); }
+.note-mark { color: var(--muted); }

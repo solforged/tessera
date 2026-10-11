@@ -12,6 +12,7 @@ import { TemplateEditor } from '../fields/TemplateEditor';
 import { pageSigla } from '../library/sigla';
 import { sourceReadingOrder } from '../library/source-order';
 import { PersonWorks } from '../library/PersonWorks';
+import { NoteEyebrow, NoteLine } from '../notes/NoteHeader';
 import type { OutlineIndex } from '../document/outline-index';
 import { JournalAgenda } from '../tasks/JournalAgenda';
 import { JournalResurface } from '../tasks/JournalResurface';
@@ -859,10 +860,13 @@ function Pane(props: OutlinePaneProps) {
     cancelAnimationFrame(anchorFrame);
   });
 
+  // A titled page at its top level wears the note header; sources keep their own, and the Fields page is not a note.
+  const isNote = () => !zoom() && doc.root()?.kind === 'page' && !doc.root()?.source && doc.root()?.text.toLowerCase() !== 'fields';
   return <div ref={scroll} class="outline-pane" classList={{ 'has-apparatus': apparatus(), 'has-sigla': sigla().size > 0 }} data-pane={props.pane} tabIndex={0} role="tree" aria-label="Page outline" aria-owns={[...virtualItems().keys()].map(id => `outline-${props.pane}-${id}`).join(' ')} onFocusIn={props.onActivate} onFocusOut={report} onKeyDown={structuralKey} onWheel={() => { anchorEpoch++; cancelAnimationFrame(anchorFrame); }} onScroll={scrolled}>
     <Show when={apparatus()}><Apparatus notebook={props.notebook} holders={holders()} linked={linkedPages()} sources={citedSources().flatMap(id => sigla().has(id) ? [{ id, siglum: sigla().get(id)! }] : [])} onOpen={props.onOpen} /></Show>
     <div ref={heading} class="outline-heading">
       <Show when={zoom()}><nav class="outline-breadcrumbs" aria-label="Zoom breadcrumbs"><button type="button" onClick={() => zoomTo(null)}>{doc.root()?.text}</button><For each={breadcrumbs()}>{id => <><Icon name="right" /><button type="button" onClick={() => zoomTo(id)}>{plainText(doc.block(id)?.text ?? '', reference => props.notebook.lookup(reference)) || 'Empty block'}</button></>}</For></nav></Show>
+      <Show when={isNote()}><NoteEyebrow pageId={props.pageId} notebook={props.notebook} onOpen={props.onOpen} /></Show>
       <div class="outline-title-row">
       <Show when={renaming()} fallback={<h1><button class="outline-title" type="button" disabled={doc.root()?.kind !== 'page'} onClick={rename}>{doc.root()?.text || 'Loading…'}</button></h1>}>
         <input ref={titleInput} class="title-input" aria-label="Page title" value={title()} onInput={event => setTitle(event.currentTarget.value)} onKeyDown={event => { if (event.isComposing) return; if (event.key === 'Enter') { event.preventDefault(); commitTitle(); } if (event.key === 'Escape') { setRenaming(false); setMessage(''); } }} />
@@ -872,6 +876,7 @@ function Pane(props: OutlinePaneProps) {
       </Show>
       <Show when={doc.root()?.kind === 'page' && !doc.root()?.source}><div class="outline-header-actions"><Button icon="table" label="Table" shortcut="⌘⇧T" onClick={event => openTable(event.metaKey)}>Table<Show when={!type.error && (type()?.members ?? 0) > 0}><span class="table-member-count">{type()?.members}</span></Show></Button></div></Show>
       </div>
+      <Show when={isNote()}><NoteLine pageId={props.pageId} notebook={props.notebook} /></Show>
       <Show when={!zoom() && doc.root()?.kind === 'page' && !doc.root()?.source && doc.root()?.text.toLowerCase() !== 'fields' && !type.error && type()}>{value => <Show when={value().members || value().fields.length}>
         <TemplateEditor type={value()} fields={definitions()} notebook={props.notebook} onError={setMessage} />
       </Show>}</Show>

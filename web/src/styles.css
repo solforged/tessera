@@ -122,6 +122,10 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
 .sidebar-view:hover > .view-link, .sidebar-view:focus-within > .view-link { padding-right: calc(var(--row-height) + var(--space-4)); }
 .sidebar-view > .view-pin { position: absolute; right: var(--space-2); flex: none; opacity: 0; transition: opacity var(--motion-fast) var(--motion-ease); }
 .sidebar-view:hover > .view-pin, .sidebar-view:focus-within > .view-pin { opacity: 1; }
+/* Saved views hang under the kind whose type they list, on a hairline elbow. */
+.index-views .sidebar-view { position: relative; padding-left: calc(var(--space-24) + var(--space-4)); }
+.index-views .sidebar-view::before { content: ""; position: absolute; left: calc(var(--space-12) + var(--space-2)); top: 0; bottom: 50%; width: var(--space-8); border-left: var(--rule-width) solid var(--line); border-bottom: var(--rule-width) solid var(--line); }
+.index-views .view-link > .icon { display: none; }
 .workspace { grid-column: 2; grid-row: 2; display: flex; flex-direction: column; min-width: 0; min-height: 0; margin: 0 var(--space-12) var(--space-12) 0; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-workspace); background: var(--canvas); transition: margin-left var(--motion-ui) var(--motion-ease); }
 .sidebar-collapsed { grid-template-columns: 0 minmax(0, 1fr); }
 .sidebar-collapsed .sidebar { visibility: hidden; pointer-events: none; opacity: 0; transform: translateX(-100%); transition-delay: 0s, 0s, var(--motion-ui); }

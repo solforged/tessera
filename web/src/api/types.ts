@@ -216,6 +216,10 @@ export interface FieldSummary extends FieldDefinition { owners: number; types: {
 export interface Fields { page_id: string; fields: FieldSummary[] }
 export interface Type { page: Block; fields: string[]; members: number }
 export interface View { id: string; name: string; query: Query; revision: number; created_at: number; updated_at: number }
+/** A kind notes are filed under: `person`, `group`, `concept`, `thesis`, `question`, `source`, `project`, `type:<id>` or `unfiled`. */
+export interface NoteKind { key: string; name: string; plural: string; type_id: string | null }
+export interface NoteIndex { kinds: (NoteKind & { count: number })[]; notes: number }
+export interface NoteEntry { id: string; title: string; created_at: number }
 export interface SettingRevision { key: string; revision: number }
 export interface Setting { key: string; value: string; revision: number; updated_at: number }
 export interface SettingsView { settings: Setting[]; today: string; time_zone: string }
