@@ -1049,12 +1049,12 @@ describe('real notebook operations and recovery', () => {
     expect(secondClient.lookup(first)()?.text).toBe('after');
   });
 
-  test('sync reloads a page when rebasing changed text without increasing its revision', async () => {
+  test.each([0, -1])('sync reloads changed text with revision delta %s', async delta => {
     const instance = await client();
     const { doc, first, id } = await page(instance, 'phone text');
     const view = await api.page(id);
     const block = view.rows.find(row => row.block.id === first)!.block;
-    const changed = { ...block, text: 'hub text' };
+    const changed = { ...block, text: 'hub text', revision: block.revision + delta };
     const pulled = { ...view, rows: view.rows.map(row => row.block.id === first ? { ...row, block: changed } : row) };
     const seq = (await api.changes(0)).at(-1)!.seq + 1;
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -1066,7 +1066,8 @@ describe('real notebook operations and recovery', () => {
         blocks: [changed], removed: [], restructured_pages: [id], views: [], settings: [] };
       await instance['change'](event);
       expect(doc.block(first)?.text).toBe('hub text');
-      expect(doc.block(first)?.revision).toBe(block.revision);
+      expect(doc.block(first)?.revision).toBe(changed.revision);
+      expect(instance.lookup(first)()?.text).toBe('hub text');
     } finally {
       globalThis.fetch = actualFetch;
       await instance.dispose();

@@ -486,7 +486,20 @@ impl Notebook {
 
     /// Local editor arrival cursor. Hub sequence numbers may change on rebase.
     pub fn editor_cursor(&self) -> Result<i64> {
-        Ok(self.conn.query_row("SELECT COALESCE(MAX(seq), 0) FROM editor_events", [], |r| r.get(0))?)
+        Ok(self
+            .conn
+            .query_row("SELECT COALESCE(MAX(seq), 0) FROM editor_events", [], |r| {
+                r.get(0)
+            })?)
+    }
+
+    /// The first local editor event for a log receipt, including idempotent
+    /// retries after a rebase moved the log's sequence numbers.
+    pub fn editor_change_cursor(&self, change_seq: i64) -> Result<i64> {
+        Ok(self.conn.query_row(
+            "SELECT COALESCE((SELECT MIN(e.seq) FROM editor_events e WHERE e.change_id = c.change_id), c.seq) FROM changes c WHERE c.seq = ?1",
+            [change_seq], |row| row.get(0),
+        )?)
     }
 
     pub fn changes_since(&self, seq: i64, limit: usize) -> Result<Vec<ChangeEvent>> {
@@ -597,11 +610,15 @@ impl Notebook {
 }
 
 /// Record a commit in local editor arrival order, independently of hub seq.
-pub(crate) fn record_editor_event(conn: &rusqlite::Connection, seq: i64, synced: bool) -> Result<()> {
+pub(crate) fn record_editor_event(
+    conn: &rusqlite::Connection,
+    seq: i64,
+    synced: bool,
+) -> Result<()> {
     conn.execute(
-        "INSERT INTO editor_events(seq, actor, reason, created_at, committed, restructured_pages, views)
+        "INSERT INTO editor_events(seq, change_id, actor, reason, created_at, committed, restructured_pages, views)
          SELECT MAX(?1, COALESCE((SELECT seq FROM sqlite_sequence WHERE name = 'editor_events'), 0) + 1),
-                CASE WHEN ?2 THEN '{\"kind\":\"client\",\"name\":\"sync\"}' ELSE actor END,
+                change_id, CASE WHEN ?2 THEN '{\"kind\":\"client\",\"name\":\"sync\"}' ELSE actor END,
                 reason, created_at, committed,
                 CASE WHEN ?2 THEN
                   (SELECT json_group_array(page) FROM (

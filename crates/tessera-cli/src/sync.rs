@@ -1,19 +1,13 @@
 //! `tessera sync`: keep a replica of a hub notebook. See `docs/sync.md`.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use anyhow::Context;
 use clap::Subcommand;
 use serde_json::json;
-use tessera_core::sync::{
-    CloneTicket, Hub, Pull, PushReceipt, PushedChange, SnapshotContent, UnloggedPull, UnloggedRows,
-};
-use tessera_core::{DATABASE_FILE, Notebook, NotebookOwnership, SCHEMA_VERSION};
-
-use crate::checked;
-
-const SCHEMA_HEADER: &str = "x-tessera-schema";
-const TICKET_HEADER: &str = "x-tessera-clone";
+use tessera_core::sync::Hub;
+use tessera_core::{DATABASE_FILE, Notebook, NotebookOwnership};
+use tessera_service::sync_client::{HttpHub, Pairing};
 
 #[derive(Subcommand)]
 pub(crate) enum SyncCommand {
@@ -126,7 +120,7 @@ fn clone(
     let _ownership = NotebookOwnership::acquire(notebook, 0)?;
     let pairing = code.map(|code| pair(url, code, name)).transpose()?;
     let hub = HttpHub::new(url, pairing.as_ref().map(|p| p.key.as_str()))?;
-    let (ticket, partial) = download(&hub, notebook)?;
+    let (ticket, partial) = hub.download(notebook)?;
     std::fs::rename(&partial, &database)?;
     let mut replica = Notebook::open(notebook)?;
     replica.sync_adopt(&hub.base, &ticket)?;
@@ -140,20 +134,7 @@ fn clone(
     Ok(replica.sync_status()?)
 }
 
-#[derive(serde::Deserialize)]
-struct PairResponse {
-    key: String,
-    device: tessera_core::sync_devices::PairedDevice,
-    hub: PairHub,
-}
-
-#[derive(serde::Deserialize)]
-struct PairHub {
-    name: String,
-    schema_version: u32,
-}
-
-fn pair(url: &str, code: &str, name: Option<&str>) -> anyhow::Result<PairResponse> {
+fn pair(url: &str, code: &str, name: Option<&str>) -> anyhow::Result<Pairing> {
     let default_name = std::process::Command::new("hostname")
         .output()
         .ok()
@@ -161,54 +142,7 @@ fn pair(url: &str, code: &str, name: Option<&str>) -> anyhow::Result<PairRespons
         .and_then(|output| String::from_utf8(output.stdout).ok())
         .unwrap_or_else(|| "localhost".into());
     let hub = HttpHub::new(url, None)?;
-    let pairing: PairResponse = hub.call(
-        "/api/sync/pair",
-        json!({"code":code,"name":name.unwrap_or(default_name.trim())}),
-    )?;
-    tessera_core::sync::check_schema(pairing.hub.schema_version)?;
-    Ok(pairing)
-}
-
-/// Write a clone of the hub's notebook beside `notebook`'s database, and
-/// return its ticket and path.
-fn download(hub: &HttpHub, notebook: &Path) -> anyhow::Result<(CloneTicket, PathBuf)> {
-    let partial = notebook.join(format!("{DATABASE_FILE}.clone"));
-    let ticket = hub
-        .runtime
-        .block_on(async {
-            // A large notebook takes longer than one request's timeout to
-            // arrive; give up only when the hub stops sending.
-            let client = reqwest::Client::builder()
-                .connect_timeout(std::time::Duration::from_secs(30))
-                .read_timeout(std::time::Duration::from_secs(120))
-                .default_headers(hub.headers.clone())
-                .build()?;
-            let mut response = checked(
-                client
-                    .post(format!("{}/api/sync/clone", hub.base))
-                    .header(SCHEMA_HEADER, SCHEMA_VERSION)
-                    .send()
-                    .await?,
-            )
-            .await?;
-            let ticket: CloneTicket = serde_json::from_str(
-                response
-                    .headers()
-                    .get(TICKET_HEADER)
-                    .context("the hub sent no clone ticket")?
-                    .to_str()?,
-            )?;
-            let mut file = tokio::fs::File::create(&partial).await?;
-            while let Some(chunk) = response.chunk().await? {
-                tokio::io::AsyncWriteExt::write_all(&mut file, &chunk).await?;
-            }
-            file.sync_all().await?;
-            anyhow::Ok(ticket)
-        })
-        .inspect_err(|_| {
-            let _ = std::fs::remove_file(&partial);
-        })?;
-    Ok((ticket, partial))
+    hub.pair(code, name.unwrap_or(default_name.trim()))
 }
 
 fn reclone(notebook: &Path) -> anyhow::Result<serde_json::Value> {
@@ -230,33 +164,17 @@ fn reclone(notebook: &Path) -> anyhow::Result<serde_json::Value> {
     // A retired replica can still send, so nothing made here is lost.
     let sent = old.sync_send(&mut hub)?;
     let pins = old.sync_pins()?;
-    drop(old);
-    let database = notebook.join(DATABASE_FILE);
-    for suffix in ["-wal", "-shm"] {
-        anyhow::ensure!(
-            !notebook.join(format!("{DATABASE_FILE}{suffix}")).exists(),
-            "another program still has {} open",
-            database.display()
-        );
-    }
-    let (ticket, partial) = download(&hub, notebook)?;
-    // The old device ID no longer pulls; the hub can stop keeping its patches.
+    let (ticket, partial) = hub.download(notebook)?;
+    let previous = old.sync_install_clone(
+        &partial,
+        &hub.base,
+        &ticket,
+        "retired",
+        credentials.as_ref(),
+    )?;
+    std::fs::remove_file(partial)?;
     hub.retire(&status.device_id)?;
-    let stamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)?
-        .as_secs();
-    let previous = notebook.join(format!("{DATABASE_FILE}.retired-{stamp}"));
-    std::fs::rename(&database, &previous)?;
-    std::fs::rename(&partial, &database)?;
-    let mut replica = Notebook::open(notebook)?;
-    replica.sync_adopt(&hub.base, &ticket)?;
-    if let Some(credentials) = credentials {
-        replica.sync_set_hub_credentials(
-            credentials.key.as_deref(),
-            credentials.hub_name.as_deref(),
-            credentials.device_name.as_deref(),
-        )?;
-    }
+    let mut replica = old;
     // A pinned source the hub deleted cannot be pinned again.
     let unpinned: Vec<String> = pins
         .into_iter()
@@ -271,162 +189,4 @@ fn reclone(notebook: &Path) -> anyhow::Result<serde_json::Value> {
         "previous": previous,
         "unpinned": unpinned,
     }))
-}
-
-/// A hub reached over HTTP.
-struct HttpHub {
-    runtime: tokio::runtime::Runtime,
-    client: reqwest::Client,
-    base: String,
-    headers: reqwest::header::HeaderMap,
-}
-
-impl HttpHub {
-    fn new(url: &str, key: Option<&str>) -> anyhow::Result<Self> {
-        let mut headers = reqwest::header::HeaderMap::new();
-        if let Some(key) = key {
-            let mut value = reqwest::header::HeaderValue::from_str(&format!("Bearer {key}"))?;
-            value.set_sensitive(true);
-            headers.insert(reqwest::header::AUTHORIZATION, value);
-        }
-        Ok(Self {
-            runtime: tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()?,
-            client: reqwest::Client::builder()
-                .timeout(std::time::Duration::from_secs(300))
-                .default_headers(headers.clone())
-                .build()?,
-            base: url.trim_end_matches('/').to_owned(),
-            headers,
-        })
-    }
-
-    fn call<T: serde::de::DeserializeOwned>(
-        &self,
-        path: &str,
-        body: serde_json::Value,
-    ) -> tessera_core::Result<T> {
-        self.runtime
-            .block_on(async {
-                let response = self
-                    .client
-                    .post(format!("{}{path}", self.base))
-                    .header(SCHEMA_HEADER, SCHEMA_VERSION)
-                    .json(&body)
-                    .send()
-                    .await?;
-                let response = checked(response).await?;
-                if response.status() == reqwest::StatusCode::NO_CONTENT {
-                    return Ok(serde_json::from_value(serde_json::Value::Null)?);
-                }
-                anyhow::Ok(response.json().await?)
-            })
-            .map_err(|error| self.failed(error))
-    }
-
-    fn failed(&self, error: anyhow::Error) -> tessera_core::Error {
-        tessera_core::Error::Io(std::io::Error::other(format!(
-            "hub {}: {error:#}",
-            self.base
-        )))
-    }
-}
-
-impl Hub for HttpHub {
-    fn push(
-        &mut self,
-        device: &str,
-        changes: &[PushedChange],
-    ) -> tessera_core::Result<Vec<PushReceipt>> {
-        self.call(
-            "/api/sync/push",
-            json!({"device": device, "changes": changes}),
-        )
-    }
-
-    fn pull(&mut self, device: &str, acknowledged: i64, after: i64) -> tessera_core::Result<Pull> {
-        self.call(
-            "/api/sync/pull",
-            json!({"device": device, "acknowledged": acknowledged, "after": after}),
-        )
-    }
-
-    fn missing_snapshots(&mut self, ids: &[String]) -> tessera_core::Result<Vec<String>> {
-        let missing: serde_json::Value =
-            self.call("/api/sync/snapshots/missing", json!({"ids": ids}))?;
-        serde_json::from_value(missing["ids"].clone())
-            .map_err(|error| tessera_core::Error::Io(std::io::Error::other(error)))
-    }
-
-    fn snapshot_content(
-        &mut self,
-        ids: &[String],
-        from: i64,
-    ) -> tessera_core::Result<Vec<SnapshotContent>> {
-        self.call(
-            "/api/sync/snapshots/content",
-            json!({"ids": ids, "from": from}),
-        )
-    }
-
-    fn store_snapshots(&mut self, content: &[SnapshotContent]) -> tessera_core::Result<()> {
-        self.call("/api/sync/snapshots", json!(content))
-    }
-
-    fn missing_objects(&mut self, shas: &[String]) -> tessera_core::Result<Vec<String>> {
-        let missing: serde_json::Value =
-            self.call("/api/sync/objects/missing", json!({"ids": shas}))?;
-        serde_json::from_value(missing["ids"].clone())
-            .map_err(|error| tessera_core::Error::Io(std::io::Error::other(error)))
-    }
-
-    fn object(&mut self, sha: &str) -> tessera_core::Result<Option<Vec<u8>>> {
-        self.runtime
-            .block_on(async {
-                let response = self
-                    .client
-                    .get(format!("{}/api/sync/objects/{sha}", self.base))
-                    .header(SCHEMA_HEADER, SCHEMA_VERSION)
-                    .send()
-                    .await?;
-                if response.status() == reqwest::StatusCode::NOT_FOUND {
-                    return Ok(None);
-                }
-                anyhow::Ok(Some(checked(response).await?.bytes().await?.to_vec()))
-            })
-            .map_err(|error| self.failed(error))
-    }
-
-    fn store_object(&mut self, sha: &str, bytes: &[u8]) -> tessera_core::Result<()> {
-        self.runtime
-            .block_on(async {
-                let response = self
-                    .client
-                    .put(format!("{}/api/sync/objects/{sha}", self.base))
-                    .header(SCHEMA_HEADER, SCHEMA_VERSION)
-                    .body(bytes.to_vec())
-                    .send()
-                    .await?;
-                checked(response).await?;
-                anyhow::Ok(())
-            })
-            .map_err(|error| self.failed(error))
-    }
-
-    fn exchange_rows(
-        &mut self,
-        device: &str,
-        rows: &UnloggedRows,
-        after: i64,
-    ) -> tessera_core::Result<UnloggedPull> {
-        self.call(
-            "/api/sync/rows",
-            json!({"device": device, "rows": rows, "after": after}),
-        )
-    }
-
-    fn retire(&mut self, device: &str) -> tessera_core::Result<()> {
-        self.call("/api/sync/retire", json!({"device": device}))
-    }
 }

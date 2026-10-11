@@ -371,6 +371,7 @@ mod tests {
             backup: Arc::new(tokio::sync::Mutex::new(())),
             pairing: Arc::new(Mutex::new(waiting(now_ms() + LIFETIME_MS))),
             sharing: Arc::new(tokio::sync::Mutex::new(())),
+            replica: Arc::default(),
         };
         let app = crate::sync::routes()
             .layer(middleware::from_fn_with_state(state.clone(), authenticate))

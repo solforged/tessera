@@ -285,10 +285,11 @@ async fn position(
     let Json(body) = body.map_err(ApiError::from)?;
     let changes = state.changes.clone();
     run(&state, move |n| {
-        let result = n.set_reading_position(&id, body.ordinal)?;
+        let mut result = n.set_reading_position(&id, body.ordinal)?;
         if let Some(seq) = result.seq {
-            let _ = changes.send(n.editor_cursor()?.max(seq));
+            result.seq = Some(n.editor_change_cursor(seq)?);
         }
+        let _ = changes.send(n.editor_cursor()?);
         Ok(result)
     })
     .await
@@ -347,8 +348,11 @@ async fn record_surfacing(
 ) -> Result<Json<()>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
     let Json(body) = body.map_err(ApiError::from)?;
+    let changes = state.changes.clone();
     run(&state, move |n| {
-        n.record_surfacing(&id, &body.date, &body.action)
+        n.record_surfacing(&id, &body.date, &body.action)?;
+        let _ = changes.send(n.editor_cursor()?);
+        Ok(())
     })
     .await
     .map(Json)
