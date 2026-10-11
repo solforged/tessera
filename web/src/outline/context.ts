@@ -124,7 +124,7 @@ export interface OutlineContext {
   readonly compositionSelection: boolean;
   baseDepth: Accessor<number>;
   positionSource: (id: string) => string | null;
-  sourceDetails: Accessor<{ fields: Map<string, string>; firstHighlight: string | undefined; highlightCount: number }>;
+  sourceDetails: Accessor<{ fields: Map<string, string>; chapters: Map<string, string>; firstHighlight: string | undefined; highlightCount: number }>;
   virtualizer: Virtualizer<HTMLDivElement, HTMLDivElement>;
   hosts: Map<string, HTMLElement>;
   coveredSet: Accessor<Set<string>>;
