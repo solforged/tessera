@@ -1,15 +1,15 @@
 /* The date, tabs and day list share the outline measure and one left edge. */
-.agenda-pane { --agenda-row-height: var(--row-height); flex: 1; min-height: 0; min-width: 0; overflow: auto; padding: var(--space-24) var(--space-16); }
-.agenda-content { max-width: var(--measure); margin-inline: auto; display: flex; flex-direction: column; gap: var(--space-12); }
+.agenda-pane { --agenda-row-height: var(--row-height); flex: 1; min-height: 0; min-width: 0; overflow: auto; padding: var(--page-top-space) var(--pane-inset) var(--page-bottom-space); }
+.agenda-content { max-width: var(--measure); margin-inline: auto; display: flex; flex-direction: column; gap: var(--page-head-gap); }
 .agenda-content-week { max-width: var(--week-measure); }
 /* Date navigation accompanies the heading; modes get their own shared ruled baseline below. */
 .agenda-toolbar, .agenda-date { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-8); }
 .agenda-toolbar { align-items: flex-end; justify-content: flex-start; width: 100%; max-width: var(--measure); margin-inline: auto; gap: var(--space-8) var(--space-24); }
 .agenda-heading { min-width: 0; }
-.agenda-heading > p { margin: 0 0 var(--space-4); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
-.agenda-heading > h1 { margin: 0; font: var(--weight-title) var(--text-title)/var(--line-title) var(--font-display); font-variation-settings: var(--optical-title); }
-.agenda-title-date { border: 0; padding: 0; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
-.agenda-modes { width: 100%; max-width: var(--measure); margin-inline: auto; }
+.agenda-heading > p { margin: 0 0 var(--page-eyebrow-gap); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.agenda-heading > h1 { margin: 0; font: var(--page-title-font); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
+.agenda-title-date { min-width: var(--target-size); min-height: var(--target-size); border: 0; padding: 0; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.agenda-modes { width: 100%; max-width: var(--measure); margin: calc(var(--page-title-gap) - var(--page-head-gap)) auto 0; }
 .agenda-date > .button { min-height: var(--row-height); border-color: transparent; color: var(--muted); }
 /* Seven quiet columns end on one hairline; only the selected date carries the gilt rule. */
 .agenda-week-strip { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); width: 100%; max-width: var(--measure); margin-inline: auto; box-shadow: inset 0 calc(-1 * var(--rule-width)) var(--line); overflow-x: auto; }
@@ -29,10 +29,9 @@
 .agenda-summary { color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .agenda-message { margin: 0; }
 .agenda-error { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); color: var(--danger); font-size: var(--text-control); line-height: var(--line-control); margin: 0; }
-.agenda-results { display: flex; flex-direction: column; gap: var(--space-12); }
+.agenda-results { display: flex; flex-direction: column; gap: var(--section-gap); }
 .agenda-rows { list-style: none; margin: 0; padding: 0; }
-.agenda-day-section { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
-.agenda-day-section + .agenda-day-section { margin-top: var(--space-8); }
+.agenda-day-section { display: flex; flex-direction: column; gap: var(--section-item-gap); min-width: 0; }
 .agenda-section-heading, .agenda-section-toggle.button { display: flex; align-items: center; gap: var(--space-8); width: 100%; min-height: var(--target-size); margin: 0; padding: 0; color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .agenda-section-heading.agenda-late, .agenda-section-heading.agenda-late .agenda-summary { color: var(--danger); }
 .agenda-section-toggle.button:hover:not(:disabled) { color: var(--text); background: transparent; }
@@ -138,11 +137,11 @@ li.agenda-now-end { position: relative; inset: auto; margin-top: calc(-1 * var(-
 .journal-agenda-toggle[aria-expanded="false"] > .icon { rotate: -90deg; }
 /* Ruled group headings start at the section edge; their counts stay beside the labels. */
 div.journal-agenda-toggle { display: flex; align-items: center; gap: var(--space-8); min-height: var(--target-size); padding-right: var(--space-4); color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
-.journal-agenda-body { display: flex; flex-direction: column; gap: var(--space-8); margin-top: var(--space-4); }
+.journal-agenda-body { display: flex; flex-direction: column; gap: var(--card-gap); margin-top: var(--section-item-gap); }
 /* One resurfaced slip sits below the journal, marked by the highlight's colour along its left edge. */
 .resurface-heading, .resurface-navigation { display: flex; align-items: center; gap: var(--space-4); }
 .resurface-heading > .journal-agenda-toggle { flex: 1; min-width: 0; }
-.resurface-card { position: relative; min-width: 0; padding: var(--space-12) var(--space-16); border: 0; border-radius: var(--radius-workspace); background: var(--raised); }
+.resurface-card { position: relative; min-width: 0; padding: var(--card-padding); border: 0; border-radius: var(--radius-workspace); background: var(--raised); }
 .resurface-color { position: absolute; inset: 0 auto 0 0; width: var(--space-2); }
 .resurface-quote { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); font-variation-settings: var(--optical-quote); }
 .resurface-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-4) var(--space-12); margin-top: var(--space-4); }
@@ -198,11 +197,11 @@ div.journal-agenda-toggle { display: flex; align-items: center; gap: var(--space
   .journal-quarter-ledger { grid-template-columns: 1fr; }
   .journal-year-ledger { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-.outline-heading .journal-header > h1 { margin: var(--space-4) 0 var(--space-16); }
-.journal-writing-heading { display: flex; align-items: center; gap: var(--space-8); margin-top: var(--space-24); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.outline-heading .journal-header > h1 { margin: var(--page-eyebrow-gap) 0 var(--page-head-gap); }
+.journal-writing-heading { display: flex; align-items: center; gap: var(--space-8); margin-top: var(--section-gap); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 /* Today is a three-tile hub, using real agenda, due-card and recently read book data, never session-time samples. */
-.journal-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-12); }
-.journal-tile.button { display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: var(--space-4); width: 100%; min-width: 0; height: 120px; padding: var(--space-12); border: var(--rule-width) solid var(--line); border-radius: var(--radius-popup); background: var(--raised); color: var(--text); font-weight: var(--weight-body); white-space: normal; text-align: left; overflow: hidden; }
+.journal-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--card-gap); }
+.journal-tile.button { display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: var(--space-4); width: 100%; min-width: 0; min-height: 120px; padding: var(--card-padding); border: var(--rule-width) solid var(--line); border-radius: var(--radius-popup); background: var(--raised); color: var(--text); font-weight: var(--weight-body); white-space: normal; text-align: left; overflow: hidden; }
 .journal-tile.button:hover:not(:disabled) { border-color: var(--control-border); background: var(--hover); }
 .journal-tile-heading { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-8); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .journal-tile-action { color: var(--accent); font: var(--weight-control) var(--text-library-title)/var(--line-control) var(--font-body); }
@@ -238,7 +237,7 @@ div.journal-agenda-toggle { display: flex; align-items: center; gap: var(--space
 /* A narrow journal keeps the three destinations in one ruled ledger, not a 2+1 tile grid. */
 @container outline-pane (max-width: 640px) {
   .journal-tiles { display: flex; flex-direction: column; gap: 0; border-top: var(--rule-width) solid var(--line); }
-  .journal-tile.button { display: grid; grid-template-columns: 5.5rem minmax(0, 1fr) auto; grid-template-rows: 1fr; align-items: center; gap: var(--space-8); height: 48px; padding: var(--space-8) 0; border: 0; border-bottom: var(--rule-width) solid var(--line); border-radius: 0; background: transparent; }
+  .journal-tile.button { display: grid; grid-template-columns: 5.5rem minmax(0, 1fr) auto; grid-template-rows: 1fr; align-items: center; gap: var(--space-8); min-height: var(--target-size); height: 48px; padding: var(--space-8) 0; border: 0; border-bottom: var(--rule-width) solid var(--line); border-radius: 0; background: transparent; }
   .journal-tile-heading { display: contents; }
   .journal-tile-heading > span:first-child { grid-column: 1; grid-row: 1; }
   .journal-tile-action, .journal-tile-chevron { grid-column: 3; grid-row: 1; }
@@ -259,7 +258,6 @@ div.journal-agenda-toggle { display: flex; align-items: center; gap: var(--space
 }
 @media (max-width: 799px) {
   .agenda-toolbar { gap: var(--space-8) var(--space-16); }
-  .agenda-heading > h1 { font-size: var(--text-h1); line-height: var(--line-h1); }
 }
 @media (pointer: coarse) {
   .agenda-pane { --agenda-row-height: calc(var(--space-32) + var(--space-12)); }
@@ -268,11 +266,12 @@ div.journal-agenda-toggle { display: flex; align-items: center; gap: var(--space
 }
 /* On the cover the capture field stays above navigation, and drops to the keyboard edge when navigation hides. */
 @media (max-width: 599px) and (pointer: coarse) {
-  .agenda-pane { padding: var(--space-16) var(--space-12) calc(var(--space-48) + var(--space-32)); }
+  .agenda-pane:has(.agenda-add) { --agenda-capture-clearance: calc(var(--target-size) + 2 * var(--space-4) + 2 * var(--rule-width) + var(--space-12) + var(--bottom-inset)); padding-bottom: calc(var(--page-bottom-space) + var(--agenda-capture-clearance)); }
+  .agenda-pane:has(.agenda-add-preview) { padding-bottom: calc(var(--page-bottom-space) + var(--agenda-capture-clearance) + var(--space-4) + var(--line-apparatus)); }
   .agenda-week-strip { grid-template-columns: repeat(7, minmax(var(--target-size), 1fr)); }
   .agenda-week-day.button { padding-inline: var(--space-4); }
   .agenda-lookahead { display: none; }
-  .pane.active .agenda-add { position: fixed; z-index: 20; left: calc(env(safe-area-inset-left) + var(--space-12)); right: calc(env(safe-area-inset-right) + var(--space-12)); bottom: calc(var(--bottom-nav-height) + var(--bottom-inset) + var(--space-12)); margin: 0; padding: var(--space-4) var(--space-8); border: var(--rule-width) solid var(--line); border-radius: var(--radius-popup); background: var(--raised); }
+  .pane.active .agenda-add { position: fixed; z-index: 20; left: calc(env(safe-area-inset-left) + var(--pane-inset)); right: calc(env(safe-area-inset-right) + var(--pane-inset)); bottom: calc(var(--bottom-nav-height) + var(--bottom-inset) + var(--space-12)); margin: 0; padding: var(--space-4) var(--space-8); border: var(--rule-width) solid var(--line); border-radius: var(--radius-popup); background: var(--raised); }
   .pane:not(.active) .agenda-add { display: none; }
   .app.keyboard-open .agenda-add { bottom: calc(var(--bottom-inset) + var(--space-8)); }
   .agenda-add .capture-input { min-height: var(--target-size); border: 0; }

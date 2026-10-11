@@ -10,6 +10,11 @@
 .review-deck-title > .icon { color: var(--faint); }
 .review-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8) var(--space-16); width: 100%; max-width: calc(var(--measure) + 2 * var(--space-16)); margin-inline: auto; padding: 0 var(--space-16) var(--space-12); }
 .review-scroll > * { width: 100%; max-width: var(--measure); margin-inline: auto; }
+/* Landing spacing follows the shared page contract; live sessions retain their compact chrome. */
+.review-pane:not(.review-session-active, .review-session-done) .review-header { max-width: calc(var(--measure) + 2 * var(--pane-inset)); padding: var(--page-top-space) var(--pane-inset) var(--page-title-gap); }
+.review-pane:not(.review-session-active, .review-session-done) .review-heading h1 { margin-top: var(--page-eyebrow-gap); font: var(--page-title-font); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
+.review-pane:not(.review-session-active, .review-session-done) .review-toolbar { max-width: calc(var(--measure) + 2 * var(--pane-inset)); padding: 0 var(--pane-inset) var(--page-head-gap); }
+.review-pane:not(.review-session-active, .review-session-done) .review-scroll { padding: 0 var(--pane-inset) var(--page-bottom-space); }
 .review-queue-controls { display: flex; flex-wrap: wrap; gap: var(--space-4); margin-right: auto; }
 /* Each committed grade keeps its place in the progress strip, including after reload. */
 .review-session-progress { display: flex; flex-direction: column; gap: var(--space-12); width: 100%; padding-block: var(--space-8) var(--space-16); }
@@ -52,10 +57,11 @@
 .deck-editor-match { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
 .deck-editor p { margin: 0; overflow-wrap: anywhere; }
 /* The landing answers today's load before the deck ledger; figures use apparatus mono. */
-.review-landing { display: flex; flex-direction: column; gap: var(--space-24); padding-top: var(--space-12); }
-.review-overview { display: grid; grid-template-columns: 1.1fr 1fr; gap: var(--space-16); }
+.review-landing { display: flex; flex-direction: column; gap: var(--section-gap); }
+.review-overview { display: grid; grid-template-columns: 1.1fr 1fr; gap: var(--card-gap); }
 .review-today-load, .review-forecast { min-width: 0; padding: var(--space-24); border: 1px solid var(--line); border-radius: var(--radius-popup); }
-.review-today-load { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-12); background: var(--raised); }
+.review-landing :is(.review-today-load, .review-forecast) { padding: var(--card-padding); }
+.review-today-load { display: flex; flex-direction: column; align-items: flex-start; gap: var(--section-item-gap); background: var(--raised); }
 .review-landing h2, .review-forecast h2, .review-missed h3 { margin: 0; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .review-stat-value { font: var(--weight-body) calc(var(--text-title) + var(--space-8))/1.2 var(--font-mono); font-variant-numeric: tabular-nums; }
 .review-stat-value small, .review-stats small { margin-left: var(--space-4); color: var(--muted); font: var(--weight-body) var(--text-control)/var(--line-control) var(--font-body); }
@@ -69,6 +75,7 @@
 .review-forecast header, .review-decks header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); }
 .review-forecast header > span { color: var(--faint); font: var(--apparatus); white-space: nowrap; }
 .review-forecast-bars { display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); gap: var(--space-4); margin-top: var(--space-16); }
+.review-landing .review-forecast-bars { margin-top: var(--section-item-gap); }
 .review-forecast-bars > div { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-4); min-width: 0; color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; }
 .review-forecast-bars span { min-width: 0; overflow: hidden; white-space: nowrap; text-align: center; font-size: calc(var(--text-apparatus) - 1px); }
 .review-forecast-track { display: flex; align-items: flex-end; height: calc(2 * var(--space-48)); }
@@ -81,6 +88,7 @@
 .review-decks th { color: var(--faint); font: var(--apparatus); }
 .review-ledger-deck.button { padding: 0; justify-content: flex-start; font-family: var(--font-display); font-size: var(--text-quote); font-weight: var(--weight-body); }
 .review-ledger-deck.button.selected { background: transparent; color: var(--accent); }
+.review-decks table { margin-top: var(--section-item-gap); }
 /* Completion keeps real session evidence, elapsed time, forecast and an actionable missed list. */
 .review-done { display: flex; flex-direction: column; gap: var(--space-24); padding-top: var(--space-24); }
 .review-done > p { margin: 0; }

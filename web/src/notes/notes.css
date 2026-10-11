@@ -1,18 +1,19 @@
 /* Finding aids preserve the index's rubric letters while showing existing prose and apparatus. */
 .index-pane { flex: 1; min-height: 0; min-width: 0; overflow: auto; outline: none; container: finding-aid / inline-size; }
-.index-sheet { max-width: calc(var(--measure) + var(--apparatus-width) + 2 * var(--space-48)); margin-inline: auto; padding: var(--space-8) var(--space-32) var(--space-48); }
-.index-eyebrow { margin: var(--space-16) 0 0; color: var(--danger); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); text-transform: uppercase; }
-.index-head { display: flex; align-items: baseline; gap: var(--space-16); margin: var(--space-4) 0 var(--space-16); }
-.index-head h1 { display: flex; align-items: baseline; gap: var(--space-12); flex: 1; min-width: 0; margin: 0; font: var(--weight-title) var(--text-title)/var(--line-title) var(--font-display); letter-spacing: var(--tracking-title); font-variation-settings: var(--optical-title); }
+.index-sheet { max-width: calc(var(--measure) + 2 * var(--pane-inset)); margin-inline: auto; padding: var(--page-top-space) var(--pane-inset) var(--page-bottom-space); }
+.index-eyebrow { margin: 0; color: var(--danger); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); text-transform: uppercase; }
+.index-head { display: flex; align-items: baseline; gap: var(--space-16); margin: var(--page-eyebrow-gap) 0 var(--page-head-gap); }
+.index-head h1 { display: flex; align-items: baseline; gap: var(--space-12); flex: 1; min-width: 0; margin: 0; font: var(--page-title-font); letter-spacing: var(--tracking-title); font-variation-settings: var(--optical-title); }
 .index-head h1 > .icon { flex: none; align-self: center; color: var(--faint); }
 .index-tally { color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.index-sheet > .type-mode-tabs, .index-queue-tabs, .index-source-tabs { margin-bottom: var(--space-16); }
+.index-head:has(+ :is(.type-mode-tabs, .index-queue-tabs, .index-source-tabs)) { margin-bottom: var(--page-title-gap); }
+.index-sheet > .type-mode-tabs, .index-queue-tabs, .index-source-tabs { margin-bottom: var(--page-head-gap); }
 .index-letters { flex-wrap: wrap; gap: var(--space-4); margin: var(--space-12) 0 var(--space-16); }
 .index-letters > .button { min-width: var(--space-32); justify-content: center; }
 .index-jump-label { align-self: center; padding-inline: var(--space-8); color: var(--faint); font: var(--apparatus); }
 .index-columns { columns: 3; column-gap: var(--space-32); }
-.index-group { break-inside: avoid-column; margin-bottom: var(--space-24); scroll-margin-top: var(--space-16); }
-.index-group h2, .index-queue-group h2 { display: flex; align-items: center; gap: var(--space-8); margin: 0 0 var(--space-8); break-after: avoid; color: var(--danger); font: var(--apparatus); font-weight: var(--weight-body); }
+.index-group { break-inside: avoid-column; margin-bottom: var(--section-gap); scroll-margin-top: var(--page-top-space); }
+.index-group h2, .index-queue-group h2 { display: flex; align-items: center; gap: var(--section-item-gap); margin: 0 0 var(--section-item-gap); break-after: avoid; color: var(--danger); font: var(--apparatus); font-weight: var(--weight-body); }
 .index-group-count { color: var(--faint); font-variant-numeric: tabular-nums; }
 .index-entry { display: block; width: 100%; padding: var(--space-4) 0 var(--space-12); border: 0; border-radius: var(--radius-control); background: none; color: var(--text); text-align: left; overflow-wrap: anywhere; cursor: pointer; break-inside: avoid; }
 .index-entry-title { display: block; font: var(--weight-display-heading) var(--text-h2)/var(--line-h3) var(--font-display); }
@@ -26,15 +27,16 @@
 .index-see-target { display: inline; padding: 0; border: 0; background: none; color: var(--text); font: inherit; text-align: left; overflow-wrap: anywhere; cursor: pointer; }
 .index-see-target:hover { color: var(--accent); }
 /* Unfiled is a filing queue, not an alphabetic wall of bare titles. */
-.index-queue-layout { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr); gap: var(--space-24); align-items: start; }
-.index-queue-group { margin-bottom: var(--space-24); }
+.index-queue-layout { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr); gap: var(--section-gap); align-items: start; }
+.index-queue-group { margin-bottom: var(--section-gap); }
+.index-queue-group:last-child { margin-bottom: 0; }
 .index-queue-row { display: flex; align-items: center; gap: var(--space-8); padding: var(--space-8) 0 var(--space-8) var(--space-12); border-bottom: var(--rule-width) solid var(--line); border-left: calc(2 * var(--rule-width)) solid transparent; }
 .index-queue-row.selected { border-left-color: var(--accent); background: var(--selection); }
 .index-queue-note { flex: 1; min-width: 0; padding: 0; border: 0; background: none; color: var(--text); text-align: left; cursor: pointer; }
 .index-queue-actions { display: flex; align-items: center; flex: none; gap: var(--space-4); }
 .index-file.button { color: var(--accent); }
 .index-blank-preview { color: var(--faint); font: var(--apparatus); }
-.index-inspector { position: sticky; top: var(--space-16); min-width: 0; padding: var(--space-24); background: var(--surface); border: var(--rule-width) solid var(--line); border-radius: var(--radius-control); }
+.index-inspector { position: sticky; top: var(--page-top-space); min-width: 0; padding: var(--card-padding); background: var(--surface); border: var(--rule-width) solid var(--line); border-radius: var(--radius-control); }
 .index-inspector > .index-eyebrow { margin-top: 0; }
 .index-inspector h2, .index-action-header h2, .index-filing-head h2 { margin: var(--space-8) 0; font: var(--weight-display-heading) var(--text-h1)/var(--line-h1) var(--font-display); }
 .index-inspector-preview { margin: var(--space-16) 0; color: var(--muted); font: var(--weight-body) var(--text-gloss)/var(--line-gloss) var(--font-display); }
@@ -55,14 +57,12 @@
 .index-source-actions { display: flex; flex-wrap: wrap; gap: var(--space-8); margin-top: var(--space-16); }
 @container finding-aid (max-width: 839px) {
   .index-columns { columns: 2; }
-  .index-sheet { padding-inline: var(--space-24); }
   .index-queue-layout { gap: var(--space-16); grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); }
-  .index-inspector { padding: var(--space-16); }
   .index-queue-actions { flex-direction: column; }
 }
 @container finding-aid (max-width: 599px) {
   .index-columns { columns: 1; }
-  .index-sheet { padding-inline: var(--space-16); }
+  .index-sheet { padding-inline: var(--pane-inset); }
   .index-queue-layout { display: block; }
   .index-inspector { display: none; }
   .index-source-row { gap: var(--space-8); }
@@ -73,7 +73,8 @@
   .index-queue-actions .button, .index-inspector-actions .button { min-height: calc(var(--space-32) + var(--space-12)); }
 }
 @media (max-width: 599px) and (pointer: coarse) {
-  .index-sheet { padding-bottom: calc(2 * var(--space-48) + var(--bottom-inset)); }
+  /* Only the overlaid alphabetical dock needs extra clearance; the nav already has a grid row. */
+  .index-sheet:has(.index-letters) { padding-bottom: calc(var(--page-bottom-space) + var(--space-32) + var(--space-12) + var(--space-4) + var(--rule-width)); }
   .index-group { position: relative; margin-bottom: var(--space-12); padding-left: var(--space-24); }
   .index-group h2 { position: absolute; inset: var(--space-8) auto auto 0; margin: 0; }
   .index-group h2 .section-rule, .index-group-count { display: none; }
