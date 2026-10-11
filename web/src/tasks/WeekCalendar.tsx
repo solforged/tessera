@@ -135,6 +135,17 @@ export function WeekCalendar(props: WeekCalendarProps) {
     });
     onCleanup(() => { current = false; });
   });
+  // A pane too narrow for the whole week opens with the displayed day first after the hours, a three-day view in effect.
+  createEffect(() => {
+    const selected = dates().indexOf(props.date);
+    if (selected < 0) return;
+    requestAnimationFrame(() => {
+      if (!scroll || scroll.scrollWidth <= scroll.clientWidth) return;
+      const header = scroll.querySelectorAll<HTMLElement>('.week-calendar-day-header')[selected];
+      const corner = scroll.querySelector<HTMLElement>('.week-calendar-corner');
+      if (header && corner) scroll.scrollLeft = header.offsetLeft - corner.offsetWidth;
+    });
+  });
 
   function focusTask(id: string, kind: WeekEntry['kind']) {
     queueMicrotask(() => {
