@@ -18,14 +18,17 @@ import { TaskSourceRows } from './JournalAgenda';
 import { movableTo } from './reschedule';
 import { createBulkMove } from './BulkMove';
 import { Icon } from '../ui/Icon';
+import { createSettledChanges, sameData } from '../ui/loading';
 import './agenda.css';
 import '../library/library.css';
 
 export function JournalHeader(props: { date: string; journalPeriod?: Extract<OpenTarget, { kind: 'page' }>['journalPeriod']; notebook: NotebookClient; onOpen(target: OpenTarget, beside: boolean): void }) {
   const today = createMemo(() => props.date === props.notebook.todayDate());
-  const [desk, setDesk] = createSignal<{ agenda: Agenda; due: number }>();
+  // Refetches return equal data for most edits; equality keeps the tiles, ledger rows and book map from re-rendering.
+  const [desk, setDesk] = createSignal<{ agenda: Agenda; due: number } | undefined>(undefined, { equals: sameData });
   const [deskError, setDeskError] = createSignal('');
-  const [reading, setReading] = createSignal<{ row: LibraryRow; source: SourceView; highlights: { at: number; color: Citation['color'] }[] } | null>();
+  const [reading, setReading] = createSignal<{ row: LibraryRow; source: SourceView; highlights: { at: number; color: Citation['color'] }[] } | null | undefined>(undefined, { equals: sameData });
+  const readingChanges = createSettledChanges(props.notebook);
   const [readingError, setReadingError] = createSignal('');
   createEffect(() => {
     const date = props.date;
@@ -45,7 +48,7 @@ export function JournalHeader(props: { date: string; journalPeriod?: Extract<Ope
   });
   createEffect(() => {
     if (!today()) return;
-    props.notebook.changeSequence(); props.notebook.lastChange();
+    readingChanges();
     const controller = new AbortController();
     setReadingError('');
     void props.notebook.api.library({ states: ['reading'], format: 'epub', sort: 'last_read', direction: 'desc', limit: 1 }, controller.signal).then(async result => {

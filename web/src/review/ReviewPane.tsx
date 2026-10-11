@@ -9,6 +9,7 @@ import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
 import { Picker } from '../ui/Picker';
 import { Popup } from '../ui/Popup';
+import { createSlowFlag } from '../ui/loading';
 import { DeckEditor } from './DeckEditor';
 import { CardBack, ReviewCard } from './ReviewCard';
 import { copyCardQuery, formatInterval, gradeLabels, gradeOperation, openReviewSession, sameCardSnapshot, selectionLabels } from './query';
@@ -48,6 +49,7 @@ export function ReviewPane(props: ReviewPaneProps) {
   const [loadedCount, setLoadedCount] = createSignal(0);
   const [counts, setCounts] = createSignal<Partial<Record<CardSelection, number>>>({});
   const [ready, setReady] = createSignal(false);
+  const slowReady = createSlowFlag(() => !ready());
   const [shown, setShown] = createSignal<Presentation | null>(null);
   const [updated, setUpdated] = createSignal<Presentation | null>(null);
   const [stale, setStale] = createSignal('');
@@ -411,7 +413,7 @@ export function ReviewPane(props: ReviewPaneProps) {
     <Show when={commandError()}><div class="pane-error" role="alert">{commandError()}</div></Show>
     <Show when={readError()}><div class="pane-error" role="alert">{readError()} <Button disabled={locked()} onClick={() => setRetry(value => value + 1)}>Refresh</Button></div></Show>
     <div ref={scroll} class="review-scroll" onScroll={publish}>
-      <Show when={!ready() || pending()}><p class="review-pending" role="status">{pending() || 'Loading cards…'}</p></Show>
+      <Show when={pending() || slowReady()}><p class="review-pending" role="status">{pending() || 'Loading cards…'}</p></Show>
       <Show when={total() > loadedCount() && !done()}><p class="review-pending">Showing {loadedCount()} of {total()} matching cards. Narrow the deck’s source filters to review the rest.</p></Show>
       <Show when={!session() && ready() && stats()}>{value => <div class="review-landing">
         <div class="review-overview">

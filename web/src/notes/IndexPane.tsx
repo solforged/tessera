@@ -1,6 +1,6 @@
-import { createEffect, createMemo, createResource, createSignal, For, on, onCleanup, onMount, Show, Switch, Match } from 'solid-js';
+import { createEffect, createMemo, createResource, createSignal, For, onMount, Show, Switch, Match } from 'solid-js';
 import { ulid } from 'ulid';
-import type { NoteEntry, NoteKind, NoteSummary, Operation } from '../api/types';
+import type { KindIndex, NoteEntry, NoteIndex, NoteKind, NoteSummary, Operation } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import type { IndexViewState, OpenTarget } from '../shell/contract';
 import { plainText } from '../outline/BlockText';
@@ -12,6 +12,7 @@ import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
 import { Picker } from '../ui/Picker';
 import { Popup } from '../ui/Popup';
+import { createSettledChanges, createSlowFlag } from '../ui/loading';
 import { TypeModeTabs } from '../ui/TypeModeTabs';
 import { indexKindTarget, noteKindIcon, tagOnly } from './kinds';
 import { filingGroups, filingOperations, groupKindIndex } from './finding-aid';
@@ -33,6 +34,9 @@ const cover = () => window.matchMedia('(max-width: 599px) and (pointer: coarse)'
 const beside = (event: MouseEvent) => event.shiftKey || window.matchMedia('(pointer: coarse) and (min-width: 900px)').matches;
 const tally = (count: number, noun: string) => `${count} ${noun}${count === 1 ? '' : 's'}`;
 const apparatus = (summary: NoteSummary | undefined) => summary ? `${tally(summary.block_count, 'block')} · ${tally(summary.backlinks, 'backlink')}` : '';
+// The last read of each index shows at once when the pane opens again, while a fresh read replaces it.
+const directoryReads = new WeakMap<NotebookClient, NoteIndex>();
+const kindReads = new WeakMap<NotebookClient, Map<string, KindIndex>>();
 
 export function IndexPane(props: IndexPaneProps) {
   return <Switch>
@@ -43,12 +47,10 @@ export function IndexPane(props: IndexPaneProps) {
 
 /** A single register lists note kinds and tag-only types in the sidebar's order. */
 export function IndexDirectory(props: IndexPaneProps) {
-  const [version, setVersion] = createSignal(0);
-  const [index] = createResource(version, () => props.notebook.api.noteIndex());
-  createEffect(on(() => [props.notebook.changeSequence(), props.notebook.lastChange()], () => {
-    const timer = setTimeout(() => setVersion(value => value + 1), 300);
-    onCleanup(() => clearTimeout(timer));
-  }, { defer: true }));
+  const changes = createSettledChanges(props.notebook);
+  const cached = directoryReads.get(props.notebook);
+  const [index] = createResource(changes, () => props.notebook.api.noteIndex().then(result => { directoryReads.set(props.notebook, result); return result; }), cached ? { initialValue: cached } : {});
+  const slow = createSlowFlag(() => !index.latest && !index.error);
   let scroll!: HTMLDivElement;
   onMount(() => { scroll.scrollTop = props.view.scroll; });
   return <div ref={scroll} class="index-pane index-directory" role="region" tabIndex={0} aria-label="Index" onFocusIn={props.onActivate} onScroll={() => props.onViewChange({ scroll: scroll.scrollTop })}>
@@ -56,7 +58,7 @@ export function IndexDirectory(props: IndexPaneProps) {
       <p class="index-eyebrow">Index</p>
       <div class="index-head"><h1>Index</h1><Show when={index.latest}>{list => <span class="index-tally">{tally(list().kinds.length, 'kind')}</span>}</Show></div>
       <Show when={index.error}><p class="error" role="alert">Couldn’t load the index · {String(index.error)}</p></Show>
-      <Show when={index.latest} fallback={<Show when={!index.error}><p class="empty-state" role="status">Loading kinds…</p></Show>}>{list =>
+      <Show when={index.latest} fallback={<Show when={slow()}><p class="empty-state" role="status">Loading kinds…</p></Show>}>{list =>
         <Show when={list().kinds.length} fallback={<p class="empty-state">No kinds yet.</p>}>
           <div class="index-directory-list"><For each={list().kinds}>{kind =>
             <div class="index-directory-row">
@@ -74,6 +76,8 @@ export function IndexDirectory(props: IndexPaneProps) {
 
 /** Finding aids share one batched read; Unfiled is a queue, Sources a bibliography. */
 function KindIndexPane(props: IndexPaneProps) {
+  const changes = createSettledChanges(props.notebook);
+  // Filing and merging refresh at once rather than after the settle delay.
   const [version, setVersion] = createSignal(0);
   const [letter, setLetter] = createSignal('');
   const [filter, setFilter] = createSignal<'all' | 'text' | 'blank'>('all');
@@ -81,15 +85,14 @@ function KindIndexPane(props: IndexPaneProps) {
   const [popup, setPopup] = createSignal<NotePopup>();
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal('');
-  // The first read comes from the resources themselves; only later changes reload them.
-  createEffect(on(() => [props.notebook.changeSequence(), props.notebook.lastChange()], () => {
-    const timer = setTimeout(() => setVersion(value => value + 1), 300);
-    onCleanup(() => clearTimeout(timer));
-  }, { defer: true }));
   createEffect(() => { props.kindKey; setFilter('all'); setSelected(undefined); setLetter(''); setPopup(undefined); });
-  const [index] = createResource(() => [props.kindKey, version()] as const, ([key]) => props.notebook.api.kindNotes(key));
+  const reads = kindReads.get(props.notebook) ?? new Map<string, KindIndex>();
+  kindReads.set(props.notebook, reads);
+  const cached = reads.get(props.kindKey);
+  const [index] = createResource(() => [props.kindKey, changes(), version()] as const, ([key]) => props.notebook.api.kindNotes(key).then(result => { reads.set(key, result); return result; }), cached ? { initialValue: cached } : {});
+  const slow = createSlowFlag(() => !index.latest && !index.error);
   const typeId = () => props.kind?.type_id ?? (props.kindKey.startsWith('type:') ? props.kindKey.slice(5) : undefined);
-  const [type] = createResource(() => typeId() ? [typeId()!, version()] as const : false, ([id]) => props.notebook.api.type(id));
+  const [type] = createResource(() => typeId() ? [typeId()!, changes(), version()] as const : false, ([id]) => props.notebook.api.type(id));
   const title = createMemo(() => props.kind?.plural ?? type()?.page.text ?? (props.kindKey === 'unfiled' ? 'Unfiled' : props.kindKey === 'source' ? 'Sources' : 'Index'));
   const groups = createMemo(() => groupKindIndex(index.latest));
   const summary = (note: NoteEntry) => index.latest?.summaries[note.id];
@@ -126,7 +129,7 @@ function KindIndexPane(props: IndexPaneProps) {
         onIndex={() => { scroll.scrollTop = 0; }} onTable={event => props.onOpen({ kind: 'table', typeId: id(), viewId: null, query: typeQuery(id()) }, event.shiftKey)}
         onFields={event => props.onOpen({ kind: 'fields', typeId: id() }, event.shiftKey)} />}</Show>
       <Show when={index.error}><p class="error" role="alert">Couldn’t load this index · {String(index.error)}</p></Show>
-      <Show when={index.latest} fallback={<Show when={!index.error}><p class="empty-state" role="status">Loading notes…</p></Show>}>
+      <Show when={index.latest} fallback={<Show when={slow()}><p class="empty-state" role="status">Loading notes…</p></Show>}>
         <Switch>
           <Match when={props.kindKey === 'unfiled'}>
             <div class="index-queue-tabs mode-tabs tab-strip" role="group" aria-label="Filing queue">

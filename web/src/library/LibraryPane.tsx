@@ -14,6 +14,7 @@ import type { MenuItem } from '../ui/Menu';
 import { Popup } from '../ui/Popup';
 import { Picker } from '../ui/Picker';
 import { downloadBlob } from '../ui/download';
+import { createSlowFlag } from '../ui/loading';
 import { formatProgress, groupSources, highlightChapterHeading, highlightChapters, highlightEmptyMessage, highlightMeta, jobLabel, libraryQuery, nextUnprocessedHighlight, recentJobs, retryTime, selectSources, sourceByline, sourceStateOperation, visibleJobs } from './query';
 import { formatSourceValue } from '../outline/source';
 import { createHighlightActions, highlightColors, setLinkedCitation } from './highlights';
@@ -164,13 +165,7 @@ export function LibraryPane(props: LibraryPaneProps) {
   const groups = createMemo(() => group() === 'none' || tab() === 'highlights' ? undefined : groupSources(displayedSources(), group() as Exclude<LibraryGroup, 'none'>));
   // Shift-click ranges follow what is on screen, so a grouped list selects in group order.
   const orderedSources = createMemo(() => groups()?.flatMap(value => value.rows) ?? displayedSources());
-  const [slowLoad, setSlowLoad] = createSignal(false);
-  createEffect(() => {
-    setSlowLoad(false);
-    if (!loading() || hasResult()) return;
-    const timer = setTimeout(() => setSlowLoad(true), 300);
-    onCleanup(() => clearTimeout(timer));
-  });
+  const slowLoad = createSlowFlag(() => loading() && !hasResult());
   const [commandError, setCommandError] = createSignal('');
   const [saving, setSaving] = createSignal(false);
   const [refresh, setRefresh] = createSignal(0);
@@ -904,7 +899,7 @@ export function LibraryPane(props: LibraryPaneProps) {
             <Show when={job.state === 'failed'}><div class="library-job-actions"><Button disabled={retrying().includes(job.id)} onClick={() => { void retryJob(job); }}>Retry</Button><Button onClick={() => dismissJob(job.id)}>Dismiss</Button></div></Show>
             <Show when={job.error}><span class="library-job-error" role={job.state === 'failed' ? 'alert' : undefined}>{job.error}</span></Show>
           </div>; }}</For></div></Show>
-        <Show when={loading() && !hasResult() && slowLoad()}><p class="library-message" role="status">Loading…</p></Show>
+        <Show when={slowLoad()}><p class="library-message" role="status">Loading…</p></Show>
         <Show when={hasResult() && !error()}>
           <Show when={tab() !== 'highlights'} fallback={
             <Show when={highlights()?.rows.length} fallback={<div class="library-empty"><p>{highlightEmptyMessage(highlightCount(), unprocessedOnly())}</p><Show when={colors().length || tags().length}><Button onClick={() => update({ colors: [], tags: [], scroll: 0 })}>Clear filters</Button></Show></div>}>
