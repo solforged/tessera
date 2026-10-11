@@ -186,3 +186,33 @@ fn failed_and_queued_jobs_are_not_hidden_by_the_completed_job_limit() {
     assert_eq!(failed.state, IngestJobState::Failed);
     assert_eq!(failed.attempts, 1);
 }
+
+#[test]
+fn completed_jobs_leave_with_their_deleted_source() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut n = Notebook::open(dir.path()).unwrap();
+    let finished = |n: &mut Notebook, title: &str| {
+        let page = source(n, title, ReadingState::Inbox);
+        let url = format!("https://example.org/{title}");
+        let job = n
+            .queue_ingest(IngestInput::Url, &url, title, None)
+            .unwrap();
+        n.claim_ingest().unwrap().unwrap();
+        n.finish_ingest(&job.id, &page, "snapshot").unwrap();
+        (page, job.id)
+    };
+    let (_, kept) = finished(&mut n, "Kept");
+    let (deleted, gone) = finished(&mut n, "Deleted");
+    n.apply(&batch(vec![Operation::Delete {
+        id: deleted,
+        base_revision: 2,
+    }]))
+    .unwrap();
+    // The deleted source's job no longer takes one of the completed slots.
+    let jobs = n.ingest_jobs(1).unwrap();
+    assert_eq!(
+        jobs.iter().map(|job| job.id.as_str()).collect::<Vec<_>>(),
+        [kept.as_str()]
+    );
+    assert!(n.ingest_job(&gone).is_ok());
+}
