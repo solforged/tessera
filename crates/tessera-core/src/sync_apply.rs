@@ -207,10 +207,12 @@ impl Notebook {
 
         let mut aliases = Vec::new();
         self.merge_duplicate_sources(&mut operations, &mut aliases)?;
+        self.merge_duplicate_fields(&mut operations, &mut aliases)?;
 
         // A page title or journal day this notebook already has resolves to
         // the existing root; the change's children follow its children.
         let mut kept = Vec::with_capacity(operations.len());
+        let mut merged_pages = BTreeSet::new();
         for operation in operations {
             let existing = match field(&operation, "op") {
                 Some("create_page") => self
@@ -232,10 +234,26 @@ impl Notebook {
                 _ => None,
             };
             match (existing, field(&operation, "id")) {
-                (Some(target), Some(id)) if target != id => aliases.push((id.to_owned(), target)),
+                (Some(target), Some(id)) if target != id => {
+                    let typed: bool = self.conn.query_row(
+                        "SELECT EXISTS(SELECT 1 FROM type_fields WHERE type_id = ?1)",
+                        [&target],
+                        |row| row.get(0),
+                    )?;
+                    if typed {
+                        merged_pages.insert(id.to_owned());
+                    }
+                    aliases.push((id.to_owned(), target));
+                }
                 _ => kept.push(operation),
             }
         }
+        // A type the change created resolved to one that already has fields,
+        // such as Book on a first import on each device; those fields stay.
+        kept.retain(|operation| {
+            field(operation, "op") != Some("set_type_fields")
+                || !field(operation, "type_id").is_some_and(|id| merged_pages.contains(id))
+        });
         let mut operations = kept;
         for (alias, target) in &aliases {
             let last_child: Option<String> = self
@@ -499,6 +517,56 @@ impl Notebook {
                 return true;
             }
             !dropped.contains(id)
+        });
+        Ok(())
+    }
+
+    /// A field another device created with the name of a field this notebook
+    /// already has: the new field resolves to the existing one, which keeps
+    /// its kind, and the operations creating it are dropped.
+    fn merge_duplicate_fields(
+        &self,
+        operations: &mut Vec<Value>,
+        aliases: &mut Vec<(String, String)>,
+    ) -> Result<()> {
+        let Some(fields_page) = crate::fields::page_id(&self.conn)? else {
+            return Ok(());
+        };
+        // A new field is a block inserted on the Fields page and given a kind.
+        let kinded: BTreeSet<&str> = operations
+            .iter()
+            .filter(|operation| field(operation, "op") == Some("set_field_kind"))
+            .filter_map(|operation| field(operation, "id"))
+            .collect();
+        let new: Vec<(String, String)> = operations
+            .iter()
+            .filter(|operation| {
+                field(operation, "op") == Some("insert")
+                    && field(operation, "parent_id") == Some(fields_page.as_str())
+            })
+            .filter_map(|operation| Some((field(operation, "id")?, field(operation, "text")?)))
+            .filter(|(id, _)| kinded.contains(id))
+            .map(|(id, name)| (id.to_owned(), name.to_lowercase()))
+            .collect();
+        if new.is_empty() {
+            return Ok(());
+        }
+        let existing: BTreeMap<String, String> = crate::fields::definitions(&self.conn)?
+            .into_iter()
+            .map(|definition| (definition.name.to_lowercase(), definition.id))
+            .collect();
+        let mut dropped = BTreeSet::new();
+        for (id, name) in new {
+            if let Some(target) = existing.get(&name)
+                && *target != id
+            {
+                aliases.push((id.clone(), target.clone()));
+                dropped.insert(id);
+            }
+        }
+        operations.retain(|operation| {
+            !matches!(field(operation, "op"), Some("insert" | "set_field_kind"))
+                || !field(operation, "id").is_some_and(|id| dropped.contains(id))
         });
         Ok(())
     }

@@ -661,6 +661,72 @@ fn import(
     (snapshot, source, hashes)
 }
 
+/// Field definitions, as (id, name), and the Book type's fields in order.
+fn book_fields(notebook: &Notebook) -> (Vec<(String, String)>, Vec<String>) {
+    let conn = Connection::open(notebook.info().unwrap().path.join(DATABASE_FILE)).unwrap();
+    let definitions = conn
+        .prepare(
+            "SELECT d.id, d.text FROM blocks d JOIN fields f ON f.block_id = d.id
+             WHERE d.deletion_id IS NULL ORDER BY d.id",
+        )
+        .unwrap()
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+        .unwrap()
+        .collect::<rusqlite::Result<_>>()
+        .unwrap();
+    let book = conn
+        .prepare(
+            "SELECT t.field_id FROM type_fields t JOIN blocks b ON b.id = t.type_id
+             WHERE b.title_key = 'book' AND b.deletion_id IS NULL ORDER BY t.position",
+        )
+        .unwrap()
+        .query_map([], |row| row.get(0))
+        .unwrap()
+        .collect::<rusqlite::Result<_>>()
+        .unwrap();
+    (definitions, book)
+}
+
+#[test]
+fn a_first_book_imported_offline_on_both_devices_shares_one_set_of_fields() {
+    let mut p = pair();
+    import(&mut p.hub, &book("Desk Book", "urn:desk"), b"desk", &[]);
+    // The desk drops a field from Book before the phone syncs.
+    let (_, mut fields) = book_fields(&p.hub);
+    fields.retain(|id| p.hub.block(id).unwrap().text != "Translator");
+    let book_page = p.hub.page_by_title("Book").unwrap().unwrap();
+    apply(
+        &mut p.hub,
+        vec![Operation::SetTypeFields {
+            type_id: book_page.id.clone(),
+            base_revision: book_page.revision,
+            fields,
+        }],
+    );
+    let desk = book_fields(&p.hub);
+    let (_, phone_source, _) = import(
+        &mut p.replica,
+        &book("Phone Book", "urn:phone"),
+        b"phone",
+        &[],
+    );
+
+    p.sync();
+    p.assert_converged();
+    // No second Author, Published and so on, and Book keeps the desk's fields.
+    assert_eq!(book_fields(&p.hub), desk);
+    let conn = Connection::open(p.hub.info().unwrap().path.join(DATABASE_FILE)).unwrap();
+    let author: String = conn
+        .query_row(
+            "SELECT d.text FROM field_values v JOIN blocks d ON d.id = v.field_id
+             WHERE v.owner_id = ?1 AND d.deletion_id IS NULL",
+            [&phone_source],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(author, "Author");
+}
+
 /// Quote the second passage of `snapshot` in a new block under `source`.
 fn highlight(notebook: &mut Notebook, source: &str, snapshot: &str, block: u128, citation: u128) {
     let passage = notebook.passages(snapshot, 0, 10).unwrap().passages[1].clone();
