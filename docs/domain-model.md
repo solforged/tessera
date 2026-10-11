@@ -151,9 +151,21 @@ Revisits have no grade and no scheduler. They judge the note, not your memory of
 
 A note capability on the page holds the stored state, the revisit date and when that date was set. A page without one is working and has no revisit date.
 
-### Index
+### Index and views
 
-The index lists notes by kind, each kind with its count, and opens a finding aid of that kind's notes by title. It is derived from kinds and is never stored.
+The index lists notes by kind, each kind with its count, and opens a finding aid of that kind's notes. The finding aid is the unsaved note view for that kind, as a type table is for a type. It is derived from kinds and is never stored.
+
+A note view is a query over notes with a layout and a grouping. Besides the block query's type, text and field predicates, it can select by kind, by state, by revisit (due, set or none), by links to a note, by links from a note, and by a cited source (its siglum, citation key or title). The Find line writes these as `is:settled`, `revisit:due`, `links:Polybius`, `from:Postone` and `cites:MAR`, and other words match the title or gloss; each recognised term shows as a chip. Field predicates stay in the filter picker, as on tables.
+
+One query has two layouts. Index sets titles in columns under headings, with marks for settled and revisit dates. Table sets one note per row, its fields as columns, as type tables do. Index groups by first letter unless another grouping is chosen: source cited, note linked, state, created month, or a field's values. A note is listed under every heading that applies to it, as in a book index, and headings for sources, links and field values are ordered by how many notes they hold. Saving a note view stores its query, layout and grouping as a view, which the sidebar files under the kind it lists.
+
+### Spreads
+
+A spread sets several notes side by side. Selecting two or more notes in a view, up to five, offers Spread. Each note is a column, and rows align across columns: kind, title, gloss and state, then one row for each field any of the notes has, blank where a note lacks it, then the sources it cites, the notes it links to and its opening prose. A value that two or more columns share exactly is marked, and a link from one column to another is marked as such. Nothing is inferred from values that differ.
+
+A spread is a page with a spread capability. Its top-level blocks are references to the notes in column order, so the columns follow the notes as they change. Blocks written beneath a reference are commentary on that column; top-level blocks that are not references are notes on the whole spread. Adding, removing or reordering columns edits those blocks. Unsaved, a spread opened from a selection is navigation state; Save spread creates the page. The index lists spreads after the kinds.
+
+Compare perspectives remains the sheet for positions on one subject; a spread compares whole notes.
 
 ## Cards
 
@@ -189,3 +201,4 @@ Links, full-text search, type membership from text, card definitions and field r
 - Whether vocabulary cards need anything beyond ordinary cards, such as language, part of speech or inflection fields.
 - How newsletters arrive: a polled mail folder, a forwarding address or feeds only.
 - How a thesis page answers a question. An assessment must sit beneath its question, and a thesis page is a root.
+- Whether note views need facet counts beside the Find line, such as cited sources with their note counts, once a kind holds thousands of notes.
