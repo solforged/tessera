@@ -8,9 +8,12 @@ const page = (id: string, text: string): Block => ({ id, text, kind: 'page', par
 const match: NameMatch = { page: page('target', 'Cicero'), alias: 'Tully' };
 
 describe('page names', () => {
-  test('folds diacritics, case and incidental whitespace without transliterating scripts', () => {
+  test('folds diacritics, case, apostrophes, punctuation and whitespace without transliterating scripts', () => {
     expect(foldName('  CÍCERO\t Marcus  ')).toBe('cicero marcus');
     expect(foldName('  张三  ')).toBe('张三');
+    expect(foldName('J.M. Keynes')).toBe('j m keynes');
+    expect(foldName('Merleau-Ponty')).toBe('merleau ponty');
+    expect(foldName('Flann O’Brien')).toBe(foldName("flann obrien"));
   });
 
   test('shares folded resolutions until the notebook change sequence advances', async () => {
