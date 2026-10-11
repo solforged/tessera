@@ -3,7 +3,7 @@ import type { JSX } from 'solid-js';
 import { Icon } from './Icon';
 import type { IconName } from './Icon';
 import { Popup } from './Popup';
-import type { PopupAnchor } from './Popup';
+import type { PopupAnchor, PopupPlacement } from './Popup';
 
 export interface MenuItem {
   label: string;
@@ -19,9 +19,9 @@ export interface MenuItem {
   checked?: boolean;
   action(): void;
 }
-export function Menu(props: { anchor: PopupAnchor; label: string; items: MenuItem[]; header?: JSX.Element; onDismiss(): void }) {
+export function Menu(props: { anchor: PopupAnchor; label: string; items: MenuItem[]; header?: JSX.Element; placement?: PopupPlacement; class?: string; onDismiss(): void }) {
   const iconed = () => props.items.some(item => item.icon);
-  return <Popup anchor={props.anchor} onDismiss={props.onDismiss} role="menu" label={props.label} class="menu">
+  return <Popup anchor={props.anchor} onDismiss={props.onDismiss} role="menu" label={props.label} placement={props.placement} class={`menu ${props.class ?? ''}`}>
     <div onKeyDown={event => {
       if (event.isComposing) return;
       const mnemonic = !event.metaKey && !event.ctrlKey && !event.altKey ? props.items.find(item => item.key === event.key && !item.disabledReason) : undefined;
