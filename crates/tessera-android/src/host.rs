@@ -48,6 +48,8 @@ async fn host(app: &AppHandle) -> Result<&'static Host, String> {
         .await
         .map_err(|error| error.to_string())??;
         let (router, handles) = tessera_service::embedded_router(notebook)?;
+        // A paired phone syncs at start, after its own edits and every few minutes; unpaired, it waits for a join.
+        tessera_service::start_sync_runner(&handles);
         Ok(Host {
             router,
             handles,

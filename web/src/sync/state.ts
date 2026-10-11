@@ -30,6 +30,13 @@ export const sync = createRoot(() => {
 
 export const replica = () => sync.state()?.replica ?? null;
 
+/** A sync failure in plain words; the service's message stays in the tooltip for diagnosis. */
+export function problem(error: { code: string; message: string }): string {
+  if (error.code === 'hub_unreachable') return 'Can’t reach the Mac. Tessera tries again shortly.';
+  if (error.code === 'schema_mismatch') return 'The Mac runs a different version of Tessera. Update both to sync.';
+  return error.message;
+}
+
 /** `4 minutes ago`, `just now`, `3 days ago`. */
 export function ago(at: number, now = Date.now()): string {
   const seconds = Math.round((at - now) / 1000);
