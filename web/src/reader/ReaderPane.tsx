@@ -26,7 +26,7 @@ import type { PassageSelection } from './passages';
 import { extendSelection, followOn, leadIn, sentenceAt, shrinkSelection } from './sentences';
 import type { SelectionUnit, SentenceSelection } from './sentences';
 import { ReaderSettingsPopup, readerSettings, readerStyle } from './ReaderSettings';
-import { pageChunk } from './paged';
+import { chapterAt, pageChunk, timeLeft } from './paged';
 import type { PageChunk } from './paged';
 import { mergeMembers, overlappingHighlights } from './highlight-merge';
 import './reader.css';
@@ -55,6 +55,10 @@ type ReaderPopup = { kind: 'contents' | 'find' | 'highlights' | 'settings' | 'ac
 type SelectionToolbar = PassageSelection & { rect: DOMRect; snapshotId: string };
 /** Touch screens write a new highlight's note beside the passage, not in the source page. */
 const coarsePointer = window.matchMedia('(pointer: coarse)');
+/** The cover screen always reads in the reading layout; its chrome toggles with a centre tap, as in full screen. */
+const coverScreen = window.matchMedia('(max-width: 599px) and (pointer: coarse)');
+/** In full screen the reading chrome fades after this long without the mouse moving. */
+const CHROME_IDLE = 2500;
 const prose: Partial<Record<Passage['kind'], true>> = { paragraph: true, quote: true, list_item: true };
 
 export function ReaderPane(props: ReaderPaneProps) {
@@ -103,7 +107,7 @@ export function ReaderPane(props: ReaderPaneProps) {
   const ordinals = new Map<string, number>();
   const pending = new Map<number, Promise<void>>();
   const locating = new Map<string, Promise<number | null>>();
-  let scroll!: HTMLDivElement, probe!: HTMLDivElement, frame: HTMLDivElement | undefined, margin: HTMLElement | undefined;
+  let scroll!: HTMLDivElement, probe!: HTMLDivElement, header!: HTMLDivElement, frame: HTMLDivElement | undefined, margin: HTMLElement | undefined;
   let pointerStart: { x: number; y: number; touch: boolean } | null = null, wheelTotal = 0, lastWheel = 0, lastTurn = 0, countFrame = 0;
   // The character that relayouts keep on screen: set by turning, jumping and the cursor, never by a relayout itself.
   // A passage alone is not enough: a long one spans pages, and returning to its start would walk back a page each time.
@@ -155,6 +159,56 @@ export function ReaderPane(props: ReaderPaneProps) {
   };
   /** The reading position. */
   const position = createMemo(() => { version(); return share(firstVisible()); });
+  /** The chapter being read: the outermost contents level with two or more entries, as paged reading uses. */
+  const chapter = createMemo(() => chapterAt(sections(), total(), firstVisible()));
+  /** Characters left in the chapter and in the text, from the start of the passage being read; null until known. */
+  const chapterLeft = createMemo(() => {
+    version();
+    const here = passages.get(firstVisible())?.start, end = chapter().end;
+    const until = end >= total() ? currentSnapshot()?.text_length : passages.get(end)?.start;
+    return here === undefined || until === undefined ? null : until - here;
+  });
+  const bookLeft = createMemo(() => {
+    version();
+    const here = passages.get(firstVisible())?.start, length = currentSnapshot()?.text_length;
+    return here === undefined || !length ? null : length - here;
+  });
+  // The next chapter's first passage says where this one ends.
+  createEffect(() => { const end = chapter().end; if (end < total() && !passages.has(end)) void loadPage(end); });
+  /**
+   * Full screen and the cover screen read with the chrome out of the way: the masthead, toolbar and reading rule fade
+   * after the mouse rests (full screen with a mouse) or on a centre tap (touch), and return on movement, focus, a
+   * popup or another tap. They keep their room, so the text never reflows.
+   */
+  const [coverReading, setCoverReading] = createSignal(coverScreen.matches);
+  const chromeHides = () => props.immersive || coverReading();
+  const [chromeHidden, setChromeHidden] = createSignal(false);
+  let chromeTimer = 0, keyboardFocus = false;
+  function showChrome(idle: boolean) {
+    clearTimeout(chromeTimer);
+    setChromeHidden(false);
+    if (idle && props.immersive) chromeTimer = window.setTimeout(hideChrome, CHROME_IDLE);
+  }
+  /** Focus a click left on the toolbar goes with it; focus that arrived by keyboard keeps the toolbar up. */
+  function hideChrome() {
+    if (popup() || selection()) return;
+    const focused = document.activeElement;
+    if (focused instanceof HTMLElement && header.contains(focused)) {
+      if (keyboardFocus) return;
+      focused.blur();
+    }
+    setChromeHidden(true);
+  }
+  createEffect(() => { if (!chromeHides() || popup()) showChrome(false); });
+  createEffect(() => { if (props.immersive && !coarsePointer.matches) showChrome(true); });
+  // WebKit sends pointermove when the page turns under a resting mouse; only a real move shows the chrome.
+  let lastPointer = '';
+  function pointerMoved(event: PointerEvent) {
+    const at = `${event.screenX},${event.screenY}`;
+    if (event.pointerType !== 'mouse' || !props.immersive || at === lastPointer) return;
+    lastPointer = at;
+    showChrome(true);
+  }
   // The source page is the record: renaming the book or editing its creators shows here at once. The snapshot keeps
   // what the file said at import, and stands in only until the page has loaded.
   const [fieldDefinitions] = createResource(() => props.notebook.api.fields());
@@ -409,17 +463,24 @@ export function ReaderPane(props: ReaderPaneProps) {
     positionTimer = window.setTimeout(() => { void savePosition(); }, 2000);
   }
 
-  /** Swipe sideways to turn; on a touch screen a tap in the outer sixth of the page turns too. */
-  function pagePointerUp(event: PointerEvent) {
+  /**
+   * Touch: in pages a sideways swipe or a tap in the outer sixth of the page turns it. Where the chrome can step aside
+   * (full screen, the cover screen), any other tap on the text shows or hides it.
+   */
+  function readerPointerUp(event: PointerEvent) {
     const start = pointerStart;
     pointerStart = null;
-    if (!start?.touch || !frame || window.getSelection()?.isCollapsed === false) return;
+    if (!start?.touch || window.getSelection()?.isCollapsed === false) return;
+    const sheet = paged() && frame?.isConnected ? frame : undefined;
     const dx = event.clientX - start.x, dy = event.clientY - start.y;
-    if (Math.abs(dx) > 48 && Math.abs(dx) > 1.5 * Math.abs(dy)) { void turn(dx < 0 ? 1 : -1); return; }
+    if (sheet && Math.abs(dx) > 48 && Math.abs(dx) > 1.5 * Math.abs(dy)) { void turn(dx < 0 ? 1 : -1); return; }
     if (Math.abs(dx) > 8 || Math.abs(dy) > 8 || event.target instanceof Element && event.target.closest('button, a, .reader-highlight')) return;
-    const rect = frame.getBoundingClientRect(), x = event.clientX - rect.left;
-    if (x < rect.width / 6) void turn(-1);
-    else if (x > rect.width * 5 / 6) void turn(1);
+    if (sheet) {
+      const rect = sheet.getBoundingClientRect(), x = event.clientX - rect.left;
+      if (x < rect.width / 6) { void turn(-1); return; }
+      if (x > rect.width * 5 / 6) { void turn(1); return; }
+    }
+    if (chromeHides()) { clearTimeout(chromeTimer); setChromeHidden(value => !value); }
   }
 
   function pageWheel(event: WheelEvent) {
@@ -899,7 +960,10 @@ export function ReaderPane(props: ReaderPaneProps) {
     const marginFitter = new ResizeObserver(fitMargin);
     marginFitter.observe(scroll); marginFitter.observe(probe);
     onCleanup(() => marginFitter.disconnect());
-    onCleanup(() => { resizer.disconnect(); cancelAnimationFrame(resizeFrame); cancelAnimationFrame(countFrame); });
+    onCleanup(() => { resizer.disconnect(); cancelAnimationFrame(resizeFrame); cancelAnimationFrame(countFrame); clearTimeout(chromeTimer); });
+    const coverChanged = () => setCoverReading(coverScreen.matches);
+    coverScreen.addEventListener('change', coverChanged);
+    onCleanup(() => coverScreen.removeEventListener('change', coverChanged));
     const initialView = { ...props.view }, target = { ...props.target };
     void (async () => {
       const value = await api.source(target.sourceId, requests.signal);
@@ -1013,8 +1077,9 @@ export function ReaderPane(props: ReaderPaneProps) {
     </div></Portal>;
   }
 
-  return <div class="reader-pane" style={readerStyle()} onPointerDown={props.onActivate} onFocusIn={props.onActivate}>
-    <div class="reader-header">
+  return <div class="reader-pane" classList={{ 'reader-chrome-hidden': chromeHides() && chromeHidden() }} style={readerStyle()} onPointerDown={props.onActivate}
+    onFocusIn={props.onActivate} onPointerMove={pointerMoved}>
+    <div ref={header} class="reader-header" onFocusIn={event => { keyboardFocus = (event.target as Element).matches(':focus-visible'); showChrome(true); }}>
       <Button class="reader-contents" icon="contents" label="Contents" aria-haspopup="dialog" disabled={!contents().length} onClick={event => { setQuery(''); setPopup({ kind: 'contents', anchor: event.currentTarget }); }}><span>{currentSection()?.title ?? 'Contents'}</span><Icon name="down" /></Button>
       <Button icon="highlight" label="Highlights" aria-haspopup="dialog" disabled={!snapshot()} onClick={event => { setQuery(''); setPopup({ kind: 'highlights', anchor: event.currentTarget }); }}><Show when={sourceHighlights().length}><span>{sourceHighlights().length}</span></Show></Button>
       <Button icon="search" label="Find in source" aria-haspopup="dialog" disabled={!snapshot()} onClick={event => { setQuery(''); setPopup({ kind: 'find', anchor: event.currentTarget }); }} />
@@ -1036,15 +1101,20 @@ export function ReaderPane(props: ReaderPaneProps) {
         </nav>
       </Show>
       <div ref={scroll} class="reader-scroll" classList={{ 'reader-paged': paged() }} tabIndex={0} aria-label="Source passages" onScroll={scrolled}
-        onWheel={() => { userScroll = true; }} onTouchMove={() => { userScroll = true; }} onPointerDown={() => { userScroll = true; }}
+        onWheel={() => { userScroll = true; }} onTouchMove={() => { userScroll = true; }}
+        onPointerDown={event => { userScroll = true; pointerStart = { x: event.clientX, y: event.clientY, touch: event.pointerType !== 'mouse' }; }}
+        onPointerUp={readerPointerUp} onPointerCancel={() => { pointerStart = null; }}
         onKeyDown={event => { if (['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp', 'Home', 'End', ' '].includes(event.key)) userScroll = true; }}>
         <Show when={paged()} fallback={<div class="reader-list" style={{ height: `${virtualizer.getTotalSize()}px` }}>
           <Show when={title()}><TitleBlock /></Show>
           <For each={[...items().keys()]}>{ordinal => <PassageRow ordinal={ordinal} item={() => items().get(ordinal)!} />}</For>
         </div>}>
-          <div ref={frame} class="reader-page-frame" style={{ width: `${pageFrame().width}px` }} onWheel={pageWheel}
-            onPointerDown={event => { pointerStart = { x: event.clientX, y: event.clientY, touch: event.pointerType !== 'mouse' }; }}
-            onPointerUp={pagePointerUp} onPointerCancel={() => { pointerStart = null; }}>
+          {/* A running head over each column, as in a printed book: the title over the left page, the chapter over the right. */}
+          <div class="reader-running-head" aria-hidden="true" style={{ width: pageFrame().width ? `${pageFrame().width}px` : '100%', 'grid-template-columns': `repeat(${pageFrame().columns}, minmax(0, 1fr))`, 'column-gap': `${PAGE_GAP}px` }}>
+            <Show when={pageFrame().columns === 2}><span>{title()}</span></Show>
+            <span>{sections().find(entry => entry.ordinal === chapter().first)?.title ?? title()}</span>
+          </div>
+          <div ref={frame} class="reader-page-frame" style={{ width: `${pageFrame().width}px` }} onWheel={pageWheel}>
             <div class="reader-flow" style={{ 'column-count': pageFrame().columns, 'column-gap': `${PAGE_GAP}px` }}>
               <Show when={chunk()?.first === 0 && title()}><div class="reader-title-block reader-page-title">
                 <h1>{title()}</h1>
@@ -1053,14 +1123,24 @@ export function ReaderPane(props: ReaderPaneProps) {
               <For each={chunkOrdinals()}>{ordinal => <PassageContent ordinal={ordinal} onImageLoad={scheduleCount} />}</For>
             </div>
           </div>
-          <div class="reader-page-bar">
-            <Button icon="left" label="Previous page" disabled={pageIndex() === 0 && !chunk()?.first} onClick={() => { void turn(-1); }} />
-            <span>{pageIndex() + 1} / {pageCount()}</span>
-            <Button icon="right" label="Next page" disabled={pageIndex() >= pageCount() - 1 && (chunk()?.last ?? 0) >= total() - 1} onClick={() => { void turn(1); }} />
+          <div class="reader-page-bar" style={{ width: pageFrame().width ? `${pageFrame().width}px` : '100%' }}>
+            <span class="reader-time"><Show when={chapterLeft() !== null}>{timeLeft(chapterLeft()!)} left in chapter</Show></span>
+            <span class="reader-page-turn">
+              <Button icon="left" label="Previous page" disabled={pageIndex() === 0 && !chunk()?.first} onClick={() => { void turn(-1); }} />
+              <span>{pageIndex() + 1} / {pageCount()}</span>
+              <Button icon="right" label="Next page" disabled={pageIndex() >= pageCount() - 1 && (chunk()?.last ?? 0) >= total() - 1} onClick={() => { void turn(1); }} />
+            </span>
+            <span class="reader-time reader-time-book"><Show when={bookLeft() !== null}>{timeLeft(bookLeft()!)} left in book</Show></span>
           </div>
         </Show>
       </div>
     </div>
+    <Show when={!paged() && !loading()}>
+      <div class="reader-page-bar reader-scroll-bar">
+        <span class="reader-time"><Show when={chapterLeft() !== null}>{timeLeft(chapterLeft()!)} left in chapter</Show></span>
+        <span class="reader-time reader-time-book"><Show when={bookLeft() !== null}>{timeLeft(bookLeft()!)} left in book</Show></span>
+      </div>
+    </Show>
     <Show when={popup()}>{state => <>
       <Show when={state().kind === 'settings'}><ReaderSettingsPopup anchor={state().anchor} onDismiss={() => setPopup(null)} /></Show>
       <Show when={state().kind === 'actions'}><Menu anchor={state().anchor} label="Reader actions" items={readerActions()} onDismiss={() => setPopup(null)} /></Show>

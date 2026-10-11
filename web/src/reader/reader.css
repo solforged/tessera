@@ -19,13 +19,24 @@
 .reader-measure-probe > div { width: var(--reader-measure); }
 .reader-scroll.reader-paged { display: flex; flex-direction: column; align-items: center; overflow: hidden; padding: 0 var(--space-24); }
 .reader-page-frame { flex: 1; min-height: 0; max-width: 100%; overflow: hidden; touch-action: pan-y pinch-zoom; }
-.reader-flow { height: 100%; column-fill: auto; font-size: var(--reader-size); orphans: 2; widows: 2; }
+.reader-flow { height: 100%; column-fill: auto; column-rule: 1px solid var(--line); font-size: var(--reader-size); orphans: 2; widows: 2; }
 .reader-flow > .reader-passage { margin-bottom: var(--space-16); }
 .reader-flow > :is(h1, h2, h3) { break-after: avoid; }
 .reader-flow > :is(.reader-image, .reader-code) { break-inside: avoid; }
 .reader-flow .reader-image img { max-height: 50vh; }
 .reader-flow > .reader-page-title { position: static; padding-top: 0; }
-.reader-page-bar { display: flex; flex-shrink: 0; align-items: center; gap: var(--space-8); padding-block: var(--space-4); color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+/* Pages read as a printed spread: a running head over each column (the title left, the chapter right), a hairline spine between two columns, and a foot with the time left in the chapter, the page and the time left in the book. */
+.reader-running-head { display: grid; flex-shrink: 0; max-width: 100%; padding-bottom: var(--space-12); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); text-align: center; text-transform: uppercase; }
+.reader-running-head > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reader-page-bar { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); flex-shrink: 0; align-items: center; gap: var(--space-8); max-width: 100%; min-height: var(--row-height); padding-block: var(--space-4); color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.reader-page-turn { display: flex; align-items: center; gap: var(--space-8); }
+.reader-time { overflow: hidden; color: var(--faint); text-overflow: ellipsis; white-space: nowrap; }
+.reader-time-book { grid-column: 3; text-align: right; }
+.reader-scroll-bar { width: calc(100% - 2 * var(--space-24)); max-width: var(--reader-measure); margin-inline: auto; }
+@media (max-width: 599px) { .reader-time-book { display: none; } }
+/* Full screen and the cover screen: the masthead, toolbar and reading rule fade out of the way and keep their room, so the text never moves. */
+.reader-pane > :is(.reader-masthead, .reader-header, .reader-progress-rule) { transition: opacity var(--motion-ui) var(--motion-ease); }
+.reader-chrome-hidden > :is(.reader-masthead, .reader-header, .reader-progress-rule) { opacity: 0; pointer-events: none; }
 .reader-passage { margin: 0; color: var(--text); font-family: var(--reader-font); font-size: var(--reader-size); line-height: var(--reader-line); font-weight: var(--weight-body); font-variation-settings: var(--optical-reader); white-space: pre-wrap; overflow-wrap: anywhere; }
 /* An opaque selection keeps inline highlight tints from changing its paint. */
 .reader-passage::selection, .reader-passage *::selection { background: var(--selection); color: var(--text); }
