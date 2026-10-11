@@ -300,9 +300,10 @@ fn about_metadata(
 ) -> AboutMetadata<'static> {
     AboutMetadata {
         name: Some("Tessera".into()),
-        short_version: Some(version.into()),
+        // muda shows `version` first and `short_version` in parentheses.
+        version: Some(version.into()),
         // An explicit empty build suppresses Cocoa's bundle-version fallback.
-        version: Some(build.map(str::trim).unwrap_or("").into()),
+        short_version: Some(build.map(str::trim).unwrap_or("").into()),
         copyright,
         ..AboutMetadata::default()
     }
@@ -639,16 +640,16 @@ mod tests {
     #[test]
     fn about_separates_release_and_build() {
         let about = about_metadata("0.2.0", Some("0c05fa7"), None);
-        assert_eq!(about.short_version.as_deref(), Some("0.2.0"));
-        assert_eq!(about.version.as_deref(), Some("0c05fa7"));
+        assert_eq!(about.version.as_deref(), Some("0.2.0"));
+        assert_eq!(about.short_version.as_deref(), Some("0c05fa7"));
     }
 
     #[test]
     fn about_omits_missing_build_without_bundle_fallback() {
         for build in [None, Some(""), Some("  ")] {
             let about = about_metadata("0.2.0", build, None);
-            assert_eq!(about.short_version.as_deref(), Some("0.2.0"));
-            assert_eq!(about.version.as_deref(), Some(""));
+            assert_eq!(about.version.as_deref(), Some("0.2.0"));
+            assert_eq!(about.short_version.as_deref(), Some(""));
         }
     }
 }
