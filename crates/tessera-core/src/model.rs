@@ -215,6 +215,11 @@ pub enum Operation {
         base_revision: i64,
         fields: Vec<String>,
     },
+    SetSubjectCriteria {
+        subject_id: String,
+        base_revision: i64,
+        fields: Vec<String>,
+    },
     SaveView {
         id: String,
         base_revision: Option<i64>,

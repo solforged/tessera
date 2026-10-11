@@ -48,7 +48,7 @@ import type {
   NotebookInfo,
   PageView,
   ProjectRecord,
-  PositionRow,
+  PositionQueryResult,
   QuestionQuery,
   QuestionRow,
   ReviewEvent,
@@ -196,7 +196,7 @@ export interface ApiClient {
   workSessions(id: string, signal?: AbortSignal): Promise<WorkSession[]>;
   activeWorkSession(signal?: AbortSignal): Promise<WorkSession | null>;
   projects(signal?: AbortSignal): Promise<ProjectRecord[]>;
-  positions(query: { holder?: string; subject?: string; limit?: number }, signal?: AbortSignal): Promise<PositionRow[]>;
+  positions(query: { holder?: string; subject?: string; limit?: number }, signal?: AbortSignal): Promise<PositionQueryResult>;
   questions(query: QuestionQuery, signal?: AbortSignal): Promise<QuestionRow[]>;
   taskQuery(value: TaskQuery, signal?: AbortSignal): Promise<TaskQueryResult>;
   agenda(date: string, signal?: AbortSignal): Promise<Agenda>;
@@ -306,7 +306,7 @@ export function createApi(base = ''): ApiClient {
       if (query.holder !== undefined) params.set('holder', query.holder);
       if (query.subject !== undefined) params.set('subject', query.subject);
       if (query.limit !== undefined) params.set('limit', String(query.limit));
-      return get<PositionRow[]>(`/positions?${params}`, signal);
+      return get<PositionQueryResult>(`/positions?${params}`, signal);
     },
     questions: (query: QuestionQuery, signal?: AbortSignal) => {
       const params = new URLSearchParams();

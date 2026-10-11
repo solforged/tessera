@@ -1,11 +1,12 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
-use rusqlite::{Connection, OptionalExtension, params};
+use rusqlite::{Connection, OptionalExtension};
 
 use crate::reads::hidden_blocks;
 use crate::storage::{block_at, block_columns, validate_id, validation};
 use crate::{
-    BlockCapabilities, BlockInPage, Notebook, PositionInfo, PositionQuery, PositionRow, Result,
+    BlockCapabilities, BlockInPage, FieldOption, Notebook, PositionField, PositionInfo,
+    PositionQuery, PositionQueryResult, PositionQuestion, PositionRow, Result, SubjectCriteria,
 };
 
 pub(crate) fn validate_source(conn: &Connection, id: &str) -> Result<()> {
@@ -109,7 +110,7 @@ pub(crate) fn hydrate(
 }
 
 impl Notebook {
-    pub fn positions(&self, query: &PositionQuery) -> Result<Vec<PositionRow>> {
+    pub fn positions(&self, query: &PositionQuery) -> Result<PositionQueryResult> {
         if query.holder.is_none() && query.subject.is_none() {
             return Err(validation("A holder or subject is required"));
         }
@@ -118,16 +119,18 @@ impl Notebook {
         }
         let mut positions = derive(&self.conn, None)?;
         positions.retain(|_, info| {
-            query
-                .holder
-                .as_ref()
-                .is_none_or(|holder| info.holder_id.as_ref() == Some(holder))
+            (query.subject.is_some()
+                || query
+                    .holder
+                    .as_ref()
+                    .is_none_or(|holder| info.holder_id.as_ref() == Some(holder)))
                 && query
                     .subject
                     .as_ref()
                     .is_none_or(|subject| &info.subject_id == subject)
         });
-        let ids: Vec<_> = positions.keys().collect();
+        let ids =
+            serde_json::to_string(&positions.keys().collect::<Vec<_>>()).expect("IDs serialize");
         let mut statement = self.conn.prepare_cached(concat!(
             hidden_blocks!(),
             ", siblings AS (
@@ -145,20 +148,14 @@ impl Notebook {
             WHERE b.id IN (SELECT value FROM json_each(?1))
                 AND b.deletion_id IS NULL AND p.deletion_id IS NULL
                 AND b.rowid NOT IN (SELECT rowid FROM hidden)
-            ORDER BY p.id, o.path LIMIT ?2"
+            ORDER BY p.id, o.path"
         ))?;
-        let rows = statement.query_map(
-            params![
-                serde_json::to_string(&ids).expect("block IDs serialize"),
-                query.limit.map(i64::from).unwrap_or(-1)
-            ],
-            |row| {
-                Ok(BlockInPage {
-                    block: block_at(row, 0)?,
-                    page: block_at(row, 10)?,
-                })
-            },
-        )?;
+        let rows = statement.query_map([&ids], |row| {
+            Ok(BlockInPage {
+                block: block_at(row, 0)?,
+                page: block_at(row, 10)?,
+            })
+        })?;
         let mut result = Vec::new();
         for row in rows {
             let block = row?;
@@ -169,8 +166,174 @@ impl Notebook {
                 block,
                 holder_id: info.holder_id,
                 subject_id: info.subject_id,
+                fields: Vec::new(),
             });
         }
-        Ok(result)
+        let definitions: HashMap<_, _> = crate::fields::definitions(&self.conn)?
+            .into_iter()
+            .map(|field| (field.id, field.name))
+            .collect();
+        let mut entries: HashMap<String, Vec<PositionField>> = HashMap::new();
+        let mut statement = self.conn.prepare_cached(
+            "SELECT e.parent_id, e.id, e.text, v.id, v.text
+             FROM blocks e LEFT JOIN blocks v ON v.parent_id = e.id
+               AND v.deletion_id IS NULL AND v.archived = 0
+             WHERE e.parent_id IN (SELECT value FROM json_each(?1))
+               AND e.deletion_id IS NULL AND e.archived = 0
+             ORDER BY e.parent_id, e.ordinal, e.id, v.ordinal, v.id",
+        )?;
+        let mut cursor = statement.query([&ids])?;
+        while let Some(row) = cursor.next()? {
+            let text: String = row.get(2)?;
+            let Some(field) =
+                crate::fields::reference(&text).filter(|id| definitions.contains_key(*id))
+            else {
+                continue;
+            };
+            let owner: String = row.get(0)?;
+            let entry_id: String = row.get(1)?;
+            let fields = entries.entry(owner).or_default();
+            if fields.last().is_none_or(|entry| entry.entry_id != entry_id) {
+                fields.push(PositionField {
+                    field_id: field.into(),
+                    entry_id,
+                    values: Vec::new(),
+                });
+            }
+            if let Some(id) = row.get::<_, Option<String>>(3)? {
+                fields
+                    .last_mut()
+                    .expect("entry inserted")
+                    .values
+                    .push(FieldOption {
+                        id,
+                        text: row.get(4)?,
+                    });
+            }
+        }
+        let mut criteria = SubjectCriteria::default();
+        if let Some(subject) = &query.subject {
+            criteria.fields = self
+                .conn
+                .prepare_cached(
+                    "SELECT field_id FROM subject_criteria WHERE subject_id = ?1 ORDER BY position",
+                )?
+                .query_map([subject], |row| row.get(0))?
+                .collect::<rusqlite::Result<_>>()?;
+            criteria.explicit = !criteria.fields.is_empty();
+        }
+        let mut seen = HashSet::new();
+        for row in &mut result {
+            row.fields = entries.remove(&row.block.block.id).unwrap_or_default();
+            if !criteria.explicit {
+                for field in &row.fields {
+                    let name = definitions[&field.field_id].trim();
+                    if !name.eq_ignore_ascii_case("gist")
+                        && !name.eq_ignore_ascii_case("work")
+                        && seen.insert(field.field_id.clone())
+                    {
+                        criteria.fields.push(field.field_id.clone());
+                    }
+                }
+            }
+        }
+        let questions = if let Some(subject) = &query.subject {
+            self.position_questions(subject, &criteria.fields, &result)?
+        } else {
+            Vec::new()
+        };
+        result.retain(|row| {
+            query
+                .holder
+                .as_ref()
+                .is_none_or(|holder| row.holder_id.as_ref() == Some(holder))
+        });
+        if let Some(limit) = query.limit {
+            result.truncate(limit as usize);
+        }
+        Ok(PositionQueryResult {
+            rows: result,
+            criteria,
+            questions,
+        })
+    }
+
+    fn position_questions(
+        &self,
+        subject: &str,
+        criteria: &[String],
+        positions: &[PositionRow],
+    ) -> Result<Vec<PositionQuestion>> {
+        let holders: HashSet<_> = positions
+            .iter()
+            .filter_map(|row| row.holder_id.as_deref())
+            .collect();
+        let mut statement = self.conn.prepare_cached(concat!(
+            hidden_blocks!(),
+            ", outline(id, path) AS (
+                SELECT id, '' FROM blocks WHERE id = ?1
+                UNION ALL
+                SELECT b.id, o.path || '/' || printf('%020d', b.ordinal) || b.id
+                FROM blocks b JOIN outline o ON b.parent_id = o.id
+                WHERE b.deletion_id IS NULL AND b.archived = 0
+                  AND NOT EXISTS (SELECT 1 FROM positions WHERE block_id = b.id AND active = 1)
+            ) SELECT ",
+            block_columns!("b"),
+            ", ",
+            block_columns!("p"),
+            ", l.target_id
+            FROM outline o JOIN blocks b ON b.id = o.id
+            JOIN blocks p ON p.id = b.page_id JOIN questions q ON q.block_id = b.id AND q.active = 1
+            LEFT JOIN links l ON l.source_id = b.id
+            WHERE b.id != ?1 AND b.deletion_id IS NULL AND b.rowid NOT IN (SELECT rowid FROM hidden)
+            ORDER BY o.path, l.occurrence"
+        ))?;
+        let mut cursor = statement.query([subject])?;
+        let mut blocks: Vec<(BlockInPage, Option<String>, Vec<String>)> = Vec::new();
+        while let Some(row) = cursor.next()? {
+            let id: String = row.get(0)?;
+            if blocks
+                .last()
+                .is_none_or(|(block, _, _)| block.block.id != id)
+            {
+                blocks.push((
+                    BlockInPage {
+                        block: block_at(row, 0)?,
+                        page: block_at(row, 10)?,
+                    },
+                    None,
+                    Vec::new(),
+                ));
+            }
+            let (_, criterion, scope) = blocks.last_mut().expect("question inserted");
+            if let Some(target) = row.get::<_, Option<String>>(20)? {
+                if criterion.is_none() && criteria.contains(&target) {
+                    *criterion = Some(target.clone());
+                }
+                if holders.contains(target.as_str()) && !scope.contains(&target) {
+                    scope.push(target);
+                }
+            }
+        }
+        let ids: Vec<_> = blocks
+            .iter()
+            .map(|(block, _, _)| block.block.id.clone())
+            .collect();
+        let mut infos: HashMap<_, _> = crate::task_store::capabilities_for(&self.conn, &ids)?
+            .into_iter()
+            .filter_map(|cap| cap.question.map(|info| (cap.block_id, info)))
+            .collect();
+        Ok(blocks
+            .into_iter()
+            .filter_map(|(block, criterion, holders)| {
+                let info = infos.remove(&block.block.id)?;
+                Some(PositionQuestion {
+                    block,
+                    info,
+                    criterion,
+                    holders,
+                })
+            })
+            .collect())
     }
 }

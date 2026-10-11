@@ -8,7 +8,7 @@ use axum::{
 use tessera_core::now_ms;
 use tessera_core::{
     Agenda, BlockCapabilities, CardPreviews, CardQuery, CardQueryResult, CardUnit, Deck,
-    PositionQuery, PositionRow, ProjectRecord, ReviewEvent, ReviewSession, TaskOccurrence,
+    PositionQuery, PositionQueryResult, ProjectRecord, ReviewEvent, ReviewSession, TaskOccurrence,
     TaskQuery, TaskQueryResult, TaskView, WorkSession,
 };
 use tessera_core::{QuestionQuery, QuestionRow};
@@ -62,7 +62,7 @@ pub(crate) async fn projects(
 pub(crate) async fn positions(
     State(state): State<AppState>,
     query: Result<Query<PositionQuery>, QueryRejection>,
-) -> Result<Json<Vec<PositionRow>>, ApiError> {
+) -> Result<Json<PositionQueryResult>, ApiError> {
     let Query(query) = query.map_err(ApiError::from)?;
     run(&state, move |notebook| notebook.positions(&query))
         .await

@@ -1,4 +1,4 @@
-/* Reading sheets: attributed prose, with fields left in the source outline. */
+/* Readings and criteria share the subject's authored positions. */
 .compare-pane { display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; outline: none; }
 .compare-toolbar { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: var(--space-8) var(--space-16); width: min(100%, calc(var(--measure) + 2 * var(--pane-inset))); margin-inline: auto; padding: var(--page-top-space) var(--pane-inset) var(--page-title-gap); }
 .compare-toolbar h2 { margin: var(--page-eyebrow-gap) 0 0; font: var(--page-title-font); font-variation-settings: var(--optical-title); }
@@ -29,3 +29,46 @@
 .compare-questions h3 { margin: 0 0 var(--space-8); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .compare-questions .button { display: block; padding: var(--space-4) 0; color: var(--text); text-align: left; white-space: normal; font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); }
 .compare-questions .button:hover { color: var(--accent); }
+
+.compare-tabs { width: min(100%, calc(var(--measure) + 2 * var(--pane-inset))); margin: 0 auto var(--space-16); padding-inline: var(--pane-inset); gap: var(--space-24); }
+.compare-tabs .button { padding: 0 0 var(--space-8); }
+.compare-tabs.mode-tabs > .button[aria-selected="true"] { color: var(--accent); box-shadow: inset 0 calc(-2 * var(--rule-width)) var(--accent); }
+.compare-matrix { container-type: inline-size; padding: 0 var(--pane-inset) var(--space-16); --criterion-width: calc(var(--space-48) * 2 + var(--space-12)); }
+.criteria-tools { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-16); margin-bottom: var(--space-8); }
+.criteria-tools .compare-count { margin-right: auto; }
+.criteria-tools .button { padding: 0; font-size: var(--text-control); }
+.criteria-overflow { overflow-x: auto; }
+.criteria-matrix { width: 100%; min-width: calc(var(--criterion-width) + var(--holder-count) * (var(--space-48) * 3)); table-layout: fixed; border-collapse: separate; border-spacing: 0; font: var(--weight-body) var(--text-control)/var(--line-control) var(--font-body); }
+.criteria-name-column { width: var(--criterion-width); }
+.criteria-matrix th, .criteria-matrix td { text-align: left; vertical-align: top; font-weight: var(--weight-body); }
+.criteria-matrix th:first-child { position: sticky; left: 0; z-index: 1; background: var(--canvas); }
+.criteria-matrix thead th { padding: var(--space-12) var(--space-8) var(--space-16); border-block: 1px solid var(--line); }
+.criteria-matrix thead th:first-child { padding-left: 0; vertical-align: bottom; color: var(--faint); font: var(--apparatus); }
+.criteria-matrix .compare-holder-name { display: block; margin-block: var(--space-4); white-space: normal; }
+.criteria-matrix .compare-work { overflow-wrap: anywhere; }
+.criteria-values th { padding: var(--space-24) var(--space-8) var(--space-16) 0; font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); }
+.criteria-values td { padding: var(--space-16) var(--space-8); border-left: 1px solid var(--line); }
+.criteria-cell { min-height: var(--space-48); padding: var(--space-4); outline: none; cursor: text; }
+.criteria-cell:focus-visible { box-shadow: inset 0 0 0 1px var(--accent); }
+.criteria-value { display: block; width: 100%; padding: 0; border: 0; background: none; color: var(--text); font: inherit; text-align: left; white-space: pre-wrap; overflow-wrap: anywhere; cursor: text; }
+.criteria-value + .criteria-value { margin-top: var(--space-4); }
+.criteria-add.button { opacity: 0; padding: 0; color: var(--faint); }
+.criteria-cell:hover .criteria-add, .criteria-cell:focus-within .criteria-add { opacity: 1; }
+.criteria-input { display: block; width: 100%; min-height: var(--space-48); resize: vertical; padding: var(--space-4); border: 1px solid var(--accent); background: var(--canvas); color: var(--text); font: inherit; outline: none; }
+.criteria-exact, .criteria-scope, .criteria-footnotes { color: var(--faint); font: var(--apparatus); }
+.criteria-exact { display: block; margin-top: var(--space-8); }
+.criteria-question td { padding: 0 var(--space-8) var(--space-12) var(--criterion-width); border-bottom: 1px solid var(--line); }
+.criteria-question td > div { display: flex; align-items: baseline; gap: var(--space-12); }
+.criteria-question-mark { color: var(--agree); font: var(--apparatus); }
+.criteria-question-text { flex: 1; font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); }
+.criteria-scope { white-space: nowrap; }
+.criteria-question .button { color: var(--agree); font: var(--apparatus); }
+.criteria-footnotes { display: flex; gap: var(--space-16); justify-content: space-between; padding-top: var(--space-12); border-top: 1px solid var(--line); }
+.criteria-footnotes p { margin: 0 0 var(--space-4); white-space: pre-wrap; }
+.criteria-hint { white-space: nowrap; }
+.criteria-editor { padding: var(--space-16); }
+.criteria-editor h3 { margin: 0 0 var(--space-12); font: var(--apparatus); }
+.criteria-editor-actions { display: flex; gap: var(--space-8); margin-top: var(--space-16); }
+.criteria-editor-actions .button:first-child { margin-right: auto; }
+@container (max-width: 900px) { .criteria-hint { display: none; } }
+@media (pointer: coarse) { .criteria-add.button { opacity: 1; } }

@@ -56,6 +56,7 @@ export type Operation =
   | { op: 'remove_type'; id: string; base_revision: number; title: string }
   | { op: 'set_field_kind'; id: string; base_revision: number; kind: FieldKind }
   | { op: 'set_type_fields'; type_id: string; base_revision: number; fields: string[] }
+  | { op: 'set_subject_criteria'; subject_id: string; base_revision: number; fields: string[] }
   | { op: 'save_view'; id: string; base_revision: number | null; name: string; query: Query }
   | { op: 'delete_view'; id: string; base_revision: number }
   | { op: 'set_setting'; key: string; base_revision: number | null; value: string }
@@ -290,7 +291,11 @@ export type ProjectStatus = 'active' | 'done' | 'cancelled';
 export interface ProjectState { outcome: string; deadline: string | null; status: ProjectStatus }
 export interface ProjectRecord { block_id: string; state: ProjectState }
 export interface PositionInfo { holder_id: string | null; subject_id: string }
-export interface PositionRow { block: BlockInPage; holder_id: string | null; subject_id: string }
+export interface PositionFieldEntry { field_id: string; entry_id: string; values: { id: string; text: string }[] }
+export interface PositionRow { block: BlockInPage; holder_id: string | null; subject_id: string; fields: PositionFieldEntry[] }
+export interface SubjectCriteria { explicit: boolean; fields: string[] }
+export interface PositionQuestion extends QuestionRow { criterion: string | null; holders: string[] }
+export interface PositionQueryResult { rows: PositionRow[]; criteria: SubjectCriteria; questions: PositionQuestion[] }
 export type QuestionStatus = 'open' | 'answered' | 'parked' | 'unsettled';
 export interface QuestionState { unsettled: boolean; parked: boolean; review_on: string | null; accepted: string | null }
 export interface AssessmentState { assessed_on: string; aporia: boolean }

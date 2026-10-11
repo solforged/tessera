@@ -1695,7 +1695,7 @@ describe('durable Action and Learning document commands', () => {
     await doc.flush();
     expect(doc.block(first)?.position).toEqual({ holder_id: holder, subject_id: id });
     expect((await api.capabilities(first)).position).toEqual({ holder_id: holder, subject_id: id });
-    expect((await api.positions({ holder, subject: id }))[0]?.block.block.id).toBe(first);
+    expect((await api.positions({ holder, subject: id })).rows[0]?.block.block.id).toBe(first);
     doc.undo();
     await doc.flush();
     expect(doc.block(first)?.position).toBeNull();
@@ -1706,7 +1706,26 @@ describe('durable Action and Learning document commands', () => {
     success(doc.edit({ kind: 'text', id: first, text: 'Unattributed' }));
     await doc.flush();
     expect(doc.block(first)?.position).toEqual({ holder_id: null, subject_id: id });
-    expect(await api.positions({ holder })).toEqual([]);
+    expect((await api.positions({ holder })).rows).toEqual([]);
+    doc.release();
+  });
+
+  test('subject criteria undo restores derivation and redo restores order', async () => {
+    const instance = await client();
+    const { id, doc } = await page(instance);
+    const fieldsPage = (await api.fields()).page_id;
+    const fields = [ulid(), ulid()];
+    await instance.commit(fields.map((id, index) => ({ op: 'insert', id, parent_id: fieldsPage, after: null, text: `Criterion ${serial}-${index}`, heading: null })));
+    const revision = doc.root()!.revision;
+    success(doc.edit({ kind: 'subjectCriteria', id, fields, previous: [], revision }));
+    await doc.flush();
+    expect((await api.positions({ subject: id })).criteria).toEqual({ explicit: true, fields });
+    doc.undo(); await doc.flush();
+    expect((await api.positions({ subject: id })).criteria).toEqual({ explicit: false, fields: [] });
+    doc.redo(); await doc.flush();
+    expect((await api.positions({ subject: id })).criteria).toEqual({ explicit: true, fields });
+    expect(doc.root()!.revision).toBe(revision + 3);
+    expect(doc.edit({ kind: 'subjectCriteria', id, fields: [], previous: fields, revision }).ok).toBe(false);
     doc.release();
   });
 

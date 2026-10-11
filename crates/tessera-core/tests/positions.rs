@@ -223,18 +223,20 @@ fn position_queries_filter_visibility_and_preserve_outline_order() {
     assert_eq!(
         nb.positions(&subject)
             .unwrap()
+            .rows
             .iter()
             .map(|r| r.block.block.id.clone())
             .collect::<Vec<_>>(),
         [id(10), id(11), id(12), id(13)]
     );
-    assert_eq!(nb.positions(&holder).unwrap().len(), 3);
+    assert_eq!(nb.positions(&holder).unwrap().rows.len(), 3);
     assert_eq!(
         nb.positions(&PositionQuery {
             limit: Some(1),
             ..holder.clone()
         })
         .unwrap()
+        .rows
         .len(),
         1
     );
@@ -244,6 +246,7 @@ fn position_queries_filter_visibility_and_preserve_outline_order() {
             ..holder.clone()
         })
         .unwrap()
+        .rows
         .is_empty()
     );
     assert!(
@@ -252,12 +255,13 @@ fn position_queries_filter_visibility_and_preserve_outline_order() {
             ..holder.clone()
         })
         .unwrap()
+        .rows
         .is_empty()
     );
     archive(&mut nb, 10);
     archive(&mut nb, 11);
     for query in [&holder, &subject] {
-        let rows = nb.positions(query).unwrap();
+        let rows = nb.positions(query).unwrap().rows;
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].block.block.id, id(13));
     }
@@ -269,5 +273,143 @@ fn position_queries_filter_visibility_and_preserve_outline_order() {
             base_revision,
         }],
     );
-    assert!(nb.positions(&subject).unwrap().is_empty());
+    assert!(nb.positions(&subject).unwrap().rows.is_empty());
+}
+
+#[test]
+fn subject_criteria_derive_in_outline_order_and_attach_scoped_questions() {
+    let (_dir, mut nb) = fixture();
+    let fields_page = nb.fields().unwrap().page_id;
+    for (value, name) in [
+        (100, "Shape"),
+        (101, "Engine"),
+        (102, "Exit"),
+        (103, " gIsT "),
+        (104, "WORK"),
+    ] {
+        apply(
+            &mut nb,
+            vec![Operation::Insert {
+                id: id(value),
+                parent_id: fields_page.clone(),
+                after: None,
+                text: name.into(),
+                heading: None,
+            }],
+        );
+    }
+    let ops = vec![
+        set(&nb, 10, true),
+        set(&nb, 13, true),
+        insert(200, 10, None, &format!("[[{}]]", id(103))),
+        insert(201, 10, Some(200), &format!("[[{}]]", id(100))),
+        insert(202, 10, Some(201), &format!("[[{}]]", id(101))),
+        insert(203, 10, Some(202), &format!("[[{}]]", id(104))),
+        insert(204, 13, None, &format!("[[{}]]", id(102))),
+        insert(210, 201, None, "circle"),
+        insert(211, 201, Some(210), "second value"),
+        insert(
+            300,
+            1,
+            None,
+            &format!(
+                "How often? [[{}]] [[{}]] [[{}]] [[{}]]",
+                id(100),
+                id(2),
+                id(3),
+                id(101)
+            ),
+        ),
+        Operation::SetQuestion {
+            id: id(300),
+            base_revision: 1,
+            question: Some(tessera_core::QuestionState::default()),
+        },
+    ];
+    apply(&mut nb, ops);
+    edit(&mut nb, 13, &format!("[[{}]] [[{}]]", id(3), id(1)));
+    let query = PositionQuery {
+        subject: Some(id(1)),
+        ..Default::default()
+    };
+    let result = nb.positions(&query).unwrap();
+    assert!(!result.criteria.explicit);
+    assert_eq!(result.criteria.fields, [id(100), id(101), id(102)]);
+    assert_eq!(
+        result.rows[0].fields[1]
+            .values
+            .iter()
+            .map(|v| v.text.as_str())
+            .collect::<Vec<_>>(),
+        ["circle", "second value"]
+    );
+    assert_eq!(result.questions.len(), 1);
+    assert_eq!(result.questions[0].criterion, Some(id(100)));
+    assert_eq!(result.questions[0].holders, [id(2), id(3)]);
+    // Selection and pagination do not change the subject's criteria or holder scope.
+    let limited = nb
+        .positions(&PositionQuery {
+            holder: Some(id(2)),
+            limit: Some(0),
+            ..query.clone()
+        })
+        .unwrap();
+    assert!(limited.rows.is_empty());
+    assert_eq!(limited.criteria, result.criteria);
+    assert_eq!(limited.questions, result.questions);
+    archive(&mut nb, 13);
+    assert_eq!(
+        nb.positions(&query).unwrap().criteria.fields,
+        [id(100), id(101)]
+    );
+}
+
+#[test]
+fn explicit_subject_criteria_validate_revisions_and_undo_to_derivation() {
+    let (_dir, mut nb) = fixture();
+    let fields_page = nb.fields().unwrap().page_id;
+    for (value, name) in [(100, "Shape"), (101, "Engine"), (102, "Exit")] {
+        apply(
+            &mut nb,
+            vec![Operation::Insert {
+                id: id(value),
+                parent_id: fields_page.clone(),
+                after: None,
+                text: name.into(),
+                heading: None,
+            }],
+        );
+    }
+    let query = PositionQuery {
+        subject: Some(id(1)),
+        ..Default::default()
+    };
+    let revision = nb.block(&id(1)).unwrap().revision;
+    let set = |base_revision, fields| Operation::SetSubjectCriteria {
+        subject_id: id(1),
+        base_revision,
+        fields,
+    };
+    for fields in [vec![id(2)], vec![id(100), id(100)]] {
+        assert!(matches!(
+            nb.apply(&batch(vec![set(revision, fields)])),
+            Err(Error::Validation { .. })
+        ));
+    }
+    let committed = apply(
+        &mut nb,
+        vec![set(revision, vec![id(100), id(102), id(101)])],
+    );
+    assert!(!committed.revisions.is_empty());
+    let result = nb.positions(&query).unwrap();
+    assert!(result.criteria.explicit);
+    assert_eq!(result.criteria.fields, [id(100), id(102), id(101)]);
+    assert_eq!(nb.block(&id(1)).unwrap().revision, revision + 1);
+    assert!(matches!(
+        nb.apply(&batch(vec![set(revision, vec![])])),
+        Err(Error::Conflict { .. })
+    ));
+    apply(&mut nb, vec![set(revision + 1, vec![])]);
+    assert!(!nb.positions(&query).unwrap().criteria.explicit);
+    assert_eq!(nb.block(&id(1)).unwrap().revision, revision + 2);
 }

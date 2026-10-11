@@ -87,7 +87,7 @@ export interface TableViewState {
 }
 export interface FieldsViewState { scroll: number }
 export interface SettingsViewState { scroll: number }
-export interface CompareViewState { scroll: number }
+export interface CompareViewState { scroll: number; comparison?: 'readings' | 'criteria'; chosen?: string[] | null }
 export interface IndexViewState { scroll: number }
 export interface AgendaViewState { date: string; mode: 'agenda' | 'week' | 'tasks'; query: TaskQuery; viewId: string | null; scroll: number }
 export interface ReviewViewState { deckId: string | null; sessionId: string | null; selection: CardSelection | null; scroll: number }

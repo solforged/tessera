@@ -11,6 +11,8 @@ import type { CompareViewState, OpenTarget } from '../shell/contract';
 import { fieldEntryId, matchFieldEntry } from '../table/query';
 import { Button } from '../ui/Button';
 import { ShapeGlyph } from './ShapeGlyph';
+import { CriteriaEditor } from './CriteriaEditor';
+import { CriteriaMatrix } from './CriteriaMatrix';
 import './compare.css';
 
 interface ComparePaneProps {
@@ -54,7 +56,7 @@ function readingPassages(doc: PageDocument, id: string, gist: string | undefined
   return passages;
 }
 
-/** Attributed readings stay side by side; their source outlines remain the place to edit fields. */
+/** Readings and criteria share authored positions and their page documents. */
 export function ComparePane(props: ComparePaneProps) {
   const [version, setVersion] = createSignal(0);
   createEffect(() => {
@@ -62,80 +64,107 @@ export function ComparePane(props: ComparePaneProps) {
     const timer = setTimeout(() => setVersion(value => value + 1), 300);
     onCleanup(() => clearTimeout(timer));
   });
-  const [rows] = createResource(() => `${props.subjectId}:${version()}`, () => api.positions({ subject: props.subjectId }));
+  const [result] = createResource(() => `${props.subjectId}:${version()}`, () => api.positions({ subject: props.subjectId }));
+  const rows = createMemo(() => result()?.rows ?? []);
+  const [tabChoice, setTabChoice] = createSignal(props.view.comparison);
+  const tab = createMemo(() => tabChoice() ?? (result()?.criteria.fields.length ? 'criteria' : 'readings'));
+  const [chosen, setChosen] = createSignal<string[] | null>(props.view.chosen ?? null);
+  const [chooseHolders, setChooseHolders] = createSignal(false);
+  const [holderLimit, setHolderLimit] = createSignal(100);
+  const [criteriaEditor, setCriteriaEditor] = createSignal<HTMLElement | null>(null);
+  const history: PageDocument[] = [];
+  const undone: PageDocument[] = [];
+  const edited = (doc: PageDocument) => { history.push(doc); undone.length = 0; };
+  const selectedIds = createMemo(() => {
+    const ids = chosen();
+    const retained = ids === null ? [] : rows().filter(row => ids.includes(row.block.block.id));
+    return (retained.length ? retained : rows().slice(0, tab() === 'criteria' ? 12 : 2)).map(row => row.block.block.id);
+  });
   const [fieldList] = createResource(() => version(), () => api.fields());
   const fieldName = (id: string) => fieldList()?.fields.find(field => field.id === id)?.name;
   const [docs, setDocs] = createSignal(new Map<string, PageDocument>());
   createEffect(() => {
-    const pages = new Set([props.subjectId, ...(rows() ?? []).map(row => row.block.page.id)]);
+    const subjectPage = props.notebook.lookup(props.subjectId)()?.page_id ?? props.subjectId;
+    const pages = new Set([subjectPage, ...rows().filter(row => selectedIds().includes(row.block.block.id)).map(row => row.block.page.id)]);
     const opened = new Map([...pages].map(id => [id, props.notebook.open(id)]));
     setDocs(opened);
     onCleanup(() => { for (const doc of opened.values()) doc.release(); });
   });
-  const perspectives = createMemo<Perspective[]>(() => (rows() ?? []).flatMap(row => {
+  const perspectives = createMemo<Perspective[]>(() => rows().map(row => {
     const doc = docs().get(row.block.page.id);
-    if (!doc || doc.status() !== 'ready' || !doc.block(row.block.block.id)) return [];
-    const fields = positionFields(doc, row.block.block.id, fieldName);
+    const ready = doc?.status() === 'ready' && doc.block(row.block.block.id);
+    const fields = ready ? positionFields(doc!, row.block.block.id, fieldName) : row.fields.map(entry => ({
+      name: fieldName(entry.field_id) ?? '', fieldId: entry.field_id, entryId: entry.entry_id,
+      valueId: entry.values[0]?.id ?? null, value: entry.values[0]?.text ?? '',
+    }));
     const gist = fields.find(field => isGistName(field.name));
-    return [{ row, gist,
-      work: fields.find(field => field.name.trim().toLowerCase() === 'work'),
+    const work = fields.find(field => field.name.trim().toLowerCase() === 'work');
+    return { row, gist, work,
       shape: fields.find(field => field.name.trim().toLowerCase() === 'shape'),
-      source: positionSource(doc, row.block.block.id, fieldName),
-      passages: readingPassages(doc, row.block.block.id, gist?.value, fieldName),
-    }];
+      source: ready ? positionSource(doc!, row.block.block.id, fieldName) : fieldEntryId(work?.value ?? ''),
+      passages: ready ? readingPassages(doc!, row.block.block.id, gist?.value, fieldName) : [],
+    };
   }));
-  const [chosen, setChosen] = createSignal<string[] | null>(null);
-  const selected = createMemo(() => {
-    const all = perspectives();
-    const ids = chosen();
-    const retained = ids === null ? [] : all.filter(item => ids.includes(item.row.block.block.id));
-    return retained.length ? retained : all.slice(0, 2);
-  });
+  const selected = createMemo(() => perspectives().filter(item => selectedIds().includes(item.row.block.block.id)));
   const toggle = (id: string) => {
     const ids = selected().map(item => item.row.block.block.id);
     if (ids.includes(id)) { if (ids.length > 1) setChosen(ids.filter(value => value !== id)); }
     else setChosen([...ids, id]);
+    props.onViewChange({ scroll: scroll?.scrollTop ?? props.view.scroll, comparison: tab(), chosen: chosen() });
   };
-  const questions = createMemo(() => {
-    const doc = docs().get(props.subjectId);
-    if (!doc || doc.status() !== 'ready') return [];
-    doc.outline.version(); doc.archivedVersion();
-    const result: Passage[] = [];
-    for (let at = 0; at < doc.outline.size();) {
-      const id = doc.outline.idAt(at);
-      const block = doc.block(id);
-      if (doc.isArchived(id) || block?.position) { at = doc.outline.subtreeEnd(at); continue; }
-      if (block?.question && block.text.trim()) result.push({ id, text: block.text, heading: false });
-      at++;
-    }
-    return result;
-  });
+  const questions = createMemo(() => (result()?.questions ?? []).filter(question => tab() === 'readings' || !question.criterion));
   const [siglumRecords] = createResource(() => { const ids = [...new Set(perspectives().map(item => item.source).filter(id => id !== null))]; return ids.length ? ids : false; },
     ids => Promise.all(ids.map(id => api.source(id).then(view => ({ id, siglum: view.source.siglum, basis: view.source.siglum_basis, authored: view.source.siglum_authored }), () => null))));
   const sigla = createMemo(() => pageSigla((siglumRecords.error ? [] : siglumRecords() ?? []).filter(record => record !== null)));
   const subject = () => props.notebook.lookup(props.subjectId)();
   const holder = (perspective: Perspective) => perspective.row.holder_id ? props.notebook.lookup(perspective.row.holder_id)()?.text ?? 'Loading holder…' : 'Unattributed';
   const open = (pageId: string, blockId: string | null, beside: boolean) => props.onOpen({ kind: 'page', pageId, ...(blockId ? { blockId } : {}) }, beside);
+  const matrixSiglum = (row: PositionRow) => {
+    const item = perspectives().find(item => item.row.block.block.id === row.block.block.id);
+    return item?.source && sigla().get(item.source) || (row.holder_id ? props.notebook.lookup(row.holder_id)()?.text ?? '' : '').replace(/[^\p{L}]/gu, '').slice(0, 3).toUpperCase();
+  };
   let scroll!: HTMLDivElement;
   requestAnimationFrame(() => { if (scroll) scroll.scrollTop = props.view.scroll; });
 
-  return <div class="compare-pane" role="region" tabIndex={0} aria-label="Compare perspectives" onFocusIn={props.onActivate}>
+  return <div class="compare-pane" role="region" tabIndex={0} aria-label="Compare perspectives" onFocusIn={props.onActivate} onKeyDown={event => {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z' && !(event.target instanceof HTMLTextAreaElement)) {
+      event.preventDefault(); event.stopPropagation();
+      const source = event.shiftKey ? undone : history;
+      const doc = source.pop();
+      if (doc) { event.shiftKey ? doc.redo() : doc.undo(); (event.shiftKey ? history : undone).push(doc); }
+    }
+  }}>
     <header class="compare-toolbar">
       <div><span class="compare-eyebrow">Reading sheet</span><h2><Button class="compare-subject" title="Open the subject · Shift to open beside" onClick={event => open(props.subjectId, null, event.shiftKey)}>{subject()?.text ?? 'Loading…'}</Button></h2></div>
-      <span class="compare-count">{selected().length} of {perspectives().length} readings</span>
+      <Show when={tab() === 'readings'}><span class="compare-count">{selected().length} of {perspectives().length} readings</span></Show>
     </header>
-    <Show when={rows.error || fieldList.error}><div class="pane-error" role="alert">Couldn’t load readings.</div></Show>
-    <Show when={perspectives().length >= 2}>
-      <div class="compare-choices mode-tabs tab-strip" role="group" aria-label="Choose readings"><For each={perspectives()}>{perspective => {
+    <div class="compare-tabs mode-tabs tab-strip" role="tablist" aria-label="Compare mode">
+      <For each={['readings', 'criteria'] as const}>{mode => <Button role="tab" aria-selected={tab() === mode} onClick={() => { setTabChoice(mode); props.onViewChange({ scroll: scroll?.scrollTop ?? 0, comparison: mode, chosen: chosen() }); }}>{mode === 'readings' ? 'Readings' : 'Criteria'}</Button>}</For>
+    </div>
+    <Show when={result.error || fieldList.error}><div class="pane-error" role="alert">Couldn’t load readings.</div></Show>
+    <Show when={perspectives().length >= 2 && (tab() === 'readings' || chooseHolders())}>
+      <div class="compare-choices mode-tabs tab-strip" role="group" aria-label="Choose readings"><For each={perspectives().slice(0, holderLimit())}>{perspective => {
         const active = () => selected().includes(perspective);
         return <Button aria-pressed={active()} disabled={active() && selected().length === 1} onClick={() => toggle(perspective.row.block.block.id)}>
           <Show when={perspective.source && sigla().get(perspective.source)}>{mark => <span class="compare-siglum">{mark()}</span>}</Show>
           {holder(perspective)}<span class="compare-choice-mark" aria-hidden="true">{active() ? '−' : '+'}</span>
         </Button>;
-      }}</For></div>
+      }}</For><Show when={perspectives().length > holderLimit()}><Button onClick={() => setHolderLimit(value => value + 100)}>More holders</Button></Show></div>
     </Show>
-    <div ref={scroll} class="compare-scroll" onScroll={() => props.onViewChange({ scroll: scroll.scrollTop })}>
-      <Show when={rows()} fallback={<Show when={!rows.error}><p class="empty-state" role="status">Loading readings…</p></Show>}>
+    <div ref={scroll} class="compare-scroll" onScroll={() => props.onViewChange({ scroll: scroll.scrollTop, comparison: tab(), chosen: chosen() })}>
+      <Show when={result()} fallback={<Show when={!result.error}><p class="empty-state" role="status">Loading readings…</p></Show>}>
+        <Show when={tab() === 'criteria'}>
+          <div class="compare-matrix">
+            <div class="criteria-tools"><span class="compare-count">{selected().length} of {perspectives().length} holders · {result()?.criteria.fields.length ?? 0} subject criteria · {result()?.questions.length ?? 0} questions</span>
+              <Button aria-expanded={chooseHolders()} onClick={() => setChooseHolders(value => !value)}>Choose holders</Button>
+              <Button onClick={event => setCriteriaEditor(event.currentTarget)}>Edit criteria</Button>
+            </div>
+            <CriteriaMatrix rows={selected().map(item => item.row)} allRows={rows()} criteria={result()?.criteria.fields ?? []} questions={result()?.questions ?? []} notebook={props.notebook} docs={docs()} fieldName={fieldName}
+              holder={row => row.holder_id ? props.notebook.lookup(row.holder_id)()?.text ?? 'Loading holder…' : 'Unattributed'} siglum={matrixSiglum}
+              work={row => perspectives().find(item => item.row.block.block.id === row.block.block.id)?.work?.value ?? ''} onOpen={props.onOpen} onEdited={edited} />
+          </div>
+        </Show>
+        <Show when={tab() === 'readings'}>
         <Show when={perspectives().length >= 2} fallback={<p class="empty-state">Compare needs two or more perspectives filed under this page. Make a block a perspective from its menu and write its reading beneath it.</p>}>
           <div class="compare-readings" style={{ '--reading-count': selected().length }}><For each={selected()}>{perspective => {
             const page = perspective.row.block.page.id;
@@ -153,11 +182,15 @@ export function ComparePane(props: ComparePaneProps) {
               <Button class="compare-open" onClick={event => open(page, id, event.shiftKey)}>Open reading</Button>
             </article>;
           }}</For></div>
+        </Show></Show>
           <Show when={questions().length}><section class="compare-questions" aria-label="Questions on this page">
-            <h3>Questions on this page</h3><For each={questions()}>{question => <Button onClick={event => open(props.subjectId, question.id, event.shiftKey)}><BlockText text={question.text} notebook={props.notebook} interactive={false} /></Button>}</For>
+            <h3>Questions on this page</h3><For each={questions()}>{question => <Button onClick={event => open(question.block.page.id, question.block.block.id, event.shiftKey)}><BlockText text={question.block.block.text} notebook={props.notebook} interactive={false} /></Button>}</For>
           </section></Show>
-        </Show>
       </Show>
     </div>
+    <Show when={criteriaEditor()}>{anchor => {
+      const doc = [...docs().values()].find(doc => doc.block(props.subjectId));
+      return <Show when={doc && doc.status() === 'ready' && result()?.criteria}>{criteria => <CriteriaEditor anchor={anchor()} subjectId={props.subjectId} criteria={criteria()} fields={fieldList()?.fields ?? []} doc={doc!} onEdited={edited} onDismiss={() => setCriteriaEditor(null)} />}</Show>;
+    }}</Show>
   </div>;
 }

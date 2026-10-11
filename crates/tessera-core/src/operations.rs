@@ -731,6 +731,7 @@ impl Engine<'_, '_> {
                  AND NOT EXISTS (SELECT 1 FROM memberships m WHERE m.block_id = b.id AND m.manual = 1)
                  AND NOT EXISTS (SELECT 1 FROM type_fields f WHERE f.type_id = b.id)
                  AND NOT EXISTS (SELECT 1 FROM type_fields f WHERE f.field_id = b.id)
+                 AND NOT EXISTS (SELECT 1 FROM subject_criteria f WHERE f.subject_id = b.id OR f.field_id = b.id)
                  AND NOT EXISTS (SELECT 1 FROM fields f WHERE f.block_id = b.id)
                  AND NOT EXISTS (SELECT 1 FROM field_values f WHERE f.owner_id = b.id)
                  AND NOT EXISTS (SELECT 1 FROM field_values f WHERE f.field_id = b.id)
@@ -1306,7 +1307,8 @@ impl Engine<'_, '_> {
             .tx
             .prepare_cached(
                 "SELECT EXISTS(SELECT 1 FROM citations WHERE block_id = ?1)
-             OR EXISTS(SELECT 1 FROM type_fields WHERE type_id = ?1)",
+             OR EXISTS(SELECT 1 FROM type_fields WHERE type_id = ?1)
+             OR EXISTS(SELECT 1 FROM subject_criteria WHERE subject_id = ?1)",
             )?
             .query_row([&source.block.id], |row| row.get(0))?;
         if metadata {
@@ -1657,6 +1659,31 @@ impl Engine<'_, '_> {
                 )?;
                 for (position, field) in fields.iter().enumerate() {
                     insert.execute(params![type_id, field, position as i64])?;
+                }
+                self.bump(&current, true)
+            }
+            Operation::SetSubjectCriteria {
+                subject_id,
+                base_revision,
+                fields,
+            } => {
+                let current = self.checked(subject_id, *base_revision, index, false)?;
+                let mut unique = HashSet::with_capacity(fields.len());
+                for field in fields {
+                    crate::fields::require_definition(self.tx, field)?;
+                    if !unique.insert(field) {
+                        return Err(validation("duplicate field in subject criteria"));
+                    }
+                }
+                self.tx.execute(
+                    "DELETE FROM subject_criteria WHERE subject_id = ?1",
+                    [subject_id],
+                )?;
+                let mut insert = self.tx.prepare_cached(
+                    "INSERT INTO subject_criteria(subject_id, field_id, position) VALUES (?1, ?2, ?3)",
+                )?;
+                for (position, field) in fields.iter().enumerate() {
+                    insert.execute(params![subject_id, field, position as i64])?;
                 }
                 self.bump(&current, true)
             }

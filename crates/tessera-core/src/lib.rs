@@ -55,9 +55,10 @@ pub use aliases::{Completion, NameMatch};
 pub use backup::{BackupManifest, backup, backup_beside, backup_directory, restore};
 pub use capabilities::{
     Agenda, AgendaItem, AgendaReason, BlockCapabilities, CardAnswerBlock, CardPreviews, CardQuery,
-    CardQueryResult, CardRow, CardSelection, CardUnit, DateRange, Deck, GradePreview, PositionInfo,
-    PositionQuery, PositionRow, ProjectRecord, ProjectState, ProjectStatus, ReviewEvent,
-    ReviewEventKind, ReviewSchedulingState, ReviewSession, ReviewSessionState, TaskFilter,
+    CardQueryResult, CardRow, CardSelection, CardUnit, DateRange, Deck, GradePreview,
+    PositionField, PositionInfo, PositionQuery, PositionQueryResult, PositionQuestion, PositionRow,
+    ProjectRecord, ProjectState, ProjectStatus, ReviewEvent, ReviewEventKind,
+    ReviewSchedulingState, ReviewSession, ReviewSessionState, SubjectCriteria, TaskFilter,
     TaskOccurrence, TaskPriority, TaskQuery, TaskQueryResult, TaskRecord, TaskRow, TaskSelection,
     TaskState, TaskStatus, TaskView, WorkSession,
 };

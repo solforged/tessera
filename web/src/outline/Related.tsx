@@ -21,16 +21,16 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
   const [related] = createResource(() => `${props.pageId}:${relatedVersion()}`, async () => {
     const [backlinks, tagged, held, about] = await Promise.all([api.backlinks(props.pageId), api.members(props.pageId), api.positions({ holder: props.pageId }), api.positions({ subject: props.pageId })]);
     // A position links its holder and often its subject, so it shows once, as a perspective, not again as a backlink.
-    const positions = new Set([...held, ...about].map(row => row.block.block.id));
+    const positions = new Set([...held.rows, ...about.rows].map(row => row.block.block.id));
     const works = await loadWorks(api, props.pageId, backlinks);
     return {
       works: works.rows,
       backlinks: backlinks.filter(item => !positions.has(item.source.id) && !works.creatorLinks.has(item.source.id)).map(item => ({ block: item.source, page: item.page })),
       tagged,
-      held: held.map(row => row.block),
+      held: held.rows.map(row => row.block),
       // Perspectives on this page filed elsewhere, such as under a highlight on a source page.
-      about: about.filter(row => row.block.page.id !== props.pageId).map(row => row.block),
-      aboutHolders: about.filter(row => row.block.page.id !== props.pageId).map(row => row.holder_id),
+      about: about.rows.filter(row => row.block.page.id !== props.pageId).map(row => row.block),
+      aboutHolders: about.rows.filter(row => row.block.page.id !== props.pageId).map(row => row.holder_id),
     };
   });
   /** Holders of the perspectives filed under this page, here or elsewhere, each once, in page order. */
