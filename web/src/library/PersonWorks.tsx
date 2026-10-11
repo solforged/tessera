@@ -27,7 +27,7 @@ export async function loadWorks(api: ApiClient, pageId: string, backlinks: reado
 /** The sources a person wrote, edited or translated, as a small shelf on their page, oldest first. */
 export function PersonWorks(props: { pageId: string; rows: LibraryRow[]; onOpen(target: OpenTarget, beside: boolean): void }) {
   return <section class="related-sections person-works" aria-label="Works">
-    <h3 class="outline-highlights-label">Works <span>{props.rows.length}</span></h3>
+    <h3 class="outline-highlights-label"><span>Works</span><span class="section-rule" aria-hidden="true" /><span>{props.rows.length}</span></h3>
     <div class="person-works-shelf" role="list"><For each={props.rows}>{row => {
       // A person can hold several roles on one source; the strongest one names it.
       const role = () => roleLabels[row.people.find(person => person.id === props.pageId)?.role ?? 'author'];
