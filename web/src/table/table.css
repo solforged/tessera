@@ -1,26 +1,27 @@
 /* Type registers and saved views. Layout is in docs/design.md under "Tables and views". */
-.table-pane { --table-field-width: calc(var(--apparatus-width) - var(--space-48)); --table-source-width: calc(var(--apparatus-width) + var(--space-48)); --table-compact-width: calc(3 * var(--space-48)); --table-refs-width: calc(var(--space-48) + var(--space-16)); --table-register-width: calc(var(--measure) + var(--apparatus-width) - var(--space-16)); display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; max-width: 100%; padding: var(--space-16) var(--space-24) var(--space-12); outline: none; container-type: inline-size; container-name: table-pane; }
+.table-pane { --table-field-width: calc(var(--apparatus-width) - var(--space-48)); --table-source-width: calc(var(--apparatus-width) + var(--space-48)); --table-compact-width: calc(3 * var(--space-48)); --table-refs-width: calc(var(--space-48) + var(--space-16)); --table-register-width: calc(var(--measure) + var(--apparatus-width) - var(--space-16)); display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; max-width: 100%; padding: var(--page-top-space) var(--pane-inset) 0; outline: none; container-type: inline-size; container-name: table-pane; }
 .table-register { display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; width: min(100%, max(var(--table-register-width), var(--table-width))); margin-inline: auto; }
-.table-header { display: flex; align-items: flex-start; justify-content: space-between; flex-shrink: 0; gap: var(--space-12); padding-bottom: var(--space-12); }
+.table-header { display: flex; align-items: flex-start; justify-content: space-between; flex-shrink: 0; width: 100%; max-width: var(--measure); margin-inline: auto; gap: var(--page-title-gap); padding-bottom: var(--page-title-gap); }
 .table-heading { min-width: 0; }
-.table-heading h1 { margin: var(--space-4) 0 0; font-size: var(--text-title); line-height: var(--line-title); }
+.table-heading h1 { margin: var(--page-eyebrow-gap) 0 0; font: var(--page-title-font); }
 .table-title.button { justify-content: flex-start; max-width: 100%; min-width: 0; padding: 0; font-family: var(--font-display); font-size: inherit; line-height: inherit; font-weight: var(--weight-title); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
 .table-title > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .table-title > .icon { color: var(--faint); }
 .table-register-label { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-4); color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
-.table-type-label.button { min-height: 0; max-width: 100%; padding: 0; color: var(--muted); font: inherit; letter-spacing: inherit; overflow-wrap: anywhere; }
+.table-type-label.button { position: relative; min-height: 0; max-width: 100%; border: 0; padding: 0; color: var(--muted); font: inherit; letter-spacing: inherit; overflow-wrap: anywhere; }
 .table-view-status { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: var(--space-4); padding-top: var(--space-24); color: var(--faint); font: var(--apparatus); text-align: left; }
 .table-view-status .button { color: var(--accent); }
 .table-columns-button { margin-left: auto; color: var(--muted); }
-.table-toolbar { display: flex; align-items: center; flex-shrink: 0; flex-wrap: wrap; gap: var(--space-8); padding-block: var(--space-12); }
+.table-register > .type-mode-tabs { width: 100%; max-width: var(--measure); margin-inline: auto; }
+.table-toolbar { display: flex; align-items: center; flex-shrink: 0; flex-wrap: wrap; width: 100%; max-width: var(--measure); margin-inline: auto; gap: var(--space-8); padding-block: var(--page-head-gap); }
 .table-toolbar .table-search { width: calc(var(--apparatus-width) + var(--space-8)); max-width: 100%; min-width: 0; min-height: var(--row-height); font-size: var(--text-control); line-height: var(--line-control); }
 .table-query-controls { display: flex; flex: 1; gap: var(--space-8); }
 .table-control-count { color: var(--faint); font: var(--apparatus); }
-.table-query-chips { display: flex; flex-wrap: wrap; gap: var(--space-8); padding-bottom: var(--space-12); }
+.table-query-chips { display: flex; flex-wrap: wrap; width: 100%; max-width: var(--measure); margin-inline: auto; gap: var(--space-8); padding-bottom: var(--page-head-gap); }
 .table-chip { display: inline-flex; align-items: center; gap: var(--space-2); min-height: var(--target-size); max-width: 100%; padding-left: var(--space-8); border: var(--rule-width) solid var(--line); border-radius: var(--radius-pill); background: transparent; font-size: var(--text-control); line-height: var(--line-control); overflow-wrap: anywhere; }
 .table-chip .button { flex: none; min-height: var(--target-size); padding: 0 var(--space-8); border-radius: var(--radius-pill); }
 .table-scroll-frame { position: relative; display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; }
-.table-scroll { flex: 1; min-height: 0; min-width: 0; max-width: 100%; overflow: auto; overscroll-behavior: contain; }
+.table-scroll { flex: 1; min-height: 0; min-width: 0; max-width: 100%; overflow: auto; overscroll-behavior: contain; padding-bottom: var(--page-bottom-space); }
 .table-more-right { position: absolute; top: 0; right: 0; display: flex; justify-content: flex-end; align-items: flex-start; width: calc(var(--space-48) + var(--space-24)); pointer-events: none; background: linear-gradient(to right, transparent, var(--canvas) 60%); }
 .table-more-columns.button { z-index: 4; min-height: var(--target-size); margin-top: var(--space-4); padding-inline: var(--space-8); color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); pointer-events: auto; }
 .type-table { table-layout: fixed; border-spacing: 0; width: max(100%, var(--table-width)); font-size: var(--text-control); line-height: var(--line-control); }
@@ -90,17 +91,19 @@
 .table-block-member > .button { flex: none; }
 .table-empty { color: var(--faint); font-size: var(--text-control); padding: var(--space-16) var(--space-8); }
 .table-cards { display: none; border-top: var(--rule-width) solid var(--line); }
-.table-card { position: relative; padding: var(--space-12) var(--space-8); border-bottom: var(--rule-width) solid var(--line); }
+.table-card { position: relative; padding: var(--card-padding); border-bottom: var(--rule-width) solid var(--line); }
 .table-card.selected { background: var(--selection); box-shadow: inset var(--space-2) 0 var(--accent); }
 .table-card-title.button { justify-content: flex-start; width: 100%; padding: 0; border: 0; text-align: left; font-family: var(--font-display); font-size: var(--text-h2); line-height: var(--line-h2); font-weight: var(--weight-display-heading); font-variation-settings: var(--optical-heading); }
 .table-card-arrow { margin-left: auto; flex: none; color: var(--faint); }
-.table-card-fields { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-4) var(--space-12); margin-top: var(--space-4); }
-.table-card-field { min-width: 0; max-width: 100%; cursor: pointer; color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
+.table-card-fields { display: flex; align-items: center; flex-wrap: wrap; gap: var(--section-item-gap) var(--space-12); margin-top: var(--section-item-gap); }
+.table-card-field { display: flex; align-items: center; min-width: var(--target-size); min-height: var(--target-size); max-width: 100%; cursor: pointer; color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
 .table-card-field:focus-visible { outline: var(--focus-ring); }
 .table-card-source { flex-basis: 100%; order: 1; }
+.table-card-source > .table-source-cell { flex: 1; min-width: 0; }
 .table-card-refs { margin-left: auto; }
 .table-cards .table-source-label { color: var(--muted); }
 @media (pointer: coarse) {
+  .table-type-label.button::before { content: ''; position: absolute; bottom: 0; left: 0; height: max(100%, var(--target-size)); width: max(100%, var(--target-size)); }
   .table-query-controls > .button, .table-columns-popup .table-column-choice { min-height: calc(var(--space-48) - var(--space-4)); }
   .type-table td { padding-block: var(--space-8); }
 }
@@ -118,13 +121,12 @@
   }
 }
 @media (max-width: 599px) and (pointer: coarse) {
-  .table-pane { padding: var(--space-16) var(--space-16) calc(var(--space-48) + var(--space-24)); }
+  .table-pane { --table-dock-clearance: calc(var(--space-48) - var(--space-4) + var(--space-12) + var(--rule-width) + var(--space-12) + var(--bottom-inset)); padding-bottom: var(--table-dock-clearance); }
   .table-grid { display: none; }
   .table-cards { display: block; }
   .table-toolbar .table-search { width: 100%; min-height: calc(var(--space-48) - var(--space-4)); font-size: var(--text-body); }
   .table-query-controls { position: fixed; left: var(--space-24); right: var(--space-24); bottom: calc(var(--bottom-nav-height) + var(--bottom-inset) + var(--space-12)); z-index: 5; border-top: var(--rule-width) solid var(--line); background: var(--canvas); padding-top: var(--space-12); }
   .table-query-controls > .button { flex: 1; justify-content: center; margin: 0; }
-  .table-card { padding-block: var(--space-16); }
   .table-card-title.button { font-size: calc(var(--text-h2) + var(--space-2)); }
   .table-view-status { padding-top: var(--space-24); font-size: var(--text-apparatus); }
   .table-scroll { overflow-x: hidden; }

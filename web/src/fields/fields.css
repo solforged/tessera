@@ -1,12 +1,12 @@
 /* Definitions use the same heading, apparatus and row rhythm as registers. */
-.fields-pane { display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; outline: none; }
-.fields-heading { padding: var(--space-16) var(--space-16) var(--space-8); }
-.fields-register { margin-bottom: var(--space-4); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
-.fields-title { margin: 0; font: var(--weight-display-heading) var(--text-h1)/var(--line-h1) var(--font-display); font-variation-settings: var(--optical-heading); }
-.fields-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-8); padding: 0 var(--space-16) var(--space-12); border-bottom: var(--rule-width) solid var(--line); }
+.fields-pane { display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; padding: var(--page-top-space) var(--pane-inset) 0; outline: none; }
+.fields-heading { width: 100%; max-width: var(--measure); margin-inline: auto; padding-bottom: var(--page-title-gap); }
+.fields-register { margin-bottom: var(--page-eyebrow-gap); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.fields-title { margin: 0; font: var(--page-title-font); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
+.fields-toolbar { display: flex; align-items: center; flex-wrap: wrap; width: 100%; max-width: var(--measure); margin-inline: auto; gap: var(--space-8); padding-bottom: var(--page-head-gap); border-bottom: var(--rule-width) solid var(--line); }
 .fields-search { flex: 1 1 16rem; min-width: 0; width: 100%; max-width: 16rem; min-height: var(--row-height); border-width: 0 0 var(--rule-width); border-radius: 0; background: transparent; padding-inline: 0; font-size: var(--text-control); }
 .fields-search:focus-visible { outline: none; border-color: var(--accent); }
-.fields-scroll { flex: 1; min-height: 0; overflow: auto; }
+.fields-scroll { flex: 1; min-height: 0; min-width: 0; overflow: auto; padding-bottom: var(--page-bottom-space); }
 .fields-scroll > .empty-state { margin: var(--space-16) var(--space-24); }
 .fields-index { width: 100%; min-width: calc(var(--space-48) * 10 + var(--space-32)); table-layout: fixed; border-spacing: 0; font-size: var(--text-control); line-height: var(--line-control); }
 .fields-index th, .fields-index td { padding: 0 var(--space-8); border-bottom: var(--rule-width) solid var(--line); text-align: left; vertical-align: middle; overflow-wrap: anywhere; }
@@ -23,7 +23,7 @@
 .fields-count .fields-unused { padding-right: calc(var(--space-4) + 1px); }
 .fields-index tbody tr { transition: background-color var(--motion-fast) var(--motion-ease); }
 .fields-index tbody tr:hover, .fields-index tbody tr:focus-within, .fields-index tbody tr:hover td:first-child, .fields-index tbody tr:focus-within td:first-child { background: var(--hover); }
-.fields-index .button { min-height: var(--row-height); max-width: 100%; padding: var(--space-2) var(--space-4); }
+.fields-index .button { min-width: var(--target-size); min-height: var(--row-height); max-width: 100%; padding: var(--space-2) var(--space-4); }
 .fields-index .field-name { justify-content: flex-start; color: var(--text); font-weight: var(--weight-body); }
 .fields-index .field-name:hover { text-decoration: underline; text-underline-offset: var(--space-4); }
 /* Kind reads as text; its menu affordance appears with the row's hover or focus. */
@@ -32,7 +32,7 @@
 .fields-index tr:hover .fields-kind-button > .icon, .fields-kind-button:focus-visible > .icon, .fields-kind-button[aria-expanded="true"] > .icon { opacity: 1; }
 .fields-unused { color: var(--faint); }
 .fields-types { display: flex; flex-wrap: wrap; gap: var(--space-4); }
-.fields-types .outline-tag { margin: 0; }
+.fields-types .outline-tag { display: inline-flex; align-items: center; min-width: var(--target-size); min-height: var(--target-size); max-width: 100%; margin: 0; overflow-wrap: anywhere; white-space: normal; }
 :is(.popup, .popup-exit).fields-new { width: var(--search-width); padding: var(--space-12); font-size: var(--text-control); line-height: var(--line-control); }
 .fields-new p { font-size: var(--text-meta); line-height: var(--line-meta); }
 .field-create-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 8rem); gap: var(--space-12); }
@@ -40,8 +40,20 @@
 .field-create-fields :is(.input, .button) { min-height: var(--space-32); color: var(--text); }
 .field-create-fields .button { justify-content: space-between; border-color: var(--line); }
 .fields-actions { display: flex; gap: var(--space-4); }
-.fields-footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: var(--space-8); padding: var(--space-8) var(--space-16); border-top: 1px solid var(--line); color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.fields-footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: var(--space-8); padding-block: var(--space-8); border-top: 1px solid var(--line); color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .fields-hint { font: var(--weight-body) var(--text-meta)/var(--line-meta) var(--font-body); letter-spacing: normal; }
+
+/* Keep one semantic register; its phone rows become ruled cards without hiding Templates. */
+@media (max-width: 599px) {
+  .fields-index, .fields-index tbody { display: block; min-width: 0; width: 100%; }
+  .fields-index thead { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); }
+  .fields-index tbody tr { display: flex; flex-direction: column; gap: var(--section-item-gap); padding: var(--card-padding); border-bottom: var(--rule-width) solid var(--line); }
+  .fields-index td, .fields-index td:first-child, .fields-index .fields-count { position: static; display: flex; align-items: baseline; gap: var(--section-item-gap); width: 100%; min-width: 0; padding: 0; border: 0; background: transparent; text-align: left; }
+  .fields-index td::before { content: attr(data-label); flex: 0 0 5rem; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+  .fields-index .button { justify-content: flex-start; min-width: var(--target-size); white-space: normal; overflow-wrap: anywhere; text-align: left; }
+  .fields-types { flex: 1; min-width: 0; }
+  .fields-kind-button > .icon { opacity: 1; }
+}
 
 /* A type page's template heads like the journal's sections: name, hairline, the fields in order, chevron. */
 .template-editor { margin-top: var(--space-12); font-weight: var(--weight-body); }

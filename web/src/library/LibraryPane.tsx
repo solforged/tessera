@@ -741,12 +741,12 @@ export function LibraryPane(props: LibraryPaneProps) {
     }}</Show>;
   }
 
-  return <div class="library-pane" classList={{ 'library-search-open': searchOpen() || !!text(), 'library-highlights-tab': tab() === 'highlights', 'library-highlight-passage-open': tab() === 'highlights' && coverLayout() && highlightPassageOpen(), 'library-cover-reading': coverLayout() && showReading() && tab() === 'reading' }} data-pane={props.pane} aria-label="Library" tabIndex={props.active ? 0 : -1} onFocusIn={props.onActivate} onPointerDown={props.onActivate}
+  return <div class="library-pane" classList={{ 'library-search-open': searchOpen() || !!text(), 'library-highlights-tab': tab() === 'highlights', 'library-all-tab': tab() === 'all', 'library-highlight-passage-open': tab() === 'highlights' && coverLayout() && highlightPassageOpen(), 'library-cover-reading': coverLayout() && showReading() && tab() === 'reading' }} data-pane={props.pane} aria-label="Library" tabIndex={props.active ? 0 : -1} onFocusIn={props.onActivate} onPointerDown={props.onActivate}
     onKeyDown={event => { if (event.key === 'Escape' && selected().size && !popup()) { event.preventDefault(); event.stopPropagation(); clearSelection(); } }}
     onDragOver={event => { if (event.dataTransfer?.types.includes('Files')) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; } }}
     onDrop={event => { if (event.dataTransfer?.files.length) { event.preventDefault(); void upload(Array.from(event.dataTransfer.files)); } }}>
     <header class="library-toolbar">
-      <div class="library-cover-header"><h1>Library</h1><Button icon="search" label="Search library" aria-expanded={searchOpen() || !!text()} onClick={() => {
+      <div class="library-cover-header"><div class="library-cover-heading"><div class="library-register">Sources and highlights</div><h1>Library</h1></div><Button icon="search" label="Search library" aria-expanded={searchOpen() || !!text()} onClick={() => {
         setSearchOpen(value => !value);
         if (searchOpen()) queueMicrotask(() => scroll.closest('.library-pane')?.querySelector<HTMLInputElement>('.library-search')?.focus());
       }} /><Show when={tab() !== 'highlights'}><Button class="bordered" icon="plus" label="Add to library" aria-haspopup={EMBEDDED ? undefined : 'dialog'} onClick={event => openAdd(event.currentTarget)} /></Show></div>

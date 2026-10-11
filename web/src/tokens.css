@@ -104,6 +104,20 @@
   --icon-size-small: 14px;
   --switch-width: 32px; --switch-height: 18px; --switch-inset: 2px; /* the knob fills the height inside the inset */
 
+  /* Page rhythm. Every screen composes its spacing from these, so moving between screens
+     never shifts the title or the text column. Reader, live review and Find keep their own. */
+  --pane-inset: var(--space-24);          /* pane edge to the title and text column */
+  --page-top-space: var(--space-24);      /* pane header to the first line of the page */
+  --page-eyebrow-gap: var(--space-4);     /* eyebrow line to the title */
+  --page-title-gap: var(--space-8);       /* title to its metadata or modes */
+  --page-head-gap: var(--space-16);       /* the whole heading block to the body */
+  --section-gap: var(--space-24);         /* one section's last item to the next section head */
+  --section-item-gap: var(--space-8);     /* section head to its first item */
+  --card-padding: var(--space-16);        /* inside a boxed tile or card */
+  --card-gap: var(--space-16);            /* between boxed cards */
+  --page-bottom-space: var(--space-48);   /* after the last item; fixed docks add their own clearance */
+  --page-title-font: var(--weight-title) var(--text-title)/var(--line-title) var(--font-display); /* with --optical-title and --tracking-title */
+
   /* Week planning has a half-hour card and a readable column at narrow widths. */
   --week-measure: 1200px;
   --week-hour-height: 96px;
@@ -198,5 +212,14 @@
     --target-size: 32px;
     --row-height: 36px;
     --switch-width: 40px; --switch-height: 24px; --switch-inset: 3px;
+  }
+}
+
+/* A phone-width pane has room for one column: the inset and top space tighten, and every page title takes the heading size. */
+@media (max-width: 599px) {
+  :root {
+    --pane-inset: var(--space-16);
+    --page-top-space: var(--space-16);
+    --page-title-font: var(--weight-title) var(--text-h1)/var(--line-h1) var(--font-display);
   }
 }

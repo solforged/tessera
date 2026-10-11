@@ -227,6 +227,7 @@ details[open]::details-content { opacity: 1; block-size: auto; }
 .picker-query { display: flex; align-items: center; gap: var(--space-8); padding: var(--space-8) var(--space-12); border-bottom: 1px solid var(--line); }
 .picker-prefix { color: var(--muted); }
 .picker-input { flex: 1; min-width: 0; border: 0; padding: 0; background: transparent; color: var(--text); font: inherit; font-size: var(--text-body); line-height: var(--line-body); }
+.palette:not(.palette-search) .picker-input { min-height: var(--row-height); }
 .picker-input:focus-visible { outline: none; }
 .picker-list { overflow: auto; padding: var(--space-4); }
 .picker-row { display: flex; align-items: center; gap: var(--space-8); min-height: var(--row-height); padding: var(--space-2) var(--space-8); border-radius: var(--radius-control); font-size: var(--text-control); line-height: var(--line-control); cursor: default; transition: background-color var(--motion-fast) var(--motion-ease); }
