@@ -9,12 +9,12 @@ a { color: var(--accent); }
 :focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-offset); }
 ::selection { background: var(--text-selection); }
 .icon { width: var(--icon-size); height: var(--icon-size); flex: none; vertical-align: middle; }
-.button { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-4); min-height: var(--target-size); border: 1px solid transparent; border-radius: var(--radius-control); padding: var(--space-4) var(--space-8); background: transparent; font-size: var(--text-control); line-height: var(--line-control); font-weight: var(--weight-control); text-align: left; transition: background-color var(--motion-fast) var(--motion-ease), color var(--motion-fast) var(--motion-ease), border-color var(--motion-fast) var(--motion-ease), opacity var(--motion-fast) var(--motion-ease); }
-.button:hover:not(:disabled) { background: var(--hover); }
+:is(.button, .conflict-actions button) { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-4); min-height: var(--target-size); border: 1px solid transparent; border-radius: var(--radius-control); padding: var(--space-4) var(--space-8); background: transparent; font-size: var(--text-control); line-height: var(--line-control); font-weight: var(--weight-control); text-align: left; transition: background-color var(--motion-fast) var(--motion-ease), color var(--motion-fast) var(--motion-ease), border-color var(--motion-fast) var(--motion-ease), opacity var(--motion-fast) var(--motion-ease); }
+:is(.button, .conflict-actions button):hover:not(:disabled) { background: var(--hover); }
 .button[aria-pressed="true"], .button.selected { background: var(--selection); color: var(--accent); }
 /* Bordered controls (menu triggers, date ranges) carry a hairline, not a frame. */
-.button.bordered { border-color: var(--line); }
-.button.bordered:hover:not(:disabled) { border-color: var(--control-border); }
+:is(.button.bordered, .conflict-actions button) { border-color: var(--line); }
+:is(.button.bordered, .conflict-actions button):hover:not(:disabled) { border-color: var(--control-border); }
 .button.danger { color: var(--danger); }
 .button.icon-only { width: var(--row-height); padding: var(--space-4); }
 .button > .icon { transition: scale var(--motion-fast) var(--motion-ease), rotate var(--motion-fast) var(--motion-ease); }
