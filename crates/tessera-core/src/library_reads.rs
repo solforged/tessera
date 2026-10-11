@@ -154,17 +154,31 @@ fn toc(conn: &Connection, snapshot: &str) -> Result<Vec<TocEntry>> {
             }
         }
     }
+    // Each entry finds its passage by locator or ID through their indexes, and
+    // by element anchor in one pass over the passages that have one. An OR
+    // across the three columns scanned every passage once per entry.
     let mut statement = conn.prepare_cached(
-        "SELECT json_extract(e.value, '$.title'), json_extract(e.value, '$.locator'),
-                json_extract(e.value, '$.level'), MIN(p.ordinal), MIN(p.start)
-         FROM snapshots s, json_each(s.toc) e
-         LEFT JOIN passages p ON p.snapshot_id = s.id
-             AND (p.id = json_extract(e.value, '$.locator')
-                 OR p.locator = json_extract(e.value, '$.locator')
-                 OR p.anchor = json_extract(e.value, '$.locator'))
-         WHERE s.id = ?1
-         GROUP BY e.key
-         ORDER BY CAST(e.key AS INTEGER)",
+        "WITH e AS MATERIALIZED (
+             SELECT CAST(e.key AS INTEGER) AS k, json_extract(e.value, '$.title') AS title,
+                    json_extract(e.value, '$.locator') AS locator,
+                    json_extract(e.value, '$.level') AS level
+             FROM snapshots s, json_each(s.toc) e
+             WHERE s.id = ?1
+         ), hits AS (
+             SELECT e.k, p.ordinal, p.start
+             FROM e JOIN passages p ON p.snapshot_id = ?1 AND p.locator = e.locator
+             UNION ALL
+             SELECT e.k, p.ordinal, p.start
+             FROM e JOIN passages p ON p.id = e.locator AND p.snapshot_id = ?1
+             UNION ALL
+             SELECT e.k, p.ordinal, p.start
+             FROM passages p CROSS JOIN e
+             WHERE p.snapshot_id = ?1 AND p.anchor IS NOT NULL AND p.anchor = e.locator
+         )
+         SELECT e.title, e.locator, e.level, MIN(h.ordinal), MIN(h.start)
+         FROM e LEFT JOIN hits h ON h.k = e.k
+         GROUP BY e.k
+         ORDER BY e.k",
     )?;
     Ok(statement
         .query_map([snapshot], |r| {
