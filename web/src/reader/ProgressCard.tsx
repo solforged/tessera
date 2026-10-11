@@ -5,6 +5,7 @@ import { BookMap } from '../ui/BookMap';
 import { Button } from '../ui/Button';
 import type { Chapter } from '../ui/book-map';
 import { Popup } from '../ui/Popup';
+import { sectionLabel } from './openings';
 import { timeLeft } from './paged';
 
 /** How many chapters the card lists after the one being read. */
@@ -24,16 +25,13 @@ export function ProgressCard(props: {
   highlights: readonly { at: number; color: Citation['color'] }[]; added: number | null;
   onJump(chapter: Chapter): void; onDismiss(): void;
 }) {
-  // Front matter before the first chapter is a stretch of the map but not a numbered chapter.
-  const titled = createMemo(() => props.chapters.filter(chapter => chapter.title));
+  // Front matter and text before the first chapter are stretches of the map, not chapters to name or list.
   const current = createMemo(() => props.chapters.find(chapter => props.at >= chapter.start && props.at < chapter.end) ?? props.chapters.at(-1));
-  const number = (chapter: Chapter) => titled().indexOf(chapter) + 1;
   const chapterLine = () => {
     const chapter = current();
-    if (!chapter || !titled().length) return '';
-    if (!chapter.title) return `Before chapter 1 of ${titled().length}`;
+    if (!chapter?.title) return '';
     const through = Math.floor((props.at - chapter.start) / Math.max(1, chapter.end - chapter.start) * 100);
-    return `Chapter ${number(chapter)} of ${titled().length}, ${through}% through`;
+    return `${sectionLabel(chapter.title)}, ${through}% through`;
   };
   const ahead = createMemo(() => {
     const chapter = current();
@@ -55,9 +53,9 @@ export function ProgressCard(props: {
     </div>
     <BookMap large chapters={props.chapters} length={props.length} at={props.at} highlights={props.highlights} />
     <p class="progress-card-ends">
-      <span>{titled().length ? 'Ch. 1' : 'Start'}</span>
+      <span>Start</span>
       <span>{props.highlights.length === 1 ? '1 highlight' : `${props.highlights.length} highlights`}</span>
-      <span>{titled().length ? `Ch. ${titled().length}` : 'End'}</span>
+      <span>End</span>
     </p>
     <dl class="progress-card-times">
       <Show when={current()?.title}><div><dt>Left in chapter</dt><dd><Duration characters={current()!.end - props.at} /></dd></div></Show>
@@ -67,7 +65,7 @@ export function ProgressCard(props: {
       <ol class="progress-card-chapters" aria-label="Chapters ahead">
         <For each={ahead()}>{chapter => <li>
           <Button class="progress-card-chapter-row" aria-current={chapter === current() ? 'location' : undefined} onClick={() => props.onJump(chapter)}>
-            <span>{number(chapter)} · {chapter.title}</span>
+            <span>{sectionLabel(chapter.title)}</span>
             <span class="progress-card-minutes">{chapter === current() ? `${timeLeft(chapter.end - props.at)} left` : timeLeft(chapter.end - chapter.start)}</span>
           </Button>
         </li>}</For>

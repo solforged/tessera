@@ -13,7 +13,7 @@ import type { HighlightMenu, HighlightSection } from '../library/highlights';
 import { ResourceImage } from '../library/ResourceImage';
 import { documentReady } from '../tasks/JournalAgenda';
 import { BookMap } from '../ui/BookMap';
-import { bookChapters } from '../ui/book-map';
+import { bookChapters, chapterEntries } from '../ui/book-map';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
@@ -31,7 +31,7 @@ import { ReaderSettingsPopup, readerSettings, readerStyle } from './ReaderSettin
 import { ProgressCard } from './ProgressCard';
 import { chapterAt, pageChunk, timeLeft } from './paged';
 import type { PageChunk } from './paged';
-import { absorbedPassages, bookKeys, chapterOpenings, repeatsBook, sectionName } from './openings';
+import { absorbedPassages, bookKeys, chapterOpenings, isFrontMatter, repeatsBook, sectionLabel, sectionName } from './openings';
 import type { Opening } from './openings';
 import { mergeMembers, overlappingHighlights } from './highlight-merge';
 import './reader.css';
@@ -178,7 +178,7 @@ export function ReaderPane(props: ReaderPaneProps) {
   /** The book as a map of chapters by character offset, the reading point on it and the highlights along it. */
   const mapChapters = createMemo(() => bookChapters(contents(), currentSnapshot()?.text_length ?? 0));
   const here = createMemo(() => { version(); return passages.get(firstVisible())?.start ?? 0; });
-  /** The chapter being read: the outermost contents level with two or more entries, as paged reading uses. */
+  /** The chapter being read, as paged reading and the book map count chapters (`chapterEntries`). */
   const chapter = createMemo(() => chapterAt(sections(), total(), firstVisible()));
   /** Characters left in the chapter and in the text, from the start of the passage being read; null until known. */
   const chapterLeft = createMemo(() => {
@@ -194,7 +194,14 @@ export function ReaderPane(props: ReaderPaneProps) {
   });
   // The next chapter's first passage says where this one ends.
   createEffect(() => { const end = chapter().end; if (end < total() && !passages.has(end)) void loadPage(end); });
-  const chapterEntry = createMemo(() => sections().find(entry => entry.ordinal === chapter().first));
+  /** The chapter's own entry: the deepest one starting it, so a chapter that opens a part names the chapter. */
+  const chapterEntry = createMemo(() => chapterEntries(sections()).filter(entry => entry.ordinal === chapter().first)
+    .reduce<HighlightSection | undefined>((deepest, entry) => !deepest || entry.level > deepest.level ? entry : deepest, undefined));
+  /** How the foot and running head name the chapter: nothing in front matter or before the first chapter. */
+  const chapterName = createMemo(() => {
+    const entry = chapterEntry();
+    return entry && !isFrontMatter(entry.title) ? sectionLabel(entry.title) : '';
+  });
   /** Chapter openings by first passage, composed from the contents rather than the file's heading markup. */
   const openings = createMemo(() => chapterOpenings(contents(), book()));
   /** The cover beside the title page: the one on the source page, else the file's. */
@@ -1051,6 +1058,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     const passage = createMemo(() => { version(); return passages.get(row.ordinal); });
     return <>
       <Show when={openings().get(row.ordinal)}>{opening => <div class="reader-opening">
+        <Show when={opening().part}>{part => <p class="reader-opening-part">{part().text}</p>}</Show>
         <Show when={opening().label}><p class="reader-opening-label">{opening().label}</p></Show>
         <h2 class="reader-opening-title">{opening().title}</h2>
         <span class="reader-opening-rule" aria-hidden="true" />
@@ -1156,7 +1164,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     </div></Portal>;
   }
 
-  return <div class="reader-pane" classList={{ 'reader-chrome-hidden': chromeHides() && chromeHidden() }} style={readerStyle()} onPointerDown={props.onActivate}
+  return <div class="reader-pane" classList={{ 'reader-chrome-hidden': chromeHides() && chromeHidden(), 'reader-loading': loading() }} style={readerStyle()} onPointerDown={props.onActivate}
     onFocusIn={props.onActivate} onPointerMove={pointerMoved}>
     {/* The cover screen hides the pane header and bottom nav while reading; the book's name heads the page instead. */}
     <div class="reader-masthead">
@@ -1164,7 +1172,7 @@ export function ReaderPane(props: ReaderPaneProps) {
       <h2>{title() || 'Reader'}</h2>
     </div>
     <div ref={header} class="reader-header" onFocusIn={event => { keyboardFocus = (event.target as Element).matches(':focus-visible'); showChrome(true); }}>
-      <Button class="reader-contents" icon="contents" label="Contents" aria-haspopup="dialog" disabled={!contents().length} onClick={event => { setQuery(''); setPopup({ kind: 'contents', anchor: event.currentTarget }); }}><span><Show when={currentSection()} fallback="Contents">{entry => <SectionLabel title={entry().title} />}</Show></span><Icon name="down" /></Button>
+      <Button class="reader-contents" icon="contents" label="Contents" aria-haspopup="dialog" disabled={!contents().length} onClick={event => { setQuery(''); setPopup({ kind: 'contents', anchor: event.currentTarget }); }}><span><Show when={!loading() && currentSection()} fallback="Contents">{entry => <SectionLabel title={entry().title} />}</Show></span><Icon name="down" /></Button>
       <Button icon="highlight" label="Highlights" aria-haspopup="dialog" disabled={!snapshot()} onClick={event => { setQuery(''); setPopup({ kind: 'highlights', anchor: event.currentTarget }); }}><Show when={sourceHighlights().length}><span>{sourceHighlights().length}</span></Show></Button>
       <Button icon="search" label="Find in source" aria-haspopup="dialog" disabled={!snapshot()} onClick={event => { setQuery(''); setPopup({ kind: 'find', anchor: event.currentTarget }); }} />
       <Button class="reader-settings-toggle" label="Reader settings" aria-haspopup="dialog" onClick={event => setPopup({ kind: 'settings', anchor: event.currentTarget })}>Aa</Button>
@@ -1191,10 +1199,10 @@ export function ReaderPane(props: ReaderPaneProps) {
           <Show when={title()}><TitleBlock /></Show>
           <For each={[...items().keys()]}>{ordinal => <PassageRow ordinal={ordinal} item={() => items().get(ordinal)!} />}</For>
         </div>}>
-          {/* A running head over each column, as in a printed book: the title over the left page, the chapter over the right. A chapter's opening page goes without. */}
-          <div class="reader-running-head" classList={{ 'reader-running-head-quiet': pageIndex() === 0 && openings().has(chunk()?.first ?? -1) }} aria-hidden="true" style={{ width: pageFrame().width ? `${pageFrame().width}px` : '100%', 'grid-template-columns': `repeat(${pageFrame().columns}, minmax(0, 1fr))`, 'column-gap': `${PAGE_GAP}px` }}>
+          {/* A running head over each column, as in a printed book: the title over the left page, the chapter over the right. The title page, a chapter's opening page and a chapter still loading go without. */}
+          <div class="reader-running-head" classList={{ 'reader-running-head-quiet': loading() || (pageIndex() === 0 && (openings().has(chunk()?.first ?? -1) || (chunk()?.first === 0 && !!title()))) }} aria-hidden="true" style={{ width: pageFrame().width ? `${pageFrame().width}px` : '100%', 'grid-template-columns': `repeat(${pageFrame().columns}, minmax(0, 1fr))`, 'column-gap': `${PAGE_GAP}px` }}>
             <Show when={pageFrame().columns === 2}><span>{title()}</span></Show>
-            <span>{(() => { const entry = chapterEntry(); if (!entry) return title(); const name = sectionName(entry.title); return name.numeral ? `${name.numeral} · ${name.title}` : name.title; })()}</span>
+            <span>{chapterName() || (pageFrame().columns === 2 ? '' : title())}</span>
           </div>
           <div ref={frame} class="reader-page-frame" style={{ width: `${pageFrame().width}px` }} onWheel={pageWheel}>
             <div class="reader-flow" style={{ 'column-count': pageFrame().columns, 'column-gap': `${PAGE_GAP}px` }}>
@@ -1208,14 +1216,14 @@ export function ReaderPane(props: ReaderPaneProps) {
         </Show>
       </div>
     </div>
-    {/* The foot: the book map, and under it one line naming the chapter with its time left, then the book's share and time left, which opens the progress card. */}
-    <div class="reader-foot">
+    {/* The foot: the book map, and under it one line naming the chapter with its time left, then the book's share and time left, which opens the progress card. In Pages it spans the spread. */}
+    <div class="reader-foot" style={{ 'max-width': paged() && pageFrame().width ? `${pageFrame().width}px` : undefined }}>
       <div class="reader-map"><Show when={mapChapters().length} fallback={<div class="reader-progress-rule" aria-hidden="true"><span style={{ width: `${position() * 100}%` }} /></div>}>
         <BookMap chapters={mapChapters()} length={currentSnapshot()!.text_length} at={here()} highlights={marks()} label={`${formatProgress(position())} read`} />
       </Show></div>
       <div class="reader-folio">
-        <span class="reader-folio-name"><Show when={chapterEntry() ?? currentSection()}>{entry => <SectionLabel title={entry().title} />}</Show></span>
-        <span class="reader-folio-time"><Show when={chapterLeft() !== null}>{timeLeft(chapterLeft()!)} left</Show><Show when={paged()}>{chapterLeft() !== null ? ' · ' : ''}p. {pageIndex() + 1} of {pageCount()}</Show></span>
+        <span class="reader-folio-name"><Show when={chapterName()}><SectionLabel title={chapterEntry()!.title} /></Show></span>
+        <span class="reader-folio-time"><Show when={chapterLeft() !== null}>{timeLeft(chapterLeft()!)} left</Show><Show when={paged() && !loading()}>{chapterLeft() !== null ? ' · ' : ''}p. {pageIndex() + 1} of {pageCount()}</Show></span>
         <Button class="reader-folio-book" label="Reading progress" aria-haspopup="dialog" disabled={!mapChapters().length} onClick={event => setPopup({ kind: 'progress', anchor: event.currentTarget })}>
           {formatProgress(position())}<Show when={bookLeft() !== null}> · {timeLeft(bookLeft()!)}</Show>
         </Button>

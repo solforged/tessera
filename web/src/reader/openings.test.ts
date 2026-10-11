@@ -25,6 +25,18 @@ test('sections below the chapter level and entries repeating the book title get 
   expect([...openings.keys()]).toEqual([1, 4]);
 });
 
+test('a part that is only a title page opens, so does each chapter in it, and a chapter starting with its part names the part above its label', () => {
+  const placed = (title: string, ordinal: number, level: number, start: number): TocEntry => ({ ...entry(title, ordinal, level), start });
+  const openings = chapterOpenings([
+    placed('List of Maps', 0, 1, 0), placed('~Part I: Trial by Ordeal~', 1, 1, 100), placed('1. The Count', 2, 2, 300), placed('2. Poets', 9, 2, 20_000),
+    placed('Part Two - An Excess of Good Fortune', 20, 1, 40_000), placed('Chapter 3 - The Luck of Henry', 20, 2, 40_000), placed('Chapter 4 - Radical', 30, 2, 60_000),
+  ], book);
+  expect([...openings.values()].map(({ ordinal, part, label, title }) => [ordinal, part?.text ?? null, label, title])).toEqual([
+    [1, null, 'Part I', 'Trial by Ordeal'], [2, null, 'Chapter 1', 'The Count'], [9, null, 'Chapter 2', 'Poets'],
+    [20, 'Part Two · An Excess of Good Fortune', 'Chapter 3', 'The Luck of Henry'], [30, null, 'Chapter 4', 'Radical'],
+  ]);
+});
+
 test('heading lines that restate the entry are repeats in any case, punctuation or numeral style', () => {
   expect(repeatsOpening('CHAPTER I', 'I. The Violent Tenor of Life', book)).toBe(true);
   expect(repeatsOpening('Chapter 1', 'I. The Violent Tenor of Life', book)).toBe(true);

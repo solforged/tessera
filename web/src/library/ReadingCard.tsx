@@ -1,6 +1,7 @@
 import { Show, createEffect, createMemo, createSignal, onCleanup } from 'solid-js';
 import type { LibraryRow, SourceView } from '../api/types';
 import type { NotebookClient } from '../document/contract';
+import { isFrontMatter, sectionLabel } from '../reader/openings';
 import { timeLeft } from '../reader/paged';
 import { BookMap } from '../ui/BookMap';
 import { bookChapters, chapterAt } from '../ui/book-map';
@@ -31,10 +32,10 @@ export function ReadingCard(props: { row: LibraryRow; notebook: NotebookClient; 
     <span class="library-reading-text">
       <span class="library-reading-title">{props.row.page.text}</span>
       <span class="library-reading-author">{sourceByline(props.row)}</span>
-      <span class="library-reading-chapter">{current()?.chapter.title || props.row.section || (progress() ? 'Reading position' : 'Not started')}</span>
+      <span class="library-reading-chapter">{current()?.chapter.title ? sectionLabel(current()!.chapter.title) : !source() && props.row.section && !isFrontMatter(props.row.section) ? sectionLabel(props.row.section) : progress() ? 'Reading position' : 'Not started'}</span>
       <Show when={length() > 0}><BookMap chapters={chapters()} length={length()} at={at()} /></Show>
       <span class="library-reading-position">
-        <span><Show when={current()}>{value => <>{timeLeft(value().chapter.end - at())} left {value().chapter.title ? 'in chapter' : 'in book'}</>}</Show></span>
+        <span><Show when={current()?.chapter.title ? current() : null}>{value => <>{timeLeft(value().chapter.end - at())} left in chapter</>}</Show></span>
         <span>{formatProgress(progress())}</span>
       </span>
       <Show when={error()}><span class="library-error" role="alert">{error()}</span></Show>
