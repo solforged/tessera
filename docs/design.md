@@ -389,6 +389,7 @@ Shared popup patterns:
 | Sync sheet | Device → Mac register over the title; Sync now with the last sync, kept and rejected changes leading to Conflicts, offline books; a retired copy offers Download the notebook again, a forgotten one Pair again | Top centre, 480 px; a bottom sheet on touch |
 | Phone setup | Where is your notebook? with two numbered choices: Use my Mac's notebook (Scan code or Type code, then the Mac's address and code) and Start a notebook on this phone. Pair again shows only the first, with the address filled in | Top centre, 560 px; a bottom sheet on touch; on first run |
 | Save state | Pane header, never a toolbar or a row; it says Saving… only when a save takes longer than a second |
+| Loading notices | In place of the content they precede, only after 300 ms, so fast reads show nothing until the content arrives; refreshes after a commit keep the current content on screen and swap in only what changed. An index opened again shows its last read at once | The pane or section that is loading |
 
 Native `<select>` is never used; a bordered menu button or a picker replaces it.
 

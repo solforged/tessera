@@ -10,6 +10,7 @@ import { Menu } from '../ui/Menu';
 import type { MenuItem } from '../ui/Menu';
 import { Picker } from '../ui/Picker';
 import { Popup } from '../ui/Popup';
+import { createSlowFlag, sameData } from '../ui/loading';
 import { DatePicker } from './DatePicker';
 import { AgendaWeekStrip } from './AgendaWeekStrip';
 import { spokenJournalDate } from './journal-date';
@@ -51,15 +52,19 @@ export function AgendaPane(props: AgendaPaneProps) {
   const date = createMemo(() => view().date);
   const mode = createMemo(() => view().mode);
   const viewId = createMemo(() => view().viewId);
-  const [agenda, setAgenda] = createSignal<Agenda>();
-  const [tasks, setTasks] = createSignal<TaskQueryResult>();
+  // Refreshes after commits keep the current result on screen; `loading` covers only a new request with nothing to show.
+  const [agenda, setAgenda] = createSignal<Agenda | undefined>(undefined, { equals: sameData });
+  const [tasks, setTasks] = createSignal<TaskQueryResult | undefined>(undefined, { equals: sameData });
   const [loading, setLoading] = createSignal(true);
+  const slowLoading = createSlowFlag(loading);
   const [error, setError] = createSignal('');
   const [refresh, setRefresh] = createSignal(0);
   const [stripStart, setStripStart] = createSignal(props.view.mode === 'week' ? mondayWeekStart(props.view.date) ?? props.view.date : props.view.date);
   const stripDates = createMemo(() => Array.from({ length: 7 }, (_, index) => shiftCalendarDate(stripStart(), index)));
-  const [weekRows, setWeekRows] = createSignal<TaskRow[]>([]);
+  const [weekRows, setWeekRows] = createSignal<TaskRow[]>([], { equals: sameData });
   const [weekLoading, setWeekLoading] = createSignal(true);
+  const slowWeekLoading = createSlowFlag(weekLoading);
+  let weekRange: string | undefined;
   const [weekError, setWeekError] = createSignal('');
   const dayGroups = createMemo(() => groupDayAgenda(agenda()?.items ?? [], weekRows(), date()));
   const [showUnplanned, setShowUnplanned] = createSignal(false);
@@ -142,14 +147,14 @@ export function AgendaPane(props: AgendaPaneProps) {
     const currentMode = mode(); const currentDate = date(); const value = copyTaskQuery(query());
     props.notebook.changeSequence(); refresh();
     let current = true;
-    setLoading(true); setError('');
+    setError('');
     if (currentMode === 'week') {
       setLoading(false);
       requested = null;
       return;
     }
     if (!requested || requested.mode !== currentMode || requested.date !== currentDate || !taskQueriesEqual(requested.query, value)) {
-      setAgenda(undefined); setTasks(undefined);
+      setAgenda(undefined); setTasks(undefined); setLoading(true);
     }
     requested = { mode: currentMode, date: currentDate, query: value };
     const timer = setTimeout(() => {
@@ -175,7 +180,8 @@ export function AgendaPane(props: AgendaPaneProps) {
     const through = lookaheadThrough && (!stripThrough || lookaheadThrough > stripThrough) ? lookaheadThrough : stripThrough;
     props.notebook.changeSequence(); refresh();
     const controller = new AbortController();
-    setWeekRows([]); setWeekLoading(true); setWeekError('');
+    setWeekError('');
+    if (weekRange !== `${from}/${through}`) { setWeekRows([]); setWeekLoading(true); weekRange = `${from}/${through}`; }
     if (!through) { setWeekLoading(false); return; }
     void Promise.all([
       fetchWeekTaskRange(value => props.notebook.api.taskQuery(value, controller.signal), 'scheduled', from, through),
@@ -356,7 +362,7 @@ export function AgendaPane(props: AgendaPaneProps) {
       <Show when={mode() === 'week'}><WeekCalendar date={date()} notebook={props.notebook} onOpen={props.onOpen} /></Show>
       <Show when={mode() !== 'week'}>
       <section class="agenda-results" data-task-rows aria-label={mode() === 'agenda' ? `Agenda for ${date()}` : 'Task results'} aria-busy={loading()}>
-        <Show when={loading()}><p class="agenda-message" role="status">Loading {mode() === 'agenda' ? 'agenda' : 'tasks'}…</p></Show>
+        <Show when={slowLoading()}><p class="agenda-message" role="status">Loading {mode() === 'agenda' ? 'agenda' : 'tasks'}…</p></Show>
         <Show when={error()}><div class="agenda-error" role="alert"><span>{error()}</span><Button onClick={() => setRefresh(value => value + 1)}>Retry</Button></div></Show>
         <Show when={!loading() && !error()}>
           <Show when={!rows().length && mode() === 'tasks'}><p class="agenda-message">No tasks match these filters.</p></Show>
@@ -381,7 +387,7 @@ export function AgendaPane(props: AgendaPaneProps) {
           </section>
           <section class="agenda-day-section agenda-lookahead" aria-label="Next 7 days">
             <AgendaSectionHeading name="Next 7 days" count={dayGroups().upcoming.reduce((total, day) => total + day.rows.length, 0)} />
-            <Show when={weekLoading()}><p class="agenda-message" role="status">Loading planned tasks…</p></Show>
+            <Show when={slowWeekLoading()}><p class="agenda-message" role="status">Loading planned tasks…</p></Show>
             <Show when={!weekLoading() && !dayGroups().upcoming.length && !weekError()}><p class="agenda-message agenda-day-empty">Nothing planned</p></Show>
             <For each={dayGroups().upcoming}>{day => <div class="agenda-lookahead-day">
               <h3 class="agenda-lookahead-date">{relativeDate(day.date, props.notebook.todayDate())}</h3>
