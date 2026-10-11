@@ -8,6 +8,12 @@ import type {
   Backlink,
   BackupInfo,
   CreatedBackup,
+  PairingCode,
+  PairingStatus,
+  SyncConflicts,
+  SyncDevices,
+  SyncSharing,
+  SyncState,
   Batch,
   Block,
   BlockCapabilities,
@@ -120,7 +126,7 @@ interface ErrorEnvelope {
   error?: { code?: string; message?: string; details?: unknown };
 }
 
-async function request<T>(base: string, method: 'GET' | 'POST', path: string, body?: unknown, signal?: AbortSignal, frozen?: string): Promise<T> {
+async function request<T>(base: string, method: 'GET' | 'POST' | 'DELETE', path: string, body?: unknown, signal?: AbortSignal, frozen?: string): Promise<T> {
   const json = frozen ?? (body === undefined ? undefined : JSON.stringify(body));
   return send<T>(`${base}/api${path}`, { method, signal, headers: json === undefined ? undefined : { 'Content-Type': 'application/json' }, body: json });
 }
@@ -160,6 +166,19 @@ export interface ApiClient {
   service(signal?: AbortSignal): Promise<ServiceInfo>;
   backups(signal?: AbortSignal): Promise<BackupInfo[]>;
   createBackup(signal?: AbortSignal): Promise<CreatedBackup>;
+  /** Hub side, the Mac only: paired devices and tailnet sharing. */
+  syncDevices(signal?: AbortSignal): Promise<SyncDevices>;
+  setSharing(on: boolean, signal?: AbortSignal): Promise<SyncSharing>;
+  forgetDevice(id: string, signal?: AbortSignal): Promise<void>;
+  startPairing(signal?: AbortSignal): Promise<PairingCode>;
+  pairingStatus(signal?: AbortSignal): Promise<PairingStatus>;
+  cancelPairing(signal?: AbortSignal): Promise<void>;
+  /** Replica side; the browser demo has no sync, so callers check `DEMO`. */
+  syncState(signal?: AbortSignal): Promise<SyncState>;
+  runSync(signal?: AbortSignal): Promise<SyncState>;
+  joinHub(url: string, code: string, name: string, signal?: AbortSignal): Promise<SyncState>;
+  reclone(signal?: AbortSignal): Promise<SyncState>;
+  syncConflicts(signal?: AbortSignal): Promise<SyncConflicts>;
   agentChanges(limit?: number, signal?: AbortSignal): Promise<AgentChange[]>;
   undoAgentChange(seq: number, signal?: AbortSignal): Promise<UndoReceipt>;
   settings(signal?: AbortSignal): Promise<SettingsView>;
@@ -240,7 +259,7 @@ export interface ApiClient {
   exportQuery(format: ExportFormat, query: LibraryQuery, signal?: AbortSignal): Promise<Blob>;
 }
 
-type NativeMethod = 'service' | 'backups' | 'createBackup' | 'queueUrl';
+type NativeMethod = 'service' | 'backups' | 'createBackup' | 'queueUrl' | 'syncDevices' | 'setSharing' | 'forgetDevice' | 'startPairing' | 'pairingStatus' | 'cancelPairing';
 
 export function createApi(base = ''): ApiClient {
   const get = <T>(path: string, signal?: AbortSignal) => request<T>(base, 'GET', path, undefined, signal);
@@ -252,10 +271,21 @@ export function createApi(base = ''): ApiClient {
       backups: (signal?: AbortSignal) => get<BackupInfo[]>('/backups', signal),
       createBackup: (signal?: AbortSignal) => request<CreatedBackup>(base, 'POST', '/backups', undefined, signal),
       queueUrl: (url: string, targetSource?: string, signal?: AbortSignal) => request<IngestJob>(base, 'POST', '/library/jobs', { url, target_source: targetSource ?? null }, signal),
+      syncDevices: (signal?: AbortSignal) => get<SyncDevices>('/sync/devices', signal),
+      setSharing: (on: boolean, signal?: AbortSignal) => request<SyncSharing>(base, 'POST', '/sync/sharing', { on }, signal),
+      forgetDevice: (id: string, signal?: AbortSignal) => request<void>(base, 'DELETE', `/sync/devices/${segment(id)}`, undefined, signal),
+      startPairing: (signal?: AbortSignal) => request<PairingCode>(base, 'POST', '/sync/pairing', {}, signal),
+      pairingStatus: (signal?: AbortSignal) => get<PairingStatus>('/sync/pairing', signal),
+      cancelPairing: (signal?: AbortSignal) => request<void>(base, 'DELETE', '/sync/pairing', undefined, signal),
     } : {}),
     agentChanges: (limit = 50, signal?: AbortSignal) => get<AgentChange[]>(`/agent-changes${query({ limit })}`, signal),
     undoAgentChange: (seq: number, signal?: AbortSignal) => request<UndoReceipt>(base, 'POST', `/agent-changes/${seq}/undo`, { actor: { kind: 'person' } }, signal),
     settings: (signal?: AbortSignal) => get<SettingsView>('/settings', signal),
+    syncState: (signal?: AbortSignal) => get<SyncState>('/sync/state', signal),
+    runSync: (signal?: AbortSignal) => request<SyncState>(base, 'POST', '/sync/run', undefined, signal),
+    joinHub: (url: string, code: string, name: string, signal?: AbortSignal) => request<SyncState>(base, 'POST', '/sync/join', { url, code, name }, signal),
+    reclone: (signal?: AbortSignal) => request<SyncState>(base, 'POST', '/sync/reclone', undefined, signal),
+    syncConflicts: (signal?: AbortSignal) => get<SyncConflicts>('/sync/conflicts', signal),
     roots: (signal?: AbortSignal) => get<Block[]>('/roots', signal),
     writtenJournalDates: (from: string, to: string, signal?: AbortSignal) => get<string[]>(`/journal/written?${new URLSearchParams({ from, to })}`, signal),
     page: (id: string, signal?: AbortSignal) => get<PageView>(`/pages/${segment(id)}`, signal),

@@ -14,6 +14,7 @@
         "@replit/codemirror-vim": "^6.4.0",
         "@tanstack/solid-virtual": "^3.13.40",
         "@tauri-apps/api": "~2.12.0",
+        "@tauri-apps/plugin-barcode-scanner": "~2",
         "idb": "^8.0.3",
         "solid-js": "^1.9.15",
         "ulid": "^3.0.2",
@@ -140,6 +141,8 @@
     "@tanstack/virtual-core": ["@tanstack/virtual-core@3.17.11", "", {}, "sha512-+ILjvtHup6Y2hzQ6YzwMgX1Q+oQpxEGOXCEsCNaPoIP0VxMbizIBTmYTDtkerkIQS8/CbP1BRuyt8V/8BCsy1g=="],
 
     "@tauri-apps/api": ["@tauri-apps/api@2.12.3", "", {}, "sha512-9s0PKw0p4r3kFq92jhpivYSp+cSht15o0gXpZxuQd0+dV9KCexEVkNaLELVoLdJWyoH4KlfQo5h3W2LIM8siJg=="],
+
+    "@tauri-apps/plugin-barcode-scanner": ["@tauri-apps/plugin-barcode-scanner@2.5.2", "", { "dependencies": { "@tauri-apps/api": "^2.12.0" } }, "sha512-eOTIwy28iRJvr+yqhnSdBEXbbS8d7wSpKwkNX7ZfGFJweIc7NyI1SY02Nb8e2Gi7x/G32GbYuV0Mdi6ibUEVJg=="],
 
     "@types/babel__core": ["@types/babel__core@7.20.5", "", { "dependencies": { "@babel/parser": "^7.20.7", "@babel/types": "^7.20.7", "@types/babel__generator": "*", "@types/babel__template": "*", "@types/babel__traverse": "*" } }, "sha512-qoQprZvz5wQFJwMDqeseRXWv3rqMvhgpbXFfVyWhbx9X47POIA6i/+dXefEmZKoAgOaTdaIgNSMqMIU61yRyzA=="],
 

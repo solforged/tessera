@@ -28,6 +28,7 @@ import { installOpenedFiles } from '../library/opened-files';
 import { blankCapture, installQuickCapture } from './quick-capture';
 import type { CaptureRequest } from './quick-capture';
 import { CaptureSheet } from '../capture/CaptureSheet';
+import { SyncStatus } from '../sync/SyncStatus';
 import { indexKindTarget, noteIndex, noteKindIcon, tagOnly } from '../notes/kinds';
 
 // Panes other than the outline load on demand and are prefetched once the app is idle.
@@ -543,6 +544,7 @@ export function App() {
         <Button class="global-commands" icon="command" label="Commands" shortcut="⌃⇧P" aria-haspopup="dialog" aria-expanded={popup()?.kind === 'commands'} onClick={() => showPalette('commands')} />
       </div>
       <div class="rail-end">
+        <SyncStatus notebook={notebook} onOpenPage={pageId => open({ kind: 'page', pageId })} />
         <Button icon="panes" label="Layout" aria-haspopup="menu" aria-expanded={popup()?.kind === 'layout'} onClick={event => setPopup({ kind: 'layout', anchor: event.currentTarget, pane: active() })} />
       </div>
     </header>

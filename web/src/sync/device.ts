@@ -1,0 +1,35 @@
+import { Format, checkPermissions, requestPermissions, scan } from '@tauri-apps/plugin-barcode-scanner';
+import { ANDROID } from '../demo/mode';
+
+export interface PairingTarget { url: string; code: string }
+
+/** `tessera://pair?hub=<url>&code=<code>`, the content of the Mac's pairing QR code. */
+export function parsePairingLink(text: string): PairingTarget | null {
+  let link: URL;
+  try { link = new URL(text.trim()); } catch { return null; }
+  if (link.protocol !== 'tessera:' || link.host !== 'pair') return null;
+  const url = link.searchParams.get('hub');
+  const code = link.searchParams.get('code');
+  return url && code ? { url, code } : null;
+}
+
+/** What a person types for the Mac's address: a full URL, or a host with or without a port. HTTPS unless they say. */
+export function normalizeHubUrl(text: string): string {
+  const trimmed = text.trim().replace(/\/+$/, '');
+  return /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+}
+
+/** Scan the Mac's QR code with the camera. Null when the person backs out or the code is not a pairing link. */
+export async function scanPairing(): Promise<PairingTarget | null> {
+  let permission = await checkPermissions();
+  if (permission !== 'granted') permission = await requestPermissions();
+  if (permission !== 'granted') throw new Error('Tessera needs the camera to scan the code. You can type the code instead.');
+  const result = await scan({ windowed: false, formats: [Format.QRCode] });
+  return parsePairingLink(result.content);
+}
+
+/** The name the Mac lists this device under: the phone's own name from MainActivity's bridge (Settings › About phone). */
+export function deviceName(): string {
+  if (!ANDROID) return 'This computer';
+  return (window as Window & { TesseraDevice?: { name(): string } }).TesseraDevice?.name() || 'Android phone';
+}

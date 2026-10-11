@@ -6,6 +6,7 @@ import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.provider.OpenableColumns
+import android.provider.Settings
 import android.webkit.JavascriptInterface
 import android.view.inputmethod.InputMethodManager
 import android.webkit.WebView
@@ -67,6 +68,11 @@ class MainActivity : TauriActivity() {
         }
       }
     }, "TesseraInsets")
+    // The name the person gave the phone (Settings › About phone), which the Mac lists it under after pairing.
+    webView.addJavascriptInterface(object {
+      @JavascriptInterface fun name(): String =
+        Settings.Global.getString(contentResolver, Settings.Global.DEVICE_NAME)?.takeIf { it.isNotBlank() } ?: Build.MODEL
+    }, "TesseraDevice")
   }
 
   override fun onCreate(savedInstanceState: Bundle?) {

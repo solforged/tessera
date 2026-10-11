@@ -16,6 +16,7 @@ tauri-build = { version = "2.7.1", features = [] }
 
 [target.'cfg(target_os = "android")'.dependencies]
 tauri = { version = "2.12.1", features = [] }
+tauri-plugin-barcode-scanner = "2"
 tessera-core.workspace = true
 tessera-service.workspace = true
 axum = { version = "0.8", default-features = false }

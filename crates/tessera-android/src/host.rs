@@ -301,6 +301,8 @@ async fn catch_up(
 
 pub fn run() {
     tauri::Builder::default()
+        // Scans the Mac's pairing code (Settings › Devices on the phone).
+        .plugin(tauri_plugin_barcode_scanner::init())
         .invoke_handler(tauri::generate_handler![
             notebook_request,
             stream_changes,

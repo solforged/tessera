@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/mobile-schema.json",
   "identifier": "main",
-  "description": "The notebook window: Tauri's core IPC for the app's own commands and channels.",
+  "description": "The notebook window: Tauri's core IPC for the app's own commands and channels, and the camera scanner for pairing codes.",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": ["core:default", "barcode-scanner:allow-scan", "barcode-scanner:allow-cancel", "barcode-scanner:allow-check-permissions", "barcode-scanner:allow-request-permissions"]
 }
