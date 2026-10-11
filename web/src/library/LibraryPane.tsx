@@ -698,11 +698,9 @@ export function LibraryPane(props: LibraryPaneProps) {
       </Show>
       <div class="library-main">
       <Show when={commandError()}><p class="library-error" role="alert">{commandError()}</p></Show>
-      <Show when={countError()}><div class="library-error" role="alert">{countError()}<Button onClick={() => setRefresh(value => value + 1)}>Retry</Button></div></Show>
-      <Show when={jobsError()}><div class="library-error" role="alert">{jobsError()}<Button onClick={() => setJobsRefresh(value => value + 1)}>Retry</Button></div></Show>
-      <Show when={viewsError()}><div class="library-error" role="alert">{viewsError()}<Button onClick={() => setRefresh(value => value + 1)}>Retry</Button></div></Show>
+      {/* Every read fails together when the service is away; one row and one Retry stand for all of them. */}
+      <Show when={countError() || jobsError() || viewsError() || (showReading() && readingError()) || error()}>{message => <div class="library-error" role="alert">{message()}<Button onClick={() => { setRefresh(value => value + 1); setJobsRefresh(value => value + 1); }}>Retry</Button></div>}</Show>
       <Show when={showReading()}>
-        <Show when={readingError()}><div class="library-error" role="alert">{readingError()}<Button onClick={() => setRefresh(value => value + 1)}>Retry</Button></div></Show>
         <Show when={reading().length}><section class="library-reading" aria-labelledby={`${props.pane}-reading-heading`}>
           <h2 class="library-reading-heading" id={`${props.pane}-reading-heading`}>Reading now</h2>
           <div class="library-reading-books" role="list"><For each={reading()}>{row => <div role="listitem">
@@ -728,7 +726,6 @@ export function LibraryPane(props: LibraryPaneProps) {
             <Show when={job.error}><span class="library-job-error" role={job.state === 'failed' ? 'alert' : undefined}>{job.error}</span></Show>
           </div>; }}</For></div></Show>
         <Show when={loading() && !hasResult() && slowLoad()}><p class="library-message" role="status">Loading…</p></Show>
-        <Show when={error()}><div class="library-error" role="alert">{error()}<Button onClick={() => setRefresh(value => value + 1)}>Retry</Button></div></Show>
         <Show when={hasResult() && !error()}>
           <Show when={tab() !== 'highlights'} fallback={
             <Show when={highlights()?.rows.length} fallback={<div class="library-empty"><Show when={unprocessedOnly()} fallback={<p>No matching highlights.</p>}><p>No unprocessed highlights.</p><p>{processedExplanation}</p></Show></div>}>
