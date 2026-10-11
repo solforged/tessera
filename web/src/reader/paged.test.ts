@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { CHUNK_LIMIT, pageChunk } from './paged';
+import { CHARACTERS_PER_MINUTE, CHUNK_LIMIT, pageChunk, timeLeft } from './paged';
 
 describe('pageChunk', () => {
   const book = [{ ordinal: 0, level: 1 }, { ordinal: 2, level: 2 }, { ordinal: 40, level: 2 }, { ordinal: 41, level: 3 }, { ordinal: 90, level: 2 }];
@@ -20,5 +20,16 @@ describe('pageChunk', () => {
     expect(pageChunk([], total, CHUNK_LIMIT)).toEqual({ first: CHUNK_LIMIT, last: CHUNK_LIMIT * 2 - 1 });
     expect(pageChunk([], total, total - 1)).toEqual({ first: CHUNK_LIMIT * 2, last: total - 1 });
     expect(pageChunk([{ ordinal: 5, level: 1 }, { ordinal: 500, level: 1 }], 600, 5 + CHUNK_LIMIT)).toEqual({ first: 5 + CHUNK_LIMIT, last: 5 + CHUNK_LIMIT * 2 - 1 });
+  });
+});
+
+describe('timeLeft', () => {
+  test('rounds to whole minutes, says <1 min under half a minute, and switches to hours at an hour', () => {
+    expect(timeLeft(0)).toBe('<1 min');
+    expect(timeLeft(CHARACTERS_PER_MINUTE * 0.4)).toBe('<1 min');
+    expect(timeLeft(CHARACTERS_PER_MINUTE * 6.4)).toBe('6 min');
+    expect(timeLeft(CHARACTERS_PER_MINUTE * 59.4)).toBe('59 min');
+    expect(timeLeft(CHARACTERS_PER_MINUTE * 59.6)).toBe('1 h');
+    expect(timeLeft(CHARACTERS_PER_MINUTE * 80)).toBe('1 h 20 min');
   });
 });
