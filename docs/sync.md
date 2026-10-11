@@ -95,6 +95,10 @@ Text edits replace a block's whole text. That is enough for one person's conflic
 1. **Determinism and identity.** Done: change IDs and origins, a device ID, stamped apply, derived IDs inside apply, content-derived library IDs, table classes, and a test that two copies of a notebook reach identical state from the same changes.
 2. **Replica protocol on loopback.** Done: clone with a new device ID, push, pull as session patches, rebase with inverted patches, text conflict copies, rejected changes, natural-key aliases, library text both ways, and `tessera sync` against a running hub. The browser build does not sync.
 3. **Objects and library.** Done: files by hash with covers kept eagerly, other files fetched when opened, pinning, last-writer-wins reading positions and surfacings with a hybrid logical clock, and one source and one set of fields for books imported on two devices offline.
-4. **Tailnet and Android.** The sync listener behind Tailscale Serve, pairing, and the Android client.
+4. **Tailnet and Android.** The sync listener behind Tailscale Serve, pairing, and the Android client. Interface, chosen from mockups (`~/Documents/tessera-design/sync-devices-mock/`):
+   - **Devices** is a Settings section after Backups: the tailnet sharing switch and address, Pair a phone, each device with its last sync, Forget for retired devices, and how much the hub keeps for devices that have not caught up.
+   - **Pairing.** A new phone first chooses between the Mac's notebook and a separate one of its own, then scans the Mac's QR code or types its short code. A code is used once and expires after five minutes.
+   - **Status.** The phone's top bar shows how many changes are waiting, only while some are; it opens a sync sheet with Sync now, kept copies and offline books.
+   - **Kept copies.** A copy kept beside a block offers Use this (replace the block's text with it), Discard (delete it) and Keep both (make it an ordinary block).
 
 Exit test: offline, highlight a book on the phone while editing today's journal on the Mac; reconnect, and both devices show the highlights and the journal. When both edited the same block, both versions are shown.
