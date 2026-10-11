@@ -1,4 +1,6 @@
-use crate::library::{ExportFormat, HighlightQuery, HighlightRow, SourceFormat};
+use crate::library::{
+    CreatorRole, ExportFormat, HighlightQuery, HighlightRow, LibraryPerson, SourceFormat,
+};
 use crate::reads::hidden_blocks;
 use crate::storage::{block_at, block_columns, validation};
 use crate::{Notebook, Reading, ReadingValue, Result};
@@ -10,6 +12,45 @@ pub(crate) type FieldReadings = BTreeMap<String, Vec<String>>;
 pub(crate) fn field_readings(
     conn: &rusqlite::Connection,
     ids: &[String],
+) -> Result<HashMap<String, FieldReadings>> {
+    read_field_readings(conn, ids, |_, _, _, _| {})
+}
+
+pub(crate) fn field_readings_with_people(
+    conn: &rusqlite::Connection,
+    ids: &[String],
+    people: &mut HashMap<String, Vec<LibraryPerson>>,
+) -> Result<HashMap<String, FieldReadings>> {
+    let readings = read_field_readings(conn, ids, |owner, field, name, id| {
+        let role = match field {
+            "author" => CreatorRole::Author,
+            "editor" => CreatorRole::Editor,
+            "translator" => CreatorRole::Translator,
+            _ => return,
+        };
+        people
+            .entry(owner.to_owned())
+            .or_default()
+            .push(LibraryPerson {
+                id,
+                name: name.to_owned(),
+                role,
+            });
+    })?;
+    for values in people.values_mut() {
+        values.sort_by_key(|person| match person.role {
+            CreatorRole::Author => 0,
+            CreatorRole::Editor => 1,
+            CreatorRole::Translator => 2,
+        });
+    }
+    Ok(readings)
+}
+
+fn read_field_readings(
+    conn: &rusqlite::Connection,
+    ids: &[String],
+    mut visit: impl FnMut(&str, &str, &str, Option<String>),
 ) -> Result<HashMap<String, FieldReadings>> {
     if ids.is_empty() {
         return Ok(HashMap::new());
@@ -41,7 +82,9 @@ pub(crate) fn field_readings(
             None
         };
         if let Reading::Value {
-            ok: true, value, ..
+            ok: true,
+            value,
+            target,
         } = crate::fields::reading(definition.kind, &field, &text, target.as_ref())
         {
             let value = match value {
@@ -49,10 +92,13 @@ pub(crate) fn field_readings(
                 ReadingValue::Number(_) => text,
                 ReadingValue::Checkbox(_) => continue,
             };
+            let owner: String = row.get(12)?;
+            let field = definition.name.to_lowercase();
+            visit(&owner, &field, &value, target);
             result
-                .entry(row.get(12)?)
+                .entry(owner)
                 .or_default()
-                .entry(definition.name.to_lowercase())
+                .entry(field)
                 .or_default()
                 .push(value);
         }

@@ -28,6 +28,58 @@ fn passage_at(r: &rusqlite::Row<'_>, n: usize) -> rusqlite::Result<Passage> {
         start: r.get(n + 9)?,
     })
 }
+
+fn publication_decade(published: Option<&str>) -> Option<i32> {
+    let year = published?.get(..4)?;
+    year.bytes()
+        .all(|byte| byte.is_ascii_digit())
+        .then(|| year.parse::<i32>().ok().map(|year| year / 10 * 10))
+        .flatten()
+}
+
+/// A language's primary subtag, so `en`, `en-US`, `en_GB` and `eng` browse and group as one language.
+fn language_code(value: &str) -> String {
+    let primary = value
+        .trim()
+        .split(['-', '_'])
+        .next()
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    let code = match primary.as_str() {
+        "eng" => "en",
+        "fre" | "fra" => "fr",
+        "ger" | "deu" => "de",
+        "spa" => "es",
+        "ita" => "it",
+        "lat" => "la",
+        "rus" => "ru",
+        "por" => "pt",
+        "dut" | "nld" => "nl",
+        "chi" | "zho" => "zh",
+        "jpn" => "ja",
+        _ => return primary,
+    };
+    code.to_owned()
+}
+
+fn count_value(counts: &mut HashMap<String, usize>, value: Option<&str>) {
+    if let Some(value) = value {
+        if let Some(count) = counts.get_mut(value) {
+            *count += 1;
+        } else {
+            counts.insert(value.to_owned(), 1);
+        }
+    }
+}
+
+fn value_facets(counts: HashMap<String, usize>) -> Vec<ValueFacet> {
+    let mut facets: Vec<_> = counts
+        .into_iter()
+        .map(|(value, count)| ValueFacet { value, count })
+        .collect();
+    facets.sort_by_cached_key(|facet| (std::cmp::Reverse(facet.count), facet.value.to_lowercase()));
+    facets
+}
 pub(crate) fn passage(conn: &Connection, id: &str) -> Result<Passage> {
     let mut statement = conn.prepare_cached(concat!(
         "SELECT ",
@@ -688,7 +740,12 @@ impl Notebook {
             .query_map([], |r| Ok((source_at(r)?, block_at(r, 10)?)))?
             .collect::<rusqlite::Result<Vec<_>>>()?;
         let ids: Vec<_> = sources.iter().map(|(s, _)| s.block_id.clone()).collect();
-        let mut fields_by_source = crate::library_export::field_readings(&self.conn, &ids)?;
+        let mut people_by_source = HashMap::new();
+        let mut fields_by_source = crate::library_export::field_readings_with_people(
+            &self.conn,
+            &ids,
+            &mut people_by_source,
+        )?;
         let snapshot_ids: Vec<_> = sources
             .iter()
             .filter_map(|(s, _)| s.current_snapshot_id.as_ref())
@@ -724,6 +781,11 @@ impl Notebook {
         }
         let mut rows = vec![];
         let mut counts = LibraryCounts::default();
+        let mut linked_people: HashMap<String, PersonFacet> = HashMap::new();
+        let mut unlinked_people: HashMap<String, PersonFacet> = HashMap::new();
+        let mut decades: HashMap<i32, usize> = HashMap::new();
+        let mut publishers = HashMap::new();
+        let mut languages = HashMap::new();
         let text = query
             .text
             .as_ref()
@@ -754,6 +816,63 @@ impl Notebook {
             {
                 continue;
             }
+            let people = people_by_source
+                .remove(&source.block_id)
+                .unwrap_or_default();
+            let published = fields.get("published").and_then(|values| values.first());
+            let publisher = fields.get("publisher").and_then(|values| values.first());
+            let language = fields
+                .get("language")
+                .and_then(|values| values.first())
+                .map(|value| language_code(value));
+            let decade = publication_decade(published.map(String::as_str));
+            for (index, person) in people.iter().enumerate() {
+                if people[..index].iter().any(|previous| match &person.id {
+                    Some(id) => previous.id.as_ref() == Some(id),
+                    None => previous.id.is_none() && previous.name == person.name,
+                }) {
+                    continue;
+                }
+                let (counts, key) = match &person.id {
+                    Some(id) => (&mut linked_people, id),
+                    None => (&mut unlinked_people, &person.name),
+                };
+                if let Some(facet) = counts.get_mut(key) {
+                    facet.count += 1;
+                } else {
+                    counts.insert(
+                        key.clone(),
+                        PersonFacet {
+                            id: person.id.clone(),
+                            name: person.name.clone(),
+                            count: 1,
+                        },
+                    );
+                }
+            }
+            if let Some(decade) = decade {
+                *decades.entry(decade).or_default() += 1;
+            }
+            count_value(&mut publishers, publisher.map(String::as_str));
+            count_value(&mut languages, language.as_deref());
+            if (!query.people.is_empty()
+                && !people.iter().any(|person| {
+                    person
+                        .id
+                        .as_ref()
+                        .is_some_and(|id| query.people.contains(id))
+                }))
+                || (!query.publishers.is_empty()
+                    && !publisher.is_some_and(|value| query.publishers.contains(value)))
+                || (!query.decades.is_empty()
+                    && !decade.is_some_and(|value| query.decades.contains(&value)))
+                || (!query.languages.is_empty()
+                    && !language
+                        .as_ref()
+                        .is_some_and(|value| query.languages.contains(value)))
+            {
+                continue;
+            }
             let progress = source
                 .current_snapshot_id
                 .as_ref()
@@ -776,7 +895,10 @@ impl Notebook {
                 page,
                 source,
                 creators,
-                published: fields.get("published").and_then(|v| v.first()).cloned(),
+                people,
+                publisher: publisher.cloned(),
+                language,
+                published: published.cloned(),
                 site: fields.get("site").and_then(|v| v.first()).cloned(),
                 cover,
                 progress,
@@ -785,6 +907,29 @@ impl Notebook {
                 unprocessed,
             });
         }
+        let mut people: Vec<_> = linked_people
+            .into_values()
+            .chain(unlinked_people.into_values())
+            .collect();
+        people.sort_by_cached_key(|facet| {
+            (
+                std::cmp::Reverse(facet.count),
+                crate::library_ingest::family_name(&facet.name).to_lowercase(),
+                facet.name.clone(),
+                facet.id.clone(),
+            )
+        });
+        let mut decades: Vec<_> = decades
+            .into_iter()
+            .map(|(decade, count)| DecadeFacet { decade, count })
+            .collect();
+        decades.sort_unstable_by_key(|facet| std::cmp::Reverse(facet.decade));
+        let facets = LibraryFacets {
+            people,
+            decades,
+            publishers: value_facets(publishers),
+            languages: value_facets(languages),
+        };
         rows.sort_by(|a, b| {
             let cmp = match query.sort {
                 LibrarySort::Added => a.source.added_at.cmp(&b.source.added_at),
@@ -840,6 +985,7 @@ impl Notebook {
             rows,
             total,
             counts,
+            facets,
         })
     }
 }
