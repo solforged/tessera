@@ -1,5 +1,5 @@
 /* The date, tabs and day list share the outline measure and one left edge. */
-.agenda-pane { --agenda-row-height: var(--row-height); flex: 1; min-height: 0; min-width: 0; overflow: auto; padding: var(--page-top-space) var(--pane-inset) var(--page-bottom-space); }
+.agenda-pane { --agenda-row-height: var(--row-height); flex: 1; min-height: 0; min-width: 0; overflow: auto; padding: var(--page-top-space) var(--pane-inset) var(--page-bottom-space); container: agenda-pane / inline-size; }
 .agenda-content { max-width: var(--measure); margin-inline: auto; display: flex; flex-direction: column; gap: var(--page-head-gap); }
 .agenda-content-week { max-width: var(--week-measure); }
 /* Date navigation accompanies the heading; modes get their own shared ruled baseline below. */
@@ -125,9 +125,14 @@ li.agenda-now-end { position: relative; inset: auto; margin-top: calc(-1 * var(-
   .agenda-row-actions { display: flex; grid-row: 2; min-height: 0; }
   .agenda-row-actions .button:not(.agenda-row-pick) { display: none; }
 }
-.agenda-section-actions { display: flex; gap: var(--space-2); }
+.agenda-section-actions { display: flex; gap: var(--space-2); margin-left: var(--space-8); }
 .agenda-section-actions .button { min-height: var(--target-size); padding-inline: var(--space-4); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .agenda-section-actions .button:hover:not(:disabled) { color: var(--text); }
+/* A phone or half pane keeps the heading's rule and count on one line and puts the moves beneath, under Overdue. */
+@container agenda-pane (max-width: 560px) {
+  .agenda-section-heading:has(> .agenda-section-actions) { flex-wrap: wrap; row-gap: 0; }
+  .agenda-section-actions { flex-basis: 100%; margin: calc(-1 * var(--space-8)) 0 0 calc(-1 * var(--space-4)); }
+}
 .journal-agenda { margin-block: var(--space-4) var(--space-8); font-weight: var(--weight-body); }
 /* Journal sections head like the sidebar's: the name, a hairline rule, then the state and the chevron at the right. */
 .journal-agenda-toggle.button { display: flex; width: 100%; justify-content: flex-start; gap: var(--space-8); min-height: var(--target-size); padding: 0 var(--space-4) 0 0; color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
