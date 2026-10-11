@@ -126,7 +126,7 @@ export function ComparePane(props: ComparePaneProps) {
     </header>
     <Show when={rows.error || fieldList.error}><div class="pane-error" role="alert">Couldn’t load readings.</div></Show>
     <Show when={perspectives().length >= 2}>
-      <div class="compare-choices" role="group" aria-label="Choose readings"><For each={perspectives()}>{perspective => {
+      <div class="compare-choices mode-tabs tab-strip" role="group" aria-label="Choose readings"><For each={perspectives()}>{perspective => {
         const active = () => selected().includes(perspective);
         return <Button aria-pressed={active()} disabled={active() && selected().length === 1} onClick={() => toggle(perspective.row.block.block.id)}>
           <Show when={perspective.source && sigla().get(perspective.source)}>{mark => <span class="compare-siglum">{mark()}</span>}</Show>

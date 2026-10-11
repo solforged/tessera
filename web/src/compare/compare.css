@@ -1,18 +1,17 @@
 /* Reading sheets: attributed prose, with fields left in the source outline. */
 .compare-pane { display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; outline: none; }
-.compare-toolbar { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: var(--space-8) var(--space-16); padding: var(--space-16) var(--space-24); }
-.compare-toolbar h2 { margin: var(--space-4) 0 0; font: var(--weight-title) var(--text-h1)/var(--line-h1) var(--font-display); font-variation-settings: var(--optical-heading); }
-.compare-subject.button { padding: 0; font: inherit; color: var(--text); }
+.compare-toolbar { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: var(--space-8) var(--space-16); width: min(100%, calc(var(--measure) + 2 * var(--pane-inset))); margin-inline: auto; padding: var(--page-top-space) var(--pane-inset) var(--page-title-gap); }
+.compare-toolbar h2 { margin: var(--page-eyebrow-gap) 0 0; font: var(--page-title-font); font-variation-settings: var(--optical-title); }
+.compare-subject.button { padding: 0; font: inherit; color: var(--text); text-align: left; white-space: normal; }
 .compare-eyebrow, .compare-count, .compare-siglum, .compare-work { color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
-.compare-choices { display: flex; flex-wrap: wrap; gap: var(--space-4) var(--space-16); padding: 0 var(--space-24) var(--space-12); border-bottom: 1px solid var(--line); }
-.compare-choices .button { gap: var(--space-8); padding: var(--space-4) 0; border-radius: 0; border-bottom: 1px solid transparent; color: var(--muted); }
-.compare-choices .button[aria-pressed="true"] { color: var(--text); border-bottom-color: var(--accent); }
+.compare-choices { flex-wrap: wrap; gap: var(--space-4) var(--space-16); width: min(100%, calc(var(--measure) + 2 * var(--pane-inset))); margin-inline: auto; padding: 0 var(--pane-inset); }
+.compare-choices .button { gap: var(--space-8); padding: var(--space-4) 0; }
 .compare-choices .button:disabled { opacity: 1; }
 .compare-choice-mark { color: var(--accent); }
 .compare-scroll { flex: 1; min-height: 0; overflow: auto; }
-.compare-scroll > .empty-state { margin: var(--space-16) var(--space-24); max-width: var(--measure); }
+.compare-scroll > .empty-state { margin: var(--page-head-gap) var(--pane-inset); max-width: var(--measure); }
 .compare-readings { display: grid; grid-template-columns: repeat(var(--reading-count), minmax(0, 1fr)); min-width: calc(var(--reading-count) * (var(--apparatus-width) + var(--space-32))); }
-.compare-reading { min-width: 0; padding: var(--space-16) var(--space-24) var(--space-24); overflow-wrap: anywhere; font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); font-variation-settings: var(--optical-quote); }
+.compare-reading { min-width: 0; padding: var(--page-head-gap) var(--pane-inset) var(--section-gap); overflow-wrap: anywhere; font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); font-variation-settings: var(--optical-quote); }
 .compare-reading + .compare-reading { border-left: 1px solid var(--line); }
 .compare-reading header { margin-bottom: var(--space-16); }
 .compare-reading h3 { display: flex; align-items: center; gap: var(--space-8); margin: var(--space-4) 0; }
@@ -26,7 +25,7 @@
 .compare-passage { margin: 0 0 var(--space-12); color: var(--muted); white-space: pre-wrap; }
 .compare-passage-heading { color: var(--text); font-weight: var(--weight-display-heading); }
 .compare-open.button { margin-top: var(--space-8); padding: 0; color: var(--accent); font: var(--weight-body) var(--text-control)/var(--line-control) var(--font-body); }
-.compare-questions { margin: 0 var(--space-24) var(--space-24); padding-top: var(--space-12); border-top: 1px solid var(--line); }
+.compare-questions { margin: 0 var(--pane-inset) var(--page-bottom-space); padding-top: var(--space-12); border-top: 1px solid var(--line); }
 .compare-questions h3 { margin: 0 0 var(--space-8); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .compare-questions .button { display: block; padding: var(--space-4) 0; color: var(--text); text-align: left; white-space: normal; font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); }
 .compare-questions .button:hover { color: var(--accent); }
