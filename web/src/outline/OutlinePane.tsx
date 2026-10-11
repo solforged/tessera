@@ -14,7 +14,7 @@ import { sourceReadingOrder } from '../library/source-order';
 import { PersonWorks } from '../library/PersonWorks';
 import { NoteAliases, NoteEyebrow, NoteLine } from '../notes/NoteHeader';
 import type { OutlineIndex } from '../document/outline-index';
-import { JournalAgenda } from '../tasks/JournalAgenda';
+import { JournalHeader } from '../tasks/JournalHeader';
 import { JournalResurface } from '../tasks/JournalResurface';
 import { TaskStatusButton } from '../tasks/TaskControls';
 import { Button } from '../ui/Button';
@@ -953,9 +953,8 @@ function Pane(props: OutlinePaneProps) {
       <Show when={doc.status() === 'ready' && depth() === 'gloss' && !zoom() && !glossId()}>
         <p class="empty-state">No gloss yet. Choose Gloss in the page menu to write a one-line summary.</p>
       </Show>
-      <Show when={doc.root()?.kind === 'journal'}>
-        <JournalAgenda date={doc.root()!.text} pageId={props.pageId} notebook={props.notebook} onOpen={props.onOpen} />
-        <JournalResurface date={doc.root()!.text} notebook={props.notebook} onOpen={props.onOpen} />
+      <Show when={!zoom() && doc.root()?.kind === 'journal'}>
+        <JournalHeader date={doc.root()!.text} notebook={props.notebook} onOpen={props.onOpen} />
       </Show>
     </div>
     <div ref={list} class="outline-list" style={{ height: `${virtualizer.getTotalSize()}px` }}>
@@ -971,6 +970,7 @@ function Pane(props: OutlinePaneProps) {
     </section></Show>
     <Show when={sourceHighlights.error}><p class="library-error" role="alert">{String(sourceHighlights.error)}</p></Show>
     <Show when={doc.status() === 'ready' && ids().length === 0 && depthFilter() === undefined}><button type="button" class="add-first-block" onClick={() => apply({ kind: 'insert', parentId: zoom() ?? props.pageId, after: null }, true)}><Icon name="plus" />Add a block</button></Show>
+    <Show when={!zoom() && doc.root()?.kind === 'journal'}><div class="related-sections journal-highlights"><JournalResurface date={doc.root()!.text} notebook={props.notebook} onOpen={props.onOpen} /></div></Show>
     <Show when={doc.status() === 'ready' && !zoom() && related()?.works.length}><PersonWorks pageId={props.pageId} rows={related()!.works} onOpen={props.onOpen} /></Show>
     <Show when={doc.status() === 'ready' && (related.error || (related()?.backlinks.length ?? 0) + (related()?.tagged.length ?? 0) + (related()?.held.length ?? 0) + (related()?.about.length ?? 0) > 0)}><div class="related-sections">
       <Show when={related()?.held.length}><Related title="Perspectives held" rows={related()?.held ?? []} /></Show>

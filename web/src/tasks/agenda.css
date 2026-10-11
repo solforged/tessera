@@ -1,11 +1,24 @@
+/* Agenda keeps the journal's measure; the flexible heading stacks before its controls crowd it. */
 .agenda-pane { flex: 1; min-height: 0; min-width: 0; overflow: auto; padding: var(--space-24) var(--space-16); }
 .agenda-content { max-width: var(--measure); margin-inline: auto; display: flex; flex-direction: column; gap: var(--space-12); }
 .agenda-content-week { max-width: var(--week-measure); }
-.agenda-toolbar, .agenda-modes, .agenda-date { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-8); }
-.agenda-toolbar { justify-content: space-between; width: 100%; max-width: var(--measure); margin-inline: auto; }
+/* One date control and the shared baseline tabs accompany the spoken date, rather than two date toolbars. */
+.agenda-toolbar, .agenda-view-controls, .agenda-date { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-8); }
+.agenda-toolbar { justify-content: space-between; width: 100%; max-width: var(--measure); margin-inline: auto; gap: var(--space-16); }
+.agenda-heading { min-width: 0; }
+.agenda-heading > p { margin: 0 0 var(--space-4); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.agenda-heading > h1 { margin: 0; font: var(--weight-title) var(--text-title)/var(--line-title) var(--font-display); font-variation-settings: var(--optical-title); }
+.agenda-title-date { border: 0; padding: 0; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.agenda-view-controls { gap: var(--space-16); }
+.agenda-date > .button { min-height: var(--row-height); }
+/* Every day carries one dot per open task; touch can swipe the strip without shrinking targets. */
+.agenda-week-strip { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--space-4); width: 100%; max-width: var(--measure); margin-inline: auto; padding-bottom: var(--space-4); overflow-x: auto; }
+.agenda-week-day.button { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: var(--space-4); padding: var(--space-8) var(--space-4); border: var(--rule-width) solid var(--line); color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.agenda-week-day.button[aria-current="date"] { border-color: var(--accent-tint); background: var(--accent-tint); color: var(--accent); box-shadow: inset 0 calc(-1 * var(--space-2)) var(--accent); }
+.agenda-day-dots { display: flex; justify-content: center; flex-wrap: wrap; gap: var(--space-2); min-height: var(--space-4); }
+.agenda-day-dots > i { width: var(--space-4); height: var(--space-4); border-radius: var(--radius-pill); background: var(--muted); }
 .agenda-number { display: inline-flex; align-items: center; gap: var(--space-8); color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
-/* The displayed date and the result count are the machine's: mono, the count faint like a table footer. */
-.agenda-date-button.button { font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); color: var(--text); }
+/* Counts, planning and other machine-known facts share the apparatus voice. */
 .agenda-count { margin: 0; color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .agenda-number .input { width: calc(var(--space-48) + var(--space-32)); min-height: var(--row-height); }
 .agenda-message { color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); font-weight: var(--weight-body); }
@@ -54,7 +67,7 @@
 .agenda-add-preview { margin: 0; padding-inline: var(--space-4); color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); overflow-wrap: anywhere; }
 .agenda-add-preview.warning { color: var(--warning); }
 /* One line per task: status, source with its page, then planning on the right; wraps under the source when narrow. */
-.agenda-row { display: flex; flex-wrap: wrap; align-items: flex-start; column-gap: var(--space-8); min-width: 0; border-radius: var(--radius-control); content-visibility: auto; contain-intrinsic-size: auto var(--row-height); transition: background-color var(--motion-fast) var(--motion-ease); }
+.agenda-row { display: flex; flex-wrap: wrap; align-items: flex-start; column-gap: var(--space-8); min-width: 0; border-bottom: var(--rule-width) solid var(--line); border-radius: var(--radius-workspace); content-visibility: auto; contain-intrinsic-size: auto var(--row-height); transition: background-color var(--motion-fast) var(--motion-ease); }
 /* The whole line lights on hover, planning included; the source button inside stays transparent. */
 .agenda-row:hover { background: var(--hover); }
 .agenda-status { display: inline-flex; flex: 0 0 var(--target-size); justify-content: center; align-items: center; width: var(--target-size); min-height: var(--row-height); padding: 0; color: var(--muted); }
@@ -81,20 +94,61 @@
 .journal-agenda-toggle .agenda-summary { color: var(--faint); }
 .journal-agenda-toggle > .icon { width: var(--icon-size-small); height: var(--icon-size-small); color: var(--faint); transition: rotate var(--motion-fast) var(--motion-ease); }
 .journal-agenda-toggle[aria-expanded="false"] > .icon { rotate: -90deg; }
-.journal-agenda-body > .journal-agenda-toggle { padding-left: calc(var(--target-size) + var(--space-8)); }
-/* Group headings inside an agenda start on the task text's edge, like Unplanned always did. */
-.agenda-results > .journal-agenda-toggle { padding-left: calc(var(--target-size) + var(--space-8)); }
+/* Ruled group headings start at the section edge; their counts stay beside the labels. */
 div.journal-agenda-toggle { display: flex; align-items: center; gap: var(--space-8); min-height: var(--target-size); padding-right: var(--space-4); color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .agenda-group-heading .agenda-summary.agenda-late { color: var(--danger); }
 .journal-agenda-body { display: flex; flex-direction: column; gap: var(--space-8); margin-top: var(--space-4); }
-/* Its label starts on the task text's edge. */
-.journal-agenda-more.button { align-self: flex-start; margin-left: calc(var(--target-size) + var(--space-4) - 1px); color: var(--muted); font-weight: var(--weight-body); }
-.journal-agenda .agenda-source { font-size: var(--text-control); line-height: var(--line-control); }
-.resurface-card { position: relative; min-width: 0; padding: var(--space-12) var(--space-12) var(--space-8); border: 0; border-bottom: var(--rule-width) solid var(--line); border-radius: var(--radius-workspace); background: var(--raised); }
-.resurface-card::before { content: ''; position: absolute; top: 0; left: var(--space-12); width: var(--rubric-width); height: var(--rubric-height); background: var(--danger); pointer-events: none; }
-.resurface-quote { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); font-variation-settings: var(--optical-quote); }
-.resurface-meta { margin: var(--space-4) 0; color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); overflow-wrap: anywhere; }
-/* Actions are quiet text whose labels start on the quote's edge; the hover fill reaches into the padding. */
-.resurface-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4); margin-left: calc(-1 * var(--space-8)); }
-.resurface-actions .button { color: var(--muted); font-weight: var(--weight-body); }
+/* One resurfaced slip sits below the journal, marked by the highlight's colour along its left edge. */
+.resurface-heading, .resurface-navigation { display: flex; align-items: center; gap: var(--space-4); }
+.resurface-heading > .journal-agenda-toggle { flex: 1; min-width: 0; }
+.resurface-card { position: relative; min-width: 0; padding: var(--space-12) var(--space-16); border: 0; border-radius: var(--radius-workspace); background: var(--raised); }
+.resurface-color { position: absolute; inset: 0 auto 0 0; width: var(--space-2); }
+.resurface-quote { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); font-variation-settings: var(--optical-quote); }
+.resurface-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-4) var(--space-12); margin-top: var(--space-4); }
+.resurface-meta { flex: 1; min-width: 12rem; margin: 0; color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); overflow-wrap: anywhere; }
+/* Open, Keep and Mute remain the existing actions, in quiet mono at the source line's edge. */
+.resurface-actions { display: flex; align-items: center; gap: var(--space-2); color: var(--faint); }
+.resurface-actions .button { padding-inline: var(--space-4); color: var(--muted); font: var(--apparatus); font-weight: var(--weight-body); }
 .resurface-actions .button:hover:not(:disabled) { color: var(--text); }
+
+/* The spoken date is presentation only: journals retain their ISO root and all other pages keep their titles. */
+.outline-heading:has(.journal-header) > .outline-title-row { display: none; }
+.journal-date-apparatus { margin: 0; color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.outline-heading .journal-header > h1 { margin: var(--space-4) 0 var(--space-16); }
+.journal-writing-heading { display: flex; align-items: center; gap: var(--space-8); margin-top: var(--space-24); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+/* Today is a three-tile hub, using real agenda, due-card and recently read book data, never session-time samples. */
+.journal-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-12); }
+.journal-tile.button { display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: var(--space-8); width: 100%; min-width: 0; padding: var(--space-16); border: var(--rule-width) solid var(--line); border-radius: var(--radius-popup); background: var(--raised); color: var(--text); font-weight: var(--weight-body); white-space: normal; text-align: left; }
+.journal-tile.button:hover:not(:disabled) { border-color: var(--control-border); background: var(--hover); }
+.journal-tile-heading { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-8); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.journal-tile-action { color: var(--accent); font: var(--weight-control) var(--text-control)/var(--line-control) var(--font-body); }
+.journal-tile-count { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-4); font: var(--weight-heading) var(--text-h1)/var(--line-h1) var(--font-mono); font-variant-numeric: tabular-nums; }
+.journal-tile-count small { color: var(--muted); font: var(--weight-body) var(--text-control)/var(--line-control) var(--font-body); }
+.journal-tile-meta { display: block; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); overflow-wrap: anywhere; }
+.journal-reading-book { display: flex; align-items: flex-start; gap: var(--space-8); min-width: 0; }
+.journal-reading-book .library-cover { flex: none; width: var(--resume-cover-width); }
+.journal-reading-text { flex: 1; min-width: 0; }
+.journal-reading-title { display: block; color: var(--text); font: var(--weight-source-title) var(--text-library-title)/var(--line-source-title) var(--font-display); }
+/* The full chapter stays available in the reader; the hub keeps its apparatus to one quiet line. */
+.journal-reading-text > .journal-tile-meta { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.journal-reading-tile .book-map { width: 100%; margin-top: var(--space-4); }
+/* Split panes and the cover stack the Reading tile below Agenda and Review, preserving their touch targets. */
+@container outline-pane (max-width: 640px) {
+  .journal-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .journal-reading-tile { grid-column: 1 / -1; }
+  .journal-tile.button { padding: var(--space-12); }
+}
+@media (max-width: 799px) {
+  .agenda-view-controls { width: 100%; justify-content: space-between; }
+  .agenda-heading > h1 { font-size: var(--text-h1); line-height: var(--line-h1); }
+}
+/* On the cover the capture field stays above navigation, and drops to the keyboard edge when navigation hides. */
+@media (max-width: 599px) and (pointer: coarse) {
+  .agenda-pane { padding: var(--space-16) var(--space-12) calc(var(--space-48) + var(--space-32)); }
+  .agenda-week-strip { grid-template-columns: repeat(7, minmax(calc(var(--target-size) + var(--space-16)), 1fr)); }
+  .pane.active .agenda-add { position: fixed; z-index: 20; left: calc(env(safe-area-inset-left) + var(--space-12)); right: calc(env(safe-area-inset-right) + var(--space-12)); bottom: calc(var(--bottom-nav-height) + var(--bottom-inset) + var(--space-12)); padding: var(--space-4) var(--space-8); border: var(--rule-width) solid var(--line); border-radius: var(--radius-popup); background: var(--raised); }
+  .pane:not(.active) .agenda-add { display: none; }
+  .app.keyboard-open .agenda-add { bottom: calc(var(--bottom-inset) + var(--space-8)); }
+  .agenda-add .input { min-height: var(--target-size); border: 0; }
+  .agenda-add > .icon { margin-top: calc((var(--target-size) - var(--icon-size)) / 2); }
+}
