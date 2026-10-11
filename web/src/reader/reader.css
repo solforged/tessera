@@ -40,14 +40,26 @@
 .progress-card-chapter-row[aria-current].button { color: var(--text); box-shadow: inset var(--space-2) 0 var(--accent); padding-left: var(--space-8); }
 .progress-card-minutes { flex-shrink: 0; }
 .reader-progress-card .progress-card-note { margin-top: var(--space-12); }
-/* The cover screen reads without the pane header: a back arrow and the book's name head the page, and full screen has nothing left to hide. */
+/* The cover screen reads without the pane header: a back arrow and the book's name head the page, and full screen has nothing left to hide.
+   The masthead, toolbar and book map lie over the page rather than above it, so once they go the text has the whole screen; the page runs from the masthead's top to the foot line. */
 .reader-masthead { display: none; }
 @media (max-width: 599px) and (pointer: coarse) {
-  .reader-masthead { display: flex; align-items: center; gap: var(--space-4); width: calc(100% - 2 * var(--space-12)); max-width: var(--reader-measure); margin: 0 auto; padding-top: var(--space-8); }
+  .reader-pane { display: grid; grid-template: auto auto minmax(0, 1fr) auto / minmax(0, 1fr); }
+  .reader-pane > * { grid-column: 1; }
+  .reader-masthead { grid-row: 1; display: flex; align-items: center; gap: var(--space-4); width: calc(100% - 2 * var(--space-12)); max-width: var(--reader-measure); margin: 0 auto; padding-top: var(--space-8); }
   .reader-masthead > .button { flex-shrink: 0; }
   .reader-masthead h2 { min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: var(--weight-display-heading) var(--text-h2)/var(--line-h2) var(--font-display); font-variation-settings: var(--optical-heading); }
   .reader-header .reader-full-screen { display: none; }
-  .reader-header { padding-top: var(--space-4); }
+  .reader-header { grid-row: 2; position: relative; padding-top: var(--space-4); }
+  .reader-pane > :is(.reader-status, .reader-error) { grid-row: 3; align-self: start; position: relative; z-index: 1; }
+  .reader-body { grid-row: 1 / 4; }
+  .reader-foot { grid-row: 4; position: relative; }
+  .reader-foot > .reader-map { position: absolute; inset-inline: 0; bottom: calc(100% - var(--space-4)); padding-top: var(--space-8); }
+  /* Each band is painted the full width of the screen, so no text shows beside it, and the page fades into it instead of being cut through its letters. */
+  .reader-pane > :is(.reader-masthead, .reader-header), .reader-foot > .reader-map { z-index: 2; border-image: conic-gradient(var(--canvas) 0 0) fill 0 / 0 / 0 100vw; }
+  .reader-header::after, .reader-foot > .reader-map::before { content: ''; position: absolute; inset-inline: 0; height: var(--space-24); pointer-events: none; }
+  .reader-header::after { top: 100%; background: linear-gradient(var(--canvas), transparent); }
+  .reader-foot > .reader-map::before { bottom: 100%; background: linear-gradient(transparent, var(--canvas)); }
 }
 .reader-progress-rule > span { display: block; height: 100%; background: var(--accent); }
 .reader-scroll { flex: 1; min-height: 0; overflow: auto; overflow-anchor: none; padding: 0 var(--space-24) var(--space-48); }
@@ -83,7 +95,7 @@
 .reader-page-edge-previous { left: max(0px, calc(50% - var(--reader-frame-width) / 2 - var(--space-8) - var(--row-height))); }
 .reader-page-edge-next { right: max(0px, calc(50% - var(--reader-frame-width) / 2 - var(--space-8) - var(--row-height))); }
 @media (pointer: coarse) { .reader-page-edge.button { display: none; } }
-/* Full screen and the cover screen: the masthead, toolbar and book map fade out of the way, drifting a step toward their edges, and keep their room, so the text never moves; the line under the map stays. */
+/* Full screen and the cover screen: the masthead, toolbar and book map fade out of the way, drifting a step toward their edges; the line under the map stays. In full screen they keep their room, so the text never moves; on the cover screen they uncover the page beneath. */
 .reader-pane > :is(.reader-masthead, .reader-header), .reader-foot > .reader-map { transition: opacity var(--motion-ui) var(--motion-ease), translate var(--motion-ui) var(--motion-ease); }
 .reader-chrome-hidden > :is(.reader-masthead, .reader-header), .reader-chrome-hidden .reader-foot > .reader-map { opacity: 0; pointer-events: none; }
 .reader-chrome-hidden > :is(.reader-masthead, .reader-header) { translate: 0 calc(-1 * var(--motion-distance)); }
