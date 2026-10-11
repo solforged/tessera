@@ -338,6 +338,17 @@ Resting the mouse on a `[[reference]]` for 350 ms opens a slip in the outline, e
 
 Pin or ⌘ keeps the slip open; Unpin restores its compact form. A pinned page lists its actual attributed readings, with sigla, holders, gists and inline shape glyphs. Selecting a holder expands authored prose, or opens the original position if there is no prose to expand. Open reading and source links preserve access to the original outline; Compare readings opens the subject's sheet. Pages without readings keep their prose preview. Bodies scroll within `--preview-body-height`; unpinned block previews fade only when clipped. References inside a slip open stacked slips. ⌥Space opens the reference at the caret or the focused reference; Enter opens it, Shift+Enter opens it beside, and Escape closes the topmost slip. Opening does not steal focus; focused slip controls retain native keyboard behavior. Deleted targets and failed requests have explicit notices. Touch input does not open hover slips.
 
+## Icon
+
+The app icon carries the notebook's central idea and its material. The idea is multiperspectival notes: one subject held in several attributed readings, with the source beside what you think of it (see Perspectives and questions). The material is clockwork gold, the brass of an instrument: rings, rules and bevelled facets drawn in a few flat gilt tones. No glows and no multi-stop metallic gradients.
+
+- **Direction.** Gold smalti. Byzantine mosaicists set gold tesserae at slightly different angles so each catches the light differently; that is the multiperspectival idea in material form. The candidate is a ring of twelve hand-cut gold tiles, each split into a lit and a dark facet at its own angle, around the oculus (ring and dot) with a wide gap so it never reads as a target. One parchment tile is lifted out of the ring at one o'clock and tilted 18°: a piece taken up to be looked at from another angle. Midnight ground only for now. The candidate is `~/Pictures/tessera-icon/tessera-icon.svg`.
+- **Grounds.** Orrery midnight (`--shell`) first. Oxblood (`--desk` #290401, Solforge's desk) waits until the mark is settled.
+- **Family.** It belongs with the wordmark's oculus and the place glyphs, which are drawn from circles and rules with an optional filled hub.
+- **Legibility.** One silhouette that still reads at 32 and 16 px, on white and on near-black.
+- **Misreads to avoid.** Safari's compass (a ticked ring with a needle or pointer; Sol judged the dial variants too close), a gear (reads as Settings), a bullseye or target, a letterform (H, T), a camera iris, a loading spinner, a slash through a ring (reads as prohibited), atom-like crossed ellipses, three-way symmetric spokes, puzzle pieces, a shipping box and a stack of photos.
+- **Explorations.** Rounds live in `~/Documents/tessera-design/icon-2026-10-10/`. Round 1 tried the mosaic, the oculus, a tessera hospitalis (a token split between two holders) and a split oculus; round 2 tried orrery arms, a dial with an alidade, a faceted tessera, a three-metal oculus, sight lines and the split oculus on both grounds; round 3 left the compass behind for an isometric cube (a tessera is also a die), a parted hospitalis tile and overlapping tiles. The faceted tessera was on the right track but not distinctive, so round 4 turned the tessera into gold smalti, and rounds 5 and 6 refined the ring with one tile lifted.
+
 ## Decisions
 
 1. Three voices: Plex for writing, Piazzolla for publication, Berkeley Mono for apparatus. Orrery palette. Density: 28 px rows.
