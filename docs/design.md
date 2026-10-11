@@ -274,6 +274,8 @@ The card reads as a quiet sheet on the page rather than a boxed panel, headed by
 
 Space reveals the answer; 1–4 select Again, Hard, Good and Easy. Scheduling is FSRS-6 at 90% retention in whole days. Buttons show the next interval in days, then months and years. When two neighbouring grades have different intervals that round to the same label, both show one decimal (`1.4 mo`), then whole days if they still match; equal intervals, such as Again and Hard on a new card, read the same. A source or schedule change invalidates the shown snapshot and requires Review current card before grading. Changed wording retains identity and progress; the card shows the last reviewed text beside its current text, with Keep progress and Start over choices. Reset progress requires confirmation and keeps review history.
 
+The Done summary returns to the shared page insets and responsive title scale, with section gaps between its grade strip, counts, forecast and missed cards. Its header no longer says in progress. Deck forms retain the popup's viewport gutters on the cover, so fields and actions stay inside both edges.
+
 The current card stays until a grade is acknowledged. Pending commands survive offline reload with their original request bytes; rejection preserves the command for copying and requires a fresh card snapshot. Unrelated local page edits do not invalidate the shown card. Finishing, abandoning or switching an open review is explicit; committed grades and their shown-text evidence remain. Pane history and reload preserve the deck, queue selection and session.
 
 ## Library and reading
