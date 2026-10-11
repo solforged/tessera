@@ -227,6 +227,7 @@ export interface ApiClient {
   complete(q: string, limit?: number, signal?: AbortSignal): Promise<Completion[]>;
   search(q: string, limit?: number, signal?: AbortSignal): Promise<BlockInPage[]>;
   changes(after: number, limit?: number, signal?: AbortSignal): Promise<ChangeEvent[]>;
+  changeHead(signal?: AbortSignal): Promise<number>;
   submit(batch: Batch, signal?: AbortSignal): Promise<Committed>;
   submitFrozen(json: string, signal?: AbortSignal): Promise<Committed>;
   stream(after: number): ChangeSocket;
@@ -343,6 +344,7 @@ export function createApi(base = ''): ApiClient {
     complete: (q: string, limit = 20, signal?: AbortSignal) => get<Completion[]>(`/complete${query({ q, limit })}`, signal),
     search: (q: string, limit = 40, signal?: AbortSignal) => get<BlockInPage[]>(`/search${query({ q, limit })}`, signal),
     changes: (after: number, limit = 500, signal?: AbortSignal) => get<ChangeEvent[]>(`/changes${query({ after, limit })}`, signal),
+    changeHead: (signal?: AbortSignal) => get<number>('/changes/head', signal),
     submit: (batch: Batch, signal?: AbortSignal) => request<Committed>(base, 'POST', '/batches', batch, signal),
     submitFrozen: (json: string, signal?: AbortSignal) => request<Committed>(base, 'POST', '/batches', undefined, signal, json),
     stream: (after: number) => {

@@ -26,6 +26,8 @@ type SettingEdit = { key: 'time_zone' | 'vim'; before: string; after: string; re
 
 /** Back and forward between a few pages reopens them without a reload; each warm page keeps its rows in memory. */
 const WARM_DOCUMENTS = 3;
+/** Beyond one history page, fresh snapshots cost less than replaying full-block events. */
+const MAX_CATCH_UP = 500;
 /** One single-flight operation queue for every document in this window. */
 export class Notebook implements NotebookClient, DocumentHost {
   readonly ready: Promise<void>;
@@ -43,6 +45,8 @@ export class Notebook implements NotebookClient, DocumentHost {
   private rejected = new Map<string, Command>();
   private outbox?: Outbox;
   private snapshotSequence = new WeakMap<PageView, number>();
+  private snapshotCursor = new WeakMap<PageView, number>();
+  private recoveryPages = new Map<string, number | undefined>();
   private cachedViews = new WeakSet<PageView>();
   private connectionSignal = createSignal<'connecting' | 'live' | 'offline'>('connecting');
   private storageSignal = createSignal<'ready' | 'failed'>('ready');
@@ -62,6 +66,8 @@ export class Notebook implements NotebookClient, DocumentHost {
   private closed = false;
   private initialized = false;
   private seq = 0;
+  private cursorSeeded = false;
+  private reloadRequired = false;
   private reconnectDelay = 500;
   private streamWork = Promise.resolve();
   private firstQueuedAt = 0;
@@ -147,6 +153,8 @@ export class Notebook implements NotebookClient, DocumentHost {
       if (!notebookId) { this.failure = error instanceof Error ? error.message : String(error); this.touch(); return; }
     }
     try { this.cachedVim[1](JSON.parse(localStorage.getItem(`tessera.navigation.${notebookId}`) ?? '{}').vim === true); } catch { /* Optional offline preference. */ }
+    // Establish the replay floor before fetching any state a window can show.
+    try { await this.seedCursor(); } catch { this.connectionSignal[1]('offline'); }
     try { await this.refreshSettings(); } catch { /* Offline dates and Vim use device/cache fallbacks. */ }
     try { this.activeWork = await this.api.activeWorkSession() ?? undefined; } catch { /* The service still guards unknown clocks. */ }
     this.outbox = new Outbox(notebookId, this.sessionId, this.storageFailed, this.options.databaseName);
@@ -196,24 +204,39 @@ export class Notebook implements NotebookClient, DocumentHost {
   private close(doc: Document) {
     doc.close();
     this.docs.delete(doc.pageId);
+    this.recoveryPages.delete(doc.pageId);
     const warm = this.warm.indexOf(doc.pageId);
     if (warm >= 0) this.warm.splice(warm, 1);
   }
   commands(pageId: string): PageCommand[] { this.revision[0](); return this.queue.filter((command): command is PageCommand => command.kind !== 'notebook' && command.pageId === pageId); }
   async loadPage(id: string) {
-    // A window that reopened before its stream caught up still knows the changes it cached: the snapshot holds them,
-    // and recording it at an older sequence would let their patches replay over it later.
-    const sequence = Math.max(this.changeSequence(), await this.outbox?.storedSequence(id) ?? 0);
     try {
+      if (!this.cursorSeeded) await this.seedCursor();
+      const cursor = this.seq;
+      // Receipts can be ahead of the replay floor, but are already in the following snapshot.
+      const sequence = Math.max(this.changeSequence(), await this.outbox?.storedSequence(id) ?? 0);
       const view = await this.api.page(id);
+      this.recoveryPages.delete(id);
       this.snapshotSequence.set(view, sequence);
+      this.snapshotCursor.set(view, cursor);
       return view;
     } catch (error) {
       const provisional = this.queue.some(command => command.pageId === id && command.actions.some(action => action.kind === 'insert' && action.block.id === id));
       if (!(error instanceof ApiError) || error.uncertain || error.status === 404 && provisional) {
         const cached = await this.outbox?.cachedPage(id);
-        if (cached) { this.cachedViews.add(cached); return cached; }
+        if (cached) {
+          this.cachedViews.add(cached.view);
+          if (!provisional) {
+            this.recoveryPages.set(id, cached.cursor);
+            this.connectionSignal[1]('offline');
+            this.scheduleReconnect();
+          }
+          if (provisional) this.recoveryPages.delete(id);
+          return cached.view;
+        }
       }
+      if (error instanceof ApiError && !error.uncertain) this.recoveryPages.delete(id);
+      else this.recoveryPages.set(id, undefined);
       throw error;
     }
   }
@@ -223,7 +246,7 @@ export class Notebook implements NotebookClient, DocumentHost {
     this.cachedViews.add(view);
     const capabilities = new Map((view.capabilities ?? []).map(value => [value.block_id, value]));
     void this.outbox?.capabilities([view.root, ...view.rows.map(row => row.block)].map(block => capabilities.get(block.id) ?? emptyCapabilities(block.id)), this.snapshotSequence.get(view) ?? 0).catch(() => undefined);
-    void this.outbox?.page(view, this.snapshotSequence.get(view) ?? 0).catch(() => undefined);
+    void this.outbox?.page(view, this.snapshotSequence.get(view) ?? 0, this.snapshotCursor.get(view)).catch(() => undefined);
   }
   publish(block: Block | null, id = block?.id, force = false) {
     if (!id) return;
@@ -956,6 +979,61 @@ export class Notebook implements NotebookClient, DocumentHost {
       if (recovered) this.retryLookups();
     } else void this.connect();
   }
+  private async seedCursor() {
+    const head = await this.api.changeHead();
+    if (this.cursorSeeded) return;
+    this.seq = head;
+    this.cursorSeeded = true;
+    this.observedSequence[1](head);
+  }
+  private async prepareReplay() {
+    const head = await this.api.changeHead();
+    let after = this.cursorSeeded ? this.seq : head;
+    let reset = after > head;
+    let reload = this.reloadRequired || (!this.cursorSeeded && !this.recoveryPages.size) || reset;
+    for (const cursor of this.recoveryPages.values()) {
+      if (cursor === undefined) reload = true;
+      else if (cursor > head) { reload = true; reset = true; }
+      else after = Math.min(after, cursor);
+    }
+    reload ||= head - after > MAX_CATCH_UP;
+    if (reload || after !== this.seq) {
+      // Detach before closing so the old socket cannot append events behind the new floor.
+      const socket = this.socket;
+      this.socket = undefined;
+      socket?.close();
+    }
+    const recovering = !this.cursorSeeded || this.recoveryPages.size > 0;
+    if (reload) {
+      this.reloadRequired = true;
+      if (reset) await this.outbox?.resetJournal();
+      this.seq = head;
+      this.cursorSeeded = true;
+      this.observedSequence[1](head);
+      this.capabilitySequence.clear();
+      this.workSequence = 0;
+      await this.refreshRoots();
+      await this.refreshSettings();
+      await this.refreshWork(head);
+      for (const doc of this.docs.values()) {
+        this.recoveryPages.set(doc.pageId, undefined);
+        await doc.reload(true);
+      }
+    } else {
+      this.seq = after;
+      this.cursorSeeded = true;
+      if (recovering) {
+        await this.refreshRoots();
+        await this.refreshSettings();
+        await this.refreshWork(head);
+      }
+      // A cache can be opened after this window already consumed its missed events.
+      // Refresh it before resuming, including structural changes and sync rebases.
+      for (const id of this.recoveryPages.keys()) await this.docs.get(id)?.reload(true);
+    }
+    if (this.recoveryPages.size) throw new Error('Cached pages still need a server snapshot.');
+    this.reloadRequired = false;
+  }
   private async connect() {
     await this.ready;
     if (this.closed) return;
@@ -969,13 +1047,16 @@ export class Notebook implements NotebookClient, DocumentHost {
     if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = undefined; }
     this.connectionSignal[1]('connecting');
     try {
-      while (!this.closed) {
-        const events = await this.api.changes(this.seq);
-        const work = this.streamWork.then(() => this.catchUp(events));
-        this.streamWork = work.catch(() => undefined);
-        await work;
-        if (events.length < 500) break;
-      }
+      const work = this.streamWork.then(async () => {
+        await this.prepareReplay();
+        while (!this.closed) {
+          const events = await this.api.changes(this.seq);
+          await this.catchUp(events);
+          if (events.length < MAX_CATCH_UP) break;
+        }
+      });
+      this.streamWork = work.catch(() => undefined);
+      await work;
       if (this.closed) return;
       this.retryLookups();
       if (this.socket?.readyState === CHANGE_OPEN) { this.serviceReached(); return; }
@@ -988,7 +1069,9 @@ export class Notebook implements NotebookClient, DocumentHost {
       };
       socket.onmessage = message => {
         if (this.closed || this.socket !== socket) return;
-        this.streamWork = this.streamWork.then(async () => { await this.change(JSON.parse(String(message.data)) as ChangeEvent); }).catch(error => {
+        this.streamWork = this.streamWork.then(async () => {
+          if (!this.closed && this.socket === socket) await this.change(JSON.parse(String(message.data)) as ChangeEvent);
+        }).catch(error => {
           this.failure = `Could not read notebook changes: ${error instanceof Error ? error.message : String(error)}`;
           this.touch();
         });
