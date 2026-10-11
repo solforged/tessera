@@ -30,10 +30,14 @@ export const sync = createRoot(() => {
 
 export const replica = () => sync.state()?.replica ?? null;
 
+/** The Mac no longer accepts this device's key: it was forgotten in Settings › Devices and must pair again. */
+export const forgotten = () => ['unpaired', 'wrong_device'].includes(replica()?.last_error?.code ?? '');
+
 /** A sync failure in plain words; the service's message stays in the tooltip for diagnosis. */
 export function problem(error: { code: string; message: string }): string {
   if (error.code === 'hub_unreachable') return 'Can’t reach the Mac. Tessera tries again shortly.';
   if (error.code === 'schema_mismatch') return 'The Mac runs a different version of Tessera. Update both to sync.';
+  if (error.code === 'unpaired' || error.code === 'wrong_device') return 'The Mac forgot this device. Pair it again to sync.';
   return error.message;
 }
 

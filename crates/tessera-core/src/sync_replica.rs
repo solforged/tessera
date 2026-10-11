@@ -124,16 +124,24 @@ impl Notebook {
         if id != ticket.notebook_id {
             return Err(validation("the snapshot is not the ticket's notebook"));
         }
-        let previous = self.dir.join(format!(
-            "{DATABASE_FILE}.{suffix}-{}",
-            crate::now_ms() / 1000
-        ));
-        // Never overwrite a previous recovery copy from a same-second attempt.
-        let recovery = std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&previous)?;
-        drop(recovery);
+        // Never overwrite a previous recovery copy; a same-second attempt gets `-2`, `-3`, …
+        let stem = format!("{DATABASE_FILE}.{suffix}-{}", crate::now_ms() / 1000);
+        let mut attempt = 1;
+        let previous = loop {
+            let previous = self.dir.join(match attempt {
+                1 => stem.clone(),
+                n => format!("{stem}-{n}"),
+            });
+            match std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&previous)
+            {
+                Ok(_) => break previous,
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => attempt += 1,
+                Err(error) => return Err(error.into()),
+            }
+        };
         self.conn.backup("main", &previous, None)?;
         cloned.execute(
             "ATTACH DATABASE ?1 AS previous",

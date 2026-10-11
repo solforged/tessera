@@ -24,7 +24,7 @@ use crate::{Batch, ChangeStamp, Error, Notebook, Operation, Result, SCHEMA_VERSI
 
 #[path = "sync_driver.rs"]
 mod driver;
-pub use driver::{NotebookAccess, sync_import, sync_send, sync_with};
+pub use driver::{NotebookAccess, sync_import, sync_send, sync_send_as, sync_with};
 #[path = "sync_replica.rs"]
 mod replica;
 pub use replica::{KeptCopy, OfflineFiles, RejectedChange, ReplicaConflicts};

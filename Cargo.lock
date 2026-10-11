@@ -5443,6 +5443,7 @@ dependencies = [
  "qrcodegen",
  "reqwest",
  "roxmltree",
+ "rusqlite",
  "rustls",
  "serde",
  "serde_json",

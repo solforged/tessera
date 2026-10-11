@@ -6,7 +6,7 @@ import { ANDROID } from '../demo/mode';
 import { Button } from '../ui/Button';
 import { Popup } from '../ui/Popup';
 import { SyncSetup } from '../sync/SyncSetup';
-import { ago, plural, problem, replica, size, sync } from '../sync/state';
+import { ago, forgotten, plural, problem, replica, size, sync } from '../sync/state';
 
 const message = (reason: unknown) => reason instanceof Error ? reason.message : String(reason);
 
@@ -160,8 +160,11 @@ export function PhoneDevices(props: { heading: JSX.Element; onError(message: str
           value().syncing || running() ? 'Syncing…'
             : [value().synced_at ? `Synced ${ago(value().synced_at!)}` : 'Not synced yet', value().pending ? `${plural(value().pending, 'change')} waiting` : null].filter(Boolean).join(' · ')
         }</p><Show when={value().last_error}>{failure => <p class="devices-error" title={failure().message}>{problem(failure())}</p>}</Show></div>
-        <Button class="bordered" disabled={running() || value().syncing || value().retired} onClick={() => { void run(); }}>Sync now</Button>
+        <Show when={forgotten()} fallback={<Button class="bordered" disabled={running() || value().syncing || value().retired} onClick={() => { void run(); }}>Sync now</Button>}>
+          <Button class="bordered" onClick={() => setSetup(true)}>Pair again</Button>
+        </Show>
       </div>
+      <Show when={setup()}><SyncSetup again={{ url: value().hub_url }} onDone={() => setSetup(false)} /></Show>
       <Show when={value().offline.books > 0}>
         <div class="settings-row">
           <div class="settings-label"><span class="settings-name">Offline books</span><p>{plural(value().offline.books, 'book')} · {size(value().offline.bytes)}</p></div>
