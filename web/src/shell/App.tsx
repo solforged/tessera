@@ -1,7 +1,7 @@
-import { batch, createEffect, createMemo, createResource, createSignal, For, lazy, Match, onCleanup, onMount, Show, Switch } from 'solid-js';
+import { batch, createEffect, createMemo, createResource, createSignal, For, Index, lazy, Match, onCleanup, onMount, Show, Switch } from 'solid-js';
 import type { Accessor } from 'solid-js';
 import { api } from '../api/client';
-import type { Block, NotebookInfo, View } from '../api/types';
+import type { Block, NoteKind, NotebookInfo, View } from '../api/types';
 import { createNotebookClient } from '../document';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import { OutlinePane } from '../outline/OutlinePane';
@@ -22,10 +22,11 @@ import { localDate } from '../ui/MonthGrid';
 import { createCommandRegistry } from './commands';
 import { deskCounts, shortDay } from './desk-counts';
 import { depthLabels, depthStops } from './contract';
-import type { AgendaViewState, CommandRegistry, CompareViewState, Depth, FieldsViewState, LibraryViewState, OpenTarget, PaneId, ReaderViewState, ReviewViewState, SettingsViewState, TableViewState, ViewState } from './contract';
+import type { AgendaViewState, CommandRegistry, CompareViewState, Depth, FieldsViewState, IndexViewState, LibraryViewState, OpenTarget, PaneId, ReaderViewState, ReviewViewState, SettingsViewState, TableViewState, ViewState } from './contract';
 import { Palette } from './Palette';
 import { installOpenedFiles } from '../library/opened-files';
 import { installQuickCapture } from './quick-capture';
+import { noteIndex, noteKindIcon } from '../notes/kinds';
 
 // Panes other than the outline load on demand and are prefetched once the app is idle.
 const paneModules = {
@@ -37,6 +38,7 @@ const paneModules = {
   library: () => import('../library/LibraryPane'),
   reader: () => import('../reader/ReaderPane'),
   compare: () => import('../compare/ComparePane'),
+  index: () => import('../notes/IndexPane'),
 };
 const TablePane = lazy(() => paneModules.table().then(module => ({ default: module.TablePane })));
 const FieldsPane = lazy(() => paneModules.fields().then(module => ({ default: module.FieldsPane })));
@@ -46,8 +48,9 @@ const ReviewPane = lazy(() => paneModules.review().then(module => ({ default: mo
 const LibraryPane = lazy(() => paneModules.library().then(module => ({ default: module.LibraryPane })));
 const ReaderPane = lazy(() => paneModules.reader().then(module => ({ default: module.ReaderPane })));
 const ComparePane = lazy(() => paneModules.compare().then(module => ({ default: module.ComparePane })));
+const IndexPane = lazy(() => paneModules.index().then(module => ({ default: module.IndexPane })));
 
-type PaneView = ViewState | TableViewState | FieldsViewState | SettingsViewState | AgendaViewState | ReviewViewState | LibraryViewState | ReaderViewState | CompareViewState;
+type PaneView = ViewState | TableViewState | FieldsViewState | SettingsViewState | AgendaViewState | ReviewViewState | LibraryViewState | ReaderViewState | CompareViewState | IndexViewState;
 type HistoryEntry = { target: OpenTarget; view: PaneView };
 type PaneSession = { entries: HistoryEntry[]; index: number; generation: number };
 type PageStyle = 'bullets' | 'prose';
@@ -68,7 +71,7 @@ function pageIdOf(current: HistoryEntry | undefined): string | undefined {
 }
 /** Header and tab text for panes that are not pages. */
 function paneLabel(target: OpenTarget | undefined): string {
-  return target?.kind === 'table' ? 'Table' : target?.kind === 'fields' ? 'Fields' : target?.kind === 'settings' ? 'Settings' : target?.kind === 'agenda' ? 'Agenda' : target?.kind === 'review' ? 'Review' : target?.kind === 'library' ? 'Library' : target?.kind === 'reader' ? 'Reader' : target?.kind === 'compare' ? 'Compare' : 'Loading…';
+  return target?.kind === 'table' ? 'Table' : target?.kind === 'fields' ? 'Fields' : target?.kind === 'settings' ? 'Settings' : target?.kind === 'agenda' ? 'Agenda' : target?.kind === 'review' ? 'Review' : target?.kind === 'library' ? 'Library' : target?.kind === 'reader' ? 'Reader' : target?.kind === 'compare' ? 'Compare' : target?.kind === 'index' ? 'Index' : 'Loading…';
 }
 function snapshotView(view: PaneView): PaneView {
   if ('mode' in view) return { ...view, query: copyTaskQuery(view.query) };
@@ -185,7 +188,7 @@ export function App() {
         ? { query: copyQuery(target.query), scroll: 0 }
         : target.kind === 'agenda' ? { date, mode: target.query || target.viewId ? 'tasks' : 'agenda', query: { ...(target.query ? copyTaskQuery(target.query) : createTaskQuery(date)), context_date: date }, viewId: target.viewId ?? null, scroll: 0 }
           : target.kind === 'review' ? { deckId: target.deckId ?? null, sessionId: null, selection: null, scroll: 0 }
-            : target.kind === 'fields' || target.kind === 'settings' || target.kind === 'compare' ? { scroll: 0 }
+            : target.kind === 'fields' || target.kind === 'settings' || target.kind === 'compare' || target.kind === 'index' ? { scroll: 0 }
               : target.kind === 'library' ? { view: null, tab: target.tab ?? 'inbox', text: '', sort: 'added', filters: { people: [], decades: [], publishers: [], languages: [] }, group: 'none', unprocessedOnly: true, colors: [], tags: [], scroll: 0 }
                 : target.kind === 'reader' ? { snapshotId: target.snapshotId ?? null, ordinal: -1, offset: 0 }
                   : { zoom: target.blockId ?? null, caret: target.blockId ? { id: target.caretId ?? target.blockId, offset: target.caretOffset ?? 0 } : null, scroll: null, folds: null, showArchived: false, ...(target.blockId && target.caretId ? { edit: true } : {}) };
@@ -366,7 +369,7 @@ export function App() {
           current = { target: targetFromView(saved), view: snapshotView(saved.view) };
         } else if (saved.target.kind === 'review' && 'deckId' in saved.view) {
           current = { target: targetFromView(saved), view: snapshotView(saved.view) };
-        } else if ((saved.target.kind === 'fields' || saved.target.kind === 'settings' || saved.target.kind === 'compare') && 'scroll' in saved.view && typeof saved.view.scroll === 'number') {
+        } else if ((saved.target.kind === 'fields' || saved.target.kind === 'settings' || saved.target.kind === 'compare' || saved.target.kind === 'index') && 'scroll' in saved.view && typeof saved.view.scroll === 'number') {
           current = { target: saved.target, view: { scroll: saved.view.scroll } };
         } else if ((saved.target.kind === 'library' && 'tab' in saved.view) || (saved.target.kind === 'reader' && 'ordinal' in saved.view)) {
           current = { target: targetFromView(saved), view: snapshotView(saved.view) };
@@ -445,16 +448,22 @@ export function App() {
   const recentRoots = () => recent().filter(id => !pinned().includes(id)).map(id => rootById().get(id)).filter((root): root is Block => !!root).slice(0, 10);
   const pinnedViewList = createMemo(() => (views() ?? []).filter(view => pinnedViews().includes(view.id)));
   const otherViews = createMemo(() => (views() ?? []).filter(view => !pinnedViews().includes(view.id)));
+  const index = noteIndex(notebook);
+  // Saved views sit under the kind whose type they list; views of any other type keep their own section.
+  const looseViews = createMemo(() => otherViews().filter(view => !index()?.kinds.some(kind => kind.type_id !== null && kind.type_id === view.query.type)));
   const activeViewId = () => { const target = entry(active())?.target; return target?.kind === 'table' ? target.viewId ?? undefined : undefined; };
-  // A table pane is named for its saved view, else its type, rather than the generic "Table".
-  const tableTitle = (pane: PaneId) => {
+  const activeKindKey = () => { const target = entry(active())?.target; return target?.kind === 'index' ? target.key : undefined; };
+  const indexKind = (pane: PaneId) => { const target = entry(pane)?.target; return target?.kind === 'index' ? index()?.kinds.find(kind => kind.key === target.key) : undefined; };
+  // A table pane is named for its saved view, else its type, and an index pane for its kind, rather than the generic label.
+  const paneTitle = (pane: PaneId) => {
     const target = entry(pane)?.target;
+    if (target?.kind === 'index') return indexKind(pane)?.plural;
     if (target?.kind !== 'table') return undefined;
     return (views() ?? []).find(view => view.id === target.viewId)?.name ?? rootById().get(target.typeId ?? '')?.text;
   };
   // Sidebar sections carry rubric numerals counted over the sections actually shown.
-  const sectionNumber = (section: 'pinned' | 'views' | 'recent') => {
-    const shown = [...pinnedRoots().length || pinnedViewList().length ? ['pinned'] : [], ...otherViews().length ? ['views'] : [], 'recent'];
+  const sectionNumber = (section: 'pinned' | 'index' | 'views' | 'recent') => {
+    const shown = [...pinnedRoots().length || pinnedViewList().length ? ['pinned'] : [], ...index()?.kinds.length ? ['index'] : [], ...looseViews().length ? ['views'] : [], 'recent'];
     return String(shown.indexOf(section) + 1).padStart(2, '0');
   };
   return <div class={`app ${split() ? 'is-split' : ''} ${sidebar() ? 'sidebar-expanded' : ''} ${sidebarCollapsed() ? 'sidebar-collapsed' : ''} ${immersive() ? 'is-immersive' : ''}`} onPointerDown={() => { focusEpoch++; }}>
@@ -483,9 +492,17 @@ export function App() {
         <PageLinks roots={pinnedRoots()} notebook={notebook} activeId={pageIdOf(entry(active()))} onOpen={open} />
         <ViewLinks views={pinnedViewList()} pinned activeId={activeViewId()} onOpen={openView} onPin={pinView} />
       </section></Show>
-      <Show when={otherViews().length}><section class="page-list" aria-label="Saved views">
-        <h2><span class="section-number">{sectionNumber('views')}</span>Views<span class="section-rule" /><span class="section-count">{otherViews().length}</span></h2>
-        <ViewLinks views={otherViews()} pinned={false} activeId={activeViewId()} onOpen={openView} onPin={pinView} />
+      <Show when={index()?.kinds.length}><section class="page-list index-list" aria-label="Index">
+        <h2><span class="section-number">{sectionNumber('index')}</span>Index<span class="section-rule" /><span class="section-count" title={`${index()!.notes} ${index()!.notes === 1 ? 'note' : 'notes'} filed`}>{index()!.notes}</span></h2>
+        {/* Kinds re-arrive as fresh objects after each change; Index keeps rows mounted by position. */}
+        <Index each={index()!.kinds}>{kind => <>
+          <Button class={`index-kind ${activeKindKey() === kind().key ? 'selected' : ''}`} icon={noteKindIcon(kind().key)} title={kind().plural} onClick={event => open({ kind: 'index', key: kind().key }, event.shiftKey)}><span>{kind().plural}</span><span class="desk-count">{kind().count}</span></Button>
+          <Show when={kind().type_id !== null && otherViews().some(view => view.query.type === kind().type_id)}><div class="index-views"><ViewLinks views={otherViews().filter(view => view.query.type === kind().type_id)} pinned={false} activeId={activeViewId()} onOpen={openView} onPin={pinView} /></div></Show>
+        </>}</Index>
+      </section></Show>
+      <Show when={looseViews().length}><section class="page-list" aria-label="Saved views">
+        <h2><span class="section-number">{sectionNumber('views')}</span>Views<span class="section-rule" /><span class="section-count">{looseViews().length}</span></h2>
+        <ViewLinks views={looseViews()} pinned={false} activeId={activeViewId()} onOpen={openView} onPin={pinView} />
       </section></Show>
       <details class="page-list" open>
         <summary><span class="section-number">{sectionNumber('recent')}</span>Recent<span class="section-rule" /><Icon name="down" /></summary>
@@ -497,11 +514,11 @@ export function App() {
       </div>
     </aside>
     <main class="workspace">
-      <Show when={split()}><div class="pane-tabs" role="tablist" aria-label="Working panes"><For each={paneIds}>{pane => <Button role="tab" aria-selected={active() === pane} onClick={() => { if (active() !== pane) switchPane(); }}>{pane === 'main' ? 'Pane 1' : 'Pane 2'} · {rootById().get(pageIdOf(entry(pane)) ?? '')?.text ?? tableTitle(pane) ?? paneLabel(entry(pane)?.target)}</Button>}</For></div></Show>
+      <Show when={split()}><div class="pane-tabs" role="tablist" aria-label="Working panes"><For each={paneIds}>{pane => <Button role="tab" aria-selected={active() === pane} onClick={() => { if (active() !== pane) switchPane(); }}>{pane === 'main' ? 'Pane 1' : 'Pane 2'} · {rootById().get(pageIdOf(entry(pane)) ?? '')?.text ?? paneTitle(pane) ?? paneLabel(entry(pane)?.target)}</Button>}</For></div></Show>
       <Show when={error()}><div class="shell-error" role="alert"><Icon name="warning" /><span>{error()}</span><Button onClick={() => { if (offlineUnavailable()) { location.reload(); return; } setError(''); void today(); }}>Retry</Button></div></Show>
       <GlobalBanner notebook={notebook} onReview={reviewConflict} />
       <div class="panes"><For each={paneIds}>{pane => <Show when={entry(pane)}>
-        <Pane pane={pane} session={() => sessions()[pane]} active={active() === pane} split={split()} immersive={immersive() === pane} onImmersive={on => immerse(pane, on)} notebook={notebook} commands={commands} vim={vim()} vimMode={vimModes()[pane]} onVimMode={mode => setVimModes(values => ({ ...values, [pane]: mode }))} pinned={pinned().includes(pageIdOf(entry(pane)) ?? '')} pageStyles={pageStyles()} title={tableTitle(pane)}
+        <Pane pane={pane} session={() => sessions()[pane]} active={active() === pane} split={split()} immersive={immersive() === pane} onImmersive={on => immerse(pane, on)} notebook={notebook} commands={commands} vim={vim()} vimMode={vimModes()[pane]} onVimMode={mode => setVimModes(values => ({ ...values, [pane]: mode }))} pinned={pinned().includes(pageIdOf(entry(pane)) ?? '')} pageStyles={pageStyles()} title={paneTitle(pane)} noteKind={indexKind(pane)}
           onPageStyle={(id, style, fallback) => setPageStyles(({ [id]: _, ...rest }) => style === fallback ? rest : { ...rest, [id]: style })}
           onActivate={() => setActive(pane)}
           onOpen={(target, beside) => open(target, beside, pane)}
@@ -611,7 +628,7 @@ function GlobalBanner(props: { notebook: NotebookClient; onReview(): void }) {
   </div></Show>;
 }
 
-function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boolean; split: boolean; immersive: boolean; onImmersive(immersive: boolean): void; notebook: NotebookClient; commands: CommandRegistry; vim: boolean; vimMode: VimMode; onVimMode(mode: VimMode): void; pinned: boolean; pageStyles: Record<string, PageStyle>; title?: string; onPageStyle(id: string, style: PageStyle, fallback: PageStyle): void; onActivate(): void; onOpen(target: OpenTarget, beside: boolean): void; onTargetChange(target: OpenTarget): void; onPageBeside(): void; onViewChange(view: PaneView): void; onTravel(delta: number): void; onClose(): void; onChooseDate(anchor: HTMLElement): void; onShiftDate(delta: number): void; onPin(): void; onRename(): void; onDelete(anchor: HTMLElement, source?: boolean): void; onDeleteSources(sources: { id: string; title: string }[]): Promise<void>; onArchived(): void; onRestoreView(view: ViewState): void }) {
+function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boolean; split: boolean; immersive: boolean; onImmersive(immersive: boolean): void; notebook: NotebookClient; commands: CommandRegistry; vim: boolean; vimMode: VimMode; onVimMode(mode: VimMode): void; pinned: boolean; pageStyles: Record<string, PageStyle>; title?: string; noteKind?: NoteKind; onPageStyle(id: string, style: PageStyle, fallback: PageStyle): void; onActivate(): void; onOpen(target: OpenTarget, beside: boolean): void; onTargetChange(target: OpenTarget): void; onPageBeside(): void; onViewChange(view: PaneView): void; onTravel(delta: number): void; onClose(): void; onChooseDate(anchor: HTMLElement): void; onShiftDate(delta: number): void; onPin(): void; onRename(): void; onDelete(anchor: HTMLElement, source?: boolean): void; onDeleteSources(sources: { id: string; title: string }[]): Promise<void>; onArchived(): void; onRestoreView(view: ViewState): void }) {
   const current = () => props.session().entries[props.session().index]!;
   const pageId = createMemo(() => pageIdOf(current()));
   const outlineView = () => current().view as ViewState;
@@ -679,7 +696,9 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
   // The place or kind the pane shows, in the same glyphs the sidebar uses.
   const kindIcon = (): IconName => {
     if (pageId()) return root()?.kind === 'journal' ? 'today' : root()?.source ? 'library' : 'page';
-    const kind = current().target.kind;
+    const target = current().target;
+    if (target.kind === 'index') return noteKindIcon(target.key);
+    const kind = target.kind;
     return kind === 'agenda' ? 'agenda' : kind === 'review' ? 'review' : kind === 'library' || kind === 'reader' ? 'library' : kind === 'table' ? 'table' : kind === 'fields' ? 'field' : kind === 'settings' ? 'settings' : kind === 'compare' ? 'compare' : 'page';
   };
   return <section class={`pane ${props.active ? 'active' : ''} ${props.immersive ? 'immersive' : ''}`} data-pane={props.pane} data-page-style={pageStyle()} aria-label={props.pane === 'main' ? 'Pane 1' : 'Pane 2'} onPointerDown={props.onActivate} onFocusIn={props.onActivate}>
@@ -712,6 +731,7 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
       <Match when={current().target.kind === 'fields'}><FieldsPane view={snapshotView(current().view) as FieldsViewState} notebook={props.notebook} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
       <Match when={current().target.kind === 'settings'}><SettingsPane pane={props.pane} view={snapshotView(current().view) as SettingsViewState} notebook={props.notebook} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
       <Match when={current().target.kind === 'compare' ? current().target as Extract<OpenTarget, { kind: 'compare' }> : undefined}>{target => <ComparePane subjectId={target().subjectId} view={snapshotView(current().view) as CompareViewState} notebook={props.notebook} onActivate={props.onActivate} onOpen={(next, beside) => { if (generation === props.session().generation) props.onOpen(next, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} />}</Match>
+      <Match when={current().target.kind === 'index' ? current().target as Extract<OpenTarget, { kind: 'index' }> : undefined}>{target => <IndexPane kindKey={target().key} kind={props.noteKind} view={snapshotView(current().view) as IndexViewState} notebook={props.notebook} onActivate={props.onActivate} onOpen={(next, beside) => { if (generation === props.session().generation) props.onOpen(next, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} />}</Match>
       <Match when={current().target.kind === 'agenda'}><AgendaPane pane={props.pane} view={snapshotView(current().view) as AgendaViewState} notebook={props.notebook} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
       <Match when={current().target.kind === 'review'}><ReviewPane pane={props.pane} view={snapshotView(current().view) as ReviewViewState} notebook={props.notebook} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
       <Match when={current().target.kind === 'library'}><LibraryPane pane={props.pane} view={snapshotView(current().view) as LibraryViewState} notebook={props.notebook} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} onDeleteSources={props.onDeleteSources} /></Match>

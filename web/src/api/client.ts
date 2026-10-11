@@ -31,6 +31,9 @@ import type {
   ReadingProgress,
   SourceView,
   Type,
+  NoteEntry,
+  NoteIndex,
+  NoteKind,
   Query,
   QueryResult,
   View,
@@ -186,6 +189,9 @@ export interface ApiClient {
   members(id: string, limit?: number, signal?: AbortSignal): Promise<BlockInPage[]>;
   fields(signal?: AbortSignal): Promise<Fields>;
   type(id: string, signal?: AbortSignal): Promise<Type>;
+  noteIndex(signal?: AbortSignal): Promise<NoteIndex>;
+  kindNotes(key: string, signal?: AbortSignal): Promise<NoteEntry[]>;
+  noteKinds(pageId: string, signal?: AbortSignal): Promise<NoteKind[]>;
   query(value: Query, signal?: AbortSignal): Promise<QueryResult>;
   views(signal?: AbortSignal): Promise<View[]>;
   view(id: string, signal?: AbortSignal): Promise<View>;
@@ -281,6 +287,9 @@ export function createApi(base = ''): ApiClient {
     members: (id: string, limit = 100, signal?: AbortSignal) => get<BlockInPage[]>(`/types/${segment(id)}/members${query({ limit })}`, signal),
     fields: (signal?: AbortSignal) => get<Fields>('/fields', signal),
     type: (id: string, signal?: AbortSignal) => get<Type>(`/types/${segment(id)}`, signal),
+    noteIndex: (signal?: AbortSignal) => get<NoteIndex>('/index', signal),
+    kindNotes: (key: string, signal?: AbortSignal) => get<NoteEntry[]>(`/index/${segment(key)}`, signal),
+    noteKinds: (pageId: string, signal?: AbortSignal) => get<NoteKind[]>(`/pages/${segment(pageId)}/kinds`, signal),
     query: (value: Query, signal?: AbortSignal) => request<QueryResult>(base, 'POST', '/query', value, signal),
     views: (signal?: AbortSignal) => get<View[]>('/views', signal),
     view: (id: string, signal?: AbortSignal) => get<View>(`/views/${segment(id)}`, signal),
