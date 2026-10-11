@@ -561,12 +561,27 @@ async fn apply(
     op: Operation,
 ) -> Result<(tessera_core::Committed, f64)> {
     let batch = batch(vec![op]);
-    let new_type = match &batch.operations[0] {
-        Operation::EditText { text, .. } => text.split_whitespace().find_map(|word| {
-            word.strip_prefix("#bench_type_")
-                .map(|suffix| format!("bench_type_{suffix}"))
-        }),
-        _ => None,
+    let (new_type, dropped) = match &batch.operations[0] {
+        Operation::EditText { id, text, .. } => {
+            let current: Vec<_> = bench_types(text).collect();
+            // An edit that drops a block's only tag leaves that generated type page unused, and the save deletes it.
+            let dropped = model.blocks.get(id).map_or_else(Vec::new, |block| {
+                bench_types(&block.text)
+                    .filter(|title| !current.contains(title))
+                    .filter_map(|title| {
+                        model
+                            .blocks
+                            .values()
+                            .find(|page| {
+                                page.kind == BlockKind::Page && !page.deleted && page.text == title
+                            })
+                            .map(|page| page.id.clone())
+                    })
+                    .collect()
+            });
+            (current.into_iter().next(), dropped)
+        }
+        _ => (None, Vec::new()),
     };
     let mut revisions = model.apply_model(&batch)?;
     let start = Instant::now();
@@ -577,8 +592,8 @@ async fn apply(
     let ms = elapsed(start);
     if let Some(title) = new_type {
         ensure!(
-            committed.revisions.len() == 2,
-            "tag creation must touch its source and type page"
+            committed.revisions.len() == 2 + dropped.len(),
+            "tag creation must touch its source, its type page and any type page it left unused"
         );
         let generated = &committed.revisions[1];
         ensure!(
@@ -612,6 +627,19 @@ async fn apply(
             id: root.id.clone(),
             revision: 1,
         });
+        for id in &dropped {
+            ensure!(
+                notebook.block(id).is_err(),
+                "unused generated type page {id} survived"
+            );
+            let page = model.blocks.get_mut(id).unwrap();
+            page.deleted = true;
+            page.revision += 1;
+            revisions.push(Revision {
+                id: id.clone(),
+                revision: page.revision,
+            });
+        }
         let change = model.changes.last_mut().unwrap();
         change.1.clone_from(&revisions);
         change.2.push(root.id.clone());
@@ -624,6 +652,14 @@ async fn apply(
     }
     model.check_commit(&committed, &revisions)?;
     Ok((committed, ms))
+}
+
+/// Generated type titles a block's text tags, in order.
+fn bench_types(text: &str) -> impl Iterator<Item = String> + '_ {
+    text.split_whitespace().filter_map(|word| {
+        word.strip_prefix("#bench_type_")
+            .map(|suffix| format!("bench_type_{suffix}"))
+    })
 }
 
 async fn check_current_page(
