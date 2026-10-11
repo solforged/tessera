@@ -1,7 +1,8 @@
-import { Show, createEffect, createMemo, createResource, createSignal, onCleanup } from 'solid-js';
+import { For, Show, createEffect, createMemo, createResource, createSignal, onCleanup, onMount } from 'solid-js';
+import { Portal } from 'solid-js/web';
 import { api, exportExtensions } from '../api/client';
 import type { ExportFormat } from '../api/client';
-import type { Citation, ReadingState } from '../api/types';
+import type { Citation, HighlightResult, ReadingState } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import type { OutlinePaneProps } from '../shell/contract';
 import { Button } from '../ui/Button';
@@ -15,6 +16,10 @@ import { shortSourceTitle } from './source';
 import { DetailsForm } from '../library/DetailsForm';
 import { saveDetails, sourceMetadata } from '../library/details';
 import { Popup } from '../ui/Popup';
+import { highlightColors } from '../library/highlights';
+import { timeLeft } from '../reader/paged';
+import { BookMap } from '../ui/BookMap';
+import { bookChapters, chapterAt } from '../ui/book-map';
 import '../library/library.css';
 
 const stateLabels: Record<ReadingState, string> = { inbox: 'Inbox', reading: 'Reading', finished: 'Finished', abandoned: 'Abandoned' };
@@ -24,19 +29,36 @@ export function SourceHeader(props: {
   onOpen: OutlinePaneProps['onOpen']; onError(message: string): void;
   resetItems(): MenuItem[];
   onDelete?: OutlinePaneProps['onDelete'];
+  highlights?: HighlightResult; colors: string[]; grouped: boolean; fieldsVisible: boolean;
+  onColors(colors: string[]): void; onGrouped(grouped: boolean): void; onFieldsVisible(visible: boolean): void;
 }) {
-  const [source] = createResource(() => props.notebook.changeSequence(), () => api.source(props.doc.pageId));
+  const [source] = createResource(() => props.notebook.changeSequence(), () => props.notebook.api.source(props.doc.pageId));
   const [menu, setMenu] = createSignal<{ anchor: HTMLElement; label: string; items: MenuItem[] } | null>(null);
   const snapshot = createMemo(() => source()?.snapshots.find(snapshot => snapshot.id === source()?.source.current_snapshot_id));
   const [fields, { mutate: setFields }] = createResource(() => props.notebook.changeSequence(), () => props.notebook.api.fields());
   const metadata = createMemo(() => sourceMetadata(props.doc, props.notebook, fields()?.fields ?? []));
   const cover = createMemo(() => metadata().cover ?? snapshot()?.metadata.cover);
+  const length = createMemo(() => snapshot()?.text_length ?? 0);
+  const at = createMemo(() => (source()?.progress ?? 0) * length());
+  const chapters = createMemo(() => bookChapters(source()?.toc ?? [], length()));
+  const current = createMemo(() => chapterAt(chapters(), at()));
+  const marks = createMemo(() => (props.highlights?.rows ?? []).flatMap(row => row.citation.snapshot_id === snapshot()?.id && row.citation.position !== undefined ? [{ at: row.citation.position, color: row.color }] : []));
+  const imprint = createMemo(() => [source()?.source.siglum, { epub: 'EPUB', article: 'Article', record: 'Record' }[props.doc.root()!.source!.format], metadata().publisher, metadata().published?.slice(0, 4)].filter(Boolean).join(' · '));
   const [details, setDetails] = createSignal<HTMLElement>();
   const [result, setResult] = createSignal('');
   const [busy, setBusy] = createSignal(false);
+  const coverMedia = window.matchMedia('(max-width: 599px) and (pointer: coarse)');
+  const [coverLayout, setCoverLayout] = createSignal(coverMedia.matches);
+  const [actionsHost, setActionsHost] = createSignal<HTMLElement>();
+  let header!: HTMLDivElement;
+  const coverChanged = () => setCoverLayout(coverMedia.matches);
+  coverMedia.addEventListener('change', coverChanged);
+  onCleanup(() => coverMedia.removeEventListener('change', coverChanged));
+  // Escape the outline's query-container containment, but keep the owning pane's visibility and nav tokens.
+  onMount(() => setActionsHost(header.closest<HTMLElement>('.pane') ?? undefined));
   let coverInput!: HTMLInputElement;
   function closeDetails() {
-    const outline = details()?.closest<HTMLElement>('.outline-pane');
+    const outline = header.closest<HTMLElement>('.outline-pane');
     setDetails(undefined);
     outline?.focus({ preventScroll: true });
   }
@@ -93,6 +115,7 @@ export function SourceHeader(props: {
       ...props.resetItems(),
       { label: 'Copy citation key', icon: 'copy', disabledReason: props.doc.root()?.source?.citation_key ? undefined : 'No citation key', action: () => { void navigator.clipboard.writeText(props.doc.root()!.source!.citation_key!).catch(fail); } },
       { label: 'Edit details…', action: () => setDetails(anchor) },
+      { label: props.fieldsVisible ? 'Hide metadata fields' : 'Show metadata fields', action: () => props.onFieldsVisible(!props.fieldsVisible) },
       { label: 'Replace cover…', action: () => coverInput.click() },
       ...(metadata().identifiers.length ? [{ label: 'Fill missing details', disabledReason: busy() ? 'Looking up…' : undefined, action: () => { void fillMissing(); } }] : []),
       { label: 'Export BibTeX', icon: 'download', action: () => { void exportSource('bibtex'); } },
@@ -106,30 +129,48 @@ export function SourceHeader(props: {
       ...(props.onDelete ? [{ label: 'Delete source…', icon: 'trash' as const, danger: true, action: () => props.onDelete!(anchor) }] : []),
     ] });
   }
+  const ReadingActions = () => <div class="outline-source-actions" classList={{ 'source-cover-actions': coverLayout() && !!actionsHost() }}>
+    <Show when={snapshot()}><Button class="outline-source-read" onClick={event => props.onOpen({ kind: 'reader', sourceId: props.doc.pageId }, event.shiftKey)}>{source()?.position ? 'Continue reading' : 'Read'}</Button></Show>
+    <Button class="bordered" aria-haspopup="menu" onClick={event => stateMenu(event.currentTarget)}>{stateLabels[props.doc.root()!.source!.state]}<Icon name="down" /></Button>
+    <Button class="bordered" icon="more" label="Source actions" aria-haspopup="menu" onClick={event => { void sourceMenu(event.currentTarget); }} />
+  </div>;
   return <>
-    <div class="outline-source-header">
-      <Show when={cover()}>{href => <Show when={snapshot()} fallback={<div class="outline-source-cover button"><ResourceImage snapshotId="" href={href()} loading="lazy" alt="" /></div>}>
-        <Button class="outline-source-cover" label="Read" onClick={event => props.onOpen({ kind: 'reader', sourceId: props.doc.pageId }, event.shiftKey)}>
-          <ResourceImage snapshotId={snapshot()!.id} href={href()} loading="lazy" alt="" />
+    <div ref={header} class="outline-source-header">
+      <Show when={snapshot()} fallback={<div class="outline-source-cover library-cover">
+        <Show when={cover()} fallback={<span class="library-spine"><span class="library-spine-siglum">{source()?.source.siglum}</span></span>}>{href => <ResourceImage snapshotId="" href={href()} loading="lazy" alt="" />}</Show>
+      </div>}>
+        <Button class="outline-source-cover library-cover" label={source()?.position ? 'Continue reading' : 'Read'} onClick={event => props.onOpen({ kind: 'reader', sourceId: props.doc.pageId }, event.shiftKey)}>
+          <Show when={cover()} fallback={<span class="library-spine"><span class="library-spine-siglum">{source()?.source.siglum}</span></span>}>{href => <ResourceImage snapshotId={snapshot()!.id} href={href()} loading="lazy" alt="" />}</Show>
         </Button>
-      </Show>}</Show>
+      </Show>
       <div class="outline-source-info">
+        <Show when={metadata().subtitle && !props.doc.root()?.text.includes(metadata().subtitle!)}><p class="outline-source-subtitle">{metadata().subtitle}</p></Show>
         <div class="outline-source-summary">
-          <Show when={source()?.source.siglum}>{siglum => <span class="source-siglum" title="Siglum: add a Siglum field to change it">{siglum()}</span>}</Show>
-          <span>{{ epub: 'EPUB', article: 'Article', record: 'Record' }[props.doc.root()!.source!.format]}</span>
-          <Show when={!source.error && source() && source()!.progress > 0}><span class="outline-source-progress" aria-label="Reading position" title="Reading position">{formatProgress(source()!.progress)}</span></Show>
+          <For each={metadata().creators}>{creator => <Show when={props.notebook.roots().find(page => page.text === creator.name && !page.archived)} fallback={<span class="outline-source-creator">{creator.name}{creator.role === 'editor' ? ' (ed.)' : creator.role === 'translator' ? ' (trans.)' : ''}</span>}>{page => <Button class="outline-source-creator" onClick={event => props.onOpen({ kind: 'page', pageId: page().id }, event.shiftKey)}>{creator.name}{creator.role === 'editor' ? ' (ed.)' : creator.role === 'translator' ? ' (trans.)' : ''}</Button>}</Show>}</For>
+          <span>{imprint()}</span>
         </div>
-        <div class="outline-source-actions">
-          <Button aria-haspopup="menu" onClick={event => stateMenu(event.currentTarget)}>{stateLabels[props.doc.root()!.source!.state]}<Icon name="down" /></Button>
-          <Show when={snapshot()}><Button class="bordered" icon="book" onClick={event => props.onOpen({ kind: 'reader', sourceId: props.doc.pageId }, event.shiftKey)}>Read</Button></Show>
-          <Button icon="more" label="Source actions" aria-haspopup="menu" onClick={event => { void sourceMenu(event.currentTarget); }} />
-        </div>
-        <Show when={snapshot()?.metadata.description}>{description => <div class="outline-source-description">
-          <p ref={setDescriptionElement} classList={{ expanded: expanded() }}>{description()}</p>
-          <Show when={overflows()}><Button class="text-button" aria-expanded={expanded()} onClick={() => setExpanded(value => !value)}>{expanded() ? 'Less' : 'More'}</Button></Show>
-        </div>}</Show>
       </div>
+      <Show when={!source.error && length() > 0}><div class="outline-source-progress-block">
+        <p class="outline-source-chapter">{current()?.chapter.title || (source()?.position ? 'Reading position' : 'Not started')}</p>
+        <BookMap chapters={chapters()} length={length()} at={at()} highlights={marks()} />
+        <div class="outline-source-time"><span><Show when={current()}>{value => <>{timeLeft(value().chapter.end - at())} left {value().chapter.title ? 'in chapter' : 'in book'}</>}</Show></span><span>{formatProgress(source()?.progress ?? 0)} · {timeLeft(length() - at())} left</span></div>
+      </div></Show>
+      <Show when={coverLayout() && actionsHost()} fallback={<ReadingActions />}>{host => <Portal mount={host()}><ReadingActions /></Portal>}</Show>
+      <Show when={snapshot()?.metadata.description}>{description => <div class="outline-source-description">
+        <p ref={setDescriptionElement} classList={{ expanded: expanded() }}>{description()}</p>
+        <Show when={overflows()}><Button class="text-button" aria-expanded={expanded()} onClick={() => setExpanded(value => !value)}>{expanded() ? 'Less' : 'More'}</Button></Show>
+      </div>}</Show>
     </div>
+    <Show when={props.highlights}><div class="outline-source-highlight-toolbar">
+      <h2>Highlights <span>· {props.highlights!.total}</span></h2>
+      <Show when={props.highlights!.total > 0}><div class="outline-source-highlight-controls">
+        <div class="outline-source-highlight-colors" role="group" aria-label="Highlight colours"><For each={highlightColors}>{color => <Button class="icon-only" aria-label={`Filter ${color} highlights`} aria-pressed={props.colors.includes(color)} onClick={() => props.onColors(props.colors.includes(color) ? props.colors.filter(value => value !== color) : [...props.colors, color])}><span class={`highlight-color-dot highlight-color-${color}`} aria-hidden="true" /></Button>}</For></div>
+        <Button class="outline-source-group" aria-haspopup="menu" onClick={event => setMenu({ anchor: event.currentTarget, label: 'Group highlights', items: [
+          { label: 'By chapter', icon: props.grouped ? 'check' : undefined, action: () => props.onGrouped(true) },
+          { label: 'Reading order', icon: !props.grouped ? 'check' : undefined, action: () => props.onGrouped(false) },
+        ] })}>{props.grouped ? 'By chapter' : 'Reading order'}<Icon name="down" /></Button>
+      </div></Show>
+    </div></Show>
     <Show when={source.error}><p class="outline-capability-error" role="alert">{String(source.error)}</p></Show>
     <Show when={menu()}>{state => <Menu {...state()} onDismiss={() => setMenu(null)} />}</Show>
     <input ref={coverInput} hidden type="file" aria-label="Choose cover image" accept="image/png,image/jpeg,image/webp" onChange={event => {
@@ -150,5 +191,5 @@ export function CitationChip(props: { citation: Citation; pageId: string; notebo
   return <Button class={`outline-planning outline-citation${props.citation.source_id === props.pageId ? ' outline-citation-local' : ''}`} title={`Passage ${props.citation.ordinal + 1}${props.citation.chapter_title ? ` · ${props.citation.chapter_title}` : ''}`} onClick={event => props.onOpen({
     kind: 'reader', sourceId: props.citation.source_id, snapshotId: props.citation.snapshot_id,
     at: props.citation.start.passage_id, citationId: props.citation.id,
-  }, event.shiftKey)}><span class={`highlight-color-dot highlight-color-${props.citation.color ?? 'none'}`} aria-hidden="true" /><span><Show when={props.citation.source_id !== props.pageId}>{title()} · </Show>¶{props.citation.ordinal + 1}</span></Button>;
+  }, event.shiftKey)}><Show when={props.citation.source_id !== props.pageId}><span class={`highlight-color-dot highlight-color-${props.citation.color ?? 'none'}`} aria-hidden="true" /></Show><span><Show when={props.citation.source_id !== props.pageId}>{title()} · </Show>¶{props.citation.ordinal + 1}</span></Button>;
 }

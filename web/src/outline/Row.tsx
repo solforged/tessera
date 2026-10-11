@@ -113,6 +113,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
     const depth = () => (inline() ? doc.outline.depth(parent()) : doc.outline.depth(id())) - baseDepth();
     const pill = () => valueField()?.kind === 'choice' || valueField()?.kind === 'instance';
     const rowSource = createMemo(() => block()?.citations[0]?.source_id ?? (block()?.position ? positionSource(id()) : null));
+    const localCitation = createMemo(() => doc.root()?.source ? block()?.citations.find(citation => citation.source_id === props.pageId) : undefined);
     const gist = () => inline() && isGistName(valueField()?.name) && !!doc.block(doc.outline.parentOf(parent()))?.position;
     const sourceField = createMemo(() => sourceDetails().fields.get(id()) ?? sourceDetails().fields.get(parent()));
     const displayText = createMemo(() => {
@@ -130,13 +131,12 @@ export function createOutlineRows(context: Pick<OutlineContext,
     onCleanup(() => { const host = hosts.get(id()); if (host && row.contains(host)) hosts.delete(id()); });
     return <div ref={row} id={`outline-${props.pane}-${id()}`} data-index={propsRow.item().index} data-block-id={id()} role="treeitem" aria-level={depth() + 1}
       aria-expanded={children() ? !folds().has(id()) : undefined} aria-selected={selectedSet().has(id())}
-      class="outline-row" classList={{ 'row-position': !!block()?.position, 'row-gist': gist(), 'row-question': !!block()?.question, 'row-assessment': !!block()?.assessment, 'row-selected': selectedSet().has(id()) && editing() !== id(), 'row-covered': coveredSet().has(id()), 'row-editing': editing() === id(), 'row-archived': block()?.archived ?? false, 'field-entry': !!field(), 'inline-field-value': inline(), 'row-gloss': inline() && parent() === glossId(), 'choice-value': pill(), 'source-detail': !!sourceField(), 'source-highlights-start': sourceDetails().firstHighlight === id() || sourceDetails().chapters.has(id()), 'outline-row-linked': block()?.citations.some(citation => citation.id === linkedCitation()) ?? false }}
+      class="outline-row" classList={{ 'row-position': !!block()?.position, 'row-gist': gist(), 'row-question': !!block()?.question, 'row-assessment': !!block()?.assessment, 'row-selected': selectedSet().has(id()) && editing() !== id(), 'row-covered': coveredSet().has(id()), 'row-editing': editing() === id(), 'row-archived': block()?.archived ?? false, 'field-entry': !!field(), 'inline-field-value': inline(), 'row-gloss': inline() && parent() === glossId(), 'choice-value': pill(), 'source-detail': !!sourceField(), 'source-highlight': !!localCitation(), 'source-highlights-start': sourceDetails().chapters.has(id()), 'outline-row-linked': block()?.citations.some(citation => citation.id === linkedCitation()) ?? false }}
       data-task-status={block()?.task?.status}
       data-holder={block()?.position?.holder_id ?? undefined}
       data-question-status={block()?.question?.status} data-accepted={block()?.assessment ? String(block()!.assessment!.accepted) : undefined} data-aporia={block()?.assessment?.state.aporia ? 'true' : undefined}
       onPointerEnter={() => setLinkedCitation(block()?.citations[0]?.id ?? null)} onPointerLeave={() => setLinkedCitation(null)}
-      style={{ transform: `translateY(${propsRow.item().start - margin()}px)`, '--depth': depth() }}>
-      <Show when={sourceDetails().firstHighlight === id()}><div class="outline-highlights-label">Highlights <span>{sourceDetails().highlightCount}</span></div></Show>
+      style={{ transform: `translateY(${propsRow.item().start - margin()}px)`, '--depth': depth(), '--quote-color': localCitation()?.color ? `var(--highlight-${localCitation()!.color})` : 'var(--faint)' }}>
       <Show when={sourceDetails().chapters.get(id())}>{title => <div class="outline-chapter-label">{title()}</div>}</Show>
       <Show when={rowSource() && sigla().get(rowSource()!)}>{mark => <span class="row-siglum" title={props.notebook.lookup(rowSource()!)()?.text}>{mark()}</span>}</Show>
       <button type="button" class="row-menu icon-button" aria-label="Block actions" onClick={event => blockMenu(id(), event.currentTarget)}><Icon name="more" /></button>
