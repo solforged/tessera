@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { Citation, HighlightRow, IngestJob, LibraryFilters, LibraryRow } from '../api/types';
-import { groupSources, highlightChapters, highlightLocation, highlightMeta, jobLabel, libraryQuery, recentJobs, retryTime, selectSources, sourceByline, sourceStateOperation, visibleJobs } from './query';
+import { groupSources, highlightChapterHeading, highlightChapters, highlightLocation, highlightMeta, jobLabel, libraryQuery, nextUnprocessedHighlight, recentJobs, retryTime, selectSources, sourceByline, sourceStateOperation, visibleJobs } from './query';
 
 const filters: LibraryFilters = { people: [], decades: [], publishers: [], languages: [] };
 
@@ -141,4 +141,20 @@ test('a source\'s highlights run in reading order and split where the chapter ch
     ['One', ['first', 'second']],
     ['Two', ['next', 'late']],
   ]);
+});
+
+test('a highlighted heading supplies its own chapter label without suppressing ordinary passages', () => {
+  const row = (quote: string, heading: number | null) => ({ citation: { quote }, block: { block: { heading } } }) as HighlightRow;
+  expect(highlightChapterHeading({ title: 'Acknowledgments', rows: [row('Acknowledgments', 1)] })).toBeNull();
+  expect(highlightChapterHeading({ title: 'Acknowledgments', rows: [row('Acknowledgments', null)] })).toBeNull();
+  expect(highlightChapterHeading({ title: 'Chapter 1', rows: [row('Another heading', 2)] })).toBe('Chapter 1');
+});
+
+test('marking a highlight advances past processed items and wraps without selecting itself', () => {
+  const rows = [{ citation: { id: 'a' }, processed: false }, { citation: { id: 'b' }, processed: true }, { citation: { id: 'c' }, processed: false }] as HighlightRow[];
+  expect(nextUnprocessedHighlight(rows, 'a')).toBe('c');
+  expect(nextUnprocessedHighlight(rows, 'c')).toBe('a');
+  expect(nextUnprocessedHighlight(rows.slice(0, 2), 'a')).toBeNull();
+  expect(nextUnprocessedHighlight([], 'missing')).toBeNull();
+  expect(nextUnprocessedHighlight(rows, 'missing')).toBe('a');
 });

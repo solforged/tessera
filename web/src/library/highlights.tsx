@@ -17,6 +17,10 @@ export interface HighlightMenu {
   items: MenuItem[];
   Header: Component<{ onDismiss(): void }>;
   openNote(): void;
+  makeCard(): void;
+  toggleProcessed(): Promise<void>;
+  tag(): void;
+  setColor(color: Citation['color']): void;
 }
 
 export type HighlightSection = TocEntry & { ordinal: number };
@@ -28,9 +32,10 @@ export async function highlightSections(api: ApiClient, snapshotId: string, sign
 }
 
 /** Keep edited documents alive with the surface so their undo history survives the menu. */
-export function createHighlightActions(notebook: NotebookClient, onOpen: (target: OpenTarget, beside: boolean) => void, onError: (message: string) => void) {
+export function createHighlightActions(notebook: NotebookClient, onOpen: (target: OpenTarget, beside: boolean) => void, onError: (message: string) => void, onProcessed?: (row: HighlightRow) => void) {
   const documents = new Map<string, PageDocument>();
   const tagPrompt = createHighlightTagPrompt();
+  const [lastDocument, setLastDocument] = createSignal<PageDocument>();
   let disposed = false;
   onCleanup(() => { disposed = true; for (const doc of documents.values()) doc.release(); });
   const menu = async (row: HighlightRow, copyText?: string): Promise<HighlightMenu> => {
@@ -40,45 +45,50 @@ export function createHighlightActions(notebook: NotebookClient, onOpen: (target
     await documentReady(doc);
     const document = doc;
     const hasNote = document.outline.children(id).some(child => !document.block(child)?.archived && !!document.block(child)?.text.trim());
-    const run = (action: 'note' | 'card' | 'triage' | 'remove') => {
-      void (async () => {
-        await documentReady(document);
-        let caretId: string | undefined;
-        if (action === 'note' || action === 'card') {
-          // Open the first written note, else reuse a blank one left from an earlier Add note.
-          const notes = document.outline.children(id).filter(child => !document.block(child)?.archived);
-          caretId = action === 'note' ? notes.find(child => !!document.block(child)?.text.trim()) ?? notes.find(child => document.block(child)?.text === '' && !document.outline.children(child).length) : undefined;
-          if (!caretId) {
-            const result = document.edit({ kind: 'insert', parentId: id, after: document.outline.children(id).at(-1) ?? null, text: action === 'card' ? '>> ' : '' });
-            if (!result.ok) throw new Error(result.reason);
-            caretId = result.created[0];
-          }
-        } else {
-          const result = document.edit(action === 'remove' ? { kind: 'delete', ids: [id] } : { kind: 'citationTriage', id, citationId: row.citation.id, triage: row.processed ? 'unprocessed' : 'processed' });
+    const run = async (action: 'note' | 'card' | 'triage' | 'remove') => {
+      await documentReady(document);
+      let caretId: string | undefined;
+      if (action === 'note' || action === 'card') {
+        // Open the first written note, else reuse a blank one left from an earlier Add note.
+        const notes = document.outline.children(id).filter(child => !document.block(child)?.archived);
+        caretId = action === 'note' ? notes.find(child => !!document.block(child)?.text.trim()) ?? notes.find(child => document.block(child)?.text === '' && !document.outline.children(child).length) : undefined;
+        if (!caretId) {
+          const result = document.edit({ kind: 'insert', parentId: id, after: document.outline.children(id).at(-1) ?? null, text: action === 'card' ? '>> ' : '' });
           if (!result.ok) throw new Error(result.reason);
+          caretId = result.created[0];
         }
-        await document.flush();
-        if (!disposed && caretId) onOpen({ kind: 'page', pageId, blockId: id, caretId, caretOffset: action === 'card' ? 3 : 0 }, true);
-      })().catch(reason => { if (!disposed) onError(reason instanceof Error ? reason.message : String(reason)); });
+      } else {
+        const result = document.edit(action === 'remove' ? { kind: 'delete', ids: [id] } : { kind: 'citationTriage', id, citationId: row.citation.id, triage: row.processed ? 'unprocessed' : 'processed' });
+        if (!result.ok) throw new Error(result.reason);
+      }
+      setLastDocument(document);
+      await document.flush();
+      if (disposed) return;
+      if (caretId) onOpen({ kind: 'page', pageId, blockId: id, caretId, caretOffset: action === 'card' ? 3 : 0 }, true);
+      if (action === 'triage') onProcessed?.(row);
     };
+    const fail = (reason: unknown) => { if (!disposed) onError(reason instanceof Error ? reason.message : String(reason)); };
+    const fire = (action: Parameters<typeof run>[0]) => { void run(action).catch(fail); };
+    const tag = () => { setLastDocument(document); tagPrompt.open(document, id); };
     const color = document.block(id)?.citations.find(citation => citation.id === row.citation.id)?.color ?? null;
     const setColor = (color: Citation['color']) => {
       void (async () => {
         await documentReady(document);
         const result = document.edit({ kind: 'highlightColor', id, citationId: row.citation.id, color });
         if (!result.ok) throw new Error(result.reason);
+        setLastDocument(document);
         await document.flush();
-      })().catch(reason => { if (!disposed) onError(reason instanceof Error ? reason.message : String(reason)); });
+      })().catch(fail);
     };
     const items: MenuItem[] = [
-      { label: hasNote ? 'Open note' : 'Add note', action: () => run('note') },
-      { label: 'Make card', action: () => run('card') },
+      { label: hasNote ? 'Open note' : 'Add note', action: () => fire('note') },
+      { label: 'Make card', action: () => fire('card') },
     ];
     if (copyText !== undefined) items.push({ label: 'Copy with citation', action: () => { void navigator.clipboard.writeText(copyText).catch(reason => onError(reason instanceof Error ? reason.message : String(reason))); } });
     items.push(
-      { label: row.processed ? 'Mark unprocessed' : 'Mark processed', action: () => run('triage') },
-      { label: 'Add tag…', action: () => tagPrompt.open(document, id) },
-      { label: 'Remove highlight', danger: true, action: () => run('remove') },
+      { label: row.processed ? 'Mark unprocessed' : 'Mark processed', action: () => fire('triage') },
+      { label: 'Add tag…', action: tag },
+      { label: 'Remove highlight', danger: true, action: () => fire('remove') },
     );
     const Header: HighlightMenu['Header'] = props => <>
       <p class="highlight-menu-quote">{row.citation.quote}</p>
@@ -91,7 +101,16 @@ export function createHighlightActions(notebook: NotebookClient, onOpen: (target
         }}</For>
       </div>
     </>;
-    return { items, Header, openNote: () => run('note') };
+    return { items, Header, openNote: () => fire('note'), makeCard: () => fire('card'), toggleProcessed: () => run('triage'), tag, setColor };
   };
-  return Object.assign(menu, { TagPopup: tagPrompt.TagPopup });
+  return Object.assign(menu, {
+    TagPopup: tagPrompt.TagPopup,
+    canUndo: () => lastDocument()?.canUndo() ?? false,
+    undo: async () => {
+      const doc = lastDocument();
+      if (!doc?.canUndo()) return;
+      doc.undo();
+      await doc.flush();
+    },
+  });
 }

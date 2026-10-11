@@ -609,7 +609,9 @@ impl Notebook {
         ids: Option<&[String]>,
     ) -> Result<HighlightResult> {
         for color in &query.colors {
-            crate::library_store::validate_color(Some(color))?;
+            if color != "none" {
+                crate::library_store::validate_color(Some(color))?;
+            }
         }
         let tags: Vec<_> = query.tags.iter().map(|tag| tag.to_lowercase()).collect();
         let citations = citations(&self.conn, ids, None, true, None)?;
@@ -693,10 +695,10 @@ impl Notebook {
                 continue;
             }
             if !query.colors.is_empty()
-                && !citation
-                    .color
-                    .as_ref()
-                    .is_some_and(|color| query.colors.contains(color))
+                && !query.colors.iter().any(|color| match citation.color.as_deref() {
+                    Some(value) => value == color,
+                    None => color == "none",
+                })
             {
                 continue;
             }

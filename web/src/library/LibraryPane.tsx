@@ -14,7 +14,7 @@ import type { MenuItem } from '../ui/Menu';
 import { Popup } from '../ui/Popup';
 import { Picker } from '../ui/Picker';
 import { downloadBlob } from '../ui/download';
-import { formatProgress, groupSources, highlightChapters, highlightMeta, jobLabel, libraryQuery, recentJobs, retryTime, selectSources, sourceByline, sourceStateOperation, visibleJobs } from './query';
+import { formatProgress, groupSources, highlightChapterHeading, highlightChapters, highlightMeta, jobLabel, libraryQuery, nextUnprocessedHighlight, recentJobs, retryTime, selectSources, sourceByline, sourceStateOperation, visibleJobs } from './query';
 import { formatSourceValue } from '../outline/source';
 import { createHighlightActions, highlightColors, setLinkedCitation } from './highlights';
 import type { HighlightMenu } from './highlights';
@@ -56,6 +56,10 @@ const groupings: { id: LibraryGroup; label: string }[] = [
 type LibraryPopup =
   | { kind: 'add'; anchor: HTMLElement }
   | { kind: 'tags'; anchor: HTMLElement }
+  | { kind: 'highlight-filters'; anchor: HTMLElement }
+  | { kind: 'highlight-sources'; anchor: HTMLElement }
+  | { kind: 'highlight-chapters'; anchor: HTMLElement }
+  | { kind: 'highlight-colors'; anchor: HTMLElement; row: HighlightRow }
   | { kind: 'browse'; anchor: HTMLElement; field: BrowseField | null }
   | { kind: 'name'; anchor: HTMLElement; saved: LibraryView | null; id: string }
   | { kind: 'delete'; anchor: HTMLElement; saved: LibraryView }
@@ -77,7 +81,6 @@ const stateActions: { state: ReadingState; label: string }[] = [
 ];
 const stateLabels: Record<ReadingState, string> = { inbox: 'Inbox', reading: 'Reading', finished: 'Finished', abandoned: 'Abandoned' };
 
-const processedExplanation = 'A highlight counts as processed once it has a note, a card or a link, or when you mark it.';
 export function LibraryPane(props: LibraryPaneProps) {
   const [view, setView] = createSignal({ ...props.view });
   const tab = createMemo(() => view().tab);
@@ -116,6 +119,42 @@ export function LibraryPane(props: LibraryPaneProps) {
     }
     return [...groups.values()];
   });
+  const [highlightSource, setHighlightSource] = createSignal<string | null>(null);
+  const [highlightChapter, setHighlightChapter] = createSignal<string | null>(null);
+  const [selectedHighlightId, setSelectedHighlightId] = createSignal<string | null>(null);
+  const [highlightPassageOpen, setHighlightPassageOpen] = createSignal(false);
+  const [highlightBusy, setHighlightBusy] = createSignal(false);
+  const scopedHighlightGroups = createMemo(() => highlightGroups().filter(group => !highlightSource() || group.sourceId === highlightSource()));
+  const chapterOptions = createMemo(() => [...new Set(scopedHighlightGroups().flatMap(group => highlightChapters(group.rows).map(chapter => chapter.title)).filter((title): title is string => title !== null))]);
+  const highlightQueue = createMemo(() => scopedHighlightGroups().flatMap(group => highlightChapters(group.rows).flatMap(chapter => highlightChapter() === null || chapter.title === highlightChapter() ? chapter.rows : [])));
+  const selectedHighlight = createMemo(() => highlightQueue().find(row => row.citation.id === selectedHighlightId()));
+  const highlightIndex = createMemo(() => highlightQueue().findIndex(row => row.citation.id === selectedHighlightId()));
+  createEffect(() => {
+    const rows = highlightQueue();
+    if (!rows.some(row => row.citation.id === selectedHighlightId())) {
+      setSelectedHighlightId(rows[0]?.citation.id ?? null);
+      if (!rows.length) setHighlightPassageOpen(false);
+    }
+  });
+  const [followingPassage, setFollowingPassage] = createSignal('');
+  const [followingError, setFollowingError] = createSignal('');
+  const [followingLoading, setFollowingLoading] = createSignal(false);
+  createEffect(on(() => {
+    const row = selectedHighlight();
+    return row ? `${row.citation.snapshot_id}:${row.citation.ordinal}` : null;
+  }, () => {
+    const row = selectedHighlight();
+    setFollowingPassage(''); setFollowingError('');
+    if (!row) { setFollowingLoading(false); return; }
+    const controller = new AbortController();
+    setFollowingLoading(true);
+    void props.notebook.api.passages(row.citation.snapshot_id, row.citation.ordinal + 1, 1, controller.signal).then(result => {
+      if (!controller.signal.aborted) { setFollowingPassage(result.passages[0]?.text ?? ''); setFollowingLoading(false); }
+    }, reason => {
+      if (!controller.signal.aborted) { setFollowingError(reason instanceof Error ? reason.message : String(reason)); setFollowingLoading(false); }
+    });
+    onCleanup(() => controller.abort());
+  }));
   const tagOptions = createMemo(() => [...new Set([...(highlights()?.rows.flatMap(row => row.tags) ?? []), ...tags()])].sort().filter(tag => tag.toLocaleLowerCase().includes(tagQuery().toLocaleLowerCase())));
   const [loading, setLoading] = createSignal(true);
   const [error, setError] = createSignal('');
@@ -152,6 +191,12 @@ export function LibraryPane(props: LibraryPaneProps) {
   const coverChanged = () => setCoverLayout(coverMedia.matches);
   coverMedia.addEventListener('change', coverChanged);
   onCleanup(() => coverMedia.removeEventListener('change', coverChanged));
+  // A narrow strip scrolls sideways; keep the current tab in it, so Highlights is never left off the edge.
+  let tabStrip: HTMLDivElement | undefined;
+  createEffect(() => {
+    tab(); view().view; coverLayout();
+    queueMicrotask(() => tabStrip?.querySelector('[aria-pressed="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }));
+  });
   // Every Reading source gets a card, including books not yet started; the cover adds its Inbox below.
   const [reading, setReading] = createSignal<LibraryRow[]>([]);
   const [upNext, setUpNext] = createSignal<LibraryRow[]>([]);
@@ -250,12 +295,71 @@ export function LibraryPane(props: LibraryPaneProps) {
   let disposed = false;
   onCleanup(() => { disposed = true; setLinkedCitation(null); });
 
-  const highlightActions = createHighlightActions(props.notebook, props.onOpen, setCommandError);
+  const highlightActions = createHighlightActions(props.notebook, props.onOpen, setCommandError, row => {
+    if (row.processed) return;
+    const next = nextUnprocessedHighlight(highlightQueue(), row.citation.id);
+    batch(() => {
+      setHighlights(previous => previous && ({
+        ...previous,
+        total: unprocessedOnly() ? Math.max(0, previous.total - 1) : previous.total,
+        rows: unprocessedOnly() ? previous.rows.filter(value => value.citation.id !== row.citation.id) : previous.rows.map(value => value.citation.id === row.citation.id ? { ...value, processed: true, triage: 'processed' } : value),
+      }));
+      setSelectedHighlightId(next ?? (unprocessedOnly() ? null : row.citation.id));
+      if (!next && unprocessedOnly()) setHighlightPassageOpen(false);
+    });
+  });
+
+  function chooseHighlight(row: HighlightRow) {
+    setSelectedHighlightId(row.citation.id);
+    if (coverLayout()) {
+      setHighlightPassageOpen(true);
+      queueMicrotask(() => scroll.querySelector<HTMLButtonElement>('.library-back-highlights')?.focus({ preventScroll: true }));
+    }
+  }
+  function closeHighlightPassage() {
+    setHighlightPassageOpen(false);
+    queueMicrotask(() => Array.from(scroll.querySelectorAll<HTMLButtonElement>('[data-library-row]')).find(button => button.dataset.libraryRow === selectedHighlightId())?.focus());
+  }
+  function stepHighlight(direction: number) {
+    const row = highlightQueue()[highlightIndex() + direction];
+    if (row) setSelectedHighlightId(row.citation.id);
+  }
+  function highlightKey(event: KeyboardEvent, row: HighlightRow) {
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault(); event.stopPropagation();
+    const rows = highlightQueue(), index = rows.findIndex(value => value.citation.id === row.citation.id);
+    const next = event.key === 'Home' ? 0 : event.key === 'End' ? rows.length - 1 : Math.max(0, Math.min(rows.length - 1, index + (event.key === 'ArrowDown' ? 1 : -1)));
+    const id = rows[next]?.citation.id;
+    if (!id) return;
+    setSelectedHighlightId(id);
+    Array.from(scroll.querySelectorAll<HTMLButtonElement>('[data-library-row]')).find(button => button.dataset.libraryRow === id)?.focus();
+  }
+  async function runHighlight(row: HighlightRow, action: 'triage' | 'note' | 'card' | 'tag') {
+    if (highlightBusy()) return;
+    setCommandError(''); setHighlightBusy(true);
+    try {
+      const actions = await highlightActions(row);
+      if (disposed) return;
+      if (action === 'triage') await actions.toggleProcessed();
+      else if (action === 'note') actions.openNote();
+      else if (action === 'card') actions.makeCard();
+      else actions.tag();
+    } catch (reason) { if (!disposed) setCommandError(reason instanceof Error ? reason.message : String(reason)); }
+    finally { if (!disposed) setHighlightBusy(false); }
+  }
+  function toggleHighlightColor(color: string) {
+    update({ colors: colors().includes(color) ? colors().filter(value => value !== color) : [...colors(), color], scroll: 0 });
+  }
+  async function undoHighlight() {
+    setCommandError('');
+    try { await highlightActions.undo(); }
+    catch (reason) { if (!disposed) setCommandError(reason instanceof Error ? reason.message : String(reason)); }
+  }
 
   async function highlightMenu(row: HighlightRow, anchor: HTMLElement) {
     setCommandError('');
     try {
-      const { items, Header } = await highlightActions(row);
+      const { items, Header } = await highlightActions(row, `“${row.citation.quote}” · ${row.source_title}, ${row.citation.chapter_title ?? `¶${row.citation.ordinal + 1}`}`);
       if (!disposed && anchor.isConnected) setPopup({ kind: 'menu', anchor, label: 'Actions for highlight', Header, items: [
         { label: 'Open in reader', action: () => props.onOpen({ kind: 'reader', sourceId: row.citation.source_id, snapshotId: row.citation.snapshot_id, citationId: row.citation.id }, true) },
         ...items,
@@ -602,7 +706,41 @@ export function LibraryPane(props: LibraryPaneProps) {
     </Show>;
   }
 
-  return <div class="library-pane" classList={{ 'library-search-open': searchOpen() || !!text(), 'library-highlights-tab': tab() === 'highlights', 'library-cover-reading': coverLayout() && showReading() && tab() === 'reading' }} data-pane={props.pane} aria-label="Library" tabIndex={props.active ? 0 : -1} onFocusIn={props.onActivate} onPointerDown={props.onActivate}
+  function HighlightPassage() {
+    let passageScroll!: HTMLDivElement;
+    createEffect(on(() => selectedHighlight()?.citation.id, () => {
+      if (passageScroll) passageScroll.scrollTop = 0;
+    }));
+    return <Show when={selectedHighlight()}>{value => {
+      const row = value;
+      const colorStyle = () => ({ '--highlight-bar': row().color ? `var(--highlight-${row().color})` : 'var(--faint)' });
+      return <section class="library-highlight-passage" aria-label="Selected highlight">
+        <header class="library-passage-heading">
+          <div class="library-passage-topline"><Button class="library-back-highlights" icon="left" onClick={closeHighlightPassage}>Back to highlights</Button><span class="library-highlight-meta">{coverLayout() ? unprocessedOnly() ? 'Unprocessed' : 'All highlights' : `Selected highlight · ${highlightIndex() + 1} of ${highlightQueue().length}`}</span></div>
+          <h2>{row().source_title}</h2>
+          <Show when={row().citation.chapter_title && row().citation.quote.trim() !== row().citation.chapter_title?.trim()}><p class="library-highlight-meta">{row().citation.chapter_title}</p></Show>
+        </header>
+        <div ref={passageScroll} class="library-passage-scroll">
+          <Show when={row().block.block.text.trim() !== row().citation.quote.trim()}><div class="library-highlight-authored"><BlockText text={row().block.block.text} notebook={props.notebook} interactive={false} /></div></Show>
+          <blockquote class="library-passage-quote" style={colorStyle()}>{row().citation.quote}</blockquote>
+          <p class="library-highlight-meta">{highlightMeta(row(), props.notebook.settings()?.time_zone ?? 'UTC')} · {row().notes ? `${row().notes} ${row().notes === 1 ? 'note' : 'notes'}` : 'No notes'}</p>
+          <Show when={row().block.page.id !== row().citation.source_id}><Button class="library-highlight-filed" onClick={event => openSource({ kind: 'page', pageId: row().block.page.id, blockId: row().block.block.id }, event.shiftKey)}>In {row().block.page.text}</Button></Show>
+          <Show when={row().tags.length}><div class="library-highlight-tags"><For each={row().tags}>{tag => <span class="outline-tag">#{tag}</span>}</For></div></Show>
+          <Show when={followingPassage()}><div class="library-passage-context"><h3>Passage continues</h3><p>{followingPassage()}</p></div></Show>
+          <Show when={followingLoading()}><p class="library-highlight-meta" role="status">Loading passage…</p></Show>
+          <Show when={followingError()}><p class="library-error" role="alert">{followingError()}</p></Show>
+        </div>
+        <footer class="library-highlight-dock">
+          <div class="library-passage-pager"><Button icon="left" disabled={highlightIndex() <= 0} onClick={() => stepHighlight(-1)}>Previous</Button><span class="library-highlight-meta">{highlightIndex() + 1} of {highlightQueue().length}</span><Button disabled={highlightIndex() >= highlightQueue().length - 1} onClick={() => stepHighlight(1)}>Next<Icon name="right" /></Button></div>
+          <div class="library-highlight-primary"><Button class="bordered library-mark-processed" icon="check" disabled={highlightBusy()} onClick={() => { void runHighlight(row(), 'triage'); }}>{row().processed ? 'Mark unprocessed' : 'Mark processed'}</Button><Button class="bordered" icon="note" disabled={highlightBusy()} onClick={() => { void runHighlight(row(), 'note'); }}>{row().notes ? 'Open note' : 'Add note'}</Button><Button class="bordered" icon="review" disabled={highlightBusy()} onClick={() => { void runHighlight(row(), 'card'); }}>Make card</Button></div>
+          <div class="library-highlight-secondary"><Button icon="tag" disabled={highlightBusy()} onClick={() => { void runHighlight(row(), 'tag'); }}>Tag</Button><Button aria-haspopup="dialog" disabled={highlightBusy()} onClick={event => setPopup({ kind: 'highlight-colors', anchor: event.currentTarget, row: row() })}><span class="library-highlight-color-bar" style={colorStyle()} aria-hidden="true" />Colour</Button><Button onClick={event => openSource({ kind: 'reader', sourceId: row().citation.source_id, snapshotId: row().citation.snapshot_id, citationId: row().citation.id }, event.shiftKey)}>Open in reader<Icon name="right" /></Button><Button icon="more" label="More highlight actions" aria-haspopup="menu" onClick={event => { void highlightMenu(row(), event.currentTarget); }} /></div>
+          <Show when={coverLayout() && highlightActions.canUndo()}><Button class="library-highlight-undo" icon="undo" onClick={() => { void undoHighlight(); }}>Undo</Button></Show>
+        </footer>
+      </section>;
+    }}</Show>;
+  }
+
+  return <div class="library-pane" classList={{ 'library-search-open': searchOpen() || !!text(), 'library-highlights-tab': tab() === 'highlights', 'library-highlight-passage-open': tab() === 'highlights' && coverLayout() && highlightPassageOpen(), 'library-cover-reading': coverLayout() && showReading() && tab() === 'reading' }} data-pane={props.pane} aria-label="Library" tabIndex={props.active ? 0 : -1} onFocusIn={props.onActivate} onPointerDown={props.onActivate}
     onKeyDown={event => { if (event.key === 'Escape' && selected().size && !popup()) { event.preventDefault(); event.stopPropagation(); clearSelection(); } }}
     onDragOver={event => { if (event.dataTransfer?.types.includes('Files')) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; } }}
     onDrop={event => { if (event.dataTransfer?.files.length) { event.preventDefault(); void upload(Array.from(event.dataTransfer.files)); } }}>
@@ -610,8 +748,8 @@ export function LibraryPane(props: LibraryPaneProps) {
       <div class="library-cover-header"><h1>Library</h1><Button icon="search" label="Search library" aria-expanded={searchOpen() || !!text()} onClick={() => {
         setSearchOpen(value => !value);
         if (searchOpen()) queueMicrotask(() => scroll.closest('.library-pane')?.querySelector<HTMLInputElement>('.library-search')?.focus());
-      }} /><Button class="bordered" icon="plus" label="Add to library" aria-haspopup={EMBEDDED ? undefined : 'dialog'} onClick={event => openAdd(event.currentTarget)} /></div>
-      <div class="library-tabs mode-tabs tab-strip" role="group" aria-label="Library state">
+      }} /><Show when={tab() !== 'highlights'}><Button class="bordered" icon="plus" label="Add to library" aria-haspopup={EMBEDDED ? undefined : 'dialog'} onClick={event => openAdd(event.currentTarget)} /></Show></div>
+      <div ref={tabStrip} class="library-tabs mode-tabs tab-strip" role="group" aria-label="Library state">
         <For each={tabs}>{item => {
           // Zero counts are left out so the tabs fit a narrow pane.
           const count = () => item.id === 'highlights' ? unprocessedCount() : !library() ? undefined : item.id === 'all' ? Object.values(library()!.counts).reduce((sum, value) => sum + value, 0) : library()!.counts[item.id as ReadingState];
@@ -625,17 +763,14 @@ export function LibraryPane(props: LibraryPaneProps) {
         </>}</For>
       </div>
       <div class="library-controls">
-        <Show when={tab() !== 'highlights'} fallback={<div class="library-filter">
-          <div class="library-tabs mode-tabs" role="group" aria-label="Highlight processing">
-            <Button title={processedExplanation} aria-pressed={unprocessedOnly()} onClick={() => update({ unprocessedOnly: true, scroll: 0 })}>Unprocessed</Button>
+        <Show when={tab() !== 'highlights'} fallback={<div class="library-filter library-highlight-controls">
+          <div class="library-tabs mode-tabs tab-strip" role="group" aria-label="Highlight processing">
+            <Button aria-pressed={unprocessedOnly()} onClick={() => update({ unprocessedOnly: true, scroll: 0 })}>Unprocessed<Show when={unprocessedCount()}><span class="library-count">{unprocessedCount()}</span></Show></Button>
             <Button aria-pressed={!unprocessedOnly()} onClick={() => update({ unprocessedOnly: false, scroll: 0 })}>All</Button>
           </div>
-          <div class="library-tabs" role="group" aria-label="Highlight colours">
-            <For each={highlightColors}>{color => <Button class="icon-only" aria-label={`Filter ${color}`} aria-pressed={colors().includes(color)} onClick={() => update({ colors: colors().includes(color) ? colors().filter(value => value !== color) : [...colors(), color], scroll: 0 })}><span class={`highlight-color-dot highlight-color-${color}`} aria-hidden="true" /></Button>}</For>
-          </div>
-          <Button aria-haspopup="dialog" onClick={event => { setTagQuery(''); setPopup({ kind: 'tags', anchor: event.currentTarget }); }}>Filter tags</Button>
-          <For each={tags()}>{tag => <Button class="outline-tag" aria-label={`Remove tag filter ${tag}`} onClick={() => update({ tags: tags().filter(value => value !== tag), scroll: 0 })}>#{tag}<Icon name="close" /></Button>}</For>
-          <Show when={colors().length || tags().length}><Button onClick={() => update({ colors: [], tags: [], scroll: 0 })}>Clear filters</Button></Show>
+          <Button class="library-highlight-filters" icon="browse" aria-haspopup="dialog" aria-pressed={!!(colors().length || tags().length)} onClick={event => setPopup({ kind: 'highlight-filters', anchor: event.currentTarget })}>Filters<Show when={colors().length || tags().length}><span class="library-count">{colors().length + tags().length}</span></Show></Button>
+          <Show when={highlightActions.canUndo()}><Button class="library-highlight-toolbar-undo" icon="undo" onClick={() => { void undoHighlight(); }}>Undo</Button></Show>
+          <div class="library-highlight-selectors"><Button class="library-highlight-source-selector" aria-haspopup="listbox" onClick={event => { setBrowseQuery(''); setPopup({ kind: 'highlight-sources', anchor: event.currentTarget }); }}>{highlightGroups().find(group => group.sourceId === highlightSource())?.title ?? (highlightGroups().length === 1 ? highlightGroups()[0]!.title : 'All sources')}<Icon name="down" /></Button><Button aria-haspopup="listbox" onClick={event => { setBrowseQuery(''); setPopup({ kind: 'highlight-chapters', anchor: event.currentTarget }); }}>{highlightChapter() ?? 'All sections'}<Icon name="down" /></Button></div>
         </div>}>
           <Show when={selected().size > 0} fallback={<>
             <input class="input library-search" type="search" aria-label="Search library" placeholder="Search library" value={text()} onInput={event => update({ view: null, text: event.currentTarget.value, scroll: 0 })} />
@@ -664,7 +799,7 @@ export function LibraryPane(props: LibraryPaneProps) {
             <Button class="library-clear-selection" onClick={clearSelection}>Clear selection</Button>
           </Show>
         </Show>
-        <Button class="library-add-trigger" icon="plus" aria-haspopup={EMBEDDED ? undefined : 'dialog'} aria-expanded={EMBEDDED ? undefined : popup()?.kind === 'add'} onClick={event => openAdd(event.currentTarget)}>Add</Button>
+        <Show when={tab() !== 'highlights'}><Button class="library-add-trigger" icon="plus" aria-haspopup={EMBEDDED ? undefined : 'dialog'} aria-expanded={EMBEDDED ? undefined : popup()?.kind === 'add'} onClick={event => openAdd(event.currentTarget)}>Add</Button></Show>
       </div>
       <Show when={tab() !== 'highlights' && chosenFilters().length}><div class="library-filter library-chosen" role="group" aria-label="Browse filters">
         <For each={chosenFilters()}>{item => <Button class="bordered library-chip" aria-label={`Remove filter ${item.label}`} onClick={() => toggleFilter(item.field, item.value)}>{item.label}<Icon name="close" /></Button>}</For>
@@ -728,24 +863,29 @@ export function LibraryPane(props: LibraryPaneProps) {
         <Show when={loading() && !hasResult() && slowLoad()}><p class="library-message" role="status">Loading…</p></Show>
         <Show when={hasResult() && !error()}>
           <Show when={tab() !== 'highlights'} fallback={
-            <Show when={highlights()?.rows.length} fallback={<div class="library-empty"><Show when={unprocessedOnly()} fallback={<p>No matching highlights.</p>}><p>No unprocessed highlights.</p><p>{processedExplanation}</p></Show></div>}>
-              <div class="library-highlights" role="list"><For each={highlightGroups()}>{group => <div class="library-highlight-group" role="listitem">
-                <div class="library-highlight-heading"><Button onClick={event => openSource({ kind: 'page', pageId: group.sourceId }, event.shiftKey)}>{group.title}</Button><span>{group.rows.length}</span></div>
-                <For each={highlightChapters(group.rows)}>{chapter => <>
-                  <Show when={chapter.title}><h4 class="library-highlight-chapter">{chapter.title}</h4></Show>
-                  <div role="list"><For each={chapter.rows}>{row => {
-                    const target: OpenTarget = { kind: 'page', pageId: row.block.page.id, blockId: row.block.block.id };
-                    return <div class="library-row" role="listitem" onPointerEnter={() => setLinkedCitation(row.citation.id)} onPointerLeave={() => setLinkedCitation(null)}><Button class="library-highlight" data-library-row={row.citation.id} onClick={event => props.onOpen(target, event.shiftKey)} onKeyDown={event => rowKey(event, target)}>
-                      <span class="library-highlight-text"><span class={`highlight-color-dot highlight-color-${row.color ?? 'none'}`} role="img" aria-label={row.color ? `${row.color} highlight` : 'No colour'} /><BlockText text={row.block.block.text} notebook={props.notebook} interactive={false} /></span>
-                      <span class="library-highlight-details">
-                        <Show when={props.notebook.settings()}>{settings => <span class="library-highlight-meta">{highlightMeta(row, settings().time_zone)}<Show when={row.notes > 0}> · {row.notes} {row.notes === 1 ? 'note' : 'notes'}</Show></span>}</Show>
-                        <Show when={row.tags.length}><span class="library-highlight-tags"><For each={row.tags}>{tag => <span class="outline-tag">#{tag}</span>}</For></span></Show>
-                      </span>
-                      <Show when={row.block.block.text.trim() !== row.citation.quote.trim()}><span class="library-highlight-quote">{row.citation.quote}</span></Show>
-                    </Button><Button icon="more" label="Actions for highlight" aria-haspopup="menu" aria-expanded={popup()?.kind === 'menu' && popup()?.anchor.dataset.highlightId === row.citation.id} data-highlight-id={row.citation.id} onClick={event => { void highlightMenu(row, event.currentTarget); }} /></div>;
-                  }}</For></div>
-                </>}</For>
-              </div>}</For></div>
+            <Show when={highlights()?.rows.length} fallback={<div class="library-empty"><p>{unprocessedOnly() ? 'No unprocessed highlights.' : 'No matching highlights.'}</p><Show when={colors().length || tags().length}><Button onClick={() => update({ colors: [], tags: [], scroll: 0 })}>Clear filters</Button></Show></div>}>
+              <div class="library-highlights-workbench">
+                <section class="library-highlight-queue" aria-label="Highlight queue">
+                  <header class="library-highlight-queue-head"><span>Reading order</span><span>{highlightQueue().length} highlights<Show when={(highlights()?.total ?? 0) > (highlights()?.rows.length ?? 0)}> · {highlights()?.rows.length} of {highlights()?.total} loaded</Show></span></header>
+                  <div class="library-highlight-queue-scroll">
+                    <Show when={!highlightQueue().length}><div class="library-empty"><p>No matching highlights in this section.</p><Button onClick={() => { setHighlightSource(null); setHighlightChapter(null); }}>All sections</Button></div></Show>
+                    <For each={scopedHighlightGroups()}>{group => <section class="library-highlight-group">
+                    <Show when={!highlightSource()}><div class="library-highlight-heading"><Button onClick={() => { setHighlightSource(group.sourceId); setHighlightChapter(null); }}>{group.title}</Button><span>{group.rows.length}</span></div></Show>
+                    <For each={highlightChapters(group.rows).filter(chapter => highlightChapter() === null || chapter.title === highlightChapter())}>{chapter => <>
+                      <Show when={highlightChapterHeading(chapter)}><h3 class="library-highlight-chapter">{highlightChapterHeading(chapter)}</h3></Show>
+                      <div role="list"><For each={chapter.rows}>{row => <div role="listitem" onPointerEnter={() => setLinkedCitation(row.citation.id)} onPointerLeave={() => setLinkedCitation(null)}>
+                        <Button class="library-highlight" aria-current={selectedHighlightId() === row.citation.id ? 'true' : undefined} data-library-row={row.citation.id} style={{ '--highlight-bar': row.color ? `var(--highlight-${row.color})` : 'var(--faint)' }} onClick={() => chooseHighlight(row)} onKeyDown={event => highlightKey(event, row)}>
+                          <span class="library-highlight-text">{row.citation.quote}</span>
+                          <span class="library-highlight-details"><span class="library-highlight-meta">{highlightMeta(row, props.notebook.settings()?.time_zone ?? 'UTC')}<Show when={row.notes > 0}> · {row.notes} {row.notes === 1 ? 'note' : 'notes'}</Show><Show when={!unprocessedOnly()}> · {row.processed ? 'Processed' : 'Unprocessed'}</Show></span><Show when={row.block.page.id !== row.citation.source_id}><span class="library-highlight-meta library-highlight-filed">In {row.block.page.text}</span></Show></span>
+                          <Show when={row.tags.length}><span class="library-highlight-tags"><For each={row.tags}>{tag => <span class="outline-tag">#{tag}</span>}</For></span></Show>
+                        </Button>
+                      </div>}</For></div>
+                    </>}</For>
+                  </section>}</For></div>
+                  <footer class="library-highlight-queue-dock"><span class="library-highlight-meta">{scopedHighlightGroups().length} {scopedHighlightGroups().length === 1 ? 'source' : 'sources'} · {highlightQueue().length} highlights</span><Button class="bordered library-mark-processed" disabled={!selectedHighlight()} onClick={() => { const row = selectedHighlight(); if (row) chooseHighlight(row); }}>Process selected<Icon name="right" /></Button></footer>
+                </section>
+                <HighlightPassage />
+              </div>
             </Show>
           }>
             <Show when={displayedSources().length} fallback={<div class="library-empty">
@@ -766,9 +906,27 @@ export function LibraryPane(props: LibraryPaneProps) {
       </section>
       </div>
     </div>
+    <Show when={coverLayout() && (popup()?.kind === 'highlight-filters' || popup()?.kind === 'highlight-colors')}><div class="library-highlight-filter-shade" aria-hidden="true" /></Show>
     <Show keyed when={popup()}>{state => {
       const dismiss = () => { if (popup() === state) setPopup(null); };
       if (state.kind === 'menu') return <Menu anchor={state.anchor} label={state.label} items={state.items} header={state.Header && <state.Header onDismiss={dismiss} />} onDismiss={dismiss} />;
+      if (state.kind === 'highlight-sources') return <Picker anchor={state.anchor} placement={coverLayout() ? 'sheet' : 'anchor'} label="Choose highlight source" placeholder="Find a source" query={browseQuery()} onQuery={setBrowseQuery}
+        items={[{ sourceId: null, title: 'All sources' }, ...highlightGroups()].filter(group => group.title.toLocaleLowerCase().includes(browseQuery().toLocaleLowerCase()))} key={group => group.sourceId ?? 'all'}
+        row={group => <><Show when={highlightSource() === group.sourceId}><Icon name="check" /></Show><span>{group.title}</span></>}
+        onPick={group => { setHighlightSource(group.sourceId); setHighlightChapter(null); setBrowseQuery(''); dismiss(); }} empty="No matching sources" onDismiss={dismiss} />;
+      if (state.kind === 'highlight-chapters') return <Picker anchor={state.anchor} placement={coverLayout() ? 'sheet' : 'anchor'} label="Choose highlight section" placeholder="Find a section" query={browseQuery()} onQuery={setBrowseQuery}
+        items={[null, ...chapterOptions()].filter(title => (title ?? 'All sections').toLocaleLowerCase().includes(browseQuery().toLocaleLowerCase()))} key={title => title ?? 'all'}
+        row={title => <><Show when={highlightChapter() === title}><Icon name="check" /></Show><span>{title ?? 'All sections'}</span></>}
+        onPick={title => { setHighlightChapter(title); setBrowseQuery(''); dismiss(); }} empty="No matching sections" onDismiss={dismiss} />;
+      if (state.kind === 'highlight-filters') return <Popup anchor={state.anchor} label="Filter highlights" class="library-highlight-filter-popup" placement={coverLayout() ? 'sheet' : 'anchor'} width={360} onDismiss={dismiss}>
+        <header class="library-highlight-filter-head"><h2>Filter highlights</h2><Button icon="close" label="Close filters" onClick={dismiss} /></header>
+        <h3 class="library-highlight-filter-label">Colour</h3><div class="library-highlight-filter-colors" role="group" aria-label="Highlight colours"><For each={[...highlightColors, 'none']}>{color => <Button class="bordered" aria-pressed={colors().includes(color)} onClick={() => toggleHighlightColor(color)}><span class="library-highlight-color-bar" style={{ '--highlight-bar': color === 'none' ? 'var(--faint)' : `var(--highlight-${color})` }} aria-hidden="true" />{color === 'none' ? 'No colour' : color[0]!.toUpperCase() + color.slice(1)}<Show when={!colors().length && !tags().length}><span class="library-count">{highlights()?.rows.filter(row => (row.color ?? 'none') === color).length ?? 0}</span></Show></Button>}</For></div>
+        <h3 class="library-highlight-filter-label">Tags</h3><Show when={tagOptions().length} fallback={<p class="library-message">No tags on these highlights.</p>}><Button aria-haspopup="dialog" onClick={() => { setTagQuery(''); setPopup({ kind: 'tags', anchor: state.anchor }); }}>Choose tags<Icon name="down" /></Button><div class="library-highlight-filter-tags"><For each={tags()}>{tag => <Button class="outline-tag" onClick={() => update({ tags: tags().filter(value => value !== tag), scroll: 0 })}>#{tag}<Icon name="close" /></Button>}</For></div></Show>
+        <footer class="library-highlight-filter-footer"><Show when={colors().length || tags().length}><Button onClick={() => update({ colors: [], tags: [], scroll: 0 })}>Clear filters</Button></Show><span class="library-highlight-meta">{loading() ? 'Loading…' : `${highlights()?.total ?? 0} matching highlights`}</span><Button class="bordered library-mark-processed" onClick={dismiss}>Show highlights</Button></footer>
+      </Popup>;
+      if (state.kind === 'highlight-colors') return <Popup anchor={state.anchor} label="Highlight colour" placement={coverLayout() ? 'sheet' : 'anchor'} class="library-highlight-filter-popup" width={320} onDismiss={dismiss}>
+        <header class="library-highlight-filter-head"><h2>Highlight colour</h2><Button icon="close" label="Close colours" onClick={dismiss} /></header><div class="library-highlight-filter-colors" role="group" aria-label="Highlight colour"><For each={[...highlightColors, null]}>{color => <Button class="bordered" aria-pressed={state.row.color === color} onClick={() => { dismiss(); void highlightActions(state.row).then(actions => actions.setColor(color)).catch(reason => setCommandError(reason instanceof Error ? reason.message : String(reason))); }}><span class="library-highlight-color-bar" style={{ '--highlight-bar': color ? `var(--highlight-${color})` : 'var(--faint)' }} aria-hidden="true" />{color ? color[0]!.toUpperCase() + color.slice(1) : 'No colour'}</Button>}</For></div>
+      </Popup>;
       if (state.kind === 'tags') return <Picker anchor={state.anchor} label="Filter highlight tags" placeholder="Find a tag" query={tagQuery()} onQuery={setTagQuery} items={tagOptions()} key={tag => tag}
         row={tag => <><Show when={tags().includes(tag)}><Icon name="check" /></Show><span class="outline-tag">#{tag}</span></>}
         onPick={tag => { update({ tags: tags().includes(tag) ? tags().filter(value => value !== tag) : [...tags(), tag], scroll: 0 }); dismiss(); }} empty="No tags in these highlights" onDismiss={dismiss} />;
