@@ -11,7 +11,9 @@ import android.view.inputmethod.InputMethodManager
 import android.webkit.WebView
 import androidx.activity.enableEdgeToEdge
 import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicReference
@@ -22,6 +24,8 @@ class MainActivity : TauriActivity() {
   private var inboxWebView: WebView? = null
   /** The navigation bar's height in CSS pixels; zero while the keyboard covers it. */
   @Volatile private var systemBottom = 0f
+  /** The status bar's height in CSS pixels, also while the reader hides it, so the page never moves. */
+  @Volatile private var systemTop = 0f
 
   override fun onWebViewCreate(webView: WebView) {
     super.onWebViewCreate(webView)
@@ -42,9 +46,26 @@ class MainActivity : TauriActivity() {
         }
       }
     }, "TesseraCapture")
-    // The WebView reports no bottom safe-area inset under the gesture bar on some devices, so the page asks here.
+    // The WebView reports no safe-area insets for the status bar, nor for the gesture bar on some devices, so the
+    // page asks here. The reader hides both bars while its chrome is away; a swipe from the edge brings them back
+    // for a moment. Their icons follow the app's theme, not the system's.
     webView.addJavascriptInterface(object {
+      @JavascriptInterface fun top(): Float = systemTop
       @JavascriptInterface fun bottom(): Float = systemBottom
+      @JavascriptInterface fun bars(visible: Boolean) {
+        runOnUiThread {
+          val controller = WindowCompat.getInsetsController(window, window.decorView)
+          controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+          if (visible) controller.show(WindowInsetsCompat.Type.systemBars()) else controller.hide(WindowInsetsCompat.Type.systemBars())
+        }
+      }
+      @JavascriptInterface fun lightBars(light: Boolean) {
+        runOnUiThread {
+          val controller = WindowCompat.getInsetsController(window, window.decorView)
+          controller.isAppearanceLightStatusBars = light
+          controller.isAppearanceLightNavigationBars = light
+        }
+      }
     }, "TesseraInsets")
   }
 
@@ -58,7 +79,15 @@ class MainActivity : TauriActivity() {
     ViewCompat.setOnApplyWindowInsetsListener(content) { view, insets ->
       val ime = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
       view.setPadding(0, 0, 0, ime)
-      systemBottom = if (ime > 0) 0f else insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom / resources.displayMetrics.density
+      val density = resources.displayMetrics.density
+      // Ignoring visibility keeps the room the hidden bars took, so hiding them never reflows the page.
+      val top = insets.getInsetsIgnoringVisibility(WindowInsetsCompat.Type.statusBars()).top / density
+      val bottom = if (ime > 0) 0f else insets.getInsetsIgnoringVisibility(WindowInsetsCompat.Type.navigationBars()).bottom / density
+      if (top != systemTop || bottom != systemBottom) {
+        systemTop = top
+        systemBottom = bottom
+        inboxWebView?.evaluateJavascript("window.dispatchEvent(new Event('tessera-insets'))", null)
+      }
       insets
     }
     if (savedInstanceState == null) {

@@ -10,6 +10,7 @@ import type { OpenedFiles } from '../library/opened-files';
 import { setQuickCaptureSource } from '../shell/quick-capture';
 import type { CaptureRequest } from '../shell/quick-capture';
 import { setStreamFactory, setTransport } from '../api/client';
+import { setSystemBarsHandler } from '../shell/system-bars';
 import { App } from '../shell/App';
 import { notebookFetch, notebookStream } from './transport';
 import '../styles.css';
@@ -33,13 +34,22 @@ function parseCaptureRequest(raw: string): CaptureRequest | null {
   }
 }
 if (capture) setQuickCaptureSource({ take: () => parseCaptureRequest(capture.take()), showKeyboard: () => capture.showKeyboard() });
-// The gesture bar's height, which the WebView leaves out of env(safe-area-inset-bottom) on some devices. Folding and
-// the keyboard change it, and both resize the page.
-const insets = (window as Window & { TesseraInsets?: { bottom(): number } }).TesseraInsets;
+// The status and gesture bars' heights, which the WebView leaves out of the safe-area insets on some devices. Folding
+// and the keyboard change them; MainActivity says so with `tessera-insets`. The reader hides both bars while its
+// chrome is away, and their icons follow the app's theme rather than the system's.
+const insets = (window as Window & { TesseraInsets?: { top(): number; bottom(): number; bars(visible: boolean): void; lightBars(light: boolean): void } }).TesseraInsets;
 if (insets) {
-  const apply = () => document.documentElement.style.setProperty('--system-bottom', `${insets.bottom()}px`);
+  const apply = () => {
+    document.documentElement.style.setProperty('--system-top', `${insets.top()}px`);
+    document.documentElement.style.setProperty('--system-bottom', `${insets.bottom()}px`);
+  };
   apply();
   window.addEventListener('resize', apply);
+  window.addEventListener('tessera-insets', apply);
+  const theme = () => insets.lightBars(document.documentElement.dataset.theme === 'light');
+  theme();
+  new MutationObserver(theme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  setSystemBarsHandler(hidden => insets.bars(!hidden));
 }
 // The app bundles its interface, so the native entry's offline cache is not registered.
 render(() => <App />, root);
