@@ -244,6 +244,9 @@ details[open]::details-content { opacity: 1; block-size: auto; }
 .picker-hint { flex: none; color: var(--faint); }
 .picker-section { padding: var(--space-8) var(--space-12) var(--space-4); color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .picker-section:not(:first-child), .picker-group + .picker-group > .picker-section { border-top: var(--rule-width) solid var(--line); margin-top: var(--space-4); }
+/* Commands keep their query in view above the longer destination and action lists. */
+.palette:not(.palette-search) > .picker-query { position: sticky; top: 0; z-index: 1; background: var(--raised); }
+.palette:not(.palette-search) > .picker-query::before { content: ''; position: absolute; top: 0; left: var(--space-12); width: var(--rubric-width); height: var(--rubric-height); background: var(--danger); pointer-events: none; }
 .picker-disabled-reason { display: block; overflow: hidden; text-overflow: ellipsis; font-size: var(--text-meta); line-height: var(--line-meta); }
 .picker .empty-state, .picker .error { margin: var(--space-8) var(--space-12); }
 .scope-bar { display: flex; align-items: center; gap: var(--space-8); padding: var(--space-4) var(--space-12); border-bottom: 1px solid var(--line); background: var(--surface); color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }

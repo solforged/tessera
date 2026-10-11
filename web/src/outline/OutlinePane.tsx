@@ -55,6 +55,7 @@ export function OutlinePane(props: OutlinePaneProps) {
 function Pane(props: OutlinePaneProps) {
   const doc: PageDocument = props.notebook.open(props.pageId);
   const initial = untrack(() => props.view);
+  const journalPeriod = untrack(() => props.journalPeriod);
   const [zoom, setZoom] = createSignal(initial.zoom);
   const [folds, setFolds] = createSignal(new Set(initial.folds ?? storedFolds.get(`${props.pane}:${props.pageId}`) ?? []));
   const [showArchived, setShowArchived] = createSignal(initial.showArchived);
@@ -845,6 +846,12 @@ function Pane(props: OutlinePaneProps) {
         if (initial.scroll) requestAnimationFrame(() => restoreAnchor(initial.scroll));
         return;
       }
+      if (journalPeriod) {
+        setEditing(null); setSelected(null); setCaret(null);
+        if (props.active) scroll.querySelector<HTMLButtonElement>('.journal-trail-segment[aria-expanded="true"]')?.focus({ preventScroll: true });
+        scheduleReport();
+        return;
+      }
       let first: Caret | null = saved && doc.block(saved.id) && indices().has(saved.id) ? saved : null;
       if (!saved) {
         const siblings = doc.outline.children(props.pageId);
@@ -939,7 +946,7 @@ function Pane(props: OutlinePaneProps) {
         <p class="empty-state">No gloss yet. Choose Gloss in the page menu to write a one-line summary.</p>
       </Show>
       <Show when={!zoom() && doc.root()?.kind === 'journal'}>
-        <JournalHeader date={doc.root()!.text} notebook={props.notebook} onOpen={props.onOpen} />
+        <JournalHeader date={doc.root()!.text} journalPeriod={journalPeriod} notebook={props.notebook} onOpen={props.onOpen} />
       </Show>
     </div>
     <div ref={list} class="outline-list" style={{ height: `${virtualizer.getTotalSize()}px` }}>

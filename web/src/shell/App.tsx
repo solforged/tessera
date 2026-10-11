@@ -10,7 +10,7 @@ import { ReferencePreviews } from '../outline/ReferencePreview';
 import { createPageIcon } from '../outline/source';
 import { PageMergePicker, pageMergeDisabledReason } from '../outline/PageMerge';
 import { copyTaskQuery, createTaskQuery } from '../tasks/query';
-import { copyQuery } from '../table/query';
+import { copyQuery, typeQuery } from '../table/query';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import type { IconName } from '../ui/Icon';
@@ -22,7 +22,7 @@ import { localDate } from '../ui/MonthGrid';
 import { createCommandRegistry } from './commands';
 import { deskCounts, shortDay } from './desk-counts';
 import { depthLabels, depthStops } from './contract';
-import type { AgendaViewState, CommandRegistry, CompareViewState, Depth, FieldsViewState, IndexViewState, LibraryViewState, OpenTarget, PaneId, ReaderViewState, ReviewViewState, SettingsViewState, TableViewState, ViewState } from './contract';
+import type { AgendaViewState, Command, CommandRegistry, CompareViewState, Depth, FieldsViewState, IndexViewState, LibraryViewState, OpenTarget, PaneId, ReaderViewState, ReviewViewState, SettingsViewState, TableViewState, ViewState } from './contract';
 import { Palette } from './Palette';
 import { installOpenedFiles } from '../library/opened-files';
 import { blankCapture, installQuickCapture } from './quick-capture';
@@ -90,7 +90,7 @@ function snapshotView(view: PaneView): PaneView {
 function targetFromView(entry: HistoryEntry): OpenTarget {
   const { target, view } = entry;
   if (target.kind === 'table' && 'query' in view && !('mode' in view)) return { ...target, query: copyQuery(view.query), typeId: view.query.type };
-  if (target.kind === 'agenda' && 'mode' in view) return { kind: 'agenda', date: view.date, viewId: view.viewId ?? undefined, query: copyTaskQuery(view.query) };
+  if (target.kind === 'agenda' && 'mode' in view) return { kind: 'agenda', date: view.date, mode: view.mode, viewId: view.viewId ?? undefined, query: copyTaskQuery(view.query) };
   if (target.kind === 'review' && 'deckId' in view) return { kind: 'review', deckId: view.deckId ?? undefined };
   if (target.kind === 'library' && 'tab' in view) return { kind: 'library', tab: view.tab };
   // A jump not yet performed (no position reported) survives a reload.
@@ -201,13 +201,13 @@ export function App() {
       setActive(pane); setSidebar(false); focusPane(pane);
       return;
     }
-    // An explicit caret target still needs the view rebuilt even when the same zoom is already open beside.
-    const samePage = target.kind === 'page' && !target.caretId && current?.target.kind === 'page' && current.target.pageId === target.pageId && 'zoom' in current.view && current.view.zoom === (target.blockId ?? null);
+    // Explicit caret and journal ledger requests rebuild even when the same page is already open beside.
+    const samePage = target.kind === 'page' && !target.caretId && !target.journalPeriod && current?.target.kind === 'page' && current.target.pageId === target.pageId && 'zoom' in current.view && current.view.zoom === (target.blockId ?? null);
     if (!beside || !samePage) {
       const date = target.kind === 'agenda' ? target.date ?? target.query?.context_date ?? todayDate() : '';
       const view: PaneView = restore ? snapshotView(restore) : target.kind === 'table'
         ? { query: copyQuery(target.query), scroll: 0 }
-        : target.kind === 'agenda' ? { date, mode: target.query || target.viewId ? 'tasks' : 'agenda', query: { ...(target.query ? copyTaskQuery(target.query) : createTaskQuery(date)), context_date: date }, viewId: target.viewId ?? null, scroll: 0 }
+        : target.kind === 'agenda' ? { date, mode: target.mode ?? (target.query || target.viewId ? 'tasks' : 'agenda'), query: { ...(target.query ? copyTaskQuery(target.query) : createTaskQuery(date)), context_date: date }, viewId: target.viewId ?? null, scroll: 0 }
           : target.kind === 'review' ? { deckId: target.deckId ?? null, sessionId: null, selection: null, scroll: 0 }
             : target.kind === 'fields' || target.kind === 'settings' || target.kind === 'compare' || target.kind === 'index' ? { scroll: 0 }
               : target.kind === 'library' ? { view: null, tab: target.tab ?? 'inbox', text: '', sort: 'added', filters: { people: [], decades: [], publishers: [], languages: [] }, group: 'none', unprocessedOnly: true, colors: [], tags: [], scroll: 0 }
@@ -484,6 +484,35 @@ export function App() {
   const pinnedViewList = createMemo(() => (views() ?? []).filter(view => pinnedViews().includes(view.id)));
   const otherViews = createMemo(() => (views() ?? []).filter(view => !pinnedViews().includes(view.id)));
   const index = noteIndex(notebook);
+  const [destinationTypes] = createResource(() => notebook.changeSequence(), () => notebook.api.types());
+  const goToCommand = (id: string, title: string, action: (beside: boolean, pane: PaneId) => void): Command => ({
+    id: `shell.go-to.${id}`, title, section: 'Go to',
+    run: (beside = false) => action(beside, active()),
+    capture: () => {
+      const pane = active();
+      return { id: `shell.go-to.${id}`, title, section: 'Go to', run: (beside = false) => action(beside, pane) };
+    },
+  });
+  createEffect(() => {
+    const destinations: Command[] = [
+      goToCommand('highlights', 'Highlights', (beside, pane) => open({ kind: 'library', tab: 'highlights' }, beside, pane)),
+      goToCommand('unfiled', 'Unfiled', (beside, pane) => open({ kind: 'index', key: 'unfiled' }, beside, pane)),
+      goToCommand('sources', 'Sources', (beside, pane) => open({ kind: 'index', key: 'source' }, beside, pane)),
+      goToCommand('agenda-week', 'Agenda week', (beside, pane) => open({ kind: 'agenda', date: todayDate(), mode: 'week' }, beside, pane)),
+      goToCommand('agenda-tasks', 'Agenda tasks', (beside, pane) => open({ kind: 'agenda', date: todayDate(), mode: 'tasks' }, beside, pane)),
+      ...(['week', 'month', 'quarter', 'year'] as const).map(period => goToCommand(period, `This ${period}`, (beside, pane) => {
+        void notebook.today().then(pageId => open({ kind: 'page', pageId, journalPeriod: period }, beside, pane)).catch(reportError);
+      })),
+    ];
+    for (const type of index() ? destinationTypes() ?? [] : []) {
+      const key = index()!.kinds.find(kind => kind.type_id === type.page.id)?.key ?? `type:${type.page.id}`;
+      destinations.push(
+        goToCommand(`index.${type.page.id}`, `${type.page.text} index`, (beside, pane) => open({ kind: 'index', key }, beside, pane)),
+        goToCommand(`table.${type.page.id}`, `${type.page.text} table`, (beside, pane) => open({ kind: 'table', typeId: type.page.id, viewId: null, query: typeQuery(type.page.id) }, beside, pane)),
+      );
+    }
+    onCleanup(commands.register(destinations));
+  });
   // Saved views sit under the kind whose type they list; views of any other type keep their own section.
   const looseViews = createMemo(() => otherViews().filter(view => !index()?.kinds.some(kind => kind.type_id !== null && kind.type_id === view.query.type)));
   const activeViewId = () => { const target = entry(active())?.target; return target?.kind === 'table' ? target.viewId ?? undefined : undefined; };
@@ -784,7 +813,7 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
       <Show when={props.split}><Button class="pane-secondary" icon="close" label="Close pane" shortcut="⌃⇧X" onClick={props.onClose} /></Show>
     </header>
     <Show when={doc()?.saveState() === 'error' || doc()?.saveState() === 'conflict'}><div class="pane-error" role="alert">{doc()?.saveMessage()}</div></Show>
-    <div class="pane-content"><Show keyed when={props.session().generation}>{generation => <Switch fallback={<OutlinePane pane={props.pane} pageId={pageId()!} view={copyView(outlineView())} onDelete={anchor => props.onDelete(anchor, true)} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} active={props.active} onActivate={() => { if (generation === props.session().generation && document.activeElement?.closest('.pane')?.getAttribute('data-pane') === props.pane) props.onActivate(); }} vim={props.vim} onVimMode={props.onVimMode} commands={props.commands} notebook={props.notebook} />}>
+    <div class="pane-content"><Show keyed when={props.session().generation}>{generation => <Switch fallback={<OutlinePane pane={props.pane} pageId={pageId()!} journalPeriod={current().target.kind === 'page' ? (current().target as Extract<OpenTarget, { kind: 'page' }>).journalPeriod : undefined} view={copyView(outlineView())} onDelete={anchor => props.onDelete(anchor, true)} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} active={props.active} onActivate={() => { if (generation === props.session().generation && document.activeElement?.closest('.pane')?.getAttribute('data-pane') === props.pane) props.onActivate(); }} vim={props.vim} onVimMode={props.onVimMode} commands={props.commands} notebook={props.notebook} />}>
       <Match when={current().target.kind === 'table'}><TablePane pane={props.pane} target={current().target as Extract<OpenTarget, { kind: 'table' }>} view={snapshotView(current().view) as TableViewState} notebook={props.notebook} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onTargetChange={target => { if (generation === props.session().generation) props.onTargetChange(target); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
       <Match when={current().target.kind === 'fields'}><FieldsPane typeId={(current().target as Extract<OpenTarget, { kind: 'fields' }>).typeId} view={snapshotView(current().view) as FieldsViewState} notebook={props.notebook} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
       <Match when={current().target.kind === 'settings'}><SettingsPane pane={props.pane} view={snapshotView(current().view) as SettingsViewState} notebook={props.notebook} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
