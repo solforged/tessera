@@ -18,12 +18,16 @@ export function typeTokenAt(text: string, caret: number): TypeToken | null {
     if (close < 0 || from < close + 2) return null;
     open = close;
   }
-  const query = text.slice(from + 1, caret);
-  if (!query || /[\s#[\]`\\{}:]/u.test(query)) return null;
+  const stops = /[\s#[\]`\\{}:]/u;
+  const typed = text.slice(from + 1, caret);
+  if (!typed || stops.test(typed)) return null;
+  // A caret moved back into `#philo` still searches, and a choice replaces, the whole word.
+  let to = caret;
+  while (to < text.length && !stops.test(text[to]!)) to++;
   // Operators make the whole block a card; a cloze shields only its own span, including unfinished syntax.
   if (cardMarks(text).some(mark => mark.kind === 'operator' || from >= mark.start && from < mark.end)) return null;
   if (parseCardText(text).problems.some(problem => from >= problem.start && from < problem.end)) return null;
-  return { from, to: caret, query };
+  return { from, to, query: text.slice(from + 1, to) };
 }
 
 /** Match the inline tag grammar; titles containing spaces or punctuation use the bracketed spelling. */

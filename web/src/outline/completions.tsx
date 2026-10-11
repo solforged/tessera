@@ -252,9 +252,9 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     const prefix = text.slice(0, at.offset);
     const page = prefix.lastIndexOf('[['), block = prefix.lastIndexOf('((');
     const blocks = block > page, from = Math.max(page, block);
-    const query = prefix.slice(from + 2);
-    if (from < 0 || query.includes(blocks ? ')' : ']') || query.includes('\n') || !blocks && prefix[from - 1] === '#') return null;
-    return { from, to: at.offset, query, blocks };
+    const typed = prefix.slice(from + 2);
+    if (from < 0 || typed.includes(blocks ? ')' : ']') || typed.includes('\n') || !blocks && prefix[from - 1] === '#') return null;
+    return { from, to: at.offset, query: openReferenceRange(text, from, at.offset, blocks).query, blocks };
   }
   function updateCompletion(text: string, at: Caret) {
     if (completion()?.manual) return;

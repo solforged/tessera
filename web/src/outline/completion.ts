@@ -3,14 +3,16 @@ import type { NotebookClient } from '../document/contract';
 import { ApiError, api } from '../api/client';
 
 /**
- * The text a `[[` or `((` completion replaces: from its brackets to the caret, and on through the rest of the
- * query and its closing pair when one follows, so a choice made mid-query leaves no tail behind.
+ * An open `[[` or `((` completion: the text a choice replaces and the query it searches. Both run from the
+ * brackets to the caret, and on through the rest of the query and its closing pair when one follows, so a
+ * caret moved back into `[[Stoicism]]` still searches `Stoicism` and a choice leaves no tail behind.
  */
-export function openReferenceRange(text: string, from: number, caret: number, blocks: boolean): { from: number; to: number } {
+export function openReferenceRange(text: string, from: number, caret: number, blocks: boolean): { from: number; to: number; query: string } {
   const stops = blocks ? '()\r\n' : '[]\r\n';
   let end = caret;
   while (end < text.length && !stops.includes(text[end]!)) end++;
-  return { from, to: text.startsWith(blocks ? '))' : ']]', end) ? end + 2 : caret };
+  const closed = text.startsWith(blocks ? '))' : ']]', end);
+  return { from, to: closed ? end + 2 : caret, query: text.slice(from + 2, closed ? end : caret) };
 }
 
 const limit = 20;
