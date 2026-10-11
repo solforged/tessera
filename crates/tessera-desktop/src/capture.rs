@@ -3,7 +3,10 @@
 //! navigation, so the loopback service needs no privileged remote IPC access.
 
 use objc2::MainThreadMarker;
-use objc2_app_kit::{NSApplication, NSWindowCollectionBehavior};
+use objc2_app_kit::{
+    NSApplication, NSApplicationActivationOptions, NSRunningApplication,
+    NSWindowCollectionBehavior, NSWorkspace,
+};
 use parking_lot::Mutex;
 use tauri::webview::NewWindowResponse;
 use tauri::{
@@ -24,9 +27,9 @@ const BRIDGE: &str =
 
 #[derive(Default)]
 pub struct Capture {
-    /// Some while shown; true if completing should give focus back to another
-    /// app. Repeated shortcuts must not overwrite the original activation state.
-    return_to_other_app: Mutex<Option<bool>>,
+    /// Some while shown, holding the process to give focus back to on
+    /// completion. Repeated shortcuts must not overwrite the original app.
+    return_to: Mutex<Option<Option<i32>>>,
 }
 
 pub fn register(app: &AppHandle) {
@@ -80,16 +83,20 @@ fn show(app: &AppHandle) -> tauri::Result<()> {
     // Shortcut handlers are dispatched to the main thread before touching AppKit.
     let mtm = MainThreadMarker::new().expect("capture runs on the main thread");
     let native_app = NSApplication::sharedApplication(mtm);
-    let was_active = native_app.isActive();
+    // The app in front before the shortcut, when it was not Tessera.
+    let previous = (!native_app.isActive())
+        .then(|| NSWorkspace::sharedWorkspace().frontmostApplication())
+        .flatten()
+        .map(|other| other.processIdentifier());
     let window = match app.get_webview_window(LABEL) {
         Some(window) => window,
         None => window(app, origin, &native_app)?,
     };
     position(app, &window)?;
     app.state::<Capture>()
-        .return_to_other_app
+        .return_to
         .lock()
-        .get_or_insert(!was_active);
+        .get_or_insert(previous);
     if let Err(error) = window.show().and_then(|()| window.set_focus()) {
         dismiss(app, true);
         return Err(error);
@@ -100,14 +107,23 @@ fn show(app: &AppHandle) -> tauri::Result<()> {
 
 fn dismiss(app: &AppHandle, restore: bool) {
     // Take before hiding: hiding can itself cause another Focused(false) event.
-    let Some(return_to_other_app) = app.state::<Capture>().return_to_other_app.lock().take() else {
+    let Some(return_to) = app.state::<Capture>().return_to.lock().take() else {
         return;
     };
     if let Some(window) = app.get_webview_window(LABEL) {
         let _ = window.hide();
     }
-    if restore && return_to_other_app {
-        let _ = app.hide();
+    if restore && let Some(pid) = return_to {
+        // Reactivate the app the shortcut came from so the notebook window stays
+        // where it was; hiding Tessera is the fallback if that app has gone.
+        #[allow(deprecated)]
+        let activated = NSRunningApplication::runningApplicationWithProcessIdentifier(pid)
+            .is_some_and(|other| {
+                other.activateWithOptions(NSApplicationActivationOptions::empty())
+            });
+        if !activated {
+            let _ = app.hide();
+        }
     }
 }
 
