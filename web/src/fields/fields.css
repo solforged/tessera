@@ -74,3 +74,47 @@
 .template-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); padding-top: var(--space-4); }
 .template-gap { margin-left: auto; color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 @media (hover: none) { .template-field-actions { opacity: 1; } }
+
+/* The type's third mode keeps its template in the shared register measure. */
+.type-fields-pane { flex: 1; min-height: 0; min-width: 0; overflow: auto; padding: var(--space-16) var(--space-24) var(--space-12); outline: none; }
+.type-fields-register { width: 100%; max-width: calc(var(--measure) + var(--apparatus-width) - var(--space-16)); margin-inline: auto; }
+.type-fields-heading { padding-bottom: var(--space-12); }
+.type-fields-heading .fields-register { margin-bottom: var(--space-8); }
+.type-fields-crumb.button { min-height: 0; padding: 0; color: var(--muted); font: inherit; letter-spacing: inherit; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: var(--space-4); }
+.type-fields-title { display: flex; align-items: baseline; gap: var(--space-16); }
+.type-fields-title h1 { margin: 0; font: var(--weight-title) var(--text-title)/var(--line-title) var(--font-display); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
+.type-fields-title > span { margin-left: auto; color: var(--faint); font: var(--apparatus); white-space: nowrap; }
+.template-register { margin-top: var(--space-16); }
+.template-register .template-body { margin: 0; }
+.template-field-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: var(--text-control); line-height: var(--line-control); }
+.template-name-column { width: 36%; }
+.template-kind-column { width: 22%; }
+.template-usage-column { width: 22%; }
+.template-actions-column { width: 20%; }
+.template-field-table :is(th, td) { height: var(--row-height); padding: 0 var(--space-8) 0 0; border-bottom: var(--rule-width) solid var(--line); text-align: left; overflow-wrap: anywhere; }
+.template-field-table th { color: var(--muted); font: var(--apparatus); }
+.template-field-table tr:is(:hover, :focus-within) { background: var(--hover); }
+.template-field-table tr:is(:hover, :focus-within) .template-field-actions { opacity: 1; }
+.template-field-table .button { min-height: var(--row-height); padding: 0; font-weight: var(--weight-body); justify-content: flex-start; }
+.template-field-table .template-definition { color: var(--text); }
+.template-field-table .template-definition:hover { text-decoration: underline; text-underline-offset: var(--space-4); }
+.template-field-usage, .template-field-usage .button { color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.template-field-table .template-field-actions { gap: var(--space-4); }
+.template-field-table .template-field-actions .button { width: var(--target-size); flex: none; color: var(--muted); }
+.template-register .template-actions { padding-top: var(--space-12); }
+.template-register .template-actions > .button:first-child { border-color: var(--line); border-radius: 0; }
+@media (pointer: coarse) {
+  .template-field-table .template-field-actions { opacity: 1; }
+  .template-field-table td { height: var(--space-48); }
+  .template-field-table .button { min-height: var(--target-size); }
+}
+@media (max-width: 599px) {
+  .type-fields-pane { padding: var(--space-24) var(--space-12) var(--space-12); }
+  .template-name-column { width: 29%; }
+  .template-kind-column { width: 24%; }
+  .template-usage-column { width: 22%; }
+  .template-actions-column { width: 25%; }
+  .template-field-table .template-field-actions { gap: 0; }
+  .template-field-table .template-field-actions .button { width: calc(var(--space-16) + var(--space-8)); }
+  .template-field-usage, .template-field-usage .button { font-size: var(--text-apparatus); }
+}

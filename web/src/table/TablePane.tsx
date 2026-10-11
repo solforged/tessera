@@ -352,7 +352,7 @@ export function TablePane(props: TablePaneProps) {
       <Show when={query().type}>{typeId => <TypeModeTabs active="table" indexCount={typeKind()?.count ?? 0} tableCount={type()?.members ?? 0} fieldsCount={type()?.fields.length ?? 0}
         onIndex={event => props.onOpen({ kind: 'index', key: typeKind()?.key ?? `type:${typeId()}` }, event.shiftKey)}
         onTable={event => props.onOpen({ kind: 'table', typeId: typeId(), viewId: props.target.viewId, query: copyQuery(query()) }, event.shiftKey)}
-        onFields={event => props.onOpen({ kind: 'page', pageId: typeId() }, event.shiftKey)} />}</Show>
+        onFields={event => props.onOpen({ kind: 'fields', typeId: typeId() }, event.shiftKey)} />}</Show>
       <div class="table-toolbar">
         <input class="input table-search" placeholder="Search rows…" aria-label="Search rows" value={search()} onInput={event => {
           const text = event.currentTarget.value; setSearch(text); clearTimeout(searchTimer);

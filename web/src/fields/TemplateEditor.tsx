@@ -1,7 +1,8 @@
 import { For, Show, createMemo, createResource, createSignal } from 'solid-js';
 import { ulid } from 'ulid';
-import type { FieldDefinition, Operation, Type } from '../api/types';
+import type { FieldDefinition, FieldSummary, Operation, Type } from '../api/types';
 import type { NotebookClient } from '../document/contract';
+import type { OpenTarget } from '../shell/contract';
 import { fieldEntryId } from '../table/query';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
@@ -30,16 +31,17 @@ async function templateGaps(notebook: NotebookClient, type: Type): Promise<Gap[]
  * missing fields gives every member an empty entry for each template field it lacks, in one command that Undo
  * removes again while those entries are still empty.
  */
-export function TemplateEditor(props: { type: Type; fields: readonly FieldDefinition[]; notebook: NotebookClient; onError(message: string): void }) {
+export function TemplateEditor(props: { type: Type; fields: readonly FieldDefinition[]; notebook: NotebookClient; onError(message: string): void; register?: { fields: readonly FieldSummary[]; pageId: string; onOpen(target: OpenTarget, beside: boolean): void } }) {
   const [open, setOpen] = createSignal(false);
   const [busy, setBusy] = createSignal(false);
   const [picker, setPicker] = createSignal<HTMLElement | null>(null);
   const [filled, setFilled] = createSignal<Filled | null>(null);
   const byId = createMemo(() => new Map(props.fields.map(field => [field.id, field])));
+  const summaries = createMemo(() => new Map(props.register?.fields.map(field => [field.id, field]) ?? []));
   const template = () => props.type.fields.filter(id => byId().has(id));
   const starting = createMemo(() => startingTemplateFor(props.type.page.text, props.type.fields));
   // The count is a guide, recounted when the template or membership changes; Fill recounts before it writes.
-  const [gaps, { refetch }] = createResource(() => open() && `${props.type.page.id}:${props.type.fields.join(',')}:${props.type.members}`, () => templateGaps(props.notebook, props.type));
+  const [gaps, { refetch }] = createResource(() => (props.register || open()) && `${props.type.page.id}:${props.type.fields.join(',')}:${props.type.members}`, () => templateGaps(props.notebook, props.type));
   const missing = createMemo(() => (gaps() ?? []).reduce((sum, gap) => sum + gap.fields.length, 0));
   async function run(action: () => Promise<unknown>) {
     if (busy()) return;
@@ -96,27 +98,37 @@ export function TemplateEditor(props: { type: Type; fields: readonly FieldDefini
     await refetch();
   });
 
-  return <section class="template-editor" aria-label="Template">
-    <Button class="template-toggle" aria-expanded={open()} onClick={() => setOpen(value => !value)}>
+  const fieldActions = (id: string, index: number) => <span class="template-field-actions">
+    <Button icon="up" label={`Move ${byId().get(id)!.name} up`} disabled={busy() || index === 0} onClick={() => move(props.type.fields.indexOf(id), -1)} />
+    <Button icon="down" label={`Move ${byId().get(id)!.name} down`} disabled={busy() || index === template().length - 1} onClick={() => move(props.type.fields.indexOf(id), 1)} />
+    <Button icon="close" label={`Remove ${byId().get(id)!.name} from template`} disabled={busy()} onClick={() => void setFields(props.type.fields.filter(field => field !== id))} />
+  </span>;
+  return <section class={`template-editor ${props.register ? 'template-register' : ''}`} aria-label="Template">
+    <Show when={!props.register}><Button class="template-toggle" aria-expanded={open()} onClick={() => setOpen(value => !value)}>
       <span class="template-name">Template</span><span class="section-rule" />
       <span class="template-summary">{template().length ? template().map(id => byId().get(id)!.name).join(' · ') : 'No fields'}</span><Icon name="down" />
-    </Button>
-    <Show when={open()}><div class="template-body" aria-busy={busy() || gaps.loading}>
+    </Button></Show>
+    <Show when={props.register || open()}><div class="template-body" aria-busy={busy() || gaps.loading}>
       <Show when={starting()}>{suggestion => <div class="template-actions">
         <Button disabled={busy()} onClick={() => void run(() => props.notebook.api.startingTemplate(props.type.page.id))}>Start from the {suggestion().title} template</Button>
         <span class="template-note">{suggestion().fields.join(' · ')}</span>
       </div>}</Show>
       <Show when={template().length} fallback={<p class="template-note">Fields added here become this type’s table columns and wait as empty slots on its blocks.</p>}>
-        <ol class="template-fields">
+        <Show when={props.register} fallback={<ol class="template-fields">
           <For each={template()}>{(id, index) => <li class="template-field">
             <Icon name="field" /><span class="template-field-name">{byId().get(id)!.name}</span><span class="template-field-kind">{kindLabels[byId().get(id)!.kind]}</span>
-            <span class="template-field-actions">
-              <Button icon="up" label={`Move ${byId().get(id)!.name} up`} disabled={busy() || index() === 0} onClick={() => move(props.type.fields.indexOf(id), -1)} />
-              <Button icon="down" label={`Move ${byId().get(id)!.name} down`} disabled={busy() || index() === template().length - 1} onClick={() => move(props.type.fields.indexOf(id), 1)} />
-              <Button icon="close" label={`Remove ${byId().get(id)!.name} from template`} disabled={busy()} onClick={() => void setFields(props.type.fields.filter(field => field !== id))} />
-            </span>
+            {fieldActions(id, index())}
           </li>}</For>
-        </ol>
+        </ol>}>{register => <table class="template-field-table">
+          <colgroup><col class="template-name-column" /><col class="template-kind-column" /><col class="template-usage-column" /><col class="template-actions-column" /></colgroup>
+          <thead><tr><th scope="col">Name</th><th scope="col">Kind</th><th scope="col">Used by</th><th scope="col"><span class="visually-hidden">Field actions</span></th></tr></thead>
+          <tbody><For each={template()}>{(id, index) => <tr>
+            <td><Button class="template-definition" onClick={event => register().onOpen({ kind: 'page', pageId: register().pageId, blockId: id }, event.shiftKey)}>{byId().get(id)!.name}</Button></td>
+            <td class="template-field-kind">{kindLabels[byId().get(id)!.kind]}</td>
+            <td class="template-field-usage"><Show when={summaries().get(id)?.owners} fallback={<span>Used by 0</span>}><Button onClick={event => register().onOpen({ kind: 'table', typeId: null, viewId: null, query: { type: null, text: null, filters: [{ field: id, op: 'present', value: null }], sort: [], limit: null } }, event.shiftKey)}>Used by {summaries().get(id)!.owners}</Button></Show></td>
+            <td>{fieldActions(id, index())}</td>
+          </tr>}</For></tbody>
+        </table>}</Show>
       </Show>
       <div class="template-actions">
         <Button icon="plus" disabled={busy()} aria-haspopup="dialog" aria-expanded={!!picker()} onClick={event => setPicker(event.currentTarget)}>Add field</Button>

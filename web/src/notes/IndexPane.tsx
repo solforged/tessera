@@ -123,8 +123,8 @@ function KindIndexPane(props: IndexPaneProps) {
         <Show when={index.latest}>{list => <span class="index-tally">{tally(list().notes.length, props.kindKey === 'source' ? 'source' : 'note')}</span>}</Show>
       </div>
       <Show when={typeId()}>{id => <TypeModeTabs active="index" indexCount={index.latest?.notes.length ?? 0} tableCount={type()?.members ?? index.latest?.notes.length ?? 0} fieldsCount={type()?.fields.length ?? 0}
-        onIndex={() => { scroll.scrollTop = 0; }} onTable={event => props.onOpen({ kind: 'table', typeId: id(), viewId: null, query: typeQuery(id()) }, beside(event))}
-        onFields={event => props.onOpen({ kind: 'page', pageId: id() }, beside(event))} />}</Show>
+        onIndex={() => { scroll.scrollTop = 0; }} onTable={event => props.onOpen({ kind: 'table', typeId: id(), viewId: null, query: typeQuery(id()) }, event.shiftKey)}
+        onFields={event => props.onOpen({ kind: 'fields', typeId: id() }, event.shiftKey)} />}</Show>
       <Show when={index.error}><p class="error" role="alert">Couldn’t load this index · {String(index.error)}</p></Show>
       <Show when={index.latest} fallback={<Show when={!index.error}><p class="empty-state" role="status">Loading notes…</p></Show>}>
         <Switch>

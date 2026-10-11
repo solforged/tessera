@@ -9,9 +9,11 @@ import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
 import { Popup } from '../ui/Popup';
+import { TypeFieldsPane } from './TypeFieldsPane';
 import './fields.css';
 
 interface FieldsPaneProps {
+  typeId?: string;
   view: FieldsViewState;
   notebook: NotebookClient;
   onActivate(): void;
@@ -20,6 +22,10 @@ interface FieldsPaneProps {
 }
 
 export function FieldsPane(props: FieldsPaneProps) {
+  return <Show when={props.typeId} fallback={<DefinitionsPane {...props} />}>{id => <TypeFieldsPane {...props} typeId={id()} />}</Show>;
+}
+
+function DefinitionsPane(props: FieldsPaneProps) {
   const [data, setData] = createSignal<Fields>();
   const [doc, setDoc] = createSignal<PageDocument>();
   const [error, setError] = createSignal('');
