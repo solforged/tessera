@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { Block, BlockInPage } from '../api/types';
-import { paletteRows } from './palette-rows';
+import { findMatchSegments, paletteRows } from './palette-rows';
 
 function page(id: string, text: string): Block {
   return { id, text, kind: 'page', parent_id: null, page_id: id, heading: null, archived: false, revision: 1, created_at: 0, updated_at: 0 };
@@ -58,5 +58,25 @@ describe('palette ranking', () => {
     const rows = [hit('one', 'nanoGPT', research), hit('two', 'nanoGPT', research)];
     expect(paletteRows(rows, 'nanoGPT')).toEqual(rows.map(hit => ({ kind: 'hit', hit })));
     expect(paletteRows([], 'nanoGPT')).toEqual([]);
+  });
+});
+
+describe('find match text', () => {
+  test('renders FTS bracket matches as text without retaining the markers', () => {
+    expect(findMatchSegments('The [Ritz] … [hotel]', '', true)).toEqual([
+      { text: 'The ', match: false }, { text: 'Ritz', match: true }, { text: ' … ', match: false }, { text: 'hotel', match: true },
+    ]);
+    expect(findMatchSegments('<script>[Ritz]</script>', '', true).map(segment => segment.text).join('')).toBe('<script>Ritz</script>');
+  });
+  test('marks every term case-insensitively and preserves surrounding prose', () => {
+    const text = 'The RITZ hotel, Ritz’s hotel.';
+    const segments = findMatchSegments(text, 'ritz hotel');
+    expect(segments.map(segment => segment.text).join('')).toBe(text);
+    expect(segments.filter(segment => segment.match).map(segment => segment.text)).toEqual(['RITZ', 'hotel', 'Ritz', 'hotel']);
+  });
+  test('keeps literal punctuation safe and matches Unicode terms', () => {
+    expect(findMatchSegments('École (Ritz)', 'école (ritz)').filter(segment => segment.match).map(segment => segment.text)).toEqual(['École', 'Ritz']);
+    expect(findMatchSegments('A [note] stays.', '')).toEqual([{ text: 'A [note] stays.', match: false }]);
+    expect(findMatchSegments('A line', '[]()')).toEqual([{ text: 'A line', match: false }]);
   });
 });

@@ -10,6 +10,7 @@ export interface PopupProps {
   onDismiss(): void;
   children: JSX.Element;
   class?: string;
+  style?: JSX.CSSProperties;
   role?: 'dialog' | 'menu' | 'listbox';
   label: string;
   width?: number;
@@ -175,5 +176,5 @@ export function Popup(props: PopupProps) {
     document.removeEventListener('selectionchange', reposition);
     if (panel && position().visible) retirePanel(panel);
   });
-  return <Portal><div ref={panel} class={`popup${position().visible ? ' popup-enter' : ''} ${props.class ?? ''}`} role={props.role ?? 'dialog'} aria-label={props.label} style={{ left: `${position().left}px`, top: `${position().top}px`, width: props.width ? `${Math.min(props.width, window.innerWidth - 16)}px` : undefined, 'max-height': `${position().height}px`, visibility: position().visible ? 'visible' : 'hidden' }}>{props.children}</div></Portal>;
+  return <Portal><div ref={panel} class={`popup${position().visible ? ' popup-enter' : ''} ${props.class ?? ''}`} role={props.role ?? 'dialog'} aria-label={props.label} style={{ ...props.style, left: `${position().left}px`, top: `${position().top}px`, width: props.width ? `${Math.min(props.width, window.innerWidth - 16)}px` : undefined, 'max-height': `${position().height}px`, visibility: position().visible ? 'visible' : 'hidden' }}>{props.children}</div></Portal>;
 }
