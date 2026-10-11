@@ -67,6 +67,7 @@ fn document() -> ExtractedDocument {
             locator: "chapter#first".into(),
             level: 1,
             ordinal: None,
+            start: None,
         }],
         passages: vec![
             ExtractedPassage {
@@ -680,6 +681,7 @@ fn epub_toc_ordinals_match_locate_in_each_snapshot() {
             locator: locator.into(),
             level: 2,
             ordinal: Some(99),
+            start: None,
         });
     }
     let (source, snapshot) = ingest(&mut n, &doc, b"toc fixture");
@@ -1193,6 +1195,7 @@ fn reading_position_changes_state_once_and_library_filters_sort() {
         locator: "chapter#second".into(),
         level: 2,
         ordinal: None,
+        start: None,
     });
     let (source, snapshot) = ingest(&mut n, &doc, b"one");
     let first = n.set_reading_position(&snapshot, 0).unwrap();

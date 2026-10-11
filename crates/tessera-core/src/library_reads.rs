@@ -141,6 +141,7 @@ fn toc(conn: &Connection, snapshot: &str) -> Result<Vec<TocEntry>> {
                         locator: locator.clone(),
                         level: 1,
                         ordinal: None,
+                        start: None,
                     })
                 })
                 .collect();
@@ -155,7 +156,7 @@ fn toc(conn: &Connection, snapshot: &str) -> Result<Vec<TocEntry>> {
     }
     let mut statement = conn.prepare_cached(
         "SELECT json_extract(e.value, '$.title'), json_extract(e.value, '$.locator'),
-                json_extract(e.value, '$.level'), MIN(p.ordinal)
+                json_extract(e.value, '$.level'), MIN(p.ordinal), MIN(p.start)
          FROM snapshots s, json_each(s.toc) e
          LEFT JOIN passages p ON p.snapshot_id = s.id
              AND (p.id = json_extract(e.value, '$.locator')
@@ -172,6 +173,7 @@ fn toc(conn: &Connection, snapshot: &str) -> Result<Vec<TocEntry>> {
                 locator: r.get(1)?,
                 level: r.get(2)?,
                 ordinal: r.get(3)?,
+                start: r.get(4)?,
             })
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?)
@@ -194,7 +196,7 @@ pub(crate) fn citations(
                  WHERE a.snapshot_id = c.snapshot_id
                  ORDER BY a.change_seq, a.rowid
                  LIMIT 1),
-                first.locator, p.ordinal, p.text, first.ordinal, last.ordinal, c.triage, c.color
+                first.locator, p.ordinal, p.text, first.ordinal, last.ordinal, c.triage, c.color, first.start + c.start_offset
          FROM citations c
          JOIN blocks b ON b.id = c.block_id
          JOIN passages first ON first.id = c.start_passage
@@ -238,6 +240,7 @@ pub(crate) fn citations(
                 quote: String::new(),
                 locator: r.get(8)?,
                 ordinal: r.get(11)?,
+                position: r.get(15)?,
                 chapter_title: None,
                 triage: r.get(13)?,
                 color: r.get(14)?,
