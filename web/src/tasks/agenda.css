@@ -160,6 +160,9 @@ div.journal-agenda-toggle { display: flex; align-items: center; gap: var(--space
 .outline-heading:has(.journal-header) > .outline-title-row { display: none; }
 .journal-trail { display: flex; align-items: center; gap: var(--space-4); color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .journal-trail-segment.button { position: relative; padding: var(--space-4) 0; color: var(--muted); font: inherit; border-radius: 0; border-bottom: 2px solid transparent; }
+.journal-trail-segment.button:not([aria-expanded="true"])::after { content: ''; position: absolute; bottom: 0; inset-inline: 0; border-bottom: var(--rule-width) dotted var(--line); }
+.journal-trail-segment.button:hover { color: var(--accent); background: transparent; }
+.journal-trail-segment.button:hover::after { border-color: var(--accent); }
 .journal-trail-segment.button[aria-expanded="true"] { color: var(--accent); border-bottom-color: var(--accent); background: transparent; }
 .journal-trail-segment.button:focus-visible { outline: none; border-bottom-color: var(--faint); }
 .journal-trail-segment.button[aria-expanded="true"]:focus-visible { border-bottom-color: var(--accent); }
@@ -181,7 +184,6 @@ div.journal-agenda-toggle { display: flex; align-items: center; gap: var(--space
 .journal-ledger-day.button.journal-day-current, .journal-overview-day.journal-day-current { color: var(--accent); border-bottom-color: var(--accent); }
 .journal-day-mark { position: absolute; width: 3px; height: 3px; bottom: var(--space-2); left: calc(50% - 1.5px); border-radius: 50%; background: transparent; }
 .journal-day-written > .journal-day-mark { background: var(--muted); }
-.journal-day-current > .journal-day-mark { background: var(--accent); }
 .journal-week-number.button { padding: 0; color: var(--faint); font: var(--apparatus); }
 .journal-mini-months { display: grid; align-items: start; gap: var(--space-16); }
 .journal-quarter-ledger { grid-template-columns: repeat(3, minmax(0, 1fr)); }

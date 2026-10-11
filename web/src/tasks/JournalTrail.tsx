@@ -6,7 +6,7 @@ import { journalDayLabel, journalISOWeek, journalMonthGrid, journalMonthLabel, j
 type Period = 'year' | 'quarter' | 'month' | 'week';
 const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-export function JournalTrail(props: { date: string; notebook: NotebookClient; onSelect(date: string): Promise<void> }) {
+export function JournalTrail(props: { date: string; journalPeriod?: Period; notebook: NotebookClient; onSelect(date: string): Promise<void> }) {
   const [ledger, setLedger] = createSignal<{ kind: Period; date: string } | null>(null);
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal('');
@@ -17,7 +17,22 @@ export function JournalTrail(props: { date: string; notebook: NotebookClient; on
   onCleanup(() => coarse.removeEventListener('change', changePointer));
   const id = createUniqueId();
   const triggers = new Map<Period, HTMLButtonElement>();
-  const written = createMemo(() => new Set(props.notebook.roots().filter(root => root.kind === 'journal').map(root => root.text)));
+  const [written, setWritten] = createSignal<ReadonlySet<string>>(new Set());
+  const [writtenError, setWrittenError] = createSignal('');
+  createEffect(() => {
+    const open = ledger();
+    props.notebook.changeSequence();
+    if (!open) { setWritten(new Set<string>()); setWrittenError(''); return; }
+    const dates = open.kind === 'week' ? journalWeekDays(open.date)
+      : (open.kind === 'year' ? journalYearMonths(open.date) : open.kind === 'quarter' ? journalQuarter(open.date).months : [open.date])
+        .flatMap(date => journalMonthGrid(date).flatMap(row => row.days.filter((day): day is string => day !== null)));
+    const controller = new AbortController();
+    setWritten(new Set<string>()); setWrittenError('');
+    void props.notebook.api.writtenJournalDates(dates[0]!, dates[dates.length - 1]!, controller.signal)
+      .then(value => { if (!controller.signal.aborted) setWritten(new Set(value)); })
+      .catch(reason => { if (!controller.signal.aborted) setWrittenError(`Could not load written days: ${reason instanceof Error ? reason.message : String(reason)}`); });
+    onCleanup(() => controller.abort());
+  });
   const quarter = createMemo(() => journalQuarter(props.date));
   const week = createMemo(() => journalISOWeek(props.date));
   const segments = createMemo(() => [
@@ -26,7 +41,7 @@ export function JournalTrail(props: { date: string; notebook: NotebookClient; on
     { kind: 'month' as const, label: journalMonthLabel(props.date) },
     { kind: 'week' as const, label: `Week ${week().week}` },
   ]);
-  createEffect(() => { props.date; setLedger(null); setError(''); });
+  createEffect(() => { const date = props.date, kind = props.journalPeriod; setLedger(kind ? { kind, date } : null); setError(''); });
   createEffect(() => {
     const open = ledger();
     if (!open) return;
@@ -95,6 +110,7 @@ export function JournalTrail(props: { date: string; notebook: NotebookClient; on
         <For each={open().kind === 'quarter' ? journalQuarter(open().date).months : journalYearMonths(open().date)}>{date => <MiniMonth date={date} />}</For>
       </div></Show>
       <Show when={error()}><p class="journal-ledger-error" role="alert">{error()}</p></Show>
+      <Show when={writtenError()}><p class="journal-ledger-error" role="alert">{writtenError()}</p></Show>
     </div>}</Show>
   </>;
 }

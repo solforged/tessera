@@ -171,6 +171,50 @@ impl Notebook {
             .collect::<rusqlite::Result<_>>()?)
     }
 
+    /// Written dates in an inclusive ledger range of at most 366 days.
+    /// Only visible, live descendants count, using the index summary's text rule.
+    pub fn written_journal_dates(&self, from: &str, to: &str) -> Result<Vec<String>> {
+        let days = crate::calendar::days_between(from, to)?;
+        if !(0..=365).contains(&days) {
+            return Err(validation("journal ledger range must span 1 to 366 days"));
+        }
+        let mut statement = self.conn.prepare_cached(
+            "WITH RECURSIVE below(date, id, text) AS (
+                 SELECT p.text, b.id, b.text FROM blocks p JOIN blocks b ON b.parent_id = p.id
+                 WHERE p.kind = 'journal' AND p.text BETWEEN ?1 AND ?2
+                   AND p.deletion_id IS NULL AND p.archived = 0
+                   AND b.deletion_id IS NULL AND b.archived = 0
+                 UNION ALL
+                 SELECT s.date, b.id, b.text FROM blocks b JOIN below s ON b.parent_id = s.id
+                 WHERE b.deletion_id IS NULL AND b.archived = 0
+             ) SELECT date, text FROM below ORDER BY date",
+        )?;
+        let mut rows = statement.query(params![from, to])?;
+        let mut dates: Vec<String> = Vec::new();
+        while let Some(row) = rows.next()? {
+            let text = row.get_ref(1)?.as_str().map_err(|error| {
+                rusqlite::Error::FromSqlConversionFailure(
+                    1,
+                    rusqlite::types::Type::Text,
+                    Box::new(error),
+                )
+            })?;
+            if !text.trim().is_empty() {
+                let date = row.get_ref(0)?.as_str().map_err(|error| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        0,
+                        rusqlite::types::Type::Text,
+                        Box::new(error),
+                    )
+                })?;
+                if dates.last().is_none_or(|last| last != date) {
+                    dates.push(date.to_owned());
+                }
+            }
+        }
+        Ok(dates)
+    }
+
     pub fn journal(&self, date: &str) -> Result<Option<Block>> {
         validate_date(date)?;
         Ok(self
