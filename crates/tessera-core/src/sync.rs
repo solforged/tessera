@@ -222,9 +222,10 @@ pub trait Hub {
     /// replica has applied; the hub may forget patches up to it.
     fn pull(&mut self, device: &str, acknowledged: i64, after: i64) -> Result<Pull>;
     fn missing_snapshots(&mut self, ids: &[String]) -> Result<Vec<String>>;
-    /// Content of the snapshots `ids` names, in order. A hub may return only
-    /// the first few, to bound one response; ask again for the rest.
-    fn snapshot_content(&mut self, ids: &[String]) -> Result<Vec<SnapshotContent>>;
+    /// Content of the snapshots `ids` names, in order, from passage `from` of
+    /// the first. A hub returns a bounded amount, so the last snapshot may
+    /// stop partway; ask again for the rest.
+    fn snapshot_content(&mut self, ids: &[String], from: i64) -> Result<Vec<SnapshotContent>>;
     fn store_snapshots(&mut self, content: &[SnapshotContent]) -> Result<()>;
     /// The files among `shas` the hub does not have.
     fn missing_objects(&mut self, shas: &[String]) -> Result<Vec<String>>;
@@ -268,8 +269,8 @@ impl Hub for Notebook {
     fn missing_snapshots(&mut self, ids: &[String]) -> Result<Vec<String>> {
         self.sync_missing_snapshots(ids)
     }
-    fn snapshot_content(&mut self, ids: &[String]) -> Result<Vec<SnapshotContent>> {
-        self.sync_snapshot_content(ids)
+    fn snapshot_content(&mut self, ids: &[String], from: i64) -> Result<Vec<SnapshotContent>> {
+        self.sync_snapshot_content(ids, from)
     }
     fn store_snapshots(&mut self, content: &[SnapshotContent]) -> Result<()> {
         self.sync_store_snapshots(content)
@@ -551,6 +552,42 @@ fn invert(patch: &[u8]) -> Result<Vec<u8>> {
     Ok(inverse)
 }
 
+/// Move the snapshots `ids` names from `fetch` to `store` in bounded pieces.
+/// Each piece is stored as it arrives; a snapshot stored partway counts as
+/// missing, so an interrupted transfer is finished by the next one.
+fn transfer(
+    ids: &[String],
+    mut fetch: impl FnMut(&[String], i64) -> Result<Vec<SnapshotContent>>,
+    mut store: impl FnMut(&[SnapshotContent]) -> Result<()>,
+) -> Result<()> {
+    let mut rest = ids;
+    let mut from = 0;
+    while !rest.is_empty() {
+        let content = fetch(rest, from)?;
+        let Some(last) = content.last() else {
+            return Err(validation("no snapshot content arrived"));
+        };
+        if content.len() > rest.len() {
+            return Err(validation(
+                "more snapshot content arrived than was asked for",
+            ));
+        }
+        store(&content)?;
+        // Every snapshot but the last arrived whole; the last may go on.
+        match last.passages.last() {
+            Some(passage) if passage.ordinal + 1 < last.passage_count => {
+                from = passage.ordinal + 1;
+                rest = &rest[content.len() - 1..];
+            }
+            _ => {
+                from = 0;
+                rest = &rest[content.len()..];
+            }
+        }
+    }
+    Ok(())
+}
+
 fn latest_seq(conn: &Connection) -> Result<i64> {
     Ok(
         conn.query_row("SELECT COALESCE(MAX(seq), 0) FROM changes", [], |row| {
@@ -724,26 +761,33 @@ impl Notebook {
         })
     }
 
-    /// The snapshots among `ids` this notebook does not have.
+    /// The snapshots among `ids` this notebook does not have, or has only some
+    /// passages of because a transfer stopped partway.
     pub fn sync_missing_snapshots(&self, ids: &[String]) -> Result<Vec<String>> {
-        let mut exists = self
-            .conn
-            .prepare_cached("SELECT EXISTS(SELECT 1 FROM snapshots WHERE id = ?1)")?;
+        let mut complete = self.conn.prepare_cached(
+            "SELECT EXISTS(SELECT 1 FROM snapshots s WHERE s.id = ?1
+                 AND s.passage_count = (SELECT COUNT(*) FROM passages p WHERE p.snapshot_id = s.id))",
+        )?;
         let mut missing = Vec::new();
         for id in ids {
-            if !exists.query_row([id], |row| row.get::<_, bool>(0))? {
+            if !complete.query_row([id], |row| row.get::<_, bool>(0))? {
                 missing.push(id.clone());
             }
         }
         Ok(missing)
     }
 
-    /// Content of the snapshots `ids` names, in order: the first one, and the
-    /// ones after it while their text stays within [`CONTENT_TEXT_LIMIT`].
-    pub fn sync_snapshot_content(&self, ids: &[String]) -> Result<Vec<SnapshotContent>> {
+    /// Content of the snapshots `ids` names, in order, from passage `from` of
+    /// the first. It holds at least one passage and stops once the passage
+    /// text passes [`CONTENT_TEXT_LIMIT`], so the last snapshot may stop
+    /// partway; ask again from the passage after the last one sent.
+    pub fn sync_snapshot_content(&self, ids: &[String], from: i64) -> Result<Vec<SnapshotContent>> {
         let mut content = Vec::new();
         let mut text = 0;
-        for id in ids {
+        for (index, id) in ids.iter().enumerate() {
+            if text > CONTENT_TEXT_LIMIT as usize {
+                break;
+            }
             let mut snapshot = self
                 .conn
                 .query_row(
@@ -768,34 +812,33 @@ impl Notebook {
                 )
                 .optional()?
                 .ok_or_else(|| crate::storage::not_found(id))?;
-            if !content.is_empty() && text + snapshot.text_length > CONTENT_TEXT_LIMIT {
-                break;
+            let mut passages = self.conn.prepare_cached(
+                "SELECT id, ordinal, kind, level, text, locator, anchor, resource, marks, start
+                 FROM passages WHERE snapshot_id = ?1 AND ordinal >= ?2 ORDER BY ordinal",
+            )?;
+            let mut rows = passages.query(params![id, if index == 0 { from } else { 0 }])?;
+            while let Some(row) = rows.next()? {
+                let passage = PassageRow {
+                    id: row.get(0)?,
+                    ordinal: row.get(1)?,
+                    kind: row.get(2)?,
+                    level: row.get(3)?,
+                    text: row.get(4)?,
+                    locator: row.get(5)?,
+                    anchor: row.get(6)?,
+                    resource: row.get(7)?,
+                    marks: row.get(8)?,
+                    start: row.get(9)?,
+                };
+                text += passage.text.len();
+                snapshot.passages.push(passage);
+                if text > CONTENT_TEXT_LIMIT as usize {
+                    break;
+                }
             }
-            text += snapshot.text_length;
-            snapshot.passages = self
-                .conn
-                .prepare(
-                    "SELECT id, ordinal, kind, level, text, locator, anchor, resource, marks, start
-                     FROM passages WHERE snapshot_id = ?1 ORDER BY ordinal",
-                )?
-                .query_map([id], |row| {
-                    Ok(PassageRow {
-                        id: row.get(0)?,
-                        ordinal: row.get(1)?,
-                        kind: row.get(2)?,
-                        level: row.get(3)?,
-                        text: row.get(4)?,
-                        locator: row.get(5)?,
-                        anchor: row.get(6)?,
-                        resource: row.get(7)?,
-                        marks: row.get(8)?,
-                        start: row.get(9)?,
-                    })
-                })?
-                .collect::<rusqlite::Result<_>>()?;
             snapshot.resources = self
                 .conn
-                .prepare(
+                .prepare_cached(
                     "SELECT href, sha256, media_type FROM snapshot_resources
                      WHERE snapshot_id = ?1 ORDER BY href",
                 )?
@@ -812,28 +855,29 @@ impl Notebook {
         Ok(content)
     }
 
-    /// Store snapshots another device extracted. A snapshot already here is
-    /// skipped, as is one whose file this notebook holds under another ID.
+    /// Store snapshots, or pieces of them, that another device extracted.
+    /// Rows already here are kept, so pieces can arrive more than once. A
+    /// snapshot whose file this notebook holds under another ID is skipped.
     pub fn sync_store_snapshots(&mut self, content: &[SnapshotContent]) -> Result<()> {
         let tx = self.conn.transaction()?;
         for snapshot in content {
-            let present: bool = tx.query_row(
-                "SELECT EXISTS(SELECT 1 FROM snapshots WHERE id = ?1 OR sha256 = ?2)",
+            let elsewhere: bool = tx.query_row(
+                "SELECT EXISTS(SELECT 1 FROM snapshots WHERE sha256 = ?2 AND id <> ?1)",
                 params![snapshot.id, snapshot.sha256],
                 |row| row.get(0),
             )?;
-            if present {
+            if elsewhere {
                 continue;
             }
             tx.execute(
-                "INSERT INTO snapshots(id, sha256, format, media_type, metadata, toc, passage_count, text_length, created_at)
+                "INSERT OR IGNORE INTO snapshots(id, sha256, format, media_type, metadata, toc, passage_count, text_length, created_at)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
                 params![snapshot.id, snapshot.sha256, snapshot.format, snapshot.media_type,
                     snapshot.metadata, snapshot.toc, snapshot.passage_count, snapshot.text_length,
                     snapshot.created_at],
             )?;
             let mut passage = tx.prepare_cached(
-                "INSERT INTO passages(id, snapshot_id, ordinal, kind, level, text, locator, anchor, resource, marks, start)
+                "INSERT OR IGNORE INTO passages(id, snapshot_id, ordinal, kind, level, text, locator, anchor, resource, marks, start)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
             )?;
             for row in &snapshot.passages {
@@ -852,7 +896,7 @@ impl Notebook {
                 ])?;
             }
             let mut resource = tx.prepare_cached(
-                "INSERT INTO snapshot_resources(snapshot_id, href, sha256, media_type) VALUES (?1, ?2, ?3, ?4)",
+                "INSERT OR IGNORE INTO snapshot_resources(snapshot_id, href, sha256, media_type) VALUES (?1, ?2, ?3, ?4)",
             )?;
             for row in &snapshot.resources {
                 resource.execute(params![snapshot.id, row.href, row.sha256, row.media_type])?;
@@ -1028,15 +1072,11 @@ impl Notebook {
             let confirmed = self.require_replica()?.confirmed_seq;
             let pull = hub.pull(&device, confirmed, confirmed)?;
             let missing = self.sync_missing_snapshots(&pull.snapshots)?;
-            let mut rest = missing.as_slice();
-            while !rest.is_empty() {
-                let content = hub.snapshot_content(rest)?;
-                if content.is_empty() {
-                    return Err(validation("the hub sent no snapshot content"));
-                }
-                self.sync_store_snapshots(&content)?;
-                rest = &rest[content.len().min(rest.len())..];
-            }
+            transfer(
+                &missing,
+                |ids, from| hub.snapshot_content(ids, from),
+                |content| self.sync_store_snapshots(content),
+            )?;
             report.received_snapshots += missing.len();
             let page = self.sync_integrate(&pull.changes)?;
             report.integrated.applied += page.applied;
@@ -1072,12 +1112,11 @@ impl Notebook {
         let mut report = SyncReport::default();
         if !outbox.snapshots.is_empty() {
             let missing = hub.missing_snapshots(&outbox.snapshots)?;
-            let mut rest = missing.as_slice();
-            while !rest.is_empty() {
-                let content = self.sync_snapshot_content(rest)?;
-                hub.store_snapshots(&content)?;
-                rest = &rest[content.len()..];
-            }
+            transfer(
+                &missing,
+                |ids, from| self.sync_snapshot_content(ids, from),
+                |content| hub.store_snapshots(content),
+            )?;
             report.sent_snapshots = missing.len();
         }
         // The hub keeps every file; send the ones these changes need first.

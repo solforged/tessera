@@ -190,15 +190,22 @@ async fn missing_snapshots(
     Ok(Json(SnapshotIds { ids }).into_response())
 }
 
+#[derive(Serialize, Deserialize)]
+pub(crate) struct ContentRequest {
+    pub ids: Vec<String>,
+    /// The first passage to send of the first snapshot.
+    pub from: i64,
+}
+
 async fn snapshot_content(
     State(state): State<AppState>,
     headers: HeaderMap,
-    request: Result<Json<SnapshotIds>, JsonRejection>,
+    request: Result<Json<ContentRequest>, JsonRejection>,
 ) -> Result<Response, ApiError> {
     same_schema(&headers)?;
     let Json(request) = request?;
     let content = run(&state, move |notebook| {
-        notebook.sync_snapshot_content(&request.ids)
+        notebook.sync_snapshot_content(&request.ids, request.from)
     })
     .await?;
     Ok(Json(content).into_response())

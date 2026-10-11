@@ -267,10 +267,12 @@ fn a_move_on_one_device_and_an_edit_on_the_other_both_apply() {
     assert!(p.hub.sync_conflicts().unwrap().is_empty());
 }
 
-/// A hub that sends one change per pull and stops answering after a few.
+/// A hub that sends one change per pull, stops answering after a few, and
+/// counts the snapshot content requests and uploads it serves.
 struct Paged<'hub> {
     hub: &'hub mut Notebook,
     pulls_left: usize,
+    pieces: usize,
 }
 
 impl Hub for Paged<'_> {
@@ -287,10 +289,12 @@ impl Hub for Paged<'_> {
     fn missing_snapshots(&mut self, ids: &[String]) -> Result<Vec<String>> {
         self.hub.missing_snapshots(ids)
     }
-    fn snapshot_content(&mut self, ids: &[String]) -> Result<Vec<SnapshotContent>> {
-        self.hub.snapshot_content(ids)
+    fn snapshot_content(&mut self, ids: &[String], from: i64) -> Result<Vec<SnapshotContent>> {
+        self.pieces += 1;
+        self.hub.snapshot_content(ids, from)
     }
     fn store_snapshots(&mut self, content: &[SnapshotContent]) -> Result<()> {
+        self.pieces += 1;
         self.hub.store_snapshots(content)
     }
     fn missing_objects(&mut self, shas: &[String]) -> Result<Vec<String>> {
@@ -329,6 +333,7 @@ fn an_interrupted_catch_up_keeps_the_pages_it_applied() {
     let mut flaky = Paged {
         hub: &mut p.hub,
         pulls_left: 2,
+        pieces: 0,
     };
     assert!(p.replica.sync_with(&mut flaky).is_err());
     // Two pages arrived before the hub went away; they stay applied, and the
@@ -725,6 +730,62 @@ fn a_first_book_imported_offline_on_both_devices_shares_one_set_of_fields() {
         )
         .unwrap();
     assert_eq!(author, "Author");
+}
+
+/// A book with more passage text than one content request carries.
+fn long_book(title: &str, unique_id: &str) -> ExtractedDocument {
+    let mut document = book(title, unique_id);
+    let words = "a long line of book text ".repeat(40);
+    document.passages = (0..9000)
+        .map(|n| ExtractedPassage {
+            kind: PassageKind::Paragraph,
+            level: None,
+            text: format!("{n} {words}"),
+            locator: format!("c#{n}"),
+            anchor: None,
+            resource: None,
+            marks: vec![],
+        })
+        .collect();
+    document
+}
+
+#[test]
+fn a_book_longer_than_one_request_moves_in_pieces_both_ways() {
+    let mut p = pair();
+    let (up, _, _) = import(
+        &mut p.replica,
+        &long_book("Phone Tome", "urn:up"),
+        b"up",
+        &[],
+    );
+    let (down, _, _) = import(
+        &mut p.hub,
+        &long_book("Desk Tome", "urn:down"),
+        b"down",
+        &[],
+    );
+
+    let mut hub = Paged {
+        hub: &mut p.hub,
+        pulls_left: usize::MAX,
+        pieces: 0,
+    };
+    p.replica.sync_with(&mut hub).unwrap();
+    // At least two uploads for one book and two requests for the other.
+    assert!(hub.pieces >= 4, "{} pieces", hub.pieces);
+    p.assert_converged();
+    for snapshot in [&up, &down] {
+        assert_eq!(p.hub.passages(snapshot, 8999, 1).unwrap().passages.len(), 1);
+        assert_eq!(
+            p.replica
+                .passages(snapshot, 8999, 1)
+                .unwrap()
+                .passages
+                .len(),
+            1
+        );
+    }
 }
 
 /// Quote the second passage of `snapshot` in a new block under `source`.
