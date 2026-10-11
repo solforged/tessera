@@ -67,6 +67,14 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
 /* The rail: the wordmark at the left, the finder centred on the window, layout at the right. */
 .global-rail { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: var(--space-16); padding: 0 var(--space-12); min-width: 0; }
 .rail-start { display: flex; align-items: center; gap: var(--space-8); min-width: 0; }
+/* In the macOS app the rail is the window's title bar: it moves the window, and the window buttons sit over its left end except in full screen. */
+.global-rail { -webkit-user-select: none; user-select: none; }
+:root[data-window-controls="inset"] .global-rail { padding-left: var(--window-controls-width); }
+/* Reader full screen in the macOS app keeps the rail's height as an empty title bar, so the window buttons have room and the window still moves. */
+:root[data-window-controls="inset"] .app.is-immersive { grid-template-rows: var(--rail-height) minmax(0, 1fr); }
+:root[data-window-controls="inset"] .app.is-immersive > .global-rail { display: grid; }
+:root[data-window-controls="inset"] .app.is-immersive > .global-rail > * { visibility: hidden; }
+:root[data-window-controls="inset"] .app.is-immersive .workspace { grid-row: 2; }
 .wordmark { display: flex; align-items: center; gap: var(--oculus-gap); min-width: 0; color: var(--text); font: var(--weight-control) var(--text-meta)/var(--line-meta) var(--font-mono); letter-spacing: var(--tracking-notebook); text-transform: uppercase; white-space: nowrap; }
 .wordmark::before { content: ''; width: var(--icon-size); height: var(--icon-size); flex: none; border-radius: var(--radius-pill); background: radial-gradient(circle, var(--accent) 0 27%, transparent 28% 50%, var(--accent) 51% 66%, transparent 67%); }
 .rail-end { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-8); min-width: 0; }

@@ -13,8 +13,8 @@ use tauri::menu::{
 };
 use tauri::webview::{DownloadEvent, NewWindowResponse, PageLoadEvent};
 use tauri::{
-    AppHandle, Manager, RunEvent, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
-    WindowEvent, Wry,
+    AppHandle, LogicalPosition, Manager, RunEvent, TitleBarStyle, Url, WebviewUrl, WebviewWindow,
+    WebviewWindowBuilder, WindowEvent, Wry,
 };
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 use tauri_plugin_opener::OpenerExt;
@@ -118,12 +118,18 @@ pub fn run() {
             _ => (),
         })
         .on_window_event(|window, event| {
-            // Closing hides, so the page and its unsent edits stay warm; Quit exits.
-            if let WindowEvent::CloseRequested { api, .. } = event
-                && window.label() == MAIN
-            {
-                api.prevent_close();
-                let _ = window.hide();
+            if window.label() != MAIN {
+                return;
+            }
+            match event {
+                // Closing hides, so the page and its unsent edits stay warm; Quit exits.
+                WindowEvent::CloseRequested { api, .. } => {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+                // Entering or leaving full screen resizes the window.
+                WindowEvent::Resized(_) => window_controls(window.app_handle()),
+                _ => (),
             }
         })
         .invoke_handler(tauri::generate_handler![retry, show_log])
@@ -261,6 +267,26 @@ fn history(app: &AppHandle, redo: bool) {
     let _ = window.eval(script);
 }
 
+/// The page draws the title bar, so the window buttons float over its top
+/// left corner. Pages mark that corner with `data-window-controls="inset"`
+/// from their first paint and clear it while the window is full screen, where
+/// macOS hides the buttons.
+const WINDOW_CONTROLS: &str = "document.documentElement.dataset.windowControls = 'inset';";
+
+fn window_controls(app: &AppHandle) {
+    let Some(window) = app.get_webview_window(MAIN) else {
+        return;
+    };
+    let state = if window.is_fullscreen().unwrap_or(false) {
+        "hidden"
+    } else {
+        "inset"
+    };
+    let _ = window.eval(format!(
+        "document.documentElement.dataset.windowControls = '{state}';"
+    ));
+}
+
 fn window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
     let navigation = app.clone();
     let popup = app.clone();
@@ -270,6 +296,12 @@ fn window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
         .title("Tessera")
         .inner_size(1360.0, 860.0)
         .min_inner_size(640.0, 420.0)
+        // The rail (`--rail-height`, 48 px) is the title bar, with the window
+        // buttons centred in its height.
+        .title_bar_style(TitleBarStyle::Overlay)
+        .hidden_title(true)
+        .traffic_light_position(LogicalPosition::new(16.0, 26.0))
+        .initialization_script(WINDOW_CONTROLS)
         // The page takes dropped files itself (EPUB uploads); Tauri's handler
         // would swallow the drop before the DOM saw it.
         .disable_drag_drop_handler()
@@ -312,6 +344,9 @@ fn window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
                 .is_some_and(|origin| origin.origin() == payload.url().origin())
             {
                 opened_files::ready(&loaded, payload.url().clone());
+            }
+            if payload.event() == PageLoadEvent::Finished {
+                window_controls(&loaded);
             }
             if payload.event() == PageLoadEvent::Finished && payload.url().scheme() == "tauri" {
                 let status = loaded.state::<Shell>().status.lock().clone();
