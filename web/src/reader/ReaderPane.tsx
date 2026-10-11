@@ -31,6 +31,8 @@ import { ReaderSettingsPopup, readerSettings, readerStyle } from './ReaderSettin
 import { ProgressCard } from './ProgressCard';
 import { chapterAt, pageChunk, timeLeft } from './paged';
 import type { PageChunk } from './paged';
+import { absorbedPassages, bookKeys, chapterOpenings, repeatsBook, sectionName } from './openings';
+import type { Opening } from './openings';
 import { mergeMembers, overlappingHighlights } from './highlight-merge';
 import './reader.css';
 
@@ -70,7 +72,7 @@ export function ReaderPane(props: ReaderPaneProps) {
   const api = props.notebook.api;
   const [source, setSource] = createSignal<SourceView>();
   const [snapshot, setSnapshot] = createSignal('');
-  const [contents, setContents] = createSignal<TocEntry[]>([]);
+  const [allContents, setContents] = createSignal<TocEntry[]>([]);
   const [total, setTotal] = createSignal(0);
   const [firstVisible, setFirstVisible] = createSignal(0);
   const [titleHeight, setTitleHeight] = createSignal(0);
@@ -89,6 +91,15 @@ export function ReaderPane(props: ReaderPaneProps) {
   const [editing, setEditing] = createSignal(false);
   const [mergeMessage, setMergeMessage] = createSignal('');
   const readerDocument = props.notebook.open(props.target.sourceId);
+  // The source page is the record: renaming the book or editing its creators shows here at once. The snapshot keeps
+  // what the file said at import, and stands in only until the page has loaded.
+  const [fieldDefinitions] = createResource(() => props.notebook.api.fields());
+  const details = createMemo(() => sourceMetadata(readerDocument, props.notebook, fieldDefinitions()?.fields ?? []));
+  const title = () => details().title?.trim() || currentSnapshot()?.metadata.title || '';
+  /** The book's title as the source page and the file record it. */
+  const book = createMemo(() => bookKeys(details().title, source()?.snapshots.find(value => value.id === snapshot())?.metadata.title));
+  /** The contents without entries that only repeat the book's title: running heads the file marked as navigation. */
+  const contents = createMemo(() => allContents().filter(entry => !repeatsBook(entry, book())));
   const [flash, setFlash] = createSignal<Citation | null>(null);
   const [highlights, setHighlights] = createSignal<HighlightRow[]>([]);
   const [composing, setComposing] = createSignal<HighlightNoteDraft | null>(null);
@@ -183,10 +194,32 @@ export function ReaderPane(props: ReaderPaneProps) {
   });
   // The next chapter's first passage says where this one ends.
   createEffect(() => { const end = chapter().end; if (end < total() && !passages.has(end)) void loadPage(end); });
+  const chapterEntry = createMemo(() => sections().find(entry => entry.ordinal === chapter().first));
+  /** Chapter openings by first passage, composed from the contents rather than the file's heading markup. */
+  const openings = createMemo(() => chapterOpenings(contents(), book()));
+  /** The cover beside the title page: the one on the source page, else the file's. */
+  const titleCover = () => details().cover ?? currentSnapshot()?.metadata.cover ?? null;
   /**
-   * Full screen and the cover screen read with the chrome out of the way: the masthead, toolbar and reading rule fade
+   * Heading lines the openings draw instead, running heads that repeat the book's title, and the file's cover image
+   * where the title page shows it; and each chapter's first passage of text. A highlighted passage always shows.
+   */
+  const absorbed = createMemo(() => {
+    version();
+    const highlighted = new Set<number>();
+    for (const citation of citations()) {
+      const from = ordinals.get(citation.start.passage_id), to = ordinals.get(citation.end.passage_id);
+      if (from !== undefined && to !== undefined) for (let ordinal = from; ordinal <= to; ordinal++) highlighted.add(ordinal);
+    }
+    const titleEntries = allContents().flatMap(entry => entry.ordinal !== null && repeatsBook(entry, book()) ? [entry.ordinal] : []);
+    const result = absorbedPassages(openings(), titleEntries, ordinal => passages.get(ordinal), ordinal => highlighted.has(ordinal), book());
+    const cover = passages.get(0);
+    if (title() && titleCover() && cover?.kind === 'image' && cover.resource === currentSnapshot()?.metadata.cover && !highlighted.has(0)) result.hidden.add(0);
+    return result;
+  });
+  /**
+   * Full screen and the cover screen read with the chrome out of the way: the masthead, toolbar and book map fade
    * after the mouse rests (full screen with a mouse) or on a centre tap (touch), and return on movement, focus, a
-   * popup or another tap. They keep their room, so the text never reflows.
+   * popup or another tap. They keep their room, so the text never reflows; the line under the map stays.
    */
   const [coverReading, setCoverReading] = createSignal(coverScreen.matches);
   const chromeHides = () => props.immersive || coverReading();
@@ -217,16 +250,12 @@ export function ReaderPane(props: ReaderPaneProps) {
     lastPointer = at;
     showChrome(true);
   }
-  // The source page is the record: renaming the book or editing its creators shows here at once. The snapshot keeps
-  // what the file said at import, and stands in only until the page has loaded.
-  const [fieldDefinitions] = createResource(() => props.notebook.api.fields());
-  const details = createMemo(() => sourceMetadata(readerDocument, props.notebook, fieldDefinitions()?.fields ?? []));
-  const title = () => details().title?.trim() || currentSnapshot()?.metadata.title || '';
-  const byline = createMemo(() => {
+  const creators = createMemo(() => {
     const metadata = currentSnapshot()?.metadata, page = details();
-    const names = page.creators.length ? page.creators.map(creator => creator.name) : metadata?.creators.map(creator => creator.name) ?? [];
-    return [names.join(', ') || metadata?.site, (page.published ?? metadata?.published)?.match(/\d{4}/)?.[0]].filter(Boolean).join(' · ');
+    return (page.creators.length ? page.creators.map(creator => creator.name) : metadata?.creators.map(creator => creator.name) ?? []).join(', ');
   });
+  const year = () => (details().published ?? currentSnapshot()?.metadata.published)?.match(/\d{4}/)?.[0];
+  const byline = createMemo(() => [creators() || currentSnapshot()?.metadata.site, year()].filter(Boolean).join(' · '));
   const sourceHighlights = createMemo(() => highlights()
     .filter(row => row.citation.snapshot_id === snapshot())
     .sort((a, b) => a.citation.ordinal - b.citation.ordinal || a.citation.start.offset - b.citation.start.offset || a.citation.id.localeCompare(b.citation.id)));
@@ -1020,20 +1049,27 @@ export function ReaderPane(props: ReaderPaneProps) {
 
   function PassageContent(row: { ordinal: number; onImageLoad(): void }) {
     const passage = createMemo(() => { version(); return passages.get(row.ordinal); });
-    return <Show when={passage()} fallback={<div class="reader-placeholder" aria-hidden="true" />}>{value => <Dynamic
-      component={value().kind === 'heading' ? `h${Math.min(3, Math.max(1, value().level ?? 1))}` : value().kind === 'quote' ? 'blockquote' : value().kind === 'code' ? 'pre' : 'div'}
-      class={`reader-passage reader-${value().kind}`} classList={{ 'reader-cursor': props.active && cursor() === row.ordinal }} aria-current={props.active && cursor() === row.ordinal ? 'true' : undefined}
-      data-passage-id={value().id} data-ordinal={value().ordinal} style={{ '--level': Math.max(0, value().level ?? 0) }}>
-      <Show when={value().kind === 'image' && value().resource} fallback={<PassageText passage={value()} citations={citations()} notes={highlightNotes()} ordinals={(() => { version(); return ordinals; })()} flashId={flash()?.id ?? null} onLocate={at => { void jumpTo(at); }} onNote={(at, anchor) => { void note(at, anchor); }} onCitation={clickedCitation} onHighlightNote={row => { void openHighlightNote(row); }} />}>
-        <ResourceImage snapshotId={snapshot()} href={value().resource!} alt={value().text} onLoad={row.onImageLoad} />
-      </Show>
-    </Dynamic>}</Show>;
+    return <>
+      <Show when={openings().get(row.ordinal)}>{opening => <div class="reader-opening">
+        <Show when={opening().label}><p class="reader-opening-label">{opening().label}</p></Show>
+        <h2 class="reader-opening-title">{opening().title}</h2>
+        <span class="reader-opening-rule" aria-hidden="true" />
+      </div>}</Show>
+      <Show when={passage()} fallback={<div class="reader-placeholder" aria-hidden="true" />}>{value => <Dynamic
+        component={value().kind === 'heading' ? `h${Math.min(3, Math.max(1, value().level ?? 1))}` : value().kind === 'quote' ? 'blockquote' : value().kind === 'code' ? 'pre' : 'div'}
+        class={`reader-passage reader-${value().kind}`} classList={{ 'reader-cursor': props.active && cursor() === row.ordinal, 'reader-absorbed': absorbed().hidden.has(row.ordinal), 'reader-first': absorbed().first.has(row.ordinal) }} aria-current={props.active && cursor() === row.ordinal ? 'true' : undefined}
+        data-passage-id={value().id} data-ordinal={value().ordinal} style={{ '--level': Math.max(0, value().level ?? 0) }}>
+        <Show when={value().kind === 'image' && value().resource} fallback={<PassageText passage={value()} citations={citations()} notes={highlightNotes()} ordinals={(() => { version(); return ordinals; })()} flashId={flash()?.id ?? null} onLocate={at => { void jumpTo(at); }} onNote={(at, anchor) => { void note(at, anchor); }} onCitation={clickedCitation} onHighlightNote={row => { void openHighlightNote(row); }} />}>
+          <ResourceImage snapshotId={snapshot()} href={value().resource!} alt={value().text} onLoad={row.onImageLoad} />
+        </Show>
+      </Dynamic>}</Show>
+    </>;
   }
 
   function PassageRow(row: { ordinal: number; item: () => VirtualItem }) {
     let element!: HTMLDivElement;
     onMount(() => virtualizer.measureElement(element));
-    return <div ref={element} class="reader-row" data-index={row.ordinal} style={{ transform: `translateY(${row.item().start}px)` }}>
+    return <div ref={element} class="reader-row" classList={{ 'reader-row-absorbed': absorbed().hidden.has(row.ordinal) && !openings().has(row.ordinal) }} data-index={row.ordinal} style={{ transform: `translateY(${row.item().start}px)` }}>
       <PassageContent ordinal={row.ordinal} onImageLoad={() => virtualizer.measureElement(element)} />
     </div>;
   }
@@ -1046,10 +1082,44 @@ export function ReaderPane(props: ReaderPaneProps) {
       measure(); observer.observe(element);
       onCleanup(() => { observer.disconnect(); setTitleHeight(0); });
     });
-    return <div ref={element} class="reader-title-block">
-      <h1>{title()}</h1>
-      <Show when={byline()}><p>{byline()}</p></Show>
+    return <div ref={element} class="reader-title-block"><TitlePage /></div>;
+  }
+
+  /** The start of the book: a small cover beside the imprint, the title and subtitle, the author, the book's length and where its text begins. */
+  function TitlePage() {
+    const heading = createMemo(() => {
+      const value = title(), colon = value.indexOf(':');
+      return colon > 0 ? { main: value.slice(0, colon), subtitle: value.slice(colon + 1).trim() } : { main: value, subtitle: details().subtitle ?? currentSnapshot()?.metadata.subtitle ?? null };
+    });
+    const imprint = () => {
+      const metadata = currentSnapshot()?.metadata;
+      return [source()?.source.siglum, details().publisher ?? metadata?.publisher ?? (creators() ? null : metadata?.site), year()].filter(Boolean).join(' · ');
+    };
+    const facts = () => {
+      const chapters = [...openings().values()].filter(value => value.label?.startsWith('Chapter')).length, length = currentSnapshot()?.text_length ?? 0;
+      return [chapters > 1 ? `${chapters} chapters` : '', length ? timeLeft(length) : ''].filter(Boolean).join(' · ');
+    };
+    // The first opening past the cover and front matter: the preface, or chapter one.
+    const begin = createMemo(() => [...openings().values()].reduce<Opening | null>((first, value) => !first || value.ordinal < first.ordinal ? value : first, null));
+    return <div class="reader-title-page">
+      <Show when={titleCover()}>{href => <ResourceImage class="reader-title-cover" snapshotId={snapshot()} href={href()} alt="" />}</Show>
+      <div class="reader-title-text">
+        <Show when={imprint()}><p class="reader-title-imprint">{imprint()}</p></Show>
+        <h1>{heading().main}<Show when={heading().subtitle}><span class="reader-title-subtitle">{heading().subtitle}</span></Show></h1>
+        <Show when={creators()}><p class="reader-title-author">{creators()}</p></Show>
+        <span class="reader-title-rule" aria-hidden="true" />
+        <Show when={facts()}><p class="reader-title-facts">{facts()}</p></Show>
+        <Show when={begin()?.ordinal ? begin() : null}>{value => <Button class="reader-title-begin" onClick={() => { const entry = contents().find(item => item.ordinal === value().ordinal); if (entry) void openSection(entry); }}>
+          Begin at {value().name}
+        </Button>}</Show>
+      </div>
     </div>;
+  }
+
+  /** A section's numeral in mono, then its title in display italic, as the toolbar and the foot name it. */
+  function SectionLabel(props: { title: string }) {
+    const name = createMemo(() => sectionName(props.title));
+    return <><Show when={name().numeral}><b class="reader-section-numeral">{name().numeral}</b></Show><i class="reader-section-title">{name().title}</i></>;
   }
 
   function SelectionTools() {
@@ -1094,17 +1164,13 @@ export function ReaderPane(props: ReaderPaneProps) {
       <h2>{title() || 'Reader'}</h2>
     </div>
     <div ref={header} class="reader-header" onFocusIn={event => { keyboardFocus = (event.target as Element).matches(':focus-visible'); showChrome(true); }}>
-      <Button class="reader-contents" icon="contents" label="Contents" aria-haspopup="dialog" disabled={!contents().length} onClick={event => { setQuery(''); setPopup({ kind: 'contents', anchor: event.currentTarget }); }}><span>{currentSection()?.title ?? 'Contents'}</span><Icon name="down" /></Button>
+      <Button class="reader-contents" icon="contents" label="Contents" aria-haspopup="dialog" disabled={!contents().length} onClick={event => { setQuery(''); setPopup({ kind: 'contents', anchor: event.currentTarget }); }}><span><Show when={currentSection()} fallback="Contents">{entry => <SectionLabel title={entry().title} />}</Show></span><Icon name="down" /></Button>
       <Button icon="highlight" label="Highlights" aria-haspopup="dialog" disabled={!snapshot()} onClick={event => { setQuery(''); setPopup({ kind: 'highlights', anchor: event.currentTarget }); }}><Show when={sourceHighlights().length}><span>{sourceHighlights().length}</span></Show></Button>
       <Button icon="search" label="Find in source" aria-haspopup="dialog" disabled={!snapshot()} onClick={event => { setQuery(''); setPopup({ kind: 'find', anchor: event.currentTarget }); }} />
-      <Button class="reader-progress" label="Reading progress" aria-haspopup="dialog" disabled={!mapChapters().length} onClick={event => setPopup({ kind: 'progress', anchor: event.currentTarget })}>{formatProgress(position())}</Button>
-      <Button label="Reader settings" aria-haspopup="dialog" onClick={event => setPopup({ kind: 'settings', anchor: event.currentTarget })}>Aa</Button>
+      <Button class="reader-settings-toggle" label="Reader settings" aria-haspopup="dialog" onClick={event => setPopup({ kind: 'settings', anchor: event.currentTarget })}>Aa</Button>
       <Button class="reader-full-screen" icon={props.immersive ? 'contract' : 'expand'} label={props.immersive ? 'Exit full screen' : 'Full screen'} shortcut={props.immersive ? 'F or Esc' : 'F'} onClick={() => props.onImmersive(!props.immersive)} />
       <Button icon="more" label="Reader actions" aria-haspopup="menu" onPointerDown={event => event.preventDefault()} onClick={event => setPopup({ kind: 'actions', anchor: event.currentTarget })} />
     </div>
-    <div class="reader-map"><Show when={mapChapters().length} fallback={<div class="reader-progress-rule" aria-hidden="true"><span style={{ width: `${position() * 100}%` }} /></div>}>
-      <BookMap chapters={mapChapters()} length={currentSnapshot()!.text_length} at={here()} highlights={marks()} label={`${formatProgress(position())} read`} />
-    </Show></div>
     <Show when={error()}><p class="reader-error error" role="alert">{error()}</p></Show>
     <Show when={loading()}><p class="reader-status" role="status">Loading…</p></Show>
     <Show when={mergeMessage()}><p class="reader-status" role="status">{mergeMessage()}</p></Show>
@@ -1116,7 +1182,7 @@ export function ReaderPane(props: ReaderPaneProps) {
             onClick={() => { void openSection(entry); }}>{entry.title}</Button>}</For>
         </nav>
       </Show>
-      <div ref={scroll} class="reader-scroll" classList={{ 'reader-paged': paged() }} tabIndex={0} aria-label="Source passages" onScroll={scrolled}
+      <div ref={scroll} class="reader-scroll" classList={{ 'reader-paged': paged() }} style={{ '--reader-frame-width': `${pageFrame().width}px` }} tabIndex={0} aria-label="Source passages" onScroll={scrolled}
         onWheel={() => { userScroll = true; }} onTouchMove={() => { userScroll = true; }}
         onPointerDown={event => { userScroll = true; pointerStart = { x: event.clientX, y: event.clientY, touch: event.pointerType !== 'mouse' }; }}
         onPointerUp={readerPointerUp} onPointerCancel={() => { pointerStart = null; }}
@@ -1125,38 +1191,36 @@ export function ReaderPane(props: ReaderPaneProps) {
           <Show when={title()}><TitleBlock /></Show>
           <For each={[...items().keys()]}>{ordinal => <PassageRow ordinal={ordinal} item={() => items().get(ordinal)!} />}</For>
         </div>}>
-          {/* A running head over each column, as in a printed book: the title over the left page, the chapter over the right. */}
-          <div class="reader-running-head" aria-hidden="true" style={{ width: pageFrame().width ? `${pageFrame().width}px` : '100%', 'grid-template-columns': `repeat(${pageFrame().columns}, minmax(0, 1fr))`, 'column-gap': `${PAGE_GAP}px` }}>
+          {/* A running head over each column, as in a printed book: the title over the left page, the chapter over the right. A chapter's opening page goes without. */}
+          <div class="reader-running-head" classList={{ 'reader-running-head-quiet': pageIndex() === 0 && openings().has(chunk()?.first ?? -1) }} aria-hidden="true" style={{ width: pageFrame().width ? `${pageFrame().width}px` : '100%', 'grid-template-columns': `repeat(${pageFrame().columns}, minmax(0, 1fr))`, 'column-gap': `${PAGE_GAP}px` }}>
             <Show when={pageFrame().columns === 2}><span>{title()}</span></Show>
-            <span>{sections().find(entry => entry.ordinal === chapter().first)?.title ?? title()}</span>
+            <span>{(() => { const entry = chapterEntry(); if (!entry) return title(); const name = sectionName(entry.title); return name.numeral ? `${name.numeral} · ${name.title}` : name.title; })()}</span>
           </div>
           <div ref={frame} class="reader-page-frame" style={{ width: `${pageFrame().width}px` }} onWheel={pageWheel}>
             <div class="reader-flow" style={{ 'column-count': pageFrame().columns, 'column-gap': `${PAGE_GAP}px` }}>
-              <Show when={chunk()?.first === 0 && title()}><div class="reader-title-block reader-page-title">
-                <h1>{title()}</h1>
-                <Show when={byline()}><p>{byline()}</p></Show>
-              </div></Show>
+              <Show when={chunk()?.first === 0 && title()}><div class="reader-title-block reader-page-title"><TitlePage /></div></Show>
               <For each={chunkOrdinals()}>{ordinal => <PassageContent ordinal={ordinal} onImageLoad={scheduleCount} />}</For>
             </div>
           </div>
-          <div class="reader-page-bar" style={{ width: pageFrame().width ? `${pageFrame().width}px` : '100%' }}>
-            <span class="reader-time"><Show when={chapterLeft() !== null}>{timeLeft(chapterLeft()!)} left in chapter</Show></span>
-            <span class="reader-page-turn">
-              <Button icon="left" label="Previous page" disabled={pageIndex() === 0 && !chunk()?.first} onClick={() => { void turn(-1); }} />
-              <span>{pageIndex() + 1} / {pageCount()}</span>
-              <Button icon="right" label="Next page" disabled={pageIndex() >= pageCount() - 1 && (chunk()?.last ?? 0) >= total() - 1} onClick={() => { void turn(1); }} />
-            </span>
-            <span class="reader-time reader-time-book"><Show when={bookLeft() !== null}>{timeLeft(bookLeft()!)} left in book</Show></span>
-          </div>
+          {/* With a mouse the page arrows sit at the page edges; on touch, taps at the edges turn the page. */}
+          <Button class="reader-page-edge reader-page-edge-previous" icon="left" label="Previous page" disabled={pageIndex() === 0 && !chunk()?.first} onClick={() => { void turn(-1); }} />
+          <Button class="reader-page-edge reader-page-edge-next" icon="right" label="Next page" disabled={pageIndex() >= pageCount() - 1 && (chunk()?.last ?? 0) >= total() - 1} onClick={() => { void turn(1); }} />
         </Show>
       </div>
     </div>
-    <Show when={!paged() && !loading()}>
-      <div class="reader-page-bar reader-scroll-bar">
-        <span class="reader-time"><Show when={chapterLeft() !== null}>{timeLeft(chapterLeft()!)} left in chapter</Show></span>
-        <span class="reader-time reader-time-book"><Show when={bookLeft() !== null}>{timeLeft(bookLeft()!)} left in book</Show></span>
+    {/* The foot: the book map, and under it one line naming the chapter with its time left, then the book's share and time left, which opens the progress card. */}
+    <div class="reader-foot">
+      <div class="reader-map"><Show when={mapChapters().length} fallback={<div class="reader-progress-rule" aria-hidden="true"><span style={{ width: `${position() * 100}%` }} /></div>}>
+        <BookMap chapters={mapChapters()} length={currentSnapshot()!.text_length} at={here()} highlights={marks()} label={`${formatProgress(position())} read`} />
+      </Show></div>
+      <div class="reader-folio">
+        <span class="reader-folio-name"><Show when={chapterEntry() ?? currentSection()}>{entry => <SectionLabel title={entry().title} />}</Show></span>
+        <span class="reader-folio-time"><Show when={chapterLeft() !== null}>{timeLeft(chapterLeft()!)} left</Show><Show when={paged()}>{chapterLeft() !== null ? ' · ' : ''}p. {pageIndex() + 1} of {pageCount()}</Show></span>
+        <Button class="reader-folio-book" label="Reading progress" aria-haspopup="dialog" disabled={!mapChapters().length} onClick={event => setPopup({ kind: 'progress', anchor: event.currentTarget })}>
+          {formatProgress(position())}<Show when={bookLeft() !== null}> · {timeLeft(bookLeft()!)}</Show>
+        </Button>
       </div>
-    </Show>
+    </div>
     <Show when={popup()}>{state => <>
       <Show when={state().kind === 'settings'}><ReaderSettingsPopup anchor={state().anchor} onDismiss={() => setPopup(null)} /></Show>
       <Show when={state().kind === 'progress'}><ProgressCard anchor={state().anchor} sheet={coverReading()} chapters={mapChapters()} length={currentSnapshot()?.text_length ?? 0} at={here()} highlights={marks()}
