@@ -229,18 +229,27 @@ function Pane(props: OutlinePaneProps) {
     .sort((a, b) => a.citation.ordinal - b.citation.ordinal || a.citation.start.offset - b.citation.start.offset));
   const sourceDetails = createMemo(() => {
     const fields = new Map<string, string>();
+    // The first highlight under each chapter of the contents, in reading order, carries that chapter's title.
+    const chapters = new Map<string, string>();
     let firstHighlight: string | undefined;
     let highlightCount = 0;
-    if (!doc.root()?.source || zoom()) return { fields, firstHighlight, highlightCount };
+    if (!doc.root()?.source || zoom()) return { fields, chapters, firstHighlight, highlightCount };
     highlightCount = sourceHighlights()?.total ?? 0;
+    let chapter: string | null | undefined;
     for (const id of unfoldedIds().filter(id => doc.outline.parentOf(id) === props.pageId)) {
       const block = doc.block(id);
       if (!block || block.archived && !showArchived()) continue;
       const name = sourceFieldName(block.text, definitionsById());
+      const citation = name ? undefined : block.citations.find(value => value.source_id === props.pageId);
       if (name) fields.set(id, name);
-      else if (block.citations.some(citation => citation.source_id === props.pageId)) firstHighlight ??= id;
+      else if (citation) {
+        firstHighlight ??= id;
+        const title = citation.chapter_title ?? null;
+        if (title && title !== chapter) chapters.set(id, title);
+        chapter = title;
+      }
     }
-    return { fields, firstHighlight: highlightCount ? firstHighlight : undefined, highlightCount };
+    return { fields, chapters, firstHighlight: highlightCount ? firstHighlight : undefined, highlightCount };
   });
   const selectedIds = createMemo(() => {
     const range = rowRange();
