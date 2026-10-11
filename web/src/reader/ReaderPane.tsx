@@ -456,11 +456,19 @@ export function ReaderPane(props: ReaderPaneProps) {
     if (!scroll || !scroll.getClientRects().length || scroll.closest('[inert], [aria-hidden="true"]') || document.visibilityState === 'hidden') return null;
     if (scroll.classList.contains('reader-paged')) {
       if (!frame?.isConnected) return null;
+      // The first passage that starts on the page. Restoring a passage turns to the page holding its start, so
+      // reporting one begun on an earlier page would walk back a page at every reopen. A passage that fills the
+      // page counts only when none starts there.
       const view = frame.getBoundingClientRect();
+      let spanning: number | null = null;
       for (const row of frame.querySelectorAll<HTMLElement>('[data-passage-id]')) {
-        for (const rect of row.getClientRects()) if (rect.width && rect.right > view.left + 1 && rect.left < view.right - 1) return { ordinal: Number(row.dataset.ordinal), offset: 0 };
+        const rects = [...row.getClientRects()].filter(rect => rect.width);
+        if (!rects.length) continue;
+        if (rects[0]!.left >= view.right - 1) break;
+        if (rects[0]!.left > view.left - 1) return { ordinal: Number(row.dataset.ordinal), offset: 0 };
+        if (rects.some(rect => rect.right > view.left + 1)) spanning ??= Number(row.dataset.ordinal);
       }
-      return null;
+      return spanning === null ? null : { ordinal: spanning, offset: 0 };
     }
     const viewport = scroll.getBoundingClientRect();
     let first: { ordinal: number; offset: number } | null = null;
