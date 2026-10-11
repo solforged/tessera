@@ -8,7 +8,7 @@ import { createPageIcon } from '../outline/source';
 import { Icon } from '../ui/Icon';
 import { Picker } from '../ui/Picker';
 import type { Command, CommandRegistry, OpenTarget, PaneId } from './contract';
-import { paletteRows, type SearchEntry } from './palette-rows';
+import { paletteRows, type SearchEntry, type SearchHit } from './palette-rows';
 
 type Entry = SearchEntry | { kind: 'command'; command: Command } | { kind: 'create'; title: string };
 
@@ -37,7 +37,13 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
     const timer = setTimeout(() => { setDebounced(value); setScopes([]); }, 100);
     onCleanup(() => clearTimeout(timer));
   });
-  const [hits] = createResource(() => mode() === 'search' ? debounced() : null, async q => q ? api.search(q) : props.notebook.roots().map(root => ({ block: root, page: root })));
+  const [hits] = createResource(() => mode() === 'search' ? [debounced(), props.notebook.changeSequence()] as const : false, async ([q]): Promise<SearchHit[]> => {
+    if (!q) return props.notebook.roots().map(root => ({ block: root, page: root }));
+    const [pages, blocks] = await Promise.all([api.complete(q, 40), api.search(q)]);
+    const roots = pages.filter(page => page.kind !== 'block').map(page => ({ block: page, page, alias: page.alias }));
+    const ids = new Set(roots.map(hit => hit.block.id));
+    return [...roots, ...blocks.filter(hit => !ids.has(hit.block.id))];
+  });
   const scope = () => scopes().at(-1);
   const [scopedPage] = createResource(() => scope()?.matching ? undefined : scope()?.page.id, id => api.page(id));
   const commands = createMemo(() => {
@@ -125,7 +131,7 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
         : <><Icon name="plus" /><span class="picker-text">Create page “{entry.title}”</span><Show when={selected}><kbd class="picker-hint">⇧↵ beside</kbd></Show></>} />;
 }
 
-function HitRow(props: { hit: BlockInPage; query: string; notebook: NotebookClient; selected: boolean }) {
+function HitRow(props: { hit: SearchHit; query: string; notebook: NotebookClient; selected: boolean }) {
   const ancestors = createMemo(() => {
     const result: Block[] = [];
     let parent = props.hit.block.parent_id;
@@ -143,6 +149,7 @@ function HitRow(props: { hit: BlockInPage; query: string; notebook: NotebookClie
     <Icon name={icon()} />
     <span class="picker-text"><BlockText text={props.notebook.lookup(props.hit.block.id)()?.text ?? props.hit.block.text} notebook={props.notebook} interactive={false} highlight={props.query} /></span>
     <Show when={!isPage()}><span class="picker-meta">{props.notebook.lookup(props.hit.page.id)()?.text ?? props.hit.page.text}<For each={ancestors()}>{block => <> / <BlockText text={block.text} notebook={props.notebook} interactive={false} /></>}</For></span></Show>
+    <Show when={isPage() && props.hit.alias}>{alias => <span class="reference-via">via {alias()}</span>}</Show>
     <Show when={props.selected}><kbd class="picker-hint">⇧↵ beside</kbd></Show>
   </>;
 }

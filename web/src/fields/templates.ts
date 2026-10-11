@@ -3,6 +3,20 @@ import type { Accessor } from 'solid-js';
 import { api } from '../api/client';
 import type { ChangeEvent, Fields } from '../api/types';
 import { textTokens } from '../document/text-tokens';
+import { foldName } from '../outline/names';
+
+const startingTemplates = [
+  { title: 'Person', fields: ['Aliases', 'Lived', 'Affiliated with'] },
+  { title: 'Group', fields: ['Aliases', 'Active'] },
+  { title: 'Concept', fields: ['Aliases', 'Coined by', 'Coined in'] },
+] as const;
+
+/** Only an empty template offers a starting point; existing field choices always win. */
+export function startingTemplateFor(title: string, fields: readonly string[] = []) {
+  if (fields.length) return null;
+  const key = foldName(title);
+  return startingTemplates.find(template => template.title.toLowerCase() === key) ?? null;
+}
 
 /** A block's types as lowercase keys: `#tags` in its text, then manual types, each once. */
 export function typeKeys(text: string, manual: readonly string[]): string[] {

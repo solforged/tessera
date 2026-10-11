@@ -7,12 +7,12 @@ import { depthStops } from '../shell/contract';
 import type { Depth, OutlinePaneProps, ViewState } from '../shell/contract';
 import { fieldEntryId } from '../table/query';
 import { setLinkedCitation } from '../library/highlights';
-import { createTemplateCache } from '../fields/templates';
+import { createTemplateCache, startingTemplateFor } from '../fields/templates';
 import { TemplateEditor } from '../fields/TemplateEditor';
 import { pageSigla } from '../library/sigla';
 import { sourceReadingOrder } from '../library/source-order';
 import { PersonWorks } from '../library/PersonWorks';
-import { NoteEyebrow, NoteLine } from '../notes/NoteHeader';
+import { NoteAliases, NoteEyebrow, NoteLine } from '../notes/NoteHeader';
 import type { OutlineIndex } from '../document/outline-index';
 import { JournalAgenda } from '../tasks/JournalAgenda';
 import { JournalResurface } from '../tasks/JournalResurface';
@@ -30,7 +30,7 @@ import { CitationChip, SourceHeader } from './SourceHeader';
 import { GLOSS_FIELD, glossEntry, isGistName, isGlossName } from './gloss';
 import { positionSource as sharedPositionSource } from './perspectives';
 import { Apparatus } from './Apparatus';
-import { createFieldEntryConversion, createSourceFieldResets } from './source-fields';
+import { createFieldEntryConversion, createSourceFieldResets, ensureField } from './source-fields';
 import { sourceFieldName } from './source';
 import { createOutlineCompletions } from './completions';
 import { createOutlineCommands } from './commands';
@@ -42,6 +42,7 @@ import { createFieldSheet } from './field-sheet';
 import { createCapabilityPopups } from './CapabilityPopups';
 import type { MenuState, OutlineContext, RowRange } from './context';
 import { PageMergeConfirmation, pageMergeDisabledReason } from './PageMerge';
+import { foldName, nameMenuItems, resolveName } from './names';
 import './outline.css';
 
 const storedFolds = new Map<string, Set<string>>();
@@ -114,6 +115,11 @@ function Pane(props: OutlinePaneProps) {
     () => doc.root()?.kind === 'page' ? [props.pageId, props.notebook.changeSequence()] as const : false,
     ([pageId]) => api.type(pageId),
   );
+  const [editingNames] = createResource(() => {
+    const id = editing();
+    const names = id ? [...new Set(textTokens(doc.block(id)?.text ?? '').flatMap(token => token.kind === 'reference' && !isStableReference(token) ? [token.id!] : []))] : [];
+    return names.length ? [names.join('\u0000'), props.notebook.changeSequence()] as const : false;
+  }, async ([names]) => new Map(await Promise.all(names.split('\u0000').map(async name => [foldName(name), await resolveName(props.notebook, name)] as const))));
   const sourceResets = createSourceFieldResets({ doc, notebook: props.notebook, definitions: definitionsById, caret, onError: setMessage });
 
   const contextDate = () => doc.root()?.kind === 'journal' ? doc.root()!.text : props.notebook.todayDate();
@@ -145,7 +151,7 @@ function Pane(props: OutlinePaneProps) {
     linkTitles(id);
     return fieldConversion.shorthand(id, focus);
   }
-  /** As in Roam, `[[Title]]` typed by hand links the page with that exact title, or a new one, once the block is left. */
+  /** A hand-typed name links only when one page owns it; ambiguous names wait for a choice. */
   const linking = new Set<string>();
   function linkTitles(id: string) {
     const text = doc.block(id)?.text;
@@ -155,19 +161,23 @@ function Pane(props: OutlinePaneProps) {
     linking.add(id);
     void (async () => {
       try {
-        const targets = new Map<string, string>();
+        const targets = new Map<string, { id: string; alias: boolean }>();
         for (const title of titles) {
-          const key = title.toLocaleLowerCase();
-          const found = (await api.complete(title, 20)).find(block => block.kind !== 'block' && block.text.toLocaleLowerCase() === key);
+          const key = foldName(title);
+          const matches = await resolveName(props.notebook, title);
+          if (matches.length > 1) continue;
+          if (matches.length === 1) { targets.set(key, { id: matches[0]!.page.id, alias: matches[0]!.alias !== null }); continue; }
           // A date names a journal; one that does not exist yet stays as typed rather than becoming a page.
-          const target = found?.id ?? (/^\d{4}-\d{2}-\d{2}$/.test(title) ? null : await props.notebook.createPage(title));
-          if (target) targets.set(key, target);
+          const date = /^\d{4}-\d{2}-\d{2}$/.test(title);
+          const target = date ? (await props.notebook.api.complete(title, 20)).find(block => block.kind === 'journal' && block.text === title)?.id : await props.notebook.createPage(title);
+          if (target) targets.set(key, { id: target, alias: false });
         }
         const current = doc.block(id)?.text;
         if (disposed || editing() === id || !current) return;
         const next = textTokens(current).map(token => {
-          const target = token.kind === 'reference' && !isStableReference(token) ? targets.get(token.id!.trim().toLocaleLowerCase()) : undefined;
-          return target ? `[[${target}${token.alias !== undefined ? `|${token.alias}` : ''}]]` : current.slice(token.start, token.end);
+          const target = token.kind === 'reference' && !isStableReference(token) ? targets.get(foldName(token.id!)) : undefined;
+          const alias = token.alias ?? (target?.alias ? token.id!.trim() : undefined);
+          return target ? `[[${target.id}${alias !== undefined ? `|${alias}` : ''}]]` : current.slice(token.start, token.end);
         }).join('');
         if (next === current) return;
         const result = doc.edit({ kind: 'text', id, text: next }, caret());
@@ -567,6 +577,25 @@ function Pane(props: OutlinePaneProps) {
     if (!result.ok) { setMessage(result.reason); return; }
     fieldConversion.entry(result.created[0]!, GLOSS_FIELD, 0, true);
   }
+  /** Aliases are ordinary field values; a new one always opens for editing. */
+  function addAlias() {
+    void (async () => {
+      try {
+        const field = await ensureField(props.notebook, 'Aliases');
+        setCreatedFields(previous => previous.some(existing => existing.id === field.id) ? previous : [...previous, field]);
+        if (disposed) return;
+        if (zoom()) zoomTo(null);
+        if (depth() !== 'full') setStop('full');
+        const entry = doc.outline.children(props.pageId).find(id => !doc.isArchived(id) && fieldEntryId(doc.block(id)?.text ?? '') === field.id);
+        if (entry) setFolds(previous => { const next = new Set(previous); next.delete(entry); return next; });
+        const result = entry
+          ? doc.edit({ kind: 'insert', parentId: entry, after: doc.outline.children(entry).at(-1) ?? null, text: '' }, caret())
+          : doc.edit({ kind: 'addFieldEntries', parentId: props.pageId, after: glossId(), entries: [{ fieldId: field.id, value: '' }] }, caret());
+        if (!result.ok) { setMessage(result.reason); return; }
+        if (result.caret) editAt(result.caret.id, result.caret.offset, true);
+      } catch (error) { if (!disposed) setMessage(error instanceof Error ? error.message : String(error)); }
+    })();
+  }
   function clearSelection() {
     focusEpoch++;
     focusRequest = null;
@@ -662,6 +691,7 @@ function Pane(props: OutlinePaneProps) {
     setMenu,
     rename,
     addGloss,
+    addAlias,
     localPositions,
     depthTitles,
     depthReason,
@@ -753,7 +783,12 @@ function Pane(props: OutlinePaneProps) {
     editor = new PaneEditor({
       key: editorKey,
       input: referenceInput,
-      label: id => props.notebook.lookup(id)()?.text,
+      label: id => /^[0-9A-HJKMNP-TV-Z]{26}$/i.test(id) ? props.notebook.lookup(id)()?.text : undefined,
+      nameMatches: name => editingNames.error ? undefined : editingNames()?.get(foldName(name)),
+      referenceMenu: (token, anchor) => {
+        const matches = editingNames.error ? undefined : editingNames()?.get(foldName(token.id!));
+        if (editor?.id && matches && matches.length > 1) setMenu({ anchor, label: 'Choose a page', header: <div class="menu-section">“{token.id}” names {matches.length} pages</div>, items: nameMenuItems(props.notebook, editor.id, token, matches, setMessage) });
+      },
       blur: () => { if (editor?.id && editing() === editor.id) commitFieldEntry(editor.id, false); },
       text: (text, at) => measure('typing', () => {
         if (compositionSelection) return;
@@ -839,7 +874,8 @@ function Pane(props: OutlinePaneProps) {
     const id = editing();
     const text = id ? doc.block(id)?.text : undefined;
     if (text === undefined) return;
-    for (const token of textTokens(text)) if (token.kind === 'reference') props.notebook.lookup(token.id!)();
+    if (!editingNames.error) editingNames();
+    for (const token of textTokens(text)) if (isStableReference(token)) props.notebook.lookup(token.id!)();
     queueMicrotask(() => { if (!disposed && editor?.id === id) editor.refreshLabels(); });
   });
   createEffect(() => {
@@ -876,8 +912,8 @@ function Pane(props: OutlinePaneProps) {
       </Show>
       <Show when={doc.root()?.kind === 'page' && !doc.root()?.source}><div class="outline-header-actions"><Button icon="table" label="Table" shortcut="⌘⇧T" onClick={event => openTable(event.metaKey)}>Table<Show when={!type.error && (type()?.members ?? 0) > 0}><span class="table-member-count">{type()?.members}</span></Show></Button></div></Show>
       </div>
-      <Show when={isNote()}><NoteLine pageId={props.pageId} notebook={props.notebook} /></Show>
-      <Show when={!zoom() && doc.root()?.kind === 'page' && !doc.root()?.source && doc.root()?.text.toLowerCase() !== 'fields' && !type.error && type()}>{value => <Show when={value().members || value().fields.length}>
+      <Show when={isNote()}><NoteAliases doc={doc} notebook={props.notebook} /><NoteLine pageId={props.pageId} notebook={props.notebook} /></Show>
+      <Show when={!zoom() && doc.root()?.kind === 'page' && !doc.root()?.source && doc.root()?.text.toLowerCase() !== 'fields' && !type.error && type()}>{value => <Show when={value().members || value().fields.length || startingTemplateFor(value().page.text, value().fields)}>
         <TemplateEditor type={value()} fields={definitions()} notebook={props.notebook} onError={setMessage} />
       </Show>}</Show>
       <Show when={doc.root()?.source}><SourceHeader doc={doc} notebook={props.notebook} resetItems={sourceResets} onOpen={props.onOpen} onError={setMessage} onDelete={props.onDelete} /></Show>
@@ -927,7 +963,7 @@ function Pane(props: OutlinePaneProps) {
       <Show when={related.error || related()?.backlinks.length}><Related title="Backlinks" rows={related.error ? [] : related()?.backlinks ?? []} /></Show>
       <Show when={related.error || related()?.tagged.length}><Related title="Tagged blocks" rows={related.error ? [] : related()?.tagged ?? []} /></Show>
     </div></Show>
-    <Show keyed when={menu()}>{state => <Menu anchor={state.anchor} label={state.label} items={state.items} onDismiss={() => setMenu(null)} />}</Show>
+    <Show keyed when={menu()}>{state => <Menu anchor={state.anchor} label={state.label} header={state.header} items={state.items} onDismiss={() => setMenu(null)} />}</Show>
     <Show keyed when={mergeTarget()}>{target => <PageMergeConfirmation anchor={target.anchor} notebook={props.notebook} from={target.from} into={target.page} onDismiss={() => setMergeTarget(undefined)} onMerged={id => { setMergeTarget(undefined); props.onOpen({ kind: 'page', pageId: id }, false); }} />}</Show>
     <CapabilityPopups />
     <CompletionPopups />

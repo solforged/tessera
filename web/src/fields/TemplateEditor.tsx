@@ -7,7 +7,7 @@ import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { FieldPicker } from './FieldPicker';
 import { kindLabels } from './kinds';
-import { entryAnchor } from './templates';
+import { entryAnchor, startingTemplateFor } from './templates';
 import './fields.css';
 
 interface Gap { owner: string; page: string; fields: string[] }
@@ -37,6 +37,7 @@ export function TemplateEditor(props: { type: Type; fields: readonly FieldDefini
   const [filled, setFilled] = createSignal<Filled | null>(null);
   const byId = createMemo(() => new Map(props.fields.map(field => [field.id, field])));
   const template = () => props.type.fields.filter(id => byId().has(id));
+  const starting = createMemo(() => startingTemplateFor(props.type.page.text, props.type.fields));
   // The count is a guide, recounted when the template or membership changes; Fill recounts before it writes.
   const [gaps, { refetch }] = createResource(() => open() && `${props.type.page.id}:${props.type.fields.join(',')}:${props.type.members}`, () => templateGaps(props.notebook, props.type));
   const missing = createMemo(() => (gaps() ?? []).reduce((sum, gap) => sum + gap.fields.length, 0));
@@ -101,6 +102,10 @@ export function TemplateEditor(props: { type: Type; fields: readonly FieldDefini
       <span class="template-summary">{template().length ? template().map(id => byId().get(id)!.name).join(' · ') : 'No fields'}</span><Icon name="down" />
     </Button>
     <Show when={open()}><div class="template-body" aria-busy={busy() || gaps.loading}>
+      <Show when={starting()}>{suggestion => <div class="template-actions">
+        <Button disabled={busy()} onClick={() => void run(() => props.notebook.api.startingTemplate(props.type.page.id))}>Start from the {suggestion().title} template</Button>
+        <span class="template-note">{suggestion().fields.join(' · ')}</span>
+      </div>}</Show>
       <Show when={template().length} fallback={<p class="template-note">Fields added here become this type’s table columns and wait as empty slots on its blocks.</p>}>
         <ol class="template-fields">
           <For each={template()}>{(id, index) => <li class="template-field">

@@ -181,6 +181,82 @@ describe('real notebook operations and recovery', () => {
     doc.release();
   });
 
+  test('new tag and manual type pages receive starting templates after creation is acknowledged', async () => {
+    for (const scenario of [
+      { title: 'Pérsón', manual: false, fields: ['Aliases', 'Lived', 'Affiliated with'] },
+      { title: 'Gróup', manual: true, fields: ['Aliases', 'Active'] },
+    ]) {
+      const instance = await client();
+      const { id, doc, first } = await page(instance, 'Reading');
+      const startingTemplate = instance.api.startingTemplate;
+      const acknowledged: string[] = [];
+      instance.api.startingTemplate = async typeId => {
+        // Reading the page here proves the hook did not run on a merely optimistic id.
+        acknowledged.push((await api.block(typeId)).text);
+        return startingTemplate(typeId);
+      };
+      try {
+        success(scenario.manual
+          ? doc.addType(first, scenario.title)
+          : doc.edit({ kind: 'text', id: first, text: `#${scenario.title}` }));
+        await instance.flush();
+        const target = await api.pageByTitle(scenario.title);
+        const type = await api.type(target.id);
+        const fields = new Map((await api.fields()).fields.map(field => [field.id, field.name]));
+        expect(type.fields.map(field => fields.get(field))).toEqual(scenario.fields);
+        expect(acknowledged).toEqual([scenario.title]);
+        const row = (await api.page(id)).rows.find(row => row.block.id === first)!;
+        if (scenario.manual) expect(row.manual_types).toEqual([scenario.title]);
+        else expect(row.block.text).toBe(`#${scenario.title}`);
+      } finally {
+        instance.api.startingTemplate = startingTemplate;
+        doc.release();
+      }
+    }
+  });
+
+  test('ordinary page creation and adding an existing empty type do not apply a starting template', async () => {
+    const instance = await client();
+    const title = 'Cóncept';
+    const target = await instance.createPage(title);
+    await instance.flush();
+    expect((await api.type(target)).fields).toEqual([]);
+    const { doc, first } = await page(instance, 'Reading');
+    success(doc.addType(first, title));
+    await instance.flush();
+    expect((await api.type(target)).fields).toEqual([]);
+    success(doc.edit({ kind: 'text', id: first, text: `#${title}` }));
+    await instance.flush();
+    expect((await api.type(target)).fields).toEqual([]);
+    doc.release();
+  });
+
+  test('a starting-template failure does not reject or replay the acknowledged type creation', async () => {
+    const instance = await client();
+    const { id, doc, first } = await page(instance, 'Reading');
+    const title = 'Cöncept';
+    const startingTemplate = instance.api.startingTemplate;
+    let calls = 0;
+    instance.api.startingTemplate = async () => {
+      calls++;
+      throw new Error('Starting template unavailable');
+    };
+    try {
+      success(doc.addType(first, title));
+      await instance.flush();
+      expect(calls).toBe(1);
+      expect((await api.page(id)).rows.find(row => row.block.id === first)?.manual_types).toEqual([title]);
+      expect((await api.type((await api.pageByTitle(title)).id)).fields).toEqual([]);
+      expect(instance.message()).toContain('Starting template unavailable');
+      await instance.flush();
+      expect(calls).toBe(1);
+      expect(instance.commands(id)).toHaveLength(0);
+    } finally {
+      instance.api.startingTemplate = startingTemplate;
+      doc.release();
+    }
+  });
+
   test('manual types persist through outbox recovery, undo, redo, and remote rename', async () => {
     const session = `manual-types-${++serial}`;
     const instance = await client(session);

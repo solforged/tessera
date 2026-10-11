@@ -49,7 +49,7 @@ export function createCapabilityPopups(context: Pick<OutlineContext, 'doc' | 'pr
       <Show when={history.error}><p class="error" role="alert">{String(history.error)} <Button onClick={() => { void refetch(); }}>Retry</Button></p></Show>
       <Show when={another() && shown()?.source}>{source => <div class="outline-running-task">
         <span>Work is running on</span>
-        <BlockText text={source().text} notebook={props.notebook} onOpen={props.onOpen} />
+        <BlockText text={source().text} blockId={source().id} notebook={props.notebook} onOpen={props.onOpen} />
         <Button onClick={event => props.onOpen({ kind: 'page', pageId: source().page_id, blockId: source().id }, event.shiftKey)}>Open running task</Button>
       </div>}</Show>
       <Show when={shown()}>{value => <WorkSessions sessions={value().sessions} active={value().active?.block_id === state.id ? value().active : null}

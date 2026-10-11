@@ -158,16 +158,16 @@ fn citation_key(notebook: &Notebook, metadata: &ExtractedMetadata, title: &str) 
     Ok(key)
 }
 
-struct Planner<'a> {
+pub(crate) struct Planner<'a> {
     notebook: &'a Notebook,
-    operations: Vec<Operation>,
+    pub(crate) operations: Vec<Operation>,
     pages: HashMap<String, (String, i64)>,
     fields: HashMap<String, crate::FieldDefinition>,
     definition_after: Option<String>,
     fields_page: String,
 }
 impl<'a> Planner<'a> {
-    fn new(notebook: &'a Notebook) -> Result<Self> {
+    pub(crate) fn new(notebook: &'a Notebook) -> Result<Self> {
         let fields_page = crate::fields::page_id(&notebook.conn)?
             .ok_or_else(|| validation("The Fields page is missing."))?;
         let fields = crate::fields::definitions(&notebook.conn)?
@@ -213,7 +213,7 @@ impl<'a> Planner<'a> {
         self.pages.insert(key, page.clone());
         Ok(page)
     }
-    fn field(&mut self, label: &str, kind: FieldKind) -> String {
+    pub(crate) fn field(&mut self, label: &str, kind: FieldKind) -> String {
         let key = label.to_lowercase();
         if let Some(field) = self.fields.get(&key) {
             return field.id.clone();
@@ -283,10 +283,33 @@ impl<'a> Planner<'a> {
                 continue;
             }
             for value in values {
-                let page = if create {
-                    Some(self.page(value)?.0)
-                } else {
-                    self.notebook.page_by_title(value)?.map(|p| p.id)
+                let matches = self.notebook.resolve_name(value)?;
+                let page = match matches.as_slice() {
+                    [matched] => {
+                        let page = self
+                            .pages
+                            .entry(value.to_lowercase())
+                            .or_insert_with(|| (matched.page.id.clone(), matched.page.revision));
+                        Some(page.0.clone())
+                    }
+                    [] => {
+                        let key = crate::aliases::fold(value);
+                        let cached = self
+                            .pages
+                            .iter()
+                            .find(|(title, _)| crate::aliases::fold(title) == key);
+                        if let Some((_, page)) = cached {
+                            Some(page.0.clone())
+                        } else if create {
+                            Some(self.page(value)?.0)
+                        } else {
+                            None
+                        }
+                    }
+                    _ => {
+                        *value = format!("[[{value}]]");
+                        continue;
+                    }
                 };
                 if let Some(id) = page {
                     *value = format!("[[{id}]]");

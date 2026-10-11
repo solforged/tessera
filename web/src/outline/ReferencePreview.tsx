@@ -285,6 +285,7 @@ function ReferenceCard(props: {
   // A gloss entry references a Gloss field definition, an ordinary block on the Fields page.
   const gloss = createMemo(() => { const value = doc(); return value?.status() === 'ready' && isPage() ? glossEntry(value, id => { const field = props.notebook.lookup(id)(); return field?.kind === 'block' && isGlossName(field.text); }) : null; });
   const summary = createMemo(() => { const value = doc(); return value && gloss() ? glossText(value, gloss()) : ''; });
+  const summaryId = createMemo(() => { const entry = gloss(); return entry ? doc()?.outline.children(entry)[0] : undefined; });
   // A passing gloss needs no other documents. Field definitions are needed only for prose fallback or pinned readings.
   const [fieldList] = createResource(() => isPage() && doc()?.status() === 'ready' && (props.pinned || !summary()), () => props.notebook.api.fields());
   const fieldNames = createMemo(() => new Map((fieldList.error ? [] : fieldList()?.fields ?? []).map(field => [field.id, field.name])));
@@ -331,7 +332,7 @@ function ReferenceCard(props: {
         <div class="reference-preview-title">
           <Show when={isPage()} fallback={<span class="reference-preview-kind">Block</span>}><h2>{block().text || 'Untitled'}</h2></Show>
         </div>
-        <Show when={summary()}>{text => <p class="reference-preview-gloss"><BlockText text={text()} notebook={props.notebook} onOpen={props.onNested} /></p>}</Show>
+        <Show when={summary()}><p class="reference-preview-gloss"><BlockText text={doc()?.block(summaryId() ?? '')?.text ?? ''} blockId={summaryId()} notebook={props.notebook} onOpen={props.onNested} /></p></Show>
         <Show when={(state()?.manual_types.length ?? 0) > 0 || state()?.source || state()?.task || state()?.project}>
           <div class="reference-preview-pills">
             <For each={state()?.manual_types}>{title => <span class="outline-tag">#{title}</span>}</For>
@@ -352,7 +353,7 @@ function ReferenceCard(props: {
                 <div ref={element => { body = element; observer.observe(element); }} class={`reference-preview-body${isPage() ? ' prose' : ''}${props.pinned ? ' scrollable' : clipped() ? ' clipped' : ''}`}>
                   <For each={rows()}>{row => <div ref={element => observer.observe(element)} class={`reference-preview-row ${row.role}`} style={{ '--depth': row.depth }}>
                     <Show when={!isPage()}><span class="reference-preview-bullet" aria-hidden="true" /></Show>
-                    <div class="reference-preview-text"><BlockText text={doc()?.block(row.id)?.text ?? ''} notebook={props.notebook} onOpen={props.onNested} /></div>
+                    <div class="reference-preview-text"><BlockText text={doc()?.block(row.id)?.text ?? ''} blockId={row.id} notebook={props.notebook} onOpen={props.onNested} /></div>
                   </div>}</For>
                 </div>
               </Show>
@@ -398,6 +399,7 @@ function PinnedReadings(props: {
     return {
       row, doc,
       gist: fields.find(field => isGistName(field.name))?.value,
+      gistId: fields.find(field => isGistName(field.name))?.valueId,
       source: ready ? positionSource(doc, row.block.block.id, props.fieldName) : null,
       shape: fields.find(field => field.name.trim().toLowerCase() === 'shape')?.value,
       prose: ready ? proseRows(doc, row.block.block.id, null, props.fieldName, BLOCK_ROWS) : [],
@@ -422,7 +424,8 @@ function PinnedReadings(props: {
         const holder = props.notebook.lookup(holderId)();
         return holder === undefined ? 'Loading holder…' : holder?.text || 'Unavailable holder';
       });
-      const summary = createMemo(() => reading.gist || (reading.prose[0] ? reading.doc.block(reading.prose[0].id)?.text : '') || reading.doc.block(id)?.text || reading.row.block.block.text);
+      const summaryId = createMemo(() => reading.gist ? reading.gistId : reading.prose[0]?.id ?? id);
+      const summary = createMemo(() => reading.doc.block(summaryId() ?? id)?.text || reading.row.block.block.text);
       const open = (beside: boolean) => props.onOpen({ kind: 'page', pageId: reading.row.block.page.id, blockId: id }, beside);
       return <article class="reference-preview-reading" classList={{ selected: selected() === id }} data-reading={id}>
         <div class="reference-preview-reading-heading">
@@ -438,7 +441,7 @@ function PinnedReadings(props: {
         <Show when={reading.doc.status() === 'ready'} fallback={
           <p class="reference-preview-reading-message" role={reading.doc.status() === 'loading' ? 'status' : 'alert'}>{reading.doc.status() === 'loading' ? 'Loading reading…' : reading.doc.statusMessage()}</p>
         }>
-          <Show when={summary()}>{text => <p class="reference-preview-gist"><BlockText text={text()} notebook={props.notebook} onOpen={props.onOpen} /></p>}</Show>
+          <Show when={summary()}>{text => <p class="reference-preview-gist"><BlockText text={text()} blockId={summaryId() ?? undefined} notebook={props.notebook} onOpen={props.onOpen} /></p>}</Show>
         </Show>
         <Show when={selected() === id}>
           <div class="reference-preview-reading-detail">
@@ -452,7 +455,7 @@ function PinnedReadings(props: {
                   <Show when={props.notebook.lookup(source())() !== undefined} fallback="Loading source…">{props.notebook.lookup(source())()?.text || 'Unavailable source'}</Show>
                 </Button>
               }</Show>
-              <For each={reading.prose}>{row => <p class="reference-preview-reading-prose"><BlockText text={reading.doc.block(row.id)?.text ?? ''} notebook={props.notebook} onOpen={props.onOpen} /></p>}</For>
+              <For each={reading.prose}>{row => <p class="reference-preview-reading-prose"><BlockText text={reading.doc.block(row.id)?.text ?? ''} blockId={row.id} notebook={props.notebook} onOpen={props.onOpen} /></p>}</For>
               <Show when={!reading.prose.length}><p class="reference-preview-reading-message">No further text in this reading.</p></Show>
             </Show>
             <Button class="reference-preview-open-reading" onClick={event => open(event.shiftKey)}>Open reading →</Button>

@@ -358,8 +358,8 @@ function TableFieldValue(props: { field: FieldDefinition | undefined; values: Fi
   const sources = createMemo(() => parsed().flatMap(value => value.sources));
   const problems = createMemo(() => props.values.flatMap(value => value.reading.ok ? [] : [value.reading.problem]).join('; '));
   return <Show when={sources().length} fallback={<TableCellText>{expanded => <For each={props.values}>{(value, index) => <>
-    {index() > 0 ? ', ' : ''}<Show when={value.reading.ok} fallback={<span class="table-reading-problem" title={!value.reading.ok ? value.reading.problem : undefined}><BlockText text={preview(value.text, expanded)} notebook={props.notebook} interactive={false} /></span>}>
-      <span class={props.field?.kind === 'choice' || props.field?.kind === 'instance' ? 'table-value-pill' : ''}><BlockText text={value.reading.ok ? props.field?.kind === 'text' ? preview(value.text, expanded) : props.field?.kind === 'checkbox' ? value.reading.value ? '☑' : '☐' : String(value.reading.value) : ''} notebook={props.notebook} interactive={false} /></span>
+    {index() > 0 ? ', ' : ''}<Show when={value.reading.ok} fallback={<span class="table-reading-problem" title={!value.reading.ok ? value.reading.problem : undefined}><BlockText text={props.field?.kind === 'instance' ? value.text : preview(value.text, expanded)} blockId={value.id} notebook={props.notebook} interactive={false} /></span>}>
+      <span class={props.field?.kind === 'choice' || props.field?.kind === 'instance' ? 'table-value-pill' : ''}><BlockText text={props.field?.kind === 'instance' ? value.text : value.reading.ok ? props.field?.kind === 'text' ? preview(value.text, expanded) : props.field?.kind === 'checkbox' ? value.reading.value ? '☑' : '☐' : String(value.reading.value) : ''} blockId={value.id} notebook={props.notebook} interactive={false} /></span>
     </Show>
   </>}</For>}</TableCellText>}>
     <div class="table-source-cell">

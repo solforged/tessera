@@ -154,7 +154,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
           </Match>
           <Match when={emptyEntry()}><button type="button" class="field-empty-value" onMouseDown={event => event.stopPropagation()} onClick={() => sheet.fill(id())}>Empty</button></Match>
           <Match when>
-            <div class="static-text"><span classList={{ 'outline-value-pill': pill() && !!block()?.text }}><BlockText text={displayText()} cards field={field()} notebook={props.notebook} onOpen={props.onOpen} onReferenceMenu={referenceMenu} selection={selectedOffsets(id())} /></span><Show when={!block()?.text && (ids().length === 1 || inline())}><span class="empty-block">{inline() && parent() === glossId() ? 'One or two sentences on what this is' : inline() ? 'Empty' : 'Start writing'}</span></Show></div>
+            <div class="static-text"><span classList={{ 'outline-value-pill': pill() && !!block()?.text }}><BlockText text={displayText()} blockId={id()} onError={setMessage} cards field={field()} notebook={props.notebook} onOpen={props.onOpen} onReferenceMenu={referenceMenu} selection={selectedOffsets(id())} /></span><Show when={!block()?.text && (ids().length === 1 || inline())}><span class="empty-block">{inline() && parent() === glossId() ? 'One or two sentences on what this is' : inline() ? 'Empty' : 'Start writing'}</span></Show></div>
           </Match>
         </Switch></Show>
         <For each={block()?.manual_types ?? []}>{title => <TypePill title={title} notebook={props.notebook} onOpen={props.onOpen} onRemove={() => { const result = doc.removeType(id(), title); if (!result.ok) setMessage(result.reason); }} />}</For>

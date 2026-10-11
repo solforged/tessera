@@ -49,6 +49,7 @@ fn keys(nb: &Notebook) -> Vec<(String, String, usize)> {
 fn titles(nb: &Notebook, key: &str) -> Vec<String> {
     nb.kind_notes(key)
         .unwrap()
+        .notes
         .into_iter()
         .map(|note| note.title)
         .collect()

@@ -132,7 +132,7 @@ Progress: perspective lenses and comparison arrived with stage 7's positions. Ti
 
 Exit: file a week of reading notes by kind, settle two, give three revisit dates, and work them from the notes queue on the day, rewriting and linking in place. Find every concept citing one book, group them by the notes they link, save the view, spread three of them and write what they share on the spread page.
 
-Progress: the model is settled in the [domain model](domain-model.md#notes), and a clickable mock of the index, note views, spreads and the note header is in `~/Documents/tessera-design/notes-index-mock/`. The sidebar Index, each kind's finding aid and the note header's kinds, ID and created date are built, reading kinds from types with the built-in titles and from capabilities. System types, the Form field, the note capability with its settled state and revisits, the header's state and revisit menus, note views, spreads and the notes queue remain.
+Progress: the model is settled in the [domain model](domain-model.md#notes), and clickable mocks of the index, note views, spreads, the note header and aliases are in `~/Documents/tessera-design/notes-index-mock/`. The sidebar Index, each kind's finding aid, the note header's kinds, aliases, ID and created date, and aliases across completion, Find, hand-typed references, imports, merges and finding aids are built, with starting templates for Person, Group and Concept. Kinds are read from types with the built-in titles and from capabilities. System types, the Form field, the note capability with its settled state and revisits, the header's state and revisit menus, note views, spreads and the notes queue remain.
 
 ## 11. Sync
 

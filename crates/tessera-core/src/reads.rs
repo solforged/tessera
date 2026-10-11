@@ -6,7 +6,8 @@ use crate::storage::{
     block_at, block_columns, not_found, stored, validate_date, validate_id, validation,
 };
 use crate::{
-    Backlink, Block, BlockInPage, ChangeEvent, Committed, Notebook, PageView, Result, Row,
+    Backlink, Block, BlockInPage, ChangeEvent, Committed, Completion, Notebook, PageView, Result,
+    Row,
 };
 
 fn sql_limit(limit: usize) -> i64 {
@@ -57,6 +58,16 @@ macro_rules! hidden_blocks {
     };
 }
 pub(crate) use hidden_blocks;
+
+// Aliases are discovered through their page, not as separate value-block hits.
+macro_rules! alias_values {
+    () => {
+        "SELECT v.value_id FROM field_values v
+         JOIN blocks d ON d.id = v.field_id JOIN blocks p ON p.id = d.parent_id
+         WHERE lower(d.text) = 'aliases' AND d.deletion_id IS NULL AND d.archived = 0
+           AND p.kind = 'page' AND p.title_key = 'fields' AND p.deletion_id IS NULL"
+    };
+}
 
 impl Notebook {
     /// Read one live block, including an archived block.
@@ -236,8 +247,8 @@ impl Notebook {
             .collect::<rusqlite::Result<_>>()?)
     }
 
-    /// Indexed Unicode-lowercase page-title prefix, then FTS word prefixes.
-    pub fn complete(&self, query: &str, limit: usize) -> Result<Vec<Block>> {
+    /// Indexed page-title prefixes, then folded aliases, then FTS word prefixes.
+    pub fn complete(&self, query: &str, limit: usize) -> Result<Vec<Completion>> {
         if limit == 0 {
             return Ok(Vec::new());
         }
@@ -261,7 +272,12 @@ impl Notebook {
             )
         };
         let mut statement = self.conn.prepare_cached(sql)?;
-        let collect = |row: &rusqlite::Row<'_>| block_at(row, 0);
+        let collect = |row: &rusqlite::Row<'_>| {
+            Ok(Completion {
+                block: block_at(row, 0)?,
+                alias: None,
+            })
+        };
         let mut result = if let Some(end) = end {
             statement
                 .query_map(params![prefix, sql_limit(limit), end], collect)?
@@ -274,11 +290,50 @@ impl Notebook {
         if result.len() == limit {
             return Ok(result);
         }
+        let folded = crate::aliases::fold(query);
+        let single_word = !folded.contains(' ');
+        let mut aliases = self.aliases_by_page()?;
+        if !aliases.is_empty() {
+            let mut pages = self.conn.prepare_cached(
+                "SELECT id FROM blocks WHERE parent_id IS NULL AND kind = 'page'
+                 AND deletion_id IS NULL AND archived = 0 ORDER BY title_key, id",
+            )?;
+            let mut cursor = pages.query([])?;
+            while let Some(row) = cursor.next()? {
+                let id: String = row.get(0)?;
+                if result.iter().any(|completion| completion.block.id == id) {
+                    continue;
+                }
+                let Some(names) = aliases.remove(&id) else {
+                    continue;
+                };
+                let alias = names.into_iter().find(|name| {
+                    let name = crate::aliases::fold(name);
+                    name.starts_with(&folded)
+                        || (single_word
+                            && name
+                                .split_whitespace()
+                                .any(|word| word.starts_with(&folded)))
+                });
+                if let Some(alias) = alias {
+                    result.push(Completion {
+                        block: self.block(&id)?,
+                        alias: Some(alias),
+                    });
+                    if result.len() == limit {
+                        return Ok(result);
+                    }
+                }
+            }
+        }
         let matched = fts_query(query);
         if matched.is_empty() {
             return Ok(result);
         }
-        let seen: HashSet<&str> = result.iter().map(|block| block.id.as_str()).collect();
+        let seen: HashSet<&str> = result
+            .iter()
+            .map(|completion| completion.block.id.as_str())
+            .collect();
         // Rank narrow rowid-to-ID records before fetching authored text.
         // FTS and search_blocks contain only live rows, maintained atomically.
         let additional = self
@@ -289,6 +344,9 @@ impl Notebook {
                  SELECT s.block_id AS id, bm25(blocks_fts) AS score FROM blocks_fts
                  JOIN search_blocks s ON s.rowid = blocks_fts.rowid
                  WHERE blocks_fts MATCH ?1 AND blocks_fts.rowid NOT IN (SELECT rowid FROM hidden)
+                   AND s.block_id NOT IN (",
+                alias_values!(),
+                ")
                  ORDER BY score, s.block_id LIMIT ?2
              ) SELECT ",
                 block_columns!("b"),
@@ -300,6 +358,7 @@ impl Notebook {
             .into_iter()
             .filter(|block| !seen.contains(block.id.as_str()))
             .take(limit - result.len())
+            .map(|block| Completion { block, alias: None })
             .collect();
         result.extend(additional);
         Ok(result)
@@ -316,6 +375,9 @@ impl Notebook {
                  SELECT s.block_id AS id, bm25(blocks_fts) AS score FROM blocks_fts
                  JOIN search_blocks s ON s.rowid = blocks_fts.rowid
                  WHERE blocks_fts MATCH ?1 AND blocks_fts.rowid NOT IN (SELECT rowid FROM hidden)
+                   AND s.block_id NOT IN (",
+            alias_values!(),
+            ")
                  ORDER BY score, s.block_id LIMIT ?2
              ) SELECT ",
             block_columns!("b"),

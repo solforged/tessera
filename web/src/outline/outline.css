@@ -273,3 +273,7 @@
 .outline-cards-state { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .outline-cards-confirm { display: flex; flex-direction: column; gap: var(--space-8); padding-block: var(--space-8); border-block: 1px solid var(--line); }
 .outline-row-linked > .outline-body { border-radius: var(--radius-control); background: var(--hover); box-shadow: 0 0 0 var(--space-4) var(--hover); }
+.outline-reference.outline-reference-ambiguous,
+:is(.outline-body, .outline-value-pill, .table-value-pill) .outline-reference.outline-reference-ambiguous { color: var(--warning); text-decoration-line: underline; text-decoration-style: dotted; text-decoration-color: var(--warning); }
+.outline-reference-ambiguous sup { font: var(--apparatus); margin-inline-start: var(--space-2); }
+.reference-via { color: var(--faint); font: var(--apparatus); white-space: nowrap; }

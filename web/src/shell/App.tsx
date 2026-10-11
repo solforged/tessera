@@ -683,6 +683,7 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
     { label: pageStyle() === 'prose' ? 'Show bullets' : 'Hide bullets', icon: 'bullet', disabledReason: root() ? undefined : 'Page is still loading', action: () => props.onPageStyle(pageId()!, pageStyle() === 'prose' ? 'bullets' : 'prose', defaultStyle()) },
     ...(titled() ? [
       { label: 'Gloss', icon: 'edit', disabledReason: root() ? undefined : 'Page is still loading', action: () => outlineCommand('gloss')?.run() },
+      { label: 'Add alias', icon: 'edit', disabledReason: root() ? undefined : 'Page is still loading', action: () => outlineCommand('alias')?.run() },
       { label: 'Compare perspectives', icon: 'compare', disabledReason: outlineCommand('compare')?.disabledReason?.()?.replace(/\.$/, ''), action: () => outlineCommand('compare')?.run() },
     ] satisfies MenuItem[] : []),
     { label: root()?.task ? 'Task' : 'Make task', icon: 'check', disabledReason: root() ? undefined : 'Page is still loading', action: () => rootCapability('task') },
