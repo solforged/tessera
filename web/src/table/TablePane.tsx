@@ -56,7 +56,16 @@ export function TablePane(props: TablePaneProps) {
   const [editing, setEditing] = createSignal<{ row: QueryRow; field: FieldDefinition; text: string } | null>(null);
   const [deleted, setDeleted] = createSignal<View | null>(null);
   const [savedRevision, setSavedRevision] = createSignal(0);
-  let region!: HTMLDivElement; let scroll!: HTMLDivElement;
+  let region!: HTMLDivElement; let scroll!: HTMLDivElement; let grid!: HTMLTableElement;
+  // Columns past the right edge get a fade over the table rows and a count in the header, so a wide register says it scrolls.
+  const [edge, setEdge] = createSignal({ height: 0, hidden: 0 });
+  const measureEdge = () => {
+    const view = scroll.getBoundingClientRect();
+    const hidden = scroll.scrollLeft + scroll.clientWidth < grid.offsetWidth - 1
+      ? [...grid.tHead?.rows[0]?.cells ?? []].filter(cell => cell.getBoundingClientRect().right > view.left + scroll.clientWidth + 1).length : 0;
+    setEdge({ hidden, height: hidden ? Math.max(0, Math.min(scroll.clientHeight, grid.getBoundingClientRect().bottom - view.top)) : 0 });
+  };
+  const showMoreColumns = () => scroll.scrollBy({ left: scroll.clientWidth - titleWidth(), behavior: 'smooth' });
   // Scroll position reaches pane history once per frame, not once per scroll event.
   let scrollReport = 0;
   onCleanup(() => cancelAnimationFrame(scrollReport));
@@ -323,7 +332,12 @@ export function TablePane(props: TablePaneProps) {
     const next = { row: Math.max(0, Math.min((members().notes.length || 1) - 1, current.row + (event.key === 'ArrowDown' ? 1 : event.key === 'ArrowUp' ? -1 : 0))), column: Math.max(0, Math.min(visibleColumns().length, current.column + (event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0))) };
     setFocused(next); region.querySelector<HTMLElement>(`[data-row="${next.row}"][data-column="${next.column}"]`)?.focus(); event.preventDefault();
   };
-  onMount(() => { if (props.active) region.focus({ preventScroll: true }); });
+  onMount(() => {
+    if (props.active) region.focus({ preventScroll: true });
+    const resize = new ResizeObserver(measureEdge);
+    resize.observe(scroll); resize.observe(grid);
+    onCleanup(() => resize.disconnect());
+  });
   return <div ref={region} class="table-pane" style={{ '--table-title-width': `${titleWidth()}px`, '--table-width': `calc(${titleWidth()}px + ${visibleColumns().map(columnWidth).join(' + ') || '0px'} + ${showRefs() ? 'var(--table-refs-width)' : '0px'})` }} tabIndex={0} role="region" aria-label="Table" onFocusIn={props.onActivate} onPointerDown={props.onActivate} onKeyDown={keydown}>
     <div class="table-register">
       <header class="table-header">
@@ -354,8 +368,9 @@ export function TablePane(props: TablePaneProps) {
         <For each={query().sort}>{(key, index) => <span class="table-chip">{sortLabel(key, fields())}<Button label={`Remove ${sortLabel(key, fields())}`} onClick={() => updateQuery(removeSort(query(), index()))}>×</Button></span>}</For>
         <For each={query().filters}>{(filter, index) => <span class="table-chip">{filterLabel(filter, fields())}<Button label={`Remove ${filterLabel(filter, fields())}`} onClick={() => updateQuery(removeFilter(query(), index()))}>×</Button></span>}</For>
       </div></Show>
-      <div ref={scroll} class="table-scroll" onScroll={() => { cancelAnimationFrame(scrollReport); scrollReport = requestAnimationFrame(() => reportView()); }}>
-        <table class="type-table table-grid" role="grid"><colgroup><col style={{ width: 'var(--table-title-width)' }} /><For each={visibleColumns()}>{id => <col style={{ width: columnWidth(id) }} />}</For><Show when={showRefs()}><col style={{ width: 'var(--table-refs-width)' }} /></Show></colgroup>
+      <div class="table-scroll-frame">
+      <div ref={scroll} class="table-scroll" onScroll={() => { cancelAnimationFrame(scrollReport); scrollReport = requestAnimationFrame(() => { reportView(); measureEdge(); }); }}>
+        <table ref={grid} class="type-table table-grid" role="grid"><colgroup><col style={{ width: 'var(--table-title-width)' }} /><For each={visibleColumns()}>{id => <col style={{ width: columnWidth(id) }} />}</For><Show when={showRefs()}><col style={{ width: 'var(--table-refs-width)' }} /></Show></colgroup>
           <thead><tr><th scope="col" class="table-title-column"><Button aria-haspopup="menu" onClick={event => columnMenu(event.currentTarget, undefined)}>Title</Button></th>
           <For each={visibleColumns()}>{id => <th scope="col"><Button aria-haspopup="menu" onClick={event => columnMenu(event.currentTarget, fieldById(id))}>{fieldById(id)?.name ?? id}</Button></th>}</For>
           <Show when={showRefs()}><th scope="col" class="table-refs" title={`Derived from ${sourceField()?.name ?? 'Source'}`}>Refs</th></Show>
@@ -394,6 +409,8 @@ export function TablePane(props: TablePaneProps) {
             <Button class="bordered" onClick={event => openRow(row, event.shiftKey)}>Open ↗</Button>
           </div>}</For>
         </section></Show>
+      </div>
+      <Show when={edge().hidden}><div class="table-more-right" style={{ height: `${edge().height}px` }}><Button class="table-more-columns" label={`Scroll to ${edge().hidden} more ${edge().hidden === 1 ? 'column' : 'columns'}`} onClick={showMoreColumns}>+{edge().hidden} <Icon name="right" /></Button></div></Show>
       </div>
       <footer class="table-footer" role="status"><Show when={deleted()} fallback={<>{loading() ? 'Loading…' : error() || `${result()?.rows.length ?? 0} of ${membersLabel(result()?.total ?? 0)}`}</>}>View deleted · <Button onClick={() => { void undoDelete().catch(message); }}>Undo</Button></Show></footer>
     </div>
