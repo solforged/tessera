@@ -26,6 +26,12 @@
 
 .capture-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--space-12); margin: var(--space-8) calc(-1 * var(--space-16)) 0; padding: var(--space-8) var(--space-16); border-top: var(--rule-width) solid var(--line); }
 .capture-keys { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-4) var(--space-8); color: var(--faint); font-size: var(--text-meta); line-height: var(--line-meta); }
+.capture-key-hints { display: contents; }
+.capture-cancel { display: none; }
+@media (hover: none) and (pointer: coarse) {
+  .capture-keys:not(:has(.capture-added)) { display: none; }
+  .capture-cancel { display: inline-flex; }
+}
 
 /* The desktop's capture panel is the sheet alone, filling its window. */
 :root.capture-window, :root.capture-window body { height: 100%; background: var(--raised); overflow: hidden; }
