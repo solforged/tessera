@@ -141,7 +141,8 @@
 .reader-highlight-quote { flex: 0 1 auto; font-family: var(--font-display); font-variation-settings: var(--optical-quote); }
 .reader-highlight-section { flex: 0 2 auto; min-width: 0; max-width: 35%; margin-left: auto; color: var(--faint); }
 .reader-search-match { background: var(--selection); color: var(--accent); }
-.reader-find-status { margin: 0; padding: var(--space-8) var(--space-12); color: var(--muted); font-size: var(--text-control); }
+/* The result count is apparatus, like every other count, in mono with tabular figures. */
+.reader-find-status { margin: 0; padding: var(--space-8) var(--space-12); color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .reader-search-snippet { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .reader-note { padding: var(--space-12); max-width: var(--measure); font-size: var(--text-control); line-height: var(--line-control); }
 .reader-note p { margin: 0; white-space: pre-wrap; }
