@@ -157,6 +157,126 @@ fn notes_file_under_built_in_kinds_capabilities_and_types_you_made() {
 }
 
 #[test]
+fn index_lists_tag_only_types_without_changing_note_counts() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut nb = Notebook::open(dir.path()).unwrap();
+    apply(
+        &mut nb,
+        vec![
+            page(1, "Source note"),
+            page(2, "Member note"),
+            page(3, "Archived source"),
+            Operation::Insert {
+                id: id(10),
+                parent_id: id(1),
+                after: None,
+                text: "first tagged block".into(),
+                heading: None,
+            },
+            Operation::Insert {
+                id: id(11),
+                parent_id: id(1),
+                after: None,
+                text: "second tagged block".into(),
+                heading: None,
+            },
+            Operation::Insert {
+                id: id(20),
+                parent_id: id(1),
+                after: None,
+                text: "archived ancestor".into(),
+                heading: None,
+            },
+            Operation::Insert {
+                id: id(21),
+                parent_id: id(20),
+                after: None,
+                text: "hidden descendant".into(),
+                heading: None,
+            },
+            Operation::Insert {
+                id: id(30),
+                parent_id: id(3),
+                after: None,
+                text: "hidden page member".into(),
+                heading: None,
+            },
+            Operation::Insert {
+                id: id(40),
+                parent_id: id(1),
+                after: None,
+                text: "deleted member".into(),
+                heading: None,
+            },
+        ],
+    );
+    tag(&mut nb, 2, "Book");
+    tag(&mut nb, 10, "Book");
+    for value in [10, 11, 21, 30, 40] {
+        tag(&mut nb, value, "Excerpt");
+    }
+    tag(&mut nb, 11, "Person");
+    tag(&mut nb, 21, "Hidden type");
+    let ancestor_revision = revision(&nb, 20);
+    let page_revision = revision(&nb, 3);
+    let deleted_revision = revision(&nb, 40);
+    apply(
+        &mut nb,
+        vec![
+            Operation::SetArchived {
+                id: id(20),
+                base_revision: ancestor_revision,
+                archived: true,
+            },
+            Operation::SetArchived {
+                id: id(3),
+                base_revision: page_revision,
+                archived: true,
+            },
+            Operation::Delete {
+                id: id(40),
+                base_revision: deleted_revision,
+            },
+        ],
+    );
+
+    let index = nb.note_index().unwrap();
+    assert_eq!(
+        index.notes, 2,
+        "tagged blocks never increase the note total"
+    );
+    assert_eq!(
+        index
+            .kinds
+            .iter()
+            .map(|kind| (
+                kind.kind.plural.as_str(),
+                kind.count,
+                kind.tagged_block_count
+            ))
+            .collect::<Vec<_>>(),
+        [
+            ("People", 0, 1),
+            ("Book", 1, 1),
+            ("Excerpt", 0, 2),
+            ("Unfiled", 1, 0),
+        ],
+    );
+    let excerpt = nb.page_by_title("Excerpt").unwrap().unwrap().id;
+    let excerpt_kind = index
+        .kinds
+        .iter()
+        .find(|kind| kind.kind.key == format!("type:{excerpt}"))
+        .unwrap();
+    assert_eq!(excerpt_kind.kind.type_id.as_deref(), Some(excerpt.as_str()));
+    assert!(titles(&nb, &excerpt_kind.kind.key).is_empty());
+    assert!(titles(&nb, "person").is_empty());
+    let book = nb.page_by_title("Book").unwrap().unwrap().id;
+    assert_eq!(titles(&nb, &format!("type:{book}")), ["Member note"]);
+    assert_eq!(titles(&nb, "unfiled"), ["Source note"]);
+}
+
+#[test]
 fn kind_index_summaries_derive_prose_fields_live_counts_and_distinct_backlinks() {
     let dir = tempfile::tempdir().unwrap();
     let mut nb = Notebook::open(dir.path()).unwrap();

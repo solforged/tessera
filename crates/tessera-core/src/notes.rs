@@ -1,12 +1,13 @@
 //! Notes are titled pages. The index files them by kind: the built-in kinds Person, Group, Concept and Thesis
 //! come from type pages with those titles, Question, Source and Project from capabilities on the page, and
-//! every other type with a titled page among its members is a kind of its own. Nothing here is stored.
+//! every other type with titled-page or tagged-block members is a kind of its own. Nothing here is stored.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
 use crate::aliases::fold;
+use crate::reads::hidden_blocks;
 use crate::storage::{not_found, validate_id, validation};
 use crate::{Notebook, Result};
 
@@ -40,10 +41,12 @@ pub struct NoteKind {
 pub struct IndexKind {
     #[serde(flatten)]
     pub kind: NoteKind,
+    /// Distinct titled notes, independent of tagged non-page blocks.
     pub count: usize,
+    pub tagged_block_count: usize,
 }
 
-/// The sidebar index: kinds with at least one note, in index order, and the number of distinct notes listed.
+/// The sidebar index: kinds with notes or tagged blocks, in index order, and the distinct note total.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NoteIndex {
     pub kinds: Vec<IndexKind>,
@@ -89,10 +92,12 @@ struct Filing {
     kinds: Vec<NoteKind>,
     /// Live titled pages by title, excluding the Fields page.
     notes: Vec<Note>,
+    /// Distinct visible non-page members, aligned with `kinds`.
+    tagged_block_counts: Vec<usize>,
 }
 
 impl Notebook {
-    /// Kinds with their note counts, for the sidebar.
+    /// Kinds with independent note and tagged-block counts, for the sidebar.
     pub fn note_index(&self) -> Result<NoteIndex> {
         let filing = self.filing()?;
         let mut counts = vec![0; filing.kinds.len()];
@@ -108,8 +113,13 @@ impl Notebook {
                 .kinds
                 .into_iter()
                 .zip(counts)
-                .filter(|(_, count)| *count > 0)
-                .map(|(kind, count)| IndexKind { kind, count })
+                .zip(filing.tagged_block_counts)
+                .filter(|((_, count), tagged_block_count)| *count > 0 || *tagged_block_count > 0)
+                .map(|((kind, count), tagged_block_count)| IndexKind {
+                    kind,
+                    count,
+                    tagged_block_count,
+                })
                 .collect(),
             notes: listed,
         })
@@ -125,7 +135,7 @@ impl Notebook {
         }
         let filing = self.filing()?;
         let Some(index) = filing.kinds.iter().position(|kind| kind.key == key) else {
-            // A known kind with no notes yet, or a type that no titled page belongs to.
+            // A known kind with no members yet, or an unknown custom type.
             return match type_id {
                 Some(id) => Err(not_found(id)),
                 None => Ok(KindIndex::default()),
@@ -259,6 +269,30 @@ impl Notebook {
             })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
 
+        // Count tagged blocks in one grouped read, using the same visibility as type tables.
+        let tagged_types = self
+            .conn
+            .prepare_cached(concat!(
+                hidden_blocks!(),
+                "SELECT t.id, t.text, t.title_key, COUNT(DISTINCT m.block_id)
+                 FROM memberships m JOIN blocks b ON b.id = m.block_id
+                 JOIN blocks p ON p.id = b.page_id JOIN blocks t ON t.id = m.type_id
+                 WHERE b.kind <> 'page' AND t.kind = 'page'
+                   AND b.deletion_id IS NULL AND p.deletion_id IS NULL AND t.deletion_id IS NULL
+                   AND b.rowid NOT IN (SELECT rowid FROM hidden)
+                   AND t.rowid NOT IN (SELECT rowid FROM hidden)
+                 GROUP BY t.id",
+            ))?
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, i64>(3)? as usize,
+                ))
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+
         let mut kinds: Vec<NoteKind> = TYPE_KINDS
             .iter()
             .map(|(key, name, plural)| (*key, *name, *plural))
@@ -277,8 +311,14 @@ impl Notebook {
         // Types you made, ordered by title after the built-in kinds.
         let made: BTreeMap<(&str, &str), &str> = memberships
             .iter()
-            .filter(|(_, _, _, title_key)| !TYPE_KINDS.iter().any(|(key, ..)| key == title_key))
-            .map(|(_, id, title, title_key)| ((title_key.as_str(), id.as_str()), title.as_str()))
+            .map(|(_, id, title, title_key)| (id, title, title_key))
+            .chain(
+                tagged_types
+                    .iter()
+                    .map(|(id, title, title_key, _)| (id, title, title_key)),
+            )
+            .filter(|(_, _, title_key)| !TYPE_KINDS.iter().any(|(key, ..)| key == title_key))
+            .map(|(id, title, title_key)| ((title_key.as_str(), id.as_str()), title.as_str()))
             .collect();
         let mut by_type: HashMap<&str, usize> = HashMap::new();
         for ((_, id), title) in made {
@@ -313,6 +353,19 @@ impl Notebook {
             };
             notes[note].kinds.push(kind);
         }
+        let mut tagged_block_counts = vec![0; kinds.len()];
+        for (type_id, _, title_key, count) in &tagged_types {
+            let kind = match TYPE_KINDS.iter().position(|(key, ..)| key == title_key) {
+                Some(builtin) => {
+                    kinds[builtin]
+                        .type_id
+                        .get_or_insert_with(|| type_id.clone());
+                    builtin
+                }
+                None => by_type[type_id.as_str()],
+            };
+            tagged_block_counts[kind] += count;
+        }
         for (offset, (_, _, _, table)) in CAPABILITY_KINDS.iter().enumerate() {
             let sql = format!("SELECT block_id FROM {table} WHERE active = 1");
             let ids = self
@@ -343,7 +396,11 @@ impl Notebook {
                 note.kinds.push(unfiled);
             }
         }
-        Ok(Filing { kinds, notes })
+        Ok(Filing {
+            kinds,
+            notes,
+            tagged_block_counts,
+        })
     }
 }
 
