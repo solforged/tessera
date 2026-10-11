@@ -14,7 +14,7 @@ import type { MenuItem } from '../ui/Menu';
 import { Popup } from '../ui/Popup';
 import { Picker } from '../ui/Picker';
 import { downloadBlob } from '../ui/download';
-import { formatProgress, groupSources, highlightChapterHeading, highlightChapters, highlightMeta, jobLabel, libraryQuery, nextUnprocessedHighlight, recentJobs, retryTime, selectSources, sourceByline, sourceStateOperation, visibleJobs } from './query';
+import { formatProgress, groupSources, highlightChapterHeading, highlightChapters, highlightEmptyMessage, highlightMeta, jobLabel, libraryQuery, nextUnprocessedHighlight, recentJobs, retryTime, selectSources, sourceByline, sourceStateOperation, visibleJobs } from './query';
 import { formatSourceValue } from '../outline/source';
 import { createHighlightActions, highlightColors, setLinkedCitation } from './highlights';
 import type { HighlightMenu } from './highlights';
@@ -108,6 +108,7 @@ export function LibraryPane(props: LibraryPaneProps) {
   const [sourceRows, setSourceRows] = createSignal<LibraryRow[]>();
   const [highlights, setHighlights] = createSignal<HighlightResult>();
   const [unprocessedCount, setUnprocessedCount] = createSignal<number>();
+  const [highlightCount, setHighlightCount] = createSignal<number>();
   const [countError, setCountError] = createSignal('');
   const highlightGroups = createMemo(() => {
     const groups = new Map<string, { sourceId: string; title: string; rows: HighlightRow[] }>();
@@ -454,8 +455,11 @@ export function LibraryPane(props: LibraryPaneProps) {
   createEffect(() => {
     props.notebook.changeSequence(); refresh();
     const controller = new AbortController();
-    void props.notebook.api.highlights({ unprocessed: true, limit: 0 }, controller.signal).then(result => {
-      if (!controller.signal.aborted) { setUnprocessedCount(result.total); setCountError(''); }
+    void Promise.all([
+      props.notebook.api.highlights({ unprocessed: true, limit: 0 }, controller.signal),
+      props.notebook.api.highlights({ limit: 0 }, controller.signal),
+    ]).then(([unprocessed, all]) => {
+      if (!controller.signal.aborted) { setUnprocessedCount(unprocessed.total); setHighlightCount(all.total); setCountError(''); }
     }).catch(reason => { if (!controller.signal.aborted) setCountError(reason instanceof Error ? reason.message : String(reason)); });
     onCleanup(() => controller.abort());
   });
@@ -903,7 +907,7 @@ export function LibraryPane(props: LibraryPaneProps) {
         <Show when={loading() && !hasResult() && slowLoad()}><p class="library-message" role="status">Loading…</p></Show>
         <Show when={hasResult() && !error()}>
           <Show when={tab() !== 'highlights'} fallback={
-            <Show when={highlights()?.rows.length} fallback={<div class="library-empty"><p>{unprocessedOnly() ? 'No unprocessed highlights.' : 'No matching highlights.'}</p><Show when={colors().length || tags().length}><Button onClick={() => update({ colors: [], tags: [], scroll: 0 })}>Clear filters</Button></Show></div>}>
+            <Show when={highlights()?.rows.length} fallback={<div class="library-empty"><p>{highlightEmptyMessage(highlightCount(), unprocessedOnly())}</p><Show when={colors().length || tags().length}><Button onClick={() => update({ colors: [], tags: [], scroll: 0 })}>Clear filters</Button></Show></div>}>
               <div class="library-highlights-workbench">
                 <section class="library-highlight-queue" aria-label="Highlight queue">
                   <header class="library-highlight-queue-head"><span>Reading order</span><span>{highlightQueue().length} highlights<Show when={(highlights()?.total ?? 0) > (highlights()?.rows.length ?? 0)}> · {highlights()?.rows.length} of {highlights()?.total} loaded</Show></span></header>

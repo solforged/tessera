@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { Citation, HighlightRow, IngestJob, LibraryFilters, LibraryRow } from '../api/types';
-import { groupSources, highlightChapterHeading, highlightChapters, highlightLocation, highlightMeta, jobLabel, libraryQuery, nextUnprocessedHighlight, recentJobs, retryTime, selectSources, sourceByline, sourceStateOperation, visibleJobs } from './query';
+import { groupSources, highlightChapterHeading, highlightChapters, highlightEmptyMessage, highlightLocation, highlightMeta, jobLabel, libraryQuery, nextUnprocessedHighlight, recentJobs, retryTime, selectSources, sourceByline, sourceStateOperation, visibleJobs } from './query';
 
 const filters: LibraryFilters = { people: [], decades: [], publishers: [], languages: [] };
 
@@ -114,6 +114,15 @@ test('source selection toggles and extends inclusive ranges in either direction'
   expect([...selectSources(ids, forward, 'b', 'd', true)]).toEqual([]);
   expect([...selectSources(ids, original, 'd', 'missing', true)]).toEqual(['b', 'd']);
   expect([...selectSources(ids, original, 'b', null, false)]).toEqual([]);
+});
+
+test('highlight empty copy distinguishes an empty notebook from an empty queue', () => {
+  expect(highlightEmptyMessage(0, true)).toBe('Select text in the reader to add highlights.');
+  expect(highlightEmptyMessage(0, false)).toBe('Select text in the reader to add highlights.');
+  expect(highlightEmptyMessage(8, true)).toBe('No unprocessed highlights.');
+  expect(highlightEmptyMessage(8, false)).toBe('No matching highlights.');
+  expect(highlightEmptyMessage(undefined, true)).toBe('No unprocessed highlights.');
+  expect(highlightEmptyMessage(undefined, false)).toBe('No matching highlights.');
 });
 
 test('highlight location uses the covering chapter, else a one-based passage number', () => {

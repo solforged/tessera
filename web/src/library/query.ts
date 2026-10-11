@@ -60,6 +60,11 @@ export function formatProgress(progress: number): string {
   return progress > 0 && progress < 0.01 ? '<1%' : `${Math.floor(progress * 100)}%`;
 }
 
+export function highlightEmptyMessage(total: number | undefined, unprocessedOnly: boolean): string {
+  if (total === 0) return 'Select text in the reader to add highlights.';
+  return unprocessedOnly ? 'No unprocessed highlights.' : 'No matching highlights.';
+}
+
 export function highlightLocation(citation: Pick<Citation, 'ordinal' | 'chapter_title'>, sections: readonly HighlightSection[]): string {
   if (citation.chapter_title) return citation.chapter_title;
   for (let index = sections.length - 1; index >= 0; index--) {
