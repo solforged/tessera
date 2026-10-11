@@ -11,6 +11,8 @@ pub mod library;
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 mod pairing;
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+mod replica;
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 mod security;
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 mod sharing;
@@ -18,8 +20,6 @@ mod sharing;
 mod sync;
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 pub mod sync_client;
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-mod replica;
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 pub use replica::start_sync_runner;
 
@@ -154,7 +154,11 @@ fn routers(
         sharing: Arc::new(tokio::sync::Mutex::new(())),
         replica: Arc::default(),
     };
-    replica::start(state.notebook.clone(), state.changes.clone(), &state.replica);
+    replica::start(
+        state.notebook.clone(),
+        state.changes.clone(),
+        &state.replica,
+    );
     let sync = sync::routes()
         .layer(middleware::from_fn_with_state(
             state.clone(),
@@ -804,9 +808,9 @@ async fn add_alias(
     let Json(AliasRequest { name }) = body.map_err(ApiError::from)?;
     let changes = state.changes.clone();
     run(&state, move |notebook| {
-        let committed = notebook.add_alias(&id, &name, Actor::Person)?;
-        if let Some(committed) = &committed {
-            publish(&changes, committed, notebook.editor_cursor()?);
+        let mut committed = notebook.add_alias(&id, &name, Actor::Person)?;
+        if let Some(committed) = &mut committed {
+            editor_receipt(notebook, &changes, committed)?;
         }
         Ok(committed)
     })
@@ -821,9 +825,9 @@ async fn starting_template(
     let Path(id) = path.map_err(ApiError::from)?;
     let changes = state.changes.clone();
     run(&state, move |notebook| {
-        let committed = notebook.apply_starting_template(&id, Actor::Person)?;
-        if let Some(committed) = &committed {
-            publish(&changes, committed, notebook.editor_cursor()?);
+        let mut committed = notebook.apply_starting_template(&id, Actor::Person)?;
+        if let Some(committed) = &mut committed {
+            editor_receipt(notebook, &changes, committed)?;
         }
         Ok(committed)
     })
@@ -930,11 +934,17 @@ async fn stream_changes(
     }
 }
 
-fn publish(changes: &broadcast::Sender<i64>, committed: &Committed, cursor: i64) {
+fn editor_receipt(
+    notebook: &Notebook,
+    changes: &broadcast::Sender<i64>,
+    committed: &mut Committed,
+) -> tessera_core::Result<()> {
+    committed.seq = notebook.editor_change_cursor(committed.seq)?;
     if !committed.replayed {
-        // Publish while the writer lock is still held, in commit order.
-        let _ = changes.send(cursor);
+        // Publish while the writer lock is still held, in arrival order.
+        let _ = changes.send(committed.seq);
     }
+    Ok(())
 }
 
 async fn apply(
@@ -944,8 +954,8 @@ async fn apply(
     let Json(batch) = body.map_err(ApiError::from)?;
     let changes = state.changes.clone();
     run(&state, move |notebook| {
-        let committed = notebook.apply(&batch)?;
-        publish(&changes, &committed, notebook.editor_cursor()?);
+        let mut committed = notebook.apply(&batch)?;
+        editor_receipt(notebook, &changes, &mut committed)?;
         Ok(committed)
     })
     .await
@@ -961,8 +971,8 @@ async fn agent_edit(
     let Json(request) = body.map_err(ApiError::from)?;
     let changes = state.changes.clone();
     run(&state, move |notebook| {
-        let receipt = notebook.agent_edit(&request)?;
-        let _ = changes.send(notebook.editor_cursor()?);
+        let mut receipt = notebook.agent_edit(&request)?;
+        editor_receipt(notebook, &changes, &mut receipt.committed)?;
         Ok(receipt)
     })
     .await
@@ -993,8 +1003,8 @@ async fn undo_agent_change(
     let Json(UndoRequest { actor }) = body.map_err(ApiError::from)?;
     let changes = state.changes.clone();
     run(&state, move |notebook| {
-        let receipt = notebook.undo_agent_change(seq, &actor)?;
-        let _ = changes.send(notebook.editor_cursor()?);
+        let mut receipt = notebook.undo_agent_change(seq, &actor)?;
+        editor_receipt(notebook, &changes, &mut receipt.committed)?;
         Ok(receipt)
     })
     .await

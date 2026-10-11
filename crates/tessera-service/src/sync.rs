@@ -12,7 +12,6 @@ use axum::{
     routing::{get, post},
 };
 use serde::{Deserialize, Serialize};
-use tessera_core::SCHEMA_VERSION;
 use tessera_core::sync::{PULL_LIMIT, PushedChange, SnapshotContent, UnloggedRows, check_schema};
 use tessera_core::sync_devices::PairedDevice;
 
@@ -323,17 +322,35 @@ pub(crate) async fn object_or_fetch(state: &AppState, sha: String) -> Result<Vec
     tokio::task::spawn_blocking(move || {
         let (url, credentials) = {
             let n = notebook.lock();
-            if let Some(bytes) = n.sync_object(&sha)? { return Ok(bytes); }
-            (n.sync_status()?.ok_or_else(ApiError::not_found)?.hub_url, n.sync_hub_credentials()?)
+            if let Some(bytes) = n.sync_object(&sha)? {
+                return Ok(bytes);
+            }
+            (
+                n.sync_status()?.ok_or_else(ApiError::not_found)?.hub_url,
+                n.sync_hub_credentials()?,
+            )
         };
-        let unreachable = |error: anyhow::Error| ApiError::new(
-            StatusCode::BAD_GATEWAY, "hub_unreachable", format!("This file is on the hub, which did not answer: {error}"),
-        );
+        let unreachable = |error: anyhow::Error| {
+            ApiError::new(
+                StatusCode::BAD_GATEWAY,
+                "hub_unreachable",
+                format!("This file is on the hub, which did not answer: {error}"),
+            )
+        };
         let mut hub = crate::sync_client::HttpHub::new(
-            &url, credentials.as_ref().and_then(|credentials| credentials.key.as_deref()),
-        ).map_err(unreachable)?;
-        let bytes = hub.object(&sha).map_err(|e| unreachable(e.into()))?.ok_or_else(ApiError::not_found)?;
+            &url,
+            credentials
+                .as_ref()
+                .and_then(|credentials| credentials.key.as_deref()),
+        )
+        .map_err(unreachable)?;
+        let bytes = hub
+            .object(&sha)
+            .map_err(|e| unreachable(e.into()))?
+            .ok_or_else(ApiError::not_found)?;
         notebook.lock().sync_store_object(&sha, &bytes)?;
         Ok(bytes)
-    }).await.map_err(ApiError::internal)?
+    })
+    .await
+    .map_err(ApiError::internal)?
 }

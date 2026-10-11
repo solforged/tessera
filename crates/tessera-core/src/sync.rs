@@ -952,8 +952,8 @@ impl Notebook {
             params![ticket.notebook_id, hub_url, ticket.seq],
         )?;
         tx.execute_batch(
-            "INSERT INTO editor_events(seq, actor, reason, created_at, committed, restructured_pages, views)
-             SELECT seq, actor, reason, created_at, committed, restructured_pages, views FROM changes ORDER BY seq;"
+            "INSERT INTO editor_events(seq, change_id, actor, reason, created_at, committed, restructured_pages, views)
+             SELECT seq, change_id, actor, reason, created_at, committed, restructured_pages, views FROM changes ORDER BY seq;"
         )?;
         tx.commit()?;
         Ok(())
@@ -1050,7 +1050,8 @@ impl Notebook {
         // surfacings to restore once the change is applied again.
         let surfacings = crate::sync_library::pending_surfacings(&tx)?;
         // Remember invalidations for tentative effects that may disappear.
-        let pending_seqs = tx.prepare("SELECT seq FROM sync_pending WHERE seq IS NOT NULL")?
+        let pending_seqs = tx
+            .prepare("SELECT seq FROM sync_pending WHERE seq IS NOT NULL")?
             .query_map([], |row| row.get::<_, i64>(0))?
             .collect::<rusqlite::Result<Vec<_>>>()?;
         for seq in pending_seqs {
@@ -1085,7 +1086,9 @@ impl Notebook {
             match self.apply_replicated(change, false) {
                 Ok(outcome) => {
                     report.replayed += 1;
-                    let PushOutcome::Accepted { seq } = outcome else { unreachable!() };
+                    let PushOutcome::Accepted { seq } = outcome else {
+                        unreachable!()
+                    };
                     self.conn.execute("DELETE FROM editor_events WHERE seq = (SELECT MAX(seq) FROM editor_events)", [])?;
                     crate::reads::record_editor_event(&self.conn, seq, true)?;
                 }

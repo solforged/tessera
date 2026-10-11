@@ -42,6 +42,8 @@ This is the editor's existing outbox model with a durable replica behind it. Row
 
 Editor change cursors use a local arrival journal, separate from the hub's change sequence. Rebasing records invalidations for pulled and replayed changes with a new cursor and the `sync` actor; open pages reload even when a block's revision stayed the same. Migration preserves existing cursors, and pairing or recloning carries the local journal forward.
 
+Editor-route commit acknowledgements use that same local cursor; core sync receipts and the outer agent undo IDs still use log sequences. Idempotent retries retain their original editor cursor, rather than claiming to supersede later changes.
+
 ## Identity and determinism
 
 Every device must reach the same state from the same changes, so applying a change depends only on the batch, its stamp and the current state.
@@ -83,6 +85,8 @@ Editor routes stay on loopback and keep rejecting other hosts and origins. A sep
 The in-process runner syncs at startup, three seconds after a commit, every three minutes, and on request. One sync runs at a time. Network failures back off from five seconds to five minutes. Each local step takes the notebook lock separately; no network request holds it. The editor and library worker keep using the same notebook handle across pairing and recloning.
 
 A phone that already has its own notebook imports its whole change log with empty text bases using a temporary key-owned replica identity, plus snapshots, files, reading positions and surfacings, then clones the hub. Natural-key collisions use the ordinary push rules: equal page titles and journal dates share the hub root, and the phone's children follow its children. Rejections stay visible in the hub's conflict log; the original database is kept as `notebook.db.before-pairing-<unix seconds>`. Change IDs make a repeated import idempotent. Edits made during the import cause another import-and-clone pass before the atomic in-place replacement, so none are silently dropped. Existing ingestion jobs, local editor cursors and fetched files stay on the device. Two independent histories are never merged.
+
+The Fields root predates the change log and has a different ID in independently created notebooks. Import first sends a deterministically identified creation for that root; the hub resolves it by title and records its alias before any field definitions arrive. Original change IDs remain unchanged, while the import's origin is the temporary replica authorized by the pairing key.
 
 ## Later: end-to-end encryption and collaboration
 

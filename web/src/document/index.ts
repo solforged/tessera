@@ -225,7 +225,7 @@ export class Notebook implements NotebookClient, DocumentHost {
     void this.outbox?.capabilities([view.root, ...view.rows.map(row => row.block)].map(block => capabilities.get(block.id) ?? emptyCapabilities(block.id)), this.snapshotSequence.get(view) ?? 0).catch(() => undefined);
     void this.outbox?.page(view, this.snapshotSequence.get(view) ?? 0).catch(() => undefined);
   }
-  publish(block: Block | null, id = block?.id) {
+  publish(block: Block | null, id = block?.id, force = false) {
     if (!id) return;
     if (block && block.kind !== 'block') {
       const doc = this.docs.get(id);
@@ -235,7 +235,7 @@ export class Notebook implements NotebookClient, DocumentHost {
     const entry = this.cache.get(id);
     if (entry) {
       const current = entry[0]();
-      if (!block || !current || block.revision >= current.revision) entry[1](block);
+      if (force || !block || !current || block.revision >= current.revision) entry[1](block);
     }
     else this.cache.set(id, createSignal<Block | null | undefined>(block));
   }
@@ -1010,7 +1010,7 @@ export class Notebook implements NotebookClient, DocumentHost {
   private async reconcile(blocks: readonly Block[], removed: readonly string[], pages: readonly string[], capabilities: readonly BlockCapabilities[] = [], force = false) {
     const structured = new Set(pages);
     for (const block of blocks) {
-      this.publish(block);
+      this.publish(block, block.id, force);
       if (!structured.has(block.page_id)) this.docs.get(block.page_id)?.receive(block);
     }
     for (const id of removed) this.publish(null, id);
