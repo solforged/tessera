@@ -18,6 +18,7 @@ import { formatProgress, highlightMeta, jobLabel, libraryQuery, recentJobs, retr
 import { createHighlightActions, highlightColors, highlightSections, setLinkedCitation } from './highlights';
 import type { HighlightMenu, HighlightSection } from './highlights';
 import { ResourceImage } from './ResourceImage';
+import { SourceCover } from './SourceCover';
 import { pageSigla } from './sigla';
 import { AddSheet } from './AddSheet';
 import './library.css';
@@ -114,7 +115,19 @@ export function LibraryPane(props: LibraryPaneProps) {
   const [dismissedJobs, setDismissedJobs] = createSignal<Set<string>>(new Set());
   let dismissedKey: string | undefined;
   let tabKey: string | undefined;
+  let layoutKey: string | undefined;
   let tabChosen = false;
+  // List or Shelf is a device preference per notebook, like the last tab.
+  const [layout, setLayout] = createSignal<'list' | 'shelf'>('list');
+  // Recently read books, for the Continue reading strip; a failed load leaves the strip out and the list reports the error.
+  const [resume, setResume] = createSignal<LibraryRow[]>([]);
+  createEffect(() => {
+    props.notebook.changeSequence(); refresh();
+    const controller = new AbortController();
+    void props.notebook.api.library({ states: ['reading'], sort: 'last_read', direction: 'desc', limit: 3 }, controller.signal)
+      .then(result => { if (!controller.signal.aborted) setResume(result.rows.filter(row => row.progress > 0)); }, () => undefined);
+    onCleanup(() => controller.abort());
+  });
   createEffect(() => {
     const controller = new AbortController();
     void props.notebook.api.notebook(controller.signal).then(async info => {
@@ -125,6 +138,8 @@ export function LibraryPane(props: LibraryPaneProps) {
         if (Array.isArray(stored)) setDismissedJobs(previous => new Set([...previous, ...stored.filter((id): id is string => typeof id === 'string')]));
       } catch { /* The preference lasts for this tab. */ }
       tabKey = `tessera.library.tab.${info.id}`;
+      layoutKey = `tessera.library.layout.${info.id}`;
+      try { if (localStorage.getItem(layoutKey) === 'shelf') setLayout('shelf'); } catch { /* Session-only preference. */ }
       let remembered: string | null = null;
       try { remembered = localStorage.getItem(tabKey); } catch { /* Session-only preference. */ }
       if (!tabChosen && !view().view && view().tab === 'inbox') {
@@ -137,6 +152,10 @@ export function LibraryPane(props: LibraryPaneProps) {
     }).catch(reason => { if (!controller.signal.aborted) setJobsError(reason instanceof Error ? reason.message : String(reason)); });
     onCleanup(() => controller.abort());
   });
+  function chooseLayout(value: 'list' | 'shelf') {
+    setLayout(value);
+    try { if (layoutKey) localStorage.setItem(layoutKey, value); } catch { /* Session-only preference. */ }
+  }
   function dismissJob(id: string) {
     const next = new Set(dismissedJobs()); next.add(id); setDismissedJobs(next);
     try { if (dismissedKey) localStorage.setItem(dismissedKey, JSON.stringify([...next])); } catch { /* The preference lasts for this tab. */ }
@@ -444,12 +463,17 @@ export function LibraryPane(props: LibraryPaneProps) {
     if (event.isComposing || event.altKey || event.ctrlKey || event.metaKey) return;
     if (event.key === 'Enter') {
       event.preventDefault(); event.stopPropagation(); props.onOpen(target, event.shiftKey);
-    } else if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
-      const rows = Array.from(scroll.querySelectorAll<HTMLButtonElement>('[data-library-row]'));
-      const index = rows.indexOf(event.currentTarget as HTMLButtonElement);
-      const next = event.key === 'Home' ? 0 : event.key === 'End' ? rows.length - 1 : Math.max(0, Math.min(rows.length - 1, index + (event.key === 'ArrowDown' ? 1 : -1)));
-      rows[next]?.focus(); event.preventDefault(); event.stopPropagation();
+      return;
     }
+    // On the shelf, left and right move one book and up and down one row of covers.
+    const shelf = (event.currentTarget as HTMLElement).closest<HTMLElement>('.library-shelf');
+    const columns = shelf ? getComputedStyle(shelf).gridTemplateColumns.split(' ').length : 1;
+    const steps: Record<string, number> = shelf ? { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -columns, ArrowDown: columns } : { ArrowUp: -1, ArrowDown: 1 };
+    if (!(event.key in steps) && event.key !== 'Home' && event.key !== 'End') return;
+    const rows = Array.from(scroll.querySelectorAll<HTMLButtonElement>('[data-library-row]'));
+    const index = rows.indexOf(event.currentTarget as HTMLButtonElement);
+    const next = event.key === 'Home' ? 0 : event.key === 'End' ? rows.length - 1 : Math.max(0, Math.min(rows.length - 1, index + steps[event.key]!));
+    rows[next]?.focus(); event.preventDefault(); event.stopPropagation();
   }
 
   return <div class="library-pane" data-pane={props.pane} aria-label="Library" tabIndex={props.active ? 0 : -1} onFocusIn={props.onActivate} onPointerDown={props.onActivate}
@@ -486,6 +510,10 @@ export function LibraryPane(props: LibraryPaneProps) {
           <Show when={selected().size > 0} fallback={<>
             <input class="input library-search" type="search" aria-label="Search library" placeholder="Search library" value={text()} onInput={event => update({ view: null, text: event.currentTarget.value, scroll: 0 })} />
             <Button class="library-sort" aria-haspopup="menu" label="Sort sources" onClick={event => setPopup({ kind: 'menu', anchor: event.currentTarget, label: 'Sort sources', items: sorts.map(item => ({ label: item.label, icon: sort() === item.id ? 'check' : undefined, action: () => update({ view: null, sort: item.id, scroll: 0 }) })) })}>{sorts.find(item => item.id === sort())!.label}<Icon name="down" /></Button>
+            <div class="library-tabs mode-tabs" role="group" aria-label="Library layout">
+              <Button icon="rows" label="List" aria-pressed={layout() === 'list'} onClick={() => chooseLayout('list')} />
+              <Button icon="shelf" label="Shelf" aria-pressed={layout() === 'shelf'} onClick={() => chooseLayout('shelf')} />
+            </div>
             <Button icon="download" aria-haspopup="menu" disabled={loading() || !!error() || loadedKey() !== queryKey()} onClick={event => exportMenu(event.currentTarget)}>Export<Icon name="down" /></Button>
             <Button icon="more" label="Library actions" aria-haspopup="menu" onClick={event => {
               const anchor = event.currentTarget;
@@ -518,7 +546,26 @@ export function LibraryPane(props: LibraryPaneProps) {
       <Show when={countError()}><div class="library-error" role="alert">{countError()}<Button onClick={() => setRefresh(value => value + 1)}>Retry</Button></div></Show>
       <Show when={jobsError()}><div class="library-error" role="alert">{jobsError()}<Button onClick={() => setJobsRefresh(value => value + 1)}>Retry</Button></div></Show>
       <Show when={viewsError()}><div class="library-error" role="alert">{viewsError()}<Button onClick={() => setRefresh(value => value + 1)}>Retry</Button></div></Show>
-      <section class="library-rows" classList={{ 'library-has-selection': selected().size > 0 }} aria-label={tab() === 'highlights' ? 'Highlights' : 'Sources'} aria-busy={loading()}>
+      {/* The Reading tab already lists these books, so it leaves the strip out; it stays while selecting so rows never shift under the pointer. */}
+      <Show when={resume().length && tab() !== 'reading' && tab() !== 'highlights' && !text().trim()}>
+        <section class="library-resume" aria-labelledby={`${props.pane}-resume-heading`}>
+          <h2 class="library-resume-heading" id={`${props.pane}-resume-heading`}>Continue reading</h2>
+          <div class="library-resume-books" role="list"><For each={resume()}>{row => <div role="listitem">
+            <Button class="library-resume-book" onClick={event => props.onOpen({ kind: 'reader', sourceId: row.page.id }, event.shiftKey)}>
+              <SourceCover row={row} siglum={row.source.siglum} />
+              <span class="library-resume-text">
+                <span class="library-resume-title">{row.page.text}</span>
+                <span class="library-resume-section">{row.section ?? sourceByline(row)}</span>
+                <span class="library-resume-position">
+                  <span class="library-reading-rule library-reading-started" style={{ '--progress': `${row.progress * 100}%` }} aria-hidden="true" />
+                  <span>{formatProgress(row.progress)}</span>
+                </span>
+              </span>
+            </Button>
+          </div>}</For></div>
+        </section>
+      </Show>
+      <section class="library-rows" classList={{ 'library-has-selection': selected().size > 0, 'library-rows-shelf': layout() === 'shelf' && tab() !== 'highlights' }} aria-label={tab() === 'highlights' ? 'Highlights' : 'Sources'} aria-busy={loading()}>
         <Show when={shownJobs().length}><div class="library-jobs" aria-label="Ingestion jobs"><For each={shownJobs()}>{job => {
           const label = () => jobLabel(job, sourceTitles());
           return <div class="library-row library-job">
@@ -555,7 +602,7 @@ export function LibraryPane(props: LibraryPaneProps) {
                 <p>{EMBEDDED ? 'Nothing in your inbox. Add an EPUB.' : 'Nothing in your inbox. Add a book or article.'}</p>
               </Show>}><p>No sources match.</p><Button onClick={() => update({ view: null, text: '', scroll: 0 })}>Clear search</Button></Show>
             </div>}>
-              <div role="list"><For each={displayedSources()}>{row => {
+              <Show when={layout() === 'shelf'} fallback={<div role="list"><For each={displayedSources()}>{row => {
                 const target: OpenTarget = { kind: 'page', pageId: row.page.id };
                 return <div class="library-row library-source-row" classList={{ 'library-row-selected': selected().has(row.page.id) }} role="listitem">
                   <div class="library-leading">
@@ -573,7 +620,31 @@ export function LibraryPane(props: LibraryPaneProps) {
                   </Button>
                   <Button icon="more" label={`Actions for ${row.page.text}`} aria-haspopup="menu" disabled={saving()} onClick={event => rowMenu(row, event.currentTarget)} />
                 </div>;
-              }}</For></div>
+              }}</For></div>}>
+                <div class="library-shelf" role="list"><For each={displayedSources()}>{row => {
+                  const target: OpenTarget = { kind: 'page', pageId: row.page.id };
+                  const siglum = () => sigla().get(row.page.id) ?? row.source.siglum;
+                  return <div class="library-book library-source-row" classList={{ 'library-row-selected': selected().has(row.page.id) }} role="listitem">
+                    <Button class="library-book-open" data-library-row={row.page.id} onClick={event => props.onOpen(target, event.shiftKey)} onKeyDown={event => rowKey(event, target)}>
+                      <SourceCover row={row} siglum={siglum()} />
+                      <span class="library-reading-rule" classList={{ 'library-reading-started': row.progress > 0 }} style={{ '--progress': `${row.progress * 100}%` }} aria-hidden="true" />
+                      <span class="library-book-title">{row.page.text}</span>
+                      <span class="library-book-byline">{sourceByline(row)}</span>
+                      <span class="library-book-apparatus">
+                        <span class="library-siglum" aria-hidden="true">{siglum()}</span>
+                        <Show when={mixedStates()}><span class="library-book-state">{stateLabels[row.source.state]}</span></Show>
+                        <Show when={row.published}><span aria-label="Published year">{row.published!.slice(0, 4)}</span></Show>
+                        <Show when={row.progress > 0}><span>{formatProgress(row.progress)}</span></Show>
+                        <Show when={row.unprocessed > 0}><span class="library-book-highlights" aria-label={`${row.unprocessed} unprocessed highlights`}><Icon name="highlight" />{row.unprocessed}</span></Show>
+                      </span>
+                    </Button>
+                    <Button role="checkbox" aria-checked={selected().has(row.page.id)} label={`Select ${row.page.text}`} class="icon-only library-checkbox" onClick={event => toggleSelection(row.page.id, event.shiftKey)}>
+                      <span class="library-checkbox-square"><Show when={selected().has(row.page.id)}><Icon name="check" /></Show></span>
+                    </Button>
+                    <Button class="library-book-more" icon="more" label={`Actions for ${row.page.text}`} aria-haspopup="menu" disabled={saving()} onClick={event => rowMenu(row, event.currentTarget)} />
+                  </div>;
+                }}</For></div>
+              </Show>
             </Show>
           </Show>
         </Show>

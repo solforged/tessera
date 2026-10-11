@@ -362,6 +362,8 @@ pub struct LibraryRow {
     pub site: Option<String>,
     pub cover: Option<String>,
     pub progress: f64,
+    /// Contents entry covering the saved reading position.
+    pub section: Option<String>,
     pub highlights: usize,
     pub unprocessed: usize,
 }

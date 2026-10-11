@@ -438,7 +438,7 @@ export interface LibraryView { id: string; name: string; query: LibraryQuery; re
 export interface LibraryRow {
   page: Block; source: SourceRecord; creators: string[]; published: string | null;
   site: string | null; cover: string | null;
-  progress: number; highlights: number; unprocessed: number;
+  progress: number; section: string | null; highlights: number; unprocessed: number;
 }
 export interface LibraryResult {
   rows: LibraryRow[]; total: number; counts: { inbox: number; reading: number; finished: number; abandoned: number };
