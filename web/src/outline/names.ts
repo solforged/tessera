@@ -5,9 +5,9 @@ import { textTokens } from '../document/text-tokens';
 import type { MenuItem } from '../ui/Menu';
 import { documentReady } from './source-fields';
 
-/** Names compare without case, diacritics or incidental whitespace. */
+/** Names compare as the core folds them: no case, diacritics or apostrophes, and any other run of spaces or punctuation is one space. */
 export function foldName(value: string): string {
-  return value.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim().replace(/\s+/gu, ' ');
+  return value.normalize('NFD').replace(/\p{M}|['’]/gu, '').replace(/[^\p{L}\p{N}]+/gu, ' ').toLowerCase().trim();
 }
 
 interface Resolutions { sequence: number; names: Map<string, Promise<NameMatch[]>> }
