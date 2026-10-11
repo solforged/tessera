@@ -295,6 +295,8 @@
 .outline-cards-state { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .outline-cards-confirm { display: flex; flex-direction: column; gap: var(--space-8); padding-block: var(--space-8); border-block: 1px solid var(--line); }
 .outline-row-linked > .outline-body { border-radius: var(--radius-control); background: var(--hover); box-shadow: 0 0 0 var(--space-4) var(--hover); }
+/* A source page stays hidden until its header, fields and highlights are known, then fades in whole, as the reader does. */
+.outline-pane.source-page[aria-busy="false"] { animation: fade-in var(--motion-ui) var(--motion-ease) both; }
 /* Source highlights read at full measure with a 2 px colour bar, not an editor gutter or a trailing colour dot. Controls return on selection. */
 .source-page > .outline-list { width: 100%; max-width: var(--measure); margin-inline: auto; }
 .source-page .source-highlight { padding-left: 0; padding-block: var(--space-12); border-left: 0; border-bottom: var(--rule-width) solid var(--line); border-radius: 0; }
