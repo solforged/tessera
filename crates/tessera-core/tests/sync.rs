@@ -1,8 +1,12 @@
 use std::path::Path;
 
 use rusqlite::{Connection, types::Value};
+use tessera_core::Result;
 use tessera_core::replication::{Replication, TABLES};
-use tessera_core::sync::{PushOutcome, SyncReport};
+use tessera_core::sync::{
+    Hub, Pull, PushOutcome, PushReceipt, PushedChange, RETIRE_AFTER_MS, SnapshotContent,
+    SyncReport, UnloggedPull, UnloggedRows,
+};
 use tessera_core::{Actor, Batch, DATABASE_FILE, Notebook, Operation, library::*};
 
 fn id(value: u128) -> String {
@@ -89,6 +93,8 @@ fn pair_with(setup: impl FnOnce(&mut Notebook)) -> Pair {
     let replica_dir = tempfile::tempdir().unwrap();
     let ticket = hub
         .sync_clone(&replica_dir.path().join(DATABASE_FILE))
+        .unwrap()
+        .finish()
         .unwrap();
     let mut replica = Notebook::open(replica_dir.path()).unwrap();
     replica.sync_adopt("in-process", &ticket).unwrap();
@@ -259,6 +265,128 @@ fn a_move_on_one_device_and_an_edit_on_the_other_both_apply() {
     assert_eq!(block.parent_id.as_deref(), Some(id(3).as_str()));
     assert_eq!(block.text, "Edited while it moved");
     assert!(p.hub.sync_conflicts().unwrap().is_empty());
+}
+
+/// A hub that sends one change per pull and stops answering after a few.
+struct Paged<'hub> {
+    hub: &'hub mut Notebook,
+    pulls_left: usize,
+}
+
+impl Hub for Paged<'_> {
+    fn push(&mut self, device: &str, changes: &[PushedChange]) -> Result<Vec<PushReceipt>> {
+        self.hub.push(device, changes)
+    }
+    fn pull(&mut self, device: &str, acknowledged: i64, after: i64) -> Result<Pull> {
+        if self.pulls_left == 0 {
+            return Err(tessera_core::Error::Io(std::io::Error::other("hub gone")));
+        }
+        self.pulls_left -= 1;
+        self.hub.sync_pull(device, acknowledged, after, 1)
+    }
+    fn missing_snapshots(&mut self, ids: &[String]) -> Result<Vec<String>> {
+        self.hub.missing_snapshots(ids)
+    }
+    fn snapshot_content(&mut self, ids: &[String]) -> Result<Vec<SnapshotContent>> {
+        self.hub.snapshot_content(ids)
+    }
+    fn store_snapshots(&mut self, content: &[SnapshotContent]) -> Result<()> {
+        self.hub.store_snapshots(content)
+    }
+    fn missing_objects(&mut self, shas: &[String]) -> Result<Vec<String>> {
+        self.hub.missing_objects(shas)
+    }
+    fn object(&mut self, sha: &str) -> Result<Option<Vec<u8>>> {
+        self.hub.object(sha)
+    }
+    fn store_object(&mut self, sha: &str, bytes: &[u8]) -> Result<()> {
+        self.hub.store_object(sha, bytes)
+    }
+    fn exchange_rows(
+        &mut self,
+        device: &str,
+        rows: &UnloggedRows,
+        after: i64,
+    ) -> Result<UnloggedPull> {
+        self.hub.exchange_rows(device, rows, after)
+    }
+}
+
+#[test]
+fn an_interrupted_catch_up_keeps_the_pages_it_applied() {
+    let mut p = pair();
+    let page = p.page.clone();
+    let start = p.replica.sync_status().unwrap().unwrap().confirmed_seq;
+    apply(&mut p.hub, vec![insert(4, &page, Some(id(3)), "Third")]);
+    apply(&mut p.hub, vec![insert(5, &page, Some(id(4)), "Fourth")]);
+    apply(&mut p.hub, vec![insert(6, &page, Some(id(5)), "Fifth")]);
+    let change = edit(&p.replica, &id(2), "First, from the phone");
+    apply(&mut p.replica, vec![change]);
+
+    let mut flaky = Paged {
+        hub: &mut p.hub,
+        pulls_left: 2,
+    };
+    assert!(p.replica.sync_with(&mut flaky).is_err());
+    // Two pages arrived before the hub went away; they stay applied, and the
+    // phone's own edit is still in place on top of them.
+    let status = p.replica.sync_status().unwrap().unwrap();
+    assert_eq!(status.confirmed_seq, start + 2);
+    assert_eq!(
+        children(&p.replica, &page),
+        ["First, from the phone", "Second", "Third", "Fourth"]
+    );
+
+    p.sync();
+    p.assert_converged();
+    assert_eq!(
+        children(&p.replica, &page),
+        [
+            "First, from the phone",
+            "Second",
+            "Third",
+            "Fourth",
+            "Fifth"
+        ]
+    );
+}
+
+#[test]
+fn a_replica_silent_for_a_month_is_retired_but_its_changes_still_arrive() {
+    let mut p = pair();
+    let (snapshot, _, _) = import(&mut p.hub, &book("Desk Book", "urn:desk"), b"epub", &[]);
+    p.sync();
+    let change = edit(&p.replica, &id(2), "Written before the phone went quiet");
+    apply(&mut p.replica, vec![change]);
+    p.replica.set_reading_position(&snapshot, 1).unwrap();
+    let hub_db = Connection::open(p.hub.info().unwrap().path.join(DATABASE_FILE)).unwrap();
+    hub_db
+        .execute(
+            "UPDATE sync_replicas SET seen_at = seen_at - ?1",
+            [RETIRE_AFTER_MS + 1],
+        )
+        .unwrap();
+
+    // The hub's next change retires the quiet replica and keeps no patches.
+    let page = p.page.clone();
+    apply(&mut p.hub, vec![insert(4, &page, Some(id(3)), "Desk note")]);
+    assert!(p.hub.sync_replicas().unwrap()[0].retired_at.is_some());
+    let patches: i64 = hub_db
+        .query_row("SELECT COUNT(*) FROM change_patches", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(patches, 0);
+
+    let error = p.replica.sync_with(&mut p.hub).unwrap_err().to_string();
+    assert!(error.contains("cloned again"), "{error}");
+    assert_eq!(text(&p.hub, &id(2)), "Written before the phone went quiet");
+    let position: i64 = hub_db
+        .query_row(
+            "SELECT passage_ordinal FROM reading_positions WHERE snapshot_id = ?1",
+            [&snapshot],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(position, 1);
 }
 
 #[test]

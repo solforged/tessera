@@ -97,26 +97,43 @@ fn clone(notebook: &Path, url: &str) -> anyhow::Result<Option<tessera_core::sync
         notebook.display()
     );
     let hub = HttpHub::new(url)?;
-    let (ticket, bytes) = hub.runtime.block_on(async {
-        let response = checked(
-            hub.client
-                .post(format!("{}/api/sync/clone", hub.base))
-                .header(SCHEMA_HEADER, SCHEMA_VERSION)
-                .send()
-                .await?,
-        )
-        .await?;
-        let ticket: CloneTicket = serde_json::from_str(
-            response
-                .headers()
-                .get(TICKET_HEADER)
-                .context("the hub sent no clone ticket")?
-                .to_str()?,
-        )?;
-        anyhow::Ok((ticket, response.bytes().await?))
-    })?;
     let _ownership = NotebookOwnership::acquire(notebook, 0)?;
-    std::fs::write(&database, &bytes)?;
+    let partial = notebook.join(format!("{DATABASE_FILE}.clone"));
+    let ticket = hub
+        .runtime
+        .block_on(async {
+            // A large notebook takes longer than one request's timeout to
+            // arrive; give up only when the hub stops sending.
+            let client = reqwest::Client::builder()
+                .connect_timeout(std::time::Duration::from_secs(30))
+                .read_timeout(std::time::Duration::from_secs(120))
+                .build()?;
+            let mut response = checked(
+                client
+                    .post(format!("{}/api/sync/clone", hub.base))
+                    .header(SCHEMA_HEADER, SCHEMA_VERSION)
+                    .send()
+                    .await?,
+            )
+            .await?;
+            let ticket: CloneTicket = serde_json::from_str(
+                response
+                    .headers()
+                    .get(TICKET_HEADER)
+                    .context("the hub sent no clone ticket")?
+                    .to_str()?,
+            )?;
+            let mut file = tokio::fs::File::create(&partial).await?;
+            while let Some(chunk) = response.chunk().await? {
+                tokio::io::AsyncWriteExt::write_all(&mut file, &chunk).await?;
+            }
+            file.sync_all().await?;
+            anyhow::Ok(ticket)
+        })
+        .inspect_err(|_| {
+            let _ = std::fs::remove_file(&partial);
+        })?;
+    std::fs::rename(&partial, &database)?;
     let mut replica = Notebook::open(notebook)?;
     replica.sync_adopt(&hub.base, &ticket)?;
     Ok(replica.sync_status()?)
