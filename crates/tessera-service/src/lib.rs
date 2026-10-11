@@ -180,6 +180,7 @@ fn notebook_routes() -> Router<AppState> {
         .route("/api/names/{name}", get(resolve_name))
         .route("/api/index", get(note_index))
         .route("/api/index/{key}", get(kind_notes))
+        .route("/api/journal/written", get(written_journal_dates))
         .route("/api/journal/{date}", get(journal))
         .route("/api/blocks/{id}", get(block))
         .route("/api/blocks/{id}/backlinks", get(backlinks))
@@ -217,7 +218,10 @@ fn notebook_routes() -> Router<AppState> {
             get(capabilities::review_session),
         )
         .route("/api/review/stats", get(review_stats))
-        .route("/api/review-sessions/{id}/reviews", get(review_session_events))
+        .route(
+            "/api/review-sessions/{id}/reviews",
+            get(review_session_events),
+        )
         .route("/api/types", get(types))
         .route("/api/types/{id}", get(type_info))
         .route("/api/types/{id}/starting-template", post(starting_template))
@@ -448,9 +452,14 @@ async fn review_stats(
 ) -> Result<Json<tessera_core::ReviewStats>, ApiError> {
     let Query(query) = query.map_err(ApiError::from)?;
     run(&state, move |notebook| {
-        let date = query.date.map(Ok).unwrap_or_else(|| notebook.today(tessera_core::now_ms()))?;
+        let date = query
+            .date
+            .map(Ok)
+            .unwrap_or_else(|| notebook.today(tessera_core::now_ms()))?;
         notebook.review_stats(query.deck.as_deref(), &date)
-    }).await.map(Json)
+    })
+    .await
+    .map(Json)
 }
 
 async fn review_session_events(
@@ -458,7 +467,9 @@ async fn review_session_events(
     path: Result<Path<String>, PathRejection>,
 ) -> Result<Json<Vec<tessera_core::ReviewEvent>>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
-    run(&state, move |notebook| notebook.review_session_events(&id)).await.map(Json)
+    run(&state, move |notebook| notebook.review_session_events(&id))
+        .await
+        .map(Json)
 }
 
 #[derive(Deserialize)]
@@ -584,6 +595,24 @@ async fn type_info(
     run(&state, move |notebook| notebook.type_info(&id))
         .await
         .map(Json)
+}
+
+#[derive(Deserialize)]
+struct JournalRange {
+    from: String,
+    to: String,
+}
+
+async fn written_journal_dates(
+    State(state): State<AppState>,
+    query: Result<Query<JournalRange>, QueryRejection>,
+) -> Result<Json<Vec<String>>, ApiError> {
+    let Query(range) = query.map_err(ApiError::from)?;
+    run(&state, move |notebook| {
+        notebook.written_journal_dates(&range.from, &range.to)
+    })
+    .await
+    .map(Json)
 }
 
 async fn note_index(State(state): State<AppState>) -> Result<Json<NoteIndex>, ApiError> {

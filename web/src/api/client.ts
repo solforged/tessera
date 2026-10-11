@@ -164,6 +164,7 @@ export interface ApiClient {
   undoAgentChange(seq: number, signal?: AbortSignal): Promise<UndoReceipt>;
   settings(signal?: AbortSignal): Promise<SettingsView>;
   roots(signal?: AbortSignal): Promise<Block[]>;
+  writtenJournalDates(from: string, to: string, signal?: AbortSignal): Promise<string[]>;
   page(id: string, signal?: AbortSignal): Promise<PageView>;
   pageByTitle(title: string, signal?: AbortSignal): Promise<Block>;
   resolveName(name: string, signal?: AbortSignal): Promise<NameMatch[]>;
@@ -256,6 +257,7 @@ export function createApi(base = ''): ApiClient {
     undoAgentChange: (seq: number, signal?: AbortSignal) => request<UndoReceipt>(base, 'POST', `/agent-changes/${seq}/undo`, { actor: { kind: 'person' } }, signal),
     settings: (signal?: AbortSignal) => get<SettingsView>('/settings', signal),
     roots: (signal?: AbortSignal) => get<Block[]>('/roots', signal),
+    writtenJournalDates: (from: string, to: string, signal?: AbortSignal) => get<string[]>(`/journal/written?${new URLSearchParams({ from, to })}`, signal),
     page: (id: string, signal?: AbortSignal) => get<PageView>(`/pages/${segment(id)}`, signal),
     pageByTitle: (title: string, signal?: AbortSignal) => get<Block>(`/pages/by-title/${segment(title)}`, signal),
     resolveName: (name: string, signal?: AbortSignal) => get<NameMatch[]>(`/names/${segment(name)}`, signal),

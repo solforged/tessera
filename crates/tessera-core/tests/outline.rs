@@ -794,3 +794,98 @@ fn ranked_query_limits_break_score_ties_by_id_not_insertion_order() {
         vec![nb.fields().unwrap().page_id, id(1)]
     );
 }
+
+#[test]
+fn written_journals_require_visible_nonempty_descendant_text() {
+    let (_dir, mut nb) = fixture();
+    apply(
+        &mut nb,
+        vec![
+            Operation::CreateJournal {
+                id: id(1),
+                date: "2026-10-10".into(),
+            },
+            Operation::CreateJournal {
+                id: id(2),
+                date: "2026-10-11".into(),
+            },
+            insert(10, 1, None, ""),
+            insert(11, 10, None, "Written beneath an empty parent"),
+            insert(20, 2, None, " \t\n\u{2003} "),
+        ],
+    );
+    let written = |nb: &Notebook| {
+        nb.written_journal_dates("2026-10-01", "2026-10-31")
+            .unwrap()
+    };
+    assert_eq!(written(&nb), ["2026-10-10"]);
+    apply(&mut nb, vec![edit(20, 1, "Now written")]);
+    assert_eq!(written(&nb), ["2026-10-10", "2026-10-11"]);
+    apply(
+        &mut nb,
+        vec![Operation::SetArchived {
+            id: id(10),
+            base_revision: 1,
+            archived: true,
+        }],
+    );
+    assert_eq!(written(&nb), ["2026-10-11"]);
+    apply(&mut nb, vec![deleted(20, 2)]);
+    assert!(written(&nb).is_empty());
+    apply(
+        &mut nb,
+        vec![Operation::SetArchived {
+            id: id(10),
+            base_revision: 2,
+            archived: false,
+        }],
+    );
+    assert_eq!(written(&nb), ["2026-10-10"]);
+    apply(&mut nb, vec![edit(11, 1, "")]);
+    assert!(written(&nb).is_empty());
+}
+
+#[test]
+fn written_journal_ranges_include_endpoints_and_reject_invalid_bounds() {
+    let (_dir, mut nb) = fixture();
+    apply(
+        &mut nb,
+        vec![
+            Operation::CreateJournal {
+                id: id(1),
+                date: "2024-02-29".into(),
+            },
+            insert(10, 1, None, "Leap day"),
+            Operation::CreateJournal {
+                id: id(2),
+                date: "2025-01-01".into(),
+            },
+            insert(20, 2, None, "New year"),
+        ],
+    );
+    assert_eq!(
+        nb.written_journal_dates("2024-02-29", "2024-02-29")
+            .unwrap(),
+        ["2024-02-29"]
+    );
+    assert_eq!(
+        nb.written_journal_dates("2024-01-01", "2024-12-31")
+            .unwrap(),
+        ["2024-02-29"]
+    );
+    assert_eq!(
+        nb.written_journal_dates("2024-12-30", "2025-01-05")
+            .unwrap(),
+        ["2025-01-01"]
+    );
+    for (from, to) in [
+        ("2024-01-01", "2025-01-01"),
+        ("2026-10-11", "2026-10-10"),
+        ("2026-02-29", "2026-03-01"),
+    ] {
+        assert!(matches!(
+            nb.written_journal_dates(from, to),
+            Err(Error::Validation { .. })
+        ));
+    }
+}
