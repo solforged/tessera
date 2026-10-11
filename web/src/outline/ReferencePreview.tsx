@@ -364,7 +364,7 @@ function ReferenceCard(props: {
   });
   // One subject query provides the count; the referenced pages are opened only after pinning.
   const [positions] = createResource(() => target() && isPage() ? props.id : false, subject => props.notebook.api.positions({ subject }));
-  const positionRows = () => positions.error ? [] : positions() ?? [];
+  const positionRows = () => positions.error ? [] : positions()?.rows ?? [];
   const [references] = createResource(() => props.id, async id => {
     const list = await props.notebook.api.backlinks(id, REFERENCE_LIMIT);
     const works = await loadWorks(props.notebook.api, id, list);

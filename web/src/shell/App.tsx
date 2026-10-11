@@ -83,6 +83,7 @@ function paneLabel(target: OpenTarget | undefined): string {
 function snapshotView(view: PaneView): PaneView {
   if ('mode' in view) return { ...view, query: copyTaskQuery(view.query) };
   if ('deckId' in view) return { ...view, selection: view.selection ?? null };
+  if ('comparison' in view) return { ...view, chosen: view.chosen ? [...view.chosen] : null };
   // Library views saved before Browse lack filters and grouping.
   if ('tab' in view) return { ...view, view: view.view ?? null, colors: [...view.colors ?? []], tags: [...view.tags ?? []], group: view.group ?? 'none', filters: { people: [...view.filters?.people ?? []], decades: [...view.filters?.decades ?? []], publishers: [...view.filters?.publishers ?? []], languages: [...view.filters?.languages ?? []] } };
   if ('ordinal' in view) return { ...view };
@@ -405,7 +406,7 @@ export function App() {
         } else if (saved.target.kind === 'review' && 'deckId' in saved.view) {
           current = { target: targetFromView(saved), view: snapshotView(saved.view) };
         } else if ((saved.target.kind === 'fields' || saved.target.kind === 'settings' || saved.target.kind === 'compare' || saved.target.kind === 'index') && 'scroll' in saved.view && typeof saved.view.scroll === 'number') {
-          current = { target: saved.target, view: { scroll: saved.view.scroll } };
+          current = { target: saved.target, view: saved.target.kind === 'compare' ? snapshotView(saved.view) : { scroll: saved.view.scroll } };
         } else if ((saved.target.kind === 'library' && 'tab' in saved.view) || (saved.target.kind === 'reader' && 'ordinal' in saved.view)) {
           current = { target: targetFromView(saved), view: snapshotView(saved.view) };
         } else if (saved.target.kind === 'page' && 'zoom' in saved.view) {

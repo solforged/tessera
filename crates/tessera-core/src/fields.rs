@@ -129,6 +129,7 @@ impl FieldChanges {
             | Operation::SetArchived { id, .. }
             | Operation::SetFieldKind { id, .. } => self.capture(conn, id),
             Operation::SetTypeFields { .. }
+            | Operation::SetSubjectCriteria { .. }
             | Operation::SettleSyncCopy { .. }
             | Operation::AddType { .. }
             | Operation::RemoveType { .. }

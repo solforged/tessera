@@ -50,6 +50,7 @@ export type Action =
   | { kind: 'heading'; id: string; heading: 1 | 2 | 3 | null }
   | { kind: 'archive'; id: string; archived: boolean }
   | { kind: 'fieldKind'; id: string; value: FieldKind; previous: FieldKind; baseRevision?: number }
+  | { kind: 'subjectCriteria'; id: string; fields: string[]; previous: string[]; baseRevision?: number }
   | { kind: 'addType' | 'removeType'; id: string; title: string }
   | { kind: 'insert'; block: Block; after: string | null }
   | { kind: 'delete'; id: string }

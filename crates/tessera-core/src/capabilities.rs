@@ -144,6 +144,35 @@ pub struct PositionRow {
     pub block: BlockInPage,
     pub holder_id: Option<String>,
     pub subject_id: String,
+    pub fields: Vec<PositionField>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PositionField {
+    pub field_id: String,
+    pub entry_id: String,
+    pub values: Vec<crate::FieldOption>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SubjectCriteria {
+    pub explicit: bool,
+    pub fields: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PositionQuestion {
+    pub block: BlockInPage,
+    pub info: QuestionInfo,
+    pub criterion: Option<String>,
+    pub holders: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PositionQueryResult {
+    pub rows: Vec<PositionRow>,
+    pub criteria: SubjectCriteria,
+    pub questions: Vec<PositionQuestion>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

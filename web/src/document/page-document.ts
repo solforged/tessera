@@ -420,6 +420,9 @@ export class Document implements PageDocument {
       case 'fieldKind':
         this.changed(action.id, {}, base);
         return [{ kind: 'fieldKind', id: action.id, value: action.previous, previous: action.value }];
+      case 'subjectCriteria':
+        this.changed(action.id, {}, base);
+        return [{ kind: 'subjectCriteria', id: action.id, fields: action.previous, previous: action.fields }];
       case 'addType':
       case 'removeType': {
         this.snapshot(action.id, base);
@@ -1168,6 +1171,11 @@ export class Document implements PageDocument {
           if (definition.kind !== edit.value) actions.push({ kind: 'fieldKind', id: definition.id, value: edit.value, previous: definition.kind, baseRevision: definition.revision });
           break;
         }
+        case 'subjectCriteria': {
+          if (this.snapshot(edit.id).revision !== edit.revision || this.block(edit.id)?.pending) throw new Error('The subject changed. Refresh before changing its criteria.');
+          actions.push({ kind: 'subjectCriteria', id: edit.id, fields: [...edit.fields], previous: [...edit.previous], baseRevision: edit.revision });
+          break;
+        }
         case 'addType':
         case 'removeType': {
           const block = this.block(edit.id);
@@ -1295,7 +1303,7 @@ export class Document implements PageDocument {
     const entry = from.pop();
     if (!entry) return null;
     const actions = (undo ? entry.inverse : entry.forward).flatMap<Action>(action => {
-      if (!undo && action.kind === 'fieldKind') return [{ ...action, baseRevision: undefined }];
+      if (!undo && (action.kind === 'fieldKind' || action.kind === 'subjectCriteria')) return [{ ...action, baseRevision: undefined }];
       if (!undo && (action.kind === 'insert' || action.kind === 'split') && this.baseBlocks.has(action.block.id)) {
         const restored: Action = { kind: 'restore', id: action.block.id, snapshots: [{ block: action.block, manual_types: this.baseManualTypes.get(action.block.id) ?? [], capabilities: this.capabilities(action.block.id, true), row: { id: action.block.id, parentId: action.block.parent_id!, depth: action.block.parent_id === this.pageId ? 0 : this.outline.depth(action.block.parent_id!) + 1 } }], after: action.kind === 'split' ? action.id : action.after };
         return action.kind === 'split' ? [{ kind: 'text', id: action.id, text: action.left }, restored] : [restored];

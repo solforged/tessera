@@ -1,4 +1,4 @@
-import { For, Show, createMemo, createSignal, untrack } from 'solid-js';
+import { For, Show, createMemo, createResource, createSignal, untrack } from 'solid-js';
 import type { JSX } from 'solid-js';
 import type { FieldDefinition } from '../api/types';
 import { FieldPicker } from '../fields/FieldPicker';
@@ -49,6 +49,10 @@ export function createFieldSheet(context: Pick<OutlineContext,
     const candidate = fieldOf(id) ? parent : parent !== props.pageId && fieldOf(parent) ? doc.outline.parentOf(parent) : id;
     return candidate !== props.pageId && doc.block(candidate)?.kind === 'block' ? candidate : null;
   });
+  const [criteria] = createResource(() => {
+    const subject = doc.block(owner() ?? '')?.position?.subject_id;
+    return subject ? { subject, sequence: props.notebook.changeSequence() } : false;
+  }, async ({ subject }) => ({ subject, criteria: (await props.notebook.api.positions({ subject, limit: 0 })).criteria }));
   const sheet = createMemo<SheetState | null>(() => {
     const id = owner();
     const block = id ? doc.block(id) : undefined;
@@ -61,7 +65,10 @@ export function createFieldSheet(context: Pick<OutlineContext,
       return field && known.has(field) ? [{ id: child, field }] : [];
     }));
     const present = new Set(entries.map(entry => entry.field));
-    const template = templateFor(typeKeys(block.text, block.manual_types)).filter(field => known.has(field));
+    const subjectCriteria = !criteria.error && criteria()?.subject === block.position?.subject_id ? criteria()?.criteria : undefined;
+    const subjects = subjectCriteria?.explicit ? subjectCriteria.fields : [];
+    const apparatus = block.position ? definitions().filter(field => ['gist', 'work'].includes(field.name.trim().toLowerCase())).sort((a, b) => Number(a.name.trim().toLowerCase() === 'work') - Number(b.name.trim().toLowerCase() === 'work')).map(field => field.id) : [];
+    const template = [...new Set([...apparatus, ...subjects, ...templateFor(typeKeys(block.text, block.manual_types))])].filter(field => known.has(field));
     if (!entries.length && !template.length) return null;
     const rows = indices();
     const last = entries.at(-1)?.id ?? null;
