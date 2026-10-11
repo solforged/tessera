@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createResource, createSignal, For, onCleanup, onMount, Show, Switch, Match } from 'solid-js';
+import { createEffect, createMemo, createResource, createSignal, For, on, onCleanup, onMount, Show, Switch, Match } from 'solid-js';
 import { ulid } from 'ulid';
 import type { NoteEntry, NoteKind, NoteSummary } from '../api/types';
 import type { NotebookClient } from '../document/contract';
@@ -43,11 +43,11 @@ export function IndexPane(props: IndexPaneProps) {
   const [popup, setPopup] = createSignal<NotePopup>();
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal('');
-  createEffect(() => {
-    props.notebook.changeSequence(); props.notebook.lastChange();
+  // The first read comes from the resources themselves; only later changes reload them.
+  createEffect(on(() => [props.notebook.changeSequence(), props.notebook.lastChange()], () => {
     const timer = setTimeout(() => setVersion(value => value + 1), 300);
     onCleanup(() => clearTimeout(timer));
-  });
+  }, { defer: true }));
   createEffect(() => { props.kindKey; setFilter('all'); setSelected(undefined); setLetter(''); setPopup(undefined); });
   const [index] = createResource(() => [props.kindKey, version()] as const, ([key]) => props.notebook.api.kindNotes(key));
   const typeId = () => props.kind?.type_id ?? (props.kindKey.startsWith('type:') ? props.kindKey.slice(5) : undefined);
