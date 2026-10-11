@@ -74,6 +74,8 @@ pub struct CrossReference {
 pub struct KindIndex {
     pub notes: Vec<NoteEntry>,
     pub see: Vec<CrossReference>,
+    /// Batched, derived apparatus for the notes in this read. Nothing is stored.
+    pub summaries: HashMap<String, crate::NoteSummary>,
 }
 
 struct Note {
@@ -129,6 +131,7 @@ impl Notebook {
                 None => Ok(KindIndex::default()),
             };
         };
+        let summary_type = filing.kinds[index].type_id.clone();
         let mut notes: Vec<_> = filing
             .notes
             .into_iter()
@@ -185,9 +188,11 @@ impl Notebook {
                     .then_with(|| left.id.cmp(&right.id))
             });
         }
+        let summaries = self.index_summaries(&notes, summary_type.as_deref())?;
         Ok(KindIndex {
             notes,
             see: see.into_values().collect(),
+            summaries,
         })
     }
 

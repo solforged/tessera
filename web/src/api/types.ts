@@ -225,7 +225,10 @@ export interface NoteIndex { kinds: (NoteKind & { count: number })[]; notes: num
 export interface NoteEntry { id: string; title: string; sort_as: string | null; created_at: number }
 export interface SeeTarget { id: string; title: string }
 export interface CrossReference { alias: string; targets: SeeTarget[] }
-export interface KindIndex { notes: NoteEntry[]; see: CrossReference[] }
+export interface SummaryField { name: string; value: string }
+export interface SourceSummary { siglum: string; citation_key: string | null; format: SourceFormat; authors: string[]; publisher: string | null; published: string | null; highlights: number }
+export interface NoteSummary { preview: string | null; field: SummaryField | null; block_count: number; text_blocks: number; backlinks: number; referenced_from: SeeTarget[]; source: SourceSummary | null }
+export interface KindIndex { notes: NoteEntry[]; see: CrossReference[]; summaries: Record<string, NoteSummary> }
 export interface SettingRevision { key: string; revision: number }
 export interface Setting { key: string; value: string; revision: number; updated_at: number }
 export interface SettingsView { settings: Setting[]; today: string; time_zone: string }
