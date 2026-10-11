@@ -91,6 +91,8 @@ function PairDialog(props: { url: string | null; onDone(): void }) {
     return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
   };
   return <Popup anchor={document.body} placement="top" width={600} label="Pair a phone" class="pair-dialog" onDismiss={close}>
+    {/* One wrapper from the start, so the popup sees the content grow once the code arrives. */}
+    <div class="pair">
     <header class="pair-head">
       <div><p class="pair-register">This Mac → your phone</p><h2>Pair a phone</h2></div>
       <Button icon="close" label="Close" onClick={close} />
@@ -125,6 +127,7 @@ function PairDialog(props: { url: string | null; onDone(): void }) {
         <Button class="bordered" onClick={props.onDone}>Done</Button>
       </Show>
     </footer>
+    </div>
   </Popup>;
 }
 
