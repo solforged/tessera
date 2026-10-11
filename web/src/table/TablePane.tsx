@@ -37,6 +37,7 @@ const valuePlaceholders: Partial<Record<FieldKind, string>> = { date: partialDat
 const titleWidthLimits = { min: 170, max: 340, default: 240 };
 const clampTitleWidth = (width: number | undefined) => Number.isFinite(width) ? Math.max(titleWidthLimits.min, Math.min(titleWidthLimits.max, width!)) : titleWidthLimits.default;
 const refsColumn = '$refs';
+const membersLabel = (count: number) => `${count} ${count === 1 ? 'member' : 'members'}`;
 
 export function TablePane(props: TablePaneProps) {
   const [query, setQuery] = createSignal(copyQuery(props.view.query));
@@ -330,7 +331,7 @@ export function TablePane(props: TablePaneProps) {
           <div class="table-register-label"><Show when={query().type}><Button class="table-type-label" onClick={event => props.onOpen({ kind: 'page', pageId: query().type! }, event.shiftKey)}>{title()}</Button><span aria-hidden="true"> / </span></Show><span>Register</span></div>
           <h1><Button class="table-title" label="Views" aria-haspopup="menu" onClick={event => viewMenu(event.currentTarget)}><span>{saved()?.name ?? (title() || 'All blocks')}</span><Icon name="down" /></Button></h1>
         </div>
-        <div class="table-view-status"><Show when={props.target.viewId && saved()} fallback={<Show when={result()}>{rows => <>{rows().total} members</>}</Show>}>
+        <div class="table-view-status"><Show when={props.target.viewId && saved()} fallback={<Show when={result()}>{rows => <>{membersLabel(rows().total)}</>}</Show>}>
           <span>{changed() ? 'Unsaved changes' : 'Saved view'}</span><Show when={changed()}><Button onClick={() => { void saveChanges().catch(message); }}>Save</Button><Button onClick={() => { const value = saved(); if (value) switchView(value); }}>Discard</Button></Show>
         </Show></div>
       </header>
@@ -394,7 +395,7 @@ export function TablePane(props: TablePaneProps) {
           </div>}</For>
         </section></Show>
       </div>
-      <footer class="table-footer" role="status"><Show when={deleted()} fallback={<>{loading() ? 'Loading…' : error() || `${result()?.rows.length ?? 0} of ${result()?.total ?? 0} members`}</>}>View deleted · <Button onClick={() => { void undoDelete().catch(message); }}>Undo</Button></Show></footer>
+      <footer class="table-footer" role="status"><Show when={deleted()} fallback={<>{loading() ? 'Loading…' : error() || `${result()?.rows.length ?? 0} of ${membersLabel(result()?.total ?? 0)}`}</>}>View deleted · <Button onClick={() => { void undoDelete().catch(message); }}>Undo</Button></Show></footer>
     </div>
     <Show keyed when={popup()}>{state => <>
       {state.kind === 'menu' && <Menu anchor={state.anchor} label={state.label} header={state.header} items={state.items} onDismiss={() => setPopup(null)} />}
