@@ -159,7 +159,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
         </Switch></Show>
         <For each={block()?.manual_types ?? []}>{title => <TypePill title={title} notebook={props.notebook} onOpen={props.onOpen} onRemove={() => { const result = doc.removeType(id(), title); if (!result.ok) setMessage(result.reason); }} />}</For>
         </div>
-        <Show when={block()?.task || block()?.project || block()?.question || block()?.assessment || cards().cards.length || block()?.citations.length}><span class="outline-capability-metadata">
+        <Show when={block()?.task || block()?.project || block()?.question || block()?.assessment || cards().cards.length || block()?.citations.length}><span class="outline-capability-metadata" onMouseDown={event => { if ((event.target as Element).closest('button')) { event.preventDefault(); event.stopPropagation(); } }}>
           <TaskSummary id={id()} />
           <Show when={block()?.project}><Button class="outline-planning" label="Project" aria-haspopup="dialog" onClick={event => capabilities.open(id(), 'project', event.currentTarget)}>Project</Button></Show>
           <QuestionSummary id={id()} />
