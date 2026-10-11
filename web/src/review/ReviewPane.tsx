@@ -65,6 +65,7 @@ export function ReviewPane(props: ReviewPaneProps) {
   const [editor, setEditor] = createSignal<{ anchor: HTMLElement; deck: Deck | null } | null>(null);
   const [deletion, setDeletion] = createSignal<{ anchor: HTMLElement; deck: Deck } | null>(null);
   const [switching, setSwitching] = createSignal<{ anchor: HTMLElement; target: Destination } | null>(null);
+  const [closing, setClosing] = createSignal<{ anchor: HTMLElement; state: 'finished' | 'abandoned' } | null>(null);
   const [events, setEvents] = createSignal<ReviewEvent[]>([]);
   const [stats, setStats] = createSignal<ReviewStats | null>(null);
   const [ledger, setLedger] = createSignal<DeckCounts[]>([]);
@@ -284,6 +285,7 @@ export function ReviewPane(props: ReviewPaneProps) {
       const receipt = await props.notebook.commit([{ op: 'finish_review_session', id: value.id, base_revision: value.revision, state, ended_at: Date.now() }], state === 'finished' ? 'Finish review' : 'Abandon review');
       if (disposed) return;
       recover = false;
+      setClosing(null);
       setSession(receipt.review_sessions?.find(item => item.id === value.id) ?? null);
       setShown(null); setUpdated(null); setStale(''); setNeedsReload(false);
       if (target) moveTo(target);
@@ -474,8 +476,8 @@ export function ReviewPane(props: ReviewPaneProps) {
       </>}</Show>
     </div>
     <Show when={openSession() && (rows().length || shown())}><footer class="review-session-actions">
-      <Button class="bordered" disabled={locked()} onClick={() => void closeSession('finished')}>Finish review</Button>
-      <Button disabled={locked()} onClick={() => void closeSession('abandoned')}>Abandon review</Button>
+      <Button class="bordered" disabled={locked()} aria-haspopup="dialog" onClick={event => { setCommandError(''); setClosing({ anchor: event.currentTarget, state: 'finished' }); }}>Finish review</Button>
+      <Button disabled={locked()} aria-haspopup="dialog" onClick={event => { setCommandError(''); setClosing({ anchor: event.currentTarget, state: 'abandoned' }); }}>Abandon review</Button>
     </footer></Show>
     <Show keyed when={picker()}>{state => state.kind === 'decks'
       ? <Picker<DeckChoice> anchor={state.anchor} label="Deck" query={search()} onQuery={setSearch} placeholder="Find a deck" items={deckChoices()} key={value => value.id ?? 'all'} onDismiss={() => setPicker(null)} onPick={value => { setPicker(null); if (value.id !== deckId()) requestMove({ deckId: value.id, sessionId: null }, state.anchor); }} row={value => <><Icon name={value.id === deckId() ? 'check' : 'table'} /><span class="picker-text">{value.name}</span></>} empty="No matching decks." />
@@ -486,6 +488,11 @@ export function ReviewPane(props: ReviewPaneProps) {
       { label: 'Delete deck', danger: true, disabledReason: openSession() ? 'Finish or abandon the open review first.' : !selectedDeck() ? 'Choose a saved deck first.' : undefined, action: () => { const deck = selectedDeck(); if (deck) setDeletion({ anchor, deck }); } },
     ]} />}</Show>
     <Show keyed when={editor()}>{state => <DeckEditor anchor={state.anchor} notebook={props.notebook} deck={state.deck} query={query()} onDismiss={() => setEditor(null)} onSaved={id => { setEditor(null); moveTo({ deckId: id, sessionId: null }); }} />}</Show>
+    <Show keyed when={closing()}>{state => <Popup anchor={state.anchor} label={state.state === 'finished' ? 'Finish review?' : 'Abandon review?'} class="review-confirm" onDismiss={() => { if (!pending()) setClosing(null); }}>
+      <p>{state.state === 'finished' ? 'Finish this review? Graded cards keep their grades.' : 'Abandon this review? Graded cards keep their grades.'}</p>
+      <Show when={commandError()}><p class="error" role="alert">{commandError()}</p></Show>
+      <div class="popup-actions"><Button disabled={locked()} onClick={() => setClosing(null)}>Cancel</Button><Button class={state.state === 'finished' ? 'bordered' : 'bordered danger'} disabled={locked()} onClick={() => void closeSession(state.state)}>{state.state === 'finished' ? 'Finish review' : 'Abandon review'}</Button></div>
+    </Popup>}</Show>
     <Show keyed when={deletion()}>{state => <Popup anchor={state.anchor} label="Delete deck" class="review-confirm" onDismiss={() => { if (!pending()) setDeletion(null); }}>
       <p>Delete “{state.deck.name}”? Source cards, schedules and review history stay.</p>
       <Show when={commandError()}><p class="error" role="alert">{commandError()}</p></Show>

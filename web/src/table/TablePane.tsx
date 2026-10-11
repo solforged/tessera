@@ -32,6 +32,7 @@ type PopupState = { kind: 'menu'; anchor: HTMLElement; items: MenuItem[]; label:
   | { kind: 'name'; anchor: HTMLElement; action: 'save' | 'rename' | 'field'; addColumn?: boolean }
   | { kind: 'columns'; anchor: HTMLElement }
   | { kind: 'sources'; anchor: HTMLElement; label: string; sources: TableSource[] }
+  | { kind: 'delete'; anchor: HTMLElement; view: View }
   | null;
 const valuePlaceholders: Partial<Record<FieldKind, string>> = { date: partialDatePlaceholder, url: 'https://', identifier: 'ISBN, DOI or arXiv ID' };
 const titleWidthLimits = { min: 170, max: 340, default: 240 };
@@ -59,6 +60,7 @@ export function TablePane(props: TablePaneProps) {
   const [selectedRow, setSelectedRow] = createSignal<string | null>(null);
   const [editing, setEditing] = createSignal<{ row: QueryRow; field: FieldDefinition; text: string } | null>(null);
   const [deleted, setDeleted] = createSignal<View | null>(null);
+  const [deleting, setDeleting] = createSignal(false);
   const [savedRevision, setSavedRevision] = createSignal(0);
   let region!: HTMLDivElement; let scroll!: HTMLDivElement; let grid!: HTMLTableElement;
   // Columns past the right edge get a fade over the table rows and a count in the header, so a wide register says it scrolls.
@@ -216,13 +218,18 @@ export function TablePane(props: TablePaneProps) {
     await refetchSaved();
     await refetchViews();
   };
-  const deleteView = async () => {
-    const value = saved(); if (!value) return;
-    await submit({ op: 'delete_view', id: value.id, base_revision: value.revision });
-    setDeleted(value); setSaved(undefined);
-    await refetchViews();
-    props.onTargetChange({ kind: 'table', typeId: query().type, viewId: null, query: copyQuery(query()) });
-    clearTimeout(deletedTimer); deletedTimer = setTimeout(() => setDeleted(null), 10000);
+  const deleteView = async (value: View) => {
+    if (deleting()) return;
+    setDeleting(true); setError('');
+    try {
+      await submit({ op: 'delete_view', id: value.id, base_revision: value.revision });
+      setDeleted(value); setSaved(undefined);
+      await refetchViews();
+      props.onTargetChange({ kind: 'table', typeId: query().type, viewId: null, query: copyQuery(query()) });
+      clearTimeout(deletedTimer); deletedTimer = setTimeout(() => setDeleted(null), 10000);
+      setPopup(null);
+    } catch (reason) { message(reason); }
+    finally { setDeleting(false); }
   };
   const undoDelete = async () => {
     const value = deleted(); if (!value) return;
@@ -273,7 +280,7 @@ export function TablePane(props: TablePaneProps) {
       ...(props.target.viewId ? [
         ...(changed() ? [{ label: 'Save', action: () => { void saveChanges().catch(message); } }, { label: 'Discard changes', action: () => { const value = saved(); if (value) switchView(value); } }] : []),
         { label: 'Rename view…', disabledReason: !saved() ? 'Loading…' : undefined, action: () => setPopup({ kind: 'name', anchor, action: 'rename' }) },
-        { label: 'Delete view', icon: 'trash' as const, danger: true, disabledReason: !saved() ? 'Loading…' : undefined, action: () => { void deleteView().catch(message); } },
+        { label: 'Delete view…', icon: 'trash' as const, danger: true, disabledReason: !saved() ? 'Loading…' : undefined, action: () => { const view = saved(); if (view) { setError(''); setPopup({ kind: 'delete', anchor, view }); } } },
       ] : []),
     ],
   });
@@ -453,6 +460,11 @@ export function TablePane(props: TablePaneProps) {
       {state.kind === 'menu' && <Menu anchor={state.anchor} label={state.label} header={state.header} items={state.items} onDismiss={() => setPopup(null)} />}
       {state.kind === 'filter' && <FilterPopup anchor={state.anchor} fields={fields()} initialField={state.field} sheet={window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches} onDismiss={() => setPopup(null)} onNewField={async name => createField(name, false)} onAdd={filter => { updateQuery(addFilter(query(), filter)); setPopup(null); }} />}
       {state.kind === 'name' && <NamePopup anchor={state.anchor} action={state.action} name={state.action === 'rename' ? saved()?.name ?? '' : ''} onDismiss={() => setPopup(null)} onSave={async name => { if (state.action === 'field') await createField(name, !!state.addColumn); else await saveView(name, state.action === 'rename'); }} />}
+      {state.kind === 'delete' && <Popup anchor={state.anchor} label="Delete table view?" onDismiss={() => { if (!deleting()) setPopup(null); }}>
+        <p>Delete “{state.view.name}”? Rows are not deleted.</p>
+        <Show when={error()}><p class="error" role="alert">{error()}</p></Show>
+        <div class="popup-actions"><Button disabled={deleting()} onClick={() => setPopup(null)}>Cancel</Button><Button class="bordered danger" disabled={deleting()} onClick={() => void deleteView(state.view)}>Delete view</Button></div>
+      </Popup>}
       {state.kind === 'columns' && <Popup anchor={state.anchor} label="Columns" class="table-columns-popup" onDismiss={() => setPopup(null)} width={280}>
         <div class="table-popup-heading">Columns</div><div class="table-popup-note">Visibility in this register</div>
         <div class="table-column-choice table-column-fixed"><Icon name="check" />Title<span class="table-column-fixed-note">Always visible</span></div>
