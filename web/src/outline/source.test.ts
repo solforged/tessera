@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import type { FieldDefinition } from '../api/types';
-import { extractedResets, formatSourceValue, shortSourceTitle, sourceFieldName, valueLabel } from './source';
+import type { Block, BlockCapabilities, ChangeEvent, FieldDefinition, SourceFormat, SourceRecord } from '../api/types';
+import { changeTouchesSources, extractedResets, formatSourceValue, shortSourceTitle, sourceFieldName, valueLabel } from './source';
 
 describe('source outline metadata', () => {
   test('recognizes reference and inline field entries without treating prose as metadata', () => {
@@ -49,5 +49,18 @@ describe('source outline metadata', () => {
     expect(extractedResets(values, [])).toEqual({ set: [], insert: [] });
     expect(extractedResets(values, undefined)).toEqual({ set: [], insert: [] });
     expect(extractedResets([], [])).toEqual({ set: [], insert: [] });
+  });
+
+  test('reloads page icons only for changes that can add, drop or reformat a source', () => {
+    const formats = new Map<string, SourceFormat>([['book', 'epub']]);
+    const block = (id: string, kind: Block['kind']) => ({ id, kind }) as Block;
+    const source = (block_id: string, format: SourceFormat) => ({ block_id, source: { format } as SourceRecord }) as BlockCapabilities;
+    const change = (value: Partial<ChangeEvent>) => ({ blocks: [], removed: [], restructured_pages: [], ...value }) as unknown as ChangeEvent;
+    expect(changeTouchesSources(change({ blocks: [block('line', 'block'), block('book', 'page')] }), formats)).toBe(false);
+    expect(changeTouchesSources(change({ capabilities: [source('book', 'epub'), { block_id: 'task' } as BlockCapabilities] }), formats)).toBe(false);
+    expect(changeTouchesSources(change({ blocks: [block('new', 'page')] }), formats)).toBe(true);
+    expect(changeTouchesSources(change({ removed: ['book'] }), formats)).toBe(true);
+    expect(changeTouchesSources(change({ capabilities: [source('book', 'article')] }), formats)).toBe(true);
+    expect(changeTouchesSources(change({ capabilities: [{ block_id: 'book', source: null } as BlockCapabilities] }), formats)).toBe(true);
   });
 });
