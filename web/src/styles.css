@@ -124,7 +124,8 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
 .page-list h2, .page-list > summary { display: flex; align-items: center; gap: var(--space-8); min-height: var(--target-size); margin: 0 0 var(--space-2); padding: 0 var(--space-8) 0 var(--space-12); color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .section-number { color: var(--danger); }
 .section-rule { flex: 1; border-top: var(--rule-width) solid var(--line); }
-.index-directory-link { padding: 0; border: 0; background: none; color: inherit; font: inherit; letter-spacing: inherit; text-align: left; cursor: pointer; }
+/* The heading row is target height; the link fills it so touch can hit it. */
+.index-directory-link { align-self: stretch; margin-inline: calc(-1 * var(--space-4)); padding: 0 var(--space-4); border: 0; background: none; color: inherit; font: inherit; letter-spacing: inherit; text-align: left; cursor: pointer; }
 .index-directory-link:hover, .index-directory-link[aria-current="page"] { color: var(--text); }
 .index-directory-link:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-offset); }
 .page-list > summary { cursor: pointer; list-style: none; }
