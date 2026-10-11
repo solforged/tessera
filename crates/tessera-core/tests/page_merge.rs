@@ -404,10 +404,10 @@ fn field_rows_with_archive_heading_or_capability_state_are_not_discarded() {
         let (_dir, mut nb) = fixture();
         let fields = nb.fields().unwrap().page_id;
         let mut entry = insert(10, &id(1), None, &format!("[[{}]]", id(100)));
-        if decoration == "heading" {
-            if let Operation::Insert { heading, .. } = &mut entry {
-                *heading = Some(2);
-            }
+        if decoration == "heading"
+            && let Operation::Insert { heading, .. } = &mut entry
+        {
+            *heading = Some(2);
         }
         apply(
             &mut nb,

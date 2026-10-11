@@ -7,7 +7,7 @@ import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Popup } from '../ui/Popup';
 import { SETUP_SEEN_KEY, SyncSetup } from './SyncSetup';
-import { ago, plural, replica, size, sync } from './state';
+import { ago, plural, problem, replica, size, sync } from './state';
 import './sync.css';
 
 /**
@@ -63,7 +63,7 @@ export function SyncSheet(props: { onClose(): void; onOpenPage(pageId: string): 
           <div class="sync-row">
             <div><strong>{value().pending ? `${plural(value().pending, 'change')} waiting` : 'Everything sent'}</strong>
               <p>{value().syncing || running() ? 'Syncing…' : value().synced_at ? `Synced ${ago(value().synced_at!)}` : 'Not synced yet'}</p>
-              <Show when={value().last_error}>{failure => <p class="sync-error">{failure().message}</p>}</Show>
+              <Show when={value().last_error}>{failure => <p class="sync-error" title={failure().message}>{problem(failure())}</p>}</Show>
             </div>
             <Button class="bordered" disabled={running() || value().syncing} onClick={() => { void act(api.runSync); }}>Sync now</Button>
           </div>}>

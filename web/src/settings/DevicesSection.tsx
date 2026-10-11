@@ -6,7 +6,7 @@ import { ANDROID } from '../demo/mode';
 import { Button } from '../ui/Button';
 import { Popup } from '../ui/Popup';
 import { SyncSetup } from '../sync/SyncSetup';
-import { ago, plural, replica, size, sync } from '../sync/state';
+import { ago, plural, problem, replica, size, sync } from '../sync/state';
 
 const message = (reason: unknown) => reason instanceof Error ? reason.message : String(reason);
 
@@ -159,7 +159,7 @@ export function PhoneDevices(props: { heading: JSX.Element; onError(message: str
         <div class="settings-label"><span class="settings-name">Sync</span><p>{
           value().syncing || running() ? 'Syncing…'
             : [value().synced_at ? `Synced ${ago(value().synced_at!)}` : 'Not synced yet', value().pending ? `${plural(value().pending, 'change')} waiting` : null].filter(Boolean).join(' · ')
-        }</p><Show when={value().last_error}>{failure => <p class="devices-error">{failure().message}</p>}</Show></div>
+        }</p><Show when={value().last_error}>{failure => <p class="devices-error" title={failure().message}>{problem(failure())}</p>}</Show></div>
         <Button class="bordered" disabled={running() || value().syncing || value().retired} onClick={() => { void run(); }}>Sync now</Button>
       </div>
       <Show when={value().offline.books > 0}>
