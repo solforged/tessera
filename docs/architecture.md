@@ -32,7 +32,7 @@ Each choice has a spike that can overturn it. See [performance](performance.md).
 
 ## Core
 
-`tessera-core` exposes typed operations: create, edit text, split, merge, move, indent, delete, restore, add or remove a capability, and so on. Each runs in one transaction. It checks the base revision, applies the change, updates derived data (links, search, types from text, cards), writes a change row and returns the new revisions.
+`tessera-core` exposes typed operations: create, edit text, split, merge, move, indent, delete, restore, add or remove a capability, and so on. Each runs in one transaction. It checks the base revision, applies the change, updates derived data (links, search, types from text, cards), writes a change row and returns the new revisions. A change row carries a global change ID and the device that made it; IDs the change itself creates are derived from it, so another device applying the same change gets the same rows (see [sync](sync.md)).
 
 Reads are set-based. Loading a page is a handful of queries for blocks, links, capabilities and field values, never one query per block. Sibling order uses sparse ordinals with an index, so moves don't rescan siblings.
 
@@ -58,9 +58,9 @@ Agents write through `POST /api/agent-changes`: add a note to a page, journal da
 
 Ingestion runs in one service worker. Network fetches and parsing happen off the write connection; the worker stages content-addressed snapshots, then commits the source attachment and metadata as an attributed batch. Extractors live in `tessera-ingest`, which has no database access, so each format is tested on files alone. Persistent jobs resume after restart and retry transient network/server failures after 30 seconds, two minutes and ten minutes before failing the fourth attempt. The worker never holds the notebook mutex across network I/O.
 
-The service binds to loopback and rejects untrusted hosts and origins. Remote access is out of scope.
+The service binds to loopback and rejects untrusted hosts and origins. Remote editor access is out of scope; devices sync through a separate listener described in [sync](sync.md).
 
-Local deployment uses one binary built with `embed-web`, which compiles the built editor into `tessera-service`; `--assets` remains a development override. On macOS, `tessera install` registers a per-user launch agent with restart-on-exit and file logging, while `tessera uninstall` leaves notebook data intact. Install stops the old service, backs up the notebook with the read-only snapshot path (so a newer build can back up a notebook before migrating it), starts the new build and waits for it to report its version and build; given a previous executable, it rolls back by restoring the backup with that executable and reinstalling it. Structured `tracing` events cover migrations, service lifecycle and ingestion, with filtering through `RUST_LOG`. Online backups use a fresh SQLite backup connection and copy the immutable object store. Restore holds the same OS ownership lock as the service and opens the restored notebook to check migrations. Remote access is still out of scope.
+Local deployment uses one binary built with `embed-web`, which compiles the built editor into `tessera-service`; `--assets` remains a development override. On macOS, `tessera install` registers a per-user launch agent with restart-on-exit and file logging, while `tessera uninstall` leaves notebook data intact. Install stops the old service, backs up the notebook with the read-only snapshot path (so a newer build can back up a notebook before migrating it), starts the new build and waits for it to report its version and build; given a previous executable, it rolls back by restoring the backup with that executable and reinstalling it. Structured `tracing` events cover migrations, service lifecycle and ingestion, with filtering through `RUST_LOG`. Online backups use a fresh SQLite backup connection and copy the immutable object store. Restore holds the same OS ownership lock as the service and opens the restored notebook to check migrations.
 
 ## Desktop app
 
@@ -100,7 +100,7 @@ Two panes, back and forward history, and per-pane fold, zoom and caret state are
 
 ## Conflicts
 
-A stale operation fails without writing. Clean remote changes merge into the local view block by block. When a remote change touches a block with unsent local text, the local text is kept and the block shows a conflict with both versions. Nothing is merged automatically.
+A stale operation fails without writing. Clean remote changes merge into the local view block by block. When a remote change touches a block with unsent local text, the local text is kept and the block shows a conflict with both versions. Nothing is merged automatically. Replicas on other devices follow the same rule; see [sync](sync.md).
 
 ## Why not the alternatives
 

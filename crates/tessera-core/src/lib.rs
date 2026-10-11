@@ -26,6 +26,7 @@ mod position_store;
 mod query;
 pub mod question_store;
 mod reads;
+pub mod replication;
 mod resurface;
 mod review_store;
 pub mod scheduler;
@@ -54,11 +55,11 @@ pub use capabilities::{
 pub use error::{Error, Result};
 pub use migrate::SCHEMA_VERSION;
 pub use model::{
-    Actor, Backlink, Batch, Block, BlockInPage, BlockKind, ChangeEvent, Committed, Direction,
-    FieldDefinition, FieldKind, FieldOption, FieldSummary, FieldType, FieldValue, FieldsView,
-    Filter, FilterOp, Operation, PageView, Query, QueryResult, QueryRow, Reading, ReadingValue,
-    Revision, Row, Setting, SettingRevision, SettingsView, SortBy, SortKey, TextRewrite, TypeInfo,
-    View,
+    Actor, Backlink, Batch, Block, BlockInPage, BlockKind, ChangeEvent, ChangeStamp, Committed,
+    Direction, FieldDefinition, FieldKind, FieldOption, FieldSummary, FieldType, FieldValue,
+    FieldsView, Filter, FilterOp, Operation, PageView, Query, QueryResult, QueryRow, Reading,
+    ReadingValue, Revision, Row, Setting, SettingRevision, SettingsView, SortBy, SortKey,
+    TextRewrite, TypeInfo, View,
 };
 pub use notebook::{DATABASE_FILE, Notebook, NotebookInfo, now_ms};
 pub use ownership::NotebookOwnership;

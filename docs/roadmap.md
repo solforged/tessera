@@ -133,6 +133,17 @@ Exit: file a week of reading notes by kind, settle two, give three revisit dates
 
 Progress: the model is settled in the [domain model](domain-model.md#notes), and a clickable mock of the index, note views, spreads and the note header is in `~/Documents/tessera-design/notes-index-mock/`. Nothing is built.
 
+## 11. Sync
+
+- Determinism and identity: change IDs and origins, a device ID, derived IDs inside apply, content-derived library IDs, table classes.
+- A replica protocol on loopback: clone, push, pull, rebase, conflicts and natural-key merges.
+- Objects by hash with books pinned for offline reading, and last-writer-wins rows for reading positions.
+- A sync listener on the tailnet with pairing, and the Android app as a replica.
+
+Exit: offline, highlight a book on the phone while editing today's journal on the Mac; reconnect, and both devices show the highlights and the journal. See [sync](sync.md).
+
+Progress: determinism and identity are done. Until replicas land, the Android app (`crates/tessera-android`) keeps its own notebook on the phone for reading and annotation and does not sync with a desktop notebook.
+
 ## Not planned
 
-Multi-device sync, collaboration, an iOS app, plugin and schema builders, graph visualization and autonomous background agents. Each may come later; none blocks daily use. The Android app (`crates/tessera-android`) keeps its own notebook on the phone for reading and annotation; it does not sync with a desktop notebook.
+Collaboration, an iOS app, plugin and schema builders, graph visualization and autonomous background agents. Each may come later; none blocks daily use.

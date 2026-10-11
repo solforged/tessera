@@ -738,7 +738,11 @@ fn membership_title_upgrade_preserves_unresolved_mentions_without_resurrecting_p
     drop(nb);
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
     conn.execute_batch(
-        "DROP TABLE provisional_pages;
+        "DROP TABLE replica;
+         DROP INDEX changes_change_id;
+         ALTER TABLE changes DROP COLUMN change_id;
+         ALTER TABLE changes DROP COLUMN origin;
+         DROP TABLE provisional_pages;
          DROP TABLE agent_changes;
          DROP TABLE memberships;
          CREATE TABLE memberships (
@@ -1246,7 +1250,11 @@ fn manual_membership_migration_retains_authored_text_tags_and_unresolved_titles(
     drop(nb);
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
     conn.execute_batch(
-        "DROP TABLE provisional_pages;
+        "DROP TABLE replica;
+         DROP INDEX changes_change_id;
+         ALTER TABLE changes DROP COLUMN change_id;
+         ALTER TABLE changes DROP COLUMN origin;
+         DROP TABLE provisional_pages;
          DROP TABLE agent_changes;
          ALTER TABLE memberships RENAME TO modern_memberships;
          DROP INDEX memberships_type;
@@ -1405,7 +1413,15 @@ fn provisional_cleanup_does_not_backfill_existing_pages_on_upgrade() {
     apply(&mut nb, vec![page(1, "Notes"), insert(10, 1, "#legacy")]);
     drop(nb);
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
-    conn.execute_batch("DROP TABLE IF EXISTS provisional_pages; PRAGMA user_version = 20;").unwrap();
+    conn.execute_batch(
+        "DROP TABLE replica;
+         DROP INDEX changes_change_id;
+         ALTER TABLE changes DROP COLUMN change_id;
+         ALTER TABLE changes DROP COLUMN origin;
+         DROP TABLE IF EXISTS provisional_pages;
+         PRAGMA user_version = 20;",
+    )
+    .unwrap();
     drop(conn);
     let mut nb = Notebook::open(dir.path()).unwrap();
     apply(&mut nb, vec![edit(10, 1, "")]);
