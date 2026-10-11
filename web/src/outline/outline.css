@@ -281,9 +281,10 @@
   .outline-row:not(:focus-within, .row-selected) :is(.row-menu, .row-fold), .outline-row .row-fold.fold-empty { display: none; }
   /* Threads and field slots measure from the bullet, which is now the first control. */
   [data-page-style="prose"] .outline-row::before { left: calc(0.5 * var(--target-size)); }
-  .field-slots { padding-left: calc(2px + var(--slot-depth) * var(--indent-width)); }
+  .field-slots { order: 3; padding-left: calc(2px + var(--slot-depth) * var(--indent-width)); }
   /* Field names keep a narrower column, so values are not pushed past the middle of the screen. */
   .outline-field-label { flex-basis: calc(var(--target-size) + var(--space-48) * 1.5); width: calc(var(--target-size) + var(--space-48) * 1.5); }
+  .field-slot-label { flex-basis: calc(var(--target-size) + var(--space-48) * 1.5); }
 }
 
 .card-operator { color: var(--faint); }
