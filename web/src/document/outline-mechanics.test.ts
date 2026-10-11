@@ -88,17 +88,24 @@ test('Enter after a parent inserts its first child and restores exact caret thro
   expect((await api.page(pageId)).rows.map(row => row.block.id)).toEqual([first, result.created[0]!, child, sibling]);
 });
 
-test('Enter inside a complete reference or tag refuses without changing text or history', async () => {
-  for (const text of ['before [[01ARZ3NDEKTSV4RRFFQ69G5FAV|label]] after', 'before #token after']) {
-    const { doc, first } = await fixture(text);
-    const before = snapshot(doc);
-    const at = { id: first, offset: 10 };
-    expect(success(doc.edit({ kind: 'split', id: first, offset: at.offset }, at)).created).toEqual([]);
-    const range = { anchor: at, head: at };
-    expect(success(doc.edit({ kind: 'replaceRange', range, between: [], text: '', mode: 'split' }, at)).created).toEqual([]);
-    expect(snapshot(doc)).toEqual(before);
+test('Enter inside a reference or tag splits after it, and a range touching one takes it whole', async () => {
+  for (const token of ['[[01ARZ3NDEKTSV4RRFFQ69G5FAV|label]]', '[[Stoicism]]', '#token']) {
+    const text = `before ${token} after`;
+    const { client, doc, first } = await fixture(text);
+    const at = { id: first, offset: 'before '.length + 3 };
+    const caret = success(doc.edit({ kind: 'replaceRange', range: { anchor: at, head: at }, between: [], text: '', mode: 'split' }, at));
+    expect([doc.block(first)?.text, doc.block(caret.created[0]!)?.text]).toEqual([`before ${token}`, ' after']);
+    expect(caret.caret).toEqual({ id: caret.created[0]!, offset: 0 });
+    await client.flush();
     doc.undo();
-    expect(doc.block(first)?.text).toBe('');
+    expect(doc.block(first)?.text).toBe(text);
+    const direct = success(doc.edit({ kind: 'split', id: first, offset: at.offset }, at)).created[0]!;
+    expect([doc.block(first)?.text, doc.block(direct)?.text]).toEqual([`before ${token}`, ' after']);
+    await client.flush();
+    doc.undo();
+    const range = { anchor: { id: first, offset: 3 }, head: at };
+    const ranged = success(doc.edit({ kind: 'replaceRange', range, between: [], text: '', mode: 'split' }, at)).created[0]!;
+    expect([doc.block(first)?.text, doc.block(ranged)?.text]).toEqual(['bef', ' after']);
   }
 });
 

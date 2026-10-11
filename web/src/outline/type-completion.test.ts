@@ -22,6 +22,11 @@ describe('type completion tokens', () => {
     expect(atEnd(String.raw`\#bo`)).toBeNull();
   });
 
+  test('takes the whole tag word when the caret is moved back into it', () => {
+    expect(typeTokenAt('C #philo after', 6)).toEqual({ from: 2, to: 8, query: 'philo' });
+    expect(typeTokenAt('#bo:ok', 2)).toEqual({ from: 0, to: 3, query: 'bo' });
+  });
+
   test('shields references, block references, inline code and code fences', () => {
     for (const text of ['[[source #bo', '[[source| #bo]]', '#[[Long #bo', '` #bo', '`` #bo``', '```md\n#bo', '~~~\n#bo']) {
       expect(atEnd(text)).toBeNull();

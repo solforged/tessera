@@ -31,6 +31,9 @@ export interface DocumentHost {
 type MutableBlockState = { -readonly [K in keyof BlockState]: BlockState[K] } & { history: boolean };
 interface Cell { state: MutableBlockState; set: SetStoreFunction<MutableBlockState> }
 const stateOf = (block: Block): BlockState => ({ id: block.id, kind: block.kind, parentId: block.parent_id, pageId: block.page_id, text: block.text, heading: block.heading, archived: block.archived, manual_types: [], task: null, project: null, position: null, question: null, assessment: null, mergeProtected: false, reviewedCards: false, source: null, citations: [], revision: block.revision, pending: false, conflict: null });
+/** The reference or tag holding `offset` strictly inside it, where Enter must not cut. */
+const splitToken = (text: string, offset: number) =>
+  textTokens(text).find(token => (token.kind === 'reference' || token.kind === 'tag') && offset > token.start && offset < token.end);
 
 export class Document implements PageDocument {
   readonly outline: OutlineIndex;
@@ -891,8 +894,11 @@ export class Document implements PageDocument {
       const last = this.snapshot(end.id);
       let startOffset = Math.max(0, Math.min(start.offset, first.text.length));
       let endOffset = Math.max(0, Math.min(end.offset, last.text.length));
-      if (mode === 'split' && [first, last].some((block, index) => textTokens(block.text).some(token =>
-        (token.kind === 'reference' || token.kind === 'tag') && (index ? endOffset : startOffset) > token.start && (index ? endOffset : startOffset) < token.end))) return;
+      if (mode === 'split' && start.id === end.id && startOffset === endOffset) startOffset = endOffset = splitToken(first.text, startOffset)?.end ?? startOffset;
+      else if (mode === 'split') {
+        startOffset = splitToken(first.text, startOffset)?.start ?? startOffset;
+        endOffset = splitToken(last.text, endOffset)?.end ?? endOffset;
+      }
       if (mode === 'text' && !text && (start.id !== end.id || startOffset !== endOffset)) {
         for (const token of textTokens(first.text)) if (token.kind === 'reference' && startOffset > token.start && startOffset < token.end) startOffset = token.start;
         for (const token of textTokens(last.text)) if (token.kind === 'reference' && endOffset > token.start && endOffset < token.end) endOffset = token.end;
@@ -1157,8 +1163,8 @@ export class Document implements PageDocument {
         case 'split': {
           const old = this.snapshot(edit.id);
           if (old.kind !== 'block') throw new Error('Only outline blocks can split.');
-          const offset = Math.max(0, Math.min(edit.offset, old.text.length));
-          if (textTokens(old.text).some(token => (token.kind === 'reference' || token.kind === 'tag') && offset > token.start && offset < token.end)) break;
+          const at = Math.max(0, Math.min(edit.offset, old.text.length));
+          const offset = splitToken(old.text, at)?.end ?? at;
           split(old, old.text.slice(0, offset), old.text.slice(offset), edit.zoomRoot);
           break;
         }
