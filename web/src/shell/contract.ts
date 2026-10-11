@@ -5,7 +5,7 @@
  */
 
 import type { Caret, NotebookClient } from '../document/contract';
-import type { CardSelection, LibraryFilters, Query, ReadingState, TaskQuery } from '../api/types';
+import type { CardSelection, FieldKind, LibraryFilters, Query, ReadingState, TaskQuery } from '../api/types';
 
 export type PaneId = 'main' | 'side';
 
@@ -69,6 +69,7 @@ export type OpenTarget =
   | { kind: 'agenda'; date?: string; mode?: AgendaViewState['mode']; viewId?: string; query?: TaskQuery }
   | { kind: 'review'; deckId?: string }
   | { kind: 'fields'; typeId?: string }
+  | { kind: 'field'; fieldId: string; previewKind?: FieldKind }
   | { kind: 'settings' }
   | { kind: 'library'; tab?: LibraryTab; add?: boolean }
   /** Read a source. `at` is a passage ID to scroll to; `citationId` flashes that citation's range and does not count as reading. */
@@ -86,6 +87,7 @@ export interface TableViewState {
   hiddenFields?: string[]; titleWidth?: number; horizontalScroll?: number;
 }
 export interface FieldsViewState { scroll: number }
+export interface FieldViewState { scroll: number }
 export interface SettingsViewState { scroll: number }
 export interface CompareViewState { scroll: number; comparison?: 'readings' | 'criteria'; chosen?: string[] | null }
 export interface IndexViewState { scroll: number }

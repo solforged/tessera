@@ -302,7 +302,7 @@ impl Notebook {
                     let keys = query
                         .sort
                         .iter()
-                        .map(|key| sort_value(&row, key))
+                        .map(|key| sort_value(&row, key, &defs))
                         .collect::<Vec<_>>();
                     (row, keys)
                 })
@@ -507,7 +507,11 @@ impl SortValue {
         }
     }
 }
-fn sort_value(row: &QueryRow, key: &SortKey) -> Option<SortValue> {
+fn sort_value(
+    row: &QueryRow,
+    key: &SortKey,
+    definitions: &HashMap<&str, &FieldDefinition>,
+) -> Option<SortValue> {
     Some(match key.by {
         SortBy::Title => SortValue::Text(row.block.block.text.to_lowercase()),
         SortBy::Created => SortValue::Timestamp(row.block.block.created_at),
@@ -517,7 +521,15 @@ fn sort_value(row: &QueryRow, key: &SortKey) -> Option<SortValue> {
             match value {
                 Reading::Problem { .. } => return None,
                 Reading::Value { value, .. } => match value {
-                    ReadingValue::Text(text) => SortValue::Text(text.to_lowercase()),
+                    ReadingValue::Text(text) => SortValue::Text(
+                        if definitions.get(key.field.as_deref()?)?.kind == FieldKind::Date
+                            && text.len() < 4
+                        {
+                            format!("{text:0>4}")
+                        } else {
+                            text.to_lowercase()
+                        },
+                    ),
                     ReadingValue::Number(n) => SortValue::Number(*n),
                     ReadingValue::Checkbox(b) => SortValue::Checkbox(*b),
                 },

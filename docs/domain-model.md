@@ -48,6 +48,8 @@ A field is defined by a block on the Fields system page, which every notebook ha
 
 Changing a field's kind changes only how values are read. Owner counts include entries with no values and count each owning block once; archived or deleted entries and owners do not count.
 
+Bare years from one to four digits are dates at year precision: `180` and `0180` mean year 180; zero is invalid. Month and day forms still require a four-digit year. Field sorting pads the year in its sort key without changing the written value. A field's detail read may use a proposed kind to count readable and problem values before applying one undoable kind change. Empty-entry counts include entries whose children are all blank; owner samples combine an owner's entries in outline order and identify the first entry, while problem and readable samples identify each value's own entry.
+
 A type may carry a template: an ordered list of fields that its table shows first and its members' field sheets offer as empty slots. Fields present on members appear after the template, so a template is never required; Fill missing fields on the type page writes empty entries for members only when asked.
 
 ## Queries and views

@@ -29,6 +29,8 @@ import type {
   KindIndex,
   Deck,
   Fields,
+  FieldDetail,
+  FieldKind,
   HighlightQuery,
   HighlightResult,
   IngestJob,
@@ -216,6 +218,7 @@ export interface ApiClient {
   backlinks(id: string, limit?: number, signal?: AbortSignal): Promise<Backlink[]>;
   members(id: string, limit?: number, signal?: AbortSignal): Promise<BlockInPage[]>;
   fields(signal?: AbortSignal): Promise<Fields>;
+  fieldDetail(id: string, kind?: FieldKind, limit?: number, signal?: AbortSignal): Promise<FieldDetail>;
   types(signal?: AbortSignal): Promise<Type[]>;
   type(id: string, signal?: AbortSignal): Promise<Type>;
   noteIndex(signal?: AbortSignal): Promise<NoteIndex>;
@@ -333,6 +336,7 @@ export function createApi(base = ''): ApiClient {
     backlinks: (id: string, limit = 100, signal?: AbortSignal) => get<Backlink[]>(`/blocks/${segment(id)}/backlinks${query({ limit })}`, signal),
     members: (id: string, limit = 100, signal?: AbortSignal) => get<BlockInPage[]>(`/types/${segment(id)}/members${query({ limit })}`, signal),
     fields: (signal?: AbortSignal) => get<Fields>('/fields', signal),
+    fieldDetail: (id: string, kind?: FieldKind, limit = 12, signal?: AbortSignal) => get<FieldDetail>(`/fields/${segment(id)}${query({ kind, limit })}`, signal),
     types: (signal?: AbortSignal) => get<Type[]>('/types', signal),
     type: (id: string, signal?: AbortSignal) => get<Type>(`/types/${segment(id)}`, signal),
     noteIndex: (signal?: AbortSignal) => get<NoteIndex>('/index', signal),

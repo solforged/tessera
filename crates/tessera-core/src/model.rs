@@ -714,6 +714,58 @@ pub struct FieldType {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FieldOwner {
+    pub id: String,
+    pub text: String,
+    pub page_id: String,
+    pub page_title: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FieldOwnerValues {
+    pub owner: FieldOwner,
+    /// The first entry in outline order when this owner has several entries.
+    pub entry_id: String,
+    pub values: Vec<FieldValue>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FieldValueUse {
+    pub owner: FieldOwner,
+    pub entry_id: String,
+    pub value: FieldValue,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FieldTemplate {
+    pub type_id: String,
+    pub name: String,
+    pub position: usize,
+    pub members: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FieldOptionUse {
+    pub option_id: String,
+    pub uses: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FieldDetail {
+    pub field: FieldSummary,
+    pub kind: FieldKind,
+    pub owners_total: usize,
+    pub values_total: usize,
+    pub empty_total: usize,
+    pub problems_total: usize,
+    pub templates: Vec<FieldTemplate>,
+    pub option_uses: Vec<FieldOptionUse>,
+    pub owners: Vec<FieldOwnerValues>,
+    pub problems: Vec<FieldValueUse>,
+    pub readable: Vec<FieldValueUse>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SettingRevision {
     pub key: String,
     pub revision: i64,

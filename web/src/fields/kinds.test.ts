@@ -6,5 +6,5 @@ test('field labels cover the ordered kind contract', () => {
 });
 
 test('date prompts show every accepted precision', () => {
-  expect(partialDatePlaceholder).toBe('YYYY, YYYY-MM or YYYY-MM-DD');
+  expect(partialDatePlaceholder).toBe('Year (1–9999), YYYY-MM or YYYY-MM-DD');
 });

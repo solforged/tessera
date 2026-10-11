@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createMemo, createSignal, onCleanup } from 'solid-js';
+import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from 'solid-js';
 import { api } from '../api/client';
 import type { FieldKind, FieldSummary, Fields } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
@@ -10,6 +10,7 @@ import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
 import { Popup } from '../ui/Popup';
 import { TypeFieldsPane } from './TypeFieldsPane';
+import { FieldDetails } from './FieldDetails';
 import './fields.css';
 
 interface FieldsPaneProps {
@@ -38,6 +39,10 @@ function DefinitionsPane(props: FieldsPaneProps) {
   const [newKind, setNewKind] = createSignal<FieldKind>('text');
   const [newKindMenu, setNewKindMenu] = createSignal<HTMLElement | null>(null);
   const [createError, setCreateError] = createSignal('');
+  const [wide, setWide] = createSignal(false);
+  const [selected, setSelected] = createSignal<string>();
+  const [previewKind, setPreviewKind] = createSignal<FieldKind>();
+  const [page, setPage] = createSignal(0);
   const ready = () => !loading() && doc()?.status() === 'ready' && doc()?.saveState() === 'saved';
   const documentError = createMemo(() => {
     const document = doc();
@@ -51,9 +56,16 @@ function DefinitionsPane(props: FieldsPaneProps) {
     const needle = search().trim().toLocaleLowerCase();
     return fields().filter(field => field.name.toLocaleLowerCase().includes(needle));
   });
+  const pageFields = createMemo(() => visibleFields().slice(page() * 100, (page() + 1) * 100));
+  createEffect(() => { search(); setPage(0); });
   const pageId = createMemo(() => data()?.page_id);
   let scroll!: HTMLDivElement;
   let restoredScroll = false;
+  onMount(() => {
+    const observer = new ResizeObserver(entries => setWide((entries[0]?.contentRect.width ?? 0) >= 1096));
+    observer.observe(scroll);
+    onCleanup(() => observer.disconnect());
+  });
   createEffect(() => {
     const id = pageId();
     if (!id) return;
@@ -79,15 +91,15 @@ function DefinitionsPane(props: FieldsPaneProps) {
     }, 150);
     onCleanup(() => { clearTimeout(timer); controller.abort(); });
   });
-  const openDefinition = (field: FieldSummary, beside: boolean) => {
-    const id = pageId();
-    if (id) props.onOpen({ kind: 'page', pageId: id, blockId: field.id }, beside);
+  const openDefinition = (field: FieldSummary, beside: boolean) => props.onOpen({ kind: 'field', fieldId: field.id }, beside);
+  const selectDefinition = (field: FieldSummary, beside: boolean, keyboard = false) => {
+    if (beside || keyboard || !wide()) { openDefinition(field, beside); return; }
+    setSelected(field.id); setPreviewKind(undefined);
   };
   const changeKind = (field: FieldSummary, value: FieldKind) => {
-    const document = doc();
-    if (!document || field.kind === value) return;
-    const result = document.edit({ kind: 'fieldKind', definition: field, value });
-    if (!result.ok) setError(result.reason);
+    if (field.kind === value) return;
+    if (!wide()) { props.onOpen({ kind: 'field', fieldId: field.id, previewKind: value }, false); return; }
+    setSelected(field.id); setPreviewKind(value);
   };
   const closeCreation = () => { setNewKindMenu(null); setCreating(null); };
   const addField = () => {
@@ -121,12 +133,21 @@ function DefinitionsPane(props: FieldsPaneProps) {
     <Show when={documentError()}><div class="pane-error" role="alert">{documentError()}</div></Show>
     <Show when={loading() && !data()}><p class="empty-state" role="status">Loading fields…</p></Show>
     <div ref={scroll} class="fields-scroll" onScroll={() => props.onViewChange({ scroll: scroll.scrollTop })}>
+      <div class="fields-master-detail"><div class="fields-master">
       <Show when={data()}>
         <Show when={fields().length} fallback={<p class="empty-state">No fields yet. Use New field, or type <code>Name::</code> in a block.</p>}>
           <Show when={visibleFields().length} fallback={<p class="empty-state">No matching fields. <Button onClick={() => setSearch('')}>Clear filter</Button></p>}>
             <table class="fields-index"><thead><tr><th scope="col">Name</th><th scope="col" class="fields-kind">Kind</th><th scope="col" class="fields-count">Used by</th><th scope="col">Templates</th></tr></thead><tbody>
-              <For each={visibleFields()}>{field => <tr>
-                <td data-label="Name"><Button class="field-name" title={`Edit ${field.name} definition · Shift to open beside`} onClick={event => openDefinition(field, event.shiftKey)}>{field.name}</Button></td>
+              <For each={pageFields()}>{field => <tr tabIndex={0} aria-selected={selected() === field.id} onClick={event => { if (!(event.target as HTMLElement).closest('button')) selectDefinition(field, event.shiftKey); }} onDblClick={event => openDefinition(field, event.shiftKey)} onKeyDown={event => {
+                if (event.target !== event.currentTarget) return;
+                if (event.key === 'Enter') { event.preventDefault(); openDefinition(field, event.shiftKey); }
+                if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                  event.preventDefault();
+                  const next = event.key === 'ArrowDown' ? event.currentTarget.nextElementSibling : event.currentTarget.previousElementSibling;
+                  if (next instanceof HTMLElement) { next.focus(); const index = pageFields().indexOf(field) + (event.key === 'ArrowDown' ? 1 : -1); const item = pageFields()[index]; if (item && wide()) { setSelected(item.id); setPreviewKind(undefined); } }
+                }
+              }}>
+                <td data-label="Name"><Button class="field-name" title={`Open ${field.name} · Shift to open beside`} onClick={event => selectDefinition(field, event.shiftKey, event.detail === 0)}>{field.name}</Button></td>
                 <td data-label="Kind"><Button class="fields-kind-button" aria-label={`Kind for ${field.name}: ${kindLabels[field.kind]}`} aria-haspopup="menu" aria-expanded={kindMenu()?.field.id === field.id} disabled={!ready()} onClick={event => setKindMenu({ field, anchor: event.currentTarget })}>{kindLabels[field.kind]} <Icon name="down" /></Button></td>
                 <td data-label="Used by" class="fields-count"><Show when={field.owners} fallback={<span class="fields-unused" title="No block uses this field yet">Unused</span>}><Button label={`Show blocks with ${field.name}`} title={`Blocks using ${field.name}: ${field.owners} · Shift to open beside`} onClick={event => props.onOpen({ kind: 'table', typeId: null, viewId: null, query: { type: null, text: null, filters: [{ field: field.id, op: 'present', value: null }], sort: [], limit: null } }, event.shiftKey)}>{field.owners}</Button></Show></td>
                 <td data-label="Templates"><div class="fields-types"><For each={field.types} fallback={<span class="fields-unused">None</span>}>{type => <button type="button" class="outline-tag" title={`Open ${type.name} table · Shift to open beside`} onClick={event => props.onOpen({ kind: 'table', typeId: type.id, viewId: null, query: typeQuery(type.id) }, event.shiftKey)}>#{type.name}</button>}</For></div></td>
@@ -135,8 +156,9 @@ function DefinitionsPane(props: FieldsPaneProps) {
           </Show>
         </Show>
       </Show>
+      </div><Show when={wide() && selected()}>{id => <FieldDetails fieldId={id()} previewKind={previewKind()} inspector notebook={props.notebook} document={doc()} onPreview={setPreviewKind} onOpen={props.onOpen} />}</Show></div>
     </div>
-    <footer class="fields-footer"><span role="status">{visibleFields().length} of {fields().length} fields</span><span class="fields-hint">Changing kind leaves value text unchanged.</span></footer>
+    <footer class="fields-footer"><span role="status">{visibleFields().length} of {fields().length} fields</span><Show when={visibleFields().length > 100}><div><Button disabled={!page()} onClick={() => setPage(value => value - 1)}>Previous</Button><span>Page {page() + 1}</span><Button disabled={(page() + 1) * 100 >= visibleFields().length} onClick={() => setPage(value => value + 1)}>Next</Button></div></Show><span class="fields-hint">Changing kind leaves value text unchanged.</span></footer>
     <Show keyed when={kindMenu()}>{state => <Menu anchor={state.anchor} label={`Kind for ${state.field.name}`} onDismiss={() => setKindMenu(null)} items={(Object.keys(kindLabels) as FieldKind[]).map(kind => ({ label: kindLabels[kind], icon: kind === state.field.kind ? 'check' : undefined, action: () => changeKind(state.field, kind) }))} />}</Show>
     <Show when={creating()}>{anchor => <Popup anchor={anchor()} label="New field" class="fields-new" fitContent onDismiss={closeCreation}>
       <h2 class="popup-title">New field</h2>

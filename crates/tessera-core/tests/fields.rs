@@ -578,11 +578,18 @@ fn every_kind_reads_values_without_rewriting_authored_blocks() {
 fn source_kinds_read_partial_dates_urls_and_normalized_identifiers() {
     let (_dir, mut nb) = fixture();
     kind(&mut nb, 10, FieldKind::Date);
-    for (text, read) in [(" 1987 ", "1987"), ("1987-03", "1987-03")] {
+    for (text, read) in [
+        (" 1987 ", "1987"),
+        ("1987-03", "1987-03"),
+        ("180", "180"),
+        ("5", "5"),
+        ("0180", "0180"),
+        ("87", "87"),
+    ] {
         edit(&mut nb, 300, text);
         assert_eq!(reading(&nb, 10), ok(ReadingValue::Text(read.into()), None));
     }
-    for text in ["0000", "1987-13", "1987-3", "87"] {
+    for text in ["0", "000", "0000", "1987-13", "1987-3", "1965-3", "180-03"] {
         edit(&mut nb, 300, text);
         assert_eq!(reading(&nb, 10), problem("not a date"));
     }
@@ -1180,6 +1187,149 @@ fn field_sorts_compare_dates_booleans_and_casefolded_text_by_first_value() {
     assert_eq!(ids(nb.query(&q).unwrap()), vec![id(101), id(100)]);
     q.sort[0].direction = Direction::Desc;
     assert_eq!(ids(nb.query(&q).unwrap()), vec![id(101), id(100)]);
+}
+
+#[test]
+fn short_years_sort_chronologically_without_rewriting_text() {
+    let (_dir, mut nb) = fixture();
+    kind(&mut nb, 10, FieldKind::Date);
+    edit(&mut nb, 300, "180");
+    let mut operations = Vec::new();
+    for (index, text) in ["500", "1965", "1965-03", "1965-03-14"].iter().enumerate() {
+        let index = index as u128 + 1;
+        operations.push(insert(100 + index, 2, &format!("Book {index} #books")));
+        operations.push(insert(200 + index, 100 + index, &format!("[[{}]]", id(10))));
+        operations.push(insert(300 + index, 200 + index, text));
+    }
+    apply(&mut nb, operations);
+    let mut q = query();
+    q.sort.push(SortKey {
+        by: SortBy::Field,
+        field: Some(id(10)),
+        direction: Direction::Asc,
+    });
+    assert_eq!(
+        ids(nb.query(&q).unwrap()),
+        (100..105).map(id).collect::<Vec<_>>()
+    );
+    q.sort[0].direction = Direction::Desc;
+    assert_eq!(
+        ids(nb.query(&q).unwrap()),
+        (100..105).rev().map(id).collect::<Vec<_>>()
+    );
+    assert_eq!(nb.block(&id(300)).unwrap().text, "180");
+}
+
+#[test]
+fn field_detail_counts_visible_entries_and_previews_without_writes() {
+    let (_dir, mut nb) = fixture();
+    apply(
+        &mut nb,
+        vec![
+            insert(101, 2, "Beta #books"),
+            insert(102, 2, "Archived #books"),
+            insert(103, 2, "Gamma #books"),
+            insert(201, 101, &format!("[[{}]]", id(10))),
+            insert(202, 102, &format!("[[{}]]", id(10))),
+            insert(203, 103, &format!("[[{}]]", id(10))),
+            insert(204, 100, &format!("[[{}]]", id(10))),
+            insert(301, 201, " "),
+            insert(302, 202, "1965"),
+            insert(303, 203, "Excellent"),
+            insert(304, 204, "4.5"),
+            Operation::SetTypeFields {
+                type_id: id(1),
+                base_revision: 1,
+                fields: vec![id(10)],
+            },
+        ],
+    );
+    archive(&mut nb, 102, true);
+    let before = nb.page(&id(2)).unwrap();
+    let fields_before = nb.fields().unwrap();
+    let detail = nb
+        .field_detail(&id(10), Some(FieldKind::Number), Some(2))
+        .unwrap();
+    assert_eq!(detail.kind, FieldKind::Number);
+    assert_eq!(detail.field.definition.kind, FieldKind::Text);
+    assert_eq!(
+        (
+            detail.owners_total,
+            detail.values_total,
+            detail.empty_total,
+            detail.problems_total
+        ),
+        (3, 3, 1, 1)
+    );
+    assert_eq!(detail.field.owners, fields_before.fields[0].owners);
+    assert_eq!(detail.owners.len(), 2);
+    assert_eq!(detail.owners[0].owner.id, id(100));
+    assert_eq!(detail.owners[0].values.len(), 2);
+    assert!(detail.owners[1].values.is_empty());
+    assert_eq!(detail.problems[0].owner.id, id(103));
+    assert_eq!(detail.problems[0].entry_id, id(203));
+    assert_eq!(detail.readable.len(), 2);
+    assert_eq!(detail.templates[0].position, 1);
+    assert_eq!(detail.templates[0].members, 3);
+    assert_eq!(nb.page(&id(2)).unwrap(), before);
+    assert_eq!(nb.fields().unwrap(), fields_before);
+    assert!(
+        nb.field_detail(&id(10), None, Some(0))
+            .unwrap()
+            .owners
+            .is_empty()
+    );
+    assert!(matches!(
+        nb.field_detail(&id(100), None, None),
+        Err(Error::NotFound { .. })
+    ));
+    assert!(matches!(
+        nb.field_detail(&id(999), None, None),
+        Err(Error::NotFound { .. })
+    ));
+}
+
+#[test]
+fn field_detail_choice_uses_and_bounded_problem_samples() {
+    let (_dir, mut nb) = fixture();
+    apply(
+        &mut nb,
+        vec![insert(11, 10, "Finished"), insert(12, 10, "Reading")],
+    );
+    edit(&mut nb, 300, &format!("[[{}]]", id(11)));
+    kind(&mut nb, 10, FieldKind::Choice);
+    let detail = nb.field_detail(&id(10), None, None).unwrap();
+    assert_eq!(
+        detail
+            .option_uses
+            .iter()
+            .map(|option| option.uses)
+            .sum::<usize>(),
+        1
+    );
+    assert_eq!(
+        detail
+            .option_uses
+            .iter()
+            .find(|option| option.option_id == id(11))
+            .unwrap()
+            .uses,
+        1
+    );
+    let operations = (1000..1105)
+        .map(|value| insert(value, 200, "Paused"))
+        .collect();
+    apply(&mut nb, operations);
+    let detail = nb.field_detail(&id(10), None, None).unwrap();
+    assert_eq!(detail.problems_total, 105);
+    assert_eq!(detail.problems.len(), 100);
+    assert_eq!(detail.readable.len(), 1);
+    assert!(
+        nb.field_detail(&id(10), Some(FieldKind::Text), None)
+            .unwrap()
+            .option_uses
+            .is_empty()
+    );
 }
 
 #[test]

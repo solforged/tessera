@@ -239,6 +239,22 @@ export interface FieldDefinition { id: string; name: string; kind: FieldKind; re
 export interface QueryResult { fields: FieldDefinition[]; columns: string[]; rows: QueryRow[]; total: number }
 export interface FieldSummary extends FieldDefinition { owners: number; types: { id: string; name: string }[] }
 export interface Fields { page_id: string; fields: FieldSummary[] }
+export interface FieldOwner { id: string; text: string; page_id: string; page_title: string }
+export interface FieldOwnerValues { owner: FieldOwner; entry_id: string; values: FieldValue[] }
+export interface FieldValueUse { owner: FieldOwner; entry_id: string; value: FieldValue }
+export interface FieldDetail {
+  field: FieldSummary;
+  kind: FieldKind;
+  owners_total: number;
+  values_total: number;
+  empty_total: number;
+  problems_total: number;
+  templates: { type_id: string; name: string; position: number; members: number }[];
+  option_uses: { option_id: string; uses: number }[];
+  owners: FieldOwnerValues[];
+  problems: FieldValueUse[];
+  readable: FieldValueUse[];
+}
 export interface Type { page: Block; fields: string[]; members: number }
 export interface View { id: string; name: string; query: Query; revision: number; created_at: number; updated_at: number }
 /** A kind notes are filed under: `person`, `group`, `concept`, `thesis`, `question`, `source`, `project`, `type:<id>` or `unfiled`. */

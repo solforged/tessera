@@ -102,6 +102,56 @@ async fn fields_queries_and_saved_views_round_trip_through_http_and_conflict_env
 }
 
 #[tokio::test]
+async fn field_detail_previews_are_read_only_and_missing_definitions_are_not_found() {
+    let dir = tempfile::tempdir().unwrap();
+    let app =
+        tessera_service::router(Notebook::open(dir.path()).unwrap(), 4318, None, None).unwrap();
+    let (_, fields) = request(&app, "GET", "/api/fields", Value::Null).await;
+    let (status, _) = request(&app, "POST", "/api/batches", json!({
+        "actor": {"kind": "person"},
+        "operations": [
+            {"op":"create_page","id":id(1),"title":"Meditations"},
+            {"op":"insert","id":id(10),"parent_id":fields["page_id"],"after":null,"text":"Rating"},
+            {"op":"insert","id":id(20),"parent_id":id(1),"after":null,"text":format!("[[{}]]",id(10))},
+            {"op":"insert","id":id(30),"parent_id":id(20),"after":null,"text":"Excellent"}
+        ]
+    })).await;
+    assert_eq!(status, StatusCode::OK);
+    let (_, before) = request(&app, "GET", &format!("/api/pages/{}", id(1)), Value::Null).await;
+    let (status, preview) = request(
+        &app,
+        "GET",
+        &format!("/api/fields/{}?kind=number&limit=0", id(10)),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(preview["field"]["kind"], "text");
+    assert_eq!(preview["kind"], "number");
+    assert_eq!(preview["owners_total"], 1);
+    assert_eq!(preview["problems_total"], 1);
+    assert_eq!(preview["owners"], json!([]));
+    assert_eq!(preview["problems"][0]["value"]["text"], "Excellent");
+    let (status, detail) =
+        request(&app, "GET", &format!("/api/fields/{}", id(10)), Value::Null).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(detail["kind"], "text");
+    assert_eq!(detail["problems_total"], 0);
+    let (_, after) = request(&app, "GET", &format!("/api/pages/{}", id(1)), Value::Null).await;
+    assert_eq!(before, after);
+    for missing in [1, 20, 999] {
+        let (status, _) = request(
+            &app,
+            "GET",
+            &format!("/api/fields/{}", id(missing)),
+            Value::Null,
+        )
+        .await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+    }
+}
+
+#[tokio::test]
 async fn query_http_offsets_page_sorted_members_without_changing_total() {
     let dir = tempfile::tempdir().unwrap();
     let app =
