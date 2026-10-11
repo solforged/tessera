@@ -68,12 +68,25 @@ export function highlightLocation(citation: Pick<Citation, 'ordinal' | 'chapter_
   return `¶${citation.ordinal + 1}`;
 }
 
-export function highlightMeta(row: Pick<HighlightRow, 'citation' | 'created_at'>, sections: readonly HighlightSection[], timeZone: string): string {
+/** The passage and the notebook date; the chapter is the heading the highlight sits under. */
+export function highlightMeta(row: Pick<HighlightRow, 'citation' | 'created_at'>, timeZone: string): string {
   // Civil dates read as ISO everywhere the apparatus shows them, like journal titles and task plans.
   const date = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(row.created_at);
-  const location = highlightLocation(row.citation, sections);
-  const passage = `¶${row.citation.ordinal + 1}`;
-  return `${location === passage ? passage : `${location} · ${passage}`} · ${date}`;
+  return `¶${row.citation.ordinal + 1} · ${date}`;
+}
+
+export interface HighlightChapter { title: string | null; rows: HighlightRow[] }
+
+/** One source's highlights in reading order, split where the chapter changes; highlights before the first contents entry form an untitled run. */
+export function highlightChapters(rows: readonly HighlightRow[]): HighlightChapter[] {
+  const chapters: HighlightChapter[] = [];
+  for (const row of [...rows].sort((a, b) => a.citation.ordinal - b.citation.ordinal || a.citation.start.offset - b.citation.start.offset)) {
+    const title = row.citation.chapter_title ?? null;
+    const last = chapters.at(-1);
+    if (last?.title === title) last.rows.push(row);
+    else chapters.push({ title, rows: [row] });
+  }
+  return chapters;
 }
 
 export function recentJobs(jobs: readonly IngestJob[], now: number): IngestJob[] {

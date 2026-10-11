@@ -58,6 +58,8 @@
 .library-highlight.button { display: flex; flex: 1; min-width: 0; flex-direction: column; align-items: stretch; height: auto; padding: var(--space-8); gap: var(--space-4); text-align: left; white-space: normal; font-weight: var(--weight-body); border-radius: 0; }
 .library-highlight-heading { display: flex; align-items: center; justify-content: space-between; padding-block: var(--space-8); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); color: var(--faint); }
 .library-highlight-heading .button { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--text); font: var(--weight-source-title) var(--text-body)/var(--line-source-title) var(--font-display); letter-spacing: 0; }
+/* Chapters subdivide a source's highlights; the title lines up with the highlight text, past the colour dot. */
+.library-highlight-chapter { margin: var(--space-12) 0 var(--space-2); padding-left: calc(var(--space-8) + var(--space-12) + var(--space-8)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .library-highlight-details { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-8); padding-left: calc(var(--space-12) + var(--space-8)); }
 /* The dot hangs in its own column so wrapped lines and the meta line share one edge. */
 .library-highlight-text { display: grid; grid-template-columns: var(--space-12) minmax(0, 1fr); column-gap: var(--space-8); align-items: start; color: var(--text); font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); font-variation-settings: var(--optical-quote); white-space: pre-wrap; overflow-wrap: anywhere; }

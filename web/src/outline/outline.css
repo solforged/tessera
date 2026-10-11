@@ -200,6 +200,9 @@
 .source-highlights-start { flex-wrap: wrap; }
 .outline-highlights-label { flex: 0 0 calc(100% - var(--gutter) - var(--indent-width)); margin: var(--space-24) 0 var(--space-4) calc(var(--gutter) + var(--indent-width)); color: var(--faint); font-size: var(--text-meta); line-height: var(--line-meta); }
 .outline-highlights-label span { margin-left: var(--space-8); }
+/* Each chapter's first highlight carries the chapter title, in the apparatus face, over the highlight text. */
+.outline-chapter-label { flex: 0 0 calc(100% - var(--gutter) - var(--indent-width)); margin: var(--space-16) 0 var(--space-2) calc(var(--gutter) + var(--indent-width)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.outline-highlights-label + .outline-chapter-label { margin-top: var(--space-4); }
 /* Highlights of this source filed on other pages: the same faint label and the same reading face as the highlights above. */
 .source-elsewhere > .outline-highlights-label { margin: var(--space-4) 0 var(--space-4) var(--indent-width); font-weight: var(--weight-body); }
 .source-elsewhere > .library-highlight.button { margin-left: calc(var(--indent-width) - var(--space-8)); font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); font-variation-settings: var(--optical-quote); }

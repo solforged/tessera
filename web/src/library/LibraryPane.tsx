@@ -14,10 +14,10 @@ import type { MenuItem } from '../ui/Menu';
 import { Popup } from '../ui/Popup';
 import { Picker } from '../ui/Picker';
 import { downloadBlob } from '../ui/download';
-import { formatProgress, groupSources, highlightMeta, jobLabel, libraryQuery, recentJobs, retryTime, selectSources, sourceByline, sourceStateOperation, visibleJobs } from './query';
+import { formatProgress, groupSources, highlightChapters, highlightMeta, jobLabel, libraryQuery, recentJobs, retryTime, selectSources, sourceByline, sourceStateOperation, visibleJobs } from './query';
 import { formatSourceValue } from '../outline/source';
-import { createHighlightActions, highlightColors, highlightSections, setLinkedCitation } from './highlights';
-import type { HighlightMenu, HighlightSection } from './highlights';
+import { createHighlightActions, highlightColors, setLinkedCitation } from './highlights';
+import type { HighlightMenu } from './highlights';
 import { ResourceImage } from './ResourceImage';
 import { SourceCover } from './SourceCover';
 import { pageSigla } from './sigla';
@@ -224,19 +224,6 @@ export function LibraryPane(props: LibraryPaneProps) {
   onCleanup(() => { disposed = true; setLinkedCitation(null); });
 
   const highlightActions = createHighlightActions(props.notebook, props.onOpen, setCommandError);
-  const [highlightContents, setHighlightContents] = createSignal(new Map<string, HighlightSection[]>());
-  const sectionCache = new Map<string, HighlightSection[]>();
-  createEffect(() => {
-    const snapshots = [...new Set(highlights()?.rows.map(row => row.citation.snapshot_id) ?? [])];
-    const controller = new AbortController();
-    void Promise.all(snapshots.map(async id => {
-      const sections = sectionCache.get(id) ?? await highlightSections(props.notebook.api, id, controller.signal);
-      if (!controller.signal.aborted) sectionCache.set(id, sections);
-      return [id, sections] as const;
-    })).then(entries => { if (!controller.signal.aborted) setHighlightContents(new Map(entries)); })
-      .catch(reason => { if (!controller.signal.aborted) setCommandError(reason instanceof Error ? reason.message : String(reason)); });
-    onCleanup(() => controller.abort());
-  });
 
   async function highlightMenu(row: HighlightRow, anchor: HTMLElement) {
     setCommandError('');
@@ -718,17 +705,20 @@ export function LibraryPane(props: LibraryPaneProps) {
             <Show when={highlights()?.rows.length} fallback={<div class="library-empty"><Show when={unprocessedOnly()} fallback={<p>No matching highlights.</p>}><p>No unprocessed highlights.</p><p>{processedExplanation}</p></Show></div>}>
               <div class="library-highlights" role="list"><For each={highlightGroups()}>{group => <div class="library-highlight-group" role="listitem">
                 <div class="library-highlight-heading"><Button onClick={event => props.onOpen({ kind: 'page', pageId: group.sourceId }, event.shiftKey)}>{group.title}</Button><span>{group.rows.length}</span></div>
-                <div role="list"><For each={group.rows}>{row => {
-                  const target: OpenTarget = { kind: 'page', pageId: row.block.page.id, blockId: row.block.block.id };
-                  return <div class="library-row" role="listitem" onPointerEnter={() => setLinkedCitation(row.citation.id)} onPointerLeave={() => setLinkedCitation(null)}><Button class="library-highlight" data-library-row={row.citation.id} onClick={event => props.onOpen(target, event.shiftKey)} onKeyDown={event => rowKey(event, target)}>
-                    <span class="library-highlight-text"><span class={`highlight-color-dot highlight-color-${row.color ?? 'none'}`} role="img" aria-label={row.color ? `${row.color} highlight` : 'No colour'} /><BlockText text={row.block.block.text} notebook={props.notebook} interactive={false} /></span>
-                    <span class="library-highlight-details">
-                      <Show when={props.notebook.settings()}>{settings => <span class="library-highlight-meta">{highlightMeta(row, highlightContents().get(row.citation.snapshot_id) ?? [], settings().time_zone)}<Show when={row.notes > 0}> · {row.notes} {row.notes === 1 ? 'note' : 'notes'}</Show></span>}</Show>
-                      <Show when={row.tags.length}><span class="library-highlight-tags"><For each={row.tags}>{tag => <span class="outline-tag">#{tag}</span>}</For></span></Show>
-                    </span>
-                    <Show when={row.block.block.text.trim() !== row.citation.quote.trim()}><span class="library-highlight-quote">{row.citation.quote}</span></Show>
-                  </Button><Button icon="more" label="Actions for highlight" aria-haspopup="menu" aria-expanded={popup()?.kind === 'menu' && popup()?.anchor.dataset.highlightId === row.citation.id} data-highlight-id={row.citation.id} onClick={event => { void highlightMenu(row, event.currentTarget); }} /></div>;
-                }}</For></div>
+                <For each={highlightChapters(group.rows)}>{chapter => <>
+                  <Show when={chapter.title}><h4 class="library-highlight-chapter">{chapter.title}</h4></Show>
+                  <div role="list"><For each={chapter.rows}>{row => {
+                    const target: OpenTarget = { kind: 'page', pageId: row.block.page.id, blockId: row.block.block.id };
+                    return <div class="library-row" role="listitem" onPointerEnter={() => setLinkedCitation(row.citation.id)} onPointerLeave={() => setLinkedCitation(null)}><Button class="library-highlight" data-library-row={row.citation.id} onClick={event => props.onOpen(target, event.shiftKey)} onKeyDown={event => rowKey(event, target)}>
+                      <span class="library-highlight-text"><span class={`highlight-color-dot highlight-color-${row.color ?? 'none'}`} role="img" aria-label={row.color ? `${row.color} highlight` : 'No colour'} /><BlockText text={row.block.block.text} notebook={props.notebook} interactive={false} /></span>
+                      <span class="library-highlight-details">
+                        <Show when={props.notebook.settings()}>{settings => <span class="library-highlight-meta">{highlightMeta(row, settings().time_zone)}<Show when={row.notes > 0}> · {row.notes} {row.notes === 1 ? 'note' : 'notes'}</Show></span>}</Show>
+                        <Show when={row.tags.length}><span class="library-highlight-tags"><For each={row.tags}>{tag => <span class="outline-tag">#{tag}</span>}</For></span></Show>
+                      </span>
+                      <Show when={row.block.block.text.trim() !== row.citation.quote.trim()}><span class="library-highlight-quote">{row.citation.quote}</span></Show>
+                    </Button><Button icon="more" label="Actions for highlight" aria-haspopup="menu" aria-expanded={popup()?.kind === 'menu' && popup()?.anchor.dataset.highlightId === row.citation.id} data-highlight-id={row.citation.id} onClick={event => { void highlightMenu(row, event.currentTarget); }} /></div>;
+                  }}</For></div>
+                </>}</For>
               </div>}</For></div>
             </Show>
           }>
