@@ -22,14 +22,19 @@ a { color: var(--accent); }
 .button[aria-haspopup][aria-expanded="true"] > .icon:last-child:not(:first-child) { rotate: 180deg; }
 .button:hover:not(:disabled) > .icon, .button:focus-visible > .icon { scale: var(--icon-hover-scale); }
 .button:active:not(:disabled) > .icon { scale: var(--icon-press-scale); }
-/* Modes and tabs: mono labels with a faint count; the current one is gilt with a rule beneath, never a box. */
+/* Modes and tabs: mono labels with a faint count; the current one is gilt with a 2 px rule beneath the whole tab,
+   label and count alike, never a box. */
 .mode-tabs { display: flex; align-items: center; gap: var(--space-4); }
 .mode-tabs > .button { font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); color: var(--muted); }
 .mode-tabs > .button:hover:not(:disabled) { color: var(--text); }
-.mode-tabs > .button[aria-pressed="true"] { background: transparent; color: var(--accent); box-shadow: inset 0 calc(-1 * var(--rule-width)) var(--accent); }
-/* Keyboard focus on a tab is a faint rule, never a ring; on the current tab the gilt rule thickens. */
+.mode-tabs > .button[aria-pressed="true"] { background: transparent; color: var(--accent); box-shadow: inset 0 calc(-2 * var(--rule-width)) var(--accent); }
+/* Keyboard focus on a tab is a faint rule, never a ring; on the current tab the label brightens over its gilt rule. */
 .mode-tabs > .button:focus-visible { outline: none; color: var(--text); box-shadow: inset 0 calc(-1 * var(--rule-width)) var(--faint); }
-.mode-tabs > .button[aria-pressed="true"]:focus-visible { color: var(--accent); box-shadow: inset 0 calc(-2 * var(--rule-width)) var(--accent); }
+.mode-tabs > .button[aria-pressed="true"]:focus-visible { color: var(--text); box-shadow: inset 0 calc(-2 * var(--rule-width)) var(--accent); }
+/* A strip that switches views (Library states, Review queues, Agenda modes) stands on a hairline baseline, and every
+   tab's rule lands on that same line. */
+.mode-tabs.tab-strip { align-items: stretch; box-shadow: inset 0 calc(-1 * var(--rule-width)) var(--line); }
+.mode-tabs.tab-strip > .button { border-bottom: 0; border-radius: 0; }
 :is(.popup, .popup-exit) { position: fixed; z-index: 50; max-width: calc(100vw - var(--space-16)); overflow: auto; background: var(--raised); border: 1px solid var(--line); border-radius: var(--radius-popup); box-shadow: var(--popup-shadow); padding: var(--space-8); }
 :is(.popup, .popup-exit)::before { content: ''; position: absolute; top: 0; left: var(--space-12); width: var(--rubric-width); height: var(--rubric-height); background: var(--danger); pointer-events: none; }
 .popup-enter { animation: popup-in var(--motion-ui) var(--motion-ease) both; }
