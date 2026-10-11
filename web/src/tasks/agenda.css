@@ -71,14 +71,9 @@
 .task-query-invalid { text-decoration: underline wavy var(--danger); text-underline-offset: var(--space-2); }
 .task-query-errors { margin-top: var(--space-4); color: var(--danger); font-size: var(--text-control); line-height: var(--line-control); }
 .task-query-errors p { margin: 0; overflow-wrap: anywhere; }
-/* Adding reads as the next row: the plus in the status column, then a field on a hairline instead of a box. */
-.agenda-add { display: flex; align-items: flex-start; gap: var(--space-8); color: var(--faint); }
-.agenda-add > .icon { flex: none; width: var(--target-size); margin-top: calc((var(--row-height) - var(--icon-size)) / 2); }
-.agenda-add-field { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-4); }
-.agenda-add .input { width: 100%; min-width: 0; min-height: var(--row-height); border-width: 0 0 var(--rule-width); border-radius: 0; padding-inline: var(--space-4); background: transparent; }
-.agenda-add .input:focus-visible { outline: none; border-color: var(--accent); }
-.agenda-add-preview { margin: 0; padding-inline: var(--space-4); color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); overflow-wrap: anywhere; }
-.agenda-add-preview.warning { color: var(--warning); }
+/* Adding sits under the week strip on Day, in the same place however many tasks are overdue; the plus takes the
+   status column so the line starts where task text does. */
+.agenda-add { margin-block: var(--space-12) var(--space-4); }
 /* One line per task: status, source with its page, then planning on the right; wraps under the source when narrow. */
 .agenda-row { display: flex; flex-wrap: wrap; align-items: flex-start; column-gap: var(--space-8); min-width: 0; border-bottom: var(--rule-width) solid var(--line); border-radius: var(--radius-workspace); content-visibility: auto; contain-intrinsic-size: auto var(--row-height); transition: background-color var(--motion-fast) var(--motion-ease); }
 /* The whole line lights on hover, planning included; the source button inside stays transparent. */
@@ -239,9 +234,8 @@ div.journal-agenda-toggle { display: flex; align-items: center; gap: var(--space
   .agenda-week-strip { grid-template-columns: repeat(7, minmax(var(--target-size), 1fr)); }
   .agenda-week-day.button { padding-inline: var(--space-4); }
   .agenda-lookahead { display: none; }
-  .pane.active .agenda-add { position: fixed; z-index: 20; left: calc(env(safe-area-inset-left) + var(--space-12)); right: calc(env(safe-area-inset-right) + var(--space-12)); bottom: calc(var(--bottom-nav-height) + var(--bottom-inset) + var(--space-12)); padding: var(--space-4) var(--space-8); border: var(--rule-width) solid var(--line); border-radius: var(--radius-popup); background: var(--raised); }
+  .pane.active .agenda-add { position: fixed; z-index: 20; left: calc(env(safe-area-inset-left) + var(--space-12)); right: calc(env(safe-area-inset-right) + var(--space-12)); bottom: calc(var(--bottom-nav-height) + var(--bottom-inset) + var(--space-12)); margin: 0; padding: var(--space-4) var(--space-8); border: var(--rule-width) solid var(--line); border-radius: var(--radius-popup); background: var(--raised); }
   .pane:not(.active) .agenda-add { display: none; }
   .app.keyboard-open .agenda-add { bottom: calc(var(--bottom-inset) + var(--space-8)); }
-  .agenda-add .input { min-height: var(--target-size); border: 0; }
-  .agenda-add > .icon { margin-top: calc((var(--target-size) - var(--icon-size)) / 2); }
+  .agenda-add .capture-input { min-height: var(--target-size); border: 0; }
 }

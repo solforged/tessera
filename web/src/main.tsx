@@ -5,11 +5,13 @@ import '@fontsource-variable/piazzolla/standard.css';
 import '@fontsource-variable/piazzolla/standard-italic.css';
 import { render } from 'solid-js/web';
 import { App } from './shell/App';
+import { CaptureWindow } from './capture/CaptureSheet';
 import './styles.css';
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Missing #root element.');
-render(() => <App />, root);
+// The desktop's global capture panel loads `?capture`: the sheet alone, without the shell.
+render(() => new URLSearchParams(location.search).has('capture') ? <CaptureWindow /> : <App />, root);
 
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {

@@ -43,6 +43,7 @@ import { createCapabilityPopups } from './CapabilityPopups';
 import type { MenuState, OutlineContext, RowRange } from './context';
 import { PageMergeConfirmation, pageMergeDisabledReason } from './PageMerge';
 import { foldName, nameMenuItems, resolveName } from './names';
+import { titleTargets, typedTitles, withLinkedTitles } from './link-titles';
 import './outline.css';
 
 const storedFolds = new Map<string, Set<string>>();
@@ -154,31 +155,15 @@ function Pane(props: OutlinePaneProps) {
   /** A hand-typed name links only when one page owns it; ambiguous names wait for a choice. */
   const linking = new Set<string>();
   function linkTitles(id: string) {
-    const text = doc.block(id)?.text;
-    if (!text?.includes('[[') || linking.has(id)) return;
-    const titles = [...new Set(textTokens(text).flatMap(token => token.kind === 'reference' && !isStableReference(token) && token.id!.trim() ? [token.id!.trim()] : []))];
-    if (!titles.length) return;
+    const titles = typedTitles(doc.block(id)?.text ?? '');
+    if (!titles.length || linking.has(id)) return;
     linking.add(id);
     void (async () => {
       try {
-        const targets = new Map<string, { id: string; alias: boolean }>();
-        for (const title of titles) {
-          const key = foldName(title);
-          const matches = await resolveName(props.notebook, title);
-          if (matches.length > 1) continue;
-          if (matches.length === 1) { targets.set(key, { id: matches[0]!.page.id, alias: matches[0]!.alias !== null }); continue; }
-          // A date names a journal; one that does not exist yet stays as typed rather than becoming a page.
-          const date = /^\d{4}-\d{2}-\d{2}$/.test(title);
-          const target = date ? (await props.notebook.api.complete(title, 20)).find(block => block.kind === 'journal' && block.text === title)?.id : await props.notebook.createPage(title);
-          if (target) targets.set(key, { id: target, alias: false });
-        }
+        const targets = await titleTargets(props.notebook, titles);
         const current = doc.block(id)?.text;
         if (disposed || editing() === id || !current) return;
-        const next = textTokens(current).map(token => {
-          const target = token.kind === 'reference' && !isStableReference(token) ? targets.get(foldName(token.id!)) : undefined;
-          const alias = token.alias ?? (target?.alias ? token.id!.trim() : undefined);
-          return target ? `[[${target.id}${alias !== undefined ? `|${alias}` : ''}]]` : current.slice(token.start, token.end);
-        }).join('');
+        const next = withLinkedTitles(current, targets);
         if (next === current) return;
         const result = doc.edit({ kind: 'text', id, text: next }, caret());
         if (!result.ok) setMessage(result.reason);

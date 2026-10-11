@@ -25,7 +25,9 @@ import { depthLabels, depthStops } from './contract';
 import type { AgendaViewState, CommandRegistry, CompareViewState, Depth, FieldsViewState, IndexViewState, LibraryViewState, OpenTarget, PaneId, ReaderViewState, ReviewViewState, SettingsViewState, TableViewState, ViewState } from './contract';
 import { Palette } from './Palette';
 import { installOpenedFiles } from '../library/opened-files';
-import { installQuickCapture } from './quick-capture';
+import { blankCapture, installQuickCapture } from './quick-capture';
+import type { CaptureRequest } from './quick-capture';
+import { CaptureSheet } from '../capture/CaptureSheet';
 import { noteIndex, noteKindIcon } from '../notes/kinds';
 
 // Panes other than the outline load on demand and are prefetched once the app is idle.
@@ -59,6 +61,8 @@ type VimMode = 'insert' | 'normal' | 'visual' | 'outline' | null;
 const vimLabels: Record<Exclude<VimMode, null>, string> = { insert: 'Insert', normal: 'Normal', visual: 'Visual', outline: 'Blocks' };
 type PopupState = { kind: 'search' | 'commands' | 'calendar' | 'new' | 'delete' | 'layout'; anchor: HTMLElement; pane: PaneId; date?: string; source?: boolean } | null;
 const paneIds: PaneId[] = ['main', 'side'];
+/** ⌘ on Apple keyboards, where Ctrl+E stays the editor's end of line; Ctrl elsewhere. */
+const mac = /Mac|iPhone|iPad/.test(navigator.platform);
 const SAVE_NOTICE_DELAY = 1000;
 /** Matches the narrow pane header in styles.css, where the depth dial shows only its current iris. */
 const compactHeader = window.matchMedia('(max-width: 479px)');
@@ -332,12 +336,25 @@ export function App() {
       if (value.reopen) open({ kind: 'page', pageId: value.pages[0]!.id });
     } catch (reason) { reportError(reason); }
   };
+  const [capture, setCapture] = createSignal<CaptureRequest | null>(null);
+  const openCapture = (request: CaptureRequest) => { setPopup(null); setTypesMenu(null); setCapture(request); };
+  /** Saving or Escape leaves focus where the sheet opened from; a save that dropped it returns it to the pane. */
+  const closeCapture = () => {
+    setCapture(null);
+    queueMicrotask(() => { if (document.activeElement === document.body) focusPane(active()); });
+  };
   onMount(() => {
     const onNarrow = () => setNarrow(narrowQuery.matches);
     narrowQuery.addEventListener('change', onNarrow);
     onCleanup(() => narrowQuery.removeEventListener('change', onNarrow));
     const onKey = (event: KeyboardEvent) => {
-      if (event.isComposing || !event.ctrlKey || !event.shiftKey || event.metaKey || event.altKey || document.querySelector('.popup')) return;
+      if (event.isComposing || document.querySelector('.popup')) return;
+      if ((mac ? event.metaKey : event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLocaleLowerCase() === 'e') {
+        event.preventDefault(); event.stopPropagation();
+        openCapture(blankCapture());
+        return;
+      }
+      if (!event.ctrlKey || !event.shiftKey || event.metaKey || event.altKey) return;
       const key = event.key.toLocaleLowerCase();
       if (key === 'h') travel(active(), -1);
       else if (key === 'l') travel(active(), 1);
@@ -405,8 +422,8 @@ export function App() {
     })().catch(reportError);
   });
   installOpenedFiles(() => navigationId() !== null, () => open({ kind: 'library', tab: 'inbox' }, false, 'main'), reportError);
-  // New note from the Android launcher: today's journal, editing its last empty block (or a new one at the end).
-  installQuickCapture(() => navigationId() !== null, () => { void today(active()); });
+  // ⌘E, the desktop menu and global shortcut, and Android's launcher shortcuts and share sheet.
+  installQuickCapture(() => navigationId() !== null, openCapture);
   // Caret and scroll reports change navigation on most keystrokes; storage writes trail them off the input path.
   let navigationWrite: { key: string; value: unknown } | null = null;
   let navigationTimer = 0;
@@ -430,6 +447,7 @@ export function App() {
     { id: 'shell.commands', title: 'Show commands', section: 'Navigation', keys: ['⌃⇧P'], run: () => showPalette('commands') },
     { id: 'shell.settings', title: 'Open settings', section: 'Navigation', run: () => open({ kind: 'settings' }) },
     { id: 'shell.today', title: 'Open today’s journal', section: 'Navigation', keys: ['⌃⇧J'], run: () => { void today(); } },
+    { id: 'shell.capture', title: 'Add to today', section: 'Page', keys: ['⌘E'], run: () => openCapture(blankCapture()) },
     { id: 'shell.fields', title: 'Open fields', section: 'Navigation', run: () => open({ kind: 'fields' }) },
     { id: 'shell.agenda', title: 'Open agenda', section: 'Navigation', run: () => open({ kind: 'agenda', date: journalDate(active()) }) },
     { id: 'shell.review', title: 'Open review', section: 'Navigation', run: () => open({ kind: 'review' }) },
@@ -597,6 +615,7 @@ export function App() {
         ]} />
       </Show>
     </>}</Show>
+    <Show keyed when={capture()}>{request => <CaptureSheet notebook={notebook} request={request} onDismiss={closeCapture} />}</Show>
     <ReferencePreviews notebook={notebook} onOpen={(target, beside, pane) => open(target, beside, pane ?? active())} />
     <Show when={deleted()}>{value => <div class="undo-toast" role="status"><Icon name="trash" /><span>{value().label} deleted</span><Button icon="undo" onClick={() => { void restorePage(); }}>Undo</Button><Button icon="close" label="Dismiss deletion notification" onClick={() => setDeleted(null)} /></div>}</Show>
   </div>;
