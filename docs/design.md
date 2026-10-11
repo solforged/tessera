@@ -2,7 +2,7 @@
 
 How the browser client looks and behaves. Tokens live in `web/src/tokens.css`; components use tokens, never raw values. Orrery gives the notebook a midnight desk, an ink-blue canvas and gilt focus. Reference slips, registers and reading sheets carry the same type hierarchy into floating and comparative surfaces.
 
-Status: applied to the shell, the outline and the table. The permanent global rail and inset workspace are being evaluated in the running app. Later stages add their sections here before they are built.
+Status: this file specifies the shell, outline, tables, tasks, review, library, reader, notes and perspectives as they behave now. Feature work updates the matching section with the UI.
 
 ## Principles
 
