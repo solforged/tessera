@@ -6,7 +6,7 @@ import { OutlineIndex } from './outline-index';
 
 interface NotebookRecord { key: string; roots: Block[] }
 interface PagePatch { sequence: number; actions: Action[]; revisions: Map<string, number> }
-interface PageRecord { key: string; view?: PageView; patch?: PagePatch }
+interface PageRecord { key: string; view?: PageView; patch?: PagePatch; cursor?: number }
 interface CommandRecord { key: string; command: Command }
 interface TicketRecord { key: string; ticket: Ticket }
 interface BlockRecord { key: string; block: Block }
@@ -66,10 +66,10 @@ export class Outbox {
     const prefix = this.pagePrefix(id);
     return IDBKeyRange.bound(prefix, sequence === undefined ? `${prefix}\uffff` : `${prefix}${String(sequence).padStart(16, '0')}\uffff`);
   }
-  page(view: PageView, sequence = 0) {
+  page(view: PageView, sequence = 0, cursor?: number) {
     return this.enqueue(async db => {
       const tx = db.transaction('pages', 'readwrite');
-      void tx.store.put({ key: `${this.notebookId}:${view.root.id}`, view });
+      void tx.store.put({ key: `${this.notebookId}:${view.root.id}`, view, cursor });
       for (const key of await tx.store.getAllKeys(this.patchRange(view.root.id, sequence))) void tx.store.delete(key);
       await tx.done;
     });
@@ -96,7 +96,10 @@ export class Outbox {
       const pages = tx.objectStore('pages');
       for (const block of blocks) void tx.objectStore('blocks').put({ key: `${this.notebookId}:${block.id}`, block });
       if (view) {
-        void pages.put({ key: `${this.notebookId}:${view.root.id}`, view });
+        const key = `${this.notebookId}:${view.root.id}`;
+        // A receipt may skip other writers' events. Keep the snapshot's older replay floor.
+        const cursor = (await pages.get(key))?.cursor;
+        void pages.put({ key, view, cursor });
         for (const key of await pages.getAllKeys(this.patchRange(view.root.id, sequence))) void pages.delete(key);
       } else if (actions.length && command.pageId && !deletedIds?.includes(command.pageId)) {
         void pages.put({ key: `${this.pagePrefix(command.pageId)}${String(sequence).padStart(16, '0')}:${command.id}`, patch: { sequence, actions, revisions } });
@@ -123,7 +126,8 @@ export class Outbox {
   async cachedPage(id: string) {
     try {
       const db = await this.db;
-      const view = (await db.get('pages', `${this.notebookId}:${id}`))?.view;
+      const record = await db.get('pages', `${this.notebookId}:${id}`);
+      const view = record?.view;
       if (!view) return undefined;
       const blocks = new Map([view.root, ...view.rows.map(row => row.block)].map(block => [block.id, block]));
       const manualTypes = new Map(view.rows.map(row => [row.block.id, row.manual_types]));
@@ -218,9 +222,24 @@ export class Outbox {
       view.rows = index.slice(0, index.size()).map(row => ({ block: latest(blocks.get(row.id)!), depth: row.depth, manual_types: manualTypes.get(row.id) ?? [] }));
       for (const row of await db.getAll('capabilities')) if (row.key.startsWith(`${this.notebookId}:`) && blocks.has(row.value.block_id)) capabilities.set(row.value.block_id, row.value);
       view.capabilities = [...capabilities.values()].filter(value => blocks.has(value.block_id));
-      return view;
+      return { view, cursor: record?.cursor };
     }
     catch (error) { this.failed(error); return undefined; }
+  }
+  /** A reset invalidates sequence-ordered patches, but never pending commands or recovery snapshots. */
+  resetJournal() {
+    return this.enqueue(async db => {
+      const tx = db.transaction(['pages', 'blocks', 'capabilities'], 'readwrite');
+      const range = IDBKeyRange.bound(`${this.notebookId}:`, `${this.notebookId}:\uffff`);
+      for (const row of await tx.objectStore('pages').getAll(range)) {
+        if (row.view) void tx.objectStore('pages').put({ key: row.key, view: row.view });
+        else void tx.objectStore('pages').delete(row.key);
+      }
+      for (const store of ['blocks', 'capabilities'] as const) {
+        for (const key of await tx.objectStore(store).getAllKeys(range)) void tx.objectStore(store).delete(key);
+      }
+      await tx.done;
+    });
   }
   async settled() { await this.writes; }
   /**

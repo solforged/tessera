@@ -592,7 +592,7 @@ export class Document implements PageDocument {
   receive(block: Block) {
     const previous = this.baseBlocks.get(block.id);
     const cell = this.cells.get(block.id);
-    if (!previous && !cell) return;
+    if (!previous && !cell) { this.syncGeneration++; return; }
     if (previous && block.revision <= previous.revision) {
       if (cell) this.host.publish(this.snapshot(block.id));
       return;

@@ -300,6 +300,7 @@ fn notebook_routes() -> Router<AppState> {
         .route("/api/complete", get(complete))
         .route("/api/search", get(search))
         .route("/api/changes", get(changes))
+        .route("/api/changes/head", get(change_head))
         .route("/api/batches", post(apply))
         .route("/api/agent-changes", get(agent_changes).post(agent_edit))
         .route("/api/agent-changes/{seq}/undo", post(undo_agent_change));
@@ -847,6 +848,13 @@ async fn search(
     .map(Json)
 }
 
+/// The local editor journal, not the replicated changes log.
+async fn change_head(State(state): State<AppState>) -> Result<Json<i64>, ApiError> {
+    run(&state, |notebook| notebook.editor_cursor())
+        .await
+        .map(Json)
+}
+
 async fn changes(
     State(state): State<AppState>,
     query: Result<Query<ChangesQuery>, QueryRejection>,
@@ -1040,6 +1048,55 @@ mod tests {
         http::{Request, StatusCode},
     };
     use tower::ServiceExt;
+
+    #[tokio::test]
+    async fn change_head_reads_the_local_editor_journal() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut notebook = Notebook::open(dir.path()).unwrap();
+        notebook
+            .apply(&Batch {
+                actor: Actor::Person,
+                reason: None,
+                idempotency_key: None,
+                operations: vec![tessera_core::Operation::CreatePage {
+                    id: "01ARZ3NDEKTSV4RRFFQ69G5FAV".into(),
+                    title: "Cursor test".into(),
+                }],
+            })
+            .unwrap();
+        let expected = notebook.editor_cursor().unwrap();
+        let (app, handles) = embedded_router(notebook).unwrap();
+        for head in [expected, 900, 0] {
+            if head == 900 {
+                // Deliberately diverge from changes.seq without building event payloads.
+                let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE))
+                    .unwrap();
+                conn.execute(
+                    "UPDATE editor_events SET seq = 900 WHERE seq = (SELECT MAX(seq) FROM editor_events)",
+                    [],
+                )
+                .unwrap();
+            }
+            if head == 0 {
+                let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE))
+                    .unwrap();
+                conn.execute("DELETE FROM editor_events", []).unwrap();
+            }
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::get("/api/changes/head")
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+            assert_eq!(serde_json::from_slice::<i64>(&bytes).unwrap(), head);
+            assert_eq!(handles.notebook.lock().editor_cursor().unwrap(), head);
+        }
+    }
 
     #[tokio::test]
     async fn alias_routes_keep_json_shapes_and_publish_only_committed_changes() {

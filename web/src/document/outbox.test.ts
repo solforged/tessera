@@ -34,7 +34,8 @@ test('v2 page records migrate additively and recover frozen page and notebook co
     const command = recovered.commands[1]!;
     expect(command.kind).toBe('notebook');
     if (command.kind === 'notebook') expect(command.operations[0]).toHaveProperty('started_at', 1000);
-    expect((await outbox.cachedPage(root.id))?.capabilities).toEqual([]);
+    expect((await outbox.cachedPage(root.id))?.view.capabilities).toEqual([]);
+    expect((await outbox.cachedPage(root.id))?.cursor).toBeUndefined();
     expect(errors).toEqual([]);
   } finally { await outbox.close(); await deleteDB(database); }
 });
@@ -49,15 +50,16 @@ test('authoritative sidecars survive text-only patches and older snapshots canno
   const errors: unknown[] = [];
   const outbox = new Outbox('notebook', 'window', error => errors.push(error), database);
   try {
-    await outbox.page(view);
+    await outbox.page(view, 8, 8);
     await outbox.capabilities([capability], 10);
     await outbox.capabilities([{ ...capability, task: null, merge_protected: false, reviewed_cards: false }], 9);
     const command: PageCommand = { id: ulid(), order: 1, pageId: root.id, actions: [{ kind: 'text', id: block.id, text: 'Markup removed' }], inverse: [], before: null, after: null };
     await outbox.put(command);
     await outbox.acknowledge(command, [{ ...block, text: 'Markup removed', revision: 2 }], 11, new Map([[block.id, 2]]));
     const recovered = await outbox.cachedPage(root.id);
-    expect(recovered?.rows[0]?.block.text).toBe('Markup removed');
-    expect(recovered?.capabilities).toEqual([capability]);
+    expect(recovered?.view.rows[0]?.block.text).toBe('Markup removed');
+    expect(recovered?.view.capabilities).toEqual([capability]);
+    expect(recovered?.cursor).toBe(8);
     expect((await outbox.load()).commands).toEqual([]);
     expect(errors).toEqual([]);
   } finally { await outbox.close(); await deleteDB(database); }
@@ -77,7 +79,7 @@ test('kept-copy settlement and undo survive acknowledged offline cache patches',
       const command: PageCommand = { id: ulid(), order: revision, pageId: root.id, actions: [{ kind: 'settleSyncCopy', id: block.id, settled, copy }], inverse: [], before: null, after: null };
       await outbox.put(command);
       await outbox.acknowledge(command, [{ ...block, revision, kept_copy: settled ? null : copy }], revision, new Map([[block.id, revision]]));
-      expect((await outbox.cachedPage(root.id))?.rows[0]?.block.kept_copy).toEqual(settled ? null : copy);
+      expect((await outbox.cachedPage(root.id))?.view.rows[0]?.block.kept_copy).toEqual(settled ? null : copy);
     }
   } finally { await outbox.close(); await deleteDB(database); }
 });
@@ -96,9 +98,9 @@ test('an end split replays its new sibling and final text even when the source r
     await outbox.put(command);
     await outbox.acknowledge(command, [{ ...sibling, text: 'Next source', revision: 2 }], 2, new Map([[sibling.id, 2]]));
     const recovered = await outbox.cachedPage(root.id);
-    expect(recovered?.rows.map(row => [row.block.id, row.block.revision])).toEqual([[block.id, 1], [sibling.id, 2]]);
-    expect(recovered?.rows[1]?.block.text).toBe('Next source');
-    expect(recovered?.capabilities).toEqual([capability]);
+    expect(recovered?.view.rows.map(row => [row.block.id, row.block.revision])).toEqual([[block.id, 1], [sibling.id, 2]]);
+    expect(recovered?.view.rows[1]?.block.text).toBe('Next source');
+    expect(recovered?.view.capabilities).toEqual([capability]);
   } finally { await outbox.close(); await deleteDB(database); }
 });
 
@@ -121,7 +123,25 @@ test('merge acknowledgement removes every tombstone cache and its durable comman
     await outbox.put(command);
     await outbox.acknowledge(command, [into], 2, new Map([[into.id, 2]]), undefined, [from.id, entry.id]);
     expect(await outbox.cachedPage(from.id)).toBeUndefined();
-    expect((await outbox.cachedPage(into.id))?.root.id).toBe(into.id);
+    expect((await outbox.cachedPage(into.id))?.view.root.id).toBe(into.id);
     expect((await outbox.load()).commands).toEqual([]);
+  } finally { await outbox.close(); await deleteDB(database); }
+});
+
+test('a journal reset invalidates ordered patches without deleting queued commands or recovery pages', async () => {
+  const database = `outbox-reset-${ulid()}`;
+  const id = ulid();
+  const root: Block = { id, page_id: id, kind: 'page', parent_id: null, text: 'Recovery', heading: null, archived: false, kept_copy: null, revision: 1, created_at: 0, updated_at: 0 };
+  const outbox = new Outbox('notebook', 'window', error => { throw error; }, database);
+  const command: PageCommand = { id: ulid(), order: 1, pageId: id, actions: [{ kind: 'text', id, text: 'Pending local wording' }], inverse: [], before: null, after: null };
+  try {
+    await outbox.page({ root, rows: [], targets: [] }, 900, 900);
+    await outbox.put(command);
+    await outbox.resetJournal();
+    expect((await outbox.cachedPage(id))?.view.root.text).toBe('Recovery');
+    expect((await outbox.cachedPage(id))?.cursor).toBeUndefined();
+    expect((await outbox.load()).commands.map(value => value.id)).toEqual([command.id]);
+    await outbox.page({ root: { ...root, text: 'Fresh snapshot' }, rows: [], targets: [] }, 3, 3);
+    expect((await outbox.cachedPage(id))?.cursor).toBe(3);
   } finally { await outbox.close(); await deleteDB(database); }
 });
