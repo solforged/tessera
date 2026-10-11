@@ -3,4 +3,5 @@
     <string name="main_activity_title">"Tessera"</string>
     <string name="shortcut_new_note">"New note"</string>
     <string name="shortcut_new_note_long">"New note in today’s journal"</string>
+    <string name="shortcut_new_task">"New task"</string>
 </resources>
