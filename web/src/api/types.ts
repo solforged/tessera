@@ -401,6 +401,8 @@ export interface PassagePoint { passage_id: string; offset: number }
 export interface Citation {
   id: string; block_id: string; source_id: string; snapshot_id: string;
   start: PassagePoint; end: PassagePoint; quote: string; locator: string; ordinal: number;
+  /** UTF-16 offset of the start in the snapshot's whole text: the unit of `text_length`, passage starts and `TocEntry.start`. The server always sends it; an optimistic citation lacks it until acknowledged. */
+  position?: number;
   chapter_title?: string | null;
   triage: 'processed' | 'unprocessed' | null;
   color: 'yellow' | 'green' | 'blue' | 'red' | 'purple' | null;
@@ -414,7 +416,8 @@ export interface ExtractedMetadata {
   site: string | null; description: string | null; cover: string | null;
 }
 export interface LookupPreview { metadata: ExtractedMetadata; cover_url: string | null; provider: string }
-export interface TocEntry { title: string; locator: string; level: number; ordinal: number | null }
+/** `start` is the entry's character offset in the snapshot text, present once the entry resolves to a passage. */
+export interface TocEntry { title: string; locator: string; level: number; ordinal: number | null; start?: number }
 export type PassageKind = 'heading' | 'paragraph' | 'quote' | 'list_item' | 'code' | 'footnote' | 'image';
 export type MarkKind = { kind: 'emphasis' | 'strong' | 'code' } | { kind: 'link'; href: string } | { kind: 'internal' | 'note_ref'; locator: string };
 export interface Mark { start: number; end: number; kind: MarkKind }

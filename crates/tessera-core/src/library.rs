@@ -83,6 +83,10 @@ pub struct TocEntry {
     pub level: u8,
     /// Resolved passage ordinal in the snapshot; absent during extraction.
     pub ordinal: Option<i64>,
+    /// The resolved passage's character offset in the snapshot text, for time left and chapter maps; absent during
+    /// extraction and never stored.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub start: Option<i64>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -218,6 +222,8 @@ pub struct Citation {
     pub locator: String,
     /// Reading-order position of the start passage in its snapshot.
     pub ordinal: i64,
+    /// UTF-16 offset of the citation's start in its snapshot's whole text, the unit of `text_length` and passage starts.
+    pub position: i64,
     #[serde(default)]
     pub chapter_title: Option<String>,
     pub triage: Option<String>,

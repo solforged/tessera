@@ -63,6 +63,7 @@ pub(crate) fn extract(contents: &str, address: &str) -> Result<ExtractedDocument
             locator: passage.locator.clone(),
             level: passage.level.unwrap_or(1),
             ordinal: None,
+            start: None,
         })
         .collect();
     Ok(ExtractedDocument {
