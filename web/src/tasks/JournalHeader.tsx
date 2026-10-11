@@ -4,6 +4,7 @@ import type { NotebookClient } from '../document/contract';
 import { SourceCover } from '../library/SourceCover';
 import { BlockText } from '../outline/BlockText';
 import { shortSourceTitle } from '../outline/source';
+import { sectionLabel } from '../reader/openings';
 import { timeLeft } from '../reader/paged';
 import type { OpenTarget } from '../shell/contract';
 import { BookMap } from '../ui/BookMap';
@@ -109,7 +110,7 @@ export function JournalHeader(props: { date: string; notebook: NotebookClient; o
           <span class="journal-tile-heading"><span>Reading</span><span class="journal-tile-action" aria-hidden="true">›</span></span>
           <Show when={reading()} fallback={reading() === undefined && !readingError() ? <Placeholder /> : <span class="journal-tile-meta journal-tile-unavailable">{readingError() ? 'Reading unavailable' : 'No book in progress'}</span>}>{book => <>
             <span class="journal-reading-book"><SourceCover row={book().row} siglum={book().row.source.siglum} /><span class="journal-reading-text"><span class="journal-reading-title" title={book().row.page.text}>{shortSourceTitle(book().row.page.text)}</span>
-              <Show when={progress()?.length}><span class="journal-tile-meta"><span class="journal-reading-separator"> · </span>{progress()?.current?.chapter.title ? `${timeLeft(progress()!.current!.chapter.end - progress()!.at)} left` : `${timeLeft(progress()!.length - progress()!.at)} left in book`}<span class="journal-reading-chapter">{progress()?.current?.chapter.title ? ` · ${progress()!.current!.chapter.title}` : ''}</span></span></Show>
+              <Show when={progress()?.length}><span class="journal-tile-meta"><span class="journal-reading-separator"> · </span>{progress()?.current?.chapter.title ? `${timeLeft(progress()!.current!.chapter.end - progress()!.at)} left` : `${timeLeft(progress()!.length - progress()!.at)} left in book`}<span class="journal-reading-chapter">{progress()?.current?.chapter.title ? ` · ${sectionLabel(progress()!.current!.chapter.title)}` : ''}</span></span></Show>
             </span></span>
             <Show when={progress()?.length}><BookMap chapters={progress()!.chapters} length={progress()!.length} at={progress()!.at} highlights={book().highlights} /></Show>
           </>}</Show>

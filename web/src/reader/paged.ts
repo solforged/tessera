@@ -1,21 +1,22 @@
+import { chapterEntries } from '../ui/book-map';
+
 /** Passages laid out together in paged reading; a chunk always starts on a fresh page. */
 export interface PageChunk { first: number; last: number }
 
 /** Long or untitled stretches split every this many passages, to bound the work of one layout. */
 export const CHUNK_LIMIT = 150;
 
+/** A contents entry placed at a passage: its level, and its character offset where known. */
+export interface PlacedSection { ordinal: number; level: number; start?: number }
+
 /**
- * The chapter holding `ordinal`, from its first passage up to (not including) the next chapter's. Chapters are the
- * outermost level of the contents that has at least two entries, as in a printed book; a book's single title
- * heading does not count as a level. Front matter before the first chapter is a chapter of its own.
+ * The chapter holding `ordinal`, from its first passage up to (not including) the next chapter's. Chapters are
+ * `chapterEntries`: the outermost level with two or more entries, and the chapters inside a part that is only a title
+ * page. Front matter before the first chapter is a chapter of its own.
  */
-export function chapterAt(sections: readonly { ordinal: number; level: number }[], total: number, ordinal: number): { first: number; end: number } {
-  const counts = new Map<number, number>();
-  for (const section of sections) counts.set(section.level, (counts.get(section.level) ?? 0) + 1);
-  const level = Math.min(...[...counts].filter(([, count]) => count > 1).map(([value]) => value));
+export function chapterAt(sections: readonly PlacedSection[], total: number, ordinal: number): { first: number; end: number } {
   let first = 0, end = total;
-  for (const section of sections) {
-    if (section.level !== level) continue;
+  for (const section of chapterEntries(sections)) {
     if (section.ordinal <= ordinal) first = Math.max(first, section.ordinal);
     else end = Math.min(end, section.ordinal);
   }
@@ -23,7 +24,7 @@ export function chapterAt(sections: readonly { ordinal: number; level: number }[
 }
 
 /** The chunk holding `ordinal`: its chapter, split every `CHUNK_LIMIT` passages so each chapter starts on a fresh page. */
-export function pageChunk(sections: readonly { ordinal: number; level: number }[], total: number, ordinal: number): PageChunk {
+export function pageChunk(sections: readonly PlacedSection[], total: number, ordinal: number): PageChunk {
   const { first, end } = chapterAt(sections, total, ordinal);
   const from = first + Math.floor((ordinal - first) / CHUNK_LIMIT) * CHUNK_LIMIT;
   return { first: from, last: Math.min(end, from + CHUNK_LIMIT) - 1 };

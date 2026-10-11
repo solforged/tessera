@@ -12,6 +12,8 @@
 .library-filter { flex-wrap: wrap; }
 /* A phone gives the search its own line; sort, layout, Browse, export and add follow beneath it, the grouping and Export named only in their menus. */
 @media (max-width: 599px) { .library-controls { flex-wrap: wrap; } .library-search { flex: 1 0 100%; } .library-sort-group, .library-export-label { display: none; } }
+/* A half pane wraps the same way, so the search keeps its width instead of shrinking to nothing beside the controls. */
+@container library-pane (max-width: 560px) { .library-controls { flex-wrap: wrap; } .library-search { flex: 1 0 100%; } .library-sort-group, .library-export-label { display: none; } }
 .library-selection-count { font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
 .library-scroll { flex: 1; min-height: 0; overflow: auto; padding: 0 var(--space-16) var(--space-24); }
 .library-count, .library-progress, .library-highlight-count { display: inline-flex; align-items: center; gap: var(--space-4); flex-shrink: 0; font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); color: var(--muted); }

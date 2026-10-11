@@ -1,4 +1,5 @@
 import type { TocEntry } from '../api/types';
+import { chapterEntries } from '../ui/book-map';
 
 /**
  * A contents entry drawn as a chapter opening: a rubric label over the title in display type. The reader composes it
@@ -13,6 +14,8 @@ export interface Opening {
    * titled introduction, appendix or the like (`Introduction: The Iron Law`); null otherwise.
    */
   label: string | null;
+  /** The part this chapter opens, when the two start at the same passage: its entry as written and as drawn (`Part One · An Excess of Good Fortune`). */
+  part: { heading: string; text: string } | null;
   /** The title proper, without its numeral or section word; the numeral itself when the entry is only a number. */
   title: string;
   /** How a sentence refers to the section: `chapter I`, `Book One`, `Introduction`, `Preface`. */
@@ -30,9 +33,11 @@ export const normalizeTitle = (text: string) => text.normalize('NFKD').replace(/
 const ROMAN = /^(?=[mdclxvi])m{0,3}(c[md]|d?c{0,3})(x[cl]|l?x{0,3})(i[xv]|v?i{0,3})$/;
 const ROMAN_VALUES: Record<string, number> = { i: 1, v: 5, x: 10, l: 50, c: 100, d: 500, m: 1000 };
 const WORDS = ['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty'];
-/** Front matter keeps the file's own markup: it has no chapter to open. */
-const FRONT: Record<string, true> = Object.fromEntries(['cover', 'title page', 'title', 'half title', 'copyright', 'copyright page', 'contents', 'table of contents', 'illustrations', 'list of illustrations', 'abbreviations', 'dedication', 'epigraph'].map(key => [key, true]));
-const ALSO_BY = /^(also by|other books by|books by|by the same author)\b/;
+/** Front matter keeps the file's own markup: it has no chapter to open, nor a name in the foot or progress. */
+const FRONT: Record<string, true> = Object.fromEntries(['cover', 'title page', 'title', 'half title', 'copyright', 'copyright page', 'contents', 'table of contents', 'illustrations', 'list of illustrations', 'abbreviations', 'list of abbreviations', 'dedication', 'epigraph', 'frontispiece', 'map', 'maps', 'list of maps', 'family tree', 'family trees', 'genealogy', 'genealogical table', 'genealogical tables', 'major characters', 'principal characters', 'cast of characters', 'dramatis personae', 'list of figures', 'list of tables', 'praise'].map(key => [key, true]));
+const ALSO_BY = /^(also by|other books by|other titles by|books by|by the same author)\b/;
+/** A cover, contents page, map or list of the author's other books: front matter, not a chapter. */
+export const isFrontMatter = (title: string) => { const key = normalizeTitle(title); return !!FRONT[key] || ALSO_BY.test(key); };
 
 /** `XIV`, `14` or `fourteen` as a number; null for anything else. */
 function numberOf(token: string): number | null {
@@ -56,7 +61,8 @@ const capitalized = (word: string) => word[0]!.toLocaleUpperCase() + word.slice(
  * word that only looks Roman (`I Remember`, `CIVIL WAR`) needs the separator, so it stays a title.
  */
 function parse(title: string): Parsed {
-  const text = title.trim();
+  // Decorations around a title (`~Book One~`, `* 3 *`) are not part of it.
+  const text = title.trim().replace(/^[~*•·◆◇\s]+|[~*•·◆◇\s]+$/gu, '');
   const named = text.match(/^(chapter|book|part)\s+([^\s.:]+)(?:[.:]|\s+[-–—])?\s*(.*)$/i);
   if (named) {
     const value = numberOf(named[2]!);
@@ -94,11 +100,17 @@ export function sectionName(title: string): SectionName {
   return parsed.rest ? { numeral: parsed.numeral, title: parsed.rest } : { numeral: null, title: `Chapter ${parsed.numeral}` };
 }
 
+/** A section's name on one line, as the running head, the progress card and the library say it: `IV · The Idea of Chivalry`, `Chapter 5`. */
+export function sectionLabel(title: string): string {
+  const name = sectionName(title);
+  return name.numeral ? `${name.numeral} · ${name.title}` : name.title;
+}
+
 /** A titled section that names its kind first, as `Introduction: The Iron Law` or `Postscript. Fulfillment`. */
 const SECTION_WORD = /^((?:introduction|preface|foreword|prologue|epilogue|afterword|postscript|conclusion|coda|interlude|appendix)(?:\s+[a-z\d]{1,3})?)[.:]\s+(.+)$/i;
 
 function opening(entry: TocEntry & { ordinal: number }): Opening {
-  const parsed = parse(entry.title), at = { ordinal: entry.ordinal, heading: entry.title };
+  const parsed = parse(entry.title), at = { ordinal: entry.ordinal, heading: entry.title, part: null };
   if (parsed.kind === null) {
     const word = parsed.rest.match(SECTION_WORD);
     return word ? { ...at, label: word[1]!, title: word[2]!, name: word[1]! } : { ...at, label: null, title: parsed.rest, name: parsed.rest };
@@ -108,21 +120,24 @@ function opening(entry: TocEntry & { ordinal: number }): Opening {
 }
 
 /**
- * The chapter openings by first passage: entries at the chapter level (the outermost level with two or more entries,
- * as paged reading counts chapters) and above it, leaving out front matter and entries that repeat the book's title.
- * Deeper sections keep the file's own headings.
+ * The chapter openings by first passage: the entries that start chapters (`chapterEntries`, as paged reading counts
+ * them, so a part that is only a title page opens and so does each chapter in it), leaving out front matter and
+ * entries that repeat the book's title. A part and its first chapter at the same passage make one opening, the part
+ * above the chapter's label. Deeper sections keep the file's own headings.
  */
 export function chapterOpenings(contents: readonly TocEntry[], book: ReadonlySet<string>): Map<number, Opening> {
-  const entries = contents.filter((entry): entry is TocEntry & { ordinal: number } => {
-    if (entry.ordinal === null || repeatsBook(entry, book)) return false;
-    const key = normalizeTitle(entry.title);
-    return !FRONT[key] && !ALSO_BY.test(key);
-  });
-  const counts = new Map<number, number>();
-  for (const entry of entries) counts.set(entry.level, (counts.get(entry.level) ?? 0) + 1);
-  const level = Math.min(...[...counts].filter(([, count]) => count > 1).map(([value]) => value));
-  const openings = new Map<number, Opening>();
-  for (const entry of entries) if ((!Number.isFinite(level) || entry.level <= level) && !openings.has(entry.ordinal)) openings.set(entry.ordinal, opening(entry));
+  const entries = contents.filter((entry): entry is TocEntry & { ordinal: number } => entry.ordinal !== null && !repeatsBook(entry, book));
+  const chosen = chapterEntries(entries);
+  const openings = new Map<number, Opening>(), levels = new Map<number, number>();
+  for (const entry of chosen.length ? chosen : entries) {
+    if (isFrontMatter(entry.title)) continue;
+    const outer = openings.get(entry.ordinal), value = opening(entry);
+    if (!outer) { openings.set(entry.ordinal, value); levels.set(entry.ordinal, entry.level); }
+    else if (entry.level > levels.get(entry.ordinal)!) {
+      openings.set(entry.ordinal, { ...value, part: { heading: outer.heading, text: outer.label ? `${outer.label} · ${outer.title}` : outer.title } });
+      levels.set(entry.ordinal, entry.level);
+    }
+  }
   return openings;
 }
 
@@ -169,8 +184,8 @@ export function absorbedPassages(openings: ReadonlyMap<number, Opening>, titleEn
     return null;
   };
   for (const ordinal of titleEntries) if (!openings.has(ordinal)) walk(ordinal, text => book.has(normalizeTitle(text)));
-  for (const { ordinal, heading } of openings.values()) {
-    const text = walk(ordinal, value => repeatsOpening(value, heading, book));
+  for (const { ordinal, heading, part } of openings.values()) {
+    const text = walk(ordinal, value => repeatsOpening(value, heading, book) || (!!part && repeatsOpening(value, part.heading, book)));
     if (text !== null && passageAt(text)?.kind !== 'image') first.add(text);
   }
   return { hidden, first };

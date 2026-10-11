@@ -14,6 +14,16 @@ describe('pageChunk', () => {
     expect(pageChunk(book, 120, 1)).toEqual({ first: 0, last: 1 });
   });
 
+  test('chapters inside a part that is only a title page start their own chunks; a chapter with opening pages keeps its sections', () => {
+    const parts = [
+      { ordinal: 0, level: 1, start: 0 }, { ordinal: 1, level: 2, start: 100 }, { ordinal: 30, level: 2, start: 40_000 },
+      { ordinal: 60, level: 1, start: 80_000 }, { ordinal: 70, level: 2, start: 90_000 }, { ordinal: 80, level: 2, start: 95_000 },
+    ];
+    expect(pageChunk(parts, 100, 0)).toEqual({ first: 0, last: 0 });
+    expect(pageChunk(parts, 100, 40)).toEqual({ first: 30, last: 59 });
+    expect(pageChunk(parts, 100, 75)).toEqual({ first: 60, last: 99 });
+  });
+
   test('long or untitled stretches split at fixed points, so neighbours agree on their edges', () => {
     const total = CHUNK_LIMIT * 2 + 10;
     expect(pageChunk([], total, 0)).toEqual({ first: 0, last: CHUNK_LIMIT - 1 });

@@ -17,6 +17,7 @@ import { DetailsForm } from '../library/DetailsForm';
 import { saveDetails, sourceMetadata } from '../library/details';
 import { Popup } from '../ui/Popup';
 import { highlightColors } from '../library/highlights';
+import { sectionLabel } from '../reader/openings';
 import { timeLeft } from '../reader/paged';
 import { BookMap } from '../ui/BookMap';
 import { bookChapters, chapterAt } from '../ui/book-map';
@@ -151,9 +152,9 @@ export function SourceHeader(props: {
         </div>
       </div>
       <Show when={!source.error && length() > 0}><div class="outline-source-progress-block">
-        <p class="outline-source-chapter">{current()?.chapter.title || (source()?.position ? 'Reading position' : 'Not started')}</p>
+        <p class="outline-source-chapter">{!source()?.position ? 'Not started' : current()?.chapter.title ? sectionLabel(current()!.chapter.title) : 'Reading position'}</p>
         <BookMap chapters={chapters()} length={length()} at={at()} highlights={marks()} />
-        <div class="outline-source-time"><span><Show when={current()}>{value => <>{timeLeft(value().chapter.end - at())} left {value().chapter.title ? 'in chapter' : 'in book'}</>}</Show></span><span>{formatProgress(source()?.progress ?? 0)} · {timeLeft(length() - at())} left</span></div>
+        <div class="outline-source-time"><span><Show when={source()?.position && current()?.chapter.title ? current() : null}>{value => <>{timeLeft(value().chapter.end - at())} left in chapter</>}</Show></span><span>{formatProgress(source()?.progress ?? 0)} · {timeLeft(length() - at())} left</span></div>
       </div></Show>
       <Show when={coverLayout() && actionsHost()} fallback={<ReadingActions />}>{host => <Portal mount={host()}><ReadingActions /></Portal>}</Show>
       <Show when={snapshot()?.metadata.description}>{description => <div class="outline-source-description">
