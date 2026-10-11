@@ -105,6 +105,30 @@
 .agenda-provenance:hover { color: var(--muted); }
 .agenda-row-timetable .agenda-row-meta { grid-column: 3 / -1; grid-row: 2; justify-content: flex-start; min-height: 0; margin: calc(-1 * var(--space-2)) 0 var(--space-4); padding: 0; }
 .agenda-row-timetable > .agenda-error, .agenda-row-timetable > .agenda-message { grid-column: 3 / -1; margin: 0; }
+/* Today's timed work that has passed recedes above a gilt rule at the present, which starts from a gilt dot. */
+.agenda-row-past .agenda-source-text { color: var(--muted); }
+.agenda-row-past .agenda-time-gutter { color: var(--faint); }
+/* Rows contain their paint; the one under the rule lets the dot reach above its edge. */
+.agenda-row:has(> .agenda-now) { position: relative; content-visibility: visible; }
+.agenda-now { position: absolute; inset: calc(-1 * var(--rule-width)) 0 auto; border-top: var(--rule-width) solid var(--accent); pointer-events: none; }
+.agenda-now::before { content: ''; position: absolute; left: 0; top: calc(var(--space-8) / -2 - var(--rule-width) / 2); width: var(--space-8); height: var(--space-8); border-radius: 50%; background: var(--accent); }
+li.agenda-now-end { position: relative; inset: auto; margin-top: calc(-1 * var(--rule-width)); }
+/* Rescheduling waits at the provenance's place: Today, Tomorrow and a date, in quiet mono, on hover or focus. */
+.agenda-row-actions { grid-column: 4; grid-row: 1; align-self: start; display: none; justify-content: flex-end; align-items: center; gap: var(--space-2); min-height: var(--agenda-row-height); }
+.agenda-row-actions .button { min-height: var(--target-size); padding-inline: var(--space-4); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.agenda-row-actions .button:hover:not(:disabled) { color: var(--text); }
+@media (hover: hover) {
+  .agenda-row:is(:hover, :focus-within, .agenda-row-picking) > .agenda-row-actions { display: flex; }
+  .agenda-row:is(:hover, :focus-within, .agenda-row-picking):has(> .agenda-row-actions) > .agenda-provenance { visibility: hidden; }
+}
+/* Touch keeps only the date button, beside the planning facts. */
+@media (hover: none) {
+  .agenda-row-actions { display: flex; grid-row: 2; min-height: 0; }
+  .agenda-row-actions .button:not(.agenda-row-pick) { display: none; }
+}
+.agenda-section-actions { display: flex; gap: var(--space-2); }
+.agenda-section-actions .button { min-height: var(--target-size); padding-inline: var(--space-4); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.agenda-section-actions .button:hover:not(:disabled) { color: var(--text); }
 .journal-agenda { margin-block: var(--space-4) var(--space-8); font-weight: var(--weight-body); }
 /* Journal sections head like the sidebar's: the name, a hairline rule, then the state and the chevron at the right. */
 .journal-agenda-toggle.button { display: flex; width: 100%; justify-content: flex-start; gap: var(--space-8); min-height: var(--target-size); padding: 0 var(--space-4) 0 0; color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
