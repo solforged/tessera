@@ -122,14 +122,16 @@ Progress: perspective lenses and comparison arrived with stage 7's positions. Ti
 - Built-in kinds: Person, Group, Concept and Thesis as system types, with Question, Source and Project read from capabilities. Existing types with those titles become the built-in kinds.
 - A Form choice field on sources, filled by lookup and ingestion and exported as the CSL and BibTeX type, replacing the guess from format and identifiers.
 - A note capability with the settled state and the revisit date; revisit events as history. A page question's review date becomes its revisit date.
-- An Index in the sidebar: built-in kinds, then your types, each with a count, opening a finding aid by title. Saved views file under the kind they list.
-- A note header in the site's apparatus: the kind above the title, and the state, created date and last revisit in mono below the gloss.
+- An Index in the sidebar: built-in kinds, then your types, each with a count, then spreads. Each opens a finding aid: titles in columns under letters, with marks for settled notes and revisit dates.
+- Note views: a Find line with `is:`, `revisit:`, `links:`, `from:` and `cites:` terms shown as chips; grouping by letter, source cited, note linked, state, created month or a field, with a note under every heading that applies; Index and Table layouts; saved views filed under their kind.
+- Spreads: up to five selected notes side by side with aligned rows for fields, sources and links, and shared values marked. Saved, a spread is a page of references with commentary beneath them.
+- A note header in the site's apparatus: the kind above the title (with a refining type, such as Person / Economist), then the gloss, then one mono line with the ID, state, created date and revisit date. State and revisit open their menus.
 - A notes queue in Review beside cards, with Revisited, Later and Settle.
 - The agent API's `AddNote` and `NoteTarget` renamed to block terms, since they also write to journal days.
 
-Exit: file a week of reading notes by kind, settle two, give three revisit dates, and work them from the notes queue on the day, rewriting and linking in place.
+Exit: file a week of reading notes by kind, settle two, give three revisit dates, and work them from the notes queue on the day, rewriting and linking in place. Find every concept citing one book, group them by the notes they link, save the view, spread three of them and write what they share on the spread page.
 
-Progress: the model is settled in the [domain model](domain-model.md#notes); nothing is built.
+Progress: the model is settled in the [domain model](domain-model.md#notes), and a clickable mock of the index, note views, spreads and the note header is in `~/Documents/tessera-design/notes-index-mock/`. Nothing is built.
 
 ## Not planned
 
