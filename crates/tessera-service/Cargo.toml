@@ -24,10 +24,13 @@ anyhow.workspace = true
 axum.workspace = true
 dirs.workspace = true
 jiff = { version = "0.2", default-features = false, features = ["std"] }
-tokio.workspace = true
+tokio = { workspace = true, features = ["process"] }
 reqwest.workspace = true
 tokio-util = { version = "0.7", features = ["io"] }
 include_dir = { version = "0.7", optional = true }
+base64 = "0.22"
+getrandom = "0.4"
+qrcodegen = "1.8"
 
 [target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
 axum = { version = "0.8", default-features = false, features = ["json", "query", "matched-path", "original-uri"] }

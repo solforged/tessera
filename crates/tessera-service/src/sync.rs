@@ -2,8 +2,9 @@
 
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use crate::pairing::run_authorized;
 use axum::{
-    Json, Router,
+    Extension, Json, Router,
     body::{Body, Bytes},
     extract::{DefaultBodyLimit, Path, State, rejection::JsonRejection},
     http::{HeaderMap, HeaderValue, StatusCode, header},
@@ -13,6 +14,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use tessera_core::SCHEMA_VERSION;
 use tessera_core::sync::{PULL_LIMIT, PushedChange, SnapshotContent, UnloggedRows, check_schema};
+use tessera_core::sync_devices::PairedDevice;
 
 use crate::{AppState, error::ApiError, run};
 
@@ -55,17 +57,21 @@ fn same_schema(headers: &HeaderMap) -> Result<(), ApiError> {
 /// Distinguishes clone files written at the same time.
 static CLONES: AtomicU64 = AtomicU64::new(0);
 
-async fn clone(State(state): State<AppState>, headers: HeaderMap) -> Result<Response, ApiError> {
+async fn clone(
+    State(state): State<AppState>,
+    paired: Option<Extension<PairedDevice>>,
+    headers: HeaderMap,
+) -> Result<Response, ApiError> {
     same_schema(&headers)?;
     // Only the copy needs the notebook. Removing the hub's own state and
     // compacting run after it is released, and the file is streamed.
-    let (snapshot, path) = run(&state, |notebook| {
+    let (snapshot, path) = run(&state, move |notebook| {
         let path = notebook.info()?.path.join(format!(
             "sync-clone-{}-{}.tmp",
             std::process::id(),
             CLONES.fetch_add(1, Ordering::Relaxed)
         ));
-        match notebook.sync_clone(&path) {
+        match notebook.sync_clone_for_device(&path, paired.as_ref().map(|p| p.id.as_str())) {
             Ok(snapshot) => Ok((snapshot, path)),
             Err(error) => {
                 let _ = std::fs::remove_file(&path);
@@ -121,13 +127,14 @@ pub(crate) struct PushRequest {
 
 async fn push(
     State(state): State<AppState>,
+    paired: Option<Extension<PairedDevice>>,
     headers: HeaderMap,
     request: Result<Json<PushRequest>, JsonRejection>,
 ) -> Result<Response, ApiError> {
     same_schema(&headers)?;
     let Json(request) = request?;
     let notify = state.changes.clone();
-    let receipts = run(&state, move |notebook| {
+    let receipts = run_authorized(&state, paired, request.device.clone(), move |notebook| {
         let receipts = notebook.sync_push(&request.device, &request.changes)?;
         if let Some(seq) = receipts
             .iter()
@@ -154,12 +161,13 @@ pub(crate) struct PullRequest {
 
 async fn pull(
     State(state): State<AppState>,
+    paired: Option<Extension<PairedDevice>>,
     headers: HeaderMap,
     request: Result<Json<PullRequest>, JsonRejection>,
 ) -> Result<Response, ApiError> {
     same_schema(&headers)?;
     let Json(request) = request?;
-    let pull = run(&state, move |notebook| {
+    let pull = run_authorized(&state, paired, request.device.clone(), move |notebook| {
         notebook.sync_pull(
             &request.device,
             request.acknowledged,
@@ -274,12 +282,13 @@ pub(crate) struct RowsRequest {
 
 async fn exchange_rows(
     State(state): State<AppState>,
+    paired: Option<Extension<PairedDevice>>,
     headers: HeaderMap,
     request: Result<Json<RowsRequest>, JsonRejection>,
 ) -> Result<Response, ApiError> {
     same_schema(&headers)?;
     let Json(request) = request?;
-    let pull = run(&state, move |notebook| {
+    let pull = run_authorized(&state, paired, request.device.clone(), move |notebook| {
         notebook.sync_exchange_rows(&request.device, &request.rows, request.after)
     })
     .await?;
@@ -293,12 +302,13 @@ pub(crate) struct RetireRequest {
 
 async fn retire(
     State(state): State<AppState>,
+    paired: Option<Extension<PairedDevice>>,
     headers: HeaderMap,
     request: Result<Json<RetireRequest>, JsonRejection>,
 ) -> Result<StatusCode, ApiError> {
     same_schema(&headers)?;
     let Json(request) = request?;
-    run(&state, move |notebook| {
+    run_authorized(&state, paired, request.device.clone(), move |notebook| {
         notebook.sync_retire(&request.device)
     })
     .await?;

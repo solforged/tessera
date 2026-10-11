@@ -9,7 +9,11 @@ mod capabilities;
 mod error;
 pub mod library;
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+mod pairing;
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 mod security;
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+mod sharing;
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 mod sync;
 
@@ -75,6 +79,8 @@ pub struct Config {
     /// Notebook directory; created if missing.
     pub notebook: PathBuf,
     pub port: u16,
+    /// Separate authenticated sync listener; defaults to the editor port plus one.
+    pub sync_port: Option<u16>,
     /// Override embedded browser assets with a built directory (`web/dist`).
     pub assets: Option<PathBuf>,
     /// Extra allowed browser origin for the Vite dev server.
@@ -92,6 +98,12 @@ pub(crate) struct AppState {
     port: u16,
     #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     backup: Arc<tokio::sync::Mutex<()>>,
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+    sync_port: u16,
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+    pairing: Arc<Mutex<pairing::Pairing>>,
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+    sharing: Arc<tokio::sync::Mutex<()>>,
 }
 
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
@@ -103,6 +115,20 @@ pub fn router(
     assets: Option<PathBuf>,
     dev_origin: Option<String>,
 ) -> Result<Router, String> {
+    let sync_port = port
+        .checked_add(1)
+        .ok_or("the sync port needs an explicit value")?;
+    Ok(routers(notebook, port, sync_port, assets, dev_origin)?.0)
+}
+
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+fn routers(
+    notebook: Notebook,
+    port: u16,
+    sync_port: u16,
+    assets: Option<PathBuf>,
+    dev_origin: Option<String>,
+) -> Result<(Router, Router), String> {
     let policy = security::RequestPolicy::new(port, dev_origin)?;
     let notebook = Arc::new(Mutex::new(notebook));
     let notifications = broadcast::channel(256).0;
@@ -115,8 +141,20 @@ pub fn router(
         library,
         port,
         backup: Arc::new(tokio::sync::Mutex::new(())),
+        sync_port,
+        pairing: Arc::new(Mutex::new(pairing::Pairing::default())),
+        sharing: Arc::new(tokio::sync::Mutex::new(())),
     };
-    Ok(notebook_routes()
+    let sync = sync::routes()
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            pairing::authenticate,
+        ))
+        .merge(pairing::public_routes())
+        .method_not_allowed_fallback(|| async { ApiError::method_not_allowed() })
+        .fallback(|| async { ApiError::not_found() })
+        .with_state(state.clone());
+    let editor = notebook_routes()
         .route("/api/service", get(service_info))
         .route("/api/backups", get(backups).post(create_backup))
         .route("/api/changes/stream", get(change_stream))
@@ -125,8 +163,10 @@ pub fn router(
         .layer(DefaultBodyLimit::max(2 * 1024 * 1024))
         .merge(library::routes())
         .merge(sync::routes())
+        .merge(pairing::editor_routes())
         .layer(middleware::from_fn_with_state(policy, security::protect))
-        .with_state(state))
+        .with_state(state);
+    Ok((editor, sync))
 }
 
 /// The notebook and commit notifications backing an embedded router.
@@ -158,6 +198,12 @@ pub fn embedded_router(notebook: Notebook) -> Result<(Router, EmbeddedHandles), 
         port: 0,
         #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         backup: Arc::new(tokio::sync::Mutex::new(())),
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+        sync_port: 0,
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+        pairing: Arc::new(Mutex::new(pairing::Pairing::default())),
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+        sharing: Arc::new(tokio::sync::Mutex::new(())),
     };
     let router = notebook_routes()
         .method_not_allowed_fallback(|| async { ApiError::method_not_allowed() })
@@ -258,14 +304,42 @@ pub async fn serve(config: Config) -> anyhow::Result<()> {
         .await
         .context("cannot bind the local HTTP port")?;
     let port = listener.local_addr()?.port();
+    let sync_port = config.sync_port.map(Ok).unwrap_or_else(|| {
+        port.checked_add(1)
+            .context("specify --sync-port when the editor port is 65535")
+    })?;
+    let sync_listener = tokio::net::TcpListener::bind((Ipv4Addr::LOCALHOST, sync_port))
+        .await
+        .context("cannot bind the local sync port")?;
+    let sync_port = sync_listener.local_addr()?.port();
     ownership.record(Some(port))?;
-    let app =
-        router(notebook, port, config.assets, config.dev_origin).map_err(anyhow::Error::msg)?;
+    let (app, sync_app) = routers(notebook, port, sync_port, config.assets, config.dev_origin)
+        .map_err(anyhow::Error::msg)?;
     tracing::info!(url = %format_args!("http://127.0.0.1:{port}"), "service listening");
+    tracing::info!(url = %format_args!("http://127.0.0.1:{sync_port}"), "sync listening");
     tracing::info!(path = %path.display(), "notebook opened");
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown)
-        .await?;
+    let (stop, stopped) = tokio::sync::watch::channel(false);
+    let mut editor_stopped = stopped.clone();
+    let mut sync_stopped = stopped;
+    let servers = async {
+        tokio::try_join!(
+            axum::serve(listener, app).with_graceful_shutdown(async move {
+                let _ = editor_stopped.wait_for(|stop| *stop).await;
+            }),
+            axum::serve(sync_listener, sync_app).with_graceful_shutdown(async move {
+                let _ = sync_stopped.wait_for(|stop| *stop).await;
+            }),
+        )
+    };
+    let signal = async move {
+        shutdown.await;
+        let _ = stop.send(true);
+    };
+    tokio::pin!(servers);
+    tokio::select! {
+        result = &mut servers => { result?; }
+        () = signal => { servers.await?; }
+    }
     drop(ownership);
     tracing::info!("service stopped");
     Ok(())
@@ -1092,6 +1166,9 @@ mod tests {
                 library,
                 port: 4396,
                 backup: backup.clone(),
+                sync_port: 4501,
+                pairing: Arc::new(Mutex::new(pairing::Pairing::default())),
+                sharing: Arc::new(tokio::sync::Mutex::new(())),
             });
         let guard = backup.clone().try_lock_owned().unwrap();
         let response = app

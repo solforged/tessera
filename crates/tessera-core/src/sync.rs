@@ -327,7 +327,7 @@ fn role(conn: &Connection) -> Result<Option<Role>> {
 
 /// Retire replicas the hub has not heard from in [`RETIRE_AFTER_MS`], then
 /// forget the patches every remaining replica has applied.
-fn prune(conn: &Connection, now: i64) -> Result<()> {
+pub(crate) fn prune(conn: &Connection, now: i64) -> Result<()> {
     conn.execute(
         "UPDATE sync_replicas SET retired_at = ?1 WHERE retired_at IS NULL AND seen_at < ?1 - ?2",
         params![now, RETIRE_AFTER_MS],
@@ -602,6 +602,18 @@ impl Notebook {
     /// Register a new replica and copy this notebook to `destination` for it.
     /// Finish the copy to remove this device's local state.
     pub fn sync_clone(&mut self, destination: &Path) -> Result<ClonedSnapshot> {
+        self.sync_clone_for_device(destination, None)
+    }
+
+    /// Clone for a paired device, binding its replica ID to that device's key.
+    pub fn sync_clone_for_device(
+        &mut self,
+        destination: &Path,
+        paired_device: Option<&str>,
+    ) -> Result<ClonedSnapshot> {
+        if let Some(device) = paired_device {
+            self.sync_require_device(device)?;
+        }
         if self.sync_status()?.is_some() {
             return Err(validation("a replica cannot be cloned; clone its hub"));
         }
@@ -609,8 +621,9 @@ impl Notebook {
         let seq = latest_seq(&self.conn)?;
         let now = now_ms();
         self.conn.execute(
-            "INSERT INTO sync_replicas(device_id, cursor, cloned_at, seen_at) VALUES (?1, ?2, ?3, ?3)",
-            params![device_id, seq, now],
+            "INSERT INTO sync_replicas(device_id, cursor, cloned_at, seen_at, paired_device)
+             VALUES (?1, ?2, ?3, ?3, ?4)",
+            params![device_id, seq, now, paired_device],
         )?;
         let mut snapshot = Connection::open(destination)?;
         {
