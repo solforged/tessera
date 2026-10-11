@@ -1,14 +1,46 @@
 import type { Citation, HighlightRow, IngestJob, LibraryQuery, LibraryRow, Operation, ReadingState } from '../api/types';
-import type { LibraryViewState } from '../shell/contract';
+import type { LibraryGroup, LibraryViewState } from '../shell/contract';
+import { formatSourceValue } from '../outline/source';
 import type { HighlightSection } from './highlights';
 
-export function libraryQuery(view: Pick<LibraryViewState, 'tab' | 'text' | 'sort'>): LibraryQuery {
+export function libraryQuery(view: Pick<LibraryViewState, 'tab' | 'text' | 'sort' | 'filters'>): LibraryQuery {
   return {
     states: view.tab === 'all' || view.tab === 'highlights' ? [] : [view.tab],
     text: view.text.trim() || null,
     sort: view.sort,
     direction: view.sort === 'title' || view.sort === 'author' ? 'asc' : 'desc',
+    ...view.filters,
   };
+}
+
+export interface SourceGroup { key: string; label: string; personId: string | null; rows: LibraryRow[] }
+
+const missingGroup: Record<Exclude<LibraryGroup, 'none'>, string> = { author: 'No author', decade: 'Undated', publisher: 'No publisher', language: 'No language' };
+
+/**
+ * Splits rows into groups, keeping each group's rows in their listed order. A source belongs to one group: by its
+ * first author (else editor), its decade, publisher or language. Authors run A–Z by family name, decades newest
+ * first, publishers and languages A–Z; sources without a value come last.
+ */
+export function groupSources(rows: readonly LibraryRow[], group: Exclude<LibraryGroup, 'none'>): SourceGroup[] {
+  const groups = new Map<string, SourceGroup & { order: string | number }>();
+  for (const row of rows) {
+    const person = row.people.find(value => value.role === 'author') ?? row.people.find(value => value.role === 'editor');
+    const year = Number(row.published?.slice(0, 4));
+    const value = group === 'author' ? person && { key: person.id ?? `name:${person.name}`, label: person.name, personId: person.id, order: (person.name.includes(',') ? person.name.split(',')[0]! : person.name.split(/\s+/).at(-1)!) + ' ' + person.name }
+      : group === 'decade' ? (year > 0 ? { key: String(year - year % 10), label: `${year - year % 10}s`, personId: null, order: -(year - year % 10) } : undefined)
+        : group === 'publisher' ? row.publisher && { key: row.publisher, label: row.publisher, personId: null, order: row.publisher }
+          : row.language && { key: row.language, label: formatSourceValue('language', row.language), personId: null, order: formatSourceValue('language', row.language) };
+    const entry = value || { key: '', label: missingGroup[group], personId: null, order: '' };
+    let existing = groups.get(entry.key);
+    if (!existing) { existing = { ...entry, rows: [] }; groups.set(entry.key, existing); }
+    existing.rows.push(row);
+  }
+  return [...groups.values()]
+    .sort((a, b) => (a.key === '') !== (b.key === '') ? (a.key === '' ? 1 : -1)
+      : typeof a.order === 'number' && typeof b.order === 'number' ? a.order - b.order
+        : String(a.order).localeCompare(String(b.order), undefined, { sensitivity: 'base' }))
+    .map(({ order: _, ...value }) => value);
 }
 
 export function sourceStateOperation(row: LibraryRow, state: ReadingState): Operation {

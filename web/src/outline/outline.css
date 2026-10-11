@@ -203,6 +203,14 @@
 /* Highlights of this source filed on other pages: the same faint label and the same reading face as the highlights above. */
 .source-elsewhere > .outline-highlights-label { margin: var(--space-4) 0 var(--space-4) var(--indent-width); font-weight: var(--weight-body); }
 .source-elsewhere > .library-highlight.button { margin-left: calc(var(--indent-width) - var(--space-8)); font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); font-variation-settings: var(--optical-quote); }
+/* A person's works: the Library shelf at a smaller cover, with the same faint label as the sections around it. */
+.person-works > .outline-highlights-label { margin: 0 0 var(--space-8) var(--indent-width); font-weight: var(--weight-body); }
+.person-works-shelf { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--work-cover-width), 1fr)); gap: var(--space-16) var(--space-12); margin-left: var(--indent-width); }
+.person-work.button { display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: var(--space-4); width: 100%; height: auto; padding: 0; white-space: normal; text-align: left; font-weight: var(--weight-body); }
+.person-work.button:hover:not(:disabled) { background: transparent; }
+.person-work:hover .person-work-title { color: var(--accent); }
+.person-work-title { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; color: var(--text); font-family: var(--font-display); font-size: var(--text-control); line-height: var(--line-control); }
+.person-work-apparatus { color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .outline-source-progress { color: var(--muted); font-variant-numeric: tabular-nums; }
 .outline-citation { max-width: 100%; overflow-wrap: anywhere; text-align: left; }
 /* On the source's own page the chip is only `¶N`: it stays at the end of the first line, and the text wraps beside it. */

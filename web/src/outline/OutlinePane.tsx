@@ -11,6 +11,7 @@ import { createTemplateCache } from '../fields/templates';
 import { TemplateEditor } from '../fields/TemplateEditor';
 import { pageSigla } from '../library/sigla';
 import { sourceReadingOrder } from '../library/source-order';
+import { PersonWorks } from '../library/PersonWorks';
 import type { OutlineIndex } from '../document/outline-index';
 import { JournalAgenda } from '../tasks/JournalAgenda';
 import { JournalResurface } from '../tasks/JournalResurface';
@@ -905,6 +906,7 @@ function Pane(props: OutlinePaneProps) {
     </section></Show>
     <Show when={sourceHighlights.error}><p class="library-error" role="alert">{String(sourceHighlights.error)}</p></Show>
     <Show when={doc.status() === 'ready' && ids().length === 0 && depthFilter() === undefined}><button type="button" class="add-first-block" onClick={() => apply({ kind: 'insert', parentId: zoom() ?? props.pageId, after: null }, true)}><Icon name="plus" />Add a block</button></Show>
+    <Show when={doc.status() === 'ready' && !zoom() && related()?.works.length}><PersonWorks pageId={props.pageId} rows={related()!.works} onOpen={props.onOpen} /></Show>
     <Show when={doc.status() === 'ready' && (related.error || (related()?.backlinks.length ?? 0) + (related()?.tagged.length ?? 0) + (related()?.held.length ?? 0) + (related()?.about.length ?? 0) > 0)}><div class="related-sections">
       <Show when={related()?.held.length}><Related title="Perspectives held" rows={related()?.held ?? []} /></Show>
       <Show when={related()?.about.length}><Related title="Perspectives filed elsewhere" rows={related()?.about ?? []} /></Show>

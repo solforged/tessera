@@ -6,11 +6,11 @@
 .library-toolbar > .library-tabs { overflow-x: auto; }
 .library-controls, .library-filter { gap: var(--space-8); }
 .library-search { flex: 0 1 var(--search-width); width: 0; min-width: 0; height: var(--row-height); min-height: var(--row-height); }
-.library-sort.button { margin-right: auto; font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.library-sort.button { margin-right: auto; font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
 .library-clear-selection { margin-left: auto; }
 .library-filter { flex-wrap: wrap; }
-/* A phone gives the search its own line; sort, export and add follow beneath it. */
-@media (max-width: 599px) { .library-controls { flex-wrap: wrap; } .library-search { flex: 1 0 100%; } }
+/* A phone gives the search its own line; sort, layout, Browse, export and add follow beneath it, the grouping and Export named only in their menus. */
+@media (max-width: 599px) { .library-controls { flex-wrap: wrap; } .library-search { flex: 1 0 100%; } .library-sort-group, .library-export-label { display: none; } }
 .library-selection-count { font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
 .library-scroll { flex: 1; min-height: 0; overflow: auto; padding: 0 var(--space-16) var(--space-24); }
 .library-count, .library-progress, .library-highlight-count { display: inline-flex; align-items: center; gap: var(--space-4); flex-shrink: 0; font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); color: var(--muted); }
@@ -150,3 +150,31 @@
 .library-resume-section { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
 .library-resume-position { display: flex; align-items: center; gap: var(--space-8); margin-top: var(--space-4); color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .library-resume-position .library-reading-rule { flex: 1; }
+/* Groups: a sticky heading in the reading face over each run of rows or covers, its count in the apparatus. */
+.library-rows-grouped { border-top: 0; }
+.library-group + .library-group { margin-top: var(--space-16); }
+.library-group-heading { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); min-height: var(--target-size); margin: 0; border-bottom: 1px solid var(--line); background: var(--canvas); color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.library-group-label, .library-group-label.button { min-width: 0; padding-inline: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font: var(--weight-source-title) var(--text-body)/var(--line-source-title) var(--font-display); letter-spacing: 0; }
+.library-group-label.button:hover:not(:disabled) { background: transparent; color: var(--accent); }
+/* Browse: the commonest people, decades, publishers and languages. Wide panes keep them in a rail left of the measure; narrower ones open the same lists from the Browse button. */
+.library-pane { container: library-pane / inline-size; }
+.library-browse { display: none; }
+.library-chip.button { gap: var(--space-4); }
+.library-chip .icon { color: var(--faint); }
+.library-browse-heading { margin: 0 0 var(--space-4); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.library-browse-section { display: flex; flex-direction: column; align-items: stretch; }
+.library-browse-item.button { justify-content: space-between; gap: var(--space-8); margin-inline: calc(-1 * var(--space-8)); padding-inline: var(--space-8); font-weight: var(--weight-body); }
+.library-browse-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.library-browse-count { flex: none; margin-left: auto; color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.library-browse-item[aria-pressed="true"] .library-browse-count { color: inherit; }
+.library-browse-more.button { align-self: flex-start; margin-left: calc(-1 * var(--space-8)); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.library-browse-check { display: inline-flex; flex: none; width: var(--space-16); }
+.library-browse-picker .picker-row { gap: var(--space-8); }
+/* The rail and measure centre together, as the outline's apparatus margin does; 1096 px fits both with the pane's padding. */
+@container library-pane (min-width: 1096px) {
+  .library-toolbar > *, .library-scroll > .library-main { margin-left: calc(50% + (var(--apparatus-width) + var(--space-48) - var(--measure)) / 2); margin-right: 0; }
+  .library-scroll { display: flex; align-items: flex-start; }
+  .library-scroll > .library-browse { display: flex; flex: none; flex-direction: column; gap: var(--space-24); width: var(--apparatus-width); margin: 0 var(--space-48) 0 calc(50% - (var(--apparatus-width) + var(--space-48) + var(--measure)) / 2); padding-top: var(--space-4); }
+  .library-scroll > .library-browse + .library-main { margin-left: 0; }
+  .library-browse-button.button { display: none; }
+}
