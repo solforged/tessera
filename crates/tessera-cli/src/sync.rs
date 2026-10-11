@@ -279,8 +279,15 @@ impl Hub for HttpHub {
             .map_err(|error| tessera_core::Error::Io(std::io::Error::other(error)))
     }
 
-    fn snapshot_content(&mut self, ids: &[String]) -> tessera_core::Result<Vec<SnapshotContent>> {
-        self.call("/api/sync/snapshots/content", json!({"ids": ids}))
+    fn snapshot_content(
+        &mut self,
+        ids: &[String],
+        from: i64,
+    ) -> tessera_core::Result<Vec<SnapshotContent>> {
+        self.call(
+            "/api/sync/snapshots/content",
+            json!({"ids": ids, "from": from}),
+        )
     }
 
     fn store_snapshots(&mut self, content: &[SnapshotContent]) -> tessera_core::Result<()> {
