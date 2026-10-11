@@ -14,8 +14,9 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import java.io.File
 import java.util.UUID
-import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.Executors
+import org.json.JSONObject
 
 class MainActivity : TauriActivity() {
   private var inboxWebView: WebView? = null
@@ -25,14 +26,14 @@ class MainActivity : TauriActivity() {
   override fun onWebViewCreate(webView: WebView) {
     super.onWebViewCreate(webView)
     inboxWebView = webView
-    // The launcher's New note request waits here until the page takes it, so a cold start keeps it too.
+    // Capture requests wait here until the page takes them, so a cold start keeps them too.
     // Taking it focuses the WebView; the page asks for the keyboard once its editor has focus, since the
     // WebView raises it only for a tap.
     webView.addJavascriptInterface(object {
-      @JavascriptInterface fun take(): Boolean {
-        val requested = pendingCapture.getAndSet(false)
-        if (requested) runOnUiThread { webView.requestFocus() }
-        return requested
+      @JavascriptInterface fun take(): String {
+        val requested = pendingCapture.getAndSet(null) ?: return ""
+        runOnUiThread { webView.requestFocus() }
+        return JSONObject().put("task", requested.task).put("text", requested.text).toString()
       }
 
       @JavascriptInterface fun showKeyboard() {
@@ -61,7 +62,6 @@ class MainActivity : TauriActivity() {
       insets
     }
     if (savedInstanceState == null) {
-      receiveBook(intent)
       receiveCapture(intent)
     }
   }
@@ -69,13 +69,25 @@ class MainActivity : TauriActivity() {
   override fun onNewIntent(intent: Intent) {
     super.onNewIntent(intent)
     setIntent(intent)
-    receiveBook(intent)
     receiveCapture(intent)
   }
 
   private fun receiveCapture(intent: Intent) {
-    if (intent.action != ACTION_CAPTURE) return
-    pendingCapture.set(true)
+    val request = when {
+      intent.action == ACTION_CAPTURE -> CaptureRequest(intent.getBooleanExtra(EXTRA_CAPTURE_TASK, false), "")
+      intent.action == Intent.ACTION_SEND && intent.type == "text/plain" -> {
+        val text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString().orEmpty()
+          .replace(Regex("[\\r\\n]+"), " ").trim()
+        val subject = intent.getCharSequenceExtra(Intent.EXTRA_SUBJECT)?.toString().orEmpty()
+          .replace(Regex("[\\r\\n]+"), " ").trim()
+        CaptureRequest(false, if (subject.isNotEmpty() && !text.contains(subject)) "$subject $text".trim() else text)
+      }
+      else -> {
+        receiveBook(intent)
+        return
+      }
+    }
+    pendingCapture.set(request)
     inboxWebView?.evaluateJavascript("window.dispatchEvent(new Event('tessera-quick-capture'))", null)
   }
 
@@ -126,9 +138,12 @@ class MainActivity : TauriActivity() {
     }
   }
 
+  private data class CaptureRequest(val task: Boolean, val text: String)
+
   companion object {
     private const val ACTION_CAPTURE = "dev.tessera.android.CAPTURE"
+    private const val EXTRA_CAPTURE_TASK = "dev.tessera.android.CAPTURE_TASK"
     private val inboxExecutor = Executors.newSingleThreadExecutor()
-    private val pendingCapture = AtomicBoolean(false)
+    private val pendingCapture = AtomicReference<CaptureRequest?>(null)
   }
 }
