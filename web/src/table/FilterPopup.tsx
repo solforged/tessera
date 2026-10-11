@@ -1,18 +1,22 @@
-import { Show, createMemo, createSignal } from 'solid-js';
+import { For, Show, createMemo, createSignal } from 'solid-js';
+import { Portal } from 'solid-js/web';
 import type { FieldDefinition, Filter, FilterOp } from '../api/types';
 import { partialDatePlaceholder } from '../fields/kinds';
+import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Picker } from '../ui/Picker';
+import { Popup } from '../ui/Popup';
 import { filterLabels } from './query';
 
 type FilterRow = { kind: 'field'; id: string; name: string } | { kind: 'new-field'; name: string } | { kind: 'op'; op: FilterOp } | { kind: 'value'; value: string; label: string };
 /** Three picker steps: field, operator, value. A chip trail above the rows shows what is chosen so far; Backspace on an empty query steps back. */
-export function FilterPopup(props: { anchor: HTMLElement; fields: readonly FieldDefinition[]; initialField: string; initialFilter?: Filter; label?: string; onDismiss(): void; onNewField?(name: string): Promise<string>; onAdd(filter: Filter): void }) {
+export function FilterPopup(props: { anchor: HTMLElement; fields: readonly FieldDefinition[]; initialField: string; initialFilter?: Filter; label?: string; sheet?: boolean; onDismiss(): void; onNewField?(name: string): Promise<string>; onAdd(filter: Filter): void }) {
   const initialField = props.initialFilter?.field ?? props.initialField;
   const initial = props.fields.find(candidate => candidate.id === initialField);
   const [field, setField] = createSignal<{ id: string | null; name: string } | null>(initial ? { id: initial.id, name: initial.name } : props.initialFilter ? { id: initialField, name: initialField } : null);
-  const [op, setOp] = createSignal<FilterOp | null>(props.initialFilter?.op ?? null);
+  const [op, setOp] = createSignal<FilterOp | null>(props.initialFilter?.op ?? (props.sheet && initial?.kind === 'choice' ? 'is' : null));
   const [query, setQuery] = createSignal(props.initialFilter?.value ?? '');
+  const [draftValue, setDraftValue] = createSignal<string | null | undefined>(props.initialFilter?.value);
   const [busy, setBusy] = createSignal(false); const [error, setError] = createSignal('');
   const step = () => !field() ? 'field' : !op() || op() === 'present' || op() === 'set' || op() === 'empty' ? 'op' : 'value';
   const definition = () => props.fields.find(candidate => candidate.id === field()?.id);
@@ -41,14 +45,17 @@ export function FilterPopup(props: { anchor: HTMLElement; fields: readonly Field
     finally { setBusy(false); }
   };
   const pick = (row: FilterRow) => {
-    setQuery(''); setError('');
-    if (row.kind === 'field') setField({ id: row.id, name: row.name });
-    else if (row.kind === 'new-field') setField({ id: null, name: row.name });
-    else if (row.kind === 'op') { setOp(row.op); if (row.op === 'present' || row.op === 'set' || row.op === 'empty') void finish(null); }
+    setQuery(''); setError(''); setDraftValue(undefined);
+    if (row.kind === 'field') { setField({ id: row.id, name: row.name }); setOp(props.sheet && props.fields.find(field => field.id === row.id)?.kind === 'choice' ? 'is' : null); }
+    else if (row.kind === 'new-field') { setField({ id: null, name: row.name }); setOp(null); }
+    else if (row.kind === 'op') {
+      setOp(row.op);
+      if (row.op === 'present' || row.op === 'set' || row.op === 'empty') { if (props.sheet) setDraftValue(null); else void finish(null); }
+    } else if (props.sheet) setDraftValue(row.value);
     else void finish(row.value);
   };
   const placeholder = () => step() === 'field' ? 'Field name' : step() === 'op' ? 'Condition' : definition()?.kind === 'date' ? partialDatePlaceholder : definition()?.kind === 'choice' ? 'Choose or type a value' : 'Value';
-  return <Picker<FilterRow> anchor={props.anchor} width={320} label={props.label ?? (props.initialFilter ? 'Edit condition' : 'Add filter')} onDismiss={props.onDismiss}
+  return <Show when={props.sheet} fallback={<Picker<FilterRow> anchor={props.anchor} width={320} label={props.label ?? (props.initialFilter ? 'Edit condition' : 'Add filter')} onDismiss={props.onDismiss}
     query={query()} onQuery={setQuery} placeholder={placeholder()}
     prefix={<><Show when={field()}>{chosen => <span class="table-chip">{chosen().name}</span>}</Show><Show when={op()}>{chosen => <span class="table-chip">{filterLabels[chosen()]}</span>}</Show></>}
     items={rows()} key={row => row.kind === 'field' ? row.id : row.kind === 'op' ? row.op : row.kind === 'value' ? row.value : 'new'}
@@ -56,12 +63,29 @@ export function FilterPopup(props: { anchor: HTMLElement; fields: readonly Field
     onPick={pick}
     onKey={event => {
       if (event.key !== 'Backspace' || query()) return false;
-      if (op()) setOp(null); else if (field()) setField(null); else return false;
+      if (op()) { setOp(null); setDraftValue(undefined); } else if (field()) setField(null); else return false;
       return true;
     }}
     busy={busy()} error={error() || undefined} empty={step() === 'value' ? 'Type a value.' : 'No matches.'}
     row={row => row.kind === 'field' ? <><Icon name="field" /><span class="picker-text">{row.name}</span></>
       : row.kind === 'new-field' ? <><Icon name="plus" /><span class="picker-text">New field “{row.name}”</span></>
         : row.kind === 'op' ? <span class="picker-text">{filterLabels[row.op]}</span>
-          : <span class="picker-text">{row.label}</span>} />;
+          : <span class="picker-text">{row.label}</span>} />}>
+    <Portal><div class="table-sheet-shade" aria-hidden="true" onPointerDown={props.onDismiss} /></Portal>
+    <Popup anchor={props.anchor} placement="sheet" class="table-filter-sheet" label="Filters" onDismiss={props.onDismiss} autofocus={false} style={{ '--bottom-nav-height': getComputedStyle(props.anchor).getPropertyValue('--bottom-nav-height') || '0px' }}>
+      <div class="table-popup-heading">Filters<Button onClick={props.onDismiss}>Cancel</Button></div>
+      <div class="table-filter-steps">
+        <Button class="bordered" onClick={() => { setField(null); setOp(null); setQuery(''); setDraftValue(undefined); }}>{field()?.name ?? 'Field'}<Icon name="down" /></Button>
+        <Button class="bordered" disabled={!field()} onClick={() => { setOp(null); setQuery(''); setDraftValue(undefined); }}>{op() ? filterLabels[op()!] : 'Condition'}<Icon name="down" /></Button>
+      </div>
+      <input class="input table-filter-input" aria-label={placeholder()} placeholder={placeholder()} value={query()} onInput={event => { const value = event.currentTarget.value; setQuery(value); if (step() === 'value') setDraftValue(value.trim() || undefined); }} />
+      <div class="table-filter-options" classList={{ 'table-filter-choices': step() === 'value' && definition()?.kind === 'choice' }}>
+        <For each={rows()}>{row => <Button class="bordered" classList={{ selected: row.kind === 'value' && draftValue() === row.value }} aria-pressed={row.kind === 'value' ? draftValue() === row.value : undefined} disabled={busy()} onClick={() => pick(row)}>
+          <span>{row.kind === 'field' ? row.name : row.kind === 'new-field' ? `New field “${row.name}”` : row.kind === 'op' ? filterLabels[row.op] : row.label}</span><Show when={row.kind === 'value' && draftValue() === row.value}><Icon name="check" /></Show>
+        </Button>}</For>
+      </div>
+      <Show when={error()}><p class="error" role="alert">{error()}</p></Show>
+      <div class="popup-actions"><Button onClick={() => { setField(null); setOp(null); setQuery(''); setDraftValue(undefined); }}>Reset</Button><Button class="bordered table-filter-apply" disabled={!field() || !op() || draftValue() === undefined || busy()} onClick={() => { void finish(draftValue() ?? null); }}>Apply</Button></div>
+    </Popup>
+  </Show>;
 }
