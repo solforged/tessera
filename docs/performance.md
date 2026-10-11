@@ -108,6 +108,21 @@ What changed: released pages stay warm for back and forward; a merge caches its 
 
 Remaining: the table's server query costs about 270 ms at 42,000 members, with the type count queued behind it, and the table renders its 500 rows without windowing. Enter on a 10,000-row page still re-walks the outline once.
 
+## Client pass, 2026-10-11
+
+Measured in headless Brave against a release service and the 10,000-block bench notebook (60 pages, an 8,474-member type).
+
+| Scenario | Before | After |
+|---|---|---|
+| Open Find, requests for page icons | 124 capability reads | none; one Sources index read per session |
+| Type `Page 00000` into Find | 126 capability reads queued with the search | none |
+| A 5,792-character tagged block in a type table | 705 px tall | 57 px, three lines |
+| Open Unfiled | two index reads, 300 ms apart | one |
+
+On the 50,000-block notebook the same Find opened with 384 rows sent 351 to 866 capability reads, which held `/api/search` back by about 5 s. Page icons now read source formats from one shared Sources index, reloaded only when a change adds, removes or reformats a source page.
+
+Remaining: every launch replays `/api/changes` from sequence 0; on the 50,000-block notebook that is 98 MB and about 1 s, and `tessera-bench` at 10,000 blocks misses the 100 ms `changes_since:0` budget (p95 189 ms in core, 214 ms over HTTP).
+
 ## Spikes that decide the stack
 
 Each runs before the matching feature is built. Each can overturn a choice in [architecture](architecture.md).
