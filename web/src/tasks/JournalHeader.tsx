@@ -9,7 +9,8 @@ import type { OpenTarget } from '../shell/contract';
 import { BookMap } from '../ui/BookMap';
 import { bookChapters, chapterAt } from '../ui/book-map';
 import { Button } from '../ui/Button';
-import { journalWeek, spokenJournalDate } from './journal-date';
+import { spokenJournalDate } from './journal-date';
+import { JournalTrail } from './JournalTrail';
 import { groupAgenda } from './task-labels';
 import './agenda.css';
 import '../library/library.css';
@@ -25,7 +26,7 @@ export function JournalHeader(props: { date: string; notebook: NotebookClient; o
     if (!today()) return;
     props.notebook.changeSequence(); props.notebook.lastChange();
     const controller = new AbortController();
-    setDesk(undefined); setDeskError('');
+    setDeskError('');
     void Promise.all([
       props.notebook.api.agenda(date, controller.signal),
       props.notebook.api.cardQuery({ source: null, selection: 'due', limit: 1 }, controller.signal),
@@ -40,7 +41,7 @@ export function JournalHeader(props: { date: string; notebook: NotebookClient; o
     if (!today()) return;
     props.notebook.changeSequence(); props.notebook.lastChange();
     const controller = new AbortController();
-    setReading(undefined); setReadingError('');
+    setReadingError('');
     void props.notebook.api.library({ states: ['reading'], format: 'epub', sort: 'last_read', direction: 'desc', limit: 1 }, controller.signal).then(async result => {
       const row = result.rows[0];
       if (!row || row.source.last_read_at === null || !row.source.current_snapshot_id) {
@@ -81,31 +82,34 @@ export function JournalHeader(props: { date: string; notebook: NotebookClient; o
     const current = chapterAt(chapters, at);
     return { length, at, chapters, current };
   });
+  const Placeholder = () => <span class="journal-tile-placeholder" aria-hidden="true"><span /><span /></span>;
   return <section class="journal-header" aria-label={spokenJournalDate(props.date)}>
-    <p class="journal-date-apparatus">{props.date} · Week {journalWeek(props.date)}</p>
-    <h1>{spokenJournalDate(props.date)}</h1>
+    <JournalTrail date={props.date} notebook={props.notebook} onSelect={async date => {
+      const pageId = await props.notebook.journal(date);
+      props.onOpen({ kind: 'page', pageId }, false);
+    }} />
     <Show when={today()}>
       <div class="journal-tiles" aria-label="Today">
-        <Button class="journal-tile" onClick={() => props.onOpen({ kind: 'agenda', date: props.date }, false)}>
-          <span class="journal-tile-heading"><span>Agenda</span><span class="journal-tile-action">Open</span></span>
-          <Show when={agendaSummary()} fallback={<span class="journal-tile-meta">{deskError() ? 'Agenda unavailable' : 'Loading…'}</span>}>{summary => <>
+        <Button class="journal-tile" aria-busy={!desk() && !deskError()} onClick={() => props.onOpen({ kind: 'agenda', date: props.date }, false)}>
+          <span class="journal-tile-heading"><span>Agenda</span><span class="journal-tile-action" aria-hidden="true">›</span></span>
+          <Show when={agendaSummary()} fallback={deskError() ? <span class="journal-tile-meta journal-tile-unavailable">Agenda unavailable</span> : <Placeholder />}>{summary => <>
             <span class="journal-tile-count">{summary().planned}<small>today · <span classList={{ 'agenda-late': summary().overdue > 0 }}>{summary().overdue} overdue</span></small></span>
             <span class="journal-tile-meta"><Show when={summary().next} fallback="Nothing else planned today">{next => <>Next: <BlockText text={next().source.block.text} notebook={props.notebook} interactive={false} />{next().time ? ` · ${next().time}` : ''}</>}</Show></span>
           </>}</Show>
         </Button>
-        <Button class="journal-tile" onClick={() => props.onOpen({ kind: 'review' }, false)}>
-          <span class="journal-tile-heading"><span>Review</span><span class="journal-tile-action">Open</span></span>
-          <Show when={desk()} fallback={<span class="journal-tile-meta">{deskError() ? 'Review unavailable' : 'Loading…'}</span>}>{counts => <span class="journal-tile-count">{counts().due}<small>due</small></span>}</Show>
+        <Button class="journal-tile" aria-busy={!desk() && !deskError()} onClick={() => props.onOpen({ kind: 'review' }, false)}>
+          <span class="journal-tile-heading"><span>Review</span><span class="journal-tile-action" aria-hidden="true">›</span></span>
+          <Show when={desk()} fallback={deskError() ? <span class="journal-tile-meta journal-tile-unavailable">Review unavailable</span> : <Placeholder />}>{counts => <span class="journal-tile-count">{counts().due}<small>due</small></span>}</Show>
         </Button>
-        <Button class="journal-tile journal-reading-tile" onClick={event => {
+        <Button class="journal-tile journal-reading-tile" aria-busy={reading() === undefined && !readingError()} onClick={event => {
           const book = reading();
           if (book) props.onOpen({ kind: 'reader', sourceId: book.row.page.id, snapshotId: book.source.source.current_snapshot_id ?? undefined }, event.shiftKey || matchMedia('(pointer: coarse) and (min-width: 900px)').matches);
           else props.onOpen({ kind: 'library', tab: 'reading' }, false);
         }}>
-          <span class="journal-tile-heading"><span>Reading</span><span class="journal-tile-action">{reading() ? 'Continue' : 'Open'}</span></span>
-          <Show when={reading()} fallback={<span class="journal-tile-meta">{readingError() ? 'Reading unavailable' : reading() === undefined ? 'Loading…' : 'No book in progress'}</span>}>{book => <>
+          <span class="journal-tile-heading"><span>Reading</span><span class="journal-tile-action" aria-hidden="true">›</span></span>
+          <Show when={reading()} fallback={reading() === undefined && !readingError() ? <Placeholder /> : <span class="journal-tile-meta journal-tile-unavailable">{readingError() ? 'Reading unavailable' : 'No book in progress'}</span>}>{book => <>
             <span class="journal-reading-book"><SourceCover row={book().row} siglum={book().row.source.siglum} /><span class="journal-reading-text"><span class="journal-reading-title" title={book().row.page.text}>{shortSourceTitle(book().row.page.text)}</span>
-              <Show when={progress()?.length}><span class="journal-tile-meta">{progress()?.current?.chapter.title ? `${timeLeft(progress()!.current!.chapter.end - progress()!.at)} left · ${progress()!.current!.chapter.title}` : `${timeLeft(progress()!.length - progress()!.at)} left in book`}</span></Show>
+              <Show when={progress()?.length}><span class="journal-tile-meta"><span class="journal-reading-separator"> · </span>{progress()?.current?.chapter.title ? `${timeLeft(progress()!.current!.chapter.end - progress()!.at)} left` : `${timeLeft(progress()!.length - progress()!.at)} left in book`}<span class="journal-reading-chapter">{progress()?.current?.chapter.title ? ` · ${progress()!.current!.chapter.title}` : ''}</span></span></Show>
             </span></span>
             <Show when={progress()?.length}><BookMap chapters={progress()!.chapters} length={progress()!.length} at={progress()!.at} highlights={book().highlights} /></Show>
           </>}</Show>

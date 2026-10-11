@@ -309,6 +309,24 @@
   .source-cover-actions .outline-source-read { flex: 1; }
   .app.keyboard-open .source-cover-actions { bottom: var(--bottom-inset); }
 }
+/* A journal's checkbox takes its bullet slot, so tasks and prose keep the same text edge. */
+.outline-pane:has(.journal-header) .outline-row[data-task-status] > .row-bullet { display: none; }
+/* Touch journals balance the control gutter on both sides instead of adding it only to the left. */
+@media (pointer: coarse) {
+  .outline-pane:has(.journal-header) { --journal-gutter: var(--gutter); }
+  .outline-pane:has(.journal-header) > :is(.outline-heading, .outline-list, .related-sections, .add-first-block) { max-width: calc(var(--measure) + 2 * var(--journal-gutter)); }
+  .outline-pane:has(.journal-header) > :is(.outline-heading, .related-sections, .add-first-block) { padding-inline: var(--journal-gutter); }
+  .outline-pane:has(.journal-header) .outline-row { right: var(--journal-gutter); }
+  .outline-pane:has(.journal-header) .outline-body { padding: 0; }
+  .outline-pane:has(.journal-header) .outline-source { padding-block: var(--space-4); }
+  .outline-pane:has(.journal-header) .outline-row > .row-menu { position: absolute; right: calc(-1 * var(--journal-gutter)); top: var(--space-2); }
+  .outline-pane:has(.journal-header) .outline-row > .row-fold { margin-left: var(--target-size); }
+  .outline-pane:has(.journal-header) .outline-source-line { row-gap: 0; }
+}
+@media (max-width: 599px) and (pointer: coarse) {
+  .outline-pane:has(.journal-header) { --journal-gutter: var(--target-size); }
+  .outline-pane:has(.journal-header) .outline-row > .row-fold { margin-left: 0; }
+}
 .outline-reference.outline-reference-ambiguous,
 :is(.outline-body, .outline-value-pill, .table-value-pill) .outline-reference.outline-reference-ambiguous { color: var(--warning); text-decoration-line: underline; text-decoration-style: dotted; text-decoration-color: var(--warning); }
 .outline-reference-ambiguous sup { font: var(--apparatus); margin-inline-start: var(--space-2); }
