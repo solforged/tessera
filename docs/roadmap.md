@@ -92,7 +92,7 @@ Exit: subscribe to two feeds and a newsletter, save an article and a highlighted
 
 Exit: run the "which model fits my work" investigation twice, a month apart, and trace each answer to its evidence.
 
-Progress: questions are open, answered, parked or unsettled, accept one answer, carry a review date and record aporia. Perspectives name a holder and subject with a gist and a source siglum, and a Compare pane sets them side by side. Criteria and assessments that cite positions and passages remain.
+Progress: questions are open, answered, parked or unsettled, accept one answer, carry a review date and record aporia. Perspectives name a holder and subject with a gist and a source siglum, and a Compare pane sets them side by side. A subject owns ordered criteria, derived from its positions' fields until set, which Compare's Criteria tab sets out as a matrix with questions under the criterion they name. Assessments that cite positions and passages remain.
 
 ## 8. Trust
 
