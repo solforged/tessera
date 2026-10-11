@@ -87,7 +87,7 @@ pub(crate) fn family_name(name: &str) -> &str {
         |(family, _)| family,
     )
 }
-fn suffix(mut n: usize) -> String {
+pub(crate) fn suffix(mut n: usize) -> String {
     let mut bytes = vec![];
     loop {
         bytes.push(b'a' + (n % 26) as u8);

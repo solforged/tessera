@@ -5,11 +5,13 @@
 pub enum Replication {
     /// Fixed when the notebook is created; a clone copies it.
     Identity,
-    /// Written by applying changes, including the change log itself. A
-    /// replica gets these rows by applying the same changes or pulling them.
+    /// Written only by applying changes, including the change log itself and
+    /// what applying derives from text. Each change's effect on these tables
+    /// travels to replicas as its patch.
     Applied,
-    /// Rebuilt from other tables on each device; never sent.
-    Derived,
+    /// Maintained by SQLite triggers from other tables; each device's
+    /// triggers keep its own copy current.
+    Indexed,
     /// Immutable library content addressed by hash.
     Content,
     /// Written outside the change log; synced as last-writer-wins rows.
@@ -26,10 +28,12 @@ pub const TABLES: &[(&str, Replication)] = &[
     ("change_revisions", Replication::Applied),
     ("deletion_events", Replication::Applied),
     ("blocks", Replication::Applied),
+    ("links", Replication::Applied),
     ("memberships", Replication::Applied),
     ("provisional_pages", Replication::Applied),
     ("fields", Replication::Applied),
     ("type_fields", Replication::Applied),
+    ("field_values", Replication::Applied),
     ("views", Replication::Applied),
     ("settings", Replication::Applied),
     ("tasks", Replication::Applied),
@@ -48,11 +52,11 @@ pub const TABLES: &[(&str, Replication)] = &[
     ("source_snapshots", Replication::Applied),
     ("citations", Replication::Applied),
     ("library_views", Replication::Applied),
-    ("links", Replication::Derived),
-    ("search_blocks", Replication::Derived),
-    ("blocks_fts", Replication::Derived),
-    ("field_values", Replication::Derived),
-    ("passages_fts", Replication::Derived),
+    ("id_aliases", Replication::Applied),
+    ("sync_conflicts", Replication::Applied),
+    ("search_blocks", Replication::Indexed),
+    ("blocks_fts", Replication::Indexed),
+    ("passages_fts", Replication::Indexed),
     ("snapshots", Replication::Content),
     ("passages", Replication::Content),
     ("snapshot_resources", Replication::Content),
@@ -62,4 +66,16 @@ pub const TABLES: &[(&str, Replication)] = &[
     ("replica", Replication::Local),
     ("ingest_jobs", Replication::Local),
     ("agent_changes", Replication::Local),
+    ("sync_replicas", Replication::Local),
+    ("change_patches", Replication::Local),
+    ("sync_hub", Replication::Local),
+    ("sync_pending", Replication::Local),
 ];
+
+/// The tables whose rows a change patch carries.
+pub fn applied_tables() -> impl Iterator<Item = &'static str> {
+    TABLES
+        .iter()
+        .filter(|(_, class)| *class == Replication::Applied)
+        .map(|(name, _)| *name)
+}

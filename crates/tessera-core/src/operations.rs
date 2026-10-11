@@ -30,7 +30,7 @@ impl Notebook {
     /// device reaches the same state. A change ID that was already committed
     /// with the same operations returns the original result.
     pub fn apply_stamped(&mut self, batch: &Batch, stamp: &ChangeStamp) -> Result<Committed> {
-        self.commit(batch, Some(stamp), |_, _| Ok(()))
+        self.commit(batch, Some(stamp), &Extras::default(), |_, _| Ok(()))
     }
 
     /// [`Notebook::apply`], running `record` in the same transaction just
@@ -40,23 +40,18 @@ impl Notebook {
         batch: &Batch,
         record: impl FnOnce(&Transaction, &Committed) -> Result<()>,
     ) -> Result<Committed> {
-        self.commit(batch, None, record)
+        self.commit(batch, None, &Extras::default(), record)
     }
 
-    fn commit(
+    pub(crate) fn commit(
         &mut self,
         batch: &Batch,
         stamp: Option<&ChangeStamp>,
+        extras: &Extras,
         record: impl FnOnce(&Transaction, &Committed) -> Result<()>,
     ) -> Result<Committed> {
         let operations = serde_json::to_string(&batch.operations).expect("operations serialize");
-        let hash = Sha256::digest(operations.as_bytes()).iter().fold(
-            String::with_capacity(64),
-            |mut hex, byte| {
-                write!(hex, "{byte:02x}").expect("writing to a String cannot fail");
-                hex
-            },
-        );
+        let hash = operations_hash(&operations);
         let tx = self
             .conn
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
@@ -88,6 +83,8 @@ impl Notebook {
             },
         };
         let now = stamp.at;
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+        let recording = crate::sync::begin(&tx, batch, extras)?;
         tx.execute(
             "INSERT INTO changes(actor, reason, created_at, idempotency_key, operations_hash, operations, committed, change_id, origin)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, '{}', ?7, ?8)",
@@ -95,6 +92,7 @@ impl Notebook {
                 batch.idempotency_key, hash, operations, stamp.id, stamp.origin],
         )?;
         let seq = tx.last_insert_rowid();
+        extras.write(&tx, &stamp, seq)?;
         let mut field_changes = crate::fields::FieldChanges::default();
         let mut engine = Engine {
             tx: &tx,
@@ -187,8 +185,69 @@ impl Notebook {
             ],
         )?;
         record(&tx, &committed)?;
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+        if let Some(recording) = { recording } {
+            crate::sync::finish(&tx, recording, seq, &stamp, batch, extras)?;
+        }
         tx.commit()?;
         Ok(committed)
+    }
+}
+
+/// The SHA-256 of a batch's serialized operations, in hex.
+pub(crate) fn operations_hash(operations: &str) -> String {
+    Sha256::digest(operations.as_bytes())
+        .iter()
+        .fold(String::with_capacity(64), |mut hex, byte| {
+            write!(hex, "{byte:02x}").expect("writing to a String cannot fail");
+            hex
+        })
+}
+
+/// What a replicated apply records alongside the change it commits.
+#[derive(Default)]
+pub(crate) struct Extras<'a> {
+    /// IDs the change created that resolve to existing records: (alias, target).
+    pub aliases: Vec<(String, String)>,
+    pub conflicts: Vec<ConflictRow>,
+    /// The batch and base texts as the origin made them, when the committed
+    /// batch is a rewrite of it. A replica keeps these in its outbox; the
+    /// browser build does not sync.
+    #[cfg_attr(all(target_arch = "wasm32", target_os = "unknown"), allow(dead_code))]
+    pub origin_batch: Option<&'a Batch>,
+    #[cfg_attr(all(target_arch = "wasm32", target_os = "unknown"), allow(dead_code))]
+    pub bases: Option<&'a BTreeMap<String, String>>,
+}
+
+/// A row of `sync_conflicts`; the change supplies the rest.
+pub(crate) struct ConflictRow {
+    pub id: String,
+    pub kind: &'static str,
+    pub block_id: Option<String>,
+    pub text: Option<String>,
+    pub batch: Option<String>,
+    pub error: Option<String>,
+}
+
+impl Extras<'_> {
+    pub(crate) fn write(&self, tx: &Transaction, stamp: &ChangeStamp, seq: i64) -> Result<()> {
+        for (alias, target) in &self.aliases {
+            tx.execute(
+                "INSERT INTO id_aliases(alias, target, change_seq) VALUES (?1, ?2, ?3)",
+                params![alias, target, seq],
+            )?;
+        }
+        for row in &self.conflicts {
+            tx.execute(
+                "INSERT INTO sync_conflicts(id, kind, change_id, origin, block_id, text, batch, error, created_at, change_seq)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+                 ON CONFLICT(id) DO UPDATE SET text = excluded.text, change_id = excluded.change_id,
+                     created_at = excluded.created_at, change_seq = excluded.change_seq",
+                params![row.id, row.kind, stamp.id, stamp.origin, row.block_id, row.text, row.batch,
+                    row.error, stamp.at, seq],
+            )?;
+        }
+        Ok(())
     }
 }
 

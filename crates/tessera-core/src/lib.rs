@@ -33,6 +33,10 @@ mod review_store;
 pub mod scheduler;
 mod settings;
 mod storage;
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+pub mod sync;
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+mod sync_apply;
 mod task_query;
 mod task_store;
 mod work_store;

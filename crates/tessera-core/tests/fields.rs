@@ -222,7 +222,10 @@ fn fields_page_is_idempotent_recreated_after_deletion_and_migration_backfills_en
     drop(nb);
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
     conn.execute_batch(
-        "DROP TABLE replica;
+        "DROP TRIGGER blocks_search_delete;
+         DROP TABLE sync_replicas; DROP TABLE change_patches; DROP TABLE sync_hub;
+         DROP TABLE sync_pending; DROP TABLE id_aliases; DROP TABLE sync_conflicts;
+         DROP TABLE replica;
          DROP INDEX changes_change_id;
          ALTER TABLE changes DROP COLUMN change_id;
          ALTER TABLE changes DROP COLUMN origin;

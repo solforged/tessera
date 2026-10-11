@@ -1,5 +1,6 @@
 mod install;
 mod mcp;
+mod sync;
 
 use std::path::PathBuf;
 
@@ -73,6 +74,12 @@ enum Command {
         src: PathBuf,
         #[arg(long)]
         force: bool,
+    },
+    /// Push this replica's changes to its hub and pull the hub's, or manage
+    /// the replica. Needs no service running for this notebook.
+    Sync {
+        #[command(subcommand)]
+        command: Option<sync::SyncCommand>,
     },
 }
 
@@ -153,6 +160,7 @@ fn main() -> anyhow::Result<()> {
             let info = tessera_core::restore(src, &notebook, force)?;
             println!("{}", serde_json::to_string_pretty(&info)?);
         }
+        Command::Sync { command } => sync::run(&notebook, command)?,
     }
     Ok(())
 }

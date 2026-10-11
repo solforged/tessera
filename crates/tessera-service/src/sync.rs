@@ -1,0 +1,177 @@
+//! Hub routes for replicas. See "Protocol" in `docs/sync.md`.
+
+use axum::{
+    Json, Router,
+    extract::{DefaultBodyLimit, State, rejection::JsonRejection},
+    http::{HeaderMap, HeaderValue, StatusCode, header},
+    response::{IntoResponse, Response},
+    routing::post,
+};
+use serde::{Deserialize, Serialize};
+use tessera_core::sync::{PULL_LIMIT, PushedChange, SnapshotContent, check_schema};
+
+use crate::{AppState, error::ApiError, run};
+
+/// The schema version a replica runs; every sync request carries it.
+pub(crate) const SCHEMA_HEADER: &str = "x-tessera-schema";
+/// The clone ticket, beside the database bytes it describes.
+pub(crate) const TICKET_HEADER: &str = "x-tessera-clone";
+
+pub(crate) fn routes() -> Router<AppState> {
+    Router::new()
+        .route("/api/sync/clone", post(clone))
+        .route("/api/sync/push", post(push))
+        .route("/api/sync/pull", post(pull))
+        .route("/api/sync/snapshots/missing", post(missing_snapshots))
+        .route("/api/sync/snapshots/content", post(snapshot_content))
+        .route("/api/sync/snapshots", post(store_snapshots))
+        // Book text and long offline runs of edits outgrow the default limit.
+        .layer(DefaultBodyLimit::max(256 * 1024 * 1024))
+}
+
+fn same_schema(headers: &HeaderMap) -> Result<(), ApiError> {
+    let version = headers
+        .get(SCHEMA_HEADER)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.parse().ok())
+        .ok_or_else(|| {
+            ApiError::new(
+                StatusCode::BAD_REQUEST,
+                "invalid_request",
+                format!("sync requests need an {SCHEMA_HEADER} header"),
+            )
+        })?;
+    Ok(check_schema(version)?)
+}
+
+async fn clone(State(state): State<AppState>, headers: HeaderMap) -> Result<Response, ApiError> {
+    same_schema(&headers)?;
+    let (ticket, bytes) = run(&state, |notebook| {
+        let path = notebook.info()?.path.join("sync-clone.tmp");
+        let ticket = notebook.sync_clone(&path);
+        let bytes = match ticket {
+            Ok(_) => std::fs::read(&path),
+            Err(_) => Ok(Vec::new()),
+        };
+        let _ = std::fs::remove_file(&path);
+        Ok((ticket?, bytes?))
+    })
+    .await?;
+    let ticket = serde_json::to_string(&ticket).map_err(ApiError::internal)?;
+    let mut response = bytes.into_response();
+    let headers = response.headers_mut();
+    headers.insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("application/vnd.sqlite3"),
+    );
+    headers.insert(
+        TICKET_HEADER,
+        HeaderValue::from_str(&ticket).map_err(ApiError::internal)?,
+    );
+    Ok(response)
+}
+
+#[derive(Serialize, Deserialize)]
+pub(crate) struct PushRequest {
+    pub device: String,
+    pub changes: Vec<PushedChange>,
+}
+
+async fn push(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    request: Result<Json<PushRequest>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    same_schema(&headers)?;
+    let Json(request) = request?;
+    let notify = state.changes.clone();
+    let receipts = run(&state, move |notebook| {
+        let receipts = notebook.sync_push(&request.device, &request.changes)?;
+        if let Some(seq) = receipts
+            .iter()
+            .map(|receipt| match receipt.outcome {
+                tessera_core::sync::PushOutcome::Accepted { seq }
+                | tessera_core::sync::PushOutcome::Rejected { seq, .. } => seq,
+            })
+            .max()
+        {
+            let _ = notify.send(seq);
+        }
+        Ok(receipts)
+    })
+    .await?;
+    Ok(Json(receipts).into_response())
+}
+
+#[derive(Serialize, Deserialize)]
+pub(crate) struct PullRequest {
+    pub device: String,
+    pub acknowledged: i64,
+    pub after: i64,
+}
+
+async fn pull(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    request: Result<Json<PullRequest>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    same_schema(&headers)?;
+    let Json(request) = request?;
+    let pull = run(&state, move |notebook| {
+        notebook.sync_pull(
+            &request.device,
+            request.acknowledged,
+            request.after,
+            PULL_LIMIT,
+        )
+    })
+    .await?;
+    Ok(Json(pull).into_response())
+}
+
+#[derive(Serialize, Deserialize)]
+pub(crate) struct SnapshotIds {
+    pub ids: Vec<String>,
+}
+
+async fn missing_snapshots(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    request: Result<Json<SnapshotIds>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    same_schema(&headers)?;
+    let Json(request) = request?;
+    let ids = run(&state, move |notebook| {
+        notebook.sync_missing_snapshots(&request.ids)
+    })
+    .await?;
+    Ok(Json(SnapshotIds { ids }).into_response())
+}
+
+async fn snapshot_content(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    request: Result<Json<SnapshotIds>, JsonRejection>,
+) -> Result<Response, ApiError> {
+    same_schema(&headers)?;
+    let Json(request) = request?;
+    let content = run(&state, move |notebook| {
+        notebook.sync_snapshot_content(&request.ids)
+    })
+    .await?;
+    Ok(Json(content).into_response())
+}
+
+async fn store_snapshots(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    request: Result<Json<Vec<SnapshotContent>>, JsonRejection>,
+) -> Result<StatusCode, ApiError> {
+    same_schema(&headers)?;
+    let Json(content) = request?;
+    run(&state, move |notebook| {
+        notebook.sync_store_snapshots(&content)
+    })
+    .await?;
+    Ok(StatusCode::NO_CONTENT)
+}

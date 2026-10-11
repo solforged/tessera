@@ -61,9 +61,7 @@ fn replicated_state(dir: &Path) -> Vec<(String, Vec<String>)> {
     let conn = Connection::open(dir.join(tessera_core::DATABASE_FILE)).unwrap();
     let mut state = Vec::new();
     for (table, class) in TABLES {
-        let virtual_table = table.ends_with("_fts");
-        if matches!(class, Replication::Local | Replication::Unlogged)
-            || virtual_table
+        if !matches!(class, Replication::Applied | Replication::Content)
             || *table == "browser_objects"
         {
             continue;
