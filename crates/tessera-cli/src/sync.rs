@@ -1,6 +1,6 @@
 //! `tessera sync`: keep a replica of a hub notebook. See `docs/sync.md`.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::Context;
 use clap::Subcommand;
@@ -31,6 +31,11 @@ pub(crate) enum SyncCommand {
     Unpin { source_id: String },
     /// List pinned sources.
     Pins,
+    /// Clone the hub again into this replica's directory, after sending it
+    /// everything the hub has not seen. Use it when the hub has retired this
+    /// replica. Pins and fetched files stay; the old database is kept beside
+    /// the new one.
+    Reclone,
 }
 
 pub(crate) fn run(notebook: &Path, command: Option<SyncCommand>) -> anyhow::Result<()> {
@@ -58,6 +63,7 @@ pub(crate) fn run(notebook: &Path, command: Option<SyncCommand>) -> anyhow::Resu
             let replica = open(notebook)?;
             serde_json::to_value(replica.notebook.sync_pins()?)?
         }
+        Some(SyncCommand::Reclone) => reclone(notebook)?,
         None => {
             let mut replica = open(notebook)?;
             let status = replica.notebook.sync_status()?.with_context(|| {
@@ -98,6 +104,16 @@ fn clone(notebook: &Path, url: &str) -> anyhow::Result<Option<tessera_core::sync
     );
     let hub = HttpHub::new(url)?;
     let _ownership = NotebookOwnership::acquire(notebook, 0)?;
+    let (ticket, partial) = download(&hub, notebook)?;
+    std::fs::rename(&partial, &database)?;
+    let mut replica = Notebook::open(notebook)?;
+    replica.sync_adopt(&hub.base, &ticket)?;
+    Ok(replica.sync_status()?)
+}
+
+/// Write a clone of the hub's notebook beside `notebook`'s database, and
+/// return its ticket and path.
+fn download(hub: &HttpHub, notebook: &Path) -> anyhow::Result<(CloneTicket, PathBuf)> {
     let partial = notebook.join(format!("{DATABASE_FILE}.clone"));
     let ticket = hub
         .runtime
@@ -133,10 +149,57 @@ fn clone(notebook: &Path, url: &str) -> anyhow::Result<Option<tessera_core::sync
         .inspect_err(|_| {
             let _ = std::fs::remove_file(&partial);
         })?;
+    Ok((ticket, partial))
+}
+
+fn reclone(notebook: &Path) -> anyhow::Result<serde_json::Value> {
+    let Replica {
+        notebook: mut old,
+        _ownership,
+    } = open(notebook)?;
+    let status = old.sync_status()?.with_context(|| {
+        format!(
+            "{} is not a replica; run tessera sync clone <url>",
+            notebook.display()
+        )
+    })?;
+    let mut hub = HttpHub::new(&status.hub_url)?;
+    // A retired replica can still send, so nothing made here is lost.
+    let sent = old.sync_send(&mut hub)?;
+    let pins = old.sync_pins()?;
+    drop(old);
+    let database = notebook.join(DATABASE_FILE);
+    for suffix in ["-wal", "-shm"] {
+        anyhow::ensure!(
+            !notebook.join(format!("{DATABASE_FILE}{suffix}")).exists(),
+            "another program still has {} open",
+            database.display()
+        );
+    }
+    let (ticket, partial) = download(&hub, notebook)?;
+    // The old device ID no longer pulls; the hub can stop keeping its patches.
+    hub.retire(&status.device_id)?;
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)?
+        .as_secs();
+    let previous = notebook.join(format!("{DATABASE_FILE}.retired-{stamp}"));
+    std::fs::rename(&database, &previous)?;
     std::fs::rename(&partial, &database)?;
     let mut replica = Notebook::open(notebook)?;
     replica.sync_adopt(&hub.base, &ticket)?;
-    Ok(replica.sync_status()?)
+    // A pinned source the hub deleted cannot be pinned again.
+    let unpinned: Vec<String> = pins
+        .into_iter()
+        .filter(|source| replica.sync_pin(source).is_err())
+        .collect();
+    let synced = replica.sync_with(&mut hub)?;
+    Ok(json!({
+        "sent": sent,
+        "synced": synced,
+        "status": replica.sync_status()?,
+        "previous": previous,
+        "unpinned": unpinned,
+    }))
 }
 
 /// A hub reached over HTTP.
@@ -274,5 +337,9 @@ impl Hub for HttpHub {
             "/api/sync/rows",
             json!({"device": device, "rows": rows, "after": after}),
         )
+    }
+
+    fn retire(&mut self, device: &str) -> tessera_core::Result<()> {
+        self.call("/api/sync/retire", json!({"device": device}))
     }
 }

@@ -310,6 +310,9 @@ impl Hub for Paged<'_> {
     ) -> Result<UnloggedPull> {
         self.hub.exchange_rows(device, rows, after)
     }
+    fn retire(&mut self, device: &str) -> Result<()> {
+        self.hub.retire(device)
+    }
 }
 
 #[test]
