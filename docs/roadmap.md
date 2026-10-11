@@ -27,6 +27,8 @@ Status: done. Spike 1 passed. Spike 2 chose CodeMirror over ProseMirror and Soli
 
 Exit: write, rearrange, navigate away and reopen for a week of real notes without losing work or place, within budget on a 2,000-block page.
 
+Status: done. Today's journal, two panes, references, search, the palette, Vim, and operation-based autosave are in daily use. The frame-budget half of spike 3 is still open; see [performance](performance.md).
+
 ## 2. Structure
 
 - Types with field templates and typed fields whose values are blocks.
