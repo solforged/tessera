@@ -48,7 +48,7 @@ export function recentJobs(jobs: readonly IngestJob[], now: number): IngestJob[]
   return jobs.filter(job => job.state !== 'done' || job.created_at >= now - 24 * 60 * 60 * 1000);
 }
 
-/** Completed sources already present in this view do not need a second row. */
+/** A completed job leaves once its source is in the notebook; the source's own row says the rest. */
 export function visibleJobs(jobs: readonly IngestJob[], sourceIds: ReadonlySet<string>): IngestJob[] {
   return jobs.filter(job => job.state !== 'done' || !job.source_id || !sourceIds.has(job.source_id));
 }

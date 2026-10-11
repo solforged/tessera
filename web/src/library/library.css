@@ -16,7 +16,8 @@
 .library-count, .library-progress, .library-highlight-count { display: inline-flex; align-items: center; gap: var(--space-4); flex-shrink: 0; font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); color: var(--muted); }
 .library-progress { width: 4ch; min-width: 4ch; justify-content: flex-end; }
 .library-highlight-count { width: 5ch; min-width: 5ch; justify-content: flex-end; }
-/* Rows read as a ledger: shelfmark, title and byline, then year, progress and highlights in fixed mono columns. */
+/* Rows read as a ledger: shelfmark, title and byline, then state (in views spanning states), year, progress and highlights in fixed mono columns. */
+.library-state { width: 9ch; min-width: 9ch; color: var(--faint); }
 .library-year { width: 4ch; min-width: 4ch; justify-content: flex-end; color: var(--faint); }
 .library-siglum { flex: none; width: 5ch; font: var(--apparatus); letter-spacing: var(--tracking-apparatus); color: var(--faint); transition: color var(--motion-fast) var(--motion-ease); }
 .library-source-row:hover .library-siglum, .library-source-row:focus-within .library-siglum { color: var(--accent); }
