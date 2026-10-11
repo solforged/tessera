@@ -4,6 +4,7 @@
 .library-toolbar > *, .library-scroll > * { width: 100%; max-width: var(--measure); margin-inline: auto; }
 .library-tabs, .library-controls, .library-filter { display: flex; align-items: center; gap: var(--space-4); }
 .library-toolbar > .library-tabs { overflow-x: auto; }
+.library-tabs > .button { white-space: nowrap; }
 .library-cover-header { display: none; }
 .library-cover-heading { flex: 1; min-width: 0; }
 .library-register { color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
