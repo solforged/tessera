@@ -388,7 +388,7 @@ export function ReviewPane(props: ReviewPaneProps) {
   return <div class="review-pane" classList={{ 'review-session-active': sessionActive(), 'review-session-done': done() }} data-pane={props.pane} role="region" aria-label="Review" tabIndex={0} onFocusIn={props.onActivate} onPointerDown={props.onActivate}>
     <header class="review-header">
       <div class="review-heading">
-        <div class="review-register">Review<Show when={openSession()}><span> · in progress</span></Show></div>
+        <div class="review-register">Review<Show when={sessionActive()}><span> · in progress</span></Show></div>
         <h1><Button ref={deckTrigger} class="review-deck-title" disabled={locked() || loading()} aria-haspopup="dialog" title="Choose a deck" onClick={event => { setSearch(''); setPicker({ kind: 'decks', anchor: event.currentTarget }); }}><span>{deckName()}</span><Icon name="down" /></Button></h1>
       </div>
       <Show when={otherSessions().length}><Button class="review-open-sessions" disabled={locked() || loading()} aria-haspopup="dialog" onClick={event => { setSearch(''); setPicker({ kind: 'sessions', anchor: event.currentTarget }); }}>Open reviews<span class="review-count">{otherSessions().length}</span></Button></Show>
@@ -425,8 +425,8 @@ export function ReviewPane(props: ReviewPaneProps) {
         </div>
         <dl class="review-stats">
           <div><dt>Retention</dt><dd title="Non-Again grades over the last 30 days">{value().retention === null ? '—' : Math.round(value().retention! * 100)}<Show when={value().retention !== null}><small>%</small></Show></dd></div>
-          <div><dt>This week</dt><dd>{value().reviews_this_week}<small>reviews</small></dd></div>
-          <div><dt>Streak</dt><dd>{value().streak}<small>days</small></dd></div>
+          <div><dt>This week</dt><dd>{value().reviews_this_week}<small>{value().reviews_this_week === 1 ? 'review' : 'reviews'}</small></dd></div>
+          <div><dt>Streak</dt><dd>{value().streak}<small>{value().streak === 1 ? 'day' : 'days'}</small></dd></div>
           <div><dt>Cards</dt><dd>{value().total_cards}</dd></div>
         </dl>
         <section class="review-decks" aria-label="Decks">
@@ -441,10 +441,10 @@ export function ReviewPane(props: ReviewPaneProps) {
         <h2>{gradedCount()} reviewed in {reviewDuration((value().ended_at ?? grades().at(-1)?.created_at ?? value().started_at) - value().started_at)}</h2>
         <GradeStrip grades={grades()} />
         <dl class="review-stats">
-          <div><dt>Good or Easy</dt><dd>{grades().filter(event => event.grade === 'good' || event.grade === 'easy').length}</dd></div>
+          <div><dt>Good or easy</dt><dd>{grades().filter(event => event.grade === 'good' || event.grade === 'easy').length}</dd></div>
           <div><dt>Again</dt><dd class="error">{missed().length}</dd></div>
           <div><dt>Tomorrow</dt><dd>{stats()?.forecast[1]?.count ?? '—'}<small>due</small></dd></div>
-          <div><dt>Streak</dt><dd>{stats()?.streak ?? '—'}<small>days</small></dd></div>
+          <div><dt>Streak</dt><dd>{stats()?.streak ?? '—'}<small>{stats()?.streak === 1 ? 'day' : 'days'}</small></dd></div>
         </dl>
         <Show when={grades().some(event => event.grade === 'hard')}><p class="review-pending">{grades().filter(event => event.grade === 'hard').length} Hard</p></Show>
         <Show when={stats()}>{value => <ReviewForecast stats={value()} />}</Show>

@@ -11,10 +11,10 @@
 .review-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8) var(--space-16); width: 100%; max-width: calc(var(--measure) + 2 * var(--space-16)); margin-inline: auto; padding: 0 var(--space-16) var(--space-12); }
 .review-scroll > * { width: 100%; max-width: var(--measure); margin-inline: auto; }
 /* Landing spacing follows the shared page contract; live sessions retain their compact chrome. */
-.review-pane:not(.review-session-active, .review-session-done) .review-header { max-width: calc(var(--measure) + 2 * var(--pane-inset)); padding: var(--page-top-space) var(--pane-inset) var(--page-title-gap); }
-.review-pane:not(.review-session-active, .review-session-done) .review-heading h1 { margin-top: var(--page-eyebrow-gap); font: var(--page-title-font); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
-.review-pane:not(.review-session-active, .review-session-done) .review-toolbar { max-width: calc(var(--measure) + 2 * var(--pane-inset)); padding: 0 var(--pane-inset) var(--page-head-gap); }
-.review-pane:not(.review-session-active, .review-session-done) .review-scroll { padding: 0 var(--pane-inset) var(--page-bottom-space); }
+.review-pane:not(.review-session-active) .review-header { max-width: calc(var(--measure) + 2 * var(--pane-inset)); padding: var(--page-top-space) var(--pane-inset) var(--page-title-gap); }
+.review-pane:not(.review-session-active) .review-heading h1 { margin-top: var(--page-eyebrow-gap); font: var(--page-title-font); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
+.review-pane:not(.review-session-active) .review-toolbar { max-width: calc(var(--measure) + 2 * var(--pane-inset)); padding: 0 var(--pane-inset) var(--page-head-gap); }
+.review-pane:not(.review-session-active) .review-scroll { padding: 0 var(--pane-inset) var(--page-bottom-space); }
 .review-queue-controls { display: flex; flex-wrap: wrap; gap: var(--space-4); margin-right: auto; }
 /* Each committed grade keeps its place in the progress strip, including after reload. */
 .review-session-progress { display: flex; flex-direction: column; gap: var(--space-12); width: 100%; padding-block: var(--space-8) var(--space-16); }
@@ -50,7 +50,7 @@
 .review-history time { font-variant-numeric: tabular-nums; }
 .review-history-text { color: var(--text); }
 .review-confirm { width: var(--search-width); font-size: var(--text-control); line-height: var(--line-control); }
-.deck-editor { width: var(--measure); max-width: 100%; font-size: var(--text-control); line-height: var(--line-control); }
+.deck-editor { width: var(--measure); font-size: var(--text-control); line-height: var(--line-control); }
 .deck-editor form { display: flex; flex-direction: column; gap: var(--space-12); }
 .deck-editor-name { display: flex; flex-direction: column; gap: var(--space-4); }
 .deck-editor-queue { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); }
@@ -90,9 +90,9 @@
 .review-ledger-deck.button.selected { background: transparent; color: var(--accent); }
 .review-decks table { margin-top: var(--section-item-gap); }
 /* Completion keeps real session evidence, elapsed time, forecast and an actionable missed list. */
-.review-done { display: flex; flex-direction: column; gap: var(--space-24); padding-top: var(--space-24); }
+.review-done { display: flex; flex-direction: column; gap: var(--section-gap); }
 .review-done > p { margin: 0; }
-.review-done > h2 { margin: 0; font: var(--weight-title) var(--text-title)/var(--line-title) var(--font-display); font-variation-settings: var(--optical-title); }
+.review-done > h2 { margin: 0; font: var(--page-title-font); font-variation-settings: var(--optical-title); }
 .review-done .review-forecast { border: 0; padding: 0; }
 .review-done-actions { display: flex; flex-wrap: wrap; gap: var(--space-8); margin-top: var(--space-24); }
 .review-missed p, .review-missed-answer { margin-block: var(--space-16); font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); }
