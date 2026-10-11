@@ -22,6 +22,13 @@ use crate::storage::validation;
 pub use crate::sync_library::{ReadingRow, SurfacingRow, UnloggedPull, UnloggedRows};
 use crate::{Batch, ChangeStamp, Error, Notebook, Operation, Result, SCHEMA_VERSION};
 
+#[path = "sync_driver.rs"]
+mod driver;
+pub use driver::{NotebookAccess, sync_import, sync_send, sync_with};
+#[path = "sync_replica.rs"]
+mod replica;
+pub use replica::{KeptCopy, OfflineFiles, RejectedChange, ReplicaConflicts};
+
 /// A change a replica sends to its hub: the batch as it was made there, its
 /// stamp, and the text of each block it rewrites as it was before.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -192,7 +199,8 @@ impl ClonedSnapshot {
         snapshot.execute_batch(
             "DELETE FROM sync_replicas; DELETE FROM change_patches; DELETE FROM sync_pending;
              DELETE FROM sync_hub; DELETE FROM ingest_jobs; DELETE FROM agent_changes;
-             DELETE FROM sync_pins; DELETE FROM sync_devices; VACUUM;",
+             DELETE FROM sync_pins; DELETE FROM sync_devices; DELETE FROM editor_events;
+             DELETE FROM sqlite_sequence WHERE name = 'editor_events'; VACUUM;",
         )?;
         Ok(self.ticket)
     }
@@ -943,6 +951,10 @@ impl Notebook {
              SELECT 1, ?1, ?2, ?3, unlogged_seq, unlogged_seq FROM replica WHERE singleton = 1",
             params![ticket.notebook_id, hub_url, ticket.seq],
         )?;
+        tx.execute_batch(
+            "INSERT INTO editor_events(seq, actor, reason, created_at, committed, restructured_pages, views)
+             SELECT seq, actor, reason, created_at, committed, restructured_pages, views FROM changes ORDER BY seq;"
+        )?;
         tx.commit()?;
         Ok(())
     }
@@ -1037,6 +1049,13 @@ impl Notebook {
         // Undoing a change can remove a citation a surfacing names; keep those
         // surfacings to restore once the change is applied again.
         let surfacings = crate::sync_library::pending_surfacings(&tx)?;
+        // Remember invalidations for tentative effects that may disappear.
+        let pending_seqs = tx.prepare("SELECT seq FROM sync_pending WHERE seq IS NOT NULL")?
+            .query_map([], |row| row.get::<_, i64>(0))?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        for seq in pending_seqs {
+            crate::reads::record_editor_event(&tx, seq, true)?;
+        }
         let patcher = Patcher::new(&tx)?;
         for patch in &applied {
             patcher.apply(&tx, &invert(patch)?)?;
@@ -1044,6 +1063,9 @@ impl Notebook {
         tx.execute("UPDATE sync_pending SET seq = NULL, patch = NULL", [])?;
         for change in pulled {
             patcher.apply(&tx, &change.patch)?;
+        }
+        for change in pulled {
+            crate::reads::record_editor_event(&tx, change.seq, true)?;
         }
         patcher.finish(&tx)?;
         if let Some(last) = pulled.last() {
@@ -1061,7 +1083,12 @@ impl Notebook {
         let remaining = self.sync_outbox()?.changes;
         for change in &remaining {
             match self.apply_replicated(change, false) {
-                Ok(_) => report.replayed += 1,
+                Ok(outcome) => {
+                    report.replayed += 1;
+                    let PushOutcome::Accepted { seq } = outcome else { unreachable!() };
+                    self.conn.execute("DELETE FROM editor_events WHERE seq = (SELECT MAX(seq) FROM editor_events)", [])?;
+                    crate::reads::record_editor_event(&self.conn, seq, true)?;
+                }
                 Err(error) if crate::sync_apply::rejectable(&error) => {
                     report
                         .unapplied
@@ -1077,77 +1104,14 @@ impl Notebook {
 
     /// Push this replica's changes to `hub` and bring it up to the hub.
     pub fn sync_with(&mut self, hub: &mut dyn Hub) -> Result<SyncReport> {
-        let mut report = self.sync_send(hub)?;
-        let device = self.device_id()?;
-        // Apply the hub's changes a page at a time: a long catch-up holds one
-        // page, and an interrupted one resumes after the last page applied.
-        loop {
-            let confirmed = self.require_replica()?.confirmed_seq;
-            let pull = hub.pull(&device, confirmed, confirmed)?;
-            let missing = self.sync_missing_snapshots(&pull.snapshots)?;
-            transfer(
-                &missing,
-                |ids, from| hub.snapshot_content(ids, from),
-                |content| self.sync_store_snapshots(content),
-            )?;
-            report.received_snapshots += missing.len();
-            let page = self.sync_integrate(&pull.changes)?;
-            report.integrated.applied += page.applied;
-            report.integrated.confirmed += page.confirmed;
-            report.integrated.replayed = page.replayed;
-            report.integrated.unapplied = page.unapplied;
-            if !pull.more {
-                break;
-            }
-        }
-        // Rows from the hub name citations and snapshots, so they follow the
-        // changes that create those.
-        let (sent, received) = self.sync_unlogged_with(hub, true)?;
-        report.sent_rows += sent;
-        report.received_rows = received;
-        for sha in self.sync_wanted_objects()? {
-            match hub.object(&sha)? {
-                Some(bytes) => {
-                    self.sync_store_object(&sha, &bytes)?;
-                    report.received_objects += 1;
-                }
-                None => report.unavailable_objects.push(sha),
-            }
-        }
-        Ok(report)
+        sync_with(self, hub)
     }
 
     /// Send `hub` everything this replica has that the hub has not seen: the
     /// snapshots and files its changes need, the changes, and its reading
     /// positions and surfacings. A retired replica can still send.
     pub fn sync_send(&mut self, hub: &mut dyn Hub) -> Result<SyncReport> {
-        let outbox = self.sync_outbox()?;
-        let mut report = SyncReport::default();
-        if !outbox.snapshots.is_empty() {
-            let missing = hub.missing_snapshots(&outbox.snapshots)?;
-            transfer(
-                &missing,
-                |ids, from| self.sync_snapshot_content(ids, from),
-                |content| hub.store_snapshots(content),
-            )?;
-            report.sent_snapshots = missing.len();
-        }
-        // The hub keeps every file; send the ones these changes need first.
-        let objects = self.sync_outbox_objects(&outbox)?;
-        if !objects.is_empty() {
-            for sha in hub.missing_objects(&objects)? {
-                hub.store_object(&sha, &self.read_object(&sha)?)?;
-                report.sent_objects += 1;
-            }
-        }
-        for changes in outbox.changes.chunks(PUSH_LIMIT) {
-            report.pushed.extend(hub.push(&outbox.device_id, changes)?);
-        }
-        // The hub now has the changes this device's reading positions and
-        // surfacings name. Send those before pulling, so a retired replica,
-        // whose pull fails, still delivers them.
-        report.sent_rows = self.sync_unlogged_with(hub, false)?.0;
-        Ok(report)
+        sync_send(self, hub)
     }
 
     /// Hub side: stop keeping patches for `device`, which is being cloned

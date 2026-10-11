@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import type { Subprocess } from 'bun';
 import { ulid } from 'ulid';
 import { createApi } from '../api/client';
-import type { Batch, Operation, SourceState, TaskState } from '../api/types';
+import type { Batch, ChangeEvent, Operation, SourceState, TaskState } from '../api/types';
 import { createNotebookClient } from './index';
 import type { Notebook } from './index';
 import type { EditResult, NewCitation, PageDocument } from './contract';
@@ -1047,6 +1047,30 @@ describe('real notebook operations and recovery', () => {
     await eventually(() => second.outline.parentOf(child) === id, 'subtree move did not converge');
     expect(ids(second)).toEqual(ids(doc));
     expect(secondClient.lookup(first)()?.text).toBe('after');
+  });
+
+  test('sync reloads a page when rebasing changed text without increasing its revision', async () => {
+    const instance = await client();
+    const { doc, first, id } = await page(instance, 'phone text');
+    const view = await api.page(id);
+    const block = view.rows.find(row => row.block.id === first)!.block;
+    const changed = { ...block, text: 'hub text' };
+    const pulled = { ...view, rows: view.rows.map(row => row.block.id === first ? { ...row, block: changed } : row) };
+    const seq = (await api.changes(0)).at(-1)!.seq + 1;
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === `${baseUrl}/api/pages/${id}`) return Response.json(pulled);
+      return actualFetch(input, init);
+    }) as typeof fetch;
+    try {
+      const event: ChangeEvent = { seq, actor: { kind: 'client', name: 'sync' }, reason: null, created_at: Date.now(),
+        blocks: [changed], removed: [], restructured_pages: [id], views: [], settings: [] };
+      await instance['change'](event);
+      expect(doc.block(first)?.text).toBe('hub text');
+      expect(doc.block(first)?.revision).toBe(block.revision);
+    } finally {
+      globalThis.fetch = actualFetch;
+      await instance.dispose();
+    }
   });
 
   test('page deletion undo restores the original root and descendant IDs', async () => {

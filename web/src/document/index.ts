@@ -1007,7 +1007,7 @@ export class Notebook implements NotebookClient, DocumentHost {
     this.reconnectTimer = setTimeout(() => { this.reconnectTimer = undefined; void this.connect(); }, this.reconnectDelay);
     this.reconnectDelay = Math.min(10000, this.reconnectDelay * 2);
   }
-  private async reconcile(blocks: readonly Block[], removed: readonly string[], pages: readonly string[], capabilities: readonly BlockCapabilities[] = []) {
+  private async reconcile(blocks: readonly Block[], removed: readonly string[], pages: readonly string[], capabilities: readonly BlockCapabilities[] = [], force = false) {
     const structured = new Set(pages);
     for (const block of blocks) {
       this.publish(block);
@@ -1016,7 +1016,7 @@ export class Notebook implements NotebookClient, DocumentHost {
     for (const id of removed) this.publish(null, id);
     for (const id of structured) {
       const doc = this.docs.get(id);
-      if (doc?.needsRefresh(blocks, removed)) await doc.reload(true);
+      if (doc && (force || doc.needsRefresh(blocks, removed))) await doc.reload(true);
     }
     for (const doc of this.docs.values()) doc.receiveCapabilities(capabilities);
     if (blocks.some(block => block.kind !== 'block') || removed.some(id => this.roots().some(root => root.id === id))) await this.refreshRoots();
@@ -1034,7 +1034,8 @@ export class Notebook implements NotebookClient, DocumentHost {
       for (const id of event.restructured_pages) pages.add(id);
       for (const value of this.acceptCapabilities(event.capabilities ?? [], event.seq)) capabilities.set(value.block_id, value);
     }
-    await this.reconcile([...blocks.values()], [...removed], [...pages], [...capabilities.values()]);
+    const synced = events.some(event => event.actor.kind === 'client' && event.actor.name === 'sync');
+    await this.reconcile([...blocks.values()], [...removed], [...pages], [...capabilities.values()], synced);
     const latest = events.at(-1)!;
     await this.outbox?.capabilities([...capabilities.values()], latest.seq);
     const changed = events.filter(event => event.seq > this.seq);
@@ -1056,7 +1057,7 @@ export class Notebook implements NotebookClient, DocumentHost {
     if (event.seq <= this.seq) return;
     if (event.actor.kind !== 'client' || event.actor.name !== this.actorName) {
       const capabilities = this.acceptCapabilities(event.capabilities ?? [], event.seq);
-      await this.reconcile(event.blocks, event.removed, event.restructured_pages, capabilities);
+      await this.reconcile(event.blocks, event.removed, event.restructured_pages, capabilities, event.actor.kind === 'client' && event.actor.name === 'sync');
       await this.outbox?.capabilities(capabilities, event.seq);
       if (event.work_sessions?.length) await this.refreshWork(event.seq);
     }

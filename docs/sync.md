@@ -40,6 +40,8 @@ This is the editor's existing outbox model with a durable replica behind it. Row
 - **State outside the log.** Reading positions and highlight surfacings are written outside the change log. Each row carries a hybrid logical clock (milliseconds, kept ahead of every clock the notebook has seen), the device that wrote it, and its place in the notebook's own arrival order. A replica sends the rows it wrote since its last push right after pushing its changes, before pulling, and receives the hub's rows that arrived since its last pull once the pulled changes are applied. The later clock wins a reading position and a surfacing's action, with the device as the tie-break; a surfacing either device showed is kept. `sources.last_read_at` follows the latest position of the source's snapshots, and a muted surfacing mutes its citation.
 - **Sequence columns.** `review_events.change_seq`, `citations.created_seq` and the other `*_seq` columns hold sequence numbers. Confirmed changes carry the hub's numbering because their rows arrive as patches; unconfirmed changes take new local numbers when they replay.
 
+Editor change cursors use a local arrival journal, separate from the hub's change sequence. Rebasing records invalidations for pulled and replayed changes with a new cursor and the `sync` actor; open pages reload even when a block's revision stayed the same. Migration preserves existing cursors, and pairing or recloning carries the local journal forward.
+
 ## Identity and determinism
 
 Every device must reach the same state from the same changes, so applying a change depends only on the batch, its stamp and the current state.
@@ -76,13 +78,11 @@ The `vim` setting describes a keyboard, not a notebook. It becomes local to the 
 
 ## Transport
 
-Editor routes stay on loopback and keep rejecting other hosts and origins. For now the hub routes (`/api/sync/clone`, `push`, `pull`, `rows` and the snapshot and object routes) sit on the editor's loopback listener, and every request carries the client's schema version; the hub refuses a different one. `tessera sync clone <url>` turns a new notebook directory into a replica, `tessera sync` pushes and pulls, and `tessera sync pin` marks a source to keep. The command opens the replica directly and refuses while a service owns it.
+Editor routes stay on loopback and keep rejecting other hosts and origins. A separate authenticated sync listener is published through Tailscale Serve. The native HTTP client is shared by the CLI and embedded hosts, uses rustls with bundled webpki roots (including the Let's Encrypt roots used for `ts.net`), and sends the pairing key as a bearer credential. It allows plain HTTP only on loopback for local CLI use and tests. No Android platform verifier initialization is needed.
 
-Later, sync gets its own listener with only push, pull and object routes, published on the tailnet through Tailscale Serve, which supplies the TLS certificate and the caller's tailnet identity. Each device also holds a key enrolled by pairing with a QR code shown by the hub.
+The in-process runner syncs at startup, three seconds after a commit, every three minutes, and on request. One sync runs at a time. Network failures back off from five seconds to five minutes. Each local step takes the notebook lock separately; no network request holds it. The editor and library worker keep using the same notebook handle across pairing and recloning.
 
-On Android, `reqwest`'s platform TLS verifier is not initialized. The sync client uses rustls with bundled roots, which accept the Let's Encrypt certificates Tailscale issues for `ts.net` names, or the app sets up the verifier, which would also enable article URLs.
-
-A phone that already has its own notebook imports its phone-only content into the hub once, then clones from the hub. Two independent histories are never merged.
+A phone that already has its own notebook imports its whole change log with empty text bases using a temporary key-owned replica identity, plus snapshots, files, reading positions and surfacings, then clones the hub. Natural-key collisions use the ordinary push rules: equal page titles and journal dates share the hub root, and the phone's children follow its children. Rejections stay visible in the hub's conflict log; the original database is kept as `notebook.db.before-pairing-<unix seconds>`. Change IDs make a repeated import idempotent. Edits made during the import cause another import-and-clone pass before the atomic in-place replacement, so none are silently dropped. Existing ingestion jobs, local editor cursors and fetched files stay on the device. Two independent histories are never merged.
 
 ## Later: end-to-end encryption and collaboration
 

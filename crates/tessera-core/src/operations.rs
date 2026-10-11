@@ -185,6 +185,7 @@ impl Notebook {
             ],
         )?;
         record(&tx, &committed)?;
+        crate::reads::record_editor_event(&tx, seq, false)?;
         #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         if let Some(recording) = { recording } {
             crate::sync::finish(&tx, recording, seq, &stamp, batch, extras)?;
