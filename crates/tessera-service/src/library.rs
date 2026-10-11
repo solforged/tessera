@@ -287,7 +287,7 @@ async fn position(
     run(&state, move |n| {
         let result = n.set_reading_position(&id, body.ordinal)?;
         if let Some(seq) = result.seq {
-            let _ = changes.send(seq);
+            let _ = changes.send(n.editor_cursor()?.max(seq));
         }
         Ok(result)
     })
@@ -456,7 +456,7 @@ fn commit(
             operations: plan.operations,
         })?;
         if !committed.replayed {
-            let _ = changes.send(committed.seq);
+            let _ = changes.send(n.editor_cursor()?);
         }
     }
     n.finish_ingest(&job.id, &plan.source_id, &snapshot.id)
@@ -857,6 +857,7 @@ mod tests {
             sync_port: 4501,
             pairing: Arc::new(Mutex::new(crate::pairing::Pairing::default())),
             sharing: Arc::new(tokio::sync::Mutex::new(())),
+            replica: Arc::default(),
         }
     }
     async fn response(app: &Router, method: &str, path: &str, body: Vec<u8>) -> Response {
@@ -1216,6 +1217,7 @@ mod resurface_tests {
             sync_port: 4501,
             pairing: Arc::new(Mutex::new(crate::pairing::Pairing::default())),
             sharing: Arc::new(tokio::sync::Mutex::new(())),
+            replica: Arc::default(),
         });
         let get = app
             .clone()

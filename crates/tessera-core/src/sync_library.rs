@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::library_store::{sha256_hex, validate_sha};
 use crate::storage::{not_found, validation};
-use crate::sync::{Hub, Outbox};
+use crate::sync::Outbox;
 use crate::{Notebook, Result};
 
 /// A reading position as it travels between devices.
@@ -398,13 +398,8 @@ impl Notebook {
         Ok(pull)
     }
 
-    /// Replica side: send this device's new rows and, when `receive`, take the
-    /// hub's. Returns how many rows were sent and how many changed here.
-    pub(crate) fn sync_unlogged_with(
-        &mut self,
-        hub: &mut dyn Hub,
-        receive: bool,
-    ) -> Result<(usize, usize)> {
+    /// Capture the row push and its high-water mark while holding the notebook.
+    pub(crate) fn sync_unlogged_outbox(&self) -> Result<(String, UnloggedRows, i64, i64)> {
         let status = self.require_replica()?;
         let (cursor, pushed, latest): (i64, i64, i64) = self.conn.query_row(
             "SELECT h.unlogged_cursor, h.unlogged_pushed, r.unlogged_seq
@@ -413,13 +408,19 @@ impl Notebook {
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
         )?;
         let own = rows_since(&self.conn, pushed, Some(&status.device_id))?;
-        if !receive && own.is_empty() {
-            return Ok((0, 0));
-        }
-        // Only sending: ask for rows after any the hub can have, so none come
-        // back before the changes they name are applied here.
-        let after = if receive { cursor } else { i64::MAX };
-        let pull = hub.exchange_rows(&status.device_id, &own, after)?;
+        Ok((status.device_id, own, cursor, latest))
+    }
+
+    pub(crate) fn sync_import_rows(&self) -> Result<UnloggedRows> {
+        rows_since(&self.conn, 0, None)
+    }
+
+    pub(crate) fn sync_integrate_rows(
+        &mut self,
+        pull: &UnloggedPull,
+        latest: i64,
+        receive: bool,
+    ) -> Result<usize> {
         let tx = self.conn.transaction()?;
         let received = merge(&tx, &pull.rows)?;
         tx.execute(
@@ -434,6 +435,6 @@ impl Notebook {
         }
         reconcile(&tx)?;
         tx.commit()?;
-        Ok((own.len(), received))
+        Ok(received)
     }
 }

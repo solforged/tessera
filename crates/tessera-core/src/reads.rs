@@ -484,14 +484,19 @@ impl Notebook {
             .collect::<rusqlite::Result<_>>()?)
     }
 
+    /// Local editor arrival cursor. Hub sequence numbers may change on rebase.
+    pub fn editor_cursor(&self) -> Result<i64> {
+        Ok(self.conn.query_row("SELECT COALESCE(MAX(seq), 0) FROM editor_events", [], |r| r.get(0))?)
+    }
+
     pub fn changes_since(&self, seq: i64, limit: usize) -> Result<Vec<ChangeEvent>> {
         let mut statement = self.conn.prepare_cached(concat!(
-            "SELECT c.seq, c.actor, c.reason, c.created_at, c.restructured_pages, r.block_id, ",
+            "SELECT c.seq, c.actor, c.reason, c.created_at, c.restructured_pages, json_extract(r.value, '$.id'), ",
             block_columns!("b"),
             ", b.deletion_id, c.views, c.committed
-             FROM (SELECT * FROM changes WHERE seq > ?1 ORDER BY seq LIMIT ?2) c
-             LEFT JOIN change_revisions r ON r.change_seq = c.seq
-             LEFT JOIN blocks b ON b.id = r.block_id ORDER BY c.seq, r.position",
+             FROM (SELECT * FROM editor_events WHERE seq > ?1 ORDER BY seq LIMIT ?2) c
+             LEFT JOIN json_each(c.committed, '$.revisions') r
+             LEFT JOIN blocks b ON b.id = json_extract(r.value, '$.id') ORDER BY c.seq, r.key",
         ))?;
         let mut cursor = statement.query(params![seq, sql_limit(limit)])?;
         let mut changes: Vec<ChangeEvent> = Vec::new();
@@ -589,4 +594,23 @@ impl Notebook {
         }
         Ok(changes)
     }
+}
+
+/// Record a commit in local editor arrival order, independently of hub seq.
+pub(crate) fn record_editor_event(conn: &rusqlite::Connection, seq: i64, synced: bool) -> Result<()> {
+    conn.execute(
+        "INSERT INTO editor_events(seq, actor, reason, created_at, committed, restructured_pages, views)
+         SELECT MAX(?1, COALESCE((SELECT seq FROM sqlite_sequence WHERE name = 'editor_events'), 0) + 1),
+                CASE WHEN ?2 THEN '{\"kind\":\"client\",\"name\":\"sync\"}' ELSE actor END,
+                reason, created_at, committed,
+                CASE WHEN ?2 THEN
+                  (SELECT json_group_array(page) FROM (
+                    SELECT value AS page FROM json_each(changes.restructured_pages)
+                    UNION SELECT b.page_id FROM json_each(changes.committed, '$.revisions') r
+                    JOIN blocks b ON b.id = json_extract(r.value, '$.id')))
+                ELSE restructured_pages END, views
+         FROM changes WHERE seq = ?1",
+        params![seq, synced],
+    )?;
+    Ok(())
 }

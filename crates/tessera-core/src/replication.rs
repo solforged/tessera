@@ -72,6 +72,7 @@ pub const TABLES: &[(&str, Replication)] = &[
     ("sync_pending", Replication::Local),
     ("sync_pins", Replication::Local),
     ("sync_devices", Replication::Local),
+    ("editor_events", Replication::Local),
 ];
 
 /// The tables whose rows a change patch carries.

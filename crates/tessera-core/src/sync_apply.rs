@@ -180,6 +180,7 @@ impl Notebook {
             params![json(&committed), seq],
         )?;
         extras.write(&tx, stamp, seq)?;
+        crate::reads::record_editor_event(&tx, seq, false)?;
         if let Some(recording) = { recording } {
             crate::sync::finish(&tx, recording, seq, stamp, &change.batch, extras)?;
         }

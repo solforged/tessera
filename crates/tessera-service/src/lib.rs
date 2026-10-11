@@ -16,6 +16,12 @@ mod security;
 mod sharing;
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 mod sync;
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+pub mod sync_client;
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+mod replica;
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+pub use replica::start_sync_runner;
 
 use parking_lot::Mutex;
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
@@ -104,6 +110,8 @@ pub(crate) struct AppState {
     pairing: Arc<Mutex<pairing::Pairing>>,
     #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     sharing: Arc<tokio::sync::Mutex<()>>,
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+    replica: Arc<replica::ReplicaRuntime>,
 }
 
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
@@ -144,7 +152,9 @@ fn routers(
         sync_port,
         pairing: Arc::new(Mutex::new(pairing::Pairing::default())),
         sharing: Arc::new(tokio::sync::Mutex::new(())),
+        replica: Arc::default(),
     };
+    replica::start(state.notebook.clone(), state.changes.clone(), &state.replica);
     let sync = sync::routes()
         .layer(middleware::from_fn_with_state(
             state.clone(),
@@ -173,6 +183,8 @@ fn routers(
 pub struct EmbeddedHandles {
     pub notebook: Arc<Mutex<Notebook>>,
     pub changes: broadcast::Sender<i64>,
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+    pub replica: Arc<replica::ReplicaRuntime>,
 }
 
 /// Build the notebook and library API for a host that runs the notebook in its own process,
@@ -184,9 +196,13 @@ pub fn embedded_router(notebook: Notebook) -> Result<(Router, EmbeddedHandles), 
     let notebook = Arc::new(Mutex::new(notebook));
     let changes = broadcast::channel(256).0;
     let library = library::Library::start(notebook.clone(), changes.clone(), library::extract)?;
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+    let replica = Arc::default();
     let handles = EmbeddedHandles {
         notebook: notebook.clone(),
         changes: changes.clone(),
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+        replica: Arc::clone(&replica),
     };
     let state = AppState {
         notebook,
@@ -204,6 +220,8 @@ pub fn embedded_router(notebook: Notebook) -> Result<(Router, EmbeddedHandles), 
         pairing: Arc::new(Mutex::new(pairing::Pairing::default())),
         #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         sharing: Arc::new(tokio::sync::Mutex::new(())),
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+        replica,
     };
     let router = notebook_routes()
         .method_not_allowed_fallback(|| async { ApiError::method_not_allowed() })
@@ -215,7 +233,7 @@ pub fn embedded_router(notebook: Notebook) -> Result<(Router, EmbeddedHandles), 
 }
 
 fn notebook_routes() -> Router<AppState> {
-    Router::new()
+    let routes = Router::new()
         .route("/api/notebook", get(notebook_info))
         .route("/api/settings", get(settings))
         .route("/api/roots", get(roots))
@@ -280,7 +298,10 @@ fn notebook_routes() -> Router<AppState> {
         .route("/api/changes", get(changes))
         .route("/api/batches", post(apply))
         .route("/api/agent-changes", get(agent_changes).post(agent_edit))
-        .route("/api/agent-changes/{seq}/undo", post(undo_agent_change))
+        .route("/api/agent-changes/{seq}/undo", post(undo_agent_change));
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+    let routes = routes.merge(replica::routes());
+    routes
 }
 
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
@@ -785,7 +806,7 @@ async fn add_alias(
     run(&state, move |notebook| {
         let committed = notebook.add_alias(&id, &name, Actor::Person)?;
         if let Some(committed) = &committed {
-            publish(&changes, committed);
+            publish(&changes, committed, notebook.editor_cursor()?);
         }
         Ok(committed)
     })
@@ -802,7 +823,7 @@ async fn starting_template(
     run(&state, move |notebook| {
         let committed = notebook.apply_starting_template(&id, Actor::Person)?;
         if let Some(committed) = &committed {
-            publish(&changes, committed);
+            publish(&changes, committed, notebook.editor_cursor()?);
         }
         Ok(committed)
     })
@@ -891,7 +912,7 @@ async fn stream_changes(
         tokio::select! {
             notification = receiver.recv() => {
                 match notification {
-                    Ok(seq) if seq <= after => continue,
+                    // Notifications are wakeups; editor cursors are local, not changes.seq.
                     Err(broadcast::error::RecvError::Closed) => return,
                     // A slow consumer may overflow notifications, never history.
                     Ok(_) | Err(broadcast::error::RecvError::Lagged(_)) => {}
@@ -909,10 +930,10 @@ async fn stream_changes(
     }
 }
 
-fn publish(changes: &broadcast::Sender<i64>, committed: &Committed) {
+fn publish(changes: &broadcast::Sender<i64>, committed: &Committed, cursor: i64) {
     if !committed.replayed {
         // Publish while the writer lock is still held, in commit order.
-        let _ = changes.send(committed.seq);
+        let _ = changes.send(cursor);
     }
 }
 
@@ -924,7 +945,7 @@ async fn apply(
     let changes = state.changes.clone();
     run(&state, move |notebook| {
         let committed = notebook.apply(&batch)?;
-        publish(&changes, &committed);
+        publish(&changes, &committed, notebook.editor_cursor()?);
         Ok(committed)
     })
     .await
@@ -941,7 +962,7 @@ async fn agent_edit(
     let changes = state.changes.clone();
     run(&state, move |notebook| {
         let receipt = notebook.agent_edit(&request)?;
-        let _ = changes.send(receipt.committed.seq);
+        let _ = changes.send(notebook.editor_cursor()?);
         Ok(receipt)
     })
     .await
@@ -973,7 +994,7 @@ async fn undo_agent_change(
     let changes = state.changes.clone();
     run(&state, move |notebook| {
         let receipt = notebook.undo_agent_change(seq, &actor)?;
-        let _ = changes.send(receipt.committed.seq);
+        let _ = changes.send(notebook.editor_cursor()?);
         Ok(receipt)
     })
     .await
@@ -1169,6 +1190,7 @@ mod tests {
                 sync_port: 4501,
                 pairing: Arc::new(Mutex::new(pairing::Pairing::default())),
                 sharing: Arc::new(tokio::sync::Mutex::new(())),
+                replica: Arc::default(),
             });
         let guard = backup.clone().try_lock_owned().unwrap();
         let response = app

@@ -318,50 +318,22 @@ async fn retire(
 /// A stored file. A replica that does not have it yet fetches it from its
 /// hub and keeps it, so opening a book brings its images.
 pub(crate) async fn object_or_fetch(state: &AppState, sha: String) -> Result<Vec<u8>, ApiError> {
-    let (local, hub) = {
-        let sha = sha.clone();
-        run(state, move |notebook| {
-            Ok((
-                notebook.sync_object(&sha)?,
-                notebook.sync_status()?.map(|status| status.hub_url),
-            ))
-        })
-        .await?
-    };
-    if let Some(bytes) = local {
-        return Ok(bytes);
-    }
-    let hub = hub.ok_or_else(ApiError::not_found)?;
-    let unreachable = |error: reqwest::Error| {
-        ApiError::new(
-            StatusCode::BAD_GATEWAY,
-            "hub_unreachable",
-            format!("This file is on the hub, which did not answer: {error}"),
-        )
-    };
-    let response = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(60))
-        .build()
-        .map_err(ApiError::internal)?
-        .get(format!("{hub}/api/sync/objects/{sha}"))
-        .header(SCHEMA_HEADER, SCHEMA_VERSION)
-        .send()
-        .await
-        .map_err(unreachable)?;
-    if response.status() == StatusCode::NOT_FOUND {
-        return Err(ApiError::not_found());
-    }
-    let bytes = response
-        .error_for_status()
-        .map_err(unreachable)?
-        .bytes()
-        .await
-        .map_err(unreachable)?
-        .to_vec();
-    let kept = bytes.clone();
-    run(state, move |notebook| {
-        notebook.sync_store_object(&sha, &kept)
-    })
-    .await?;
-    Ok(bytes)
+    use tessera_core::sync::Hub;
+    let notebook = state.notebook.clone();
+    tokio::task::spawn_blocking(move || {
+        let (url, credentials) = {
+            let n = notebook.lock();
+            if let Some(bytes) = n.sync_object(&sha)? { return Ok(bytes); }
+            (n.sync_status()?.ok_or_else(ApiError::not_found)?.hub_url, n.sync_hub_credentials()?)
+        };
+        let unreachable = |error: anyhow::Error| ApiError::new(
+            StatusCode::BAD_GATEWAY, "hub_unreachable", format!("This file is on the hub, which did not answer: {error}"),
+        );
+        let mut hub = crate::sync_client::HttpHub::new(
+            &url, credentials.as_ref().and_then(|credentials| credentials.key.as_deref()),
+        ).map_err(unreachable)?;
+        let bytes = hub.object(&sha).map_err(|e| unreachable(e.into()))?.ok_or_else(ApiError::not_found)?;
+        notebook.lock().sync_store_object(&sha, &bytes)?;
+        Ok(bytes)
+    }).await.map_err(ApiError::internal)?
 }
