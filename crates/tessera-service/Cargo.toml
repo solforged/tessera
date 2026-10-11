@@ -26,6 +26,7 @@ dirs.workspace = true
 jiff = { version = "0.2", default-features = false, features = ["std"] }
 tokio.workspace = true
 reqwest.workspace = true
+tokio-util = { version = "0.7", features = ["io"] }
 include_dir = { version = "0.7", optional = true }
 
 [target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]

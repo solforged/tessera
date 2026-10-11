@@ -5367,6 +5367,7 @@ dependencies = [
  "tessera-ingest",
  "tokio",
  "tokio-tungstenite",
+ "tokio-util",
  "tower",
  "tracing",
  "ulid",

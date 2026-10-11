@@ -8,7 +8,7 @@
 //! theirs before doing so.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use rusqlite::session::{ConflictAction, ConflictType, Session, invert_strm};
@@ -170,6 +170,32 @@ pub struct ReplicaInfo {
     pub cursor: i64,
     pub cloned_at: i64,
     pub seen_at: i64,
+    /// When the hub stopped keeping changes for it; it must be cloned again.
+    pub retired_at: Option<i64>,
+}
+
+/// A copy of a hub notebook for a new replica that still holds the hub's own
+/// state. [`ClonedSnapshot::finish`] removes that state. It needs no access to
+/// the hub notebook, so a service can run it after releasing the notebook.
+#[must_use = "a clone holds the hub's local state until it is finished"]
+pub struct ClonedSnapshot {
+    path: PathBuf,
+    ticket: CloneTicket,
+}
+
+impl ClonedSnapshot {
+    /// Remove the hub's local state from the copy and compact it.
+    pub fn finish(self) -> Result<CloneTicket> {
+        let snapshot = Connection::open(&self.path)?;
+        snapshot.pragma_update(None, "journal_mode", "DELETE")?;
+        // Deleting leaves free pages; VACUUM drops them so they are not sent.
+        snapshot.execute_batch(
+            "DELETE FROM sync_replicas; DELETE FROM change_patches; DELETE FROM sync_pending;
+             DELETE FROM sync_hub; DELETE FROM ingest_jobs; DELETE FROM agent_changes;
+             DELETE FROM sync_pins; VACUUM;",
+        )?;
+        Ok(self.ticket)
+    }
 }
 
 /// Text one device kept beside a block another device also edited, or a
@@ -196,6 +222,8 @@ pub trait Hub {
     /// replica has applied; the hub may forget patches up to it.
     fn pull(&mut self, device: &str, acknowledged: i64, after: i64) -> Result<Pull>;
     fn missing_snapshots(&mut self, ids: &[String]) -> Result<Vec<String>>;
+    /// Content of the snapshots `ids` names, in order. A hub may return only
+    /// the first few, to bound one response; ask again for the rest.
     fn snapshot_content(&mut self, ids: &[String]) -> Result<Vec<SnapshotContent>>;
     fn store_snapshots(&mut self, content: &[SnapshotContent]) -> Result<()>;
     /// The files among `shas` the hub does not have.
@@ -215,6 +243,18 @@ pub trait Hub {
 
 /// Hub changes per pull.
 pub const PULL_LIMIT: usize = 500;
+/// Patch bytes per pull, past the first change.
+pub const PULL_BYTES: usize = 8 * 1024 * 1024;
+/// Passage text per snapshot content response or upload, past the first
+/// snapshot. JSON with passage locators and marks runs a few times larger.
+pub const CONTENT_TEXT_LIMIT: i64 = 8 * 1024 * 1024;
+/// Replica changes per push.
+pub const PUSH_LIMIT: usize = 200;
+/// A replica the hub has not heard from for this long is retired: the hub
+/// stops keeping patches for it, and it has to be cloned again.
+pub const RETIRE_AFTER_MS: i64 = 30 * 24 * 60 * 60 * 1000;
+const RETIRED: &str = "the hub retired this replica after 30 days without syncing; \
+     changes it pushed are kept, but it has to be cloned again";
 
 impl Hub for Notebook {
     fn push(&mut self, device: &str, changes: &[PushedChange]) -> Result<Vec<PushReceipt>> {
@@ -265,7 +305,8 @@ pub(crate) struct Recording<'conn> {
 
 fn role(conn: &Connection) -> Result<Option<Role>> {
     let (replica, hub): (bool, bool) = conn.query_row(
-        "SELECT EXISTS(SELECT 1 FROM sync_hub), EXISTS(SELECT 1 FROM sync_replicas)",
+        "SELECT EXISTS(SELECT 1 FROM sync_hub),
+                EXISTS(SELECT 1 FROM sync_replicas WHERE retired_at IS NULL)",
         [],
         |row| Ok((row.get(0)?, row.get(1)?)),
     )?;
@@ -276,6 +317,22 @@ fn role(conn: &Connection) -> Result<Option<Role>> {
     } else {
         None
     })
+}
+
+/// Retire replicas the hub has not heard from in [`RETIRE_AFTER_MS`], then
+/// forget the patches every remaining replica has applied.
+fn prune(conn: &Connection, now: i64) -> Result<()> {
+    conn.execute(
+        "UPDATE sync_replicas SET retired_at = ?1 WHERE retired_at IS NULL AND seen_at < ?1 - ?2",
+        params![now, RETIRE_AFTER_MS],
+    )?;
+    conn.execute(
+        "DELETE FROM change_patches WHERE seq <= COALESCE(
+             (SELECT MIN(cursor) FROM sync_replicas WHERE retired_at IS NULL),
+             (SELECT MAX(seq) FROM change_patches))",
+        [],
+    )?;
+    Ok(())
 }
 
 fn recorder(conn: &Connection) -> Result<Session<'_>> {
@@ -330,6 +387,8 @@ pub(crate) fn finish(
                 "INSERT INTO change_patches(seq, patch) VALUES (?1, ?2)",
                 params![seq, patch],
             )?;
+            // A replica that never syncs again must not keep every patch.
+            prune(conn, now_ms())?;
         }
         Role::Replica => {
             let batch = extras.origin_batch.unwrap_or(batch);
@@ -498,9 +557,9 @@ fn latest_seq(conn: &Connection) -> Result<i64> {
 impl Notebook {
     // Hub side.
 
-    /// Register a new replica and write a snapshot of this notebook to
-    /// `destination` for it, without this device's local state.
-    pub fn sync_clone(&mut self, destination: &Path) -> Result<CloneTicket> {
+    /// Register a new replica and copy this notebook to `destination` for it.
+    /// Finish the copy to remove this device's local state.
+    pub fn sync_clone(&mut self, destination: &Path) -> Result<ClonedSnapshot> {
         if self.sync_status()?.is_some() {
             return Err(validation("a replica cannot be cloned; clone its hub"));
         }
@@ -516,17 +575,14 @@ impl Notebook {
             let backup = rusqlite::backup::Backup::new(&self.conn, &mut snapshot)?;
             backup.run_to_completion(256, std::time::Duration::from_millis(0), None)?;
         }
-        snapshot.pragma_update(None, "journal_mode", "DELETE")?;
-        snapshot.execute_batch(
-            "DELETE FROM sync_replicas; DELETE FROM change_patches; DELETE FROM sync_pending;
-             DELETE FROM sync_hub; DELETE FROM ingest_jobs; DELETE FROM agent_changes;
-             DELETE FROM sync_pins;",
-        )?;
-        Ok(CloneTicket {
-            notebook_id: self.info()?.id,
-            device_id,
-            seq,
-            schema_version: SCHEMA_VERSION,
+        Ok(ClonedSnapshot {
+            path: destination.to_owned(),
+            ticket: CloneTicket {
+                notebook_id: self.info()?.id,
+                device_id,
+                seq,
+                schema_version: SCHEMA_VERSION,
+            },
         })
     }
 
@@ -534,13 +590,16 @@ impl Notebook {
     pub fn sync_replicas(&self) -> Result<Vec<ReplicaInfo>> {
         Ok(self
             .conn
-            .prepare("SELECT device_id, cursor, cloned_at, seen_at FROM sync_replicas ORDER BY cloned_at")?
+            .prepare(
+                "SELECT device_id, cursor, cloned_at, seen_at, retired_at FROM sync_replicas ORDER BY cloned_at",
+            )?
             .query_map([], |row| {
                 Ok(ReplicaInfo {
                     device_id: row.get(0)?,
                     cursor: row.get(1)?,
                     cloned_at: row.get(2)?,
                     seen_at: row.get(3)?,
+                    retired_at: row.get(4)?,
                 })
             })?
             .collect::<rusqlite::Result<_>>()?)
@@ -562,13 +621,19 @@ impl Notebook {
     }
 
     /// Apply a replica's changes in order. Each is accepted, possibly with
-    /// conflicts resolved, or recorded as rejected.
+    /// conflicts resolved, or recorded as rejected. A retired replica can
+    /// still push, so changes made before it was retired are not lost.
     pub fn sync_push(
         &mut self,
         device: &str,
         changes: &[PushedChange],
     ) -> Result<Vec<PushReceipt>> {
         self.known_replica(device)?;
+        // Before applying: each commit retires replicas not seen lately.
+        self.conn.execute(
+            "UPDATE sync_replicas SET seen_at = ?2 WHERE device_id = ?1 AND retired_at IS NULL",
+            params![device, now_ms()],
+        )?;
         changes
             .iter()
             .map(|change| {
@@ -584,7 +649,8 @@ impl Notebook {
             .collect()
     }
 
-    /// Up to `limit` changes after `after`, as patches.
+    /// Up to `limit` changes after `after`, as patches. Pulling also tells the
+    /// hub this replica is alive and has applied `acknowledged`.
     pub fn sync_pull(
         &mut self,
         device: &str,
@@ -596,14 +662,20 @@ impl Notebook {
         let tx = self
             .conn
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let retired: bool = tx.query_row(
+            "SELECT retired_at IS NOT NULL FROM sync_replicas WHERE device_id = ?1",
+            [device],
+            |row| row.get(0),
+        )?;
+        if retired {
+            return Err(validation(RETIRED));
+        }
+        let now = now_ms();
         tx.execute(
             "UPDATE sync_replicas SET cursor = MAX(cursor, ?2), seen_at = ?3 WHERE device_id = ?1",
-            params![device, acknowledged, now_ms()],
+            params![device, acknowledged, now],
         )?;
-        tx.execute(
-            "DELETE FROM change_patches WHERE seq <= (SELECT MIN(cursor) FROM sync_replicas)",
-            [],
-        )?;
+        prune(&tx, now)?;
         tx.commit()?;
         let hub_seq = latest_seq(&self.conn)?;
         let rows: Vec<(i64, Option<Vec<u8>>)> = self
@@ -617,12 +689,17 @@ impl Notebook {
             })?
             .collect::<rusqlite::Result<_>>()?;
         let mut changes = Vec::with_capacity(rows.len());
+        let mut bytes = 0;
         for (seq, patch) in rows {
             let patch = patch.ok_or_else(|| {
                 validation(format!(
                     "the hub no longer has change {seq} for this device; clone it again"
                 ))
             })?;
+            if !changes.is_empty() && bytes + patch.len() > PULL_BYTES {
+                break;
+            }
+            bytes += patch.len();
             changes.push(PulledChange { seq, patch });
         }
         let last = changes.last().map_or(after, |change| change.seq);
@@ -656,8 +733,11 @@ impl Notebook {
         Ok(missing)
     }
 
+    /// Content of the snapshots `ids` names, in order: the first one, and the
+    /// ones after it while their text stays within [`CONTENT_TEXT_LIMIT`].
     pub fn sync_snapshot_content(&self, ids: &[String]) -> Result<Vec<SnapshotContent>> {
-        let mut content = Vec::with_capacity(ids.len());
+        let mut content = Vec::new();
+        let mut text = 0;
         for id in ids {
             let mut snapshot = self
                 .conn
@@ -683,6 +763,10 @@ impl Notebook {
                 )
                 .optional()?
                 .ok_or_else(|| crate::storage::not_found(id))?;
+            if !content.is_empty() && text + snapshot.text_length > CONTENT_TEXT_LIMIT {
+                break;
+            }
+            text += snapshot.text_length;
             snapshot.passages = self
                 .conn
                 .prepare(
@@ -935,10 +1019,13 @@ impl Notebook {
         let mut report = SyncReport::default();
         if !outbox.snapshots.is_empty() {
             let missing = hub.missing_snapshots(&outbox.snapshots)?;
-            if !missing.is_empty() {
-                hub.store_snapshots(&self.sync_snapshot_content(&missing)?)?;
-                report.sent_snapshots = missing.len();
+            let mut rest = missing.as_slice();
+            while !rest.is_empty() {
+                let content = self.sync_snapshot_content(rest)?;
+                hub.store_snapshots(&content)?;
+                rest = &rest[content.len()..];
             }
+            report.sent_snapshots = missing.len();
         }
         // The hub keeps every file; send the ones these changes need first.
         let objects = self.sync_outbox_objects(&outbox)?;
@@ -948,34 +1035,42 @@ impl Notebook {
                 report.sent_objects += 1;
             }
         }
-        if !outbox.changes.is_empty() {
-            report.pushed = hub.push(&outbox.device_id, &outbox.changes)?;
+        for changes in outbox.changes.chunks(PUSH_LIMIT) {
+            report.pushed.extend(hub.push(&outbox.device_id, changes)?);
         }
-        let mut pulled = Vec::new();
-        let mut snapshots = BTreeSet::new();
-        let mut after = outbox.confirmed_seq;
+        // The hub now has the changes this device's reading positions and
+        // surfacings name. Send those before pulling, so a retired replica,
+        // whose pull fails, still delivers them.
+        report.sent_rows = self.sync_unlogged_with(hub, false)?.0;
+        // Apply the hub's changes a page at a time: a long catch-up holds one
+        // page, and an interrupted one resumes after the last page applied.
         loop {
-            let pull = hub.pull(&outbox.device_id, outbox.confirmed_seq, after)?;
-            snapshots.extend(pull.snapshots);
-            if let Some(last) = pull.changes.last() {
-                after = last.seq;
+            let confirmed = self.require_replica()?.confirmed_seq;
+            let pull = hub.pull(&outbox.device_id, confirmed, confirmed)?;
+            let missing = self.sync_missing_snapshots(&pull.snapshots)?;
+            let mut rest = missing.as_slice();
+            while !rest.is_empty() {
+                let content = hub.snapshot_content(rest)?;
+                if content.is_empty() {
+                    return Err(validation("the hub sent no snapshot content"));
+                }
+                self.sync_store_snapshots(&content)?;
+                rest = &rest[content.len().min(rest.len())..];
             }
-            pulled.extend(pull.changes);
+            report.received_snapshots += missing.len();
+            let page = self.sync_integrate(&pull.changes)?;
+            report.integrated.applied += page.applied;
+            report.integrated.confirmed += page.confirmed;
+            report.integrated.replayed = page.replayed;
+            report.integrated.unapplied = page.unapplied;
             if !pull.more {
                 break;
             }
         }
-        let wanted: Vec<String> = snapshots.into_iter().collect();
-        let missing = self.sync_missing_snapshots(&wanted)?;
-        if !missing.is_empty() {
-            self.sync_store_snapshots(&hub.snapshot_content(&missing)?)?;
-            report.received_snapshots = missing.len();
-        }
-        report.integrated = self.sync_integrate(&pulled)?;
-        // Rows outside the log name citations and snapshots, so they follow
-        // the changes that create those.
-        let (sent, received) = self.sync_unlogged_with(hub)?;
-        report.sent_rows = sent;
+        // Rows from the hub name citations and snapshots, so they follow the
+        // changes that create those.
+        let (sent, received) = self.sync_unlogged_with(hub, true)?;
+        report.sent_rows += sent;
         report.received_rows = received;
         for sha in self.sync_wanted_objects()? {
             match hub.object(&sha)? {

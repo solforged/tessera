@@ -398,9 +398,13 @@ impl Notebook {
         Ok(pull)
     }
 
-    /// Replica side: send this device's new rows and take the hub's. Returns
-    /// how many rows were sent and how many changed here.
-    pub(crate) fn sync_unlogged_with(&mut self, hub: &mut dyn Hub) -> Result<(usize, usize)> {
+    /// Replica side: send this device's new rows and, when `receive`, take the
+    /// hub's. Returns how many rows were sent and how many changed here.
+    pub(crate) fn sync_unlogged_with(
+        &mut self,
+        hub: &mut dyn Hub,
+        receive: bool,
+    ) -> Result<(usize, usize)> {
         let status = self.require_replica()?;
         let (cursor, pushed, latest): (i64, i64, i64) = self.conn.query_row(
             "SELECT h.unlogged_cursor, h.unlogged_pushed, r.unlogged_seq
@@ -409,13 +413,25 @@ impl Notebook {
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
         )?;
         let own = rows_since(&self.conn, pushed, Some(&status.device_id))?;
-        let pull = hub.exchange_rows(&status.device_id, &own, cursor)?;
+        if !receive && own.is_empty() {
+            return Ok((0, 0));
+        }
+        // Only sending: ask for rows after any the hub can have, so none come
+        // back before the changes they name are applied here.
+        let after = if receive { cursor } else { i64::MAX };
+        let pull = hub.exchange_rows(&status.device_id, &own, after)?;
         let tx = self.conn.transaction()?;
         let received = merge(&tx, &pull.rows)?;
         tx.execute(
-            "UPDATE sync_hub SET unlogged_cursor = ?1, unlogged_pushed = ?2 WHERE singleton = 1",
-            params![pull.seq, latest],
+            "UPDATE sync_hub SET unlogged_pushed = ?1 WHERE singleton = 1",
+            [latest],
         )?;
+        if receive {
+            tx.execute(
+                "UPDATE sync_hub SET unlogged_cursor = ?1 WHERE singleton = 1",
+                [pull.seq],
+            )?;
+        }
         reconcile(&tx)?;
         tx.commit()?;
         Ok((own.len(), received))

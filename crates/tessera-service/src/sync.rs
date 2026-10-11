@@ -1,8 +1,10 @@
 //! Hub routes for replicas. See "Protocol" in `docs/sync.md`.
 
+use std::sync::atomic::{AtomicU64, Ordering};
+
 use axum::{
     Json, Router,
-    body::Bytes,
+    body::{Body, Bytes},
     extract::{DefaultBodyLimit, Path, State, rejection::JsonRejection},
     http::{HeaderMap, HeaderValue, StatusCode, header},
     response::{IntoResponse, Response},
@@ -49,22 +51,56 @@ fn same_schema(headers: &HeaderMap) -> Result<(), ApiError> {
     Ok(check_schema(version)?)
 }
 
+/// Distinguishes clone files written at the same time.
+static CLONES: AtomicU64 = AtomicU64::new(0);
+
 async fn clone(State(state): State<AppState>, headers: HeaderMap) -> Result<Response, ApiError> {
     same_schema(&headers)?;
-    let (ticket, bytes) = run(&state, |notebook| {
-        let path = notebook.info()?.path.join("sync-clone.tmp");
-        let ticket = notebook.sync_clone(&path);
-        let bytes = match ticket {
-            Ok(_) => std::fs::read(&path),
-            Err(_) => Ok(Vec::new()),
-        };
-        let _ = std::fs::remove_file(&path);
-        Ok((ticket?, bytes?))
+    // Only the copy needs the notebook. Removing the hub's own state and
+    // compacting run after it is released, and the file is streamed.
+    let (snapshot, path) = run(&state, |notebook| {
+        let path = notebook.info()?.path.join(format!(
+            "sync-clone-{}-{}.tmp",
+            std::process::id(),
+            CLONES.fetch_add(1, Ordering::Relaxed)
+        ));
+        match notebook.sync_clone(&path) {
+            Ok(snapshot) => Ok((snapshot, path)),
+            Err(error) => {
+                let _ = std::fs::remove_file(&path);
+                Err(error)
+            }
+        }
     })
     .await?;
+    let finished: tessera_core::Result<_> = {
+        let path = path.clone();
+        tokio::task::spawn_blocking(move || {
+            let ticket = snapshot.finish()?;
+            // The open file stays readable after its name is gone, so a
+            // dropped connection leaves nothing behind.
+            let file = std::fs::File::open(&path)?;
+            let length = file.metadata()?.len();
+            std::fs::remove_file(&path)?;
+            tessera_core::Result::Ok((ticket, file, length))
+        })
+        .await
+        .map_err(ApiError::internal)?
+    };
+    let (ticket, file, length) = match finished {
+        Ok(finished) => finished,
+        Err(error) => {
+            let _ = std::fs::remove_file(&path);
+            return Err(error.into());
+        }
+    };
     let ticket = serde_json::to_string(&ticket).map_err(ApiError::internal)?;
-    let mut response = bytes.into_response();
+    let body = Body::from_stream(tokio_util::io::ReaderStream::new(
+        tokio::fs::File::from_std(file),
+    ));
+    let mut response = body.into_response();
     let headers = response.headers_mut();
+    headers.insert(header::CONTENT_LENGTH, HeaderValue::from(length));
     headers.insert(
         header::CONTENT_TYPE,
         HeaderValue::from_static("application/vnd.sqlite3"),
