@@ -22,7 +22,6 @@ import type { HighlightMenu } from './highlights';
 import { ResourceImage } from './ResourceImage';
 import { SourceCover } from './SourceCover';
 import { ReadingCard } from './ReadingCard';
-import { pageSigla } from './sigla';
 import { AddSheet } from './AddSheet';
 import './library.css';
 
@@ -294,10 +293,6 @@ export function LibraryPane(props: LibraryPaneProps) {
   }
   // A view spanning several states names each row's state.
   const mixedStates = createMemo(() => currentQuery().states?.length !== 1);
-  // Marks stay unique within the list; the earliest-added source keeps the bare one, so sorting never renames.
-  const sigla = createMemo(() => pageSigla([...displayedSources()]
-    .sort((a, b) => a.source.added_at - b.source.added_at || a.page.id.localeCompare(b.page.id))
-    .map(row => ({ id: row.page.id, siglum: row.source.siglum, basis: row.source.siglum_basis, authored: row.source.siglum_authored }))));
   let scroll!: HTMLDivElement;
   let fileInput!: HTMLInputElement;
   let restoreScroll: number | null = props.view.scroll;
@@ -712,7 +707,7 @@ export function LibraryPane(props: LibraryPaneProps) {
           </Button>
         </div>
         <Button class="library-row-open" data-library-row={row.page.id} onClick={event => openSource(target, event.shiftKey)} onKeyDown={event => rowKey(event, target)}>
-          <span class="library-siglum" aria-hidden="true">{sigla().get(row.page.id) ?? row.source.siglum}</span><span class="library-title">{row.page.text}</span><span class="library-byline">{sourceByline(row)}</span>
+          <span class="library-siglum" aria-hidden="true">{row.source.siglum}</span><span class="library-title">{row.page.text}</span><span class="library-byline">{sourceByline(row)}</span>
           <Show when={mixedStates()}><span class="library-count library-state">{stateLabels[row.source.state]}</span></Show>
           <span class="library-count library-year" aria-label="Published year">{row.published?.slice(0, 4)}</span>
           <span class="library-progress"><Show when={row.source.state === 'finished' && row.source.state_changed_at != null} fallback={<Show when={row.progress > 0} fallback="Not started">
@@ -725,15 +720,14 @@ export function LibraryPane(props: LibraryPaneProps) {
     }}</For></div>}>
       <div class="library-shelf" role="list"><For each={rowsProps.rows}>{row => {
         const target: OpenTarget = { kind: 'page', pageId: row.page.id };
-        const siglum = () => sigla().get(row.page.id) ?? row.source.siglum;
         return <div class="library-book library-source-row" classList={{ 'library-row-selected': selected().has(row.page.id), 'library-source-current': openedSource() === row.page.id }} role="listitem">
           <Button class="library-book-open" data-library-row={row.page.id} onClick={event => openSource(target, event.shiftKey)} onKeyDown={event => rowKey(event, target)}>
-            <SourceCover row={row} siglum={siglum()} />
+            <SourceCover row={row} siglum={row.source.siglum} />
             <span class="library-reading-rule" classList={{ 'library-reading-started': row.progress > 0 }} style={{ '--progress': `${row.progress * 100}%` }} aria-hidden="true" />
             <span class="library-book-title">{row.page.text}</span>
             <span class="library-book-byline">{sourceByline(row)}</span>
             <span class="library-book-apparatus">
-              <span class="library-siglum" aria-hidden="true">{siglum()}</span>
+              <span class="library-siglum" aria-hidden="true">{row.source.siglum}</span>
               <Show when={mixedStates()}><span class="library-book-state">{stateLabels[row.source.state]}</span></Show>
               <Show when={row.published}><span aria-label="Published year">{row.published!.slice(0, 4)}</span></Show>
               <Show when={row.progress > 0}><span>{formatProgress(row.progress)}</span></Show>
@@ -961,7 +955,7 @@ export function LibraryPane(props: LibraryPaneProps) {
         const sheet = coverLayout() && !!state.source;
         const source = state.source;
         return <Menu anchor={state.anchor} label={state.label} items={state.items} placement={sheet ? 'sheet' : 'anchor'} class={sheet ? 'library-source-sheet' : undefined} header={sheet && source ? <header class="library-source-sheet-head">
-          <div><h2>{source.page.text}</h2><p>{sourceByline(source)}</p><p class="library-highlight-meta">{[sigla().get(source.page.id) ?? source.source.siglum, source.source.format === 'epub' ? 'Book' : source.source.format === 'article' ? 'Article' : 'Record', source.publisher, source.progress > 0 ? `${formatProgress(source.progress)} read` : null].filter(Boolean).join(' · ')}</p></div>
+          <div><h2>{source.page.text}</h2><p>{sourceByline(source)}</p><p class="library-highlight-meta">{[source.source.siglum, source.source.format === 'epub' ? 'Book' : source.source.format === 'article' ? 'Article' : 'Record', source.publisher, source.progress > 0 ? `${formatProgress(source.progress)} read` : null].filter(Boolean).join(' · ')}</p></div>
           <Button icon="close" label="Close source actions" onClick={dismiss} />
         </header> : state.Header && <state.Header onDismiss={dismiss} />} onDismiss={dismiss} />;
       }
