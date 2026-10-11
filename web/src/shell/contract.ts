@@ -68,7 +68,7 @@ export type OpenTarget =
   | { kind: 'table'; typeId: string | null; viewId: string | null; query: Query }
   | { kind: 'agenda'; date?: string; viewId?: string; query?: TaskQuery }
   | { kind: 'review'; deckId?: string }
-  | { kind: 'fields' }
+  | { kind: 'fields'; typeId?: string }
   | { kind: 'settings' }
   | { kind: 'library'; tab?: LibraryTab }
   /** Read a source. `at` is a passage ID to scroll to; `citationId` flashes that citation's range and does not count as reading. */
