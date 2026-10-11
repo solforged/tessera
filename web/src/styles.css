@@ -211,7 +211,9 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
 .save-banner, .shell-error, .pane-error { display: flex; align-items: center; gap: 8px; padding: 8px 16px; background: var(--surface); border-bottom: 1px solid var(--line); color: var(--warning); font-size: var(--text-control); line-height: var(--line-control); }
 .save-banner > span, .shell-error > span { flex: 1; }
 .save-banner details { max-width: 30%; }
-.save-banner details[open] { overflow-wrap: anywhere; }
+.save-banner details[open] { flex-basis: 100%; max-width: none; overflow-wrap: anywhere; }
+.save-banner summary { min-height: var(--target-size); padding: var(--space-4) var(--space-8); border-radius: var(--radius-control); cursor: pointer; }
+.save-banner summary:hover { background: var(--hover); }
 .save-banner { flex-wrap: wrap; }
 .rejected-changes { display: flex; align-items: flex-start; flex: 0 0 100%; gap: 8px; }
 .rejected-changes pre { flex: 1; min-width: 0; max-height: 140px; overflow: auto; margin: 0; padding: 8px; color: var(--text); background: var(--canvas); border: 1px solid var(--line); white-space: pre-wrap; overflow-wrap: anywhere; font: var(--text-body)/var(--line-body) var(--font-body); }
