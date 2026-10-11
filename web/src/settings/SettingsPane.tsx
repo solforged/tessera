@@ -1,7 +1,7 @@
 import { For, Show, createMemo, createResource, createSignal, onMount } from 'solid-js';
 import type { JSX } from 'solid-js';
 import { api } from '../api/client';
-import { EMBEDDED } from '../demo/mode';
+import { ANDROID, EMBEDDED } from '../demo/mode';
 import type { NotebookClient } from '../document/contract';
 import type { OpenTarget, PaneId, SettingsViewState } from '../shell/contract';
 import { Button } from '../ui/Button';
@@ -9,7 +9,9 @@ import { Icon } from '../ui/Icon';
 import { Picker } from '../ui/Picker';
 import { setThemePreference, themePreference } from '../shell/theme';
 import { backupLabel } from './backup';
+import { HubDevices, PhoneDevices } from './DevicesSection';
 import './settings.css';
+import './devices.css';
 
 export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; notebook: NotebookClient; onOpen(target: OpenTarget, beside: boolean): void; onViewChange(view: SettingsViewState): void }) {
   const [error, setError] = createSignal('');
@@ -56,12 +58,17 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; not
     return zones().filter(value => value.toLocaleLowerCase().includes(needle));
   });
   let region!: HTMLDivElement;
+  // Devices: the Mac shares and pairs; the phone copies. The browser demo does not sync.
+  const devices = !EMBEDDED || ANDROID;
+  const [deviceCount, setDeviceCount] = createSignal(0);
   const sections = createMemo(() => [
     { key: 'preferences', label: 'Preferences', count: 0 },
     ...(EMBEDDED ? [] : [{ key: 'backups', label: 'Backups', count: backups()?.length ?? 0 }]),
+    ...(devices ? [{ key: 'devices', label: 'Devices', count: deviceCount() }] : []),
     { key: 'agent-changes', label: 'Agent changes', count: agentChanges()?.length ?? 0 },
     { key: 'about', label: 'About', count: 0 },
   ]);
+  const number = (key: string) => sections().findIndex(section => section.key === key) + 1;
   const sectionId = (key: string) => `settings-${key}-${props.pane}`;
   const [current, setCurrent] = createSignal('preferences');
   const [scrolled, setScrolled] = createSignal(false);
@@ -172,8 +179,13 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; not
             <ul><For each={backups()!.slice(1)}>{backup => <li>{backupLabel(backup)}</li>}</For></ul>
           </details></Show>
         </section>}
+        {devices && <section id={sectionId('devices')} aria-labelledby={`${sectionId('devices')}-heading`}>
+          {ANDROID
+            ? <PhoneDevices heading={heading(number('devices'), 'devices', 'Devices')} onError={setError} />
+            : <HubDevices heading={heading(number('devices'), 'devices', 'Devices')} onError={setError} onCount={setDeviceCount} />}
+        </section>}
         <section id={sectionId('agent-changes')} aria-labelledby={`${sectionId('agent-changes')}-heading`} aria-busy={undoing() !== null}>
-          {heading(EMBEDDED ? 2 : 3, 'agent-changes', 'Agent changes')}
+          {heading(number('agent-changes'), 'agent-changes', 'Agent changes')}
           <Show when={agentChanges()}>{values => <Show when={values().length > 0} fallback={<p class="settings-empty">No agent changes yet. When an agent edits this notebook, each change appears here with its own Undo.</p>}>
             <ol class="settings-changes">
               <For each={allChanges() ? values() : values().slice(0, 3)}>{change => <li class="settings-change" data-undone={change.undone_by === null ? undefined : ''}>
@@ -194,7 +206,7 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; not
           </Show>}</Show>
         </section>
         <section id={sectionId('about')} aria-labelledby={`${sectionId('about')}-heading`}>
-          {heading(EMBEDDED ? 3 : 4, 'about', 'About')}
+          {heading(number('about'), 'about', 'About')}
           <Show when={info()}>{value => <dl>
             <dt>Notebook</dt><dd>{value().path}</dd>
             <dt>Created</dt><dd>{new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(value().created_at)}</dd>
