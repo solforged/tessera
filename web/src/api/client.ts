@@ -47,6 +47,7 @@ import type {
   QuestionRow,
   ReviewEvent,
   ReviewSession,
+  ReviewStats,
   ServiceInfo,
   SettingsView,
   TaskOccurrence,
@@ -190,6 +191,8 @@ export interface ApiClient {
   deck(id: string, signal?: AbortSignal): Promise<Deck>;
   reviewSessions(signal?: AbortSignal): Promise<ReviewSession[]>;
   reviewSession(id: string, signal?: AbortSignal): Promise<ReviewSession>;
+  reviewStats(deckId?: string | null, date?: string, signal?: AbortSignal): Promise<ReviewStats>;
+  reviewSessionEvents(id: string, signal?: AbortSignal): Promise<ReviewEvent[]>;
   backlinks(id: string, limit?: number, signal?: AbortSignal): Promise<Backlink[]>;
   members(id: string, limit?: number, signal?: AbortSignal): Promise<BlockInPage[]>;
   fields(signal?: AbortSignal): Promise<Fields>;
@@ -292,6 +295,8 @@ export function createApi(base = ''): ApiClient {
     deck: (id: string, signal?: AbortSignal) => get<Deck>(`/decks/${segment(id)}`, signal),
     reviewSessions: (signal?: AbortSignal) => get<ReviewSession[]>('/review-sessions', signal),
     reviewSession: (id: string, signal?: AbortSignal) => get<ReviewSession>(`/review-sessions/${segment(id)}`, signal),
+    reviewStats: (deckId?: string | null, date?: string, signal?: AbortSignal) => get<ReviewStats>(`/review/stats${query({ deck: deckId ?? undefined, date })}`, signal),
+    reviewSessionEvents: (id: string, signal?: AbortSignal) => get<ReviewEvent[]>(`/review-sessions/${segment(id)}/reviews`, signal),
     backlinks: (id: string, limit = 100, signal?: AbortSignal) => get<Backlink[]>(`/blocks/${segment(id)}/backlinks${query({ limit })}`, signal),
     members: (id: string, limit = 100, signal?: AbortSignal) => get<BlockInPage[]>(`/types/${segment(id)}/members${query({ limit })}`, signal),
     fields: (signal?: AbortSignal) => get<Fields>('/fields', signal),

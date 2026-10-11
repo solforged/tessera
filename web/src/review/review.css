@@ -1,4 +1,4 @@
-.review-pane { display: flex; flex-direction: column; min-height: 0; height: 100%; min-width: 0; }
+.review-pane { display: flex; flex-direction: column; min-height: 0; height: 100%; min-width: 0; outline: none; }
 /* Header, toolbar, status, card and footer share the outline measure, like Library and Agenda.
    The deck is the page title, set like a table's view name, with the queue tabs beneath. */
 .review-header { display: flex; align-items: flex-end; gap: var(--space-8); width: 100%; max-width: calc(var(--measure) + 2 * var(--space-16)); margin-inline: auto; padding: var(--space-24) var(--space-16) var(--space-8); }
@@ -11,30 +11,22 @@
 .review-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8) var(--space-16); width: 100%; max-width: calc(var(--measure) + 2 * var(--space-16)); margin-inline: auto; padding: 0 var(--space-16) var(--space-12); }
 .review-scroll > * { width: 100%; max-width: var(--measure); margin-inline: auto; }
 .review-queue-controls { display: flex; flex-wrap: wrap; gap: var(--space-4); margin-right: auto; }
-/* Session progress: a hairline that fills gilt, with the count in apparatus beside it. */
-.review-progress { display: flex; align-items: center; gap: var(--space-8); flex: 0 1 calc(var(--measure) / 3); min-width: 0; }
-.review-progress-track { flex: 1; min-width: var(--space-48); height: var(--rule-width); background: var(--line); }
-.review-progress-fill { display: block; height: 100%; background: var(--accent); transition: width var(--motion-ui) var(--motion-ease); }
+/* Each committed grade keeps its place in the progress strip, including after reload. */
+.review-session-progress { display: flex; flex-direction: column; gap: var(--space-12); width: 100%; padding-block: var(--space-8) var(--space-16); }
+.review-session-progress > .review-progress-label { align-self: flex-end; }
+.review-grade-strip { display: flex; gap: var(--space-4); min-width: 0; width: 100%; }
+.review-grade-segment { flex: 1; min-width: 0; height: var(--space-4); border-radius: var(--radius-control); background: var(--line); }
+.review-grade-good, .review-grade-easy { background: var(--status-done); }
+.review-grade-again { background: var(--danger); }
+.review-grade-hard { background: var(--warning); }
+.review-grade-current { background: var(--accent); }
 .review-progress-label { flex: none; color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
-/* The landing names what is waiting: the head of the queue, front text in the reading voice. */
-.review-queue { border-top: var(--rule-width) solid var(--line); }
-.review-queue-row { display: flex; align-items: baseline; gap: var(--space-12); width: 100%; min-height: var(--row-height); padding: var(--space-4) var(--space-8); border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; color: var(--text); text-align: left; cursor: pointer; transition: background-color var(--motion-fast) var(--motion-ease); }
-.review-queue-row:hover { background: var(--hover); }
-.review-queue-row:focus-visible { outline: var(--focus-ring); outline-offset: calc(-1 * var(--space-2)); }
-.review-queue-front { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); font-variation-settings: var(--optical-quote); }
-.review-queue-meta { display: flex; gap: var(--space-8); flex: 0 1 auto; min-width: 0; max-width: 45%; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
-.review-queue-source { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.review-queue-more { margin: var(--space-8) var(--space-8) 0; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .review-queue-controls .button { font-weight: var(--weight-body); }
 .review-count { margin-left: var(--space-4); color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .review-queue-controls [aria-pressed="true"] .review-count { color: inherit; }
 .review-open-sessions.button { font-weight: var(--weight-body); }
 .review-scroll { flex: 1; min-height: 0; overflow: auto; padding: 0 var(--space-16) var(--space-24); }
 .review-scroll > * + * { margin-top: var(--space-12); }
-.review-summary { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-4) var(--space-12); min-height: var(--target-size); color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); font-variant-numeric: tabular-nums; }
-.review-summary p { flex-basis: 100%; margin: 0; }
-.review-summary:empty { display: none; }
-.review-summary:empty + .review-card { margin-top: 0; }
 .review-pending { color: var(--faint); }
 .review-notice { padding: var(--space-8) var(--space-24); color: var(--muted); background: var(--surface); font-size: var(--text-control); line-height: var(--line-control); overflow-wrap: anywhere; }
 .review-notice[role="alert"] { color: var(--danger); }
@@ -59,3 +51,79 @@
 .deck-editor-queue { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); }
 .deck-editor-match { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
 .deck-editor p { margin: 0; overflow-wrap: anywhere; }
+/* The landing answers today's load before the deck ledger; figures use apparatus mono. */
+.review-landing { display: flex; flex-direction: column; gap: var(--space-24); padding-top: var(--space-12); }
+.review-overview { display: grid; grid-template-columns: 1.1fr 1fr; gap: var(--space-16); }
+.review-today-load, .review-forecast { min-width: 0; padding: var(--space-24); border: 1px solid var(--line); border-radius: var(--radius-popup); }
+.review-today-load { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-12); background: var(--raised); }
+.review-landing h2, .review-forecast h2, .review-missed h3 { margin: 0; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.review-stat-value { font: var(--weight-body) calc(var(--text-title) + var(--space-8))/1.2 var(--font-mono); font-variant-numeric: tabular-nums; }
+.review-stat-value small, .review-stats small { margin-left: var(--space-4); color: var(--muted); font: var(--weight-body) var(--text-control)/var(--line-control) var(--font-body); }
+.review-today-load p { margin: 0; color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
+.review-start.button { min-height: calc(var(--space-32) + var(--space-8)); padding-inline: var(--space-16); background: var(--accent); color: var(--canvas); }
+.review-start.button:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 85%, var(--text)); }
+.review-start kbd { color: inherit; opacity: .7; }
+.review-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-16); margin: 0; padding-block: var(--space-8); }
+.review-stats dt { color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.review-stats dd { margin: var(--space-4) 0 0; font: var(--weight-body) var(--text-h1)/var(--line-h1) var(--font-mono); font-variant-numeric: tabular-nums; }
+.review-forecast header, .review-decks header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); }
+.review-forecast header > span { color: var(--faint); font: var(--apparatus); white-space: nowrap; }
+.review-forecast-bars { display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); gap: var(--space-4); margin-top: var(--space-16); }
+.review-forecast-bars > div { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-4); min-width: 0; color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; }
+.review-forecast-bars span { min-width: 0; overflow: hidden; white-space: nowrap; text-align: center; font-size: calc(var(--text-apparatus) - 1px); }
+.review-forecast-track { display: flex; align-items: flex-end; height: calc(2 * var(--space-48)); }
+.review-forecast-track > i { display: block; width: 100%; border-radius: var(--radius-control) var(--radius-control) 0 0; background: var(--control-border); }
+.review-forecast-today, .review-forecast-today > span { color: var(--accent); }
+.review-forecast-today .review-forecast-track > i { background: var(--accent); }
+.review-decks table { width: 100%; border-collapse: collapse; }
+.review-decks :is(th, td) { border-bottom: 1px solid var(--line); padding: var(--space-8); text-align: left; }
+.review-decks :is(th, td):not(:first-child) { width: 12%; font: var(--apparatus); font-variant-numeric: tabular-nums; }
+.review-decks th { color: var(--faint); font: var(--apparatus); }
+.review-ledger-deck.button { padding: 0; justify-content: flex-start; font-family: var(--font-display); font-size: var(--text-quote); font-weight: var(--weight-body); }
+.review-ledger-deck.button.selected { background: transparent; color: var(--accent); }
+/* Completion keeps real session evidence, elapsed time, forecast and an actionable missed list. */
+.review-done { display: flex; flex-direction: column; gap: var(--space-24); padding-top: var(--space-24); }
+.review-done > p { margin: 0; }
+.review-done > h2 { margin: 0; font: var(--weight-title) var(--text-title)/var(--line-title) var(--font-display); font-variation-settings: var(--optical-title); }
+.review-done .review-forecast { border: 0; padding: 0; }
+.review-done-actions { display: flex; flex-wrap: wrap; gap: var(--space-8); margin-top: var(--space-24); }
+.review-missed p, .review-missed-answer { margin-block: var(--space-16); font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); }
+/* The unfolded touch screen reads the cited passage beside the card, without opening a second pane. */
+.review-source-passage { display: none; }
+.review-session-layout { min-width: 0; }
+.review-source-passage header { display: flex; justify-content: space-between; gap: var(--space-16); color: var(--faint); font: var(--apparatus); }
+.review-source-passage p { white-space: pre-wrap; font: var(--weight-body) var(--text-gloss)/var(--line-gloss) var(--font-display); font-variation-settings: var(--optical-reader); }
+.review-source-passage .review-source-heading { font-weight: var(--weight-title); font-variation-settings: var(--optical-heading); }
+.review-source-passage .review-source-wait { color: var(--muted); }
+.review-source-highlight { padding: 0; color: inherit; background: color-mix(in srgb, var(--accent) 24%, transparent); }
+.review-source-highlight-yellow { background: color-mix(in srgb, var(--highlight-yellow) 24%, transparent); }
+.review-source-highlight-green { background: color-mix(in srgb, var(--highlight-green) 24%, transparent); }
+.review-source-highlight-blue { background: color-mix(in srgb, var(--highlight-blue) 24%, transparent); }
+.review-source-highlight-red { background: color-mix(in srgb, var(--highlight-red) 24%, transparent); }
+.review-source-highlight-purple { background: color-mix(in srgb, var(--highlight-purple) 24%, transparent); }
+@media (pointer: coarse) and (min-width: 900px) {
+  .review-session-active .review-scroll { display: flex; flex-direction: column; }
+  .review-session-layout.review-has-context { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-24); flex: 1; max-width: none; }
+  .review-has-context .review-card { min-height: 100%; }
+  .review-source-passage { display: block; border-left: 1px solid var(--line); padding-left: var(--space-24); }
+  .review-has-context .review-card-following { display: none; }
+  .review-has-context .review-card-book-actions { margin-top: auto; }
+}
+/* On the cover, a live session owns the navigation's space; reveal and grades stay under the thumb. */
+@media (max-width: 599px) and (pointer: coarse) {
+  .app:has(.pane.active .review-session-active) .bottom-nav { display: none; }
+  .review-session-active .review-header { padding-top: var(--space-8); }
+  .review-session-active .review-register { display: none; }
+  .review-session-active .review-heading h1 { font-size: var(--text-control); line-height: var(--line-control); }
+  .review-session-active .review-deck-title { font-family: var(--font-body); }
+  .review-session-active .review-scroll { display: flex; flex-direction: column; padding-bottom: var(--space-8); }
+  .review-session-active .review-session-layout { display: flex; flex: 1; }
+  .review-session-active .review-card { flex: 1; padding-top: var(--space-24); }
+  .review-session-active .review-card-book-actions { margin-top: auto; }
+  .review-session-active .review-history { display: none; }
+  .review-session-actions { padding: var(--space-4) var(--space-16) max(var(--space-8), var(--bottom-inset)); }
+  .review-overview { grid-template-columns: 1fr; }
+  .review-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .review-done-actions { position: sticky; bottom: 0; padding-block: var(--space-12); background: var(--canvas); }
+  .review-done-actions > .review-start { flex: 1; }
+}

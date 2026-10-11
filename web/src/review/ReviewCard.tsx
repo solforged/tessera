@@ -4,11 +4,12 @@ import type { CardAnswerBlock, CardKind, CardRow, Grade } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { BlockBreadcrumb, BlockText } from '../outline/BlockText';
 import { Button } from '../ui/Button';
-import { Icon } from '../ui/Icon';
+import { Menu } from '../ui/Menu';
 import { Popup } from '../ui/Popup';
 import { clozeSegments } from './card-text';
 import type { ClozeSegment } from './card-text';
 import { gradeIntervals, gradeLabels } from './query';
+import type { ReviewSource } from './ReviewSource';
 import './review-card.css';
 
 export interface ReviewCardProps {
@@ -17,6 +18,9 @@ export interface ReviewCardProps {
   previews: readonly { grade: Grade; interval_days: number }[];
   resetPreviews: readonly { grade: Grade; interval_days: number }[];
   busy?: boolean;
+  context?: ReviewSource | null;
+  onReveal?(revealed: boolean): void;
+  onEdit(beside: boolean): void;
   onGrade(grade: Grade, reset: boolean): void | Promise<void>;
   onSource(beside: boolean): void;
   onReset(): void | Promise<void>;
@@ -34,6 +38,7 @@ export function ReviewCard(props: ReviewCardProps) {
   const [pending, setPending] = createSignal(false);
   const [error, setError] = createSignal('');
   const [resetAnchor, setResetAnchor] = createSignal<HTMLElement | null>(null);
+  const [actions, setActions] = createSignal<HTMLElement | null>(null);
   const answerId = createUniqueId();
   const locked = () => !!props.busy || pending();
   const changed = createMemo(() => {
@@ -63,9 +68,11 @@ export function ReviewCard(props: ReviewCardProps) {
     setPending(false);
     setError('');
     setResetAnchor(null);
+    setActions(null);
     if (focused) region.focus({ preventScroll: true });
   }));
   onCleanup(() => { disposed = true; });
+  createEffect(() => props.onReveal?.(revealed()));
 
   async function submit(action: () => void | Promise<void>, committed?: () => void) {
     if (locked()) return;
@@ -116,6 +123,9 @@ export function ReviewCard(props: ReviewCardProps) {
       return;
     }
     if (!revealed()) return;
+    if ((event.key === ' ' || event.key === 'Enter') && !target?.closest('button, a, summary, [role="button"]')) {
+      event.preventDefault(); event.stopPropagation(); grade('good'); return;
+    }
     const choice = grades.find(value => value.shortcut === event.key);
     if (choice) { event.preventDefault(); event.stopPropagation(); grade(choice.grade); }
   }
@@ -124,15 +134,15 @@ export function ReviewCard(props: ReviewCardProps) {
     onCleanup(() => region.removeEventListener('keydown', keydown));
   });
 
-  return <div ref={region} class="review-card" role="region" aria-label="Review card" aria-busy={locked()} tabIndex={0}>
+  return <div ref={region} class="review-card" role="region" aria-label="Review card" aria-busy={locked()} tabIndex={0} onClick={event => {
+    if (!window.matchMedia('(pointer: coarse)').matches || (event.target as Element).closest('button, a, summary, input, textarea, [role="button"]') || !window.getSelection()?.isCollapsed) return;
+    reveal();
+  }}>
     <div class="review-card-meta">
       <Button class="review-card-source" title="Open source · Shift opens beside" disabled={locked()} onClick={event => props.onSource(event.shiftKey)}>
-        <Icon name={props.notebook.lookup(props.item.source.block.page_id)()?.kind === 'journal' ? 'calendar' : 'page'} /><span><BlockBreadcrumb block={props.item.source.block} notebook={props.notebook} /></span>
+        <Show when={props.context} fallback={<BlockBreadcrumb block={props.item.source.block} notebook={props.notebook} />}>{context => <span>{context().source.source.siglum} · {context().source.page.text}<Show when={context().chapter}> · {context().chapter}</Show> · ¶{context().citation.ordinal + 1}</span>}</Show>
       </Button>
       <Show when={props.item.card.kind !== 'forward'}><span class="review-card-kind">{props.item.card.kind === 'reverse' ? 'Reverse' : props.item.card.kind === 'multiline' ? 'Multi-line' : props.item.card.kind === 'list' ? 'List' : `Cloze ${props.item.card.key.slice('cloze:c'.length)}`}</span></Show>
-      <Show when={revealed() && props.item.card.schedule.last_reviewed_at !== null}>
-        <Button class="review-card-reset-trigger" disabled={locked()} aria-haspopup="dialog" aria-expanded={!!resetAnchor()} onClick={event => setResetAnchor(event.currentTarget)}>Reset progress</Button>
-      </Show>
     </div>
     <Show when={changed()}><p class="review-card-change-notice">Wording changed since your last review.</p></Show>
     <Show when={gaps()} fallback={<>
@@ -144,6 +154,8 @@ export function ReviewCard(props: ReviewCardProps) {
       <ClozeText segments={segments()} revealed={revealed()} notebook={props.notebook} />
     </section>}</Show>
     <Show when={props.item.card.kind === 'list' && revealedItems() > 0}><p class="review-list-progress" role="status">{revealedItems()} of {itemCount()}</p></Show>
+    <Show when={revealed() && props.context?.following}><blockquote class="review-card-following">{props.context!.following}</blockquote></Show>
+    <div class="review-card-book-actions"><Button disabled={locked()} onClick={event => props.onSource(event.shiftKey)}>{props.context ? 'Open in the book' : 'Open source'}</Button><Button icon="more" label="Card actions" aria-haspopup="menu" disabled={locked()} onClick={event => setActions(event.currentTarget)} /></div>
     <Show when={revealed()} fallback={<div class="review-card-actions">
       <Button class="bordered" label={revealedItems() ? 'Reveal next item' : 'Reveal answer'} shortcut="Space" aria-keyshortcuts="Space" aria-expanded={revealedItems() > 0} aria-controls={answerId} disabled={locked()} onClick={reveal}>{revealedItems() ? 'Reveal next item' : 'Reveal answer'} <kbd>Space</kbd></Button>
     </div>}>
@@ -170,13 +182,18 @@ export function ReviewCard(props: ReviewCardProps) {
         </div>
       </section>}</Show>
       <div class="review-card-grades" role="group" aria-label="Grade answer">
-        <For each={grades}>{choice => <Button class="review-card-grade" label={choice.label} shortcut={choice.shortcut} aria-keyshortcuts={choice.shortcut} aria-label={`${choice.label}${interval(choice.grade) ? ` · ${interval(choice.grade)}` : ''}`} disabled={locked()} onClick={() => grade(choice.grade)}>
-          <span class="review-card-grade-label">{choice.label} <kbd>{choice.shortcut}</kbd></span>
+        <For each={grades}>{choice => <Button class="review-card-grade" classList={{ 'review-card-grade-default': choice.grade === 'good', 'review-card-grade-again': choice.grade === 'again' }} label={choice.label} shortcut={choice.shortcut} aria-keyshortcuts={choice.grade === 'good' ? `${choice.shortcut} Space Enter` : choice.shortcut} aria-label={`${choice.label}${choice.grade === 'good' ? ' · default' : ''}${interval(choice.grade) ? ` · ${interval(choice.grade)}` : ''}`} disabled={locked()} onClick={() => grade(choice.grade)}>
+          <span class="review-card-grade-label">{choice.label}<Show when={choice.grade === 'good'}><span class="visually-hidden"> (default)</span></Show> <kbd>{choice.shortcut}</kbd></span>
           <Show when={interval(choice.grade)}>{value => <span class="review-card-interval">{value()}</span>}</Show>
         </Button>}</For>
       </div>
     </Show>
     <Show when={error() && !resetAnchor()}><p class="error review-card-error" role="alert">{error()}</p></Show>
+    <Show keyed when={actions()}>{anchor => <Menu anchor={anchor} label="Card actions" onDismiss={() => setActions(null)} items={[
+      { label: props.context ? 'Open in the book' : 'Open source', action: () => props.onSource(false) },
+      { label: 'Edit card', action: () => props.onEdit(false) },
+      { label: 'Reset progress', disabledReason: !revealed() ? 'Reveal the answer first.' : props.item.card.schedule.last_reviewed_at === null ? 'This card has no progress yet.' : undefined, action: () => setResetAnchor(anchor) },
+    ]} />}</Show>
     <Show when={resetAnchor()}>{anchor => <Popup anchor={anchor()} label="Reset progress" class="review-card-reset" onDismiss={() => setResetAnchor(null)}>
       <p>Reset this card’s schedule? Review history stays.</p>
       <Show when={error()}><p class="error" role="alert">{error()}</p></Show>

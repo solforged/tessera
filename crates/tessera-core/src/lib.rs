@@ -71,3 +71,4 @@ pub use model::{
 pub use notebook::{DATABASE_FILE, Notebook, NotebookInfo, now_ms};
 pub use notes::{CrossReference, IndexKind, KindIndex, NoteEntry, NoteIndex, NoteKind, SeeTarget};
 pub use ownership::NotebookOwnership;
+pub use review_store::{ReviewForecastDay, ReviewStats};
