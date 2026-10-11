@@ -1,5 +1,4 @@
 import { For, Show, createEffect, createMemo, createRoot, createSignal } from 'solid-js';
-import type { JSX } from 'solid-js';
 import { ApiError } from '../api/client';
 import type { AgendaItem, TaskRow, WorkSession } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
@@ -9,70 +8,8 @@ import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Popup } from '../ui/Popup';
 import { statusIcons, statusLabels } from './TaskControls';
-import { groupAgenda, isFinished, taskFacts } from './task-labels';
+import { agendaTaskTime, isFinished, taskFacts } from './task-labels';
 import './agenda.css';
-
-export function AgendaSections(props: {
-  items: readonly AgendaItem[];
-  date: string;
-  /** Omit the source page label for rows from this page. */
-  pageId?: string;
-  /** Scheduled tasks and deadlines in the next six days. */
-  comingUp: readonly TaskRow[];
-  notebook: NotebookClient;
-  disabled?: boolean;
-  onOpen(target: OpenTarget, beside: boolean): void;
-  onChanged(): void;
-}) {
-  const groups = createMemo(() => {
-    const groups = groupAgenda(props.items, props.date);
-    const future = (row: TaskRow | AgendaItem) => !isFinished(row.task) && row.task.status !== 'doing'
-      && (!row.task.scheduled || row.task.scheduled > props.date) && (!row.task.deadline || row.task.deadline > props.date);
-    const planned = groups.planned.filter(row => !future(row));
-    const listed = new Set([...groups.overdue, ...planned].map(row => row.source.block.id));
-    const upcoming = new Map<string, TaskRow | AgendaItem>();
-    for (const row of [...groups.planned.filter(future), ...props.comingUp]) {
-      if (!isFinished(row.task) && !listed.has(row.source.block.id)) upcoming.set(row.source.block.id, row);
-    }
-    const nextDate = (row: TaskRow | AgendaItem) => [row.task.scheduled, row.task.deadline].filter((date): date is string => !!date && date > props.date).sort()[0] ?? '';
-    return { ...groups, planned, upcoming: [...upcoming.values()].sort((a, b) => nextDate(a).localeCompare(nextDate(b)) || a.source.block.text.localeCompare(b.source.block.text)) };
-  });
-  const [showUnplanned, setShowUnplanned] = createSignal(false);
-  const [showDone, setShowDone] = createSignal(false);
-  // Getters keep each group's rows mounted while the agenda refreshes, so a row's pending state survives.
-  const rowProps = { get date() { return props.date; }, get pageId() { return props.pageId; }, get notebook() { return props.notebook; }, get disabled() { return props.disabled; }, onOpen: (target: OpenTarget, beside: boolean) => props.onOpen(target, beside), onChanged: () => props.onChanged() };
-  return <>
-    <Show when={groups().overdue.length}>
-      <AgendaHeading name="Overdue" count={groups().overdue.length} late />
-      <TaskSourceRows rows={groups().overdue} {...rowProps} />
-    </Show>
-    <Show when={groups().planned.length}>
-      <AgendaHeading name={props.date === props.notebook.todayDate() ? 'Today' : 'Planned'} count={groups().planned.length} />
-      <TaskSourceRows rows={groups().planned} {...rowProps} />
-    </Show>
-    <Show when={groups().upcoming.length}>
-      <AgendaHeading name="Coming up" count={groups().upcoming.length} />
-      <TaskSourceRows rows={groups().upcoming} {...rowProps} />
-    </Show>
-    <Show when={groups().unplanned.length}>
-      <AgendaHeading name="Unplanned" count={groups().unplanned.length} expanded={showUnplanned()} onToggle={() => setShowUnplanned(value => !value)} />
-      <Show when={showUnplanned()}><TaskSourceRows rows={groups().unplanned} {...rowProps} /></Show>
-    </Show>
-    <Show when={groups().done.length}>
-      <AgendaHeading name="Done" count={groups().done.length} expanded={showDone()} onToggle={() => setShowDone(value => !value)} />
-      <Show when={showDone()}><TaskSourceRows rows={groups().done} {...rowProps} /></Show>
-    </Show>
-  </>;
-}
-
-/** A group heading like the journal's sections: name, hairline, count; collapsible groups add the chevron. */
-function AgendaHeading(props: { name: string; count: number; late?: boolean; expanded?: boolean; onToggle?(): void }): JSX.Element {
-  const content = <><span class="journal-section-name" classList={{ 'agenda-late': props.late }}>{props.name}</span><span class="agenda-summary" classList={{ 'agenda-late': props.late }}>· {props.count}</span><span class="section-rule" /></>;
-  return <Show when={props.onToggle} fallback={<div class="journal-agenda-toggle agenda-group-heading">{content}</div>}>
-    <Button class="journal-agenda-toggle agenda-group-heading" aria-expanded={!!props.expanded} onClick={() => props.onToggle?.()}>{content}<Icon name="down" /></Button>
-  </Show>;
-}
-
 
 /** Resolves once an opened document has loaded; rejects when it is missing or failed. */
 export function documentReady(doc: PageDocument): Promise<void> {
@@ -95,6 +32,10 @@ export function TaskSourceRows(props: {
   pageId?: string;
   notebook: NotebookClient;
   disabled?: boolean;
+  /** Day view puts the clock in a fixed gutter and provenance at the trailing edge. */
+  timetable?: boolean;
+  /** A lookahead group implies this plan date, while completion still uses the displayed date. */
+  plannedDate?: string;
   onOpen(target: OpenTarget, beside: boolean): void;
   onChanged(): void;
 }) {
@@ -102,7 +43,7 @@ export function TaskSourceRows(props: {
   const ids = createMemo(() => [...byId().keys()]);
   return <ul class="agenda-rows"><For each={ids()}>{id => {
     const initial = byId().get(id)!;
-    return <TaskSourceRow row={byId().get(id) ?? initial} date={props.date} pageId={props.pageId} notebook={props.notebook} disabled={props.disabled} onOpen={props.onOpen} onChanged={props.onChanged} />;
+    return <TaskSourceRow row={byId().get(id) ?? initial} date={props.date} pageId={props.pageId} notebook={props.notebook} disabled={props.disabled} timetable={props.timetable} plannedDate={props.plannedDate} onOpen={props.onOpen} onChanged={props.onChanged} />;
   }}</For></ul>;
 }
 
@@ -112,6 +53,8 @@ function TaskSourceRow(props: {
   pageId?: string;
   notebook: NotebookClient;
   disabled?: boolean;
+  timetable?: boolean;
+  plannedDate?: string;
   onOpen(target: OpenTarget, beside: boolean): void;
   onChanged(): void;
 }) {
@@ -120,7 +63,8 @@ function TaskSourceRow(props: {
   const [running, setRunning] = createSignal<{ anchor: HTMLElement; session: WorkSession; date: string; row: TaskRow | AgendaItem } | null>(null);
   const historical = () => 'reasons' in props.row && props.row.reasons.includes('recently_completed');
   const unfinished = () => !historical() && !isFinished(props.row.task);
-  const facts = createMemo(() => historical() ? [] : taskFacts(props.row.task, { date: props.date, today: props.notebook.todayDate(), listed: 'reasons' in props.row, timeShown: 'time' in props.row && !!props.row.time }));
+  const time = createMemo(() => props.timetable ? agendaTaskTime(props.row, props.plannedDate ?? props.date) : 'time' in props.row ? props.row.time : null);
+  const facts = createMemo(() => historical() ? [] : taskFacts(props.row.task, { date: props.plannedDate ?? props.date, today: props.notebook.todayDate(), listed: props.timetable || 'reasons' in props.row, timeShown: !!time() }));
   /** Opens the canonical source, runs one edit on its task block and saves it. */
   const editSource = async (row: TaskRow | AgendaItem, edit: (doc: PageDocument) => Promise<boolean | void>) => {
     if (busy() || props.disabled) return;
@@ -165,17 +109,21 @@ function TaskSourceRow(props: {
     const result = doc.edit({ kind: 'task', id: source.id, value: { ...source.task, status: 'todo', completed_on: null } });
     if (!result.ok) throw new Error(result.reason);
   });
-  return <li class="agenda-row" classList={{ 'agenda-row-completed': historical() || props.row.task.status === 'done', 'agenda-row-cancelled': !historical() && props.row.task.status === 'cancelled' }} aria-busy={busy()}>
+  return <li class="agenda-row" classList={{ 'agenda-row-timetable': props.timetable, 'agenda-row-completed': historical() || props.row.task.status === 'done', 'agenda-row-cancelled': !historical() && props.row.task.status === 'cancelled' }} aria-busy={busy()}>
+    <Show when={props.timetable}><span class="agenda-time-gutter">{time()}</span></Show>
     <Show when={!historical()} fallback={<span class="agenda-status task-status-button" data-status="done" aria-label="Done"><Icon name="check" /></span>}>
       <Button class="agenda-status task-status-button" data-status={props.row.task.status} label={`${unfinished() ? 'Complete' : 'Reopen'} task (${statusLabels[props.row.task.status]}): ${props.row.source.block.text}`} title={unfinished() ? `Complete on ${props.date}` : 'Reopen task'} disabled={busy() || props.disabled}
         onClick={event => { void (unfinished() ? complete(event.currentTarget, props.date) : reopen()); }}><Icon name={statusIcons[props.row.task.status]} /></Button>
     </Show>
     <button type="button" class="agenda-source" onClick={event => props.onOpen({ kind: 'page', pageId: props.row.source.page.id, blockId: props.row.source.block.id }, event.shiftKey)} title="Open source · Shift to open beside">
       <span class="agenda-source-text"><BlockText text={props.row.source.block.text || 'Empty task'} notebook={props.notebook} interactive={false} /></span>
-      <Show when={props.row.source.page.id !== props.pageId}><span class="agenda-source-page">{props.row.source.page.text}</span></Show>
+      <Show when={!props.timetable && props.row.source.page.id !== props.pageId}><span class="agenda-source-page">{props.row.source.page.text}</span></Show>
     </button>
+    <Show when={props.timetable && props.row.source.page.id !== props.pageId}>
+      <button type="button" class="agenda-provenance" aria-label={`Open source page, ${props.row.source.page.text}`} title={props.row.source.page.text} onClick={event => props.onOpen({ kind: 'page', pageId: props.row.source.page.id, blockId: props.row.source.block.id }, event.shiftKey)}>{props.row.source.page.kind === 'journal' ? 'Journal' : props.row.source.page.text}</button>
+    </Show>
     <span class="agenda-row-meta">
-      <Show when={'time' in props.row && props.row.time}><span class="agenda-time">{'time' in props.row ? props.row.time : null}</span></Show>
+      <Show when={!props.timetable && time()}><span class="agenda-time">{time()}</span></Show>
       <For each={facts()}>{fact => <span classList={{ 'agenda-late': !!fact.late }} title={fact.label}>{fact.text}</span>}</For>
     </span>
     <Show when={busy()}><p class="agenda-message" role="status">Saving… <Show when={props.notebook.saveState() !== 'saved'}>{props.notebook.saveMessage() || props.notebook.saveState()}</Show></p></Show>
