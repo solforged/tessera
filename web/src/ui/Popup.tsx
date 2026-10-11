@@ -3,8 +3,9 @@ import type { JSX } from 'solid-js';
 import { Portal } from 'solid-js/web';
 
 export type PopupAnchor = HTMLElement | DOMRect | (() => DOMRect | null);
-/** `anchor` hangs the panel off its trigger; `top` centres it near the top of the viewport, for palettes. */
-export type PopupPlacement = 'anchor' | 'top';
+/** `anchor` hangs the panel off its trigger; `top` centres it near the top of the viewport, for palettes; `sheet` rises
+ * from the bottom edge at full width, for touch screens. */
+export type PopupPlacement = 'anchor' | 'top' | 'sheet';
 export interface PopupProps {
   anchor: PopupAnchor;
   onDismiss(): void;
@@ -79,6 +80,11 @@ export function Popup(props: PopupProps) {
   let disposed = false;
   const place = () => {
     if (disposed) return;
+    if (props.placement === 'sheet') {
+      const height = Math.min(panel.scrollHeight + panel.offsetHeight - panel.clientHeight, Math.round(window.innerHeight * 0.85));
+      setPosition({ left: 0, top: window.innerHeight - height, height, visible: true });
+      return;
+    }
     const width = Math.min(props.width ?? panel.offsetWidth, window.innerWidth - 16);
     if (props.placement === 'top') {
       const top = Math.min(64, Math.round(window.innerHeight * 0.08));
@@ -176,5 +182,6 @@ export function Popup(props: PopupProps) {
     document.removeEventListener('selectionchange', reposition);
     if (panel && position().visible) retirePanel(panel);
   });
-  return <Portal><div ref={panel} class={`popup${position().visible ? ' popup-enter' : ''} ${props.class ?? ''}`} role={props.role ?? 'dialog'} aria-label={props.label} style={{ ...props.style, left: `${position().left}px`, top: `${position().top}px`, width: props.width ? `${Math.min(props.width, window.innerWidth - 16)}px` : undefined, 'max-height': `${position().height}px`, visibility: position().visible ? 'visible' : 'hidden' }}>{props.children}</div></Portal>;
+  const width = () => props.placement === 'sheet' ? '100vw' : props.width ? `${Math.min(props.width, window.innerWidth - 16)}px` : undefined;
+  return <Portal><div ref={panel} class={`popup${props.placement === 'sheet' ? ' popup-sheet' : ''}${position().visible ? ' popup-enter' : ''} ${props.class ?? ''}`} role={props.role ?? 'dialog'} aria-label={props.label} style={{ ...props.style, left: `${position().left}px`, top: `${position().top}px`, width: width(), 'max-height': `${position().height}px`, visibility: position().visible ? 'visible' : 'hidden' }}>{props.children}</div></Portal>;
 }

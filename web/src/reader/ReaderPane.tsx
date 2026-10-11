@@ -12,6 +12,8 @@ import { createHighlightActions, highlightColors, setLinkedCitation } from '../l
 import type { HighlightMenu, HighlightSection } from '../library/highlights';
 import { ResourceImage } from '../library/ResourceImage';
 import { documentReady } from '../tasks/JournalAgenda';
+import { BookMap } from '../ui/BookMap';
+import { bookChapters } from '../ui/book-map';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
@@ -26,6 +28,7 @@ import type { PassageSelection } from './passages';
 import { extendSelection, followOn, leadIn, sentenceAt, shrinkSelection } from './sentences';
 import type { SelectionUnit, SentenceSelection } from './sentences';
 import { ReaderSettingsPopup, readerSettings, readerStyle } from './ReaderSettings';
+import { ProgressCard } from './ProgressCard';
 import { chapterAt, pageChunk, timeLeft } from './paged';
 import type { PageChunk } from './paged';
 import { mergeMembers, overlappingHighlights } from './highlight-merge';
@@ -53,7 +56,7 @@ const PAGE_GAP = 48;
 const pageTurns: Record<string, 1 | -1> = { ArrowRight: 1, ArrowLeft: -1, PageDown: 1, PageUp: -1, ' ': 1 };
 /** A place in the paged flow: a passage and a character offset into its text. */
 type PageAnchor = { ordinal: number; offset: number };
-type ReaderPopup = { kind: 'contents' | 'find' | 'highlights' | 'settings' | 'actions'; anchor: HTMLElement } | { kind: 'note'; anchor: HTMLElement; text: string; loading: boolean } | { kind: 'menu'; anchor: HTMLElement; items: MenuItem[]; Header?: HighlightMenu['Header'] };
+type ReaderPopup = { kind: 'contents' | 'find' | 'highlights' | 'settings' | 'actions' | 'progress'; anchor: HTMLElement } | { kind: 'note'; anchor: HTMLElement; text: string; loading: boolean } | { kind: 'menu'; anchor: HTMLElement; items: MenuItem[]; Header?: HighlightMenu['Header'] };
 type SelectionToolbar = PassageSelection & { rect: DOMRect; snapshotId: string };
 /** Touch screens write a new highlight's note beside the passage, not in the source page. */
 const coarsePointer = window.matchMedia('(pointer: coarse)');
@@ -161,6 +164,9 @@ export function ReaderPane(props: ReaderPaneProps) {
   };
   /** The reading position. */
   const position = createMemo(() => { version(); return share(firstVisible()); });
+  /** The book as a map of chapters by character offset, the reading point on it and the highlights along it. */
+  const mapChapters = createMemo(() => bookChapters(contents(), currentSnapshot()?.text_length ?? 0));
+  const here = createMemo(() => { version(); return passages.get(firstVisible())?.start ?? 0; });
   /** The chapter being read: the outermost contents level with two or more entries, as paged reading uses. */
   const chapter = createMemo(() => chapterAt(sections(), total(), firstVisible()));
   /** Characters left in the chapter and in the text, from the start of the passage being read; null until known. */
@@ -224,6 +230,7 @@ export function ReaderPane(props: ReaderPaneProps) {
   const sourceHighlights = createMemo(() => highlights()
     .filter(row => row.citation.snapshot_id === snapshot())
     .sort((a, b) => a.citation.ordinal - b.citation.ordinal || a.citation.start.offset - b.citation.start.offset || a.citation.id.localeCompare(b.citation.id)));
+  const marks = createMemo(() => sourceHighlights().flatMap(row => row.citation.position === undefined ? [] : [{ at: row.citation.position, color: row.color }]));
   const filteredHighlights = createMemo(() => sourceHighlights().filter(row => `${row.citation.quote} ${highlightLocation(row.citation, sections())}`.toLocaleLowerCase().includes(query().toLocaleLowerCase())));
   const highlightNotes = createMemo(() => new Map(sourceHighlights().filter(row => row.notes > 0).map(row => [row.citation.id, row])));
 
@@ -1090,12 +1097,14 @@ export function ReaderPane(props: ReaderPaneProps) {
       <Button class="reader-contents" icon="contents" label="Contents" aria-haspopup="dialog" disabled={!contents().length} onClick={event => { setQuery(''); setPopup({ kind: 'contents', anchor: event.currentTarget }); }}><span>{currentSection()?.title ?? 'Contents'}</span><Icon name="down" /></Button>
       <Button icon="highlight" label="Highlights" aria-haspopup="dialog" disabled={!snapshot()} onClick={event => { setQuery(''); setPopup({ kind: 'highlights', anchor: event.currentTarget }); }}><Show when={sourceHighlights().length}><span>{sourceHighlights().length}</span></Show></Button>
       <Button icon="search" label="Find in source" aria-haspopup="dialog" disabled={!snapshot()} onClick={event => { setQuery(''); setPopup({ kind: 'find', anchor: event.currentTarget }); }} />
-      <span class="reader-progress" aria-label="Reading position">{formatProgress(position())}</span>
+      <Button class="reader-progress" label="Reading progress" aria-haspopup="dialog" disabled={!mapChapters().length} onClick={event => setPopup({ kind: 'progress', anchor: event.currentTarget })}>{formatProgress(position())}</Button>
       <Button label="Reader settings" aria-haspopup="dialog" onClick={event => setPopup({ kind: 'settings', anchor: event.currentTarget })}>Aa</Button>
       <Button class="reader-full-screen" icon={props.immersive ? 'contract' : 'expand'} label={props.immersive ? 'Exit full screen' : 'Full screen'} shortcut={props.immersive ? 'F or Esc' : 'F'} onClick={() => props.onImmersive(!props.immersive)} />
       <Button icon="more" label="Reader actions" aria-haspopup="menu" onPointerDown={event => event.preventDefault()} onClick={event => setPopup({ kind: 'actions', anchor: event.currentTarget })} />
     </div>
-    <div class="reader-progress-rule" aria-hidden="true"><span style={{ width: `${position() * 100}%` }} /></div>
+    <div class="reader-map"><Show when={mapChapters().length} fallback={<div class="reader-progress-rule" aria-hidden="true"><span style={{ width: `${position() * 100}%` }} /></div>}>
+      <BookMap chapters={mapChapters()} length={currentSnapshot()!.text_length} at={here()} highlights={marks()} label={`${formatProgress(position())} read`} />
+    </Show></div>
     <Show when={error()}><p class="reader-error error" role="alert">{error()}</p></Show>
     <Show when={loading()}><p class="reader-status" role="status">Loading…</p></Show>
     <Show when={mergeMessage()}><p class="reader-status" role="status">{mergeMessage()}</p></Show>
@@ -1150,6 +1159,9 @@ export function ReaderPane(props: ReaderPaneProps) {
     </Show>
     <Show when={popup()}>{state => <>
       <Show when={state().kind === 'settings'}><ReaderSettingsPopup anchor={state().anchor} onDismiss={() => setPopup(null)} /></Show>
+      <Show when={state().kind === 'progress'}><ProgressCard anchor={state().anchor} sheet={coverReading()} chapters={mapChapters()} length={currentSnapshot()?.text_length ?? 0} at={here()} highlights={marks()}
+        added={source()?.source.added_at ?? null} onDismiss={() => setPopup(null)}
+        onJump={chapter => { const entry = contents().find(value => value.start === chapter.start && value.ordinal !== null); if (entry) void openSection(entry); else setPopup(null); }} /></Show>
       <Show when={state().kind === 'actions'}><Menu anchor={state().anchor} label="Reader actions" items={readerActions()} onDismiss={() => setPopup(null)} /></Show>
       <Show when={state().kind === 'contents'}><Picker class="reader-picker" anchor={state().anchor} label="Contents" placeholder="Find a section" query={query()} onQuery={setQuery} items={toc()} key={entry => entry.locator} initial={Math.max(0, toc().indexOf(currentSection()!))}
         row={entry => <span class="reader-toc-entry" aria-current={entry === currentSection() ? 'true' : undefined} style={{ '--level': Math.max(0, entry.level - 1) }}><span class="reader-toc-check"><Show when={entry === currentSection()}><Icon name="check" /></Show></span><span>{entry.title}</span></span>}

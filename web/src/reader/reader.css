@@ -3,8 +3,33 @@
 .reader-header > * { flex-shrink: 0; }
 .reader-header .reader-contents { flex: 0 1 auto; min-width: 0; }
 .reader-contents > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.reader-progress { margin-left: auto; color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.reader-header .reader-progress.button { margin-left: auto; color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .reader-progress-rule { flex-shrink: 0; width: calc(100% - 2 * var(--space-24)); max-width: var(--reader-measure); height: 2px; margin: 0 auto var(--space-16); background: var(--line); font-size: var(--reader-size); }
+/* Under the toolbar, the book map: chapters sized by length, gilt to the reading point, highlights as dots. A book without placed contents keeps the plain rule. */
+.reader-map { flex-shrink: 0; width: calc(100% - 2 * var(--space-24)); max-width: var(--reader-measure); margin: 0 auto var(--space-16); font-size: var(--reader-size); }
+.reader-map > .reader-progress-rule { width: 100%; margin: 0; }
+/* The progress card, from the percentage: big numbers in Piazzolla, labels and lengths in mono, the chapters ahead as rows. */
+.reader-progress-card:not(.popup-sheet) { padding: var(--space-16); }
+.progress-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-16); }
+.reader-progress-card p { margin: 0; }
+.progress-card-share { font-size: var(--text-control); }
+.progress-card-share > b, .progress-card-times dd > b { font: var(--weight-display-heading) var(--text-h1)/var(--line-h1) var(--font-display); font-variation-settings: var(--optical-heading); }
+.progress-card-chapter { color: var(--muted); font-size: var(--text-control); }
+.progress-card-added, .progress-card-ends, .progress-card-minutes, .progress-card-note, .progress-card-times dt { color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.progress-card-added { flex-shrink: 0; text-align: right; }
+.reader-progress-card .book-map { margin-top: var(--space-16); }
+.reader-progress-card .progress-card-ends { display: flex; justify-content: space-between; margin-top: var(--space-8); }
+.progress-card-times { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-12) var(--space-16); margin: var(--space-16) 0; }
+.progress-card-times dt { text-transform: uppercase; }
+.progress-card-times dd { margin: 0; color: var(--text); font-size: var(--text-control); }
+.progress-card-times dd > span { margin-inline: 0.15em; }
+.progress-card-chapters { margin: 0; padding: 0; list-style: none; }
+.progress-card-chapters > li { border-top: 1px solid var(--line); }
+.progress-card-chapter-row.button { justify-content: space-between; width: 100%; gap: var(--space-12); padding-inline: 0; border-radius: 0; color: var(--muted); font-weight: var(--weight-body); text-align: left; }
+.progress-card-chapter-row.button > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.progress-card-chapter-row[aria-current].button { color: var(--text); box-shadow: inset var(--space-2) 0 var(--accent); padding-left: var(--space-8); }
+.progress-card-minutes { flex-shrink: 0; }
+.reader-progress-card .progress-card-note { margin-top: var(--space-12); }
 /* The cover screen reads without the pane header: a back arrow and the book's name head the page, and full screen has nothing left to hide. */
 .reader-masthead { display: none; }
 @media (max-width: 599px) and (pointer: coarse) {
@@ -44,8 +69,8 @@
 .reader-scroll-bar { width: calc(100% - 2 * var(--space-24)); max-width: var(--reader-measure); margin-inline: auto; }
 @media (max-width: 599px) { .reader-time-book { display: none; } }
 /* Full screen and the cover screen: the masthead, toolbar and reading rule fade out of the way and keep their room, so the text never moves. */
-.reader-pane > :is(.reader-masthead, .reader-header, .reader-progress-rule) { transition: opacity var(--motion-ui) var(--motion-ease); }
-.reader-chrome-hidden > :is(.reader-masthead, .reader-header, .reader-progress-rule) { opacity: 0; pointer-events: none; }
+.reader-pane > :is(.reader-masthead, .reader-header, .reader-map) { transition: opacity var(--motion-ui) var(--motion-ease); }
+.reader-chrome-hidden > :is(.reader-masthead, .reader-header, .reader-map) { opacity: 0; pointer-events: none; }
 .reader-passage { margin: 0; color: var(--text); font-family: var(--reader-font); font-size: var(--reader-size); line-height: var(--reader-line); font-weight: var(--weight-body); font-variation-settings: var(--optical-reader); white-space: pre-wrap; overflow-wrap: anywhere; }
 /* An opaque selection keeps inline highlight tints from changing its paint. */
 .reader-passage::selection, .reader-passage *::selection { background: var(--selection); color: var(--text); }

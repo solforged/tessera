@@ -41,6 +41,12 @@ a { color: var(--accent); }
 .popup-exit { z-index: 49; pointer-events: none; animation: popup-out var(--motion-fast) var(--motion-ease) both; }
 @keyframes popup-in { from { opacity: 0; transform: translateY(calc(-1 * var(--motion-distance))); } to { opacity: 1; transform: translateY(0); } }
 @keyframes popup-out { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(calc(-1 * var(--motion-distance))); } }
+/* A sheet rises from the bottom edge at full width, its top corners rounded, clear of the home indicator. */
+.popup-sheet { max-width: none; border-width: 1px 0 0; border-radius: var(--radius-popup) var(--radius-popup) 0 0; padding: var(--space-16) var(--space-16) calc(var(--space-16) + env(safe-area-inset-bottom)); }
+.popup-sheet.popup-enter { animation-name: sheet-in; }
+.popup-sheet.popup-exit { animation-name: sheet-out; }
+@keyframes sheet-in { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes sheet-out { from { transform: translateY(0); } to { transform: translateY(100%); } }
 .menu { min-width: 220px; }
 .menu-item { display: flex; align-items: center; width: 100%; gap: var(--space-8); padding: var(--space-4) var(--space-8); min-height: var(--row-height); background: transparent; border: 0; border-radius: var(--radius-control); font-size: var(--text-control); line-height: var(--line-control); text-align: left; transition: background-color var(--motion-fast) var(--motion-ease); }
 /* Keyboard focus in a menu is the selection fill with a gilt edge, the same as a selected row, not a ring. */
