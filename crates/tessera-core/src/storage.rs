@@ -336,12 +336,20 @@ pub(crate) fn rewrite_tags<'a>(
     Some(rewritten)
 }
 
+/// How to create a type page that a tag names but no live page has.
+#[derive(Clone, Copy)]
+pub(crate) struct TypeCreation<'a> {
+    /// The change creating the page; its ID derives from this and the title.
+    /// `None` only when migrating a notebook from before change IDs.
+    pub change_id: Option<&'a str>,
+    pub now: i64,
+}
+
 pub(crate) fn derive_memberships(
     conn: &Connection,
     id: &str,
     text: &str,
-    now: i64,
-    create_missing: bool,
+    create: Option<TypeCreation>,
 ) -> Result<Vec<Revision>> {
     conn.prepare_cached("DELETE FROM memberships WHERE block_id = ?1 AND manual = 0")?
         .execute([id])?;
@@ -352,7 +360,7 @@ pub(crate) fn derive_memberships(
         if titles.contains(&title_key) {
             continue;
         }
-        let type_id = resolve_type(conn, title, &title_key, now, create_missing, &mut created)?;
+        let type_id = resolve_type(conn, title, &title_key, create, &mut created)?;
         conn.prepare_cached(
             "INSERT INTO memberships(block_id, title_key, type_id, manual, title) VALUES (?1, ?2, ?3, 0, ?4)",
         )?
@@ -366,8 +374,7 @@ pub(crate) fn resolve_type(
     conn: &Connection,
     title: &str,
     title_key: &str,
-    now: i64,
-    create_missing: bool,
+    create: Option<TypeCreation>,
     created: &mut Vec<Revision>,
 ) -> Result<Option<String>> {
     let existing = conn
@@ -376,15 +383,20 @@ pub(crate) fn resolve_type(
         )?
         .query_row([title_key], |row| row.get(0))
         .optional()?;
-    if existing.is_some() || !create_missing {
+    let Some(create) = create.filter(|_| existing.is_none()) else {
         return Ok(existing);
-    }
-    let id = crate::notebook::new_ulid().to_string();
+    };
+    // A change creates a title's page at most once: the page stays live
+    // until the batch's final cleanup.
+    let id = match create.change_id {
+        Some(change) => crate::notebook::derived_id(&["type-page", change, title_key]),
+        None => crate::notebook::new_ulid().to_string(),
+    };
     conn.prepare_cached(
         "INSERT INTO blocks(id, kind, page_id, ordinal, text, title_key, revision, created_at, updated_at)
          VALUES (?1, 'page', ?1, 1024, ?2, ?3, 1, ?4, ?4)",
     )?
-    .execute(rusqlite::params![id, title, title_key, now])?;
+    .execute(rusqlite::params![id, title, title_key, create.now])?;
     conn.prepare_cached("INSERT INTO provisional_pages(id) VALUES (?1)")?
         .execute([&id])?;
     derive_links(conn, &id, title)?;

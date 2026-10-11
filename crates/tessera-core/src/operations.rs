@@ -4,23 +4,33 @@ use std::fmt::Write;
 use rusqlite::{OptionalExtension, Transaction, TransactionBehavior, params};
 use sha2::{Digest, Sha256};
 
-use crate::notebook::now_ms;
+use crate::notebook::{derived_id, new_ulid, now_ms};
 use crate::storage::{
-    Stored, derive_links, derive_memberships, not_found, resolve_type, rewrite_links, rewrite_tags,
-    stored, tag_names, tag_spelling, tag_title_matches, validate_id, validate_tag_title,
-    validate_text, validation,
+    Stored, TypeCreation, derive_links, derive_memberships, not_found, resolve_type, rewrite_links,
+    rewrite_tags, stored, tag_names, tag_spelling, tag_title_matches, validate_id,
+    validate_tag_title, validate_text, validation,
 };
 use crate::{
-    Batch, BlockCapabilities, BlockKind, Committed, Error, Notebook, Operation, Result,
-    ReviewSession, Revision, SettingRevision, TextRewrite, WorkSession,
+    Batch, BlockCapabilities, BlockKind, ChangeStamp, Committed, Error, Notebook, Operation,
+    Result, ReviewSession, Revision, SettingRevision, TextRewrite, WorkSession,
 };
 
 const GAP: i64 = 1024;
 
 impl Notebook {
-    /// Commit a revision-checked batch atomically, including derived indexes.
+    /// Commit a revision-checked batch atomically, including derived indexes,
+    /// as a new change made on this device now.
     pub fn apply(&mut self, batch: &Batch) -> Result<Committed> {
         self.apply_with(batch, |_, _| Ok(()))
+    }
+
+    /// [`Notebook::apply`] under an identity chosen elsewhere, such as a change
+    /// another device made. The stamp's time becomes every timestamp the
+    /// change writes, and IDs the change creates derive from its ID, so every
+    /// device reaches the same state. A change ID that was already committed
+    /// with the same operations returns the original result.
+    pub fn apply_stamped(&mut self, batch: &Batch, stamp: &ChangeStamp) -> Result<Committed> {
+        self.commit(batch, Some(stamp), |_, _| Ok(()))
     }
 
     /// [`Notebook::apply`], running `record` in the same transaction just
@@ -28,6 +38,15 @@ impl Notebook {
     pub(crate) fn apply_with(
         &mut self,
         batch: &Batch,
+        record: impl FnOnce(&Transaction, &Committed) -> Result<()>,
+    ) -> Result<Committed> {
+        self.commit(batch, None, record)
+    }
+
+    fn commit(
+        &mut self,
+        batch: &Batch,
+        stamp: Option<&ChangeStamp>,
         record: impl FnOnce(&Transaction, &Committed) -> Result<()>,
     ) -> Result<Committed> {
         let operations = serde_json::to_string(&batch.operations).expect("operations serialize");
@@ -41,35 +60,39 @@ impl Notebook {
         let tx = self
             .conn
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
-        if let Some(key) = &batch.idempotency_key {
-            let prior: Option<(String, String)> = tx
-                .query_row(
-                    "SELECT operations_hash, committed FROM changes WHERE idempotency_key = ?1",
-                    [key],
-                    |row| Ok((row.get(0)?, row.get(1)?)),
-                )
-                .optional()?;
-            if let Some((prior_hash, result)) = prior {
-                if hash != prior_hash {
-                    return Err(validation(
-                        "idempotency key was already used for different operations",
-                    ));
-                }
-                let mut committed: Committed = serde_json::from_str(&result)
-                    .map_err(|error| validation(format!("invalid stored result: {error}")))?;
-                committed.replayed = true;
+        if let Some(stamp) = stamp {
+            validate_id(&stamp.id)?;
+            validate_id(&stamp.origin)?;
+            if let Some(committed) = replay(&tx, "change_id", &stamp.id, &hash)? {
                 return Ok(committed);
             }
+        }
+        if let Some(key) = &batch.idempotency_key
+            && let Some(committed) = replay(&tx, "idempotency_key", key, &hash)?
+        {
+            return Ok(committed);
         }
         if batch.operations.is_empty() {
             return Err(validation("batch must contain an operation"));
         }
-        let now = now_ms();
+        let stamp = match stamp {
+            Some(stamp) => stamp.clone(),
+            None => ChangeStamp {
+                id: new_ulid().to_string(),
+                origin: tx.query_row(
+                    "SELECT device_id FROM replica WHERE singleton = 1",
+                    [],
+                    |row| row.get(0),
+                )?,
+                at: now_ms(),
+            },
+        };
+        let now = stamp.at;
         tx.execute(
-            "INSERT INTO changes(actor, reason, created_at, idempotency_key, operations_hash, operations, committed)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, '{}')",
+            "INSERT INTO changes(actor, reason, created_at, idempotency_key, operations_hash, operations, committed, change_id, origin)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, '{}', ?7, ?8)",
             params![serde_json::to_string(&batch.actor).expect("actor serializes"), batch.reason, now,
-                batch.idempotency_key, hash, operations],
+                batch.idempotency_key, hash, operations, stamp.id, stamp.origin],
         )?;
         let seq = tx.last_insert_rowid();
         let mut field_changes = crate::fields::FieldChanges::default();
@@ -77,6 +100,7 @@ impl Notebook {
             tx: &tx,
             now,
             seq,
+            change_id: &stamp.id,
             revisions: Vec::new(),
             settings: Vec::new(),
             capability_sources: HashSet::new(),
@@ -168,6 +192,35 @@ impl Notebook {
     }
 }
 
+/// The stored result of the change whose `column` is `value`, when one
+/// exists. The same identity with different operations is refused.
+fn replay(tx: &Transaction, column: &str, value: &str, hash: &str) -> Result<Option<Committed>> {
+    let prior: Option<(String, String)> = tx
+        .query_row(
+            &format!("SELECT operations_hash, committed FROM changes WHERE {column} = ?1"),
+            [value],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .optional()?;
+    let Some((prior_hash, result)) = prior else {
+        return Ok(None);
+    };
+    if hash != prior_hash {
+        let what = if column == "change_id" {
+            "change ID"
+        } else {
+            "idempotency key"
+        };
+        return Err(validation(format!(
+            "{what} was already used for different operations"
+        )));
+    }
+    let mut committed: Committed = serde_json::from_str(&result)
+        .map_err(|error| validation(format!("invalid stored result: {error}")))?;
+    committed.replayed = true;
+    Ok(Some(committed))
+}
+
 fn indexed(error: Error, index: usize) -> Error {
     match error {
         Error::NotFound { id, .. } => Error::NotFound {
@@ -195,6 +248,8 @@ struct Engine<'a, 'conn> {
     tx: &'a Transaction<'conn>,
     now: i64,
     seq: i64,
+    /// The change being applied; IDs it creates derive from this.
+    change_id: &'a str,
     revisions: Vec<Revision>,
     settings: Vec<SettingRevision>,
     capability_sources: HashSet<String>,
@@ -561,14 +616,17 @@ impl Engine<'_, '_> {
                     .query_row([id], |row| row.get(0))
                     .optional()?;
                 if let Some(text) = text {
-                    let mut created = derive_memberships(self.tx, id, &text, self.now, true)?;
+                    let create = Some(TypeCreation {
+                        change_id: Some(self.change_id),
+                        now: self.now,
+                    });
+                    let mut created = derive_memberships(self.tx, id, &text, create)?;
                     let manual = self.tx.prepare_cached(
                         "SELECT title_key, title FROM memberships WHERE block_id = ?1 AND manual = 1 AND type_id IS NULL",
                     )?.query_map([id], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))?
                         .collect::<rusqlite::Result<Vec<_>>>()?;
                     for (key, title) in manual {
-                        let type_id =
-                            resolve_type(self.tx, &title, &key, self.now, true, &mut created)?;
+                        let type_id = resolve_type(self.tx, &title, &key, create, &mut created)?;
                         self.tx.execute(
                             "UPDATE memberships SET type_id = ?1 WHERE block_id = ?2 AND title_key = ?3 AND manual = 1",
                             params![type_id, id, key],
@@ -799,8 +857,15 @@ impl Engine<'_, '_> {
             .collect::<rusqlite::Result<_>>()?)
     }
 
-    fn event(&mut self) -> Result<String> {
-        let id = crate::notebook::new_ulid().to_string();
+    /// A deletion event for `block`. An operation deletes a block at most
+    /// once, so the change, operation and block identify the event.
+    fn event(&mut self, block: &str) -> Result<String> {
+        let id = derived_id(&[
+            "deletion",
+            self.change_id,
+            &self.op_index.to_string(),
+            block,
+        ]);
         self.tx.execute(
             "INSERT INTO deletion_events(id, change_seq, created_at) VALUES (?1, ?2, ?3)",
             params![id, self.seq, self.now],
@@ -817,7 +882,7 @@ impl Engine<'_, '_> {
                 .insert(current.block.text.to_lowercase());
         }
         self.restructured_pages.insert(current.block.page_id);
-        let event = self.event()?;
+        let event = self.event(id)?;
         for (id, revision, deletion) in self.subtree(id)? {
             if deletion.is_none() {
                 self.tx.prepare_cached(

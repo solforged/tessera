@@ -28,6 +28,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/019_agent_changes.sql"),
     include_str!("../migrations/020_fsrs_child_cards.sql"),
     include_str!("../migrations/021_provisional_pages.sql"),
+    include_str!("../migrations/022_change_identity.sql"),
 ];
 
 pub const SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
@@ -65,9 +66,13 @@ pub(crate) fn migrate(conn: &mut Connection) -> Result<()> {
                 ))
             })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
-        let now = now_ms();
+        let create = Some(crate::storage::TypeCreation {
+            change_id: None,
+            now: now_ms(),
+        });
         while let Some((id, text, deleted)) = sources.pop() {
-            for created in derive_memberships(&tx, &id, &text, now, found < 3 && !deleted)? {
+            let create = create.filter(|_| found < 3 && !deleted);
+            for created in derive_memberships(&tx, &id, &text, create)? {
                 let text = tx.query_row(
                     "SELECT text FROM blocks WHERE id = ?1",
                     [&created.id],

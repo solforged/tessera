@@ -364,6 +364,17 @@ pub struct Batch {
     pub operations: Vec<Operation>,
 }
 
+/// A change's global identity: its ID, the device that made it and the time
+/// that device made it. Applying the same batch with the same stamp to the
+/// same state gives the same result on every device.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ChangeStamp {
+    pub id: String,
+    pub origin: String,
+    /// Unix milliseconds; every timestamp the change writes.
+    pub at: i64,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Revision {
     pub id: String,

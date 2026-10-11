@@ -304,7 +304,7 @@ fn write_review(
         // The client event ID always identifies the grade when both are committed.
         let reset_id = review
             .grade
-            .map(|_| crate::notebook::new_ulid().to_string());
+            .map(|_| crate::notebook::derived_id(&["reset", review.event_id]));
         insert_event(
             conn,
             Evidence {
