@@ -1,5 +1,5 @@
 /* Plex lacks the modifier keys, and the shipped subset lacks ← and →. Without this face, each
-   system drew its own: matched on macOS, mismatched on Android. scripts/build-key-font.py draws them
+   system drew its own: matched on macOS, mismatched on Android. `mise run fonts:keys` draws them
    in Plex's proportions; the range also replaces Plex's ↑ ↓ so the four arrows match. The file stays
    a file: font-src is 'self', so an inlined data: URL would be blocked. */
 @font-face {

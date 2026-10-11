@@ -84,20 +84,19 @@ The app checks the latest GitHub release a minute after launch, every six hours,
 Build a debug APK for arm64 and install it on a phone with USB debugging enabled:
 
 ```sh
-scripts/build-android
+mise run android:build
 adb install -r crates/tessera-android/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk
 ```
 
-The script needs a JDK (17 or newer) and the Android SDK with an NDK. It uses `JAVA_HOME`, `ANDROID_HOME` and `NDK_HOME` when set, or else asks mise for `java` and `android-sdk` and takes the newest NDK in the SDK. Extra arguments go to `tauri android build`. The Gradle project in `crates/tessera-android/gen/android` is committed; `tauri android init` regenerates it.
+mise provides the JDK and the Android SDK; the SDK needs an NDK (`sdkmanager --install 'ndk;<version>'`), or `NDK_HOME` must name one. Extra arguments go to `tauri android build`. The Gradle project in `crates/tessera-android/gen/android` is committed; `tauri android init` regenerates it.
 
 ### Command line
 
-Build a self-contained binary with Rust (stable) and Bun:
+Build a self-contained binary with [mise](https://mise.jdx.dev), which installs the pinned Rust, Bun and wasm tools from `mise.toml`:
 
 ```sh
-bun install --cwd web --frozen-lockfile
-bun run --cwd web build
-cargo install --path crates/tessera-cli --features embed-web
+mise install
+mise run cli:install
 tessera install
 ```
 
@@ -113,7 +112,7 @@ Logs go to stderr through `tracing`. `RUST_LOG` selects the filter, defaulting t
 
 ### Building the app
 
-`scripts/build-desktop` builds the editor, the command line and `target/release/bundle/macos/Tessera.app` for this Mac; extra arguments go to `tauri build`, such as `--bundles app`. To develop the window against a development service, run the built app's binary with `TESSERA_DESKTOP_URL=http://127.0.0.1:4320/`; it then leaves the launch agent alone and never updates itself.
+`mise run desktop:build` builds the editor, the command line and `target/release/bundle/macos/Tessera.app` for this Mac; extra arguments go to `tauri build`, such as `--bundles app`. To develop the window against a development service, run the built app's binary with `TESSERA_DESKTOP_URL=http://127.0.0.1:4320/`; it then leaves the launch agent alone and never updates itself.
 
 The macOS app accepts EPUBs opened from Finder, imports them into its notebook and shows the Library. To make it the default, select an `.epub` in Finder, choose **Get Info → Open with → Tessera → Change All…**. On Android, choose **Tessera** in the EPUB's **Open with** chooser, then **Always**; **Share → Tessera** also imports an EPUB. Android reads the sender's content URI while its permission grant is active, copies it into a private inbox, and clears that copy after submitting the import. Both shells show upload errors and ingestion progress through the Library.
 
@@ -121,7 +120,7 @@ Releases come from `v*` tags matching the workspace version. `.github/workflows/
 
 ### Shipping a build
 
-`scripts/ship [commit]` makes a commit (default `HEAD`) the installed app on this Mac. It builds Tessera.app in a separate worktree under `~/Library/Caches/tessera/ship`, so uncommitted edits never ship. It quits the app if it is running, replaces `/Applications/Tessera.app`, and runs the app's `tessera install` with the agent's previous executable as the rollback, so the notebook is backed up and the new build must answer. On success it links `~/.local/bin/tessera` to the app's command line; on failure it also puts back the previous app. It reopens the app if it was running. Settings shows the build's commit. A release newer than the shipped version replaces it through the app's updates.
+`mise run ship [commit]` makes a commit (default `HEAD`) the installed app on this Mac. It builds Tessera.app in a separate worktree under `~/Library/Caches/tessera/ship`, so uncommitted edits never ship. It quits the app if it is running, replaces `/Applications/Tessera.app`, and runs the app's `tessera install` with the agent's previous executable as the rollback, so the notebook is backed up and the new build must answer. On success it links `~/.local/bin/tessera` to the app's command line; on failure it also puts back the previous app. It reopens the app if it was running. Settings shows the build's commit. A release newer than the shipped version replaces it through the app's updates.
 
 ### Backup and restore
 
@@ -172,30 +171,30 @@ Agents without MCP use the same endpoints: `POST /api/agent-changes` with a body
 
 ## Development
 
-Requires Rust (stable) and Bun.
+Requires [mise](https://mise.jdx.dev). `mise install` installs the toolchain pinned in `mise.toml` and `mise.lock`; `mise tasks` lists the tasks, which the CI workflows run too.
 
 ```sh
-bun install --cwd web
-bun run --cwd web build
-cargo run -p tessera-cli -- --notebook .tessera/dev serve --port 4320 --assets web/dist
+mise install
+mise run serve
 ```
 
-Open <http://127.0.0.1:4320>. Port 4318 belongs to the installed app. Without `--notebook` (or `TESSERA_NOTEBOOK`), the notebook lives in the platform data directory under `tessera/notebook`. A missing notebook is created; an existing one is never overwritten.
+`serve` builds the editor and serves the notebook in `.tessera/dev` at <http://127.0.0.1:4320>. Port 4318 belongs to the installed app. Without `--notebook` (or `TESSERA_NOTEBOOK`), `tessera` keeps the notebook in the platform data directory under `tessera/notebook`. A missing notebook is created; an existing one is never overwritten.
 
-For live reloading, run the service with `--dev-origin http://127.0.0.1:5173` and `bun run --cwd web dev` in a second terminal, then open <http://127.0.0.1:5173>.
+For live reloading, run `mise run serve --dev-origin http://127.0.0.1:5173` and `mise run web:dev` in a second terminal, then open <http://127.0.0.1:5173>.
 
 The service binds to loopback only and rejects other hosts and browser origins. `tessera info` prints the notebook's identity as JSON.
 
-Checks: `cargo fmt --all --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`, and `bun run --cwd web build`. Backend budgets: `cargo run --release -p tessera-bench -- --root /tmp/tessera-bench --fail-on budgets`.
+Checks: `mise run check` runs formatting, Clippy, the Rust and editor tests, and the editor build; `mise run fmt` formats. Backend budgets: `mise run bench --root /tmp/tessera-bench --fail-on budgets`. `mise run fonts:keys` redraws the key glyphs in `web/src/ui/fonts/keys.woff2`.
 
 ### Browser demo
 
-<https://tessera.solforged.io> runs the real notebook engine in the browser: `tessera-core` and the service's notebook and library routes compile to wasm (`crates/tessera-web`) and run in a worker over SQLite in the browser's private storage. The tour seeds a public-domain EPUB from Project Gutenberg (Marcus Aurelius' *Meditations*, `web/src/demo/meditations.epub`) for the library and reader, and visitors can upload their own EPUBs. Web articles, backups and service details are left out. Build it with `rustup target add wasm32-unknown-unknown`, `rustup component add llvm-tools` and `cargo install wasm-bindgen-cli --version 0.2.129 --locked`, then:
+<https://tessera.solforged.io> runs the real notebook engine in the browser: `tessera-core` and the service's notebook and library routes compile to wasm (`crates/tessera-web`) and run in a worker over SQLite in the browser's private storage. The tour seeds a public-domain EPUB from Project Gutenberg (Marcus Aurelius' *Meditations*, `web/src/demo/meditations.epub`) for the library and reader, and visitors can upload their own EPUBs. Web articles, backups and service details are left out. Build it with:
 
 ```sh
-scripts/build-demo-wasm.sh
-bun run --cwd web build:demo
+mise run demo:build
 ```
+
+It compiles the engine with the wasm32 target, binds it with wasm-bindgen into `web/src/demo/pkg`, shrinks it with `wasm-opt`, then builds the pages.
 
 The output in `web/dist-demo` is static; serve it with every non-asset path rewritten to `demo.html` (see `web/vercel.json`). `.github/workflows/demo.yml` builds and deploys it to Vercel on each push to `main` once the `VERCEL_TOKEN`, `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID` secrets exist.
 

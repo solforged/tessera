@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
-# Build a commit (default HEAD) into Tessera.app and make it the live app on
-# this Mac.
+#MISE description="Build a commit (default HEAD) into Tessera.app and make it the live app on this Mac"
+#USAGE arg "[commit]" help="The commit to ship" default="HEAD"
 #
 # Builds in a separate worktree, so uncommitted edits never ship. Replaces
 # /Applications/Tessera.app, then runs its `tessera install`, which backs up
 # the notebook, restarts the launch agent on port 4318 with the new build and
 # waits for it. If the new build does not answer, install restores the backup
-# with the previous build and puts that build back; this script then puts the
+# with the previous build and puts that build back; this task then puts the
 # previous app back too.
 set -euo pipefail
 
 root=$(git rev-parse --show-toplevel)
-commit=$(git -C "$root" rev-parse --verify "${1:-HEAD}^{commit}")
+commit=$(git -C "$root" rev-parse --verify "${usage_commit:-HEAD}^{commit}")
 build=$(git -C "$root" rev-parse --short "$commit")
 cache="$HOME/Library/Caches/tessera"
 src="$cache/ship"
@@ -36,7 +36,9 @@ else
   mkdir -p "$cache"
   git -C "$root" worktree add --quiet --detach "$src" "$commit"
 fi
-TESSERA_BUILD="$build" "$src/scripts/build-desktop" --bundles app >/dev/null
+# The worktree's mise.toml is this repository's, at another path.
+mise trust --quiet "$src/mise.toml"
+TESSERA_BUILD="$build" mise --cd "$src" run --quiet desktop:build --bundles app >/dev/null
 
 # Replacing the app replaces the binary the agent may run, so keep a copy to
 # roll back to.
