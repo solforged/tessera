@@ -32,6 +32,7 @@ pub(crate) fn routes() -> Router<AppState> {
         .route("/api/sync/objects/missing", post(missing_objects))
         .route("/api/sync/objects/{sha}", get(object).put(store_object))
         .route("/api/sync/rows", post(exchange_rows))
+        .route("/api/sync/retire", post(retire))
         // Book text and long offline runs of edits outgrow the default limit.
         .layer(DefaultBodyLimit::max(256 * 1024 * 1024))
 }
@@ -276,6 +277,25 @@ async fn exchange_rows(
     })
     .await?;
     Ok(Json(pull).into_response())
+}
+
+#[derive(Serialize, Deserialize)]
+pub(crate) struct RetireRequest {
+    pub device: String,
+}
+
+async fn retire(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    request: Result<Json<RetireRequest>, JsonRejection>,
+) -> Result<StatusCode, ApiError> {
+    same_schema(&headers)?;
+    let Json(request) = request?;
+    run(&state, move |notebook| {
+        notebook.sync_retire(&request.device)
+    })
+    .await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 /// A stored file. A replica that does not have it yet fetches it from its

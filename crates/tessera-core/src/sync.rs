@@ -239,6 +239,8 @@ pub trait Hub {
         rows: &UnloggedRows,
         after: i64,
     ) -> Result<UnloggedPull>;
+    /// Stop keeping patches for `device`, which is being cloned again.
+    fn retire(&mut self, device: &str) -> Result<()>;
 }
 
 /// Hub changes per pull.
@@ -254,7 +256,7 @@ pub const PUSH_LIMIT: usize = 200;
 /// stops keeping patches for it, and it has to be cloned again.
 pub const RETIRE_AFTER_MS: i64 = 30 * 24 * 60 * 60 * 1000;
 const RETIRED: &str = "the hub retired this replica after 30 days without syncing; \
-     changes it pushed are kept, but it has to be cloned again";
+     changes it pushed are kept, but it has to be cloned again (tessera sync reclone)";
 
 impl Hub for Notebook {
     fn push(&mut self, device: &str, changes: &[PushedChange]) -> Result<Vec<PushReceipt>> {
@@ -288,6 +290,9 @@ impl Hub for Notebook {
         after: i64,
     ) -> Result<UnloggedPull> {
         self.sync_exchange_rows(device, rows, after)
+    }
+    fn retire(&mut self, device: &str) -> Result<()> {
+        self.sync_retire(device)
     }
 }
 
@@ -1015,38 +1020,13 @@ impl Notebook {
 
     /// Push this replica's changes to `hub` and bring it up to the hub.
     pub fn sync_with(&mut self, hub: &mut dyn Hub) -> Result<SyncReport> {
-        let outbox = self.sync_outbox()?;
-        let mut report = SyncReport::default();
-        if !outbox.snapshots.is_empty() {
-            let missing = hub.missing_snapshots(&outbox.snapshots)?;
-            let mut rest = missing.as_slice();
-            while !rest.is_empty() {
-                let content = self.sync_snapshot_content(rest)?;
-                hub.store_snapshots(&content)?;
-                rest = &rest[content.len()..];
-            }
-            report.sent_snapshots = missing.len();
-        }
-        // The hub keeps every file; send the ones these changes need first.
-        let objects = self.sync_outbox_objects(&outbox)?;
-        if !objects.is_empty() {
-            for sha in hub.missing_objects(&objects)? {
-                hub.store_object(&sha, &self.read_object(&sha)?)?;
-                report.sent_objects += 1;
-            }
-        }
-        for changes in outbox.changes.chunks(PUSH_LIMIT) {
-            report.pushed.extend(hub.push(&outbox.device_id, changes)?);
-        }
-        // The hub now has the changes this device's reading positions and
-        // surfacings name. Send those before pulling, so a retired replica,
-        // whose pull fails, still delivers them.
-        report.sent_rows = self.sync_unlogged_with(hub, false)?.0;
+        let mut report = self.sync_send(hub)?;
+        let device = self.device_id()?;
         // Apply the hub's changes a page at a time: a long catch-up holds one
         // page, and an interrupted one resumes after the last page applied.
         loop {
             let confirmed = self.require_replica()?.confirmed_seq;
-            let pull = hub.pull(&outbox.device_id, confirmed, confirmed)?;
+            let pull = hub.pull(&device, confirmed, confirmed)?;
             let missing = self.sync_missing_snapshots(&pull.snapshots)?;
             let mut rest = missing.as_slice();
             while !rest.is_empty() {
@@ -1082,6 +1062,55 @@ impl Notebook {
             }
         }
         Ok(report)
+    }
+
+    /// Send `hub` everything this replica has that the hub has not seen: the
+    /// snapshots and files its changes need, the changes, and its reading
+    /// positions and surfacings. A retired replica can still send.
+    pub fn sync_send(&mut self, hub: &mut dyn Hub) -> Result<SyncReport> {
+        let outbox = self.sync_outbox()?;
+        let mut report = SyncReport::default();
+        if !outbox.snapshots.is_empty() {
+            let missing = hub.missing_snapshots(&outbox.snapshots)?;
+            let mut rest = missing.as_slice();
+            while !rest.is_empty() {
+                let content = self.sync_snapshot_content(rest)?;
+                hub.store_snapshots(&content)?;
+                rest = &rest[content.len()..];
+            }
+            report.sent_snapshots = missing.len();
+        }
+        // The hub keeps every file; send the ones these changes need first.
+        let objects = self.sync_outbox_objects(&outbox)?;
+        if !objects.is_empty() {
+            for sha in hub.missing_objects(&objects)? {
+                hub.store_object(&sha, &self.read_object(&sha)?)?;
+                report.sent_objects += 1;
+            }
+        }
+        for changes in outbox.changes.chunks(PUSH_LIMIT) {
+            report.pushed.extend(hub.push(&outbox.device_id, changes)?);
+        }
+        // The hub now has the changes this device's reading positions and
+        // surfacings name. Send those before pulling, so a retired replica,
+        // whose pull fails, still delivers them.
+        report.sent_rows = self.sync_unlogged_with(hub, false)?.0;
+        Ok(report)
+    }
+
+    /// Hub side: stop keeping patches for `device`, which is being cloned
+    /// again. It can still push.
+    pub fn sync_retire(&mut self, device: &str) -> Result<()> {
+        self.known_replica(device)?;
+        let tx = self.conn.transaction()?;
+        let now = now_ms();
+        tx.execute(
+            "UPDATE sync_replicas SET retired_at = ?2 WHERE device_id = ?1 AND retired_at IS NULL",
+            params![device, now],
+        )?;
+        prune(&tx, now)?;
+        tx.commit()?;
+        Ok(())
     }
 
     /// Kept conflict text and rejected changes, newest first.
