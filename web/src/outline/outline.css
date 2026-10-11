@@ -87,6 +87,7 @@
 .outline-body.heading-2 { font-size: var(--text-outline-h2); line-height: var(--line-h2); }
 .outline-body.heading-3 { font-size: var(--text-h3); line-height: var(--line-h3); }
 .outline-reference { display: inline; font: inherit; color: var(--accent); border: 0; padding: 0; background: transparent; text-align: left; text-decoration: underline; text-decoration-thickness: var(--rule-width); text-underline-offset: var(--space-4); text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent); cursor: pointer; }
+button.outline-reference { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 .outline-reference:hover { text-decoration-color: var(--danger); }
 /* The `[[query]]` a picker is completing: accent text on a tint, so the pending link reads as one span. */
 .outline-reference-draft { color: var(--accent); background: var(--accent-tint); border-radius: var(--radius-control); }

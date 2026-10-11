@@ -19,6 +19,9 @@ import './reference-preview.css';
 const OPEN_DELAY = 350;
 /** Grace period for crossing the gap between a reference and its card. */
 const CLOSE_DELAY = 200;
+/** A deliberate touch hold opens the same slip without activating the link. */
+const HOLD_DELAY = 650;
+const HOLD_SLOP = 10;
 const PAGE_ROWS = 3;
 const BLOCK_ROWS = 6;
 const WIDTH = 380;
@@ -33,6 +36,7 @@ interface Entry {
   anchor: () => DOMRect | null;
   pane: PaneId | null;
   keyboard: boolean;
+  touch?: boolean;
   panel?: HTMLElement;
 }
 
@@ -71,6 +75,9 @@ export function ReferencePreviews(props: ReferencePreviewsProps) {
   let pending = 0;
   let closing = 0;
   let pointer = { x: 0, y: 0 };
+  let holding: { pointerId: number; link: HTMLElement; x: number; y: number } | null = null;
+  let holdTimer = 0;
+  let heldLink: HTMLElement | null = null;
 
   const truncate = (depth: number) => { if (stack().length > depth) setStack(entries => entries.slice(0, depth)); };
   const open = (entry: Omit<Entry, 'key'>, depth: number) => {
@@ -82,7 +89,7 @@ export function ReferencePreviews(props: ReferencePreviewsProps) {
     closing = window.setTimeout(() => {
       // Keep every card up to the deepest one under the pointer or pinned.
       let keep = 0;
-      stack().forEach((entry, index) => { if (pinned().has(entry.key) || entry.keyboard || entry.panel?.matches(':hover') || entry.link?.matches(':hover')) keep = index + 1; });
+      stack().forEach((entry, index) => { if (pinned().has(entry.key) || entry.keyboard || entry.touch || entry.panel?.matches(':hover') || entry.link?.matches(':hover')) keep = index + 1; });
       truncate(keep);
     }, CLOSE_DELAY);
   };
@@ -125,6 +132,53 @@ export function ReferencePreviews(props: ReferencePreviewsProps) {
     if (stack().length) scheduleClose();
   };
   const move = (event: PointerEvent) => { pointer = { x: event.clientX, y: event.clientY }; };
+
+  const cancelHold = () => { clearTimeout(holdTimer); holding = null; };
+  const touchOpen = (link: HTMLElement, y: number) => {
+    const id = referenceId(link);
+    if (!id || !link.isConnected || heldLink?.dataset.reference === id) return;
+    clearTimeout(pending);
+    heldLink = link;
+    // Preview loading refreshes labels, which can replace the rendered button.
+    const host = link.parentElement;
+    const sourceStart = link.dataset.sourceStart;
+    const anchor = () => {
+      const current = link.isConnected ? link : host?.querySelector<HTMLElement>(`button.outline-reference[data-reference="${id}"][data-source-start="${sourceStart}"]`);
+      return current ? lineAnchor(current, y)() : null;
+    };
+    const depth = stack().findIndex(entry => entry.panel?.contains(link)) + 1;
+    const pane = (link.closest<HTMLElement>('[data-pane]')?.dataset.pane as PaneId | undefined) ?? stack()[depth - 1]?.pane ?? null;
+    open({ id, link, anchor, pane, keyboard: false, touch: true }, depth);
+  };
+  const touchStart = (event: PointerEvent) => {
+    cancelHold();
+    heldLink = null;
+    if (event.pointerType !== 'touch' || !event.isPrimary) return;
+    // Leave the editor's reference widgets and ambiguous-name picker alone.
+    const link = (event.target as Element).closest?.<HTMLElement>('button.outline-reference[data-reference]');
+    if (!link) return;
+    holding = { pointerId: event.pointerId, link, x: event.clientX, y: event.clientY };
+    holdTimer = window.setTimeout(() => { if (holding) touchOpen(holding.link, holding.y); }, HOLD_DELAY);
+  };
+  const touchMove = (event: PointerEvent) => {
+    if (holding?.pointerId === event.pointerId && Math.hypot(event.clientX - holding.x, event.clientY - holding.y) > HOLD_SLOP) cancelHold();
+  };
+  const touchEnd = (event: PointerEvent) => {
+    if (holding?.pointerId === event.pointerId) cancelHold();
+  };
+  const touchContext = (event: MouseEvent) => {
+    const link = (event.target as Element).closest?.<HTMLElement>('button.outline-reference[data-reference]');
+    if (!link || holding?.link !== link && heldLink?.dataset.reference !== link.dataset.reference) return;
+    event.preventDefault(); event.stopImmediatePropagation();
+    touchOpen(link, holding?.y ?? event.clientY);
+  };
+  const touchClick = (event: MouseEvent) => {
+    const link = (event.target as Element).closest?.<HTMLElement>('button.outline-reference[data-reference]');
+    if (!heldLink || link?.dataset.reference !== heldLink.dataset.reference) return;
+    // Loading the preview can replace the token button before the compatibility click.
+    event.preventDefault(); event.stopImmediatePropagation();
+    heldLink = null;
+  };
 
   /** ⌥Space at a reference: the editor caret's token, or a focused reference button. */
   const keyboardEntry = (): Omit<Entry, 'key'> | null => {
@@ -179,14 +233,27 @@ export function ReferencePreviews(props: ReferencePreviewsProps) {
     document.addEventListener('pointerover', over);
     document.addEventListener('pointerout', out);
     document.addEventListener('pointermove', move, { passive: true });
+    document.addEventListener('pointerdown', touchStart, true);
+    document.addEventListener('pointermove', touchMove, { passive: true });
+    document.addEventListener('pointerup', touchEnd, true);
+    document.addEventListener('pointercancel', touchEnd, true);
+    document.addEventListener('contextmenu', touchContext, true);
+    document.addEventListener('click', touchClick, true);
     document.addEventListener('keydown', keydown, true);
   });
   onCleanup(() => {
     clearTimeout(pending); clearTimeout(closing);
+    cancelHold();
     document.removeEventListener('pointerover', over);
     document.removeEventListener('pointerout', out);
     document.removeEventListener('pointermove', move);
     document.removeEventListener('keydown', keydown, true);
+    document.removeEventListener('pointerdown', touchStart, true);
+    document.removeEventListener('pointermove', touchMove);
+    document.removeEventListener('pointerup', touchEnd, true);
+    document.removeEventListener('pointercancel', touchEnd, true);
+    document.removeEventListener('contextmenu', touchContext, true);
+    document.removeEventListener('click', touchClick, true);
   });
 
   return <For each={stack()}>{(entry, index) =>
