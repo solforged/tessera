@@ -128,7 +128,7 @@
 .reader-highlight-note .icon { width: 1em; height: 1em; }
 .reader-flash { outline: 1px solid var(--accent); }
 .reader-placeholder { min-height: calc(var(--line-body) * 4); }
-.reader-toc-entry { display: flex; align-items: center; gap: var(--space-8); min-width: 0; padding-left: calc(var(--level) * var(--indent-width)); }
+.reader-toc-entry { display: flex; flex: 1; align-items: center; gap: var(--space-8); min-width: 0; padding-left: calc(var(--level) * var(--indent-width)); }
 .reader-toc-entry > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .reader-toc-check { display: flex; flex: 0 0 var(--space-16); }
 .reader-highlight-entry { display: flex; align-items: center; gap: var(--space-8); min-width: 0; width: 100%; }
