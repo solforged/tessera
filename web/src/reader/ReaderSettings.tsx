@@ -45,9 +45,10 @@ export const readerStyle = () => ({
   '--reader-measure': widths[readerSettings().width],
 });
 
-export function ReaderSettingsPopup(props: { anchor: HTMLElement; onDismiss(): void }) {
+/** On a touch screen the settings rise as a sheet from the bottom edge, so the text they change stays in sight above. */
+export function ReaderSettingsPopup(props: { anchor: HTMLElement; sheet: boolean; onDismiss(): void }) {
   const sizeIndex = () => sizes.indexOf(readerSettings().size);
-  return <Popup anchor={props.anchor} label="Reader settings" class="reader-settings" onDismiss={props.onDismiss}>
+  return <Popup anchor={props.anchor} placement={props.sheet ? 'sheet' : 'anchor'} label="Reader settings" class="reader-settings" onDismiss={props.onDismiss}>
     <div class="reader-setting"><span>Layout</span><div class="mode-tabs" role="group" aria-label="Layout"><For each={Object.keys(layouts) as (keyof typeof layouts)[]}>{layout =>
       <Button aria-pressed={readerSettings().layout === layout} onClick={() => setSettings({ layout })}>{layouts[layout]}</Button>
     }</For></div></div>

@@ -28,7 +28,7 @@ export function HighlightComposer(props: { notebook: NotebookClient; draft: High
   const [ready, setReady] = createSignal(false);
   const [closing, setClosing] = createSignal(false);
   const [error, setError] = createSignal('');
-  let input!: HTMLTextAreaElement, context!: HTMLElement, quote!: HTMLQuoteElement;
+  let input!: HTMLTextAreaElement, context!: HTMLElement, quote!: HTMLQuoteElement, root!: HTMLDivElement;
   let disposed = false;
   const failed = (reason: unknown) => { if (!disposed) setError(reason instanceof Error ? reason.message : String(reason)); };
   /** The whole quotation and as much of the lead-in as fits; the sentence after it scrolls into view. */
@@ -57,7 +57,7 @@ export function HighlightComposer(props: { notebook: NotebookClient; draft: High
     setError(result.ok ? '' : result.reason);
   }
 
-  /** Text is already saved as it is typed; closing removes an empty note and waits for the save. */
+  /** Text is already saved as it is typed; closing removes an empty note, waits for the save, then lets the page show through. */
   async function close() {
     if (closing()) return;
     setClosing(true);
@@ -67,12 +67,16 @@ export function HighlightComposer(props: { notebook: NotebookClient; draft: High
         if (!result.ok) throw new Error(result.reason);
       }
       await doc.flush();
+      if (disposed) return;
+      input.blur();
+      root.classList.add('reader-compose-leaving');
+      await root.getAnimations().find(animation => animation instanceof CSSAnimation && animation.animationName === 'fade-out')?.finished.catch(() => undefined);
       if (!disposed) props.onClose();
     } catch (reason) { failed(reason); setClosing(false); }
   }
 
   const status = () => error() || (ready() ? doc.saveMessage() : 'Loading…');
-  return <Portal><div class="reader-compose" style={readerStyle()} role="dialog" aria-modal="true" aria-label="Note on this passage"
+  return <Portal><div ref={root} class="reader-compose" style={readerStyle()} role="dialog" aria-modal="true" aria-label="Note on this passage"
     onKeyDown={event => { if (event.key === 'Escape' && !event.isComposing) { event.preventDefault(); void close(); } }}>
     <header class="reader-compose-header">
       <h2>{props.draft.title}</h2>

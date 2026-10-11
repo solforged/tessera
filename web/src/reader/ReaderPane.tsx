@@ -6,6 +6,7 @@ import { ulid } from 'ulid';
 import type { Citation, HighlightRow, Passage, PassageHit, PassagePage, SourceView, TocEntry } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import type { OpenTarget, PaneId, ReaderViewState } from '../shell/contract';
+import { setSystemBarsHidden } from '../shell/system-bars';
 import { sourceMetadata } from '../library/details';
 import { formatProgress, highlightLocation } from '../library/query';
 import { createHighlightActions, highlightColors, setLinkedCitation } from '../library/highlights';
@@ -103,6 +104,14 @@ export function ReaderPane(props: ReaderPaneProps) {
   const [flash, setFlash] = createSignal<Citation | null>(null);
   const [highlights, setHighlights] = createSignal<HighlightRow[]>([]);
   const [composing, setComposing] = createSignal<HighlightNoteDraft | null>(null);
+  /** A new highlight, drawing itself under its words; a note's highlight draws once the note sheet has gone. */
+  const [ink, setInk] = createSignal<string | null>(null);
+  let inkTimer = 0, composedCitation = '';
+  function drawInk(citationId: string) {
+    clearTimeout(inkTimer);
+    setInk(citationId);
+    inkTimer = window.setTimeout(() => setInk(null), cssValue('--motion-ink') + cssValue('--motion-ui'));
+  }
   const paged = () => readerSettings().layout === 'pages';
   const [chunk, setChunk] = createSignal<PageChunk | null>(null);
   const [pageIndex, setPageIndex] = createSignal(0);
@@ -130,8 +139,12 @@ export function ReaderPane(props: ReaderPaneProps) {
     for (const passage of passages.values()) { if (passage.kind === 'quote') quotes++; else if (passage.kind === 'paragraph') plain++; }
     return quotes >= 12 && quotes > plain;
   });
-  let scroll!: HTMLDivElement, probe!: HTMLDivElement, header!: HTMLDivElement, frame: HTMLDivElement | undefined, margin: HTMLElement | undefined;
+  let scroll!: HTMLDivElement, probe!: HTMLDivElement, header!: HTMLDivElement, frame: HTMLDivElement | undefined, flow: HTMLDivElement | undefined, margin: HTMLElement | undefined;
   let pointerStart: { x: number; y: number; touch: boolean } | null = null, wheelTotal = 0, lastWheel = 0, lastTurn = 0, countFrame = 0;
+  /** A finger dragging the page sideways in Pages: its offset and speed, once it has moved far enough to tell a swipe from a scroll. */
+  let drag: { axis: 'x' | 'y' | null; offset: number; time: number; velocity: number } | null = null;
+  /** A page sliding into place; `done` turns the frame to its page in the same frame the flow lets go. */
+  let slide: { animation: Animation; done(): void } | null = null;
   // The character that relayouts keep on screen: set by turning, jumping and the cursor, never by a relayout itself.
   // A passage alone is not enough: a long one spans pages, and returning to its start would walk back a page each time.
   let pageAnchor: PageAnchor = { ordinal: 0, offset: 0 };
@@ -140,6 +153,8 @@ export function ReaderPane(props: ReaderPaneProps) {
   let reportTimer = 0, positionTimer = 0, flashTimer = 0;
   let keyboardQueue = Promise.resolve(), keyboardPending = 0, keyboardVersion = 0, rewritingSelection = false;
   let shiftPressed = false;
+  /** The tap that closes a popup or clears a selection does only that: no page turn, no chrome. */
+  let dismissingTap = false;
   let settingsViewport: { ordinal: number; offset: number } | null = null, settingsAtStart = false, settingsFromPages = false, settingsVersion = 0;
   const requests = new AbortController();
   const virtualizer = createVirtualizer<HTMLDivElement, HTMLDivElement>({
@@ -256,6 +271,12 @@ export function ReaderPane(props: ReaderPaneProps) {
   }
   createEffect(() => { if (!chromeHides() || popup()) showChrome(false); });
   createEffect(() => { if (props.immersive && !coarsePointer.matches) showChrome(true); });
+  // Android's status and navigation bars leave with the chrome and return with it.
+  createEffect(() => {
+    if (!chromeHides() || !chromeHidden()) return;
+    setSystemBarsHidden(true);
+    onCleanup(() => setSystemBarsHidden(false));
+  });
   // WebKit sends pointermove when the page turns under a resting mouse; only a real move shows the chrome.
   let lastPointer = '';
   function pointerMoved(event: PointerEvent) {
@@ -365,6 +386,41 @@ export function ReaderPane(props: ReaderPaneProps) {
 
   const nextFrame = () => new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
   const pageStride = () => pageFrame().width + PAGE_GAP;
+  /** A length token in px or a duration token in ms (minified CSS writes some in seconds); reduced motion sets the durations to zero. */
+  const cssValue = (name: string) => {
+    const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim(), number = parseFloat(value) || 0;
+    return /\ds$/.test(value) ? number * 1000 : number;
+  };
+  const motionEase = () => getComputedStyle(document.documentElement).getPropertyValue('--motion-ease').trim() || 'ease-out';
+
+  /** Ends a running slide at once, on its page. */
+  function endSlide() {
+    const value = slide;
+    if (!value) return;
+    slide = null;
+    value.animation.cancel();
+    value.done();
+  }
+
+  /**
+   * Moves an element sideways through `keyframes`, then runs `done` before the next paint. The flow carries a page
+   * within the frame; the frame itself moves where there is no page beside it to show, since a flow pushed past the
+   * last page would only shrink the frame's scroll range and stand still.
+   */
+  function slideFlow(element: HTMLElement | undefined, keyframes: Keyframe[], duration: number, done: () => void) {
+    endSlide();
+    if (flow) flow.style.transform = '';
+    if (frame) frame.style.transform = '';
+    if (!element || duration <= 0) { done(); return; }
+    const value = { animation: element.animate(keyframes, { duration, easing: motionEase(), fill: 'forwards' }), done };
+    slide = value;
+    value.animation.onfinish = () => { if (slide === value) endSlide(); };
+  }
+
+  /** A drag that does not turn the page springs back. */
+  function settle(from: number, element = flow) {
+    if (from) slideFlow(element, [{ transform: `translateX(${from}px)` }, { transform: 'translateX(0)' }], cssValue('--motion-ui'), () => {});
+  }
 
   /**
    * One column per page, or two when the pane fits two of at least 22em; never wider than the measure allows.
@@ -396,6 +452,8 @@ export function ReaderPane(props: ReaderPaneProps) {
   }));
 
   function applyPage(index: number) {
+    endSlide();
+    if (!drag) { if (flow) flow.style.transform = ''; if (frame) frame.style.transform = ''; }
     setPageIndex(index);
     if (frame) frame.scrollLeft = index * pageStride();
   }
@@ -493,39 +551,95 @@ export function ReaderPane(props: ReaderPaneProps) {
     else await showPassage(pageAnchor, () => disposed);
   }
 
-  /** Turn a page; past a chunk's edge, lay out the neighbouring chunk. */
-  async function turn(direction: 1 | -1) {
-    const value = chunk();
-    if (!value || restoring || editing()) return;
+  /**
+   * Turn a page: the next one slides in from the side it lies on, from wherever a drag left the flow (`from`). Past a
+   * chunk's edge the neighbouring chunk is laid out while the page fades aside, and its page fades in from that side.
+   */
+  async function turn(direction: 1 | -1, from = 0) {
+    endSlide();
+    const value = chunk(), next = pageIndex() + direction, within = next >= 0 && next < pageCount();
+    if (!value || restoring || editing()) { settle(from, within ? flow : frame); return; }
     userScroll = true; suppressed = false; lastTurn = performance.now();
     setSelection(null); setCursor(null);
-    const next = pageIndex() + direction;
-    if (next >= 0 && next < pageCount()) applyPage(next);
-    else {
-      const ordinal = direction > 0 ? value.last + 1 : value.first - 1;
-      if (ordinal < 0 || ordinal >= total()) return;
-      const token = ++jumpVersion, epoch = generation;
-      restoring = true;
-      try { await showPassage({ ordinal, offset: 0 }, () => disposed || epoch !== generation || token !== jumpVersion, direction < 0 ? 'last' : undefined); }
-      finally { if (token === jumpVersion) restoring = false; }
+    const turned = () => {
+      pageAnchor = firstOnPage() ?? pageAnchor;
+      report();
+      clearTimeout(positionTimer);
+      positionTimer = window.setTimeout(() => { void savePosition(); }, 2000);
+    };
+    if (within) {
+      // The distance left sets the pace, so a page a drag has carried most of the way finishes sooner.
+      const to = -direction * pageStride(), left = Math.abs(to - from) / pageStride();
+      slideFlow(flow, [{ transform: `translateX(${from}px)` }, { transform: `translateX(${to}px)` }], cssValue('--motion-page') * Math.max(0.5, left), () => { applyPage(next); turned(); });
+      return;
     }
-    pageAnchor = firstOnPage() ?? pageAnchor;
-    report();
-    clearTimeout(positionTimer);
-    positionTimer = window.setTimeout(() => { void savePosition(); }, 2000);
+    const ordinal = direction > 0 ? value.last + 1 : value.first - 1;
+    if (ordinal < 0 || ordinal >= total()) { settle(from, frame); return; }
+    const token = ++jumpVersion, epoch = generation, shift = -direction * cssValue('--space-24'), fade = cssValue('--motion-fast');
+    restoring = true;
+    if (frame) frame.style.transform = '';
+    const leaving = frame && fade ? frame.animate([{ transform: `translateX(${from}px)`, opacity: 1 }, { transform: `translateX(${from + shift}px)`, opacity: 0 }], { duration: fade, easing: motionEase(), fill: 'forwards' }) : null;
+    // The next chapter's text loads while the page fades; it is laid out only once the page has gone, so it never shows half faded.
+    try {
+      await Promise.all([loadPage(ordinal), leaving?.finished.catch(() => undefined)]);
+      await showPassage({ ordinal, offset: 0 }, () => disposed || epoch !== generation || token !== jumpVersion, direction < 0 ? 'last' : undefined);
+    }
+    finally { if (token === jumpVersion) restoring = false; leaving?.cancel(); }
+    if (disposed || token !== jumpVersion) return;
+    const arrive = cssValue('--motion-ui');
+    if (frame && arrive) frame.animate([{ transform: `translateX(${-shift}px)`, opacity: 0 }, { transform: 'translateX(0)', opacity: 1 }], { duration: arrive, easing: motionEase() });
+    turned();
+  }
+
+  function readerPointerDown(event: PointerEvent) {
+    userScroll = true;
+    drag = null;
+    if (dismissingTap) { pointerStart = null; return; }
+    pointerStart = { x: event.clientX, y: event.clientY, touch: event.pointerType !== 'mouse' };
+    if (pointerStart.touch && paged() && frame?.isConnected) { endSlide(); drag = { axis: null, offset: 0, time: event.timeStamp, velocity: 0 }; }
   }
 
   /**
-   * Touch: in pages a sideways swipe or a tap in the outer sixth of the page turns it. Where the chrome can step aside
-   * (full screen, the cover screen), any other tap on the text shows or hides it.
+   * In Pages a finger carries the page sideways: the neighbouring page follows it in, and at the book's first or last
+   * page, or a chapter not yet laid out, the page gives a little instead. A long press selects text as usual.
+   */
+  function readerPointerMove(event: PointerEvent) {
+    const value = drag, start = pointerStart;
+    if (!value || !start || !flow || !frame) return;
+    const dx = event.clientX - start.x, dy = event.clientY - start.y;
+    if (!value.axis) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      value.axis = Math.abs(dx) > 1.5 * Math.abs(dy) && window.getSelection()?.isCollapsed !== false && !restoring && !editing() ? 'x' : 'y';
+    }
+    if (value.axis !== 'x') return;
+    if (window.getSelection()?.isCollapsed === false) { drag = null; settle(value.offset, flow.style.transform ? flow : frame); return; }
+    const next = pageIndex() + (dx < 0 ? 1 : -1), within = next >= 0 && next < pageCount();
+    // Without a page beside it the page gives at most a gutter's width, easing off as the finger goes on.
+    const give = cssValue('--space-48');
+    const offset = within ? Math.max(-pageStride(), Math.min(pageStride(), dx)) : Math.sign(dx) * give * (1 - Math.exp(-Math.abs(dx) / (2 * give)));
+    value.velocity = (offset - value.offset) / Math.max(1, event.timeStamp - value.time);
+    value.offset = offset; value.time = event.timeStamp;
+    (within ? flow : frame).style.transform = `translateX(${offset}px)`;
+    (within ? frame : flow).style.transform = '';
+  }
+
+  /**
+   * Touch: in pages a swipe past a quarter of the page, or a flick, turns it, and so does a tap in the outer sixth of
+   * the page. Where the chrome can step aside (full screen, the cover screen), any other tap on the text shows or
+   * hides it.
    */
   function readerPointerUp(event: PointerEvent) {
-    const start = pointerStart;
-    pointerStart = null;
+    const start = pointerStart, value = drag;
+    pointerStart = null; drag = null;
+    if (start && value?.axis === 'x') {
+      const dx = event.clientX - start.x, flick = Math.abs(value.velocity) > 0.3 && Math.abs(dx) > 24 && Math.sign(value.velocity) === Math.sign(dx);
+      if (flick || Math.abs(dx) > pageStride() / 4) void turn(dx < 0 ? 1 : -1, value.offset);
+      else settle(value.offset, flow?.style.transform ? flow : frame);
+      return;
+    }
     if (!start?.touch || window.getSelection()?.isCollapsed === false) return;
     const sheet = paged() && frame?.isConnected ? frame : undefined;
     const dx = event.clientX - start.x, dy = event.clientY - start.y;
-    if (sheet && Math.abs(dx) > 48 && Math.abs(dx) > 1.5 * Math.abs(dy)) { void turn(dx < 0 ? 1 : -1); return; }
     if (Math.abs(dx) > 8 || Math.abs(dy) > 8 || event.target instanceof Element && event.target.closest('button, a, .reader-highlight')) return;
     if (sheet) {
       const rect = sheet.getBoundingClientRect(), x = event.clientX - rect.left;
@@ -533,6 +647,12 @@ export function ReaderPane(props: ReaderPaneProps) {
       if (x > rect.width * 5 / 6) { void turn(1); return; }
     }
     if (chromeHides()) { clearTimeout(chromeTimer); setChromeHidden(value => !value); }
+  }
+
+  function readerPointerCancel() {
+    pointerStart = null;
+    if (drag?.axis === 'x') settle(drag.offset, flow?.style.transform ? flow : frame);
+    drag = null;
   }
 
   function pageWheel(event: WheelEvent) {
@@ -815,17 +935,21 @@ export function ReaderPane(props: ReaderPaneProps) {
     const sourceId = props.target.sourceId, doc = readerDocument;
     try {
       const plan = await prepareMerges(value, color), range = plan.selectedRange!;
+      const citationId = plan.merges[0]?.citation.id ?? ulid();
       const result = plan.merges.length ? doc.edit({ kind: 'mergeHighlights', merges: plan.merges, note: withNote })
         : doc.edit({ kind: 'highlight', parentId: sourceId, text: range.quote, color, note: withNote, citation: {
-          id: ulid(), sourceId, snapshotId: range.snapshotId, start: range.start, end: range.end, quote: range.quote, locator: range.locator, ordinal: range.first,
+          id: citationId, sourceId, snapshotId: range.snapshotId, start: range.start, end: range.end, quote: range.quote, locator: range.locator, ordinal: range.first,
         } });
       if (!result.ok) { setEditError(result.reason); return; }
       const highlightId = plan.merges[0]?.citation.block_id ?? result.created[0]!;
       await doc.flush();
       if (!disposed) {
         setSelection(null); window.getSelection()?.removeAllRanges();
-        if (withNote && coarsePointer.matches) setComposing(noteDraft(value, result.created.at(-1)!));
-        else if (withNote) props.onOpen({ kind: 'page', pageId: sourceId, blockId: highlightId, caretId: result.created.at(-1) }, true);
+        if (withNote && coarsePointer.matches) { composedCitation = citationId; setComposing(noteDraft(value, result.created.at(-1)!)); }
+        else {
+          drawInk(citationId);
+          if (withNote) props.onOpen({ kind: 'page', pageId: sourceId, blockId: highlightId, caretId: result.created.at(-1) }, true);
+        }
       }
     } catch (reason) { if (!disposed) setEditError(reason instanceof Error ? reason.message : String(reason)); }
     finally { if (!disposed) setEditing(false); }
@@ -938,7 +1062,9 @@ export function ReaderPane(props: ReaderPaneProps) {
       { label: props.immersive ? 'Exit full screen' : 'Full screen', shortcut: 'F', action: () => props.onImmersive(!props.immersive) },
     ];
   });
-  const trackShift = (event: KeyboardEvent | PointerEvent) => { shiftPressed = event.shiftKey; };
+  const trackShift = (event: KeyboardEvent) => { shiftPressed = event.shiftKey; };
+  // Registered before any popup opens, so it sees the popup and selection a tap is about to dismiss.
+  const pointerDown = (event: PointerEvent) => { shiftPressed = event.shiftKey; dismissingTap = !!popup() || window.getSelection()?.isCollapsed === false; };
 
   const readerKey = (event: KeyboardEvent) => {
     if (props.active && (event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === 'z' && !(event.target instanceof HTMLElement && event.target.closest('input, textarea, [contenteditable="true"]'))) {
@@ -995,7 +1121,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     document.addEventListener('keydown', readerKey, true);
     document.addEventListener('keydown', trackShift, true);
     document.addEventListener('keyup', trackShift, true);
-    document.addEventListener('pointerdown', trackShift, true);
+    document.addEventListener('pointerdown', pointerDown, true);
     // Folding, unfolding and the sidebar change the page; keep the passage being read in view.
     let pageSize = '', resizeFrame = 0;
     const resizer = new ResizeObserver(() => {
@@ -1053,13 +1179,13 @@ export function ReaderPane(props: ReaderPaneProps) {
     disposed = true; requests.abort();
     readerDocument.release();
     setLinkedCitation(null);
-    clearTimeout(reportTimer); clearTimeout(positionTimer); clearTimeout(flashTimer);
+    clearTimeout(reportTimer); clearTimeout(positionTimer); clearTimeout(flashTimer); clearTimeout(inkTimer);
     document.removeEventListener('selectionchange', selected);
     document.removeEventListener('keydown', selectionKey, true);
     document.removeEventListener('keydown', readerKey, true);
     document.removeEventListener('keydown', trackShift, true);
     document.removeEventListener('keyup', trackShift, true);
-    document.removeEventListener('pointerdown', trackShift, true);
+    document.removeEventListener('pointerdown', pointerDown, true);
   });
 
   function PassageContent(row: { ordinal: number; onImageLoad(): void }) {
@@ -1075,7 +1201,7 @@ export function ReaderPane(props: ReaderPaneProps) {
         component={value().kind === 'heading' ? `h${Math.min(3, Math.max(1, value().level ?? 1))}` : value().kind === 'quote' && !quotesAreText() ? 'blockquote' : value().kind === 'code' ? 'pre' : 'div'}
         class={`reader-passage reader-${value().kind === 'quote' && quotesAreText() ? 'paragraph' : value().kind}`} classList={{ 'reader-cursor': props.active && cursor() === row.ordinal, 'reader-absorbed': absorbed().hidden.has(row.ordinal), 'reader-first': absorbed().first.has(row.ordinal) }} aria-current={props.active && cursor() === row.ordinal ? 'true' : undefined}
         data-passage-id={value().id} data-ordinal={value().ordinal} style={{ '--level': Math.max(0, value().level ?? 0) }}>
-        <Show when={value().kind === 'image' && value().resource} fallback={<PassageText passage={value()} citations={citations()} notes={highlightNotes()} ordinals={(() => { version(); return ordinals; })()} flashId={flash()?.id ?? null} onLocate={at => { void jumpTo(at); }} onNote={(at, anchor) => { void note(at, anchor); }} onCitation={clickedCitation} onHighlightNote={row => { void openHighlightNote(row); }} />}>
+        <Show when={value().kind === 'image' && value().resource} fallback={<PassageText passage={value()} citations={citations()} notes={highlightNotes()} ordinals={(() => { version(); return ordinals; })()} flashId={flash()?.id ?? null} inkId={ink()} onLocate={at => { void jumpTo(at); }} onNote={(at, anchor) => { void note(at, anchor); }} onCitation={clickedCitation} onHighlightNote={row => { void openHighlightNote(row); }} />}>
           <ResourceImage snapshotId={snapshot()} href={value().resource!} alt={value().text} onLoad={row.onImageLoad} />
         </Show>
       </Dynamic>}</Show>
@@ -1148,10 +1274,12 @@ export function ReaderPane(props: ReaderPaneProps) {
       const left = Math.max(0, viewport.left), right = Math.min(window.innerWidth, viewport.right);
       const top = Math.max(0, viewport.top), bottom = Math.min(window.innerHeight, viewport.bottom);
       const gap = parseFloat(getComputedStyle(element).getPropertyValue('--space-4'));
-      // The cover screen docks the toolbar across the foot of the page, in thumb reach, and at the head only when the selection runs down there.
-      if (coverReading()) {
+      // Touch screens dock the toolbar at the foot of the page, in thumb reach and clear of the system's own text menu
+      // beside the selection, and at the head only when the selection runs down there. It keeps to the reading measure.
+      if (coarsePointer.matches) {
         const inset = gap * 3, height = element.offsetHeight, foot = bottom - height - gap;
-        setPlacement({ left: left + inset, top: value.rect.bottom > foot - gap ? top + gap : foot, width: right - left - 2 * inset, visible: true, docked: true });
+        const width = Math.min(right - left - 2 * inset, probe.getBoundingClientRect().width);
+        setPlacement({ left: (left + right - width) / 2, top: value.rect.bottom > foot - gap ? top + gap : foot, width, visible: true, docked: true });
         return;
       }
       const width = Math.min(element.offsetWidth, right - left), height = element.offsetHeight;
@@ -1208,8 +1336,7 @@ export function ReaderPane(props: ReaderPaneProps) {
       </Show>
       <div ref={scroll} class="reader-scroll" classList={{ 'reader-paged': paged() }} style={{ '--reader-frame-width': `${pageFrame().width}px` }} tabIndex={0} aria-label="Source passages" onScroll={scrolled}
         onWheel={() => { userScroll = true; }} onTouchMove={() => { userScroll = true; }}
-        onPointerDown={event => { userScroll = true; pointerStart = { x: event.clientX, y: event.clientY, touch: event.pointerType !== 'mouse' }; }}
-        onPointerUp={readerPointerUp} onPointerCancel={() => { pointerStart = null; }}
+        onPointerDown={readerPointerDown} onPointerMove={readerPointerMove} onPointerUp={readerPointerUp} onPointerCancel={readerPointerCancel}
         onKeyDown={event => { if (['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp', 'Home', 'End', ' '].includes(event.key)) userScroll = true; }}>
         <Show when={paged()} fallback={<div class="reader-list" style={{ height: `${virtualizer.getTotalSize()}px` }}>
           <Show when={title()}><TitleBlock /></Show>
@@ -1221,7 +1348,7 @@ export function ReaderPane(props: ReaderPaneProps) {
             <span>{chapterName() || (pageFrame().columns === 2 ? '' : title())}</span>
           </div>
           <div ref={frame} class="reader-page-frame" style={{ width: `${pageFrame().width}px` }} onWheel={pageWheel}>
-            <div class="reader-flow" style={{ 'column-count': pageFrame().columns, 'column-gap': `${PAGE_GAP}px` }}>
+            <div ref={flow} class="reader-flow" style={{ 'column-count': pageFrame().columns, 'column-gap': `${PAGE_GAP}px` }}>
               <Show when={chunk()?.first === 0 && title()}><div class="reader-title-block reader-page-title"><TitlePage /></div></Show>
               <For each={chunkOrdinals()}>{ordinal => <PassageContent ordinal={ordinal} onImageLoad={scheduleCount} />}</For>
             </div>
@@ -1246,15 +1373,15 @@ export function ReaderPane(props: ReaderPaneProps) {
       </div>
     </div>
     <Show when={popup()}>{state => <>
-      <Show when={state().kind === 'settings'}><ReaderSettingsPopup anchor={state().anchor} onDismiss={() => setPopup(null)} /></Show>
+      <Show when={state().kind === 'settings'}><ReaderSettingsPopup anchor={state().anchor} sheet={coarsePointer.matches} onDismiss={() => setPopup(null)} /></Show>
       <Show when={state().kind === 'progress'}><ProgressCard anchor={state().anchor} sheet={coverReading()} chapters={mapChapters()} length={currentSnapshot()?.text_length ?? 0} at={here()} highlights={marks()}
         added={source()?.source.added_at ?? null} onDismiss={() => setPopup(null)}
         onJump={chapter => { const entry = contents().find(value => value.start === chapter.start && value.ordinal !== null); if (entry) void openSection(entry); else setPopup(null); }} /></Show>
       <Show when={state().kind === 'actions'}><Menu anchor={state().anchor} label="Reader actions" items={readerActions()} onDismiss={() => setPopup(null)} /></Show>
-      <Show when={state().kind === 'contents'}><Picker class="reader-picker" anchor={state().anchor} label="Contents" placeholder="Find a section" query={query()} onQuery={setQuery} items={toc()} key={entry => entry.locator} initial={Math.max(0, toc().indexOf(currentSection()!))}
+      <Show when={state().kind === 'contents'}><Picker class="reader-picker" anchor={state().anchor} label="Contents" placeholder="Find a section" autofocus={!coarsePointer.matches} query={query()} onQuery={setQuery} items={toc()} key={entry => entry.locator} initial={Math.max(0, toc().indexOf(currentSection()!))}
         row={entry => <span class="reader-toc-entry" aria-current={entry === currentSection() ? 'true' : undefined} style={{ '--level': Math.max(0, entry.level - 1) }}><span class="reader-toc-check"><Show when={entry === currentSection()}><Icon name="check" /></Show></span><span>{entry.title}</span></span>}
         onPick={entry => { void openSection(entry); }} empty="No sections" onDismiss={() => setPopup(null)} /></Show>
-      <Show when={state().kind === 'highlights'}><Picker class="reader-picker" anchor={state().anchor} label="Highlights" placeholder="Find a highlight" query={query()} onQuery={setQuery} items={filteredHighlights()} key={row => row.citation.id}
+      <Show when={state().kind === 'highlights'}><Picker class="reader-picker" anchor={state().anchor} label="Highlights" placeholder="Find a highlight" autofocus={!coarsePointer.matches} query={query()} onQuery={setQuery} items={filteredHighlights()} key={row => row.citation.id}
         row={row => <div class="reader-highlight-entry"><span class={`highlight-color-dot highlight-color-${row.citation.color ?? 'none'}`} aria-hidden="true" /><span class="reader-highlight-quote">{row.citation.quote}</span><span class="reader-highlight-section">{highlightLocation(row.citation, sections())}</span></div>} busy={highlightsLoading()} error={highlightsError()} empty="No highlights"
         onPick={row => { void jumpHighlight(row.citation); }} onDismiss={() => setPopup(null)} /></Show>
       <Show when={state().kind === 'menu'}><Menu anchor={state().anchor} label="Actions for highlight" items={(() => { const value = state(); return value.kind === 'menu' ? value.items : []; })()} header={(() => { const value = state(); return value.kind === 'menu' && value.Header ? <value.Header onDismiss={() => setPopup(null)} /> : undefined; })()} onDismiss={() => setPopup(null)} /></Show>
@@ -1268,7 +1395,7 @@ export function ReaderPane(props: ReaderPaneProps) {
       </Popup></Show>
     </>}</Show>
     <Show when={selection()}><SelectionTools /></Show>
-    <Show when={composing()}>{draft => <HighlightComposer notebook={props.notebook} draft={draft()} onClose={() => setComposing(null)} />}</Show>
+    <Show when={composing()}>{draft => <HighlightComposer notebook={props.notebook} draft={draft()} onClose={() => { setComposing(null); drawInk(composedCitation); }} />}</Show>
     <actions.TagPopup />
   </div>;
 }
