@@ -55,9 +55,9 @@ First-class means explicit relationships, lifecycle rules, operations and views.
 
 ## Scope boundaries
 
-In scope for the first usable release: the daily outline, references, types and fields, structured queries and saved views, tasks with an agenda, cards and review with saved decks, investigations, sources and positions, agent operations with attribution, and backup and restore. Perspective lenses, the reading flow and concept comparison follow directly after.
+In use: the daily outline, references, types and fields, structured queries and saved views, tasks with an agenda, cards and review, sources and reading, questions and positions, and backup and restore. Loopback sync between devices you own is in use. The tailnet listener, pairing, and the Android app as a replica are not; see [sync](sync.md) and [roadmap](roadmap.md) stage 11. The Android app keeps its own notebook and does not sync yet.
 
-Out of scope until the daily tool works: multi-device sync, collaboration, native mobile, plugin and schema builders, graph visualization and autonomous background agents.
+Still out of scope: collaboration, an iOS app, plugin and schema builders, graph visualization and autonomous background agents.
 
 Reading lives in Tessera too. Books, papers, articles and posts are ingested into the notebook as immutable snapshots broken into passages, read in a pane beside the outline, and cited from the blocks written about them. This absorbs Bibliotheca, the earlier separate reading tool. Its evidence rules carry over; its extractors are rewritten, and its own storage and terminal interface are retired.
 
