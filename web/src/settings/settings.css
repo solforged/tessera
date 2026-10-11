@@ -1,38 +1,96 @@
-/* Settings pane: a page-shaped column of short sections. Preferences come first; facts about
-   the notebook and service follow, since they are read rarely and changed never. */
-.settings-pane { flex: 1; min-height: 0; overflow: auto; padding: var(--space-24) var(--space-24) var(--space-48); outline: none; }
-.settings-pane > * { max-width: var(--measure); margin-inline: auto; }
-.settings-pane section + section { margin-top: var(--space-24); }
-.settings-header { display: flex; align-items: flex-end; gap: var(--space-4); margin-bottom: var(--space-16); }
+/* Settings pane: a sticky header over short sections, with an index of them beside the measure on wide panes.
+   Preferences come first; facts about the notebook and service come last, since they are read rarely and changed never. */
+.settings-pane { flex: 1; min-height: 0; overflow: auto; padding: 0 var(--space-24) var(--space-48); outline: none; container: settings-pane / inline-size; }
+.settings-layout { max-width: var(--measure); margin-inline: auto; }
+.settings-index { display: none; }
+/* The index and measure centre together, as the Library's browse rail does. */
+@container settings-pane (min-width: 1096px) {
+  .settings-layout { display: grid; grid-template-columns: var(--apparatus-width) var(--measure); justify-content: center; column-gap: var(--space-48); max-width: none; }
+  .settings-index { display: flex; flex-direction: column; gap: var(--space-2); position: sticky; top: 0; align-self: start; padding-top: calc(var(--space-24) + var(--line-apparatus) + var(--space-2)); }
+}
+.settings-index-item { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); min-height: var(--target-size); padding: 0 var(--space-8) 0 var(--space-12); border: 0; border-radius: 0; background: none; box-shadow: inset calc(2 * var(--rule-width)) 0 transparent; color: var(--muted); font: var(--weight-body) var(--text-control)/var(--line-control) var(--font-body); text-align: left; cursor: pointer; transition: color var(--motion-fast) var(--motion-ease), box-shadow var(--motion-ui) var(--motion-ease); }
+.settings-index-item:hover { color: var(--text); }
+.settings-index-item[aria-current] { color: var(--text); box-shadow: inset calc(2 * var(--rule-width)) 0 var(--accent); }
+.settings-index-item:focus-visible { outline: var(--focus-ring); outline-offset: calc(-1 * var(--focus-offset)); }
+.settings-count { color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+
+/* The header stays in view, so the save status and Undo are always reachable; a hairline appears once the page scrolls under it. */
+.settings-header { position: sticky; top: 0; z-index: 2; display: flex; align-items: flex-end; gap: var(--space-4); padding: var(--space-24) 0 var(--space-12); background: var(--canvas); box-shadow: inset 0 calc(-1 * var(--rule-width)) transparent; transition: box-shadow var(--motion-ui) var(--motion-ease); }
+.settings-header[data-scrolled] { box-shadow: inset 0 calc(-1 * var(--rule-width)) var(--line); }
 .settings-heading { flex: 1; min-width: 0; }
 .settings-register { color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .settings-header h1 { margin: var(--space-2) 0 0; font: var(--weight-title) var(--text-h1)/var(--line-h1) var(--font-display); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
 .settings-status { margin-right: var(--space-4); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
-/* A preference is one row: its name and a sentence on the left, the control on the right. */
-.settings-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-16); min-height: var(--target-size); padding-block: var(--space-4); font-size: var(--text-control); line-height: var(--line-control); }
+
+/* Sections head with a rubric numeral, a Piazzolla name and a hairline rule. */
+.settings-pane section { padding-top: var(--space-16); }
+.settings-pane section + section { margin-top: var(--space-8); }
+.settings-pane h2 { display: flex; align-items: center; gap: var(--space-8); min-height: var(--target-size); margin: 0 0 var(--space-4); color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.settings-section-name { color: var(--text); font: var(--weight-display-heading) var(--text-h3)/var(--line-h3) var(--font-display); font-variation-settings: var(--optical-heading); letter-spacing: var(--tracking-heading); }
+
+/* A preference is one row: its name, scope and a sentence on the left, the control flush right. Rows divide with hairlines. */
+.settings-row, .settings-change { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: var(--space-24); padding-block: var(--space-12); font-size: var(--text-control); line-height: var(--line-control); }
+.settings-row + .settings-row, .settings-change + .settings-change { border-top: var(--rule-width) solid var(--line); }
+.settings-row > :last-child, .settings-change > :last-child { justify-self: end; }
 .settings-label { min-width: 0; }
-.settings-label label { cursor: pointer; }
-.settings-pane .settings-label p { margin: var(--space-2) 0 0; color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); overflow-wrap: anywhere; }
-.settings-row > :last-child { flex: none; }
-.settings-agent-change + .settings-agent-change { border-top: 1px solid var(--control-border); }
-.settings-agent-change .settings-label { overflow-wrap: anywhere; }
-.settings-page-link { padding: 0; border: 0; background: none; color: var(--accent); font: inherit; text-align: left; cursor: pointer; text-decoration: underline; text-underline-offset: .15em; }
-.settings-page-link:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-offset); }
-.settings-empty, .settings-undone { color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); }
-.settings-empty { margin: 0; }
-/* The Vim switch: a pill track whose knob slides gilt when on. */
-.settings-switch { appearance: none; position: relative; width: calc(2 * var(--icon-size) + var(--space-4)); height: calc(var(--icon-size) + var(--space-4)); margin: 0; border: 1px solid var(--control-border); border-radius: var(--radius-pill); background: var(--surface); cursor: pointer; transition: background-color var(--motion-fast) var(--motion-ease), border-color var(--motion-fast) var(--motion-ease); }
-.settings-switch::after { content: ''; position: absolute; top: 1px; left: 1px; width: calc(var(--icon-size) + var(--space-2) - 2px); height: calc(var(--icon-size) + var(--space-2) - 2px); border-radius: var(--radius-pill); background: var(--muted); transition: translate var(--motion-fast) var(--motion-ease), background-color var(--motion-fast) var(--motion-ease); }
-.settings-switch:checked { border-color: var(--accent); background: var(--accent-tint); }
-.settings-switch:checked::after { translate: calc(var(--icon-size) + var(--space-2)) 0; background: var(--accent); }
+.settings-name { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: var(--space-8); color: var(--text); font-weight: var(--weight-control); }
+.settings-name label { cursor: pointer; }
+.settings-scope, .settings-aside, .settings-mono { font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.settings-scope, .settings-aside { color: var(--faint); font-weight: var(--weight-body); }
+.settings-pane .settings-label p { max-width: 56ch; margin: var(--space-2) 0 0; color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); overflow-wrap: anywhere; }
+.settings-segments { gap: 0; }
+
+/* The time-zone trigger fills the control column: Device in sans, the zone in mono, then the chevron. */
+.settings-select.button { justify-content: space-between; width: var(--apparatus-width); max-width: 100%; }
+.settings-select-text { display: flex; align-items: baseline; gap: var(--space-8); min-width: 0; overflow: hidden; white-space: nowrap; }
+.settings-select-text .settings-mono { overflow: hidden; color: var(--muted); text-overflow: ellipsis; }
+.settings-select > .icon { color: var(--faint); }
+
+/* The switch: a hairline track with a muted knob; on, the track fills gilt and the knob slides across in canvas. */
+.settings-switch { appearance: none; position: relative; flex: none; width: var(--switch-width); height: var(--switch-height); margin: 0; border: var(--rule-width) solid var(--control-border); border-radius: var(--radius-pill); background: transparent; cursor: pointer; transition: background-color var(--motion-ui) var(--motion-ease), border-color var(--motion-ui) var(--motion-ease); }
+.settings-switch::before { content: ''; position: absolute; inset: calc((var(--switch-height) - var(--target-size)) / 2) calc(-1 * var(--space-4)); }
+.settings-switch::after { content: ''; position: absolute; top: var(--switch-inset); left: var(--switch-inset); width: calc(var(--switch-height) - 2 * var(--rule-width) - 2 * var(--switch-inset)); aspect-ratio: 1; border-radius: var(--radius-pill); background: var(--muted); transition: translate var(--motion-ui) var(--motion-ease), background-color var(--motion-ui) var(--motion-ease); }
+.settings-switch:hover:not(:disabled) { border-color: var(--muted); }
+.settings-switch:checked { border-color: var(--accent); background: var(--accent); }
+.settings-switch:checked::after { translate: calc(var(--switch-width) - var(--switch-height)) 0; background: var(--canvas); }
 .settings-switch:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-offset); }
 .settings-switch:disabled { opacity: .5; cursor: default; }
-.settings-more { margin-top: var(--space-4); color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); }
-.settings-more summary { cursor: pointer; }
-/* Sections head like the sidebar's: a rubric numeral, the name and a hairline rule, in mono. */
-.settings-pane h2 { display: flex; align-items: center; gap: var(--space-8); min-height: var(--target-size); margin: 0 0 var(--space-8); color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
-/* One label column across sections, so values line up down the page. */
-.settings-pane dl { display: grid; grid-template-columns: calc(var(--space-48) * 2) minmax(0, 1fr); gap: var(--space-4) var(--space-16); margin: 0; font-size: var(--text-control); line-height: var(--line-control); }
+
+/* Backups: earlier copies fold into a disclosure as mono lines. */
+.settings-more { margin-top: var(--space-4); font-size: var(--text-meta); line-height: var(--line-meta); }
+.settings-more summary { display: inline-flex; align-items: center; gap: var(--space-4); min-height: var(--target-size); color: var(--muted); cursor: pointer; list-style: none; }
+.settings-more summary::-webkit-details-marker { display: none; }
+.settings-more summary:hover { color: var(--text); }
+:is(.settings-more summary, .settings-show-more) > .icon { width: var(--icon-size-small); height: var(--icon-size-small); transition: rotate var(--motion-fast) var(--motion-ease); }
+.settings-more[open] summary > .icon, .settings-show-more[aria-expanded="true"] > .icon { rotate: 90deg; }
+.settings-more ul { margin: var(--space-4) 0 0; padding: 0 0 0 calc(var(--icon-size-small) + var(--space-4)); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); list-style: none; overflow-wrap: anywhere; }
+.settings-more li + li { margin-top: var(--space-4); }
+
+/* Agent changes: the newest three, newest first; Undo waits for hover where there is hover. */
+.settings-changes { margin: 0; padding: 0; list-style: none; }
+.settings-change .settings-name { font-weight: var(--weight-body); }
+.settings-change[data-undone] .settings-name { color: var(--muted); }
+.settings-change .settings-mono { color: var(--faint); }
+.settings-change > .button { transition: opacity var(--motion-fast) var(--motion-ease), background-color var(--motion-fast) var(--motion-ease), border-color var(--motion-fast) var(--motion-ease); }
+@media (hover: hover) { .settings-change:not(:hover, :focus-within) > .button { opacity: 0; } }
+.settings-page-link { padding: 0; border: 0; background: none; color: var(--muted); font: inherit; text-align: left; cursor: pointer; text-decoration: underline; text-decoration-color: var(--line); text-decoration-thickness: var(--rule-width); text-underline-offset: var(--space-4); transition: color var(--motion-fast) var(--motion-ease), text-decoration-color var(--motion-fast) var(--motion-ease); }
+.settings-page-link:hover { color: var(--text); text-decoration-color: var(--accent); }
+.settings-page-link:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-offset); }
+.settings-show-more.button { margin-top: var(--space-4); padding-left: 0; color: var(--muted); font-weight: var(--weight-body); }
+.settings-show-more.button:hover:not(:disabled) { background: none; color: var(--text); }
+.settings-empty { max-width: 56ch; margin: var(--space-8) 0 0; color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); }
+
+/* About: one label column, so values line up down the section; values are what the machine knows, in mono. */
+.settings-pane dl { display: grid; grid-template-columns: calc(var(--space-48) * 2) minmax(0, 1fr); gap: var(--space-4) var(--space-16); margin: var(--space-12) 0 0; font-size: var(--text-control); line-height: var(--line-control); }
+.settings-pane dl + dl { padding-top: var(--space-12); border-top: var(--rule-width) solid var(--line); }
 .settings-pane dt { color: var(--muted); }
-.settings-pane dd { margin: 0; overflow-wrap: anywhere; font-family: var(--font-mono); }
-.settings-pane section ul { margin: var(--space-8) 0 0; padding-left: var(--space-16); color: var(--muted); overflow-wrap: anywhere; }
+.settings-pane dd { margin: 0; color: var(--text); font: var(--apparatus); line-height: var(--line-control); letter-spacing: var(--tracking-apparatus); overflow-wrap: anywhere; }
+
+/* A split pane and the Fold cover stack each control under its description, except the switch, which stays beside it. */
+@container settings-pane (max-width: 599px) {
+  .settings-row:not(:has(.settings-switch)) { grid-template-columns: minmax(0, 1fr); row-gap: var(--space-8); }
+  .settings-row:not(:has(.settings-switch)) > :last-child { justify-self: start; }
+  .settings-select.button { width: 100%; }
+  .settings-row .settings-aside { display: none; }
+  .settings-header { padding-top: var(--space-16); }
+}

@@ -102,6 +102,7 @@
   --target-size: 24px;       /* pointer targets; coarse pointers get larger ones below */
   --icon-size: 16px;
   --icon-size-small: 14px;
+  --switch-width: 32px; --switch-height: 18px; --switch-inset: 2px; /* the knob fills the height inside the inset */
 
   /* Week planning has a half-hour card and a readable column at narrow widths. */
   --week-measure: 1200px;
@@ -196,5 +197,6 @@
   :root {
     --target-size: 32px;
     --row-height: 36px;
+    --switch-width: 40px; --switch-height: 24px; --switch-inset: 3px;
   }
 }
