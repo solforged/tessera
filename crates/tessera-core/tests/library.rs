@@ -2172,3 +2172,441 @@ fn citation_range_changes_preserve_identity_triage_and_color_and_are_reversible(
         .is_err()
     );
 }
+
+fn facet_source(n: &mut Notebook, title: &str, metadata: ExtractedMetadata) -> (String, String) {
+    let mut doc = document();
+    doc.metadata = ExtractedMetadata {
+        title: Some(title.into()),
+        unique_id: Some(title.into()),
+        ..metadata
+    };
+    ingest(n, &doc, title.as_bytes())
+}
+
+fn facet_creator(name: &str, role: CreatorRole) -> ExtractedCreator {
+    ExtractedCreator {
+        name: name.into(),
+        role,
+    }
+}
+
+fn facet_library() -> (tempfile::TempDir, Notebook, Vec<String>) {
+    let dir = tempfile::tempdir().unwrap();
+    let mut n = Notebook::open(dir.path()).unwrap();
+    let (first, _) = facet_source(
+        &mut n,
+        "Shared first",
+        ExtractedMetadata {
+            creators: vec![
+                facet_creator("Tom beta", CreatorRole::Translator),
+                facet_creator("Eve Editor", CreatorRole::Editor),
+                facet_creator("Zoe Zulu", CreatorRole::Author),
+                facet_creator("Amy Alpha", CreatorRole::Author),
+                facet_creator("Amy Alpha", CreatorRole::Editor),
+            ],
+            published: Some("1846-07".into()),
+            publisher: Some("zeta".into()),
+            language: Some("en".into()),
+            ..Default::default()
+        },
+    );
+    let (second, snapshot) = facet_source(
+        &mut n,
+        "Shared second",
+        ExtractedMetadata {
+            creators: vec![
+                facet_creator("Eve Editor", CreatorRole::Author),
+                facet_creator("Zoe Zulu", CreatorRole::Author),
+            ],
+            published: Some("1999".into()),
+            publisher: Some("Alpha".into()),
+            language: Some("fr".into()),
+            ..Default::default()
+        },
+    );
+    n.set_reading_position(&snapshot, 0).unwrap();
+    let (third, _) = facet_source(
+        &mut n,
+        "Other third",
+        ExtractedMetadata {
+            creators: vec![facet_creator("Eve Editor", CreatorRole::Author)],
+            published: Some("2001-03-04".into()),
+            publisher: Some("Alpha".into()),
+            language: Some("en-GB".into()),
+            ..Default::default()
+        },
+    );
+    let mut empty = document();
+    empty.format = SourceFormat::Article;
+    empty.metadata = ExtractedMetadata {
+        title: Some("Empty article".into()),
+        unique_id: Some("empty".into()),
+        ..Default::default()
+    };
+    let (fourth, _) = ingest(&mut n, &empty, b"empty");
+    (dir, n, vec![first, second, third, fourth])
+}
+
+fn facet_person_id(result: &LibraryResult, name: &str) -> String {
+    result
+        .facets
+        .people
+        .iter()
+        .find(|person| person.name == name)
+        .unwrap()
+        .id
+        .clone()
+        .unwrap()
+}
+
+#[test]
+fn library_people_preserve_roles_order_and_current_titles() {
+    let (_dir, mut n, ids) = facet_library();
+    let result = n.library(&LibraryQuery::default()).unwrap();
+    let row = result
+        .rows
+        .iter()
+        .find(|row| row.page.id == ids[0])
+        .unwrap();
+    assert_eq!(row.creators, ["Zoe Zulu", "Amy Alpha"]);
+    assert_eq!(
+        row.people
+            .iter()
+            .map(|person| (person.name.as_str(), person.role))
+            .collect::<Vec<_>>(),
+        [
+            ("Zoe Zulu", CreatorRole::Author),
+            ("Amy Alpha", CreatorRole::Author),
+            ("Eve Editor", CreatorRole::Editor),
+            ("Amy Alpha", CreatorRole::Editor),
+            ("Tom beta", CreatorRole::Translator),
+        ]
+    );
+    assert!(row.people.iter().all(|person| person.id.is_some()));
+    assert_eq!(row.people[1].id, row.people[3].id);
+    assert_eq!(row.publisher.as_deref(), Some("zeta"));
+    assert_eq!(row.language.as_deref(), Some("en"));
+    let person_id = facet_person_id(&result, "Eve Editor");
+    edit(&mut n, &person_id, "New Name");
+    let result = n.library(&LibraryQuery::default()).unwrap();
+    let renamed = result
+        .facets
+        .people
+        .iter()
+        .find(|facet| facet.id.as_ref() == Some(&person_id))
+        .unwrap();
+    assert_eq!(renamed.name, "New Name");
+    assert_eq!(renamed.count, 3);
+    assert!(
+        result
+            .rows
+            .iter()
+            .flat_map(|row| &row.people)
+            .all(|person| { person.id.as_ref() != Some(&person_id) || person.name == "New Name" })
+    );
+}
+
+#[test]
+fn library_facet_filters_or_within_and_across_fields_before_limit() {
+    let (_dir, n, ids) = facet_library();
+    let all = n.library(&LibraryQuery::default()).unwrap();
+    let editor = facet_person_id(&all, "Eve Editor");
+    let translator = facet_person_id(&all, "Tom beta");
+    let result = n
+        .library(&LibraryQuery {
+            people: vec![editor.clone()],
+            limit: Some(1),
+            ..Default::default()
+        })
+        .unwrap();
+    assert_eq!(result.total, 3);
+    assert_eq!(result.rows.len(), 1);
+    assert_eq!(result.counts, all.counts);
+    assert_eq!(result.counts.inbox, 3);
+    assert_eq!(result.counts.reading, 1);
+    let matching = LibraryQuery {
+        people: vec!["missing".into(), translator],
+        publishers: vec!["missing".into(), "zeta".into()],
+        decades: vec![1700, 1840],
+        languages: vec!["missing".into(), "en".into()],
+        ..Default::default()
+    };
+    let result = n.library(&matching).unwrap();
+    assert_eq!(result.total, 1);
+    assert_eq!(result.rows[0].page.id, ids[0]);
+    for query in [
+        LibraryQuery {
+            people: vec![editor.clone()],
+            ..Default::default()
+        },
+        LibraryQuery {
+            publishers: vec!["zeta".into(), "Alpha".into()],
+            ..Default::default()
+        },
+        LibraryQuery {
+            decades: vec![1840, 1990, 2000],
+            ..Default::default()
+        },
+        LibraryQuery {
+            languages: vec!["en".into(), "fr".into()],
+            ..Default::default()
+        },
+        LibraryQuery {
+            people: vec![editor, facet_person_id(&all, "Tom beta")],
+            ..Default::default()
+        },
+    ] {
+        assert_eq!(n.library(&query).unwrap().total, 3);
+    }
+    for query in [
+        LibraryQuery {
+            publishers: vec!["ZETA".into()],
+            ..matching.clone()
+        },
+        LibraryQuery {
+            publishers: vec!["zet".into()],
+            ..matching.clone()
+        },
+        LibraryQuery {
+            languages: vec!["EN".into()],
+            ..matching.clone()
+        },
+        LibraryQuery {
+            decades: vec![1990],
+            ..matching.clone()
+        },
+        LibraryQuery {
+            people: vec!["Tom beta".into()],
+            ..matching.clone()
+        },
+        LibraryQuery {
+            publishers: vec!["Alpha".into()],
+            ..matching
+        },
+    ] {
+        let result = n.library(&query).unwrap();
+        assert_eq!(result.total, 0);
+        assert_eq!(result.counts, all.counts);
+        assert_eq!(result.facets, all.facets);
+    }
+}
+
+#[test]
+fn library_facets_count_sources_and_respect_base_filters_only() {
+    let (_dir, n, _) = facet_library();
+    let all = n.library(&LibraryQuery::default()).unwrap();
+    assert_eq!(
+        all.facets
+            .people
+            .iter()
+            .map(|p| (p.name.as_str(), p.count))
+            .collect::<Vec<_>>(),
+        [
+            ("Eve Editor", 3),
+            ("Zoe Zulu", 2),
+            ("Amy Alpha", 1),
+            ("Tom beta", 1)
+        ]
+    );
+    assert_eq!(
+        all.facets.decades,
+        [
+            DecadeFacet {
+                decade: 2000,
+                count: 1
+            },
+            DecadeFacet {
+                decade: 1990,
+                count: 1
+            },
+            DecadeFacet {
+                decade: 1840,
+                count: 1
+            },
+        ]
+    );
+    assert_eq!(
+        all.facets.publishers,
+        [
+            ValueFacet {
+                value: "Alpha".into(),
+                count: 2
+            },
+            ValueFacet {
+                value: "zeta".into(),
+                count: 1
+            },
+        ]
+    );
+    assert_eq!(
+        all.facets.languages,
+        [
+            ValueFacet {
+                value: "en".into(),
+                count: 2
+            },
+            ValueFacet {
+                value: "fr".into(),
+                count: 1
+            },
+        ]
+    );
+    let shared = n
+        .library(&LibraryQuery {
+            text: Some("shared".into()),
+            states: vec![ReadingState::Inbox, ReadingState::Reading],
+            people: vec!["absent".into()],
+            publishers: vec!["absent".into()],
+            languages: vec!["absent".into()],
+            decades: vec![0],
+            limit: Some(0),
+            ..Default::default()
+        })
+        .unwrap();
+    assert_eq!(shared.total, 0);
+    assert_eq!(shared.facets.people[0].count, 2);
+    assert_eq!(shared.facets.people[1].count, 2);
+    assert_eq!(shared.facets.decades.len(), 2);
+    assert_eq!(
+        shared
+            .facets
+            .publishers
+            .iter()
+            .map(|p| p.value.as_str())
+            .collect::<Vec<_>>(),
+        ["Alpha", "zeta"]
+    );
+    assert_eq!(
+        shared
+            .facets
+            .languages
+            .iter()
+            .map(|p| p.value.as_str())
+            .collect::<Vec<_>>(),
+        ["en", "fr"]
+    );
+    let reading = n
+        .library(&LibraryQuery {
+            states: vec![ReadingState::Reading],
+            text: Some("ZULU".into()),
+            ..Default::default()
+        })
+        .unwrap();
+    assert_eq!(reading.total, 1);
+    assert_eq!(reading.facets.people.len(), 2);
+    assert!(reading.facets.people.iter().all(|facet| facet.count == 1));
+    assert_eq!(reading.counts, all.counts);
+    let article = n
+        .library(&LibraryQuery {
+            format: Some(SourceFormat::Article),
+            ..Default::default()
+        })
+        .unwrap();
+    assert_eq!(article.total, 1);
+    assert_eq!(article.facets, LibraryFacets::default());
+    let no_text = n
+        .library(&LibraryQuery {
+            text: Some("not found".into()),
+            ..Default::default()
+        })
+        .unwrap();
+    assert_eq!(no_text.facets, LibraryFacets::default());
+}
+
+#[test]
+fn library_unlinked_people_group_exact_names_and_sort_by_family_then_name() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut n = Notebook::open(dir.path()).unwrap();
+    define_field(&mut n, "Author", FieldKind::Text);
+    for title in ["One", "Two"] {
+        facet_source(
+            &mut n,
+            title,
+            ExtractedMetadata {
+                creators: vec![
+                    facet_creator("Zed alpha", CreatorRole::Author),
+                    facet_creator("Amy alpha", CreatorRole::Author),
+                    facet_creator("Bob Zulu", CreatorRole::Author),
+                ],
+                ..Default::default()
+            },
+        );
+    }
+    let result = n.library(&LibraryQuery::default()).unwrap();
+    assert_eq!(
+        result.facets.people,
+        [
+            PersonFacet {
+                id: None,
+                name: "Amy alpha".into(),
+                count: 2
+            },
+            PersonFacet {
+                id: None,
+                name: "Zed alpha".into(),
+                count: 2
+            },
+            PersonFacet {
+                id: None,
+                name: "Bob Zulu".into(),
+                count: 2
+            },
+        ]
+    );
+    assert!(
+        result
+            .rows
+            .iter()
+            .flat_map(|row| &row.people)
+            .all(|person| person.id.is_none())
+    );
+    assert_eq!(
+        n.library(&LibraryQuery {
+            people: vec!["Amy alpha".into()],
+            ..Default::default()
+        })
+        .unwrap()
+        .total,
+        0
+    );
+}
+
+#[test]
+fn library_export_query_applies_people_filter_independent_of_limit() {
+    let (_dir, n, _) = facet_library();
+    let result = n.library(&LibraryQuery::default()).unwrap();
+    let exported = n
+        .export_query(
+            &LibraryQuery {
+                people: vec![facet_person_id(&result, "Tom beta")],
+                limit: Some(0),
+                ..Default::default()
+            },
+            ExportFormat::CslJson,
+        )
+        .unwrap();
+    let exported: serde_json::Value = serde_json::from_str(&exported).unwrap();
+    assert_eq!(exported.as_array().unwrap().len(), 1);
+    assert_eq!(exported[0]["title"], "Shared first");
+}
+
+#[test]
+fn library_query_facet_filters_default_and_round_trip() {
+    let old: LibraryQuery = serde_json::from_str(r#"{"text":"old view"}"#).unwrap();
+    assert!(old.people.is_empty());
+    assert!(old.publishers.is_empty());
+    assert!(old.decades.is_empty());
+    assert!(old.languages.is_empty());
+    assert_eq!(old.limit, Some(100));
+    let query = LibraryQuery {
+        people: vec!["person-id".into()],
+        publishers: vec!["Publisher".into()],
+        decades: vec![1840],
+        languages: vec!["en".into()],
+        ..Default::default()
+    };
+    assert_eq!(
+        serde_json::from_str::<LibraryQuery>(&serde_json::to_string(&query).unwrap()).unwrap(),
+        query
+    );
+}
