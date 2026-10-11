@@ -343,6 +343,40 @@ fn node_text(node: Node<'_, '_>) -> String {
     normalize(&raw_node_text(node))
 }
 
+/// Some packages put several people in one `dc:creator`: `A; B`, `A & B`, or
+/// inverted pairs such as `Bowen, William G., Guthrie, Kevin M.`.
+fn creator_names(text: &str) -> Vec<String> {
+    let suffix = |piece: &str| {
+        matches!(
+            piece.trim_end_matches('.').to_ascii_lowercase().as_str(),
+            "jr" | "sr" | "ii" | "iii" | "iv" | "phd" | "md"
+        )
+    };
+    let mut names = Vec::new();
+    for name in text.split(';').flat_map(|part| part.split(" & ")) {
+        let name = name.trim().trim_end_matches(',').trim_end();
+        if name.is_empty() {
+            continue;
+        }
+        let pieces: Vec<&str> = name.split(',').map(str::trim).collect();
+        if pieces.len() >= 4
+            && pieces.len().is_multiple_of(2)
+            && pieces
+                .iter()
+                .all(|piece| !piece.is_empty() && !suffix(piece))
+        {
+            names.extend(
+                pieces
+                    .chunks(2)
+                    .map(|pair| format!("{}, {}", pair[0], pair[1])),
+            );
+        } else {
+            names.push(name.to_owned());
+        }
+    }
+    names
+}
+
 fn metadata(root: Node<'_, '_>) -> ExtractedMetadata {
     let Some(metadata) = root.children().find(|node| node.has_tag_name("metadata")) else {
         return ExtractedMetadata::default();
@@ -392,8 +426,8 @@ fn metadata(root: Node<'_, '_>) -> ExtractedMetadata {
         .map(|node| node_text(*node));
     let mut creators = Vec::new();
     for node in nodes.iter().filter(|node| dc(node, "creator")) {
-        let name = node_text(*node);
-        if name.is_empty() {
+        let names = creator_names(&node_text(*node));
+        if names.is_empty() {
             continue;
         }
         let mut roles = refined(*node, "role");
@@ -413,12 +447,14 @@ fn metadata(root: Node<'_, '_>) -> ExtractedMetadata {
                 "trl" => CreatorRole::Translator,
                 _ => continue,
             };
-            let creator = ExtractedCreator {
-                name: name.clone(),
-                role,
-            };
-            if !creators.contains(&creator) {
-                creators.push(creator);
+            for name in &names {
+                let creator = ExtractedCreator {
+                    name: name.clone(),
+                    role,
+                };
+                if !creators.contains(&creator) {
+                    creators.push(creator);
+                }
             }
         }
     }
@@ -435,7 +471,10 @@ fn metadata(root: Node<'_, '_>) -> ExtractedMetadata {
         published: nodes
             .iter()
             .filter(|node| dc(node, "date"))
-            .find_map(|node| date(&node_text(*node))),
+            .map(|node| node_text(*node))
+            // Calibre writes 0101-01-01 when the date is unknown.
+            .filter(|value| !value.starts_with("0101-01-01"))
+            .find_map(|value| date(&value)),
         publisher: first("publisher"),
         language: first("language"),
         identifiers: nodes
