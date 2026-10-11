@@ -19,20 +19,22 @@ interface CaptureBodyProps {
 /** The sheet's contents: where the line goes, the line, then its keys and Add. */
 function CaptureBody(props: CaptureBodyProps) {
   const [added, setAdded] = createSignal(0);
+  const touch = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
   return <div class="capture">
     <header class="capture-head">
       <span class="capture-title">Add to today</span>
       <span class="capture-where">{shortDay(props.notebook.todayDate())} · end of journal</span>
     </header>
     <CaptureField notebook={props.notebook} contextDate={() => props.notebook.todayDate()} initialTask={props.request.task} initialText={props.request.text}
-      label="Add to today" placeholder="A note, or ⌘↵ for a task · [[ links · @fri plans" inputRef={props.inputRef}
+      label="Add to today" placeholder={touch ? 'Add a note or task' : 'A note, or ⌘↵ for a task · [[ links · @fri plans'} inputRef={props.inputRef}
       onSaved={again => { if (again) setAdded(count => count + 1); else props.onDone(); }} onCancel={props.onDone}>
       {state => <footer class="capture-foot">
         <span class="capture-keys">
-          <Show when={added()} fallback={<><kbd>↵</kbd> Add <kbd>⇧↵</kbd> Add another <kbd>⌘↵</kbd> {state.task() ? 'Note' : 'Task'} <kbd>esc</kbd> Close</>}>
+          <Show when={added()} fallback={<span class="capture-key-hints"><kbd>↵</kbd> Add <kbd>⇧↵</kbd> Add another <kbd>⌘↵</kbd> {state.task() ? 'Note' : 'Task'} <kbd>esc</kbd> Close</span>}>
             <span class="capture-added" role="status">{added()} added to today</span>
           </Show>
         </span>
+        <Button class="capture-cancel" onClick={props.onDone}>Cancel</Button>
         <Button class="bordered" onClick={() => state.submit(false)}>Add</Button>
       </footer>}
     </CaptureField>
