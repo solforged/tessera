@@ -1,7 +1,7 @@
 import { batch, createEffect, createMemo, createResource, createSignal, For, Index, lazy, Match, onCleanup, onMount, Show, Switch } from 'solid-js';
 import type { Accessor } from 'solid-js';
 import { api } from '../api/client';
-import type { Block, NoteKind, NotebookInfo, View } from '../api/types';
+import type { Block, NoteKind, NotebookInfo, Type, View } from '../api/types';
 import { createNotebookClient } from '../document';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import { OutlinePane } from '../outline/OutlinePane';
@@ -60,6 +60,8 @@ const vimLabels: Record<Exclude<VimMode, null>, string> = { insert: 'Insert', no
 type PopupState = { kind: 'search' | 'commands' | 'calendar' | 'new' | 'delete' | 'layout'; anchor: HTMLElement; pane: PaneId; date?: string; source?: boolean } | null;
 const paneIds: PaneId[] = ['main', 'side'];
 const SAVE_NOTICE_DELAY = 1000;
+/** Matches the narrow pane header in styles.css, where the depth dial shows only its current iris. */
+const compactHeader = window.matchMedia('(max-width: 479px)');
 
 /** Views are snapshots: fold arrays and caret/scroll objects never alias history. */
 function copyView(view: ViewState): ViewState {
@@ -128,6 +130,21 @@ export function App() {
   const toggleSidebar = () => {
     if (narrow()) setSidebar(value => !value);
     else setSidebarCollapsed(value => !value);
+  };
+  // The bottom nav steps aside for the on-screen keyboard. The keyboard takes a third of the screen or more, and the
+  // page shrinks by its height (MainActivity pads the WebView; browsers shrink the visual viewport).
+  const keyboardUp = () => (window.visualViewport?.height ?? window.innerHeight) < screen.height * 0.7;
+  const [keyboard, setKeyboard] = createSignal(keyboardUp());
+  onMount(() => {
+    const update = () => setKeyboard(keyboardUp());
+    const target = window.visualViewport ?? window;
+    target.addEventListener('resize', update);
+    onCleanup(() => target.removeEventListener('resize', update));
+  });
+  // Long-pressing Library in the bottom nav lists the types in use, each opening its table.
+  const [typesMenu, setTypesMenu] = createSignal<{ anchor: HTMLElement; types: Type[] } | null>(null);
+  const showTypes = async (anchor: HTMLElement) => {
+    try { setTypesMenu({ anchor, types: await api.types() }); } catch (reason) { reportError(reason); }
   };
   const [popup, setPopup] = createSignal<PopupState>(null);
   const [pinned, setPinned] = createSignal<string[]>([]);
@@ -452,6 +469,7 @@ export function App() {
   // Saved views sit under the kind whose type they list; views of any other type keep their own section.
   const looseViews = createMemo(() => otherViews().filter(view => !index()?.kinds.some(kind => kind.type_id !== null && kind.type_id === view.query.type)));
   const activeViewId = () => { const target = entry(active())?.target; return target?.kind === 'table' ? target.viewId ?? undefined : undefined; };
+  const activeTypeId = () => { const target = entry(active())?.target; return target?.kind === 'table' && !target.viewId ? target.typeId : null; };
   const activeKindKey = () => { const target = entry(active())?.target; return target?.kind === 'index' ? target.key : undefined; };
   const indexKind = (pane: PaneId) => { const target = entry(pane)?.target; return target?.kind === 'index' ? index()?.kinds.find(kind => kind.key === target.key) : undefined; };
   // A table pane is named for its saved view, else its type, and an index pane for its kind, rather than the generic label.
@@ -466,7 +484,7 @@ export function App() {
     const shown = [...pinnedRoots().length || pinnedViewList().length ? ['pinned'] : [], ...index()?.kinds.length ? ['index'] : [], ...looseViews().length ? ['views'] : [], 'recent'];
     return String(shown.indexOf(section) + 1).padStart(2, '0');
   };
-  return <div class={`app ${split() ? 'is-split' : ''} ${sidebar() ? 'sidebar-expanded' : ''} ${sidebarCollapsed() ? 'sidebar-collapsed' : ''} ${immersive() ? 'is-immersive' : ''}`} onPointerDown={() => { focusEpoch++; }}>
+  return <div class={`app ${split() ? 'is-split' : ''} ${sidebar() ? 'sidebar-expanded' : ''} ${sidebarCollapsed() ? 'sidebar-collapsed' : ''} ${immersive() ? 'is-immersive' : ''} ${keyboard() ? 'keyboard-open' : ''} ${entry(active())?.target.kind === 'reader' ? 'is-reading' : ''}`} onPointerDown={() => { focusEpoch++; }}>
     <header class="global-rail" aria-label="Global navigation" data-tauri-drag-region="deep">
       <div class="rail-start">
         <Button icon="sidebar" label="Toggle sidebar" aria-expanded={sidebarVisible()} onClick={toggleSidebar} />
@@ -519,6 +537,7 @@ export function App() {
       <GlobalBanner notebook={notebook} onReview={reviewConflict} />
       <div class="panes"><For each={paneIds}>{pane => <Show when={entry(pane)}>
         <Pane pane={pane} session={() => sessions()[pane]} active={active() === pane} split={split()} immersive={immersive() === pane} onImmersive={on => immerse(pane, on)} notebook={notebook} commands={commands} vim={vim()} vimMode={vimModes()[pane]} onVimMode={mode => setVimModes(values => ({ ...values, [pane]: mode }))} pinned={pinned().includes(pageIdOf(entry(pane)) ?? '')} pageStyles={pageStyles()} title={paneTitle(pane)} noteKind={indexKind(pane)}
+          sidebarOpen={sidebarVisible()} onSidebar={toggleSidebar}
           onPageStyle={(id, style, fallback) => setPageStyles(({ [id]: _, ...rest }) => style === fallback ? rest : { ...rest, [id]: style })}
           onActivate={() => setActive(pane)}
           onOpen={(target, beside) => open(target, beside, pane)}
@@ -539,6 +558,19 @@ export function App() {
       </Show>}</For></div>
       <Show when={!entry('main') && !entry('side') && !error()}><div class="startup-state">Opening today’s journal…</div></Show>
     </main>
+    <nav class="bottom-nav" aria-label="Notebook">
+      <Button icon="today" class={activeRoot()?.kind === 'journal' && activeRoot()?.text === todayDate() ? 'selected' : ''} onClick={() => { void today(); }}><span>Today</span></Button>
+      <Button icon="agenda" class={entry(active())?.target.kind === 'agenda' ? 'selected' : ''} onClick={() => open({ kind: 'agenda', date: journalDate(active()) })}><span>Agenda</span></Button>
+      <Button icon="find" class={popup()?.kind === 'search' ? 'selected' : ''} aria-haspopup="dialog" aria-expanded={popup()?.kind === 'search'} onClick={event => setPopup({ kind: 'search', anchor: event.currentTarget, pane: active() })}><span>Find</span></Button>
+      <Button icon="review" class={entry(active())?.target.kind === 'review' ? 'selected' : ''} onClick={() => open({ kind: 'review' })}><span>Review</span></Button>
+      <Button icon="library" class={entry(active())?.target.kind === 'library' || entry(active())?.target.kind === 'table' ? 'selected' : ''} aria-haspopup="menu" aria-expanded={!!typesMenu()}
+        onClick={() => open({ kind: 'library' })} onContextMenu={event => { event.preventDefault(); void showTypes(event.currentTarget); }}><span>Library</span></Button>
+    </nav>
+    <Show when={typesMenu()}>{state => <Menu anchor={state().anchor} label="Types" onDismiss={() => setTypesMenu(null)} items={[
+      { label: 'Library', icon: 'library', checked: entry(active())?.target.kind === 'library', action: () => open({ kind: 'library' }) },
+      ...state().types.map(type => ({ section: 'Types', label: type.page.text, icon: 'table' as const, checked: activeTypeId() === type.page.id,
+        action: () => open({ kind: 'table', typeId: type.page.id, viewId: null, query: { type: type.page.id, text: null, filters: [], sort: [], limit: null } }) })),
+    ]} />}</Show>
     <Show keyed when={popup()}>{state => <>
       <Show when={state.kind === 'search' || state.kind === 'commands'}>
         <Palette anchor={state.anchor} pane={state.pane} mode={state.kind === 'commands' ? 'commands' : 'search'} commands={commands} notebook={notebook} onDismiss={() => setPopup(null)} onRestoreFocus={() => { if (!popup() && active() === state.pane) focusPane(state.pane); }} onOpen={(target, beside) => open(target, beside, state.pane)} />
@@ -628,12 +660,13 @@ function GlobalBanner(props: { notebook: NotebookClient; onReview(): void }) {
   </div></Show>;
 }
 
-function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boolean; split: boolean; immersive: boolean; onImmersive(immersive: boolean): void; notebook: NotebookClient; commands: CommandRegistry; vim: boolean; vimMode: VimMode; onVimMode(mode: VimMode): void; pinned: boolean; pageStyles: Record<string, PageStyle>; title?: string; noteKind?: NoteKind; onPageStyle(id: string, style: PageStyle, fallback: PageStyle): void; onActivate(): void; onOpen(target: OpenTarget, beside: boolean): void; onTargetChange(target: OpenTarget): void; onPageBeside(): void; onViewChange(view: PaneView): void; onTravel(delta: number): void; onClose(): void; onChooseDate(anchor: HTMLElement): void; onShiftDate(delta: number): void; onPin(): void; onRename(): void; onDelete(anchor: HTMLElement, source?: boolean): void; onDeleteSources(sources: { id: string; title: string }[]): Promise<void>; onArchived(): void; onRestoreView(view: ViewState): void }) {
+function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boolean; split: boolean; immersive: boolean; onImmersive(immersive: boolean): void; sidebarOpen: boolean; onSidebar(): void; notebook: NotebookClient; commands: CommandRegistry; vim: boolean; vimMode: VimMode; onVimMode(mode: VimMode): void; pinned: boolean; pageStyles: Record<string, PageStyle>; title?: string; noteKind?: NoteKind; onPageStyle(id: string, style: PageStyle, fallback: PageStyle): void; onActivate(): void; onOpen(target: OpenTarget, beside: boolean): void; onTargetChange(target: OpenTarget): void; onPageBeside(): void; onViewChange(view: PaneView): void; onTravel(delta: number): void; onClose(): void; onChooseDate(anchor: HTMLElement): void; onShiftDate(delta: number): void; onPin(): void; onRename(): void; onDelete(anchor: HTMLElement, source?: boolean): void; onDeleteSources(sources: { id: string; title: string }[]): Promise<void>; onArchived(): void; onRestoreView(view: ViewState): void }) {
   const current = () => props.session().entries[props.session().index]!;
   const pageId = createMemo(() => pageIdOf(current()));
   const outlineView = () => current().view as ViewState;
   const [doc, setDoc] = createSignal<PageDocument>();
   const [menu, setMenu] = createSignal<HTMLElement | null>(null);
+  const [depthMenu, setDepthMenu] = createSignal<HTMLElement | null>(null);
   const [mergeFrom, setMergeFrom] = createSignal<{ id: string; text: string }>();
   let menuButton!: HTMLButtonElement;
   createEffect(() => {
@@ -704,24 +737,27 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
   };
   return <section class={`pane ${props.active ? 'active' : ''} ${props.immersive ? 'immersive' : ''}`} data-pane={props.pane} data-page-style={pageStyle()} aria-label={props.pane === 'main' ? 'Pane 1' : 'Pane 2'} onPointerDown={props.onActivate} onFocusIn={props.onActivate}>
     <header class="pane-header">
+      {/* The cover screen has no rail; its sidebar opens from here. */}
+      <Button class="pane-sidebar" icon="sidebar" label="Notebook" aria-expanded={props.sidebarOpen} onClick={props.onSidebar} />
       <div class="pane-navigation"><Button icon="left" label="Back" shortcut="⌃⇧H" disabled={props.session().index <= 0} onClick={() => props.onTravel(-1)} /><Button icon="right" label="Forward" shortcut="⌃⇧L" disabled={props.session().index >= props.session().entries.length - 1} onClick={() => props.onTravel(1)} /></div>
       <Icon class="pane-kind" name={kindIcon()} />
       <Show when={pageId()}>
-        <nav class="pane-breadcrumbs" aria-label="Page breadcrumbs"><Show when={root()?.source && !breadcrumbs().length}><Button onClick={event => props.onOpen({ kind: 'library' }, event.shiftKey)}>Library</Button><span class="breadcrumb-separator">/</span></Show><Button onClick={() => props.onRestoreView({ ...outlineView(), zoom: null })}>{root()?.text ?? 'Loading…'}</Button><For each={breadcrumbs()}>{block => <><span class="breadcrumb-separator">/</span><Button onClick={() => props.onRestoreView({ ...outlineView(), zoom: block.id })}>{plainText(block.text, id => props.notebook.lookup(id)) || 'Empty block'}</Button></>}</For></nav>
+        <nav class="pane-breadcrumbs" aria-label="Page breadcrumbs"><Show when={root()?.source && !breadcrumbs().length}><Button class="breadcrumb-library" onClick={event => props.onOpen({ kind: 'library' }, event.shiftKey)}>Library</Button><span class="breadcrumb-separator">/</span></Show><Button onClick={() => props.onRestoreView({ ...outlineView(), zoom: null })}>{root()?.text ?? 'Loading…'}</Button><For each={breadcrumbs()}>{block => <><span class="breadcrumb-separator">/</span><Button onClick={() => props.onRestoreView({ ...outlineView(), zoom: block.id })}>{plainText(block.text, id => props.notebook.lookup(id)) || 'Empty block'}</Button></>}</For></nav>
         <Show when={root()?.kind === 'journal'}><nav class="journal-navigation" aria-label="Journal navigation">
           <Button icon="left" label="Previous journal day" onClick={() => props.onShiftDate(-1)} />
           <Button class="journal-date" icon="calendar" label="Choose journal date" aria-haspopup="dialog" onClick={event => props.onChooseDate(event.currentTarget)} />
           <Button icon="right" label="Next journal day" onClick={() => props.onShiftDate(1)} />
         </nav></Show>
         <Show when={showDial()}><div class="depth-dial" role="group" aria-label="Depth">
-          <For each={depthStops}>{stop => <button type="button" class="depth-stop" aria-pressed={depth() === stop} title={`${depthLabels[stop]} (${stop === 'gloss' ? '[' : stop === 'full' ? ']' : '[ ]'})`} onClick={() => outlineCommand(`depth-${stop}`)?.run()}><Icon name={`depth-${stop}`} /><span class="visually-hidden">{depthLabels[stop]}</span></button>}</For>
+          <For each={depthStops}>{stop => <button type="button" class="depth-stop" aria-pressed={depth() === stop} title={`${depthLabels[stop]} (${stop === 'gloss' ? '[' : stop === 'full' ? ']' : '[ ]'})`}
+            onClick={event => { if (depth() === stop && compactHeader.matches) setDepthMenu(event.currentTarget); else outlineCommand(`depth-${stop}`)?.run(); }}><Icon name={`depth-${stop}`} /><span class="visually-hidden">{depthLabels[stop]}</span></button>}</For>
           <span class="depth-label" aria-hidden="true">{depthLabels[depth()]}</span>
         </div></Show>
         <span class="pane-save-state" data-state={saveState()} title={doc()?.saveMessage()}><Show when={saveState() !== 'saved'} fallback={<><span class="save-dot" /><span class="visually-hidden">Saved</span></>}><Icon name={saveState() === 'offline' ? 'offline' : saveState() === 'error' || saveState() === 'conflict' ? 'warning' : 'saving'} />{status()}</Show></span>
         <Show when={props.vim && props.active}><span class="vim-mode" data-mode={props.vimMode ?? 'outline'} title={props.vimMode === 'insert' ? 'Vim: typing into the block' : props.vimMode === 'visual' ? 'Vim: selecting text' : props.vimMode === 'normal' ? 'Vim: commands inside the block' : 'Vim: moving between blocks'}>{vimLabels[props.vimMode ?? 'outline']}</span></Show>
       </Show>
       <Show when={!pageId()}><Show when={current().target.kind === 'reader' ? current().target as Extract<OpenTarget, { kind: 'reader' }> : undefined} fallback={<span class="pane-breadcrumbs">{props.title ?? paneLabel(current().target)}</span>}>{target =>
-        <nav class="pane-breadcrumbs" aria-label="Source breadcrumbs"><Button onClick={event => props.onOpen({ kind: 'library' }, event.shiftKey)}>Library</Button><span class="breadcrumb-separator">/</span><Button onClick={event => props.onOpen({ kind: 'page', pageId: target().sourceId }, event.shiftKey)}>{props.notebook.lookup(target().sourceId)()?.text ?? 'Reader'}</Button></nav>
+        <nav class="pane-breadcrumbs" aria-label="Source breadcrumbs"><Button class="breadcrumb-library" onClick={event => props.onOpen({ kind: 'library' }, event.shiftKey)}>Library</Button><span class="breadcrumb-separator">/</span><Button onClick={event => props.onOpen({ kind: 'page', pageId: target().sourceId }, event.shiftKey)}>{props.notebook.lookup(target().sourceId)()?.text ?? 'Reader'}</Button></nav>
       }</Show></Show>
       <Show when={pageId()}><Button ref={menuButton} class="page-menu-button" icon="more" label="Page menu" aria-expanded={!!menu()} onClick={event => setMenu(value => value ? null : event.currentTarget)} /></Show>
       <Show when={props.split}><Button class="pane-secondary" icon="close" label="Close pane" shortcut="⌃⇧X" onClick={props.onClose} /></Show>
@@ -736,9 +772,12 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
       <Match when={current().target.kind === 'agenda'}><AgendaPane pane={props.pane} view={snapshotView(current().view) as AgendaViewState} notebook={props.notebook} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
       <Match when={current().target.kind === 'review'}><ReviewPane pane={props.pane} view={snapshotView(current().view) as ReviewViewState} notebook={props.notebook} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
       <Match when={current().target.kind === 'library'}><LibraryPane pane={props.pane} view={snapshotView(current().view) as LibraryViewState} notebook={props.notebook} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} onDeleteSources={props.onDeleteSources} /></Match>
-      <Match when={current().target.kind === 'reader'}><ReaderPane pane={props.pane} target={current().target as Extract<OpenTarget, { kind: 'reader' }>} view={snapshotView(current().view) as ReaderViewState} notebook={props.notebook} active={props.active} immersive={props.immersive} onImmersive={props.onImmersive} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
+      <Match when={current().target.kind === 'reader'}><ReaderPane pane={props.pane} target={current().target as Extract<OpenTarget, { kind: 'reader' }>} view={snapshotView(current().view) as ReaderViewState} notebook={props.notebook} active={props.active} immersive={props.immersive} onImmersive={props.onImmersive} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }}
+        onBack={() => { if (props.session().index > 0) props.onTravel(-1); else props.onOpen({ kind: 'page', pageId: (current().target as Extract<OpenTarget, { kind: 'reader' }>).sourceId }, false); }} /></Match>
     </Switch>}</Show></div>
     <Show when={menu()}>{anchor => <Menu anchor={anchor()} label="Page actions" items={items()} onDismiss={() => setMenu(null)} />}</Show>
+    <Show when={depthMenu()}>{anchor => <Menu anchor={anchor()} label="Depth" onDismiss={() => setDepthMenu(null)}
+      items={depthStops.map(stop => ({ label: depthLabels[stop], icon: `depth-${stop}` as const, checked: depth() === stop, action: () => outlineCommand(`depth-${stop}`)?.run() }))} />}</Show>
     <Show keyed when={mergeFrom()}>{from => <PageMergePicker anchor={menuButton} notebook={props.notebook} from={from} onDismiss={() => setMergeFrom(undefined)} onMerged={id => { setMergeFrom(undefined); props.onOpen({ kind: 'page', pageId: id }, false); }} />}</Show>
   </section>;
 }

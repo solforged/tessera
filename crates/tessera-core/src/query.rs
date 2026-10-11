@@ -130,6 +130,30 @@ impl Notebook {
         })
     }
 
+    pub fn types(&self) -> Result<Vec<TypeInfo>> {
+        let mut statement = self.conn.prepare_cached(concat!(
+            hidden_blocks!(),
+            "SELECT COUNT(DISTINCT m.block_id), ", block_columns!("t"),
+            " FROM memberships m JOIN blocks b ON b.id = m.block_id
+             JOIN blocks p ON p.id = b.page_id JOIN blocks t ON t.id = m.type_id
+             WHERE t.kind = 'page' AND b.deletion_id IS NULL AND p.deletion_id IS NULL AND t.deletion_id IS NULL
+             AND b.rowid NOT IN (SELECT rowid FROM hidden) AND t.rowid NOT IN (SELECT rowid FROM hidden)
+             GROUP BY m.type_id"
+        ))?;
+        let mut rows = statement.query([])?;
+        let mut types = Vec::new();
+        while let Some(row) = rows.next()? {
+            let page = block_at(row, 1)?;
+            types.push(TypeInfo {
+                fields: template(&self.conn, &page.id)?,
+                page,
+                members: row.get::<_, i64>(0)? as usize,
+            });
+        }
+        types.sort_by_cached_key(|info| (info.page.text.to_lowercase(), info.page.id.clone()));
+        Ok(types)
+    }
+
     pub fn views(&self) -> Result<Vec<View>> {
         let mut views = self
             .conn

@@ -5,6 +5,15 @@
 .reader-contents > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .reader-progress { margin-left: auto; color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .reader-progress-rule { flex-shrink: 0; width: calc(100% - 2 * var(--space-24)); max-width: var(--reader-measure); height: 2px; margin: 0 auto var(--space-16); background: var(--line); font-size: var(--reader-size); }
+/* The cover screen reads without the pane header: a back arrow and the book's name head the page, and full screen has nothing left to hide. */
+.reader-masthead { display: none; }
+@media (max-width: 599px) and (pointer: coarse) {
+  .reader-masthead { display: flex; align-items: center; gap: var(--space-4); width: calc(100% - 2 * var(--space-12)); max-width: var(--reader-measure); margin: 0 auto; padding-top: var(--space-8); }
+  .reader-masthead > .button { flex-shrink: 0; }
+  .reader-masthead h2 { min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: var(--weight-display-heading) var(--text-h2)/var(--line-h2) var(--font-display); font-variation-settings: var(--optical-heading); }
+  .reader-header .reader-full-screen { display: none; }
+  .reader-header { padding-top: var(--space-4); }
+}
 .reader-progress-rule > span { display: block; height: 100%; background: var(--accent); }
 .reader-scroll { flex: 1; min-height: 0; overflow: auto; overflow-anchor: none; padding: 0 var(--space-24) var(--space-48); }
 /* Contents margin: where the pane has room left of the text, the contents stay beside it, 48 px off, the current section in gilt. */

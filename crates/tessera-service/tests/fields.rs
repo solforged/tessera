@@ -102,6 +102,56 @@ async fn fields_queries_and_saved_views_round_trip_through_http_and_conflict_env
 }
 
 #[tokio::test]
+async fn types_list_only_visible_members_of_live_unarchived_type_pages() {
+    let dir = tempfile::tempdir().unwrap();
+    let app =
+        tessera_service::router(Notebook::open(dir.path()).unwrap(), 4318, None, None).unwrap();
+    let (status, types) = request(&app, "GET", "/api/types", Value::Null).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(types, json!([]));
+    let (_, fields) = request(&app, "GET", "/api/fields", Value::Null).await;
+    let operations = json!([
+        {"op":"create_page","id":id(1),"title":"Notes"},
+        {"op":"create_page","id":id(2),"title":"Book"},
+        {"op":"create_page","id":id(3),"title":"Deleted"},
+        {"op":"create_page","id":id(4),"title":"Archived"},
+        {"op":"create_page","id":id(5),"title":"Deleted notes"},
+        {"op":"insert","id":id(100),"parent_id":fields["page_id"],"after":null,"text":"Year","heading":null},
+        {"op":"set_type_fields","type_id":id(2),"base_revision":1,"fields":[id(100)]},
+        {"op":"insert","id":id(10),"parent_id":id(1),"after":null,"text":"First #Book","heading":null},
+        {"op":"add_type","id":id(10),"base_revision":1,"title":"Book"},
+        {"op":"insert","id":id(11),"parent_id":id(1),"after":null,"text":"Second #Book","heading":null},
+        {"op":"insert","id":id(12),"parent_id":id(1),"after":null,"text":"Hidden #Book","heading":null},
+        {"op":"insert","id":id(13),"parent_id":id(12),"after":null,"text":"Hidden descendant #Book","heading":null},
+        {"op":"set_archived","id":id(12),"base_revision":1,"archived":true},
+        {"op":"insert","id":id(20),"parent_id":id(1),"after":null,"text":"Deleted member #Deleted","heading":null},
+        {"op":"delete","id":id(20),"base_revision":1},
+        {"op":"insert","id":id(30),"parent_id":id(1),"after":null,"text":"Archived type member #Archived","heading":null},
+        {"op":"set_archived","id":id(4),"base_revision":1,"archived":true},
+        {"op":"insert","id":id(40),"parent_id":id(5),"after":null,"text":"Deleted page member #Book","heading":null},
+        {"op":"delete","id":id(5),"base_revision":1}
+    ]);
+    let (status, _) = request(
+        &app,
+        "POST",
+        "/api/batches",
+        json!({"actor":{"kind":"person"},"operations":operations}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let (status, types) = request(&app, "GET", "/api/types", Value::Null).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(types.as_array().unwrap().len(), 1);
+    assert_eq!(types[0]["page"]["id"], id(2));
+    assert_eq!(types[0]["members"], 2);
+    assert_eq!(types[0]["fields"], json!([id(100)]));
+    let (status, info) = request(&app, "GET", &format!("/api/types/{}", id(2)), Value::Null).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(types[0], info);
+}
+
+#[tokio::test]
 async fn fields_count_distinct_live_entry_owners_and_template_types() {
     let dir = tempfile::tempdir().unwrap();
     let app =
