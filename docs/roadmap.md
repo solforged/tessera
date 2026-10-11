@@ -117,6 +117,20 @@ Exit: break a chapter into ideas, link two authors' positions on one idea and st
 
 Progress: perspective lenses and comparison arrived with stage 7's positions. Titled pages read as prose with page glosses, a depth dial from gloss to full, and an apparatus margin whose constellation links holders and pages. Idea breakdowns, more source types and agent-assisted study remain.
 
+## 10. Notes
+
+- Built-in kinds: Person, Group, Concept and Thesis as system types, with Question, Source and Project read from capabilities. Existing types with those titles become the built-in kinds.
+- A Form choice field on sources, filled by lookup and ingestion and exported as the CSL and BibTeX type, replacing the guess from format and identifiers.
+- A note capability with the settled state and the revisit date; revisit events as history. A page question's review date becomes its revisit date.
+- An Index in the sidebar: built-in kinds, then your types, each with a count, opening a finding aid by title. Saved views file under the kind they list.
+- A note header in the site's apparatus: the kind above the title, and the state, created date and last revisit in mono below the gloss.
+- A notes queue in Review beside cards, with Revisited, Later and Settle.
+- The agent API's `AddNote` and `NoteTarget` renamed to block terms, since they also write to journal days.
+
+Exit: file a week of reading notes by kind, settle two, give three revisit dates, and work them from the notes queue on the day, rewriting and linking in place.
+
+Progress: the model is settled in the [domain model](domain-model.md#notes); nothing is built.
+
 ## Not planned
 
 Multi-device sync, collaboration, an iOS app, plugin and schema builders, graph visualization and autonomous background agents. Each may come later; none blocks daily use. The Android app (`crates/tessera-android`) keeps its own notebook on the phone for reading and annotation; it does not sync with a desktop notebook.

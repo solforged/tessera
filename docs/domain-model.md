@@ -8,12 +8,14 @@ Everything a person writes is a block. Behavior is added to blocks as capabiliti
 |---|---|
 | Block | Addressable authored text with one parent and a position among its siblings |
 | Page | A named root block |
+| Note | A titled page, with the blocks beneath it as its content |
+| Kind | What a note is about: a built-in kind such as Person or Concept, or a type you define |
 | Journal day | A root block for one calendar date in the notebook's time zone |
 | Reference | `[[id]]` or `[[id\|alias]]` in a block's text, pointing at another block |
 | Link | The indexed occurrence of a reference; derived |
 | Type | Reusable membership, such as `#book`, with an optional field template |
 | Field | A typed reading of value blocks, such as Author or Read on |
-| Capability | Behavior attached to a block: task, question, assessment, card, source, position, project |
+| Capability | Behavior attached to a block: task, question, assessment, card, source, position, project, note |
 | Change | One committed operation, with its actor and the revisions it produced |
 
 Only these words appear in the schema, the API, the code and the interface.
@@ -79,7 +81,7 @@ A question is in one of four states:
 | Parked | Paused; it accepts nothing new until resumed |
 | Unsettled | Open by design: it recurs or may end in aporia, collects dated assessments and returns on its review date |
 
-Only two things are stored: whether the question is unsettled and whether it is parked. The state is derived from them and the assessments, in that order: parked, then unsettled, then answered when an accepted assessment exists, otherwise open. Answered is never stored, so it cannot disagree with the assessments. Accepting an assessment on an unsettled question records the current reading without settling it. Resuming a parked question returns it to whatever the rest of the rule gives. Export writes the derived state as the site's `state`.
+Stored with the question are whether it is unsettled, whether it is parked, its review date and which assessment it accepts. The state is derived in this order: parked, then unsettled, then answered when an accepted assessment exists, otherwise open. Answered is never stored, so it cannot disagree with the assessments. Accepting an assessment on an unsettled question records the current reading without settling it. Resuming a parked question returns it to whatever the rest of the rule gives. Export writes the derived state as the site's `state`.
 
 ## Sources, passages and positions
 
@@ -93,7 +95,7 @@ Citation keys are assigned once at ingestion and never recomputed when fields ch
 
 Every source has a siglum, a short mark as in a critical edition. An authored Siglum field wins when its trimmed value is one to four letters; it is upper-cased, and invalid values are ignored. Otherwise it is derived from the current fields: the first three letters of the first author's family name, else editor, site or the title's first word containing letters. Unicode letters are kept, non-letters are skipped and the result is upper-cased; shorter names use what they have. The siglum, its full letter-only basis and whether it is authored are derived on reads, never stored, so editing an author changes the default mark. CSL JSON exports it as `citation-label`. Pages that show several sources extend a later colliding derived siglum with further letters of its basis name, in order of first appearance (`THO`, `THOM`, `THOMA`); once the basis runs out they append `2`, `3`, … . Authored sigla never change.
 
-A highlight is an authored block on the source's page that cites a passage. It takes children, types, fields and card syntax like any other block. A highlight with no non-blank children, no card and no incoming reference is unprocessed; there is no separate triage state. Because passages never change, a passage citation is a frozen quotation by construction.
+A highlight is an authored block on the source's page that cites a passage. It takes children, types, fields and card syntax like any other block. A highlight with no non-blank children, no card and no incoming reference is unprocessed. Marking a highlight processed or unprocessed overrides that rule until the mark is cleared; it is the only stored triage state. Because passages never change, a passage citation is a frozen quotation by construction.
 
 A position is an attributed claim: who holds it, about which question or subject, supported by which passages. A position capability marks an ordinary block as one; its holder and subject are derived from the block's text and place, never stored. The holder is the page its first link points to. The subject is the block or page its second link points to, else its nearest ancestor question, else its page; so a position can sit under a highlight on a source page and still be filed under the concept it is about. Its fields are ordinary children: by convention Gist (its one-line summary), Work (the source it names, which gives its siglum; otherwise the first passage cited beneath it) and whatever criteria the positions on one subject share. Positions on the same subject are compared side by side and never merged. Assessments cite positions and passages, so a conclusion can be traced to its evidence.
 
@@ -104,6 +106,54 @@ These map the three kinds of knowledge in the [vision](vision.md): a fact is an 
 ## Projects
 
 A project capability gives a block an outcome, an optional deadline and active, done or cancelled status. Tasks anywhere beneath it are its canonical actions; nested tasks report their nearest active project capability. A completed project's capability remains active until explicitly removed. Completing a project does not complete its tasks or reassess questions beneath it. Removing the capability retains its history and block identity.
+
+## Notes
+
+A note is a titled page: a root block of kind page. Journal days and the Fields page are not notes. The blocks beneath the title are the note's content; there is no separate note record or copy. Blocks inside a note keep every behaviour of their own, so a note can hold tasks, cards, questions and positions.
+
+### Kinds
+
+A kind says what a note is about. These are built in:
+
+| Kind | Marked by | Meaning |
+|---|---|---|
+| Person | `#person` | An individual, such as an author or a thinker |
+| Group | `#group` | A collective: an organisation, a school, a dynasty, a people |
+| Concept | `#concept` | An idea, term or phenomenon, explained and compared |
+| Thesis | `#thesis` | A claim you hold, stated as the title and argued beneath it |
+| Question | A question capability on the page | An enduring question; see Investigations |
+| Source | A source capability on the page | Something read, watched or listened to |
+| Project | A project capability on the page | A bounded outcome |
+
+Person and Group are entities: the pages that a position's holder and a source's creators refer to. Person, Group, Concept and Thesis are system types that every notebook has, like the Fields page; they take templates and fields like any type, and cannot be deleted or merged. A notebook that already has a type with one of those titles keeps that page, with its members, fields and template, as the built-in kind. Question, Source and Project come from capabilities and need no tag.
+
+Types you define are kinds too, listed after the built-in ones. A note can have several kinds and is filed under each; a note with none is unfiled. Tasks and cards are not kinds. They belong to blocks within notes, and Agenda and Review are their places.
+
+A source's form is a built-in Form choice field: book, chapter, article, paper, report, post, thread, video or web page, with more options added as for any choice field. Lookup and ingestion fill it, and export writes it as the CSL type and BibTeX entry type.
+
+### State
+
+A note is working or settled. Working is the default and is not stored. Settle records that you stand behind the note as written; Reopen returns it to working. Editing a settled note does not reopen it; the note's apparatus shows that it changed after settling.
+
+### Revisits
+
+A note comes back only when it has a revisit date. On a page that is also a question, the revisit date is the question's review date; there is one date, not two. A question block within a page that has a review date comes back as itself.
+
+From its revisit date onward a note waits in the notes queue in Review, earliest date first. It is reviewed in the ordinary outline, with its sources and backlinks at hand. A revisit ends in one of three ways:
+
+| Action | Effect |
+|---|---|
+| Revisited | Records the revisit and sets the next date, or none |
+| Later | Moves the date without recording a revisit |
+| Settle | Settles the note and clears its date |
+
+Revisits have no grade and no scheduler. They judge the note, not your memory of it, so the next date is chosen rather than computed. Each action is an attributed operation that undo reverses, and each writes a revisit event; the note's last revisit is its latest Revisited event. Revisit events are authoritative history, kept like review events.
+
+A note capability on the page holds the stored state and the revisit date. A page without one is working and has no revisit date.
+
+### Index
+
+The index lists notes by kind, each kind with its count, and opens a finding aid of that kind's notes by title. It is derived from kinds and is never stored.
 
 ## Cards
 
@@ -138,3 +188,6 @@ Links, full-text search, type membership from text, card definitions and field r
 - How concept and taxonomy comparison is modelled: types, positions about a concept, or a capability of its own.
 - Whether vocabulary cards need anything beyond ordinary cards, such as language, part of speech or inflection fields.
 - How newsletters arrive: a polled mail folder, a forwarding address or feeds only.
+- Whether a type you define can refine a built-in kind, such as Philosopher as a kind of Person, so its members also file under Person.
+- How a thesis page answers a question. An assessment must sit beneath its question, and a thesis page is a root.
+- Whether Revisited proposes a next date from the interval since the previous revisit.

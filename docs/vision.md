@@ -44,6 +44,7 @@ First-class means explicit relationships, lifecycle rules, operations and views.
 | Blocks and references | Stable identity; references render the original's current text |
 | Journals | One root per calendar day in the notebook's time zone |
 | Types and fields | Many-to-many membership; typed fields whose values are blocks; type pills and type tables |
+| Notes | Titled pages filed by kind, working or settled, and revisited when given a date |
 | Queries | Structured filters by type, field, task state, dates and text; saved as views and review decks |
 | Tasks | Status, scheduled and deadline dates, repeaters, priority, agenda, clocked work |
 | Investigations | An enduring question, criteria, dated assessments, one accepted answer, reassessment dates |
