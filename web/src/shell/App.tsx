@@ -453,6 +453,7 @@ export function App() {
     { id: 'shell.agenda', title: 'Open agenda', section: 'Navigation', run: () => open({ kind: 'agenda', date: journalDate(active()) }) },
     { id: 'shell.review', title: 'Open review', section: 'Navigation', run: () => open({ kind: 'review' }) },
     { id: 'shell.library', title: 'Open library', section: 'Navigation', run: () => open({ kind: 'library' }) },
+    { id: 'shell.import-book', title: 'Import book', section: 'Navigation', run: () => open({ kind: 'library', tab: 'inbox', add: true }) },
     { id: 'shell.previous-day', title: 'Previous journal day', section: 'Navigation', run: () => shiftDate(-1) },
     { id: 'shell.next-day', title: 'Next journal day', section: 'Navigation', run: () => shiftDate(1) },
     { id: 'shell.calendar', title: 'Choose journal date', section: 'Navigation', run: () => chooseDate() },
@@ -472,6 +473,20 @@ export function App() {
     { id: 'shell.sidebar', title: 'Toggle sidebar', section: 'View', run: toggleSidebar },
   ]);
   onCleanup(unregister);
+  onMount(() => {
+    // The native main window stamps its window controls before the shell loads.
+    if (!document.documentElement.dataset.windowControls) return;
+    const onCommand = (event: Event) => {
+      const id: unknown = (event as CustomEvent).detail;
+      if (typeof id !== 'string') return;
+      const command = commands.list().find(command => command.id === id);
+      if (!command || command.disabledReason?.()) return;
+      setPopup(null); setTypesMenu(null);
+      command.run();
+    };
+    window.addEventListener('tessera-command', onCommand);
+    onCleanup(() => window.removeEventListener('tessera-command', onCommand));
+  });
   createEffect(() => {
     const unregisterViews = commands.register((views() ?? []).map(view => ({
       id: `shell.view.${view.id}`, title: `Open view: ${view.name}`, section: 'Navigation' as const,
@@ -826,7 +841,7 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
       <Match when={current().target.kind === 'index' ? current().target as Extract<OpenTarget, { kind: 'index' }> : undefined}>{target => <IndexPane kindKey={target().key} kind={props.noteKind} view={snapshotView(current().view) as IndexViewState} notebook={props.notebook} onActivate={props.onActivate} onOpen={(next, beside) => { if (generation === props.session().generation) props.onOpen(next, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} onDeletePages={props.onDeleteSources} />}</Match>
       <Match when={current().target.kind === 'agenda'}><AgendaPane pane={props.pane} view={snapshotView(current().view) as AgendaViewState} notebook={props.notebook} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
       <Match when={current().target.kind === 'review'}><ReviewPane pane={props.pane} view={snapshotView(current().view) as ReviewViewState} notebook={props.notebook} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
-      <Match when={current().target.kind === 'library'}><LibraryPane pane={props.pane} view={snapshotView(current().view) as LibraryViewState} notebook={props.notebook} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} onDeleteSources={props.onDeleteSources} /></Match>
+      <Match when={current().target.kind === 'library'}><LibraryPane pane={props.pane} view={snapshotView(current().view) as LibraryViewState} notebook={props.notebook} active={props.active} add={(current().target as Extract<OpenTarget, { kind: 'library' }>).add} onAddOpened={() => props.onTargetChange({ kind: 'library', tab: (current().target as Extract<OpenTarget, { kind: 'library' }>).tab })} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} onDeleteSources={props.onDeleteSources} /></Match>
       <Match when={current().target.kind === 'reader'}><ReaderPane pane={props.pane} target={current().target as Extract<OpenTarget, { kind: 'reader' }>} view={snapshotView(current().view) as ReaderViewState} notebook={props.notebook} active={props.active} immersive={props.immersive} onImmersive={props.onImmersive} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }}
         onBack={() => { if (props.session().index > 0) props.onTravel(-1); else props.onOpen({ kind: 'page', pageId: (current().target as Extract<OpenTarget, { kind: 'reader' }>).sourceId }, false); }} /></Match>
     </Switch>}</Show></div>

@@ -31,6 +31,9 @@ export interface LibraryPaneProps {
   view: LibraryViewState;
   notebook: NotebookClient;
   active: boolean;
+  /** One-time request to open the existing Add sheet on arrival. */
+  add?: boolean;
+  onAddOpened?(): void;
   onActivate(): void;
   onOpen(target: OpenTarget, beside: boolean): void;
   onViewChange(view: LibraryViewState): void;
@@ -189,6 +192,7 @@ export function LibraryPane(props: LibraryPaneProps) {
   onCleanup(() => coverMedia.removeEventListener('change', coverChanged));
   // A narrow strip scrolls sideways; keep the current tab in it, so Highlights is never left off the edge.
   let tabStrip: HTMLDivElement | undefined;
+  let addButton!: HTMLButtonElement;
   createEffect(() => {
     tab(); view().view; coverLayout();
     queueMicrotask(() => tabStrip?.querySelector('[aria-pressed="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }));
@@ -220,6 +224,11 @@ export function LibraryPane(props: LibraryPaneProps) {
     if (EMBEDDED) { fileInput.click(); return; }
     setPopup({ kind: 'add', anchor });
   }
+  onMount(() => {
+    if (!props.add) return;
+    openAdd(addButton);
+    props.onAddOpened?.();
+  });
   createEffect(() => {
     const controller = new AbortController();
     void props.notebook.api.notebook(controller.signal).then(async info => {
@@ -838,7 +847,7 @@ export function LibraryPane(props: LibraryPaneProps) {
             <Button class="library-clear-selection" onClick={clearSelection}>Clear selection</Button>
           </Show>
         </Show>
-        <Show when={tab() !== 'highlights'}><Button class="library-add-trigger" icon="plus" aria-haspopup={EMBEDDED ? undefined : 'dialog'} aria-expanded={EMBEDDED ? undefined : popup()?.kind === 'add'} onClick={event => openAdd(event.currentTarget)}>Add</Button></Show>
+        <Show when={tab() !== 'highlights'}><Button ref={addButton} class="library-add-trigger" icon="plus" aria-haspopup={EMBEDDED ? undefined : 'dialog'} aria-expanded={EMBEDDED ? undefined : popup()?.kind === 'add'} onClick={event => openAdd(event.currentTarget)}>Add</Button></Show>
       </div>
       <Show when={tab() !== 'highlights' && chosenFilters().length}><div class="library-filter library-chosen" role="group" aria-label="Browse filters">
         <For each={chosenFilters()}>{item => <Button class="bordered library-chip" aria-label={`Remove filter ${item.label}`} onClick={() => toggleFilter(item.field, item.value)}>{item.label}<Icon name="close" /></Button>}</For>
