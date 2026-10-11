@@ -20,10 +20,11 @@ use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 use tauri_plugin_opener::OpenerExt;
 
 use crate::agent::{self, Agent};
+use crate::capture;
 use crate::opened_files;
 use crate::updates;
 
-const MAIN: &str = "main";
+pub(super) const MAIN: &str = "main";
 
 #[derive(Default)]
 struct Shell {
@@ -95,12 +96,18 @@ pub fn run() {
     let shell = Shell::default();
     let opened_files = opened_files::OpenedFiles::new(shell.client.clone());
     tauri::Builder::default()
-        .plugin(tauri_plugin_window_state::Builder::new().build())
+        .plugin(
+            tauri_plugin_window_state::Builder::new()
+                .with_denylist(&[capture::LABEL])
+                .build(),
+        )
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(shell)
         .manage(opened_files)
+        .manage(capture::Capture::default())
         .menu(menu)
         .on_menu_event(|app, event| match event.id().as_ref() {
             "check-updates" => {
@@ -113,6 +120,7 @@ pub fn run() {
                 }
             }
             "undo" => history(app, false),
+            "new-capture" => capture::in_main(app),
             "redo" => history(app, true),
             "show-log" => show_log(app.clone()),
             _ => (),
@@ -135,6 +143,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![retry, show_log])
         .setup(|app| {
             window(app.handle())?;
+            capture::register(app.handle());
             tauri::async_runtime::spawn(start(app.handle().clone()));
             if updates::enabled() {
                 tauri::async_runtime::spawn(updates::schedule(app.handle().clone()));
@@ -193,7 +202,16 @@ fn menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
                 app,
                 "File",
                 true,
-                &[&PredefinedMenuItem::close_window(app, None)?],
+                &[
+                    &MenuItem::with_id(
+                        app,
+                        "new-capture",
+                        "New Capture",
+                        true,
+                        Some("CmdOrCtrl+E"),
+                    )?,
+                    &PredefinedMenuItem::close_window(app, None)?,
+                ],
             )?,
             &Submenu::with_items(
                 app,
@@ -358,7 +376,11 @@ fn window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
         .build()
 }
 
-fn allowed(app: &AppHandle, url: &Url) -> bool {
+pub(super) fn origin(app: &AppHandle) -> Option<Url> {
+    app.state::<Shell>().origin.lock().clone()
+}
+
+pub(super) fn allowed(app: &AppHandle, url: &Url) -> bool {
     match url.scheme() {
         "tauri" | "about" | "blob" | "data" => true,
         _ => app
@@ -370,7 +392,7 @@ fn allowed(app: &AppHandle, url: &Url) -> bool {
     }
 }
 
-fn open_external(app: &AppHandle, url: &Url) {
+pub(super) fn open_external(app: &AppHandle, url: &Url) {
     if matches!(url.scheme(), "http" | "https" | "mailto") {
         let _ = app.opener().open_url(url.as_str(), None::<&str>);
     }

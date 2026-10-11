@@ -79,7 +79,7 @@ The app checks the latest GitHub release a minute after launch, every six hours,
 
 ### Android app
 
-`crates/tessera-android` is a Tauri 2 app for Android phones and foldables. The notebook runs inside the app, in its private storage, and the pages reach it over Tauri's IPC, so nothing listens on a port. The phone keeps its own notebook; it does not sync with a desktop notebook. Library → Add opens Android's file picker for EPUBs. Long-pressing the app icon offers New note, which opens today's journal editing an empty block at the end, with the keyboard up. Web articles, backups and service details are left out, as in the browser demo.
+`crates/tessera-android` is a Tauri 2 app for Android phones and foldables. The notebook runs inside the app, in its private storage, and the pages reach it over Tauri's IPC, so nothing listens on a port. The phone keeps its own notebook; it does not sync with a desktop notebook. Library → Add opens Android's file picker for EPUBs. Long-pressing the app icon offers New note and New task, which open Add to today over the current page with the keyboard up; text or a link shared to Tessera opens it with that text. Web articles, backups and service details are left out, as in the browser demo.
 
 Build a debug APK for arm64 and install it on a phone with USB debugging enabled:
 
@@ -115,6 +115,8 @@ Logs go to stderr through `tracing`. `RUST_LOG` selects the filter, defaulting t
 `mise run desktop:build` builds the editor, the command line and `target/release/bundle/macos/Tessera.app` for this Mac; extra arguments go to `tauri build`, such as `--bundles app`. To develop the window against a development service, run the built app's binary with `TESSERA_DESKTOP_URL=http://127.0.0.1:4320/`; it then leaves the launch agent alone and never updates itself.
 
 The macOS app accepts EPUBs opened from Finder, imports them into its notebook and shows the Library. To make it the default, select an `.epub` in Finder, choose **Get Info → Open with → Tessera → Change All…**. On Android, choose **Tessera** in the EPUB's **Open with** chooser, then **Always**; **Share → Tessera** also imports an EPUB. Android reads the sender's content URI while its permission grant is active, copies it into a private inbox, and clears that copy after submitting the import. Both shells show upload errors and ingestion progress through the Library.
+
+While the app runs, **⌘⇧E** from any app opens a small Add to today panel: type a line, press Enter, and it lands at the end of today's journal while focus returns to the app you were in. Inside Tessera, **⌘E** (File → New Capture) opens the same line over the current page. If another app already holds ⌘⇧E, Tessera starts without it and notes that in `~/Library/Logs/tessera/desktop.log`.
 
 Releases come from `v*` tags matching the workspace version. `.github/workflows/release.yml` first publishes the app, its DMG, the macOS command line, the signed updater archive and `latest.json`, which installed apps poll, then adds the Linux command line. Signing the updater archive needs the `TAURI_SIGNING_PRIVATE_KEY` secret, whose public half is in `crates/tessera-desktop/tauri.conf.json`. Losing the private key strands installed apps on their version.
 
