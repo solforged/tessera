@@ -1,0 +1,5 @@
+/* A kept copy reads as an ordinary block set off by a hairline at its left: the mono provenance above, its choices
+   beneath. Keep both removes all three, leaving the block as written. */
+.outline-body:has(> .kept-copy-label) { padding-left: var(--space-12); border-left: var(--rule-width) solid var(--control-border); }
+.kept-copy-label { margin-bottom: var(--space-2); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.kept-copy-actions { display: flex; flex-wrap: wrap; gap: var(--space-8); margin: var(--space-8) 0 var(--space-4); font: var(--weight-control) var(--text-control)/var(--line-control) var(--font-body); }
