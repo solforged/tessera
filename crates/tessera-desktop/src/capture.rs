@@ -10,7 +10,8 @@ use objc2_app_kit::{
 use parking_lot::Mutex;
 use tauri::webview::NewWindowResponse;
 use tauri::{
-    AppHandle, Manager, PhysicalPosition, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
+    AppHandle, LogicalSize, Manager, PhysicalPosition, Url, WebviewUrl, WebviewWindow,
+    WebviewWindowBuilder,
 };
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 
@@ -18,12 +19,16 @@ use crate::app::{self, MAIN};
 
 pub const LABEL: &str = "capture";
 const WIDTH: f64 = 600.0;
-const HEIGHT: f64 = 340.0;
+const MAX_HEIGHT: f64 = 340.0;
 const OPEN_MAIN: &str = "window.dispatchEvent(new CustomEvent('tessera-quick-capture'))";
 const OPEN_PANEL: &str = "window.dispatchEvent(new Event('tessera-quick-capture'))";
 const DONE_URL: &str = "tessera-capture://done";
-const BRIDGE: &str =
-    "window.__tesseraCaptureDone = () => { window.location.href = 'tessera-capture://done'; };";
+const BRIDGE: &str = "
+    window.__tesseraCaptureDone = () => { window.location.href = 'tessera-capture://done'; };
+    window.__tesseraCaptureSize = height => {
+        window.location.href = 'tessera-capture://size?height=' + height;
+    };
+";
 
 #[derive(Default)]
 pub struct Capture {
@@ -97,11 +102,8 @@ fn show(app: &AppHandle) -> tauri::Result<()> {
         .return_to
         .lock()
         .get_or_insert(previous);
-    if let Err(error) = window.show().and_then(|()| window.set_focus()) {
-        dismiss(app, true);
-        return Err(error);
-    }
-    // On the first load the page focuses itself; subsequent shows reuse its draft.
+    // The page reports its current content size before showing, including on
+    // reuse. The first load waits for fonts so no oversized panel flashes open.
     window.eval(OPEN_PANEL)
 }
 
@@ -134,6 +136,42 @@ fn done(app: &AppHandle) {
     }
 }
 
+fn requested_height(url: &Url) -> Option<f64> {
+    if url.scheme() != "tessera-capture" || url.host_str() != Some("size") {
+        return None;
+    }
+    let height = url.query_pairs().find(|(key, _)| key == "height")?.1;
+    let height: f64 = height.parse().ok()?;
+    (height.is_finite() && height > 0.0).then(|| height.ceil().min(MAX_HEIGHT))
+}
+
+fn resize(app: &AppHandle, height: f64) {
+    let handle = app.clone();
+    if let Err(error) = app.run_on_main_thread(move || {
+        let Some(window) = handle.get_webview_window(LABEL) else {
+            return;
+        };
+        let result = (|| -> tauri::Result<()> {
+            // Restore the physical top-left after resizing. AppKit's resize
+            // origin policy must not move the panel as status rows come and go.
+            let top_left = window.outer_position()?;
+            window.set_size(LogicalSize::new(WIDTH, height))?;
+            window.set_position(top_left)?;
+            if handle.state::<Capture>().return_to.lock().is_some() && !window.is_visible()? {
+                window.show()?;
+                window.set_focus()?;
+            }
+            Ok(())
+        })();
+        if let Err(error) = result {
+            app::log(&format!("cannot size capture: {error}"));
+            dismiss(&handle, true);
+        }
+    }) {
+        app::log(&format!("cannot dispatch capture size: {error}"));
+    }
+}
+
 fn capture_url(mut origin: Url) -> Url {
     origin.set_path("/");
     origin.set_query(Some("capture"));
@@ -150,7 +188,7 @@ fn window(
     let popup = app.clone();
     let window = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::External(capture_url(origin)))
         .title("New Capture")
-        .inner_size(WIDTH, HEIGHT)
+        .inner_size(WIDTH, MAX_HEIGHT)
         .resizable(false)
         .maximizable(false)
         .minimizable(false)
@@ -164,6 +202,12 @@ fn window(
         .on_navigation(move |url| {
             if url.as_str() == DONE_URL {
                 done(&navigation);
+                return false;
+            }
+            if url.scheme() == "tessera-capture" && url.host_str() == Some("size") {
+                if let Some(height) = requested_height(url) {
+                    resize(&navigation, height);
+                }
                 return false;
             }
             if app::allowed(&navigation, url) {
@@ -226,11 +270,12 @@ fn position(app: &AppHandle, window: &WebviewWindow) -> tauri::Result<()> {
 }
 
 /// Keep screen origins in physical coordinates: mixed-DPI displays do not share
-/// a logical coordinate system. Centre the panel at one third of the work area.
+/// a logical coordinate system. Anchor the top edge of the maximum-height panel
+/// at one third of the work area, independently of its current content height.
 fn panel_position(x: f64, y: f64, width: f64, height: f64, scale: f64) -> PhysicalPosition<f64> {
     PhysicalPosition::new(
         x + ((width - WIDTH * scale) / 2.0).max(0.0),
-        y + (height / 3.0 - HEIGHT * scale / 2.0).max(0.0),
+        y + (height / 3.0 - MAX_HEIGHT * scale / 2.0).max(0.0),
     )
 }
 
@@ -248,6 +293,28 @@ mod tests {
     fn completion_navigation_matches_bridge() {
         assert_eq!(Url::parse(DONE_URL).unwrap().as_str(), DONE_URL);
         assert!(BRIDGE.contains(DONE_URL));
+    }
+
+    #[test]
+    fn size_navigation_uses_positive_logical_heights_up_to_cap() {
+        for (height, expected) in [("114", 114.0), ("114.2", 115.0), ("900", MAX_HEIGHT)] {
+            let url = Url::parse(&format!("tessera-capture://size?height={height}")).unwrap();
+            assert_eq!(requested_height(&url), Some(expected));
+        }
+        assert!(BRIDGE.contains("tessera-capture://size?height="));
+    }
+
+    #[test]
+    fn size_navigation_rejects_invalid_heights_and_other_targets() {
+        for value in ["0", "-1", "NaN", "inf", "text", ""] {
+            let url = Url::parse(&format!("tessera-capture://size?height={value}")).unwrap();
+            assert_eq!(requested_height(&url), None);
+        }
+        assert_eq!(requested_height(&Url::parse(DONE_URL).unwrap()), None);
+        assert_eq!(
+            requested_height(&Url::parse("https://size?height=114").unwrap()),
+            None,
+        );
     }
 
     #[test]

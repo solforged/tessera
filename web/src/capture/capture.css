@@ -33,8 +33,6 @@
   .capture-cancel { display: inline-flex; }
 }
 
-/* The desktop's capture panel is the sheet alone, filling its window. */
+/* The desktop's capture panel fits the sheet's content, not its viewport. */
 :root.capture-window, :root.capture-window body { height: 100%; background: var(--raised); overflow: hidden; }
-:root.capture-window .capture { min-height: 100vh; }
-:root.capture-window .capture > .capture-field { flex: 1; }
-:root.capture-window .capture-foot { margin-top: auto; }
+:root.capture-window body { overflow-y: auto; }
