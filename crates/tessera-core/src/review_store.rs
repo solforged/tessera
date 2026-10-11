@@ -1,5 +1,7 @@
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::de::{DeserializeOwned, value::StrDeserializer};
+use jiff::{Timestamp, civil::Date, tz::TimeZone};
+use serde::Serialize;
 
 use crate::reads::hidden_blocks;
 use crate::scheduler::{self, Grade, SchedulingState};
@@ -8,6 +10,42 @@ use crate::{
     CardPreviews, CardUnit, Error, GradePreview, Notebook, Operation, Result, ReviewEvent,
     ReviewSession, ReviewSessionState, Revision,
 };
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ReviewForecastDay {
+    pub date: String,
+    pub count: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ReviewStats {
+    pub date: String,
+    pub due_review: usize,
+    pub due_new: usize,
+    pub forecast: Vec<ReviewForecastDay>,
+    pub retention: Option<f64>,
+    pub reviews_this_week: usize,
+    pub streak: usize,
+    pub total_cards: usize,
+}
+
+// Match card-query visibility without loading card definitions or grade evidence.
+macro_rules! review_eligible {
+    () => {
+        concat!(
+            hidden_blocks!(),
+            ", eligible AS MATERIALIZED (
+                SELECT c.id, json_extract(c.schedule, '$.due_at') AS due_at,
+                    json_extract(c.schedule, '$.last_reviewed_at') IS NULL AS is_new
+                FROM card_units c JOIN blocks b ON b.id = c.source_block_id
+                JOIN blocks p ON p.id = b.page_id
+                WHERE c.active = 1 AND b.deletion_id IS NULL AND p.deletion_id IS NULL
+                    AND b.rowid NOT IN (SELECT rowid FROM hidden)
+                    AND (?1 IS NULL OR c.source_block_id IN (SELECT value FROM json_each(?1)))
+            ) "
+        )
+    };
+}
 
 #[derive(Default)]
 pub(crate) struct ReviewChanges {
@@ -543,6 +581,95 @@ pub(crate) fn apply(
 }
 
 impl Notebook {
+    /// Local civil-day statistics use the same notebook timezone as Agenda and resurfacing.
+    /// Deck scope is its source predicate, not its queue selection or display limit.
+    pub fn review_stats(&self, deck_id: Option<&str>, date: &str) -> Result<ReviewStats> {
+        crate::calendar::validate_civil_date(date)?;
+        let zone = TimeZone::get(&self.settings_view(crate::now_ms())?.time_zone)
+            .map_err(|error| validation(error.to_string()))?;
+        let day: Date = date.parse().map_err(|error: jiff::Error| validation(error.to_string()))?;
+        let midnight = |label: &str| -> Result<i64> {
+            let date: Date = label.parse().map_err(|error: jiff::Error| validation(error.to_string()))?;
+            Ok(date.at(0, 0, 0, 0).to_zoned(zone.clone())
+                .map_err(|error| validation(error.to_string()))?.timestamp().as_millisecond())
+        };
+        let source_ids = if let Some(deck_id) = deck_id {
+            let deck = self.deck(deck_id)?;
+            deck.query.source.as_ref().map(|source| {
+                self.query_all_sources(source).map(|result| {
+                    serde_json::to_string(&result.rows.iter().map(|row| &row.block.block.id).collect::<Vec<_>>())
+                        .expect("source IDs serialize")
+                })
+            }).transpose()?
+        } else { None };
+        let end = midnight(&crate::calendar::add_days(date, 1)?)?;
+        let week = crate::calendar::add_days(date, -i64::from(day.weekday().to_monday_zero_offset()))?;
+        let week_start = midnight(&week)?;
+        let recent_start = midnight(&crate::calendar::add_days(date, -29)?)?;
+        let (due_review, due_new, total_cards) = self.conn.prepare_cached(concat!(
+            review_eligible!(),
+            "SELECT COUNT(*) FILTER (WHERE due_at < ?2 AND NOT is_new),
+                    COUNT(*) FILTER (WHERE due_at < ?2 AND is_new), COUNT(*) FROM eligible"
+        ))?.query_row(params![source_ids, end], |row| Ok((row.get::<_, i64>(0)? as usize, row.get::<_, i64>(1)? as usize, row.get::<_, i64>(2)? as usize)))?;
+        let bounds: Vec<_> = (0..14).map(|offset| {
+            let label = crate::calendar::add_days(date, offset)?;
+            let through = crate::calendar::add_days(date, offset + 1)?;
+            Ok(serde_json::json!({ "date": label, "from": midnight(&label)?, "through": midnight(&through)? }))
+        }).collect::<Result<_>>()?;
+        let forecast = self.conn.prepare_cached(concat!(
+            review_eligible!(),
+            "SELECT json_extract(d.value, '$.date'), COUNT(c.id)
+             FROM json_each(?2) d LEFT JOIN eligible c
+                ON c.due_at < json_extract(d.value, '$.through')
+                AND (d.key = 0 OR c.due_at >= json_extract(d.value, '$.from'))
+             GROUP BY d.key ORDER BY d.key"
+        ))?.query_map(params![source_ids, serde_json::to_string(&bounds).expect("day bounds serialize")],
+            |row| Ok(ReviewForecastDay { date: row.get(0)?, count: row.get::<_, i64>(1)? as usize }))?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        let (recent, retained, reviews_this_week): (usize, usize, usize) = self.conn.prepare_cached(concat!(
+            review_eligible!(),
+            "SELECT COUNT(*) FILTER (WHERE e.created_at >= ?2),
+                    COUNT(*) FILTER (WHERE e.created_at >= ?2 AND e.grade <> 'again'),
+                    COUNT(*) FILTER (WHERE e.created_at >= ?3)
+             FROM review_events e JOIN eligible c ON c.id = e.card_id
+             WHERE e.kind = 'grade' AND e.created_at < ?4"
+        ))?.query_row(params![source_ids, recent_start, week_start, end],
+            |row| Ok((row.get::<_, i64>(0)? as usize, row.get::<_, i64>(1)? as usize, row.get::<_, i64>(2)? as usize)))?;
+        // Ordered instants yield ordered local days, including DST folds. Skip duplicate
+        // days and allow the run to start yesterday, then stop at its first gap.
+        let mut history = self.conn.prepare_cached(concat!(
+            review_eligible!(),
+            "SELECT DISTINCT e.created_at FROM review_events e JOIN eligible c ON c.id = e.card_id
+             WHERE e.kind = 'grade' AND e.created_at < ?2 ORDER BY e.created_at DESC"
+        ))?;
+        let mut cursor = history.query(params![source_ids, end])?;
+        let mut expected = date.to_owned();
+        let mut previous = String::new();
+        let mut streak = 0;
+        while let Some(row) = cursor.next()? {
+            let reviewed = Timestamp::from_millisecond(row.get(0)?)
+                .map_err(|error| validation(error.to_string()))?.to_zoned(zone.clone()).date().to_string();
+            if reviewed == previous { continue; }
+            if streak == 0 && reviewed != expected { expected = crate::calendar::add_days(date, -1)?; }
+            if reviewed != expected { break; }
+            previous = reviewed;
+            streak += 1;
+            expected = crate::calendar::add_days(&expected, -1)?;
+        }
+        Ok(ReviewStats { date: date.to_owned(), due_review, due_new, forecast,
+            retention: (recent > 0).then(|| retained as f64 / recent as f64),
+            reviews_this_week, streak, total_cards })
+    }
+
+    pub fn review_session_events(&self, id: &str) -> Result<Vec<ReviewEvent>> {
+        self.review_session(id)?;
+        Ok(self.conn.prepare_cached(
+            "SELECT id, card_id, session_id, kind, grade, shown_front, shown_back,
+                    definition_revision, scheduler_version, before_state, after_state, created_at, change_seq
+             FROM review_events WHERE session_id = ?1 ORDER BY created_at, rowid"
+        )?.query_map([id], |row| review_event_at(row, 0))?.collect::<rusqlite::Result<_>>()?)
+    }
+
     /// Retained evidence, including cards whose syntax or source is no longer visible.
     pub fn review_events(&self, card_id: &str) -> Result<Vec<ReviewEvent>> {
         validate_id(card_id)?;

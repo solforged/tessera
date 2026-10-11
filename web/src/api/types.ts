@@ -385,6 +385,11 @@ export interface Deck { id: string; name: string; query: CardQuery; revision: nu
 export interface TaskView { id: string; name: string; query: TaskQuery; revision: number; created_at: number; updated_at: number }
 export interface GradePreview { grade: Grade; interval_days: number }
 export interface CardPreviews { current: GradePreview[]; reset: GradePreview[] }
+export interface ReviewForecastDay { date: string; count: number }
+export interface ReviewStats {
+  date: string; due_review: number; due_new: number; forecast: ReviewForecastDay[];
+  retention: number | null; reviews_this_week: number; streak: number; total_cards: number;
+}
 
 export type SourceFormat = 'epub' | 'article' | 'record';
 export type ReadingState = 'inbox' | 'reading' | 'finished' | 'abandoned';

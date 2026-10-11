@@ -216,6 +216,8 @@ fn notebook_routes() -> Router<AppState> {
             "/api/review-sessions/{id}",
             get(capabilities::review_session),
         )
+        .route("/api/review/stats", get(review_stats))
+        .route("/api/review-sessions/{id}/reviews", get(review_session_events))
         .route("/api/types", get(types))
         .route("/api/types/{id}", get(type_info))
         .route("/api/types/{id}/starting-template", post(starting_template))
@@ -432,6 +434,31 @@ async fn create_backup(State(state): State<AppState>) -> Result<Json<CreatedBack
     })
     .await
     .map_err(ApiError::internal)?
+}
+
+#[derive(Deserialize)]
+struct ReviewStatsQuery {
+    deck: Option<String>,
+    date: Option<String>,
+}
+
+async fn review_stats(
+    State(state): State<AppState>,
+    query: Result<Query<ReviewStatsQuery>, QueryRejection>,
+) -> Result<Json<tessera_core::ReviewStats>, ApiError> {
+    let Query(query) = query.map_err(ApiError::from)?;
+    run(&state, move |notebook| {
+        let date = query.date.map(Ok).unwrap_or_else(|| notebook.today(tessera_core::now_ms()))?;
+        notebook.review_stats(query.deck.as_deref(), &date)
+    }).await.map(Json)
+}
+
+async fn review_session_events(
+    State(state): State<AppState>,
+    path: Result<Path<String>, PathRejection>,
+) -> Result<Json<Vec<tessera_core::ReviewEvent>>, ApiError> {
+    let Path(id) = path.map_err(ApiError::from)?;
+    run(&state, move |notebook| notebook.review_session_events(&id)).await.map(Json)
 }
 
 #[derive(Deserialize)]
