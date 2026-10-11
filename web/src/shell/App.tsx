@@ -28,7 +28,7 @@ import { installOpenedFiles } from '../library/opened-files';
 import { blankCapture, installQuickCapture } from './quick-capture';
 import type { CaptureRequest } from './quick-capture';
 import { CaptureSheet } from '../capture/CaptureSheet';
-import { indexKindTarget, noteIndex, noteKindIcon } from '../notes/kinds';
+import { indexKindTarget, noteIndex, noteKindIcon, tagOnly } from '../notes/kinds';
 
 // Panes other than the outline load on demand and are prefetched once the app is idle.
 const paneModules = {
@@ -559,10 +559,11 @@ export function App() {
         <ViewLinks views={pinnedViewList()} pinned activeId={activeViewId()} onOpen={openView} onPin={pinView} />
       </section></Show>
       <Show when={index()?.kinds.length}><section class="page-list index-list" aria-label="Index">
-        <h2><span class="section-number">{sectionNumber('index')}</span><button type="button" class="index-directory-link" aria-current={activeKindKey() === 'all' ? 'page' : undefined} title="Open Index" onClick={event => open({ kind: 'index', key: 'all' }, event.shiftKey)}>Index</button><span class="section-rule" /><span class="section-count">{index()!.kinds.length}</span></h2>
+        <h2><span class="section-number">{sectionNumber('index')}</span><button type="button" class="index-directory-link" aria-current={activeKindKey() === 'all' ? 'page' : undefined} title="Open Index" onClick={event => open({ kind: 'index', key: 'all' }, event.shiftKey)}>Index</button><span class="section-rule" /><Show when={index()!.notes}>{notes => <span class="section-count" title={`${notes().toLocaleString()} ${notes() === 1 ? 'note' : 'notes'} filed`}>{notes().toLocaleString()}</span>}</Show></h2>
         {/* Kinds re-arrive as fresh objects after each change; Index keeps rows mounted by position. */}
         <Index each={index()!.kinds}>{kind => <>
-          <Button class={`index-kind ${activeKindKey() === kind().key || kind().count === 0 && activeTypeId() === kind().type_id ? 'selected' : ''}`} icon={kind().count === 0 ? 'tag' : noteKindIcon(kind().key)} title={kind().plural} onClick={event => open(indexKindTarget(kind()), event.shiftKey)}><span>{kind().plural}</span><span class="desk-count">{(kind().count || kind().tagged_block_count).toLocaleString()}</span></Button>
+          {/* Built-in kinds stay listed while empty: a faint name and no count. */}
+          <Button class={`index-kind ${activeKindKey() === kind().key || tagOnly(kind()) && activeTypeId() === kind().type_id ? 'selected' : ''} ${kind().count || kind().tagged_block_count ? '' : 'empty'}`} icon={tagOnly(kind()) ? 'tag' : noteKindIcon(kind().key)} title={kind().plural} onClick={event => open(indexKindTarget(kind()), event.shiftKey)}><span>{kind().plural}</span><Show when={kind().count || kind().tagged_block_count}>{count => <span class="desk-count">{count().toLocaleString()}</span>}</Show></Button>
           <Show when={kind().type_id !== null && otherViews().some(view => view.query.type === kind().type_id)}><div class="index-views"><ViewLinks views={otherViews().filter(view => view.query.type === kind().type_id)} pinned={false} activeId={activeViewId()} onOpen={openView} onPin={pinView} /></div></Show>
         </>}</Index>
       </section></Show>
@@ -579,6 +580,8 @@ export function App() {
         <Button icon="field" label="Fields" class={`icon-only ${entry(active())?.target.kind === 'fields' && !(entry(active())?.target as Extract<OpenTarget, { kind: 'fields' }>).typeId ? 'selected' : ''}`} onClick={event => open({ kind: 'fields' }, event.shiftKey)} />
       </div>
     </aside>
+    {/* The overlay sidebar covers the cover screen's own toggle; tapping beside it closes it. */}
+    <Show when={narrow() && sidebar()}><div class="sidebar-shade" aria-hidden="true" onClick={() => setSidebar(false)} /></Show>
     <main class="workspace">
       <Show when={split()}><div class="pane-tabs" role="tablist" aria-label="Working panes"><For each={paneIds}>{pane => <Button role="tab" aria-selected={active() === pane} onClick={() => { if (active() !== pane) switchPane(); }}>{pane === 'main' ? 'Pane 1' : 'Pane 2'} · {rootById().get(pageIdOf(entry(pane)) ?? '')?.text ?? paneTitle(pane) ?? paneLabel(entry(pane)?.target)}</Button>}</For></div></Show>
       <Show when={error()}><div class="shell-error" role="alert"><Icon name="warning" /><span>{error()}</span><Button onClick={() => { if (offlineUnavailable()) { location.reload(); return; } setError(''); void today(); }}>Retry</Button></div></Show>

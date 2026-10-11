@@ -18,9 +18,14 @@ export function noteKindIcon(key: string): IconName {
   }
 }
 
+/** A kind whose only members are tagged non-page blocks; an empty built-in kind is not one. */
+export function tagOnly(kind: IndexKind): kind is IndexKind & { type_id: string } {
+  return kind.count === 0 && kind.tagged_block_count > 0 && kind.type_id !== null;
+}
+
 /** A tag-only kind opens its useful member table rather than an empty note index. */
 export function indexKindTarget(kind: IndexKind): OpenTarget {
-  return kind.count === 0 && kind.tagged_block_count > 0 && kind.type_id !== null
+  return tagOnly(kind)
     ? { kind: 'table', typeId: kind.type_id, viewId: null, query: typeQuery(kind.type_id) }
     : { kind: 'index', key: kind.key };
 }

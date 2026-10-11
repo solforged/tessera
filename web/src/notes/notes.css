@@ -26,6 +26,11 @@
 .index-see { color: var(--faint); font-style: italic; }
 .index-see-target { display: inline; padding: 0; border: 0; background: none; color: var(--text); font: inherit; text-align: left; overflow-wrap: anywhere; cursor: pointer; }
 .index-see-target:hover { color: var(--accent); }
+/* An empty kind names what it lacks in display type, says how pages arrive and offers to start one. */
+.index-empty { max-width: var(--measure); padding: var(--space-24) 0; border-top: var(--rule-width) solid var(--line); }
+.index-empty-title { margin: 0; color: var(--muted); font: var(--weight-display-heading) var(--text-h2)/var(--line-h2) var(--font-display); font-variation-settings: var(--optical-heading); }
+.index-empty-hint { margin: var(--space-8) 0 var(--space-16); color: var(--muted); font: var(--weight-body) var(--text-control)/var(--line-control) var(--font-body); }
+.index-empty-hint:last-child { margin-bottom: 0; }
 /* Unfiled is a filing queue, not an alphabetic wall of bare titles. */
 .index-queue-layout { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr); gap: var(--section-gap); align-items: start; }
 .index-queue-group { margin-bottom: var(--section-gap); }

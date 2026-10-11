@@ -114,6 +114,9 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
 .primary-navigation .button > .icon { color: var(--muted); }
 .sidebar .button > .desk-count { flex: none; color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .sidebar .button > .desk-count.late { color: var(--danger); }
+/* A built-in kind with nothing filed yet stays in its place, named faintly and without a count. */
+.sidebar .index-kind.empty:not(.selected), .sidebar .index-kind.empty:not(.selected) > .icon { color: var(--faint); }
+.sidebar .index-kind.empty:not(.selected):hover { color: var(--muted); }
 .journal-navigation { display: flex; align-items: center; flex-shrink: 0; gap: var(--space-2); margin-inline: var(--space-4); }
 /* Sections: a rubric numeral, the name, a hairline rule and a count. */
 .page-list { margin-top: var(--space-16); }
@@ -306,6 +309,7 @@ mark { background: var(--selection); color: var(--accent); font-weight: var(--we
   .app { grid-template-columns: 0 minmax(0, 1fr); }
   .sidebar { position: fixed; top: calc(var(--rail-height) + env(safe-area-inset-top)); bottom: var(--bottom-inset); left: env(safe-area-inset-left); z-index: 30; background: var(--shell); border-right: 1px solid var(--line); box-shadow: var(--popup-shadow); visibility: hidden; pointer-events: none; opacity: 0; transform: translateX(-100%); transition-delay: 0s, 0s, var(--motion-ui); }
   .sidebar-expanded .sidebar { visibility: visible; pointer-events: auto; opacity: 1; transform: translateX(0); transition-delay: 0s; }
+  .sidebar-shade { position: fixed; inset: calc(var(--rail-height) + env(safe-area-inset-top)) 0 var(--bottom-inset); z-index: 29; background: color-mix(in srgb, var(--shell) 72%, transparent); animation: fade-in var(--motion-ui) var(--motion-ease) both; }
   .workspace { margin-left: var(--space-12); }
   .rail-finder { width: min(var(--search-width), 36vw); }
 }
@@ -343,6 +347,7 @@ mark { background: var(--selection); color: var(--accent); font-weight: var(--we
   .app > .global-rail, .pane-breadcrumbs .breadcrumb-library, .breadcrumb-library + .breadcrumb-separator { display: none; }
   .workspace, .sidebar-collapsed .workspace { grid-row: 1; margin: var(--space-4) var(--space-4) 0; }
   .sidebar { top: env(safe-area-inset-top); bottom: calc(var(--bottom-nav-height) + var(--bottom-inset)); }
+  .sidebar-shade { inset: env(safe-area-inset-top) 0 calc(var(--bottom-nav-height) + var(--bottom-inset)); }
   .bottom-nav { grid-column: 1 / -1; grid-row: 2; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); height: var(--bottom-nav-height); padding-inline: var(--space-4); }
   .bottom-nav .button { flex-direction: column; justify-content: center; gap: var(--space-2); height: 100%; padding: 0; border: 0; border-top: 2px solid transparent; border-radius: 0; background: transparent; color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); font-weight: var(--weight-body); }
   .bottom-nav .button > .icon { color: var(--faint); }
