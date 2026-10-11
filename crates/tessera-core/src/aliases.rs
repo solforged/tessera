@@ -21,11 +21,16 @@ pub struct Completion {
     pub alias: Option<String>,
 }
 
+/// Folds a name for matching: no case, diacritics or apostrophes, and any other run of
+/// spaces or punctuation becomes one space, so `J. M. Keynes` matches `j m keynes`.
 pub(crate) fn fold(value: &str) -> String {
     let mut folded = String::with_capacity(value.len());
     let mut space = false;
     for character in value.nfd().filter(|c| !is_combining_mark(*c)) {
-        if character.is_whitespace() {
+        if matches!(character, '\'' | '\u{2019}') {
+            continue;
+        }
+        if !character.is_alphanumeric() {
             space = !folded.is_empty();
         } else {
             if space {

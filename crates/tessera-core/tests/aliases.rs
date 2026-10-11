@@ -73,12 +73,19 @@ fn sequence(nb: &Notebook) -> i64 {
 }
 
 #[test]
-fn resolves_whole_names_with_case_diacritics_and_whitespace_folding() {
+fn resolves_whole_names_with_case_diacritics_whitespace_and_punctuation_folding() {
     let dir = tempfile::tempdir().unwrap();
     let mut nb = Notebook::open(dir.path()).unwrap();
     apply(
         &mut nb,
-        vec![page(1, "Cicero"), page(2, "Émile"), page(3, "東京")],
+        vec![
+            page(1, "Cicero"),
+            page(2, "Émile"),
+            page(3, "東京"),
+            page(4, "J. M. Keynes"),
+            page(5, "Merleau-Ponty"),
+            page(6, "Flann O’Brien"),
+        ],
     );
     alias(&mut nb, 1, "Márçus  Tullius");
     let matched = nb.resolve_name("  MARCUS\tTULLIUS  ").unwrap();
@@ -90,6 +97,11 @@ fn resolves_whole_names_with_case_diacritics_and_whitespace_folding() {
     assert_eq!(nb.resolve_name("東京").unwrap()[0].page.id, id(3));
     assert!(nb.resolve_name("Dong Jing").unwrap().is_empty());
     assert!(nb.resolve_name(" \n ").unwrap().is_empty());
+    assert_eq!(nb.resolve_name("j m keynes").unwrap()[0].page.id, id(4));
+    assert_eq!(nb.resolve_name("J.M. Keynes").unwrap()[0].page.id, id(4));
+    assert_eq!(nb.resolve_name("merleau ponty").unwrap()[0].page.id, id(5));
+    assert_eq!(nb.resolve_name("Flann O'Brien").unwrap()[0].page.id, id(6));
+    assert!(nb.resolve_name("...").unwrap().is_empty());
 }
 
 #[test]

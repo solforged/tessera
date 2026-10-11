@@ -135,7 +135,7 @@ Person, Group and Concept start with templates, filled in only when wanted: Pers
 
 ### Aliases
 
-A note's aliases are the values of the built-in Aliases field among its top-level blocks, stored like the gloss and available on every page. An alias is a whole other name for the note: Tully for Cicero, sublation for Aufhebung, a short name for a long question. Aliases need not be unique; two Plinys may both have Pliny. Matching ignores case and diacritics.
+A note's aliases are the values of the built-in Aliases field among its top-level blocks, stored like the gloss and available on every page. An alias is a whole other name for the note: Tully for Cicero, sublation for Aufhebung, a short name for a long question. Aliases need not be unique; two Plinys may both have Pliny. Matching ignores case, diacritics and apostrophes, and treats other punctuation as a space, so `J. M. Keynes` and `j m keynes` are one name.
 
 - **Completion and Find** match titles and aliases. A result found through an alias names that alias. Words inside an alias find it while typing, but only a whole alias links on its own.
 - **Hand-typed references.** `[[Name]]` left as text links to the one page whose title or alias is Name, stored as `[[id|Name]]` so the wording stays. When the name belongs to two or more pages it stays unlinked and is marked, and choosing one links it; nothing is created. A name no page has creates a page as before.
