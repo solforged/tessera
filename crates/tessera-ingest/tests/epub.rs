@@ -296,11 +296,59 @@ fn epub2_sparse_ncx_falls_back_while_roles_and_cover_are_preserved() {
 }
 
 #[test]
+fn packed_creator_strings_become_separate_people() {
+    let creators = |entry: &str| {
+        epub(&epub2(entry, "<html><body><p>Text.</p></body></html>"))
+            .unwrap()
+            .metadata
+            .creators
+            .into_iter()
+            .skip(3)
+            .map(|creator| (creator.name, creator.role))
+            .collect::<Vec<_>>()
+    };
+    let authors = |names: &[&str]| {
+        names
+            .iter()
+            .map(|name| (name.to_string(), CreatorRole::Author))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        creators(r#"<dc:creator opf:role="aut">Bowen, William G., Guthrie, Kevin M.</dc:creator>"#),
+        authors(&["Bowen, William G.", "Guthrie, Kevin M."])
+    );
+    assert_eq!(
+        creators(
+            r#"<dc:creator opf:role="aut">Scholem, Gershom; Arkush, Allan; Arkush, Allan</dc:creator>"#
+        ),
+        authors(&["Scholem, Gershom", "Arkush, Allan"])
+    );
+    assert_eq!(
+        creators(r#"<dc:creator opf:role="aut">Van Loo, Bart;</dc:creator>"#),
+        authors(&["Van Loo, Bart"])
+    );
+    assert_eq!(
+        creators(r#"<dc:creator opf:role="aut">Ann Lee &amp; Bo Park</dc:creator>"#),
+        authors(&["Ann Lee", "Bo Park"])
+    );
+    // Three pieces or a generational suffix is one person.
+    assert_eq!(
+        creators(r#"<dc:creator opf:role="aut">King, Martin Luther, Jr.</dc:creator>"#),
+        authors(&["King, Martin Luther, Jr."])
+    );
+    assert_eq!(
+        creators(r#"<dc:creator opf:role="aut">Doe, John, Jr., MD</dc:creator>"#),
+        authors(&["Doe, John, Jr., MD"])
+    );
+}
+
+#[test]
 fn modified_date_is_never_publication_and_empty_books_error() {
     for publication in [
         "",
         "<dc:date>not a date</dc:date>",
         "<dc:date>2023-02-29</dc:date>",
+        "<dc:date>0101-01-01T00:00:00+00:00</dc:date>",
     ] {
         let document = epub(&epub2(
             publication,
