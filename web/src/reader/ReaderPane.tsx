@@ -248,7 +248,9 @@ export function ReaderPane(props: ReaderPaneProps) {
   /**
    * Full screen and the cover screen read with the chrome out of the way: the masthead, toolbar and book map fade
    * after the mouse rests (full screen with a mouse) or on a centre tap (touch), and return on movement, focus, a
-   * popup or another tap. They keep their room, so the text never reflows; the line under the map stays.
+   * popup or another tap. In full screen they keep their room, so the text never reflows; the line under the map stays.
+   * On the cover screen they lie over the page instead, so the page has the whole screen; they go once the book opens
+   * and whenever the reading moves on, so they never cover what comes next.
    */
   const [coverReading, setCoverReading] = createSignal(coverScreen.matches);
   const chromeHides = () => props.immersive || coverReading();
@@ -277,6 +279,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     setSystemBarsHidden(true);
     onCleanup(() => setSystemBarsHidden(false));
   });
+  createEffect(on([loading, firstVisible, pageIndex, chunk], () => { if (coverReading() && !loading()) hideChrome(); }, { defer: true }));
   // WebKit sends pointermove when the page turns under a resting mouse; only a real move shows the chrome.
   let lastPointer = '';
   function pointerMoved(event: PointerEvent) {
@@ -765,6 +768,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     clearTimeout(positionTimer);
     if (!suppressed && userScroll) positionTimer = window.setTimeout(() => { void savePosition(); }, 2000);
     if (!editing() && !rewritingSelection) setSelection(null);
+    if (userScroll && coverReading()) hideChrome();
   }
 
   createEffect(() => {
