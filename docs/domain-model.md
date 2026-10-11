@@ -127,7 +127,7 @@ A kind says what a note is about. These are built in:
 
 Person and Group are entities: the pages that a position's holder and a source's creators refer to. Person, Group, Concept and Thesis are system types that every notebook has, like the Fields page; they take templates and fields like any type, and cannot be deleted or merged. A notebook that already has a type with one of those titles keeps that page, with its members, fields and template, as the built-in kind. Question, Source and Project come from capabilities and need no tag.
 
-Types you define are kinds too, listed after the built-in ones. A note can have several kinds and is filed under each; a note with none is unfiled. Tasks and cards are not kinds. They belong to blocks within notes, and Agenda and Review are their places.
+Types you define are kinds too, listed after the built-in ones. A type can refine one built-in kind, as Philosopher refines Person; its members are then filed under both, and positions and creators treat them as that kind. A note can have several kinds and is filed under each; a note with none is unfiled. Tasks and cards are not kinds. They belong to blocks within notes, and Agenda and Review are their places.
 
 A source's form is a built-in Form choice field: book, chapter, article, paper, report, post, thread, video or web page, with more options added as for any choice field. Lookup and ingestion fill it, and export writes it as the CSL type and BibTeX entry type.
 
@@ -147,9 +147,9 @@ From its revisit date onward a note waits in the notes queue in Review, earliest
 | Later | Moves the date without recording a revisit |
 | Settle | Settles the note and clears its date |
 
-Revisits have no grade and no scheduler. They judge the note, not your memory of it, so the next date is chosen rather than computed. Each action is an attributed operation that undo reverses, and each writes a revisit event; the note's last revisit is its latest Revisited event. Revisit events are authoritative history, kept like review events.
+Revisits have no grade and no scheduler. They judge the note, not your memory of it. Revisited proposes the next date at the same interval as the one just ended, measured from the previous revisit or, for a first revisit, from when the date was set; the date can be changed or cleared before confirming. Each action is an attributed operation that undo reverses, and each writes a revisit event; the note's last revisit is its latest Revisited event. Revisit events are authoritative history, kept like review events.
 
-A note capability on the page holds the stored state and the revisit date. A page without one is working and has no revisit date.
+A note capability on the page holds the stored state, the revisit date and when that date was set. A page without one is working and has no revisit date.
 
 ### Index
 
@@ -188,6 +188,4 @@ Links, full-text search, type membership from text, card definitions and field r
 - How concept and taxonomy comparison is modelled: types, positions about a concept, or a capability of its own.
 - Whether vocabulary cards need anything beyond ordinary cards, such as language, part of speech or inflection fields.
 - How newsletters arrive: a polled mail folder, a forwarding address or feeds only.
-- Whether a type you define can refine a built-in kind, such as Philosopher as a kind of Person, so its members also file under Person.
 - How a thesis page answers a question. An assessment must sit beneath its question, and a thesis page is a root.
-- Whether Revisited proposes a next date from the interval since the previous revisit.
