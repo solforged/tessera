@@ -39,8 +39,8 @@ use serde::Deserialize;
 use serde::Serialize;
 use tessera_core::{
     Actor, AgentChange, AgentReceipt, AgentRequest, Backlink, Batch, Block, BlockInPage,
-    ChangeEvent, Committed, FieldsView, Notebook, NotebookInfo, PageView, QueryResult,
-    SettingsView, TypeInfo, UndoReceipt, View,
+    ChangeEvent, Committed, FieldsView, NoteEntry, NoteIndex, NoteKind, Notebook, NotebookInfo,
+    PageView, QueryResult, SettingsView, TypeInfo, UndoReceipt, View,
 };
 use tokio::sync::broadcast;
 
@@ -172,6 +172,9 @@ fn notebook_routes() -> Router<AppState> {
         .route("/api/roots", get(roots))
         .route("/api/pages/{id}", get(page))
         .route("/api/pages/by-title/{title}", get(page_by_title))
+        .route("/api/pages/{id}/kinds", get(note_kinds))
+        .route("/api/index", get(note_index))
+        .route("/api/index/{key}", get(kind_notes))
         .route("/api/journal/{date}", get(journal))
         .route("/api/blocks/{id}", get(block))
         .route("/api/blocks/{id}/backlinks", get(backlinks))
@@ -541,6 +544,30 @@ async fn type_info(
 ) -> Result<Json<TypeInfo>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
     run(&state, move |notebook| notebook.type_info(&id))
+        .await
+        .map(Json)
+}
+
+async fn note_index(State(state): State<AppState>) -> Result<Json<NoteIndex>, ApiError> {
+    run(&state, |notebook| notebook.note_index()).await.map(Json)
+}
+
+async fn kind_notes(
+    State(state): State<AppState>,
+    path: Result<Path<String>, PathRejection>,
+) -> Result<Json<Vec<NoteEntry>>, ApiError> {
+    let Path(key) = path.map_err(ApiError::from)?;
+    run(&state, move |notebook| notebook.kind_notes(&key))
+        .await
+        .map(Json)
+}
+
+async fn note_kinds(
+    State(state): State<AppState>,
+    path: Result<Path<String>, PathRejection>,
+) -> Result<Json<Vec<NoteKind>>, ApiError> {
+    let Path(id) = path.map_err(ApiError::from)?;
+    run(&state, move |notebook| notebook.note_kinds(&id))
         .await
         .map(Json)
 }
