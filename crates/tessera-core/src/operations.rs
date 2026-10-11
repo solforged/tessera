@@ -765,15 +765,21 @@ impl Engine<'_, '_> {
                 .collect::<rusqlite::Result<Vec<_>>>()?;
             let mut deleted = false;
             for (id, title) in candidates {
-                let claimed = query_values.iter().any(|value| value.eq_ignore_ascii_case(&id)
-                    || value.match_indices(title.as_str()).any(|(start, matched)| {
-                        let boundary = |c: char| !c.is_alphanumeric() && c != '_';
-                        value[..start].chars().next_back().is_none_or(boundary)
-                            && value[start + matched.len()..].chars().next().is_none_or(boundary)
-                    }));
+                let claimed = query_values.iter().any(|value| {
+                    value.eq_ignore_ascii_case(&id)
+                        || value.match_indices(title.as_str()).any(|(start, matched)| {
+                            let boundary = |c: char| !c.is_alphanumeric() && c != '_';
+                            value[..start].chars().next_back().is_none_or(boundary)
+                                && value[start + matched.len()..]
+                                    .chars()
+                                    .next()
+                                    .is_none_or(boundary)
+                        })
+                });
                 if !claimed {
                     self.delete(&id)?;
-                    self.tx.execute("DELETE FROM provisional_pages WHERE id = ?1", [&id])?;
+                    self.tx
+                        .execute("DELETE FROM provisional_pages WHERE id = ?1", [&id])?;
                     deleted = true;
                 }
             }
@@ -1401,6 +1407,28 @@ impl Engine<'_, '_> {
 
     fn apply_operation(&mut self, operation: &Operation, index: usize) -> Result<()> {
         match operation {
+            Operation::SettleSyncCopy { id, settled } => {
+                validate_id(id)?;
+                let previous = self.tx.query_row(
+                    "SELECT settled_at IS NOT NULL FROM sync_conflicts WHERE id = ?1 AND kind = 'copy'",
+                    [id],
+                    |row| row.get::<_, bool>(0),
+                ).optional()?.ok_or_else(|| validation("unknown sync copy"))?;
+                if previous != *settled {
+                    self.tx.execute(
+                        "UPDATE sync_conflicts SET settled_at = ?2 WHERE id = ?1",
+                        params![id, settled.then_some(self.now)],
+                    )?;
+                    let current = stored(self.tx, id)?
+                        .ok_or_else(|| validation("unknown sync copy block"))?;
+                    self.tx.execute(
+                        "UPDATE blocks SET revision = revision + 1, updated_at = ?2 WHERE id = ?1",
+                        params![id, self.now],
+                    )?;
+                    self.record_revision(id, current.block.revision + 1);
+                }
+                Ok(())
+            }
             Operation::CreatePage { id, title } => self.create(NewBlock {
                 id,
                 kind: BlockKind::Page,

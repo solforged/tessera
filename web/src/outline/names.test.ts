@@ -4,7 +4,7 @@ import type { NotebookClient, PageDocument } from '../document/contract';
 import { textTokens } from '../document/text-tokens';
 import { chooseName, foldName, resolveName, resolvedReferenceText } from './names';
 
-const page = (id: string, text: string): Block => ({ id, text, kind: 'page', parent_id: null, page_id: id, heading: null, archived: false, revision: 1, created_at: 0, updated_at: 0 });
+const page = (id: string, text: string): Block => ({ id, text, kind: 'page', parent_id: null, page_id: id, heading: null, archived: false, kept_copy: null, revision: 1, created_at: 0, updated_at: 0 });
 const match: NameMatch = { page: page('target', 'Cicero'), alias: 'Tully' };
 
 describe('page names', () => {

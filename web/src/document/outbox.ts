@@ -138,6 +138,9 @@ export class Outbox {
         const revision = change.patch!.revisions.get(blockId) ?? blocks.get(blockId)?.revision ?? 0;
         if (action.kind === 'split' ? index.indexOf(action.block.id) >= 0 : (snapshotRevisions.get(blockId) ?? -1) >= revision) continue;
         switch (action.kind) {
+          case 'settleSyncCopy':
+            blocks.set(blockId, { ...blocks.get(blockId)!, kept_copy: action.settled ? null : action.copy, revision });
+            break;
           case 'split': {
             const original = blocks.get(action.id)!;
             blocks.set(action.id, { ...original, text: action.left, revision });

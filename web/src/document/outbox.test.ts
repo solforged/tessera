@@ -10,7 +10,7 @@ const task: TaskState = { status: 'todo', scheduled: '2026-10-10', scheduled_tim
 
 test('v2 page records migrate additively and recover frozen page and notebook commands in authored order', async () => {
   const database = `outbox-upgrade-${ulid()}`;
-  const root: Block = { id: ulid(), kind: 'page', parent_id: null, page_id: '', text: 'Sources', heading: null, archived: false, revision: 1, created_at: 0, updated_at: 0 };
+  const root: Block = { id: ulid(), kind: 'page', parent_id: null, page_id: '', text: 'Sources', heading: null, archived: false, kept_copy: null, revision: 1, created_at: 0, updated_at: 0 };
   root.page_id = root.id;
   const block: Block = { ...root, id: ulid(), kind: 'block', parent_id: root.id, text: 'Read' };
   const view: PageView = { root, rows: [{ block, depth: 0, manual_types: [] }], targets: [] };
@@ -41,7 +41,7 @@ test('v2 page records migrate additively and recover frozen page and notebook co
 
 test('authoritative sidecars survive text-only patches and older snapshots cannot erase review protection', async () => {
   const database = `outbox-sidecars-${ulid()}`;
-  const root: Block = { id: ulid(), kind: 'page', parent_id: null, page_id: '', text: 'Primary sources', heading: null, archived: false, revision: 1, created_at: 0, updated_at: 0 };
+  const root: Block = { id: ulid(), kind: 'page', parent_id: null, page_id: '', text: 'Primary sources', heading: null, archived: false, kept_copy: null, revision: 1, created_at: 0, updated_at: 0 };
   root.page_id = root.id;
   const block: Block = { ...root, id: ulid(), kind: 'block', parent_id: root.id, text: 'Read' };
   const view: PageView = { root, rows: [{ block, depth: 0, manual_types: [] }], targets: [] };
@@ -63,9 +63,28 @@ test('authoritative sidecars survive text-only patches and older snapshots canno
   } finally { await outbox.close(); await deleteDB(database); }
 });
 
+test('kept-copy settlement and undo survive acknowledged offline cache patches', async () => {
+  const database = `outbox-kept-copy-${ulid()}`;
+  const root: Block = { id: ulid(), kind: 'page', parent_id: null, page_id: '', text: 'Versions', heading: null, archived: false, kept_copy: null, revision: 1, created_at: 0, updated_at: 0 };
+  root.page_id = root.id;
+  const copy = { of: ulid(), origin: ulid(), origin_name: null, mine: true };
+  const block: Block = { ...root, id: ulid(), kind: 'block', parent_id: root.id, text: 'Phone wording', kept_copy: copy };
+  const outbox = new Outbox('notebook', 'window', error => { throw error; }, database);
+  try {
+    await outbox.page({ root, rows: [{ block, depth: 0, manual_types: [] }], targets: [] });
+    for (const settled of [true, false]) {
+      const revision = settled ? 2 : 3;
+      const command: PageCommand = { id: ulid(), order: revision, pageId: root.id, actions: [{ kind: 'settleSyncCopy', id: block.id, settled, copy }], inverse: [], before: null, after: null };
+      await outbox.put(command);
+      await outbox.acknowledge(command, [{ ...block, revision, kept_copy: settled ? null : copy }], revision, new Map([[block.id, revision]]));
+      expect((await outbox.cachedPage(root.id))?.rows[0]?.block.kept_copy).toEqual(settled ? null : copy);
+    }
+  } finally { await outbox.close(); await deleteDB(database); }
+});
+
 test('an end split replays its new sibling and final text even when the source revision did not change', async () => {
   const database = `outbox-end-split-${ulid()}`;
-  const root: Block = { id: ulid(), kind: 'page', parent_id: null, page_id: '', text: 'Sources', heading: null, archived: false, revision: 1, created_at: 0, updated_at: 0 };
+  const root: Block = { id: ulid(), kind: 'page', parent_id: null, page_id: '', text: 'Sources', heading: null, archived: false, kept_copy: null, revision: 1, created_at: 0, updated_at: 0 };
   root.page_id = root.id;
   const block: Block = { ...root, id: ulid(), kind: 'block', parent_id: root.id, text: 'front >> back' };
   const sibling: Block = { ...block, id: ulid(), text: '', revision: 0 };
@@ -87,7 +106,7 @@ test('merge acknowledgement removes every tombstone cache and its durable comman
   const database = `outbox-merge-${ulid()}`;
   const root = (title: string): Block => {
     const id = ulid();
-    return { id, page_id: id, kind: 'page', parent_id: null, text: title, heading: null, archived: false, revision: 1, created_at: 0, updated_at: 0 };
+    return { id, page_id: id, kind: 'page', parent_id: null, text: title, heading: null, archived: false, kept_copy: null, revision: 1, created_at: 0, updated_at: 0 };
   };
   const from = root('Duplicate'), into = root('Survivor');
   const entry: Block = { ...from, id: ulid(), kind: 'block', parent_id: from.id, text: 'Field entry' };

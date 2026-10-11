@@ -73,10 +73,48 @@ impl Notebook {
     /// Read one live block, including an archived block.
     pub fn block(&self, id: &str) -> Result<Block> {
         validate_id(id)?;
-        stored(&self.conn, id)?
+        let mut block = stored(&self.conn, id)?
             .filter(|row| row.deletion_id.is_none())
             .map(|row| row.block)
-            .ok_or_else(|| not_found(id))
+            .ok_or_else(|| not_found(id))?;
+        self.mark_kept_copies(std::iter::once(&mut block))?;
+        Ok(block)
+    }
+
+    /// One indexed lookup for the whole payload, not one query per block.
+    fn mark_kept_copies<'a>(&self, blocks: impl Iterator<Item = &'a mut Block>) -> Result<()> {
+        let mut blocks: HashMap<_, _> = blocks
+            .map(|block| (block.id.as_str(), &mut block.kept_copy))
+            .collect();
+        let ids =
+            serde_json::to_string(&blocks.keys().collect::<Vec<_>>()).expect("block IDs serialize");
+        let mut statement = self.conn.prepare_cached(
+            "SELECT c.id, c.block_id, c.origin,
+                    CASE WHEN c.origin = local.device_id THEN
+                        COALESCE(d.name, (SELECT device_name FROM sync_hub WHERE singleton = 1))
+                    ELSE d.name END,
+                    c.origin = local.device_id
+             FROM json_each(?1) ids
+             JOIN sync_conflicts c ON c.id = ids.value
+             JOIN blocks b ON b.id = c.id
+             CROSS JOIN replica local
+             LEFT JOIN sync_replicas r ON r.device_id = c.origin
+             LEFT JOIN sync_devices d ON d.id = r.paired_device
+             WHERE c.kind = 'copy' AND c.settled_at IS NULL AND b.deletion_id IS NULL",
+        )?;
+        let mut rows = statement.query([ids])?;
+        while let Some(row) = rows.next()? {
+            let id: String = row.get(0)?;
+            if let Some(marker) = blocks.get_mut(id.as_str()) {
+                **marker = Some(crate::KeptCopy {
+                    of: row.get(1)?,
+                    origin: row.get(2)?,
+                    origin_name: row.get(3)?,
+                    mine: row.get(4)?,
+                });
+            }
+        }
+        Ok(())
     }
 
     /// Fetch the page's rows once, then its external reference targets once.
@@ -102,7 +140,7 @@ impl Notebook {
                 root = Some(block);
             }
         }
-        let root = root.ok_or_else(|| not_found(id))?;
+        let mut root = root.ok_or_else(|| not_found(id))?;
         let mut manual_types: HashMap<String, Vec<String>> = HashMap::new();
         let mut memberships = self.conn.prepare_cached(
             "SELECT m.block_id, m.title FROM memberships m JOIN blocks b ON b.id = m.block_id
@@ -131,7 +169,7 @@ impl Notebook {
                 manual_types,
             });
         }
-        let targets = self
+        let mut targets = self
             .conn
             .prepare_cached(concat!(
                 "WITH targets(id) AS (
@@ -148,6 +186,11 @@ impl Notebook {
             ))?
             .query_map([id], |row| block_at(row, 0))?
             .collect::<rusqlite::Result<Vec<_>>>()?;
+        self.mark_kept_copies(
+            std::iter::once(&mut root)
+                .chain(rows.iter_mut().map(|row| &mut row.block))
+                .chain(targets.iter_mut()),
+        )?;
         Ok(PageView {
             root,
             rows,

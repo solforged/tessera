@@ -11,7 +11,8 @@ import type { Edit, PageDocument } from './contract';
 import { createNotebookClient } from './index';
 import type { Notebook } from './index';
 
-const baseUrl = 'http://127.0.0.1:4350';
+const port = Bun.env.TESSERA_STRUCTURE_TEST_PORT ?? '4350';
+const baseUrl = `http://127.0.0.1:${port}`;
 const api = createApi(baseUrl);
 const clients: Notebook[] = [];
 let process: Subprocess<'ignore', 'pipe', 'pipe'>;
@@ -26,7 +27,7 @@ const eventually = async (predicate: () => boolean, message: string) => {
 beforeAll(async () => {
   directory = await mkdtemp(join(tmpdir(), 'tessera-outline-structure-tests-'));
   const root = resolve(import.meta.dir, '../../..');
-  process = Bun.spawn([Bun.env.TESSERA_TEST_BINARY ?? join(root, 'target/debug/tessera'), '--notebook', directory, 'serve', '--port', '4350'], { cwd: root, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' });
+  process = Bun.spawn([Bun.env.TESSERA_TEST_BINARY ?? join(root, 'target/debug/tessera'), '--notebook', directory, 'serve', '--port', port], { cwd: root, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' });
   const deadline = Date.now() + 5000;
   const expectedPath = await realpath(directory);
   while (true) {

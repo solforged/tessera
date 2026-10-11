@@ -30,7 +30,7 @@ export interface DocumentHost {
 }
 type MutableBlockState = { -readonly [K in keyof BlockState]: BlockState[K] } & { history: boolean };
 interface Cell { state: MutableBlockState; set: SetStoreFunction<MutableBlockState> }
-const stateOf = (block: Block): BlockState => ({ id: block.id, kind: block.kind, parentId: block.parent_id, pageId: block.page_id, text: block.text, heading: block.heading, archived: block.archived, manual_types: [], task: null, project: null, position: null, question: null, assessment: null, mergeProtected: false, reviewedCards: false, source: null, citations: [], revision: block.revision, pending: false, conflict: null });
+const stateOf = (block: Block): BlockState => ({ id: block.id, kind: block.kind, parentId: block.parent_id, pageId: block.page_id, text: block.text, heading: block.heading, archived: block.archived, keptCopy: block.kept_copy, manual_types: [], task: null, project: null, position: null, question: null, assessment: null, mergeProtected: false, reviewedCards: false, source: null, citations: [], revision: block.revision, pending: false, conflict: null });
 /** The reference or tag holding `offset` strictly inside it, where Enter must not cut. */
 const splitToken = (text: string, offset: number) =>
   textTokens(text).find(token => (token.kind === 'reference' || token.kind === 'tag') && offset > token.start && offset < token.end);
@@ -167,7 +167,7 @@ export class Document implements PageDocument {
     const state = this.cells.get(id)?.state;
     if (!state) throw new Error('The block no longer exists.');
     const saved = this.baseBlocks.get(id);
-    return { id, kind: state.kind, parent_id: state.parentId, page_id: state.pageId, text: state.text, heading: state.heading, archived: state.archived, revision: state.revision, created_at: saved?.created_at ?? Date.now(), updated_at: saved?.updated_at ?? Date.now() };
+    return { id, kind: state.kind, parent_id: state.parentId, page_id: state.pageId, text: state.text, heading: state.heading, archived: state.archived, kept_copy: state.keptCopy ? { ...state.keptCopy } : null, revision: state.revision, created_at: saved?.created_at ?? Date.now(), updated_at: saved?.updated_at ?? Date.now() };
   }
   private changed(id: string, patch: Partial<Block>, base: boolean) {
     const block = { ...this.snapshot(id, base), ...patch };
@@ -397,6 +397,10 @@ export class Document implements PageDocument {
         inverse.unshift(...this.apply({ kind: 'delete', id: action.id }, base));
         return inverse;
       }
+      case 'settleSyncCopy': {
+        this.changed(action.id, { kept_copy: action.settled ? null : action.copy }, base);
+        return [{ ...action, settled: !action.settled }];
+      }
       case 'text': {
         const old = this.snapshot(action.id, base).text;
         this.changed(action.id, { text: action.text }, base);
@@ -563,7 +567,7 @@ export class Document implements PageDocument {
       this.refreshPending(new Set([...this.pendingIds(), ...this.conflicts, ...this.resolving]));
       this.conflictVersion[1](value => value + 1);
       if (!this.outline.size() && this.root() && this.root()!.revision > 0) {
-        const block: Block = { id: ulid(), kind: 'block', parent_id: this.pageId, page_id: this.pageId, text: '', heading: null, archived: false, revision: 0, created_at: Date.now(), updated_at: Date.now() };
+        const block: Block = { id: ulid(), kind: 'block', parent_id: this.pageId, page_id: this.pageId, text: '', heading: null, archived: false, kept_copy: null, revision: 0, created_at: Date.now(), updated_at: Date.now() };
         const action: Action = { kind: 'insert', block, after: null };
         const inverse = this.apply(action);
         this.host.enqueue(this, [action], inverse, null, { id: block.id, offset: 0 }, false);
@@ -793,7 +797,7 @@ export class Document implements PageDocument {
       if (!this.block(parentId) && !created.includes(parentId)) throw new Error('The parent no longer exists.');
       const id = ulid();
       created.push(id);
-      actions.push({ kind: 'insert', after, block: { id, kind: 'block', parent_id: parentId, page_id: this.pageId, text, heading, archived: false, revision: 0, created_at: Date.now(), updated_at: Date.now() } });
+      actions.push({ kind: 'insert', after, block: { id, kind: 'block', parent_id: parentId, page_id: this.pageId, text, heading, archived: false, kept_copy: null, revision: 0, created_at: Date.now(), updated_at: Date.now() } });
       return id;
     };
     const selected = (ids: string[], zoomRoot?: string | null) => {
@@ -939,6 +943,22 @@ export class Document implements PageDocument {
     };
     try {
       switch (edit.kind) {
+        case 'keptCopy': {
+          const block = this.snapshot(edit.id);
+          const copy = block.kept_copy;
+          if (!copy) throw new Error('This block is not a kept copy.');
+          if (edit.choice === 'both') {
+            actions.push({ kind: 'settleSyncCopy', id: edit.id, settled: true, copy });
+          } else {
+            this.guardHide(edit.id);
+            if (edit.choice === 'use') {
+              if (!this.block(copy.of)) throw new Error('The original is not on this page. Both versions are unchanged.');
+              actions.push({ kind: 'text', id: copy.of, text: block.text });
+            }
+            actions.push({ kind: 'delete', id: edit.id });
+          }
+          break;
+        }
         case 'sourceDetails': {
           if (edit.title !== undefined) {
             const title = edit.title.trim();

@@ -49,6 +49,7 @@ pub(crate) fn block_at(row: &rusqlite::Row<'_>, offset: usize) -> rusqlite::Resu
         revision: row.get(offset + 7)?,
         created_at: row.get(offset + 8)?,
         updated_at: row.get(offset + 9)?,
+        kept_copy: None,
     })
 }
 
