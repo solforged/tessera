@@ -90,6 +90,8 @@
   --gutter: calc(2 * var(--target-size)); /* handle and fold, left of the measure */
   --apparatus-width: 240px;  /* the margin beside the measure on wide concept pages */
   --siglum-width: calc(4ch + var(--space-8) + 2 * var(--rule-width)); /* four mono letters with box padding */
+  --shelf-cover-width: 112px; /* narrowest cover in the Library shelf; columns share any spare width */
+  --resume-cover-width: 36px; /* covers in the Library's Continue reading strip */
   --sidebar-width: 208px;
   --rail-height: 48px;
   --pane-header-height: 36px;

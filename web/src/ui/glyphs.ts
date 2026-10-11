@@ -36,6 +36,8 @@ export const paths = {
   highlight: 'M3 13h10 M5 10l6-7 2 2-6 7H5z',
   note: 'M2 2h12v8l-4 4H2z M10 14v-4h4 M5 5h6 M5 8h4',
   contents: 'M2 3h2 M6 3h8 M4 7h2 M8 7h6 M4 11h2 M8 11h6',
+  // Library layouts: ledger rows, and covers over their title lines.
+  rows: 'M2 3h12 M2 8h12 M2 13h12', shelf: 'M2 2h5v7H2z M9 2h5v7H9z M2 12h5 M9 12h5 M2 14h3 M9 14h3',
   upload: 'M8 11V2 M4 6l4-4 4 4 M2 11v3h12v-3',
   download: 'M8 2v9 M4 7l4 4 4-4 M2 11v3h12v-3',
   clock: 'M14 8a6 6 0 1 1-12 0 6 6 0 0 1 12 0Z M8 4.5V8l2.5 1.5',

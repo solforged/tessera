@@ -107,3 +107,46 @@
 .highlight-color-purple { background: var(--highlight-purple); }
 .library-filter [aria-pressed="true"] .highlight-color-dot { box-shadow: 0 0 0 2px var(--accent); }
 .library-highlight-tags { display: flex; flex-wrap: wrap; gap: var(--space-4); }
+/* Shelf: covers on a grid at the list's measure; the title in the reading face, byline, then the ledger's apparatus on one mono line. */
+.library-rows-shelf { border-top: 0; }
+.library-shelf { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--shelf-cover-width), 1fr)); gap: var(--space-24) var(--space-16); padding-block: var(--space-8) var(--space-24); }
+.library-book { position: relative; min-width: 0; }
+.library-book-open.button { display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: var(--space-4); width: 100%; height: auto; padding: 0; border: 0; white-space: normal; font-weight: var(--weight-body); }
+.library-book-open.button:hover:not(:disabled) { background: transparent; }
+.library-cover { position: relative; display: block; width: 100%; aspect-ratio: 2 / 3; overflow: hidden; border-radius: var(--radius-control); background: var(--surface); box-shadow: 0 0 0 var(--rule-width) var(--line); transition: box-shadow var(--motion-fast) var(--motion-ease); }
+.library-cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.library-book-open:hover .library-cover { box-shadow: 0 0 0 var(--rule-width) var(--control-border); }
+.library-book.library-row-selected { background: none; box-shadow: none; }
+.library-book.library-row-selected .library-cover { box-shadow: 0 0 0 var(--space-2) var(--accent); }
+/* A coverless source reads as a typeset spine label: gilt siglum, a short rule, the title, centred clear of the corner controls. */
+.library-spine { display: flex; flex-direction: column; justify-content: center; gap: var(--space-8); height: 100%; padding: var(--space-12); }
+.library-spine-siglum { color: var(--accent); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.library-spine-siglum::after { content: ""; display: block; width: var(--space-16); margin-top: var(--space-8); border-top: var(--rule-width) solid var(--line); }
+.library-spine-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6; overflow: hidden; overflow-wrap: anywhere; color: var(--text); font: var(--weight-title) var(--text-library-title)/var(--line-source-title) var(--font-display); font-variation-settings: var(--optical-quote); }
+/* The reader's 2 px position rule, filled to `--progress`; the track shows once reading has started. */
+.library-reading-rule { display: block; height: var(--space-2); background: linear-gradient(var(--accent), var(--accent)) no-repeat 0 0 / var(--progress, 0%) 100%; }
+.library-reading-rule.library-reading-started { background-color: var(--line); }
+.library-book-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; margin-top: var(--space-4); color: var(--text); font-family: var(--font-display); font-size: var(--text-library-title); line-height: var(--line-source-title); font-variation-settings: var(--optical-quote); }
+.library-book-byline { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
+.library-book-apparatus { display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--space-8); color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.library-book-apparatus .library-siglum { width: auto; }
+.library-book-highlights { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--muted); }
+/* Select and actions sit on the cover's top corners and appear like the list's checkbox. */
+.library-book .library-checkbox.button { inset: var(--space-4) auto auto var(--space-4); width: var(--target-size); height: var(--target-size); min-height: var(--target-size); padding: 0; background: var(--surface); }
+.library-book-more.button { position: absolute; top: var(--space-4); right: var(--space-4); background: var(--surface); opacity: 0; }
+.library-book:hover .library-book-more, .library-book:focus-within .library-book-more, .library-book-more[aria-expanded="true"] { opacity: 1; }
+/* Continue reading: up to three recently read books, each resuming in the reader; narrower panes keep fewer. */
+.library-resume { container-type: inline-size; padding-bottom: var(--space-16); }
+.library-resume-heading { margin: 0 0 var(--space-4); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.library-resume-books { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: var(--space-8); }
+@container (width < 464px) { .library-resume-books > :nth-child(n + 2) { display: none; } }
+@container (width < 704px) { .library-resume-books > :nth-child(n + 3) { display: none; } }
+.library-resume-book.button { display: flex; align-items: flex-start; justify-content: flex-start; gap: var(--space-12); width: 100%; height: auto; padding: var(--space-8); margin-inline: calc(-1 * var(--space-8)); white-space: normal; font-weight: var(--weight-body); }
+.library-resume-book .library-cover { flex: none; width: var(--resume-cover-width); }
+.library-resume-book .library-spine { align-items: center; justify-content: center; padding: 0; }
+.library-resume-book .library-spine-siglum::after, .library-resume-book .library-spine-title { display: none; }
+.library-resume-text { display: flex; flex: 1; flex-direction: column; gap: var(--space-2); min-width: 0; }
+.library-resume-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-family: var(--font-display); font-size: var(--text-library-title); line-height: var(--line-source-title); font-variation-settings: var(--optical-quote); }
+.library-resume-section { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
+.library-resume-position { display: flex; align-items: center; gap: var(--space-8); margin-top: var(--space-4); color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.library-resume-position .library-reading-rule { flex: 1; }

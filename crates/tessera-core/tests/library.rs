@@ -1174,6 +1174,12 @@ fn reading_position_changes_state_once_and_library_filters_sort() {
     let mut n = Notebook::open(dir.path()).unwrap();
     let mut doc = document();
     doc.metadata.cover = Some("images/cover.jpg".into());
+    doc.toc.push(TocEntry {
+        title: "Later".into(),
+        locator: "chapter#second".into(),
+        level: 2,
+        ordinal: None,
+    });
     let (source, snapshot) = ingest(&mut n, &doc, b"one");
     let first = n.set_reading_position(&snapshot, 0).unwrap();
     assert!(first.state_changed);
@@ -1217,6 +1223,9 @@ fn reading_position_changes_state_once_and_library_filters_sort() {
     assert_eq!(library.rows[1].site, None);
     assert_eq!(library.rows[1].cover.as_deref(), Some("images/cover.jpg"));
     assert_eq!(library.rows[1].progress, second.progress);
+    // The row names the innermost contents entry at the reading position.
+    assert_eq!(library.rows[1].section.as_deref(), Some("Later"));
+    assert_eq!(library.rows[0].section, None);
     let filtered = n
         .library(&LibraryQuery {
             states: vec![ReadingState::Reading],
