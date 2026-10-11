@@ -120,6 +120,7 @@ Progress: perspective lenses and comparison arrived with stage 7's positions. Ti
 ## 10. Notes
 
 - Built-in kinds: Person, Group, Concept and Thesis as system types, with Question, Source and Project read from capabilities. Existing types with those titles become the built-in kinds.
+- Aliases: a built-in field on every note, matched by completion, Find, hand-typed references and imports, kept by merges and listed as cross-references in finding aids. Starting templates for Person, Group and Concept.
 - A Form choice field on sources, filled by lookup and ingestion and exported as the CSL and BibTeX type, replacing the guess from format and identifiers.
 - A note capability with the settled state and the revisit date; revisit events as history. A page question's review date becomes its revisit date.
 - An Index in the sidebar: built-in kinds, then your types, each with a count, then spreads. Each opens a finding aid: titles in columns under letters, with marks for settled notes and revisit dates.
