@@ -433,32 +433,34 @@ export function ReaderPane(props: ReaderPaneProps) {
     void turn(direction);
   }
 
-  async function jump(ordinal: number, offset = 0) {
+  /** Resolves true once the passage is on screen, false when disposed or overtaken by another jump. */
+  async function jump(ordinal: number, offset = 0): Promise<boolean> {
     const token = ++jumpVersion, epoch = generation;
     restoring = true; userScroll = false; clearTimeout(positionTimer); setSelection(null);
     keyboardVersion++; setCursor(null);
     const index = Math.max(0, Math.min(ordinal, total() - 1));
     await loadPage(index);
-    if (disposed || epoch !== generation || token !== jumpVersion || !total()) return;
+    if (disposed || epoch !== generation || token !== jumpVersion || !total()) return false;
     if (paged()) {
       pageAnchor = { ordinal: index, offset: 0 };
       await showPassage(pageAnchor, () => disposed || epoch !== generation || token !== jumpVersion);
-      if (disposed || epoch !== generation || token !== jumpVersion) return;
+      if (disposed || epoch !== generation || token !== jumpVersion) return false;
       restoring = false;
       report();
-      return;
+      return true;
     }
     virtualizer.scrollToIndex(index, { align: 'start' });
     // The destination's real height replaces its estimate after Solid mounts it.
     for (let frame = 0; frame < 3; frame++) {
       await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
-      if (disposed || epoch !== generation || token !== jumpVersion) return;
+      if (disposed || epoch !== generation || token !== jumpVersion) return false;
       virtualizer.scrollToIndex(index, { align: 'start' });
     }
     if (offset) scroll.scrollTop -= offset;
     jumpOrigin = scroll.scrollTop;
     restoring = false;
     report();
+    return true;
   }
 
   async function jumpTo(at: string) {
@@ -466,8 +468,17 @@ export function ReaderPane(props: ReaderPaneProps) {
     try {
       const ordinal = await locate(at);
       if (ordinal === null) throw new Error('Passage not found.');
-      await jump(ordinal);
+      return await jump(ordinal);
     } catch (reason) { if (!disposed) { restoring = false; setError(String(reason instanceof Error ? reason.message : reason)); } }
+    return false;
+  }
+
+  /** Contents moves the reading position: unlike opening a citation, choosing a section is reading on from there. */
+  async function openSection(entry: TocEntry) {
+    setPopup(null);
+    if (!await (entry.ordinal === null ? jumpTo(entry.locator) : jump(entry.ordinal))) return;
+    userScroll = true; suppressed = false;
+    await savePosition();
   }
 
   function visibleRange() {
@@ -1021,7 +1032,7 @@ export function ReaderPane(props: ReaderPaneProps) {
       <Show when={textWidth() !== null && contents().length}>
         <nav ref={margin} class="reader-margin" aria-label="Contents">
           <For each={contents()}>{entry => <Button class="reader-margin-entry" aria-current={entry === currentSection() ? 'location' : undefined} style={{ '--level': Math.max(0, entry.level - 1) }}
-            onClick={() => { if (entry.ordinal !== null) void jump(entry.ordinal); else void jumpTo(entry.locator); }}>{entry.title}</Button>}</For>
+            onClick={() => { void openSection(entry); }}>{entry.title}</Button>}</For>
         </nav>
       </Show>
       <div ref={scroll} class="reader-scroll" classList={{ 'reader-paged': paged() }} tabIndex={0} aria-label="Source passages" onScroll={scrolled}
@@ -1055,7 +1066,7 @@ export function ReaderPane(props: ReaderPaneProps) {
       <Show when={state().kind === 'actions'}><Menu anchor={state().anchor} label="Reader actions" items={readerActions()} onDismiss={() => setPopup(null)} /></Show>
       <Show when={state().kind === 'contents'}><Picker class="reader-picker" anchor={state().anchor} label="Contents" placeholder="Find a section" query={query()} onQuery={setQuery} items={toc()} key={entry => entry.locator} initial={Math.max(0, toc().indexOf(currentSection()!))}
         row={entry => <span class="reader-toc-entry" aria-current={entry === currentSection() ? 'true' : undefined} style={{ '--level': Math.max(0, entry.level - 1) }}><span class="reader-toc-check"><Show when={entry === currentSection()}><Icon name="check" /></Show></span><span>{entry.title}</span></span>}
-        onPick={entry => { setPopup(null); if (entry.ordinal !== null) void jump(entry.ordinal); else void jumpTo(entry.locator); }} empty="No sections" onDismiss={() => setPopup(null)} /></Show>
+        onPick={entry => { void openSection(entry); }} empty="No sections" onDismiss={() => setPopup(null)} /></Show>
       <Show when={state().kind === 'highlights'}><Picker class="reader-picker" anchor={state().anchor} label="Highlights" placeholder="Find a highlight" query={query()} onQuery={setQuery} items={filteredHighlights()} key={row => row.citation.id}
         row={row => <div class="reader-highlight-entry"><span class={`highlight-color-dot highlight-color-${row.citation.color ?? 'none'}`} aria-hidden="true" /><span class="reader-highlight-quote">{row.citation.quote}</span><span class="reader-highlight-section">{highlightLocation(row.citation, sections())}</span></div>} busy={highlightsLoading()} error={highlightsError()} empty="No highlights"
         onPick={row => { void jumpHighlight(row.citation); }} onDismiss={() => setPopup(null)} /></Show>
