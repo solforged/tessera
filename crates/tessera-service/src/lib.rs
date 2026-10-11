@@ -57,7 +57,7 @@ pub const DEFAULT_PORT: u16 = 4318;
 /// The workspace version shared by every Tessera binary.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// The commit a release or `scripts/ship` built from; absent in development builds.
+/// The commit a release or `mise run ship` built from; absent in development builds.
 pub const BUILD: Option<&str> = option_env!("TESSERA_BUILD");
 
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]

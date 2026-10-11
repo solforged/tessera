@@ -21,17 +21,16 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install Rust
-        run: rustup show active-toolchain || rustup toolchain install
+      - name: Install tools
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        with:
+          version: 2026.10.1
 
-      - name: Check formatting
-        run: cargo fmt --all -- --check
-
-      - name: Clippy
-        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: Format and Clippy
+        run: mise run lint
 
       - name: Test
-        run: cargo test --workspace --locked
+        run: mise run test
 
   browser:
     name: browser wasm build
@@ -42,17 +41,13 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install Rust
-        run: |
-          rustup show active-toolchain || rustup toolchain install
-          rustup target add wasm32-unknown-unknown
-          rustup component add llvm-tools
+      - name: Install tools
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        with:
+          version: 2026.10.1
 
       - name: Clippy for the browser demo
-        run: |
-          host=$(rustc -vV | sed -n 's/^host: //p')
-          export AR_wasm32_unknown_unknown="$(rustc --print sysroot)/lib/rustlib/$host/bin/llvm-ar"
-          cargo clippy -p tessera-web -p tessera-service -p tessera-core --target wasm32-unknown-unknown --locked -- -D warnings
+        run: mise run demo:lint
 
   bench:
     name: backend correctness and scaling
@@ -63,13 +58,15 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install Rust
-        run: rustup show active-toolchain || rustup toolchain install
+      - name: Install tools
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        with:
+          version: 2026.10.1
 
       # Absolute budgets are for named devices; shared runners report them
       # but gate only on correctness and the no-per-row-work checks.
       - name: Run 50k correctness and scaling
-        run: cargo run --release --locked -p tessera-bench -- --root "${{ runner.temp }}/tessera-bench" --sizes 50000 --fail-on scaling
+        run: mise run bench --root "${{ runner.temp }}/tessera-bench" --sizes 50000 --fail-on scaling
 
   web:
     name: web
@@ -80,14 +77,13 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install Bun
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
-
-      - name: Install dependencies
-        run: bun install --cwd web --frozen-lockfile
+      - name: Install tools
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        with:
+          version: 2026.10.1
 
       - name: Typecheck and build
-        run: bun run --cwd web build
+        run: mise run web:build
 
   android:
     name: android app
@@ -98,26 +94,15 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install Rust
-        run: |
-          rustup show active-toolchain || rustup toolchain install
-          rustup target add aarch64-linux-android
+      - name: Install tools
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        with:
+          version: 2026.10.1
 
-      - name: Install Bun
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
-
-      - name: Install dependencies
-        run: bun install --cwd web --frozen-lockfile
-
-      # The app's Tauri context embeds the built pages.
-      - name: Build the Android pages
-        run: bun run --cwd web build:android
-
+      # Builds the pages first: the app's Tauri context embeds them. The
+      # runner's Android SDK supplies the NDK.
       - name: Clippy for Android
-        run: |
-          ndk="$ANDROID_NDK_LATEST_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin"
-          export CC_aarch64_linux_android="$ndk/aarch64-linux-android24-clang" AR_aarch64_linux_android="$ndk/llvm-ar"
-          cargo clippy -p tessera-android --target aarch64-linux-android --locked -- -D warnings
+        run: mise run android:lint
 
   embedded:
     name: embedded release assets
@@ -128,23 +113,19 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install Rust
-        run: rustup show active-toolchain || rustup toolchain install
-
-      - name: Install Bun
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
-
-      - name: Install dependencies
-        run: bun install --cwd web --frozen-lockfile
+      - name: Install tools
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        with:
+          version: 2026.10.1
 
       - name: Build web
-        run: bun run --cwd web build
+        run: mise run web:build
 
       - name: Build embedded binary
         run: cargo build --locked -p tessera-cli --features embed-web
 
       - name: Clippy with embedded assets
-        run: cargo clippy --workspace --all-targets --locked --features embed-web -- -D warnings
+        run: mise run cli:lint
 
       - name: Test embedded assets
-        run: cargo test --locked -p tessera-service --features embed-web --test assets
+        run: mise run cli:test

@@ -1,3 +1,6 @@
+#!/usr/bin/env -S uv run --script
+#MISE description="Draw the key glyphs into web/src/ui/fonts/keys.woff2"
+#MISE tools={uv="0.13"}
 # /// script
 # requires-python = ">=3.11"
 # dependencies = ["fonttools[woff]==4.66.1", "skia-pathops==0.9.2"]
@@ -7,7 +10,7 @@
 Plex as shipped has no modifier keys (⌃ ⇧ ⌘ ⌥ ↵) and the Fontsource subset has no ← or →, so
 browsers drew them from whatever system font they found: matched on macOS, mismatched in size and
 weight on Android. These are drawn here in Plex's proportions (cap height 698, stems 84 units) and
-served as an extra face of the same family. Run with `uv run scripts/build-key-font.py`.
+served as an extra face of the same family. Run with `mise run fonts:keys`.
 """
 
 from pathlib import Path
@@ -18,7 +21,7 @@ from fontTools.pens.t2CharStringPen import T2CharStringPen
 from fontTools.pens.transformPen import TransformPen
 from fontTools.svgLib.path import parse_path
 
-OUT = Path(__file__).resolve().parent.parent / "web/src/ui/fonts/keys.woff2"
+OUT = Path(__file__).resolve().parents[2] / "web/src/ui/fonts/keys.woff2"
 SCALE = 50  # Glyphs are drawn on the icons' 16-unit grid, y down; 14 units span the cap height.
 STEM = 84
 SIDE = 60

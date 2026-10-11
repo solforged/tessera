@@ -1,0 +1,108 @@
+# Toolchain and tasks for building Tessera. `mise install` sets up the tools;
+# `mise tasks` lists the tasks. Longer tasks live in mise-tasks/.
+
+[tools]
+# The wasm32 target and llvm-tools build the browser demo; the Android target
+# builds the app.
+rust = { version = "stable", components = "rustfmt,clippy,llvm-tools", targets = "wasm32-unknown-unknown,aarch64-linux-android" }
+bun = "1.4"
+# Must match the wasm-bindgen crate in Cargo.lock.
+"github:wasm-bindgen/wasm-bindgen" = "0.2.129"
+"github:WebAssembly/binaryen" = { version = "129", version_prefix = "version_" }
+
+[tasks.deps]
+description = "Install the web dependencies"
+run = "bun install --cwd web --frozen-lockfile"
+
+[tasks."web:dev"]
+description = "Serve the editor with live reloading on port 5173"
+depends = ["deps"]
+run = "bun run --cwd web dev"
+
+[tasks."web:build"]
+description = "Typecheck and build the editor into web/dist"
+depends = ["deps"]
+sources = ["web/src/**/*", "web/public/**/*", "web/index.html", "web/package.json", "web/bun.lock", "web/vite.config.ts", "web/tsconfig.json"]
+outputs = ["web/dist/index.html"]
+run = "bun run --cwd web build"
+
+[tasks."web:test"]
+description = "Run the editor's tests"
+depends = ["deps"]
+run = "bun run --cwd web test"
+
+[tasks.serve]
+description = "Serve the development notebook in .tessera/dev on port 4320"
+depends = ["web:build"]
+run = "cargo run -p tessera-cli -- --notebook .tessera/dev serve --port 4320 --assets web/dist"
+
+[tasks.fmt]
+description = "Format the Rust code"
+run = "cargo fmt --all"
+
+[tasks.lint]
+description = "Check formatting and run Clippy on the workspace"
+run = [
+  "cargo fmt --all -- --check",
+  "cargo clippy --workspace --all-targets --locked -- -D warnings",
+]
+
+[tasks.test]
+description = "Run the Rust tests"
+run = "cargo test --workspace --locked"
+
+[tasks.check]
+description = "Run the checks a change must pass"
+depends = ["lint", "test", "web:test", "web:build"]
+
+[tasks.bench]
+description = "Run the backend benchmarks; arguments go to tessera-bench"
+run = "cargo run --release --locked -p tessera-bench --"
+
+[tasks."cli:build"]
+description = "Build the release command line with the editor embedded"
+depends = ["web:build"]
+run = "cargo build --release --locked -p tessera-cli --features embed-web"
+
+[tasks."cli:install"]
+description = "Install the command line with the editor embedded into ~/.cargo/bin"
+depends = ["web:build"]
+run = "cargo install --locked --path crates/tessera-cli --features embed-web"
+
+[tasks."cli:lint"]
+description = "Run Clippy with the editor embedded"
+depends = ["web:build"]
+run = "cargo clippy --workspace --all-targets --locked --features embed-web -- -D warnings"
+
+[tasks."cli:test"]
+description = "Test the embedded editor assets"
+depends = ["web:build"]
+run = "cargo test --locked -p tessera-service --features embed-web --test assets"
+
+[tasks."demo:wasm"]
+description = "Build the browser demo's wasm engine into web/src/demo/pkg"
+run = """
+export AR_wasm32_unknown_unknown="$(rustc --print sysroot)/lib/rustlib/$(rustc -vV | sed -n 's/^host: //p')/bin/llvm-ar"
+cargo build -p tessera-web --target wasm32-unknown-unknown --release --locked
+wasm-bindgen --target web --out-name tessera_web --out-dir web/src/demo/pkg target/wasm32-unknown-unknown/release/tessera_web.wasm
+wasm-opt -Oz web/src/demo/pkg/tessera_web_bg.wasm -o web/src/demo/pkg/tessera_web_bg.wasm
+"""
+
+[tasks."demo:build"]
+description = "Build the browser demo into web/dist-demo"
+depends = ["deps", "demo:wasm"]
+run = "bun run --cwd web build:demo"
+
+[tasks."demo:lint"]
+description = "Run Clippy on the crates the browser demo compiles to wasm"
+run = """
+export AR_wasm32_unknown_unknown="$(rustc --print sysroot)/lib/rustlib/$(rustc -vV | sed -n 's/^host: //p')/bin/llvm-ar"
+cargo clippy -p tessera-web -p tessera-service -p tessera-core --target wasm32-unknown-unknown --locked -- -D warnings
+"""
+
+[tasks."android:pages"]
+description = "Build the Android app's pages into web/dist-android"
+depends = ["deps"]
+sources = ["web/src/**/*", "web/android.html", "web/package.json", "web/bun.lock", "web/vite.config.ts", "web/tsconfig.json"]
+outputs = ["web/dist-android/android.html"]
+run = "bun run --cwd web build:android"

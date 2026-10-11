@@ -28,11 +28,10 @@ jobs:
       - name: Check the tag matches the version
         run: test "$TAG" = "v$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml)"
 
-      - name: Install Rust
-        run: rustup show active-toolchain || rustup toolchain install
-
-      - name: Install Bun
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - name: Install tools
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        with:
+          version: 2026.10.1
 
       - name: Build app
         env:
@@ -40,7 +39,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
         run: |
           test -n "$TAURI_SIGNING_PRIVATE_KEY"
-          TESSERA_BUILD="$(git rev-parse --short HEAD)" scripts/build-desktop --bundles app,dmg
+          TESSERA_BUILD="$(git rev-parse --short HEAD)" mise run desktop:build --bundles app,dmg
 
       - name: Package release
         run: |
@@ -80,20 +79,13 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install Rust
-        run: rustup show active-toolchain || rustup toolchain install
-
-      - name: Install Bun
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
-
-      - name: Install dependencies
-        run: bun install --cwd web --frozen-lockfile
-
-      - name: Build web
-        run: bun run --cwd web build
+      - name: Install tools
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        with:
+          version: 2026.10.1
 
       - name: Build release
-        run: TESSERA_BUILD="$(git rev-parse --short HEAD)" cargo build --release --locked -p tessera-cli --features embed-web --target "$TARGET"
+        run: TESSERA_BUILD="$(git rev-parse --short HEAD)" mise run cli:build --target "$TARGET"
 
       - name: Package binary
         run: tar -czf "tessera-${TAG}-${TARGET}.tar.gz" -C "target/${TARGET}/release" tessera

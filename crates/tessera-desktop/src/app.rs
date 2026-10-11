@@ -533,7 +533,7 @@ fn tail(text: &str, limit: usize) -> &str {
     &text[start..]
 }
 
-/// Reload the page when another build starts serving, e.g. after `scripts/ship`
+/// Reload the page when another build starts serving, e.g. after `mise run ship`
 /// or a rollback, so the page and the service never disagree.
 async fn watch(app: AppHandle, url: Url) {
     let port = url.port_or_known_default().unwrap_or(agent::DEFAULT_PORT);

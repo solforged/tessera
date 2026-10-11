@@ -6,7 +6,7 @@ use std::process::Command;
 use std::time::Duration;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
-/// Set by release builds and `scripts/ship`, like the service's build.
+/// Set by release builds and `mise run ship`, like the service's build.
 pub const BUILD: Option<&str> = option_env!("TESSERA_BUILD");
 pub const DEFAULT_PORT: u16 = 4318;
 const LABEL: &str = "dev.tessera.serve";
