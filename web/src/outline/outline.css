@@ -182,6 +182,8 @@
 .outline-capability-popup { display: flex; flex-direction: column; gap: var(--space-8); padding: var(--space-12); max-width: var(--measure); font-size: var(--text-control); line-height: var(--line-control); }
 .outline-capability-popup p { margin: 0; }
 .outline-capability-actions { display: flex; flex-wrap: wrap; gap: var(--space-8); }
+.page-merge-confirmation { width: var(--search-width); max-width: calc(100vw - var(--space-16)); }
+.page-merge-confirmation .popup-title { margin: 0; overflow-wrap: anywhere; }
 /* A source's cover stands beside its title and one-line imprint; progress and reading controls span the full measure below. The cover spans a flexible third row, so its height pads below the imprint instead of pushing the imprint away from the title. */
 .outline-heading:has(.outline-source-header) { display: grid; grid-template-columns: calc(var(--work-cover-width) + var(--space-48)) minmax(0, 1fr); grid-template-rows: min-content min-content 1fr; align-items: start; gap: var(--page-title-gap) var(--pane-inset); padding-bottom: var(--page-head-gap); }
 .outline-heading:has(.outline-source-header) > * { grid-column: 1 / -1; }

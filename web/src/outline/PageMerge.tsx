@@ -32,8 +32,8 @@ export function PageMergeConfirmation(props: { anchor: PopupAnchor; notebook: No
       setError(reason instanceof Error ? reason.message : String(reason));
     } finally { setBusy(false); }
   };
-  return <Popup anchor={props.anchor} label={`Merge “${props.from.text}” into “${props.into.text}”?`} onDismiss={() => { if (!busy()) props.onDismiss(); }}>
-    <h3>Merge “{props.from.text}” into “{props.into.text}”?</h3>
+  return <Popup anchor={props.anchor} class="outline-capability-popup page-merge-confirmation" label={`Merge “${props.from.text}” into “${props.into.text}”?`} onDismiss={() => { if (!busy()) props.onDismiss(); }}>
+    <h3 class="popup-title">Merge “{props.from.text}” into “{props.into.text}”?</h3>
     <p class="muted">References and blocks will move to “{props.into.text}”. This merge is permanent. “{props.from.text}” stays as an alias.</p>
     <Show when={error()}><p class="error" role="alert">{error()}</p></Show>
     <Show when={busy()}><p class="muted" role="status">Waiting for the merge to save.</p></Show>
