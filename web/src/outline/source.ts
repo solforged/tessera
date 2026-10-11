@@ -1,5 +1,5 @@
-import { createResource, type Accessor } from 'solid-js';
-import type { Block, FieldDefinition } from '../api/types';
+import { createEffect, createMemo, createResource, createRoot, createSignal, on, type Accessor } from 'solid-js';
+import type { Block, ChangeEvent, FieldDefinition, SourceFormat } from '../api/types';
 import type { IconName } from '../ui/Icon';
 import type { BlockState, NotebookClient } from '../document/contract';
 import { textTokens } from '../document/text-tokens';
@@ -40,9 +40,54 @@ export function shortSourceTitle(title: string): string {
   return `${cut.slice(0, cut.lastIndexOf(' ') > 0 ? cut.lastIndexOf(' ') : 40).trimEnd()}…`;
 }
 
+type SourceFormats = Accessor<ReadonlyMap<string, SourceFormat> | undefined>;
+const sourceFormatMaps = new WeakMap<NotebookClient, SourceFormats>();
+
+/** A change can add, drop or reformat a source only through a page the map hasn't seen, a removal, or a changed source capability. */
+export function changeTouchesSources(event: ChangeEvent, formats: ReadonlyMap<string, SourceFormat>): boolean {
+  return event.blocks.some(block => block.kind === 'page' && !formats.has(block.id))
+    || event.removed.some(id => formats.has(id))
+    || (event.capabilities ?? []).some(value => value.source !== undefined && (value.source?.format ?? null) !== (formats.get(value.block_id) ?? null));
+}
+
+/** Every page icon reads one shared Sources index instead of each page's capabilities, so a long list costs one request. */
+function sourceFormats(notebook: NotebookClient): SourceFormats {
+  const cached = sourceFormatMaps.get(notebook);
+  if (cached) return cached;
+  const formats = createRoot(() => {
+    const [version, setVersion] = createSignal(0);
+    const [index] = createResource(version, () => notebook.api.kindNotes('source'));
+    const map = createMemo(() => {
+      if (index.error) return undefined;
+      const value = index.latest;
+      return value && new Map(value.notes.flatMap(note => {
+        const format = value.summaries[note.id]?.source?.format;
+        return format ? [[note.id, format] as const] : [];
+      }));
+    });
+    // `on` tracks only the change, so the refreshed map can't re-trigger its own reload; a later unrelated change keeps a scheduled one.
+    let scheduled = false;
+    createEffect(on(() => notebook.lastChange(), event => {
+      if (!event || scheduled) return;
+      const current = map();
+      if (!index.error && (!current || !changeTouchesSources(event, current))) return;
+      scheduled = true;
+      setTimeout(() => { scheduled = false; setVersion(value => value + 1); }, 300);
+    }));
+    return map;
+  });
+  sourceFormatMaps.set(notebook, formats);
+  return formats;
+}
+
 /** The same source-aware identity in navigation, Find and reference suggestions. */
 export function createPageIcon(notebook: NotebookClient, block: Accessor<Block>, enabled: Accessor<boolean> = () => true, journal: IconName = 'calendar'): Accessor<IconName> {
-  const [capabilities] = createResource(() => enabled() && block().kind === 'page' ? block().id : false, id => notebook.api.capabilities(id));
-  return () => block().kind === 'journal' ? journal : block().kind === 'block' ? 'bullet'
-    : capabilities.error || !capabilities()?.source ? 'page' : capabilities()!.source!.format === 'article' ? 'article' : 'book';
+  const formats = sourceFormats(notebook);
+  return () => {
+    const kind = block().kind;
+    if (kind === 'journal') return journal;
+    if (kind === 'block') return 'bullet';
+    const format = enabled() ? formats()?.get(block().id) : undefined;
+    return format === undefined ? 'page' : format === 'article' ? 'article' : 'book';
+  };
 }
