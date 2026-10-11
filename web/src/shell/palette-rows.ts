@@ -1,9 +1,10 @@
 import type { Block, BlockInPage } from '../api/types';
 
-export type SearchEntry = { kind: 'hit'; hit: BlockInPage } | { kind: 'more'; page: Block; count: number };
+export type SearchHit = BlockInPage & { alias?: string | null };
+export type SearchEntry = { kind: 'hit'; hit: SearchHit } | { kind: 'more'; page: Block; count: number };
 
 /** Title hits lead, then page groups with prose matches ahead of URL-only matches. */
-export function paletteRows(hits: readonly BlockInPage[], query: string, pageId?: string): SearchEntry[] {
+export function paletteRows(hits: readonly SearchHit[], query: string, pageId?: string): SearchEntry[] {
   const needle = query.trim().toLocaleLowerCase();
   const ranked = hits.map(hit => {
     const text = hit.block.text.toLocaleLowerCase();
@@ -12,7 +13,7 @@ export function paletteRows(hits: readonly BlockInPage[], query: string, pageId?
   }).sort((a, b) => Number(a.urlOnly) - Number(b.urlOnly));
   if (pageId) return ranked.filter(({ hit }) => hit.page.id === pageId && hit.block.id !== pageId).map(({ hit }) => ({ kind: 'hit', hit }));
   const result: SearchEntry[] = [];
-  const groups = new Map<string, BlockInPage[]>();
+  const groups = new Map<string, SearchHit[]>();
   for (const { hit } of ranked) {
     if (hit.block.id === hit.page.id) { result.push({ kind: 'hit', hit }); continue; }
     const group = groups.get(hit.page.id);

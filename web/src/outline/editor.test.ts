@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { Compartment, EditorState } from '@codemirror/state';
 import { fieldDraftDecorations, fieldEntryExtension, pairInput, referenceDecorations } from './editor';
+import type { NameMatch } from '../api/types';
 
 test('known whole-field references keep raw copy text and reject interior carets', () => {
   for (const text of ['[[area]]', '  [[area|Alias]]  ']) {
@@ -78,6 +79,16 @@ describe('editor reference decorations', () => {
   test('rebuilds labels when a lookup changes', () => {
     expect(decorations('By [[author]]', 0)[0]?.label).toBe('author');
     expect(decorations('By [[author]]', 0, { author: 'Author' })[0]?.label).toBe('Author');
+  });
+  test('marks shared title references but not stable references and exposes raw source under the caret', () => {
+    const text = '[[Pliny]] [[01ARZ3NDEKTSV4RRFFQ69G5FAV]]';
+    const matches = [{ page: { id: 'elder' }, alias: 'Pliny' }, { page: { id: 'younger' }, alias: 'Pliny' }] as NameMatch[];
+    const widgets: { label: string; ambiguous: boolean }[] = [];
+    referenceDecorations(text, text.length, () => undefined, () => false, () => matches).between(0, text.length, (_from, _to, decoration) => { widgets.push({ label: decoration.spec.widget.label, ambiguous: decoration.spec.widget.ambiguous }); });
+    expect(widgets).toEqual([{ label: 'Pliny', ambiguous: true }, { label: '01ARZ3NDEKTSV4RRFFQ69G5FAV', ambiguous: false }]);
+    const exposed: string[] = [];
+    referenceDecorations('[[Pliny]]', 3, () => undefined, () => false, () => matches).between(0, 9, (_from, _to, decoration) => { exposed.push(decoration.spec.widget.label); });
+    expect(exposed).toEqual([]);
   });
 });
 

@@ -2,6 +2,7 @@
 //! writes to the database.
 
 mod agent;
+mod aliases;
 mod backup;
 pub mod calendar;
 pub mod capabilities;
@@ -44,6 +45,7 @@ mod work_store;
 pub use agent::{
     AgentChange, AgentEdit, AgentReceipt, AgentRequest, NoteBlock, NoteTarget, UndoReceipt,
 };
+pub use aliases::{Completion, NameMatch};
 pub use backup::{BackupManifest, backup, backup_beside, backup_directory, restore};
 pub use capabilities::{
     Agenda, AgendaItem, AgendaReason, BlockCapabilities, CardAnswerBlock, CardPreviews, CardQuery,
@@ -67,5 +69,5 @@ pub use model::{
     TextRewrite, TypeInfo, View,
 };
 pub use notebook::{DATABASE_FILE, Notebook, NotebookInfo, now_ms};
-pub use notes::{IndexKind, NoteEntry, NoteIndex, NoteKind};
+pub use notes::{CrossReference, IndexKind, KindIndex, NoteEntry, NoteIndex, NoteKind, SeeTarget};
 pub use ownership::NotebookOwnership;

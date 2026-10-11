@@ -1,6 +1,6 @@
 import { For, Show, createEffect, createMemo, createResource, createSignal } from 'solid-js';
 import type { EditorView } from '@codemirror/view';
-import type { Block, FieldDefinition, TaskStatus } from '../api/types';
+import type { Block, Completion as NameCompletion, FieldDefinition, TaskStatus } from '../api/types';
 import { api } from '../api/client';
 import type { BlockState, Caret } from '../document/contract';
 import { fieldEntryId } from '../table/query';
@@ -37,7 +37,7 @@ interface SlashItem extends SlashEntry {
   insert?(text: string): { text: string; caret: number };
   run?(id: string): void;
 }
-type CompletionRow = { kind: 'block'; block: Block } | { kind: 'field'; field: FieldDefinition } | { kind: 'option'; option: FieldDefinition['options'][number] };
+type CompletionRow = { kind: 'block'; block: Block & Partial<Pick<NameCompletion, 'alias'>> } | { kind: 'field'; field: FieldDefinition } | { kind: 'option'; option: FieldDefinition['options'][number] };
 export function createOutlineCompletions(context: Pick<OutlineContext,
   | 'contextDate' | 'editing' | 'textRange' | 'composition' | 'caret'
   | 'editor' | 'doc' | 'capabilities' | 'setCaret' | 'scheduleReport'
@@ -487,7 +487,7 @@ function CompletionPopups(){ return <>
         <For each={completionRows()}>{(row, index) => <div role="option" aria-selected={completionIndex() === index()} class="picker-row" classList={{ selected: completionIndex() === index() }} onClick={() => void chooseCompletion(index())}>
           <Show when={row.kind === 'block' ? row.block : null}>{block => {
             const icon = createPageIcon(props.notebook, block);
-            return <><Icon name={icon()} /><span class="picker-text">{block().text ? <BlockText text={block().text} notebook={props.notebook} interactive={false} /> : 'Empty block'}</span><Show when={block().kind === 'block'}><span class="picker-meta"><BlockBreadcrumb block={block()} notebook={props.notebook} /></span></Show></>;
+            return <><Icon name={icon()} /><span class="picker-text">{block().text ? <BlockText text={block().text} notebook={props.notebook} interactive={false} /> : 'Empty block'}</span><Show when={block().alias}>{alias => <span class="reference-via">via {alias()}</span>}</Show><Show when={block().kind === 'block'}><span class="picker-meta"><BlockBreadcrumb block={block()} notebook={props.notebook} /></span></Show></>;
           }}</Show>
           <Show when={row.kind === 'field' ? row.field : null}>{field => <><Icon name="field" /><span class="picker-text">{field().name}</span><span class="picker-meta">{completion()?.fields ? kindLabels[field().kind] : 'Field'}</span></>}</Show>
           <Show when={row.kind === 'option' ? row.option : null}>{option => <><Icon name="bullet" /><span class="picker-text">{option().text}</span></>}</Show>

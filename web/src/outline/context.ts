@@ -1,4 +1,4 @@
-import type { Accessor, Resource, Setter } from 'solid-js';
+import type { Accessor, JSX, Resource, Setter } from 'solid-js';
 import type { Virtualizer } from '@tanstack/solid-virtual';
 import type { EditorView } from '@codemirror/view';
 import type { FieldDefinition, Fields, TaskStatus } from '../api/types';
@@ -12,7 +12,7 @@ import type { PopupAnchor } from '../ui/Popup';
 import type { Completion } from './completions';
 
 export interface RowRange { anchor: string; head: string }
-export interface MenuState { anchor: HTMLElement; items: MenuItem[]; label: string }
+export interface MenuState { anchor: HTMLElement; items: MenuItem[]; label: string; header?: JSX.Element }
 
 /** Operations consumed by outline controls; the capability factory owns their state. */
 export interface OutlineCapabilityActions {
@@ -75,6 +75,7 @@ export interface OutlineContext {
   setMenu: Setter<MenuState | null>;
   rename: () => void;
   addGloss: () => void;
+  addAlias: () => void;
   localPositions: Accessor<number>;
   depthTitles: Record<Depth, string>;
   depthReason: () => string | undefined;

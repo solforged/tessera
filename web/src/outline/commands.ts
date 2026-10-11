@@ -12,7 +12,7 @@ import type { OutlineContext } from './context';
 
 export function createOutlineCommands(context: Pick<OutlineContext,
   | 'doc' | 'editing' | 'commitFieldEntry' | 'props' | 'selected'
-  | 'setMessage' | 'setMenu' | 'capabilities' | 'rename' | 'addGloss'
+  | 'setMessage' | 'setMenu' | 'capabilities' | 'rename' | 'addGloss' | 'addAlias'
   | 'localPositions' | 'depthTitles' | 'depthReason' | 'setStop' | 'depth'
   | 'stepDepth' | 'heading' | 'adjacent' | 'horizontal' | 'ids'
   | 'rowFocus' | 'editAt' | 'caret' | 'editor' | 'split'
@@ -24,7 +24,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
 >) {
   const {
     doc, editing, commitFieldEntry, props, selected, setMessage,
-    setMenu, capabilities, rename, addGloss, localPositions, depthTitles,
+    setMenu, capabilities, rename, addGloss, addAlias, localPositions, depthTitles,
     depthReason, setStop, depth, stepDepth, adjacent, horizontal,
     ids, rowFocus, editAt, caret, split, replaceSelection,
     apply, roots, setRowRange, fold, zoomTo, zoom,
@@ -92,6 +92,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
       capabilities.open(props.pageId, 'project');
     } },
     { id: 'gloss', title: 'Add or edit gloss', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Page is unavailable.' : doc.root()?.kind !== 'page' ? 'Journal days have no gloss.' : undefined, run: addGloss },
+    { id: 'alias', title: 'Add alias', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Page is unavailable.' : doc.root()?.kind !== 'page' ? 'Journal days have no aliases.' : undefined, run: addAlias },
     { id: 'compare', title: 'Compare perspectives', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Page is unavailable.' : localPositions() < 2 ? 'Compare needs two perspectives on this page.' : undefined, run: () => props.onOpen({ kind: 'compare', subjectId: props.pageId }, false) },
     ...depthStops.map((stop): Command => ({ id: `depth-${stop}`, title: depthTitles[stop], section: 'Page', disabledReason: depthReason, run: () => setStop(stop) })),
     { id: 'depth-less', title: 'Show less of the page', section: 'Page', keys: ['['], disabledReason: () => depthReason() ?? (depth() === 'gloss' ? 'Only the gloss is showing.' : undefined), run: () => stepDepth(-1) },

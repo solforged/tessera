@@ -21,6 +21,9 @@ export interface Block {
   updated_at: number;
 }
 
+export type Completion = Block & { alias: string | null };
+export interface NameMatch { page: Block; alias: string | null }
+
 export type Actor =
   | { kind: 'person' }
   | { kind: 'agent'; name: string }
@@ -219,7 +222,10 @@ export interface View { id: string; name: string; query: Query; revision: number
 /** A kind notes are filed under: `person`, `group`, `concept`, `thesis`, `question`, `source`, `project`, `type:<id>` or `unfiled`. */
 export interface NoteKind { key: string; name: string; plural: string; type_id: string | null }
 export interface NoteIndex { kinds: (NoteKind & { count: number })[]; notes: number }
-export interface NoteEntry { id: string; title: string; created_at: number }
+export interface NoteEntry { id: string; title: string; sort_as: string | null; created_at: number }
+export interface SeeTarget { id: string; title: string }
+export interface CrossReference { alias: string; targets: SeeTarget[] }
+export interface KindIndex { notes: NoteEntry[]; see: CrossReference[] }
 export interface SettingRevision { key: string; revision: number }
 export interface Setting { key: string; value: string; revision: number; updated_at: number }
 export interface SettingsView { settings: Setting[]; today: string; time_zone: string }

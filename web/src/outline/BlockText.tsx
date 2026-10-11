@@ -1,9 +1,12 @@
-import { For, Show, createMemo } from 'solid-js';
+import { For, Show, createMemo, createResource, createSignal } from 'solid-js';
 import type { NotebookClient } from '../document/contract';
 import type { Block, FieldDefinition } from '../api/types';
 import type { OpenTarget } from '../shell/contract';
 import { Icon } from '../ui/Icon';
 import { TypePill } from './references';
+import { Menu } from '../ui/Menu';
+import { foldName, nameMenuItems, resolveName } from './names';
+import type { NameMatch } from '../api/types';
 import { cardMarks } from '../review/card-text';
 import type { CardMark } from '../review/card-text';
 
@@ -13,6 +16,8 @@ import type { Token } from '../document/text-tokens';
 interface Props {
   text: string;
   notebook: NotebookClient;
+  blockId?: string;
+  onError?(message: string): void;
   field?: Pick<FieldDefinition, 'id' | 'name'>;
   onOpen?(target: OpenTarget, beside: boolean): void;
   onReferenceMenu?(id: string, anchor: HTMLElement): void;
@@ -35,11 +40,16 @@ export function referenceLabel(token: Token, target: Block | null | undefined): 
 export function plainText(text: string, lookup: NotebookClient['lookup']): string {
   return textTokens(text).map(token => isStableReference(token) ? referenceLabel(token, lookup(token.id!)()) : token.kind === 'tag' ? `#${token.value}` : token.value).join('');
 }
-interface DisplayToken extends Token { label: string; visibleStart: number; target: Block | null | undefined; literal: boolean }
+interface DisplayToken extends Token { label: string; visibleStart: number; target: Block | null | undefined; literal: boolean; matches?: NameMatch[] }
 interface TokenGroup { mark?: CardMark; tokens: Token[] }
 const operators = { '>>': { label: 'then', text: '→' }, '<<': { label: 'from', text: '←' }, '<>': { label: 'both ways', text: '↔' }, '>>>': { label: 'child answer', text: '↓' }, '>>1.': { label: 'list answer', text: '↓1.' } };
 
 export function BlockText(props: Props) {
+  const [menu, setMenu] = createSignal<{ token: DisplayToken; anchor: HTMLElement }>();
+  const [error, setError] = createSignal('');
+  const names = createMemo(() => [...new Set(textTokens(props.text).flatMap(token => token.kind === 'reference' && !isStableReference(token) && token.id?.trim() ? [token.id.trim()] : []))]);
+  const [matches] = createResource(() => names().length ? [names().join('\u0000'), props.notebook.changeSequence()] as const : false, async ([value]) =>
+    new Map(await Promise.all(value.split('\u0000').map(async name => [foldName(name), await resolveName(props.notebook, name)] as const))));
   const groups = createMemo(() => {
     const marks = props.cards ? cardMarks(props.text) : [];
     const result: TokenGroup[] = [];
@@ -60,11 +70,13 @@ export function BlockText(props: Props) {
   const displayed = createMemo(() => {
     let visibleStart = 0;
     return groups().map(group => ({ ...group, tokens: group.tokens.map(token => {
-      const literal = group.mark?.kind !== 'operator' && (token.kind === 'text' || token.kind === 'reference' && !isStableReference(token));
+      const resolved = token.kind === 'reference' && !isStableReference(token) && !matches.error ? matches()?.get(foldName(token.id!)) : undefined;
+      const ambiguous = !!resolved && resolved.length > 1;
+      const literal = group.mark?.kind !== 'operator' && (token.kind === 'text' || token.kind === 'reference' && !isStableReference(token) && !ambiguous);
       const target = isStableReference(token) ? props.notebook.lookup(token.id!)() : undefined;
       const field = props.field?.id === token.id ? props.field : undefined;
-      const label = group.mark?.kind === 'operator' || literal || token.kind === 'url' ? token.value : token.kind === 'tag' ? `#${token.value}` : field ? token.alias || field.name : referenceLabel(token, target);
-      const result: DisplayToken = { ...token, label, target, literal, visibleStart };
+      const label = ambiguous ? token.alias || token.id! : group.mark?.kind === 'operator' || literal || token.kind === 'url' ? token.value : token.kind === 'tag' ? `#${token.value}` : field ? token.alias || field.name : referenceLabel(token, target);
+      const result: DisplayToken = { ...token, label, target, literal, visibleStart, matches: ambiguous ? resolved : undefined };
       visibleStart += label.length;
       return result;
     }) }));
@@ -101,14 +113,15 @@ export function BlockText(props: Props) {
         <Show when={props.cards} fallback={text(token)}><span data-source-start={token.start} data-source-end={token.end} data-source-literal>{text(token)}</span></Show>
       </Show>
       <Show when={!token.literal && token.kind === 'reference'}>
-        <Show when={props.interactive !== false} fallback={<span class="outline-reference" data-source-start={token.start} data-source-end={token.end}>
-          <Show when={props.field?.id === token.id}><Icon name="field" /></Show><Show when={token.target === null}><Icon name="brokenLink" /></Show>{text(token)}
+        <Show when={props.interactive !== false || token.matches && props.blockId} fallback={<span class="outline-reference" classList={{ 'outline-reference-ambiguous': !!token.matches }} data-source-start={token.start} data-source-end={token.end}>
+          <Show when={props.field?.id === token.id}><Icon name="field" /></Show><Show when={token.target === null}><Icon name="brokenLink" /></Show>{text(token)}<Show when={token.matches}><sup>?</sup></Show>
         </span>}>
-          <button class="outline-reference" type="button" data-source-start={token.start} data-source-end={token.end} data-reference={isStableReference(token) ? token.id : undefined}
+          <button class="outline-reference" classList={{ 'outline-reference-ambiguous': !!token.matches }} type="button" data-source-start={token.start} data-source-end={token.end} data-reference={isStableReference(token) ? token.id : undefined}
+            aria-label={token.matches ? `“${token.id}” names ${token.matches.length} pages` : undefined} aria-haspopup={token.matches ? 'menu' : undefined}
             onMouseDown={event => event.stopPropagation()}
-            onClick={event => { event.stopPropagation(); const block = token.target; if (block) props.onOpen?.({ kind: 'page', pageId: block.page_id, blockId: block.kind === 'block' ? block.id : undefined }, true); }}
-            onContextMenu={event => { event.preventDefault(); event.stopPropagation(); props.onReferenceMenu?.(token.id!, event.currentTarget); }}>
-            <Show when={props.field?.id === token.id}><Icon name="field" /></Show><Show when={token.target === null}><Icon name="brokenLink" /></Show>{text(token)}
+            onClick={event => { event.stopPropagation(); if (token.matches && props.blockId) { setMenu({ token, anchor: event.currentTarget }); return; } const block = token.target; if (block) props.onOpen?.({ kind: 'page', pageId: block.page_id, blockId: block.kind === 'block' ? block.id : undefined }, true); }}
+            onContextMenu={event => { event.preventDefault(); event.stopPropagation(); if (token.matches && props.blockId) setMenu({ token, anchor: event.currentTarget }); else props.onReferenceMenu?.(token.id!, event.currentTarget); }}>
+            <Show when={props.field?.id === token.id}><Icon name="field" /></Show><Show when={token.target === null}><Icon name="brokenLink" /></Show>{text(token)}<Show when={token.matches}><sup>?</sup></Show>
           </button>
         </Show>
       </Show>
@@ -125,12 +138,14 @@ export function BlockText(props: Props) {
       </Show>
     </>}</For>;
   }
-  return <For each={displayed()}>{group => {
+  return <><For each={displayed()}>{group => {
     const mark = group.mark;
     if (mark?.kind === 'operator') return <span class="card-operator" aria-label={operators[mark.op].label} data-source-start={mark.start} data-source-end={mark.end}>{text(group.tokens[0]!)}</span>;
     if (mark?.kind === 'cloze') return <span class="card-cloze" title={`Cloze ${mark.id}${mark.hintStart === null ? '' : ` · ${props.text.slice(mark.hintStart, mark.hintEnd!)}`}`}>{renderTokens(group.tokens)}</span>;
     return renderTokens(group.tokens);
-  }}</For>;
+  }}</For><Show when={menu()}>{state => <Menu anchor={state().anchor} label="Choose a page" header={<div class="menu-section">“{state().token.id}” names {state().token.matches!.length} pages</div>}
+    items={nameMenuItems(props.notebook, props.blockId!, state().token, state().token.matches!, message => props.onError ? props.onError(message) : setError(message))} onDismiss={() => setMenu(undefined)} />}</Show>
+    <Show when={error()}><span class="error" role="alert">{error()}</span></Show></>;
 }
 
 export function BlockBreadcrumb(props: { block: Block; notebook: NotebookClient }) {

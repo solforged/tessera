@@ -4,7 +4,8 @@ use std::time::Instant;
 use anyhow::{Result, ensure};
 use serde::Serialize;
 use tessera_core::{
-    Backlink, Block, BlockInPage, BlockKind, ChangeEvent, Notebook, Operation, PageView, Revision,
+    Backlink, Block, BlockInPage, BlockKind, ChangeEvent, Completion, Notebook, Operation,
+    PageView, Revision,
 };
 
 use crate::corpus::{Corpus, Expected, Model, batch, id, references};
@@ -215,7 +216,7 @@ pub async fn queries(corpus: &Corpus, dir: &Path, recorder: &mut Recorder) -> Re
         let mut times = Vec::new();
         for _ in 0..recorder.runs {
             let start = Instant::now();
-            let result: Vec<Block> = http
+            let result: Vec<Completion> = http
                 .get(&format!("/api/complete?q={query}&limit=30"))
                 .await?;
             times.push(elapsed(start));
@@ -360,13 +361,16 @@ pub async fn queries(corpus: &Corpus, dir: &Path, recorder: &mut Recorder) -> Re
     Ok(())
 }
 
-fn check_blocks(model: &Model, blocks: &[Block], ids: &[String]) -> Result<()> {
+fn check_blocks(model: &Model, blocks: &[Completion], ids: &[String]) -> Result<()> {
     ensure!(
-        blocks.iter().map(|block| &block.id).eq(ids.iter()),
+        blocks
+            .iter()
+            .map(|completion| &completion.block.id)
+            .eq(ids.iter()),
         "completion differs from naive scan"
     );
     for block in blocks {
-        model.check_block(block)?;
+        model.check_block(&block.block)?;
     }
     Ok(())
 }

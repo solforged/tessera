@@ -549,7 +549,7 @@ fn fts_and_completion_follow_edits_deletion_and_restore() {
         nb.complete("ÄP", 2)
             .unwrap()
             .iter()
-            .map(|block| block.id.clone())
+            .map(|completion| completion.block.id.clone())
             .collect::<Vec<_>>(),
         vec![id(1), id(10)]
     );
@@ -773,7 +773,7 @@ fn ranked_query_limits_break_score_ties_by_id_not_insertion_order() {
         nb.complete("cobalt", 5)
             .unwrap()
             .into_iter()
-            .map(|block| block.id)
+            .map(|completion| completion.block.id)
             .collect::<Vec<_>>(),
         expected
     );
@@ -789,7 +789,7 @@ fn ranked_query_limits_break_score_ties_by_id_not_insertion_order() {
         nb.complete("", 5)
             .unwrap()
             .into_iter()
-            .map(|block| block.id)
+            .map(|completion| completion.block.id)
             .collect::<Vec<_>>(),
         vec![nb.fields().unwrap().page_id, id(1)]
     );

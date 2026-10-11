@@ -57,7 +57,7 @@ fn assert_source_discovery(notebook: &Notebook, expected: &[u128], limit: usize)
             .complete("needle", limit)
             .unwrap()
             .into_iter()
-            .map(|block| block.id)
+            .map(|completion| completion.block.id)
             .collect::<Vec<_>>(),
         expected,
         "FTS completion must filter effective archive state before limiting"
@@ -135,7 +135,7 @@ fn archived_roots_are_hidden_from_roots_titles_and_source_discovery() {
             .collect::<Vec<_>>(),
         vec![notebook.fields().unwrap().page_id, id(2), id(4), id(3)]
     );
-    assert_eq!(notebook.complete("prefix", 1).unwrap()[0].id, id(4));
+    assert_eq!(notebook.complete("prefix", 1).unwrap()[0].block.id, id(4));
     assert_eq!(notebook.search("prefix", 1).unwrap()[0].block.id, id(4));
     assert_source_discovery(&notebook, &[20], 1);
     assert_source_discovery(&notebook, &[20], 100);

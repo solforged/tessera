@@ -6,6 +6,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
+use crate::aliases::fold;
 use crate::storage::{not_found, validate_id, validation};
 use crate::{Notebook, Result};
 
@@ -53,7 +54,26 @@ pub struct NoteIndex {
 pub struct NoteEntry {
     pub id: String,
     pub title: String,
+    pub sort_as: Option<String>,
     pub created_at: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SeeTarget {
+    pub id: String,
+    pub title: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CrossReference {
+    pub alias: String,
+    pub targets: Vec<SeeTarget>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct KindIndex {
+    pub notes: Vec<NoteEntry>,
+    pub see: Vec<CrossReference>,
 }
 
 struct Note {
@@ -93,8 +113,8 @@ impl Notebook {
         })
     }
 
-    /// One kind's notes by title, for its finding aid.
-    pub fn kind_notes(&self, key: &str) -> Result<Vec<NoteEntry>> {
+    /// One kind's notes and alias cross-references, for its finding aid.
+    pub fn kind_notes(&self, key: &str) -> Result<KindIndex> {
         let type_id = key.strip_prefix("type:");
         if let Some(id) = type_id {
             validate_id(id)?;
@@ -106,15 +126,69 @@ impl Notebook {
             // A known kind with no notes yet, or a type that no titled page belongs to.
             return match type_id {
                 Some(id) => Err(not_found(id)),
-                None => Ok(Vec::new()),
+                None => Ok(KindIndex::default()),
             };
         };
-        Ok(filing
+        let mut notes: Vec<_> = filing
             .notes
             .into_iter()
             .filter(|note| note.kinds.contains(&index))
             .map(|note| note.entry)
-            .collect())
+            .collect();
+        let mut sort_as = self.named_page_values("sort as", None)?;
+        for note in &mut notes {
+            note.sort_as = sort_as
+                .remove(&note.id)
+                .and_then(|values| values.into_iter().next());
+        }
+        notes.sort_by_cached_key(|note| {
+            (
+                fold(note.sort_as.as_deref().unwrap_or(&note.title)),
+                note.id.clone(),
+            )
+        });
+        let mut aliases = self.aliases_by_page()?;
+        let mut see: BTreeMap<String, CrossReference> = BTreeMap::new();
+        for note in &notes {
+            let names = aliases.remove(&note.id).unwrap_or_default();
+            let folded: Vec<_> = names.iter().map(|name| fold(name)).collect();
+            let words: Vec<HashSet<_>> = folded
+                .iter()
+                .map(|name| name.split_whitespace().collect())
+                .collect();
+            let title = fold(&note.title);
+            for (index, alias) in names.into_iter().enumerate() {
+                let key = &folded[index];
+                if key == &title
+                    || words.iter().enumerate().any(|(other, shorter)| {
+                        folded[other].len() < key.len() && shorter.is_subset(&words[index])
+                    })
+                {
+                    continue;
+                }
+                let reference = see.entry(key.clone()).or_insert_with(|| CrossReference {
+                    alias,
+                    targets: Vec::new(),
+                });
+                if !reference.targets.iter().any(|target| target.id == note.id) {
+                    reference.targets.push(SeeTarget {
+                        id: note.id.clone(),
+                        title: note.title.clone(),
+                    });
+                }
+            }
+        }
+        for reference in see.values_mut() {
+            reference.targets.sort_by(|left, right| {
+                left.title
+                    .cmp(&right.title)
+                    .then_with(|| left.id.cmp(&right.id))
+            });
+        }
+        Ok(KindIndex {
+            notes,
+            see: see.into_values().collect(),
+        })
     }
 
     /// The kinds one titled page is filed under, in index order. Empty for an unfiled note.
@@ -149,6 +223,7 @@ impl Notebook {
                         id: row.get(0)?,
                         title: row.get(1)?,
                         created_at: row.get(2)?,
+                        sort_as: None,
                     },
                     kinds: Vec::new(),
                 })

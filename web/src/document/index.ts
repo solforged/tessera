@@ -4,6 +4,7 @@ import { ulid } from 'ulid';
 import { ApiError, CHANGE_CONNECTING, CHANGE_OPEN, createApi } from '../api/client';
 import type { Batch, Block, BlockCapabilities, ChangeEvent, Committed, Operation, PageView, SettingsView, WorkSession } from '../api/types';
 import type { ApiClient, ChangeSocket } from '../api/client';
+import { startingTemplateFor } from '../fields/templates';
 import type { Caret, NotebookClient, PageDocument, SaveState } from './contract';
 import { Document } from './page-document';
 import type { DocumentHost } from './page-document';
@@ -791,6 +792,19 @@ export class Notebook implements NotebookClient, DocumentHost {
             const pages = new Set(blocks.filter(block => block.id !== doc.pageId).map(block => block.page_id));
             for (const page of pages) await this.docs.get(page)?.reload(false);
           }
+          // Derived type pages alone appear as new roots in a text/Add type receipt.
+          // Ordinary page creation and references to existing empty type pages do not seed templates.
+          for (const block of blocks) {
+            if (block.kind !== 'page' || revisions.get(block.id) !== 1 || !startingTemplateFor(block.text)
+              || command.actions.some(action => action.kind === 'insert' && action.block.id === block.id)) continue;
+            try {
+              const template = await this.api.startingTemplate(block.id);
+              if (template) this.receiveReceipt(template);
+            } catch (error) {
+              // The original edit is already acknowledged; never reject or replay it for this failure.
+              this.failure = error instanceof Error ? error.message : String(error);
+            }
+          }
           this.closeUnused(doc);
         } catch (error) {
           this.activeCommand = undefined;
@@ -1167,6 +1181,7 @@ export class Notebook implements NotebookClient, DocumentHost {
       op: 'merge_page', source_id: from, source_revision: source.revision,
       destination_id: into, destination_revision: destination.revision,
     }]);
+    try { await this.api.addAlias(into, source.text); } catch { /* The merge is already committed. */ }
   }
   async deletePage(pageId: string) {
     await this.ready;

@@ -41,8 +41,8 @@ use serde::Deserialize;
 use serde::Serialize;
 use tessera_core::{
     Actor, AgentChange, AgentReceipt, AgentRequest, Backlink, Batch, Block, BlockInPage,
-    ChangeEvent, Committed, FieldsView, NoteEntry, NoteIndex, NoteKind, Notebook, NotebookInfo,
-    PageView, QueryResult, SettingsView, TypeInfo, UndoReceipt, View,
+    ChangeEvent, Committed, Completion, FieldsView, KindIndex, NameMatch, NoteIndex, NoteKind,
+    Notebook, NotebookInfo, PageView, QueryResult, SettingsView, TypeInfo, UndoReceipt, View,
 };
 use tokio::sync::broadcast;
 
@@ -176,6 +176,8 @@ fn notebook_routes() -> Router<AppState> {
         .route("/api/pages/{id}", get(page))
         .route("/api/pages/by-title/{title}", get(page_by_title))
         .route("/api/pages/{id}/kinds", get(note_kinds))
+        .route("/api/pages/{id}/aliases", post(add_alias))
+        .route("/api/names/{name}", get(resolve_name))
         .route("/api/index", get(note_index))
         .route("/api/index/{key}", get(kind_notes))
         .route("/api/journal/{date}", get(journal))
@@ -215,6 +217,7 @@ fn notebook_routes() -> Router<AppState> {
             get(capabilities::review_session),
         )
         .route("/api/types/{id}", get(type_info))
+        .route("/api/types/{id}/starting-template", post(starting_template))
         .route("/api/fields", get(fields))
         .route("/api/query", post(query))
         .route("/api/views", get(views))
@@ -552,13 +555,15 @@ async fn type_info(
 }
 
 async fn note_index(State(state): State<AppState>) -> Result<Json<NoteIndex>, ApiError> {
-    run(&state, |notebook| notebook.note_index()).await.map(Json)
+    run(&state, |notebook| notebook.note_index())
+        .await
+        .map(Json)
 }
 
 async fn kind_notes(
     State(state): State<AppState>,
     path: Result<Path<String>, PathRejection>,
-) -> Result<Json<Vec<NoteEntry>>, ApiError> {
+) -> Result<Json<KindIndex>, ApiError> {
     let Path(key) = path.map_err(ApiError::from)?;
     run(&state, move |notebook| notebook.kind_notes(&key))
         .await
@@ -610,10 +615,61 @@ async fn view(
 async fn complete(
     State(state): State<AppState>,
     query: Result<Query<TextQuery>, QueryRejection>,
-) -> Result<Json<Vec<Block>>, ApiError> {
+) -> Result<Json<Vec<Completion>>, ApiError> {
     let Query(query) = query.map_err(ApiError::from)?;
     run(&state, move |notebook| {
         notebook.complete(&query.q, query.limit)
+    })
+    .await
+    .map(Json)
+}
+
+async fn resolve_name(
+    State(state): State<AppState>,
+    path: Result<Path<String>, PathRejection>,
+) -> Result<Json<Vec<NameMatch>>, ApiError> {
+    let Path(name) = path.map_err(ApiError::from)?;
+    run(&state, move |notebook| notebook.resolve_name(&name))
+        .await
+        .map(Json)
+}
+
+#[derive(Deserialize)]
+struct AliasRequest {
+    name: String,
+}
+
+async fn add_alias(
+    State(state): State<AppState>,
+    path: Result<Path<String>, PathRejection>,
+    body: Result<Json<AliasRequest>, JsonRejection>,
+) -> Result<Json<Option<Committed>>, ApiError> {
+    let Path(id) = path.map_err(ApiError::from)?;
+    let Json(AliasRequest { name }) = body.map_err(ApiError::from)?;
+    let changes = state.changes.clone();
+    run(&state, move |notebook| {
+        let committed = notebook.add_alias(&id, &name, Actor::Person)?;
+        if let Some(committed) = &committed {
+            publish(&changes, committed);
+        }
+        Ok(committed)
+    })
+    .await
+    .map(Json)
+}
+
+async fn starting_template(
+    State(state): State<AppState>,
+    path: Result<Path<String>, PathRejection>,
+) -> Result<Json<Option<Committed>>, ApiError> {
+    let Path(id) = path.map_err(ApiError::from)?;
+    let changes = state.changes.clone();
+    run(&state, move |notebook| {
+        let committed = notebook.apply_starting_template(&id, Actor::Person)?;
+        if let Some(committed) = &committed {
+            publish(&changes, committed);
+        }
+        Ok(committed)
     })
     .await
     .map(Json)
@@ -718,6 +774,13 @@ async fn stream_changes(
     }
 }
 
+fn publish(changes: &broadcast::Sender<i64>, committed: &Committed) {
+    if !committed.replayed {
+        // Publish while the writer lock is still held, in commit order.
+        let _ = changes.send(committed.seq);
+    }
+}
+
 async fn apply(
     State(state): State<AppState>,
     body: Result<Json<Batch>, JsonRejection>,
@@ -726,10 +789,7 @@ async fn apply(
     let changes = state.changes.clone();
     run(&state, move |notebook| {
         let committed = notebook.apply(&batch)?;
-        if !committed.replayed {
-            // Publish while the writer lock is still held, in commit order.
-            let _ = changes.send(committed.seq);
-        }
+        publish(&changes, &committed);
         Ok(committed)
     })
     .await
@@ -814,6 +874,142 @@ mod tests {
         http::{Request, StatusCode},
     };
     use tower::ServiceExt;
+
+    #[tokio::test]
+    async fn alias_routes_keep_json_shapes_and_publish_only_committed_changes() {
+        async fn request(
+            app: &Router,
+            method: &str,
+            path: &str,
+            body: Option<serde_json::Value>,
+        ) -> serde_json::Value {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .method(method)
+                        .uri(path)
+                        .header("content-type", "application/json")
+                        .body(body.map_or_else(Body::empty, |body| Body::from(body.to_string())))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK, "{method} {path}");
+            let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+            serde_json::from_slice(&bytes).unwrap()
+        }
+
+        let dir = tempfile::tempdir().unwrap();
+        let mut notebook = Notebook::open(dir.path()).unwrap();
+        let page = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
+        let kind = "01ARZ3NDEKTSV4RRFFQ69G5FAW";
+        notebook
+            .apply(&Batch {
+                actor: Actor::Person,
+                reason: None,
+                idempotency_key: None,
+                operations: vec![
+                    tessera_core::Operation::CreatePage {
+                        id: page.into(),
+                        title: "Cicero".into(),
+                    },
+                    tessera_core::Operation::CreatePage {
+                        id: kind.into(),
+                        title: "Person".into(),
+                    },
+                    tessera_core::Operation::AddType {
+                        id: page.into(),
+                        base_revision: 1,
+                        title: "Person".into(),
+                    },
+                ],
+            })
+            .unwrap();
+        let (app, handles) = embedded_router(notebook).unwrap();
+        let mut notifications = handles.changes.subscribe();
+        let aliases = format!("/api/pages/{page}/aliases");
+        let committed = request(
+            &app,
+            "POST",
+            &aliases,
+            Some(serde_json::json!({"name": "Tully"})),
+        )
+        .await;
+        let seq = committed["seq"].as_i64().unwrap();
+        assert_eq!(notifications.try_recv().unwrap(), seq);
+        let event = handles
+            .notebook
+            .lock()
+            .changes_since(seq - 1, 1)
+            .unwrap()
+            .remove(0);
+        assert_eq!(event.actor, Actor::Person);
+        assert!(event.restructured_pages.iter().any(|id| id == page));
+        assert!(
+            request(
+                &app,
+                "POST",
+                &aliases,
+                Some(serde_json::json!({"name": "TÚLLY"}))
+            )
+            .await
+            .is_null()
+        );
+        assert!(matches!(
+            notifications.try_recv(),
+            Err(broadcast::error::TryRecvError::Empty)
+        ));
+
+        let matches = request(&app, "GET", "/api/names/tully", None).await;
+        assert_eq!(matches[0]["page"]["id"], page);
+        assert_eq!(matches[0]["alias"], "Tully");
+        assert_eq!(
+            request(&app, "GET", "/api/names/Cicero", None).await[0]["alias"],
+            serde_json::Value::Null
+        );
+        let completion = request(&app, "GET", "/api/complete?q=tul&limit=1", None).await;
+        assert_eq!(completion[0]["id"], page);
+        assert_eq!(completion[0]["alias"], "Tully");
+        assert!(completion[0].get("block").is_none());
+        assert!(
+            request(&app, "GET", "/api/complete?q=Cic&limit=1", None).await[0]["alias"].is_null()
+        );
+        let index = request(&app, "GET", "/api/index/person", None).await;
+        assert_eq!(index["notes"][0]["id"], page);
+        assert!(index["notes"][0]["sort_as"].is_null());
+        assert_eq!(index["see"][0]["alias"], "Tully");
+        assert_eq!(
+            index["see"][0]["targets"],
+            serde_json::json!([{"id": page, "title": "Cicero"}])
+        );
+        let template = format!("/api/types/{kind}/starting-template");
+        let committed = request(&app, "POST", &template, None).await;
+        let seq = committed["seq"].as_i64().unwrap();
+        assert_eq!(notifications.try_recv().unwrap(), seq);
+        let event = handles
+            .notebook
+            .lock()
+            .changes_since(seq - 1, 1)
+            .unwrap()
+            .remove(0);
+        assert_eq!(event.actor, Actor::Person);
+        assert_eq!(
+            handles
+                .notebook
+                .lock()
+                .type_info(kind)
+                .unwrap()
+                .fields
+                .len(),
+            3
+        );
+        assert!(request(&app, "POST", &template, None).await.is_null());
+        assert!(matches!(
+            notifications.try_recv(),
+            Err(broadcast::error::TryRecvError::Empty)
+        ));
+    }
 
     #[tokio::test]
     async fn backup_rejects_concurrent_requests_and_releases_guard_after_failure() {

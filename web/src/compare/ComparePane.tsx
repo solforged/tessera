@@ -48,7 +48,7 @@ function readingPassages(doc: PageDocument, id: string, gist: string | undefined
       continue;
     }
     const text = block.text.trim();
-    if (text && text !== gist?.trim()) passages.push({ id: blockId, text, heading: block.heading !== null });
+    if (text && text !== gist?.trim()) passages.push({ id: blockId, text: block.text, heading: block.heading !== null });
     at++;
   }
   return passages;
@@ -146,10 +146,10 @@ export function ComparePane(props: ComparePaneProps) {
                 <h3><Button class="compare-holder-name" title="Open this reading · Shift to open beside" onClick={event => open(page, id, event.shiftKey)}>{holder(perspective)}</Button>
                   <Show when={perspective.shape?.value}>{shape => <span class="compare-shape" title={shape()} role="img" aria-label={shape()}><ShapeGlyph value={shape()} /></span>}</Show>
                 </h3>
-                <Show when={perspective.work?.value}>{work => <div class="compare-work"><BlockText text={work()} notebook={props.notebook} onOpen={props.onOpen} /></div>}</Show>
+                <Show when={perspective.work?.value}>{work => <div class="compare-work"><BlockText text={perspective.work?.valueId ? docs().get(page)?.block(perspective.work.valueId)?.text ?? work() : work()} blockId={perspective.work?.valueId ?? undefined} notebook={props.notebook} onOpen={props.onOpen} /></div>}</Show>
               </header>
-              <Show when={perspective.gist?.value}>{gist => <p class="compare-gist"><BlockText text={gist()} notebook={props.notebook} onOpen={props.onOpen} /></p>}</Show>
-              <For each={perspective.passages}>{passage => <div class="compare-passage" classList={{ 'compare-passage-heading': passage.heading }}><BlockText text={passage.text} notebook={props.notebook} onOpen={props.onOpen} /></div>}</For>
+              <Show when={perspective.gist?.value}>{gist => <p class="compare-gist"><BlockText text={perspective.gist?.valueId ? docs().get(page)?.block(perspective.gist.valueId)?.text ?? gist() : gist()} blockId={perspective.gist?.valueId ?? undefined} notebook={props.notebook} onOpen={props.onOpen} /></p>}</Show>
+              <For each={perspective.passages}>{passage => <div class="compare-passage" classList={{ 'compare-passage-heading': passage.heading }}><BlockText text={passage.text} blockId={passage.id} notebook={props.notebook} onOpen={props.onOpen} /></div>}</For>
               <Button class="compare-open" onClick={event => open(page, id, event.shiftKey)}>Open reading</Button>
             </article>;
           }}</For></div>

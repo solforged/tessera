@@ -6,10 +6,11 @@ import type { DecorationSet, ViewUpdate } from '@codemirror/view';
 import type * as VimModule from '@replit/codemirror-vim';
 import type { Caret } from '../document/contract';
 import { textTokens } from '../document/text-tokens';
-import type { FieldKind } from '../api/types';
+import type { FieldKind, NameMatch } from '../api/types';
 import { kindLabels } from '../fields/kinds';
 import { fieldEntryId, matchFieldEntry } from '../table/query';
 import { glyphElement } from '../ui/glyphs';
+import type { Token } from '../document/text-tokens';
 
 type FieldResolver = (id: string) => string | undefined;
 type FieldKindResolver = (name: string) => FieldKind | undefined;
@@ -115,16 +116,28 @@ export function fieldEntryExtension(resolve: FieldResolver, kindOf: FieldKindRes
 const refreshLabels = StateEffect.define<null>();
 
 class ReferenceWidget extends WidgetType {
-  constructor(readonly label: string, readonly length: number) { super(); }
-  eq(other: ReferenceWidget): boolean { return this.label === other.label && this.length === other.length; }
+  constructor(readonly label: string, readonly length: number, readonly token: Token, readonly ambiguous: boolean, readonly choose?: EditorHooks['referenceMenu']) { super(); }
+  eq(other: ReferenceWidget): boolean { return this.label === other.label && this.length === other.length && this.token.start === other.token.start && this.token.id === other.token.id && this.ambiguous === other.ambiguous; }
   toDOM(view: EditorView): HTMLElement {
     const dom = document.createElement('span');
-    dom.className = 'outline-reference';
+    dom.className = `outline-reference${this.ambiguous ? ' outline-reference-ambiguous' : ''}`;
     dom.textContent = this.label;
+    if (this.ambiguous) {
+      const mark = document.createElement('sup');
+      mark.textContent = '?';
+      dom.append(mark);
+      dom.setAttribute('aria-haspopup', 'menu');
+      dom.setAttribute('role', 'button');
+      dom.tabIndex = 0;
+      dom.addEventListener('keydown', event => {
+        if ((event.key === 'Enter' || event.key === ' ') && this.choose) { event.preventDefault(); event.stopPropagation(); this.choose(this.token, dom); }
+      });
+    }
     dom.addEventListener('mousedown', event => { event.preventDefault(); event.stopPropagation(); });
     // A click or tap puts the caret at the nearer end, measured along the label's lines, so the row keeps its shape.
     dom.addEventListener('click', event => {
       event.preventDefault(); event.stopPropagation();
+      if (this.ambiguous && this.choose) { this.choose(this.token, dom); return; }
       const lines = [...dom.getClientRects()];
       const line = Math.max(0, lines.findIndex(rect => event.clientY <= rect.bottom));
       const box = lines[line] ?? dom.getBoundingClientRect();
@@ -140,22 +153,24 @@ class ReferenceWidget extends WidgetType {
  * Endpoints remain atomic; placing the caret inside a token exposes its source. A whole field entry is the
  * field widget's job; a whole-text reference to anything else, such as a choice value, still gets a label.
  */
-export function referenceDecorations(text: string, head: number, label: EditorHooks['label'], isField: (id: string) => boolean = () => true): DecorationSet {
+export function referenceDecorations(text: string, head: number, label: EditorHooks['label'], isField: (id: string) => boolean = () => true, names?: EditorHooks['nameMatches'], choose?: EditorHooks['referenceMenu']): DecorationSet {
   const whole = fieldEntryId(text);
   if (whole !== null && isField(whole)) return Decoration.none;
   return Decoration.set(textTokens(text).flatMap(token => {
     if (token.kind !== 'reference' || /[\r\n]/.test(token.value) || head > token.start && head < token.end) return [];
-    return [Decoration.replace({ inclusive: false, widget: new ReferenceWidget(token.alias || label(token.id!) || token.id!, token.end - token.start) }).range(token.start, token.end)];
+    const stable = /^[0-9A-HJKMNP-TV-Z]{26}$/i.test(token.id!);
+    const ambiguous = !stable && (names?.(token.id!)?.length ?? 0) > 1;
+    return [Decoration.replace({ inclusive: false, widget: new ReferenceWidget(token.alias || label(token.id!) || token.id!, token.end - token.start, token, ambiguous, choose) }).range(token.start, token.end)];
   }));
 }
 
-function references(label: EditorHooks['label']) {
+function references(hooks: EditorHooks) {
   return ViewPlugin.fromClass(class {
     decorations: DecorationSet;
-    constructor(view: EditorView) { this.decorations = referenceDecorations(view.state.doc.toString(), view.state.selection.main.head, label, id => view.state.facet(fieldName)(id) !== undefined); }
+    constructor(view: EditorView) { this.decorations = referenceDecorations(view.state.doc.toString(), view.state.selection.main.head, hooks.label, id => view.state.facet(fieldName)(id) !== undefined, hooks.nameMatches, hooks.referenceMenu); }
     update(update: ViewUpdate) {
       if (update.docChanged || update.selectionSet || update.startState.facet(fieldName) !== update.state.facet(fieldName) || update.transactions.some(transaction => transaction.effects.some(effect => effect.is(refreshLabels)))) {
-        this.decorations = referenceDecorations(update.state.doc.toString(), update.state.selection.main.head, label, id => update.state.facet(fieldName)(id) !== undefined);
+        this.decorations = referenceDecorations(update.state.doc.toString(), update.state.selection.main.head, hooks.label, id => update.state.facet(fieldName)(id) !== undefined, hooks.nameMatches, hooks.referenceMenu);
       }
     }
   }, {
@@ -214,6 +229,8 @@ export interface EditorHooks {
   /** Typed or composed text before the editor inserts it; true when the hook applied it itself. */
   input(view: EditorView, from: number, to: number, text: string): boolean;
   label(id: string): string | undefined;
+  nameMatches?(name: string): NameMatch[] | undefined;
+  referenceMenu?(token: Token, anchor: HTMLElement): void;
   selection(caret: Caret): void;
   key(event: KeyboardEvent, view: EditorView): boolean;
   blur(): void;
@@ -239,7 +256,7 @@ export class PaneEditor {
     this.view = new EditorView({ state: EditorState.create({ extensions: [
       EditorView.lineWrapping,
       drawSelection(),
-      references(hooks.label),
+      references(hooks),
       EditorView.inputHandler.of((view, from, to, text) => hooks.input(view, from, to, text)),
       bracketPairs,
       draftReference,

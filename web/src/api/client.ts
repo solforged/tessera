@@ -18,6 +18,9 @@ import type {
   CardUnit,
   ChangeEvent,
   Committed,
+  Completion,
+  NameMatch,
+  KindIndex,
   Deck,
   Fields,
   HighlightQuery,
@@ -31,7 +34,6 @@ import type {
   ReadingProgress,
   SourceView,
   Type,
-  NoteEntry,
   NoteIndex,
   NoteKind,
   Query,
@@ -163,6 +165,9 @@ export interface ApiClient {
   roots(signal?: AbortSignal): Promise<Block[]>;
   page(id: string, signal?: AbortSignal): Promise<PageView>;
   pageByTitle(title: string, signal?: AbortSignal): Promise<Block>;
+  resolveName(name: string, signal?: AbortSignal): Promise<NameMatch[]>;
+  addAlias(pageId: string, name: string, signal?: AbortSignal): Promise<Committed | null>;
+  startingTemplate(typeId: string, signal?: AbortSignal): Promise<Committed | null>;
   journal(date: string, signal?: AbortSignal): Promise<Block>;
   block(id: string, signal?: AbortSignal): Promise<Block>;
   capabilities(id: string, signal?: AbortSignal): Promise<BlockCapabilities>;
@@ -190,12 +195,12 @@ export interface ApiClient {
   fields(signal?: AbortSignal): Promise<Fields>;
   type(id: string, signal?: AbortSignal): Promise<Type>;
   noteIndex(signal?: AbortSignal): Promise<NoteIndex>;
-  kindNotes(key: string, signal?: AbortSignal): Promise<NoteEntry[]>;
+  kindNotes(key: string, signal?: AbortSignal): Promise<KindIndex>;
   noteKinds(pageId: string, signal?: AbortSignal): Promise<NoteKind[]>;
   query(value: Query, signal?: AbortSignal): Promise<QueryResult>;
   views(signal?: AbortSignal): Promise<View[]>;
   view(id: string, signal?: AbortSignal): Promise<View>;
-  complete(q: string, limit?: number, signal?: AbortSignal): Promise<Block[]>;
+  complete(q: string, limit?: number, signal?: AbortSignal): Promise<Completion[]>;
   search(q: string, limit?: number, signal?: AbortSignal): Promise<BlockInPage[]>;
   changes(after: number, limit?: number, signal?: AbortSignal): Promise<ChangeEvent[]>;
   submit(batch: Batch, signal?: AbortSignal): Promise<Committed>;
@@ -249,6 +254,9 @@ export function createApi(base = ''): ApiClient {
     roots: (signal?: AbortSignal) => get<Block[]>('/roots', signal),
     page: (id: string, signal?: AbortSignal) => get<PageView>(`/pages/${segment(id)}`, signal),
     pageByTitle: (title: string, signal?: AbortSignal) => get<Block>(`/pages/by-title/${segment(title)}`, signal),
+    resolveName: (name: string, signal?: AbortSignal) => get<NameMatch[]>(`/names/${segment(name)}`, signal),
+    addAlias: (pageId: string, name: string, signal?: AbortSignal) => request<Committed | null>(base, 'POST', `/pages/${segment(pageId)}/aliases`, { name }, signal),
+    startingTemplate: (typeId: string, signal?: AbortSignal) => request<Committed | null>(base, 'POST', `/types/${segment(typeId)}/starting-template`, undefined, signal),
     journal: (date: string, signal?: AbortSignal) => get<Block>(`/journal/${segment(date)}`, signal),
     block: (id: string, signal?: AbortSignal) => get<Block>(`/blocks/${segment(id)}`, signal),
     capabilities: (id: string, signal?: AbortSignal) => get<BlockCapabilities>(`/blocks/${segment(id)}/capabilities`, signal),
@@ -288,12 +296,12 @@ export function createApi(base = ''): ApiClient {
     fields: (signal?: AbortSignal) => get<Fields>('/fields', signal),
     type: (id: string, signal?: AbortSignal) => get<Type>(`/types/${segment(id)}`, signal),
     noteIndex: (signal?: AbortSignal) => get<NoteIndex>('/index', signal),
-    kindNotes: (key: string, signal?: AbortSignal) => get<NoteEntry[]>(`/index/${segment(key)}`, signal),
+    kindNotes: (key: string, signal?: AbortSignal) => get<KindIndex>(`/index/${segment(key)}`, signal),
     noteKinds: (pageId: string, signal?: AbortSignal) => get<NoteKind[]>(`/pages/${segment(pageId)}/kinds`, signal),
     query: (value: Query, signal?: AbortSignal) => request<QueryResult>(base, 'POST', '/query', value, signal),
     views: (signal?: AbortSignal) => get<View[]>('/views', signal),
     view: (id: string, signal?: AbortSignal) => get<View>(`/views/${segment(id)}`, signal),
-    complete: (q: string, limit = 20, signal?: AbortSignal) => get<Block[]>(`/complete${query({ q, limit })}`, signal),
+    complete: (q: string, limit = 20, signal?: AbortSignal) => get<Completion[]>(`/complete${query({ q, limit })}`, signal),
     search: (q: string, limit = 40, signal?: AbortSignal) => get<BlockInPage[]>(`/search${query({ q, limit })}`, signal),
     changes: (after: number, limit = 500, signal?: AbortSignal) => get<ChangeEvent[]>(`/changes${query({ after, limit })}`, signal),
     submit: (batch: Batch, signal?: AbortSignal) => request<Committed>(base, 'POST', '/batches', batch, signal),

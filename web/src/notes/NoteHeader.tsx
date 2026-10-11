@@ -1,5 +1,7 @@
-import { createMemo, createResource, For, Show } from 'solid-js';
-import type { NotebookClient } from '../document/contract';
+import { createMemo, createResource, For, Show, untrack } from 'solid-js';
+import type { NotebookClient, PageDocument } from '../document/contract';
+import { foldName } from '../outline/names';
+import { fieldEntryId } from '../table/query';
 import type { OpenTarget } from '../shell/contract';
 import './note-header.css';
 
@@ -11,6 +13,51 @@ export function NoteEyebrow(props: { pageId: string; notebook: NotebookClient; o
       <Show when={index()}><span class="note-eyebrow-separator" aria-hidden="true">/</span></Show>
       <button type="button" title={`Open the ${kind.plural} index · Shift to open beside`} onClick={event => props.onOpen({ kind: 'index', key: kind.key }, event.shiftKey)}>{kind.name}</button>
     </>}</For></p>
+  </Show>;
+}
+
+/** Alternate names read from the open document, including unsaved value edits. */
+export function NoteAliases(props: { doc: PageDocument; notebook: NotebookClient }) {
+  const [fields] = createResource(() => props.notebook.changeSequence(), () => props.notebook.api.fields());
+  const fieldId = createMemo(() => {
+    if (fields.error) return undefined;
+    return fields.latest?.fields.find(field => {
+      if (foldName(field.name) !== 'aliases') return false;
+      const block = props.notebook.lookup(field.id)();
+      return block !== null && !block?.archived;
+    })?.id;
+  });
+  const entry = createMemo(() => {
+    const id = fieldId();
+    if (!id) return undefined;
+    const doc = props.doc;
+    doc.archivedVersion();
+    const children = doc.outline.children(doc.pageId);
+    // As with Gloss, entry identity follows structure, not every prose keystroke.
+    return untrack(() => children.find(child => {
+      const block = doc.block(child);
+      return block && !block.archived && fieldEntryId(block.text) === id;
+    }));
+  });
+  const aliases = createMemo(() => {
+    const id = entry();
+    if (!id) return [];
+    const result: string[] = [];
+    for (const child of props.doc.outline.children(id)) {
+      const block = props.doc.block(child);
+      if (!block || block.archived) continue;
+      const text = block.text.trim();
+      if (text) result.push(text);
+    }
+    return result;
+  });
+  return <Show when={aliases().length}>
+    <p class="note-aliases"><span class="note-aliases-label">Also</span>{' '}
+      <For each={aliases()}>{(alias, index) => <>
+        <Show when={index()}><span class="note-aliases-separator" aria-hidden="true"> · </span></Show>
+        <span>{alias}</span>
+      </>}</For>
+    </p>
   </Show>;
 }
 
