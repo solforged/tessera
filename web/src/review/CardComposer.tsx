@@ -10,6 +10,7 @@ export interface CardComposerProps {
   anchor: PopupAnchor;
   initialBack?: string;
   context?: JSX.Element;
+  /** Resolve only after acknowledgement; reject only when no submitted insertion remains queued. */
   onSave(text: string): Promise<void>;
   onDismiss(): void;
 }

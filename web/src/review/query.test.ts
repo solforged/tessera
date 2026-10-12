@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { Block, CardQuery, CardRow, ReviewEvent, ReviewSession, SchedulingState } from '../api/types';
+import { ApiError } from '../api/client';
 import { copyCardQuery, gradeIntervals, gradeOperation, loadReviewCard, openReviewSession, reviewedInSession, sameCardSnapshot, sessionQueue } from './query';
 
 const schedule: SchedulingState = { stability: 8, difficulty: 5, interval_days: 8, repetitions: 3, lapses: 0, due_at: 100, last_reviewed_at: 50 };
@@ -103,10 +104,11 @@ describe('effective session queue after undo', () => {
   test('restored cards move before the next card without duplicates or replacing the current schedule', async () => {
     const other = { ...row, card: { ...row.card, id: 'other' } };
     const queue = await sessionQueue(api, [other, row], [], row.card.id);
-    expect(queue.map(value => value.card.id)).toEqual([row.card.id, 'other']);
-    expect(queue[0]).toBe(row);
-    expect(await sessionQueue(api, [row], [event], row.card.id)).toEqual([]);
-    expect(await sessionQueue(api, [row], [], null)).toEqual([row]);
+    expect(queue.rows.map(value => value.card.id)).toEqual([row.card.id, 'other']);
+    expect(queue.rows[0]).toBe(row);
+    expect(queue.restoredUnavailable).toBe(false);
+    expect(await sessionQueue(api, [row], [event], row.card.id)).toEqual({ rows: [], restoredUnavailable: false });
+    expect(await sessionQueue(api, [row], [], null)).toEqual({ rows: [row], restoredUnavailable: false });
   });
 
   test('an undone final grade reloads its card before an apparently empty paced queue can settle', async () => {
@@ -122,16 +124,30 @@ describe('effective session queue after undo', () => {
     const restored = { ...row.card, revision: 6, schedule: { ...schedule, repetitions: 0, last_reviewed_at: null } };
     deferred.resolve(restored);
     const queue = await pending;
-    expect(queue).toHaveLength(1);
-    expect(queue[0]!.card).toBe(restored);
-    expect(queue[0]!.last_review).toBe(effective);
-    expect(queue[0]!.source).toEqual({ block: source, page });
+    expect(queue.rows).toHaveLength(1);
+    expect(queue.rows[0]!.card).toBe(restored);
+    expect(queue.rows[0]!.last_review).toBe(effective);
+    expect(queue.rows[0]!.source).toEqual({ block: source, page });
+    expect(queue.restoredUnavailable).toBe(false);
   });
 
-  test('failed or unavailable restored cards remain errors, never empty successful queues', async () => {
+  test('restored cards that become held, inactive or missing can be explicitly skipped without losing the remaining queue', async () => {
+    const other = { ...row, card: { ...row.card, id: 'other' } };
+    for (const card of [{ ...row.card, held: true }, { ...row.card, active: false }]) {
+      const paused = await sessionQueue(api, [{ ...row, card }, other], [], row.card.id);
+      expect(paused).toEqual({ rows: [other], restoredUnavailable: true });
+      expect(await sessionQueue(api, [other], [], null)).toEqual({ rows: [other], restoredUnavailable: false });
+    }
+    const missing = await sessionQueue({ ...api, card: async () => { throw new ApiError('gone', 404, 'card_not_found'); } }, [other], [], row.card.id);
+    expect(missing).toEqual({ rows: [other], restoredUnavailable: true });
+    const goneSource = await sessionQueue({ ...api, block: async () => { throw new ApiError('gone', 404, 'block_not_found'); } }, [], [], row.card.id);
+    expect(goneSource).toEqual({ rows: [], restoredUnavailable: true });
+    expect(await sessionQueue(api, [], [], null)).toEqual({ rows: [], restoredUnavailable: false });
+  });
+
+  test('failed restored-card reads remain errors, not skippable missing-card or exhausted-queue states', async () => {
     await expect(sessionQueue({ ...api, card: async () => { throw new Error('offline'); } }, [], [], row.card.id)).rejects.toThrow('offline');
-    await expect(sessionQueue({ ...api, card: async () => ({ ...row.card, held: true }) }, [], [], row.card.id)).rejects.toThrow('no longer available');
-    await expect(sessionQueue(api, [{ ...row, card: { ...row.card, active: false } }], [], row.card.id)).rejects.toThrow('no longer available');
+    await expect(sessionQueue({ ...api, block: async () => { throw new ApiError('unavailable', 503, 'service_unavailable'); } }, [], [], row.card.id)).rejects.toThrow('unavailable');
   });
 
   test('raw evidence keeps undone grades out of the current comparison snapshot', async () => {

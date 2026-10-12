@@ -1,5 +1,6 @@
 import type { CardQuery, CardRow, CardUnit, Grade, Operation, ReviewEvent, ReviewSession } from '../api/types';
 import type { ApiClient } from '../api/client';
+import { ApiError } from '../api/client';
 import { copyQuery } from '../table/query';
 
 type ReviewCardApi = Pick<ApiClient, 'card' | 'block' | 'cardReviews'>;
@@ -84,11 +85,17 @@ export async function loadReviewCard(api: ReviewCardApi, id: string): Promise<Ca
 }
 
 /** Undo takes priority even when pacing or a query limit leaves the restored card out of the query. */
-export async function sessionQueue(api: ReviewCardApi, candidates: CardRow[], history: ReviewEvent[], restoredCardId: string | null): Promise<CardRow[]> {
+export async function sessionQueue(api: ReviewCardApi, candidates: CardRow[], history: ReviewEvent[], restoredCardId: string | null): Promise<{ rows: CardRow[]; restoredUnavailable: boolean }> {
   const reviewed = new Set(history.filter(event => event.kind === 'grade').map(event => event.card_id));
-  const remaining = candidates.filter(row => !reviewed.has(row.card.id));
-  if (!restoredCardId || reviewed.has(restoredCardId)) return remaining;
-  const restored = remaining.find(row => row.card.id === restoredCardId) ?? await loadReviewCard(api, restoredCardId);
-  if (!restored.card.active || restored.card.held) throw new Error('The restored card is no longer available for review. Open its source to check it.');
-  return [restored, ...remaining.filter(row => row.card.id !== restoredCardId)];
+  const rows = candidates.filter(row => row.card.active && !row.card.held && !reviewed.has(row.card.id));
+  if (!restoredCardId || reviewed.has(restoredCardId)) return { rows, restoredUnavailable: false };
+  let restored: CardRow;
+  try {
+    restored = candidates.find(row => row.card.id === restoredCardId) ?? await loadReviewCard(api, restoredCardId);
+  } catch (reason) {
+    if (reason instanceof ApiError && reason.status === 404) return { rows, restoredUnavailable: true };
+    throw reason;
+  }
+  if (!restored.card.active || restored.card.held) return { rows, restoredUnavailable: true };
+  return { rows: [restored, ...rows.filter(row => row.card.id !== restoredCardId)], restoredUnavailable: false };
 }
