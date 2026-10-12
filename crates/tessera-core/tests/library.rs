@@ -2762,3 +2762,110 @@ fn source_index_summary_is_bibliographic_and_counts_citations_across_pages() {
         1
     );
 }
+
+#[test]
+fn collection_filter_uses_whole_instance_values_before_sort_and_limit() {
+    let (_dir, mut n, sources) = facet_library();
+    let collection = id();
+    let field = id();
+    let fields_page = n.fields().unwrap().page_id;
+    let mut operations = vec![
+        Operation::CreatePage {
+            id: collection.clone(),
+            title: "History shelf".into(),
+        },
+        Operation::AddType {
+            id: collection.clone(),
+            base_revision: 1,
+            title: "Collection".into(),
+        },
+        Operation::Insert {
+            id: field.clone(),
+            parent_id: fields_page,
+            after: None,
+            text: "Collections".into(),
+            heading: None,
+        },
+        Operation::SetFieldKind {
+            id: field.clone(),
+            base_revision: 1,
+            kind: FieldKind::Instance,
+        },
+    ];
+    let mut values = Vec::new();
+    for (index, source) in sources.iter().enumerate() {
+        let entry = id();
+        operations.push(Operation::Insert {
+            id: entry.clone(),
+            parent_id: source.clone(),
+            after: None,
+            text: format!("[[{field}]]"),
+            heading: None,
+        });
+        let value = id();
+        operations.push(Operation::Insert {
+            id: value.clone(),
+            parent_id: entry,
+            after: None,
+            text: if index < 2 {
+                format!(" [[{collection}|History]] ")
+            } else {
+                format!("Not a membership [[{collection}]]")
+            },
+            heading: None,
+        });
+        values.push(value);
+    }
+    apply(&mut n, operations);
+    let all = n.library(&LibraryQuery::default()).unwrap();
+    let query = LibraryQuery {
+        collection_id: Some(collection.clone()),
+        sort: LibrarySort::Title,
+        direction: Direction::Asc,
+        limit: Some(1),
+        ..Default::default()
+    };
+    let result = n.library(&query).unwrap();
+    assert_eq!(result.total, 2);
+    assert_eq!(result.rows.len(), 1);
+    assert_eq!(result.rows[0].page.id, sources[0]);
+    assert_eq!(result.counts, all.counts);
+    assert_eq!(
+        n.library(&LibraryQuery {
+            states: vec![ReadingState::Reading],
+            ..query.clone()
+        })
+        .unwrap()
+        .total,
+        1
+    );
+    edit(&mut n, &collection, "Renamed shelf");
+    assert_eq!(n.library(&query).unwrap().total, 2);
+    let revision = n.block(&values[0]).unwrap().revision;
+    apply(
+        &mut n,
+        vec![Operation::SetArchived {
+            id: values[0].clone(),
+            base_revision: revision,
+            archived: true,
+        }],
+    );
+    assert_eq!(n.library(&query).unwrap().total, 1);
+    edit(&mut n, &values[1], "");
+    assert_eq!(n.library(&query).unwrap().total, 0);
+    let revision = n.block(&field).unwrap().revision;
+    apply(
+        &mut n,
+        vec![Operation::SetFieldKind {
+            id: field,
+            base_revision: revision,
+            kind: FieldKind::Text,
+        }],
+    );
+    edit(&mut n, &values[1], &format!("[[{collection}]]"));
+    assert_eq!(n.library(&query).unwrap().total, 0);
+    assert_eq!(
+        n.library(&LibraryQuery::default()).unwrap().total,
+        all.total
+    );
+}

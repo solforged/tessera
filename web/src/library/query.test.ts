@@ -6,10 +6,10 @@ const filters: LibraryFilters = { people: [], decades: [], publishers: [], langu
 
 describe('library queries', () => {
   test('selects a state, trims search text and carries browse filters', () => {
-    expect(libraryQuery({ tab: 'reading', text: '  Tudors  ', sort: 'added', filters: { ...filters, people: ['wood'], decades: [1840] } })).toEqual({ states: ['reading'], text: 'Tudors', sort: 'added', direction: 'desc', people: ['wood'], decades: [1840], publishers: [], languages: [] });
+    expect(libraryQuery({ tab: 'reading', text: '  Tudors  ', sort: 'added', filters: { ...filters, people: ['wood'], decades: [1840] } })).toEqual({ states: ['reading'], collection_id: null, text: 'Tudors', sort: 'added', direction: 'desc', people: ['wood'], decades: [1840], publishers: [], languages: [] });
   });
   test('all and highlights retain global counts without a state filter', () => {
-    for (const tab of ['all', 'highlights'] as const) {
+    for (const tab of ['all', 'collections', 'highlights'] as const) {
       expect(libraryQuery({ tab, text: ' ', sort: 'title', filters })).toMatchObject({ states: [], text: null, sort: 'title', direction: 'asc' });
     }
   });

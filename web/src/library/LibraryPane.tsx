@@ -1,8 +1,8 @@
-import { For, Show, batch, createEffect, createMemo, createSignal, on, onCleanup, onMount, untrack } from 'solid-js';
+import { For, Show, batch, createEffect, createMemo, createResource, createSignal, on, onCleanup, onMount, untrack } from 'solid-js';
 import { ulid } from 'ulid';
 import { exportExtensions } from '../api/client';
 import type { ExportFormat } from '../api/client';
-import type { HighlightResult, HighlightRow, IngestJob, LibraryFilters, LibraryQuery, LibraryResult, LibraryRow, LibraryView, ReadingState } from '../api/types';
+import type { Block, HighlightResult, HighlightRow, IngestJob, LibraryFilters, LibraryQuery, LibraryResult, LibraryRow, LibraryView, ReadingState } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { EMBEDDED } from '../demo/mode';
 import { BlockText } from '../outline/BlockText';
@@ -23,6 +23,8 @@ import { ResourceImage } from './ResourceImage';
 import { SourceCover } from './SourceCover';
 import { ReadingCard } from './ReadingCard';
 import { AddSheet } from './AddSheet';
+import { CollectionNamePopup, CollectionPicker, createCollectionActions } from './Collections';
+import { changeCollectionMembers, collectionPages, createCollection, deleteCollection, renameCollection, sourceCollections } from '../document/collections';
 import './library.css';
 import '../table/table.css';
 
@@ -68,11 +70,14 @@ type LibraryPopup =
   | { kind: 'name'; anchor: HTMLElement; saved: LibraryView | null; id: string }
   | { kind: 'delete'; anchor: HTMLElement; saved: LibraryView }
   | { kind: 'delete-sources'; anchor: HTMLElement; sources: { id: string; title: string }[] }
+  | { kind: 'collection-name'; anchor: HTMLElement; collection?: Block }
+  | { kind: 'delete-collection'; anchor: HTMLElement; collection: Block }
+  | { kind: 'collection-picker'; anchor: HTMLElement; sources: string[] }
   | { kind: 'menu'; anchor: HTMLElement; label: string; items: MenuItem[]; Header?: HighlightMenu['Header']; source?: LibraryRow };
 const tabs: { id: LibraryTab; label: string }[] = [
   { id: 'inbox', label: 'Inbox' }, { id: 'reading', label: 'Reading' },
   { id: 'finished', label: 'Finished' }, { id: 'abandoned', label: 'Abandoned' },
-  { id: 'all', label: 'All' }, { id: 'highlights', label: 'Highlights' },
+  { id: 'all', label: 'All' }, { id: 'collections', label: 'Collections' }, { id: 'highlights', label: 'Highlights' },
 ];
 const sorts: { id: LibraryViewState['sort']; label: string }[] = [
   { id: 'added', label: 'Added' }, { id: 'title', label: 'Title' },
@@ -89,6 +94,15 @@ export function LibraryPane(props: LibraryPaneProps) {
   const [view, setView] = createSignal({ ...props.view });
   const tab = createMemo(() => view().tab);
   const text = createMemo(() => view().text);
+  const collectionActions = createCollectionActions();
+  const collectionsIndex = createMemo(() => tab() === 'collections' && !view().collection);
+  const [collections] = createResource(() => props.notebook.changeSequence(), () => collectionPages(props.notebook.api));
+  const collection = createMemo(() => collections()?.find(page => page.id === view().collection));
+  const [collectionCards] = createResource(() => collectionsIndex() && { pages: collections() ?? [], sequence: props.notebook.changeSequence() }, async ({ pages }) =>
+    Promise.all(pages.map(async page => {
+      const result = await props.notebook.api.library({ collection_id: page.id, limit: 3 });
+      return { page, count: result.total, covers: result.rows };
+    })));
   const sort = createMemo(() => view().sort);
   const unprocessedOnly = createMemo(() => view().unprocessedOnly);
   const colors = createMemo(() => view().colors);
@@ -104,7 +118,7 @@ export function LibraryPane(props: LibraryPaneProps) {
   const [deleted, setDeleted] = createSignal<LibraryView | null>(null);
   let deletedTimer: ReturnType<typeof setTimeout> | undefined;
   onCleanup(() => clearTimeout(deletedTimer));
-  const currentQuery = createMemo(() => saved()?.query ?? libraryQuery({ tab: tab(), text: text(), sort: sort(), filters: filters() }));
+  const currentQuery = createMemo(() => saved()?.query ?? libraryQuery({ tab: tab(), collection: view().collection, text: text(), sort: sort(), filters: filters() }));
   const queryKey = createMemo(() => JSON.stringify([view().view, tab(), currentQuery(), unprocessedOnly(), colors(), tags()]));
   const [selected, setSelected] = createSignal<Set<string>>(new Set());
   let selectionAnchor: string | null = null;
@@ -217,7 +231,7 @@ export function LibraryPane(props: LibraryPaneProps) {
       }, reason => { if (!controller.signal.aborted) setReadingError(reason instanceof Error ? reason.message : String(reason)); });
     onCleanup(() => controller.abort());
   });
-  const showReading = createMemo(() => tab() !== 'highlights' && !text().trim() && !filtered() && !view().view);
+  const showReading = createMemo(() => tab() !== 'highlights' && tab() !== 'collections' && !view().collection && !text().trim() && !filtered() && !view().view);
   const [openedSource, setOpenedSource] = createSignal<string>();
   function openSource(target: OpenTarget, beside: boolean) {
     if (target.kind === 'page') setOpenedSource(target.pageId);
@@ -273,7 +287,7 @@ export function LibraryPane(props: LibraryPaneProps) {
   const doneJobs = new Set<string>();
   const sourceTitles = createMemo(() => new Map(props.notebook.roots().map(root => [root.id, root.text])));
   // Jobs concern sources; the Highlights tab shows none. A finished job leaves once its source exists, whichever view lists it.
-  const shownJobs = createMemo(() => tab() === 'highlights' || error() ? [] : visibleJobs(jobs().filter(job => !(job.state === 'failed' && dismissedJobs().has(job.id))), new Set([...displayedSources().map(row => row.page.id), ...sourceTitles().keys()])));
+  const shownJobs = createMemo(() => tab() === 'highlights' || tab() === 'collections' || error() ? [] : visibleJobs(jobs().filter(job => !(job.state === 'failed' && dismissedJobs().has(job.id))), new Set([...displayedSources().map(row => row.page.id), ...sourceTitles().keys()])));
   const browseEntries = createMemo<BrowseEntry[]>(() => {
     const facets = library()?.facets;
     if (!facets) return [];
@@ -407,6 +421,7 @@ export function LibraryPane(props: LibraryPaneProps) {
 
   const update = (patch: Partial<LibraryViewState>) => {
     if (patch.tab !== undefined) {
+      if (patch.collection === undefined) patch.collection = null;
       tabChosen = true;
       try { if (tabKey) localStorage.setItem(tabKey, patch.tab); } catch { /* Session-only preference. */ }
     }
@@ -424,16 +439,16 @@ export function LibraryPane(props: LibraryPaneProps) {
   createEffect(on(() => props.view, next => {
     const previous = view();
     const filtersChanged = JSON.stringify([next.colors, next.tags, next.filters]) !== JSON.stringify([previous.colors, previous.tags, previous.filters]);
-    if (next.view === previous.view && next.tab === previous.tab && next.text === previous.text && next.sort === previous.sort && next.group === previous.group && next.unprocessedOnly === previous.unprocessedOnly && !filtersChanged && next.scroll === previous.scroll) return;
-    const queryChanged = next.view !== previous.view || next.tab !== previous.tab || next.text !== previous.text || next.sort !== previous.sort || next.unprocessedOnly !== previous.unprocessedOnly || filtersChanged;
+    if (next.view === previous.view && next.collection === previous.collection && next.tab === previous.tab && next.text === previous.text && next.sort === previous.sort && next.group === previous.group && next.unprocessedOnly === previous.unprocessedOnly && !filtersChanged && next.scroll === previous.scroll) return;
+    const queryChanged = next.view !== previous.view || next.collection !== previous.collection || next.tab !== previous.tab || next.text !== previous.text || next.sort !== previous.sort || next.unprocessedOnly !== previous.unprocessedOnly || filtersChanged;
     restoreScroll = queryChanged ? next.scroll : null;
     setView({ ...next });
     if (!queryChanged) scroll.scrollTop = next.scroll;
   }, { defer: true }));
 
-  function viewFields(query: LibraryQuery): Pick<LibraryViewState, 'tab' | 'text' | 'sort' | 'filters'> {
+  function viewFields(query: LibraryQuery): Pick<LibraryViewState, 'tab' | 'text' | 'sort' | 'filters' | 'collection'> {
     return {
-      tab: query.states?.length === 1 ? query.states[0]! : 'all', text: query.text ?? '', sort: query.sort ?? 'added',
+      tab: query.collection_id ? 'collections' : query.states?.length === 1 ? query.states[0]! : 'all', collection: query.collection_id ?? null, text: query.text ?? '', sort: query.sort ?? 'added',
       filters: { people: query.people ?? [], decades: query.decades ?? [], publishers: query.publishers ?? [], languages: query.languages ?? [] },
     };
   }
@@ -667,12 +682,22 @@ export function LibraryPane(props: LibraryPaneProps) {
       { label: 'Markdown', action: () => { if (ids.length) void download('markdown', ids); else void downloadQuery('markdown', query); } },
     ] });
   }
-  function rowMenu(row: LibraryRow, anchor: HTMLElement) {
+  async function rowMenu(row: LibraryRow, anchor: HTMLElement) {
+    setCommandError('');
+    let memberships: string[], pages: Block[];
+    try { [memberships, pages] = await Promise.all([sourceCollections(props.notebook.api, row.page.id), collectionPages(props.notebook.api)]); }
+    catch (reason) { setCommandError(reason instanceof Error ? reason.message : String(reason)); return; }
+    if (disposed || !anchor.isConnected) return;
     setPopup({ kind: 'menu', anchor, label: 'Source actions', source: row, items: [
       ...(row.source.current_snapshot_id ? [{ label: row.source.last_read_at != null ? 'Continue reading' : 'Read', icon: 'book' as const, action: () => props.onOpen({ kind: 'reader', sourceId: row.page.id }, false) }] : []),
       ...stateActions.filter(action => action.state !== row.source.state).map(action => ({
         label: action.label, disabledReason: saving() ? 'Saving…' : undefined,
         action: () => { void changeState(row, action.state); },
+      })),
+      { label: 'Add to collection…', action: () => setPopup({ kind: 'collection-picker', anchor, sources: [row.page.id] }) },
+      ...pages.filter(collection => memberships.includes(collection.id)).map(collection => ({
+        section: 'Collections', label: `Remove from ${collection.text}`,
+        action: () => { void collectionActions.run(`Removed from ${collection.text}`, () => changeCollectionMembers(props.notebook, collection.id, [row.page.id], false)); },
       })),
       { label: 'Export BibTeX', section: coverLayout() ? 'Export' : undefined, icon: 'download', action: () => { void download('bibtex', [row.page.id]); } },
       { label: 'Export CSL JSON', icon: 'download', action: () => { void download('csl', [row.page.id]); } },
@@ -798,8 +823,13 @@ export function LibraryPane(props: LibraryPaneProps) {
     }}</Show>;
   }
 
-  return <div class="library-pane" classList={{ 'library-search-open': searchOpen() || !!text(), 'library-highlights-tab': tab() === 'highlights', 'library-all-tab': tab() === 'all', 'library-highlight-passage-open': tab() === 'highlights' && coverLayout() && highlightPassageOpen(), 'library-cover-reading': coverLayout() && showReading() && tab() === 'reading' }} data-pane={props.pane} aria-label="Library" tabIndex={props.active ? 0 : -1} onFocusIn={props.onActivate} onPointerDown={props.onActivate}
-    onKeyDown={event => { if (event.key === 'Escape' && selected().size && !popup()) { event.preventDefault(); event.stopPropagation(); clearSelection(); } }}
+  return <div class="library-pane" classList={{ 'library-search-open': searchOpen() || !!text(), 'library-highlights-tab': tab() === 'highlights', 'library-all-tab': tab() === 'all' || !!view().collection, 'library-highlight-passage-open': tab() === 'highlights' && coverLayout() && highlightPassageOpen(), 'library-cover-reading': coverLayout() && showReading() && tab() === 'reading' }} data-pane={props.pane} aria-label="Library" tabIndex={props.active ? 0 : -1} onFocusIn={props.onActivate} onPointerDown={props.onActivate}
+    onKeyDown={event => {
+      if (event.key === 'Escape' && selected().size && !popup()) { event.preventDefault(); event.stopPropagation(); clearSelection(); }
+      if (tab() !== 'highlights' && (event.metaKey || event.ctrlKey) && !event.shiftKey && event.key.toLowerCase() === 'z' && collectionActions.canUndo() && !(event.target instanceof Element && event.target.closest('input, textarea, [contenteditable="true"]'))) {
+        event.preventDefault(); event.stopPropagation(); void collectionActions.undo();
+      }
+    }}
     onDragOver={event => { if (event.dataTransfer?.types.includes('Files')) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; } }}
     onDrop={event => { if (event.dataTransfer?.files.length) { event.preventDefault(); void upload(Array.from(event.dataTransfer.files)); } }}>
     <header class="library-toolbar">
@@ -810,7 +840,7 @@ export function LibraryPane(props: LibraryPaneProps) {
       <div ref={tabStrip} class="library-tabs mode-tabs tab-strip" data-mode-panel=".library-scroll" role="group" aria-label="Library state">
         <For each={tabs}>{item => {
           // Zero counts are left out so the tabs fit a narrow pane.
-          const count = () => item.id === 'highlights' ? unprocessedCount() : !library() ? undefined : item.id === 'all' ? Object.values(library()!.counts).reduce((sum, value) => sum + value, 0) : library()!.counts[item.id as ReadingState];
+          const count = () => item.id === 'collections' ? collections()?.length : item.id === 'highlights' ? unprocessedCount() : !library() ? undefined : item.id === 'all' ? Object.values(library()!.counts).reduce((sum, value) => sum + value, 0) : library()!.counts[item.id as ReadingState];
           return <Button data-library-tab={item.id} aria-pressed={!view().view && tab() === item.id} onClick={() => update({ view: null, tab: item.id, scroll: 0 })}>
             {item.label}<Show when={count()}><span class="library-count">{count()}</span></Show>
           </Button>;
@@ -820,6 +850,15 @@ export function LibraryPane(props: LibraryPaneProps) {
           <Button icon="more" label={`Actions for view ${value.name}`} aria-haspopup="menu" disabled={saving()} onClick={event => viewMenu(value, event.currentTarget)} />
         </>}</For>
       </div>
+      <Show when={collectionsIndex()}><div class="library-collection-heading"><h2>Collections</h2><Button icon="plus" onClick={event => setPopup({ kind: 'collection-name', anchor: event.currentTarget })}>New collection</Button></div></Show>
+      <Show when={view().collection}><div class="library-collection-heading">
+        <Button icon="left" onClick={() => update({ view: null, tab: 'collections', collection: null, text: '', scroll: 0 })}>Collections</Button>
+        <h2>{collection()?.text ?? 'Collection'}</h2><span class="library-count">{library()?.total ?? 0}</span>
+        <Button disabled={!collection()} onClick={event => props.onOpen({ kind: 'page', pageId: view().collection! }, event.shiftKey)}>Open page</Button>
+        <Button disabled={!collection()} onClick={event => setPopup({ kind: 'collection-name', anchor: event.currentTarget, collection: collection() })}>Rename</Button>
+        <Button disabled={!collection() || collectionActions.busy()} onClick={event => setPopup({ kind: 'delete-collection', anchor: event.currentTarget, collection: collection()! })}>Delete</Button>
+      </div></Show>
+      <Show when={!collectionsIndex()}>
       <div class="library-controls">
         <Show when={tab() !== 'highlights'} fallback={<div class="library-filter library-highlight-controls">
           <div class="library-tabs mode-tabs tab-strip" data-mode-panel=".library-scroll" role="group" aria-label="Highlight processing">
@@ -851,8 +890,10 @@ export function LibraryPane(props: LibraryPaneProps) {
             }} />
           </>}>
             <span class="library-selection-count">{selected().size} selected</span>
-            <Button aria-haspopup="menu" disabled={saving()} onClick={event => setPopup({ kind: 'menu', anchor: event.currentTarget, label: 'Mark as', items: tabs.filter(item => item.id !== 'all' && item.id !== 'highlights').map(item => ({ label: item.label, action: () => { void changeSelectedState(item.id as ReadingState); } })) })}>Mark as<Icon name="down" /></Button>
+            <Button aria-haspopup="menu" disabled={saving()} onClick={event => setPopup({ kind: 'menu', anchor: event.currentTarget, label: 'Mark as', items: tabs.filter(item => item.id !== 'all' && item.id !== 'highlights' && item.id !== 'collections').map(item => ({ label: item.label, action: () => { void changeSelectedState(item.id as ReadingState); } })) })}>Mark as<Icon name="down" /></Button>
             <Button aria-haspopup="menu" disabled={loading() || !!error() || loadedKey() !== queryKey()} onClick={event => exportMenu(event.currentTarget)}>Export<Icon name="down" /></Button>
+            <Button disabled={collectionActions.busy()} onClick={event => setPopup({ kind: 'collection-picker', anchor: event.currentTarget, sources: [...selected()] })}>Add to collection…</Button>
+            <Show when={view().collection}><Button disabled={collectionActions.busy()} onClick={() => { void collectionActions.run('Removed from collection', () => changeCollectionMembers(props.notebook, view().collection!, [...selected()], false)); }}>Remove from collection</Button></Show>
             <Button icon="trash" class="danger" aria-haspopup="dialog" disabled={saving()} onClick={event => confirmDelete(event.currentTarget, displayedSources().filter(row => selected().has(row.page.id)))}>Delete</Button>
             <Button class="library-clear-selection" onClick={clearSelection}>Clear selection</Button>
           </Show>
@@ -863,6 +904,8 @@ export function LibraryPane(props: LibraryPaneProps) {
         <For each={chosenFilters()}>{item => <Button class="bordered library-chip" aria-label={`Remove filter ${item.label}`} onClick={() => toggleFilter(item.field, item.value)}>{item.label}<Icon name="close" /></Button>}</For>
         <Button onClick={() => update({ view: null, filters: { people: [], decades: [], publishers: [], languages: [] }, scroll: 0 })}>Clear filters</Button>
       </div></Show>
+      </Show>
+      <collectionActions.Notice />
       <Show when={saving() || props.notebook.commandState() !== 'saved'}><p class="library-message" role="status">{props.notebook.commandMessage() || (saving() ? 'Saving…' : props.notebook.commandState())}</p></Show>
       <Show when={deleted()}><footer class="table-footer" role="status">View deleted · <Button disabled={saving()} onClick={() => { void undoDelete(); }}>Undo</Button></footer></Show>
     </header>
@@ -874,7 +917,7 @@ export function LibraryPane(props: LibraryPaneProps) {
       const next = { ...view(), scroll: scroll.scrollTop };
       setView(next); props.onViewChange({ ...next });
     }}>
-      <Show when={tab() !== 'highlights' && browseEntries().length}>
+      <Show when={!collectionsIndex() && tab() !== 'highlights' && browseEntries().length}>
         <nav class="library-browse" aria-label="Browse library">
           <For each={browseFields}>{section => {
             const entries = () => browseEntries().filter(entry => entry.field === section.field);
@@ -894,11 +937,26 @@ export function LibraryPane(props: LibraryPaneProps) {
       <Show when={commandError()}><p class="library-error" role="alert">{commandError()}</p></Show>
       {/* Every read fails together when the service is away; one row and one Retry stand for all of them. */}
       <Show when={countError() || jobsError() || viewsError() || (showReading() && readingError()) || error()}>{message => <div class="library-error" role="alert">{message()}<Button onClick={() => { setRefresh(value => value + 1); setJobsRefresh(value => value + 1); }}>Retry</Button></div>}</Show>
+      <Show when={collections.error || collectionCards.error}><p class="library-error" role="alert">{String(collections.error || collectionCards.error)}</p></Show>
+      <Show when={collectionsIndex()}>
+        <Show when={collections.loading || collectionCards.loading}><p class="library-message" role="status">Loading collections…</p></Show>
+        <Show when={!collections.loading && !collections()?.length}><p class="library-empty">Select books in the library, then choose Add to collection.</p></Show>
+        <div class="library-collections" role="list"><For each={collectionCards()}>{card => <div role="listitem">
+          <Button class="library-collection-card" data-collection={card.page.id} onClick={() => update({ view: null, tab: 'collections', collection: card.page.id, text: '', filters: { people: [], decades: [], publishers: [], languages: [] }, scroll: 0 })}>
+            <span class="library-collection-covers" aria-hidden="true"><For each={card.covers}>{row => <SourceCover row={row} siglum={row.source.siglum} />}</For><Show when={!card.covers.length}><Icon name="shelf" /></Show></span>
+            <span class="library-collection-title">{card.page.text}</span><span class="library-count">{card.count}</span>
+          </Button>
+        </div>}</For></div>
+      </Show>
+      <Show when={!collectionsIndex()}>
       <Show when={showReading()}>
         <Show when={reading().length}><section class="library-reading" aria-labelledby={`${props.pane}-reading-heading`}>
           <h2 class="library-reading-heading" id={`${props.pane}-reading-heading`}>Reading now</h2>
-          <div class="library-reading-books" role="list"><For each={reading()}>{row => <div role="listitem">
+          <div class="library-reading-books" role="list"><For each={reading()}>{row => <div class="library-reading-item" classList={{ 'library-row-selected': selected().has(row.page.id) }} role="listitem">
             <ReadingCard row={row} notebook={props.notebook} selected={openedSource() === row.page.id} onOpen={beside => openSource({ kind: 'page', pageId: row.page.id }, beside)} />
+            <Show when={coverLayout() && tab() === 'reading'}><Button role="checkbox" aria-checked={selected().has(row.page.id)} label={`Select ${row.page.text}`} class="icon-only library-checkbox" onClick={event => toggleSelection(row.page.id, event.shiftKey)}>
+              <span class="library-checkbox-square"><Show when={selected().has(row.page.id)}><Icon name="check" /></Show></span>
+            </Button></Show>
           </div>}</For></div>
         </section></Show>
         <Show when={coverLayout() && tab() === 'reading' && upNext().length}><section class="library-up-next" aria-label="Up next">
@@ -963,11 +1021,24 @@ export function LibraryPane(props: LibraryPaneProps) {
           </Show>
         </Show>
       </section>
+      </Show>
       </div>
     </div>
     <Show when={coverLayout() && (popup()?.kind === 'highlight-filters' || popup()?.kind === 'highlight-colors' || sourceMenuId())}><div class="library-highlight-filter-shade" aria-hidden="true" /></Show>
     <Show keyed when={popup()}>{state => {
       const dismiss = () => { if (popup() === state) setPopup(null); };
+      if (state.kind === 'collection-picker') return <CollectionPicker anchor={state.anchor} notebook={props.notebook} sourceIds={state.sources} onChanged={(change, label) => { collectionActions.record(change, label); clearSelection(); }} onDismiss={dismiss} />;
+      if (state.kind === 'collection-name') return <CollectionNamePopup anchor={state.anchor} name={state.collection?.text} onDismiss={dismiss} onSave={async name => {
+        if (state.collection) collectionActions.record(await renameCollection(props.notebook, state.collection, name), `Renamed to ${name}`);
+        else { const result = await createCollection(props.notebook, name); collectionActions.record(result.change, `Created ${name}`); }
+        dismiss();
+      }} />;
+      if (state.kind === 'delete-collection') return <Popup anchor={state.anchor} label="Delete collection?" onDismiss={dismiss}>
+        <p>Delete “{state.collection.text}”? Books stay in the library.</p>
+        <div class="popup-actions"><Button disabled={collectionActions.busy()} onClick={dismiss}>Cancel</Button><Button class="bordered danger" disabled={collectionActions.busy()} onClick={() => { void collectionActions.run('Deleted collection', () => deleteCollection(props.notebook, state.collection)).then(done => {
+          if (done) { update({ view: null, tab: 'collections', collection: null, scroll: 0 }); dismiss(); }
+        }); }}>Delete collection</Button></div>
+      </Popup>;
       if (state.kind === 'menu') {
         const sheet = coverLayout() && !!state.source;
         const source = state.source;

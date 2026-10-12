@@ -267,6 +267,7 @@ export interface ApiClient {
   submitFrozen(json: string, signal?: AbortSignal): Promise<Committed>;
   stream(after: number): ChangeSocket;
   library(value: LibraryQuery, signal?: AbortSignal): Promise<LibraryResult>;
+  collectionValues(id: string, signal?: AbortSignal): Promise<Block[]>;
   lookup(query: string, signal?: AbortSignal): Promise<LookupPreview>;
   normalizeMetadata(metadata: ExtractedMetadata): Promise<ExtractedMetadata>;
   planRecord(metadata: ExtractedMetadata, coverUrl?: string | null): Promise<IngestPlan>;
@@ -395,6 +396,7 @@ export function createApi(base = ''): ApiClient {
       return new WebSocket(url.href);
     },
     library: (value: LibraryQuery, signal?: AbortSignal) => request<LibraryResult>(base, 'POST', '/library/query', value, signal),
+    collectionValues: (id: string, signal?: AbortSignal) => get<Block[]>(`/library/collections/${encodeURIComponent(id)}/values`, signal),
     lookup: (query: string, signal?: AbortSignal) => request<LookupPreview>(base, 'POST', '/library/lookup', { query }, signal),
     normalizeMetadata: (metadata: ExtractedMetadata) => request<ExtractedMetadata>(base, 'POST', '/library/metadata', metadata),
     planRecord: (metadata: ExtractedMetadata, cover_url?: string | null) => request<IngestPlan>(base, 'POST', '/library/records/plan', { metadata, cover_url }),

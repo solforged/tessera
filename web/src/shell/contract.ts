@@ -80,7 +80,7 @@ export type OpenTarget =
   /** One kind's notes by title. `key` is a `NoteKind.key`, or `all` for the kinds directory. */
   | { kind: 'index'; key: string };
 
-export type LibraryTab = ReadingState | 'all' | 'highlights';
+export type LibraryTab = ReadingState | 'all' | 'collections' | 'highlights';
 
 export interface TableViewState {
   query: Query; scroll: number;
@@ -95,7 +95,7 @@ export interface IndexViewState { scroll: number }
 export interface AgendaViewState { date: string; mode: 'agenda' | 'week' | 'tasks'; query: TaskQuery; viewId: string | null; scroll: number }
 export interface ReviewViewState { deckId: string | null; sessionId: string | null; selection: CardSelection | null; scroll: number }
 export type LibraryGroup = 'none' | 'author' | 'decade' | 'publisher' | 'language';
-export interface LibraryViewState { view: string | null; tab: LibraryTab; text: string; sort: 'added' | 'title' | 'author' | 'year' | 'last_read' | 'progress'; filters: LibraryFilters; group: LibraryGroup; unprocessedOnly: boolean; colors: string[]; tags: string[]; scroll: number }
+export interface LibraryViewState { view: string | null; collection?: string | null; tab: LibraryTab; text: string; sort: 'added' | 'title' | 'author' | 'year' | 'last_read' | 'progress'; filters: LibraryFilters; group: LibraryGroup; unprocessedOnly: boolean; colors: string[]; tags: string[]; scroll: number }
 /** `ordinal` is the top passage; `offset` its pixel offset from the pane's top. */
 export interface ReaderViewState { snapshotId: string | null; ordinal: number; offset: number }
 

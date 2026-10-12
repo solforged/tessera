@@ -746,10 +746,105 @@ impl Notebook {
         rows.truncate(query.limit.unwrap_or(100));
         Ok(HighlightResult { rows, total })
     }
+    /// Live Collections values, including archived owners/entries/values so
+    /// deleting a collection cannot leave hidden memberships as broken links.
+    pub fn collection_values(&self, id: &str) -> Result<Vec<crate::Block>> {
+        crate::storage::validate_id(id)?;
+        let mut statement = self.conn.prepare_cached(concat!(
+            "SELECT ",
+            block_columns!("v"),
+            ", e.text, d.id
+             FROM links l JOIN blocks v ON v.id = l.source_id
+             JOIN blocks e ON e.id = v.parent_id
+             JOIN links el ON el.source_id = e.id AND el.occurrence = 0
+             JOIN blocks d ON d.id = el.target_id
+             JOIN blocks register ON register.id = d.parent_id
+             JOIN fields f ON f.block_id = d.id
+             WHERE l.target_id = ?1 AND l.occurrence = 0
+             AND v.deletion_id IS NULL AND e.deletion_id IS NULL
+             AND d.deletion_id IS NULL AND register.deletion_id IS NULL
+             AND register.kind = 'page' AND register.title_key = 'fields'
+             AND lower(d.text) = 'collections' AND f.kind = 'instance'
+             ORDER BY v.id"
+        ))?;
+        let rows = statement.query_map([id], |row| {
+            Ok((
+                block_at(row, 0)?,
+                row.get::<_, String>(10)?,
+                row.get::<_, String>(11)?,
+            ))
+        })?;
+        let mut values = Vec::new();
+        for row in rows {
+            let (value, entry, field) = row?;
+            if crate::fields::reference(&entry) == Some(field.as_str())
+                && crate::fields::reference(&value.text) == Some(id)
+            {
+                values.push(value);
+            }
+        }
+        Ok(values)
+    }
+
     pub fn library(&self, query: &LibraryQuery) -> Result<LibraryResult> {
         self.library_rows(query, query.limit.unwrap_or(100))
     }
     pub(crate) fn library_rows(&self, query: &LibraryQuery, limit: usize) -> Result<LibraryResult> {
+        // Start from links_target, then field_values_value: collection membership
+        // narrows the source IDs before loading metadata, snapshots and covers.
+        let collection_sources = if let Some(id) = &query.collection_id {
+            let mut statement = self.conn.prepare_cached(concat!(
+                hidden_blocks!(),
+                "SELECT fv.owner_id, v.text FROM links l
+                 JOIN field_values fv ON fv.value_id = l.source_id
+                 JOIN blocks v ON v.id = fv.value_id
+                 JOIN blocks d ON d.id = fv.field_id
+                 JOIN fields f ON f.block_id = d.id
+                 JOIN blocks c ON c.id = l.target_id
+                 WHERE l.target_id = ?1 AND l.occurrence = 0
+                 AND lower(d.text) = 'collections' AND f.kind = 'instance'
+                 AND d.deletion_id IS NULL AND c.deletion_id IS NULL
+                 AND v.id NOT IN (SELECT id FROM hidden)
+                 AND d.id NOT IN (SELECT id FROM hidden)"
+            ))?;
+            let candidates = statement.query_map([id], |r| {
+                Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
+            })?;
+            let mut owners = Vec::new();
+            for candidate in candidates {
+                let (owner, text) = candidate?;
+                if crate::fields::reference(&text) == Some(id.as_str()) {
+                    owners.push(owner);
+                }
+            }
+            Some(json(&owners))
+        } else {
+            None
+        };
+        // State tabs remain notebook-wide, even while viewing one collection.
+        let mut counts = if query.collection_id.is_some() {
+            self.conn
+                .prepare_cached(concat!(
+                    hidden_blocks!(),
+                    "SELECT COUNT(*) FILTER (WHERE s.state = 'inbox'),
+                    COUNT(*) FILTER (WHERE s.state = 'reading'),
+                    COUNT(*) FILTER (WHERE s.state = 'finished'),
+                    COUNT(*) FILTER (WHERE s.state = 'abandoned')
+             FROM sources s JOIN blocks b ON b.id = s.block_id
+             WHERE s.active = 1 AND b.deletion_id IS NULL
+             AND b.id NOT IN (SELECT id FROM hidden)"
+                ))?
+                .query_row([], |r| {
+                    Ok(LibraryCounts {
+                        inbox: r.get::<_, i64>(0)? as usize,
+                        reading: r.get::<_, i64>(1)? as usize,
+                        finished: r.get::<_, i64>(2)? as usize,
+                        abandoned: r.get::<_, i64>(3)? as usize,
+                    })
+                })?
+        } else {
+            LibraryCounts::default()
+        };
         let mut statement = self.conn.prepare_cached(concat!(
             hidden_blocks!(),
             "SELECT ",
@@ -758,10 +853,13 @@ impl Notebook {
             block_columns!("b"),
             " FROM sources s
              JOIN blocks b ON b.id = s.block_id
-             WHERE s.active = 1 AND b.deletion_id IS NULL AND b.id NOT IN (SELECT id FROM hidden)"
+             WHERE s.active = 1 AND b.deletion_id IS NULL AND b.id NOT IN (SELECT id FROM hidden)
+             AND (?1 IS NULL OR b.id IN (SELECT value FROM json_each(?1)))"
         ))?;
         let sources = statement
-            .query_map([], |r| Ok((source_at(r)?, block_at(r, 10)?)))?
+            .query_map([collection_sources], |r| {
+                Ok((source_at(r)?, block_at(r, 10)?))
+            })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
         let ids: Vec<_> = sources.iter().map(|(s, _)| s.block_id.clone()).collect();
         let mut people_by_source = HashMap::new();
@@ -804,7 +902,6 @@ impl Notebook {
             n.1 += usize::from(!h.processed);
         }
         let mut rows = vec![];
-        let mut counts = LibraryCounts::default();
         let mut linked_people: HashMap<String, PersonFacet> = HashMap::new();
         let mut unlinked_people: HashMap<String, PersonFacet> = HashMap::new();
         let mut decades: HashMap<i32, usize> = HashMap::new();
@@ -816,11 +913,13 @@ impl Notebook {
             .map(|s| s.to_lowercase())
             .filter(|s| !s.is_empty());
         for (mut source, page) in sources {
-            match source.state {
-                ReadingState::Inbox => counts.inbox += 1,
-                ReadingState::Reading => counts.reading += 1,
-                ReadingState::Finished => counts.finished += 1,
-                ReadingState::Abandoned => counts.abandoned += 1,
+            if query.collection_id.is_none() {
+                match source.state {
+                    ReadingState::Inbox => counts.inbox += 1,
+                    ReadingState::Reading => counts.reading += 1,
+                    ReadingState::Finished => counts.finished += 1,
+                    ReadingState::Abandoned => counts.abandoned += 1,
+                }
             }
             if !query.states.is_empty() && !query.states.contains(&source.state)
                 || query.format.is_some_and(|f| f != source.format)

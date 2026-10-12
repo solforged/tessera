@@ -38,6 +38,10 @@ pub(crate) fn routes() -> Router<AppState> {
         .route("/api/library/query", post(query))
         .route("/api/library/export", get(export).post(export_query))
         .route("/api/library/views", get(views))
+        .route(
+            "/api/library/collections/{id}/values",
+            get(collection_values),
+        )
         .route("/api/library/lookup", post(lookup::lookup))
         .route("/api/library/records/plan", post(lookup::record_plan))
         .route("/api/library/metadata", post(lookup::normalize_metadata))
@@ -182,6 +186,15 @@ async fn query(
 }
 async fn views(State(state): State<AppState>) -> Result<Json<Vec<LibraryView>>, ApiError> {
     run(&state, move |n| n.library_views()).await.map(Json)
+}
+async fn collection_values(
+    State(state): State<AppState>,
+    path: Result<Path<String>, PathRejection>,
+) -> Result<Json<Vec<tessera_core::Block>>, ApiError> {
+    let Path(id) = path.map_err(ApiError::from)?;
+    run(&state, move |n| n.collection_values(&id))
+        .await
+        .map(Json)
 }
 async fn source(
     State(state): State<AppState>,
