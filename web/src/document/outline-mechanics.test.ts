@@ -233,8 +233,9 @@ test('Enter on empty tasks only exits childless todos and otherwise preserves th
       if (status === 'todo' && !withChild) continue;
       const { client, doc, first, pageId } = await fixture('');
       const planned = { ...newTask(), scheduled: '2026-10-12', priority: 'high' as const };
-      success(doc.edit({ kind: 'task', id: first, value: { ...planned, status: status === 'done' ? 'todo' : status } }));
+      success(doc.edit({ kind: 'task', id: first, value: planned }));
       if (status === 'done') success(doc.edit({ kind: 'completeTask', id: first, completedOn: '2026-10-11' }));
+      else if (status !== 'todo') success(doc.edit({ kind: 'task', id: first, value: { ...planned, status } }));
       const child = withChild ? insert(doc, first, null, 'Existing child') : null;
       await client.flush();
       const task = { ...doc.block(first)!.task! };
