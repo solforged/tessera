@@ -85,8 +85,13 @@ fn read_field_readings(
             ok: true,
             value,
             target,
-        } = crate::fields::reading(definition.kind, &field, &text, target.as_ref())
-        {
+        } = crate::fields::constrained_reading(
+            conn,
+            definition.kind,
+            definition,
+            &text,
+            target.as_ref(),
+        )? {
             let value = match value {
                 ReadingValue::Text(value) => value,
                 ReadingValue::Number(_) => text,

@@ -179,6 +179,121 @@ fn state(dir: &Path) -> Vec<(String, Vec<String>)> {
 }
 
 #[test]
+fn field_targets_and_their_inverse_replicate_after_offline_edits() {
+    let mut p = pair_with(|hub| {
+        let fields = hub.fields().unwrap().page_id;
+        apply(
+            hub,
+            vec![
+                insert(50, &fields, None, "Related"),
+                Operation::SetFieldKind {
+                    id: id(50),
+                    base_revision: 1,
+                    kind: tessera_core::FieldKind::Instance,
+                },
+                Operation::CreatePage {
+                    id: id(51),
+                    title: "Person".into(),
+                },
+                Operation::CreatePage {
+                    id: id(52),
+                    title: "Group".into(),
+                },
+            ],
+        );
+    });
+    apply(
+        &mut p.replica,
+        vec![Operation::SetFieldTargets {
+            id: id(50),
+            base_revision: 2,
+            targets: vec![id(51), id(52)],
+        }],
+    );
+    let rename = edit(&p.hub, &id(50), "Related person");
+    apply(&mut p.hub, vec![rename]);
+    assert!(
+        p.sync()
+            .pushed
+            .iter()
+            .all(|receipt| matches!(receipt.outcome, PushOutcome::Accepted { .. }))
+    );
+    p.assert_converged();
+    assert_eq!(
+        p.hub
+            .field_detail(&id(50), None, None)
+            .unwrap()
+            .field
+            .definition
+            .targets,
+        [id(51), id(52)]
+    );
+    let revision = p.replica.block(&id(50)).unwrap().revision;
+    apply(
+        &mut p.replica,
+        vec![Operation::SetFieldTargets {
+            id: id(50),
+            base_revision: revision,
+            targets: vec![],
+        }],
+    );
+    p.sync();
+    p.assert_converged();
+    assert!(
+        p.hub
+            .field_detail(&id(50), None, None)
+            .unwrap()
+            .field
+            .definition
+            .targets
+            .is_empty()
+    );
+}
+
+#[test]
+fn creator_backfill_on_replica_replicates_as_an_ordinary_change() {
+    let mut p = pair_with(|hub| {
+        let fields = hub.fields().unwrap().page_id;
+        apply(
+            hub,
+            vec![
+                Operation::CreatePage {
+                    id: id(51),
+                    title: "Book".into(),
+                },
+                Operation::CreatePage {
+                    id: id(52),
+                    title: "Unfiled author".into(),
+                },
+                insert(50, &fields, None, "Author"),
+                Operation::SetFieldKind {
+                    id: id(50),
+                    base_revision: 1,
+                    kind: tessera_core::FieldKind::Instance,
+                },
+                Operation::SetTypeFields {
+                    type_id: id(51),
+                    base_revision: 1,
+                    fields: vec![id(50)],
+                },
+                insert(53, &id(51), None, &format!("[[{}]]", id(50))),
+                insert(54, &id(53), None, &format!("[[{}]]", id(52))),
+            ],
+        );
+    });
+    p.sync();
+    p.assert_converged();
+    assert!(
+        p.hub
+            .kind_notes("person")
+            .unwrap()
+            .notes
+            .iter()
+            .any(|note| note.id == id(52))
+    );
+}
+
+#[test]
 fn criteria_set_offline_rebase_over_a_desktop_edit_of_the_subject() {
     let mut p = pair_with(|hub| {
         let fields = hub.fields().unwrap().page_id;

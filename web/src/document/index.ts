@@ -596,6 +596,12 @@ export class Notebook implements NotebookClient, DocumentHost {
           if (action.value !== action.previous) block.revision++;
           break;
         }
+        case 'fieldTargets': {
+          const block = current(action.id);
+          operations.push({ op: 'set_field_targets', id: block.id, base_revision: action.baseRevision ?? block.revision, targets: action.targets });
+          block.revision++;
+          break;
+        }
         case 'subjectCriteria': {
           const block = current(action.id);
           operations.push({ op: 'set_subject_criteria', subject_id: block.id, base_revision: action.baseRevision ?? block.revision, fields: action.fields });

@@ -40,7 +40,7 @@ export function AddSheet(props: { anchor: HTMLElement; notebook: NotebookClient;
   return <Popup anchor={props.anchor} fitContent class="library-add" label="Add to library" onDismiss={props.onDismiss}>
     <div onDragOver={event => { if (event.dataTransfer?.types.includes('Files')) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; } }} onDrop={event => { if (event.dataTransfer?.files.length) { event.preventDefault(); event.stopPropagation(); props.onFiles(Array.from(event.dataTransfer.files)); props.onDismiss(); } }}>
       <h2 class="popup-title">Add to library</h2>
-      <Show when={!editing()} fallback={<DetailsForm metadata={editing()!.metadata} pages={props.notebook.roots} submitLabel="Add" onSave={metadata => add(metadata, editing()!.coverUrl)} onCancel={() => setEditing(null)} />}>
+      <Show when={!editing()} fallback={<DetailsForm metadata={editing()!.metadata} notebook={props.notebook} submitLabel="Add" onSave={metadata => add(metadata, editing()!.coverUrl)} onCancel={() => setEditing(null)} />}>
         <form onSubmit={event => { event.preventDefault(); void submit(); }}>
           <label class="library-add-url">URL, ISBN, DOI or arXiv ID<input class="input" aria-label="URL, ISBN, DOI or arXiv ID" placeholder="https://… or 978…" value={query()} disabled={busy()} onInput={event => { setQuery(event.currentTarget.value); setPreview(undefined); setError(''); }} /></label>
           <div class="library-add-actions"><Button icon="upload" disabled={busy()} onClick={props.onChooseFile}>Choose file…</Button><Button icon="edit" disabled={busy()} onClick={() => setEditing({ metadata: emptyMetadata(), coverUrl: null })}>Enter details by hand</Button></div>

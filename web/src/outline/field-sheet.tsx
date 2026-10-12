@@ -2,6 +2,7 @@ import { For, Show, createMemo, createResource, createSignal, untrack } from 'so
 import type { JSX } from 'solid-js';
 import type { FieldDefinition } from '../api/types';
 import { FieldPicker } from '../fields/FieldPicker';
+import { InstancePicker } from '../fields/InstancePicker';
 import { entryAnchor, typeKeys } from '../fields/templates';
 import { fieldEntryId } from '../table/query';
 import { Icon } from '../ui/Icon';
@@ -84,16 +85,17 @@ export function createFieldSheet(context: Pick<OutlineContext,
     return { owner: id, entries, anchor, depth: doc.outline.depth(id) + 1 - baseDepth(), template, present, missing: template.filter(field => !present.has(field)) };
   });
   const [picker, setPicker] = createSignal<HTMLElement | null>(null);
+  const [instance, setInstance] = createSignal<{ anchor: HTMLElement; row: string; field: FieldDefinition } | null>(null);
 
   /** One entry with its first value, edited at once; a checkbox is added ticked, since choosing it means yes. */
-  function add(field: FieldDefinition) {
+  function add(field: FieldDefinition, valueText?: string) {
     const state = sheet();
     if (!state) return;
     const after = entryAnchor(doc.outline.children(state.owner), state.entries, state.template, field.id);
     const checkbox = field.kind === 'checkbox';
-    const result = apply({ kind: 'addFieldEntries', parentId: state.owner, after, entries: [{ fieldId: field.id, value: checkbox ? 'yes' : '' }] }, !checkbox);
+    const result = apply({ kind: 'addFieldEntries', parentId: state.owner, after, entries: [{ fieldId: field.id, value: valueText ?? (checkbox ? 'yes' : '') }] }, !checkbox && !valueText);
     const value = result?.ok ? result.caret?.id : undefined;
-    if (value && !checkbox) queueMicrotask(() => options.offerValue(value, field));
+    if (value && !checkbox && !valueText) queueMicrotask(() => options.offerValue(value, field));
   }
   async function create(name: string) {
     try {
@@ -121,7 +123,7 @@ export function createFieldSheet(context: Pick<OutlineContext,
   function FieldSlots(slotProps: { id: string }) {
     return <Show when={sheet()?.anchor === slotProps.id ? sheet() : null}>{state => <div class="field-slots" style={{ '--slot-depth': state().depth }}>
       <For each={state().missing}>{fieldId => <Show when={definitionsById().get(fieldId)}>{field =>
-        <button type="button" class="field-slot" title={`Add ${field().name}`} onClick={() => add(field())}>
+        <button type="button" class="field-slot" title={`Add ${field().name}`} onClick={event => field().kind === 'instance' ? setInstance({ anchor: event.currentTarget, row: slotProps.id, field: field() }) : add(field())}>
           <span class="field-slot-label"><Icon name="field" /><span>{field().name}</span></span>
           <Show when={field().kind === 'checkbox'} fallback={<span class="field-slot-empty">Empty</span>}><span class="field-checkbox" aria-hidden="true" /></Show>
         </button>}</Show>}</For>
@@ -129,7 +131,8 @@ export function createFieldSheet(context: Pick<OutlineContext,
         <span class="field-slot-label"><Icon name="plus" /><span>Add field</span></span>
       </button>
       <Show when={picker()}>{anchor => <FieldPicker anchor={anchor()} label="Add field" fields={definitions()} template={state().template} exclude={state().present}
-        onPick={field => { setPicker(null); add(field); }} onCreate={name => { setPicker(null); void create(name); }} onDismiss={() => setPicker(null)} />}</Show>
+        onPick={field => { const anchor = picker()!; setPicker(null); if (field.kind === 'instance') setInstance({ anchor, row: slotProps.id, field }); else add(field); }} onCreate={name => { setPicker(null); void create(name); }} onDismiss={() => setPicker(null)} />}</Show>
+      <Show when={instance()?.row === slotProps.id ? instance() : null}>{state => <InstancePicker anchor={state().anchor} field={state().field} notebook={props.notebook} onDismiss={() => setInstance(null)} onError={setMessage} onPick={page => { add(state().field, `[[${page.id}]]`); setInstance(null); }} />}</Show>
     </div>}</Show>;
   }
   return { FieldSlots, fill, toggle };

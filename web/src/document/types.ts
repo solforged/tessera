@@ -53,6 +53,7 @@ export type Action =
   | { kind: 'heading'; id: string; heading: 1 | 2 | 3 | null }
   | { kind: 'archive'; id: string; archived: boolean }
   | { kind: 'fieldKind'; id: string; value: FieldKind; previous: FieldKind; baseRevision?: number }
+  | { kind: 'fieldTargets'; id: string; targets: string[]; previous: string[]; baseRevision?: number }
   | { kind: 'subjectCriteria'; id: string; fields: string[]; previous: string[]; baseRevision?: number }
   | { kind: 'typePresentation'; id: string; value: { plural: string | null; icon: string | null }; previous: { plural: string | null; icon: string | null }; baseRevision?: number }
   | { kind: 'addType' | 'removeType'; id: string; title: string }

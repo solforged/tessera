@@ -6,6 +6,7 @@ import type { BlockState, Caret } from '../document/contract';
 import { fieldEntryId } from '../table/query';
 import { kindLabels } from '../fields/kinds';
 import { typeKeys } from '../fields/templates';
+import { createInstance, instancePages } from '../fields/instances';
 import { DatePicker } from '../tasks/DatePicker';
 import { dateSuggestions, dateTokenAt, flipDateToken, newTask, planDateToken, removeToken } from '../tasks/quick-date';
 import type { DateSuggestion, DateToken } from '../tasks/quick-date';
@@ -26,9 +27,10 @@ import { createPageIcon } from './source';
 
 /**
  * An open `[[` page reference or `((` block reference, a `#` type query, `::` at the start of a block
- * naming a field, the value of a choice field picking an option, or the manual Add type picker.
+ * naming a field, the value of a choice field picking an option, or the manual Add type picker. A `[[`
+ * under an instance field with target types offers only pages of those types.
  */
-export interface Completion { from: number; to: number; query: string; types?: boolean; blocks?: boolean; fields?: boolean; choice?: FieldDefinition; manual?: { blockId: string; anchor: HTMLElement } }
+export interface Completion { from: number; to: number; query: string; types?: boolean; blocks?: boolean; fields?: boolean; choice?: FieldDefinition; instance?: FieldDefinition; manual?: { blockId: string; anchor: HTMLElement } }
 /** A slash-menu row: a block verb (`run`) or syntax that replaces the token (`insert`), or both. */
 interface SlashItem extends SlashEntry {
   section: string;
@@ -207,7 +209,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
   }
   function popupKey(event: KeyboardEvent) {
     if (!completion()) return false;
-    const count = completionRows().length + (canCreate() ? 1 : 0);
+    const count = completionRows().length + createRows().length;
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { setCompletionIndex(index => Math.max(0, Math.min(count - 1, index + (event.key === 'ArrowDown' ? 1 : -1)))); return true; }
     if (event.key === 'Enter' || event.key === 'Tab' && !event.shiftKey) { void chooseCompletion(); return true; }
     if (event.key === 'Escape') { dismissCompletion(); return true; }
@@ -258,7 +260,8 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     const blocks = block > page, from = Math.max(page, block);
     const typed = prefix.slice(from + 2);
     if (from < 0 || typed.includes(blocks ? ')' : ']') || typed.includes('\n') || !blocks && prefix[from - 1] === '#') return null;
-    return { from, to: at.offset, query: openReferenceRange(text, from, at.offset, blocks).query, blocks };
+    const instance = !blocks && field?.kind === 'instance' && field.targets.length ? field : undefined;
+    return { from, to: at.offset, query: openReferenceRange(text, from, at.offset, blocks).query, blocks, ...(instance ? { instance } : {}) };
   }
   function updateCompletion(text: string, at: Caret) {
     if (completion()?.manual) return;
@@ -272,15 +275,26 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
   // A primitive key: every keystroke sets a fresh completion object, and the same query must not fetch twice.
   const completionKey = createMemo(() => {
     const state = completion();
-    return state && !state.fields && !state.choice ? `${state.manual || state.types ? 'types' : state.blocks ? 'blocks' : 'text'}:${state.query}` : false;
+    if (!state || state.fields || state.choice) return false;
+    if (state.instance) return `instance:${state.instance.targets.join(',')}|${state.query}`;
+    return `${state.manual || state.types ? 'types' : state.blocks ? 'blocks' : 'text'}:${state.query}`;
   });
+  // A constrained field's pages load once per open picker and filter locally as the query grows.
+  let instanceCache: { targets: string; pages: Promise<Block[]> } | null = null;
+  createEffect(() => { if (!completion()?.instance) instanceCache = null; });
   const [matches] = createResource(completionKey, async key => {
     const mode = key.slice(0, key.indexOf(':'));
     const query = key.slice(key.indexOf(':') + 1);
+    if (mode === 'instance') {
+      const targets = query.slice(0, query.indexOf('|')), needle = query.slice(query.indexOf('|') + 1).trim().toLocaleLowerCase();
+      if (instanceCache?.targets !== targets) instanceCache = { targets, pages: instancePages(props.notebook, targets.split(',')) };
+      return { rows: (await instanceCache.pages).filter(page => page.text.toLocaleLowerCase().includes(needle)).slice(0, 50), canCreate: false };
+    }
     if (mode === 'types') return completeReferences(props.notebook, query, []);
     if (mode === 'blocks') return { rows: query.trim() ? (await api.search(query, 20)).map(hit => hit.block).filter(block => block.kind === 'block') : [], canCreate: false };
     return { rows: await api.complete(query), canCreate: false };
   });
+  const [instanceTypes] = createResource(() => completion()?.instance?.targets.join(',') || false, key => Promise.all(key.split(',').map(id => api.block(id))));
   const completionRows = createMemo<CompletionRow[]>(() => {
     const state = completion();
     if (state?.fields) {
@@ -302,7 +316,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     // The block being typed in matches its own saved draft; it is never a useful target.
     const found = (matches.error ? [] : matches()?.rows ?? []).filter(block => block.id !== editing());
     if (state?.manual || state?.types) return found.filter(block => block.kind === 'page').map(block => ({ kind: 'block', block }));
-    if (state?.blocks) return found.map(block => ({ kind: 'block', block }));
+    if (state?.blocks || state?.instance) return found.map(block => ({ kind: 'block', block }));
     const query = state?.query.toLowerCase() ?? '';
     const matchingFields = definitions().filter(field => field.name.toLowerCase().includes(query));
     const byId = new Map(matchingFields.map(field => [field.id, field]));
@@ -326,6 +340,8 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     if (fields.loading || fields.error) return false;
     return !completionRows().some(row => (row.kind === 'field' ? row.field.name : row.kind === 'option' || row.block.kind === 'block' ? '' : row.block.text).toLocaleLowerCase() === title);
   });
+  /** Create rows after the matches: one per live target type of a constrained instance field, otherwise one. */
+  const createRows = createMemo<(Block | undefined)[]>(() => !canCreate() ? [] : completion()?.instance ? (instanceTypes() ?? []).filter(type => !type.archived) : [undefined]);
   createEffect(() => {
     completionIndex();
     completionRows();
@@ -418,7 +434,9 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     if (matches.error) return;
     if (row?.kind === 'block') { insertReference(row.block.id); return; }
     if (canCreate()) {
-      try { const id = await props.notebook.createPage(state.query.trim()); insertReference(id); }
+      const type = createRows()[index - completionRows().length];
+      if (state.instance && !type) return;
+      try { const id = type ? (await createInstance(props.notebook, state.query.trim(), type.text)).id : await props.notebook.createPage(state.query.trim()); insertReference(id); }
       catch (error) { setMessage(error instanceof Error ? error.message : String(error)); }
     }
   }
@@ -499,7 +517,10 @@ function CompletionPopups(){ return <>
           <Show when={row.kind === 'field' ? row.field : null}>{field => <><Icon name="field" /><span class="picker-text">{field().name}</span><span class="picker-meta">{completion()?.fields ? kindLabels[field().kind] : 'Field'}</span></>}</Show>
           <Show when={row.kind === 'option' ? row.option : null}>{option => <><Icon name="bullet" /><span class="picker-text">{option().text}</span></>}</Show>
         </div>}</For>
-        <Show when={canCreate()}><div role="option" aria-selected={completionIndex() === completionRows().length} class="picker-row" classList={{ selected: completionIndex() === completionRows().length }} onClick={() => void chooseCompletion(completionRows().length)}><Icon name="plus" /><span class="picker-text">{completion()?.fields ? 'Create field' : completion()?.choice ? 'Add option' : completion()?.types ? 'Create type' : 'Create page'} “{completion()?.query.trim()}”</span></div></Show>
+        <For each={createRows()}>{(type, offset) => {
+          const at = () => completionRows().length + offset();
+          return <div role="option" aria-selected={completionIndex() === at()} class="picker-row" classList={{ selected: completionIndex() === at() }} onClick={() => void chooseCompletion(at())}><Icon name="plus" /><span class="picker-text">{type ? `Create ${type.text.toLocaleLowerCase()}` : completion()?.fields ? 'Create field' : completion()?.choice ? 'Add option' : completion()?.types ? 'Create type' : 'Create page'} “{completion()?.query.trim()}”</span></div>;
+        }}</For>
         <Show when={!(completionKey() && (matches.loading || matches.error)) && !canCreate() && !completionRows().length}><p class="empty-state">{
           completion()?.fields ? 'Type a field name.' : completion()?.choice ? 'Type an option to add it.' : completion()?.blocks && !completion()?.query.trim() ? 'Type to search blocks.' : 'No matching blocks.'
         }</p></Show>

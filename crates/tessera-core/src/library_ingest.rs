@@ -3,7 +3,7 @@ use crate::library_store::{enum_at, json_at, source};
 use crate::storage::{not_found, validation};
 use crate::{FieldKind, Notebook, Operation, Result};
 use rusqlite::{OptionalExtension, params};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 fn person_title(name: &str) -> String {
     name.split_once(',').map_or_else(
@@ -165,6 +165,7 @@ pub(crate) struct Planner<'a> {
     fields: HashMap<String, crate::FieldDefinition>,
     definition_after: Option<String>,
     fields_page: String,
+    filed_creators: HashSet<String>,
 }
 impl<'a> Planner<'a> {
     pub(crate) fn new(notebook: &'a Notebook) -> Result<Self> {
@@ -193,6 +194,7 @@ impl<'a> Planner<'a> {
             fields,
             definition_after,
             fields_page,
+            filed_creators: HashSet::new(),
         })
     }
     fn page(&mut self, title: &str) -> Result<(String, i64)> {
@@ -240,10 +242,60 @@ impl<'a> Planner<'a> {
                 kind,
                 revision: 2,
                 options: vec![],
+                targets: vec![],
             },
         );
         id
     }
+    fn creator_targets(&mut self) -> Result<Vec<String>> {
+        Ok(vec![self.page("Person")?.0, self.page("Group")?.0])
+    }
+
+    fn constrain_creator_field(&mut self, label: &str) -> Result<()> {
+        let key = label.to_lowercase();
+        if !self
+            .fields
+            .get(&key)
+            .is_some_and(|field| field.kind == FieldKind::Instance && field.targets.is_empty())
+        {
+            return Ok(());
+        }
+        let targets = self.creator_targets()?;
+        let field = self.fields.get_mut(&key).expect("creator field exists");
+        self.operations.push(Operation::SetFieldTargets {
+            id: field.id.clone(),
+            base_revision: field.revision,
+            targets: targets.clone(),
+        });
+        field.targets = targets;
+        field.revision += 1;
+        Ok(())
+    }
+
+    fn file_creator(&mut self, id: &str, revision: i64) -> Result<()> {
+        if self.filed_creators.contains(id) {
+            return Ok(());
+        }
+        let typed: bool = self.notebook.conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM memberships WHERE block_id = ?1)",
+            [id],
+            |row| row.get(0),
+        )?;
+        if !typed {
+            self.creator_targets()?;
+            self.operations.push(Operation::AddType {
+                id: id.into(),
+                base_revision: revision,
+                title: "Person".into(),
+            });
+            self.filed_creators.insert(id.into());
+            for page in self.pages.values_mut().filter(|page| page.0 == id) {
+                page.1 += 1;
+            }
+        }
+        Ok(())
+    }
+
     fn values(
         &mut self,
         metadata: &ExtractedMetadata,
@@ -312,6 +364,15 @@ impl<'a> Planner<'a> {
                     }
                 };
                 if let Some(id) = page {
+                    if create && matches!(*label, "Author" | "Editor" | "Translator") {
+                        let revision = self
+                            .pages
+                            .values()
+                            .find(|page| page.0 == id)
+                            .expect("resolved creator cached")
+                            .1;
+                        self.file_creator(&id, revision)?;
+                    }
                     *value = format!("[[{id}]]");
                 }
             }
@@ -353,8 +414,8 @@ impl<'a> Planner<'a> {
         )?;
         if !has {
             let fields = labels
-                .into_iter()
-                .map(|(label, kind)| self.field(label, kind))
+                .iter()
+                .map(|(label, kind)| self.field(label, *kind))
                 .collect();
             self.operations.push(Operation::SetTypeFields {
                 type_id: id.clone(),
@@ -362,6 +423,11 @@ impl<'a> Planner<'a> {
                 fields,
             });
             self.pages.insert(title.to_lowercase(), (id, revision + 1));
+        }
+        for (label, _) in labels {
+            if matches!(label, "Author" | "Editor" | "Translator") {
+                self.constrain_creator_field(label)?;
+            }
         }
         Ok(title.into())
     }
@@ -388,6 +454,82 @@ impl<'a> Planner<'a> {
     }
 }
 impl Notebook {
+    pub(crate) fn backfill_library_creators(&mut self) -> Result<()> {
+        let done: bool = self.conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM settings WHERE key = 'library_creator_targets' AND value = 'true')",
+            [], |row| row.get(0),
+        )?;
+        if done {
+            return Ok(());
+        }
+        // A stripped sync clone has history but no local editor cursor yet.
+        // Adopt it first so the backfill uses the new device ID and outbox.
+        let awaiting_adoption: bool = self.conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM changes) AND NOT EXISTS(SELECT 1 FROM editor_events)",
+            [],
+            |row| row.get(0),
+        )?;
+        if awaiting_adoption {
+            return Ok(());
+        }
+        let fields = self
+            .conn
+            .prepare(
+                "SELECT DISTINCT d.id FROM type_fields t
+             JOIN blocks p ON p.id = t.type_id JOIN blocks d ON d.id = t.field_id
+             JOIN fields f ON f.block_id = d.id
+             WHERE p.title_key IN ('book', 'article') AND p.deletion_id IS NULL
+             AND d.deletion_id IS NULL AND d.archived = 0 AND f.kind = 'instance'
+             AND lower(d.text) IN ('author', 'editor', 'translator')",
+            )?
+            .query_map([], |row| row.get::<_, String>(0))?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        if fields.is_empty() {
+            return Ok(());
+        }
+        let mut planner = Planner::new(self)?;
+        for field in fields {
+            if crate::fields::targets(&self.conn, &field)?.is_empty() {
+                let targets = planner.creator_targets()?;
+                planner.operations.push(Operation::SetFieldTargets {
+                    base_revision: self.block(&field)?.revision,
+                    id: field.clone(),
+                    targets,
+                });
+            }
+            let creators = self
+                .conn
+                .prepare(
+                    "SELECT DISTINCT p.id, p.revision FROM field_values v
+                 JOIN links l ON l.source_id = v.value_id JOIN blocks p ON p.id = l.target_id
+                 WHERE v.field_id = ?1 AND p.kind = 'page' AND p.deletion_id IS NULL
+                 AND NOT EXISTS(SELECT 1 FROM memberships m WHERE m.block_id = p.id)",
+                )?
+                .query_map([&field], |row| {
+                    Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+                })?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            for (id, revision) in creators {
+                planner.file_creator(&id, revision)?;
+            }
+        }
+        planner.operations.push(Operation::SetSetting {
+            key: "library_creator_targets".into(),
+            value: "true".into(),
+            base_revision: None,
+        });
+        let operations = planner.operations;
+        self.apply(&crate::Batch {
+            actor: crate::Actor::Client {
+                name: "Library creator filing".into(),
+            },
+            reason: None,
+            idempotency_key: None,
+            operations,
+        })?;
+        Ok(())
+    }
+
     pub fn valid_publication_date(value: &str) -> bool {
         crate::fields::partial_date(value)
     }
@@ -428,6 +570,9 @@ impl Notebook {
                 continue;
             }
             let field = planner.field(label, kind);
+            if matches!(label, "Author" | "Editor" | "Translator") {
+                planner.constrain_creator_field(label)?;
+            }
             let entry = crate::notebook::new_ulid().to_string();
             planner.operations.push(Operation::Insert {
                 id: entry.clone(),
@@ -636,6 +781,9 @@ impl Notebook {
                 continue;
             }
             let field = planner.field(label, kind);
+            if matches!(label, "Author" | "Editor" | "Translator") {
+                planner.constrain_creator_field(label)?;
+            }
             let entry: Option<String> = self
                 .conn
                 .query_row(

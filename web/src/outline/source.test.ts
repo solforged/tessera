@@ -4,7 +4,7 @@ import { changeTouchesSources, extractedResets, formatSourceValue, shortSourceTi
 
 describe('source outline metadata', () => {
   test('recognizes reference and inline field entries without treating prose as metadata', () => {
-    const fields = new Map<string, FieldDefinition>([['publisher', { id: 'publisher', name: 'Publisher', kind: 'text', revision: 1, options: [] }]]);
+    const fields = new Map<string, FieldDefinition>([['publisher', { id: 'publisher', name: 'Publisher', kind: 'text', revision: 1, options: [], targets: [] }]]);
     expect(sourceFieldName('[[publisher|Imprint]]', fields)).toBe('Publisher');
     expect(sourceFieldName('Publisher:: Authored press', fields)).toBe('Publisher');
     expect(sourceFieldName('A paragraph about [[publisher]]', fields)).toBeUndefined();

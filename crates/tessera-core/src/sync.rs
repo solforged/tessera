@@ -956,7 +956,7 @@ impl Notebook {
              SELECT seq, change_id, actor, reason, created_at, committed, restructured_pages, views FROM changes ORDER BY seq;"
         )?;
         tx.commit()?;
-        Ok(())
+        self.backfill_library_creators()
     }
 
     /// This notebook's hub and outbox, when it is a replica.

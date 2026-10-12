@@ -178,6 +178,7 @@ export type Edit =
   | { kind: 'addField'; name: string; value: FieldKind }
   /** The definition snapshot supplies the previous kind and revision for undo. */
   | { kind: 'fieldKind'; definition: FieldDefinition; value: FieldKind }
+  | { kind: 'fieldTargets'; definition: FieldDefinition; targets: string[] }
   /** Replace the subject's explicit criteria; an empty previous list restores derivation on undo. */
   | { kind: 'subjectCriteria'; id: string; fields: string[]; previous: string[]; revision: number }
   | { kind: 'typePresentation'; id: string; revision: number; value: { plural: string | null; icon: string | null }; previous: { plural: string | null; icon: string | null } }
