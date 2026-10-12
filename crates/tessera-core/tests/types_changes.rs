@@ -1658,7 +1658,7 @@ fn provisional_cleanup_does_not_backfill_existing_pages_on_upgrade() {
          DROP INDEX card_units_template;
          DROP VIEW effective_review_events;
          DROP TABLE review_undos;
-         DROP INDEX review_events_order;
+         DROP INDEX review_events_unordered;
          DROP INDEX review_events_card_order;
          DROP INDEX review_events_session_order;
          ALTER TABLE review_events DROP COLUMN event_order;

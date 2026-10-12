@@ -131,7 +131,7 @@ fn schedule_at(
 pub(crate) fn backfill_fsrs(conn: &Connection) -> Result<()> {
     let mut cards = conn.prepare("SELECT id, created_at FROM card_units ORDER BY id")?;
     let mut history = conn.prepare(
-        "SELECT grade, created_at FROM effective_review_events WHERE card_id = ?1 ORDER BY created_at, event_order, id",
+        "SELECT grade, created_at FROM effective_review_events WHERE card_id = ?1 ORDER BY created_at, change_seq, event_order, id",
     )?;
     let mut update = conn.prepare("UPDATE card_units SET schedule = ?2 WHERE id = ?1")?;
     let mut rows = cards.query([])?;
@@ -298,6 +298,53 @@ fn grade_name(grade: Grade) -> &'static str {
     }
 }
 
+// Reserve adjacent slots for an optional reset and its grade in one operation.
+fn grade_order(index: usize) -> Result<i64> {
+    i64::try_from(index)
+        .ok()
+        .and_then(|index| index.checked_mul(2))
+        .and_then(|order| order.checked_add(2))
+        .ok_or_else(|| validation("review operation order is exhausted"))
+}
+
+/// Recover order from replicated commands, never from device-local rowids.
+/// The partial index bounds this work to migration/old-patch insertions only.
+pub(crate) fn backfill_event_order(conn: &Connection) -> Result<()> {
+    let mut changes = conn.prepare_cached(
+        "SELECT c.seq, o.key, json_extract(o.value, '$.op'),
+             json_extract(o.value, '$.id'), json_extract(o.value, '$.event_id'),
+             COALESCE(json_extract(o.value, '$.reset'), 0)
+         FROM changes c JOIN json_each(c.operations) o
+         WHERE c.seq IN (SELECT change_seq FROM review_events WHERE event_order = 0)
+             AND json_extract(o.value, '$.op') IN ('grade_card', 'reset_card')
+         ORDER BY c.seq, o.key",
+    )?;
+    let mut update = conn.prepare_cached(
+        "UPDATE review_events SET event_order = ?4
+         WHERE id = ?1 AND card_id = ?2 AND change_seq = ?3 AND event_order = 0",
+    )?;
+    let mut rows = changes.query([])?;
+    while let Some(row) = rows.next()? {
+        let seq: i64 = row.get(0)?;
+        let order = grade_order(row.get(1)?)?;
+        let is_grade = text_at(row, 2)? == "grade_card";
+        let card_id = text_at(row, 3)?;
+        let event_id = text_at(row, 4)?;
+        if is_grade && row.get::<_, bool>(5)? {
+            let reset_id = crate::notebook::derived_id(&["reset", event_id]);
+            update.execute(params![reset_id, card_id, seq, order - 1])?;
+        }
+        update.execute(params![event_id, card_id, seq, if is_grade { order } else { order - 1 }])?;
+    }
+    let unresolved: Option<String> = conn.prepare_cached(
+        "SELECT id FROM review_events WHERE event_order = 0 LIMIT 1",
+    )?.query_row([], |row| row.get(0)).optional()?;
+    if let Some(id) = unresolved {
+        return Err(validation(format!("review event {id} has no retained operation")));
+    }
+    Ok(())
+}
+
 struct Evidence<'a> {
     id: &'a str,
     card: &'a CardUnit,
@@ -307,6 +354,7 @@ struct Evidence<'a> {
     after: &'a str,
     reviewed_at: i64,
     seq: i64,
+    event_order: i64,
 }
 
 fn insert_event(conn: &Connection, evidence: Evidence<'_>) -> Result<()> {
@@ -324,8 +372,7 @@ fn insert_event(conn: &Connection, evidence: Evidence<'_>) -> Result<()> {
              id, card_id, session_id, kind, grade, shown_front, shown_back,
              definition_revision, scheduler_version, before_state, after_state, created_at, change_seq,
              event_order
-         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13,
-             (SELECT COALESCE(MAX(event_order), 0) + 1 FROM review_events))",
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
         params![
             evidence.id,
             evidence.card.id,
@@ -340,6 +387,7 @@ fn insert_event(conn: &Connection, evidence: Evidence<'_>) -> Result<()> {
             evidence.after,
             evidence.reviewed_at,
             evidence.seq,
+            evidence.event_order,
         ],
     )?;
     Ok(())
@@ -359,10 +407,12 @@ fn write_review(
     review: ReviewWrite<'_>,
     now: i64,
     seq: i64,
+    index: usize,
 ) -> Result<Revision> {
     validate_id(review.event_id)?;
     check_review_session(conn, review.session_id, review.reviewed_at)?;
     let revision = next_revision(card.revision)?;
+    let order = grade_order(index)?;
     let reset_state = review
         .reset
         .then(|| scheduler::new_card(review.reviewed_at));
@@ -395,6 +445,7 @@ fn write_review(
                 after,
                 reviewed_at: review.reviewed_at,
                 seq,
+                event_order: order - 1,
             },
         )?;
     }
@@ -410,6 +461,7 @@ fn write_review(
                 after,
                 reviewed_at: review.reviewed_at,
                 seq,
+                event_order: order,
             },
         )?;
     }
@@ -554,6 +606,7 @@ pub(crate) fn apply(
                 },
                 now,
                 seq,
+                index,
             )?);
         }
         Operation::UndoGrade {
@@ -573,7 +626,7 @@ pub(crate) fn apply(
                     definition_revision, scheduler_version, before_state, after_state,
                     created_at, change_seq
                  FROM effective_review_events WHERE card_id = ?1
-                 ORDER BY event_order DESC, id DESC LIMIT 1",
+                 ORDER BY change_seq DESC, event_order DESC, id DESC LIMIT 1",
             )?.query_row([id], |row| review_event_at(row, 0)).optional()?;
             let review = latest.filter(|event| event.id == *review_id && event.grade.is_some())
                 .ok_or_else(|| validation("only the latest effective grade can be undone"))?;
@@ -599,7 +652,7 @@ pub(crate) fn apply(
                 let latest: Option<String> = conn.prepare_cached(
                     "SELECT id FROM effective_review_events
                      WHERE session_id = ?1 AND kind = 'grade'
-                     ORDER BY event_order DESC, id DESC LIMIT 1",
+                     ORDER BY change_seq DESC, event_order DESC, id DESC LIMIT 1",
                 )?.query_row([session_id], |row| row.get(0)).optional()?;
                 if latest.as_deref() != Some(review_id.as_str()) {
                     return Err(validation("only the latest effective session grade can be undone"));
@@ -627,7 +680,7 @@ pub(crate) fn apply(
                     let mut state = scheduler::new_card(created_at);
                     let mut history = conn.prepare_cached(
                         "SELECT grade, created_at FROM effective_review_events
-                         WHERE card_id = ?1 AND id <> ?2 ORDER BY created_at, event_order, id",
+                         WHERE card_id = ?1 AND id <> ?2 ORDER BY created_at, change_seq, event_order, id",
                     )?;
                     let mut rows = history.query(params![id, review_id])?;
                     while let Some(row) = rows.next()? {
@@ -693,6 +746,7 @@ pub(crate) fn apply(
                 },
                 now,
                 seq,
+                index,
             )?);
         }
         Operation::SaveDeck {
@@ -967,7 +1021,7 @@ impl Notebook {
         Ok(self.conn.prepare_cached(
             "SELECT id, card_id, session_id, kind, grade, shown_front, shown_back,
                     definition_revision, scheduler_version, before_state, after_state, created_at, change_seq
-             FROM effective_review_events WHERE session_id = ?1 ORDER BY event_order, id"
+             FROM effective_review_events WHERE session_id = ?1 ORDER BY change_seq, event_order, id"
         )?.query_map([id], |row| review_event_at(row, 0))?.collect::<rusqlite::Result<_>>()?)
     }
 
@@ -981,7 +1035,7 @@ impl Notebook {
                         definition_revision, scheduler_version, before_state, after_state,
                         created_at, change_seq,
                         (SELECT id FROM review_undos WHERE review_id = review_events.id)
-                 FROM review_events WHERE card_id = ?1 ORDER BY created_at, event_order, id",
+                 FROM review_events WHERE card_id = ?1 ORDER BY created_at, change_seq, event_order, id",
             )?
             .query_map([card_id], |row| {
                 let mut event = review_event_at(row, 0)?;

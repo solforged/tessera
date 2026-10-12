@@ -1065,6 +1065,9 @@ impl Notebook {
         for change in pulled {
             patcher.apply(&tx, &change.patch)?;
         }
+        // A retained pre-34 changeset has no event_order column. Recover its
+        // command ordinals from the replicated change before exposing history.
+        crate::review_store::backfill_event_order(&tx)?;
         for change in pulled {
             crate::reads::record_editor_event(&tx, change.seq, true)?;
         }

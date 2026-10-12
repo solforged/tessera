@@ -89,7 +89,7 @@ impl Notebook {
             ), grades AS (
                 SELECT e.id AS event_id, e.card_id,
                     ROW_NUMBER() OVER (
-                        PARTITION BY e.card_id ORDER BY e.created_at DESC, e.event_order DESC, e.id DESC
+                        PARTITION BY e.card_id ORDER BY e.created_at DESC, e.change_seq DESC, e.event_order DESC, e.id DESC
                     ) AS position
                 FROM effective_review_events e JOIN selected s ON s.id = e.card_id
                 WHERE e.kind = 'grade'
