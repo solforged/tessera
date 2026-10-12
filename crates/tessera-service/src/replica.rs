@@ -190,7 +190,7 @@ async fn synchronize(
         let result = (|| {
             let hub = hub_for(&notebook.lock())?;
             if let Some(mut hub) = hub {
-                sync::sync_with(
+                let report = sync::sync_with(
                     &mut LockedNotebook {
                         notebook: notebook.clone(),
                         changes,
@@ -198,6 +198,7 @@ async fn synchronize(
                     &mut hub,
                 )?;
                 notebook.lock().sync_mark_synced()?;
+                log_sync(&report);
             }
             anyhow::Ok(())
         })();
@@ -208,11 +209,38 @@ async fn synchronize(
         finish(&result_runtime, &Err(error.into()));
     }
 }
+/// One log line per sync: info when anything moved, debug for idle runs.
+fn log_sync(report: &sync::SyncReport) {
+    let integrated = &report.integrated;
+    let pushed = report.pushed.len();
+    let files = report.sent_objects + report.received_objects;
+    let rows = report.sent_rows + report.received_rows;
+    let snapshots = report.sent_snapshots + report.received_snapshots;
+    if pushed + integrated.applied + integrated.replayed + files + rows + snapshots == 0 {
+        tracing::debug!("sync finished; nothing to exchange");
+        return;
+    }
+    tracing::info!(
+        pushed,
+        confirmed = integrated.confirmed,
+        pulled = integrated.applied,
+        replayed = integrated.replayed,
+        unapplied = integrated.unapplied.len(),
+        sent_files = report.sent_objects,
+        received_files = report.received_objects,
+        sent_rows = report.sent_rows,
+        received_rows = report.received_rows,
+        "sync finished"
+    );
+}
 fn finish(runtime: &ReplicaRuntime, result: &anyhow::Result<()>) {
     let mut memory = runtime.memory.lock();
     memory.syncing = false;
     memory.completed += 1;
     memory.last_error = result.as_ref().err().map(LastError::from_ref);
+    if let Err(error) = result {
+        tracing::warn!(%error, "sync failed");
+    }
     if result.is_ok() {
         memory.retired = false;
     } else if memory
