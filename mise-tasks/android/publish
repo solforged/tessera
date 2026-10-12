@@ -6,10 +6,12 @@
 # Builds in a separate worktree, so uncommitted edits never ship. Strips the
 # debug info from the native library (about 90 MB instead of 300 to 700 MB),
 # signs it again with the release key the GitHub release APKs carry, so the
-# two update each other and keep the notebook. The key is the 1Password item
-# "Tessera Android release key" (its password and the keystore attached), or
+# two update each other and keep the notebook. The key comes from
 # TESSERA_ANDROID_KEYSTORE and TESSERA_ANDROID_KEYSTORE_PASSWORD, as Gradle
-# takes them. The APK and a page naming its commit replace the previous ones at
+# takes them; else from ~/.android/tessera-release.jks with its password in the
+# login Keychain (service tessera-android-release-keystore), which needs no
+# prompt; else from the 1Password item "Tessera Android release key". The APK
+# and a page naming its commit replace the previous ones at
 # https://<this Mac>.<tailnet>:8443/, served from 127.0.0.1:18791 by the
 # dev.tessera.downloads launch agent and exposed to the tailnet only by
 # Tailscale Serve. Both are set up on the first run.
@@ -27,6 +29,22 @@ https=8443
 label=dev.tessera.downloads
 plist="$HOME/Library/LaunchAgents/$label.plist"
 item="op://Private/Tessera Android release key"
+
+# The key first, so a missing one fails before the build.
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+keystore=${TESSERA_ANDROID_KEYSTORE:-}
+password=${TESSERA_ANDROID_KEYSTORE_PASSWORD:-}
+if [ -z "$keystore" ] && [ -f "$HOME/.android/tessera-release.jks" ]; then
+  keystore="$HOME/.android/tessera-release.jks"
+  [ -n "$password" ] || password=$(security find-generic-password -s tessera-android-release-keystore -w 2>/dev/null || true)
+fi
+if [ -z "$keystore" ]; then
+  keystore="$work/release.jks"
+  op read --out-file "$keystore" "$item/keystore" >/dev/null
+fi
+[ -n "$password" ] || password=$(op read "$item/password")
+export TESSERA_ANDROID_KEYSTORE_PASSWORD="$password"
 
 echo "publish: building $build"
 if [ -e "$src/.git" ]; then
@@ -46,15 +64,6 @@ apk="$src/crates/tessera-android/gen/android/app/build/outputs/apk/universal/deb
 source "$root/mise-tasks/android/ndk.sh"
 strip=$(find "$NDK_HOME/toolchains/llvm/prebuilt" -path '*/bin/llvm-strip' | head -n 1)
 tools=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)
-work=$(mktemp -d)
-trap 'rm -rf "$work"' EXIT
-keystore=${TESSERA_ANDROID_KEYSTORE:-}
-if [ -z "$keystore" ]; then
-  keystore="$work/release.jks"
-  op read --out-file "$keystore" "$item/keystore" >/dev/null
-fi
-TESSERA_ANDROID_KEYSTORE_PASSWORD=${TESSERA_ANDROID_KEYSTORE_PASSWORD:-$(op read "$item/password")}
-export TESSERA_ANDROID_KEYSTORE_PASSWORD
 (cd "$work" && mkdir lib && unzip -q "$apk" 'lib/*' -d .)
 find "$work/lib" -name '*.so' -exec "$strip" --strip-debug {} +
 cp "$apk" "$work/stripped.apk"
