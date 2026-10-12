@@ -133,6 +133,10 @@ async fn push(
     same_schema(&headers)?;
     let Json(request) = request?;
     let notify = state.changes.clone();
+    // A paired device's name, else the replica ID for loopback clones.
+    let device = paired
+        .as_ref()
+        .map_or_else(|| request.device.clone(), |p| p.name.clone());
     let receipts = run_authorized(&state, paired, request.device.clone(), move |notebook| {
         let receipts = notebook.sync_push(&request.device, &request.changes)?;
         if let Some(seq) = receipts
@@ -148,6 +152,23 @@ async fn push(
         Ok(receipts)
     })
     .await?;
+    if !receipts.is_empty() {
+        let rejected = receipts
+            .iter()
+            .filter(|receipt| {
+                matches!(
+                    receipt.outcome,
+                    tessera_core::sync::PushOutcome::Rejected { .. }
+                )
+            })
+            .count();
+        tracing::info!(
+            %device,
+            accepted = receipts.len() - rejected,
+            rejected,
+            "sync push received"
+        );
+    }
     Ok(Json(receipts).into_response())
 }
 

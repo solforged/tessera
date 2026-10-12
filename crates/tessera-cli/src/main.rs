@@ -80,7 +80,8 @@ enum Command {
         force: bool,
     },
     /// Push this replica's changes to its hub and pull the hub's, or manage
-    /// the replica. Needs no service running for this notebook.
+    /// the replica. While a service owns the notebook, sync, status and
+    /// conflicts go through that service; pins need it stopped.
     Sync {
         #[command(subcommand)]
         command: Option<sync::SyncCommand>,

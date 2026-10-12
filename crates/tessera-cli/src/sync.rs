@@ -22,9 +22,11 @@ pub(crate) enum SyncCommand {
         #[arg(long, requires = "code")]
         name: Option<String>,
     },
-    /// Show this replica's hub and unpushed changes.
+    /// Show this replica's hub and unpushed changes. While a service owns the
+    /// notebook, show the service's sync state, with the last sync and error.
     Status,
-    /// List kept conflict text and changes the hub rejected.
+    /// List kept conflict text and changes the hub rejected, from the running
+    /// service when there is one.
     Conflicts,
     /// Keep a source's original file and images on this replica without
     /// waiting for it to be opened. They arrive with the next sync.
@@ -45,14 +47,19 @@ pub(crate) fn run(notebook: &Path, command: Option<SyncCommand>) -> anyhow::Resu
         Some(SyncCommand::Clone { url, code, name }) => {
             serde_json::to_value(clone(notebook, &url, code.as_deref(), name.as_deref())?)?
         }
-        Some(SyncCommand::Status) => {
-            let replica = open(notebook)?;
-            serde_json::to_value(replica.notebook.sync_status()?)?
-        }
-        Some(SyncCommand::Conflicts) => {
-            let replica = open(notebook)?;
-            serde_json::to_value(replica.notebook.sync_conflicts()?)?
-        }
+        Some(SyncCommand::Status) => match open(notebook) {
+            Ok(replica) => serde_json::to_value(replica.notebook.sync_status()?)?,
+            Err(unowned) => served(notebook, unowned, reqwest::Method::GET, "/api/sync/state")?,
+        },
+        Some(SyncCommand::Conflicts) => match open(notebook) {
+            Ok(replica) => serde_json::to_value(replica.notebook.sync_conflicts()?)?,
+            Err(unowned) => served(
+                notebook,
+                unowned,
+                reqwest::Method::GET,
+                "/api/sync/conflicts",
+            )?,
+        },
         Some(SyncCommand::Pin { source_id }) => {
             let mut replica = open(notebook)?;
             replica.notebook.sync_pin(&source_id)?;
@@ -69,7 +76,14 @@ pub(crate) fn run(notebook: &Path, command: Option<SyncCommand>) -> anyhow::Resu
         }
         Some(SyncCommand::Reclone) => reclone(notebook)?,
         None => {
-            let mut replica = open(notebook)?;
+            let mut replica = match open(notebook) {
+                Ok(replica) => replica,
+                Err(unowned) => {
+                    let state = served(notebook, unowned, reqwest::Method::POST, "/api/sync/run")?;
+                    println!("{}", serde_json::to_string_pretty(&state)?);
+                    return Ok(());
+                }
+            };
             let status = replica.notebook.sync_status()?.with_context(|| {
                 format!(
                     "{} is not a replica; run tessera sync clone <url>",
@@ -102,6 +116,26 @@ fn open(notebook: &Path) -> anyhow::Result<Replica> {
     Ok(Replica {
         notebook: Notebook::open(notebook)?,
         _ownership: ownership,
+    })
+}
+
+/// Ask the service that owns the notebook, when one is running, for a sync
+/// route; without one, `unowned` is the error.
+fn served(
+    notebook: &Path,
+    unowned: anyhow::Error,
+    method: reqwest::Method,
+    path: &str,
+) -> anyhow::Result<serde_json::Value> {
+    tokio::runtime::Runtime::new()?.block_on(async {
+        let Ok((client, base)) = crate::service(notebook).await else {
+            return Err(unowned);
+        };
+        let response = client
+            .request(method, format!("{base}{path}"))
+            .send()
+            .await?;
+        Ok(crate::checked(response).await?.json().await?)
     })
 }
 
