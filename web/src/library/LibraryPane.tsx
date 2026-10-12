@@ -24,6 +24,7 @@ import { SourceCover } from './SourceCover';
 import { ReadingCard } from './ReadingCard';
 import { AddSheet } from './AddSheet';
 import './library.css';
+import '../table/table.css';
 
 export interface LibraryPaneProps {
   pane: PaneId;
@@ -100,6 +101,9 @@ export function LibraryPane(props: LibraryPaneProps) {
   const [views, setViews] = createSignal<LibraryView[]>([]);
   const [viewsError, setViewsError] = createSignal('');
   const saved = createMemo(() => views().find(value => value.id === view().view));
+  const [deleted, setDeleted] = createSignal<LibraryView | null>(null);
+  let deletedTimer: ReturnType<typeof setTimeout> | undefined;
+  onCleanup(() => clearTimeout(deletedTimer));
   const currentQuery = createMemo(() => saved()?.query ?? libraryQuery({ tab: tab(), text: text(), sort: sort(), filters: filters() }));
   const queryKey = createMemo(() => JSON.stringify([view().view, tab(), currentQuery(), unprocessedOnly(), colors(), tags()]));
   const [selected, setSelected] = createSignal<Set<string>>(new Set());
@@ -605,6 +609,8 @@ export function LibraryPane(props: LibraryPaneProps) {
     try {
       await props.notebook.commit([{ op: 'delete_library_view', id: value.id, base_revision: value.revision }], 'Delete library view');
       if (!disposed) {
+        setDeleted(value);
+        clearTimeout(deletedTimer); deletedTimer = setTimeout(() => setDeleted(null), 10000);
         if (view().view === value.id) update({ view: null });
         setPopup(null); setRefresh(value => value + 1);
       }
@@ -612,10 +618,20 @@ export function LibraryPane(props: LibraryPaneProps) {
       if (!disposed) setCommandError(reason instanceof Error ? reason.message : String(reason));
     } finally { if (!disposed) setSaving(false); }
   }
+  async function undoDelete() {
+    const value = deleted(); if (!value || saving()) return;
+    setSaving(true); setCommandError('');
+    try {
+      await props.notebook.commit([{ op: 'save_library_view', id: value.id, base_revision: null, name: value.name, query: value.query }], 'Restore library view');
+      if (!disposed) { setDeleted(null); chooseView(value); setRefresh(value => value + 1); }
+    } catch (reason) {
+      if (!disposed) setCommandError(reason instanceof Error ? reason.message : String(reason));
+    } finally { if (!disposed) setSaving(false); }
+  }
   function viewMenu(value: LibraryView, anchor: HTMLElement) {
     setPopup({ kind: 'menu', anchor, label: 'Library view actions', items: [
       { label: 'Rename', action: () => setPopup({ kind: 'name', anchor, saved: value, id: value.id }) },
-      { label: 'Delete', action: () => { setCommandError(''); setPopup({ kind: 'delete', anchor, saved: value }); } },
+      { label: props.notebook.confirmViewDelete() ? 'Delete view…' : 'Delete view', icon: 'trash', danger: true, action: () => { setCommandError(''); if (props.notebook.confirmViewDelete()) setPopup({ kind: 'delete', anchor, saved: value }); else void deleteView(value); } },
       { label: 'Export BibTeX', action: () => { void downloadQuery('bibtex', value.query); } },
       { label: 'Export CSL JSON', action: () => { void downloadQuery('csl', value.query); } },
       { label: 'Export Markdown', action: () => { void downloadQuery('markdown', value.query); } },
@@ -848,6 +864,7 @@ export function LibraryPane(props: LibraryPaneProps) {
         <Button onClick={() => update({ view: null, filters: { people: [], decades: [], publishers: [], languages: [] }, scroll: 0 })}>Clear filters</Button>
       </div></Show>
       <Show when={saving() || props.notebook.commandState() !== 'saved'}><p class="library-message" role="status">{props.notebook.commandMessage() || (saving() ? 'Saving…' : props.notebook.commandState())}</p></Show>
+      <Show when={deleted()}><footer class="table-footer" role="status">View deleted · <Button disabled={saving()} onClick={() => { void undoDelete(); }}>Undo</Button></footer></Show>
     </header>
     <input ref={fileInput} type="file" hidden aria-label="Choose EPUB files" accept=".epub,application/epub+zip" multiple onChange={event => {
       const files = Array.from(event.currentTarget.files ?? []); event.currentTarget.value = ''; void upload(files);

@@ -104,12 +104,13 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; not
     follow();
     void props.notebook.refreshSettings().catch(reason => setError(reason instanceof Error ? reason.message : String(reason)));
   });
-  const change = async (key: 'time_zone' | 'vim', value: string) => {
+  const change = async (key: 'time_zone' | 'vim' | 'confirm_view_delete', value: string) => {
     setError('');
     try { await props.notebook.setSetting(key, value); }
     catch { /* The document owns the save error and retains acknowledged values. */ }
     // A rejected checkbox change must show the acknowledged value again.
-    const checkbox = region.querySelector('input[type="checkbox"]') as HTMLInputElement | null; if (checkbox) checkbox.checked = props.notebook.vim();
+    const checkbox = region.querySelector<HTMLInputElement>(`#settings-${key}-${props.pane}`);
+    if (checkbox) checkbox.checked = key === 'vim' ? props.notebook.vim() : props.notebook.confirmViewDelete();
   };
   const history = async (redo: boolean) => {
     try { if (redo) await props.notebook.redoSetting(); else await props.notebook.undoSetting(); }
@@ -151,6 +152,10 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; not
           <div class="settings-row">
             <div class="settings-label"><span class="settings-name"><label for={`settings-vim-${props.pane}`}>Vim keys</label><span class="settings-scope">Notebook</span></span><p>Normal, insert and visual modes inside a block; j and k move between blocks.</p></div>
             <input id={`settings-vim-${props.pane}`} class="settings-switch" type="checkbox" role="switch" checked={props.notebook.vim()} disabled={props.notebook.settingsBusy()} onChange={event => { void change('vim', String(event.currentTarget.checked)); }} />
+          </div>
+          <div class="settings-row">
+            <div class="settings-label"><span class="settings-name"><label for={`settings-confirm_view_delete-${props.pane}`}>Ask before deleting views</label><span class="settings-scope">Notebook</span></span><p>Library, task and table views.</p></div>
+            <input id={`settings-confirm_view_delete-${props.pane}`} class="settings-switch" type="checkbox" role="switch" checked={props.notebook.confirmViewDelete()} disabled={props.notebook.settingsBusy()} onChange={event => { void change('confirm_view_delete', String(event.currentTarget.checked)); }} />
           </div>
           <div class="settings-row">
             <div class="settings-label"><span class="settings-name">Journal day<span class="settings-scope">Notebook</span></span><p>Decides which day Today opens and when scheduled times fall.</p></div>

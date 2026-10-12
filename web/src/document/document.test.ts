@@ -456,6 +456,20 @@ describe('real notebook operations and recovery', () => {
     expect((await api.settings()).settings.find(setting => setting.key === 'vim')?.value).toBe('false');
     await first.setSetting('time_zone', originalZone);
   });
+  test('view deletion confirmation defaults on and supports setting undo and redo', async () => {
+    const first = await client();
+    const second = await client();
+    expect(first.confirmViewDelete()).toBe(true);
+    await first.setSetting('confirm_view_delete', 'false');
+    await eventually(() => !second.confirmViewDelete(), 'remote view confirmation preference did not arrive');
+    await first.undoSetting();
+    expect(first.confirmViewDelete()).toBe(true);
+    await first.redoSetting();
+    expect(first.confirmViewDelete()).toBe(false);
+    const reopened = await client();
+    expect(reopened.confirmViewDelete()).toBe(false);
+    await first.setSetting('confirm_view_delete', 'true');
+  });
   test('offline page creation accepts durable IDs, publishes a provisional root, and reopens it after reload', async () => {
     const session = `offline-create-${++serial}`;
     const instance = await client(session);
