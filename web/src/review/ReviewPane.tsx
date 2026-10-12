@@ -57,6 +57,10 @@ export function ReviewPane(props: ReviewPaneProps) {
   const [ready, setReady] = createSignal(false);
   const slowReady = createSlowFlag(() => !ready());
   const [shown, setShown] = createSignal<Presentation | null>(null);
+  // The card being replaced stays on screen, disabled, until the read that replaces it lands, so grading or undoing
+  // never paints an empty frame.
+  const [outgoing, setOutgoing] = createSignal<Presentation | null>(null);
+  createEffect(() => { if (!loading()) setOutgoing(null); });
   const [updated, setUpdated] = createSignal<Presentation | null>(null);
   const [stale, setStale] = createSignal('');
   const [needsReload, setNeedsReload] = createSignal(false);
@@ -64,6 +68,8 @@ export function ReviewPane(props: ReviewPaneProps) {
   const [readError, setReadError] = createSignal('');
   const [commandError, setCommandError] = createSignal('');
   const [pending, setPending] = createSignal('');
+  // A command's status line waits like a load notice; shown at once, it pushes the card down for a frame.
+  const slowPending = createSlowFlag(() => !!pending());
   const [retry, setRetry] = createSignal(0);
   const [picker, setPicker] = createSignal<{ kind: 'decks' | 'sessions'; anchor: HTMLElement } | null>(null);
   const [search, setSearch] = createSignal('');
@@ -376,7 +382,7 @@ export function ReviewPane(props: ReviewPaneProps) {
     }
     if (disposed) return;
     // The acknowledgement, not the click or a speculative query, releases the shown snapshot.
-    batch(() => { setLoading(true); setShown(null); setUpdated(null); setStale(''); setRestoredCardId(null); setPending(''); });
+    batch(() => { setLoading(true); setOutgoing(snapshot); setShown(null); setUpdated(null); setStale(''); setRestoredCardId(null); setPending(''); });
     await refresh();
   }
 
@@ -395,8 +401,7 @@ export function ReviewPane(props: ReviewPaneProps) {
       if (disposed) return;
       batch(() => {
         setSession(receipt.review_sessions?.find(value => value.id === current.id) ?? current);
-        setRestoredCardId(card.id); setShown(null); setUpdated(null); setStale(''); setNeedsReload(false);
-        setEvents(value => value.filter(item => item.id !== event.id));
+        setLoading(true); setOutgoing(shown()); setRestoredCardId(card.id); setShown(null); setUpdated(null); setStale(''); setNeedsReload(false);
       });
     } catch (reason) {
       if (!disposed) setCommandError(`Could not undo the grade: ${reason instanceof Error ? reason.message : String(reason)}`);
@@ -544,7 +549,7 @@ export function ReviewPane(props: ReviewPaneProps) {
     <Show when={commandError()}><div class="pane-error" role="alert">{commandError()}</div></Show>
     <Show when={readError()}><div class="pane-error" role="alert">{readError()} <Button disabled={locked()} onClick={() => setRetry(value => value + 1)}>Refresh</Button></div></Show>
     <div ref={scroll} class="review-scroll" onScroll={publish}>
-      <Show when={pending() || slowReady()}><p class="review-pending" role="status">{pending() || 'Loading cards…'}</p></Show>
+      <Show when={slowPending() || slowReady()}><p class="review-pending" role="status">{pending() || 'Loading cards…'}</p></Show>
       <Show when={total() > loadedCount() && !done()}><p class="review-pending">Showing {loadedCount()} of {total()} matching cards. Narrow the deck’s source filters to review the rest.</p></Show>
       <Show when={!session() && ready() && inventory() === 0}><section class="review-done" aria-label="Make your first card">
         <h2>Make your first card</h2>
@@ -600,7 +605,7 @@ export function ReviewPane(props: ReviewPaneProps) {
         </Show>
         <Button class="bordered" disabled={locked() || loading() || !!readError()} onClick={acceptUpdated}>{updated() ? 'Review current card' : 'Next card'}</Button>
       </section></Show>
-      <Show keyed when={shown()}>{snapshot => <>
+      <Show keyed when={shown() ?? (loading() ? outgoing() : null)}>{snapshot => <>
         <div class="review-session-layout" classList={{ 'review-has-context': !!snapshot.context }}>
           <ReviewCard item={snapshot.item} context={snapshot.context} onReveal={setAnswerRevealed} onEdit={beside => { publish(); props.onOpen({ kind: 'page', pageId: snapshot.item.source.page.id, blockId: snapshot.item.source.block.id }, beside); }} notebook={props.notebook} previews={snapshot.previews.current} resetPreviews={snapshot.previews.reset} busy={locked() || loading() || !!readError() || !!stale() || needsReload() || !openSession()} onGrade={(value, restart) => grade(value, restart, snapshot)} onReset={() => reset(snapshot)} onSource={beside => {
             publish(); props.onOpen(snapshot.context && !snapshot.item.card.template ? { kind: 'reader', sourceId: snapshot.context.citation.source_id, snapshotId: snapshot.context.citation.snapshot_id, at: snapshot.context.citation.start.passage_id, citationId: snapshot.context.citation.id } : { kind: 'page', pageId: snapshot.item.source.page.id, blockId: snapshot.item.source.block.id }, beside);
