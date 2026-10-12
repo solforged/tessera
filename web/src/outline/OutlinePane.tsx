@@ -61,7 +61,7 @@ function Pane(props: OutlinePaneProps) {
   const [folds, setFolds] = createSignal(new Set(initial.folds ?? storedFolds.get(`${props.pane}:${props.pageId}`) ?? []));
   const [foldMotion, setFoldMotion] = createSignal<{ id: string; opening: boolean; afterIds: string[]; beforeSize: number }>();
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-  let foldChildren!: HTMLDivElement, foldFollowing!: HTMLDivElement;
+  let foldChildren!: HTMLDivElement, foldFollowing!: HTMLDivElement, foldEditor!: HTMLDivElement;
   let foldFrame = 0;
   let foldAnimations: Animation[] = [];
   let settleFold: (() => void) | undefined;
@@ -593,12 +593,20 @@ function Pane(props: OutlinePaneProps) {
       const revealed = `inset(${top}px 0 ${Math.max(0, size - top - height)}px 0)`;
       const shift = opening ? size - state.beforeSize : height;
       const timing: KeyframeAnimationOptions = { duration, easing: style.getPropertyValue('--motion-ease').trim(), fill: 'both' };
+      const following = opening ? [{ transform: `translateY(${-shift}px)` }, { transform: 'translateY(0)' }]
+        : [{ transform: 'translateY(0)' }, { transform: `translateY(${-shift}px)` }];
       foldAnimations = [
         foldChildren.animate(opening ? [{ clipPath: clipped, opacity: 0 }, { clipPath: revealed, opacity: 1 }]
           : [{ clipPath: revealed, opacity: 1 }, { clipPath: clipped, opacity: 0 }], timing),
-        foldFollowing.animate(opening ? [{ transform: `translateY(${-shift}px)` }, { transform: 'translateY(0)' }]
-          : [{ transform: 'translateY(0)' }, { transform: `translateY(${-shift}px)` }], timing),
+        foldFollowing.animate(following, timing),
       ];
+      // The editor's row stays mounted outside the motion groups; below the subtree its own group moves with them.
+      const active = editing();
+      if (active && state.afterIds.includes(active)) foldAnimations.push(foldEditor.animate(following, timing));
+      // Closing near the end shortens the page, so the browser clamps scrollTop when the rows go. Slide the
+      // page down by that clamp during the motion, or the settled rows snap down a frame after it ends.
+      const clamp = opening ? 0 : Math.max(0, scroll.scrollTop - Math.max(0, scroll.scrollHeight - shift - scroll.clientHeight));
+      if (clamp > 0) for (const child of scroll.children) foldAnimations.push(child.animate([{ transform: 'translateY(0)' }, { transform: `translateY(${clamp}px)` }], timing));
       foldAnimations[0]!.id = 'outline-fold-content';
       foldAnimations[1]!.id = 'outline-fold-following';
       foldAnimations[0]!.onfinish = () => { if (foldMotion() === state) finishFoldMotion(); };
@@ -1057,7 +1065,9 @@ function Pane(props: OutlinePaneProps) {
       <div ref={foldFollowing} class="outline-motion-group" style={{ transform: foldMotion()?.opening ? `translateY(${foldMotion()!.beforeSize - virtualizer.getTotalSize()}px)` : undefined }}>
         <For each={foldGroups().after}>{id => <Row id={id} item={() => virtualItems().get(id)!} />}</For>
       </div>
-      <Show keyed when={editing() && virtualItems().has(editing()!) ? editing() : null}>{id => <Row id={id} item={() => virtualItems().get(id)!} />}</Show>
+      <div ref={foldEditor} class="outline-motion-group" style={{ transform: foldMotion()?.opening && foldMotion()!.afterIds.includes(editing()!) ? `translateY(${foldMotion()!.beforeSize - virtualizer.getTotalSize()}px)` : undefined }}>
+        <Show keyed when={editing() && virtualItems().has(editing()!) ? editing() : null}>{id => <Row id={id} item={() => virtualItems().get(id)!} />}</Show>
+      </div>
     </div>
     <Show when={doc.root()?.source && !zoom() && filedElsewhere().length}><section class="related-sections source-elsewhere" aria-label="Filed elsewhere">
       <h3 class="outline-highlights-label">Filed elsewhere <span>{filedElsewhere().length}</span></h3>
