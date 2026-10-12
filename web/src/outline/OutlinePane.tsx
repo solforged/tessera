@@ -477,6 +477,8 @@ function Pane(props: OutlinePaneProps) {
   /** Structural commands reveal folded destinations before restoring the caret. */
   function revealRow(id: string) {
     if (!doc.block(id)) return;
+    // Settle a deferred closing fold before unfolding, so its completion cannot hide the target again.
+    finishFoldMotion();
     const ancestors: string[] = [];
     for (let child = id, parent = doc.outline.parentOf(id); parent !== child; child = parent, parent = doc.outline.parentOf(parent)) {
       if (folds().has(parent)) ancestors.push(parent);

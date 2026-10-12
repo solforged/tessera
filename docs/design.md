@@ -318,6 +318,7 @@ Dragging starts after a small movement and shows an indented horizontal drop lin
 Edit, Insert below, Copy reference, Open beside and Zoom stay in the first menu. Move, Add or change, Select, and source/citation actions open short secondary menus with Back to block actions. Archive and Delete remain last. Closing or completing an action returns keyboard ownership to the editor or outline.
 
 Clicking the edited row's fold chevron or task checkbox keeps the editor owning the keyboard. Saving or cancelling a page title returns ownership to the outline.
+Structural edits finish any pending fold animation before unfolding and editing their caret target.
 
 ### Bullets and prose
 
