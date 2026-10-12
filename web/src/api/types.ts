@@ -524,6 +524,7 @@ export interface PassageHit { source_id: string; title: string; snapshot_id: str
 export interface LibraryFilters { people: string[]; decades: number[]; publishers: string[]; languages: string[] }
 export interface LibraryQuery extends Partial<LibraryFilters> {
   states?: ReadingState[]; format?: SourceFormat | null; text?: string | null;
+  collection_id?: string | null;
   sort?: 'added' | 'title' | 'author' | 'year' | 'last_read' | 'progress'; direction?: Direction; limit?: number | null;
 }
 export interface LibraryView { id: string; name: string; query: LibraryQuery; revision: number; created_at: number; updated_at: number }

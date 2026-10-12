@@ -3,9 +3,10 @@ import type { LibraryGroup, LibraryViewState } from '../shell/contract';
 import { formatSourceValue } from '../outline/source';
 import type { HighlightSection } from './highlights';
 
-export function libraryQuery(view: Pick<LibraryViewState, 'tab' | 'text' | 'sort' | 'filters'>): LibraryQuery {
+export function libraryQuery(view: Pick<LibraryViewState, 'tab' | 'text' | 'sort' | 'filters' | 'collection'>): LibraryQuery {
   return {
-    states: view.tab === 'all' || view.tab === 'highlights' ? [] : [view.tab],
+    states: view.tab === 'all' || view.tab === 'highlights' || view.tab === 'collections' ? [] : [view.tab],
+    collection_id: view.collection ?? null,
     text: view.text.trim() || null,
     sort: view.sort,
     direction: view.sort === 'title' || view.sort === 'author' ? 'asc' : 'desc',

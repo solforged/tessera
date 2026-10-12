@@ -1,4 +1,5 @@
 import { For, Index, Show, createMemo, createResource, createSignal } from 'solid-js';
+import type { JSX } from 'solid-js';
 import type { Block, ExtractedCreator, ExtractedMetadata } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { Button } from '../ui/Button';
@@ -11,7 +12,7 @@ const detailFields = [['published', 'Published', 'YYYY, YYYY-MM or YYYY-MM-DD'],
 
 /** A catalogue card: one labelled row per detail, creators as name and role pairs. A creator whose name resembles an
  * existing page offers that page, so a variant spelling links to the person already in the notebook. */
-export function DetailsForm(props: { metadata: ExtractedMetadata; notebook: NotebookClient; submitLabel: 'Add' | 'Save'; onSave(metadata: ExtractedMetadata): Promise<void>; onCancel(): void }) {
+export function DetailsForm(props: { metadata: ExtractedMetadata; notebook: NotebookClient; collections?: JSX.Element; submitLabel: 'Add' | 'Save'; onSave(metadata: ExtractedMetadata): Promise<void>; onCancel(): void }) {
   const [value, setValue] = createSignal<ExtractedMetadata>(structuredClone(props.metadata));
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal('');
@@ -74,6 +75,7 @@ export function DetailsForm(props: { metadata: ExtractedMetadata; notebook: Note
     </div></div>
     <For each={detailFields}>{([key, label, placeholder]) => <label class="library-details-row"><span>{label}</span><input class="input" aria-label={label} placeholder={placeholder || undefined} value={value()[key] ?? ''} disabled={busy()} onInput={event => patch(key, event.currentTarget.value)} /></label>}</For>
     <label class="library-details-row"><span>Identifier</span><input class="input" aria-label="Identifier" placeholder="ISBN, DOI or arXiv ID" value={value().identifiers[0] ?? ''} disabled={busy()} onInput={event => setValue(previous => ({ ...previous, identifiers: [event.currentTarget.value, ...previous.identifiers.slice(1)].filter(value => value.trim()) }))} /></label>
+    {props.collections}
     <Show when={error()}><p class="library-error" role="alert">{error()}</p></Show>
     <div class="popup-actions"><Button disabled={busy()} onClick={props.onCancel}>Cancel</Button><Button type="submit" class="bordered" disabled={busy() || !value().title?.trim()}>{props.submitLabel}</Button></div>
   </form>;

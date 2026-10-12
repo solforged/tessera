@@ -15,6 +15,8 @@ import { formatProgress } from '../library/query';
 import { shortSourceTitle } from './source';
 import { DetailsForm } from '../library/DetailsForm';
 import { saveDetails, sourceMetadata } from '../library/details';
+import { CollectionPicker, SourceCollections, createCollectionActions } from '../library/Collections';
+import { changeCollectionMembers, collectionPages, sourceCollections } from '../document/collections';
 import { Popup } from '../ui/Popup';
 import { highlightColors } from '../library/highlights';
 import { sectionLabel } from '../reader/openings';
@@ -48,6 +50,8 @@ export function SourceHeader(props: {
   const marks = createMemo(() => (props.highlights?.rows ?? []).flatMap(row => row.citation.snapshot_id === snapshot()?.id && row.citation.position !== undefined ? [{ at: row.citation.position, color: row.color }] : []));
   const imprint = createMemo(() => [source()?.source.siglum, { epub: 'EPUB', article: 'Article', record: 'Record' }[props.doc.root()!.source!.format], metadata().publisher, metadata().published?.slice(0, 4)].filter(Boolean).join(' · '));
   const [details, setDetails] = createSignal<HTMLElement>();
+  const collectionActions = createCollectionActions();
+  const [collectionPicker, setCollectionPicker] = createSignal<HTMLElement>();
   const [result, setResult] = createSignal('');
   const [busy, setBusy] = createSignal(false);
   const coverMedia = window.matchMedia('(max-width: 599px) and (pointer: coarse)');
@@ -110,11 +114,19 @@ export function SourceHeader(props: {
       downloadBlob(blob, `${props.doc.root()?.source?.citation_key ?? props.doc.pageId}.${exportExtensions[format]}`);
     } catch (error) { fail(error); }
   }
-  function sourceMenu(anchor: HTMLElement) {
+  async function sourceMenu(anchor: HTMLElement) {
+    let collections;
+    try {
+      const [pages, ids] = await Promise.all([collectionPages(props.notebook.api), sourceCollections(props.notebook.api, props.doc.pageId)]);
+      collections = pages.filter(page => ids.includes(page.id));
+    } catch (error) { fail(error); return; }
+    if (!anchor.isConnected) return;
     setMenu({ anchor, label: 'Source actions', items: [
       ...props.resetItems(),
       { label: 'Copy citation key', icon: 'copy', disabledReason: props.doc.root()?.source?.citation_key ? undefined : 'No citation key', action: () => { void navigator.clipboard.writeText(props.doc.root()!.source!.citation_key!).catch(fail); } },
       { label: 'Edit details…', action: () => setDetails(anchor) },
+      { label: 'Add to collection…', action: () => setCollectionPicker(anchor) },
+      ...collections.map(collection => ({ section: 'Collections', label: `Remove from ${collection.text}`, action: () => { void collectionActions.run(`Removed from ${collection.text}`, () => changeCollectionMembers(props.notebook, collection.id, [props.doc.pageId], false)); } })),
       { label: props.fieldsVisible ? 'Hide metadata fields' : 'Show metadata fields', action: () => props.onFieldsVisible(!props.fieldsVisible) },
       { label: 'Replace cover…', action: () => coverInput.click() },
       ...(metadata().identifiers.length ? [{ label: 'Fill missing details', disabledReason: busy() ? 'Looking up…' : undefined, action: () => { void fillMissing(); } }] : []),
@@ -178,9 +190,11 @@ export function SourceHeader(props: {
       if (file) void props.notebook.api.uploadCover(file).then(cover => saveDetails(props.doc, props.notebook, { ...metadata(), cover }, false, true)).catch(fail);
     }} />
     <Show when={result()}><p class="library-message" role="status">{result()}</p></Show>
+    <Show when={!details()}><collectionActions.Notice /></Show>
+    <Show when={collectionPicker()}>{anchor => <CollectionPicker anchor={anchor()} notebook={props.notebook} sourceIds={[props.doc.pageId]} onChanged={collectionActions.record} onDismiss={() => setCollectionPicker(undefined)} />}</Show>
     <Show when={details()}>{anchor => <Popup anchor={anchor()} fitContent label="Edit details" class="library-add" onDismiss={closeDetails}>
       <h2 class="popup-title">Edit details</h2>
-      <DetailsForm metadata={metadata()} notebook={props.notebook} submitLabel="Save" onCancel={closeDetails} onSave={async metadata => { await saveDetails(props.doc, props.notebook, metadata); closeDetails(); }} />
+      <DetailsForm metadata={metadata()} notebook={props.notebook} collections={<SourceCollections notebook={props.notebook} sourceId={props.doc.pageId} actions={collectionActions} />} submitLabel="Save" onCancel={closeDetails} onSave={async metadata => { await saveDetails(props.doc, props.notebook, metadata); closeDetails(); }} />
     </Popup>}</Show>
   </>;
 }

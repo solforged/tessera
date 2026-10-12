@@ -360,6 +360,14 @@ On a touch screen Contents and Highlights open without raising the keyboard; the
 
 A block with a citation shows a citation chip in its capability metadata: the highlight's colour dot (a hollow ring without colour, as in the library and the reader), the source's short title (before any subtitle colon, cut at a word within 40 characters) and the passage number, `¶231`. On the source's own page the chip shows only `¶231` in `--faint` and stays at the end of the block's first line, the text wrapping beside it. Clicking opens the reader at that passage; Shift opens it beside. A block whose text no longer equals the quote shows the quote beneath it in `--muted` with a quotation rule, so a paraphrase or cloze keeps its evidence visible.
 
+### Collections
+
+Collections follows All in the library's mode tabs. Each card fans up to three member covers above the page name and a mono count; New collection creates an ordinary page typed Collection. The first collection adds a Collections Instance field that links to the Collection type, and appends it to the Book and Article templates that exist; a later collection adds it to library types imported since. Membership lives in that field's reference values, so the collection page's backlinks list its sources and ordinary sync carries every edit.
+
+A collection opens the same sorted rows or shelf as All, filtered by its page ID on the service. Its heading offers Open page, Rename and Delete. Multi-selection and source actions offer Add to collection, with a new-collection row in the picker; the metadata form lists the source's collections with add and remove controls. Inside a collection, selected sources can be removed without deleting them. Each action is one revision-checked document commit with a quiet Undo notice; deletion clears membership values in that same commit and leaves the books intact. Touch selection stays visible and reveals the bulk controls.
+
+These are hand-curated collections. A future smart collection can attach a saved library query to the same page, using a SaveLibraryView record keyed by the collection page ID; it need not replace the page or the manual membership field. No saved-query membership is evaluated yet.
+
 ## Perspectives and questions
 
 A concept page holds several attributed readings. Make perspective, in the block menu, the palette and `/perspective`, turns a block such as `[[Plato]]` into a position; Remove perspective undoes it. Its row names the holder in Piazzolla at control weight, the holder link in `--text` with a `--line` underline that turns gilt on hover, and its source's siglum hangs in the margin. A `Gist::` child drops its label and reads as the line under the holder, so the pair reads "Plato / A line of decline". At the Perspectives depth each position closes to its holder and gist.

@@ -334,6 +334,8 @@ pub struct LibraryQuery {
     pub states: Vec<ReadingState>,
     pub format: Option<SourceFormat>,
     pub text: Option<String>,
+    /// A collection page referenced by a source's Collections Instance field.
+    pub collection_id: Option<String>,
     /// Person page IDs; matches any author, editor or translator.
     pub people: Vec<String>,
     /// Exact first Publisher readings.
@@ -352,6 +354,7 @@ impl Default for LibraryQuery {
             states: vec![],
             format: None,
             text: None,
+            collection_id: None,
             people: vec![],
             publishers: vec![],
             decades: vec![],
