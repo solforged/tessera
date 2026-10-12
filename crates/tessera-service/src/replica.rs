@@ -102,6 +102,9 @@ pub struct ReplicaRuntime {
     wake: Arc<Notify>,
     started: AtomicBool,
     abort: Mutex<Option<tokio::task::AbortHandle>>,
+    /// Callers blocked on [`Self::gate`], so a test can wait until both are queued.
+    #[cfg(test)]
+    waiting: std::sync::atomic::AtomicUsize,
 }
 impl Drop for ReplicaRuntime {
     fn drop(&mut self) {
@@ -179,11 +182,13 @@ async fn synchronize(
     changes: broadcast::Sender<i64>,
     runtime: Arc<ReplicaRuntime>,
 ) {
-    let completed = runtime.memory.lock().completed;
+    // Every caller runs one sync after the in-flight one. Dropping a Sync now
+    // that arrived while another sync held the gate left that request undone.
+    #[cfg(test)]
+    runtime.waiting.fetch_add(1, Ordering::SeqCst);
     let guard = runtime.gate.clone().lock_owned().await;
-    if runtime.memory.lock().completed != completed {
-        return;
-    }
+    #[cfg(test)]
+    runtime.waiting.fetch_sub(1, Ordering::SeqCst);
     runtime.memory.lock().syncing = true;
     let result_runtime = runtime.clone();
     let work = tokio::task::spawn_blocking(move || {
@@ -582,5 +587,33 @@ mod tests {
         let events = handles.notebook.lock().changes_since(before, 100).unwrap();
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].seq, receipts[0].seq);
+    }
+
+    #[tokio::test]
+    async fn a_sync_queued_behind_an_in_flight_sync_still_runs() {
+        let dir = tempfile::tempdir().unwrap();
+        let notebook = Arc::new(Mutex::new(Notebook::open(dir.path()).unwrap()));
+        let (changes, _rx) = broadcast::channel(16);
+        let runtime = Arc::new(ReplicaRuntime::default());
+        let hold = runtime.gate.clone().lock_owned().await;
+        let first = tokio::spawn(synchronize(
+            notebook.clone(),
+            changes.clone(),
+            runtime.clone(),
+        ));
+        let second = tokio::spawn(synchronize(notebook, changes, runtime.clone()));
+        while runtime.waiting.load(Ordering::SeqCst) < 2 {
+            tokio::task::yield_now().await;
+        }
+        // Both have entered synchronize; give the scheduler a moment to park
+        // them on the gate before this hold is released.
+        tokio::time::sleep(Duration::from_millis(20)).await;
+        assert_eq!(runtime.memory.lock().completed, 0);
+        drop(hold);
+        first.await.unwrap();
+        second.await.unwrap();
+        assert_eq!(runtime.memory.lock().completed, 2);
+        assert!(runtime.memory.lock().last_error.is_none());
+        assert!(!runtime.memory.lock().syncing);
     }
 }
