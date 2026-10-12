@@ -84,7 +84,7 @@ Everything is written through a temporary service's API. Pass `--replace` to sta
 
 <https://tessera.solforged.io> runs the real notebook engine in the browser. `tessera-core` and the service's notebook and library routes compile to wasm in [`crates/tessera-web`](../crates/tessera-web), then run in a worker over SQLite in the browser's private storage.
 
-The tour seeds Marcus Aurelius' public-domain *Meditations* from Project Gutenberg ([`web/src/demo/meditations.epub`](../web/src/demo/meditations.epub)) for the library and reader. Visitors can upload their own EPUBs. Web articles, backups and service details are omitted.
+A new browser notebook starts with a choice: empty, the tour, or a restored backup. The tour seeds Marcus Aurelius' public-domain *Meditations* from Project Gutenberg ([`web/src/demo/meditations.epub`](../web/src/demo/meditations.epub)) for the library and reader, and shows a notice bar with Start over…. Visitors can upload their own EPUBs, and Settings › Backups downloads and restores the notebook as one file. Web articles, sync and service details are omitted.
 
 ```sh
 mise run demo:build

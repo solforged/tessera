@@ -1,9 +1,11 @@
 import init, * as wasm from './pkg/tessera_web.js';
+import { ulid } from 'ulid';
 import type { Subscription } from './pkg/tessera_web.js';
-import type { Fields, IngestJob, NotebookInfo, PageView, Passage, PassagePage, SettingsView } from '../api/types';
+import type { Fields, IngestJob, NotebookInfo, Operation, PageView, Passage, PassagePage, SettingsView } from '../api/types';
 import type { FailureCode, FromWorker, ToWorker } from './protocol';
 import { bookHighlights, locateHighlights, seedBatch } from './seed';
 import type { SeedBook } from './seed';
+import type { UpgradeCopy } from './notebook';
 import bookUrl from './meditations.epub?url';
 
 const scope = self as unknown as {
@@ -68,12 +70,17 @@ async function ingestBook(): Promise<SeedBook | undefined> {
   }
 }
 
+async function timeZoneSetting(): Promise<Operation> {
+  const settings = await json<SettingsView>('GET', '/api/settings');
+  return { op: 'set_setting', key: 'time_zone', base_revision: settings.settings.find(value => value.key === 'time_zone')?.revision ?? null, value: Intl.DateTimeFormat().resolvedOptions().timeZone };
+}
+
 async function seed(): Promise<void> {
   const book = await ingestBook();
   const fields = await json<Fields>('GET', '/api/fields');
-  const settings = await json<SettingsView>('GET', '/api/settings');
+  const timeZone = await timeZoneSetting();
   const batch = seedBatch(fields.page_id, undefined, book);
-  batch.operations.unshift({ op: 'set_setting', key: 'time_zone', base_revision: settings.settings.find(value => value.key === 'time_zone')?.revision ?? null, value: Intl.DateTimeFormat().resolvedOptions().timeZone });
+  batch.operations.unshift(timeZone);
   await json('POST', '/api/batches', batch);
 }
 
@@ -82,11 +89,17 @@ const boot = (async () => {
     throw new Error('unsupported: This browser does not support the private file storage Tessera needs (OPFS). Try a recent version of Chrome, Edge, Firefox or Safari.');
   }
   await init();
-  await wasm.open();
-  if (wasm.is_empty()) await seed();
-  send({ type: 'ready', info: await json<NotebookInfo>('GET', '/api/notebook') });
+  const info = JSON.parse(await wasm.open()) as NotebookInfo;
+  const settings = await json<SettingsView>('GET', '/api/settings');
+  const fresh = wasm.is_empty() && !settings.settings.some(value => value.key === 'time_zone');
+  send({ type: 'ready', info, fresh });
 })();
 void boot.catch(failed);
+
+function closeSubscriptions(): void {
+  for (const subscription of subscriptions.values()) { subscription.close(); subscription.free(); }
+  subscriptions.clear();
+}
 
 async function receive(message: ToWorker): Promise<void> {
   await boot;
@@ -111,11 +124,32 @@ async function receive(message: ToWorker): Promise<void> {
       send({ id: message.id, type: 'done' });
       break;
     }
+    case 'start':
+      if (message.kind === 'tour') await seed();
+      else await json('POST', '/api/batches', { actor: { kind: 'client', name: 'Tessera' }, idempotency_key: ulid(), operations: [await timeZoneSetting()] });
+      send({ id: message.id, type: 'done' });
+      break;
+    case 'export':
+    case 'export-upgrade-copy': {
+      const body = (message.type === 'export' ? wasm.export_notebook() : wasm.export_upgrade_copy()).buffer as ArrayBuffer;
+      send({ id: message.id, type: 'bytes', body }, [body]);
+      break;
+    }
+    case 'upgrade-copy': {
+      const copy = wasm.upgrade_copy();
+      send({ id: message.id, type: 'upgrade-copy', copy: copy === undefined ? null : JSON.parse(copy) as UpgradeCopy });
+      break;
+    }
+    case 'restore':
+    case 'restore-upgrade-copy': {
+      closeSubscriptions();
+      const info = JSON.parse(await (message.type === 'restore' ? wasm.restore_notebook(new Uint8Array(message.body)) : wasm.restore_upgrade_copy())) as NotebookInfo;
+      send({ id: message.id, type: 'restored', info });
+      break;
+    }
     case 'reset':
-      for (const subscription of subscriptions.values()) { subscription.close(); subscription.free(); }
-      subscriptions.clear();
+      closeSubscriptions();
       await wasm.reset();
-      await seed();
       send({ id: message.id, type: 'done' });
       break;
   }
@@ -129,6 +163,9 @@ scope.onmessage = event => {
     if (message.type === 'request') {
       const body = encoder.encode(JSON.stringify({ error: { code: 'internal', message: reason instanceof Error ? reason.message : String(reason) } })).buffer;
       send({ id: message.id, type: 'response', status: 500, contentType: 'application/json', body }, [body]);
-    } else failed(reason);
+    } else {
+      const text = reason instanceof Error ? reason.message : String(reason);
+      send({ id: message.id, type: 'error', code: text.startsWith('invalid:') ? 'invalid' : 'internal', message: text.replace(/^(invalid|internal):\s*/, '') });
+    }
   });
 };

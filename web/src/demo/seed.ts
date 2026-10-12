@@ -51,7 +51,7 @@ export function seedBatch(fieldsPage: string, today = localToday(), book?: SeedB
 
   insert(welcome, 'A notebook to think in', 1);
   insert(welcome, 'Welcome! This is the real Tessera editor and notebook engine, running entirely in your browser. No account, server notebook or cloud sync is involved.');
-  insert(welcome, 'Your changes stay in this browser on this device. Clearing site data removes them. Keep one Tessera demo tab open at a time; Reset demo restores this tour.');
+  insert(welcome, 'Your notebook stays in this browser on this device, and clearing site data removes it. Keep one Tessera tab open at a time. Settings › Backups downloads a copy, restores one or starts over.');
   const outline = insert(welcome, 'Make room for a thought', 2);
   insert(outline, 'Click a block to edit it. Enter makes another block; Tab nests it and Shift+Tab brings it back out.');
   insert(outline, 'Try undo and redo, fold a branch, or open a linked page beside this one with Shift+click.');
@@ -60,7 +60,7 @@ export function seedBatch(fieldsPage: string, today = localToday(), book?: SeedB
   insert(welcome, book
     ? `Open ${link(book.id, 'Meditations')} by Marcus Aurelius and choose Read. A few passages are already highlighted; select another to highlight it, then turn it into a note or a card. Library lists your sources and highlights; add an EPUB of your own there.`
     : 'Library lists your sources and opens them in the reader; add an EPUB there to highlight passages and turn them into notes or cards.');
-  insert(welcome, 'The installed app also saves web articles and makes backups. Those are not part of this local browser demo.');
+  insert(welcome, 'The installed app also saves web articles and syncs between a Mac and a phone. This browser version does neither.');
   if (book) {
     // The reader's highlight: the quote as a block at the end of the source page, citing its passage range.
     if (book.after) lastChild.set(book.id, book.after);

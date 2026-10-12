@@ -34,7 +34,8 @@ describe('browser demo transport', () => {
     const { worker, transport } = fixture();
     const first = transport.fetch('/api/roots?limit=5', {});
     expect(worker.messages).toHaveLength(0);
-    worker.receive({ type: 'ready', info });
+    worker.receive({ type: 'ready', info, fresh: true });
+    expect(await transport.ready).toEqual({ info, fresh: true });
     await worker.until(1);
     const request = worker.messages[0]!;
     expect(request).toMatchObject({ type: 'request', method: 'GET', path: '/api/roots?limit=5', body: null });
@@ -56,7 +57,7 @@ describe('browser demo transport', () => {
   });
 
   test('empty-body statuses build valid real Responses', async () => {
-    const { worker, transport } = fixture(); worker.receive({ type: 'ready', info });
+    const { worker, transport } = fixture(); worker.receive({ type: 'ready', info, fresh: false });
     const pending = transport.fetch('/api/example', { method: 'POST' });
     await worker.until(1);
     worker.receive({ id: worker.messages[0]!.id, type: 'response', status: 204, contentType: '', body: new ArrayBuffer(0) });
@@ -68,7 +69,7 @@ describe('browser demo transport', () => {
     const pending = transport.fetch('/api/roots', { signal: controller.signal });
     controller.abort();
     await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
-    worker.receive({ type: 'ready', info }); await transport.ready;
+    worker.receive({ type: 'ready', info, fresh: false }); await transport.ready;
     expect(worker.messages).toHaveLength(0); transport.dispose();
   });
 
@@ -77,7 +78,7 @@ describe('browser demo transport', () => {
     const socket = transport.stream(7); const events: string[] = [];
     socket.onopen = () => events.push('open'); socket.onmessage = event => events.push(event.data); socket.onclose = () => events.push('close');
     expect(socket.readyState).toBe(CHANGE_CONNECTING);
-    worker.receive({ type: 'ready', info }); await worker.until(1);
+    worker.receive({ type: 'ready', info, fresh: false }); await worker.until(1);
     const subscribe = worker.messages[0]!;
     expect(subscribe).toMatchObject({ type: 'subscribe', after: 7 });
     worker.receive({ id: subscribe.id, type: 'done' });
@@ -91,7 +92,7 @@ describe('browser demo transport', () => {
   });
 
   test('closing a stream before its open acknowledgement still releases the subscription', async () => {
-    const { worker, transport } = fixture(); worker.receive({ type: 'ready', info });
+    const { worker, transport } = fixture(); worker.receive({ type: 'ready', info, fresh: false });
     const socket = transport.stream(0); await worker.until(1); socket.close(); await worker.until(2);
     expect(worker.messages.map(message => message.type)).toEqual(['subscribe', 'unsubscribe']); transport.dispose();
   });
@@ -104,8 +105,31 @@ describe('browser demo transport', () => {
     await expect(transport.ready).rejects.toMatchObject({ code: 'locked' }); transport.dispose();
   });
 
+  test('an invalid restore rejects only its call and leaves other requests and streams usable', async () => {
+    const { worker, transport } = fixture(); worker.receive({ type: 'ready', info, fresh: false });
+    const socket = transport.stream(0); await worker.until(1);
+    worker.receive({ id: worker.messages[0]!.id, type: 'done' });
+    const bytes = new TextEncoder().encode('not a notebook').buffer;
+    const restoring = transport.restore(bytes);
+    const exporting = transport.exportNotebook();
+    await worker.until(3);
+    expect(worker.messages[1]).toMatchObject({ type: 'restore', body: bytes });
+    expect(worker.transfers[1]).toEqual([bytes]);
+    worker.receive({ id: worker.messages[1]!.id, type: 'error', code: 'invalid', message: 'This file is not a Tessera backup.' });
+    await expect(restoring).rejects.toBeInstanceOf(DemoFailure);
+    await expect(restoring).rejects.toMatchObject({ code: 'invalid', message: 'This file is not a Tessera backup.' });
+    expect(socket.readyState).toBe(CHANGE_OPEN);
+    const backup = new ArrayBuffer(32);
+    worker.receive({ id: worker.messages[2]!.id, type: 'bytes', body: backup });
+    expect(await exporting).toBe(backup);
+    const starting = transport.start('empty'); await worker.until(4);
+    worker.receive({ id: worker.messages[3]!.id, type: 'done' });
+    await starting;
+    transport.dispose();
+  });
+
   test('reset waits for the worker to finish before returning', async () => {
-    const { worker, transport } = fixture(); worker.receive({ type: 'ready', info });
+    const { worker, transport } = fixture(); worker.receive({ type: 'ready', info, fresh: false });
     const pending = transport.reset(); await worker.until(1);
     expect(worker.messages[0]?.type).toBe('reset');
     worker.receive({ id: worker.messages[0]!.id, type: 'done' });

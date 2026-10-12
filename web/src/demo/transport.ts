@@ -3,18 +3,21 @@ import { CHANGE_CLOSED, CHANGE_CLOSING, CHANGE_CONNECTING, CHANGE_OPEN } from '.
 import type { ChangeSocket, Transport } from '../api/client';
 import type { NotebookInfo } from '../api/types';
 import type { FailureCode, FromWorker, ToWorker } from './protocol';
+import type { UpgradeCopy } from './notebook';
+
+type Reply = Extract<FromWorker, { type: 'response' | 'done' | 'bytes' | 'restored' | 'upgrade-copy' }>;
 
 export class DemoFailure extends Error {
   constructor(readonly code: FailureCode, message: string) { super(message); this.name = 'DemoFailure'; }
 }
 interface Pending {
-  resolve(message: Extract<FromWorker, { type: 'response' | 'done' }>): void;
+  resolve(message: Reply): void;
   reject(reason: unknown): void;
   cleanup(): void;
 }
 
 export class DemoTransport {
-  private startup = Promise.withResolvers<NotebookInfo>();
+  private startup = Promise.withResolvers<{ info: NotebookInfo; fresh: boolean }>();
   readonly ready = this.startup.promise;
   private failure?: DemoFailure;
   private nextId = 0;
@@ -38,9 +41,22 @@ export class DemoTransport {
 
   private receive(message: FromWorker): void {
     switch (message.type) {
-      case 'ready': this.startup.resolve(message.info); break;
+      case 'ready': this.startup.resolve({ info: message.info, fresh: message.fresh }); break;
       case 'failed': this.fail(new DemoFailure(message.code, message.message)); break;
       case 'change': this.sockets.get(message.id)?.message(message.event); break;
+      case 'error': {
+        const pending = this.pending.get(message.id);
+        if (pending) {
+          this.pending.delete(message.id); pending.cleanup();
+          pending.reject(new DemoFailure(message.code, message.message));
+        } else {
+          this.sockets.get(message.id)?.fail(); this.sockets.delete(message.id);
+        }
+        break;
+      }
+      case 'bytes':
+      case 'restored':
+      case 'upgrade-copy':
       case 'done':
       case 'response': {
         const pending = this.pending.get(message.id);
@@ -51,8 +67,8 @@ export class DemoTransport {
     }
   }
 
-  private exchange(message: ToWorker, transfer: Transferable[] = [], signal?: AbortSignal): Promise<Extract<FromWorker, { type: 'response' | 'done' }>> {
-    const { promise, resolve, reject } = Promise.withResolvers<Extract<FromWorker, { type: 'response' | 'done' }>>();
+  private exchange(message: ToWorker, transfer: Transferable[] = [], signal?: AbortSignal): Promise<Reply> {
+    const { promise, resolve, reject } = Promise.withResolvers<Reply>();
     const abort = () => {
       this.pending.delete(message.id); signal?.removeEventListener('abort', abort);
       reject(signal?.reason ?? new DOMException('The request was aborted.', 'AbortError'));
@@ -96,6 +112,42 @@ export class DemoTransport {
     }).catch(() => { socket.fail(); this.sockets.delete(id); });
     return socket;
   };
+
+  async start(kind: 'empty' | 'tour'): Promise<void> {
+    const message = await this.exchange({ id: ++this.nextId, type: 'start', kind });
+    if (message.type !== 'done') throw new Error('The notebook worker did not return a response.');
+  }
+
+  async exportNotebook(): Promise<ArrayBuffer> {
+    const message = await this.exchange({ id: ++this.nextId, type: 'export' });
+    if (message.type !== 'bytes') throw new Error('The notebook worker did not return a response.');
+    return message.body;
+  }
+
+  async upgradeCopy(): Promise<UpgradeCopy | null> {
+    const message = await this.exchange({ id: ++this.nextId, type: 'upgrade-copy' });
+    if (message.type !== 'upgrade-copy') throw new Error('The notebook worker did not return a response.');
+    return message.copy;
+  }
+
+  async exportUpgradeCopy(): Promise<ArrayBuffer> {
+    const message = await this.exchange({ id: ++this.nextId, type: 'export-upgrade-copy' });
+    if (message.type !== 'bytes') throw new Error('The notebook worker did not return a response.');
+    return message.body;
+  }
+
+  /** Transfers ownership of the backup's bytes to the worker. */
+  async restore(body: ArrayBuffer): Promise<NotebookInfo> {
+    const message = await this.exchange({ id: ++this.nextId, type: 'restore', body }, [body]);
+    if (message.type !== 'restored') throw new Error('The notebook worker did not return a response.');
+    return message.info;
+  }
+
+  async restoreUpgradeCopy(): Promise<NotebookInfo> {
+    const message = await this.exchange({ id: ++this.nextId, type: 'restore-upgrade-copy' });
+    if (message.type !== 'restored') throw new Error('The notebook worker did not return a response.');
+    return message.info;
+  }
 
   async reset(): Promise<void> {
     const message = await this.exchange({ id: ++this.nextId, type: 'reset' });

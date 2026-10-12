@@ -1,0 +1,96 @@
+import { Show, createResource, createSignal } from 'solid-js';
+import type { JSX } from 'solid-js';
+import { browserNotebook } from '../demo/notebook';
+import { localToday } from '../demo/seed';
+import { size } from '../sync/state';
+import { Button } from '../ui/Button';
+
+type Confirmation = { kind: 'file'; file: File } | { kind: 'upgrade' | 'reset' };
+const lastBackupKey = 'tessera.browser.lastBackup';
+
+export function BrowserBackups(props: { id: string; heading: JSX.Element; when(value: number): string; onError(message: string): void }) {
+  const [working, setWorking] = createSignal<'notebook' | 'upgrade' | 'replace' | null>(null);
+  const [confirm, setConfirm] = createSignal<Confirmation | null>(null);
+  const [lastBackup, setLastBackup] = createSignal(Number(localStorage.getItem(lastBackupKey)) || null);
+  const [copy] = createResource(async () => {
+    try { return await browserNotebook.upgradeCopy(); }
+    catch (reason) { props.onError(reason instanceof Error ? reason.message : String(reason)); return null; }
+  });
+  const busy = () => working() !== null || copy.loading;
+  let picker!: HTMLInputElement;
+  const download = async (upgrade: boolean) => {
+    if (busy()) return;
+    setWorking(upgrade ? 'upgrade' : 'notebook'); setConfirm(null); props.onError('');
+    try {
+      const bytes = await (upgrade ? browserNotebook.exportUpgradeCopy() : browserNotebook.exportNotebook());
+      const url = URL.createObjectURL(new Blob([bytes], { type: 'application/vnd.sqlite3' }));
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `${upgrade ? 'tessera-before-upgrade' : 'tessera'}-${localToday()}.sqlite`;
+      document.body.append(anchor);
+      try {
+        anchor.click();
+        if (!upgrade) {
+          const now = Date.now(); localStorage.setItem(lastBackupKey, String(now)); setLastBackup(now);
+        }
+      } finally {
+        anchor.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 0);
+      }
+    } catch (reason) { props.onError(reason instanceof Error ? reason.message : String(reason)); }
+    finally { setWorking(null); }
+  };
+  const replace = async () => {
+    const action = confirm();
+    if (busy() || !action) return;
+    setWorking('replace'); props.onError('');
+    try {
+      if (action.kind === 'file') await browserNotebook.restore(action.file);
+      else if (action.kind === 'upgrade') await browserNotebook.restoreUpgradeCopy();
+      else await browserNotebook.reset();
+    } catch (reason) { props.onError(reason instanceof Error ? reason.message : String(reason)); }
+    finally { setWorking(null); }
+  };
+  const confirmation = () => <>
+    <Button disabled={busy()} onClick={() => setConfirm(null)}>Cancel</Button>
+    <Button class="bordered danger" disabled={busy()} onClick={() => { void replace(); }}>Confirm</Button>
+  </>;
+  const restoreQuestion = () => {
+    const action = confirm();
+    return action?.kind === 'file' ? `Replace this notebook with ${action.file.name}?` : 'Replaces this notebook with one from a file. Download a backup first to keep this one.';
+  };
+  return <section id={props.id} aria-labelledby={`${props.id}-heading`} aria-busy={busy()}>
+    {props.heading}
+    <div class="settings-row">
+      <div class="settings-label"><span class="settings-name">Notebook file</span>
+        <p>One file with every page, card and book. Keep it somewhere outside this browser.</p>
+        <p class="settings-mono" role="status">{lastBackup() ? `Last downloaded ${props.when(lastBackup()!)}` : 'Not downloaded yet.'}</p>
+      </div>
+      <Button class="bordered" disabled={busy()} onClick={() => { void download(false); }}>{working() === 'notebook' ? 'Preparing…' : 'Download'}</Button>
+    </div>
+    <div class="settings-row">
+      <div class="settings-label"><span class="settings-name">Restore a backup</span><p>{restoreQuestion()}</p></div>
+      <span class="settings-backup-actions"><Show when={confirm()?.kind === 'file'} fallback={<Button class="bordered" disabled={busy()} onClick={() => picker.click()}>Restore…</Button>}>{confirmation()}</Show></span>
+      <input ref={picker} type="file" hidden disabled={busy()} onChange={event => {
+        const file = event.currentTarget.files?.[0]; event.currentTarget.value = '';
+        if (file) { props.onError(''); setConfirm({ kind: 'file', file }); }
+      }} />
+    </div>
+    <Show when={copy()}>{value => <div class="settings-row">
+      <div class="settings-label"><span class="settings-name">Before the last upgrade</span>
+        <p>{confirm()?.kind === 'upgrade' ? 'Replace this notebook with the copy from before the upgrade?' : 'Tessera saved this copy before it upgraded the notebook to a newer format.'}</p>
+        <p class="settings-mono">schema {value().schema_version} · {props.when(value().created_at)} · {size(value().size)}</p>
+      </div>
+      <span class="settings-backup-actions"><Show when={confirm()?.kind === 'upgrade'} fallback={<>
+        <Button class="bordered" disabled={busy()} onClick={() => { void download(true); }}>{working() === 'upgrade' ? 'Preparing…' : 'Download'}</Button>
+        <Button class="bordered" disabled={busy()} onClick={() => { props.onError(''); setConfirm({ kind: 'upgrade' }); }}>Restore…</Button>
+      </>}>{confirmation()}</Show></span>
+    </div>}</Show>
+    <div class="settings-row">
+      <div class="settings-label"><span class="settings-name">Start over</span>
+        <p>{confirm()?.kind === 'reset' ? 'Erase this notebook? Download a backup first to keep it.' : 'Erases the notebook in this browser and returns to the first-run choice.'}</p>
+      </div>
+      <span class="settings-backup-actions"><Show when={confirm()?.kind === 'reset'} fallback={<Button class="bordered danger" disabled={busy()} onClick={() => { props.onError(''); setConfirm({ kind: 'reset' }); }}>Start over…</Button>}>{confirmation()}</Show></span>
+    </div>
+  </section>;
+}

@@ -177,11 +177,13 @@ A stale operation fails without writing. Clean remote changes merge into the loc
 
 ## Why not the alternatives
 
-- **WASM with SQLite in the browser:** origin-private notebook storage is out of reach of the CLI, agents and ordinary backups. The public browser demo uses it because a demo needs no durability beyond one browser.
+- **WASM with SQLite in the browser:** origin-private notebook storage is out of reach of the CLI, agents and ordinary backups. The browser build uses it with its own backups: Settings › Backups downloads the notebook as one SQLite file and restores one.
 
   `crates/tessera-web` runs `tessera-core` and the service's notebook and library routers in a worker over the OPFS SQLite pool. The editor uses a swappable transport in `web/src/api/client.ts`.
 
   There is no `objects/` directory: source objects are rows in the same database's `browser_objects` table. Uploads are ingested inline before the request returns. Article URLs are not offered because the worker cannot fetch other origins.
+
+  A restore writes the file to a staging notebook, validates and migrates it there, and only then replaces the live database; opening finishes a restore that was cut off. Before a schema upgrade, opening keeps one copy of the old notebook. `sqlite-wasm-vfs` is vendored with a fix that lets SQLite roll back a hot journal left by a browser killed mid-save.
 
   On macOS, build with `AR_wasm32_unknown_unknown` pointing at rustup's `llvm-ar`; Apple's `ar` cannot index the bundled SQLite.
 - **React:** the larger ecosystem, but its list reconciliation added about 7 ms per structural edit at 10,000 mounted rows in spike 2, against about 1 ms for Solid, for the same correctness.

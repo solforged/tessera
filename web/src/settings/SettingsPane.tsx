@@ -1,7 +1,7 @@
 import { For, Show, createEffect, createMemo, createResource, createSignal, onMount } from 'solid-js';
 import type { JSX } from 'solid-js';
 import { api } from '../api/client';
-import { ANDROID, EMBEDDED } from '../demo/mode';
+import { ANDROID, DEMO, EMBEDDED } from '../demo/mode';
 import type { NotebookClient } from '../document/contract';
 import type { OpenTarget, PaneId, SettingsViewState } from '../shell/contract';
 import { Button } from '../ui/Button';
@@ -11,6 +11,7 @@ import { setThemePreference, themePreference } from '../shell/theme';
 import { size, sync } from '../sync/state';
 import { backupLabel } from './backup';
 import { HubDevices, PhoneDevices } from './DevicesSection';
+import { BrowserBackups } from './BrowserBackups';
 import { forgetNotebook, knownNotebooks, loadNotebooks, notebookLabel, notebookOpening, openNotebook } from './notebooks';
 import './settings.css';
 import './devices.css';
@@ -90,6 +91,7 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
   const [deviceCount, setDeviceCount] = createSignal(0);
   const sections = createMemo(() => [
     { key: 'preferences', label: 'Preferences', count: 0 },
+    ...(DEMO && !ANDROID ? [{ key: 'backups', label: 'Backups', count: 0 }] : []),
     ...(EMBEDDED ? [] : [{ key: 'notebooks', label: 'Notebooks', count: knownNotebooks()?.notebooks.length ?? 0 }, { key: 'backups', label: 'Backups', count: backups()?.length ?? 0 }]),
     ...(devices ? [{ key: 'devices', label: 'Devices', count: deviceCount() }] : []),
     { key: 'agent-changes', label: 'Agent changes', count: agentChanges()?.length ?? 0 },
@@ -205,6 +207,7 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
             <span class="settings-aside">In the reader</span>
           </div>
         </section>
+        {DEMO && !ANDROID && <BrowserBackups id={sectionId('backups')} heading={heading(number('backups'), 'backups', 'Backups')} when={when} onError={setError} />}
         {!EMBEDDED && <section id={sectionId('notebooks')} aria-labelledby={`${sectionId('notebooks')}-heading`} aria-busy={notebookOpening() !== null}>
           {heading(number('notebooks'), 'notebooks', 'Notebooks')}
           <For each={knownNotebooks()?.notebooks}>{entry => <div class="settings-row notebooks-entry" data-current={entry.current ? '' : undefined}>

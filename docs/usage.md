@@ -45,7 +45,7 @@ Opening an EPUB from Finder imports it into the notebook and shows the Library. 
 
 ## Android app
 
-[`crates/tessera-android`](../crates/tessera-android) is a Tauri 2 app for Android phones and foldables. Its notebook lives in private app storage; pages reach it over Tauri's IPC, with no listening port. A paired phone copies the Mac's notebook and syncs with it. An unpaired phone keeps a notebook of its own. Web articles, backups and service details are omitted, as in the [browser demo](contributing.md#browser-demo).
+[`crates/tessera-android`](../crates/tessera-android) is a Tauri 2 app for Android phones and foldables. Its notebook lives in private app storage; pages reach it over Tauri's IPC, with no listening port. A paired phone copies the Mac's notebook and syncs with it. An unpaired phone keeps a notebook of its own. Web articles, backups and service details are omitted.
 
 ### Import and capture
 

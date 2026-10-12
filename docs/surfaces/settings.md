@@ -13,7 +13,7 @@ On panes 1096 px and wider, an index of the sections sits left of the measure, a
 Sections head with a rubric numeral, a Piazzolla name and a hairline rule, in this order:
 
 1. Preferences.
-2. Notebooks and Backups, neither in the embedded demo or on the phone.
+2. Notebooks and Backups on the Mac; only Backups in the browser build; neither on the phone.
 3. Devices.
 4. Agent changes.
 5. About.
@@ -49,6 +49,19 @@ Backups shows Back up now, the latest backup's time under the label, and the bac
 Delete opens an inline Delete? confirmation with Cancel and Confirm; deleting a backup cannot be undone. When more than ten exist, Delete older backups offers an inline confirmation stating the count to delete and space to free, then keeps the latest ten. The newest backup is always kept as a restore point.
 
 Backup actions disable together while working, refresh the list when complete, and report failures in Settings' error slot.
+
+## Backups in the browser
+
+The browser build keeps one notebook in the browser's private storage, so its Backups section moves files in and out instead of listing backups:
+
+| Row | Contents |
+| --- | --- |
+| Notebook file | Download saves `tessera-YYYY-MM-DD.sqlite`, one file with every page, card and book. A mono line gives the last download on this device, or Not downloaded yet. |
+| Restore a backup | Restore… picks a file, then asks `Replace this notebook with <file name>?` inline. |
+| Before the last upgrade | Only while a copy exists: schema, date and size in mono, with Download and Restore…. |
+| Start over | Start over… asks `Erase this notebook? Download a backup first to keep it.` inline, then returns to the first-run choice. |
+
+Restore and Start over cover the window while they work, then reload. A file that cannot be restored says why (not a Tessera backup, from a newer version, damaged, or with its books outside it) and leaves the notebook as it was.
 
 ## Mac devices
 
