@@ -247,9 +247,10 @@ function Pane(props: OutlinePaneProps) {
     ([source_id]) => props.notebook.api.highlights({ source_id, limit: 100000 }));
   const [sourceHeaderReady, setSourceHeaderReady] = createSignal(false);
   // Mount the designed structure for measurement, but reveal it and its portaled dock together.
-  // Keep settled resources visible during background refreshes.
-  const sourceReady = () => !doc.root()?.source || sourceHeaderReady()
-    && !!(fields() || fields.error) && (!!zoom() || !!(sourceHighlights() || sourceHighlights.error));
+  // Keep settled resources visible during background refreshes, and paint nothing before the first load:
+  // the title's "Loading…" placeholder otherwise flashes for a frame on every page open.
+  const sourceReady = () => doc.status() !== 'loading' && (!doc.root()?.source || sourceHeaderReady()
+    && !!(fields() || fields.error) && (!!zoom() || !!(sourceHighlights() || sourceHighlights.error)));
   const filedElsewhere = createMemo(() => (sourceHighlights()?.rows ?? []).filter(row => row.block.page.id !== props.pageId && (!sourceColors().length || !!row.color && sourceColors().includes(row.color)))
     .sort((a, b) => a.citation.ordinal - b.citation.ordinal || a.citation.start.offset - b.citation.start.offset));
   const sourceDetails = createMemo(() => {
