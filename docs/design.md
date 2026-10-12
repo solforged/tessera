@@ -359,25 +359,45 @@ Type pills follow the text at meta size. Clicking a pill opens a menu: open the 
 
 [Field entries](surfaces/fields-tables.md) are children rendered with a field icon and muted name; editing one shows the name as an atomic widget, never the reference ID. Values are ordinary child blocks.
 
-A field whose values are all leaves shows them as aligned rows: the field icon takes the bullet slot, the name sits in a 144 px muted column beside the first value, and later values follow in the same column with the name left blank. Clicking the name edits the entry, which then shows as two levels; so do fields whose values have children.
+A field whose values are all leaves shows them as aligned rows: the field icon takes the bullet slot, the name sits in a 168 px muted column beside the first value (120 px below 600 px), and later values follow in the same column with the name left blank. A name that does not fit wraps to a second line between words. Fields whose values have children, and an entry being edited, show as two levels.
 
-- An entry with no value shows its name and Empty, which adds a value and edits it. A blank value reads Empty in `--faint`.
+- Clicking a name opens its field menu: Open field page, Kind (which opens the change preview on the field page), Options… or Links to…, Hide, Add to or Remove from each of the owner's type templates, and Remove from this note. The block menu's Field section and the leader key `f` open the same menu.
+- An entry with no value shows its name and a blank value; clicking the blank adds a value and edits it. Blank values show no text.
 - Backspace at the start of the first inline value does nothing; at the start of a later one it joins the value above.
 - A page that opens on a field selects its value row instead of editing.
-- Choice and instance values render as pills outside editing, and a checkbox value is a control that writes `yes` or `no`; other spellings stay text. Pills and their editors use the same meta line height and text insets so wrapped values keep their row height.
-- An inline field's label edits its value, caret at the end, and the field stays on one line. ← on a selected inline value selects the field entry itself; Enter then edits its name.
+- ← on a selected inline value selects the field entry itself; Enter then edits its name.
 
-### Field sheet
+Each kind has its own value editor, the same in outlines and tables:
 
-Selecting or editing a block or page, or one of its fields, shows its sheet under its last visible field row: a slot for each template field it lacks, in template order, then Add field. A page with no visible field rows shows its slots below the heading. Slots share the field labels' edge, sit on the canvas outside the row's hover and selection, and appear and leave without moving the rows above them.
+| Kind | Click | Shift-click |
+|---|---|---|
+| Choice | The pill opens its options: type to filter, Create option for a new name, Clear | Opens the option beside |
+| Instance | The pill opens its page; the blank space after it, or Enter on the selected value, opens a picker of the target types | Opens the page beside |
+| Date | Opens the date picker at the value; a year or year-month can still be typed | |
+| Checkbox | A control that writes `yes` or `no`; other spellings stay text | |
+| Text, number, URL, identifier | Edits the text | |
 
-Inserting or removing a value transfers its sheet and measured height in one layout update, without briefly shrinking or growing the scrollable page.
+Choice and instance values never show their reference text. Their pills sit centred on the label's line. Insert below (`o`, or the block menu) on a choice or instance value adds a blank value and opens its picker. Leaving a blank value that is not the entry's first removes it. A value its kind cannot read keeps its text with the tables' dotted `--warning` underline and the problem in its tooltip; identifiers and target constraints are checked only in tables and on field pages.
 
-A slot adds the entry with a blank value and edits it, offering the options of a choice, the date picker for a date and page completion for an instance; a checkbox slot adds a ticked value.
+### Field area
+
+Every block or page with field entries or template fields shows them in a field area that does not depend on selection: its entries, then a slot for each template field it lacks, in template order. Selecting, editing or clicking elsewhere never adds or removes its rows. A page with no visible field rows shows its slots below the heading.
+
+- On a page, an Add field line closes the area at label size, followed by a small gap before the notes.
+- On a nested block, `+ Field` appears at the end of its last field row while the block or one of its fields is hovered, selected or edited, without changing any row's height.
+- A page or block without fields adds one from Add field… in its page or block menu, or with `Name::`.
+
+Slots read as suggestions: the name in `--faint` and no value text. Slots share the field labels' edge and sit on the canvas outside the row's hover and selection. A slot adds the entry with a blank value and opens its kind's editor; a checkbox slot adds a ticked value.
 
 Add field opens a picker with the missing template fields under Template, then the rest, and Create field for a new name. A template field takes its template place among the entries; another follows the last entry. Each addition is one undo step.
 
-Below 600 px the slots use the same narrow label column as filled entries, and the selected row's fold and menu stay before the sheet rather than wrapping underneath it.
+A definition's Hide setting (Never, When empty, Always; see the [domain model](domain-model.md#types-and-fields)) leaves its entries and slots out of outlines. An entry stays while it or one of its values is edited or selected. The area then counts `N hidden`, which reveals that owner's hidden fields in this pane.
+
+Hide and template changes from the field menu belong to the field and the type rather than the note, so they offer the Undo toast instead of joining the page's undo history.
+
+Inserting or removing a value transfers its area and measured height in one layout update, without briefly shrinking or growing the scrollable page.
+
+Below 600 px the slots use the same label column as filled entries, and the selected row's fold and menu stay before the area rather than wrapping underneath it.
 
 ### Capability metadata
 

@@ -16,7 +16,7 @@ Fields opens a searchable register with Name, Kind, Used by and Templates column
 | Enter or double-click | Always opens the field page. |
 | Arrow keys | Move the selection. |
 
-The inspector shows the name, Open page, the kind, a Reading line for dates, the first owners with their values and problems in rubric, and the templates that use the field.
+The inspector shows the name, Open page, the kind, Hide, a Reading line for dates, the first owners with their values and problems in rubric, and the templates that use the field.
 
 - Template pills open their type table.
 - Kind reads as muted text and shows its menu chevron on row hover or focus.
@@ -30,7 +30,7 @@ Filtering the index does not change definitions; an empty result offers Clear fi
 
 ## Field pages
 
-A field page is a specimen sheet on the outline measure, crumbed `Fields / Name`. Under the Piazzolla name sit a mono summary (`Choice · 7 owners · 9 values`) and Rename.
+A field page is a specimen sheet on the outline measure, crumbed `Fields / Name`. Under the Piazzolla name sit a mono summary (`Choice · 7 owners · 9 values`) and Rename. Kind, Links to for instance fields, and Hide follow as rows. Hide offers Never, When empty and Always, with one muted line saying what the current choice does; changing it is one undoable edit on the field. The [field menu](../design.md#field-entries) in any note opens this page, at the kind preview, Options or Links to.
 
 Numbered sections follow with rubric numerals and hairlines:
 
@@ -55,7 +55,7 @@ Instance definitions show **Links to** below Kind, both on their page and in the
 
 Library Author, Editor and Translator start with Person and Group targets. Import and the one-time notebook backfill file untyped creator pages as Person without changing pages already filed elsewhere.
 
-Metadata suggestions, field-slot pickers and `[[` completion in the value of such a field show members of the target types. A query that names none of them exactly offers **Create person “Name”** and **Create group “Name”**, creating and filing the page together.
+Metadata suggestions, field-slot pickers and value pickers for such a field show members of the target types. A query that names none of them exactly offers **Create person “Name”** and **Create group “Name”**, creating and filing the page together.
 
 ## Type page template
 
@@ -110,9 +110,9 @@ Columns past the right edge fade under the rows. `+N ›` at the header's end co
 
 ### Editing
 
-Enter or double-click edits a single plain text, number, date, URL or identifier value inline. Multiple values, references, choices, instances and checkboxes open the field's source outline beside the table.
+Enter or double-click edits a single plain text, number, URL or identifier value inline. A cell with one value or none of kind choice, instance or date opens that kind's [value editor](../design.md#field-entries) on the cell, and a checkbox cell toggles on click or Space, keeping focus. Pills follow the outline: a choice pill opens its options, an instance pill opens its page, and Shift opens either beside. Cells with several values open the field's source outline beside the table.
 
-Clearing a value preserves its block and child notes; refilling reuses a blank value block. Inline editors do not replace structured text with a rendered label.
+⌘Z and ⌘⇧Z in the table undo and redo its value edits. Clearing a value preserves its block and child notes; refilling reuses a blank value block. Inline editors do not replace structured text with a rendered label.
 
 ### Columns
 

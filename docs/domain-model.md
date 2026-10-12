@@ -194,7 +194,7 @@ A field's detail read may count readable and problem values using a proposed kin
 - Owner samples combine an owner's entries in outline order and identify the first entry.
 - Problem and readable samples identify each value's own entry.
 
-A type may carry a template: an ordered list of fields shown first in its table and offered as empty slots in its members' field sheets. Members' other fields follow the template, which is never required. Fill missing fields on the type page writes empty entries for members only when asked.
+A type may carry a template: an ordered list of fields shown first in its table and offered as empty slots in its members' field areas. Members' other fields follow the template, which is never required. Fill missing fields on the type page writes empty entries for members only when asked.
 
 ## Queries and views
 

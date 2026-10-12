@@ -136,7 +136,7 @@ Each file or article submission becomes a job row above the sources while queued
 
 The name truncates first, so state and actions stay on the first line in a narrow pane. Dismissal is a device preference per notebook. Finished jobs leave the list once their source exists, whichever tab lists it, so a large import never stacks rows above another tab's sources. The Highlights tab shows no jobs.
 
-An EPUB creator entry that holds several people (`A; B`, `A & B`, or inverted pairs such as `Bowen, William G., Guthrie, Kevin M.`) becomes one creator each. Calibre's unknown date, `0101-01-01`, is no date. Earlier EPUB imports carrying that sentinel in their extracted metadata read as undated in Library rows, Decades, year sorting and exports; other ancient dates and authored dates are kept, and stored fields are not rewritten.
+An EPUB creator entry that holds several people (`A; B`, `A & B`, or inverted pairs such as `Bowen, William G., Guthrie, Kevin M.`) becomes one creator each. Calibre's unknown date, `0101-01-01`, is no date. Earlier EPUB imports carrying that sentinel in their extracted metadata read as undated in Library rows, Decades, year sorting, exports, the source header and the catalogue card; other ancient dates and authored dates are kept, and stored fields are not rewritten. Browse facets skip blank values.
 
 ### Manual details
 
@@ -146,7 +146,7 @@ The manual details form remains in Add only: labelled rows, Creator name fields 
 
 ### Opening and layout
 
-Selecting a source through its leading slot or checkbox opens a 460 px catalogue-card inspector to the right of the Library ledger or shelf. The title still opens the source page. Details is also available in each source's actions and the batch bar. Edit details… on a source page opens this same Library inspector, not a second popup editor.
+Selecting a source through its leading slot or checkbox opens a 460 px catalogue-card inspector to the right of the Library ledger or shelf. The title still opens the source page. Details is also available in each source's actions and the batch bar. Edit details… on a source page opens the same card beside the page, without leaving it.
 
 Browse steps aside while inspecting and its named button brings it back. Closing details clears selection. An edit that moves a source outside the current Library filter leaves its card open. A selected shelf cover has a 2 px gilt ring.
 
@@ -260,24 +260,28 @@ Each highlight in the current snapshot is a dot in its colour at its exact posit
 
 The primary gilt Read button becomes Continue reading once a saved position exists, with the state menu and source actions beside it. On the cover those controls are pinned above the bottom nav, within thumb reach. A record source has no snapshot and no Read.
 
-### Source actions and metadata
+### Source actions and fields
 
-Source actions retain:
+Source actions groups its items:
 
-- Copy citation key.
-- Edit details….
-- Replace cover….
-- Fill missing details when the source has an identifier: a fresh lookup that writes only empty fields.
-- Export BibTeX, Export CSL JSON and Export Markdown.
-- Snapshots and Delete source….
+| Group | Items |
+| --- | --- |
+| Unheaded | Edit details…, Copy citation key, Fill missing details, Replace cover…, Show or Hide metadata fields |
+| Collections | Add to collection…, Remove from each collection |
+| Export | BibTeX, CSL JSON, Markdown |
+| Organize | Snapshots, Delete source… last |
 
-They add Show metadata fields to expose the original editable field rows; Hide metadata fields folds them again. The snapshot's description is clamped to three lines with More. It has no Table button; ⌘⇧T and the palette still open the table.
+Fill missing details is a fresh lookup that writes only empty fields; without an identifier it stays in the menu, disabled with No identifier.
+
+Edit details… keeps the source page open and shows the Library's 460 px catalogue card beside it. While the card is open the page column takes the remaining width, down to 540 px; a narrower pane shows the card as a bottom sheet. × or Escape closes it, and edits update the header at once.
+
+The header and catalogue card own the catalogue fields: Subtitle, creators, dates, publisher, edition, series, number, pages, languages, identifiers, URL, site, description, cover, siglum, reading dates and Collections. Their entries stay out of the outline until Show metadata fields, and the page offers no slots for them; Add field neither lists nor creates them there. Every other field is the note's own and shows in the [field area](../design.md#field-area) under the header, with its slots and Add field, like any page. The snapshot's description is clamped to three lines with More. The page has no Table button; ⌘⇧T and the palette still open the table.
 
 Author, Editor and Translator values may be plain names or linked people. Plain names supply the same Library bylines, creator facets, exports and derived sigla without creating a person page.
 
 The pane header reads Library / title, and Library opens the Library pane (Shift beside). Zoomed into a block, Library gives way to the zoom path.
 
-The expanded details group uses control size, labels in `--muted`, and field icons only on hover. Languages show their English name and identifiers their scheme (`ISBN 978…`) until edited. A value that differs from what the current snapshot extracted offers Reset to extracted in its field menu.
+Shown metadata fields use the ordinary field rows. Languages show their English name and identifiers their scheme (`ISBN 978…`) until edited. A value that differs from what the current snapshot extracted offers Reset to extracted in its field menu.
 
 ### Source highlights
 

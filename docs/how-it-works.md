@@ -212,7 +212,7 @@ Code: `crates/tessera-core/src/fields.rs:351`.
 
 `memberships` stores the block, normalised title, resolved type-page ID, authored spelling and source flag. Text and manual sources have separate rows, following the [membership rules](domain-model.md#types-and-fields). Removing a manual row leaves the text tag. Code: `crates/tessera-core/migrations/007_manual_memberships.sql`; `crates/tessera-core/src/operations.rs` (`Operation::AddType`, `RemoveType`); `web/src/document/page-document.ts:818`.
 
-`type_fields` stores ordered field IDs on a type page. `SetTypeFields` validates definitions, replaces the list and bumps the page revision. It implements the [template rules](domain-model.md#types-and-fields): initial table columns and unwritten field-sheet slots. Fill missing fields commits one batch of ordinary `insert` operations for empty entries.
+`type_fields` stores ordered field IDs on a type page. `SetTypeFields` validates definitions, replaces the list and bumps the page revision. It implements the [template rules](domain-model.md#types-and-fields): initial table columns and unwritten field-area slots. Fill missing fields commits one batch of ordinary `insert` operations for empty entries.
 
 Code: `crates/tessera-core/migrations/006_fields_views.sql:6`; `crates/tessera-core/src/operations.rs:1158`; `crates/tessera-core/src/query.rs:92`, `312`; `web/src/outline/field-sheet.tsx`; `web/src/fields/TemplateEditor.tsx`.
 
