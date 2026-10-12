@@ -84,6 +84,21 @@ export interface OutlineReader {
   subtreeEnd(index: number): number;
 }
 
+/** Ordinary source fields, source capability and explicit page tags in one command. */
+export interface SourceDetailsEdit {
+  kind: 'sourceDetails';
+  title?: string;
+  fields: { id: string; entries: string[]; values: string[] }[];
+  source?: SourceState;
+  tags?: string[];
+}
+
+/** A committed transaction; history remains usable after its documents close. */
+export interface DocumentChange {
+  undo(): Promise<void>;
+  redo(): Promise<void>;
+}
+
 /**
  * Intent-level edits. The document turns each into operations plus an inverse
  * for undo; the outline view never builds operations itself.
@@ -110,7 +125,7 @@ export type Edit =
   /** Set, change or remove a page's source capability. */
   | { kind: 'source'; id: string; value: SourceState | null }
   /** Change source title and ordinary page fields together, retaining their block identities. */
-  | { kind: 'sourceDetails'; title?: string; fields: { id: string; entries: string[]; values: string[] }[] }
+  | SourceDetailsEdit
   | { kind: 'cite'; id: string; citation: NewCitation }
   /** Remove the selected citations together in one undo step. */
   | { kind: 'uncite'; id: string; citationIds: string[] }
@@ -265,6 +280,8 @@ export interface NotebookClient {
   readonly api: ApiClient;
   /** Durable notebook command; resolves only after acknowledgement. */
   commit(operations: readonly Operation[], reason?: string): Promise<Committed>;
+  /** One acknowledged transaction across pages, with exact field-level undo/redo. */
+  editSourceDetails(edits: readonly { pageId: string; edit: SourceDetailsEdit }[]): Promise<DocumentChange>;
   commandState(): SaveState;
   commandMessage(): string;
   /** Open (or share) a page's document. Call `release()` when done. */

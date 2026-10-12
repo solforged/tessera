@@ -359,18 +359,20 @@ pub(crate) fn apply(conn: &Connection, operation: &Operation, now: i64, seq: i64
                         "letters, digits, underscores, colons or hyphens."
                     )));
                 }
-                let taken: bool = conn.query_row(
-                    "SELECT EXISTS(
-                         SELECT 1 FROM sources
-                         WHERE active = 1 AND citation_key = ?1 COLLATE NOCASE AND block_id <> ?2
-                     )",
-                    params![key, id],
-                    |r| r.get(0),
-                )?;
-                if taken {
-                    return Err(validation(
-                        "That citation key is already assigned to another source.",
-                    ));
+                let taken: Option<(String, String)> = conn
+                    .query_row(
+                        "SELECT s.block_id, b.text FROM sources s
+                         JOIN blocks b ON b.id = s.block_id
+                         WHERE s.active = 1 AND s.citation_key = ?1 COLLATE NOCASE
+                           AND s.block_id <> ?2",
+                        params![key, id],
+                        |r| Ok((r.get(0)?, r.get(1)?)),
+                    )
+                    .optional()?;
+                if let Some((source_id, title)) = taken {
+                    return Err(validation(format!(
+                        "Citation key “{key}” is already assigned to “{title}” ({source_id})."
+                    )));
                 }
             }
             conn.execute(

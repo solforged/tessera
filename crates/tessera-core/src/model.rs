@@ -501,6 +501,9 @@ pub struct Row {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PageView {
     pub root: Block,
+    /// Explicit tags on the page itself, separate from descendant memberships.
+    #[serde(default)]
+    pub root_manual_types: Vec<String>,
     /// Live descendants in preorder, including archived ones (flagged).
     pub rows: Vec<Row>,
     /// Live blocks outside this page that its rows reference, and the pages

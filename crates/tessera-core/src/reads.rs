@@ -193,6 +193,7 @@ impl Notebook {
         )?;
         Ok(PageView {
             root,
+            root_manual_types: manual_types.remove(id).unwrap_or_default(),
             rows,
             targets,
             capabilities: crate::task_store::page_capabilities(&self.conn, id)?,

@@ -5,7 +5,7 @@ import type { SetStoreFunction } from 'solid-js/store';
 import { ulid } from 'ulid';
 import { ApiError } from '../api/client';
 import type { Batch, Block, BlockCapabilities, Committed, PageView, TextRewrite, WorkSession } from '../api/types';
-import type { BlockState, Caret, Edit, EditResult, HistoryCaret, PageDocument, SaveState, TextRange } from './contract';
+import type { BlockState, Caret, Edit, EditResult, HistoryCaret, PageDocument, SaveState, SourceDetailsEdit, TextRange } from './contract';
 import { OutlineIndex } from './outline-index';
 import type { Action, Command, HistoryEntry, PageCommand, Snapshot } from './types';
 import { emptyCapabilities, isCapabilityAction, questionStatus, sameState, sourceState } from './types';
@@ -552,6 +552,7 @@ export class Document implements PageDocument {
       this.baseCapabilities.clear();
       for (const value of view.capabilities ?? []) this.baseCapabilities.set(value.block_id, structuredClone(value));
       for (const row of view.rows) this.baseManualTypes.set(row.block.id, row.manual_types);
+      this.baseManualTypes.set(view.root.id, view.root_manual_types ?? []);
       for (const block of [view.root, ...view.rows.map(row => row.block)]) this.baseBlocks.set(block.id, { ...block });
       const rows = view.rows.map(({ block, depth }) => ({ id: block.id, parentId: block.parent_id!, depth }));
       this.baseOutline.replace(rows);
@@ -814,7 +815,110 @@ export class Document implements PageDocument {
     }
   }
   view(): PageView {
-    return { root: this.snapshot(this.pageId, true), rows: this.baseOutline.slice(0, this.baseOutline.size()).map(row => ({ block: this.snapshot(row.id, true), depth: row.depth, manual_types: this.baseManualTypes.get(row.id) ?? [] })), targets: [], capabilities: [...this.baseCapabilities.values()] };
+    return { root: this.snapshot(this.pageId, true), root_manual_types: this.baseManualTypes.get(this.pageId) ?? [], rows: this.baseOutline.slice(0, this.baseOutline.size()).map(row => ({ block: this.snapshot(row.id, true), depth: row.depth, manual_types: this.baseManualTypes.get(row.id) ?? [] })), targets: [], capabilities: [...this.baseCapabilities.values()] };
+  }
+  /** Shared by page-local history and acknowledged, cross-page source commands. */
+  sourceDetailsActions(edit: SourceDetailsEdit): Action[] {
+    if (this.status() !== 'ready') throw new Error('This page is not ready.');
+    const actions: Action[] = [];
+    const text = (id: string, value: string) => {
+      if (this.snapshot(id).text !== value) actions.push({ kind: 'text', id, text: value });
+    };
+    const insert = (parentId: string, after: string | null, value: string) => {
+      const id = ulid();
+      actions.push({ kind: 'insert', after, block: { id, kind: 'block', parent_id: parentId, page_id: this.pageId, text: value, heading: null, archived: false, kept_copy: null, revision: 0, created_at: Date.now(), updated_at: Date.now() } });
+      return id;
+    };
+    if (edit.title !== undefined) {
+      const title = edit.title.trim();
+      if (!title) throw new Error('A title is required.');
+      if (!this.host.titleAvailable(title, this.pageId)) throw new Error('A page with this title already exists.');
+      text(this.pageId, title);
+    }
+    let after = this.outline.children(this.pageId).at(-1) ?? null;
+    for (const field of edit.fields) {
+      for (const id of field.entries) {
+        if (this.block(id)?.parentId !== this.pageId || this.isArchived(id)) throw new Error('The field changed. Refresh before saving.');
+      }
+      const current = field.entries.flatMap(id => this.outline.children(id)).filter(id => !this.isArchived(id));
+      let entry = field.entries[0];
+      if (!entry && field.values.length) {
+        entry = insert(this.pageId, after, `[[${field.id}]]`);
+        after = entry;
+      }
+      let childAfter = entry ? this.outline.children(entry).at(-1) ?? null : null;
+      for (let index = 0; index < Math.max(current.length, field.values.length); index++) {
+        const id = current[index], value = field.values[index];
+        // Retain empty authored overrides so reingest cannot refill cleared values.
+        if (id) text(id, value ?? '');
+        else if (entry && value !== undefined) childAfter = insert(entry, childAfter, value);
+      }
+    }
+    if (edit.source !== undefined) {
+      const previous = sourceState(this.root()?.source);
+      const value = sourceState(edit.source);
+      if (!sameState(previous, value)) actions.push({ kind: 'source', id: this.pageId, value, previous, baseRevision: this.snapshot(this.pageId).revision });
+    }
+    if (edit.tags !== undefined) {
+      const previous = this.root()?.manual_types ?? [];
+      for (const title of edit.tags) if (!title || title.trim() !== title || /[\[\]\r\n]/.test(title)) throw new Error('Invalid tag title.');
+      // Replace in order: undo must recover the original spellings and ordering.
+      if (!sameState(previous, edit.tags)) {
+        for (const title of previous) actions.push({ kind: 'removeType', id: this.pageId, title });
+        for (const title of edit.tags) actions.push({ kind: 'addType', id: this.pageId, title });
+      }
+    }
+    return actions;
+  }
+  /** Capture inverses without applying optimistic state to any selected page. */
+  sourceActionsInverse(actions: readonly Action[]): Action[] {
+    const inverse: Action[] = [];
+    const inserted = new Set(actions.flatMap(action => action.kind === 'insert' ? [action.block.id] : []));
+    for (const action of actions) {
+      switch (action.kind) {
+        case 'text': inverse.unshift({ kind: 'text', id: action.id, text: this.snapshot(action.id).text }); break;
+        case 'source': inverse.unshift({ ...action, value: action.previous, previous: action.value }); break;
+        case 'addType': inverse.unshift({ kind: 'removeType', id: action.id, title: action.title }); break;
+        case 'removeType': inverse.unshift({ kind: 'addType', id: action.id, title: action.title }); break;
+        case 'insert':
+          if (!inserted.has(action.block.parent_id!)) inverse.unshift({ kind: 'delete', id: action.block.id });
+          break;
+        case 'delete': {
+          this.guardHide(action.id);
+          const at = this.outline.indexOf(action.id);
+          if (at < 0) throw new Error('The field no longer exists.');
+          const snapshots = this.outline.slice(at, this.outline.subtreeEnd(at)).map(row => ({
+            row: { ...row }, block: this.snapshot(row.id), manual_types: [...this.block(row.id)!.manual_types], capabilities: this.capabilities(row.id),
+          }));
+          inverse.unshift({ kind: 'restore', id: action.id, snapshots, after: this.outline.previousSibling(action.id) });
+          break;
+        }
+        case 'restore': inverse.unshift({ kind: 'delete', id: action.id }); break;
+        default: throw new Error('Unsupported source action.');
+      }
+    }
+    // add_type appends; reverse inversion would otherwise reverse the original tag order.
+    const tags = inverse.filter(action => action.kind === 'addType');
+    let index = tags.length;
+    return inverse.map(action => action.kind === 'addType' ? tags[--index]! : action);
+  }
+  /** Compare only affected values, not revisions changed by intervening undo steps. */
+  sourceActionsState(actions: readonly Action[]): string {
+    return JSON.stringify(actions.map(action => {
+      if (action.kind === 'insert') return this.outline.children(action.block.parent_id!);
+      if (action.kind === 'restore') return null;
+      if (action.kind === 'source') return sourceState(this.root()?.source);
+      if (action.kind === 'addType' || action.kind === 'removeType') return this.block(action.id)?.manual_types;
+      if (action.kind === 'text') return this.block(action.id)?.text;
+      if (action.kind === 'delete') {
+        const at = this.outline.indexOf(action.id);
+        return at < 0 ? null : this.outline.slice(at, this.outline.subtreeEnd(at)).map(row => {
+          const block = this.block(row.id)!;
+          return [row.id, row.parentId, block.text, block.archived, block.heading, block.manual_types, this.capabilities(row.id)];
+        });
+      }
+      throw new Error('Unsupported source action.');
+    }));
   }
   edit(edit: Edit, caretBefore: Caret | null = null): EditResult {
     if (this.status() !== 'ready') return { ok: false, reason: 'This page is not ready.' };
@@ -1012,32 +1116,10 @@ export class Document implements PageDocument {
           }
           break;
         }
-        case 'sourceDetails': {
-          if (edit.title !== undefined) {
-            const title = edit.title.trim();
-            if (!title) throw new Error('A title is required.');
-            if (!this.host.titleAvailable(title, this.pageId)) throw new Error('A page with this title already exists.');
-            setText(this.snapshot(this.pageId), title);
-          }
-          let after = this.outline.children(this.pageId).at(-1) ?? null;
-          for (const field of edit.fields) {
-            const current = field.entries.flatMap(id => this.outline.children(id)).filter(id => !this.isArchived(id));
-            let entry = field.entries[0];
-            if (!entry && field.values.length) {
-              entry = insert(this.pageId, after, `[[${field.id}]]`);
-              after = entry;
-            }
-            let childAfter = entry ? this.outline.children(entry).at(-1) ?? null : null;
-            for (let index = 0; index < Math.max(current.length, field.values.length); index++) {
-              const id = current[index], text = field.values[index];
-              if (id && text !== undefined) setText(this.snapshot(id), text);
-              // Keep an empty authored override: reingest must not refill a deliberately cleared field.
-              else if (id) setText(this.snapshot(id), '');
-              else if (entry && text !== undefined) childAfter = insert(entry, childAfter, text);
-            }
-          }
+        case 'sourceDetails':
+          actions.push(...this.sourceDetailsActions(edit));
+          created.push(...actions.flatMap(action => action.kind === 'insert' ? [action.block.id] : []));
           break;
-        }
         case 'source': {
           const previous = sourceState(this.capabilities(edit.id).source);
           const value = sourceState(edit.value);

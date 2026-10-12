@@ -1,4 +1,5 @@
 import { For, Show, batch, createEffect, createMemo, createResource, createSignal, on, onCleanup, onMount, untrack } from 'solid-js';
+import { Portal } from 'solid-js/web';
 import { ulid } from 'ulid';
 import { exportExtensions } from '../api/client';
 import type { ExportFormat } from '../api/client';
@@ -25,6 +26,7 @@ import { ReadingCard } from './ReadingCard';
 import { AddSheet } from './AddSheet';
 import { CollectionNamePopup, CollectionPicker, createCollectionActions } from './Collections';
 import { changeCollectionMembers, collectionPages, createCollection, deleteCollection, renameCollection, sourceCollections } from '../document/collections';
+import { MetadataInspector } from './MetadataInspector';
 import './library.css';
 import '../table/table.css';
 
@@ -36,6 +38,10 @@ export interface LibraryPaneProps {
   /** One-time request to open the existing Add sheet on arrival. */
   add?: boolean;
   onAddOpened?(): void;
+  /** One-time request from a source page to inspect its metadata. */
+  details?: readonly string[];
+  onDetailsOpened?(): void;
+  onSaveState?(state: 'saved' | 'saving' | 'error', message?: string): void;
   onActivate(): void;
   onOpen(target: OpenTarget, beside: boolean): void;
   onViewChange(view: LibraryViewState): void;
@@ -121,8 +127,16 @@ export function LibraryPane(props: LibraryPaneProps) {
   const currentQuery = createMemo(() => saved()?.query ?? libraryQuery({ tab: tab(), collection: view().collection, text: text(), sort: sort(), filters: filters() }));
   const queryKey = createMemo(() => JSON.stringify([view().view, tab(), currentQuery(), unprocessedOnly(), colors(), tags()]));
   const [selected, setSelected] = createSignal<Set<string>>(new Set());
+  const [inspectorOpen, setInspectorOpen] = createSignal(false);
+  const inspecting = createMemo(() => inspectorOpen() && selected().size > 0 && tab() !== 'highlights');
+  const selectedIds = createMemo(() => [...selected()]);
+  const [narrowInspector, setNarrowInspector] = createSignal(false);
+  let libraryHost!: HTMLDivElement;
+  let inspectorScroll = 0;
+  const [inspectorPortal, setInspectorPortal] = createSignal<HTMLElement>();
+  const [sheetExpanded, setSheetExpanded] = createSignal(false);
   let selectionAnchor: string | null = null;
-  createEffect(on(queryKey, () => { setSelected(new Set<string>()); selectionAnchor = null; }));
+  createEffect(on(queryKey, () => { setSelected(new Set<string>()); setInspectorOpen(false); selectionAnchor = null; }));
   const [loadedKey, setLoadedKey] = createSignal('');
   const [library, setLibrary] = createSignal<LibraryResult>();
   // Keep each row kind until its replacement arrives, even when the other tab loads.
@@ -242,9 +256,29 @@ export function LibraryPane(props: LibraryPaneProps) {
     setPopup({ kind: 'add', anchor });
   }
   onMount(() => {
-    if (!props.add) return;
-    openAdd(addButton);
-    props.onAddOpened?.();
+    if (props.add) { openAdd(addButton); props.onAddOpened?.(); }
+    if (props.details?.length) {
+      setSelected(new Set(props.details)); setInspectorOpen(true);
+      props.onDetailsOpened?.();
+    }
+    setInspectorPortal(libraryHost.closest<HTMLElement>('.pane') ?? undefined);
+    const measure = () => setNarrowInspector(libraryHost.clientWidth < 960);
+    const observer = new ResizeObserver(measure);
+    observer.observe(libraryHost); measure();
+    const viewport = window.visualViewport;
+    const resizeSheet = () => {
+      const height = viewport?.height ?? window.innerHeight;
+      const keyboard = window.innerHeight - height - (viewport?.offsetTop ?? 0);
+      const host = inspectorPortal();
+      host?.style.setProperty('--inspector-viewport-height', `${height}px`);
+      host?.style.setProperty('--inspector-keyboard-bottom', keyboard > 120 ? `${keyboard}px` : '0px');
+      host?.classList.toggle('library-inspector-keyboard', keyboard > 120 && inspecting());
+    };
+    viewport?.addEventListener('resize', resizeSheet); resizeSheet();
+    onCleanup(() => {
+      observer.disconnect(); viewport?.removeEventListener('resize', resizeSheet);
+      inspectorPortal()?.classList.remove('library-inspector-keyboard');
+    });
   });
   createEffect(() => {
     const controller = new AbortController();
@@ -505,7 +539,8 @@ export function LibraryPane(props: LibraryPaneProps) {
           else {
             setSourceRows(sources.rows);
             const ids = new Set(sources.rows.map(row => row.page.id));
-            setSelected(previous => new Set([...previous].filter(id => ids.has(id))));
+            // Leave the card open when its edits move a source out of the current filter.
+            if (!inspecting()) setSelected(previous => new Set([...previous].filter(id => ids.has(id))));
             if (selectionAnchor && !ids.has(selectionAnchor)) selectionAnchor = null;
           }
           setLoadedKey(currentKey); setLoading(false);
@@ -575,7 +610,19 @@ export function LibraryPane(props: LibraryPaneProps) {
       if (!disposed) setCommandError(reason instanceof Error ? reason.message : String(reason));
     } finally { if (!disposed) setSaving(false); }
   }
-  function clearSelection() { setSelected(new Set<string>()); selectionAnchor = null; }
+  function clearSelection() {
+    setSelected(new Set<string>()); setInspectorOpen(false); selectionAnchor = null;
+    props.onSaveState?.('saved');
+  }
+  function showDetails(ids?: readonly string[]) {
+    inspectorScroll = scroll.scrollTop;
+    if (ids) { setSelected(new Set(ids)); selectionAnchor = ids[0] ?? null; }
+    setInspectorOpen(true);
+  }
+  function backToSources() {
+    setInspectorOpen(false); props.onSaveState?.('saved');
+    requestAnimationFrame(() => { scroll.scrollTop = inspectorScroll; });
+  }
   async function changeSelectedState(state: ReadingState) {
     if (saving()) return;
     const operations = displayedSources().filter(row => selected().has(row.page.id)).map(row => sourceStateOperation(row, state));
@@ -606,6 +653,8 @@ export function LibraryPane(props: LibraryPaneProps) {
   function toggleSelection(id: string, range: boolean) {
     setSelected(previous => selectSources(orderedSources().map(row => row.page.id), previous, id, selectionAnchor, range));
     selectionAnchor = id;
+    inspectorScroll = scroll.scrollTop;
+    setInspectorOpen(true);
   }
   function chooseView(value: LibraryView) {
     update({ view: value.id, ...viewFields(value.query), scroll: 0 });
@@ -690,6 +739,7 @@ export function LibraryPane(props: LibraryPaneProps) {
     if (disposed || !anchor.isConnected) return;
     setPopup({ kind: 'menu', anchor, label: 'Source actions', source: row, items: [
       ...(row.source.current_snapshot_id ? [{ label: row.source.last_read_at != null ? 'Continue reading' : 'Read', icon: 'book' as const, action: () => props.onOpen({ kind: 'reader', sourceId: row.page.id }, false) }] : []),
+      { label: 'Details', action: () => showDetails([row.page.id]) },
       ...stateActions.filter(action => action.state !== row.source.state).map(action => ({
         label: action.label, disabledReason: saving() ? 'Saving…' : undefined,
         action: () => { void changeState(row, action.state); },
@@ -736,11 +786,38 @@ export function LibraryPane(props: LibraryPaneProps) {
     }
     rows[next]?.focus(); event.preventDefault(); event.stopPropagation();
   }
+  function InspectorView() {
+    return <aside class="library-inspector-host" classList={{ 'library-inspector-sheet': coverLayout(), 'library-inspector-expanded': sheetExpanded() }} aria-label="Source details">
+      <Show when={coverLayout()}><Button class="library-inspector-grip" label={sheetExpanded() ? 'Collapse details sheet' : 'Expand details sheet'} aria-expanded={sheetExpanded()} onClick={() => setSheetExpanded(value => !value)}><span /></Button></Show>
+      <MetadataInspector notebook={props.notebook} sourceIds={selectedIds()} onOpen={props.onOpen} onClose={clearSelection} phone={coverLayout()}
+        backLabel={narrowInspector() && !coverLayout() ? `Back to ${library()?.total ?? displayedSources().length} sources` : undefined}
+        onBack={backToSources} onSaveState={props.onSaveState} />
+    </aside>;
+  }
 
+  function sourceLongPress(row: LibraryRow) {
+    let timer: number | undefined;
+    let pressed = false;
+    let x = 0, y = 0;
+    const cancel = () => { clearTimeout(timer); timer = undefined; };
+    onCleanup(cancel);
+    return {
+      onPointerDown: (event: PointerEvent) => {
+        if (!coverLayout() || event.button !== 0 || (event.target as HTMLElement).closest('.library-checkbox, .library-book-more, [aria-haspopup]')) return;
+        x = event.clientX; y = event.clientY; pressed = false;
+        timer = window.setTimeout(() => { pressed = true; showDetails([row.page.id]); }, 500);
+      },
+      onPointerMove: (event: PointerEvent) => { if (Math.hypot(event.clientX - x, event.clientY - y) > 8) cancel(); },
+      onPointerUp: cancel,
+      onPointerCancel: cancel,
+      onContextMenu: (event: MouseEvent) => { if (coverLayout()) { event.preventDefault(); cancel(); pressed = true; showDetails([row.page.id]); } },
+      'on:click': { capture: true, handleEvent: (event: MouseEvent) => { if (pressed) { event.preventDefault(); event.stopPropagation(); pressed = false; } } },
+    };
+  }
   function SourceRows(rowsProps: { rows: LibraryRow[] }) {
     return <Show when={layout() === 'shelf'} fallback={<div role="list"><For each={rowsProps.rows}>{row => {
       const target: OpenTarget = { kind: 'page', pageId: row.page.id };
-      return <div class="library-row library-source-row" classList={{ 'library-row-selected': selected().has(row.page.id), 'library-source-current': openedSource() === row.page.id }} role="listitem">
+      return <div class="library-row library-source-row" classList={{ 'library-row-selected': selected().has(row.page.id), 'library-source-current': openedSource() === row.page.id }} role="listitem" {...sourceLongPress(row)}>
         <div class="library-leading">
           <span class="library-source-image"><Show when={row.cover} fallback={<Icon name={row.source.format === 'article' ? 'article' : 'book'} />}><ResourceImage snapshotId={row.source.current_snapshot_id ?? ''} href={row.cover!} alt="" loading="lazy" /></Show></span>
           <Button role="checkbox" aria-checked={selected().has(row.page.id)} label={`Select ${row.page.text}`} class="icon-only library-checkbox" onClick={event => toggleSelection(row.page.id, event.shiftKey)}>
@@ -761,7 +838,7 @@ export function LibraryPane(props: LibraryPaneProps) {
     }}</For></div>}>
       <div class="library-shelf" role="list"><For each={rowsProps.rows}>{row => {
         const target: OpenTarget = { kind: 'page', pageId: row.page.id };
-        return <div class="library-book library-source-row" classList={{ 'library-row-selected': selected().has(row.page.id), 'library-source-current': openedSource() === row.page.id }} role="listitem">
+        return <div class="library-book library-source-row" classList={{ 'library-row-selected': selected().has(row.page.id), 'library-source-current': openedSource() === row.page.id }} role="listitem" {...sourceLongPress(row)}>
           <Button class="library-book-open" data-library-row={row.page.id} onClick={event => openSource(target, event.shiftKey)} onKeyDown={event => rowKey(event, target)}>
             <SourceCover row={row} siglum={row.source.siglum} />
             <span class="library-reading-rule" classList={{ 'library-reading-started': row.progress > 0 }} style={{ '--progress': `${row.progress * 100}%` }} aria-hidden="true" />
@@ -823,15 +900,17 @@ export function LibraryPane(props: LibraryPaneProps) {
     }}</Show>;
   }
 
-  return <div class="library-pane" classList={{ 'library-search-open': searchOpen() || !!text(), 'library-highlights-tab': tab() === 'highlights', 'library-all-tab': tab() === 'all' || !!view().collection, 'library-highlight-passage-open': tab() === 'highlights' && coverLayout() && highlightPassageOpen(), 'library-cover-reading': coverLayout() && showReading() && tab() === 'reading' }} data-pane={props.pane} aria-label="Library" tabIndex={props.active ? 0 : -1} onFocusIn={props.onActivate} onPointerDown={props.onActivate}
+  return <div ref={libraryHost} class="library-pane" classList={{ 'library-search-open': searchOpen() || !!text(), 'library-highlights-tab': tab() === 'highlights', 'library-all-tab': tab() === 'all' || !!view().collection, 'library-highlight-passage-open': tab() === 'highlights' && coverLayout() && highlightPassageOpen(), 'library-cover-reading': coverLayout() && showReading() && tab() === 'reading', 'library-inspecting': inspecting(), 'library-inspector-narrow': inspecting() && narrowInspector() && !coverLayout(), 'library-inspector-phone': inspecting() && coverLayout() }} data-pane={props.pane} aria-label="Library" tabIndex={props.active ? 0 : -1} onFocusIn={props.onActivate} onPointerDown={props.onActivate}
     onKeyDown={event => {
-      if (event.key === 'Escape' && selected().size && !popup()) { event.preventDefault(); event.stopPropagation(); clearSelection(); }
-      if (tab() !== 'highlights' && (event.metaKey || event.ctrlKey) && !event.shiftKey && event.key.toLowerCase() === 'z' && collectionActions.canUndo() && !(event.target instanceof Element && event.target.closest('input, textarea, [contenteditable="true"]'))) {
+      if (event.key === 'Escape' && !event.defaultPrevented && selected().size && !popup() && !(event.target as HTMLElement).closest('input, textarea, [contenteditable="true"]')) { event.preventDefault(); event.stopPropagation(); clearSelection(); }
+      if (!inspecting() && tab() !== 'highlights' && (event.metaKey || event.ctrlKey) && !event.shiftKey && event.key.toLowerCase() === 'z' && collectionActions.canUndo() && !(event.target instanceof Element && event.target.closest('input, textarea, [contenteditable="true"]'))) {
         event.preventDefault(); event.stopPropagation(); void collectionActions.undo();
       }
     }}
     onDragOver={event => { if (event.dataTransfer?.types.includes('Files')) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; } }}
     onDrop={event => { if (event.dataTransfer?.files.length) { event.preventDefault(); void upload(Array.from(event.dataTransfer.files)); } }}>
+    <div class="library-catalogue">
+    <div class="library-ledger" inert={inspecting() && narrowInspector() && !coverLayout()}>
     <header class="library-toolbar">
       <div class="library-cover-header"><div class="library-cover-heading"><div class="library-register">Sources and highlights</div><h1>Library</h1></div><Button icon="search" label="Search library" aria-expanded={searchOpen() || !!text()} onClick={() => {
         setSearchOpen(value => !value);
@@ -890,6 +969,8 @@ export function LibraryPane(props: LibraryPaneProps) {
             }} />
           </>}>
             <span class="library-selection-count">{selected().size} selected</span>
+            <Button class="bordered" onClick={() => showDetails()}>Details</Button>
+            <Button class="library-inspector-browse" icon="browse" onClick={event => { backToSources(); setBrowseQuery(''); setPopup({ kind: 'browse', anchor: event.currentTarget, field: null }); }}>Browse</Button>
             <Button aria-haspopup="menu" disabled={saving()} onClick={event => setPopup({ kind: 'menu', anchor: event.currentTarget, label: 'Mark as', items: tabs.filter(item => item.id !== 'all' && item.id !== 'highlights' && item.id !== 'collections').map(item => ({ label: item.label, action: () => { void changeSelectedState(item.id as ReadingState); } })) })}>Mark as<Icon name="down" /></Button>
             <Button aria-haspopup="menu" disabled={loading() || !!error() || loadedKey() !== queryKey()} onClick={event => exportMenu(event.currentTarget)}>Export<Icon name="down" /></Button>
             <Button disabled={collectionActions.busy()} onClick={event => setPopup({ kind: 'collection-picker', anchor: event.currentTarget, sources: [...selected()] })}>Add to collection…</Button>
@@ -906,18 +987,18 @@ export function LibraryPane(props: LibraryPaneProps) {
       </div></Show>
       </Show>
       <collectionActions.Notice />
-      <Show when={saving() || props.notebook.commandState() !== 'saved'}><p class="library-message" role="status">{props.notebook.commandMessage() || (saving() ? 'Saving…' : props.notebook.commandState())}</p></Show>
+      <Show when={props.notebook.commandState() === 'error'}><p class="library-error" role="alert">{props.notebook.commandMessage()}</p></Show>
       <Show when={deleted()}><footer class="table-footer" role="status">View deleted · <Button disabled={saving()} onClick={() => { void undoDelete(); }}>Undo</Button></footer></Show>
     </header>
     <input ref={fileInput} type="file" hidden aria-label="Choose EPUB files" accept=".epub,application/epub+zip" multiple onChange={event => {
       const files = Array.from(event.currentTarget.files ?? []); event.currentTarget.value = ''; void upload(files);
     }} />
     <div ref={scroll} class="library-scroll" onScroll={() => {
-      if (restoreScroll !== null) return;
+      if (restoreScroll !== null || inspecting() && narrowInspector() && !coverLayout()) return;
       const next = { ...view(), scroll: scroll.scrollTop };
       setView(next); props.onViewChange({ ...next });
     }}>
-      <Show when={!collectionsIndex() && tab() !== 'highlights' && browseEntries().length}>
+      <Show when={!collectionsIndex() && tab() !== 'highlights' && browseEntries().length && !inspecting()}>
         <nav class="library-browse" aria-label="Browse library">
           <For each={browseFields}>{section => {
             const entries = () => browseEntries().filter(entry => entry.field === section.field);
@@ -952,16 +1033,17 @@ export function LibraryPane(props: LibraryPaneProps) {
       <Show when={showReading()}>
         <Show when={reading().length}><section class="library-reading" aria-labelledby={`${props.pane}-reading-heading`}>
           <h2 class="library-reading-heading" id={`${props.pane}-reading-heading`}>Reading now</h2>
-          <div class="library-reading-books" role="list"><For each={reading()}>{row => <div class="library-reading-item" classList={{ 'library-row-selected': selected().has(row.page.id) }} role="listitem">
-            <ReadingCard row={row} notebook={props.notebook} selected={openedSource() === row.page.id} onOpen={beside => openSource({ kind: 'page', pageId: row.page.id }, beside)} />
+          <div class="library-reading-books" role="list"><For each={reading()}>{row => <div class="library-reading-item library-reading-entry" classList={{ 'library-row-selected': selected().has(row.page.id) }} role="listitem" {...sourceLongPress(row)}>
+            <ReadingCard row={row} notebook={props.notebook} selected={openedSource() === row.page.id || selected().has(row.page.id)} onOpen={beside => openSource({ kind: 'page', pageId: row.page.id }, beside)} />
             <Show when={coverLayout() && tab() === 'reading'}><Button role="checkbox" aria-checked={selected().has(row.page.id)} label={`Select ${row.page.text}`} class="icon-only library-checkbox" onClick={event => toggleSelection(row.page.id, event.shiftKey)}>
               <span class="library-checkbox-square"><Show when={selected().has(row.page.id)}><Icon name="check" /></Show></span>
             </Button></Show>
+            <Button class="library-reading-more" icon="more" label={`Actions for ${row.page.text}`} aria-haspopup="menu" onClick={event => rowMenu(row, event.currentTarget)} />
           </div>}</For></div>
         </section></Show>
         <Show when={coverLayout() && tab() === 'reading' && upNext().length}><section class="library-up-next" aria-label="Up next">
           <h2 class="library-reading-heading">Up next · Inbox</h2>
-          <For each={upNext()}>{row => <Button class="library-up-next-book" onClick={event => openSource({ kind: 'page', pageId: row.page.id }, event.shiftKey)}>
+          <For each={upNext()}>{row => <Button class="library-up-next-book" onClick={event => openSource({ kind: 'page', pageId: row.page.id }, event.shiftKey)} {...sourceLongPress(row)}>
             <span class="library-siglum">{row.source.siglum}</span><span><span class="library-title">{row.page.text}</span><span class="library-book-byline">{sourceByline(row)}</span></span>
           </Button>}</For>
         </section></Show>
@@ -1023,6 +1105,11 @@ export function LibraryPane(props: LibraryPaneProps) {
       </section>
       </Show>
       </div>
+    </div>
+    </div>
+    <Show when={inspecting()}>
+      <Show when={coverLayout() && inspectorPortal()} fallback={<InspectorView />}>{host => <Portal mount={host() as HTMLElement}><InspectorView /></Portal>}</Show>
+    </Show>
     </div>
     <Show when={coverLayout() && (popup()?.kind === 'highlight-filters' || popup()?.kind === 'highlight-colors' || sourceMenuId())}><div class="library-highlight-filter-shade" aria-hidden="true" /></Show>
     <Show keyed when={popup()}>{state => {

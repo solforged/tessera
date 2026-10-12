@@ -145,3 +145,17 @@ test('a journal reset invalidates ordered patches without deleting queued comman
     expect((await outbox.cachedPage(id))?.cursor).toBe(3);
   } finally { await outbox.close(); await deleteDB(database); }
 });
+
+test('root manual memberships survive cached snapshots and acknowledged page patches', async () => {
+  const database = `outbox-root-tags-${ulid()}`;
+  const id = ulid();
+  const root: Block = { id, page_id: id, kind: 'page', parent_id: null, text: 'Tagged source', heading: null, archived: false, kept_copy: null, revision: 1, created_at: 0, updated_at: 0 };
+  const outbox = new Outbox('notebook', 'window', error => { throw error; }, database);
+  try {
+    await outbox.page({ root, root_manual_types: ['History'], rows: [], targets: [] }, 1, 1);
+    const command: PageCommand = { id: ulid(), order: 1, pageId: id, actions: [{ kind: 'addType', id, title: 'To read' }], inverse: [{ kind: 'removeType', id, title: 'To read' }], before: null, after: null };
+    await outbox.put(command);
+    await outbox.acknowledge(command, [{ ...root, revision: 2 }], 2, new Map([[id, 2]]));
+    expect((await outbox.cachedPage(id))?.view.root_manual_types).toEqual(['History', 'To read']);
+  } finally { await outbox.close(); await deleteDB(database); }
+});
