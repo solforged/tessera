@@ -931,7 +931,7 @@ function Pane(props: OutlinePaneProps) {
         if (compositionSelection) return;
         const heading = headingPrefix(text, at.offset);
         if (heading && !composition()) {
-          const result = doc.edit({ kind: 'text', id: at.id, text: heading.text, heading: heading.heading, caret: 0 }, caret());
+          const result = doc.edit({ kind: 'text', id: at.id, text: heading.text, heading: heading.heading }, caret());
           if (!result.ok) setMessage(result.reason);
           else {
             queueMicrotask(() => { if (editor?.id === at.id) { editor.sync(heading.text); editor.view.dispatch({ selection: { anchor: 0 } }); } });
