@@ -27,18 +27,145 @@ This is the editor's existing outbox model with a durable replica behind it. Row
 
 ## Protocol
 
-- **Clone.** The hub registers the new device and copies its database while it holds the notebook. Removing its own state (patches, other replicas, import jobs, agent records, pins) and compacting the copy happen after it lets go, and the file is streamed to the new device, which writes it to disk as it arrives.
-- **Push.** A replica sends each unconfirmed change with its change ID, origin device, stamp time, batch, and the text each edited or split block had before the change (its base), 200 changes per request. The hub applies it with the rules below, so every rule in `tessera-core` still holds. A change ID the hub has already applied returns the stored receipt.
-- **Patches.** While any active replica is registered, the hub records each commit as a SQLite session changeset of every applied table and keeps it until every active replica has acknowledged it. A pull returns these patches, so a replica's rows become exactly the hub's rows, including outcomes the hub decided such as merges and conflicts. A patch that does not apply cleanly means the replica has diverged; it aborts and asks for a new clone instead of guessing.
-- **Retirement.** A replica the hub has not heard from for 30 days is retired, so a phone left in a drawer does not make the hub keep every patch. A retired replica can still push, so nothing it changed is lost, but its pull asks for a new clone. `tessera sync reclone` does that in place: it sends what the hub has not seen, downloads a new clone, tells the hub to retire the old device ID, and keeps pins and fetched files. The old database stays beside the new one.
-- **Pull.** A replica pulls in pages of at most 500 changes or 8 MiB of patches after its last confirmed seq. It fetches each page's snapshots and applies the page before asking for the next, and acknowledges only the seq it has applied, so a long catch-up holds one page in memory and an interrupted one resumes after the last page applied.
-- **Rebase.** A replica records each local commit's patch with the change. Before applying pulled patches it undoes its unconfirmed changes by applying their inverted patches in reverse order. It then drops the ones the hub confirmed and replays the rest through the same rules the hub uses. Two things may differ from a patch without the replica having diverged: the columns that mirror state outside the log (`sources.last_read_at`, `citations.resurface_muted_at`), and references from surfacings to a citation an unconfirmed change created. Foreign keys are checked once every patch is in, and those surfacings come back when their citation is replayed.
-- **Conflicts.** Revision checks rebase instead of failing: a stale operation's expected revision moves forward by the revisions the resource gained elsewhere, so moves, deletes, properties and capabilities take the later change. Text keeps both versions. When a block's text differs from the base the replica edited, the hub keeps its text and puts the replica's wording in a copy right after the block. Later edits from the same device update that copy rather than adding more. A change that still cannot apply, such as an edit to a block the hub deleted, is recorded without effect and its batch is kept. `sync_conflicts` lists copies and rejected changes on every device.
-- **Natural-key collisions.** Two devices can create the same thing offline. A new page whose title another live page already has, or a journal day that already exists, resolves to the existing root. The change's children follow that root's children, and later changes that name the new ID are rewritten through `id_aliases`. A new field with the name of an existing field resolves to it and keeps the existing kind. When a new type resolves to one that already has fields, the change's field list for it is dropped, so a first import on a second device does not undo how the Book type was set up. A duplicate citation key gets a suffix.
-- **Library content.** Snapshot rows, passages and resource lists travel as data and are never extracted again on the receiving device, so extractor changes between app builds cannot make devices disagree. A push first uploads the snapshots its changes reference that the hub lacks, and a pull names the snapshots its changes reference so the replica can fetch them. Either way content moves in pieces of about 8 MiB of passage text, splitting a longer book between passages; each piece is stored as it arrives, and a snapshot stored partway counts as missing until the rest arrives. Snapshot IDs derive from the file's SHA-256 and every replica starts as a clone of the hub, so the same file has the same snapshot ID everywhere; each device keeps its own staging time. The same book imported on two devices offline is one source: when a change creates a source whose match key or snapshot belongs to an existing source, the new source page resolves to the existing one, what the import put under it is dropped, and a snapshot the existing source lacks is attached to it. Highlights made under the new page follow through `id_aliases`. A change left with nothing to do is still logged, so its aliases hold.
-- **Objects.** Original files, images and uploaded covers are content-addressed files. The hub keeps every file: before pushing, a replica uploads the files of the snapshots its changes attach or cite and the covers they link to, if the hub lacks them. After pulling, a replica fetches every cover, and the original files and images of pinned sources (`tessera sync pin`). Other files arrive when used: a replica's service that is asked for an image it lacks fetches it from the hub, checks its hash and keeps it. Files are never evicted. A file the hub does not have is reported rather than failing the sync.
-- **State outside the log.** Reading positions and highlight surfacings are written outside the change log. Each row carries a hybrid logical clock (milliseconds, kept ahead of every clock the notebook has seen), the device that wrote it, and its place in the notebook's own arrival order. A replica sends the rows it wrote since its last push right after pushing its changes, before pulling, and receives the hub's rows that arrived since its last pull once the pulled changes are applied. The later clock wins a reading position and a surfacing's action, with the device as the tie-break; a surfacing either device showed is kept. `sources.last_read_at` follows the latest position of the source's snapshots, and a muted surfacing mutes its citation.
-- **Sequence columns.** `review_events.change_seq`, `citations.created_seq` and the other `*_seq` columns hold sequence numbers. Confirmed changes carry the hub's numbering because their rows arrive as patches; unconfirmed changes take new local numbers when they replay.
+### Clone
+
+The hub registers the device and copies its database while holding the notebook. After releasing it, the hub strips its own state (patches, other replicas, import jobs, agent records, pins) and compacts the copy. The new device writes the streamed file to disk as it arrives.
+
+### Push
+
+A replica sends at most 200 unconfirmed changes per request. Each carries its change ID, origin device, stamp time, batch and base text: what each edited or split block contained before the change.
+
+The hub applies the rules below, preserving every `tessera-core` rule. An already-applied change ID returns its stored receipt.
+
+### Patches
+
+While any active replica is registered, the hub records each commit as a SQLite session changeset of every applied table. It retains patches until every active replica acknowledges them.
+
+Pulling patches makes replica rows match the hub exactly, including hub-decided merges and conflicts. A patch that cannot apply cleanly signals divergence: the replica aborts and requests a new clone rather than guessing.
+
+### Retirement
+
+After 30 days without contact, the hub retires a replica so a phone left in a drawer cannot retain every patch. Retired replicas can still push without losing changes, but pulling requests a new clone.
+
+`tessera sync reclone` works in place:
+
+1. Sends changes the hub has not seen.
+2. Downloads a new clone.
+3. Tells the hub to retire the old device ID.
+
+Pins and fetched files remain; the old database stays beside the new one.
+
+### Pull
+
+A replica pulls after its last confirmed seq, in pages of at most 500 changes or 8 MiB of patches. It fetches each page's snapshots and applies the page before requesting another, acknowledging only the seq applied. Catch-up holds one page in memory; interruptions resume after the last applied page.
+
+### Rebase
+
+A replica records each local commit's patch with the change. Before applying pulled patches, it:
+
+1. Undoes unconfirmed changes through their inverted patches, in reverse order.
+2. Drops changes the hub confirmed.
+3. Replays the rest through the hub's rules.
+
+Two differences from a patch do not signal divergence:
+
+- Columns mirroring state outside the log: `sources.last_read_at`, `citations.resurface_muted_at`.
+- Surfacing references to citations created by unconfirmed changes.
+
+Foreign keys are checked after every patch is in. Those surfacings return when their citation is replayed.
+
+### How the hub applies a change
+
+The hub resolves aliases and natural-key collisions, keeps divergent text as a copy, then applies the batch. A stale revision advances onto the hub's state and retries; a rejected change is kept without effect.
+
+```mermaid
+flowchart TD
+    P["One pushed change"] --> I{"Change ID already recorded?"}
+    I -->|Yes| R["Return stored receipt<br/>accepted or rejected"]
+    I -->|No| K["Resolve known ID aliases"]
+    K --> N{"Natural-key collision?<br/>Same-day journal, same-title page<br/>or same book"}
+    N -->|Yes| M["Merge into the existing root or source<br/>and record ID aliases"]
+    N -->|No| T{"Text differs from the replica's base<br/>and its new wording differs from the hub?"}
+    M --> T
+    T -->|Yes| C["Keep the hub's text<br/>Keep the replica's wording in a copy beside it<br/>Later edits from that device update the copy"]
+    T -->|No| O{"Operations remain?"}
+    C --> O
+    O -->|No| L["Log without effect; keep aliases"]
+    L --> A["Return accepted receipt with hub seq"]
+    O -->|Yes| D["Apply the rewritten batch"]
+    D --> S{"Apply result"}
+    S -->|Success| A
+    S -->|Stale revision; rebase can retry| B["Advance expected revisions<br/>onto current hub state"]
+    B --> D
+    S -->|Cannot apply| E{"Rejectable change error?"}
+    E -->|Yes| J["Record without effect; keep the batch<br/>Return rejected receipt"]
+    E -->|No| F["Return notebook failure"]
+    J -.-> Q["tessera sync conflicts<br/>lists rejected changes and kept copies"]
+    C -.-> Q
+```
+
+### Conflicts
+
+Revision checks rebase rather than fail. A stale operation's expected revision advances by the revisions the resource gained elsewhere, so moves, deletes, properties and capabilities take the later change.
+
+Text keeps both versions. If block text differs from the replica's base, the hub keeps its text and places the replica's wording in a copy immediately after it. Later edits from that device update the copy rather than add more.
+
+A change that still cannot apply, such as an edit to a hub-deleted block, is recorded without effect and retains its batch. `sync_conflicts` lists copies and rejected changes on every device.
+
+### Natural-key collisions
+
+Devices can create the same thing offline:
+
+| Collision | Resolution |
+|---|---|
+| Page title matches another live page, or journal day already exists | Use the existing root. New children follow its children; later references to the new ID are rewritten through `id_aliases`. |
+| Field name already exists | Use the existing field and retain its kind. |
+| New type resolves to one with fields | Drop the change's field list for that type, so a first import on a second device cannot undo the Book type's setup. |
+| Duplicate citation key | Add a suffix. |
+
+### Library content
+
+Snapshot rows, passages and resource lists travel as data, never re-extracted on receipt. Extractor changes between builds therefore cannot make devices disagree:
+
+- Push first uploads referenced snapshots the hub lacks.
+- Pull names referenced snapshots for the replica to fetch.
+- Both transfer about 8 MiB of passage text per piece, splitting longer books between passages.
+- Pieces are stored as they arrive. Partly stored snapshots count as missing until complete.
+
+Snapshot IDs derive from the file's SHA-256. Every replica starts as a hub clone, so the same file has the same snapshot ID everywhere; each device retains its own staging time.
+
+A book imported offline on two devices becomes one source. If a new source's match key or snapshot belongs to an existing source:
+
+- Its page resolves to the existing page.
+- Its imported children are dropped.
+- A snapshot the existing source lacks is attached to it.
+- Highlights under the new page follow through `id_aliases`.
+
+A change with nothing left to do is still logged so its aliases hold.
+
+### Objects
+
+Original files, images and uploaded covers are content-addressed files. The hub keeps every file. Before pushing, a replica uploads missing files for snapshots its changes attach or cite, and the covers they link to.
+
+After pulling, a replica fetches every cover plus original files and images for pinned sources (`tessera sync pin`). Other files arrive when used: an image request to a replica's service fetches a missing image from the hub, checks its hash and keeps it.
+
+Files are never evicted. Missing hub files are reported rather than failing sync.
+
+### State outside the log
+
+Reading positions and highlight surfacings are written outside the change log. Each row carries:
+
+- A hybrid logical clock in milliseconds, ahead of every clock the notebook has seen.
+- The writing device.
+- Its position in the notebook's arrival order.
+
+A replica sends its rows written since the last push immediately after pushing changes, before pulling. After applying pulled changes, it receives hub rows that arrived since its last pull.
+
+The later clock wins a reading position or surfacing action; the device breaks ties. A surfacing either device showed is kept. `sources.last_read_at` follows the latest position across the source's snapshots; a muted surfacing mutes its citation.
+
+### Sequence columns
+
+`review_events.change_seq`, `citations.created_seq` and other `*_seq` columns hold sequence numbers. Confirmed rows arrive as patches with hub numbering; unconfirmed changes receive new local numbers on replay.
 
 Open pages follow a local arrival journal (`editor_events`), not `changes.seq`, because a rebase renumbers and replaces unconfirmed changes. Each commit, pulled change and replayed change adds an entry with a new cursor; sync entries carry the `sync` actor and mark every page they touch as restructured, so the page reloads even when a block's revision did not grow. Editor routes acknowledge commits with this cursor. Core sync receipts and agent undo still use log sequences. The migration starts the journal above the highest existing sequence, and pairing and recloning carry it forward, so saved cursors stay valid.
 
@@ -82,11 +209,43 @@ Editor routes stay on loopback and keep rejecting other hosts and origins. They 
 
 Other devices reach the hub through a second listener on loopback, at the editor's port plus one (4319 for the installed app; `tessera serve --sync-port`). It serves only the hub routes and pairing, and every request except pairing carries `Authorization: Bearer <key>`. A request that names a device must name one that key cloned. Settings › Devices publishes this listener with `tailscale serve --bg --https=4319` and withdraws it with `tailscale serve --https=4319 off`; Tailscale supplies the certificate for the Mac's `ts.net` name. The hub touches no other Serve port.
 
-Pairing starts on the Mac, which shows a QR code for `tessera://pair?hub=<url>&code=<code>` and the same eight-character code to type. A code works once, expires after five minutes and is cancelled by five wrong tries; codes live only in the running service. The phone sends the code and its own name and receives a random key; the hub keeps the key's SHA-256 in `sync_devices` and records which device cloned each replica. Forget deletes the device's row, so its key stops working, and retires its replicas. The forgotten phone then reports `unpaired` and offers Pair again. Its new key registers a temporary replica that sends only the phone's outbox and unlogged rows, never the log it got from the hub, and the phone clones the hub again.
+Pairing starts on the Mac with a QR code for `tessera://pair?hub=<url>&code=<code>` and the same eight-character code to type. Codes live only in the running service, work once, expire after five minutes and are cancelled by five wrong tries.
 
-One HTTP client serves the command line and the Android app. It uses rustls with bundled webpki roots, which accept the Let's Encrypt certificates Tailscale issues, and allows plain HTTP only to loopback. The service's runner syncs a replica at startup, three seconds after a local commit, every three minutes and on Sync now, one sync at a time, backing off from five seconds to five minutes after network errors. The app adds two triggers while it is on screen: it syncs when it opens or returns from the background, even after a failure, and again whenever the last sync is half a minute old unless the last attempt failed, which leaves retries to the backoff. Android freezes the app in the background, so a closed phone does not sync until it is opened. Each local step takes the notebook lock on its own and no network request holds it, so the phone stays editable while it waits for the Mac. The runner logs each sync that moved changes, files or rows with its counts, and each failure; the hub logs each push with its device and how many changes it accepted and rejected. While a service owns a replica, `tessera sync`, `sync status` and `sync conflicts` use its `/api/sync/run`, `/api/sync/state` and `/api/sync/conflicts` routes instead of opening the notebook.
+The phone sends the code and its name, receiving a random key. The hub stores its SHA-256 in `sync_devices` and records which device cloned each replica.
 
-A phone that already has its own notebook sends its whole change log to the hub with empty text bases, plus its snapshots, files, reading positions and surfacings, then clones the hub and swaps the clone in place. Pages with the same title and journals with the same date resolve to the hub's root as any push does, and anything the hub cannot apply stays in `sync_conflicts`. The Fields page predates the log and has a different ID in each notebook, so the import first sends a creation of it that the hub resolves by title. The old database stays beside the new one as `notebook.db.before-pairing-<unix seconds>`. Two independent histories are never merged.
+Forget deletes the device row, revoking its key and retiring its replicas. The forgotten phone reports `unpaired` and offers Pair again. Its new key registers a temporary replica that sends only the phone's outbox and unlogged rows, never its log received from the hub. The phone then clones the hub again.
+
+One HTTP client serves the command line and Android app. It uses rustls with bundled webpki roots, which accept Tailscale's Let's Encrypt certificates, and permits plain HTTP only to loopback.
+
+The service runner syncs one replica at a time:
+
+- At startup.
+- Three seconds after a local commit.
+- Every three minutes.
+- On Sync now.
+
+Network errors trigger backoff from five seconds to five minutes. While on screen, the app also syncs:
+
+- When opened or returning from the background, even after failure.
+- When the last sync is half a minute old, unless the last attempt failed; backoff then handles retries.
+
+Android freezes background apps, so a closed phone waits until opened. Each local step takes the notebook lock separately; no network request holds it. The phone stays editable while waiting for the Mac.
+
+The runner logs counts for each sync that moved changes, files or rows, and logs every failure. The hub logs each push's device and accepted/rejected change counts.
+
+While a service owns a replica, commands use its routes instead of opening the notebook:
+
+| Command | Route |
+|---|---|
+| `tessera sync` | `/api/sync/run` |
+| `sync status` | `/api/sync/state` |
+| `sync conflicts` | `/api/sync/conflicts` |
+
+A phone with its own notebook sends the hub its whole change log with empty text bases, plus snapshots, files, reading positions and surfacings. It then clones the hub and swaps the clone in place.
+
+As with any push, matching page titles and journal dates resolve to the hub's root; changes the hub cannot apply remain in `sync_conflicts`. The Fields page predates the log and has different IDs in each notebook, so import first sends its creation for the hub to resolve by title.
+
+The old database stays beside the new one as `notebook.db.before-pairing-<unix seconds>`. Two independent histories are never merged.
 
 ## Later: end-to-end encryption and collaboration
 

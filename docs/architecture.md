@@ -2,16 +2,39 @@
 
 Tessera is a local Rust service that owns one SQLite notebook, plus a browser editor and other clients that talk to it. The prototype's measurements show that its slow paths came from doing page-sized work per edit, not from its framework, SQLite or HTTP. So the stack stays familiar and the work per edit gets small.
 
-```text
-Browser editor      CLI        Agents       Terminal (later)
-       \             |            |              /
-        WebSocket + HTTP operation API (loopback)
-                         |
-             tessera-service (one writer)
-                         |
-          tessera-core: domain rules, transactions
-                         |
-              SQLite notebook (WAL, FTS5)
+The main processes and how they connect. The service on the Mac owns the notebook and is the hub that replicas sync with, including other Macs (not drawn). The Android app and the browser demo each run `tessera-core` in their own process.
+
+```mermaid
+flowchart TB
+    subgraph Mac["Clients on the Mac"]
+        Browser["Browser editor"]
+        Desktop["Tessera.app window<br/>tessera-desktop"]
+        CLI["tessera CLI"]
+        MCP["tessera mcp<br/>for agents"]
+    end
+    subgraph Hub["tessera serve, run by the launch agent"]
+        Service["tessera-service<br/>one writer"]
+        Core["tessera-core<br/>rules and transactions"]
+    end
+    DB[("notebook.db<br/>SQLite")]
+    Objects[("objects/<br/>original files")]
+    subgraph Phone["Android app"]
+        AndroidPage["Editor WebView"] -->|"Tauri IPC"| AndroidHost["tessera-android<br/>embedded router + core"]
+        AndroidHost --> AndroidDB[("private notebook")]
+    end
+    subgraph Demo["Browser demo"]
+        DemoPage["Demo editor"] -->|"postMessage"| Worker["wasm worker<br/>tessera-web + core"]
+        Worker --> OPFS[("OPFS SQLite")]
+    end
+    Browser -->|"HTTP + WebSocket, loopback"| Service
+    Desktop -->|"HTTP + WebSocket, loopback"| Service
+    CLI -->|"HTTP, loopback"| Service
+    MCP -->|"HTTP, loopback"| Service
+    CLI -.->|"install, serve"| Hub
+    Service --> Core
+    Core --> DB
+    Core --> Objects
+    AndroidHost <-->|"sync: HTTPS through Tailscale Serve"| Service
 ```
 
 ## Decisions
@@ -52,21 +75,57 @@ Review corrections live in append-only `review_undos`; the effective-events view
 
 `tessera-service` holds the notebook's one connection behind a lock, so reads, agent context queries and writes take turns.
 
-Editor receipts and change streams use the local `editor_events` cursor, not the replicated `changes.seq`. `GET /api/changes/head` reads that cursor without loading event payloads. A cold window reads the head before loading settings, roots or pages, then catches up and subscribes from that floor. Page snapshots keep their replay floor in the same IndexedDB record as the cached page; an acknowledgement does not advance it past unseen changes from other writers. Normal page opens fetch fresh snapshots. Offline restores refresh their cached pages and resume from the oldest restored floor. Unknown floors, cursors ahead of the server after a journal reset, and gaps over 500 events reload open documents and reseed from the head instead of replaying notebook history. Pending commands stay in the outbox. Revision checks make overlapping snapshot and event reads idempotent; sync-actor events still force structural page reloads. The CLI talks to a running service and, when none is running, says how to start one with `serve`.
+Editor receipts and change streams use the local `editor_events` cursor, not replicated `changes.seq`. `GET /api/changes/head` reads it without loading payloads. A cold window reads the head before settings, roots or pages, then catches up and subscribes from that floor.
+
+Page snapshots store their replay floor with the cached page in one IndexedDB record. An acknowledgement cannot advance it past unseen changes from other writers:
+
+- Normal page opens fetch fresh snapshots.
+- Offline restores refresh cached pages and resume from the oldest restored floor.
+- Unknown floors, cursors ahead of the server after a journal reset, or gaps over 500 events reload open documents and reseed from the head rather than replay notebook history. Pending commands stay in the outbox.
+
+Revision checks make overlapping snapshot and event reads idempotent. Sync-actor events still force structural page reloads. The CLI uses a running service; otherwise it explains how to start one with `serve`.
 
 Capability endpoints expose task plans and occurrences, project descendants, work sessions, card previews and review history, saved task views, decks and review sessions. Writes remain batches, not separate unchecked resource mutations. Their receipts and stream events carry changed capability/resource IDs as well as block changes, so an open source and its agenda or review stay consistent.
 
-Agents write through `POST /api/agent-changes`: add a note to a page, journal day or block named by title, date or ID; edit, move, delete or set the task of a block by ID; hold or release a card; create, change or delete a deck; or cite library passages from existing blocks. Under the writer lock the core plans ordinary operations from the current state, creates a missing target page or day, links hand-written `[[Title]]` references and converts `Name:: value` field shorthand by the editor's rules, creating a missing field definition, and commits one attributed batch. In the same transaction it stores the change's inverse in `agent_changes`: inverse operations based on the block, card and deck revisions the change left, plus the blocks, pages and field definitions it created. Undo applies that inverse as a new batch, so an edit made since by anyone fails its revision check and the undo is refused. Blocks, cards and decks touched only by later agent changes that were undone count as unchanged, so changes undo newest first. Created pages and field definitions are deleted only while nothing outside the change lives on them or links to them. `tessera mcp` wraps these endpoints and the service's reads (pages, search, tasks and the agenda, cards and decks, typed queries, the library and sync state) as Model Context Protocol tools over stdio, so the service stays the only writer.
+Agents write through `POST /api/agent-changes`:
+
+- Add a note to a page, journal day or block named by title, date or ID.
+- Edit, move, delete or set the task of a block by ID.
+- Hold or release a card; create, change or delete a deck.
+- Cite library passages from existing blocks.
+
+Under the writer lock, the core plans ordinary operations from current state and commits one attributed batch. It creates missing target pages or days, links hand-written `[[Title]]` references and converts `Name:: value` shorthand by the editor's rules, creating missing field definitions.
+
+The same transaction stores the inverse in `agent_changes`: inverse operations based on the resulting block, card and deck revisions, plus the blocks, pages and field definitions created. Undo applies it as a new batch:
+
+- An intervening edit by anyone fails its revision check and refuses the undo.
+- Blocks, cards and decks touched only by later, undone agent changes count as unchanged, so changes undo newest first.
+- Created pages and field definitions are deleted only while nothing outside the change lives on them or links to them.
+
+`tessera mcp` wraps these endpoints and service reads as Model Context Protocol tools over stdio. Reads cover pages, search, tasks and agenda, cards and decks, typed queries, library and sync state. The service remains the only writer.
 
 Ingestion runs in one service worker. Network fetches and parsing happen off the write connection; the worker stages content-addressed snapshots, then commits the source attachment and metadata as an attributed batch. Extractors live in `tessera-ingest`, which has no database access, so each format is tested on files alone. Persistent jobs resume after restart and retry transient network/server failures after 30 seconds, two minutes and ten minutes before failing the fourth attempt. The worker never holds the notebook mutex across network I/O.
 
 The service binds to loopback and rejects untrusted hosts and origins. Remote editor access is out of scope; devices sync through a separate listener described in [sync](sync.md).
 
-Local deployment uses one binary built with `embed-web`, which compiles the built editor into `tessera-service`; `--assets` remains a development override. On macOS, `tessera install` registers a per-user launch agent with restart-on-exit and file logging, while `tessera uninstall` leaves notebook data intact. Install stops the old service, backs up the notebook with the read-only snapshot path (so a newer build can back up a notebook before migrating it), starts the new build and waits for it to report its version and build; given a previous executable, it rolls back by restoring the backup with that executable and reinstalling it. Structured `tracing` events cover migrations, service lifecycle and ingestion, with filtering through `RUST_LOG`. Online backups use a fresh SQLite backup connection and copy the immutable object store. Restore holds the same OS ownership lock as the service and opens the restored notebook to check migrations.
+Local deployment uses one binary built with `embed-web`, which compiles the built editor into `tessera-service`. `--assets` remains a development override.
+
+On macOS, `tessera install` registers a per-user launch agent with restart-on-exit and file logging. `tessera uninstall` leaves notebook data intact. Install:
+
+1. Stops the old service.
+2. Backs up the notebook through the read-only snapshot path, so a newer build can back it up before migration.
+3. Starts the new build and waits for its version and build report.
+4. Given a previous executable, rolls back by restoring the backup with that executable and reinstalling it.
+
+Structured `tracing` events cover migrations, service lifecycle and ingestion, filtered through `RUST_LOG`. Online backups use a fresh SQLite backup connection and copy the immutable object store. Restore holds the service's OS ownership lock and opens the restored notebook to check migrations.
 
 ## Desktop app
 
-`crates/tessera-desktop` is a Tauri 2 app for macOS. `Tessera.app` holds two executables: the window (`tessera-desktop`) and the command line (`tessera`), which the launch agent runs. The window holds no notebook state. At launch it reads the agent's plist; if the agent runs another executable, or the service reports another version or build, it runs the bundled `tessera install` with a rollback target, keeping the agent's notebook and port. A build that failed to start is remembered and not retried until a newer one arrives. The window then loads the service's own origin, so the page's requests pass the service's host and origin checks unchanged, and Tauri commands stay unreachable from the notebook page. Other origins open in the default browser; downloads go to `~/Downloads`.
+`crates/tessera-desktop` is a Tauri 2 macOS app. `Tessera.app` holds the window executable (`tessera-desktop`) and command line (`tessera`), which the launch agent runs. The window holds no notebook state.
+
+At launch, the window reads the agent's plist. If the agent runs another executable or the service reports another version or build, it runs bundled `tessera install` with a rollback target, preserving the agent's notebook and port. A failed build is remembered and not retried until a newer one arrives.
+
+The window loads the service's own origin. Page requests pass its host and origin checks unchanged; Tauri commands stay unreachable from the notebook page. Other origins open in the default browser; downloads go to `~/Downloads`.
 
 Updates come from `latest.json` on the latest GitHub release, signed with a minisign key whose public half is in `tauri.conf.json`. The app installs a downloaded update only when the user restarts, after copying the outgoing `tessera` aside as the rollback target. The page reloads when the service's build changes. WebKit, not Chromium, renders the editor in the app; the outline, undo, clipboard, reader, export and external links were checked there.
 
@@ -74,9 +133,19 @@ The window has no native title bar. It uses the overlay title bar style, and the
 
 ## Android app
 
-`crates/tessera-android` is a Tauri 2 app for Android. It opens a notebook in the app's private data directory and holds its ownership lock for the life of the process, so activities that Android recreates reuse the open notebook rather than open a second writer. `tessera_service::embedded_router` builds the notebook and library routes without the host and origin policy, assets, backups, service details or WebSocket, the same routes the browser demo's worker uses. The page reaches them through `web/src/android/transport.ts`, which sends each request over Tauri IPC: the body travels as base64, because Android's IPC carries JSON only, and the reply is a raw frame of status, content type and body. Changes arrive on a Tauri channel; the `stream_changes` command subscribes before catching up from history, like the WebSocket, and returns when the page closes the stream or reloads. Nothing listens on a port, so other apps on the phone cannot reach the notebook.
+`crates/tessera-android` is a Tauri 2 Android app. It opens a notebook in private app data and holds the ownership lock for the process lifetime. Recreated activities reuse that notebook rather than open a second writer.
 
-The activity handles size and fold changes itself, so folding and unfolding resize the page without reloading it: on a Galaxy Z Fold the reader position, the open note, its caret and the keyboard survived moving to the cover screen and back. The page draws edge to edge and pads the shell by the safe-area insets. Edge to edge, Android no longer shrinks the window for the keyboard and the WebView ignores `interactive-widget=resizes-content`, so `MainActivity` pads the content view by the keyboard's inset and the page resizes above it. Article URLs are not offered: `reqwest`'s platform TLS verifier needs JNI initialization and its Android component, which the app does not set up yet. Release builds need a signing configuration in the Gradle project.
+`tessera_service::embedded_router` builds the notebook and library routes, as for the browser demo's worker. It omits host and origin policy, assets, backups, service details and WebSocket.
+
+`web/src/android/transport.ts` sends requests over Tauri IPC. Bodies travel as base64 because Android IPC carries only JSON. Replies are raw frames of status, content type and body.
+
+Changes arrive on a Tauri channel. Like WebSocket, `stream_changes` subscribes before catching up from history and returns when the page closes the stream or reloads. Nothing listens on a port, so other phone apps cannot reach the notebook.
+
+The activity handles size and fold changes, resizing without a page reload. On a Galaxy Z Fold, reader position, the open note, caret and keyboard survived moving to the cover screen and back.
+
+The page draws edge to edge and pads the shell by safe-area insets. Android no longer shrinks an edge-to-edge window for the keyboard, and WebView ignores `interactive-widget=resizes-content`. `MainActivity` therefore pads the content view by the keyboard inset, resizing the page above it.
+
+Article URLs are not offered: `reqwest`'s platform TLS verifier needs JNI initialization and its Android component, which the app does not yet set up. Release builds need signing configuration in the Gradle project.
 
 ## Browser editor
 
@@ -108,13 +177,48 @@ A stale operation fails without writing. Clean remote changes merge into the loc
 
 ## Why not the alternatives
 
-- **WASM with SQLite in the browser:** the notebook would live in origin-private storage, out of reach of the CLI, agents and ordinary backups. The public browser demo uses this anyway, because a demo needs no durability beyond one browser: `crates/tessera-web` runs `tessera-core` and the service's notebook and library routers in a worker over the OPFS SQLite pool, and the editor reaches it through a swappable transport in `web/src/api/client.ts`. The browser has no `objects/` directory, so source objects are rows in a `browser_objects` table of the same database, and uploads are ingested inline before the upload request returns; article URLs are not offered because the worker cannot fetch other origins. On macOS, build it with `AR_wasm32_unknown_unknown` pointing at rustup's `llvm-ar`, since Apple's `ar` cannot index the bundled SQLite.
+- **WASM with SQLite in the browser:** origin-private notebook storage is out of reach of the CLI, agents and ordinary backups. The public browser demo uses it because a demo needs no durability beyond one browser.
+
+  `crates/tessera-web` runs `tessera-core` and the service's notebook and library routers in a worker over the OPFS SQLite pool. The editor uses a swappable transport in `web/src/api/client.ts`.
+
+  There is no `objects/` directory: source objects are rows in the same database's `browser_objects` table. Uploads are ingested inline before the request returns. Article URLs are not offered because the worker cannot fetch other origins.
+
+  On macOS, build with `AR_wasm32_unknown_unknown` pointing at rustup's `llvm-ar`; Apple's `ar` cannot index the bundled SQLite.
 - **React:** the larger ecosystem, but its list reconciliation added about 7 ms per structural edit at 10,000 mounted rows in spike 2, against about 1 ms for Solid, for the same correctness.
 - **ProseMirror or Lexical as one big editor:** better cross-block text selection, but no usable outline-aware Vim. In spike 2, ProseMirror matched CodeMirror on IME, undo and cross-block selection and failed only on Vim.
 - **Canvas rendering:** would mean rebuilding selection, IME and accessibility.
 - **Go or another rewrite language:** no measured benefit; the prototype's slowness was algorithmic.
 
 ## Repository layout
+
+Arrows are local Cargo path dependencies, from dependent to dependency. Dashed arrows are build-time links: `embed-web` compiles `web/dist` into the service, the Android app ships `web/dist-android`, and the macOS app bundles the `tessera` binary.
+
+```mermaid
+flowchart LR
+    CLI["tessera-cli"]
+    Desktop["tessera-desktop<br/>macOS"]
+    Android["tessera-android<br/>Android"]
+    Bench["tessera-bench"]
+    Wasm["tessera-web<br/>wasm worker crate"]
+    Service["tessera-service"]
+    Ingest["tessera-ingest"]
+    Core["tessera-core"]
+    Web["web/<br/>Solid package: tessera-web"]
+    CLI --> Service
+    CLI --> Core
+    Android --> Service
+    Android --> Core
+    Bench --> Service
+    Bench --> Core
+    Wasm --> Service
+    Wasm --> Core
+    Service --> Ingest
+    Service --> Core
+    Ingest --> Core
+    Service -. "embed-web: web/dist" .-> Web
+    Android -. "web/dist-android" .-> Web
+    Desktop -. "bundles the tessera binary" .-> CLI
+```
 
 ```text
 crates/tessera-core      domain model, migrations, operations
@@ -124,7 +228,9 @@ crates/tessera-desktop   macOS app: window, launch agent handover, updates
 crates/tessera-android   Android app: notebook in process, pages over IPC
 crates/tessera-bench     corpus generator and backend budget checks
 crates/tessera-ingest    extractors for EPUB books and web articles
+crates/tessera-web       browser demo: core and service routes in a WASM worker
 web/                     Solid editor
-spikes/editor/           editor prototypes and their measurement runner
+spikes/                  prototypes; spikes/editor/ has the editor measurement runner
+mise-tasks/              development, build and publishing tasks
 docs/                    design documents
 ```
