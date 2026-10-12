@@ -1056,6 +1056,7 @@ function Pane(props: OutlinePaneProps) {
       <Show when={!zoom() && doc.root()?.kind === 'journal'}>
         <JournalHeader date={doc.root()!.text} journalPeriod={journalPeriod} notebook={props.notebook} onOpen={props.onOpen} />
       </Show>
+      <fieldSheet.FieldSlots id={props.pageId} />
     </div>
     <div ref={list} class="outline-list" style={{ height: `${virtualizer.getTotalSize()}px` }}>
       <For each={foldGroups().before}>{id => <Row id={id} item={() => virtualItems().get(id)!} />}</For>

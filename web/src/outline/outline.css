@@ -145,6 +145,10 @@
    The slots span the row's full width on the canvas, so the anchor row's hover and selection stay on its own line. */
 .outline-row:has(> .field-slots) { flex-wrap: wrap; padding-bottom: 0; }
 .field-slots { flex: 0 0 calc(100% + var(--depth) * var(--indent-width) + 2px); display: flex; flex-direction: column; box-sizing: border-box; margin: var(--space-2) 0 0 calc(-2px - var(--depth) * var(--indent-width)); padding: 0 0 var(--space-2) calc(2px + var(--gutter) + var(--slot-depth) * var(--indent-width)); background: var(--canvas); }
+.outline-heading > .field-slots { margin-left: 0; padding-left: calc(2px + var(--slot-depth) * var(--indent-width)); }
+@container outline-pane (max-width: 856px) {
+  .outline-heading > .field-slots { padding-left: calc(2px + var(--gutter) + var(--slot-depth) * var(--indent-width)); }
+}
 .field-slot { display: flex; align-items: center; min-height: var(--row-height); padding: 0; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--faint); font: inherit; text-align: left; cursor: pointer; transition: color var(--motion-fast) var(--motion-ease), background-color var(--motion-fast) var(--motion-ease); }
 .field-slot:is(:hover, :focus-visible) { background: var(--hover); color: var(--muted); }
 .field-slot-label { display: inline-flex; align-items: center; flex: 0 0 calc(var(--target-size) + var(--space-48) * 2.5); min-width: 0; padding-right: var(--space-8); }
@@ -296,6 +300,7 @@
   /* Threads and field slots measure from the bullet, which is now the first control. */
   [data-page-style="prose"] .outline-row::before { left: calc(0.5 * var(--target-size)); }
   .field-slots { order: 3; padding-left: calc(2px + var(--slot-depth) * var(--indent-width)); }
+  .outline-heading > .field-slots { padding-left: calc(2px + var(--slot-depth) * var(--indent-width)); }
   /* Field names keep a narrower column, so values are not pushed past the middle of the screen. */
   .outline-field-label { flex-basis: calc(var(--target-size) + var(--space-48) * 1.5); width: calc(var(--target-size) + var(--space-48) * 1.5); }
   .field-slot-label { flex-basis: calc(var(--target-size) + var(--space-48) * 1.5); }

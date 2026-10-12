@@ -362,7 +362,7 @@ A field whose values are all leaves shows them as aligned rows: the field icon t
 
 ### Field sheet
 
-Selecting or editing a block, or one of its fields, shows its sheet under its last field: a slot for each template field it lacks, in template order, then Add field. Slots share the field labels' edge, sit on the canvas outside the row's hover and selection, and appear and leave without moving the rows above them.
+Selecting or editing a block or page, or one of its fields, shows its sheet under its last visible field row: a slot for each template field it lacks, in template order, then Add field. A page with no visible field rows shows its slots below the heading. Slots share the field labels' edge, sit on the canvas outside the row's hover and selection, and appear and leave without moving the rows above them.
 
 A slot adds the entry with a blank value and edits it, offering the options of a choice, the date picker for a date and page completion for an instance; a checkbox slot adds a ticked value.
 

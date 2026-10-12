@@ -13,7 +13,7 @@ interface SheetState {
   owner: string;
   /** The owner's live field entries in outline order, with their fields. */
   entries: readonly { id: string; field: string }[];
-  /** The visible row the slots render under: the end of the owner's last entry, or the owner when it has none. */
+  /** The visible row the slots render under, or the page heading when no field rows are visible. */
   anchor: string;
   /** Depth of the owner's entries, so slots line up with their labels whichever row carries them. */
   depth: number;
@@ -23,7 +23,7 @@ interface SheetState {
 }
 
 export interface FieldSheet {
-  /** The empty template slots and Add field, rendered by the row with this ID when it ends the selected block's fields. */
+  /** The empty template slots and Add field, rendered under the owner's last visible field row or page heading. */
   FieldSlots(props: { id: string }): JSX.Element;
   /** Give an empty entry its first value. */
   fill(entry: string): void;
@@ -32,23 +32,24 @@ export interface FieldSheet {
 }
 
 /**
- * The selected block's fields read as one sheet: its entries are ordinary rows, and under the last of them the
- * template fields it lacks wait as empty slots beside an Add field control. A block with no fields and no template
+ * The selected block or page's fields read as one sheet: its entries are ordinary rows, and under the last of them the
+ * template fields it lacks wait as empty slots beside an Add field control. An owner with no fields and no template
  * shows nothing extra.
  */
 export function createFieldSheet(context: Pick<OutlineContext,
-  | 'doc' | 'props' | 'definitionsById' | 'definitions' | 'indices' | 'selected' | 'editing'
+  | 'doc' | 'props' | 'definitionsById' | 'definitions' | 'indices' | 'selected' | 'editing' | 'zoom'
   | 'folds' | 'apply' | 'setMessage' | 'templateFor' | 'baseDepth'
 >, options: { offerValue(id: string, field: FieldDefinition): void; onField(field: FieldDefinition): void }): FieldSheet {
-  const { doc, props, definitionsById, definitions, indices, selected, editing, folds, apply, setMessage, templateFor, baseDepth } = context;
+  const { doc, props, definitionsById, definitions, indices, selected, editing, zoom, folds, apply, setMessage, templateFor, baseDepth } = context;
   const fieldOf = (id: string) => definitionsById().get(fieldEntryId(doc.block(id)?.text ?? '') ?? '');
-  /** The block whose fields hold the selection: the selected block, or the owner of a selected entry or value. */
+  /** The block or page whose fields hold the selection, falling back to the visible root when nothing is selected. */
   const owner = createMemo(() => {
-    const id = editing() ?? selected();
+    const id = editing() ?? selected() ?? zoom() ?? props.pageId;
     if (!id || !doc.block(id)) return null;
     const parent = doc.outline.parentOf(id);
-    const candidate = fieldOf(id) ? parent : parent !== props.pageId && fieldOf(parent) ? doc.outline.parentOf(parent) : id;
-    return candidate !== props.pageId && doc.block(candidate)?.kind === 'block' ? candidate : null;
+    const candidate = fieldOf(id) ? parent : fieldOf(parent) ? doc.outline.parentOf(parent) : id;
+    if (candidate === props.pageId) return zoom() ? null : candidate;
+    return doc.block(candidate)?.kind === 'block' ? candidate : null;
   });
   const [criteria] = createResource(() => {
     const subject = doc.block(owner() ?? '')?.position?.subject_id;
@@ -72,16 +73,20 @@ export function createFieldSheet(context: Pick<OutlineContext,
     const template = [...new Set([...apparatus, ...subjects, ...templateFor(typeKeys(block.text, block.manual_types))])].filter(field => known.has(field));
     if (!entries.length && !template.length) return null;
     const rows = indices();
-    const last = entries.at(-1)?.id ?? null;
+    const entryIds = new Set(entries.map(entry => entry.id));
     let anchor = id;
-    if (last) {
-      const start = doc.outline.indexOf(last);
-      for (let at = doc.outline.subtreeEnd(start) - 1; at >= start; at--) {
-        const row = doc.outline.idAt(at);
-        if (rows.has(row)) { anchor = row; break; }
+    // Visible order is authoritative after history restores and inline-entry changes. Hidden values and
+    // entries must not send the slots back to the owner while earlier field rows are still visible.
+    for (const row of rows.keys()) {
+      let ancestor = row;
+      while (ancestor !== id && ancestor !== props.pageId && !entryIds.has(ancestor)) {
+        const parent = doc.outline.parentOf(ancestor);
+        if (parent === ancestor) break;
+        ancestor = parent;
       }
+      if (entryIds.has(ancestor)) anchor = row;
     }
-    if (!rows.has(anchor)) return null;
+    if (!rows.has(anchor) && !(anchor === props.pageId && !zoom())) return null;
     return { owner: id, entries, anchor, depth: doc.outline.depth(id) + 1 - baseDepth(), template, present, missing: template.filter(field => !present.has(field)) };
   });
   const [picker, setPicker] = createSignal<HTMLElement | null>(null);
@@ -119,7 +124,7 @@ export function createFieldSheet(context: Pick<OutlineContext,
     if (!result.ok) setMessage(result.reason);
   }
 
-  /** Rendered inside the anchor row, after its body. */
+  /** Rendered after the anchor row's body, or in the heading for a page with no visible field rows. */
   function FieldSlots(slotProps: { id: string }) {
     return <Show when={sheet()?.anchor === slotProps.id ? sheet() : null}>{state => <div class="field-slots" style={{ '--slot-depth': state().depth }}>
       <For each={state().missing}>{fieldId => <Show when={definitionsById().get(fieldId)}>{field =>
