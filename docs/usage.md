@@ -91,7 +91,7 @@ The signing key comes from the first available source:
 <https://tessera.solforged.io> keeps a notebook in the browser's private storage on one device. Chromium browsers can install it as an app (tested in Brave and Helium): use the install button in the address bar or the browser menu. The app opens in its own window, starts without a network connection, and loads the newest version whenever it is online.
 
 - **Storage:** the app asks the browser to keep its storage. Settings › Backups shows whether it does and how much is used, and downloads the notebook as one file. That file is the only copy outside the browser.
-- **One window:** a second window or tab shows `Tessera is open in another tab`.
+- **One window at a time:** a second window or tab says `Tessera is open in another window.` Use it here moves the notebook there: the first window saves what you typed, closes the notebook and offers Use it here to take it back. A window that does not answer within five seconds has to be closed first.
 - **Title bar:** the chevron in the window's title bar hides it. Tessera's top bar then holds the window buttons and moves the window.
 - **Shortcuts:** in the app window, ⌘N makes a page, ⌘T opens today and ⌘, opens Settings. A browser tab keeps those for the browser. ⌘E adds to today in both.
 

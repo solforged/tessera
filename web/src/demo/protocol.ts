@@ -7,7 +7,7 @@ export type ToWorker =
   | { id: number; type: 'subscribe'; after: number }
   | { id: number; type: 'unsubscribe' }
   | { id: number; type: 'start'; kind: 'empty' | 'tour' }
-  | { id: number; type: 'export' | 'export-upgrade-copy' | 'upgrade-copy' | 'restore-upgrade-copy' | 'reset' }
+  | { id: number; type: 'export' | 'export-upgrade-copy' | 'upgrade-copy' | 'restore-upgrade-copy' | 'reset' | 'close' }
   | { id: number; type: 'restore'; body: ArrayBuffer };
 export type FromWorker =
   | { type: 'ready'; info: NotebookInfo; fresh: boolean }

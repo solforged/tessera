@@ -103,6 +103,19 @@ fn close_app() {
     });
 }
 
+/// Close the notebook and release its exclusive OPFS access handles.
+/// The caller must finish outstanding requests before closing.
+#[wasm_bindgen]
+pub fn close() -> Result<(), JsValue> {
+    close_app();
+    RUNTIME.with(|runtime| {
+        if let Some(pool) = &runtime.borrow().pool {
+            pool.pause_vfs().map_err(pool_error)?;
+        }
+        Ok(())
+    })
+}
+
 fn delete_notebook(pool: &OpfsSAHPoolUtil, database: &str) -> Result<(), JsValue> {
     for suffix in ["-journal", "-wal", "-shm", ""] {
         pool.delete_db(&format!("{database}{suffix}"))
@@ -298,6 +311,11 @@ pub async fn open() -> Result<String, JsValue> {
         // upgrade copy can also need one.
         pool.reserve_minimum_capacity(6).await.map_err(pool_error)?;
         RUNTIME.with(|runtime| runtime.borrow_mut().pool = Some(pool));
+    } else {
+        let pool = RUNTIME.with(|runtime| runtime.borrow_mut().pool.take().unwrap());
+        let result = pool.unpause_vfs().await.map_err(pool_error);
+        RUNTIME.with(|runtime| runtime.borrow_mut().pool = Some(pool));
+        result?;
     }
     recover_restore()?;
     save_upgrade_copy()?;

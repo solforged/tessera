@@ -21,7 +21,8 @@ class TestWorker extends EventTarget {
     const { promise, resolve } = Promise.withResolvers<void>();
     this.waiting.push({ count, resolve }); return promise;
   }
-  terminate(): void {}
+  terminated = false;
+  terminate(): void { this.terminated = true; }
   receive(message: FromWorker): void { this.dispatchEvent(new MessageEvent('message', { data: message })); }
 }
 function fixture() {
@@ -134,5 +135,23 @@ describe('browser demo transport', () => {
     expect(worker.messages[0]?.type).toBe('reset');
     worker.receive({ id: worker.messages[0]!.id, type: 'done' });
     await pending; transport.dispose();
+  });
+
+  test('close drains accepted body reads and responses before releasing and terminating', async () => {
+    const { worker, transport } = fixture(); worker.receive({ type: 'ready', info, fresh: false });
+    const accepted = transport.fetch('/api/batches', { method: 'POST', body: '{"edit":"last"}' });
+    const closing = transport.close();
+    await worker.until(1);
+    expect(worker.messages.map(message => message.type)).toEqual(['request']);
+    expect(worker.terminated).toBe(false);
+    await expect(transport.fetch('/api/batches', { method: 'POST' })).rejects.toBeInstanceOf(DemoFailure);
+    worker.receive({ id: worker.messages[0]!.id, type: 'response', status: 200, contentType: 'application/json', body: new TextEncoder().encode('{}').buffer });
+    expect((await accepted).status).toBe(200);
+    await worker.until(2);
+    expect(worker.messages[1]?.type).toBe('close');
+    expect(worker.terminated).toBe(false);
+    worker.receive({ id: worker.messages[1]!.id, type: 'done' });
+    await closing;
+    expect(worker.terminated).toBe(true);
   });
 });

@@ -23,6 +23,8 @@ export class DemoTransport {
   private nextId = 0;
   private pending = new Map<number, Pending>();
   private sockets = new Map<number, DemoSocket>();
+  private closing = false;
+  private requests = new Set<Promise<Response>>();
 
   constructor(private worker: Worker) {
     worker.addEventListener('message', event => this.receive(event.data as FromWorker));
@@ -87,7 +89,15 @@ export class DemoTransport {
     return promise;
   }
 
-  readonly fetch: Transport = async (url, init) => {
+  readonly fetch: Transport = (url, init) => {
+    if (this.closing) return Promise.reject(new DemoFailure('internal', 'The notebook worker was closed.'));
+    const request = this.request(url, init);
+    this.requests.add(request);
+    void request.then(() => this.requests.delete(request), () => this.requests.delete(request));
+    return request;
+  };
+
+  private readonly request: Transport = async (url, init) => {
     const parsed = new URL(url, typeof location === 'undefined' ? 'http://demo.local' : location.href);
     const request = new Request(parsed, init);
     const body = request.body ? await request.arrayBuffer() : null;
@@ -107,6 +117,7 @@ export class DemoTransport {
     this.sockets.set(id, socket);
     void this.ready.then(() => {
       if (socket.readyState !== CHANGE_CONNECTING) return;
+      if (this.closing) { socket.fail(); this.sockets.delete(id); return; }
       if (this.failure) throw this.failure;
       this.worker.postMessage({ id, type: 'subscribe', after } satisfies ToWorker);
     }).catch(() => { socket.fail(); this.sockets.delete(id); });
@@ -152,6 +163,15 @@ export class DemoTransport {
   async reset(): Promise<void> {
     const message = await this.exchange({ id: ++this.nextId, type: 'reset' });
     if (message.type !== 'done') throw new Error('The notebook worker did not finish resetting.');
+  }
+
+  /** Drain accepted requests, including bodies still being read, before releasing the pool. */
+  async close(): Promise<void> {
+    this.closing = true;
+    await Promise.allSettled(this.requests);
+    const message = await this.exchange({ id: ++this.nextId, type: 'close' });
+    if (message.type !== 'done') throw new Error('The notebook worker did not return a response.');
+    this.dispose();
   }
 
   dispose(): void {

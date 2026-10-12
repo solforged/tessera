@@ -152,6 +152,11 @@ async function receive(message: ToWorker): Promise<void> {
       await wasm.reset();
       send({ id: message.id, type: 'done' });
       break;
+    case 'close':
+      closeSubscriptions();
+      wasm.close();
+      send({ id: message.id, type: 'done' });
+      break;
   }
 }
 

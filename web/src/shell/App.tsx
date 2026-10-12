@@ -2,7 +2,7 @@ import { batch, createEffect, createMemo, createResource, createSignal, For, Ind
 import type { Accessor } from 'solid-js';
 import { api } from '../api/client';
 import type { Block, NoteKind, NotebookInfo, Type, View } from '../api/types';
-import { createNotebookClient } from '../document';
+import { createNotebookClient, type Notebook } from '../document';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import { OutlinePane } from '../outline/OutlinePane';
 import { plainText } from '../outline/BlockText';
@@ -113,7 +113,7 @@ function targetFromView(entry: HistoryEntry): OpenTarget {
   return target;
 }
 
-export function App() {
+export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   const identityKey = `tessera.identity.${location.origin}`;
   let cachedIdentity: NotebookInfo | undefined;
   try {
@@ -122,6 +122,7 @@ export function App() {
   } catch { /* A first offline visit has no cached notebook identity. */ }
   const notebook = createNotebookClient({ notebookId: cachedIdentity?.id });
   onCleanup(() => { void notebook.dispose(); });
+  props.onNotebook?.(notebook);
   const commands = createCommandRegistry();
   const [info] = createResource(async () => {
     try {
