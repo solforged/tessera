@@ -30,7 +30,7 @@ import { blankCapture, installQuickCapture } from './quick-capture';
 import type { CaptureRequest } from './quick-capture';
 import { CaptureSheet } from '../capture/CaptureSheet';
 import { SyncStatus } from '../sync/SyncStatus';
-import { NotebookOpening, registerNotebookCommands } from '../settings/notebooks';
+import { NotebookMarker, NotebookOpening, registerNotebookCommands } from '../settings/notebooks';
 import { indexKindTarget, noteIndex, noteKindIcon, tagOnly } from '../notes/kinds';
 
 /** How long the deletion toast stays when nothing rests on it. */
@@ -618,7 +618,7 @@ export function App() {
         <Show when={recentRoots().length} fallback={<p class="sidebar-empty">Pages you open appear here</p>}><PageLinks roots={recentRoots()} sourceIcons notebook={notebook} activeId={pageIdOf(entry(active()))} onOpen={open} /></Show>
       </details>
       <div class="sidebar-foot">
-        <Button icon="settings" class={entry(active())?.target.kind === 'settings' ? 'selected' : ''} onClick={event => open({ kind: 'settings' }, event.shiftKey)}><span>Settings</span></Button>
+        <Button icon="settings" class={entry(active())?.target.kind === 'settings' ? 'selected' : ''} onClick={event => open({ kind: 'settings' }, event.shiftKey)}><span>Settings</span><NotebookMarker /></Button>
         <Button icon="field" label="Fields" class={`icon-only ${entry(active())?.target.kind === 'fields' && !(entry(active())?.target as Extract<OpenTarget, { kind: 'fields' }>).typeId ? 'selected' : ''}`} onClick={event => open({ kind: 'fields' }, event.shiftKey)} />
       </div>
     </aside>
