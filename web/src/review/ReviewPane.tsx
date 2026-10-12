@@ -456,7 +456,7 @@ export function ReviewPane(props: ReviewPaneProps) {
       const id = ulid();
       await props.notebook.commit([{
         op: 'insert', id, parent_id: pageId, after: doc.outline.children(pageId).at(-1) ?? null, text, heading: null,
-      }], 'Create card');
+      }], 'Create card', [pageId]);
       if (!disposed) {
         setComposer(null);
         props.onOpen({ kind: 'page', pageId, blockId: id, caretId: id }, false);

@@ -579,8 +579,8 @@ function Pane(props: OutlinePaneProps) {
       if (!parent || !children.length) { finishFoldMotion(); return; }
       const top = parent.end - margin();
       const next = foldGroups().after[0];
-      const bottom = next ? virtualItems().get(next.id)!.start - margin()
-        : Math.max(...children.map(child => virtualItems().get(child.id)!.end - margin()));
+      const bottom = next ? virtualItems().get(next)!.start - margin()
+        : Math.max(...children.map(child => virtualItems().get(child)!.end - margin()));
       const height = Math.max(0, bottom - top);
       const size = virtualizer.getTotalSize();
       const clipped = `inset(${top}px 0 ${Math.max(0, size - top)}px 0)`;
@@ -981,18 +981,17 @@ function Pane(props: OutlinePaneProps) {
 
   // A titled page at its top level wears the note header; sources keep their own, and the Fields page is not a note.
   const isNote = () => !zoom() && doc.root()?.kind === 'page' && !doc.root()?.source && doc.root()?.text.toLowerCase() !== 'fields';
-  // Row owners stay stable when their DOM moves between the two animated groups.
-  const rowNodes = mapArray(() => [...virtualItems().keys()].filter(id => id !== editing()), id => ({ id, node: <Row id={id} item={() => virtualItems().get(id)!} /> }));
+  // Only rendered static rows change groups; the active editor stays mounted.
   const foldGroups = createMemo(() => {
-    const all = rowNodes(), state = foldMotion();
+    const all = [...virtualItems().keys()].filter(id => id !== editing()), state = foldMotion();
     const groups = { before: [] as typeof all, children: [] as typeof all, after: [] as typeof all };
     const start = state ? indices().get(state.id) : undefined;
     if (!state || start === undefined) { groups.before = all; return groups; }
     const root = doc.outline.indexOf(state.id), end = doc.outline.subtreeEnd(root);
-    for (const row of all) {
-      const index = indices().get(row.id) ?? 0;
-      const at = doc.outline.indexOf(row.id);
-      groups[index <= start ? 'before' : at > root && at < end ? 'children' : 'after'].push(row);
+    for (const id of all) {
+      const index = indices().get(id) ?? 0;
+      const at = doc.outline.indexOf(id);
+      groups[index <= start ? 'before' : at > root && at < end ? 'children' : 'after'].push(id);
     }
     return groups;
   });
@@ -1045,12 +1044,12 @@ function Pane(props: OutlinePaneProps) {
       </Show>
     </div>
     <div ref={list} class="outline-list" style={{ height: `${virtualizer.getTotalSize()}px` }}>
-      <For each={foldGroups().before}>{row => row.node}</For>
+      <For each={foldGroups().before}>{id => <Row id={id} item={() => virtualItems().get(id)!} />}</For>
       <div ref={foldChildren} class="outline-motion-group" style={{ opacity: foldMotion()?.opening ? 0 : undefined }}>
-        <For each={foldGroups().children}>{row => row.node}</For>
+        <For each={foldGroups().children}>{id => <Row id={id} item={() => virtualItems().get(id)!} />}</For>
       </div>
       <div ref={foldFollowing} class="outline-motion-group" style={{ transform: foldMotion()?.opening ? `translateY(${foldMotion()!.beforeSize - virtualizer.getTotalSize()}px)` : undefined }}>
-        <For each={foldGroups().after}>{row => row.node}</For>
+        <For each={foldGroups().after}>{id => <Row id={id} item={() => virtualItems().get(id)!} />}</For>
       </div>
       <Show keyed when={editing() && virtualItems().has(editing()!) ? editing() : null}>{id => <Row id={id} item={() => virtualItems().get(id)!} />}</Show>
     </div>
@@ -1072,7 +1071,12 @@ function Pane(props: OutlinePaneProps) {
       <Show when={related.error || related()?.backlinks.length}><Related title="Backlinks" rows={related.error ? [] : related()?.backlinks ?? []} /></Show>
       <Show when={related.error || related()?.tagged.length}><Related title="Tagged blocks" rows={related.error ? [] : related()?.tagged ?? []} /></Show>
     </div></Show>
-    <Show keyed when={menu()}>{state => <Menu anchor={state.anchor} label={state.label} header={state.header} items={state.items} onDismiss={() => setMenu(null)} />}</Show>
+    <Show keyed when={menu()}>{state => <Menu anchor={state.anchor} label={state.label} header={state.header} items={state.items} onDismiss={() => {
+      setMenu(null);
+      // Actions without a new control must leave the page owning its shortcuts.
+      if (editor && editing() === editor.id) editor.view.focus();
+      else scroll.focus({ preventScroll: true });
+    }} />}</Show>
     <Show keyed when={mergeTarget()}>{target => <PageMergeConfirmation anchor={target.anchor} notebook={props.notebook} from={target.from} into={target.page} onDismiss={() => setMergeTarget(undefined)} onMerged={id => { setMergeTarget(undefined); props.onOpen({ kind: 'page', pageId: id }, false); }} />}</Show>
     <CapabilityPopups />
     <CompletionPopups />

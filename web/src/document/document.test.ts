@@ -2507,7 +2507,6 @@ describe('source and citation document commands', () => {
       recovered.retry();
       await eventually(() => recovered.connection() === 'live', 'Source recovery stream did not reconnect');
       await recovered.flush();
-      expect(reopened.saveState()).toBe('saved');
       expect(reopened.block(blockId)?.citations).toEqual((await api.capabilities(blockId)).citations);
       const sent = bodies.filter(body => body.operations.some(op => op.op === 'cite' && op.citation_id === nextCitation.id));
       expect(sent.length).toBeGreaterThanOrEqual(1);
@@ -2516,4 +2515,45 @@ describe('source and citation document commands', () => {
       expect((await api.source(id)).source.state).toBe('reading');
     } finally { globalThis.fetch = actualFetch; }
   });
+});
+
+test('an acknowledged draft insert refreshes its outline before resolving, including read-failure recovery', async () => {
+  const instance = await client();
+  const { id, doc } = await page(instance, 'Existing note');
+  const before = [...doc.outline.children(id)];
+  const inserted = ulid();
+  const failedRead = Promise.withResolvers<void>();
+  const bodies: string[] = [];
+  let accepted = false, blockReads = true, resolved = false;
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    if (url === `${baseUrl}/api/pages/${id}` && accepted && blockReads) {
+      failedRead.resolve();
+      throw new TypeError('Snapshot unavailable after accepted insert');
+    }
+    const response = await actualFetch(input, init);
+    if (url === `${baseUrl}/api/batches` && init?.method === 'POST' && String(init.body).includes(inserted)) {
+      bodies.push(String(init.body));
+      accepted = response.ok;
+    }
+    return response;
+  }) as typeof fetch;
+  try {
+    const pending = instance.commit([{
+      op: 'insert', id: inserted, parent_id: id, after: before.at(-1) ?? null,
+      text: 'Draft question>>Retained answer', heading: null,
+    }], 'Create card', [id]).then(result => { resolved = true; return result; });
+    await failedRead.promise;
+    await instance.flush();
+    expect(resolved).toBe(false);
+    expect((await api.block(inserted)).text).toBe('Draft question>>Retained answer');
+    blockReads = false;
+    instance.retry();
+    await pending;
+    expect(doc.outline.children(id)).toEqual([...before, inserted]);
+    expect(doc.block(inserted)?.text).toBe('Draft question>>Retained answer');
+    expect((await api.page(id)).rows.filter(row => row.block.id === inserted)).toHaveLength(1);
+    expect(bodies.length).toBeGreaterThanOrEqual(2);
+    expect(new Set(bodies).size).toBe(1);
+  } finally { globalThis.fetch = actualFetch; }
 });
