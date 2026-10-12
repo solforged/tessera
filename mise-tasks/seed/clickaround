@@ -4,10 +4,11 @@
 // Writes a fresh notebook (default ~/.local/share/tessera/notebooks/clickaround)
 // holding the week ending today: journal days, two projects with tasks, clocked
 // work and completions, repeating routines, people and concept pages with typed
-// fields, flashcards with a week of review history, the bundled Meditations
-// EPUB with highlights and a reading position, three catalogue records, two
-// collections and saved views. Everything goes through a throwaway service's
-// HTTP API, so it is the same data the app would write. The notebook is added
+// fields in every kind, empty and multi-value entries, meeting templates and
+// nested field owners, flashcards with a week of review history, the bundled
+// Meditations EPUB with highlights and a reading position, three catalogue
+// records, two collections and saved views. Everything goes through a throwaway
+// service's HTTP API, so it is the same data the app would write. The notebook is added
 // to this computer's notebook list, so Settings → Notebooks can open it.
 //
 // Dates are relative to the day it runs. Run it again with --replace to start
@@ -209,25 +210,61 @@ async function seed() {
   const person = out.page('Person');
   const concept = out.page('Concept');
   const vocabulary = out.page('Italian word');
+  const place = out.page('Place');
+  const meeting = out.page('Meeting');
   const role = out.block(fieldsPage, 'Role');
   const organisation = out.block(fieldsPage, 'Organisation');
   const lastContact = out.block(fieldsPage, 'Last contact');
   const stage = out.block(fieldsPage, 'Stage');
   const stages = Object.fromEntries(['Seedling', 'Budding', 'Evergreen'].map(name => [name, out.block(stage, name)]));
+  const rating = out.block(fieldsPage, 'Rating');
+  const owned = out.block(fieldsPage, 'Owned');
+  const website = out.block(fieldsPage, 'Website');
+  const tags = out.block(fieldsPage, 'Tags');
+  const metAt = out.block(fieldsPage, 'Met at');
+  const priority = out.block(fieldsPage, 'Priority');
+  const priorities = Object.fromEntries(['Low', 'Medium', 'High', 'Urgent'].map(name => [name, out.block(priority, name)]));
+  const recommendedBy = out.block(fieldsPage, 'Recommended by');
+  const where = out.block(fieldsPage, 'Where');
+  const attendees = out.block(fieldsPage, 'Attendees');
+  const followUp = out.block(fieldsPage, 'Follow-up');
+  const status = out.block(fieldsPage, 'Status');
+  const statuses = Object.fromEntries(['Draft', 'Review', 'Done'].map(name => [name, out.block(status, name)]));
   await out.commit('Types and fields');
   await on(lastContact, base => ({ op: 'set_field_kind', id: lastContact, base_revision: base, kind: 'date' }), 'Last contact is a date');
   await on(stage, base => ({ op: 'set_field_kind', id: stage, base_revision: base, kind: 'choice' }), 'Stage is a choice');
+  for (const [id, kind] of [[rating, 'number'], [owned, 'checkbox'], [website, 'url'], [metAt, 'instance'], [priority, 'choice'], [recommendedBy, 'instance'], [attendees, 'instance'], [followUp, 'checkbox'], [status, 'choice']] as const) {
+    await on(id, base => ({ op: 'set_field_kind', id, base_revision: base, kind }), 'Field kind');
+  }
+  for (const [id, targets] of [[metAt, [place]], [recommendedBy, [person]], [attendees, [person]]] as const) {
+    await on(id, base => ({ op: 'set_field_targets', id, base_revision: base, targets }), 'Instance targets');
+  }
   await on(person, base => ({ op: 'set_type_fields', type_id: person, base_revision: base, fields: [role, organisation, lastContact] }), 'Person template');
   await on(concept, base => ({ op: 'set_type_fields', type_id: concept, base_revision: base, fields: [stage] }), 'Concept template');
   await on(person, base => ({ op: 'set_type_presentation', type_id: person, base_revision: base, plural: 'People', icon: null }), 'People');
+  await on(meeting, base => ({ op: 'set_type_fields', type_id: meeting, base_revision: base, fields: [where, attendees, followUp] }), 'Meeting template');
+
+  // Places for typed instance fields.
+  const climbingWall = out.page('North Wall climbing centre');
+  out.block(climbingWall, 'Tuesday and Saturday sessions; blue overhang on the upstairs wall.');
+  const editorialOffice = out.page('Field Notes office');
+  out.block(editorialOffice, 'Editorial meetings and a shelf of back issues.');
+  await out.commit('Places');
+  for (const id of [climbingWall, editorialOffice]) await on(id, base => ({ op: 'add_type', id, base_revision: base, title: 'Place' }), 'Typed as Place');
 
   // People.
   const hana = out.page('Hana Okafor');
   out.field(hana, role, 'Editor');
   out.field(hana, organisation, 'Field Notes Quarterly');
   out.field(hana, lastContact, day(-6));
+  out.field(hana, tags, 'Writing', 'Slow reading');
   out.block(hana, 'Commissioned the slow reading essay. Prefers a draft early over a polished draft late.');
   out.block(hana, 'Likes concrete openings; cut throat-clearing.');
+  const editorialNote = out.block(hana, 'Editorial follow-up on the slow reading essay');
+  out.field(editorialNote, status, link(statuses.Review));
+  const opening = out.block(editorialNote, 'Try opening with the train journey rather than a definition.');
+  out.block(opening, 'Keep the reader in the scene until the first concrete example.');
+  out.block(editorialNote, `Send the revised opening after the call on ${day(-6)}.`);
   const priya = out.page('Priya Raman');
   out.field(priya, role, 'Joiner');
   out.field(priya, organisation, 'Raman & Daughters Joinery');
@@ -235,6 +272,9 @@ async function seed() {
   out.block(priya, 'Recommended by the neighbours at 14. Quotes in writing, answers texts in the evening.');
   const tom = out.page('Tom Becker');
   out.field(tom, role, 'Climbing partner');
+  out.field(tom, website, 'https://example.org/tom-becker');
+  out.field(tom, metAt, link(climbingWall));
+  out.field(tom, organisation);
   out.block(tom, 'Tuesday and Saturday sessions at the wall. Owes me a belay device back.');
   await out.commit('People');
   for (const id of [hana, priya, tom]) await on(id, base => ({ op: 'add_type', id, base_revision: base, title: 'Person' }), 'Typed as Person');
@@ -412,6 +452,19 @@ async function seed() {
   const source = await api<{ source: Json }>('GET', `/api/sources/${adler}`);
   await on(adler, base => ({ op: 'set_source', id: adler, base_revision: base, source: { ...source.source, state: 'finished' } }), 'Finished');
 
+  // User fields on source pages stay separate from catalogue metadata.
+  for (const book of [letters, adler, shallows]) {
+    const page = await api<{ rows: { block: { id: string; parent_id: string } }[] }>('GET', `/api/pages/${book}`);
+    out.after(book, page.rows.filter(row => row.block.parent_id === book).at(-1)?.block.id ?? null);
+  }
+  out.field(shallows, rating, '4');
+  out.field(shallows, owned, 'yes');
+  out.field(shallows, recommendedBy, link(hana));
+  out.field(letters, priority, link(priorities.High));
+  out.field(adler, rating, 'four');
+  out.field(adler, owned, 'no');
+  await out.commit('User fields on books');
+
   // Collections, as the Library's Collections tab makes them.
   const collectionsField = ulid();
   const collection = out.page('Collection');
@@ -440,6 +493,9 @@ async function seed() {
   out.block(d6, 'Started keeping the renovation and the essay in one notebook instead of three.');
   out.block(d6, `Read Book II of ${link(meditations)} on the train. Marked a few passages.`);
   const callHana = out.block(d6, `Call with ${link(hana)} #Meeting`);
+  out.field(callHana, where, 'Phone call');
+  out.field(callHana, attendees, link(hana), link(tom));
+  out.field(callHana, followUp, 'yes');
   out.block(callHana, '3,000 words, due in about two weeks.');
   out.block(callHana, 'Angle: reading as a practice, not a quantity.');
   out.block(callHana, `She suggested ${link(shallows)} as the foil.`);
@@ -453,6 +509,8 @@ async function seed() {
   out.block(d3, `Outlined ${link(essay)}: attention, friction, return.`);
   out.block(d3, `${link(premeditatio)} as budgeting: imagine the overrun before signing anything.`);
   const visit = out.block(d2, `Site visit with ${link(priya)} #Meeting`);
+  out.field(visit, attendees, link(priya));
+  out.field(visit, followUp, 'no');
   out.block(visit, 'Cabinet quote by Thursday.');
   out.block(visit, 'Oak veneer rather than solid oak, because of the humidity by the window.');
   out.block(visit, 'The tile order is two weeks late; she will chase it.');
