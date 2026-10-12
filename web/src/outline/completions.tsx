@@ -46,14 +46,14 @@ type CompletionRow = { kind: 'block'; block: Block & Partial<Pick<NameCompletion
 export function createOutlineCompletions(context: Pick<OutlineContext,
   | 'contextDate' | 'editing' | 'textRange' | 'composition' | 'caret'
   | 'editor' | 'doc' | 'capabilities' | 'setCaret' | 'scheduleReport'
-  | 'setMessage' | 'disposed' | 'rowAnchor' | 'editAt' | 'props'
+  | 'setMessage' | 'disposed' | 'rowAnchor' | 'editAt' | 'restoreFocus' | 'props'
   | 'replaceSelection' | 'fields' | 'definitionsById' | 'definitions' | 'activeRange'
   | 'fieldConversion' | 'commandDefinitions' | 'openPlanning' | 'priorityMenu' | 'openProject'
   | 'investigationItems' | 'apply' | 'zoomTo' | 'copy' | 'templateFor'
 >) {
   const {
     contextDate, editing, textRange, composition, caret, doc,
-    capabilities, setCaret, scheduleReport, setMessage, rowAnchor, editAt,
+    capabilities, setCaret, scheduleReport, setMessage, rowAnchor, editAt, restoreFocus,
     props, replaceSelection, fields, definitionsById, definitions, activeRange,
     fieldConversion, openPlanning, priorityMenu, openProject, investigationItems, apply,
     zoomTo, copy, templateFor,
@@ -256,6 +256,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     const state = completion();
     if (state && !state.manual && context.editor) dismissedCompletion = { id: context.editor.id, from: state.from, query: state.query };
     setCompletion(null);
+    if (state?.manual) restoreFocus();
   }
   /**
    * `::` at the start of a block picks a field, and a choice field's value picks an option. Otherwise `[[`
@@ -431,6 +432,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
         const result = doc.addType(state.manual.blockId, title);
         if (!result.ok) setMessage(result.reason);
         setCompletion(null);
+        restoreFocus();
       }
       return;
     }

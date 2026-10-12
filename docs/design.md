@@ -317,6 +317,8 @@ Dragging starts after a small movement and shows an indented horizontal drop lin
 
 Edit, Insert below, Copy reference, Open beside and Zoom stay in the first menu. Move, Add or change, Select, and source/citation actions open short secondary menus with Back to block actions. Archive and Delete remain last. Closing or completing an action returns keyboard ownership to the editor or outline.
 
+Clicking the edited row's fold chevron or task checkbox keeps the editor owning the keyboard. Saving or cancelling a page title returns ownership to the outline.
+
 ### Bullets and prose
 
 The bullet is a filled dot in `--faint`, 24 px target, gilt on hover and selection. Click or ⌘. to zoom (⌘⇧. zooms out), drag to move. The page title aligns with the bullet column; below 600 px the bullet is the first thing in the row, just inside the title's edge.
@@ -447,7 +449,7 @@ Structural edits and paste keep the top visible row at its screen position, then
 
 | Caret or block state | Result |
 |---|---|
-| End of a block with children | Inserts its first child |
+| End of a block with children | Inserts its first child, unfolding the parent to edit it |
 | End of a leaf | Inserts a sibling after it |
 | Start of nonempty text | Inserts an empty block above, keeping the original id, children and capabilities and the caret in its text; at a zoomed root the empty block is its first child |
 | Mid-text | Right part moves to a new block; original id stays on the left |
@@ -476,7 +478,7 @@ Headings likewise drop their style first. Backspace straight after a reference, 
 - Delete at the end joins the next sibling, appending its children in order. At a zoomed root it does nothing, so it never merges a sibling outside the zoomed subtree.
 - Arrows at a row boundary cross to the neighbouring row keeping the screen column, including across field gutters. Consecutive vertical moves retain the preferred column through shorter rows until another key or a pointer caret move resets it. Escape keeps the caret offset so the next Enter or `i` resumes there.
 - Indent, outdent and move act on the selection's roots with their subtrees, never leave the zoomed subtree, and are silent no-ops without a history entry at a boundary (no previous sibling, top level, first or last sibling). Outdent leaves the following siblings under their original parent. A multi-row selection survives the command and its undo or redo.
-- Delete of a subtree selects the previous visible survivor; folding a descendant selects the folded parent; zooming out selects the block being left.
+- Delete of a subtree selects the previous visible survivor; folding a descendant selects the folded parent; zooming out selects the block being left. A hidden or remotely deleted edited or selected row selects the previous visible survivor, or the next when none precedes it, and keeps outline keyboard ownership.
 
 **Capability identity**
 
@@ -592,7 +594,7 @@ Floating layers open below the element or caret that opened them, with a 4 px ga
 
 Fixed forms opt into intrinsic-height fitting and choose the larger space when they cannot fit below; growing result lists keep the stable-placement policy. Find or create opens beneath the global search trigger; the dedicated command palette centres near the top of the viewport.
 
-Escape closes the topmost one and returns focus. Closing retires input handlers immediately; only an inert, accessibility-hidden visual remains for the brief exit animation. It has no IDs and cannot steal focus from a successor popup. Reduced motion removes it immediately.
+Escape closes the topmost one and returns focus to the editor or outline that owned the keyboard before a mouse-opened menu, not its trigger. Closing retires input handlers immediately; only an inert, accessibility-hidden visual remains for the brief exit animation. It has no IDs and cannot steal focus from a successor popup. Reduced motion removes it immediately.
 
 ### Shared popup patterns
 

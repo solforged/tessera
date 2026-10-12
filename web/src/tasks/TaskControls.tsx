@@ -35,7 +35,7 @@ const errorMessage = (reason: unknown) => reason instanceof Error ? reason.messa
 const dateLabel = (date: string | null, time: string | null) => date ? `${date}${time ? ` ${time}` : ''}` : 'None';
 
 /** The task glyph. A click completes or reopens; the context menu or ⌘⇧Enter chooses any status. */
-export function TaskStatusButton(props: { task: TaskState | null; disabled?: boolean; onChange(status: TaskStatus | null): void | Promise<void> }) {
+export function TaskStatusButton(props: { task: TaskState | null; disabled?: boolean; onRestoreFocus?(): void; onChange(status: TaskStatus | null): void | Promise<void> }) {
   const [menu, setMenu] = createSignal<{ anchor: HTMLElement } | null>(null);
   const [busy, setBusy] = createSignal(false);
   const [failure, setFailure] = createSignal<{ status: TaskStatus | null; message: string } | null>(null);
@@ -48,6 +48,7 @@ export function TaskStatusButton(props: { task: TaskState | null; disabled?: boo
   const blocked = () => !!props.disabled || busy();
   const change = async (status: TaskStatus | null) => {
     if (blocked()) return;
+    props.onRestoreFocus?.();
     setBusy(true); setFailure(null);
     try { await props.onChange(status); }
     catch (reason) { setFailure({ status, message: errorMessage(reason) }); }
@@ -65,7 +66,7 @@ export function TaskStatusButton(props: { task: TaskState | null; disabled?: boo
       <span>{state.status === null ? 'Remove task' : statusLabels[state.status]}: {state.message}</span>
       <Button disabled={blocked()} label={state.status === null ? 'Retry removing task' : `Retry task status: ${statusLabels[state.status]}`} onClick={() => { void change(state.status); }}>Retry</Button>
     </span>}</Show>
-    <Show keyed when={menu()}>{state => <Menu anchor={state.anchor} label="Task status" onDismiss={() => setMenu(null)} items={statusMenuItems(props.task, status => { void change(status); }, blocked() ? 'Task is unavailable.' : undefined)} />}</Show>
+    <Show keyed when={menu()}>{state => <Menu anchor={state.anchor} label="Task status" onDismiss={() => { setMenu(null); props.onRestoreFocus?.(); }} items={statusMenuItems(props.task, status => { void change(status); }, blocked() ? 'Task is unavailable.' : undefined)} />}</Show>
   </span>;
 }
 

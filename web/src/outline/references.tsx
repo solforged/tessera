@@ -10,6 +10,7 @@ export function TypePill(props: {
   notebook: NotebookClient;
   onOpen?(target: OpenTarget, beside: boolean): void;
   onRemove?(): void;
+  onRestoreFocus?(): void;
   start?: number;
   end?: number;
   children?: JSX.Element;
@@ -22,7 +23,7 @@ export function TypePill(props: {
   return <>
     <button type="button" class="outline-tag" data-source-start={props.start} data-source-end={props.end}
       onClick={event => { event.stopPropagation(); setAnchor(event.currentTarget); }}>{props.children ?? `#${props.title}`}</button>
-    <Show when={anchor()}>{element => <Menu anchor={element()} label={`#${props.title}`} onDismiss={() => setAnchor(null)} items={[
+    <Show when={anchor()}>{element => <Menu anchor={element()} label={`#${props.title}`} onDismiss={() => { setAnchor(null); props.onRestoreFocus?.(); }} items={[
       { label: 'Open table', action: () => void open('table') },
       { label: 'Open type page', action: () => void open('page') },
       { label: 'Remove type', disabledReason: props.onRemove ? undefined : 'From the text. Edit the #tag there to remove it.', action: () => props.onRemove?.() },

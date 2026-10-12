@@ -28,7 +28,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
   | 'inlineFields' | 'baseDepth' | 'positionSource' | 'sourceDetails' | 'virtualizer'
   | 'hosts' | 'props' | 'folds' | 'selectedSet' | 'editing'
   | 'coveredSet' | 'glossId' | 'margin' | 'sigla' | 'blockMenu'
-  | 'fold' | 'zoomTo' | 'editAt' | 'pointerStart' | 'attach'
+  | 'fold' | 'zoomTo' | 'editAt' | 'restoreFocus' | 'pointerStart' | 'attach'
   | 'referenceMenu' | 'selectedOffsets' | 'ids' | 'indices' | 'setMessage' | 'apply'
   | 'setConflicts' | 'conflicts' | 'editedConflicts' | 'setEditedConflicts'
 >, sheet: FieldSheet, drag: OutlineDrag) {
@@ -36,7 +36,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
     doc, capabilities, setMenu, investigationItems, definitionsById, contextDate, inlineFields,
     baseDepth, positionSource, sourceDetails, virtualizer, hosts, props,
     folds, selectedSet, editing, coveredSet, glossId, margin,
-    sigla, blockMenu, fold, zoomTo, editAt, pointerStart,
+    sigla, blockMenu, fold, zoomTo, editAt, restoreFocus, pointerStart,
     attach, referenceMenu, selectedOffsets, ids, indices, setMessage, apply,
     setConflicts, conflicts, editedConflicts, setEditedConflicts,
   } = context;
@@ -164,7 +164,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
       <Show when={!inline() && !emptyEntry()}><button type="button" class="row-bullet icon-button" classList={{ 'bullet-collapsed': children() && folds().has(id()), 'row-card-mark': cardMark() }} aria-label={cardMark() ? `Cards: ${cardCount()}` : 'Zoom into block'} aria-haspopup={cardMark() ? 'dialog' : undefined} onPointerDown={event => drag.start(event, id())} onMouseDown={event => { if (cardMark()) event.preventDefault(); }} onClick={event => cardMark() ? cardControl?.open(event.currentTarget) : zoomTo(id())}><Icon name={cardMark() ? 'card' : 'bullet'} /></button></Show>
       <Show when={inline()}><Show when={labelled()} fallback={<span class="outline-field-label" aria-hidden="true" />}><button type="button" class="outline-field-label" title={valueField()?.name} onClick={() => editAt(id(), block()?.text.length ?? 0, true)}><Icon name="field" /><span>{valueField()?.name}</span></button></Show></Show>
       <Show when={emptyEntry()}><button type="button" class="outline-field-label" title={field()?.name} onClick={() => editAt(id(), block()?.text.length ?? 0, true)}><Icon name="field" /><span>{field()?.name}</span></button></Show>
-      <Show when={block()?.task}><TaskStatusButton task={block()?.task ?? null} disabled={capabilities.busy(id())} onChange={status => capabilities.status(id(), status)} /></Show>
+      <Show when={block()?.task}><TaskStatusButton task={block()?.task ?? null} disabled={capabilities.busy(id())} onRestoreFocus={restoreFocus} onChange={status => capabilities.status(id(), status)} /></Show>
       <div class="outline-body" classList={{ 'heading-1': block()?.heading === 1, 'heading-2': block()?.heading === 2, 'heading-3': block()?.heading === 3 }} onMouseDown={event => pointerStart(event, id(), event.currentTarget)}>
         <Show when={block()?.keptCopy}>{copy => <KeptCopyLabel copy={copy()} />}</Show>
         <div class="outline-source-line"><div class="outline-source">
@@ -178,7 +178,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
             <div class="static-text"><span classList={{ 'outline-value-pill': pill() && !!block()?.text }}><BlockText text={displayText()} blockId={id()} onError={setMessage} cards field={field()} notebook={props.notebook} onOpen={props.onOpen} onReferenceMenu={referenceMenu} selection={selectedOffsets(id())} /></span><Show when={!block()?.text && (ids().length === 1 || inline())}><span class="empty-block">{inline() && parent() === glossId() ? 'One or two sentences on what this is' : inline() ? 'Empty' : 'Start writing'}</span></Show></div>
           </Match>
         </Switch></Show>
-        <For each={block()?.manual_types ?? []}>{title => <TypePill title={title} notebook={props.notebook} onOpen={props.onOpen} onRemove={() => { const result = doc.removeType(id(), title); if (!result.ok) setMessage(result.reason); }} />}</For>
+        <For each={block()?.manual_types ?? []}>{title => <TypePill title={title} notebook={props.notebook} onOpen={props.onOpen} onRestoreFocus={restoreFocus} onRemove={() => { const result = doc.removeType(id(), title); if (!result.ok) setMessage(result.reason); }} />}</For>
         </div>
         <Show when={block()?.task || block()?.project || block()?.question || block()?.assessment || derivedCards().length || block()?.templateCards || block()?.citations.length}><span class="outline-capability-metadata" onMouseDown={event => { if ((event.target as Element).closest('button')) { event.preventDefault(); event.stopPropagation(); } }}>
           <TaskSummary id={id()} />

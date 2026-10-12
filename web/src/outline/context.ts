@@ -53,6 +53,7 @@ export interface OutlineContext {
   readonly disposed: boolean;
   rowAnchor: (id: string) => HTMLElement | null;
   editAt: (id: string, offset?: number, insert?: boolean, reveal?: boolean, activate?: boolean) => void;
+  restoreFocus: () => void;
   props: OutlinePaneProps;
   replaceSelection: (text: string, mode: 'text' | 'paste' | 'split', range?: TextRange | null, selectionBefore?: TextRange) => void;
   fields: Resource<Fields>;

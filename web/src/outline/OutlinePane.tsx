@@ -110,6 +110,7 @@ function Pane(props: OutlinePaneProps) {
   let disposed = false;
   let focusEpoch = 0;
   let focusRequest: { id: string; offset: number; insert: boolean; epoch: number } | null = null;
+  let focusRestoresPending = 0;
   let reportingFrame = 0;
   let scrollSettle = 0;
   let anchorFrame = 0;
@@ -473,10 +474,53 @@ function Pane(props: OutlinePaneProps) {
     updateCompletion(text, at);
     updateTriggers(text, at);
   }
+  /** Structural commands reveal folded destinations before restoring the caret. */
+  function revealRow(id: string) {
+    if (!doc.block(id)) return;
+    const ancestors: string[] = [];
+    for (let child = id, parent = doc.outline.parentOf(id); parent !== child; child = parent, parent = doc.outline.parentOf(parent)) {
+      if (folds().has(parent)) ancestors.push(parent);
+    }
+    if (ancestors.length) setFolds(previous => { const next = new Set(previous); for (const parent of ancestors) next.delete(parent); return next; });
+  }
+  function visibleNeighbor(id: string, before: readonly string[]) {
+    const visible = indices();
+    if (visible.has(id)) return id;
+    const at = before.indexOf(id);
+    for (let index = at - 1; index >= 0; index--) if (visible.has(before[index]!)) return before[index]!;
+    for (let index = at + 1; index < before.length; index++) if (visible.has(before[index]!)) return before[index]!;
+    const current = selected();
+    return current && visible.has(current) ? current : ids()[0] ?? null;
+  }
+  /** Hidden or deleted targets leave ownership on the outline, even when no rows remain. */
+  function selectSurvivor(id: string, before: readonly string[]) {
+    const next = visibleNeighbor(id, before);
+    focusEpoch++;
+    focusRequest = null;
+    batch(() => {
+      setCompletion(null);
+      setEditing(null);
+      setRowRange(null);
+      setTextRange(null);
+      setSelected(next);
+      setCaret(next ? { id: next, offset: 0 } : null);
+    });
+    props.onVimMode(props.vim ? 'outline' : null);
+    if (props.active) scroll.focus({ preventScroll: true });
+    scheduleReport();
+  }
+  function restoreFocus() {
+    if (disposed || !props.active || composition() || renaming()) return;
+    const id = editing();
+    if (id && indices().has(id) && editor?.id === id && editor.view.dom.isConnected) editor.view.focus();
+    else scroll.focus({ preventScroll: true });
+  }
   function editAt(id: string, offset = 0, insert = !props.vim, reveal = true, activate = true) {
-    if (disposed || composition() || !indices().has(id)) return;
+    if (disposed || composition()) return;
+    revealRow(id);
+    if (!indices().has(id)) { selectSurvivor(id, ids()); return; }
     const previous = editing();
-    if (previous && previous !== id && commitFieldEntry(previous)) return;
+    if (previous && previous !== id && doc.block(previous) && commitFieldEntry(previous)) return;
     if (activate) props.onActivate();
     offset = Math.max(0, Math.min(offset, doc.block(id)?.text.length ?? 0));
     setSelected(id);
@@ -489,9 +533,10 @@ function Pane(props: OutlinePaneProps) {
     scheduleReport();
   }
   function rowFocus(id: string, extend = false) {
-    if (disposed || composition() || !indices().has(id)) return;
+    if (disposed || composition()) return;
+    if (!indices().has(id)) { selectSurvivor(id, ids()); return; }
     const previous = editing();
-    if (previous && commitFieldEntry(previous)) return;
+    if (previous && doc.block(previous) && commitFieldEntry(previous)) return;
     focusEpoch++;
     focusRequest = null;
     props.onActivate();
@@ -512,33 +557,31 @@ function Pane(props: OutlinePaneProps) {
     if (disposed || composition()) return undefined;
     const rearrange = intent.kind === 'indent' || intent.kind === 'outdent' || intent.kind === 'move' || intent.kind === 'moveTo';
     if (intent.kind === 'indent' || intent.kind === 'outdent' || intent.kind === 'move') intent = { ...intent, zoomRoot: zoom() };
-    const before = intent.kind === 'delete' ? ids() : [];
-    const firstSelected = selectedIds()[0];
-    const previousSelected = selected();
+    const before = ids();
+    const previousCaret = caret();
+    const selection = rowRange() ?? (selected() && !editing() ? { anchor: selected()!, head: selected()! } : undefined);
     const epoch = focusEpoch;
     let result: EditResult | undefined;
-    measure('structural', () => anchored(() => { result = doc.edit(intent, caret()); }));
-    if (!result || !result.ok) { setMessage(result && !result.ok ? result.reason : 'The edit could not be applied.'); return result; }
+    focusRestoresPending++;
+    measure('structural', () => anchored(() => { result = doc.edit(intent, previousCaret ? { ...previousCaret, selection } : null); }));
+    if (!result || !result.ok) { focusRestoresPending--; setMessage(result && !result.ok ? result.reason : 'The edit could not be applied.'); return result; }
     setMessage('');
     setTextRange(null);
     if (!rearrange) setRowRange(null);
     const next = result.caret;
+    if (next && keepEditing) revealRow(next.id);
     if (next) queueMicrotask(() => {
-      if (disposed || !props.active || focusEpoch !== epoch) return;
-      if (keepEditing) editAt(next.id, next.offset, true, true, false);
-      else if (rearrange) scroll.focus({ preventScroll: true });
-      else rowFocus(next.id);
+      try {
+        if (disposed || !props.active || focusEpoch !== epoch) return;
+        if (!indices().has(next.id)) selectSurvivor(next.id, before);
+        else if (keepEditing) editAt(next.id, next.offset, true, true, false);
+        else if (rearrange) scroll.focus({ preventScroll: true });
+        else rowFocus(next.id);
+      } finally { focusRestoresPending--; }
     });
-    else if (previousSelected && !doc.block(previousSelected)) {
-      const remaining = new Set(ids());
-      const at = before.indexOf(firstSelected ?? '');
-      let neighbor: string | undefined;
-      for (let index = at - 1; index >= 0 && !neighbor; index--) if (remaining.has(before[index]!)) neighbor = before[index];
-      for (let index = at + 1; index < before.length && !neighbor; index++) if (remaining.has(before[index]!)) neighbor = before[index];
-      neighbor ??= ids()[0];
-      setEditing(null);
-      if (neighbor) rowFocus(neighbor);
-      else { setSelected(null); setCaret(null); }
+    else {
+      focusRestoresPending--;
+      if (selected() && !indices().has(selected()!)) selectSurvivor(selected()!, before);
     }
     scheduleReport();
     return result;
@@ -553,16 +596,43 @@ function Pane(props: OutlinePaneProps) {
   }
   function undo(redo = false) {
     if (disposed || composition()) return;
+    const before = ids();
+    focusRestoresPending++;
     const result = redo ? doc.redo() : doc.undo();
+    if (!result) focusRestoresPending--;
+    if (result) {
+      revealRow(result.selection?.anchor ?? result.range?.anchor.id ?? result.id);
+      revealRow(result.selection?.head ?? result.range?.head.id ?? result.id);
+    }
     const epoch = focusEpoch;
-    setMessage('');
+    setMessage(doc.historyMessage());
     setTextRange(null);
     setRowRange(null);
     if (result) queueMicrotask(() => {
-      if (disposed || !props.active || focusEpoch !== epoch) return;
-      const target = result.range?.head ?? result;
-      editAt(target.id, target.offset, !props.vim, true, false);
-      if (result.range) queueMicrotask(() => { if (!disposed && props.active && editing() === target.id) restoreSelection(result.range!); });
+      try {
+        if (disposed || !props.active || focusEpoch !== epoch) return;
+        const target = result.range?.head ?? result;
+        if (result.selection) {
+          const anchor = result.selection.anchor, head = result.selection.head;
+          if (!indices().has(anchor) || !indices().has(head)) { selectSurvivor(head, before); return; }
+          focusEpoch++;
+          focusRequest = null;
+          batch(() => {
+            setCompletion(null);
+            setEditing(null);
+            setSelected(head);
+            setCaret({ id: head, offset: result.offset });
+            setRowRange(anchor === head ? null : { anchor, head });
+          });
+          props.onVimMode(props.vim ? 'outline' : null);
+          scroll.focus({ preventScroll: true });
+          scheduleReport();
+        } else if (!indices().has(target.id)) selectSurvivor(target.id, before);
+        else {
+          editAt(target.id, target.offset, !props.vim, true, false);
+          if (result.range) queueMicrotask(() => { if (!disposed && props.active && editing() === target.id) restoreSelection(result.range!); });
+        }
+      } finally { focusRestoresPending--; }
     });
   }
   function activeRange(): TextRange | null {
@@ -602,6 +672,7 @@ function Pane(props: OutlinePaneProps) {
       const child = doc.outline.indexOf(active);
       if (child > at && child < doc.outline.subtreeEnd(at)) rowFocus(id);
     }
+    restoreFocus();
     const opening = folds().has(id);
     const change = () => setFolds(previous => { const next = new Set(previous); opening ? next.delete(id) : next.add(id); return next; });
     const style = getComputedStyle(scroll);
@@ -751,6 +822,20 @@ function Pane(props: OutlinePaneProps) {
   }
 
   function rename() { if (doc.root()?.kind !== 'page') return; setTitle(doc.root()!.text); setRenaming(true); queueMicrotask(() => { titleInput?.focus(); titleInput?.select(); }); }
+  function closeTitle() {
+    focusEpoch++;
+    focusRequest = null;
+    batch(() => {
+      setRenaming(false);
+      setEditing(null);
+      setCompletion(null);
+      setTextRange(null);
+      setMessage('');
+    });
+    props.onVimMode(props.vim ? 'outline' : null);
+    if (props.active) scroll.focus({ preventScroll: true });
+    scheduleReport();
+  }
   function commitTitle() {
     const collision = titleCollision();
     if (collision && titleInput) {
@@ -761,7 +846,7 @@ function Pane(props: OutlinePaneProps) {
       return;
     }
     const result = doc.rename(title());
-    if (result.ok) { setRenaming(false); setMessage(''); }
+    if (result.ok) closeTitle();
     else { setMessage(result.reason); titleInput?.focus(); }
   }
 
@@ -805,6 +890,7 @@ function Pane(props: OutlinePaneProps) {
     get disposed() { return disposed; },
     rowAnchor,
     editAt,
+    restoreFocus,
     props,
     replaceSelection,
     fields,
@@ -1021,7 +1107,13 @@ function Pane(props: OutlinePaneProps) {
         if (id && inlineFields().has(doc.outline.parentOf(id))) setSelected(id);
         else first = id ? { id, offset: 0 } : null;
       }
-      if (first) editAt(first.id, first.offset, !props.vim, !initial.scroll, false);
+      if (first && saved && !initial.edit) {
+        setEditing(null);
+        setSelected(first.id);
+        setCaret(first);
+        if (props.active) scroll.focus({ preventScroll: true });
+        scheduleReport();
+      } else if (first) editAt(first.id, first.offset, !props.vim, !initial.scroll, false);
       if (initial.scroll) restoreAnchor(initial.scroll);
     }
   });
@@ -1034,11 +1126,17 @@ function Pane(props: OutlinePaneProps) {
     for (const token of textTokens(text)) if (isStableReference(token)) props.notebook.lookup(token.id!)();
     queueMicrotask(() => { if (!disposed && editor?.id === id) editor.refreshLabels(); });
   });
+  let previousVisible: string[] = [];
   createEffect(() => {
     if (!sourceReady()) return;
-    const visible = ids();
-    const id = editing();
-    if (id && !visible.includes(id) && !composition()) { setEditing(null); const first = visible[0] ?? null; setSelected(first); setCaret(first ? { id: first, offset: 0 } : null); }
+    const visible = ids(), before = previousVisible;
+    previousVisible = visible;
+    const id = editing() ?? selected();
+    if (!id || visible.includes(id) || composition()) return;
+    queueMicrotask(() => {
+      if (disposed || composition() || focusRestoresPending || (editing() ?? selected()) !== id || indices().has(id)) return;
+      selectSurvivor(id, before);
+    });
   });
   createEffect(() => { storedFolds.set(`${props.pane}:${props.pageId}`, new Set(folds())); });
   onCleanup(() => {
@@ -1081,10 +1179,10 @@ function Pane(props: OutlinePaneProps) {
       <Show when={!zoom() || !doc.root()?.source || renaming()}>
       <div class="outline-title-row">
       <Show when={renaming()} fallback={<h1><button class="outline-title" type="button" disabled={doc.root()?.kind !== 'page'} onClick={rename}>{doc.root()?.text || 'Loading…'}</button></h1>}>
-        <input ref={titleInput} class="title-input" aria-label="Page title" value={title()} onInput={event => setTitle(event.currentTarget.value)} onKeyDown={event => { if (event.isComposing) return; if (event.key === 'Enter') { event.preventDefault(); commitTitle(); } if (event.key === 'Escape') { setRenaming(false); setMessage(''); } }} />
+        <input ref={titleInput} class="title-input" aria-label="Page title" value={title()} onInput={event => setTitle(event.currentTarget.value)} onKeyDown={event => { if (event.isComposing) return; if (event.key === 'Enter') { event.preventDefault(); commitTitle(); } if (event.key === 'Escape') { event.preventDefault(); closeTitle(); } }} />
         <Show when={titleCollision()} fallback={<Button class="bordered" onClick={commitTitle}>Save title</Button>}>{page =>
           <Button class="bordered" disabled={!!pageMergeDisabledReason(doc.root())} title={pageMergeDisabledReason(doc.root())} onClick={event => { setMessage(''); setMergeTarget({ page: page(), from: { id: props.pageId, text: doc.root()!.text }, anchor: event.currentTarget }); }}>Merge into “{page().text}”</Button>
-        }</Show><Button onClick={() => setRenaming(false)}>Cancel</Button>
+        }</Show><Button onClick={closeTitle}>Cancel</Button>
       </Show>
       <Show when={doc.root()?.kind === 'page' && !doc.root()?.source}><div class="outline-header-actions"><Button icon="table" label="Table" shortcut="⌘⇧T" onClick={event => openTable(event.metaKey)}>Table<Show when={!type.error && (type()?.members ?? 0) > 0}><span class="table-member-count">{type()?.members}</span></Show></Button></div></Show>
       </div>
@@ -1099,7 +1197,7 @@ function Pane(props: OutlinePaneProps) {
       <Show when={doc.root()?.templateCards}><CardSummary blockId={props.pageId} cards={[]} templateCount={doc.root()?.templateCards ?? 0} notebook={props.notebook} onOpen={props.onOpen} /></Show>
       <Show when={doc.root()?.task || doc.root()?.project || doc.root()?.question || doc.root()?.citations.length}><div class="outline-root-capabilities outline-capability-metadata">
         <Show when={doc.root()?.task}>
-          <TaskStatusButton task={doc.root()?.task ?? null} disabled={capabilities.busy(props.pageId)} onChange={status => capabilities.status(props.pageId, status)} />
+          <TaskStatusButton task={doc.root()?.task ?? null} disabled={capabilities.busy(props.pageId)} onRestoreFocus={restoreFocus} onChange={status => capabilities.status(props.pageId, status)} />
           <TaskSummary id={props.pageId} />
           <Button class="outline-planning" onClick={event => capabilities.open(props.pageId, 'work', event.currentTarget)}>Work sessions</Button>
         </Show>
@@ -1153,12 +1251,7 @@ function Pane(props: OutlinePaneProps) {
       <Show when={related.error || related()?.backlinks.length}><Related title="Backlinks" rows={related.error ? [] : related()?.backlinks ?? []} paged /></Show>
       <Show when={related.error || related()?.tagged.length}><Related title="Tagged blocks" rows={related.error ? [] : related()?.tagged ?? []} /></Show>
     </div></Show>
-    <Show keyed when={menu()}>{state => <Menu anchor={state.anchor} label={state.label} header={state.header} items={state.items} onDismiss={() => {
-      setMenu(null);
-      // Actions without a new control must leave the page owning its shortcuts.
-      if (editor && editing() === editor.id) editor.view.focus();
-      else scroll.focus({ preventScroll: true });
-    }} />}</Show>
+    <Show keyed when={menu()}>{state => <Menu anchor={state.anchor} label={state.label} header={state.header} items={state.items} onDismiss={() => { setMenu(null); restoreFocus(); }} />}</Show>
     <Show keyed when={mergeTarget()}>{target => <PageMergeConfirmation anchor={target.anchor} notebook={props.notebook} from={target.from} into={target.page} onDismiss={() => setMergeTarget(undefined)} onMerged={id => { setMergeTarget(undefined); props.onOpen({ kind: 'page', pageId: id }, false); }} />}</Show>
     <CapabilityPopups />
     <CompletionPopups />

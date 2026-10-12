@@ -71,7 +71,13 @@ export function Popup(props: PopupProps) {
   const token = Symbol('popup');
   let panel!: HTMLDivElement;
   const [position, setPosition] = createSignal({ left: 8, top: 8, height: 0, visible: false });
-  const prior = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  const focused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  // Mouse-opened controls borrow the pane's keyboard owner, not the trigger that the click focused.
+  // Nested popups still return to the control in their parent popup.
+  const pane = focused?.closest('.pane') ?? document.querySelector('.pane.active');
+  const owner = focused instanceof HTMLButtonElement && !focused.closest('.popup')
+    ? pane?.querySelector<HTMLElement>('.title-input') ?? pane?.querySelector<HTMLElement>('.editor-host.host-active .cm-content') ?? pane?.querySelector<HTMLElement>('.outline-pane') : null;
+  const prior = owner ?? focused;
   const selection = window.getSelection();
   const ranges = selection ? Array.from({ length: selection.rangeCount }, (_, i) => selection.getRangeAt(i).cloneRange()).filter(range => prior?.contains(range.commonAncestorContainer)) : [];
   const inputSelection: [number | null, number | null] | null = prior instanceof HTMLInputElement || prior instanceof HTMLTextAreaElement ? [prior.selectionStart, prior.selectionEnd] : null;
@@ -133,6 +139,9 @@ export function Popup(props: PopupProps) {
     if (restore) queueMicrotask(() => {
       // Popups that never took focus (editor completions) must not rewind the caret to where they opened.
       if (version !== mountVersion || !prior?.isConnected || prior.closest('[inert]') || prior.contains(document.activeElement)) return;
+      const active = document.activeElement;
+      // A caller may deliberately restore the editor or choose a different surviving row.
+      if (active instanceof HTMLElement && active !== document.body && active.isConnected && !panel.contains(active) && active !== focused) return;
       prior.focus({ preventScroll: true });
       if (inputSelection && (prior instanceof HTMLInputElement || prior instanceof HTMLTextAreaElement)) prior.setSelectionRange(inputSelection[0], inputSelection[1]);
       else if (ranges.length && window.getSelection()) {

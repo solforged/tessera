@@ -364,18 +364,21 @@ export class PaneEditor {
     this.replacing = true;
     const changed = id !== this.id || text !== this.view.state.doc.toString();
     this.id = id;
+    if (this.view.dom.parentElement !== host) host.append(this.view.dom);
     if (changed) this.view.dispatch({
       changes: { from: 0, to: this.view.state.doc.length, insert: text },
       selection: EditorSelection.cursor(Math.min(offset, text.length)),
     });
     else this.view.dispatch({ selection: EditorSelection.cursor(Math.min(offset, text.length)) });
-    host.append(this.view.dom);
-    this.replacing = false;
+    const selection = this.view.state.selection;
     if (this.useVim && this.vimApi && insert) {
       const cm = this.vimApi.getCM(this.view);
       if (cm && !cm.state.vim?.insertMode) this.vimApi.Vim.handleKey(cm, 'i', 'outline');
     }
     if (focus) this.view.focus();
+    // Moving a focused contenteditable can reset WebKit's native caret and CM's observed selection.
+    if (!this.view.state.selection.eq(selection)) this.view.dispatch({ selection });
+    this.replacing = false;
     this.view.requestMeasure();
     this.reportMode();
   }
