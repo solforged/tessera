@@ -174,7 +174,7 @@
 /* An uncoloured highlight is a hollow ring wherever it appears: rows, the reader list, citation chips and the colour menu. */
 .highlight-color-dot.highlight-color-none { background: transparent; box-shadow: inset 0 0 0 1px var(--faint); }
 .highlight-menu-colors [aria-pressed="true"] .highlight-color-dot { outline: 2px solid var(--text); outline-offset: 2px; }
-/* Add and Edit details read as a catalogue card: one column of labelled rows on the search width plus its margin. */
+/* Manual entry in Add reads as a catalogue card: one column of labelled rows. */
 :is(.popup, .popup-exit).library-add { width: calc(var(--search-width) + var(--apparatus-width) / 2); padding: var(--card-padding); }
 .library-add form { display: flex; flex-direction: column; align-items: stretch; gap: var(--section-item-gap); }
 .library-add .library-add-url { display: flex; flex-direction: column; gap: var(--space-4); margin: 0; color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
@@ -360,3 +360,27 @@
   .library-pane:has(.library-selection-count) .library-controls,
   .library-pane:has(.library-collection-heading) .library-controls { display: flex; }
 }
+/* Selection opens a catalogue card without narrowing the ledger's reading face. */
+.library-catalogue { display: flex; flex: 1; min-width: 0; min-height: 0; }
+.library-ledger { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; }
+.library-inspector-host { display: flex; flex: 0 0 460px; flex-direction: column; min-width: 0; min-height: 0; border-left: 1px solid var(--line); background: var(--canvas); }
+.library-inspecting .library-toolbar > *, .library-inspecting .library-scroll > .library-main { max-width: none; margin-inline: 0; }
+.library-inspecting .library-scroll { display: block; }
+.library-inspecting .library-controls { flex-wrap: wrap; }
+.library-inspecting .library-progress { width: auto; min-width: 4ch; }
+.library-inspecting .library-progress > .library-reading-rule, .library-inspecting .library-highlight-count { display: none; }
+.library-inspector-narrow .library-ledger { display: none; }
+.library-inspector-narrow .library-inspector-host { flex: 1; border-left: 0; }
+.library-inspector-grip.button { display: flex; flex: none; width: 100%; min-height: 44px; padding: var(--space-8); justify-content: center; }
+.library-inspector-grip > span { width: 32px; height: 2px; background: var(--faint); }
+.library-inspector-sheet { position: fixed; z-index: 44; left: var(--space-8); right: var(--space-8); bottom: max(calc(var(--bottom-nav-height, 56px) + var(--bottom-inset)), var(--inspector-keyboard-bottom, 0px)); height: calc(var(--inspector-viewport-height, 100dvh) * .7); max-height: calc(var(--inspector-viewport-height, 100dvh) - var(--bottom-nav-height, 56px) - var(--bottom-inset) - var(--space-8)); border: 1px solid var(--line); box-shadow: var(--popup-shadow); }
+.library-inspector-sheet.library-inspector-expanded { height: calc(var(--inspector-viewport-height, 100dvh) * .85); }
+.library-inspector-keyboard .library-inspector-sheet { max-height: calc(var(--inspector-viewport-height, 100dvh) - var(--space-8)); height: calc(var(--inspector-viewport-height, 100dvh) * .85); }
+.keyboard-open .library-inspector-sheet { bottom: max(var(--bottom-inset), var(--inspector-keyboard-bottom, 0px)); max-height: calc(var(--inspector-viewport-height, 100dvh) - var(--space-8)); height: calc(var(--inspector-viewport-height, 100dvh) * .85); }
+@media (max-width: 599px) and (pointer: coarse) {
+  .library-inspecting .library-ledger { display: flex; }
+}
+.library-reading-entry { position: relative; min-width: 0; }
+.library-reading-more.button { position: absolute; top: var(--space-8); right: var(--space-8); opacity: 0; }
+.library-reading-entry:hover .library-reading-more, .library-reading-entry:focus-within .library-reading-more { opacity: 1; }
+@media (pointer: coarse) { .library-reading-more.button { opacity: 1; min-height: 44px; min-width: 44px; } }

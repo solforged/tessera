@@ -83,6 +83,8 @@ export interface NotebookCommand extends CommandRecord {
   pageId: null;
   operations: Operation[];
   reason?: string;
+  /** Pages whose structure or explicit memberships must be refreshed after acknowledgement/replay. */
+  refreshPages?: string[];
 }
 export type Command = PageCommand | NotebookCommand;
 export interface Ticket { deletionId: string; revision: number }

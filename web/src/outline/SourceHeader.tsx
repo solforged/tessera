@@ -13,11 +13,9 @@ import { downloadBlob } from '../ui/download';
 import { ResourceImage } from '../library/ResourceImage';
 import { formatProgress } from '../library/query';
 import { shortSourceTitle } from './source';
-import { DetailsForm } from '../library/DetailsForm';
-import { saveDetails, sourceMetadata } from '../library/details';
+import { saveDetails, sourceEntries, sourceMetadata } from '../library/details';
 import { CollectionPicker, SourceCollections, createCollectionActions } from '../library/Collections';
 import { changeCollectionMembers, collectionPages, sourceCollections } from '../document/collections';
-import { Popup } from '../ui/Popup';
 import { highlightColors } from '../library/highlights';
 import { sectionLabel } from '../reader/openings';
 import { timeLeft } from '../reader/paged';
@@ -40,7 +38,9 @@ export function SourceHeader(props: {
   const [menu, setMenu] = createSignal<{ anchor: HTMLElement; label: string; items: MenuItem[] } | null>(null);
   const snapshot = createMemo(() => source()?.snapshots.find(snapshot => snapshot.id === source()?.source.current_snapshot_id));
   const metadata = createMemo(() => sourceMetadata(props.doc, props.notebook, props.fields));
-  const cover = createMemo(() => metadata().cover ?? snapshot()?.metadata.cover);
+  const authored = createMemo(() => sourceEntries(props.doc, props.fields));
+  const cover = createMemo(() => metadata().cover ?? (authored().has('cover') ? null : snapshot()?.metadata.cover));
+  const description = createMemo(() => metadata().description ?? (authored().has('description') ? null : snapshot()?.metadata.description));
   const [loadedCover, setLoadedCover] = createSignal<string>();
   const coverVisibility = createMemo(() => cover() && loadedCover() !== cover() ? 'hidden' as const : undefined);
   const length = createMemo(() => snapshot()?.text_length ?? 0);
@@ -49,7 +49,6 @@ export function SourceHeader(props: {
   const current = createMemo(() => chapterAt(chapters(), at()));
   const marks = createMemo(() => (props.highlights?.rows ?? []).flatMap(row => row.citation.snapshot_id === snapshot()?.id && row.citation.position !== undefined ? [{ at: row.citation.position, color: row.color }] : []));
   const imprint = createMemo(() => [source()?.source.siglum, { epub: 'EPUB', article: 'Article', record: 'Record' }[props.doc.root()!.source!.format], metadata().publisher, metadata().published?.slice(0, 4)].filter(Boolean).join(' · '));
-  const [details, setDetails] = createSignal<HTMLElement>();
   const collectionActions = createCollectionActions();
   const [collectionPicker, setCollectionPicker] = createSignal<HTMLElement>();
   const [result, setResult] = createSignal('');
@@ -65,11 +64,6 @@ export function SourceHeader(props: {
   onMount(() => setActionsHost(header.closest<HTMLElement>('.pane') ?? undefined));
   createEffect(() => props.onReady(!!(source() || source.error) && (!coverLayout() || !!actionsHost())));
   let coverInput!: HTMLInputElement;
-  function closeDetails() {
-    const outline = header.closest<HTMLElement>('.outline-pane');
-    setDetails(undefined);
-    outline?.focus({ preventScroll: true });
-  }
   async function fillMissing() {
     const identifier = metadata().identifiers[0];
     if (!identifier || busy()) return;
@@ -84,10 +78,10 @@ export function SourceHeader(props: {
   const [expanded, setExpanded] = createSignal(false);
   const [overflows, setOverflows] = createSignal(false);
   const [descriptionElement, setDescriptionElement] = createSignal<HTMLParagraphElement>();
-  createEffect(() => { snapshot()?.metadata.description; setExpanded(false); });
+  createEffect(() => { description(); setExpanded(false); });
   createEffect(() => {
     const element = descriptionElement();
-    snapshot()?.metadata.description;
+    description();
     if (!element) { setOverflows(false); return; }
     const measure = () => setOverflows(element.scrollHeight > Number.parseFloat(getComputedStyle(element).lineHeight) * 3 + 1);
     const observer = new ResizeObserver(measure);
@@ -124,7 +118,7 @@ export function SourceHeader(props: {
     setMenu({ anchor, label: 'Source actions', items: [
       ...props.resetItems(),
       { label: 'Copy citation key', icon: 'copy', disabledReason: props.doc.root()?.source?.citation_key ? undefined : 'No citation key', action: () => { void navigator.clipboard.writeText(props.doc.root()!.source!.citation_key!).catch(fail); } },
-      { label: 'Edit details…', action: () => setDetails(anchor) },
+      { label: 'Edit details…', action: () => props.onOpen({ kind: 'library', tab: 'all', details: [props.doc.pageId] }, false) },
       { label: 'Add to collection…', action: () => setCollectionPicker(anchor) },
       ...collections.map(collection => ({ section: 'Collections', label: `Remove from ${collection.text}`, action: () => { void collectionActions.run(`Removed from ${collection.text}`, () => changeCollectionMembers(props.notebook, collection.id, [props.doc.pageId], false)); } })),
       { label: props.fieldsVisible ? 'Hide metadata fields' : 'Show metadata fields', action: () => props.onFieldsVisible(!props.fieldsVisible) },
@@ -168,8 +162,8 @@ export function SourceHeader(props: {
         <div class="outline-source-time"><span><Show when={source()?.position && current()?.chapter.title ? current() : null}>{value => <>{timeLeft(value().chapter.end - at())} left in chapter</>}</Show></span><span>{formatProgress(source()?.progress ?? 0)} · {timeLeft(length() - at())} left</span></div>
       </div></Show>
       <Show when={coverLayout() && actionsHost()} fallback={<ReadingActions />}>{host => <Portal mount={host()}><ReadingActions /></Portal>}</Show>
-      <Show when={snapshot()?.metadata.description}>{description => <div class="outline-source-description">
-        <p ref={setDescriptionElement} classList={{ expanded: expanded() }}>{description()}</p>
+      <Show when={description()}>{text => <div class="outline-source-description">
+        <p ref={setDescriptionElement} classList={{ expanded: expanded() }}>{text()}</p>
         <Show when={overflows()}><Button class="text-button" aria-expanded={expanded()} onClick={() => setExpanded(value => !value)}>{expanded() ? 'Less' : 'More'}</Button></Show>
       </div>}</Show>
     </div>
@@ -190,12 +184,9 @@ export function SourceHeader(props: {
       if (file) void props.notebook.api.uploadCover(file).then(cover => saveDetails(props.doc, props.notebook, { ...metadata(), cover }, false, true)).catch(fail);
     }} />
     <Show when={result()}><p class="library-message" role="status">{result()}</p></Show>
-    <Show when={!details()}><collectionActions.Notice /></Show>
+    <SourceCollections notebook={props.notebook} sourceId={props.doc.pageId} actions={collectionActions} />
+    <collectionActions.Notice />
     <Show when={collectionPicker()}>{anchor => <CollectionPicker anchor={anchor()} notebook={props.notebook} sourceIds={[props.doc.pageId]} onChanged={collectionActions.record} onDismiss={() => setCollectionPicker(undefined)} />}</Show>
-    <Show when={details()}>{anchor => <Popup anchor={anchor()} fitContent label="Edit details" class="library-add" onDismiss={closeDetails}>
-      <h2 class="popup-title">Edit details</h2>
-      <DetailsForm metadata={metadata()} notebook={props.notebook} collections={<SourceCollections notebook={props.notebook} sourceId={props.doc.pageId} actions={collectionActions} />} submitLabel="Save" onCancel={closeDetails} onSave={async metadata => { await saveDetails(props.doc, props.notebook, metadata); closeDetails(); }} />
-    </Popup>}</Show>
   </>;
 }
 

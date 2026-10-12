@@ -1092,6 +1092,186 @@ fn export_field_kind_matrix() {
         assert!(item.get("translator").is_none());
     }
 }
+
+#[test]
+fn export_library_metadata_uses_conventional_keys_and_authored_values() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut doc = document();
+    doc.metadata.url = Some("https://example.test/extracted".into());
+    doc.metadata.site = Some("Extracted site".into());
+    doc.metadata.description = Some("Extracted description".into());
+    let (source, _) = ingest(&mut n, &doc, b"metadata");
+    for (name, value) in [
+        ("URL", "https://example.test/authored"),
+        ("Site", "Authored site"),
+    ] {
+        let value_id = field(&n, &source, name)[0].id.clone();
+        edit(&mut n, &value_id, value);
+    }
+    for (name, kind, value) in [
+        (
+            "Description",
+            FieldKind::Text,
+            "Authored description & summary",
+        ),
+        ("First published", FieldKind::Date, "1846-05"),
+        ("Original language", FieldKind::Text, "de"),
+        ("Edition", FieldKind::Text, "Second"),
+        ("Series", FieldKind::Text, "Collected works"),
+        ("Number", FieldKind::Number, "5"),
+        ("Pages", FieldKind::Number, "352"),
+        ("Started", FieldKind::Date, "2026-09-01"),
+        ("Finished", FieldKind::Date, "2026-10-11"),
+    ] {
+        let definition = define_field(&mut n, name, kind);
+        let entry = note(&mut n, &source, &format!("[[{definition}]]"));
+        note(&mut n, &entry, value);
+    }
+    let ids = std::slice::from_ref(&source);
+    let bib = n.export(ids, ExportFormat::Bibtex).unwrap();
+    for fragment in [
+        "date = {2020-04}",
+        "year = {2020}",
+        "origdate = {1846-05}",
+        "origlanguage = {de}",
+        "edition = {Second}",
+        "series = {Collected works}",
+        "number = {5}",
+        "pages = {352}",
+        "url = {https://example.test/authored}",
+        "organization = {Authored site}",
+        "abstract = {Authored description \\& summary}",
+    ] {
+        assert!(bib.contains(fragment), "missing {fragment}: {bib}");
+    }
+    let csl: serde_json::Value =
+        serde_json::from_str(&n.export(ids, ExportFormat::CslJson).unwrap()).unwrap();
+    let item = &csl[0];
+    assert_eq!(
+        item["issued"],
+        serde_json::json!({"date-parts": [[2020, 4]]})
+    );
+    assert_eq!(
+        item["original-date"],
+        serde_json::json!({"date-parts": [[1846, 5]]})
+    );
+    for (key, value) in [
+        ("original-language", "de"),
+        ("edition", "Second"),
+        ("collection-title", "Collected works"),
+        ("collection-number", "5"),
+        ("number-of-pages", "352"),
+        ("URL", "https://example.test/authored"),
+        ("container-title", "Authored site"),
+        ("abstract", "Authored description & summary"),
+    ] {
+        assert_eq!(item[key], value);
+    }
+    assert!(item.get("page").is_none(), "Pages is a count, not a range");
+    assert!(item.get("accessed").is_none());
+    let markdown = n.export(ids, ExportFormat::Markdown).unwrap();
+    for fragment in [
+        "# The Evidence & Meaning",
+        "Ana García, John Smith · 2020-04 · `garcia2020evidence`",
+        "https://example.test/authored",
+        "Translator: Pat Lee",
+        "First published: 1846-05",
+        "Original language: de",
+        "Publisher: Original Press",
+        "Edition: Second",
+        "Series: Collected works",
+        "Number: 5",
+        "Pages: 352",
+        "Language: en",
+        "Identifier: isbn:9780262033848",
+        "Site: Authored site",
+        "Description: Authored description & summary",
+        "Started: 2026-09-01",
+        "Finished: 2026-10-11",
+        "## Highlights",
+    ] {
+        assert!(
+            markdown.contains(fragment),
+            "missing {fragment}: {markdown}"
+        );
+    }
+    for output in [&bib, &markdown] {
+        assert!(!output.contains("Extracted site"));
+        assert!(!output.contains("Extracted description"));
+        assert!(!output.contains("https://example.test/extracted"));
+    }
+    for date in ["2026-09-01", "2026-10-11"] {
+        assert!(!bib.contains(date), "reading dates are Markdown-only");
+        assert!(!csl.to_string().contains(date));
+    }
+}
+
+#[test]
+fn export_first_published_preserves_partial_date_precision() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut n = Notebook::open(dir.path()).unwrap();
+    let (source, _) = ingest(&mut n, &document(), b"original-date");
+    let definition = define_field(&mut n, "First published", FieldKind::Date);
+    let entry = note(&mut n, &source, &format!("[[{definition}]]"));
+    let value = note(&mut n, &entry, "1846");
+    for (date, parts) in [
+        ("1846", vec![1846]),
+        ("1846-05", vec![1846, 5]),
+        ("1846-05-06", vec![1846, 5, 6]),
+    ] {
+        edit(&mut n, &value, date);
+        let ids = std::slice::from_ref(&source);
+        let bib = n.export(ids, ExportFormat::Bibtex).unwrap();
+        assert!(bib.contains(&format!("origdate = {{{date}}}")));
+        let csl: serde_json::Value =
+            serde_json::from_str(&n.export(ids, ExportFormat::CslJson).unwrap()).unwrap();
+        assert_eq!(
+            csl[0]["original-date"]["date-parts"],
+            serde_json::json!([parts])
+        );
+        assert_eq!(
+            csl[0]["issued"]["date-parts"],
+            serde_json::json!([[2020, 4]])
+        );
+    }
+}
+
+#[test]
+fn export_omits_absent_optional_library_metadata() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut doc = document();
+    doc.metadata = ExtractedMetadata {
+        title: Some("Minimal source".into()),
+        ..Default::default()
+    };
+    let (source, _) = ingest(&mut n, &doc, b"minimal");
+    let ids = std::slice::from_ref(&source);
+    let bib = n.export(ids, ExportFormat::Bibtex).unwrap();
+    let csl: serde_json::Value =
+        serde_json::from_str(&n.export(ids, ExportFormat::CslJson).unwrap()).unwrap();
+    let markdown = n.export(ids, ExportFormat::Markdown).unwrap();
+    for (bib_key, csl_key, label) in [
+        ("origdate", "original-date", "First published"),
+        ("origlanguage", "original-language", "Original language"),
+        ("edition", "edition", "Edition"),
+        ("series", "collection-title", "Series"),
+        ("number", "collection-number", "Number"),
+        ("pages", "number-of-pages", "Pages"),
+        ("date", "issued", "Published"),
+        ("url", "URL", "URL"),
+        ("organization", "container-title", "Site"),
+        ("abstract", "abstract", "Description"),
+        ("started", "started", "Started"),
+        ("finished", "finished", "Finished"),
+    ] {
+        assert!(!bib.contains(&format!("  {bib_key} = ")), "{bib}");
+        assert!(csl[0].get(csl_key).is_none(), "{csl}");
+        assert!(!markdown.contains(&format!("{label}:")), "{markdown}");
+    }
+    assert!(markdown.contains("_No highlights._"));
+}
 #[test]
 fn collision_titles_and_keys_and_origin_fallback() {
     let dir = tempfile::tempdir().unwrap();
@@ -1578,6 +1758,14 @@ fn export_markdown_document_reading_order_notes_and_locations() {
 Ana García, John Smith · 2021-05-06 · `garcia2020evidence`
 https://example.test/evidence
 
+Translator: Pat Lee
+
+Publisher: Original Press
+
+Language: en
+
+Identifier: isbn:9780262033848
+
 ## Highlights
 
 > 🦉 evidence
@@ -1647,6 +1835,14 @@ _No highlights._
 
 # The Evidence & Meaning
 Ana García, John Smith · 2020-04 · `garcia2020evidence`
+
+Translator: Pat Lee
+
+Publisher: Original Press
+
+Language: en
+
+Identifier: isbn:9780262033848
 
 ## Highlights
 
@@ -1731,6 +1927,14 @@ fn export_markdown_current_snapshot_before_history_and_offset_order() {
         n.export(&[source], ExportFormat::Markdown).unwrap(),
         "# The Evidence & Meaning
 Ana García, John Smith · 2020-04 · `garcia2020evidence`
+
+Translator: Pat Lee
+
+Publisher: Original Press
+
+Language: en
+
+Identifier: isbn:9780262033848
 
 ## Highlights
 

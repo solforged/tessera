@@ -6,14 +6,15 @@ import { tmpdir } from 'node:os';
 import type { Subprocess } from 'bun';
 import { ulid } from 'ulid';
 import { createApi } from '../api/client';
-import type { Batch, ChangeEvent, Operation, SourceState, TaskState } from '../api/types';
+import type { Batch, ChangeEvent, FieldKind, Operation, SourceState, TaskState } from '../api/types';
 import { createNotebookClient } from './index';
 import type { Notebook } from './index';
 import type { EditResult, NewCitation, PageDocument } from './contract';
 import type { Document } from './page-document';
 import { boundaryDeletion } from './outline-mechanics';
 import { questionStatus } from './types';
-import { saveDetails, sourceMetadata } from '../library/details';
+import { emptyMetadata, fillMissingSourceDetails, saveDetails, saveSourceField, sourceEntries, sourceFieldValue, sourceMetadata } from '../library/details';
+import type { SourceCreator, SourceField } from '../library/details';
 import { sourceReadingOrder } from '../library/source-order';
 
 const port = Bun.env.TESSERA_TEST_PORT ?? '4330';
@@ -1994,6 +1995,226 @@ async function sourcePage(instance: Notebook) {
     return { id, doc, citation };
   } finally { fixture.stop(true); }
 }
+
+async function metadataSource(instance: Notebook) {
+  const result = await page(instance);
+  success(result.doc.edit({ kind: 'source', id: result.id, value: { format: 'record', state: 'inbox', origin: null, match_key: null, citation_key: null } }));
+  await result.doc.flush();
+  const fieldsDoc = instance.open((await api.fields()).page_id);
+  await eventually(() => fieldsDoc.status() === 'ready', 'Fields document did not load');
+  return { ...result, fieldsDoc };
+}
+
+describe('library inspector metadata commands', () => {
+  test('every ordinary field uses its named definition and intended kind', async () => {
+    const instance = await client();
+    const { doc, fieldsDoc } = await metadataSource(instance);
+    const cases: [SourceField, string, FieldKind, string][] = [
+      ['subtitle', 'Subtitle', 'text', 'A subtitle'], ['firstPublished', 'First published', 'date', '1846'],
+      ['originalLanguage', 'Original language', 'text', 'de'], ['published', 'Published', 'date', '2024-02-29'],
+      ['publisher', 'Publisher', 'text', 'Example press'], ['edition', 'Edition', 'text', 'Second'],
+      ['series', 'Series', 'text', 'Collected works'], ['number', 'Number', 'number', '2'],
+      ['pages', 'Pages', 'number', '320'], ['language', 'Language', 'text', 'en'],
+      ['url', 'URL', 'url', 'https://example.test/source'], ['site', 'Site', 'text', 'Example'],
+      ['description', 'Description', 'text', 'First paragraph.\n\nSecond paragraph.'],
+      ['cover', 'Cover', 'text', `/api/library/covers/${'c'.repeat(64)}`],
+      ['siglum', 'Siglum', 'text', 'AbCd'], ['started', 'Started', 'date', '2026-10'],
+      ['finished', 'Finished', 'date', '2026-10-11'],
+    ];
+    for (const [field, label, kind, value] of cases) {
+      await saveSourceField([doc], instance, field, value);
+      const definitions = (await api.fields()).fields;
+      expect(definitions.find(item => item.name === label)?.kind).toBe(kind);
+      expect(sourceFieldValue(doc, instance, definitions, field)).toBe(value);
+    }
+    const title = `${doc.root()!.text} renamed`;
+    await saveSourceField([doc], instance, 'title', title);
+    await saveSourceField([doc], instance, 'state', 'reading');
+    await saveSourceField([doc], instance, 'citationKey', `source${++serial}`);
+    expect(doc.root()?.text).toBe(title);
+    expect(doc.root()?.source?.state).toBe('reading');
+    expect(doc.root()?.source?.citation_key).toBe(`source${serial}`);
+    for (const field of ['firstPublished', 'published', 'started', 'finished', 'siglum', 'pages', 'number'] as const) {
+      await saveSourceField([doc], instance, field, '');
+      expect(sourceFieldValue(doc, instance, (await api.fields()).fields, field)).toBe('');
+    }
+    expect(doc.root()?.source?.siglum_authored).toBe(false);
+    fieldsDoc.release(); doc.release();
+  }, 30000);
+
+  test('ordered creator references retain roles and every identifier survives editing', async () => {
+    const instance = await client();
+    const { doc, fieldsDoc } = await metadataSource(instance);
+    const first = await instance.createPage(`First creator ${++serial}`);
+    const second = await instance.createPage(`Second creator ${++serial}`);
+    const creators: SourceCreator[] = [
+      { id: second, name: instance.lookup(second)()!.text, role: 'author' },
+      { id: first, name: instance.lookup(first)()!.text, role: 'author' },
+      { id: second, name: instance.lookup(second)()!.text, role: 'translator' },
+      { id: null, name: `New Editor ${++serial}`, role: 'editor' },
+    ];
+    const changed = await saveSourceField([doc], instance, 'creators', creators);
+    const definitions = (await api.fields()).fields;
+    const found = sourceFieldValue(doc, instance, definitions, 'creators') as SourceCreator[];
+    expect(found.filter(item => item.role === 'author').map(item => item.id)).toEqual([second, first]);
+    expect(found.find(item => item.role === 'translator')?.id).toBe(second);
+    expect(found.find(item => item.role === 'editor')?.id).not.toBeNull();
+    expect(found.find(item => item.role === 'editor')?.name).toBe(creators[3]!.name);
+    await changed.undo();
+    expect(sourceFieldValue(doc, instance, definitions, 'creators')).toEqual([]);
+    await changed.redo();
+    expect(sourceFieldValue(doc, instance, definitions, 'creators')).toEqual(found);
+    const identifiers = ['isbn:9780262033848', 'doi:10.1000/example', 'arxiv:2301.00001'];
+    await saveSourceField([doc], instance, 'identifiers', identifiers);
+    expect(sourceFieldValue(doc, instance, (await api.fields()).fields, 'identifiers')).toEqual(identifiers);
+    expect(sourceMetadata(doc, instance, (await api.fields()).fields).identifiers).toEqual(identifiers);
+    fieldsDoc.release(); doc.release();
+  }, 30000);
+
+  test('one batch and one undo restore distinct, empty and absent values with exact block identities', async () => {
+    const instance = await client();
+    const sources = await Promise.all([metadataSource(instance), metadataSource(instance), metadataSource(instance)]);
+    const docs = sources.map(source => source.doc);
+    await saveSourceField([docs[0]!], instance, 'edition', 'First');
+    await saveSourceField([docs[1]!], instance, 'edition', 'Cleared');
+    await saveSourceField([docs[1]!], instance, 'edition', '');
+    const before = docs.map(doc => ids(doc).map(id => [id, doc.block(id)!.text]));
+    const bodies: Batch[] = [];
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === `${baseUrl}/api/batches` && init?.method === 'POST') bodies.push(JSON.parse(String(init.body)));
+      return actualFetch(input, init);
+    }) as typeof fetch;
+    try {
+      const change = await saveSourceField(docs, instance, 'edition', 'Shared');
+      expect(bodies).toHaveLength(1);
+      const after = docs.map(doc => ids(doc).map(id => [id, doc.block(id)!.text]));
+      const definitions = (await api.fields()).fields;
+      expect(docs.map(doc => sourceFieldValue(doc, instance, definitions, 'edition'))).toEqual(['Shared', 'Shared', 'Shared']);
+      await change.undo();
+      expect(bodies).toHaveLength(2);
+      expect(docs.map(doc => ids(doc).map(id => [id, doc.block(id)!.text]))).toEqual(before);
+      expect(sourceEntries(docs[2]!, definitions).has('edition')).toBe(false);
+      await change.redo();
+      expect(bodies).toHaveLength(3);
+      expect(docs.map(doc => ids(doc).map(id => [id, doc.block(id)!.text]))).toEqual(after);
+      // Later history travel increments revisions but does not invalidate earlier value guards.
+      const later = await saveSourceField(docs, instance, 'edition', 'Later');
+      await later.undo();
+      await change.undo();
+      expect(docs.map(doc => ids(doc).map(id => [id, doc.block(id)!.text]))).toEqual(before);
+    } finally {
+      globalThis.fetch = actualFetch;
+      for (const source of sources) { source.fieldsDoc.release(); source.doc.release(); }
+    }
+  }, 30000);
+
+  test('tags persist on page roots and their change reopens released documents for undo', async () => {
+    const instance = await client();
+    const { id, doc, fieldsDoc } = await metadataSource(instance);
+    await saveSourceField([doc], instance, 'tags', ['Earlier', 'Original spelling']);
+    const change = await saveSourceField([doc], instance, 'tags', ['History', 'To read']);
+    expect((await api.page(id)).root_manual_types).toEqual(['History', 'To read']);
+    fieldsDoc.release(); doc.release();
+    for (let index = 0; index < 5; index++) { const other = await page(instance); other.doc.release(); }
+    await change.undo();
+    expect((await api.page(id)).root_manual_types).toEqual(['Earlier', 'Original spelling']);
+    await change.redo();
+    const reader = await client();
+    const reopened = reader.open(id);
+    await eventually(() => reopened.status() === 'ready', 'Tagged source did not reopen');
+    expect(sourceFieldValue(reopened, reader, [], 'tags')).toEqual(['History', 'To read']);
+    reopened.release();
+  }, 30000);
+
+  test('clearing snapshot-backed fields creates an authored blank and undo restores absence', async () => {
+    const instance = await client();
+    const { doc, fieldsDoc } = await metadataSource(instance);
+    for (const field of ['url', 'site', 'description', 'cover'] as const) {
+      const change = await saveSourceField([doc], instance, field, '');
+      const definitions = (await api.fields()).fields;
+      expect(sourceEntries(doc, definitions).has(field)).toBe(true);
+      expect(sourceFieldValue(doc, instance, definitions, field)).toBe('');
+      await change.undo();
+      expect(sourceEntries(doc, definitions).has(field)).toBe(false);
+    }
+    fieldsDoc.release(); doc.release();
+  });
+
+  test('a citation collision names its owner, rolls back the entire batch and leaves unrelated saves working', async () => {
+    const session = `metadata-rejection-${++serial}`;
+    const instance = await client(session);
+    const a = await metadataSource(instance), b = await metadataSource(instance);
+    const key = `taken${++serial}`;
+    await saveSourceField([a.doc], instance, 'citationKey', key);
+    await expect(saveSourceField([b.doc], instance, 'citationKey', key.toUpperCase())).rejects.toThrow(a.doc.root()!.text);
+    expect((await api.source(b.id)).source.citation_key).toBeNull();
+    await expect(saveSourceField([a.doc, b.doc], instance, 'citationKey', `batch${++serial}`)).rejects.toThrow(a.doc.root()!.text);
+    expect((await api.source(a.id)).source.citation_key).toBe(key);
+    expect((await api.source(b.id)).source.citation_key).toBeNull();
+    expect(instance.rejectedText()).toBe('');
+    expect(instance.queuedChanges()).toBe(0);
+    expect(instance.saveState()).toBe('saved');
+    const recovered = await client(session);
+    expect(recovered.rejectedText()).toBe('');
+    expect(recovered.saveState()).toBe('saved');
+    await saveSourceField([b.doc], instance, 'state', 'finished');
+    expect((await api.source(b.id)).source.state).toBe('finished');
+    a.fieldsDoc.release(); b.fieldsDoc.release(); a.doc.release(); b.doc.release();
+  }, 30000);
+
+  test('a stale selected source rejects all selected edits but not the next unrelated save', async () => {
+    const instance = await client();
+    const a = await metadataSource(instance), b = await metadataSource(instance);
+    await saveSourceField([a.doc, b.doc], instance, 'publisher', 'Before');
+    const definitions = (await api.fields()).fields;
+    const entry = sourceEntries(b.doc, definitions).get('publisher')![0]!;
+    const valueId = b.doc.outline.children(entry)[0]!;
+    let intercept = true;
+    const submit = instance.api.submitFrozen;
+    instance.api.submitFrozen = async body => {
+      const batch = JSON.parse(body) as Batch;
+      if (intercept && batch.operations.some(op => op.op === 'edit_text' && op.id === valueId)) {
+        intercept = false;
+        const current = await api.block(valueId);
+        await api.submit({ actor: { kind: 'person' }, operations: [{ op: 'edit_text', id: valueId, base_revision: current.revision, text: 'Remote' }] });
+      }
+      return submit(body);
+    };
+    try {
+      await expect(saveSourceField([a.doc, b.doc], instance, 'publisher', 'Rejected')).rejects.toThrow();
+      expect(sourceMetadata(a.doc, instance, definitions).publisher).toBe('Before');
+      expect((await api.block(valueId)).text).toBe('Remote');
+      await saveSourceField([a.doc], instance, 'state', 'reading');
+      expect((await api.source(a.id)).source.state).toBe('reading');
+    } finally {
+      instance.api.submitFrozen = submit;
+      a.fieldsDoc.release(); b.fieldsDoc.release(); a.doc.release(); b.doc.release();
+    }
+  }, 30000);
+
+  test('fill missing commits the selection together and preserves existing details', async () => {
+    const instance = await client();
+    const a = await metadataSource(instance), b = await metadataSource(instance);
+    await saveSourceField([a.doc, b.doc], instance, 'identifiers', ['doi:10.1000/example']);
+    await saveSourceField([a.doc], instance, 'publisher', 'Authored');
+    const lookup = instance.api.lookup;
+    instance.api.lookup = async () => ({ metadata: { ...emptyMetadata(), title: 'Lookup title', publisher: 'Fetched', subtitle: 'Fetched subtitle' }, provider: 'test', cover_url: null });
+    try {
+      const change = await fillMissingSourceDetails([a.doc, b.doc], instance);
+      const definitions = (await api.fields()).fields;
+      expect(sourceMetadata(a.doc, instance, definitions).publisher).toBe('Authored');
+      expect(sourceMetadata(b.doc, instance, definitions).publisher).toBe('Fetched');
+      expect(sourceMetadata(a.doc, instance, definitions).subtitle).toBe('Fetched subtitle');
+      await change.undo();
+      expect(sourceMetadata(a.doc, instance, definitions).publisher).toBe('Authored');
+      expect(sourceEntries(b.doc, definitions).has('publisher')).toBe(false);
+      expect(sourceEntries(a.doc, definitions).has('subtitle')).toBe(false);
+    } finally {
+      instance.api.lookup = lookup;
+      a.fieldsDoc.release(); b.fieldsDoc.release(); a.doc.release(); b.doc.release();
+    }
+  }, 30000);
+});
 
 describe('source and citation document commands', () => {
   test('source details write existing fields in one undo step and fill only missing values', async () => {

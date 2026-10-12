@@ -5,7 +5,7 @@ import { ApiError, CHANGE_CONNECTING, CHANGE_OPEN, bindNotebook, createApi } fro
 import type { Batch, Block, BlockCapabilities, ChangeEvent, Committed, Operation, PageView, SettingsView, WorkSession } from '../api/types';
 import type { ApiClient, ChangeSocket } from '../api/client';
 import { startingTemplateFor } from '../fields/templates';
-import type { Caret, NotebookClient, PageDocument, SaveState } from './contract';
+import type { Caret, DocumentChange, NotebookClient, PageDocument, SaveState, SourceDetailsEdit } from './contract';
 import { Document } from './page-document';
 import type { DocumentHost } from './page-document';
 import { Outbox } from './outbox';
@@ -23,6 +23,7 @@ export interface NotebookOptions {
 }
 
 type SettingEdit = { key: 'time_zone' | 'vim' | 'confirm_view_delete'; before: string; after: string; revision: number };
+type SourceCommandPart = { pageId: string; actions: Action[]; expected?: string; stale?: boolean };
 
 /** Back and forward between a few pages reopens them without a reload; each warm page keeps its rows in memory. */
 const WARM_DOCUMENTS = 3;
@@ -77,6 +78,7 @@ export class Notebook implements NotebookClient, DocumentHost {
   private persisted = new Set<string>();
   private generations = new Map<string, number>();
   private commandWaiters = new Map<string, { resolve(value: Committed): void; reject(error: Error): void }>();
+  private sourceChangeQueue: Promise<unknown> = Promise.resolve();
   private pageWaiters = new Set<{ pageId: string; ids: Set<string>; resolve(): void; reject(error: Error): void }>();
   // A signal, so rows showing the running clock follow starts and stops from any window.
   private workSignal = createSignal<WorkSession | undefined>();
@@ -128,7 +130,7 @@ export class Notebook implements NotebookClient, DocumentHost {
   private touch() {
     this.revision[1](value => value + 1);
     for (const waiter of this.pageWaiters) {
-      const rejected = [...this.rejected.values()].find(command => command.pageId === waiter.pageId);
+      const rejected = [...this.rejected.values()].find(command => waiter.ids.has(command.id));
       const pending = this.queue.filter(command => waiter.ids.has(command.id));
       const failure = rejected?.rejection?.message ?? pending.find(command => command.failed)?.failed
         ?? (pending.length && this.persistenceFailure ? this.persistenceFailure : pending.length && this.docs.get(waiter.pageId)?.hasConflict() ? 'Conflict · Both versions kept' : undefined);
@@ -327,19 +329,94 @@ export class Notebook implements NotebookClient, DocumentHost {
     return command;
   }
   async commit(operations: readonly Operation[], reason?: string): Promise<Committed> {
+    return this.commitOperations(operations, reason);
+  }
+  private async commitOperations(operations: readonly Operation[], reason?: string, refreshPages?: string[]): Promise<Committed> {
     const id = ulid();
     const frozen = JSON.stringify({ actor: { kind: 'client', name: this.actorName }, idempotency_key: id, reason, operations });
     const snapshot: Batch = JSON.parse(frozen);
     if (!this.initialized) await this.ready;
     if (this.closed) throw new Error('The notebook is closed.');
     if (!snapshot.operations.length) throw new Error('A command needs an operation.');
-    const command: NotebookCommand = { kind: 'notebook', id, order: ++this.order, pageId: null, operations: snapshot.operations, reason, actions: [], inverse: [], before: null, after: null, frozen };
+    const command: NotebookCommand = { kind: 'notebook', id, order: ++this.order, pageId: null, operations: snapshot.operations, reason, refreshPages, actions: [], inverse: [], before: null, after: null, frozen };
     const waiter = Promise.withResolvers<Committed>();
     this.commandWaiters.set(id, waiter);
     this.queue.push(command);
     this.touch();
     void this.persist(command).then(() => this.schedule(0));
-    return waiter.promise;
+    return waiter.promise.catch(async (error: unknown) => {
+      // These awaited field transactions never adopted optimistic document state.
+      // Keep their failed draft in the editor, not as a stale shared recovery command.
+      if (refreshPages?.length && this.rejected.has(id)) {
+        await this.outbox?.remove(id);
+        this.rejected.delete(id);
+        if (this.failure === (error instanceof Error ? error.message : String(error))) this.failure = '';
+        this.touch();
+      }
+      throw error;
+    });
+  }
+  private serializeSourceChange<T>(work: () => Promise<T>): Promise<T> {
+    const result = this.sourceChangeQueue.then(work, work);
+    this.sourceChangeQueue = result.catch(() => undefined);
+    return result;
+  }
+  async editSourceDetails(edits: readonly { pageId: string; edit: SourceDetailsEdit }[]): Promise<DocumentChange> {
+    let next = await this.serializeSourceChange(async () => {
+      const docs = edits.map(({ pageId }) => this.open(pageId) as Document);
+      try {
+        await Promise.all(docs.map(async doc => {
+          if (doc.status() === 'loading') await doc.reload(false);
+          await doc.flush();
+        }));
+        const parts = edits.map(({ pageId, edit }, index) => {
+          const doc = docs[index]!;
+          const actions = doc.sourceDetailsActions(edit);
+          return { pageId, actions, expected: doc.sourceActionsState(actions) };
+        });
+        return await this.commitSourceActions(parts);
+      } finally { for (const doc of docs) doc.release(); }
+    });
+    let applied = true;
+    const travel = (undo: boolean) => this.serializeSourceChange(async () => {
+      if (applied !== undo) return;
+      next = await this.commitSourceActions(next);
+      applied = !undo;
+    });
+    return { undo: () => travel(true), redo: () => travel(false) };
+  }
+  private async commitSourceActions(parts: readonly SourceCommandPart[]): Promise<SourceCommandPart[]> {
+    const docs = parts.map(part => this.open(part.pageId) as Document);
+    try {
+      await Promise.all(docs.map(async doc => {
+        if (doc.status() === 'loading') await doc.reload(false);
+        await doc.flush();
+        if (doc.status() !== 'ready') throw new Error(doc.statusMessage() || 'This page is not ready.');
+      }));
+      const operations: Operation[] = [];
+      const inverse: SourceCommandPart[] = parts.map((part, index) => {
+        const doc = docs[index]!;
+        if (part.stale || part.expected !== undefined && doc.sourceActionsState(part.actions) !== part.expected) throw new Error('The field changed since this edit. Its current value was kept.');
+        const actions = part.actions.map(action => action.kind === 'source' ? { ...action, baseRevision: doc.root()!.revision } : action);
+        const inverse = doc.sourceActionsInverse(actions);
+        const command: PageCommand = { id: '', order: 0, pageId: part.pageId, actions, inverse, before: null, after: null };
+        operations.push(...this.compile(command, doc).batch.operations);
+        return { pageId: part.pageId, actions: inverse, expected: '' };
+      });
+      const ack = operations.length ? await this.commitOperations(operations, undefined, parts.map(part => part.pageId)) : undefined;
+      for (let index = 0; index < inverse.length; index++) {
+        const doc = docs[index]!;
+        const part = inverse[index]!;
+        part.expected = doc.sourceActionsState(part.actions);
+        // A page refresh may already contain edits newer than this receipt. Never
+        // bless those values as this command's own values for a subsequent undo.
+        part.stale = ack?.revisions.some(({ id, revision }) => {
+          const block = doc.block(id);
+          return block !== undefined && (block.pending || block.revision > revision);
+        });
+      }
+      return inverse;
+    } finally { for (const doc of docs) doc.release(); }
   }
   commandState(): SaveState {
     this.revision[0]();
@@ -688,6 +765,17 @@ export class Notebook implements NotebookClient, DocumentHost {
       ack.capabilities = this.acceptCapabilities(ack.capabilities ?? [], ack.seq);
       if (ack.seq < this.workSequence) ack.work_sessions = [];
       this.serviceReached();
+      const deletions = command.operations.filter(operation => operation.op === 'delete');
+      for (let index = 0; index < deletions.length; index++) {
+        const id = deletions[index]!.id;
+        const deletionId = ack.deletions[index];
+        const revision = ack.revisions.find(value => value.id === id)?.revision;
+        if (deletionId && revision !== undefined) {
+          const ticket = { deletionId, revision };
+          this.tickets.set(id, ticket);
+          await this.outbox?.ticket(id, ticket);
+        }
+      }
       const merges = command.operations.filter(operation => operation.op === 'merge_page');
       const removed: string[] = [];
       const blocks = await Promise.all(ack.revisions.map(async value => {
@@ -728,6 +816,19 @@ export class Notebook implements NotebookClient, DocumentHost {
         await this.refreshRoots();
       }
       this.receiveReceipt(ack);
+      await Promise.all((command.refreshPages ?? []).map(async pageId => {
+        try {
+          const view = await this.api.page(pageId);
+          this.snapshotSequence.set(view, ack.seq);
+          const doc = this.docs.get(pageId);
+          if (doc) doc.merge(view, true);
+          else this.cachePage(view);
+        } catch (error) {
+          if (!(error instanceof ApiError) || error.status !== 404) throw error;
+          removed.push(pageId);
+          this.receiveRemoval(pageId);
+        }
+      }));
       await this.outbox?.capabilities(ack.capabilities ?? [], ack.seq);
       await this.outbox?.acknowledge(command, blocks.filter((block): block is Block => Boolean(block)), ack.seq, new Map(ack.revisions.map(value => [value.id, value.revision])), undefined,
         removed);

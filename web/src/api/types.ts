@@ -142,6 +142,8 @@ export interface Row {
 
 export interface PageView {
   root: Block;
+  /** Explicit page tags; absent in older cached page snapshots. */
+  root_manual_types?: string[];
   /** Live descendants in preorder, archived ones included and flagged. */
   rows: Row[];
   /** Live blocks outside the page that its rows reference, and the pages its tags name. */

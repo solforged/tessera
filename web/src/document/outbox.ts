@@ -131,6 +131,7 @@ export class Outbox {
       if (!view) return undefined;
       const blocks = new Map([view.root, ...view.rows.map(row => row.block)].map(block => [block.id, block]));
       const manualTypes = new Map(view.rows.map(row => [row.block.id, row.manual_types]));
+      manualTypes.set(view.root.id, view.root_manual_types ?? []);
       const capabilities = new Map((view.capabilities ?? []).map(value => [value.block_id, value]));
       const snapshotRevisions = new Map<string, number>();
       for (const block of blocks.values()) snapshotRevisions.set(block.id, block.revision);
@@ -219,6 +220,7 @@ export class Outbox {
       const patches = new Map((await db.getAll('blocks')).filter(row => row.key.startsWith(`${this.notebookId}:`) && row.block.page_id === id).map(row => [row.block.id, row.block]));
       const latest = (block: Block) => { const patch = patches.get(block.id); return patch && patch.revision >= block.revision ? patch : block; };
       view.root = latest(blocks.get(id)!);
+      view.root_manual_types = manualTypes.get(id) ?? [];
       view.rows = index.slice(0, index.size()).map(row => ({ block: latest(blocks.get(row.id)!), depth: row.depth, manual_types: manualTypes.get(row.id) ?? [] }));
       for (const row of await db.getAll('capabilities')) if (row.key.startsWith(`${this.notebookId}:`) && blocks.has(row.value.block_id)) capabilities.set(row.value.block_id, row.value);
       view.capabilities = [...capabilities.values()].filter(value => blocks.has(value.block_id));

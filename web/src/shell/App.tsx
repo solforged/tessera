@@ -760,6 +760,9 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
   const pageId = createMemo(() => pageIdOf(current()));
   const outlineView = () => current().view as ViewState;
   const [doc, setDoc] = createSignal<PageDocument>();
+  const [librarySave, setLibrarySave] = createSignal<{ state: 'saved' | 'saving' | 'error'; message: string }>({ state: 'saved', message: '' });
+  const paneGeneration = createMemo(() => props.session().generation);
+  createEffect(() => { paneGeneration(); setLibrarySave({ state: 'saved', message: '' }); });
   const [menu, setMenu] = createSignal<HTMLElement | null>(null);
   const [depthMenu, setDepthMenu] = createSignal<HTMLElement | null>(null);
   const [mergeFrom, setMergeFrom] = createSignal<{ id: string; text: string }>();
@@ -858,6 +861,13 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
       <Show when={!pageId() && current().target.kind !== 'field'}><Show when={current().target.kind === 'reader' ? current().target as Extract<OpenTarget, { kind: 'reader' }> : undefined} fallback={<span class="pane-breadcrumbs">{props.title ?? paneLabel(current().target)}</span>}>{target =>
         <nav class="pane-breadcrumbs" aria-label="Source breadcrumbs"><Button class="breadcrumb-library" onClick={event => props.onOpen({ kind: 'library' }, event.shiftKey)}>Library</Button><span class="breadcrumb-separator">/</span><Button onClick={event => props.onOpen({ kind: 'page', pageId: target().sourceId }, event.shiftKey)}>{props.notebook.lookup(target().sourceId)()?.text ?? 'Reader'}</Button></nav>
       }</Show></Show>
+      <Show when={current().target.kind === 'library'}>
+        <span class="pane-save-state" data-state={librarySave().state} title={librarySave().message}>
+          <Show when={librarySave().state !== 'saved'} fallback={<><span class="save-dot" /><span class="visually-hidden">Saved</span></>}>
+            <Icon name={librarySave().state === 'error' ? 'warning' : 'saving'} />{librarySave().message || 'Saving…'}
+          </Show>
+        </span>
+      </Show>
       <Show when={current().target.kind === 'field' ? current().target as Extract<OpenTarget, { kind: 'field' }> : undefined}>{target => <>
         <nav class="pane-breadcrumbs" aria-label="Field breadcrumbs"><Button onClick={event => props.onOpen({ kind: 'fields' }, event.shiftKey)}>Fields</Button><span class="breadcrumb-separator">/</span><Button onClick={event => props.onOpen({ kind: 'field', fieldId: target().fieldId }, event.shiftKey)}>{props.notebook.lookup(target().fieldId)()?.text ?? 'Definition'}</Button></nav>
         <Button disabled={!props.notebook.lookup(target().fieldId)()} onClick={event => { const field = props.notebook.lookup(target().fieldId)(); if (field) props.onOpen({ kind: 'page', pageId: field.page_id, blockId: field.id }, event.shiftKey); }}>Blocks</Button>
@@ -876,7 +886,14 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
       <Match when={current().target.kind === 'index' ? current().target as Extract<OpenTarget, { kind: 'index' }> : undefined}>{target => <IndexPane kindKey={target().key} kind={props.noteKind} view={snapshotView(current().view) as IndexViewState} notebook={props.notebook} onActivate={props.onActivate} onOpen={(next, beside) => { if (generation === props.session().generation) props.onOpen(next, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} onDeletePages={props.onDeleteSources} />}</Match>
       <Match when={current().target.kind === 'agenda'}><AgendaPane pane={props.pane} view={snapshotView(current().view) as AgendaViewState} notebook={props.notebook} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
       <Match when={current().target.kind === 'review'}><ReviewPane pane={props.pane} view={snapshotView(current().view) as ReviewViewState} notebook={props.notebook} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
-      <Match when={current().target.kind === 'library'}><LibraryPane pane={props.pane} view={snapshotView(current().view) as LibraryViewState} notebook={props.notebook} active={props.active} add={(current().target as Extract<OpenTarget, { kind: 'library' }>).add} onAddOpened={() => props.onTargetChange({ kind: 'library', tab: (current().target as Extract<OpenTarget, { kind: 'library' }>).tab })} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} onDeleteSources={props.onDeleteSources} /></Match>
+      <Match when={current().target.kind === 'library'}><LibraryPane pane={props.pane} view={snapshotView(current().view) as LibraryViewState} notebook={props.notebook} active={props.active}
+        add={(current().target as Extract<OpenTarget, { kind: 'library' }>).add}
+        details={(current().target as Extract<OpenTarget, { kind: 'library' }>).details}
+        onAddOpened={() => props.onTargetChange({ kind: 'library', tab: (current().target as Extract<OpenTarget, { kind: 'library' }>).tab })}
+        onDetailsOpened={() => props.onTargetChange({ kind: 'library', tab: (current().target as Extract<OpenTarget, { kind: 'library' }>).tab })}
+        onSaveState={(state, message) => { if (generation === props.session().generation) setLibrarySave({ state, message: message ?? '' }); }}
+        onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }}
+        onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} onDeleteSources={props.onDeleteSources} /></Match>
       <Match when={current().target.kind === 'reader'}><ReaderPane pane={props.pane} target={current().target as Extract<OpenTarget, { kind: 'reader' }>} view={snapshotView(current().view) as ReaderViewState} notebook={props.notebook} active={props.active} immersive={props.immersive} onImmersive={props.onImmersive} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }}
         onBack={() => { if (props.session().index > 0) props.onTravel(-1); else props.onOpen({ kind: 'page', pageId: (current().target as Extract<OpenTarget, { kind: 'reader' }>).sourceId }, false); }} /></Match>
     </Switch>}</Show></div>

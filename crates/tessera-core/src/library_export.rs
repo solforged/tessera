@@ -261,16 +261,21 @@ impl Notebook {
                 }
             }
             if let Some(published) = first("published") {
-                fields.push(("date", published.into()));
                 if let Some(year) = published.get(..4) {
                     fields.push(("year", year.into()));
                 }
-                let parts: Vec<u32> = published
-                    .split('-')
-                    .filter_map(|p| p.parse().ok())
-                    .collect();
+            }
+            for (field, bib_name, csl_name) in [
+                ("published", "date", "issued"),
+                ("first published", "origdate", "original-date"),
+            ] {
+                let Some(date) = first(field) else {
+                    continue;
+                };
+                fields.push((bib_name, date.into()));
+                let parts: Vec<u32> = date.split('-').filter_map(|p| p.parse().ok()).collect();
                 if !parts.is_empty() {
-                    item.insert("issued".into(), json!({"date-parts":[parts]}));
+                    item.insert(csl_name.into(), json!({"date-parts":[parts]}));
                 }
             }
             for (field, bib_name, csl_name) in [
@@ -278,6 +283,12 @@ impl Notebook {
                 ("site", "organization", "container-title"),
                 ("url", "url", "URL"),
                 ("language", "language", "language"),
+                ("original language", "origlanguage", "original-language"),
+                ("edition", "edition", "edition"),
+                ("series", "series", "collection-title"),
+                ("number", "number", "collection-number"),
+                ("pages", "pages", "number-of-pages"),
+                ("description", "abstract", "abstract"),
             ] {
                 if let Some(value) = first(field) {
                     fields.push((bib_name, value.into()));
@@ -422,6 +433,30 @@ impl Notebook {
             writeln!(output, "`{key}`").expect("String write");
             if let Some(url) = fields.get("url").and_then(|values| values.first()) {
                 writeln!(output, "{url}").expect("String write");
+            }
+            for (field, label) in [
+                ("subtitle", "Subtitle"),
+                ("editor", "Editor"),
+                ("translator", "Translator"),
+                ("first published", "First published"),
+                ("original language", "Original language"),
+                ("publisher", "Publisher"),
+                ("edition", "Edition"),
+                ("series", "Series"),
+                ("number", "Number"),
+                ("pages", "Pages"),
+                ("language", "Language"),
+                ("identifier", "Identifier"),
+                ("site", "Site"),
+                ("description", "Description"),
+                ("started", "Started"),
+                ("finished", "Finished"),
+            ] {
+                if let Some(values) = fields.get(field) {
+                    for value in values {
+                        writeln!(output, "\n{label}: {value}").expect("String write");
+                    }
+                }
             }
             output.push_str("\n## Highlights\n");
             let Some(mut rows) = highlights.remove(id) else {

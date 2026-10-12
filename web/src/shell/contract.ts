@@ -72,7 +72,7 @@ export type OpenTarget =
   | { kind: 'field'; fieldId: string; previewKind?: FieldKind }
   | { kind: 'cards'; typeId: string; applyId?: string }
   | { kind: 'settings' }
-  | { kind: 'library'; tab?: LibraryTab; add?: boolean }
+  | { kind: 'library'; tab?: LibraryTab; add?: boolean; details?: readonly string[] }
   /** Read a source. `at` is a passage ID to scroll to; `citationId` flashes that citation's range and does not count as reading. */
   | { kind: 'reader'; sourceId: string; snapshotId?: string; at?: string; citationId?: string }
   /** The perspectives filed under a subject, side by side. */
