@@ -119,6 +119,8 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
 .primary-navigation .button > .icon { color: var(--muted); }
 .sidebar .button > .desk-count { flex: none; color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .sidebar .button > .desk-count.late { color: var(--danger); }
+/* A notebook other than the default is named at the foot in the warning colour; long names shorten. */
+.sidebar .button > .notebook-marker { flex: 0 1 auto; max-width: 60%; overflow: hidden; text-overflow: ellipsis; color: var(--warning); }
 /* A built-in kind with nothing filed yet stays in its place, named faintly and without a count. */
 .sidebar .index-kind.empty:not(.selected), .sidebar .index-kind.empty:not(.selected) > .icon { color: var(--faint); }
 .sidebar .index-kind.empty:not(.selected):hover { color: var(--muted); }
