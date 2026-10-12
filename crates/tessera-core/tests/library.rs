@@ -1728,13 +1728,39 @@ fn passage_search_pages_reach_every_hit_without_crossing_source_scope() {
             }
         }
         assert_eq!(seen.len(), count);
-        assert!(n.search_passages("nature", Some(id), 41, offset).unwrap().is_empty());
+        assert!(
+            n.search_passages("nature", Some(id), 41, offset)
+                .unwrap()
+                .is_empty()
+        );
     }
-    assert_eq!(n.search_passages("nature", Some(&source), 1000, 0).unwrap().len(), 500);
-    assert_eq!(n.search_passages("nature", Some(&source), 1000, 500).unwrap().len(), 64);
-    assert!(n.search_passages("nature", Some(&source), 0, 0).unwrap().is_empty());
-    assert!(n.search_passages("nature", Some(&source), 41, usize::MAX).unwrap().is_empty());
-    assert!(n.search_passages("", Some(&source), 41, 40).unwrap().is_empty());
+    assert_eq!(
+        n.search_passages("nature", Some(&source), 1000, 0)
+            .unwrap()
+            .len(),
+        500
+    );
+    assert_eq!(
+        n.search_passages("nature", Some(&source), 1000, 500)
+            .unwrap()
+            .len(),
+        64
+    );
+    assert!(
+        n.search_passages("nature", Some(&source), 0, 0)
+            .unwrap()
+            .is_empty()
+    );
+    assert!(
+        n.search_passages("nature", Some(&source), 41, usize::MAX)
+            .unwrap()
+            .is_empty()
+    );
+    assert!(
+        n.search_passages("", Some(&source), 41, 40)
+            .unwrap()
+            .is_empty()
+    );
 }
 
 #[test]
@@ -1762,12 +1788,14 @@ fn passage_search_ties_are_stable_across_sources_and_snapshots() {
         assert_eq!(hits.len(), 4);
         let keys: Vec<_> = hits
             .iter()
-            .map(|hit| (
-                hit.passage.ordinal,
-                hit.source_id.clone(),
-                hit.snapshot_id.clone(),
-                hit.passage.id.clone(),
-            ))
+            .map(|hit| {
+                (
+                    hit.passage.ordinal,
+                    hit.source_id.clone(),
+                    hit.snapshot_id.clone(),
+                    hit.passage.id.clone(),
+                )
+            })
             .collect();
         let mut sorted = keys.clone();
         sorted.sort();
@@ -1777,7 +1805,12 @@ fn passage_search_ties_are_stable_across_sources_and_snapshots() {
             assert_eq!(page.len(), 1);
             let hit = &page[0];
             assert_eq!(
-                &(hit.passage.ordinal, hit.source_id.clone(), hit.snapshot_id.clone(), hit.passage.id.clone()),
+                &(
+                    hit.passage.ordinal,
+                    hit.source_id.clone(),
+                    hit.snapshot_id.clone(),
+                    hit.passage.id.clone()
+                ),
                 expected,
             );
         }
@@ -3190,24 +3223,42 @@ fn bibliographic_page_counts_reject_invalid_writes_atomically_and_allow_legacy_r
     let (source, _) = ingest(&mut n, &document(), b"page count validation");
     let fields_page = n.fields().unwrap().page_id;
     let definition = note(&mut n, &fields_page, "Pages");
-    apply(&mut n, vec![Operation::SetFieldKind {
-        id: definition.clone(), base_revision: 1, kind: FieldKind::Number,
-    }]);
+    apply(
+        &mut n,
+        vec![Operation::SetFieldKind {
+            id: definition.clone(),
+            base_revision: 1,
+            kind: FieldKind::Number,
+        }],
+    );
     let entry = note(&mut n, &source, &format!("[[{definition}]]"));
     let value = note(&mut n, &entry, "120");
     let title = n.block(&source).unwrap().text;
-    for invalid in ["-12", "0", "2.5", "NaN", "Infinity", "9007199254740992"] {
+    for invalid in [
+        "-12",
+        "0",
+        "2.5",
+        "2.0000000000000001",
+        "NaN",
+        "Infinity",
+        "9007199254740992",
+    ] {
         let result = n.apply(&batch(vec![
             Operation::EditText {
-                id: source.clone(), base_revision: n.block(&source).unwrap().revision,
+                id: source.clone(),
+                base_revision: n.block(&source).unwrap().revision,
                 text: "This title must roll back".into(),
             },
             Operation::EditText {
-                id: value.clone(), base_revision: n.block(&value).unwrap().revision,
+                id: value.clone(),
+                base_revision: n.block(&value).unwrap().revision,
                 text: invalid.into(),
             },
         ]));
-        assert!(matches!(result, Err(Error::Validation { .. })), "{invalid}: {result:?}");
+        assert!(
+            matches!(result, Err(Error::Validation { .. })),
+            "{invalid}: {result:?}"
+        );
         assert_eq!(n.block(&value).unwrap().text, "120");
         assert_eq!(n.block(&source).unwrap().text, title);
     }
@@ -3216,11 +3267,13 @@ fn bibliographic_page_counts_reject_invalid_writes_atomically_and_allow_legacy_r
 
     // Existing notebooks may contain counts accepted before validation existed.
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
-    conn.execute("UPDATE blocks SET text = '-12' WHERE id = ?1", [&value]).unwrap();
+    conn.execute("UPDATE blocks SET text = '-12' WHERE id = ?1", [&value])
+        .unwrap();
     edit(&mut n, &source, "A corrected title");
     assert_eq!(n.block(&value).unwrap().text, "-12");
     let result = n.apply(&batch(vec![Operation::EditText {
-        id: value.clone(), base_revision: n.block(&value).unwrap().revision,
+        id: value.clone(),
+        base_revision: n.block(&value).unwrap().revision,
         text: "-13".into(),
     }]));
     assert!(matches!(result, Err(Error::Validation { .. })));
@@ -3235,30 +3288,46 @@ fn page_count_constraint_is_bibliographic_and_cannot_be_bypassed_by_reclassifica
     let (source, _) = ingest(&mut n, &document(), b"scoped page counts");
     let fields_page = n.fields().unwrap().page_id;
     let definition = note(&mut n, &fields_page, "Temperature");
-    apply(&mut n, vec![Operation::SetFieldKind {
-        id: definition.clone(), base_revision: 1, kind: FieldKind::Number,
-    }]);
+    apply(
+        &mut n,
+        vec![Operation::SetFieldKind {
+            id: definition.clone(),
+            base_revision: 1,
+            kind: FieldKind::Number,
+        }],
+    );
     let entry = note(&mut n, &source, &format!("[[{definition}]]"));
     let value = note(&mut n, &entry, "-12.5");
     assert_eq!(n.block(&value).unwrap().text, "-12.5");
     let result = n.apply(&batch(vec![Operation::EditText {
-        id: definition.clone(), base_revision: n.block(&definition).unwrap().revision,
+        id: definition.clone(),
+        base_revision: n.block(&definition).unwrap().revision,
         text: "Pages".into(),
     }]));
     assert!(matches!(result, Err(Error::Validation { .. })));
     assert_eq!(n.block(&definition).unwrap().text, "Temperature");
 
     let page = id();
-    apply(&mut n, vec![Operation::CreatePage { id: page.clone(), title: "Ordinary note".into() }]);
+    apply(
+        &mut n,
+        vec![Operation::CreatePage {
+            id: page.clone(),
+            title: "Ordinary note".into(),
+        }],
+    );
     let pages = note(&mut n, &fields_page, "Pages");
     let ordinary_entry = note(&mut n, &page, &format!("[[{pages}]]"));
     let ordinary_value = note(&mut n, &ordinary_entry, "-5");
     assert_eq!(n.block(&ordinary_value).unwrap().text, "-5");
     let result = n.apply(&batch(vec![Operation::SetSource {
-        id: page.clone(), base_revision: n.block(&page).unwrap().revision,
+        id: page.clone(),
+        base_revision: n.block(&page).unwrap().revision,
         source: Some(SourceState {
-            format: SourceFormat::Record, state: ReadingState::Inbox,
-            origin: None, match_key: None, citation_key: None,
+            format: SourceFormat::Record,
+            state: ReadingState::Inbox,
+            origin: None,
+            match_key: None,
+            citation_key: None,
         }),
     }]));
     assert!(matches!(result, Err(Error::Validation { .. })));

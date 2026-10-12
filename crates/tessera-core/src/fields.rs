@@ -118,12 +118,10 @@ pub(crate) fn invalid_source_page_counts(
         })?;
         let value = text.trim();
         if !value.is_empty()
-            && !value.parse::<f64>().is_ok_and(|count| {
-                count.is_finite()
-                    && count > 0.0
-                    && count.fract() == 0.0
-                    && count <= 9_007_199_254_740_991.0
-            })
+            && (!value.bytes().all(|byte| byte.is_ascii_digit())
+                || !value
+                    .parse::<u64>()
+                    .is_ok_and(|count| (1..=9_007_199_254_740_991).contains(&count)))
         {
             invalid.insert((row.get(0)?, row.get(1)?, row.get(2)?, text.to_owned()));
         }

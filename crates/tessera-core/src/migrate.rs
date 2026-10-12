@@ -190,13 +190,23 @@ mod tests {
                 ).unwrap();
                 operations.push(match grade {
                     Some(grade) => crate::Operation::GradeCard {
-                        id: id(*card_id), base_revision: 1, definition_revision: 1,
-                        event_id: id(event_id), session_id: None, grade, reset: false,
-                        shown_front: "front".into(), shown_back: "back".into(), reviewed_at: at,
+                        id: id(*card_id),
+                        base_revision: 1,
+                        definition_revision: 1,
+                        event_id: id(event_id),
+                        session_id: None,
+                        grade,
+                        reset: false,
+                        shown_front: "front".into(),
+                        shown_back: "back".into(),
+                        reviewed_at: at,
                     },
                     None => crate::Operation::ResetCard {
-                        id: id(*card_id), base_revision: 1, event_id: id(event_id),
-                        session_id: None, reviewed_at: at,
+                        id: id(*card_id),
+                        base_revision: 1,
+                        event_id: id(event_id),
+                        session_id: None,
+                        reviewed_at: at,
                     },
                 });
                 // Deliberately reverse IDs; equal timestamps must follow commands.
@@ -208,7 +218,8 @@ mod tests {
         conn.execute(
             "UPDATE changes SET operations = ?1 WHERE seq = 1",
             [serde_json::to_string(&operations).unwrap()],
-        ).unwrap();
+        )
+        .unwrap();
         let evidence = |conn: &Connection| {
             conn.prepare(
                 "SELECT rowid, id, before_state, after_state FROM review_events ORDER BY rowid",
@@ -288,11 +299,18 @@ mod tests {
             2 * day,
             1,
             0,
-        ).unwrap();
+        )
+        .unwrap();
         tx.commit().unwrap();
-        assert_eq!(crate::card_store::card(&conn, &id(13)).unwrap().schedule, new_card(2 * day));
+        assert_eq!(
+            crate::card_store::card(&conn, &id(13)).unwrap().schedule,
+            new_card(2 * day)
+        );
         crate::review_store::backfill_fsrs(&conn).unwrap();
-        assert_eq!(crate::card_store::card(&conn, &id(13)).unwrap().schedule, new_card(2 * day));
+        assert_eq!(
+            crate::card_store::card(&conn, &id(13)).unwrap().schedule,
+            new_card(2 * day)
+        );
         assert_eq!(evidence(&conn), before);
     }
 

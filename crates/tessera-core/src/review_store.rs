@@ -326,7 +326,9 @@ pub(crate) fn backfill_event_order(conn: &Connection) -> Result<()> {
     let mut rows = changes.query([])?;
     while let Some(row) = rows.next()? {
         let seq: i64 = row.get(0)?;
-        let order = grade_order(row.get(1)?)?;
+        let index = usize::try_from(row.get::<_, i64>(1)?)
+            .map_err(|_| validation("invalid review operation order"))?;
+        let order = grade_order(index)?;
         let is_grade = text_at(row, 2)? == "grade_card";
         let card_id = text_at(row, 3)?;
         let event_id = text_at(row, 4)?;
@@ -334,13 +336,21 @@ pub(crate) fn backfill_event_order(conn: &Connection) -> Result<()> {
             let reset_id = crate::notebook::derived_id(&["reset", event_id]);
             update.execute(params![reset_id, card_id, seq, order - 1])?;
         }
-        update.execute(params![event_id, card_id, seq, if is_grade { order } else { order - 1 }])?;
+        update.execute(params![
+            event_id,
+            card_id,
+            seq,
+            if is_grade { order } else { order - 1 }
+        ])?;
     }
-    let unresolved: Option<String> = conn.prepare_cached(
-        "SELECT id FROM review_events WHERE event_order = 0 LIMIT 1",
-    )?.query_row([], |row| row.get(0)).optional()?;
+    let unresolved: Option<String> = conn
+        .prepare_cached("SELECT id FROM review_events WHERE event_order = 0 LIMIT 1")?
+        .query_row([], |row| row.get(0))
+        .optional()?;
     if let Some(id) = unresolved {
-        return Err(validation(format!("review event {id} has no retained operation")));
+        return Err(validation(format!(
+            "review event {id} has no retained operation"
+        )));
     }
     Ok(())
 }
@@ -621,22 +631,28 @@ pub(crate) fn apply(
             validate_id(review_id)?;
             validate_id(event_id)?;
             let card = checked_card(conn, id, *base_revision, index)?;
-            let latest = conn.prepare_cached(
-                "SELECT id, card_id, session_id, kind, grade, shown_front, shown_back,
+            let latest = conn
+                .prepare_cached(
+                    "SELECT id, card_id, session_id, kind, grade, shown_front, shown_back,
                     definition_revision, scheduler_version, before_state, after_state,
                     created_at, change_seq
                  FROM effective_review_events WHERE card_id = ?1
                  ORDER BY change_seq DESC, event_order DESC, id DESC LIMIT 1",
-            )?.query_row([id], |row| review_event_at(row, 0)).optional()?;
-            let review = latest.filter(|event| event.id == *review_id && event.grade.is_some())
+                )?
+                .query_row([id], |row| review_event_at(row, 0))
+                .optional()?;
+            let review = latest
+                .filter(|event| event.id == *review_id && event.grade.is_some())
                 .ok_or_else(|| validation("only the latest effective grade can be undone"))?;
             if *undone_at < review.created_at {
                 return Err(validation("undo precedes its grade"));
             }
-            let used: bool = conn.prepare_cached(
-                "SELECT EXISTS(SELECT 1 FROM review_events WHERE id = ?1)
+            let used: bool = conn
+                .prepare_cached(
+                    "SELECT EXISTS(SELECT 1 FROM review_events WHERE id = ?1)
                     OR EXISTS(SELECT 1 FROM review_undos WHERE id = ?1)",
-            )?.query_row([event_id], |row| row.get(0))?;
+                )?
+                .query_row([event_id], |row| row.get(0))?;
             if used {
                 return Err(validation("review event ID is already used"));
             }
@@ -644,18 +660,28 @@ pub(crate) fn apply(
                 let expected = session_revision
                     .ok_or_else(|| validation("undo requires the review session revision"))?;
                 let current = session(conn, session_id)?;
-                check_revision(session_id, expected, current.as_ref().map(|s| s.revision), index)?;
+                check_revision(
+                    session_id,
+                    expected,
+                    current.as_ref().map(|s| s.revision),
+                    index,
+                )?;
                 let mut current = current.expect("checked existing session");
                 if current.state == ReviewSessionState::Abandoned {
                     return Err(validation("abandoned review sessions cannot be reopened"));
                 }
-                let latest: Option<String> = conn.prepare_cached(
-                    "SELECT id FROM effective_review_events
+                let latest: Option<String> = conn
+                    .prepare_cached(
+                        "SELECT id FROM effective_review_events
                      WHERE session_id = ?1 AND kind = 'grade'
                      ORDER BY change_seq DESC, event_order DESC, id DESC LIMIT 1",
-                )?.query_row([session_id], |row| row.get(0)).optional()?;
+                    )?
+                    .query_row([session_id], |row| row.get(0))
+                    .optional()?;
                 if latest.as_deref() != Some(review_id.as_str()) {
-                    return Err(validation("only the latest effective session grade can be undone"));
+                    return Err(validation(
+                        "only the latest effective session grade can be undone",
+                    ));
                 }
                 current.revision = next_revision(current.revision)?;
                 current.state = ReviewSessionState::Open;
@@ -667,7 +693,9 @@ pub(crate) fn apply(
                 )?;
                 changes.sessions.push(current);
             } else if session_revision.is_some() {
-                return Err(validation("standalone undo must not include a session revision"));
+                return Err(validation(
+                    "standalone undo must not include a session revision",
+                ));
             }
             let restored = match review.before {
                 crate::ReviewSchedulingState::Fsrs(state) => state,
@@ -675,7 +703,9 @@ pub(crate) fn apply(
                     // Old evidence stays in its original scheduler format. Match the
                     // migration's FSRS replay, without the corrected final grade.
                     let created_at = conn.query_row(
-                        "SELECT created_at FROM card_units WHERE id = ?1", [id], |row| row.get(0),
+                        "SELECT created_at FROM card_units WHERE id = ?1",
+                        [id],
+                        |row| row.get(0),
                     )?;
                     let mut state = scheduler::new_card(created_at);
                     let mut history = conn.prepare_cached(
@@ -700,9 +730,17 @@ pub(crate) fn apply(
             let revision = next_revision(card.revision)?;
             conn.execute(
                 "UPDATE card_units SET schedule = ?2, revision = ?3, updated_at = ?4 WHERE id = ?1",
-                params![id, serde_json::to_string(&restored).expect("schedule serializes"), revision, now],
+                params![
+                    id,
+                    serde_json::to_string(&restored).expect("schedule serializes"),
+                    revision,
+                    now
+                ],
             )?;
-            changes.cards.push(Revision { id: id.clone(), revision });
+            changes.cards.push(Revision {
+                id: id.clone(),
+                revision,
+            });
         }
         Operation::SetCardHeld {
             id,
