@@ -37,10 +37,10 @@ fn publication_decade(published: Option<&str>) -> Option<i32> {
         .flatten()
 }
 
-/// A language's primary subtag, so `en`, `en-US`, `en_GB` and `eng` browse and group as one language.
+/// A language's primary subtag, so names, `en`, `en-US`, `en_GB` and `eng` browse as one language.
 fn language_code(value: &str) -> String {
-    let primary = value
-        .trim()
+    let normalized = normalize_language_name(value);
+    let primary = normalized
         .split(['-', '_'])
         .next()
         .unwrap_or_default()
@@ -57,7 +57,11 @@ fn language_code(value: &str) -> String {
         "dut" | "nld" => "nl",
         "chi" | "zho" => "zh",
         "jpn" => "ja",
-        _ => return primary,
+        _ => {
+            return isolang::Language::from_639_3(&primary)
+                .and_then(|language| language.to_639_1())
+                .map_or_else(|| primary, str::to_owned);
+        }
     };
     code.to_owned()
 }
@@ -921,6 +925,11 @@ impl Notebook {
             .as_ref()
             .map(|s| s.to_lowercase())
             .filter(|s| !s.is_empty());
+        let query_languages: Vec<_> = query
+            .languages
+            .iter()
+            .map(|value| normalize_language_name(value).to_owned())
+            .collect();
         for (mut source, page) in sources {
             if query.collection_id.is_none() {
                 match source.state {
@@ -1001,7 +1010,7 @@ impl Notebook {
                 || (!query.languages.is_empty()
                     && !language
                         .as_ref()
-                        .is_some_and(|value| query.languages.contains(value)))
+                        .is_some_and(|value| query_languages.contains(value)))
             {
                 continue;
             }

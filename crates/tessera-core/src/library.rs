@@ -59,6 +59,22 @@ pub struct ExtractedMetadata {
     pub cover: Option<String>,
 }
 
+/// Resolve an ISO language's English name without changing tags or unknown values.
+pub fn normalize_language_name(value: &str) -> &str {
+    let value = value.trim();
+    let primary = value.split(['-', '_']).next().unwrap_or(value);
+    if isolang::Language::from_639_1(primary).is_some()
+        || isolang::Language::from_639_3(primary).is_some()
+    {
+        return value;
+    }
+    isolang::languages()
+        .find(|language| language.to_name().eq_ignore_ascii_case(value))
+        .map_or(value, |language| {
+            language.to_639_1().unwrap_or_else(|| language.to_639_3())
+        })
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExtractedCreator {
     /// As written by the publisher, such as `Ursula K. Le Guin` or

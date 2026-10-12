@@ -2709,6 +2709,156 @@ fn facet_person_id(result: &LibraryResult, name: &str) -> String {
         .unwrap()
 }
 
+fn catalogue_value(
+    n: &Notebook,
+    dir: &tempfile::TempDir,
+    source: &str,
+    name: &str,
+) -> tessera_core::Block {
+    let conn = rusqlite::Connection::open(dir.path().join("notebook.db")).unwrap();
+    let id: String = conn
+        .query_row(
+            "SELECT v.id FROM field_values fv
+             JOIN blocks v ON v.id = fv.value_id JOIN blocks d ON d.id = fv.field_id
+             WHERE fv.owner_id = ?1 AND d.text = ?2 AND v.deletion_id IS NULL",
+            [source, name],
+            |row| row.get(0),
+        )
+        .unwrap();
+    n.block(&id).unwrap()
+}
+
+#[test]
+fn legacy_calibre_date_is_undated_in_rows_facets_sort_and_exports() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut n = Notebook::open(dir.path()).unwrap();
+    let (legacy, _) = facet_source(
+        &mut n,
+        "Legacy sentinel",
+        ExtractedMetadata {
+            published: Some("0101-01-01".into()),
+            ..Default::default()
+        },
+    );
+    let (ancient, _) = facet_source(
+        &mut n,
+        "Meditations",
+        ExtractedMetadata {
+            published: Some("0180".into()),
+            ..Default::default()
+        },
+    );
+    let result = n
+        .library(&LibraryQuery {
+            sort: LibrarySort::Year,
+            direction: Direction::Asc,
+            ..Default::default()
+        })
+        .unwrap();
+    assert_eq!(result.rows[0].page.id, legacy);
+    assert_eq!(result.rows[0].published, None);
+    assert_eq!(result.rows[1].page.id, ancient);
+    assert_eq!(result.rows[1].published.as_deref(), Some("0180"));
+    assert_eq!(
+        result.facets.decades,
+        [DecadeFacet {
+            decade: 180,
+            count: 1
+        }]
+    );
+    let bib = n
+        .export(std::slice::from_ref(&legacy), ExportFormat::Bibtex)
+        .unwrap();
+    assert!(!bib.contains("year ="));
+    assert!(!bib.contains("date ="));
+    let csl: serde_json::Value = serde_json::from_str(
+        &n.export(std::slice::from_ref(&legacy), ExportFormat::CslJson)
+            .unwrap(),
+    )
+    .unwrap();
+    assert!(csl[0].get("issued").is_none());
+    let markdown = n
+        .export(std::slice::from_ref(&legacy), ExportFormat::Markdown)
+        .unwrap();
+    assert!(!markdown.contains("0101-01-01"));
+    assert_eq!(
+        catalogue_value(&n, &dir, &legacy, "Published").text,
+        "0101-01-01"
+    );
+
+    // The same date authored on a source without a sentinel extraction stays real.
+    let published = catalogue_value(&n, &dir, &ancient, "Published").id;
+    edit(&mut n, &published, "0101-01-01");
+    let result = n.library(&LibraryQuery::default()).unwrap();
+    assert_eq!(
+        result
+            .rows
+            .iter()
+            .find(|row| row.page.id == ancient)
+            .unwrap()
+            .published
+            .as_deref(),
+        Some("0101-01-01"),
+    );
+    assert!(
+        n.export(&[ancient], ExportFormat::Bibtex)
+            .unwrap()
+            .contains("year = {0101}")
+    );
+}
+
+#[test]
+fn language_names_share_code_facets_filters_and_exports_without_rewriting_fields() {
+    let (dir, mut n, ids) = facet_library();
+    let language = catalogue_value(&n, &dir, &ids[0], "Language").id;
+    edit(&mut n, &language, "eNgLiSh");
+    let result = n
+        .library(&LibraryQuery {
+            languages: vec!["English".into()],
+            ..Default::default()
+        })
+        .unwrap();
+    assert_eq!(result.total, 2);
+    assert!(
+        result
+            .rows
+            .iter()
+            .all(|row| row.language.as_deref() == Some("en"))
+    );
+    assert_eq!(
+        result.facets.languages,
+        [
+            ValueFacet {
+                value: "en".into(),
+                count: 2
+            },
+            ValueFacet {
+                value: "fr".into(),
+                count: 1
+            },
+        ]
+    );
+    assert_eq!(
+        catalogue_value(&n, &dir, &ids[0], "Language").text,
+        "eNgLiSh"
+    );
+    assert!(
+        n.export(&ids[..1], ExportFormat::Bibtex)
+            .unwrap()
+            .contains("language = {en}")
+    );
+
+    let (imported, _) = facet_source(
+        &mut n,
+        "French import",
+        ExtractedMetadata {
+            language: Some("French".into()),
+            ..Default::default()
+        },
+    );
+    assert_eq!(catalogue_value(&n, &dir, &imported, "Language").text, "fr");
+}
+
 #[test]
 fn library_people_preserve_roles_order_and_current_titles() {
     let (_dir, mut n, ids) = facet_library();

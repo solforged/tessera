@@ -78,7 +78,7 @@ Rows keep the chosen sort within each group, and Shift-click ranges follow the g
 
 Browse narrows the sources by People, Decades, Publishers and Languages. The service counts each value over the current tab and search, ignoring the Browse filters themselves, so every value the tab offers stays visible.
 
-Values combine with OR inside a field and AND across fields. People match as author, editor or translator, by page, so a renamed person keeps their filter. Languages count by primary code, so `en`, `en-US` and `eng` are one English.
+Values combine with OR inside a field and AND across fields. People match as author, editor or translator, by page, so a renamed person keeps their filter. Languages count by primary code, so `en`, `en-US`, `eng` and case-insensitive English language names such as `English` are one English. Imports resolve ISO language names to codes; existing catalogue fields are normalized when read, without rewriting their authored text.
 
 | Pane width | Browse presentation |
 | --- | --- |
@@ -135,7 +135,7 @@ Each file or article submission becomes a job row above the sources while queued
 
 The name truncates first, so state and actions stay on the first line in a narrow pane. Dismissal is a device preference per notebook. Finished jobs leave the list once their source exists, whichever tab lists it, so a large import never stacks rows above another tab's sources. The Highlights tab shows no jobs.
 
-An EPUB creator entry that holds several people (`A; B`, `A & B`, or inverted pairs such as `Bowen, William G., Guthrie, Kevin M.`) becomes one creator each. Calibre's unknown date, `0101-01-01`, is no date.
+An EPUB creator entry that holds several people (`A; B`, `A & B`, or inverted pairs such as `Bowen, William G., Guthrie, Kevin M.`) becomes one creator each. Calibre's unknown date, `0101-01-01`, is no date. Earlier EPUB imports carrying that sentinel in their extracted metadata read as undated in Library rows, Decades, year sorting and exports; other ancient dates and authored dates are kept, and stored fields are not rewritten.
 
 ### Manual details
 

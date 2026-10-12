@@ -47,7 +47,13 @@ fn metadata_values(metadata: &ExtractedMetadata) -> Vec<(&'static str, FieldKind
             value
                 .iter()
                 .filter(|s| !s.trim().is_empty())
-                .cloned()
+                .map(|value| {
+                    if label == "Language" {
+                        normalize_language_name(value).to_owned()
+                    } else {
+                        value.clone()
+                    }
+                })
                 .collect(),
         ));
     }

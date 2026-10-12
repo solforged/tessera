@@ -83,7 +83,9 @@ pub fn detect(bytes: &[u8], media_type: Option<&str>, name: Option<&str>) -> Opt
 /// Rejects malformed packages, entries larger than 64 MiB, archives larger than
 /// 512 MiB decompressed, and books without readable text.
 pub fn epub(bytes: &[u8]) -> Result<ExtractedDocument> {
-    epub::extract(bytes)
+    let mut document = epub::extract(bytes)?;
+    normalize_language(&mut document);
+    Ok(document)
 }
 
 /// Extract the readable article from an HTML page fetched from `url`.
@@ -91,5 +93,16 @@ pub fn epub(bytes: &[u8]) -> Result<ExtractedDocument> {
 /// Relative image addresses become absolute URLs; this function never fetches
 /// them. An article without readable text returns [`Error::Empty`].
 pub fn article(html: &str, url: &str) -> Result<ExtractedDocument> {
-    article::extract(html, url)
+    let mut document = article::extract(html, url)?;
+    normalize_language(&mut document);
+    Ok(document)
+}
+
+fn normalize_language(document: &mut ExtractedDocument) {
+    if let Some(language) = &mut document.metadata.language {
+        let normalized = tessera_core::library::normalize_language_name(language);
+        if normalized != language {
+            *language = normalized.to_owned();
+        }
+    }
 }

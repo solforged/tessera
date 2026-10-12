@@ -343,6 +343,29 @@ fn packed_creator_strings_become_separate_people() {
 }
 
 #[test]
+fn english_language_names_normalize_without_losing_tags_or_unknown_values() {
+    for (value, expected) in [
+        ("english", "en"),
+        ("eNgLiSh", "en"),
+        ("French", "fr"),
+        ("Swedish", "sv"),
+        ("Lao", "lo"),
+        ("Ewe", "ee"),
+        ("Ancient Greek", "grc"),
+        ("en-US", "en-US"),
+        ("unlisted language", "unlisted language"),
+    ] {
+        let metadata = format!("<dc:language>{value}</dc:language>");
+        let document = epub(&epub2(&metadata, "<html><body><p>Text.</p></body></html>")).unwrap();
+        assert_eq!(
+            document.metadata.language.as_deref(),
+            Some(expected),
+            "{value}"
+        );
+    }
+}
+
+#[test]
 fn modified_date_is_never_publication_and_empty_books_error() {
     for publication in [
         "",

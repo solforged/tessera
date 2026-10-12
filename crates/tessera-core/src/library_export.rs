@@ -114,6 +114,34 @@ fn read_field_readings(
                 ReadingValue::Number(_) => text,
                 ReadingValue::Checkbox(_) => continue,
             };
+            // Old EPUB imports filed Calibre's unknown date as a real date.
+            // Hide only that extracted sentinel; keep authored and ancient dates
+            // intact, and never rewrite replicated field blocks or snapshots.
+            if field == "published"
+                && value == "0101-01-01"
+                && conn
+                    .prepare_cached(
+                        "SELECT EXISTS(
+                             SELECT 1 FROM source_snapshots ss
+                             JOIN snapshots s ON s.id = ss.snapshot_id
+                             WHERE ss.source_id = ?1 AND s.format = 'epub'
+                             AND json_extract(s.metadata, '$.published') = '0101-01-01'
+                         )",
+                    )?
+                    .query_row([row.get::<_, String>(12)?], |row| row.get::<_, bool>(0))?
+            {
+                continue;
+            }
+            let value = if field == "language" {
+                let normalized = crate::library::normalize_language_name(&value);
+                if normalized == value {
+                    value
+                } else {
+                    normalized.to_owned()
+                }
+            } else {
+                value
+            };
             let owner: String = row.get(12)?;
             visit(&owner, &field, &value, target);
             result

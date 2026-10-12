@@ -18,6 +18,7 @@ ulid.workspace = true
 tempfile.workspace = true
 deunicode = "1"
 unicode-normalization = "0.1"
+isolang = { version = "2.4", default-features = false, features = ["english_names", "list_languages"] }
 tracing.workspace = true
 base64 = "0.22"
 
