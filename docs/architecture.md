@@ -46,6 +46,8 @@ Library sources and citations are retained capabilities. Immutable snapshots and
 
 Review, deck and task-view operations use the same attributed, idempotent batch path. Their resource revisions stay separate from block revisions in receipts and change notifications. Immutable review events retain the shown definition and before/after scheduler state. Task/card source queries reuse field-query selection without its intermediate row limit; outer capability filters and ordering run before truncation.
 
+Review corrections live in append-only `review_undos`; the effective-events view excludes corrected grades from scheduling, counts and session progress. Evidence order is `(change_seq, event_order, id)`, with `event_order` derived from the operation's position within its command, never a local rowid. Migration 035 reconstructs older ordering from retained operations. Sync repairs retained pre-upgrade review patches inside the transaction before publishing their effects.
+
 ## Service
 
 `tessera-service` holds the notebook's one connection behind a lock, so reads, agent context queries and writes take turns.
@@ -93,6 +95,8 @@ Reader highlights that overlap or touch form one union. The earliest source-page
 EPUB 2 extraction checks the package guide's HTML contents when NCX contains only sparse navigation. Existing sparse imports lazily backfill navigation from the preserved linked contents passage without replacing source, snapshot or passage IDs. Citation reads return the chapter title rather than exposing an EPUB href as the location label.
 
 Page commands include task/project edits and work-session operations, with capability snapshots and inverses alongside text. Review sessions, decks, grades and saved task views use notebook-level commands in the same ordered outbox; they are not assigned fake page IDs. Commands are persisted before sending, and the first compiled request body is frozen for byte-identical replay after uncertain delivery or reload. Rejected commands stay recoverable until explicitly dismissed.
+
+Structural notebook commands identify pages whose snapshots and outlines must refresh before acknowledgement is exposed to their caller. A card composer navigates only after that refresh. If the write succeeds but a subsequent read fails, the command remains pending and replays its frozen idempotent request; the form cannot submit a second insertion while delivery is unresolved.
 
 Review keeps the shown card snapshot until acknowledgement and revalidates it against committed changes. A stale grade cannot advance the queue or silently adopt a new definition. Command-state equality isolates review refreshes from unrelated local page bookkeeping. Recovery feedback is notebook-wide and does not change location when focus moves between panes.
 
