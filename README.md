@@ -159,21 +159,35 @@ claude mcp add tessera -- tessera mcp
 
 Other clients take the same command in their JSON configuration: `{"command": "tessera", "args": ["mcp"]}`, adding `--notebook /path` before `mcp` for a non-default notebook.
 
-Three tools read: `tessera_search` finds blocks by text, `tessera_list_pages` lists page titles and `tessera_read_page` returns a page or journal day as an indented Markdown outline, marking tasks and giving each block's ID and revision. Five tools write:
+Seven tools read:
+
+| Tool | Returns |
+|---|---|
+| `tessera_search` | Blocks matching text, with their pages. |
+| `tessera_list_pages` | Page titles, optionally with journal days. |
+| `tessera_read_page` | A page, journal day or one block's subtree as an indented Markdown outline. Each block's comment gives its ID and revision, tags, task planning, project, question, citations and cards; field entries show as `Name::`. |
+| `tessera_tasks` | The agenda for a day or a run of days, or tasks filtered by status, dates, priority, project or a saved task view. |
+| `tessera_cards` | A block's or page's cards, the due, new or full queue (optionally a deck's or a type's), review statistics, or decks. |
+| `tessera_query` | Types, fields and saved views, or a type's or view's blocks with their field values, filtered and sorted by field name. |
+| `tessera_library` | Sources, a source's contents, its passages in order from an ordinal with passage IDs, passage search, or highlights. |
+
+Seven tools write:
 
 | Tool | Change |
 |---|---|
-| `tessera_add_note` | Appends a Markdown outline to the end of a page, a journal day or a block, creating a missing page or day; without a target it writes to today's journal. List items nest by indentation, headings contain what follows them, and `- [ ]` or `- [x]` items become tasks. |
+| `tessera_add_note` | Appends a Markdown outline to the end of a page, a journal day or a block, creating a missing page or day; without a target it writes to today's journal. List items nest by indentation, headings contain what follows them, and `- [ ]`, `- [x]`, `- [doing]`, `- [waiting]` or `- [cancelled]` items become tasks. The result names the cards the note made and any card syntax that made none. |
 | `tessera_edit_block` | Replaces a block's text or heading level; editing a page's root renames the page. |
 | `tessera_move_block` | Moves a block and its children after a sibling, or first or last under a parent. |
 | `tessera_delete_block` | Deletes a block and its children, or a page. |
-| `tessera_set_task` | Makes a block a task or changes its status, scheduled date, deadline or priority; done records a completion. |
+| `tessera_set_task` | Makes a block a task or changes its status, scheduled date and time, deadline and time, warning days, repeat or priority; done records a completion. |
+| `tessera_hold_card` | Holds a card out of review, or releases it. |
+| `tessera_cite` | Links existing blocks to library passages: a whole passage, a range, or the first occurrence of a quote. |
 
-In written text, `[[Title]]` links the page with that title and creates it when missing, as typing it in the editor does. A write given a block's revision is refused if the block changed since it was read.
+Written text follows the editor's syntax. `[[Title]]` links the page with that title and creates it when missing. Card operators (`>>`, `<<`, `<>`, `>>>`, `>>1.`) and clozes (`{{c1::answer}}`) make cards. A child block `Name:: value` becomes a field entry on its parent, creating the field when missing. A write given a block's or card's revision is refused if it changed since it was read.
 
-Each write is one change attributed to the agent by its MCP client name, and open windows show it at once. `tessera_recent_changes` lists agent changes and `tessera_undo` reverses one; Settings › Agent changes lists them too, with an Undo button. Undo refuses rather than overwrite a later edit by anyone else, so undo several changes newest first. A page the change created stays while other blocks link to it or live on it.
+Each write is one change attributed to the agent by its MCP client name, and open windows show it at once. `tessera_recent_changes` lists agent changes and `tessera_undo` reverses one; Settings › Agent changes lists them too, with an Undo button. Undo refuses rather than overwrite a later edit by anyone else, so undo several changes newest first. A page or field the change created stays while other blocks use it.
 
-Agents without MCP use the same endpoints: `POST /api/agent-changes` with a body like `{"actor": {"kind": "agent", "name": "my-agent"}, "kind": "add_note", "target": {"kind": "page", "title": "Inbox"}, "blocks": [{"text": "A thought", "children": []}]}`, `GET /api/agent-changes` to list and `POST /api/agent-changes/{seq}/undo` with `{"actor": …}` to undo. The other kinds are `edit_block`, `move_block`, `delete_block` and `set_task`; `crates/tessera-core/src/agent.rs` defines their fields.
+Agents without MCP use the same endpoints: `POST /api/agent-changes` with a body like `{"actor": {"kind": "agent", "name": "my-agent"}, "kind": "add_note", "target": {"kind": "page", "title": "Inbox"}, "blocks": [{"text": "A thought", "children": []}]}`, `GET /api/agent-changes` to list and `POST /api/agent-changes/{seq}/undo` with `{"actor": …}` to undo. The other kinds are `edit_block`, `move_block`, `delete_block`, `set_task`, `set_card_held` and `cite`; `crates/tessera-core/src/agent.rs` defines their fields.
 
 ## Development
 

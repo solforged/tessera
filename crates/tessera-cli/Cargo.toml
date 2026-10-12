@@ -24,6 +24,7 @@ serde.workspace = true
 tokio = { workspace = true, features = ["io-std", "io-util"] }
 reqwest.workspace = true
 percent-encoding = "2"
+jiff = { version = "0.2", default-features = false, features = ["std"] }
 tracing-subscriber.workspace = true
 
 [dev-dependencies]
