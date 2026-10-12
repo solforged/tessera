@@ -61,8 +61,8 @@ pub use capabilities::{
     PositionField, PositionInfo, PositionQuery, PositionQueryResult, PositionQuestion, PositionRow,
     ProjectRecord, ProjectState, ProjectStatus, ReviewEvent, ReviewEventKind,
     ReviewSchedulingState, ReviewSession, ReviewSessionState, SubjectCriteria, TaskFilter,
-    TaskOccurrence, TaskPriority, TaskQuery, TaskQueryResult, TaskRecord, TaskRow, TaskSelection,
-    TaskState, TaskStatus, TaskView, WorkSession,
+    TaskOccurrence, TaskPriority, TaskQuery, TaskQueryResult, TaskRow, TaskSelection, TaskState,
+    TaskStatus, TaskView, WorkSession,
 };
 pub use capabilities::{
     AssessmentInfo, AssessmentState, QuestionInfo, QuestionQuery, QuestionRow, QuestionState,

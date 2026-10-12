@@ -58,14 +58,6 @@ export function openReviewSession(sessions: readonly ReviewSession[], deckId: st
     .sort((a, b) => b.started_at - a.started_at || b.id.localeCompare(a.id))[0];
 }
 
-/** null means another session's newer grade requires the retained history, not a guess. */
-export function reviewedInSession(row: CardRow, session: ReviewSession, history?: readonly ReviewEvent[]): boolean | null {
-  if (history) return history.some(event => event.kind === 'grade' && event.session_id === session.id);
-  if (row.last_review?.session_id === session.id) return true;
-  if (!row.last_review || row.last_review.created_at < session.started_at) return false;
-  return null;
-}
-
 /** Only the immutable displayed row is allowed here, never the latest query result. */
 export function gradeOperation(shown: CardRow, sessionId: string, grade: Grade, reset: boolean, eventId: string, reviewedAt: number): Operation {
   return {

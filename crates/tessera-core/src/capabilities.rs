@@ -38,12 +38,6 @@ pub struct TaskState {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct TaskRecord {
-    pub block_id: String,
-    pub state: TaskState,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TaskOccurrence {
     pub id: String,
     pub block_id: String,

@@ -277,8 +277,8 @@ export interface ApiClient {
   uploadCover(file: Blob): Promise<string>;
   libraryViews(signal?: AbortSignal): Promise<LibraryView[]>;
   ingestJobs(limit?: number, signal?: AbortSignal): Promise<IngestJob[]>;
-  queueUrl(url: string, targetSource?: string, signal?: AbortSignal): Promise<IngestJob>;
-  upload(file: Blob, name: string, targetSource?: string, signal?: AbortSignal): Promise<IngestJob>;
+  queueUrl(url: string, signal?: AbortSignal): Promise<IngestJob>;
+  upload(file: Blob, name: string, signal?: AbortSignal): Promise<IngestJob>;
   retryJob(id: string, signal?: AbortSignal): Promise<IngestJob>;
   source(id: string, signal?: AbortSignal): Promise<SourceView>;
   /** What the current snapshot's metadata renders to, per field name. */
@@ -315,7 +315,7 @@ export function createApi(base = ''): ApiClient {
       notebooks: (signal?: AbortSignal) => get<KnownNotebooks>('/notebooks', signal),
       openNotebook: (path: string, create: boolean, signal?: AbortSignal) => request<{ path: string }>(base, 'POST', '/notebooks/open', { path, create }, signal),
       forgetNotebook: (path: string, signal?: AbortSignal) => request<KnownNotebooks>(base, 'POST', '/notebooks/forget', { path }, signal),
-      queueUrl: (url: string, targetSource?: string, signal?: AbortSignal) => request<IngestJob>(base, 'POST', '/library/jobs', { url, target_source: targetSource ?? null }, signal),
+      queueUrl: (url: string, signal?: AbortSignal) => request<IngestJob>(base, 'POST', '/library/jobs', { url, target_source: null }, signal),
       syncDevices: (signal?: AbortSignal) => get<SyncDevices>('/sync/devices', signal),
       setSharing: (on: boolean, signal?: AbortSignal) => request<SyncSharing>(base, 'POST', '/sync/sharing', { on }, signal),
       forgetDevice: (id: string, signal?: AbortSignal) => request<void>(base, 'DELETE', `/sync/devices/${segment(id)}`, undefined, signal),
@@ -408,7 +408,7 @@ export function createApi(base = ''): ApiClient {
     uploadCover: (file: Blob) => send<string>(`${base}/api/library/covers`, { method: 'POST', body: file, headers: notebookHeaders(base, { 'Content-Type': file.type }) }),
     libraryViews: (signal?: AbortSignal) => get<LibraryView[]>('/library/views', signal),
     ingestJobs: (limit = 50, signal?: AbortSignal) => get<IngestJob[]>(`/library/jobs${query({ limit })}`, signal),
-    upload: (file: Blob, name: string, targetSource?: string, signal?: AbortSignal) => send<IngestJob>(`${base}/api/library/uploads${query({ target_source: targetSource })}`, {
+    upload: (file: Blob, name: string, signal?: AbortSignal) => send<IngestJob>(`${base}/api/library/uploads`, {
       method: 'POST', signal, body: file,
       headers: notebookHeaders(base, { 'Content-Type': file.type || 'application/octet-stream', 'X-Filename': encodeURIComponent(name) }),
     }),

@@ -234,14 +234,6 @@ export interface KeptCopyRow { id: string; of: string; page_id: string; page_tit
 export interface RejectedChange { id: string; change_id: string; error: string; created_at: number }
 export interface SyncConflicts { kept: KeptCopyRow[]; rejected: RejectedChange[] }
 
-/** `error.details` of a 409 response. */
-export interface ConflictDetails {
-  op_index: number;
-  id: string;
-  expected: number;
-  found: number | null;
-}
-
 export type FieldKind = typeof fieldKinds[number];
 export type Direction = 'asc' | 'desc';
 export type FilterOp = 'is' | 'is_not' | 'contains' | 'gt' | 'gte' | 'lt' | 'lte' | 'present' | 'set' | 'empty';
@@ -306,8 +298,6 @@ export interface TaskState {
   priority: TaskPriority | null;
   completed_on: string | null;
 }
-
-export interface TaskRecord { block_id: string; state: TaskState }
 
 export interface TaskOccurrence {
   id: string;
@@ -562,5 +552,4 @@ export interface IngestJob {
   next_attempt_at: number | null; source_id: string | null; snapshot_id: string | null;
   created_at: number; updated_at: number;
 }
-export interface StagedSnapshot { id: string; existing: boolean }
 export interface IngestPlan { source_id: string; created: boolean; unchanged: boolean; operations: Operation[] }

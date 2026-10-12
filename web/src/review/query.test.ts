@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import type { Block, CardQuery, CardRow, ReviewEvent, ReviewSession, SchedulingState } from '../api/types';
 import { ApiError } from '../api/client';
-import { copyCardQuery, gradeIntervals, gradeOperation, loadReviewCard, openReviewSession, reviewedInSession, sameCardSnapshot, sessionQueue } from './query';
+import { copyCardQuery, gradeIntervals, gradeOperation, loadReviewCard, openReviewSession, sameCardSnapshot, sessionQueue } from './query';
 
 const schedule: SchedulingState = { stability: 8, difficulty: 5, interval_days: 8, repetitions: 3, lapses: 0, due_at: 100, last_reviewed_at: 50 };
 const page: Block = { id: 'page', kind: 'page', parent_id: null, page_id: 'page', text: 'Vocabulary', heading: null, archived: false, revision: 1, created_at: 0, updated_at: 0 };
@@ -36,22 +36,6 @@ describe('review snapshots and retained session evidence', () => {
     expect(sameCardSnapshot(row.card, { ...row.card, revision: 5, schedule: { ...schedule, interval_days: 0 } })).toBe(false);
     expect(sameCardSnapshot(row.card, { ...row.card, active: false })).toBe(false);
     expect(sameCardSnapshot(row.card, { ...row.card, back: 'changed without the expected revision' })).toBe(false);
-  });
-
-  test('resuming excludes committed session grades, but a reset alone does not advance a card', () => {
-    expect(reviewedInSession({ ...row, last_review: event }, session)).toBe(true);
-    const reset: ReviewEvent = { ...event, id: 'reset', kind: 'reset', grade: null, created_at: 130 };
-    expect(reviewedInSession(row, session, [reset])).toBe(false);
-    expect(reviewedInSession(row, session, [event, reset])).toBe(true);
-  });
-
-  test('a newer grade from another session requires history before deciding whether to repeat a card', () => {
-    const elsewhere: ReviewEvent = { ...event, id: 'elsewhere', session_id: 'other-session', created_at: 150 };
-    const current = { ...row, last_review: elsewhere };
-    expect(reviewedInSession(current, session)).toBeNull();
-    expect(reviewedInSession(current, session, [event, elsewhere])).toBe(true);
-    expect(reviewedInSession(current, session, [elsewhere])).toBe(false);
-    expect(reviewedInSession({ ...row, last_review: { ...elsewhere, created_at: 90 } }, session)).toBe(false);
   });
 
   test('recovery chooses a stable open session without reopening or mutating retained closed sessions', () => {
