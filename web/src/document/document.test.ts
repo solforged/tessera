@@ -461,6 +461,36 @@ describe('real notebook operations and recovery', () => {
     } finally { globalThis.fetch = actualFetch; }
   });
 
+  test('cancelled missing journal lookup does not create a journal', async () => {
+    const instance = await client();
+    const date = '2098-10-12';
+    let release!: () => void;
+    let arrived!: () => void;
+    const held = new Promise<void>(resolve => { release = resolve; });
+    const lookup = new Promise<void>(resolve => { arrived = resolve; });
+    globalThis.fetch = Object.assign(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      if (!url.endsWith(`/api/journal/${date}`)) return actualFetch(input, init);
+      // Let a response already in flight arrive after cancellation.
+      const response = await actualFetch(input, { ...init, signal: undefined });
+      arrived();
+      await held;
+      return response;
+    }, { preconnect: actualFetch.preconnect });
+    try {
+      const controller = new AbortController();
+      const pending = instance.journal(date, controller.signal);
+      await lookup;
+      controller.abort();
+      release();
+      await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+      expect(instance.roots().some(root => root.kind === 'journal' && root.text === date)).toBe(false);
+      expect(instance.queuedChanges()).toBe(0);
+      await instance.flush();
+      await expect(api.journal(date)).rejects.toMatchObject({ status: 404 });
+    } finally { release(); globalThis.fetch = actualFetch; }
+  });
+
   test('notebook settings share revisions, undo safely, and choose the service journal date', async () => {
     const first = await client();
     const second = await client();

@@ -1309,10 +1309,11 @@ export class Notebook implements NotebookClient, DocumentHost {
     const date = new Date();
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
   }
-  async today() {
+  async today(signal?: AbortSignal) {
     await this.ready;
+    signal?.throwIfAborted();
     try { await this.refreshSettings(); } catch { this.connectionSignal[1]('offline'); }
-    return this.journal(this.todayDate());
+    return this.journal(this.todayDate(), signal);
   }
   private async writeSetting(key: SettingEdit['key'], value: string, baseRevision: number | null) {
     const committed = await this.api.submit({
@@ -1364,14 +1365,22 @@ export class Notebook implements NotebookClient, DocumentHost {
       }
     });
   }
-  async journal(date: string) {
+  async journal(date: string, signal?: AbortSignal) {
     await this.ready;
+    signal?.throwIfAborted();
     const cached = this.roots().find(root => root.kind === 'journal' && root.text === date);
     if (cached) return cached.id;
-    try { return (await this.api.journal(date)).id; }
-    catch (error) { if (!(error instanceof ApiError) || error.status !== 404 && !error.uncertain) throw error; }
+    try { return (await this.api.journal(date, signal)).id; }
+    catch (error) {
+      signal?.throwIfAborted();
+      if (!(error instanceof ApiError) || error.status !== 404 && !error.uncertain) throw error;
+    }
+    signal?.throwIfAborted();
     try { return await this.createRoot('journal', date); }
-    catch (error) { try { return (await this.api.journal(date)).id; } catch { throw error; } }
+    catch (error) {
+      signal?.throwIfAborted();
+      try { return (await this.api.journal(date, signal)).id; } catch { throw error; }
+    }
   }
   async createPage(title: string) {
     await this.ready;

@@ -43,6 +43,8 @@ The launcher's New note and New task shortcuts and text shared to Tessera open t
 
 Journal days present a spoken date such as Saturday 10 October beneath a mono period trail: `2026 · Q4 · October · Week 41`.
 
+The latest navigation request wins in its pane. Previous and next step from a pending journal date, and a superseded lookup does not create a missing journal.
+
 Quiet dotted underlines make the segments clickable, brightening to gilt on hover; the open segment has a 2 px gilt rule instead. Each segment toggles one inline ledger beneath the heading. Tapping it again or Escape closes it.
 
 The period trail keeps even visible gaps around its separators. Touch hit areas extend to at least 40 px without widening the labels.
@@ -60,7 +62,7 @@ On touch, mini months are whole-month buttons with non-interactive day overviews
 
 ### Written-day marks
 
-Only journals with non-empty visible text get muted filled day marks, independently of visiting or selecting the day. Today is ringed in gilt and the displayed journal day has a gilt rule. The bounded written-day read refreshes after committed text changes.
+Only journals with non-empty visible text get muted filled day marks, independently of visiting or selecting the day. Today is ringed in gilt and the displayed journal day has a gilt rule. The bounded written-day read refreshes after committed text changes, keeping the previous marks visible until the refreshed data arrives.
 
 Day buttons speak the full civil date and open through the existing journal path. The root text remains ISO and other pages retain their own titles.
 

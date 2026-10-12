@@ -189,6 +189,7 @@ export function App() {
   const split = () => sessions().main.index >= 0 && sessions().side.index >= 0;
   const activeRoot = () => notebook.roots().find(root => root.id === pageIdOf(entry(active())));
   const journalDate = (pane: PaneId) => {
+    if (pendingJournals[pane]) return pendingJournals[pane]!.date;
     const root = notebook.roots().find(root => root.id === pageIdOf(entry(pane)));
     return root?.kind === 'journal' ? root.text : todayDate();
   };
@@ -196,6 +197,13 @@ export function App() {
   const remember = (id: string) => setRecent(values => [id, ...values.filter(value => value !== id)].slice(0, 10));
   let focusEpoch = 0;
   const navigationRequests: Record<PaneId, number> = { main: 0, side: 0 };
+  const pendingJournals: Partial<Record<PaneId, { date: string; controller: AbortController }>> = {};
+  const cancelNavigation = (pane: PaneId) => {
+    pendingJournals[pane]?.controller.abort();
+    delete pendingJournals[pane];
+    return ++navigationRequests[pane];
+  };
+  onCleanup(() => { cancelNavigation('main'); cancelNavigation('side'); });
   const focusPane = (pane: PaneId) => {
     const epoch = ++focusEpoch;
     requestAnimationFrame(() => {
@@ -209,7 +217,7 @@ export function App() {
   };
   const open = (target: OpenTarget, beside = false, owner = active(), restore?: PaneView) => {
     const pane: PaneId = beside ? owner === 'main' ? 'side' : 'main' : owner;
-    const request = ++navigationRequests[pane];
+    const request = cancelNavigation(pane);
     if (target.kind === 'agenda' && target.viewId && !target.query) {
       void notebook.api.taskView(target.viewId).then(saved => {
         if (request === navigationRequests[pane]) open({ ...target, query: saved.query, date: target.date ?? saved.query.context_date }, beside, owner, restore);
@@ -264,13 +272,26 @@ export function App() {
   const travel = (pane: PaneId, delta: number) => {
     const session = sessions()[pane]; const index = session.index + delta;
     if (index < 0 || index >= session.entries.length) return;
-    navigationRequests[pane]++;
+    cancelNavigation(pane);
     setSessions(values => ({ ...values, [pane]: { ...values[pane], index, generation: values[pane].generation + 1 } }));
     setActive(pane); const pageId = pageIdOf(session.entries[index]); if (pageId) remember(pageId);
     focusPane(pane);
   };
-  const today = async (pane = active(), beside = false) => { try { open({ kind: 'page', pageId: await notebook.today() }, beside, pane); } catch (reason) { reportError(reason); } };
-  const journal = async (value: string, pane = active()) => { try { open({ kind: 'page', pageId: await notebook.journal(value) }, false, pane); } catch (reason) { reportError(reason); } };
+  const journal = async (value: string | null, owner = active(), beside = false, journalPeriod?: Extract<OpenTarget, { kind: 'page' }>['journalPeriod']) => {
+    const pane: PaneId = beside ? owner === 'main' ? 'side' : 'main' : owner;
+    const request = cancelNavigation(pane);
+    const controller = new AbortController();
+    pendingJournals[pane] = { date: value ?? todayDate(), controller };
+    try {
+      const pageId = value === null ? await notebook.today(controller.signal) : await notebook.journal(value, controller.signal);
+      if (request === navigationRequests[pane]) open({ kind: 'page', pageId, ...(journalPeriod ? { journalPeriod } : {}) }, beside, owner);
+    } catch (reason) {
+      if (request === navigationRequests[pane]) reportError(reason);
+    } finally {
+      if (request === navigationRequests[pane]) delete pendingJournals[pane];
+    }
+  };
+  const today = (pane = active(), beside = false) => journal(null, pane, beside);
   const shiftDate = (delta: number, pane = active()) => { const next = new Date(`${journalDate(pane)}T12:00:00`); next.setDate(next.getDate() + delta); void journal(localDate(next), pane); };
   const switchPane = () => {
     if (!split()) return;
@@ -280,7 +301,7 @@ export function App() {
   };
   const closePane = (pane: PaneId) => {
     if (!split()) return;
-    navigationRequests[pane]++;
+    cancelNavigation(pane);
     setSessions(values => ({ ...values, [pane]: { entries: [], index: -1, generation: values[pane].generation + 1 } }));
     setActive(pane === 'main' ? 'side' : 'main');
     focusPane(pane === 'main' ? 'side' : 'main');
@@ -541,7 +562,7 @@ export function App() {
       goToCommand('agenda-week', 'Agenda week', (beside, pane) => open({ kind: 'agenda', date: todayDate(), mode: 'week' }, beside, pane)),
       goToCommand('agenda-tasks', 'Agenda tasks', (beside, pane) => open({ kind: 'agenda', date: todayDate(), mode: 'tasks' }, beside, pane)),
       ...(['week', 'month', 'quarter', 'year'] as const).map(period => goToCommand(period, `This ${period}`, (beside, pane) => {
-        void notebook.today().then(pageId => open({ kind: 'page', pageId, journalPeriod: period }, beside, pane)).catch(reportError);
+        void journal(null, pane, beside, period);
       })),
     ];
     for (const type of index() ? destinationTypes() ?? [] : []) {

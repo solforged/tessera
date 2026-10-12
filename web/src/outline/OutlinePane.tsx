@@ -859,7 +859,16 @@ function Pane(props: OutlinePaneProps) {
     scroll.addEventListener('cut', cut, true);
     const clearOutsideRows = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
-      if (scroll.contains(target) && !target.closest('[data-block-id], button, input, [role="menu"], [role="dialog"]')) clearSelection();
+      if (!scroll.contains(target) || target.closest('[data-block-id], button, input, [role="menu"], [role="dialog"]')) return;
+      const belowRows = (target === scroll || target === list) && event.clientY >= list.getBoundingClientRect().bottom;
+      if (event.button !== 0 || !belowRows || doc.status() !== 'ready' || depthFilter() !== undefined) { clearSelection(); return; }
+      event.preventDefault();
+      setTextRange(null);
+      props.onActivate();
+      const parentId = zoom() ?? props.pageId;
+      const last = doc.outline.children(parentId).at(-1);
+      if (last && doc.block(last)?.text === '' && !doc.isArchived(last) && doc.outline.children(last).length === 0) editAt(last, 0, true);
+      else apply({ kind: 'insert', parentId, after: last ?? null }, true);
     };
     scroll.addEventListener('mousedown', clearOutsideRows);
     onCleanup(() => scroll.removeEventListener('mousedown', clearOutsideRows));

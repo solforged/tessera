@@ -289,7 +289,7 @@ export interface NotebookClient {
   /** Live pages, then journal days newest first; follows remote changes. */
   roots: Accessor<readonly Block[]>;
   /** Today's journal day in the notebook's time zone, created if missing. */
-  today(): Promise<string>;
+  today(signal?: AbortSignal): Promise<string>;
   /** Service calendar date, or the device date when offline. */
   todayDate(): string;
   /** The open work session this window knows of; reactive. */
@@ -306,7 +306,7 @@ export interface NotebookClient {
   undoSetting(): Promise<void>;
   redoSetting(): Promise<void>;
   /** The journal root for `YYYY-MM-DD`, created if missing. */
-  journal(date: string): Promise<string>;
+  journal(date: string, signal?: AbortSignal): Promise<string>;
   /** A new page; fails when the title is taken (ignoring case). */
   createPage(title: string): Promise<string>;
   /** The page with this title, created if missing (for tags). */

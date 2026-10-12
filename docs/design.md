@@ -427,6 +427,8 @@ Opening a page selects nothing, so no row lights up that you did not choose; jou
 
 An open that names a block selects it, and one that names a caret (Add note, Make card, Highlight and note) starts editing there.
 
+Clicking blank canvas below the last row of a page or journal edits its trailing empty block, or appends an empty sibling at the visible root when one is needed.
+
 ### Row mechanics
 
 Settled by the 2026-10-02 audit; each rule has a document-layer test in `web/src/document/outline-*.test.ts`.

@@ -27,7 +27,7 @@ export function JournalTrail(props: { date: string; journalPeriod?: Period; note
       : (open.kind === 'year' ? journalYearMonths(open.date) : open.kind === 'quarter' ? journalQuarter(open.date).months : [open.date])
         .flatMap(date => journalMonthGrid(date).flatMap(row => row.days.filter((day): day is string => day !== null)));
     const controller = new AbortController();
-    setWritten(new Set<string>()); setWrittenError('');
+    setWrittenError('');
     void props.notebook.api.writtenJournalDates(dates[0]!, dates[dates.length - 1]!, controller.signal)
       .then(value => { if (!controller.signal.aborted) setWritten(new Set(value)); })
       .catch(reason => { if (!controller.signal.aborted) setWrittenError(`Could not load written days: ${reason instanceof Error ? reason.message : String(reason)}`); });
