@@ -8,6 +8,7 @@ import type {
   Backlink,
   BackupInfo,
   CreatedBackup,
+  PrunedBackups,
   PairingCode,
   PairingStatus,
   SyncConflicts,
@@ -193,6 +194,8 @@ export interface ApiClient {
   service(signal?: AbortSignal): Promise<ServiceInfo>;
   backups(signal?: AbortSignal): Promise<BackupInfo[]>;
   createBackup(signal?: AbortSignal): Promise<CreatedBackup>;
+  deleteBackup(name: string, signal?: AbortSignal): Promise<BackupInfo[]>;
+  pruneBackups(keep: number, signal?: AbortSignal): Promise<PrunedBackups>;
   /** The Mac service only: known notebooks, and switching the service to one. */
   notebooks(signal?: AbortSignal): Promise<KnownNotebooks>;
   /** Resolves once the service has accepted; it then restarts on `path`, and this window reloads. */
@@ -296,7 +299,7 @@ export interface ApiClient {
   exportQuery(format: ExportFormat, query: LibraryQuery, signal?: AbortSignal): Promise<Blob>;
 }
 
-type NativeMethod = 'service' | 'backups' | 'createBackup' | 'notebooks' | 'openNotebook' | 'forgetNotebook' | 'queueUrl' | 'syncDevices' | 'setSharing' | 'forgetDevice' | 'startPairing' | 'pairingStatus' | 'cancelPairing';
+type NativeMethod = 'service' | 'backups' | 'createBackup' | 'deleteBackup' | 'pruneBackups' | 'notebooks' | 'openNotebook' | 'forgetNotebook' | 'queueUrl' | 'syncDevices' | 'setSharing' | 'forgetDevice' | 'startPairing' | 'pairingStatus' | 'cancelPairing';
 
 export function createApi(base = ''): ApiClient {
   const get = <T>(path: string, signal?: AbortSignal) => request<T>(base, 'GET', path, undefined, signal);
@@ -307,6 +310,8 @@ export function createApi(base = ''): ApiClient {
       service: (signal?: AbortSignal) => get<ServiceInfo>('/service', signal),
       backups: (signal?: AbortSignal) => get<BackupInfo[]>('/backups', signal),
       createBackup: (signal?: AbortSignal) => request<CreatedBackup>(base, 'POST', '/backups', undefined, signal),
+      deleteBackup: (name: string, signal?: AbortSignal) => request<BackupInfo[]>(base, 'DELETE', `/backups/${segment(name)}`, undefined, signal),
+      pruneBackups: (keep: number, signal?: AbortSignal) => request<PrunedBackups>(base, 'POST', '/backups/prune', { keep }, signal),
       notebooks: (signal?: AbortSignal) => get<KnownNotebooks>('/notebooks', signal),
       openNotebook: (path: string, create: boolean, signal?: AbortSignal) => request<{ path: string }>(base, 'POST', '/notebooks/open', { path, create }, signal),
       forgetNotebook: (path: string, signal?: AbortSignal) => request<KnownNotebooks>(base, 'POST', '/notebooks/forget', { path }, signal),

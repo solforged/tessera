@@ -204,8 +204,9 @@ export interface ServiceInfo {
   launch_agent: { installed: boolean; path: string | null };
 }
 
-export interface BackupInfo { path: string; created_at: number; object_count: number }
-export interface CreatedBackup extends BackupInfo { notebook_id: string; schema_version: number; db_page_count: number }
+export interface BackupInfo { path: string; created_at: number; object_count: number; size: number }
+export interface CreatedBackup extends Omit<BackupInfo, 'size'> { notebook_id: string; schema_version: number; db_page_count: number }
+export interface PrunedBackups { deleted: number; freed: number; backups: BackupInfo[] }
 /** A notebook the switcher knows. `available` is false when its folder no longer holds a notebook. */
 export interface KnownNotebook { path: string; name: string; current: boolean; default: boolean; available: boolean }
 export interface KnownNotebooks { notebooks: KnownNotebook[] }

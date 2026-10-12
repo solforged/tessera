@@ -8,6 +8,7 @@ import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Picker } from '../ui/Picker';
 import { setThemePreference, themePreference } from '../shell/theme';
+import { size } from '../sync/state';
 import { backupLabel } from './backup';
 import { HubDevices, PhoneDevices } from './DevicesSection';
 import { forgetNotebook, knownNotebooks, loadNotebooks, notebookLabel, notebookOpening, openNotebook } from './notebooks';
@@ -24,7 +25,7 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; not
     try { return await api.service(); }
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); return undefined; }
   });
-  const [backups, { refetch: refreshBackups }] = createResource(() => !EMBEDDED, async () => {
+  const [backups, { refetch: refreshBackups, mutate: updateBackups }] = createResource(() => !EMBEDDED, async () => {
     try { return await api.backups(); }
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); return undefined; }
   });
@@ -41,8 +42,23 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; not
     finally { setUndoing(null); }
   };
   const [backingUp, setBackingUp] = createSignal(false);
+  const [removingBackups, setRemovingBackups] = createSignal(false);
+  const [confirmBackup, setConfirmBackup] = createSignal<string | null>(null);
+  const backupBusy = () => backingUp() || removingBackups();
+  const backupBytes = createMemo(() => backups()?.reduce((total, backup) => total + backup.size, 0) ?? 0);
+  const olderBackups = createMemo(() => backups()?.slice(10) ?? []);
+  const olderBytes = createMemo(() => olderBackups().reduce((total, backup) => total + backup.size, 0));
+  const removeBackups = async (name?: string) => {
+    if (backupBusy()) return;
+    setRemovingBackups(true); setError('');
+    try {
+      updateBackups(name === undefined ? (await api.pruneBackups(10)).backups : await api.deleteBackup(name));
+      setConfirmBackup(null);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
+    finally { setRemovingBackups(false); }
+  };
   const backUp = async () => {
-    if (backingUp()) return;
+    if (backupBusy()) return;
     setBackingUp(true); setError('');
     try { await api.createBackup(); await refreshBackups(); }
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
@@ -213,15 +229,34 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; not
             </span>
           </form>
         </section>}
-        {!EMBEDDED && <section id={sectionId('backups')} aria-labelledby={`${sectionId('backups')}-heading`} aria-busy={backingUp()}>
+        {!EMBEDDED && <section id={sectionId('backups')} aria-labelledby={`${sectionId('backups')}-heading`} aria-busy={backupBusy()}>
           {heading(number('backups'), 'backups', 'Backups')}
           <div class="settings-row">
-            <div class="settings-label"><span class="settings-name">Database and files</span><Show when={backups()}>{values => <p role="status">{values()[0] ? `Last backup ${when(values()[0]!.created_at)}` : 'No backups yet.'}</p>}</Show></div>
-            <Button class="bordered" disabled={backingUp()} onClick={() => { void backUp(); }}>{backingUp() ? 'Backing up…' : 'Back up now'}</Button>
+            <div class="settings-label"><span class="settings-name">Database and files</span><Show when={backups()}>{values => <>
+              <p role="status">{values()[0] ? `Last backup ${when(values()[0]!.created_at)}` : 'No backups yet.'}</p>
+              <p class="settings-mono">{values().length} {values().length === 1 ? 'backup' : 'backups'} · {size(backupBytes())}</p>
+            </>}</Show></div>
+            <Button class="bordered" disabled={backupBusy()} onClick={() => { setConfirmBackup(null); void backUp(); }}>{backingUp() ? 'Backing up…' : 'Back up now'}</Button>
           </div>
+          <Show when={olderBackups().length > 0}><div class="settings-row">
+            <div class="settings-label"><span class="settings-name">Keep the latest 10</span>
+              <p>{confirmBackup() === 'older' ? `Delete ${olderBackups().length} older ${olderBackups().length === 1 ? 'backup' : 'backups'} and free ${size(olderBytes())}? This cannot be undone.` : 'The newest backup is always kept as a restore point.'}</p>
+            </div>
+            <span class="settings-backup-actions"><Show when={confirmBackup() === 'older'} fallback={<Button class="bordered danger" disabled={backupBusy()} onClick={() => setConfirmBackup('older')}>Delete older backups</Button>}>
+              <Button disabled={backupBusy()} onClick={() => setConfirmBackup(null)}>Cancel</Button>
+              <Button class="bordered danger" disabled={backupBusy()} onClick={() => { void removeBackups(); }}>Confirm</Button>
+            </Show></span>
+          </div></Show>
           <Show when={(backups()?.length ?? 0) > 1}><details class="settings-more">
             <summary><Icon name="right" />{backups()!.length - 1} earlier {backups()!.length === 2 ? 'backup' : 'backups'}</summary>
-            <ul><For each={backups()!.slice(1)}>{backup => <li>{backupLabel(backup)}</li>}</For></ul>
+            <ul><For each={backups()!.slice(1)}>{backup => <li class="settings-backup-row">
+              <span>{backupLabel(backup)} · {size(backup.size)}</span>
+              <span class="settings-backup-actions"><Show when={confirmBackup() === backup.path} fallback={<Button class="danger" disabled={backupBusy()} onClick={() => setConfirmBackup(backup.path)}>Delete</Button>}>
+                <span class="settings-backup-question">Delete?</span>
+                <Button disabled={backupBusy()} onClick={() => setConfirmBackup(null)}>Cancel</Button>
+                <Button class="bordered danger" disabled={backupBusy()} onClick={() => { void removeBackups(backup.path.split('/').at(-1)!); }}>Confirm</Button>
+              </Show></span>
+            </li>}</For></ul>
           </details></Show>
         </section>}
         {devices && <section id={sectionId('devices')} aria-labelledby={`${sectionId('devices')}-heading`}>
