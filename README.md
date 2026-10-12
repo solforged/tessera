@@ -188,6 +188,8 @@ mise run serve
 
 For live reloading, run `mise run serve --dev-origin http://127.0.0.1:5173` and `mise run web:dev` in a second terminal, then open <http://127.0.0.1:5173>.
 
+`mise run seed:clickaround` writes a notebook for click-through testing to `~/.local/share/tessera/notebooks/clickaround` (or the folder given) and adds it to Settings → Notebooks. It holds the week ending today: journal days, two projects with tasks, clocked work and completions, repeating routines, people and concepts with typed fields, cards with a week of review history, the bundled *Meditations* with highlights, catalogue records, collections and saved views. Everything is written through a temporary service's API. Pass `--replace` to start again on the current week; it refuses while a service has that notebook open.
+
 The service binds to loopback only and rejects other hosts and browser origins. `tessera info` prints the notebook's identity as JSON.
 
 Checks: `mise run check` runs formatting, Clippy, the Rust and editor tests, and the editor build; `mise run fmt` formats. Backend budgets: `mise run bench --root /tmp/tessera-bench --fail-on budgets`. `mise run fonts:keys` redraws the key glyphs in `web/src/ui/fonts/keys.woff2`.
