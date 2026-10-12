@@ -126,6 +126,7 @@ impl Notebook {
             if matches!(
                 operation,
                 Operation::GradeCard { .. }
+                    | Operation::UndoGrade { .. }
                     | Operation::ResetCard { .. }
                     | Operation::SetCardHeld { .. }
             ) {
@@ -2024,6 +2025,7 @@ impl Engine<'_, '_> {
             Operation::StartReviewSession { .. }
             | Operation::FinishReviewSession { .. }
             | Operation::GradeCard { .. }
+            | Operation::UndoGrade { .. }
             | Operation::ResetCard { .. }
             | Operation::SetCardHeld { .. }
             | Operation::SaveDeck { .. }
@@ -2033,6 +2035,7 @@ impl Engine<'_, '_> {
                 if matches!(
                     operation,
                     Operation::GradeCard { .. }
+                        | Operation::UndoGrade { .. }
                         | Operation::ResetCard { .. }
                         | Operation::SetCardHeld { .. }
                 ) {

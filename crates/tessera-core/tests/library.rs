@@ -24,7 +24,7 @@ fn downgrade_card_schema(conn: &rusqlite::Connection) {
         .query_row("SELECT COUNT(*) FROM card_units", [], |row| row.get(0))
         .unwrap();
     assert_eq!(count, 0);
-    conn.execute_batch("DROP TABLE review_events; DROP TABLE card_units;")
+    conn.execute_batch("DROP VIEW effective_review_events; DROP TABLE review_undos; DROP TABLE review_events; DROP TABLE card_units;")
         .unwrap();
     for sql in include_str!("../migrations/009_action_learning.sql")
         .split("CREATE TABLE ")

@@ -360,6 +360,8 @@ fn fields_page_is_idempotent_recreated_after_deletion_and_migration_backfills_en
          ALTER TABLE changes DROP COLUMN origin;
          DROP TABLE provisional_pages;
          DROP TABLE agent_changes;
+         DROP VIEW effective_review_events;
+         DROP TABLE review_undos;
          DROP TABLE review_events;
          DROP TABLE review_sessions;
          DROP TABLE field_targets;

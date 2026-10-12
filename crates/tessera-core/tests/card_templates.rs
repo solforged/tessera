@@ -474,3 +474,98 @@ fn held_template_units_keep_identity_without_consuming_introductions() {
     assert_eq!(forecast.load[0].added, 2);
     assert!(forecast.load.iter().all(|day| day.due == 0));
 }
+
+#[test]
+fn paced_counts_and_forecast_defer_five_of_fifteen_but_all_keeps_inventory() {
+    let (_dir, mut nb) = fixture(15, 15);
+    let template = nb.card_template(&id(50)).unwrap();
+    apply(&mut nb, vec![Operation::UpdateCardTemplate {
+        id: template.id, base_revision: template.revision, name: template.name,
+        front: template.front, back: template.back, new_per_day: 10,
+    }]);
+    applied(&mut nb, true);
+    let now = "2030-01-15T12:00:00Z".parse::<jiff::Timestamp>().unwrap().as_millisecond();
+    let query = CardQuery { source: None, selection: CardSelection::All, limit: Some(0) };
+    assert_eq!(nb.card_query(&query, now).unwrap().total, 15);
+    for selection in [CardSelection::Due, CardSelection::New] {
+        assert_eq!(nb.card_query(&CardQuery { selection, ..query.clone() }, now).unwrap().total, 10);
+    }
+    let stats = nb.review_stats(None, "2030-01-15").unwrap();
+    assert_eq!((stats.due_new, stats.due_review, stats.total_cards), (10, 0, 15));
+    assert_eq!(stats.forecast.iter().take(3).map(|day| day.count).collect::<Vec<_>>(), vec![10, 5, 0]);
+    let cards = queue(&nb, now);
+    for (index, card) in cards.iter().take(3).enumerate() {
+        grade(&mut nb, card, 9000 + index as u128, now);
+    }
+    let stats = nb.review_stats(None, "2030-01-15").unwrap();
+    assert_eq!((stats.due_new, stats.reviews_this_week, stats.retention), (7, 3, Some(1.0)));
+    assert_eq!(queue(&nb, now).len(), 7);
+    assert_eq!(stats.forecast[0].count, 7);
+    assert_eq!(stats.forecast[1].count, 5);
+    let card = nb.card(&cards[2].id).unwrap();
+    apply(&mut nb, vec![Operation::UndoGrade {
+        id: card.id, base_revision: card.revision, review_id: id(9002), event_id: id(9010),
+        session_revision: None, undone_at: now,
+    }]);
+    let stats = nb.review_stats(None, "2030-01-15").unwrap();
+    assert_eq!((stats.due_new, stats.reviews_this_week, stats.streak), (8, 2, 1));
+    assert_eq!(stats.forecast[0].count, 8);
+    assert_eq!(stats.forecast[1].count, 5);
+    assert_eq!(queue(&nb, now).len(), 8);
+    assert!(queue(&nb, now).iter().any(|card| card.id == cards[2].id));
+    assert_eq!(nb.card_query(&query, now).unwrap().total, 15);
+    let template_forecast = nb.card_template_forecast(&id(50), 3, now).unwrap();
+    assert_eq!(template_forecast.load[0].added, 8);
+    assert_eq!(template_forecast.load[0].due, 0);
+    assert_eq!(template_forecast.load[1].added, 5);
+    assert_eq!(template_forecast.load[2].due, 2);
+}
+
+#[test]
+fn scoped_pacing_uses_civil_days_global_introductions_and_visible_nonheld_inventory() {
+    let (_dir, mut nb) = fixture(7, 7);
+    applied(&mut nb, true);
+    for member in 0..5 {
+        edit(&mut nb, 100 + member * 10, &format!("selected {member} #Vocab"));
+    }
+    edit(&mut nb, 120, "selected boundary >> answer #Vocab");
+    apply(&mut nb, vec![Operation::SetSetting {
+        key: "time_zone".into(), base_revision: Some(1), value: "America/New_York".into(),
+    }]);
+    let start = "2030-03-10T05:00:00Z".parse::<jiff::Timestamp>().unwrap().as_millisecond();
+    let end = "2030-03-11T04:00:00Z".parse::<jiff::Timestamp>().unwrap().as_millisecond();
+    assert_eq!(end - start, 23 * 60 * 60 * 1000);
+    let yesterday = unit(&nb, 150);
+    let today = unit(&nb, 160);
+    grade(&mut nb, &yesterday, 9000, start - 1);
+    grade(&mut nb, &today, 9001, start);
+    let held = unit(&nb, 100);
+    let archived = nb.block(&id(110)).unwrap();
+    apply(&mut nb, vec![
+        Operation::SetCardHeld { id: held.id, base_revision: held.revision, held: true },
+        Operation::SetArchived { id: archived.id, base_revision: archived.revision, archived: true },
+    ]);
+    let boundary = nb.source_cards(&id(120)).unwrap().into_iter().find(|card| card.template.is_none()).unwrap();
+    grade(&mut nb, &boundary, 9002, end - 2 * 86_400_000);
+    assert_eq!(nb.card(&boundary.id).unwrap().schedule.due_at, end);
+    let scoped = CardQuery {
+        source: Some(tessera_core::Query {
+            r#type: None, text: Some("selected".into()), filters: vec![], sort: vec![],
+            limit: Some(1), offset: 0,
+        }),
+        selection: CardSelection::New, limit: Some(0),
+    };
+    apply(&mut nb, vec![Operation::SaveDeck {
+        id: id(8000), base_revision: None, name: "Scoped".into(), query: scoped.clone(),
+    }]);
+    let stats = nb.review_stats(Some(&id(8000)), "2030-03-10").unwrap();
+    assert_eq!((stats.due_new, stats.due_review, stats.total_cards, stats.held_cards), (1, 0, 4, 1));
+    assert_eq!(stats.forecast[0].count, 1);
+    assert_eq!(stats.forecast[1].date, "2030-03-11");
+    assert_eq!(stats.forecast[1].count, 3);
+    assert_eq!(nb.card_query(&scoped, end - 1).unwrap().total, 1);
+    assert_eq!(nb.card_query(&CardQuery { selection: CardSelection::Due, ..scoped.clone() }, end - 1).unwrap().total, 1);
+    assert_eq!(nb.card_query(&CardQuery { selection: CardSelection::All, ..scoped.clone() }, end - 1).unwrap().total, 4);
+    assert_eq!(nb.card_query(&scoped, end).unwrap().total, 2);
+    assert_eq!(nb.review_stats(Some(&id(8000)), "2030-03-11").unwrap().due_new, 2);
+}

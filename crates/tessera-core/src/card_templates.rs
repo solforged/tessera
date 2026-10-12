@@ -650,7 +650,10 @@ impl Notebook {
             }
         }
         let (date, start, end) = local_day(&self.conn, now)?;
-        let introduced = self.conn.query_row("SELECT COUNT(*) FROM (SELECT c.id, MIN(e.created_at) AS first FROM card_units c JOIN review_events e ON e.card_id = c.id AND e.kind = 'grade' WHERE c.key = ?1 AND c.held = 0 GROUP BY c.id) WHERE first >= ?2 AND first < ?3", params![format!("tpl:{id}"), start, end], |row| row.get::<_, i64>(0))? as usize;
+        let introduced = self.conn.prepare_cached(concat!(
+            crate::review_store::review_pacing!(),
+            "SELECT COALESCE((SELECT count FROM introduced WHERE key = ?4), 0)"
+        ))?.query_row(params![None::<&str>, start, end, format!("tpl:{id}")], |row| row.get::<_, i64>(0))? as usize;
         let limit = template.new_per_day as usize;
         let first = limit.saturating_sub(introduced);
         let days_to_introduce = if introductions == 0 {

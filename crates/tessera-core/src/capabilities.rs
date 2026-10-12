@@ -291,6 +291,9 @@ pub struct ReviewEvent {
     pub after: ReviewSchedulingState,
     pub created_at: i64,
     pub change_seq: i64,
+    /// Original evidence remains readable after an immutable correction.
+    #[serde(default)]
+    pub undone_by: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

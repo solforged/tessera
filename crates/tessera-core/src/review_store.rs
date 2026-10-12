@@ -27,25 +27,61 @@ pub struct ReviewStats {
     pub reviews_this_week: usize,
     pub streak: usize,
     pub total_cards: usize,
+    pub held_cards: usize,
 }
 
-// Match card-query visibility without loading card definitions or grade evidence.
+// Shared visible inventory and stable scoped introduction order. ?1 is the
+// optional JSON source scope; introduction consumption is notebook-wide.
 macro_rules! review_eligible {
     () => {
         concat!(
-            hidden_blocks!(),
-            ", eligible AS MATERIALIZED (
-                SELECT c.id, json_extract(c.schedule, '$.due_at') AS due_at,
+            crate::reads::hidden_blocks!(),
+            ", visible_cards AS MATERIALIZED (
+                SELECT c.id, c.key, c.held, c.source_block_id, t.new_per_day,
+                    c.created_at, b.created_at AS source_created_at, b.id AS source_id,
+                    json_extract(c.schedule, '$.due_at') AS due_at,
                     json_extract(c.schedule, '$.last_reviewed_at') IS NULL AS is_new
                 FROM card_units c JOIN blocks b ON b.id = c.source_block_id
                 JOIN blocks p ON p.id = b.page_id
-                WHERE c.active = 1 AND c.held = 0 AND b.deletion_id IS NULL AND p.deletion_id IS NULL
+                LEFT JOIN card_templates t ON c.key = 'tpl:' || t.id
+                WHERE c.active = 1 AND b.deletion_id IS NULL AND p.deletion_id IS NULL
                     AND b.rowid NOT IN (SELECT rowid FROM hidden)
-                    AND (?1 IS NULL OR c.source_block_id IN (SELECT value FROM json_each(?1)))
+            ), eligible AS MATERIALIZED (
+                SELECT * FROM visible_cards WHERE held = 0
+                    AND (?1 IS NULL OR source_block_id IN (SELECT value FROM json_each(?1)))
             ) "
         )
     };
 }
+
+// ?2..?3 are civil-day bounds, not a fixed 24-hour interval.
+macro_rules! review_pacing {
+    () => {
+        concat!(
+            crate::review_store::review_eligible!(),
+            ", first_reviews AS MATERIALIZED (
+                SELECT c.key, c.id, MIN(e.created_at) AS first_at
+                FROM card_units c JOIN effective_review_events e ON e.card_id = c.id
+                WHERE c.key LIKE 'tpl:%' AND c.held = 0 AND e.kind = 'grade'
+                GROUP BY c.id
+            ), introduced AS (
+                SELECT key, COUNT(*) AS count FROM first_reviews
+                WHERE first_at >= ?2 AND first_at < ?3 GROUP BY key
+            ), ranked AS MATERIALIZED (
+                SELECT *, ROW_NUMBER() OVER (
+                    PARTITION BY key, is_new
+                    ORDER BY due_at, created_at, source_created_at, source_id, id
+                ) AS new_position FROM eligible
+            ), paced AS (
+                SELECT c.* FROM ranked c LEFT JOIN introduced i ON i.key = c.key
+                WHERE NOT c.is_new OR c.new_per_day IS NULL
+                    OR c.new_position <= MAX(0, c.new_per_day - COALESCE(i.count, 0))
+            ) "
+        )
+    };
+}
+
+pub(crate) use {review_eligible, review_pacing};
 
 #[derive(Default)]
 pub(crate) struct ReviewChanges {
@@ -95,7 +131,7 @@ fn schedule_at(
 pub(crate) fn backfill_fsrs(conn: &Connection) -> Result<()> {
     let mut cards = conn.prepare("SELECT id, created_at FROM card_units ORDER BY id")?;
     let mut history = conn.prepare(
-        "SELECT grade, created_at FROM review_events WHERE card_id = ?1 ORDER BY created_at, rowid",
+        "SELECT grade, created_at FROM effective_review_events WHERE card_id = ?1 ORDER BY created_at, event_order, id",
     )?;
     let mut update = conn.prepare("UPDATE card_units SET schedule = ?2 WHERE id = ?1")?;
     let mut rows = cards.query([])?;
@@ -143,6 +179,7 @@ pub(crate) fn review_event_at(
         after: schedule_at(row, offset + 10)?,
         created_at: row.get(offset + 11)?,
         change_seq: row.get(offset + 12)?,
+        undone_by: None,
     })
 }
 
@@ -273,11 +310,22 @@ struct Evidence<'a> {
 }
 
 fn insert_event(conn: &Connection, evidence: Evidence<'_>) -> Result<()> {
+    let used: bool = conn
+        .prepare_cached(
+            "SELECT EXISTS(SELECT 1 FROM review_events WHERE id = ?1)
+                 OR EXISTS(SELECT 1 FROM review_undos WHERE id = ?1)",
+        )?
+        .query_row([evidence.id], |row| row.get(0))?;
+    if used {
+        return Err(validation("review event ID is already used"));
+    }
     conn.execute(
         "INSERT INTO review_events(
              id, card_id, session_id, kind, grade, shown_front, shown_back,
-             definition_revision, scheduler_version, before_state, after_state, created_at, change_seq
-         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+             definition_revision, scheduler_version, before_state, after_state, created_at, change_seq,
+             event_order
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13,
+             (SELECT COALESCE(MAX(event_order), 0) + 1 FROM review_events))",
         params![
             evidence.id,
             evidence.card.id,
@@ -314,12 +362,6 @@ fn write_review(
 ) -> Result<Revision> {
     validate_id(review.event_id)?;
     check_review_session(conn, review.session_id, review.reviewed_at)?;
-    let used: bool = conn
-        .prepare_cached("SELECT EXISTS(SELECT 1 FROM review_events WHERE id = ?1)")?
-        .query_row([review.event_id], |row| row.get(0))?;
-    if used {
-        return Err(validation("review event ID is already used"));
-    }
     let revision = next_revision(card.revision)?;
     let reset_state = review
         .reset
@@ -448,7 +490,14 @@ pub(crate) fn apply(
                 return Err(validation("review session is already closed"));
             }
             let latest_review: Option<i64> = conn
-                .prepare_cached("SELECT MAX(created_at) FROM review_events WHERE session_id = ?1")?
+                .prepare_cached(
+                    "SELECT MAX(at) FROM (
+                        SELECT created_at AS at FROM review_events WHERE session_id = ?1
+                        UNION ALL
+                        SELECT u.undone_at FROM review_undos u JOIN review_events e ON e.id = u.review_id
+                        WHERE e.session_id = ?1
+                    )",
+                )?
                 .query_row([id], |row| row.get(0))?;
             if *ended_at < current.started_at || latest_review.is_some_and(|at| at > *ended_at) {
                 return Err(validation(
@@ -506,6 +555,101 @@ pub(crate) fn apply(
                 now,
                 seq,
             )?);
+        }
+        Operation::UndoGrade {
+            id,
+            base_revision,
+            review_id,
+            event_id,
+            session_revision,
+            undone_at,
+        } => {
+            nonnegative(*undone_at)?;
+            validate_id(review_id)?;
+            validate_id(event_id)?;
+            let card = checked_card(conn, id, *base_revision, index)?;
+            let latest = conn.prepare_cached(
+                "SELECT id, card_id, session_id, kind, grade, shown_front, shown_back,
+                    definition_revision, scheduler_version, before_state, after_state,
+                    created_at, change_seq
+                 FROM effective_review_events WHERE card_id = ?1
+                 ORDER BY event_order DESC, id DESC LIMIT 1",
+            )?.query_row([id], |row| review_event_at(row, 0)).optional()?;
+            let review = latest.filter(|event| event.id == *review_id && event.grade.is_some())
+                .ok_or_else(|| validation("only the latest effective grade can be undone"))?;
+            if *undone_at < review.created_at {
+                return Err(validation("undo precedes its grade"));
+            }
+            let used: bool = conn.prepare_cached(
+                "SELECT EXISTS(SELECT 1 FROM review_events WHERE id = ?1)
+                    OR EXISTS(SELECT 1 FROM review_undos WHERE id = ?1)",
+            )?.query_row([event_id], |row| row.get(0))?;
+            if used {
+                return Err(validation("review event ID is already used"));
+            }
+            if let Some(session_id) = review.session_id.as_deref() {
+                let expected = session_revision
+                    .ok_or_else(|| validation("undo requires the review session revision"))?;
+                let current = session(conn, session_id)?;
+                check_revision(session_id, expected, current.as_ref().map(|s| s.revision), index)?;
+                let mut current = current.expect("checked existing session");
+                if current.state == ReviewSessionState::Abandoned {
+                    return Err(validation("abandoned review sessions cannot be reopened"));
+                }
+                let latest: Option<String> = conn.prepare_cached(
+                    "SELECT id FROM effective_review_events
+                     WHERE session_id = ?1 AND kind = 'grade'
+                     ORDER BY event_order DESC, id DESC LIMIT 1",
+                )?.query_row([session_id], |row| row.get(0)).optional()?;
+                if latest.as_deref() != Some(review_id.as_str()) {
+                    return Err(validation("only the latest effective session grade can be undone"));
+                }
+                current.revision = next_revision(current.revision)?;
+                current.state = ReviewSessionState::Open;
+                current.ended_at = None;
+                conn.execute(
+                    "UPDATE review_sessions SET state = 'open', ended_at = NULL, revision = ?2
+                     WHERE id = ?1",
+                    params![session_id, current.revision],
+                )?;
+                changes.sessions.push(current);
+            } else if session_revision.is_some() {
+                return Err(validation("standalone undo must not include a session revision"));
+            }
+            let restored = match review.before {
+                crate::ReviewSchedulingState::Fsrs(state) => state,
+                crate::ReviewSchedulingState::Legacy { .. } => {
+                    // Old evidence stays in its original scheduler format. Match the
+                    // migration's FSRS replay, without the corrected final grade.
+                    let created_at = conn.query_row(
+                        "SELECT created_at FROM card_units WHERE id = ?1", [id], |row| row.get(0),
+                    )?;
+                    let mut state = scheduler::new_card(created_at);
+                    let mut history = conn.prepare_cached(
+                        "SELECT grade, created_at FROM effective_review_events
+                         WHERE card_id = ?1 AND id <> ?2 ORDER BY created_at, event_order, id",
+                    )?;
+                    let mut rows = history.query(params![id, review_id])?;
+                    while let Some(row) = rows.next()? {
+                        state = if matches!(row.get_ref(0)?, rusqlite::types::ValueRef::Null) {
+                            scheduler::new_card(row.get(1)?)
+                        } else {
+                            scheduler::schedule(&state, enum_at(row, 0)?, row.get(1)?)
+                        };
+                    }
+                    state
+                }
+            };
+            conn.execute(
+                "INSERT INTO review_undos(id, review_id, undone_at, change_seq) VALUES (?1, ?2, ?3, ?4)",
+                params![event_id, review_id, undone_at, seq],
+            )?;
+            let revision = next_revision(card.revision)?;
+            conn.execute(
+                "UPDATE card_units SET schedule = ?2, revision = ?3, updated_at = ?4 WHERE id = ?1",
+                params![id, serde_json::to_string(&restored).expect("schedule serializes"), revision, now],
+            )?;
+            changes.cards.push(Revision { id: id.clone(), revision });
         }
         Operation::SetCardHeld {
             id,
@@ -642,17 +786,41 @@ pub(crate) fn forecast(
     }).collect::<Result<_>>()?;
     Ok(conn
         .prepare_cached(concat!(
-            review_eligible!(),
-            "SELECT json_extract(d.value, '$.date'), COUNT(c.id)
-         FROM json_each(?2) d LEFT JOIN eligible c
-            ON c.due_at < json_extract(d.value, '$.through')
-            AND (d.key = 0 OR c.due_at >= json_extract(d.value, '$.from'))
-            AND (NOT ?3 OR NOT c.is_new)
-         GROUP BY d.key ORDER BY d.key"
+            review_pacing!(),
+            ", days AS MATERIALIZED (
+                SELECT key AS day, json_extract(value, '$.date') AS date,
+                    json_extract(value, '$.from') AS start,
+                    json_extract(value, '$.through') AS end
+                FROM json_each(?4)
+            ), demand AS MATERIALIZED (
+                SELECT d.day, c.key, MAX(0, c.new_per_day - (
+                    SELECT COUNT(*) FROM first_reviews f
+                    WHERE f.key = c.key AND f.first_at >= d.start AND f.first_at < d.end
+                )) AS capacity, COUNT(*) FILTER (WHERE c.due_at < d.end) AS available
+                FROM days d CROSS JOIN eligible c
+                WHERE NOT ?5 AND c.is_new AND c.new_per_day IS NOT NULL
+                GROUP BY d.day, c.key
+            ), allocations(day, key, taken, total) AS (
+                SELECT day, key, MIN(capacity, available), MIN(capacity, available)
+                FROM demand WHERE day = 0
+                UNION ALL
+                SELECT d.day, d.key, MIN(d.capacity, MAX(0, d.available - a.total)),
+                    a.total + MIN(d.capacity, MAX(0, d.available - a.total))
+                FROM allocations a JOIN demand d ON d.day = a.day + 1 AND d.key = a.key
+            )
+            SELECT d.date, COUNT(c.id) + COALESCE((
+                SELECT SUM(a.taken) FROM allocations a WHERE a.day = d.day
+            ), 0)
+            FROM days d LEFT JOIN eligible c
+                ON c.due_at < d.end AND (d.day = 0 OR c.due_at >= d.start)
+                AND (NOT c.is_new OR (NOT ?5 AND c.new_per_day IS NULL))
+            GROUP BY d.day ORDER BY d.day"
         ))?
         .query_map(
             params![
                 source_ids,
+                midnight(date)?,
+                midnight(&crate::calendar::add_days(date, 1)?)?,
                 serde_json::to_string(&bounds).expect("day bounds serialize"),
                 reviewed_only
             ],
@@ -708,23 +876,29 @@ impl Notebook {
         } else {
             None
         };
+        let start = midnight(date)?;
         let end = midnight(&crate::calendar::add_days(date, 1)?)?;
         let week =
             crate::calendar::add_days(date, -i64::from(day.weekday().to_monday_zero_offset()))?;
         let week_start = midnight(&week)?;
         let recent_start = midnight(&crate::calendar::add_days(date, -29)?)?;
-        let (due_review, due_new, total_cards) = self
+        let (due_review, due_new, total_cards, held_cards) = self
             .conn
             .prepare_cached(concat!(
-                review_eligible!(),
-                "SELECT COUNT(*) FILTER (WHERE due_at < ?2 AND NOT is_new),
-                    COUNT(*) FILTER (WHERE due_at < ?2 AND is_new), COUNT(*) FROM eligible"
+                review_pacing!(),
+                "SELECT COUNT(*) FILTER (WHERE due_at < ?3 AND NOT is_new),
+                    COUNT(*) FILTER (WHERE due_at < ?3 AND is_new),
+                    (SELECT COUNT(*) FROM eligible),
+                    (SELECT COUNT(*) FROM visible_cards WHERE held = 1
+                        AND (?1 IS NULL OR source_block_id IN (SELECT value FROM json_each(?1))))
+                 FROM paced"
             ))?
-            .query_row(params![source_ids, end], |row| {
+            .query_row(params![source_ids, start, end], |row| {
                 Ok((
                     row.get::<_, i64>(0)? as usize,
                     row.get::<_, i64>(1)? as usize,
                     row.get::<_, i64>(2)? as usize,
+                    row.get::<_, i64>(3)? as usize,
                 ))
             })?;
         let forecast = forecast(&self.conn, source_ids.as_deref(), date, 14, false)?;
@@ -735,7 +909,7 @@ impl Notebook {
                 "SELECT COUNT(*) FILTER (WHERE e.created_at >= ?2),
                     COUNT(*) FILTER (WHERE e.created_at >= ?2 AND e.grade <> 'again'),
                     COUNT(*) FILTER (WHERE e.created_at >= ?3)
-             FROM review_events e JOIN eligible c ON c.id = e.card_id
+             FROM effective_review_events e JOIN eligible c ON c.id = e.card_id
              WHERE e.kind = 'grade' AND e.created_at < ?4"
             ))?
             .query_row(params![source_ids, recent_start, week_start, end], |row| {
@@ -749,7 +923,7 @@ impl Notebook {
         // days and allow the run to start yesterday, then stop at its first gap.
         let mut history = self.conn.prepare_cached(concat!(
             review_eligible!(),
-            "SELECT DISTINCT e.created_at FROM review_events e JOIN eligible c ON c.id = e.card_id
+            "SELECT DISTINCT e.created_at FROM effective_review_events e JOIN eligible c ON c.id = e.card_id
              WHERE e.kind = 'grade' AND e.created_at < ?2 ORDER BY e.created_at DESC"
         ))?;
         let mut cursor = history.query(params![source_ids, end])?;
@@ -784,6 +958,7 @@ impl Notebook {
             reviews_this_week,
             streak,
             total_cards,
+            held_cards,
         })
     }
 
@@ -792,7 +967,7 @@ impl Notebook {
         Ok(self.conn.prepare_cached(
             "SELECT id, card_id, session_id, kind, grade, shown_front, shown_back,
                     definition_revision, scheduler_version, before_state, after_state, created_at, change_seq
-             FROM review_events WHERE session_id = ?1 ORDER BY created_at, rowid"
+             FROM effective_review_events WHERE session_id = ?1 ORDER BY event_order, id"
         )?.query_map([id], |row| review_event_at(row, 0))?.collect::<rusqlite::Result<_>>()?)
     }
 
@@ -804,10 +979,15 @@ impl Notebook {
             .prepare_cached(
                 "SELECT id, card_id, session_id, kind, grade, shown_front, shown_back,
                         definition_revision, scheduler_version, before_state, after_state,
-                        created_at, change_seq
-                 FROM review_events WHERE card_id = ?1 ORDER BY created_at, rowid",
+                        created_at, change_seq,
+                        (SELECT id FROM review_undos WHERE review_id = review_events.id)
+                 FROM review_events WHERE card_id = ?1 ORDER BY created_at, event_order, id",
             )?
-            .query_map([card_id], |row| review_event_at(row, 0))?
+            .query_map([card_id], |row| {
+                let mut event = review_event_at(row, 0)?;
+                event.undone_by = row.get(13)?;
+                Ok(event)
+            })?
             .collect::<rusqlite::Result<_>>()?)
     }
 
