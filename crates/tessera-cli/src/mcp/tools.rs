@@ -9,14 +9,17 @@ become blocks; indented lines under an item continue that item; `- [ ] `, `- [x]
 `[[Page title]]` links a page by title and creates it if missing, `[[Page title|label]]` \
 links with a label, `[[2026-10-07]]` links an existing journal day, `[[BLOCK_ID]]` \
 references a block, and `#Tag` or `#[[Multi word tag]]` gives the block a type. \
-Flashcards: `front >> back` asks the front, `front << back` asks the back, `front <> back` \
-makes both; a trailing `front >>>` takes its child outline as the answer, and a trailing \
-`front >>1.` reveals its children one at a time in order; clozes are \
-`The {{c1::answer}} here` or `{{c1::answer::hint}}`, and repeated numbers make one card. \
-Use one operator per block and never mix operators with clozes. Field entries: a child \
-block `Name:: value` sets that field on its parent block (the field is created when \
-missing); `Name::` with indented children gives several values. Values of instance fields \
-(see tessera_query) are links such as `Author:: [[George Eliot]]`.";
+Flashcards: `A >> B` shows A and asks for B; `A << B` shows B and asks for A, so \
+`東京 << Tōkyō` shows Tōkyō and asks for 東京; `A <> B` makes both cards; a trailing \
+`A >>>` takes its child outline as the answer, and a trailing `A >>1.` reveals its \
+children one at a time in order; clozes are `The {{c1::answer}} here` or \
+`{{c1::answer::hint}}`, and repeated numbers make one card. Use one operator per block and \
+never mix operators with clozes. Write results list each card with what it shows and asks \
+for. Field entries: a line `Name:: value` is its own block and sets that field on its \
+parent block, the page itself at the top level or the item it is indented under (the \
+field is created when missing); `Name::` with indented children gives several values. \
+Values of instance fields (see tessera_query) are links such as \
+`Author:: [[George Eliot]]`.";
 
 const REVISION: &str = "The block's revision from tessera_read_page (`r3` is 3). When given, \
 the change is refused if the block changed since; read it again and retry.";
@@ -225,6 +228,38 @@ pub(super) fn tools() -> Value {
             "annotations": writes(false)
         },
         {
+            "name": "tessera_save_deck",
+            "title": "Create, change or delete a deck",
+            "description": "A deck is a saved review queue: the cards whose own block matches its type, text and field filters, the same selection tessera_query uses. Cards join a deck through their blocks, not their page, so give each card block what the deck selects, for example a child field entry `Deck:: Kanji` under `東 >> dōng`, then save a deck with filters [{\"field\": \"Deck\", \"value\": \"kanji\"}]. Avoid child entries under `>>>` and `>>1.` cards, whose children are their answer. Without deck this creates a deck; with deck it changes that deck, keeping its source unless type, text or filters are given; delete removes the deck and leaves its cards alone. The result says how many cards the deck holds.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "deck": { "type": "string", "description": "An existing deck's name or ID, to change or delete it." },
+                    "name": { "type": "string", "description": "The deck's name; required for a new deck." },
+                    "type": { "type": "string", "description": "Only cards on blocks of this type, by name." },
+                    "text": { "type": "string", "description": "Only cards on blocks whose text contains these words." },
+                    "filters": {
+                        "type": "array",
+                        "description": "Field conditions on the card blocks, as in tessera_query.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "field": { "type": "string", "description": "Field name." },
+                                "op": { "type": "string", "enum": ["is", "is_not", "contains", "gt", "gte", "lt", "lte", "set", "empty"], "default": "is" },
+                                "value": { "type": "string", "description": "Compared without case; not used by set and empty." }
+                            },
+                            "required": ["field"]
+                        }
+                    },
+                    "selection": { "type": "string", "enum": ["due", "new", "all"], "description": "Which of its cards the deck reviews; due (which includes new cards after due ones) for a new deck." },
+                    "delete": { "type": "boolean", "default": false },
+                    "revision": { "type": "integer", "description": "The deck's revision from tessera_cards view decks; when given, the change is refused if the deck changed since." },
+                    "reason": { "type": "string" }
+                }
+            },
+            "annotations": writes(true)
+        },
+        {
             "name": "tessera_query",
             "title": "Query typed notes",
             "description": "Without type or view: list types (from #Tag), field definitions with their kinds and options, and saved views. With type or view: the matching blocks with their field values, filtered and sorted by field names.",
@@ -312,6 +347,18 @@ pub(super) fn tools() -> Value {
                 }
             },
             "annotations": read_only()
+        },
+        {
+            "name": "tessera_sync",
+            "title": "Check sync",
+            "description": "Whether this notebook syncs with a hub, when it last synced, how many changes made here have not reached the hub, and the last sync error. The service syncs on its own a few seconds after each change and every three minutes; now: true syncs at once and reports the result.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "now": { "type": "boolean", "default": false, "description": "Sync before reporting." }
+                }
+            },
+            "annotations": writes(false)
         },
         {
             "name": "tessera_undo",

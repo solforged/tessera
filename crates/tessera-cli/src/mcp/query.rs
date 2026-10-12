@@ -48,20 +48,7 @@ impl Session<'_> {
         if let Some(text) = string(arguments, "text")? {
             query.text = Some(text.to_owned());
         }
-        if let Some(filters) = arguments.get("filters").filter(|value| !value.is_null()) {
-            let filters = filters.as_array().context("filters must be an array")?;
-            for filter in filters {
-                let field = string(filter, "field")?.context("each filter needs a field")?;
-                let op = string(filter, "op")?.unwrap_or("is");
-                let op: FilterOp = choice(op, "op", OPS)?;
-                anyhow::ensure!(op != FilterOp::Present, "op must be {OPS}, not \"present\"");
-                query.filters.push(Filter {
-                    field: field_id(&definitions, field)?,
-                    op,
-                    value: string(filter, "value")?.map(str::to_lowercase),
-                });
-            }
-        }
+        query.filters.extend(filters(arguments, &definitions)?);
         if let Some(sort) = string(arguments, "sort")? {
             let direction = match string(arguments, "direction")? {
                 None => Direction::Asc,
@@ -200,6 +187,31 @@ fn field_id(definitions: &[&FieldDefinition], wanted: &str) -> anyhow::Result<St
         .with_context(|| {
             format!("No field is named {wanted:?}; tessera_query without type lists fields.")
         })
+}
+
+/// The `filters` argument, `[{field, op, value}]` with fields by name.
+pub(super) fn filters(
+    arguments: &Value,
+    definitions: &[&FieldDefinition],
+) -> anyhow::Result<Vec<Filter>> {
+    let Some(filters) = arguments.get("filters").filter(|value| !value.is_null()) else {
+        return Ok(Vec::new());
+    };
+    let filters = filters.as_array().context("filters must be an array")?;
+    filters
+        .iter()
+        .map(|filter| {
+            let field = string(filter, "field")?.context("each filter needs a field")?;
+            let op = string(filter, "op")?.unwrap_or("is");
+            let op: FilterOp = choice(op, "op", OPS)?;
+            anyhow::ensure!(op != FilterOp::Present, "op must be {OPS}, not \"present\"");
+            Ok(Filter {
+                field: field_id(definitions, field)?,
+                op,
+                value: string(filter, "value")?.map(str::to_lowercase),
+            })
+        })
+        .collect()
 }
 
 /// A value's reading, or its text with the problem that kept it unread.

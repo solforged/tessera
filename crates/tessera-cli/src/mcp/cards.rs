@@ -1,15 +1,19 @@
 //! Tools for flashcards: list a block's, a page's or a queue's cards, review
 //! statistics and decks, and hold or release a card.
 
+use std::collections::HashMap;
+
 use anyhow::Context;
 use serde_json::Value;
 use tessera_core::{
-    AgentEdit, Block, CardQuery, CardQueryResult, CardSelection, CardUnit, Deck, Query, TypeInfo,
+    AgentEdit, Block, CardQuery, CardQueryResult, CardSelection, CardUnit, Deck, FieldDefinition,
+    FieldsView, Query, TypeInfo,
 };
 
 use super::notes::{clock, page_cards};
+use super::query::filters;
 use super::render::{Clock, card_answer, card_label, location, name, one_line};
-use super::{Api, Session, boolean, choice, integer, limit, required, segment, string};
+use super::{Api, Session, boolean, choice, describe, integer, limit, required, segment, string};
 
 impl Session<'_> {
     pub(super) async fn cards(&self, arguments: &Value) -> anyhow::Result<String> {
@@ -50,14 +54,17 @@ impl Session<'_> {
                 if decks.is_empty() {
                     return Ok("No decks yet; every card is in the default queue.".into());
                 }
+                let names = Names::load(&api).await?;
                 Ok(decks
                     .iter()
                     .map(|deck| {
                         format!(
-                            "- {:?} (deck {}): {} cards\n",
+                            "- {:?} (deck {} r{}): {} cards from {}\n",
                             deck.name,
                             deck.id,
-                            name(deck.query.selection)
+                            deck.revision,
+                            name(deck.query.selection),
+                            names.scope(deck.query.source.as_ref())
                         )
                     })
                     .collect())
@@ -77,6 +84,104 @@ impl Session<'_> {
         )
         .await
     }
+
+    pub(super) async fn save_deck(&self, arguments: &Value) -> anyhow::Result<String> {
+        let api = self.api().await?;
+        let decks: Vec<Deck> = api.get("/api/decks").await?;
+        let existing = string(arguments, "deck")?
+            .map(|wanted| find_deck(&decks, wanted))
+            .transpose()?;
+        let revision = integer(arguments, "revision")?;
+        if boolean(arguments, "delete")?.unwrap_or(false) {
+            let deck = existing.context("Give the deck to delete.")?;
+            return self
+                .submit(
+                    arguments,
+                    AgentEdit::DeleteDeck {
+                        id: deck.id.clone(),
+                        revision,
+                    },
+                )
+                .await;
+        }
+        let fields: FieldsView = api.get("/api/fields").await?;
+        let definitions: Vec<&FieldDefinition> = fields
+            .fields
+            .iter()
+            .map(|field| &field.definition)
+            .collect();
+        let r#type = match string(arguments, "type")? {
+            Some(wanted) => Some(type_id(&api, wanted).await?),
+            None => None,
+        };
+        let text = string(arguments, "text")?.map(str::to_owned);
+        let filters = filters(arguments, &definitions)?;
+        // Selecting arguments replace an existing deck's source; without any,
+        // it keeps the one it has.
+        let source = if r#type.is_some() || text.is_some() || !filters.is_empty() {
+            Some(Query {
+                r#type,
+                text,
+                filters,
+                sort: Vec::new(),
+                limit: None,
+                offset: 0,
+            })
+        } else {
+            existing.and_then(|deck| deck.query.source.clone())
+        };
+        anyhow::ensure!(
+            source.is_some(),
+            "A deck needs type, text or filters to choose its cards."
+        );
+        let selection = match string(arguments, "selection")? {
+            Some(selection) => choice(selection, "selection", "due, new or all")?,
+            None => existing.map_or(CardSelection::Due, |deck| deck.query.selection),
+        };
+        let deck_name = match (string(arguments, "name")?, existing) {
+            (Some(name), _) => name.to_owned(),
+            (None, Some(deck)) => deck.name.clone(),
+            (None, None) => anyhow::bail!("A new deck needs a name."),
+        };
+        let receipt = self
+            .send(
+                arguments,
+                AgentEdit::SaveDeck {
+                    id: existing.map(|deck| deck.id.clone()),
+                    revision,
+                    name: deck_name,
+                    query: CardQuery {
+                        source,
+                        selection,
+                        limit: None,
+                    },
+                },
+            )
+            .await?;
+        let mut text = describe(&receipt);
+        let names = Names::load(&api).await?;
+        for deck in &receipt.decks {
+            let all: CardQueryResult = api
+                .post(
+                    "/api/cards/query",
+                    &CardQuery {
+                        source: deck.query.source.clone(),
+                        selection: CardSelection::All,
+                        limit: Some(1),
+                    },
+                )
+                .await?;
+            text.push_str(&format!(
+                " Deck {} r{} reviews {} cards from {}; it holds {} cards now.",
+                deck.id,
+                deck.revision,
+                name(deck.query.selection),
+                names.scope(deck.query.source.as_ref()),
+                all.total
+            ));
+        }
+        Ok(text)
+    }
 }
 
 /// Due, new or all cards, optionally from a deck or a type's members.
@@ -87,14 +192,10 @@ async fn queue(api: &Api, arguments: &Value, clock: &Clock) -> anyhow::Result<St
     };
     let source = match (string(arguments, "deck")?, string(arguments, "type")?) {
         (Some(_), Some(_)) => anyhow::bail!("Give deck or type, not both."),
-        (Some(wanted), None) => {
-            let decks: Vec<Deck> = api.get("/api/decks").await?;
-            let deck = decks
-                .into_iter()
-                .find(|deck| deck.id == wanted || deck.name.eq_ignore_ascii_case(wanted))
-                .with_context(|| format!("No deck is named {wanted:?}."))?;
-            deck.query.source
-        }
+        (Some(wanted), None) => find_deck(&api.get::<Vec<Deck>>("/api/decks").await?, wanted)?
+            .query
+            .source
+            .clone(),
         (None, Some(wanted)) => Some(Query {
             r#type: Some(type_id(api, wanted).await?),
             text: None,
@@ -225,4 +326,72 @@ pub(super) async fn type_id(api: &Api, wanted: &str) -> anyhow::Result<String> {
         })
         .map(|info| info.page.id)
         .with_context(|| format!("No type is named {wanted:?}; tessera_query lists types."))
+}
+
+/// A deck by ID or name, ignoring case.
+fn find_deck<'a>(decks: &'a [Deck], wanted: &str) -> anyhow::Result<&'a Deck> {
+    decks
+        .iter()
+        .find(|deck| deck.id == wanted || deck.name.eq_ignore_ascii_case(wanted))
+        .with_context(|| format!("No deck is named {wanted:?}."))
+}
+
+/// Type and field names, for saying which blocks a deck draws from.
+struct Names {
+    types: HashMap<String, String>,
+    fields: HashMap<String, String>,
+}
+
+impl Names {
+    async fn load(api: &Api) -> anyhow::Result<Self> {
+        let types: Vec<TypeInfo> = api.get("/api/types").await?;
+        let fields: FieldsView = api.get("/api/fields").await?;
+        Ok(Self {
+            types: types
+                .into_iter()
+                .map(|info| (info.page.id, info.page.text))
+                .collect(),
+            fields: fields
+                .fields
+                .into_iter()
+                .map(|field| (field.definition.id, field.definition.name))
+                .collect(),
+        })
+    }
+
+    /// `blocks of type Kanji with Language is ja`, or `every block`.
+    fn scope(&self, source: Option<&Query>) -> String {
+        let Some(source) = source else {
+            return "every block".into();
+        };
+        let mut text = match &source.r#type {
+            Some(id) => format!(
+                "blocks of type {}",
+                self.types.get(id).map_or(id.as_str(), String::as_str)
+            ),
+            None => "blocks".into(),
+        };
+        if let Some(words) = &source.text {
+            text.push_str(&format!(" containing {words:?}"));
+        }
+        let conditions: Vec<_> = source
+            .filters
+            .iter()
+            .map(|filter| {
+                let field = self
+                    .fields
+                    .get(&filter.field)
+                    .map_or(filter.field.as_str(), String::as_str);
+                match &filter.value {
+                    Some(value) => format!("{field} {} {value:?}", name(filter.op)),
+                    None => format!("{field} {}", name(filter.op)),
+                }
+            })
+            .collect();
+        if !conditions.is_empty() {
+            text.push_str(" with ");
+            text.push_str(&conditions.join(" and "));
+        }
+        text
+    }
 }
