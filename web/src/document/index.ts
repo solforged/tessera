@@ -1,7 +1,7 @@
 import { createSignal } from 'solid-js';
 import type { Accessor } from 'solid-js';
 import { ulid } from 'ulid';
-import { ApiError, CHANGE_CONNECTING, CHANGE_OPEN, createApi } from '../api/client';
+import { ApiError, CHANGE_CONNECTING, CHANGE_OPEN, bindNotebook, createApi } from '../api/client';
 import type { Batch, Block, BlockCapabilities, ChangeEvent, Committed, Operation, PageView, SettingsView, WorkSession } from '../api/types';
 import type { ApiClient, ChangeSocket } from '../api/client';
 import { startingTemplateFor } from '../fields/templates';
@@ -153,6 +153,7 @@ export class Notebook implements NotebookClient, DocumentHost {
       try { notebookId ??= sessionStorage.getItem(key) ?? undefined; } catch { /* No remembered notebook. */ }
       if (!notebookId) { this.failure = error instanceof Error ? error.message : String(error); this.touch(); return; }
     }
+    bindNotebook(this.options.baseUrl ?? '', notebookId);
     try { this.cachedVim[1](JSON.parse(localStorage.getItem(`tessera.navigation.${notebookId}`) ?? '{}').vim === true); } catch { /* Optional offline preference. */ }
     // Establish the replay floor before fetching any state a window can show.
     try { await this.seedCursor(); } catch { this.connectionSignal[1]('offline'); }

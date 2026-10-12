@@ -10,6 +10,7 @@ import { Picker } from '../ui/Picker';
 import { setThemePreference, themePreference } from '../shell/theme';
 import { backupLabel } from './backup';
 import { HubDevices, PhoneDevices } from './DevicesSection';
+import { forgetNotebook, knownNotebooks, loadNotebooks, notebookLabel, notebookOpening, openNotebook } from './notebooks';
 import './settings.css';
 import './devices.css';
 
@@ -47,6 +48,16 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; not
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setBackingUp(false); }
   };
+  const [notebookPath, setNotebookPath] = createSignal('');
+  const [forgetting, setForgetting] = createSignal<string | null>(null);
+  const report = (reason: unknown) => setError(reason instanceof Error ? reason.message : String(reason));
+  // A typed path goes by its last folder name while it opens.
+  const switchTo = (path: string, create: boolean, label = path.split('/').filter(Boolean).at(-1) ?? path) => { setError(''); void openNotebook(props.notebook, path, create, label).catch(report); };
+  const forget = async (path: string) => {
+    if (forgetting()) return;
+    setForgetting(path); setError('');
+    try { await forgetNotebook(path); } catch (reason) { report(reason); } finally { setForgetting(null); }
+  };
   const deviceZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const available = Intl.supportedValuesOf('timeZone');
   const zone = () => props.notebook.settings()?.time_zone ?? deviceZone;
@@ -63,7 +74,7 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; not
   const [deviceCount, setDeviceCount] = createSignal(0);
   const sections = createMemo(() => [
     { key: 'preferences', label: 'Preferences', count: 0 },
-    ...(EMBEDDED ? [] : [{ key: 'backups', label: 'Backups', count: backups()?.length ?? 0 }]),
+    ...(EMBEDDED ? [] : [{ key: 'notebooks', label: 'Notebooks', count: knownNotebooks()?.notebooks.length ?? 0 }, { key: 'backups', label: 'Backups', count: backups()?.length ?? 0 }]),
     ...(devices ? [{ key: 'devices', label: 'Devices', count: deviceCount() }] : []),
     { key: 'agent-changes', label: 'Agent changes', count: agentChanges()?.length ?? 0 },
     { key: 'about', label: 'About', count: 0 },
@@ -103,6 +114,7 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; not
     region.scrollTop = props.view.scroll;
     follow();
     void props.notebook.refreshSettings().catch(reason => setError(reason instanceof Error ? reason.message : String(reason)));
+    if (!EMBEDDED) void loadNotebooks().catch(report);
   });
   const change = async (key: 'time_zone' | 'vim' | 'confirm_view_delete', value: string) => {
     setError('');
@@ -173,8 +185,36 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; not
             <span class="settings-aside">In the reader</span>
           </div>
         </section>
+        {!EMBEDDED && <section id={sectionId('notebooks')} aria-labelledby={`${sectionId('notebooks')}-heading`} aria-busy={notebookOpening() !== null}>
+          {heading(number('notebooks'), 'notebooks', 'Notebooks')}
+          <For each={knownNotebooks()?.notebooks}>{entry => <div class="settings-row notebooks-entry" data-current={entry.current ? '' : undefined}>
+            <div class="settings-label">
+              <span class="settings-name">{notebookLabel(entry)}<Show when={entry.current}><span class="settings-scope">Open</span></Show></span>
+              <p class="settings-mono notebooks-path">{entry.path}</p>
+            </div>
+            <Show when={!entry.current} fallback={<span />}>
+              <span class="notebooks-actions">
+                <Show when={!entry.default}><Button class="notebooks-forget" disabled={forgetting() !== null} onClick={() => { void forget(entry.path); }}>Forget</Button></Show>
+                <Show when={entry.available} fallback={<span class="settings-aside">Folder missing</span>}>
+                  <Button class="bordered" disabled={notebookOpening() !== null} onClick={() => switchTo(entry.path, false, notebookLabel(entry))}>Open</Button>
+                </Show>
+              </span>
+            </Show>
+          </div>}</For>
+          <form class="settings-row notebooks-add" onSubmit={event => { event.preventDefault(); switchTo(notebookPath().trim(), false); }}>
+            <div class="settings-label">
+              <span class="settings-name"><label for={`settings-notebook-path-${props.pane}`}>Another notebook</label></span>
+              <p>A folder’s full path. Open uses the notebook in it; New starts an empty notebook in a new or empty folder. This window reloads on the notebook you choose.</p>
+              <input id={`settings-notebook-path-${props.pane}`} class="input notebooks-path-input" type="text" autocapitalize="off" autocomplete="off" spellcheck={false} placeholder="~/Notebooks/Clickaround" value={notebookPath()} disabled={notebookOpening() !== null} onInput={event => setNotebookPath(event.currentTarget.value)} />
+            </div>
+            <span class="notebooks-actions">
+              <Button type="submit" class="bordered" disabled={!notebookPath().trim() || notebookOpening() !== null}>Open</Button>
+              <Button class="bordered" disabled={!notebookPath().trim() || notebookOpening() !== null} onClick={() => switchTo(notebookPath().trim(), true)}>New</Button>
+            </span>
+          </form>
+        </section>}
         {!EMBEDDED && <section id={sectionId('backups')} aria-labelledby={`${sectionId('backups')}-heading`} aria-busy={backingUp()}>
-          {heading(2, 'backups', 'Backups')}
+          {heading(number('backups'), 'backups', 'Backups')}
           <div class="settings-row">
             <div class="settings-label"><span class="settings-name">Database and files</span><Show when={backups()}>{values => <p role="status">{values()[0] ? `Last backup ${when(values()[0]!.created_at)}` : 'No backups yet.'}</p>}</Show></div>
             <Button class="bordered" disabled={backingUp()} onClick={() => { void backUp(); }}>{backingUp() ? 'Backing up…' : 'Back up now'}</Button>

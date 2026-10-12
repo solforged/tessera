@@ -205,6 +205,9 @@ export interface ServiceInfo {
 
 export interface BackupInfo { path: string; created_at: number; object_count: number }
 export interface CreatedBackup extends BackupInfo { notebook_id: string; schema_version: number; db_page_count: number }
+/** A notebook the switcher knows. `available` is false when its folder no longer holds a notebook. */
+export interface KnownNotebook { path: string; name: string; current: boolean; default: boolean; available: boolean }
+export interface KnownNotebooks { notebooks: KnownNotebook[] }
 
 /** Hub side: Tailscale Serve publishing this Mac's sync listener. */
 export interface SyncSharing { available: boolean; on: boolean; url: string | null; error: string | null }

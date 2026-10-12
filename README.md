@@ -104,7 +104,9 @@ On macOS, `tessera install` starts a launch agent and opens the service at <http
 
 Install stops the running service, backs up the notebook beside it (listed under Settings → Backups), starts the new service and waits up to a minute for this build to answer. With `--rollback /path/to/previous/tessera`, a build that does not answer is replaced by that executable, which first restores the backup.
 
-To choose a notebook or port, use `tessera --notebook /absolute/path/to/notebook install --port 4397`. `TESSERA_NOTEBOOK` also persists that notebook choice in the agent. Without either, the service uses the platform data directory. Install refuses a binary under `target/debug` unless `--allow-debug` is given.
+To choose a notebook or port, use `tessera --notebook /absolute/path/to/notebook install --port 4397`. `TESSERA_NOTEBOOK` also persists that notebook choice in the agent. Without either, the service opens the notebook last chosen in Settings → Notebooks, or else the one in the platform data directory. Install refuses a binary under `target/debug` unless `--allow-debug` is given.
+
+Settings → Notebooks switches the running service to another notebook folder, or starts an empty one. The service drains, releases the old notebook and restarts itself on the new one at the same ports, and every open window reloads on it; a window still holding the old notebook's identity is refused (`409 notebook_changed`) rather than allowed to write into the new one. The list lives in `notebooks.json` in the platform data directory's `tessera` folder. A service started with `--notebook` can switch too, but the choice lasts only until it restarts.
 
 The `embed-web` feature compiles `web/dist` into the binary. `tessera serve` needs no `--assets` flag; `--assets web/dist` still overrides the embedded editor during development. Builds without that feature serve only the API unless given `--assets`. The service remains loopback-only.
 
@@ -182,7 +184,7 @@ mise install
 mise run serve
 ```
 
-`serve` builds the editor and serves the notebook in `.tessera/dev` at <http://127.0.0.1:4320>. Port 4318 belongs to the installed app. Without `--notebook` (or `TESSERA_NOTEBOOK`), `tessera` keeps the notebook in the platform data directory under `tessera/notebook`. A missing notebook is created; an existing one is never overwritten.
+`serve` builds the editor and serves the notebook in `.tessera/dev` at <http://127.0.0.1:4320>. Port 4318 belongs to the installed app. Without `--notebook` (or `TESSERA_NOTEBOOK`), `tessera` uses the notebook last chosen in Settings → Notebooks, or the platform data directory's `tessera/notebook`. A missing notebook is created; an existing one is never overwritten.
 
 For live reloading, run `mise run serve --dev-origin http://127.0.0.1:5173` and `mise run web:dev` in a second terminal, then open <http://127.0.0.1:5173>.
 
