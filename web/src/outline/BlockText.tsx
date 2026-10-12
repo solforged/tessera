@@ -151,7 +151,7 @@ export function BlockText(props: Props) {
 /** The source location of a block. A descriptor card already names its parent, so it can omit it. */
 export function BlockBreadcrumb(props: { block: Block; notebook: NotebookClient; omitParent?: boolean }) {
   const path = createMemo(() => {
-    if (props.block.kind !== 'block') return props.block.kind === 'journal' ? 'Journal' : 'Page';
+    if (props.block.kind !== 'block') return plainText(props.block.text, id => props.notebook.lookup(id)) || (props.block.kind === 'journal' ? 'Journal' : 'Untitled page');
     const ancestors: string[] = [];
     const seen = new Set<string>();
     let parent = props.block.parent_id;
@@ -163,7 +163,7 @@ export function BlockBreadcrumb(props: { block: Block; notebook: NotebookClient;
       parent = block.parent_id;
     }
     const page = props.notebook.lookup(props.block.page_id)();
-    const segments = [page?.text ?? 'Loading page…', ...ancestors];
+    const segments = [page ? plainText(page.text, id => props.notebook.lookup(id)) || 'Untitled page' : 'Loading page…', ...ancestors];
     // Keep the page title when it is the parent: the source button needs a label.
     if (props.omitParent && segments.length > 1) segments.pop();
     return segments.join(' › ');

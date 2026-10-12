@@ -240,6 +240,18 @@ export function parseCardText(text: string): CardParse {
   return derive(text).parse;
 }
 
+/** Compose one forward card without letting either field add another card operator. */
+export function forwardCardText(front: string, back: string): string {
+  const text = `${front.trim()} >> ${back.trim()}`;
+  const parsed = parseCardText(text);
+  if (parsed.problems.length) throw new Error(parsed.problems[0]!.message);
+  const marks = cardMarks(text);
+  if (parsed.cards.length !== 1 || parsed.cards[0]!.kind !== 'forward' || marks.length !== 1 || marks[0]!.start !== front.trim().length + 1) {
+    throw new Error('Write one question and answer. Keep card operators inside code or escape them with a backslash.');
+  }
+  return text;
+}
+
 /** Valid card syntax, using the same shielding and UTF-16 ranges as derivation. */
 export function cardMarks(text: string): CardMark[] {
   return derive(text).marks;

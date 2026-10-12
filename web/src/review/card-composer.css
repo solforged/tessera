@@ -1,0 +1,7 @@
+.card-composer { width: var(--measure); font-size: var(--text-control); line-height: var(--line-control); }
+.card-composer form { display: flex; flex-direction: column; gap: var(--space-16); }
+.card-composer h2 { margin: 0; font-size: var(--text-h2); line-height: var(--line-h2); }
+.card-composer label { display: flex; flex-direction: column; gap: var(--space-4); }
+.card-composer textarea { resize: vertical; min-height: var(--space-48); }
+.card-composer p { margin: 0; }
+.card-composer-context { color: var(--muted); }
