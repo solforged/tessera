@@ -90,7 +90,7 @@ description = "Build the browser demo's wasm engine into web/src/demo/pkg"
 run = """
 export AR_wasm32_unknown_unknown="$(rustc --print sysroot)/lib/rustlib/$(rustc -vV | sed -n 's/^host: //p')/bin/llvm-ar"
 cargo build -p tessera-web --target wasm32-unknown-unknown --release --locked
-wasm-bindgen --target web --out-name tessera_web --out-dir web/src/demo/pkg target/wasm32-unknown-unknown/release/tessera_web.wasm
+wasm-bindgen --target web --out-name tessera_web --out-dir web/src/demo/pkg "${CARGO_TARGET_DIR:-target}/wasm32-unknown-unknown/release/tessera_web.wasm"
 wasm-opt -Oz web/src/demo/pkg/tessera_web_bg.wasm -o web/src/demo/pkg/tessera_web_bg.wasm
 """
 
