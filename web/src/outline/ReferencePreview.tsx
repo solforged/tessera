@@ -11,6 +11,8 @@ import { fieldEntryId, matchFieldEntry } from '../table/query';
 import { Button } from '../ui/Button';
 import { Popup } from '../ui/Popup';
 import { BlockBreadcrumb, BlockText } from './BlockText';
+import { BlockTree, blockContextRows } from './BlockTree';
+import type { TreeRow } from './BlockTree';
 import { glossEntry, glossText, isGistName, isGlossName } from './gloss';
 import { positionFields, positionSource } from './perspectives';
 import './reference-preview.css';
@@ -268,41 +270,15 @@ export function ReferencePreviews(props: ReferencePreviewsProps) {
   }</For>;
 }
 
-interface Row { id: string; depth: number; role: 'context' | 'focus' | 'body' }
-
-/** A block keeps its parent and descendants so the focused passage remains in context. */
-function previewRows(doc: PageDocument, id: string): Row[] {
-  doc.outline.version(); doc.archivedVersion();
-  const outline = doc.outline;
-  const rows: Row[] = [];
-  const collect = (from: number, end: number, base: number, limit: number) => {
-    for (let index = from; index < end && rows.length < limit;) {
-      const row = outline.idAt(index);
-      if (doc.isArchived(row)) { index = outline.subtreeEnd(index); continue; }
-      rows.push({ id: row, depth: outline.depth(row) - base, role: 'body' });
-      index++;
-    }
-  };
-  const index = outline.indexOf(id);
-  if (index < 0) return rows;
-  const depth = outline.depth(id);
-  const parent = outline.parentOf(id);
-  const offset = parent === doc.pageId ? 0 : 1;
-  if (offset) rows.push({ id: parent, depth: 0, role: 'context' });
-  rows.push({ id, depth: offset, role: 'focus' });
-  collect(index + 1, outline.subtreeEnd(index), depth - offset, BLOCK_ROWS + rows.length);
-  return rows;
-}
-
 /** Read authored prose, not field labels; only a field-only page falls back to its actual values. */
-function proseRows(doc: PageDocument, parent: string, excluded: string | null, fieldName: (id: string) => string | undefined, limit: number): Row[] {
+function proseRows(doc: PageDocument, parent: string, excluded: string | null, fieldName: (id: string) => string | undefined, limit: number): TreeRow[] {
   doc.outline.version(); doc.archivedVersion();
   const outline = doc.outline;
   const start = parent === doc.pageId ? 0 : outline.indexOf(parent) + 1;
   if (parent !== doc.pageId && start === 0) return [];
   const end = parent === doc.pageId ? outline.size() : outline.subtreeEnd(start - 1);
-  const rows: Row[] = [];
-  const fallback: Row[] = [];
+  const rows: TreeRow[] = [];
+  const fallback: TreeRow[] = [];
   const addFallback = (id: string) => { if (fallback.length < limit) fallback.push({ id, depth: 0, role: 'body' }); };
   for (let index = start; index < end && rows.length < limit;) {
     const id = outline.idAt(index);
@@ -360,7 +336,7 @@ function ReferenceCard(props: {
   const rows = createMemo(() => {
     const value = doc();
     if (value?.status() !== 'ready' || (isPage() && !props.pinned && summary())) return [];
-    return isPage() ? proseRows(value, value.pageId, gloss(), fieldName, props.pinned ? BLOCK_ROWS : PAGE_ROWS) : previewRows(value, props.id);
+    return isPage() ? proseRows(value, value.pageId, gloss(), fieldName, props.pinned ? BLOCK_ROWS : PAGE_ROWS) : blockContextRows(value, props.id, BLOCK_ROWS);
   });
   // One subject query provides the count; the referenced pages are opened only after pinning.
   const [positions] = createResource(() => target() && isPage() ? props.id : false, subject => props.notebook.api.positions({ subject }));
@@ -418,10 +394,7 @@ function ReferenceCard(props: {
             <Show when={!isPage() || !fieldList.loading} fallback={<p class="reference-preview-message" role="status">Loading preview…</p>}>
               <Show when={rows().length} fallback={<p class="reference-preview-message">{isPage() ? summary() ? 'No further text on this page.' : 'Empty page.' : 'Block not found on its page.'}</p>}>
                 <div ref={element => { body = element; observer.observe(element); }} class={`reference-preview-body${isPage() ? ' prose' : ''}${props.pinned ? ' scrollable' : clipped() ? ' clipped' : ''}`}>
-                  <For each={rows()}>{row => <div ref={element => observer.observe(element)} class={`reference-preview-row ${row.role}`} style={{ '--depth': row.depth }}>
-                    <Show when={!isPage()}><span class="reference-preview-bullet" aria-hidden="true" /></Show>
-                    <div class="reference-preview-text"><BlockText text={doc()?.block(row.id)?.text ?? ''} blockId={row.id} notebook={props.notebook} onOpen={props.onNested} /></div>
-                  </div>}</For>
+                  <BlockTree rows={rows()} block={id => doc()?.block(id)} notebook={props.notebook} onOpen={props.onNested} prose={isPage()} rowRef={element => observer.observe(element)} />
                 </div>
               </Show>
             </Show>
