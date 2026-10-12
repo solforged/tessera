@@ -271,6 +271,7 @@ fn notebook_routes() -> Router<AppState> {
         .route("/api/settings", get(settings))
         .route("/api/roots", get(roots))
         .route("/api/pages/{id}", get(page))
+        .route("/api/pages/{id}/cards", get(capabilities::page_cards))
         .route("/api/pages/by-title/{title}", get(page_by_title))
         .route("/api/pages/{id}/kinds", get(note_kinds))
         .route("/api/pages/{id}/aliases", post(add_alias))

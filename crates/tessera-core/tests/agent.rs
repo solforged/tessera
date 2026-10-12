@@ -1,6 +1,9 @@
+use tessera_core::library::{
+    ExtractedDocument, ExtractedMetadata, ExtractedPassage, Passage, PassageKind, SourceFormat,
+};
 use tessera_core::{
-    Actor, AgentEdit, AgentReceipt, AgentRequest, Batch, BlockKind, Error, NoteBlock, NoteTarget,
-    Notebook, Operation, TaskPriority, TaskState, TaskStatus,
+    Actor, AgentCitation, AgentEdit, AgentReceipt, AgentRequest, Batch, BlockKind, Error,
+    NoteBlock, NoteTarget, Notebook, Operation, TaskPriority, TaskState, TaskStatus,
 };
 
 fn id(value: u128) -> String {
@@ -593,4 +596,630 @@ fn undo_skips_a_created_page_already_removed_by_another_change() {
     undo(&mut nb, added.seq).unwrap();
     assert!(nb.page_by_title("agenttag").unwrap().is_none());
     assert!(nb.block(&created.id).is_err());
+}
+
+#[test]
+fn shorthand_creates_and_reuses_a_definition_with_values_before_authored_children() {
+    let (_dir, mut nb) = fixture();
+    let receipt = run(
+        &mut nb,
+        &note(
+            page("Dune"),
+            vec![block(
+                "  Author :: [[Frank Herbert]]",
+                vec![block("authored", vec![]), block("aUTHOR:: another", vec![])],
+            )],
+        ),
+    );
+    assert_eq!(receipt.created_fields.len(), 1);
+    let definition = &receipt.created_fields[0];
+    assert_eq!(definition.text, "Author");
+    assert_eq!(
+        definition.parent_id.as_deref(),
+        Some(nb.fields().unwrap().page_id.as_str())
+    );
+    let author = nb.page_by_title("Frank Herbert").unwrap().unwrap();
+    let root = receipt.page.unwrap();
+    assert_eq!(
+        outline(&nb, &root.id),
+        [
+            format!("[[{}]]", definition.id),
+            format!("  [[{}]]", author.id),
+            "  authored".into(),
+            format!("  [[{}]]", definition.id),
+            "    another".into(),
+        ]
+    );
+    let rows = nb.page(&root.id).unwrap().rows;
+    assert_eq!(
+        receipt
+            .blocks
+            .iter()
+            .map(|revision| &revision.id)
+            .collect::<Vec<_>>(),
+        rows.iter().map(|row| &row.block.id).collect::<Vec<_>>()
+    );
+    let change = nb.changes_since(receipt.seq - 1, 1).unwrap().remove(0);
+    assert_eq!(change.actor, agent());
+    assert!(change.blocks.iter().any(|block| block == definition));
+    let second = run(
+        &mut nb,
+        &note(page("Dune"), vec![block("AUTHOR:: reused", vec![])]),
+    );
+    assert!(second.created_fields.is_empty());
+    assert_eq!(
+        nb.block(&second.blocks[0].id).unwrap().text,
+        format!("[[{}]]", definition.id)
+    );
+}
+
+#[test]
+fn empty_shorthand_keeps_only_authored_children() {
+    let (_dir, mut nb) = fixture();
+    let receipt = run(
+        &mut nb,
+        &note(
+            page("Dune"),
+            vec![block("Name::", vec![block("authored", vec![])])],
+        ),
+    );
+    assert_eq!(receipt.blocks.len(), 2);
+    assert_eq!(
+        outline(&nb, &receipt.page.unwrap().id),
+        [
+            format!("[[{}]]", receipt.created_fields[0].id),
+            "  authored".into()
+        ]
+    );
+}
+
+#[test]
+fn undo_removes_unused_created_fields_but_keeps_a_definition_another_block_uses() {
+    let (_dir, mut nb) = fixture();
+    dune(&mut nb);
+    let receipt = run(
+        &mut nb,
+        &note(
+            page("Dune"),
+            vec![block("Unused:: one", vec![]), block("Shared:: two", vec![])],
+        ),
+    );
+    let unused = receipt.created_fields[0].id.clone();
+    let shared = receipt.created_fields[1].id.clone();
+    seed(
+        &mut nb,
+        vec![Operation::EditText {
+            id: id(4),
+            base_revision: 1,
+            text: format!("[[{shared}]]"),
+        }],
+    );
+    undo(&mut nb, receipt.seq).unwrap();
+    assert!(matches!(nb.block(&unused), Err(Error::NotFound { .. })));
+    assert!(nb.block(&shared).is_ok());
+    assert_eq!(
+        outline(&nb, &id(1)),
+        ["first", "  nested", &format!("[[{shared}]]")]
+    );
+}
+
+#[test]
+fn undo_keeps_a_created_field_that_was_edited_or_given_new_children() {
+    let (_dir, mut nb) = fixture();
+    dune(&mut nb);
+    let receipt = run(
+        &mut nb,
+        &note(
+            page("Dune"),
+            vec![
+                block("Renamed:: one", vec![]),
+                block("Options:: two", vec![]),
+            ],
+        ),
+    );
+    let renamed = &receipt.created_fields[0];
+    let extended = &receipt.created_fields[1];
+    seed(
+        &mut nb,
+        vec![
+            Operation::EditText {
+                id: renamed.id.clone(),
+                base_revision: renamed.revision,
+                text: "Changed name".into(),
+            },
+            Operation::Insert {
+                id: id(50),
+                parent_id: extended.id.clone(),
+                after: None,
+                text: "choice".into(),
+                heading: None,
+            },
+        ],
+    );
+    undo(&mut nb, receipt.seq).unwrap();
+    assert_eq!(nb.block(&renamed.id).unwrap().text, "Changed name");
+    assert!(nb.block(&extended.id).is_ok());
+    assert!(nb.block(&id(50)).is_ok());
+}
+
+#[test]
+fn edit_shorthand_inserts_a_first_value_and_undo_restores_text_and_children() {
+    let (_dir, mut nb) = fixture();
+    dune(&mut nb);
+    let receipt = run(&mut nb, &edit(&id(2), "Author:: [[Frank Herbert]]"));
+    let definition = &receipt.created_fields[0];
+    let author = nb.page_by_title("Frank Herbert").unwrap().unwrap();
+    assert_eq!(
+        outline(&nb, &id(1)),
+        [
+            format!("[[{}]]", definition.id),
+            format!("  [[{}]]", author.id),
+            "  nested".into(),
+            "second".into()
+        ]
+    );
+    assert_eq!(receipt.blocks.len(), 2);
+    let value = receipt
+        .blocks
+        .iter()
+        .find(|revision| revision.id != id(2))
+        .unwrap()
+        .id
+        .clone();
+    undo(&mut nb, receipt.seq).unwrap();
+    assert_eq!(outline(&nb, &id(1)), ["first", "  nested", "second"]);
+    assert!(matches!(nb.block(&value), Err(Error::NotFound { .. })));
+    assert!(matches!(
+        nb.block(&definition.id),
+        Err(Error::NotFound { .. })
+    ));
+    assert!(nb.page_by_title("Frank Herbert").unwrap().is_none());
+}
+
+#[test]
+fn shorthand_never_rewrites_page_roots_or_card_syntax_or_multiline_names() {
+    let (_dir, mut nb) = fixture();
+    dune(&mut nb);
+    let renamed = run(&mut nb, &edit(&id(1), "Title:: value"));
+    assert!(renamed.created_fields.is_empty());
+    assert_eq!(nb.block(&id(1)).unwrap().text, "Title:: value");
+    let texts = [
+        "front>>back:: value",
+        "{{c1::answer}}:: value",
+        "line\nname:: value",
+        "Name:: value\nmore",
+        "\\Name:: value",
+        "Name#tag:: value",
+    ];
+    let receipt = run(
+        &mut nb,
+        &note(
+            NoteTarget::Block { id: id(4) },
+            texts.iter().map(|text| block(text, vec![])).collect(),
+        ),
+    );
+    assert!(receipt.created_fields.is_empty());
+    for (revision, text) in receipt.blocks.iter().zip(texts) {
+        assert_eq!(nb.block(&revision.id).unwrap().text, text);
+    }
+}
+
+fn hold(card_id: &str, revision: Option<i64>, held: bool) -> AgentRequest {
+    request(AgentEdit::SetCardHeld {
+        card_id: card_id.into(),
+        revision,
+        held,
+    })
+}
+
+fn dune_card(nb: &mut Notebook) -> tessera_core::CardUnit {
+    dune(nb);
+    run(nb, &edit(&id(4), "front>>back"));
+    nb.source_cards(&id(4)).unwrap().remove(0)
+}
+
+#[test]
+fn cards_are_held_released_and_undone_using_their_own_revisions() {
+    let (_dir, mut nb) = fixture();
+    let card = dune_card(&mut nb);
+    let block_revision = nb.block(&id(4)).unwrap().revision;
+    let held = run(&mut nb, &hold(&card.id, Some(card.revision), true));
+    assert_eq!(held.summary, "Held card “front” on Dune");
+    assert_eq!(held.page.unwrap().id, id(1));
+    assert!(held.blocks.is_empty());
+    assert_eq!(held.committed.cards[0].revision, card.revision + 1);
+    assert!(nb.card(&card.id).unwrap().held);
+    assert_eq!(nb.block(&id(4)).unwrap().revision, block_revision);
+    let change = nb.changes_since(held.seq - 1, 1).unwrap().remove(0);
+    assert_eq!(change.actor, agent());
+    assert_eq!(change.cards.as_slice(), std::slice::from_ref(&card.id));
+    let released = run(&mut nb, &hold(&card.id, None, false));
+    assert_eq!(released.summary, "Released card “front” on Dune");
+    assert!(!nb.card(&card.id).unwrap().held);
+    undo(&mut nb, released.seq).unwrap();
+    assert!(nb.card(&card.id).unwrap().held);
+    // The intervening release and its undo are a card-only revision shift.
+    undo(&mut nb, held.seq).unwrap();
+    assert!(!nb.card(&card.id).unwrap().held);
+}
+
+#[test]
+fn card_holds_refuse_stale_revisions_inactive_cards_and_unchanged_states() {
+    let (_dir, mut nb) = fixture();
+    let card = dune_card(&mut nb);
+    refused(
+        nb.agent_edit(&hold(&card.id, None, false)),
+        "already released",
+    );
+    let held = run(&mut nb, &hold(&card.id, None, true));
+    refused(nb.agent_edit(&hold(&card.id, None, true)), "already held");
+    assert!(matches!(
+        nb.agent_edit(&hold(&card.id, Some(card.revision), false)),
+        Err(Error::Conflict { id, expected, found, .. })
+            if id == card.id && expected == card.revision && found == Some(card.revision + 1)
+    ));
+    let current = nb.card(&card.id).unwrap();
+    seed(
+        &mut nb,
+        vec![Operation::SetCardHeld {
+            id: card.id.clone(),
+            base_revision: current.revision,
+            held: false,
+        }],
+    );
+    refused(undo(&mut nb, held.seq), "changed after change");
+    run(&mut nb, &edit(&id(4), "not a card"));
+    assert!(!nb.card(&card.id).unwrap().active);
+    refused(nb.agent_edit(&hold(&card.id, None, true)), "inactive");
+    refused(nb.agent_edit(&hold(&card.id, None, false)), "inactive");
+}
+
+fn evidence(nb: &mut Notebook, attached: bool) -> (String, Vec<Passage>) {
+    let document = ExtractedDocument {
+        format: SourceFormat::Epub,
+        media_type: "application/epub+zip".into(),
+        metadata: ExtractedMetadata {
+            title: Some("Evidence".into()),
+            ..Default::default()
+        },
+        toc: vec![],
+        passages: ["Préface 🦉 evidence, evidence", "Second passage"]
+            .iter()
+            .enumerate()
+            .map(|(index, text)| ExtractedPassage {
+                kind: PassageKind::Paragraph,
+                level: None,
+                text: (*text).into(),
+                locator: format!("chapter#{index}"),
+                anchor: None,
+                resource: None,
+                marks: vec![],
+            })
+            .collect(),
+        resources: vec![],
+    };
+    let hash = nb.put_object(b"agent evidence").unwrap();
+    let snapshot = nb.stage_snapshot(&document, &hash, &[]).unwrap().id;
+    if attached {
+        let plan = nb
+            .plan_ingest(&snapshot, None, Some("evidence.epub"))
+            .unwrap();
+        seed(nb, plan.operations);
+    }
+    let passages = nb.passages(&snapshot, 0, 500).unwrap().passages;
+    (snapshot, passages)
+}
+
+fn citation(block_id: &str, passage_id: &str) -> AgentCitation {
+    AgentCitation {
+        block_id: block_id.into(),
+        revision: None,
+        passage_id: passage_id.into(),
+        end_passage_id: None,
+        quote: None,
+    }
+}
+
+#[test]
+fn whole_passages_are_cited_with_attribution_and_removed_by_undo() {
+    let (_dir, mut nb) = fixture();
+    dune(&mut nb);
+    let (snapshot, passages) = evidence(&mut nb, true);
+    let receipt = run(
+        &mut nb,
+        &request(AgentEdit::Cite {
+            citations: vec![citation(&id(2), &passages[0].id)],
+        }),
+    );
+    assert_eq!(receipt.summary, "Cited 1 passage on Dune");
+    assert_eq!(receipt.page.unwrap().id, id(1));
+    assert_eq!(
+        receipt.blocks,
+        [tessera_core::Revision {
+            id: id(2),
+            revision: 2
+        }]
+    );
+    let cited = nb.capabilities(&id(2)).unwrap().citations.remove(0);
+    assert_eq!(cited.snapshot_id, snapshot);
+    assert_eq!(cited.start.passage_id, passages[0].id);
+    assert_eq!(cited.end.passage_id, passages[0].id);
+    assert_eq!(cited.start.offset, 0);
+    assert_eq!(
+        cited.end.offset,
+        passages[0].text.encode_utf16().count() as u32
+    );
+    assert_eq!(cited.quote, passages[0].text);
+    assert!(ulid::Ulid::from_string(&cited.id).is_ok());
+    assert_eq!(
+        nb.changes_since(receipt.seq - 1, 1).unwrap()[0].actor,
+        agent()
+    );
+    undo(&mut nb, receipt.seq).unwrap();
+    assert!(nb.capabilities(&id(2)).unwrap().citations.is_empty());
+}
+
+#[test]
+fn quoted_citations_use_the_first_match_and_utf16_offsets_after_non_ascii_text() {
+    let (_dir, mut nb) = fixture();
+    dune(&mut nb);
+    let (_, passages) = evidence(&mut nb, true);
+    let mut selected = citation(&id(2), &passages[0].id);
+    selected.quote = Some("evidence".into());
+    let receipt = run(
+        &mut nb,
+        &request(AgentEdit::Cite {
+            citations: vec![selected],
+        }),
+    );
+    let cited = nb.capabilities(&id(2)).unwrap().citations.remove(0);
+    assert_eq!(cited.start.offset, 11);
+    assert_eq!(cited.end.offset, 19);
+    assert_eq!(cited.quote, "evidence");
+    undo(&mut nb, receipt.seq).unwrap();
+    assert!(nb.capabilities(&id(2)).unwrap().citations.is_empty());
+}
+
+#[test]
+fn citations_can_span_passages_and_several_blocks_in_one_undoable_change() {
+    let (_dir, mut nb) = fixture();
+    dune(&mut nb);
+    let (_, passages) = evidence(&mut nb, true);
+    seed(
+        &mut nb,
+        vec![
+            Operation::CreatePage {
+                id: id(10),
+                title: "Other".into(),
+            },
+            Operation::Insert {
+                id: id(11),
+                parent_id: id(10),
+                after: None,
+                text: "other note".into(),
+                heading: None,
+            },
+        ],
+    );
+    let mut range = citation(&id(2), &passages[0].id);
+    range.end_passage_id = Some(passages[1].id.clone());
+    range.revision = Some(1);
+    let mut same_block = citation(&id(2), &passages[1].id);
+    same_block.revision = Some(1);
+    let receipt = run(
+        &mut nb,
+        &request(AgentEdit::Cite {
+            citations: vec![range, same_block, citation(&id(11), &passages[1].id)],
+        }),
+    );
+    assert_eq!(receipt.summary, "Cited 3 passages on Dune");
+    assert_eq!(receipt.page.unwrap().id, id(1));
+    assert_eq!(
+        receipt.blocks,
+        [
+            tessera_core::Revision {
+                id: id(2),
+                revision: 3
+            },
+            tessera_core::Revision {
+                id: id(11),
+                revision: 2
+            }
+        ]
+    );
+    let citations = nb.capabilities(&id(2)).unwrap().citations;
+    assert_eq!(citations.len(), 2);
+    let range = citations
+        .iter()
+        .find(|cited| cited.start.passage_id == passages[0].id)
+        .unwrap();
+    assert_eq!(range.end.passage_id, passages[1].id);
+    assert_eq!(
+        range.end.offset,
+        passages[1].text.encode_utf16().count() as u32
+    );
+    assert_eq!(nb.capabilities(&id(11)).unwrap().citations.len(), 1);
+    undo(&mut nb, receipt.seq).unwrap();
+    assert!(nb.capabilities(&id(2)).unwrap().citations.is_empty());
+    assert!(nb.capabilities(&id(11)).unwrap().citations.is_empty());
+}
+
+#[test]
+fn invalid_citations_write_nothing() {
+    let (_dir, mut nb) = fixture();
+    dune(&mut nb);
+    let (_, passages) = evidence(&mut nb, true);
+    let mut absent = citation(&id(2), &passages[0].id);
+    absent.quote = Some("absent quote".into());
+    refused(
+        nb.agent_edit(&request(AgentEdit::Cite {
+            citations: vec![citation(&id(2), &passages[1].id), absent.clone()],
+        })),
+        &passages[0].id,
+    );
+    assert_eq!(nb.block(&id(2)).unwrap().revision, 1);
+    assert!(nb.capabilities(&id(2)).unwrap().citations.is_empty());
+    absent.end_passage_id = Some(passages[1].id.clone());
+    refused(
+        nb.agent_edit(&request(AgentEdit::Cite {
+            citations: vec![absent],
+        })),
+        "not both",
+    );
+    let mut stale = citation(&id(2), &passages[0].id);
+    stale.revision = Some(7);
+    assert!(matches!(
+        nb.agent_edit(&request(AgentEdit::Cite {
+            citations: vec![stale]
+        })),
+        Err(Error::Conflict { .. })
+    ));
+    refused(
+        nb.agent_edit(&request(AgentEdit::Cite { citations: vec![] })),
+        "must contain",
+    );
+}
+
+#[test]
+fn citations_require_an_attached_snapshot_and_undo_refuses_later_block_edits() {
+    let (_dir, mut nb) = fixture();
+    dune(&mut nb);
+    let (snapshot, passages) = evidence(&mut nb, false);
+    let ask = request(AgentEdit::Cite {
+        citations: vec![citation(&id(2), &passages[0].id)],
+    });
+    refused(nb.agent_edit(&ask), "attached snapshot");
+    let ingest = nb
+        .plan_ingest(&snapshot, None, Some("evidence.epub"))
+        .unwrap();
+    seed(&mut nb, ingest.operations);
+    let cited = run(&mut nb, &ask);
+    seed(
+        &mut nb,
+        vec![Operation::EditText {
+            id: id(2),
+            base_revision: 2,
+            text: "someone else's edit".into(),
+        }],
+    );
+    refused(undo(&mut nb, cited.seq), "changed after change");
+    assert_eq!(nb.capabilities(&id(2)).unwrap().citations.len(), 1);
+}
+
+#[test]
+fn page_cards_include_held_units_but_exclude_other_pages_deleted_sources_and_inactive_units() {
+    let (_dir, mut nb) = fixture();
+    let card = dune_card(&mut nb);
+    run(&mut nb, &hold(&card.id, None, true));
+    run(&mut nb, &edit(&id(2), "deleted front>>back"));
+    run(&mut nb, &edit(&id(3), "inactive front>>back"));
+    run(&mut nb, &edit(&id(3), "not a card"));
+    let other = run(
+        &mut nb,
+        &note(page("Other"), vec![block("other front>>back", vec![])]),
+    );
+    run(
+        &mut nb,
+        &request(AgentEdit::DeleteBlock {
+            id: id(2),
+            revision: None,
+        }),
+    );
+    let cards = nb.page_cards(&id(1)).unwrap();
+    assert_eq!(cards.len(), 1);
+    assert_eq!(cards[0].id, card.id);
+    assert!(cards[0].held);
+    assert_eq!(nb.page_cards(&other.page.unwrap().id).unwrap().len(), 1);
+    assert!(matches!(
+        nb.page_cards(&id(99)),
+        Err(Error::NotFound { .. })
+    ));
+    assert!(matches!(nb.page_cards(&id(4)), Err(Error::NotFound { .. })));
+    run(
+        &mut nb,
+        &request(AgentEdit::DeleteBlock {
+            id: id(1),
+            revision: None,
+        }),
+    );
+    assert!(matches!(nb.page_cards(&id(1)), Err(Error::NotFound { .. })));
+}
+
+#[test]
+fn citation_range_endpoints_must_share_a_snapshot() {
+    let (_dir, mut nb) = fixture();
+    dune(&mut nb);
+    let (_, passages) = evidence(&mut nb, true);
+    let document = ExtractedDocument {
+        format: SourceFormat::Epub,
+        media_type: "application/epub+zip".into(),
+        metadata: ExtractedMetadata::default(),
+        toc: vec![],
+        passages: vec![ExtractedPassage {
+            kind: PassageKind::Paragraph,
+            level: None,
+            text: "Different snapshot".into(),
+            locator: "chapter".into(),
+            anchor: None,
+            resource: None,
+            marks: vec![],
+        }],
+        resources: vec![],
+    };
+    let hash = nb.put_object(b"different agent evidence").unwrap();
+    let snapshot = nb.stage_snapshot(&document, &hash, &[]).unwrap().id;
+    let last = nb.passages(&snapshot, 0, 500).unwrap().passages.remove(0);
+    let mut range = citation(&id(2), &passages[0].id);
+    range.end_passage_id = Some(last.id);
+    refused(
+        nb.agent_edit(&request(AgentEdit::Cite {
+            citations: vec![range],
+        })),
+        "share one snapshot",
+    );
+    assert!(nb.capabilities(&id(2)).unwrap().citations.is_empty());
+}
+
+#[test]
+fn new_agent_kinds_deserialize_with_optional_revision_and_citation_range_fields() {
+    let held: AgentRequest = serde_json::from_value(serde_json::json!({
+        "actor": { "kind": "agent", "name": "claude" },
+        "kind": "set_card_held",
+        "card_id": id(1),
+        "held": true
+    }))
+    .unwrap();
+    assert_eq!(
+        held.edit,
+        AgentEdit::SetCardHeld {
+            card_id: id(1),
+            revision: None,
+            held: true
+        }
+    );
+    let cited: AgentRequest = serde_json::from_value(serde_json::json!({
+        "actor": { "kind": "agent", "name": "claude" },
+        "kind": "cite",
+        "citations": [{ "block_id": id(2), "passage_id": id(3) }]
+    }))
+    .unwrap();
+    assert_eq!(
+        cited.edit,
+        AgentEdit::Cite {
+            citations: vec![citation(&id(2), &id(3))]
+        }
+    );
+    let (_dir, mut nb) = fixture();
+    let receipt = run(
+        &mut nb,
+        &note(page("Dune"), vec![block("ordinary", vec![])]),
+    );
+    let mut legacy = serde_json::to_value(receipt).unwrap();
+    legacy.as_object_mut().unwrap().remove("created_fields");
+    assert!(
+        serde_json::from_value::<AgentReceipt>(legacy)
+            .unwrap()
+            .created_fields
+            .is_empty()
+    );
 }

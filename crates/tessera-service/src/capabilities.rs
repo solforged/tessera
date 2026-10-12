@@ -127,6 +127,16 @@ pub(crate) async fn source_cards(
         .map(Json)
 }
 
+pub(crate) async fn page_cards(
+    State(state): State<AppState>,
+    path: Result<Path<String>, PathRejection>,
+) -> Result<Json<Vec<CardUnit>>, ApiError> {
+    let Path(id) = path.map_err(ApiError::from)?;
+    run(&state, move |notebook| notebook.page_cards(&id))
+        .await
+        .map(Json)
+}
+
 pub(crate) async fn card(
     State(state): State<AppState>,
     path: Result<Path<String>, PathRejection>,
