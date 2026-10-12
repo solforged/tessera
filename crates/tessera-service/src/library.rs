@@ -314,6 +314,8 @@ struct SearchQuery {
     source: Option<String>,
     #[serde(default = "crate::default_limit")]
     limit: usize,
+    #[serde(default)]
+    offset: usize,
 }
 async fn search(
     State(state): State<AppState>,
@@ -321,7 +323,7 @@ async fn search(
 ) -> Result<Json<Vec<PassageHit>>, ApiError> {
     let Query(q) = query.map_err(ApiError::from)?;
     run(&state, move |n| {
-        n.search_passages(&q.q, q.source.as_deref(), q.limit)
+        n.search_passages(&q.q, q.source.as_deref(), q.limit, q.offset)
     })
     .await
     .map(Json)
@@ -907,6 +909,50 @@ mod tests {
         })
         .await
         .expect("worker finished")
+    }
+    #[tokio::test]
+    async fn passage_search_http_pages_default_to_zero_and_reach_the_end() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut notebook = Notebook::open(dir.path()).unwrap();
+        let mut doc = constructed(&[], None, "").unwrap();
+        doc.resources.clear();
+        doc.passages = (0..82)
+            .map(|ordinal| ExtractedPassage {
+                kind: PassageKind::Paragraph,
+                level: None,
+                text: "nature".into(),
+                locator: format!("body#{ordinal}"),
+                anchor: None,
+                resource: None,
+                marks: vec![],
+            })
+            .collect();
+        let hash = notebook.put_object(b"search book").unwrap();
+        let snapshot = notebook.stage_snapshot(&doc, &hash, &[]).unwrap();
+        let plan = notebook.plan_ingest(&snapshot.id, None, Some("search.epub")).unwrap();
+        let source = plan.source_id;
+        notebook.apply(&Batch {
+            actor: Actor::Person,
+            reason: None,
+            idempotency_key: None,
+            operations: plan.operations,
+        }).unwrap();
+        let app = routes().with_state(state(notebook, constructed));
+        for (suffix, from, count) in [("", 0, 41), ("&offset=40", 40, 41), ("&offset=80", 80, 2), ("&offset=82", 82, 0)] {
+            let path = format!("/api/passages/search?q=nature&source={source}&limit=41{suffix}");
+            let reply = response(&app, "GET", &path, vec![]).await;
+            assert_eq!(reply.status(), StatusCode::OK);
+            let hits = value(reply).await;
+            let hits = hits.as_array().unwrap();
+            assert_eq!(hits.len(), count);
+            for (index, hit) in hits.iter().enumerate() {
+                assert_eq!(hit["source_id"], source);
+                assert_eq!(hit["snapshot_id"], snapshot.id);
+                assert_eq!(hit["passage"]["ordinal"], from + index);
+            }
+        }
+        let invalid = response(&app, "GET", "/api/passages/search?q=nature&offset=-1", vec![]).await;
+        assert_eq!(invalid.status(), StatusCode::BAD_REQUEST);
     }
     #[tokio::test]
     async fn uploads_run_attributed_jobs_and_serve_only_image_resources() {

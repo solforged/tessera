@@ -43,16 +43,23 @@ export interface PickerProps<T> {
 /** Input on top, rows below. Arrows move, Enter picks, typing filters. */
 export function Picker<T>(props: PickerProps<T>) {
   const [selected, setSelected] = createSignal(props.initial ?? 0);
+  const [revealRevision, setRevealRevision] = createSignal(0);
   let list!: HTMLDivElement;
   let input!: HTMLInputElement;
   let opening = true, firstScroll = true;
+  let previousItems: T[] = [], previousQuery = props.query;
   createEffect(() => {
-    const count = props.items.length; props.query;
-    setSelected(opening ? Math.max(0, Math.min(props.initial ?? 0, count - 1)) : 0);
-    opening = false;
+    const items = props.items, query = props.query;
+    const appended = !opening && query === previousQuery && items.length > previousItems.length
+      && previousItems.every((item, index) => props.key(item) === props.key(items[index]!));
+    if (!appended) {
+      setSelected(opening ? Math.max(0, Math.min(props.initial ?? 0, items.length - 1)) : 0);
+      setRevealRevision(value => value + 1);
+    }
+    previousItems = items; previousQuery = query; opening = false;
   });
   createEffect(() => {
-    selected(); props.items.length;
+    selected(); revealRevision();
     const center = firstScroll && props.initial !== undefined;
     firstScroll = false;
     const reveal = () => {

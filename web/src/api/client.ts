@@ -290,7 +290,7 @@ export interface ApiClient {
   resource(snapshotId: string, href: string, signal?: AbortSignal): Promise<Blob>;
   /** Record the reading position: the first passage on screen. */
   readingPosition(snapshotId: string, ordinal: number, signal?: AbortSignal): Promise<ReadingProgress>;
-  searchPassages(q: string, sourceId?: string, limit?: number, signal?: AbortSignal): Promise<PassageHit[]>;
+  searchPassages(q: string, sourceId?: string, limit?: number, offset?: number, signal?: AbortSignal): Promise<PassageHit[]>;
   highlights(value: HighlightQuery, signal?: AbortSignal): Promise<HighlightResult>;
   resurfacing(date: string, limit?: number, signal?: AbortSignal): Promise<Surfacing[]>;
   recordSurfacing(citationId: string, date: string, action: SurfacingAction, signal?: AbortSignal): Promise<void>;
@@ -420,7 +420,7 @@ export function createApi(base = ''): ApiClient {
     resourceUrl,
     resource: (snapshotId: string, href: string, signal?: AbortSignal) => send<Blob>(resourceUrl(snapshotId, href), { method: 'GET', signal }, response => response.blob()),
     readingPosition: (snapshotId: string, ordinal: number, signal?: AbortSignal) => request<ReadingProgress>(base, 'POST', `/snapshots/${segment(snapshotId)}/position`, { ordinal }, signal),
-    searchPassages: (q: string, sourceId?: string, limit = 40, signal?: AbortSignal) => get<PassageHit[]>(`/passages/search${query({ q, source: sourceId, limit })}`, signal),
+    searchPassages: (q: string, sourceId?: string, limit = 40, offset = 0, signal?: AbortSignal) => get<PassageHit[]>(`/passages/search${query({ q, source: sourceId, limit, offset })}`, signal),
     highlights: (value: HighlightQuery, signal?: AbortSignal) => request<HighlightResult>(base, 'POST', '/highlights/query', value, signal),
     resurfacing: (date: string, limit = 3, signal?: AbortSignal) => get<Surfacing[]>(`/highlights/resurface${query({ date, limit })}`, signal),
     recordSurfacing: (citationId: string, date: string, action: SurfacingAction, signal?: AbortSignal) => request<void>(base, 'POST', `/highlights/${segment(citationId)}/resurface`, { date, action }, signal),

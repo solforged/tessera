@@ -54,6 +54,7 @@ export interface ReaderPaneProps {
 }
 
 const PAGE_SIZE = 200;
+const SEARCH_PAGE_SIZE = 40;
 /** The gutter between columns, and between one page and the next. */
 const PAGE_GAP = 48;
 const pageTurns: Record<string, 1 | -1> = { ArrowRight: 1, ArrowLeft: -1, PageDown: 1, PageUp: -1, ' ': 1 };
@@ -85,6 +86,8 @@ export function ReaderPane(props: ReaderPaneProps) {
   const [hits, setHits] = createSignal<PassageHit[]>([]);
   const [searching, setSearching] = createSignal(false);
   const [searchError, setSearchError] = createSignal('');
+  const [morePassages, setMorePassages] = createSignal(false);
+  let searchRequest: { text: string; sourceId: string; popup: ReaderPopup; controller: AbortController; offset: number; pending: boolean } | null = null;
   const [selection, setSelection] = createSignal<SelectionToolbar | null>(null);
   const [cursor, setCursor] = createSignal<number | null>(null);
   const [keyboardRange, setKeyboardRange] = createSignal<{ first: number; last: number } | null>(null);
@@ -782,17 +785,48 @@ export function ReaderPane(props: ReaderPaneProps) {
   createEffect(on(() => props.notebook.changeSequence(), () => {
     for (const from of pages.keys()) void loadPage(from, true).catch(reason => { if (!disposed) setError(reason instanceof Error ? reason.message : String(reason)); });
   }, { defer: true }));
+  async function loadSearchPage() {
+    const request = searchRequest;
+    if (!request || request.pending) return;
+    const current = () => searchRequest === request && !request.controller.signal.aborted
+      && popup() === request.popup && query().trim() === request.text && props.target.sourceId === request.sourceId;
+    if (!current()) return;
+    request.pending = true;
+    setSearching(true); setSearchError('');
+    try {
+      const values = await api.searchPassages(request.text, request.sourceId, SEARCH_PAGE_SIZE + 1, request.offset, request.controller.signal);
+      if (!current()) return;
+      const page = values.slice(0, SEARCH_PAGE_SIZE);
+      request.offset += page.length;
+      batch(() => {
+        setHits(previous => {
+          const keys = new Set(previous.map(hit => `${hit.snapshot_id}:${hit.passage.id}`));
+          return [...previous, ...page.filter(hit => {
+            const key = `${hit.snapshot_id}:${hit.passage.id}`;
+            if (keys.has(key)) return false;
+            keys.add(key);
+            return true;
+          })];
+        });
+        setMorePassages(values.length > SEARCH_PAGE_SIZE);
+      });
+    } catch (reason) {
+      if (current()) setSearchError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      request.pending = false;
+      if (current()) setSearching(false);
+    }
+  }
   createEffect(() => {
     const state = popup(), text = query().trim(), sourceId = props.target.sourceId;
-    if (state?.kind !== 'find' || !text) { setHits([]); setSearching(false); setSearchError(''); return; }
+    searchRequest = null;
+    setHits([]); setSearching(false); setSearchError(''); setMorePassages(false);
+    if (state?.kind !== 'find' || !text) return;
     const controller = new AbortController();
-    setSearching(true); setSearchError('');
-    const timer = window.setTimeout(() => {
-      void api.searchPassages(text, sourceId, 40, controller.signal).then(values => {
-        if (!controller.signal.aborted) { setHits(values); setSearching(false); }
-      }).catch(reason => { if (!controller.signal.aborted) { setSearchError(reason instanceof Error ? reason.message : String(reason)); setSearching(false); } });
-    }, 180);
-    onCleanup(() => { clearTimeout(timer); controller.abort(); });
+    searchRequest = { text, sourceId, popup: state, controller, offset: 0, pending: false };
+    setSearching(true);
+    const timer = window.setTimeout(() => { void loadSearchPage(); }, 180);
+    onCleanup(() => { clearTimeout(timer); controller.abort(); searchRequest = null; });
   });
 
   async function note(locator: string, anchor: HTMLElement) {
@@ -1391,8 +1425,8 @@ export function ReaderPane(props: ReaderPaneProps) {
         onPick={row => { void jumpHighlight(row.citation); }} onDismiss={() => setPopup(null)} /></Show>
       <Show when={state().kind === 'menu'}><Menu anchor={state().anchor} label="Actions for highlight" items={(() => { const value = state(); return value.kind === 'menu' ? value.items : []; })()} header={(() => { const value = state(); return value.kind === 'menu' && value.Header ? <value.Header onDismiss={() => setPopup(null)} /> : undefined; })()} onDismiss={() => setPopup(null)} /></Show>
       <Show when={state().kind === 'find'}><Picker class="reader-picker" anchor={state().anchor} label="Find in source" placeholder="Find in source" query={query()} onQuery={setQuery} items={hits()} key={hit => `${hit.snapshot_id}:${hit.passage.id}`}
-        status={<p class="reader-find-status" role="status">{hits().length === 40 ? 'First 40 passages' : `${hits().length} passages`}</p>}
-        row={hit => <span class="reader-search-snippet"><For each={hit.snippet.replace(/^(?:\.\.\.|…)\s*/, '…').replace(/\s*(?:\.\.\.|…)$/, '…').split(/(\[[^\]]+\])/g)}>{part => part.startsWith('[') && part.endsWith(']') ? <mark class="reader-search-match">{part.slice(1, -1)}</mark> : part}</For></span>} busy={searching()} error={searchError()} empty={query().trim() ? 'No passages found' : 'Search this source'}
+        status={<div class="reader-find-status"><span role="status">{hits().length} passages{morePassages() ? ' shown' : ''}</span><Show when={morePassages()}>{' '}<Button disabled={searching()} onClick={() => { void loadSearchPage(); }}>Load more passages</Button></Show></div>}
+        row={hit => <span class="reader-search-snippet"><For each={hit.snippet.replace(/^(?:\.\.\.|…)\s*/, '…').replace(/\s*(?:\.\.\.|…)$/, '…').split(/(\[[^\]]+\])/g)}>{part => part.startsWith('[') && part.endsWith(']') ? <mark class="reader-search-match">{part.slice(1, -1)}</mark> : part}</For></span>} busy={searching() && !hits().length} error={searchError()} empty={query().trim() ? 'No passages found' : 'Search this source'}
         onPick={hit => { setPopup(null); switchSnapshot(hit.snapshot_id); void jump(hit.passage.ordinal).catch(reason => { restoring = false; setError(reason instanceof Error ? reason.message : String(reason)); }); }}
         onDismiss={() => setPopup(null)} /></Show>
       <Show when={state().kind === 'note'}><Popup anchor={state().anchor} label="Footnote" class="reader-note" onDismiss={() => setPopup(null)}>

@@ -490,6 +490,7 @@ impl Notebook {
         q: &str,
         source_id: Option<&str>,
         limit: usize,
+        offset: usize,
     ) -> Result<Vec<PassageHit>> {
         let query = fts_query(q);
         if query.is_empty() {
@@ -514,19 +515,27 @@ impl Notebook {
                  ORDER BY newest.change_seq DESC, newest.rowid DESC
                  LIMIT 1
              )))
-             ORDER BY rank, p.ordinal, s.block_id
-             LIMIT ?3"
+             ORDER BY rank, p.ordinal, s.block_id, p.snapshot_id, p.id
+             LIMIT ?3 OFFSET ?4"
         ))?;
         Ok(statement
-            .query_map(params![query, source_id, limit.min(500) as i64], |r| {
-                Ok(PassageHit {
-                    source_id: r.get(0)?,
-                    title: r.get(1)?,
-                    snapshot_id: r.get(2)?,
-                    passage: passage_at(r, 3)?,
-                    snippet: r.get(13)?,
-                })
-            })?
+            .query_map(
+                params![
+                    query,
+                    source_id,
+                    limit.min(500) as i64,
+                    i64::try_from(offset).unwrap_or(i64::MAX),
+                ],
+                |r| {
+                    Ok(PassageHit {
+                        source_id: r.get(0)?,
+                        title: r.get(1)?,
+                        snapshot_id: r.get(2)?,
+                        passage: passage_at(r, 3)?,
+                        snippet: r.get(13)?,
+                    })
+                },
+            )?
             .collect::<rusqlite::Result<_>>()?)
     }
     pub fn set_reading_position(
