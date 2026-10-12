@@ -100,7 +100,7 @@ export function CardSummary(props: { blockId: string; cards: ParsedCard[]; templ
 
   return <>
     <Show when={error() || props.cards.length || props.templateCount}><Button class="outline-planning outline-card-count" title="Show cards" aria-haspopup="dialog" aria-expanded={!!anchor()} onClick={event => {
-      if (event.shiftKey) { dismiss(); props.onOpen({ kind: 'review' }, true); return; }
+      if (event.shiftKey) { dismiss(); props.onOpen({ kind: 'review', blockId: props.blockId }, true); return; }
       open(event.currentTarget);
     }}>{label()}</Button></Show>
     <Show when={anchor()}>{trigger => <Popup anchor={trigger()} label="Cards" class="outline-capability-popup outline-cards-popup" onDismiss={dismiss}>
@@ -131,7 +131,7 @@ export function CardSummary(props: { blockId: string; cards: ParsedCard[]; templ
       <Show when={holdError()}><p class="error" role="alert">{holdError()}</p></Show>
       <div class="outline-capability-actions">
         <Show when={ordered().length >= 2 && ordered().some(card => card.held)}><Button disabled={busy() || loading() || !!error()} onClick={() => void hold(ordered().filter(card => card.held), false)}>Start all</Button></Show>
-        <Button class="bordered" onClick={event => { dismiss(); props.onOpen({ kind: 'review' }, event.shiftKey); }}>Review</Button>
+        <Button class="bordered" disabled={!ordered().some(card => !card.held)} title="Review this block's cards · Shift opens beside" onClick={event => { dismiss(); props.onOpen({ kind: 'review', blockId: props.blockId }, event.shiftKey); }}>Review</Button>
       </div>
     </Popup>}</Show>
   </>;

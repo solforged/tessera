@@ -215,7 +215,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
       item(entry?.position ? 'remove-perspective' : 'make-perspective', { section: 'Perspective' }),
       ...investigationItems(id).map((item, index) => ({ ...item, section: index === 0 ? 'Question and answer' : undefined })),
       ...(parseCardText(entry?.text ?? '').cards.length ? [
-        { label: 'Review cards', section: 'Cards', action: () => props.onOpen({ kind: 'review' }, false) },
+        { label: 'Review cards', section: 'Cards', action: () => props.onOpen({ kind: 'review', blockId: id }, false) },
         { label: 'Show card source', action: () => capabilities.source(id) },
       ] : [{ label: 'Add card…', section: 'Cards', action: () => cardMenu(id) }]),
     ];

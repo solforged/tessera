@@ -114,6 +114,8 @@ Disable pauses a template's cards and keeps their progress. In Review a template
 
 A block's card count opens its cards. Each row puts the kind in the same faint capitals in a fixed column, so every card's text starts at one edge, then the front, the answer in `--muted` and the due state. Clozes show their gaps and gilt answers as Review does. Multi-line and list answers show as their outline, at most five items, then `N more`. A template card reads `TEMPLATE` with its `#Vocab · Recognition` provenance under the text.
 
+The popup's Review, Shift-click on the count and the block menu's Review cards start a review of that block's active cards, due or not, titled by the block's subject. Shift opens it beside. An open review shows the same Finish or abandon prompt as switching decks before the block review starts; asking again for the block already under review returns to it. Review is disabled when every card is paused.
+
 ## Done summary and deck forms
 
 The Done summary returns to the shared page insets and responsive title scale, with section gaps between its grade strip, counts, forecast and missed cards. Its header no longer says in progress.

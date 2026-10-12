@@ -1,5 +1,6 @@
-import { For, Show, batch, createEffect, createMemo, createSignal, on, onCleanup, onMount } from 'solid-js';
+import { For, Show, batch, createEffect, createMemo, createSignal, on, onCleanup, onMount, untrack } from 'solid-js';
 import { ulid } from 'ulid';
+import { ApiError } from '../api/client';
 import type { CardKind, CardPreviews, CardQuery, CardRow, CardSelection, Deck, Grade, ReviewEvent, ReviewSession, ReviewStats } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { BlockText } from '../outline/BlockText';
@@ -13,6 +14,7 @@ import { createSlowFlag } from '../ui/loading';
 import { documentReady } from '../tasks/JournalAgenda';
 import { CardComposer } from './CardComposer';
 import { DeckEditor } from './DeckEditor';
+import { cardSubject } from './card-text';
 import { CardBack } from './CardSides';
 import { ReviewCard } from './ReviewCard';
 import { copyCardQuery, formatInterval, gradeLabels, gradeOperation, loadReviewCard, openReviewSession, sameCardSnapshot, selectionLabels, sessionQueue } from './query';
@@ -31,7 +33,8 @@ export interface ReviewPaneProps {
 }
 
 type Presentation = { item: CardRow; previews: CardPreviews; context: ReviewSource | null };
-type Destination = { deckId: string | null; sessionId: string | null; selection?: CardSelection | null };
+/** `blockId` starts a review of that block's cards once the open review, if any, is closed. */
+type Destination = { deckId: string | null; sessionId: string | null; selection?: CardSelection | null; blockId?: string };
 type DeckChoice = { id: string | null; name: string };
 type DeckCounts = { id: string | null; name: string; due: number; new: number; all: number };
 
@@ -76,6 +79,9 @@ export function ReviewPane(props: ReviewPaneProps) {
   const [ledger, setLedger] = createSignal<DeckCounts[]>([]);
   const [answerRevealed, setAnswerRevealed] = createSignal(false);
   const [restoredCardId, setRestoredCardId] = createSignal<string | null>(null);
+  const [blockRequest, setBlockRequest] = createSignal(props.view.blockId ?? null);
+  /** The block a session reviews, named by its subject; null for a deck session. */
+  const [scope, setScope] = createSignal<string | null>(null);
   const latestGrade = createMemo(() => session()?.state !== 'abandoned' ? events().filter(event => event.kind === 'grade').at(-1) ?? null : null);
   const grades = createMemo(() => events().filter(event => event.kind === 'grade'));
   const gradedCount = () => grades().length;
@@ -124,7 +130,7 @@ export function ReviewPane(props: ReviewPaneProps) {
     batch(() => {
       setDeckId(target.deckId); setSessionId(target.sessionId); setSession(null); setSelection(target.selection ?? null);
       setShown(null); setUpdated(null); setStale(''); setNeedsReload(false); setCommandError('');
-      setEvents([]); setStats(null); setLedger([]); setInventory(null); setRestoredCardId(null);
+      setEvents([]); setStats(null); setLedger([]); setInventory(null); setRestoredCardId(null); setScope(null);
       setRows([]); setCounts({}); setReady(false); setLoading(true); setSwitching(null); setRetry(value => value + 1);
     });
     publish();
@@ -143,6 +149,15 @@ export function ReviewPane(props: ReviewPaneProps) {
   }, { defer: true }));
 
   createEffect(on(() => [deckId(), sessionId(), selection(), props.notebook.changeSequence(), props.notebook.todayDate(), commandState(), retry()] as const, () => { void refresh(); }));
+  createEffect(on(() => props.view.blockId, id => { if (id) setBlockRequest(id); }, { defer: true }));
+  // A block request waits for the pane's first read, so an open review is known before it is left.
+  createEffect(() => {
+    const id = blockRequest();
+    if (!id || !ready() || loading() || locked()) return;
+    setBlockRequest(null);
+    publish();
+    untrack(() => reviewBlock(id));
+  });
   createEffect(on(shown, value => {
     if (!value) return;
     setAnswerRevealed(false);
@@ -232,11 +247,19 @@ export function ReviewPane(props: ReviewPaneProps) {
         return;
       }
       let candidates = result.rows;
+      let nextScope: string | null = null;
       const missedFrom = currentSession ? localStorage.getItem(`tessera.review-missed.${currentSession.id}`) : null;
+      const blockFrom = currentSession ? localStorage.getItem(`tessera.review-block.${currentSession.id}`) : null;
       if (missedFrom) {
         const original = await props.notebook.api.reviewSessionEvents(missedFrom);
         const ids = [...new Set(original.filter(event => event.grade === 'again').map(event => event.card_id))];
         candidates = (await Promise.all(ids.map(id => loadReviewCard(props.notebook.api, id)))).filter(row => row.card.active && !row.card.held);
+      } else if (blockFrom) {
+        // A deleted block leaves nothing to review, so its session finishes instead of failing every read.
+        const block = await props.notebook.api.block(blockFrom).catch((reason: unknown) => { if (reason instanceof ApiError && reason.status === 404) return null; throw reason; });
+        const units = block ? await props.notebook.api.sourceCards(blockFrom) : [];
+        candidates = await Promise.all(units.filter(card => card.active && !card.held).map(card => loadReviewCard(props.notebook.api, card.id)));
+        nextScope = block ? cardSubject(block.text) || 'Untitled block' : 'Deleted block';
       }
       const queue = currentSession?.state === 'open' ? await sessionQueue(props.notebook.api, candidates, history, restored) : { rows: candidates, restoredUnavailable: false };
       const remaining = queue.rows;
@@ -267,7 +290,7 @@ export function ReviewPane(props: ReviewPaneProps) {
       if (disposed || version !== generation) return;
       // Publish one complete snapshot. Empty rows from a superseded/failed read never finish a session.
       batch(() => {
-        setDecks(savedDecks); setSessions(savedSessions); setSession(currentSession);
+        setDecks(savedDecks); setSessions(savedSessions); setSession(currentSession); setScope(nextScope);
         setQuery(nextQuery); setRows(remaining); setTotal(result.total); setLoadedCount(result.rows.length);
         setEvents(history); setStats(nextStats); setLedger(nextLedger);
         if (!currentSession) setInventory((globalStats ?? nextStats).total_cards + (globalStats ?? nextStats).held_cards);
@@ -315,7 +338,7 @@ export function ReviewPane(props: ReviewPaneProps) {
     if (!value) return;
     if (value.state !== 'open') {
       setClosing(null); setSwitching(null);
-      if (target) moveTo(target);
+      if (target) await go(target);
       return;
     }
     generation++;
@@ -327,7 +350,7 @@ export function ReviewPane(props: ReviewPaneProps) {
       setClosing(null);
       setSession(receipt.review_sessions?.find(item => item.id === value.id) ?? null);
       setShown(null); setUpdated(null); setStale(''); setNeedsReload(false);
-      if (target) moveTo(target);
+      if (target) await go(target);
       else if (!gradedCount()) moveTo({ deckId: value.deck_id, sessionId: null, selection: selection() });
       else { setSwitching(null); publish(); }
     } catch (reason) {
@@ -443,6 +466,35 @@ export function ReviewPane(props: ReviewPaneProps) {
     }
   }
 
+  /** Leaves for `target`, starting a block review when it asks for one. */
+  async function go(target: Destination) {
+    if (target.blockId) await startBlockReview(target.blockId);
+    else moveTo(target);
+  }
+
+  function reviewBlock(blockId: string) {
+    if (openSession()) {
+      if (localStorage.getItem(`tessera.review-block.${openSession()!.id}`) !== blockId) setSwitching({ anchor: deckTrigger, target: { deckId: null, sessionId: null, blockId } });
+      return;
+    }
+    void startBlockReview(blockId);
+  }
+
+  async function startBlockReview(blockId: string) {
+    const id = ulid();
+    generation++; setPending('Starting review…'); setCommandError(''); recover = false;
+    try {
+      // Store only the block, never a copied card definition or schedule. Its cards are due or not.
+      localStorage.setItem(`tessera.review-block.${id}`, blockId);
+      await props.notebook.commit([{ op: 'start_review_session', id, deck_id: null, started_at: Date.now() }], 'Review block cards');
+      if (!disposed) moveTo({ deckId: null, sessionId: id, selection: 'all' });
+    } catch (reason) {
+      if (!disposed) setCommandError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      if (!disposed) { setPending(''); setRetry(value => value + 1); }
+    }
+  }
+
   async function backToToday() {
     if (!done() || locked() || loading() || disposed) return;
     const pageId = await props.notebook.today();
@@ -465,7 +517,7 @@ export function ReviewPane(props: ReviewPaneProps) {
     } finally { doc.release(); }
   }
 
-  const deckName = createMemo(() => deckId() ? selectedDeck()?.name ?? 'Unavailable deck' : 'All cards');
+  const deckName = createMemo(() => scope() ?? (deckId() ? selectedDeck()?.name ?? 'Unavailable deck' : 'All cards'));
   return <div class="review-pane" classList={{ 'review-session-active': sessionActive(), 'review-session-done': done() }} data-pane={props.pane} role="region" aria-label="Review" tabIndex={0} onFocusIn={props.onActivate} onPointerDown={props.onActivate} onKeyDown={keydown}>
     <header class="review-header">
       <div class="review-heading">

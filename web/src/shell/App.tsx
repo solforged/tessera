@@ -218,8 +218,9 @@ export function App() {
     }
     const current = entry(pane);
     if (target.kind === 'review' && current?.target.kind === 'review' && 'deckId' in current.view) {
-      const next = restore && 'deckId' in restore ? { ...restore } : { deckId: target.deckId ?? null, sessionId: null, selection: null, scroll: 0 };
-      if (restore || next.deckId !== current.view.deckId) changeView(pane, next);
+      // A block request keeps the open review in place so the pane can ask before leaving it.
+      const next = restore && 'deckId' in restore ? { ...restore } : target.blockId ? { ...current.view, blockId: target.blockId } : { deckId: target.deckId ?? null, sessionId: null, selection: null, scroll: 0 };
+      if (restore || target.blockId || next.deckId !== current.view.deckId) changeView(pane, next);
       setActive(pane); setSidebar(false); focusPane(pane);
       return;
     }
@@ -230,7 +231,7 @@ export function App() {
       const view: PaneView = restore ? snapshotView(restore) : target.kind === 'table'
         ? { query: copyQuery(target.query), scroll: 0 }
         : target.kind === 'agenda' ? { date, mode: target.mode ?? (target.query || target.viewId ? 'tasks' : 'agenda'), query: { ...(target.query ? copyTaskQuery(target.query) : createTaskQuery(date)), context_date: date }, viewId: target.viewId ?? null, scroll: 0 }
-          : target.kind === 'review' ? { deckId: target.deckId ?? null, sessionId: null, selection: null, scroll: 0 }
+          : target.kind === 'review' ? { deckId: target.deckId ?? null, sessionId: null, selection: null, scroll: 0, ...(target.blockId ? { blockId: target.blockId } : {}) }
             : target.kind === 'fields' || target.kind === 'field' || target.kind === 'cards' || target.kind === 'settings' || target.kind === 'compare' || target.kind === 'index' ? { scroll: 0 }
               : target.kind === 'library' ? { view: null, tab: target.tab ?? 'inbox', text: '', sort: 'added', filters: { people: [], decades: [], publishers: [], languages: [] }, group: 'none', unprocessedOnly: true, colors: [], tags: [], scroll: 0 }
                 : target.kind === 'reader' ? { snapshotId: target.snapshotId ?? null, ordinal: -1, offset: 0 }

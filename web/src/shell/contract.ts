@@ -67,7 +67,8 @@ export type OpenTarget =
   | { kind: 'page'; pageId: string; blockId?: string; caretId?: string; caretOffset?: number; journalPeriod?: 'week' | 'month' | 'quarter' | 'year' }
   | { kind: 'table'; typeId: string | null; viewId: string | null; query: Query }
   | { kind: 'agenda'; date?: string; mode?: AgendaViewState['mode']; viewId?: string; query?: TaskQuery }
-  | { kind: 'review'; deckId?: string }
+  /** `blockId` starts a review of that block's cards. */
+  | { kind: 'review'; deckId?: string; blockId?: string }
   | { kind: 'fields'; typeId?: string }
   | { kind: 'field'; fieldId: string; previewKind?: FieldKind }
   | { kind: 'cards'; typeId: string; applyId?: string }
@@ -93,7 +94,8 @@ export interface SettingsViewState { scroll: number }
 export interface CompareViewState { scroll: number; comparison?: 'readings' | 'criteria'; chosen?: string[] | null }
 export interface IndexViewState { scroll: number }
 export interface AgendaViewState { date: string; mode: 'agenda' | 'week' | 'tasks'; query: TaskQuery; viewId: string | null; scroll: number }
-export interface ReviewViewState { deckId: string | null; sessionId: string | null; selection: CardSelection | null; scroll: number }
+/** `blockId` is a one-shot request to review that block's cards; the pane drops it once handled. */
+export interface ReviewViewState { deckId: string | null; sessionId: string | null; selection: CardSelection | null; scroll: number; blockId?: string }
 export type LibraryGroup = 'none' | 'author' | 'decade' | 'publisher' | 'language';
 export interface LibraryViewState { view: string | null; collection?: string | null; tab: LibraryTab; text: string; sort: 'added' | 'title' | 'author' | 'year' | 'last_read' | 'progress'; filters: LibraryFilters; group: LibraryGroup; unprocessedOnly: boolean; colors: string[]; tags: string[]; scroll: number }
 /** `ordinal` is the top passage; `offset` its pixel offset from the pane's top. */
