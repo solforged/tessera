@@ -125,7 +125,9 @@ impl Notebook {
             field_changes.before(&tx, operation)?;
             if matches!(
                 operation,
-                Operation::GradeCard { .. } | Operation::ResetCard { .. }
+                Operation::GradeCard { .. }
+                    | Operation::ResetCard { .. }
+                    | Operation::SetCardHeld { .. }
             ) {
                 engine.derive_tags()?;
                 for revision in &engine.revisions {
@@ -1980,13 +1982,16 @@ impl Engine<'_, '_> {
             | Operation::FinishReviewSession { .. }
             | Operation::GradeCard { .. }
             | Operation::ResetCard { .. }
+            | Operation::SetCardHeld { .. }
             | Operation::SaveDeck { .. }
             | Operation::DeleteDeck { .. } => {
                 // A preceding text edit must invalidate stale shown definitions
-                // before a grade or reset checks the card's own revision.
+                // before a grade, reset or hold checks the card's own revision.
                 if matches!(
                     operation,
-                    Operation::GradeCard { .. } | Operation::ResetCard { .. }
+                    Operation::GradeCard { .. }
+                        | Operation::ResetCard { .. }
+                        | Operation::SetCardHeld { .. }
                 ) {
                     self.derive_cards()?;
                 }

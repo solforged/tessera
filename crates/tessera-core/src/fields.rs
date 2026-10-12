@@ -176,6 +176,7 @@ impl FieldChanges {
             | Operation::FinishReviewSession { .. }
             | Operation::GradeCard { .. }
             | Operation::ResetCard { .. }
+            | Operation::SetCardHeld { .. }
             | Operation::SaveDeck { .. }
             | Operation::DeleteDeck { .. }
             | Operation::SaveTaskView { .. }

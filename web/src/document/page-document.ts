@@ -11,6 +11,7 @@ import type { Action, Command, HistoryEntry, PageCommand, Snapshot } from './typ
 import { emptyCapabilities, isCapabilityAction, questionStatus, sameState, sourceState } from './types';
 import { parseCardText } from '../review/card-text';
 import { textTokens } from './text-tokens';
+import { newTask } from '../tasks/quick-date';
 
 export interface DocumentHost {
   ready: Promise<void>;
@@ -196,6 +197,17 @@ export class Document implements PageDocument {
       ? 'This task has completion or work history; delete it or keep it separate.'
       : 'Cannot merge away an active task, project, perspective, question, answer, or reviewed card.');
   }
+  receiveCardRevisions(cards: NonNullable<Committed['cards']>) {
+    if (!cards.length) return;
+    const revisions = new Map(cards.map(card => [card.id, card.revision]));
+    const actions = [
+      ...this.host.commands(this.pageId).filter(command => !command.frozen).flatMap(command => [...command.actions, ...command.inverse]),
+      ...[...this.undoStack, ...this.redoStack].flatMap(entry => [...entry.forward, ...entry.inverse]),
+    ];
+    for (const action of actions) if (action.kind === 'cardHeld' && revisions.has(action.id)) {
+      action.baseRevision = revisions.get(action.id)!;
+    }
+  }
   receiveCapabilities(values: readonly BlockCapabilities[]) {
     const received = new Set<string>();
     for (const value of values) {
@@ -264,6 +276,8 @@ export class Document implements PageDocument {
   private applyAction(action: Action, base = false): Action[] {
     const index = base ? this.baseOutline : this.outline;
     switch (action.kind) {
+      case 'cardHeld':
+        return [{ ...action, value: action.previous, previous: action.value }];
       case 'cardTemplate':
         return [{ ...action, value: action.previous, previous: action.value }];
       case 'task':
@@ -844,6 +858,13 @@ export class Document implements PageDocument {
       if (prefix || this.block(block.id)?.reviewedCards) throw new Error('This split would divide or move a card. Keep its source in one block.');
     };
     const split = (block: Block, prefix: string, suffix: string, zoomRoot?: string | null) => {
+      const task = this.block(block.id)?.task;
+      if (task && !prefix && !suffix && !this.outline.children(block.id).length) {
+        setText(block, '');
+        actions.push({ kind: 'task', id: block.id, value: null, previous: this.capabilities(block.id).task, baseRevision: block.revision });
+        caret = { id: block.id, offset: 0 };
+        return;
+      }
       if (block.heading !== null && !prefix && !suffix) {
         setText(block, '');
         actions.push({ kind: 'heading', id: block.id, heading: null });
@@ -852,12 +873,14 @@ export class Document implements PageDocument {
       }
       guardSplit(block, prefix, suffix);
       setText(block, prefix + suffix);
-      const child = zoomRoot === block.id || !suffix && this.outline.children(block.id).length > 0;
+      const child = zoomRoot === block.id || !suffix && (this.outline.children(block.id).length > 0
+        || parseCardText(block.text).cards.some(card => card.kind === 'multiline' || card.kind === 'list'));
       const id = insert(block.parent_id!, block.id, suffix, block.heading);
       const insertion = actions.pop() as Extract<Action, { kind: 'insert' }>;
       actions.push({ kind: 'split', id: block.id, block: insertion.block, left: prefix, right: suffix });
       if (child) actions.push({ kind: 'move', id, parentId: block.id, after: null });
       if (!suffix && block.heading !== null) actions.push({ kind: 'heading', id, heading: null });
+      if (task && (prefix || suffix)) actions.push({ kind: 'task', id, value: newTask(), previous: null, baseRevision: 0 });
       caret = { id, offset: 0 };
     };
     const paste = (block: Block, prefix: string, suffix: string, text: string, zoomRoot?: string | null) => {
@@ -954,6 +977,13 @@ export class Document implements PageDocument {
     };
     try {
       switch (edit.kind) {
+        case 'cardHeld': {
+          for (const card of edit.cards) {
+            if (!card.active || !this.block(card.source_block_id)) throw new Error('The card is no longer active on this page.');
+            if (card.held !== edit.held) actions.push({ kind: 'cardHeld', id: card.id, value: edit.held, previous: card.held, baseRevision: card.revision });
+          }
+          break;
+        }
         case 'cardTemplate': {
           if ((edit.value?.type_id ?? edit.previous?.type_id) !== this.pageId) throw new Error('Card templates belong to their type page.');
           const { previous, value } = edit;

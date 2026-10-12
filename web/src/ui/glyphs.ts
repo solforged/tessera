@@ -23,6 +23,7 @@ export const paths = {
   link: 'm6 10 4-4 M5 8 3 10a3 3 0 0 0 4 4l3-3 M6 5l3-3a3 3 0 0 1 4 4l-2 2',
   brokenLink: 'm1 1 14 14 M5 8l-2 2a3 3 0 0 0 4 4l1-1 M8 3l1-1a3 3 0 0 1 4 4l-1 1',
   copy: 'M5 5h9v10H5z M2 11V1h9', bullet: 'M10 8a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z',
+  card: 'M4.5 4h7A1.5 1.5 0 0 1 13 5.5v5a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 3 10.5v-5A1.5 1.5 0 0 1 4.5 4Z',
   archive: 'M1 2h14v3H1z M3 5v9h10V5 M6 8h4',
   table: 'M1 2h14v12H1z M1 6h14 M6 2v12 M11 6v8',
   field: 'M2 3h12 M2 8h8 M2 13h5 M12 10v5 M10 12h4',

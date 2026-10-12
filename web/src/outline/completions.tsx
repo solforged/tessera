@@ -15,7 +15,9 @@ import type { IconName } from '../ui/Icon';
 import { Popup } from '../ui/Popup';
 import { BlockBreadcrumb, BlockText } from './BlockText';
 import { completeReferences, openReferenceRange } from './completion';
-import { nextClozeNumber, rankSlash, slashTokenAt } from './slash';
+import { rankSlash, slashTokenAt } from './slash';
+import { insertCard } from './card-insert';
+import type { InsertCardKind } from './card-insert';
 import type { SlashEntry, SlashToken } from './slash';
 import { typeSpelling, typeTokenAt } from './type-completion';
 import { addFieldOption } from './source-fields';
@@ -35,6 +37,7 @@ interface SlashItem extends SlashEntry {
   when?(block: BlockState | undefined): boolean;
   disabledReason?(id: string): string | undefined;
   insert?(text: string): { text: string; caret: number };
+  cardKind?: InsertCardKind;
   run?(id: string): void;
 }
 type CompletionRow = { kind: 'block'; block: Block & Partial<Pick<NameCompletion, 'alias'>> } | { kind: 'field'; field: FieldDefinition } | { kind: 'option'; option: FieldDefinition['options'][number] };
@@ -157,12 +160,13 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     if (disabled) { setMessage(disabled); return; }
     const text = context.editor.view.state.doc.toString();
     const insertion = item.insert?.(text);
-    const next = insertion
+    const removed = removeToken(text, state);
+    const next = item.cardKind ? insertCard(removed.text, item.cardKind, removed.caret) : insertion
       ? { text: text.slice(0, state.from) + insertion.text + text.slice(state.to), caret: state.from + insertion.caret }
-      : removeToken(text, state);
+      : removed;
     setSlashCompletion(null);
     if (!rewriteEditing(id, next)) return;
-    if (insertion) { updateCompletion(next.text, { id, offset: next.caret }); updateTriggers(next.text, { id, offset: next.caret }); }
+    if (insertion || item.cardKind) { updateCompletion(next.text, { id, offset: next.caret }); updateTriggers(next.text, { id, offset: next.caret }); }
     void doc.flush().catch(reason => capabilities.failure(id, reason));
     item.run?.(id);
     scheduleReport();
@@ -459,9 +463,12 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
       { id: 'heading-normal', title: 'Normal text', aliases: ['paragraph'], section: 'Text', icon: 'edit', when: block => !!block?.heading, run: id => apply({ kind: 'heading', id, level: null }) },
       { id: 'reference', title: 'Reference', aliases: ['link', 'page', 'mention'], section: 'Text', icon: 'link', keys: '[[', insert: () => ({ text: '[[', caret: 2 }) },
       { id: 'type', title: 'Type', aliases: ['tag', 'supertag'], section: 'Text', icon: 'tag', keys: '#', insert: () => ({ text: '#', caret: 1 }) },
-      { id: 'card', title: 'Card', aliases: ['flashcard'], section: 'Cards', icon: 'right', keys: '>>', insert: () => ({ text: '>> ', caret: 3 }) },
-      { id: 'reversible-card', title: 'Reversible card', aliases: ['both ways', 'flashcard'], section: 'Cards', icon: 'panes', keys: '<>', insert: () => ({ text: '<> ', caret: 3 }) },
-      { id: 'cloze', title: 'Cloze', aliases: ['blank', 'fill in', 'flashcard'], section: 'Cards', icon: 'select', keys: '{{c1::}}', insert: text => { const cloze = `{{c${nextClozeNumber(text)}::}}`; return { text: cloze, caret: cloze.length - 2 }; } },
+      { id: 'card', title: 'Card', aliases: ['flashcard'], section: 'Cards', icon: 'right', keys: '>>', cardKind: 'forward' },
+      { id: 'reverse-card', title: 'Reverse card', aliases: ['reverse', 'flashcard'], section: 'Cards', icon: 'left', keys: '<<', cardKind: 'reverse' },
+      { id: 'reversible-card', title: 'Reversible card', aliases: ['both ways', 'flashcard'], section: 'Cards', icon: 'panes', keys: '<>', cardKind: 'both' },
+      { id: 'multiline-card', title: 'Multi-line card', aliases: ['multi', 'multiline', 'flashcard'], section: 'Cards', icon: 'down', keys: '>>>', cardKind: 'multiline' },
+      { id: 'list-card', title: 'List card', aliases: ['list', 'flashcard'], section: 'Cards', icon: 'down', keys: '>>1.', cardKind: 'list' },
+      { id: 'cloze', title: 'Cloze', aliases: ['blank', 'fill in', 'flashcard'], section: 'Cards', icon: 'select', keys: '⌘⇧C', cardKind: 'cloze' },
       { id: 'zoom', title: 'Zoom in', aliases: ['focus'], section: 'Block', icon: 'bullet', keys: '⌘.', run: id => zoomTo(id) },
       { id: 'copy-reference', title: 'Copy reference', section: 'Block', icon: 'copy', run: id => copy(`[[${id}]]`) },
     ];

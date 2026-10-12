@@ -39,7 +39,7 @@ macro_rules! review_eligible {
                     json_extract(c.schedule, '$.last_reviewed_at') IS NULL AS is_new
                 FROM card_units c JOIN blocks b ON b.id = c.source_block_id
                 JOIN blocks p ON p.id = b.page_id
-                WHERE c.active = 1 AND b.deletion_id IS NULL AND p.deletion_id IS NULL
+                WHERE c.active = 1 AND c.held = 0 AND b.deletion_id IS NULL AND p.deletion_id IS NULL
                     AND b.rowid NOT IN (SELECT rowid FROM hidden)
                     AND (?1 IS NULL OR c.source_block_id IN (SELECT value FROM json_each(?1)))
             ) "
@@ -235,7 +235,6 @@ fn checked_card(conn: &Connection, id: &str, expected: i64, index: usize) -> Res
         Err(error) => return Err(error),
     };
     check_revision(id, expected, Some(card.revision), index)?;
-    visible_card(conn, &card)?;
     Ok(card)
 }
 
@@ -484,6 +483,10 @@ pub(crate) fn apply(
             reviewed_at,
         } => {
             let card = checked_card(conn, id, *base_revision, index)?;
+            visible_card(conn, &card)?;
+            if card.held {
+                return Err(validation("held cards cannot be graded"));
+            }
             if card.definition_revision != *definition_revision
                 || card.front != *shown_front
                 || card.back != *shown_back
@@ -504,6 +507,27 @@ pub(crate) fn apply(
                 seq,
             )?);
         }
+        Operation::SetCardHeld {
+            id,
+            base_revision,
+            held,
+        } => {
+            let card = checked_card(conn, id, *base_revision, index)?;
+            if !card.active {
+                return Err(validation("inactive cards cannot be held or released"));
+            }
+            if card.held != *held {
+                let revision = next_revision(card.revision)?;
+                conn.execute(
+                    "UPDATE card_units SET held = ?1, revision = ?2, updated_at = ?3 WHERE id = ?4",
+                    params![held, revision, now, id],
+                )?;
+                changes.cards.push(Revision {
+                    id: id.clone(),
+                    revision,
+                });
+            }
+        }
         Operation::ResetCard {
             id,
             base_revision,
@@ -512,6 +536,7 @@ pub(crate) fn apply(
             reviewed_at,
         } => {
             let card = checked_card(conn, id, *base_revision, index)?;
+            visible_card(conn, &card)?;
             changes.cards.push(write_review(
                 conn,
                 &card,

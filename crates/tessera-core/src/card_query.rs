@@ -82,7 +82,7 @@ impl Notebook {
             ", first_reviews AS (
                 SELECT c.key, c.id, MIN(e.created_at) AS first_at
                 FROM card_units c JOIN review_events e ON e.card_id = c.id AND e.kind = 'grade'
-                WHERE c.key LIKE 'tpl:%' GROUP BY c.id
+                WHERE c.key LIKE 'tpl:%' AND c.held = 0 GROUP BY c.id
             ), introduced AS (
                 SELECT key, COUNT(*) AS count FROM first_reviews
                 WHERE first_at >= ?5 AND first_at < ?6 GROUP BY key
@@ -100,7 +100,7 @@ impl Notebook {
                 JOIN blocks p ON p.id = b.page_id
                 LEFT JOIN card_templates t ON c.key = 'tpl:' || t.id
                 LEFT JOIN introduced i ON i.key = c.key
-                WHERE c.active = 1 AND b.deletion_id IS NULL AND p.deletion_id IS NULL
+                WHERE c.active = 1 AND c.held = 0 AND b.deletion_id IS NULL AND p.deletion_id IS NULL
                     AND b.rowid NOT IN (SELECT rowid FROM hidden)
                     AND (?1 = 'all'
                         OR (?1 = 'due' AND json_extract(c.schedule, '$.due_at') <= ?2)
@@ -121,7 +121,7 @@ impl Notebook {
                 WHERE e.kind = 'grade'
             )
             SELECT c.id, c.source_block_id, c.key, c.kind, c.active,
-                c.definition_revision, c.front, c.back, c.revision, c.schedule, ",
+                c.definition_revision, c.front, c.back, c.revision, c.schedule, c.held, ",
             block_columns!("b"),
             ", ",
             block_columns!("p"),
@@ -152,30 +152,30 @@ impl Notebook {
         let mut rows = Vec::new();
         let mut total = 0;
         while let Some(row) = cursor.next()? {
-            // Ten card columns, two ten-column blocks, then thirteen event columns.
-            total = row.get::<_, i64>(43)? as usize;
+            // Eleven card columns, two ten-column blocks, then thirteen event columns.
+            total = row.get::<_, i64>(44)? as usize;
             if matches!(row.get_ref(0)?, rusqlite::types::ValueRef::Null) {
                 continue;
             }
-            let last_review = if matches!(row.get_ref(30)?, rusqlite::types::ValueRef::Null) {
+            let last_review = if matches!(row.get_ref(31)?, rusqlite::types::ValueRef::Null) {
                 None
             } else {
-                Some(review_event_at(row, 30)?)
+                Some(review_event_at(row, 31)?)
             };
             let mut card = card_at(row, 0)?;
-            if let Some(id) = row.get::<_, Option<String>>(44)? {
+            if let Some(id) = row.get::<_, Option<String>>(45)? {
                 card.template = Some(crate::CardTemplateProvenance {
                     id,
-                    name: row.get(45)?,
-                    type_id: row.get(46)?,
-                    type_name: row.get(47)?,
+                    name: row.get(46)?,
+                    type_id: row.get(47)?,
+                    type_name: row.get(48)?,
                 });
             }
             rows.push(CardRow {
                 card,
                 source: BlockInPage {
-                    block: block_at(row, 10)?,
-                    page: block_at(row, 20)?,
+                    block: block_at(row, 11)?,
+                    page: block_at(row, 21)?,
                 },
                 last_review,
             });

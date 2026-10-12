@@ -45,6 +45,7 @@ export function sameState(left: unknown, right: unknown): boolean {
 export type Action =
   | CapabilityAction
   | { kind: 'cardTemplate'; id: string; value: CardTemplateState | null; previous: CardTemplateState | null; baseRevision: number }
+  | { kind: 'cardHeld'; id: string; value: boolean; previous: boolean; baseRevision: number }
   | { kind: 'split'; id: string; block: Block; left: string; right: string }
   | { kind: 'merge'; id: string; destinationId: string; text: string }
   | { kind: 'text'; id: string; text: string; baseRevision?: number }

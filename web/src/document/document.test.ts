@@ -76,6 +76,37 @@ afterAll(async () => {
 });
 
 describe('real notebook operations and recovery', () => {
+  test('card holds undo and redo after definition edits without changing source revisions', async () => {
+    const instance = await client();
+    const { doc, first } = await page(instance, 'Front <> Back');
+    const original = await api.sourceCards(first);
+    const sourceRevision = doc.block(first)!.revision;
+    success(doc.edit({ kind: 'cardHeld', cards: original, held: true }));
+    await doc.flush();
+    expect((await api.sourceCards(first)).every(card => card.held)).toBe(true);
+    expect(doc.block(first)!.revision).toBe(sourceRevision);
+    doc.undo(); await doc.flush();
+    expect((await api.sourceCards(first)).every(card => !card.held)).toBe(true);
+    doc.redo(); await doc.flush();
+    expect((await api.sourceCards(first)).every(card => card.held)).toBe(true);
+    success(doc.edit({ kind: 'text', id: first, text: 'Front <> Changed answer' }));
+    await doc.flush();
+    expect((await api.sourceCards(first)).every(card => card.held)).toBe(true);
+    doc.undo(); await doc.flush();
+    doc.undo(); await doc.flush();
+    const undone = await api.sourceCards(first);
+    expect(undone.every(card => !card.held)).toBe(true);
+    expect(undone.map(card => card.schedule)).toEqual(original.map(card => card.schedule));
+    doc.redo(); await doc.flush();
+    expect((await api.sourceCards(first)).every(card => card.held)).toBe(true);
+    const held = (await api.sourceCards(first))[0]!;
+    await instance.commit([{ op: 'reset_card', id: held.id, base_revision: held.revision, event_id: ulid(), session_id: null, reviewed_at: Date.now() }]);
+    expect((await api.sourceCards(first)).every(card => card.held)).toBe(true);
+    doc.undo(); await doc.flush();
+    expect((await api.sourceCards(first)).every(card => !card.held)).toBe(true);
+    doc.release();
+  });
+
   test('card template no-op saves do not enqueue empty batches and Apply travels through history', async () => {
     const instance = await client();
     const { id, doc } = await page(instance);
@@ -1903,7 +1934,7 @@ describe('durable Action and Learning document commands', () => {
       expect(bodies.some(batch => batch.operations.some(operation => operation.op === 'split'))).toBe(true);
       expect(doc.block(source)?.task).toEqual(todo);
       expect(doc.block(source)?.project).toEqual(project);
-      expect(doc.block(sibling)?.task).toBeNull();
+      expect(doc.block(sibling)?.task).toEqual(todo);
       expect(doc.block(sibling)?.project).toBeNull();
       const range = { anchor: { id: first, offset: 2 }, head: { id: source, offset: 2 } };
       expect(doc.edit({ kind: 'deleteRange', range, between: [] }).ok).toBe(false);
@@ -1926,6 +1957,7 @@ describe('durable Action and Learning document commands', () => {
       await doc.flush();
       expect(doc.block(source)?.reviewedCards).toBe(true);
       expect(doc.edit({ kind: 'merge', sourceId: source, destinationId: first }).ok).toBe(false);
+      success(doc.edit({ kind: 'task', id: sibling, value: null }));
       success(doc.edit({ kind: 'merge', sourceId: sibling, destinationId: source }));
       await doc.flush();
       expect(bodies.some(batch => batch.operations.some(operation => operation.op === 'merge'))).toBe(true);

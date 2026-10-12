@@ -769,3 +769,208 @@ fn previews_keep_current_and_reset_progress_distinct_without_writing() {
     assert_eq!(nb.card(&original.id).unwrap(), current);
     assert_eq!(nb.review_events(&original.id).unwrap(), history);
 }
+
+fn hold(card: &CardUnit, held: bool) -> Operation {
+    Operation::SetCardHeld {
+        id: card.id.clone(),
+        base_revision: card.revision,
+        held,
+    }
+}
+
+#[test]
+fn held_cards_leave_all_queues_counts_and_forecasts_without_changing_schedule() {
+    let (_dir, mut nb, original) = fixture();
+    let now = tessera_core::now_ms();
+    let date = nb.today(now).unwrap();
+    let query = CardQuery {
+        source: None,
+        selection: CardSelection::All,
+        limit: None,
+    };
+    apply(
+        &mut nb,
+        vec![save_deck(200, None, "Held scope", query.clone())],
+    );
+    assert!(!original.held);
+    assert_eq!(nb.review_stats(None, &date).unwrap().due_new, 1);
+    apply(&mut nb, vec![hold(&original, true)]);
+    let held = nb.card(&original.id).unwrap();
+    assert_eq!(held.schedule, original.schedule);
+    assert_eq!(held.definition_revision, original.definition_revision);
+    assert_eq!(held.revision, original.revision + 1);
+    for selection in [CardSelection::All, CardSelection::New, CardSelection::Due] {
+        let result = nb
+            .card_query(
+                &CardQuery {
+                    selection,
+                    ..query.clone()
+                },
+                now,
+            )
+            .unwrap();
+        assert_eq!(result.total, 0);
+        assert!(result.rows.is_empty());
+    }
+    for deck in [None, Some(id(200))] {
+        let stats = nb.review_stats(deck.as_deref(), &date).unwrap();
+        assert_eq!(
+            (stats.due_new, stats.due_review, stats.total_cards),
+            (0, 0, 0)
+        );
+        assert!(stats.forecast.iter().all(|day| day.count == 0));
+    }
+    invalid(&mut nb, grade(&held, 101, None, false, now));
+    invalid(&mut nb, grade(&held, 102, None, true, now));
+    assert!(nb.review_events(&held.id).unwrap().is_empty());
+    apply(&mut nb, vec![hold(&held, false)]);
+    let released = nb.card(&held.id).unwrap();
+    assert_eq!(released.schedule, original.schedule);
+    assert_eq!(
+        nb.card_query(
+            &CardQuery {
+                selection: CardSelection::New,
+                ..query.clone()
+            },
+            now
+        )
+        .unwrap()
+        .total,
+        1
+    );
+
+    apply(&mut nb, vec![grade(&released, 103, None, false, now)]);
+    let reviewed = nb.card(&held.id).unwrap();
+    let due = reviewed.schedule.due_at;
+    apply(&mut nb, vec![hold(&reviewed, true)]);
+    assert_eq!(
+        nb.card_query(
+            &CardQuery {
+                selection: CardSelection::Due,
+                ..query.clone()
+            },
+            due
+        )
+        .unwrap()
+        .total,
+        0
+    );
+    let paused = nb.card(&held.id).unwrap();
+    apply(&mut nb, vec![hold(&paused, false)]);
+    assert_eq!(nb.card(&held.id).unwrap().schedule, reviewed.schedule);
+    assert_eq!(
+        nb.card_query(
+            &CardQuery {
+                selection: CardSelection::Due,
+                ..query.clone()
+            },
+            due - 1
+        )
+        .unwrap()
+        .total,
+        0
+    );
+    assert_eq!(
+        nb.card_query(
+            &CardQuery {
+                selection: CardSelection::Due,
+                ..query
+            },
+            due
+        )
+        .unwrap()
+        .total,
+        1
+    );
+}
+
+#[test]
+fn hold_survives_definition_changes_reactivation_and_reset_and_rejects_stale_writes() {
+    let (dir, mut nb, original) = fixture();
+    let stamp = tessera_core::ChangeStamp {
+        id: id(900),
+        origin: nb.info().unwrap().id,
+        at: 123456,
+    };
+    nb.apply_stamped(&batch(vec![hold(&original, true)]), &stamp)
+        .unwrap();
+    let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
+    let updated_at: i64 = conn
+        .query_row(
+            "SELECT updated_at FROM card_units WHERE id = ?1",
+            [&original.id],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(updated_at, stamp.at);
+    assert!(matches!(
+        nb.apply(&batch(vec![hold(&original, false)])),
+        Err(Error::Conflict { .. })
+    ));
+    for text in [
+        "Capital of Japan? >> Tokyo",
+        "No card here",
+        "Capital of Japan? >> Edo",
+    ] {
+        let operation = edit(&nb, text);
+        apply(&mut nb, vec![operation]);
+        let current = nb.card(&original.id).unwrap();
+        assert!(current.held);
+        assert_eq!(current.schedule, original.schedule);
+        if !current.active {
+            invalid(&mut nb, hold(&current, false));
+        }
+    }
+    let current = nb.card(&original.id).unwrap();
+    apply(&mut nb, vec![reset(&current, 104, None, 234567)]);
+    let reset_card = nb.card(&original.id).unwrap();
+    assert!(reset_card.held);
+    assert_eq!(reset_card.schedule.last_reviewed_at, None);
+    // The inverse and its inverse change only the flag, not the restored definition or schedule.
+    apply(&mut nb, vec![hold(&reset_card, false)]);
+    let undone = nb.card(&original.id).unwrap();
+    assert!(!undone.held);
+    apply(&mut nb, vec![hold(&undone, true)]);
+    let redone = nb.card(&original.id).unwrap();
+    assert!(redone.held);
+    assert_eq!(redone.schedule, reset_card.schedule);
+    assert_eq!(redone.definition_revision, reset_card.definition_revision);
+    let noop = apply(&mut nb, vec![hold(&redone, true)]);
+    assert!(noop.cards.is_empty());
+    assert_eq!(nb.card(&redone.id).unwrap().revision, redone.revision);
+}
+
+#[test]
+fn releasing_a_new_card_preserves_its_original_queue_order() {
+    let (_dir, mut nb, first) = fixture();
+    apply(
+        &mut nb,
+        vec![Operation::Insert {
+            id: id(3),
+            parent_id: id(1),
+            after: Some(id(2)),
+            text: "Second >> Answer".into(),
+            heading: None,
+        }],
+    );
+    let query = CardQuery {
+        source: None,
+        selection: CardSelection::New,
+        limit: None,
+    };
+    let now = tessera_core::now_ms();
+    let order = |nb: &Notebook| {
+        nb.card_query(&query, now)
+            .unwrap()
+            .rows
+            .into_iter()
+            .map(|row| row.card.id)
+            .collect::<Vec<_>>()
+    };
+    let before = order(&nb);
+    apply(&mut nb, vec![hold(&first, true)]);
+    assert_eq!(order(&nb).len(), 1);
+    let current = nb.card(&first.id).unwrap();
+    apply(&mut nb, vec![hold(&current, false)]);
+    assert_eq!(order(&nb), before);
+}
