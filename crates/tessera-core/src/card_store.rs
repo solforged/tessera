@@ -152,8 +152,7 @@ pub(crate) fn derive_sources(conn: &Connection, ids: &[String], now: i64) -> Res
         return Ok(Vec::new());
     }
     // Child edits, moves, deletion, restoration and reordering invalidate every
-    // ancestor definition, not just cards on the edited row itself. A descriptor's
-    // front names its parent, so a parent's edit re-derives descriptor children too.
+    // ancestor definition, not just cards on the edited row itself.
     let ids = serde_json::to_string(ids).expect("source IDs serialize");
     let ids = conn
         .prepare_cached(
@@ -162,11 +161,7 @@ pub(crate) fn derive_sources(conn: &Connection, ids: &[String], now: i64) -> Res
              UNION
              SELECT b.parent_id FROM blocks b JOIN affected a ON b.id = a.id
              WHERE b.parent_id IS NOT NULL
-         ) SELECT id FROM affected
-         UNION
-         SELECT b.id FROM blocks b JOIN json_each(?1) j ON b.parent_id = j.value
-         WHERE instr(b.text, ';;') > 0
-         ORDER BY id",
+         ) SELECT id FROM affected ORDER BY id",
         )?
         .query_map([ids], |row| row.get::<_, String>(0))?
         .collect::<rusqlite::Result<Vec<_>>>()?;
