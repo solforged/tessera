@@ -30,11 +30,11 @@ Rows read as a ledger on one 28 px line:
 - The title precedes the byline in `--muted` (creators, else site). The byline truncates before the title.
 - Trailing fixed-width mono columns show year, progress and the unprocessed highlight count, so figures line up across rows.
 
-Progress pairs a short gilt bar with its percentage. A Reading source at zero reads `Not started`; Inbox and Abandoned sources leave the column blank rather than repeat it on every row. A finished source shows `Finished` with its state-change date when recorded, never a percentage. All and saved views spanning several states add a state column (`Inbox`, `Reading`, `Finished`, `Abandoned`) in `--faint` before the year.
+Progress pairs a short gilt bar with its percentage. A Reading source at zero reads `Not started`; Inbox and Abandoned sources leave the column blank rather than repeat it on every row. A finished source shows only its state-change date (`Oct 11`, named `Finished Oct 11` on hover), never a percentage, since the tab or the state column already says Finished. All and saved views spanning several states add a state column (`Inbox`, `Reading`, `Finished`, `Abandoned`) in `--faint` before the year.
 
 In a pane narrower than 560 px on a wide screen, the state and year columns step aside and progress keeps only its number, so the title keeps its room.
 
-The leading slot shows a selection checkbox on hover, focus, or while any row is selected. A selected row takes `--selection` and the accent bar. While rows are selected, a bar of the same height replaces the search line: the count, Details, Browse, Mark as (one batch for all of them), Export, Add to collection…, Delete and Clear selection. Escape clears.
+The leading slot shows a selection checkbox on hover, focus, or while any row is selected. A selected row takes `--selection` and the accent bar. While rows are selected, a bar of the same height replaces the search line: the count, Details (while the catalogue card is closed), Browse, Mark as (one batch for all of them), Export, Add to collection…, Delete and Clear selection. Beside an open card, a ledger narrower than 840 px (1000 px inside a collection, which adds Remove from collection) shows Browse, Export, Add to collection, Delete and Clear selection as glyphs named in tooltips, and Remove without its object, so the bar stays one line. Escape clears.
 
 Clicking a row opens the source page; Shift opens it beside. On a wide touch screen, opening a book uses the other pane so the list and detail stay across the hinge. The opened book keeps a quiet current-page marker.
 
@@ -97,9 +97,9 @@ The Works heading and shelf share the page title's left edge. Works and its coun
 
 ### Reading now
 
-Reading now leads the unsearched, unfiltered Reading and All tabs with one card for every Reading source, including books not yet started, most recently read first. Other tabs list only their own state. On the Reading tab the cards replace the rows, which would repeat them; a search, filter or saved view brings the rows back. Each card reads top-down:
+Reading now leads the unsearched, unfiltered Reading and All tabs with one card for every Reading source, including books not yet started, in the toolbar's sort order. Other tabs list only their own state. On the Reading tab the cards are the list: they replace the rows in the ungrouped List layout, while Shelf shows the covers and a grouping shows grouped rows instead; a search, filter or saved view brings the rows back. Each card reads top-down:
 
-- Its real cover or spine tile beside the title on up to two lines, the author and the current chapter (`4 · Deus Vult!`; `Not started` before any reading, `Reading position` in front matter).
+- Its real cover or spine tile, 56 px wide, beside the title on up to three lines, the author and the current chapter (`4 · Deus Vult!`; `Not started` before any reading, `Reading position` in front matter). Three cards across the measure leave room for a title such as *A Social History of Western Political Thought* in full.
 - Under the cover, spanning the card, the segmented chapter map, then `N min left` inside a named chapter (the full `N min left in chapter` on hover) and the book's percentage on one line. The maps sit at the cards' feet, level across a row.
 
 On the Reading tab a card's top corner selects it, like a shelf cover.
@@ -152,7 +152,7 @@ Browse steps aside while inspecting and its named button brings it back. Closing
 
 | Context | Inspector layout |
 | --- | --- |
-| Below the width needed for the list and card | Details replaces the list with Back to N sources; returning keeps the query, selection and scroll. |
+| Below 1000 px, the width needed for the list, its one-line selection bar and the card | Details replaces the list with Back to N sources; returning keeps the query, selection and scroll. |
 | Touch cover screen under 600 px | Source actions or a long press opens a 70% bottom sheet with an 85% expanded stop, independent group folds and 44 px targets. The sheet resizes above the keyboard. |
 
 ### Catalogue groups

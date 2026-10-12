@@ -93,6 +93,7 @@
   --shelf-cover-width: 112px; /* narrowest cover in the Library shelf; columns share any spare width */
   --resume-cover-width: 36px; /* covers in the Library's Continue reading strip */
   --work-cover-width: 72px;   /* covers in the Works shelf on a person's page */
+  --reading-cover-width: 56px; /* covers on Reading now cards, leaving three cards across room for three-line titles */
   --sidebar-width: 208px;
   --rail-height: 48px;
   --window-controls-width: 84px; /* the macOS window buttons over the rail's left end in the desktop app */

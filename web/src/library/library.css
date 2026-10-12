@@ -27,6 +27,9 @@
 /* A half pane wraps the same way, so the search keeps its width instead of shrinking to nothing beside the controls. */
 @container library-pane (max-width: 560px) { .library-controls { flex-wrap: wrap; } .library-search { flex: 1 0 100%; } .library-sort-group, .library-export-label { display: none; } }
 .library-selection-count { font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
+/* Beside an open catalogue card the ledger is narrow; the selection's actions drop their names to glyphs and tooltips so the bar stays one line. A collection's extra Remove needs the room sooner. */
+@container library-ledger (max-width: 840px) { .library-action-label { display: none; } .library-controls:has(.library-selection-count) { gap: var(--space-4); } }
+@container library-ledger (max-width: 1000px) { .library-controls:has(.library-remove-member) .library-action-label { display: none; } .library-controls:has(.library-remove-member) { gap: var(--space-4); } }
 /* A stable gutter matches the toolbar's, whether or not the list overflows. */
 .library-scroll { flex: 1; min-height: 0; overflow: auto; padding: 0 var(--pane-inset) var(--page-bottom-space); scrollbar-gutter: stable; }
 .library-count, .library-progress, .library-highlight-count { display: inline-flex; align-items: center; gap: var(--space-4); flex-shrink: 0; font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); color: var(--muted); }
@@ -270,14 +273,14 @@
 .library-reading-books { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--shelf-cover-width) * 2)), 1fr)); gap: var(--card-gap); }
 .library-reading-card.button { display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: var(--space-8); width: 100%; height: 100%; padding: var(--card-padding); border: var(--rule-width) solid var(--line); border-radius: var(--space-8); background: var(--raised); white-space: normal; font-weight: var(--weight-body); text-align: left; }
 /* Cover and text read top-down; the map and its figures sit at the card's foot, level across a row of cards. */
-.library-reading-head { display: flex; flex: 1; align-items: flex-start; gap: var(--card-gap); min-width: 0; }
+.library-reading-head { display: flex; flex: 1; align-items: flex-start; gap: var(--space-12); min-width: 0; }
 .library-reading-card.button:hover:not(:disabled) { background: var(--hover); border-color: var(--control-border); }
 .library-reading-card.library-reading-current { border-color: var(--accent); }
-.library-reading-card .library-cover { flex: none; align-self: flex-start; width: var(--work-cover-width); }
-.library-reading-card .library-spine { align-items: flex-start; justify-content: center; padding: var(--space-12); }
+.library-reading-card .library-cover { flex: none; align-self: flex-start; width: var(--reading-cover-width); }
+.library-reading-card .library-spine { align-items: flex-start; justify-content: center; padding: var(--space-8); }
 .library-reading-card .library-spine-title { display: none; }
 .library-reading-text { display: flex; flex: 1; flex-direction: column; gap: var(--space-4); min-width: 0; }
-.library-reading-title { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; color: var(--text); font: var(--weight-source-title) var(--text-gloss)/var(--line-source-title) var(--font-display); font-variation-settings: var(--optical-quote); }
+.library-reading-title { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; color: var(--text); font: var(--weight-source-title) var(--text-gloss)/var(--line-source-title) var(--font-display); font-variation-settings: var(--optical-quote); }
 .library-reading-author, .library-reading-chapter { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
 .library-reading-chapter { padding-top: var(--space-8); }
 .library-reading-card > .book-map { margin-top: var(--space-4); }
@@ -381,7 +384,7 @@
 }
 /* Selection opens a catalogue card without narrowing the ledger's reading face. */
 .library-catalogue { display: flex; flex: 1; min-width: 0; min-height: 0; }
-.library-ledger { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; }
+.library-ledger { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; container: library-ledger / inline-size; }
 .library-inspector-host { display: flex; flex: 0 0 460px; flex-direction: column; min-width: 0; min-height: 0; border-left: 1px solid var(--line); background: var(--canvas); }
 .library-inspecting .library-toolbar > *, .library-inspecting .library-scroll > .library-main { max-width: none; margin-inline: 0; }
 .library-inspecting .library-scroll { display: block; }
