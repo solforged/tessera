@@ -149,9 +149,9 @@ Whether some references should freeze a quotation instead of following edits is 
 
 ## Types and fields
 
-A block can have many types. Membership records whether it came from the text (`#book`) or was added manually; either keeps it.
+A type is an ordinary page used as the target of memberships. A block can have many types. Membership records whether it came from the text (`#book`) or was added manually; either keeps it.
 
-A field definition is a block on the Fields system page, which every notebook has:
+A field definition is a block under the live page titled `Fields`, the system page every notebook has:
 
 - Its name is the block's text.
 - Its kind is text, number, date, checkbox, choice, instance, URL or identifier; the default is text.
@@ -563,7 +563,7 @@ A descriptor `Function ;; makes ATP` asks its name in its parent's context. Unde
 
 An empty parent makes no descriptor card. Editing the parent changes the front without resetting progress.
 
-The front must be non-empty. `::` remains field shorthand. Numbered clozes use `{{c1::answer}}` or `{{c1::answer::hint}}`; repeated numbers form one unit.
+The front must be non-empty. `::` remains field shorthand. A source block uses one direction operator, or numbered clozes. Numbered clozes use `{{c1::answer}}` or `{{c1::answer::hint}}`; repeated numbers form one unit, whose front masks that group's answers and reveals the other groups.
 
 Escapes, code and references shield literal syntax. Mixed or malformed operators produce diagnostics, not guessed cards.
 
