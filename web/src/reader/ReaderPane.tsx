@@ -248,12 +248,13 @@ export function ReaderPane(props: ReaderPaneProps) {
   /**
    * Full screen and the cover screen read with the chrome out of the way: the masthead, toolbar and book map fade
    * after the mouse rests (full screen with a mouse) or on a centre tap (touch), and return on movement, focus, a
-   * popup or another tap. In full screen they keep their room, so the text never reflows; the line under the map stays.
-   * On the cover screen they lie over the page instead, so the page has the whole screen; they go once the book opens
-   * and whenever the reading moves on, so they never cover what comes next.
+   * popup or another tap. With a mouse they keep their room, so the text never reflows; the line under the map stays.
+   * On touch (the cover screen, or full screen on a touch screen) they lie over the page instead, so the page has the
+   * whole screen; they go once the book opens and whenever the reading moves on, so they never cover what comes next.
    */
   const [coverReading, setCoverReading] = createSignal(coverScreen.matches);
   const chromeHides = () => props.immersive || coverReading();
+  const chromeOverlays = () => coverReading() || props.immersive && coarsePointer.matches;
   const [chromeHidden, setChromeHidden] = createSignal(false);
   let chromeTimer = 0, keyboardFocus = false;
   function showChrome(idle: boolean) {
@@ -279,7 +280,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     setSystemBarsHidden(true);
     onCleanup(() => setSystemBarsHidden(false));
   });
-  createEffect(on([loading, firstVisible, pageIndex, chunk], () => { if (coverReading() && !loading()) hideChrome(); }, { defer: true }));
+  createEffect(on([loading, firstVisible, pageIndex, chunk], () => { if (chromeOverlays() && !loading()) hideChrome(); }, { defer: true }));
   // WebKit sends pointermove when the page turns under a resting mouse; only a real move shows the chrome.
   let lastPointer = '';
   function pointerMoved(event: PointerEvent) {
@@ -768,7 +769,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     clearTimeout(positionTimer);
     if (!suppressed && userScroll) positionTimer = window.setTimeout(() => { void savePosition(); }, 2000);
     if (!editing() && !rewritingSelection) setSelection(null);
-    if (userScroll && coverReading()) hideChrome();
+    if (userScroll && chromeOverlays()) hideChrome();
   }
 
   createEffect(() => {
@@ -1312,7 +1313,7 @@ export function ReaderPane(props: ReaderPaneProps) {
 
   /** In Pages the toolbar and the foot span the spread; in Scroll they keep the reading measure. */
   const spreadWidth = () => paged() && pageFrame().width ? `${pageFrame().width}px` : undefined;
-  return <div class="reader-pane" classList={{ 'reader-chrome-hidden': chromeHides() && chromeHidden(), 'reader-loading': loading() }} style={readerStyle()} onPointerDown={props.onActivate}
+  return <div class="reader-pane" classList={{ 'reader-chrome-hidden': chromeHides() && chromeHidden(), 'reader-chrome-over': chromeOverlays(), 'reader-loading': loading() }} style={readerStyle()} onPointerDown={props.onActivate}
     onFocusIn={props.onActivate} onPointerMove={pointerMoved}>
     {/* The cover screen hides the pane header and bottom nav while reading; the book's name heads the page instead. */}
     <div class="reader-masthead">
