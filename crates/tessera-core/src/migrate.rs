@@ -66,7 +66,7 @@ pub(crate) fn migrate(conn: &mut Connection) -> Result<()> {
     for sql in &MIGRATIONS[found as usize..] {
         tx.execute_batch(sql)?;
     }
-    if found < 34 {
+    if found < 35 {
         crate::review_store::backfill_event_order(&tx)?;
     }
     if found < 7 {

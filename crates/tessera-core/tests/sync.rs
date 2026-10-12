@@ -1491,7 +1491,7 @@ fn downgrade_review_order(conn: &Connection) {
          DROP INDEX review_events_card_order;
          DROP INDEX review_events_session_order;
          ALTER TABLE review_events DROP COLUMN event_order;
-         PRAGMA user_version = 33;",
+         PRAGMA user_version = 34;",
     )
     .unwrap();
 }
@@ -1593,7 +1593,7 @@ fn review_upgrade_recovers_same_batch_order_despite_different_replica_rowids() {
 }
 
 #[test]
-fn retained_v33_review_patch_is_ordered_before_it_can_be_undone_after_upgrade() {
+fn retained_pre_undo_review_patch_is_ordered_before_it_can_be_undone_after_upgrade() {
     let mut p = pair_with(|hub| {
         let operation = edit(hub, &id(2), "First >> Answer");
         apply(hub, vec![operation]);
@@ -1645,7 +1645,7 @@ fn retained_v33_review_patch_is_ordered_before_it_can_be_undone_after_upgrade() 
         for table in ["changes", "review_events", "card_units"] {
             recording.attach(Some(table)).unwrap();
         }
-        // Record the actual grade's effect against schema 33, then roll it
+        // Record the actual grade's effect before undo support, then roll it
         // back so this replica still knows only the earlier grade at upgrade.
         conn.execute_batch("BEGIN IMMEDIATE").unwrap();
         conn.execute(
