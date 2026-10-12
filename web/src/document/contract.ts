@@ -276,7 +276,8 @@ export interface NotebookClient {
   settings(): SettingsView | undefined;
   refreshSettings(): Promise<void>;
   vim(): boolean;
-  setSetting(key: 'time_zone' | 'vim', value: string): Promise<void>;
+  confirmViewDelete(): boolean;
+  setSetting(key: 'time_zone' | 'vim' | 'confirm_view_delete', value: string): Promise<void>;
   settingsBusy(): boolean;
   settingsMessage(): string;
   canUndoSetting(): boolean;

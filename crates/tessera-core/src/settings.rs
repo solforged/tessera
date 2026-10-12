@@ -12,6 +12,8 @@ pub(crate) fn validate_setting(key: &str, value: &str) -> Result<()> {
         }
         "vim" if matches!(value, "true" | "false") => Ok(()),
         "vim" => Err(validation("vim must be true or false")),
+        "confirm_view_delete" if matches!(value, "true" | "false") => Ok(()),
+        "confirm_view_delete" => Err(validation("confirm_view_delete must be true or false")),
         _ => Err(validation(format!("unknown setting: {key}"))),
     }
 }

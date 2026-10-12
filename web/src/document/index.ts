@@ -22,7 +22,7 @@ export interface NotebookOptions {
   coalesceMs?: number;
 }
 
-type SettingEdit = { key: 'time_zone' | 'vim'; before: string; after: string; revision: number };
+type SettingEdit = { key: 'time_zone' | 'vim' | 'confirm_view_delete'; before: string; after: string; revision: number };
 
 /** Back and forward between a few pages reopens them without a reload; each warm page keeps its rows in memory. */
 const WARM_DOCUMENTS = 3;
@@ -96,6 +96,7 @@ export class Notebook implements NotebookClient, DocumentHost {
   private settingUndo: SettingEdit[] = [];
   private settingRedo: SettingEdit[] = [];
   vim = () => this.settings()?.settings.find(setting => setting.key === 'vim')?.value === 'true' || (!this.settings() && this.cachedVim[0]());
+  confirmViewDelete = () => this.settings()?.settings.find(setting => setting.key === 'confirm_view_delete')?.value !== 'false';
   settingsMessage = () => this.settingError[0]() ? `Couldn’t save · ${this.settingError[0]()}` : this.settingsBusy() ? 'Saving…' : this.connection() === 'offline' ? 'Offline' : 'Saved';
   canUndoSetting = () => { this.revision[0](); return !this.settingsBusy() && this.settingUndo.length > 0; };
   canRedoSetting = () => { this.revision[0](); return !this.settingsBusy() && this.settingRedo.length > 0; };
@@ -1192,7 +1193,7 @@ export class Notebook implements NotebookClient, DocumentHost {
     try { await this.refreshSettings(); } catch { this.connectionSignal[1]('offline'); }
     return this.journal(this.todayDate());
   }
-  private async writeSetting(key: 'time_zone' | 'vim', value: string, baseRevision: number | null) {
+  private async writeSetting(key: SettingEdit['key'], value: string, baseRevision: number | null) {
     const committed = await this.api.submit({
       actor: { kind: 'client', name: this.actorName },
       idempotency_key: ulid(),
@@ -1218,12 +1219,12 @@ export class Notebook implements NotebookClient, DocumentHost {
       throw error;
     } finally { this.settingBusy[1](false); this.touch(); }
   }
-  async setSetting(key: 'time_zone' | 'vim', value: string) {
+  async setSetting(key: SettingEdit['key'], value: string) {
     return this.settingAction(async () => {
       if (!this.settings()) await this.refreshSettings();
       const settings = this.settings()!;
       const current = settings.settings.find(setting => setting.key === key);
-      const before = current?.value ?? (key === 'vim' ? 'false' : settings.time_zone);
+      const before = current?.value ?? (key === 'vim' ? 'false' : key === 'confirm_view_delete' ? 'true' : settings.time_zone);
       if (current?.value === value) return;
       const revision = await this.writeSetting(key, value, current?.revision ?? null);
       this.settingUndo.push({ key, before, after: value, revision });

@@ -28,6 +28,7 @@ import type { TaskQueryLineContext } from './task-query-line';
 import { WeekCalendar } from './WeekCalendar';
 import { fetchWeekTaskRange, mergeWeekTaskRows, mondayWeekStart, shiftCalendarDate } from './week-calendar';
 import './agenda.css';
+import '../table/table.css';
 
 export interface AgendaPaneProps {
   pane: PaneId;
@@ -84,6 +85,9 @@ export function AgendaPane(props: AgendaPaneProps) {
   const [pickerSearch, setPickerSearch] = createSignal('');
   const [busy, setBusy] = createSignal(false);
   const [commandError, setCommandError] = createSignal('');
+  const [deleted, setDeleted] = createSignal<TaskView | null>(null);
+  let deletedTimer: ReturnType<typeof setTimeout> | undefined;
+  onCleanup(() => clearTimeout(deletedTimer));
   const [recentInput, setRecentInput] = createSignal(String(query().filter.recent_days));
   const [limitInput, setLimitInput] = createSignal(query().limit === null ? '' : String(query().limit));
   const [queryLineDirty, setQueryLineDirty] = createSignal(false);
@@ -280,7 +284,18 @@ export function AgendaPane(props: AgendaPaneProps) {
     setBusy(true); setCommandError('');
     try {
       await props.notebook.commit([{ op: 'delete_task_view', id: value.id, base_revision: value.revision }], 'Delete task view');
+      setDeleted(value);
+      clearTimeout(deletedTimer); deletedTimer = setTimeout(() => setDeleted(null), 10000);
       batch(() => { setSaved(null); setLatestSaved(null); update({ viewId: null }); setPopup(null); setRefresh(value => value + 1); });
+    } catch (reason) { setCommandError(reason instanceof Error ? reason.message : String(reason)); }
+    finally { setBusy(false); }
+  };
+  const undoDelete = async () => {
+    const value = deleted(); if (!value || busy()) return;
+    setBusy(true); setCommandError('');
+    try {
+      await props.notebook.commit([{ op: 'save_task_view', id: value.id, base_revision: null, name: value.name, query: value.query }], 'Restore task view');
+      setDeleted(null); selectView(value); setRefresh(value => value + 1);
     } catch (reason) { setCommandError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setBusy(false); }
   };
@@ -292,7 +307,7 @@ export function AgendaPane(props: AgendaPaneProps) {
         { label: 'Save changes', disabledReason: filterError() || (!dirty() ? 'No changes.' : undefined), action: () => { void saveView(value.name, value.id, value, false).catch(() => {}); } },
         { label: 'Rename…', action: () => setPopup({ kind: 'name', anchor, action: 'rename', id: value.id, saved: value }) },
         { label: 'Discard changes', disabledReason: !latestSaved() ? 'Saved view is unavailable.' : !dirty() && !filterError() ? 'No changes.' : undefined, action: discard },
-        { label: 'Delete view…', icon: 'trash' as const, danger: true, action: () => setPopup({ kind: 'delete', anchor, saved: value }) },
+        { label: props.notebook.confirmViewDelete() ? 'Delete view…' : 'Delete view', icon: 'trash' as const, danger: true, action: () => { if (props.notebook.confirmViewDelete()) setPopup({ kind: 'delete', anchor, saved: value }); else void deleteView(value); } },
       ] : []),
     ] });
   };
@@ -359,6 +374,7 @@ export function AgendaPane(props: AgendaPaneProps) {
       </Show>
       <Show when={busy() || props.notebook.commandState() !== 'saved'}><p class="agenda-message" role="status">{props.notebook.commandMessage() || (busy() ? 'Saving task view…' : props.notebook.commandState())}</p></Show>
       <Show when={commandError()}><p class="agenda-error" role="alert">{commandError()}</p></Show>
+      <Show when={deleted()}><footer class="table-footer" role="status">View deleted · <Button disabled={busy()} onClick={() => { void undoDelete(); }}>Undo</Button></footer></Show>
       <Show when={mode() === 'week'}><WeekCalendar date={date()} notebook={props.notebook} onOpen={props.onOpen} /></Show>
       <Show when={mode() !== 'week'}>
       <section class="agenda-results" data-task-rows aria-label={mode() === 'agenda' ? `Agenda for ${date()}` : 'Task results'} aria-busy={loading()}>

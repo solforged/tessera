@@ -258,13 +258,32 @@ fn stale_setting_revision_rejects_the_whole_batch() {
 }
 
 #[test]
-fn invalid_time_zone_vim_and_unknown_setting_are_rejected() {
+fn view_delete_confirmation_accepts_boolean_values() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut notebook = Notebook::open(dir.path()).unwrap();
+    notebook
+        .apply(&setting_batch("confirm_view_delete", None, "false"))
+        .unwrap();
+    notebook
+        .apply(&setting_batch("confirm_view_delete", Some(1), "true"))
+        .unwrap();
+    let settings = notebook.settings().unwrap();
+    assert_eq!(settings[0].key, "confirm_view_delete");
+    assert_eq!(settings[0].value, "true");
+    assert_eq!(settings[0].revision, 2);
+}
+
+#[test]
+fn invalid_time_zone_boolean_and_unknown_settings_are_rejected() {
     let dir = tempfile::tempdir().unwrap();
     let mut notebook = Notebook::open(dir.path()).unwrap();
     for (key, value) in [
         ("time_zone", "Mars/Olympus"),
         ("time_zone", "+03:00"),
         ("vim", "yes"),
+        ("confirm_view_delete", "yes"),
+        ("confirm_view_delete", ""),
+        ("confirm_view_delete", "TRUE"),
         ("unknown", "true"),
     ] {
         assert!(matches!(

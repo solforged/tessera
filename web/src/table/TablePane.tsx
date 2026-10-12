@@ -280,7 +280,7 @@ export function TablePane(props: TablePaneProps) {
       ...(props.target.viewId ? [
         ...(changed() ? [{ label: 'Save', action: () => { void saveChanges().catch(message); } }, { label: 'Discard changes', action: () => { const value = saved(); if (value) switchView(value); } }] : []),
         { label: 'Rename view…', disabledReason: !saved() ? 'Loading…' : undefined, action: () => setPopup({ kind: 'name', anchor, action: 'rename' }) },
-        { label: 'Delete view…', icon: 'trash' as const, danger: true, disabledReason: !saved() ? 'Loading…' : undefined, action: () => { const view = saved(); if (view) { setError(''); setPopup({ kind: 'delete', anchor, view }); } } },
+        { label: props.notebook.confirmViewDelete() ? 'Delete view…' : 'Delete view', icon: 'trash' as const, danger: true, disabledReason: !saved() ? 'Loading…' : undefined, action: () => { const view = saved(); if (view) { setError(''); if (props.notebook.confirmViewDelete()) setPopup({ kind: 'delete', anchor, view }); else void deleteView(view); } } },
       ] : []),
     ],
   });
