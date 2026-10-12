@@ -82,7 +82,10 @@ impl Notebook {
     }
 
     /// One indexed lookup for the whole payload, not one query per block.
-    fn mark_kept_copies<'a>(&self, blocks: impl Iterator<Item = &'a mut Block>) -> Result<()> {
+    pub(crate) fn mark_kept_copies<'a>(
+        &self,
+        blocks: impl Iterator<Item = &'a mut Block>,
+    ) -> Result<()> {
         let mut blocks: HashMap<_, _> = blocks
             .map(|block| (block.id.as_str(), &mut block.kept_copy))
             .collect();

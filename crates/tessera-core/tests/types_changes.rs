@@ -776,6 +776,7 @@ fn membership_title_upgrade_preserves_unresolved_mentions_without_resurrecting_p
          DROP TABLE settings;
          DROP VIEW effective_review_events;
          DROP TABLE review_undos;
+         DROP TABLE quotes;
          DROP TABLE review_events;
          DROP TABLE review_sessions;
          DROP TABLE field_targets;
@@ -1311,6 +1312,7 @@ fn manual_membership_migration_retains_authored_text_tags_and_unresolved_titles(
          DROP TABLE settings;
          DROP VIEW effective_review_events;
          DROP TABLE review_undos;
+         DROP TABLE quotes;
          DROP TABLE review_events;
          DROP TABLE review_sessions;
          DROP TABLE field_targets;
@@ -1659,6 +1661,7 @@ fn provisional_cleanup_does_not_backfill_existing_pages_on_upgrade() {
          DROP INDEX card_units_template;
          DROP VIEW effective_review_events;
          DROP TABLE review_undos;
+         DROP TABLE quotes;
          DROP INDEX review_events_unordered;
          DROP INDEX review_events_card_order;
          DROP INDEX review_events_session_order;

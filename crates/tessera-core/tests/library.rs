@@ -381,6 +381,7 @@ fn citation_triage_migration_preserves_existing_evidence() {
          DROP TABLE agent_changes;
          ALTER TABLE reading_positions ADD COLUMN covered TEXT NOT NULL DEFAULT '[]';
          DROP TABLE questions;
+         DROP TABLE quotes;
          DROP TABLE assessments;
          DROP TABLE positions;
          DROP TABLE highlight_surfacings;
@@ -657,6 +658,7 @@ fn citation_color_migration_preserves_existing_evidence_with_null_color() {
          DROP TABLE agent_changes;
          ALTER TABLE reading_positions ADD COLUMN covered TEXT NOT NULL DEFAULT '[]';
          DROP TABLE questions;
+         DROP TABLE quotes;
          DROP TABLE assessments;
          DROP TABLE positions;
          DROP TABLE highlight_surfacings;

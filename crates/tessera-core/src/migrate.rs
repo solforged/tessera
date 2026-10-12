@@ -42,6 +42,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/033_field_targets.sql"),
     include_str!("../migrations/034_descriptor_cards.sql"),
     include_str!("../migrations/035_review_undos.sql"),
+    include_str!("../migrations/036_quotes.sql"),
 ];
 
 pub const SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
@@ -95,6 +96,17 @@ pub(crate) fn migrate(conn: &mut Connection) -> Result<()> {
                     |row| row.get(0),
                 )?;
                 sources.push((created.id, text, false));
+            }
+        }
+    }
+    if found < 36 {
+        let mut statement = tx.prepare("SELECT id, text FROM blocks WHERE text LIKE '%((%))%'")?;
+        let mut rows = statement.query([])?;
+        while let Some(row) = rows.next()? {
+            let id: String = row.get(0)?;
+            let text: String = row.get(1)?;
+            if crate::storage::quote_target(&text).is_some() {
+                crate::storage::derive_links(&tx, &id, &text)?;
             }
         }
     }

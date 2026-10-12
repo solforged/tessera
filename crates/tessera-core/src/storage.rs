@@ -164,11 +164,28 @@ struct LinkToken<'a> {
     target_span: std::ops::Range<usize>,
 }
 
+pub(crate) fn quote_target(text: &str) -> Option<&str> {
+    let target = text.trim().strip_prefix("((")?.strip_suffix("))")?;
+    validate_id(target).is_ok().then_some(target)
+}
+
 /// Share reference recognition between indexing and merge rewriting. Tags
 /// containing brackets are title references, not block ID references.
 fn link_tokens(text: &str) -> impl Iterator<Item = LinkToken<'_>> {
     let mut cursor = 0;
+    let mut quote = quote_target(text).map(|target| {
+        let start = text.len() - text.trim_start().len() + 2;
+        LinkToken {
+            target,
+            alias: None,
+            target_span: start..start + target.len(),
+        }
+    });
     std::iter::from_fn(move || {
+        if let Some(token) = quote.take() {
+            cursor = text.len();
+            return Some(token);
+        }
         while let Some(relative) = text[cursor..].find("[[") {
             let start = cursor + relative;
             let prefix = &text[..start];

@@ -73,6 +73,7 @@ export type Operation =
   | { op: 'reverse_task_completion'; id: string; base_revision: number; occurrence_id: string }
   | { op: 'set_project'; id: string; base_revision: number; project: ProjectState | null }
   | { op: 'set_position'; id: string; base_revision: number; position: boolean }
+  | { op: 'set_quote'; id: string; base_revision: number; quote: QuoteState | null }
   | { op: 'set_question'; id: string; base_revision: number; question: QuestionState | null }
   | { op: 'set_assessment'; id: string; base_revision: number; assessment: AssessmentState | null }
   | { op: 'start_work'; id: string; base_revision: number; session_id: string; started_at: number; note: string }
@@ -353,7 +354,11 @@ export interface QuestionInfo { state: QuestionState; status: QuestionStatus }
 export interface AssessmentInfo { state: AssessmentState; question_id: string | null; accepted: boolean }
 export interface QuestionQuery { status?: QuestionStatus; review_by?: string; limit?: number }
 export interface QuestionRow { block: BlockInPage; info: QuestionInfo }
-export interface BlockCapabilities { block_id: string; task: TaskState | null; project: ProjectState | null; position: PositionInfo | null; question: QuestionInfo | null; assessment: AssessmentInfo | null; history: boolean; merge_protected: boolean; reviewed_cards: boolean; template_cards?: number }
+export interface QuotedRow { id: string; depth: number; text: string; heading: number | null; revision: number }
+export interface QuoteState { target_id: string; captured_at: number; rows: QuotedRow[]; truncated: boolean }
+export interface Subtree { rows: Row[]; truncated: boolean }
+export interface QuoteStatus { block_id: string; source_live: boolean; changed: boolean }
+export interface BlockCapabilities { block_id: string; task: TaskState | null; project: ProjectState | null; position: PositionInfo | null; question: QuestionInfo | null; assessment: AssessmentInfo | null; quote?: QuoteState | null; history: boolean; merge_protected: boolean; reviewed_cards: boolean; template_cards?: number }
 
 export interface WorkSession {
   id: string;

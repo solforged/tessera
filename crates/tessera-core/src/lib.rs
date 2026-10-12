@@ -29,6 +29,7 @@ mod ownership;
 mod position_store;
 mod query;
 pub mod question_store;
+mod quote_store;
 mod reads;
 mod references;
 pub mod replication;
@@ -80,8 +81,8 @@ pub use model::{
     Direction, FieldDefinition, FieldDetail, FieldKind, FieldOption, FieldOptionUse, FieldOwner,
     FieldOwnerValues, FieldSummary, FieldTemplate, FieldType, FieldValue, FieldValueUse,
     FieldsView, Filter, FilterOp, KeptCopy, Operation, PageView, Query, QueryResult, QueryRow,
-    Reading, ReadingValue, Revision, Row, Setting, SettingRevision, SettingsView, SortBy, SortKey,
-    TextRewrite, TypeInfo, View,
+    QuoteState, QuoteStatus, QuotedRow, Reading, ReadingValue, Revision, Row, Setting,
+    SettingRevision, SettingsView, SortBy, SortKey, Subtree, TextRewrite, TypeInfo, View,
 };
 pub use notebook::{DATABASE_FILE, Notebook, NotebookInfo, now_ms};
 pub use notes::{CrossReference, IndexKind, KindIndex, NoteEntry, NoteIndex, NoteKind, SeeTarget};

@@ -187,6 +187,8 @@ pub struct BlockCapabilities {
     #[serde(default)]
     pub assessment: Option<AssessmentInfo>,
     #[serde(default)]
+    pub quote: Option<crate::QuoteState>,
+    #[serde(default)]
     pub source: Option<crate::library::SourceRecord>,
     #[serde(default)]
     pub citations: Vec<crate::library::Citation>,

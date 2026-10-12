@@ -322,6 +322,9 @@ fn notebook_routes() -> Router<AppState> {
         .route("/api/journal/written", get(written_journal_dates))
         .route("/api/journal/{date}", get(journal))
         .route("/api/blocks/{id}", get(block))
+        .route("/api/blocks/{id}/subtree", get(subtree))
+        .route("/api/blocks/{id}/quote-snapshot", get(quote_snapshot))
+        .route("/api/pages/{id}/quote-status", get(quote_status))
         .route("/api/blocks/{id}/backlinks", get(backlinks))
         .route("/api/pages/{id}/references", get(page_references))
         .route("/api/pages/{id}/reference-counts", get(reference_counts))
@@ -919,6 +922,40 @@ async fn block(
 ) -> Result<Json<Block>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
     run(&state, move |notebook| notebook.block(&id))
+        .await
+        .map(Json)
+}
+
+async fn subtree(
+    State(state): State<AppState>,
+    path: Result<Path<String>, PathRejection>,
+    query: Result<Query<Limit>, QueryRejection>,
+) -> Result<Json<tessera_core::Subtree>, ApiError> {
+    let Path(id) = path.map_err(ApiError::from)?;
+    let Query(query) = query.map_err(ApiError::from)?;
+    run(&state, move |notebook| notebook.subtree(&id, query.limit))
+        .await
+        .map(Json)
+}
+
+async fn quote_snapshot(
+    State(state): State<AppState>,
+    path: Result<Path<String>, PathRejection>,
+) -> Result<Json<tessera_core::QuoteState>, ApiError> {
+    let Path(id) = path.map_err(ApiError::from)?;
+    run(&state, move |notebook| {
+        notebook.quote_snapshot(&id, tessera_core::now_ms())
+    })
+    .await
+    .map(Json)
+}
+
+async fn quote_status(
+    State(state): State<AppState>,
+    path: Result<Path<String>, PathRejection>,
+) -> Result<Json<Vec<tessera_core::QuoteStatus>>, ApiError> {
+    let Path(id) = path.map_err(ApiError::from)?;
+    run(&state, move |notebook| notebook.quote_status(&id))
         .await
         .map(Json)
 }

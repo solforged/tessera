@@ -22,6 +22,9 @@ import type {
   Block,
   BlockCapabilities,
   BlockInPage,
+  QuoteState,
+  QuoteStatus,
+  Subtree,
   CardPreviews,
   CardQuery,
   CardQueryResult,
@@ -231,6 +234,9 @@ export interface ApiClient {
   cardTemplateForecast(id: string, days?: number, signal?: AbortSignal): Promise<CardTemplateForecast>;
   journal(date: string, signal?: AbortSignal): Promise<Block>;
   block(id: string, signal?: AbortSignal): Promise<Block>;
+  subtree(id: string, limit?: number, signal?: AbortSignal): Promise<Subtree>;
+  quoteSnapshot(id: string, signal?: AbortSignal): Promise<QuoteState>;
+  quoteStatus(pageId: string, signal?: AbortSignal): Promise<QuoteStatus[]>;
   capabilities(id: string, signal?: AbortSignal): Promise<BlockCapabilities>;
   taskOccurrences(id: string, signal?: AbortSignal): Promise<TaskOccurrence[]>;
   workSessions(id: string, signal?: AbortSignal): Promise<WorkSession[]>;
@@ -348,6 +354,9 @@ export function createApi(base = ''): ApiClient {
     cardTemplateForecast: (id: string, days = 14, signal?: AbortSignal) => get<CardTemplateForecast>(`/card-templates/${segment(id)}/forecast${query({ days })}`, signal),
     journal: (date: string, signal?: AbortSignal) => get<Block>(`/journal/${segment(date)}`, signal),
     block: (id: string, signal?: AbortSignal) => get<Block>(`/blocks/${segment(id)}`, signal),
+    subtree: (id: string, limit = 200, signal?: AbortSignal) => get<Subtree>(`/blocks/${segment(id)}/subtree${query({ limit })}`, signal),
+    quoteSnapshot: (id: string, signal?: AbortSignal) => get<QuoteState>(`/blocks/${segment(id)}/quote-snapshot`, signal),
+    quoteStatus: (pageId: string, signal?: AbortSignal) => get<QuoteStatus[]>(`/pages/${segment(pageId)}/quote-status`, signal),
     capabilities: (id: string, signal?: AbortSignal) => get<BlockCapabilities>(`/blocks/${segment(id)}/capabilities`, signal),
     taskOccurrences: (id: string, signal?: AbortSignal) => get<TaskOccurrence[]>(`/blocks/${segment(id)}/task-occurrences`, signal),
     workSessions: (id: string, signal?: AbortSignal) => get<WorkSession[]>(`/blocks/${segment(id)}/work-sessions`, signal),

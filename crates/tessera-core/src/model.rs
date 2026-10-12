@@ -308,6 +308,11 @@ pub enum Operation {
         base_revision: i64,
         position: bool,
     },
+    SetQuote {
+        id: String,
+        base_revision: i64,
+        quote: Option<QuoteState>,
+    },
     SetQuestion {
         id: String,
         base_revision: i64,
@@ -511,6 +516,37 @@ pub struct Row {
     /// 0 for the root's children.
     pub depth: u32,
     pub manual_types: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Subtree {
+    /// Includes the root at depth 0, followed by its visible descendants.
+    pub rows: Vec<Row>,
+    pub truncated: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct QuotedRow {
+    pub id: String,
+    pub depth: u32,
+    pub text: String,
+    pub heading: Option<u8>,
+    pub revision: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct QuoteState {
+    pub target_id: String,
+    pub captured_at: i64,
+    pub rows: Vec<QuotedRow>,
+    pub truncated: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct QuoteStatus {
+    pub block_id: String,
+    pub source_live: bool,
+    pub changed: bool,
 }
 
 /// Everything needed to show one page.

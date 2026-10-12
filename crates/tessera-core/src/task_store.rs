@@ -354,10 +354,13 @@ macro_rules! capability_rows {
               OR EXISTS(SELECT 1 FROM positions pos WHERE pos.block_id=b.id)
               OR EXISTS(SELECT 1 FROM questions q WHERE q.block_id=b.id)
               OR EXISTS(SELECT 1 FROM assessments a WHERE a.block_id=b.id)
+              OR q.block_id IS NOT NULL
               OR EXISTS(SELECT 1 FROM citations c WHERE c.block_id=b.id)) AS retained,
-             (SELECT COUNT(*) FROM card_units c WHERE c.source_block_id = b.id AND c.active = 1 AND c.key LIKE 'tpl:%') AS template_cards
+             (SELECT COUNT(*) FROM card_units c WHERE c.source_block_id = b.id AND c.active = 1 AND c.key LIKE 'tpl:%') AS template_cards,
+             q.state AS quote_state, b.text
              FROM blocks b LEFT JOIN tasks t ON t.block_id = b.id
-             LEFT JOIN projects p ON p.block_id = b.id "
+             LEFT JOIN projects p ON p.block_id = b.id
+             LEFT JOIN quotes q ON q.block_id = b.id "
         )
     };
 }
@@ -375,6 +378,19 @@ fn capability_at(row: &rusqlite::Row<'_>) -> rusqlite::Result<BlockCapabilities>
     } else {
         Some(json_at(row, 2)?)
     };
+    let quote = if row.get_ref(7)?.data_type() == rusqlite::types::Type::Null {
+        None
+    } else {
+        let quote: crate::QuoteState = json_at(row, 7)?;
+        let text = row.get_ref(8)?.as_str().map_err(|error| {
+            rusqlite::Error::FromSqlConversionFailure(
+                8,
+                rusqlite::types::Type::Text,
+                Box::new(error),
+            )
+        })?;
+        (crate::storage::quote_target(text) == Some(quote.target_id.as_str())).then_some(quote)
+    };
     Ok(BlockCapabilities {
         block_id: row.get(0)?,
         merge_protected: task.is_some() || project.is_some() || history || reviewed_cards,
@@ -383,6 +399,7 @@ fn capability_at(row: &rusqlite::Row<'_>) -> rusqlite::Result<BlockCapabilities>
         position: None,
         question: None,
         assessment: None,
+        quote,
         history,
         reviewed_cards,
         template_cards: row.get::<_, i64>(6)? as usize,

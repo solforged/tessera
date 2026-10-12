@@ -1,13 +1,15 @@
 //! Plain-text renderings of notebook state for agents.
 
 use std::collections::HashMap;
+use std::fmt::Write;
 
 use anyhow::Context;
 use serde::Serialize;
 use tessera_core::calendar::{RepeatUnit, Repeater};
 use tessera_core::card_text::CardKind;
 use tessera_core::{
-    Block, BlockCapabilities, BlockKind, CardUnit, PageView, SettingsView, TaskState, TaskStatus,
+    Block, BlockCapabilities, BlockKind, CardUnit, PageView, QuoteState, SettingsView, TaskState,
+    TaskStatus,
 };
 
 /// The notebook's calendar: today and the zone timestamps are shown in.
@@ -74,7 +76,15 @@ pub(super) fn render(
     if let Some(caps) = capabilities.get(page.root.id.as_str()) {
         header.extend(capability_details(caps));
     }
-    let mut text = format!("# {} <!-- {} -->\n", page.root.text, header.join(", "));
+    let root_quote = capabilities
+        .get(page.root.id.as_str())
+        .and_then(|caps| caps.quote.as_ref());
+    let quote_title = root_quote.map(|quote| format!("Quote of {}", quote.target_id));
+    let title = quote_title.as_deref().unwrap_or(&page.root.text);
+    let mut text = format!("# {title} <!-- {} -->\n", header.join(", "));
+    if let Some(quote) = root_quote {
+        render_quote(&mut text, quote, 0);
+    }
     let (rows, base) = match subtree.filter(|id| *id != page.root.id) {
         Some(id) => {
             let start = page
@@ -102,9 +112,14 @@ pub(super) fn render(
             .heading
             .map(|level| format!("{} ", "#".repeat(level as usize)))
             .unwrap_or_default();
-        let body = match field_entry(&row.block.text).and_then(|id| context.fields.get(id)) {
-            Some(name) => format!("{name}::"),
-            None => titled(&row.block.text, &titles).replace('\n', &format!("\n{indent}  ")),
+        let quote = caps.and_then(|caps| caps.quote.as_ref());
+        let body = if let Some(quote) = quote {
+            format!("Quote of {}", quote.target_id)
+        } else {
+            match field_entry(&row.block.text).and_then(|id| context.fields.get(id)) {
+                Some(name) => format!("{name}::"),
+                None => titled(&row.block.text, &titles).replace('\n', &format!("\n{indent}  ")),
+            }
         };
         let archived = if row.block.archived {
             " (archived)"
@@ -128,8 +143,29 @@ pub(super) fn render(
             "{indent}- {marker}{heading}{body}{archived} <!-- {} -->\n",
             note.join(", ")
         ));
+        if let Some(quote) = quote {
+            render_quote(&mut text, quote, row.depth - base + 1);
+        }
     }
     Ok(text)
+}
+
+fn render_quote(text: &mut String, quote: &QuoteState, depth: u32) {
+    for row in &quote.rows {
+        let indent = "  ".repeat((depth + row.depth) as usize);
+        let heading = "#".repeat(row.heading.unwrap_or(0) as usize);
+        let body = row.text.replace('\n', &format!("\n{indent}>   "));
+        writeln!(
+            text,
+            "{indent}> - {heading}{}{body}",
+            if heading.is_empty() { "" } else { " " }
+        )
+        .expect("writing to a string");
+    }
+    if quote.truncated {
+        writeln!(text, "{}> (truncated)", "  ".repeat(depth as usize))
+            .expect("writing to a string");
+    }
 }
 
 /// The field definition ID of a field entry's text, `[[ID]]` alone.
@@ -389,5 +425,81 @@ mod tests {
             ),
             "see [[Dune]] and [[Dune|it]] and [[01J0000000000000000000000B]]"
         );
+    }
+
+    #[test]
+    fn quote_render_uses_frozen_nested_rows_instead_of_the_marker() {
+        use tessera_core::{Actor, Batch, Notebook, Operation};
+        let dir = tempfile::tempdir().unwrap();
+        let mut nb = Notebook::open(dir.path()).unwrap();
+        let id = |n| format!("{n:026}");
+        let batch = |operations| Batch {
+            actor: Actor::Person,
+            reason: None,
+            idempotency_key: None,
+            operations,
+        };
+        nb.apply(&batch(vec![
+            Operation::CreatePage {
+                id: id(1),
+                title: "Source".into(),
+            },
+            Operation::CreatePage {
+                id: id(2),
+                title: "Quotes".into(),
+            },
+            Operation::Insert {
+                id: id(3),
+                parent_id: id(1),
+                after: None,
+                text: "Frozen root".into(),
+                heading: None,
+            },
+            Operation::Insert {
+                id: id(4),
+                parent_id: id(3),
+                after: None,
+                text: "Frozen child".into(),
+                heading: Some(2),
+            },
+        ]))
+        .unwrap();
+        let quote = nb.quote_snapshot(&id(3), 123).unwrap();
+        let marker = format!("(({}))", id(3));
+        nb.apply(&batch(vec![
+            Operation::Insert {
+                id: id(5),
+                parent_id: id(2),
+                after: None,
+                text: marker.clone(),
+                heading: None,
+            },
+            Operation::SetQuote {
+                id: id(5),
+                base_revision: 1,
+                quote: Some(quote),
+            },
+            Operation::EditText {
+                id: id(3),
+                base_revision: 1,
+                text: "Live replacement".into(),
+            },
+        ]))
+        .unwrap();
+        let fields = HashMap::new();
+        let clock = Clock {
+            zone: jiff::tz::TimeZone::UTC,
+            today: "2026-10-12".into(),
+        };
+        let context = PageContext {
+            fields: &fields,
+            cards: &[],
+            clock: &clock,
+        };
+        let output = render(&nb.page(&id(2)).unwrap(), &context, None).unwrap();
+        assert!(output.contains(&id(3)));
+        assert!(output.contains("  > - Frozen root\n    > - ## Frozen child\n"));
+        assert!(!output.contains(&marker));
+        assert!(!output.contains("Live replacement"));
     }
 }

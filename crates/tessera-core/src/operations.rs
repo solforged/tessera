@@ -492,11 +492,13 @@ impl Engine<'_, '_> {
             }
         }
         let changed: Vec<_> = self.revisions.iter().map(|revision| &revision.id).collect();
-        let mut positions = self.tx.prepare_cached(
+        let mut retained = self.tx.prepare_cached(
             "SELECT block_id FROM positions WHERE active = 1
-             AND block_id IN (SELECT value FROM json_each(?1))",
+             AND block_id IN (SELECT value FROM json_each(?1))
+             UNION SELECT q.block_id FROM json_each(?1) ids
+             JOIN quotes q ON q.block_id = ids.value",
         )?;
-        for id in positions.query_map(
+        for id in retained.query_map(
             [serde_json::to_string(&changed).expect("block IDs serialize")],
             |row| row.get::<_, String>(0),
         )? {
@@ -1296,6 +1298,11 @@ impl Engine<'_, '_> {
                 self.record_text_rewrite(&id, current.block.text, text, current.block.revision + 1);
             }
         }
+        for id in crate::quote_store::redirect(self.tx, from, into)? {
+            let current = self.live(&id)?;
+            self.bump(&current, false)?;
+            self.capability_sources.insert(id);
+        }
         Ok(())
     }
 
@@ -1989,6 +1996,18 @@ impl Engine<'_, '_> {
                 crate::position_store::validate_source(self.tx, id)?;
                 let current = self.checked(id, *base_revision, index, false)?;
                 if crate::position_store::set(self.tx, id, *position)? {
+                    self.bump(&current, false)?;
+                    self.capability_sources.insert(id.clone());
+                }
+                Ok(())
+            }
+            Operation::SetQuote {
+                id,
+                base_revision,
+                quote,
+            } => {
+                let current = self.checked(id, *base_revision, index, false)?;
+                if crate::quote_store::set(self.tx, &current.block, quote.as_ref())? {
                     self.bump(&current, false)?;
                     self.capability_sources.insert(id.clone());
                 }

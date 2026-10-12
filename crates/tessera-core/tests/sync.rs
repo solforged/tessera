@@ -1613,6 +1613,7 @@ fn downgrade_review_order(conn: &Connection) {
     conn.execute_batch(
         "DROP VIEW effective_review_events;
          DROP TABLE review_undos;
+         DROP TABLE quotes;
          DROP INDEX review_events_unordered;
          DROP INDEX review_events_card_order;
          DROP INDEX review_events_session_order;
@@ -1846,4 +1847,59 @@ fn retained_pre_undo_review_patch_is_ordered_before_it_can_be_undone_after_upgra
             .undone_by,
         Some(id(801))
     );
+}
+
+#[test]
+fn frozen_quote_replays_after_hub_source_deletion_and_rebases_its_revision() {
+    let mut p = pair_with(|hub| {
+        apply(hub, vec![insert(4, &id(2), None, "Nested source")]);
+    });
+    let quote = p.replica.quote_snapshot(&id(2), 123).unwrap();
+    apply(
+        &mut p.replica,
+        vec![
+            insert(20, &id(1), Some(id(3)), &format!("(({}))", id(2))),
+            Operation::SetQuote {
+                id: id(20),
+                base_revision: 1,
+                quote: Some(quote.clone()),
+            },
+        ],
+    );
+    apply(
+        &mut p.hub,
+        vec![Operation::Delete {
+            id: id(2),
+            base_revision: 1,
+        }],
+    );
+    p.sync();
+    p.assert_converged();
+    assert_eq!(
+        p.hub.capabilities(&id(20)).unwrap().quote,
+        Some(quote.clone())
+    );
+    assert!(!p.hub.quote_status(&id(1)).unwrap()[0].source_live);
+    let revision = p.replica.block(&id(20)).unwrap().revision;
+    let mut updated = quote.clone();
+    updated.captured_at = 456;
+    apply(
+        &mut p.replica,
+        vec![Operation::SetQuote {
+            id: id(20),
+            base_revision: revision,
+            quote: Some(updated.clone()),
+        }],
+    );
+    apply(
+        &mut p.hub,
+        vec![Operation::SetHeading {
+            id: id(20),
+            base_revision: revision,
+            heading: Some(2),
+        }],
+    );
+    p.sync();
+    p.assert_converged();
+    assert_eq!(p.hub.capabilities(&id(20)).unwrap().quote, Some(updated));
 }

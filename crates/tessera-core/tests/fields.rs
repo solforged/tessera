@@ -362,6 +362,7 @@ fn fields_page_is_idempotent_recreated_after_deletion_and_migration_backfills_en
          DROP TABLE agent_changes;
          DROP VIEW effective_review_events;
          DROP TABLE review_undos;
+         DROP TABLE quotes;
          DROP TABLE review_events;
          DROP TABLE review_sessions;
          DROP TABLE field_targets;

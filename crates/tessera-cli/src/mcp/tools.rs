@@ -8,7 +8,9 @@ become blocks; indented lines under an item continue that item; `- [ ] `, `- [x]
 `- [doing] `, `- [waiting] ` and `- [cancelled] ` items become tasks. In block text, \
 `[[Page title]]` links a page by title and creates it if missing, `[[Page title|label]]` \
 links with a label, `[[2026-10-07]]` links an existing journal day, `[[BLOCK_ID]]` \
-references a block, and `#Tag` or `#[[Multi word tag]]` gives the block a type. \
+references a live block, and `#Tag` or `#[[Multi word tag]]` gives the block a type. \
+Quote rows use `((BLOCK_ID))` alone with an attached frozen subtree snapshot; writing \
+the marker alone does not capture a snapshot. Reads show the saved text, not live text. \
 Flashcards: `A >> B` shows A and asks for B; `A << B` shows B and asks for A, so \
 `東京 << Tōkyō` shows Tōkyō and asks for 東京; `A <> B` makes both cards; a trailing \
 `A >>>` takes its child outline as the answer, and a trailing `A >>1.` reveals its \
