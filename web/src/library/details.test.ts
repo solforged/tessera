@@ -42,9 +42,9 @@ describe('source field validation', () => {
 
   test('valid partial dates, finite numbers and blank optional values reach the shared planner', async () => {
     const definitions: FieldDefinition[] = [
-      { id: 'date', name: 'Published', kind: 'date', revision: 1, options: [] },
-      { id: 'pages', name: 'Pages', kind: 'number', revision: 1, options: [] },
-      { id: 'siglum', name: 'Siglum', kind: 'text', revision: 1, options: [] },
+      { id: 'date', name: 'Published', kind: 'date', revision: 1, options: [], targets: [] },
+      { id: 'pages', name: 'Pages', kind: 'number', revision: 1, options: [], targets: [] },
+      { id: 'siglum', name: 'Siglum', kind: 'text', revision: 1, options: [], targets: [] },
     ];
     const captured: SourceDetailsEdit[] = [];
     const doc = { pageId: 'page', status: () => 'ready', flush: async () => {}, outline: { children: () => [] }, root: () => ({ text: 'Source' }) } as unknown as PageDocument;
@@ -65,8 +65,8 @@ describe('source field validation', () => {
 
   test('identifiers include all live values across repeated entries and creator refs retain ids', () => {
     const definitions: FieldDefinition[] = [
-      { id: 'identifiers', name: 'Identifier', kind: 'identifier', revision: 1, options: [] },
-      { id: 'author', name: 'Author', kind: 'instance', revision: 1, options: [] },
+      { id: 'identifiers', name: 'Identifier', kind: 'identifier', revision: 1, options: [], targets: [] },
+      { id: 'author', name: 'Author', kind: 'instance', revision: 1, options: [], targets: [] },
     ];
     const children: Record<string, string[]> = { page: ['entry1', 'entry2', 'authors'], entry1: ['isbn', 'blank'], entry2: ['doi', 'archived'], authors: ['person1', 'person2'] };
     const text: Record<string, string> = { entry1: '[[identifiers]]', entry2: 'Identifier::', authors: '[[author]]', isbn: 'isbn:9780262033848', blank: '', doi: 'doi:10.1000/example', archived: 'ignored', person1: '[[person-id]]', person2: 'Unlinked author' };

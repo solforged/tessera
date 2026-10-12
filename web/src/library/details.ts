@@ -150,7 +150,7 @@ async function prepareField(notebook: NotebookClient, context: FieldPreparation,
       const result = doc.edit({ kind: 'addField', name: label, value: kind });
       if (!result.ok) throw new Error(result.reason);
       await doc.flush();
-      definition = { id: result.created[0]!, name: label, kind, revision: doc.block(result.created[0]!)!.revision, options: [] };
+      definition = { id: result.created[0]!, name: label, kind, revision: doc.block(result.created[0]!)!.revision, options: [], targets: [] };
       if (kind === 'instance') {
         const targets = await Promise.all(['Person', 'Group'].map(async title => (await notebook.pageByTitle(title, true))!));
         const targeted = doc.edit({ kind: 'fieldTargets', definition, targets });
