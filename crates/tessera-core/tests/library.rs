@@ -2964,6 +2964,55 @@ fn library_facets_count_sources_and_respect_base_filters_only() {
 }
 
 #[test]
+fn library_reads_plain_author_edits_without_losing_linked_creators() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut n = Notebook::open(dir.path()).unwrap();
+    let (source, _) = ingest(&mut n, &document(), b"plain-author-edit");
+    let authors = field(&n, &source, "Author");
+    let linked_id = match &authors[1].reading {
+        Reading::Value {
+            target: Some(id), ..
+        } => id.clone(),
+        _ => panic!("Imported authors should link to people"),
+    };
+    for (name, siglum) in [("Seneca", "SEN"), ("Marcus", "MAR")] {
+        edit(&mut n, &authors[0].id, &format!("  {name}  "));
+        let result = n.library(&LibraryQuery::default()).unwrap();
+        let row = &result.rows[0];
+        assert_eq!(row.creators, [name, "John Smith"]);
+        assert_eq!(row.source.siglum, siglum);
+        assert_eq!(n.source(&source).unwrap().source.siglum, siglum);
+        assert_eq!(
+            row.people[0],
+            LibraryPerson {
+                id: None,
+                name: name.into(),
+                role: CreatorRole::Author,
+            }
+        );
+        assert_eq!(
+            row.people[1],
+            LibraryPerson {
+                id: Some(linked_id.clone()),
+                name: "John Smith".into(),
+                role: CreatorRole::Author,
+            }
+        );
+        assert_eq!(row.people[2].role, CreatorRole::Translator);
+        assert!(row.people[2].id.is_some());
+        assert!(result.facets.people.iter().any(|person| {
+            person.id.is_none() && person.name == name && person.count == 1
+        }));
+        assert!(n.page_by_title(name).unwrap().is_none());
+        assert!(
+            n.export(std::slice::from_ref(&source), ExportFormat::Markdown)
+                .unwrap()
+                .contains(&format!("{name}, John Smith"))
+        );
+    }
+}
+
+#[test]
 fn library_unlinked_people_group_exact_names_and_sort_by_family_then_name() {
     let dir = tempfile::tempdir().unwrap();
     let mut n = Notebook::open(dir.path()).unwrap();

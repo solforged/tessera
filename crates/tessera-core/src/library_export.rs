@@ -81,24 +81,40 @@ fn read_field_readings(
         } else {
             None
         };
+        let field = definition.name.to_lowercase();
+        // Creator metadata can be an unlinked name even when imported names use
+        // an instance field. References still retain their constrained reading.
+        let reading = if definition.kind == crate::FieldKind::Instance
+            && matches!(field.as_str(), "author" | "editor" | "translator")
+            && crate::fields::reference(&text).is_none()
+            && !text.trim().is_empty()
+        {
+            Reading::Value {
+                ok: true,
+                value: ReadingValue::Text(text.trim().to_owned()),
+                target: None,
+            }
+        } else {
+            crate::fields::constrained_reading(
+                conn,
+                definition.kind,
+                definition,
+                &text,
+                target.as_ref(),
+            )?
+        };
         if let Reading::Value {
             ok: true,
             value,
             target,
-        } = crate::fields::constrained_reading(
-            conn,
-            definition.kind,
-            definition,
-            &text,
-            target.as_ref(),
-        )? {
+        } = reading
+        {
             let value = match value {
                 ReadingValue::Text(value) => value,
                 ReadingValue::Number(_) => text,
                 ReadingValue::Checkbox(_) => continue,
             };
             let owner: String = row.get(12)?;
-            let field = definition.name.to_lowercase();
             visit(&owner, &field, &value, target);
             result
                 .entry(owner)

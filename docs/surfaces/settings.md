@@ -29,7 +29,7 @@ Preferences contains Theme, Vim keys, Ask before deleting views, Journal day and
 | Theme | Uses the mode tabs. |
 | Notebook switches | Hairline track with a muted knob. On, the track fills gilt and the knob slides across in canvas. |
 | Ask before deleting views | On by default; applies to Library, task and table views. |
-| Journal day | One trigger reading Device in sans and the zone in mono. |
+| Journal day | One trigger reading Device in sans and the zone in mono. The zone picker always includes UTC alongside regional zones. |
 | Reader display | Only says that typeface, size, measure and layout are set in the reader, beside the text. |
 
 ## Notebooks

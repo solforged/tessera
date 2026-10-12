@@ -14,7 +14,8 @@ function assetUrls(text, base, html = false) {
   for (const match of text.matchAll(pattern)) {
     const path = match[1] ?? match[2];
     if (path.includes('${')) continue;
-    const url = new URL(path, base);
+    // Vite's preload dependency list is relative to the build root, not this chunk.
+    const url = new URL(path, path.startsWith('assets/') ? `${self.location.origin}/` : base);
     if (url.origin !== self.location.origin || url.pathname === '/api' || url.pathname.startsWith('/api/') || !assetExtension.test(url.pathname)) continue;
     url.hash = '';
     urls.push(url.href);

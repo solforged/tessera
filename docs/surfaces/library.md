@@ -272,6 +272,8 @@ Source actions retain:
 
 They add Show metadata fields to expose the original editable field rows; Hide metadata fields folds them again. The snapshot's description is clamped to three lines with More. It has no Table button; ⌘⇧T and the palette still open the table.
 
+Author, Editor and Translator values may be plain names or linked people. Plain names supply the same Library bylines, creator facets, exports and derived sigla without creating a person page.
+
 The pane header reads Library / title, and Library opens the Library pane (Shift beside). Zoomed into a block, Library gives way to the zoom path.
 
 The expanded details group uses control size, labels in `--muted`, and field icons only on hover. Languages show their English name and identifiers their scheme (`ISBN 978…`) until edited. A value that differs from what the current snapshot extracted offers Reset to extracted in its field menu.

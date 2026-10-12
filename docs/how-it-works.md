@@ -676,6 +676,8 @@ Code: `web/src/document/outbox.ts:7` (`load`); `web/src/document/index.ts:93`.
 
 Initialisation restores ordered commands, opens recovered documents and replays actions over a service or cached offline page. Recovery combines the base page snapshot, structural patches, newer acknowledged blocks and capability sidecars. Frozen commands stay frozen. An offline first visit needs remembered notebook identity and cached data. Code: `web/src/document/index.ts:129` (`loadPage`); `web/src/document/outbox.ts:122`; `web/src/shell/App.tsx:263`.
 
+The production service worker caches the complete shell asset graph for warm offline reloads with either embedded assets or `--assets`. Vite's `assets/` preload dependency paths resolve from the build root, while chunk-relative imports and CSS URLs resolve from their containing asset.
+
 Remote text meeting unsent local text retains the local version and records `remoteText`/`remoteRevision`. Clean blocks update directly; structural changes can reload the page and replay pending actions. "Keep mine"/"take theirs" selects the next revision-checked write, deferred while frozen delivery remains uncertain. Code: `web/src/document/page-document.ts:314`, `409`, `969`; `web/src/document/index.ts:618` (`reconcile`).
 
 A definite 409 wrote nothing, so the frozen request can retire. Text-only conflicts keep both versions. Stale structural/capability commands are rejected and retained for recovery, not blindly reapplied. Rejected text/actions/operations stay in the outbox until explicit dismissal. Code: `web/src/document/index.ts:497`, `666` (`dismissRejected`).

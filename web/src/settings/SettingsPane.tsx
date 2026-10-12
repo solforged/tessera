@@ -77,7 +77,7 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
   const deviceZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const available = Intl.supportedValuesOf('timeZone');
   const zone = () => props.notebook.settings()?.time_zone ?? deviceZone;
-  const zones = createMemo(() => [deviceZone, ...[...new Set([zone(), ...available])].filter(value => value !== deviceZone).sort()]);
+  const zones = createMemo(() => [deviceZone, ...[...new Set([zone(), 'UTC', ...available])].filter(value => value !== deviceZone).sort()]);
   const [zoneAnchor, setZoneAnchor] = createSignal<HTMLElement | null>(null);
   const [zoneQuery, setZoneQuery] = createSignal('');
   const zoneRows = createMemo(() => {
