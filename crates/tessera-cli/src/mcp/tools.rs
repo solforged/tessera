@@ -12,7 +12,9 @@ references a block, and `#Tag` or `#[[Multi word tag]]` gives the block a type. 
 Flashcards: `A >> B` shows A and asks for B; `A << B` shows B and asks for A, so \
 `東京 << Tōkyō` shows Tōkyō and asks for 東京; `A <> B` makes both cards; a trailing \
 `A >>>` takes its child outline as the answer, and a trailing `A >>1.` reveals its \
-children one at a time in order; clozes are `The {{c1::answer}} here` or \
+children one at a time in order; a child block `Function ;; makes ATP` under \
+`Mitochondria` is a descriptor card that shows `Mitochondria › Function` and asks for \
+`makes ATP`; clozes are `The {{c1::answer}} here` or \
 `{{c1::answer::hint}}`, and repeated numbers make one card. Use one operator per block and \
 never mix operators with clozes. Write results list each card with what it shows and asks \
 for. Field entries: a line `Name:: value` is its own block and sets that field on its \

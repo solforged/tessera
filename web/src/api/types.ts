@@ -342,7 +342,7 @@ export interface WorkSession {
   revision: number;
 }
 
-export type CardKind = 'forward' | 'reverse' | 'cloze' | 'multiline' | 'list';
+export type CardKind = 'forward' | 'reverse' | 'cloze' | 'multiline' | 'list' | 'descriptor';
 export type Grade = 'again' | 'hard' | 'good' | 'easy';
 
 export interface SchedulingState {

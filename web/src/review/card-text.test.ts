@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { cardMarks, clozeSegments, parseCardText } from './card-text';
+import { cardMarks, cardSubject, clozeSegments, parseCardText } from './card-text';
 
 describe('card text', () => {
   test('ordinary prose, fields, and shielded syntax do not create cards', () => {
@@ -47,6 +47,24 @@ describe('card text', () => {
       }
       expect(parseCardText(`Front \\\\${op}`).cards[0]?.kind).toBe(kind);
     }
+  });
+
+  test('descriptors need both sides and name their parent subject as Rust does', () => {
+    const text = ' Function ;; makes [[ATP]] ';
+    expect(parseCardText(text)).toEqual({ cards: [{ key: 'descriptor', kind: 'descriptor', front: 'Function', back: 'makes [[ATP]]' }], problems: [] });
+    expect(cardMarks(text)).toEqual([{ kind: 'operator', start: 10, end: 12, op: ';;' }]);
+    for (const invalid of ['Function ;;', ';; answer', 'a ;; b >> c', '{{c1::a}} ;; b']) {
+      expect(parseCardText(invalid).cards).toEqual([]);
+      expect(parseCardText(invalid).problems.length).toBeGreaterThan(0);
+    }
+    for (const shielded of [String.raw`a \;; b`, '`a ;; b`', '[[ref|a ;; b]]', 'a; b; c']) {
+      expect(parseCardText(shielded)).toEqual({ cards: [], problems: [] });
+    }
+    for (const [parent, subject] of [
+      ['  Mitochondria  ', 'Mitochondria'], ['Mitochondria <> organelle', 'Mitochondria'],
+      ['Mitochondria << organelle', 'Mitochondria'], ['Structure ;; two membranes', 'Structure'],
+      ['The {{c1::cell}} wall', 'The cell wall'], [String.raw`a \>> b`, 'a >> b'], ['a >> b >> c', 'a >> b >> c'], [' ', ''],
+    ]) expect(cardSubject(parent!)).toBe(subject!);
   });
 
   test('syntax escapes render literally, preserve unknown escapes, and respect backslash parity', () => {

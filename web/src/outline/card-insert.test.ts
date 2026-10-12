@@ -3,7 +3,7 @@ import { insertCard, makeCloze } from './card-insert';
 import { rankSlash } from './slash';
 
 test('empty fronts come before the operator and existing text ends at the answer', () => {
-  for (const [kind, operator] of [['forward', '>> '], ['reverse', '<< '], ['both', '<> '], ['multiline', '>>>'], ['list', '>>1.']] as const) {
+  for (const [kind, operator] of [['forward', '>> '], ['reverse', '<< '], ['both', '<> '], ['multiline', '>>>'], ['list', '>>1.'], ['descriptor', ';; ']] as const) {
     expect(insertCard('', kind)).toEqual({ text: ` ${operator}`, caret: 0 });
     expect(insertCard(' \t ', kind)).toEqual({ text: ` ${operator}`, caret: 0 });
     const text = `Front ${operator}`;
@@ -12,7 +12,7 @@ test('empty fronts come before the operator and existing text ends at the answer
 });
 
 test('operators are not duplicated, including unfinished or mixed syntax', () => {
-  for (const text of [' >> ', 'Front << ', 'Front >>>', 'Front >>1.', 'A >> B <> C', '{{c1::gap}}']) {
+  for (const text of [' >> ', 'Front << ', 'Front >>>', 'Front >>1.', 'Front ;; ', 'A >> B <> C', '{{c1::gap}}']) {
     expect(insertCard(text, 'forward')).toEqual({ text, caret: text.length });
   }
   expect(insertCard('`>>`', 'forward').text).toBe('`>>` >> ');
@@ -44,7 +44,7 @@ test('cloze wrapping refuses operators, existing clozes, reference boundaries an
 });
 
 test('Card remains first when all card kinds match the slash query', () => {
-  const entries = ['Card', 'Reverse card', 'Reversible card', 'Multi-line card', 'List card', 'Cloze'].map(title => ({ id: title, title, aliases: ['flashcard'] }));
+  const entries = ['Card', 'Reverse card', 'Reversible card', 'Multi-line card', 'List card', 'Descriptor card', 'Cloze'].map(title => ({ id: title, title, aliases: ['flashcard'] }));
   expect(rankSlash(entries, 'card')[0]?.title).toBe('Card');
   expect(rankSlash(entries, 'flashcard').map(entry => entry.title)).toEqual(entries.map(entry => entry.title));
 });

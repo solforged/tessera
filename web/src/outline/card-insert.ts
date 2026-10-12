@@ -2,13 +2,13 @@ import { cardMarks, parseCardText } from '../review/card-text';
 import { insideProtectedSyntax } from '../tasks/quick-date';
 import { nextClozeNumber } from './slash';
 
-export type InsertCardKind = 'forward' | 'reverse' | 'both' | 'multiline' | 'list' | 'cloze';
+export type InsertCardKind = 'forward' | 'reverse' | 'both' | 'multiline' | 'list' | 'descriptor' | 'cloze';
 export interface CardInsertion { text: string; caret: number }
 
 /** Includes unfinished operators, but not literal operators in code, references or cloze answers. */
 export function hasCardOperator(text: string): boolean {
   const clozes = cardMarks(text).filter(mark => mark.kind === 'cloze');
-  for (const match of text.matchAll(/>>|<<|<>/g)) {
+  for (const match of text.matchAll(/>>|<<|<>|;;/g)) {
     const at = match.index;
     let escapes = 0;
     for (let i = at - 1; i >= 0 && text[i] === '\\'; i--) escapes++;
@@ -27,7 +27,7 @@ export function insertCard(text: string, kind: InsertCardKind, at = text.length)
   }
   // Do not turn an existing cloze card into mixed syntax either.
   if (cardMarks(text).some(mark => mark.kind === 'cloze')) return { text, caret: text.length };
-  const operator = { forward: '>> ', reverse: '<< ', both: '<> ', multiline: '>>>', list: '>>1.' }[kind];
+  const operator = { forward: '>> ', reverse: '<< ', both: '<> ', multiline: '>>>', list: '>>1.', descriptor: ';; ' }[kind];
   const front = text.trimEnd();
   const next = `${front} ${operator}`;
   return { text: next, caret: front ? next.length : 0 };

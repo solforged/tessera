@@ -6,13 +6,13 @@ export interface CardParse { cards: ParsedCard[]; problems: CardProblem[] }
 
 interface Cloze { start: number; end: number; id: string; answerStart: number; answerEnd: number; hintStart: number | null }
 
-type CardOperator = '>>' | '<<' | '<>' | '>>>' | '>>1.';
+type CardOperator = '>>' | '<<' | '<>' | '>>>' | '>>1.' | ';;';
 export type CardMark =
   | { kind: 'operator'; start: number; end: number; op: CardOperator }
   | ({ kind: 'cloze'; hintEnd: number | null } & Cloze);
 
 function operator(text: string, at: number): CardOperator | undefined {
-  return (['>>1.', '>>>', '>>', '<<', '<>'] as const).find(token => text.startsWith(token, at));
+  return (['>>1.', '>>>', '>>', '<<', '<>', ';;'] as const).find(token => text.startsWith(token, at));
 }
 
 function problem(message: string, start: number, end: number): CardProblem { return { message, start, end }; }
@@ -21,7 +21,7 @@ function problem(message: string, start: number, end: number): CardProblem { ret
 // following syntax active; unknown escapes keep their backslash in shown text.
 function escapeEnd(text: string, at: number): number | null {
   if (text[at] !== '\\') return null;
-  const token = ['>>1.', '>>>', '>>', '<<', '<>', '{{', '}}', '::', '[[', ']]'].find(token => text.startsWith(token, at + 1));
+  const token = ['>>1.', '>>>', '>>', '<<', '<>', ';;', '{{', '}}', '::', '[[', ']]'].find(token => text.startsWith(token, at + 1));
   if (token) return at + 1 + token.length;
   if (text[at + 1] !== undefined && '\\`~[]{}<>:'.includes(text[at + 1]!)) return at + 2;
   return null;
@@ -158,7 +158,7 @@ interface ClozePiece { id: string; before: string; answer: string; hint: string 
 
 function derive(text: string): { parse: CardParse; pieces: ClozePiece[]; suffix: string; marks: CardMark[] } {
   // Cards need an operator or a cloze opener; most blocks have neither, so skip the character walk.
-  if (!/>>|<<|<>|\{\{/.test(text)) return { parse: { cards: [], problems: [] }, pieces: [], suffix: text, marks: [] };
+  if (!/>>|<<|<>|;;|\{\{/.test(text)) return { parse: { cards: [], problems: [] }, pieces: [], suffix: text, marks: [] };
   const result: CardParse = { cards: [], problems: [] };
   const operators: number[] = [];
   const clozes: Cloze[] = [];
@@ -207,8 +207,11 @@ function derive(text: string): { parse: CardParse; pieces: ClozePiece[]; suffix:
       result.problems.push(problem('Both sides of a card need text.', first, first + 2));
       return none;
     }
-    if (op !== '<<') result.cards.push({ key: 'forward', kind: 'forward', front: left, back: right });
-    if (op !== '>>') result.cards.push({ key: 'reverse', kind: 'reverse', front: right, back: left });
+    if (op === ';;') result.cards.push({ key: 'descriptor', kind: 'descriptor', front: left, back: right });
+    else {
+      if (op !== '<<') result.cards.push({ key: 'forward', kind: 'forward', front: left, back: right });
+      if (op !== '>>') result.cards.push({ key: 'reverse', kind: 'reverse', front: right, back: left });
+    }
     return { ...none, marks: [{ kind: 'operator', start: first, end: first + 2, op }] };
   }
   let previous = 0;
@@ -240,6 +243,14 @@ export function parseCardText(text: string): CardParse {
 /** Valid card syntax, using the same shielding and UTF-16 ranges as derivation. */
 export function cardMarks(text: string): CardMark[] {
   return derive(text).marks;
+}
+
+/** The text a child descriptor names as its subject: the authored left side of
+ * an operator, the full answer of a cloze, otherwise the whole literal text. */
+export function cardSubject(text: string): string {
+  const card = parseCardText(text).cards[0];
+  if (!card) return trim(literal(text, 0, text.length));
+  return card.kind === 'reverse' || card.kind === 'cloze' ? card.back : card.front;
 }
 
 /** Plain text, or one of this card's gaps with its answer and optional hint. */
