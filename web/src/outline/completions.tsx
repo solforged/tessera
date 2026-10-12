@@ -15,7 +15,7 @@ import { Icon } from '../ui/Icon';
 import type { IconName } from '../ui/Icon';
 import { Popup } from '../ui/Popup';
 import { BlockBreadcrumb, BlockText } from './BlockText';
-import { completeReferences, completionPickKey, isJournalReference, openReferenceRange, referenceCompletionAt, referenceNewlineAt } from './completion';
+import { completeReferences, completionPickKey, isJournalReference, isQuoteCompletion, openReferenceRange, referenceCompletionAt, referenceNewlineAt } from './completion';
 import { rankSlash, slashTokenAt } from './slash';
 import { insertCard } from './card-insert';
 import type { InsertCardKind } from './card-insert';
@@ -26,11 +26,11 @@ import type { OutlineContext } from './context';
 import { createPageIcon } from './source';
 
 /**
- * An open `[[` page reference or `((` block reference, a `#` type query, `::` at the start of a block
+ * An open `[[` page reference or `((` block quote/reference, a `#` type query, `::` at the start of a block
  * naming a field, the value of a choice field picking an option, or the manual Add type picker. A `[[`
  * under an instance field with target types offers only pages of those types.
  */
-export interface Completion { from: number; to: number; query: string; types?: boolean; blocks?: boolean; fields?: boolean; choice?: FieldDefinition; instance?: FieldDefinition; manual?: { blockId: string; anchor: HTMLElement } }
+export interface Completion { from: number; to: number; query: string; types?: boolean; blocks?: boolean; quote?: boolean; fields?: boolean; choice?: FieldDefinition; instance?: FieldDefinition; manual?: { blockId: string; anchor: HTMLElement } }
 /** A slash-menu row: a block verb (`run`) or syntax that replaces the token (`insert`), or both. */
 interface SlashItem extends SlashEntry {
   section: string;
@@ -60,6 +60,8 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
   } = context;
   const [completion, setCompletion] = createSignal<Completion | null>(null);
   const [completionIndex, setCompletionIndex] = createSignal(0);
+  const [quoteBusy, setQuoteBusy] = createSignal(false);
+  const [quoteError, setQuoteError] = createSignal('');
   const [dateCompletion, setDateCompletion] = createSignal<(DateToken & { id: string }) | null>(null);
   const [dateIndex, setDateIndex] = createSignal(0);
   const [tokenDate, setTokenDate] = createSignal<(DateToken & { id: string; text: string; anchor: HTMLElement | DOMRect }) | null>(null);
@@ -270,7 +272,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
   }
   /**
    * `::` at the start of a block picks a field, and a choice field's value picks an option. Otherwise `[[`
-   * completes pages, fields and blocks and `((` searches blocks only; both insert a `[[id]]` reference.
+   * completes pages, fields and blocks; a whole-row `((` captures a quote, while inline `((` inserts a live reference.
    */
   function completionAt(text: string, at: Caret): Completion | null {
     if (text.startsWith('::') && at.offset >= 2) {
@@ -285,11 +287,12 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     const reference = referenceCompletionAt(text, at.offset);
     if (!reference) return null;
     const instance = !reference.blocks && field?.kind === 'instance' && field.targets.length ? field : undefined;
-    return { ...reference, ...(instance ? { instance } : {}) };
+    return { ...reference, quote: reference.blocks && isQuoteCompletion(text, reference.from, reference.to), ...(instance ? { instance } : {}) };
   }
   function updateCompletion(text: string, at: Caret) {
     if (completion()?.manual) return;
     const next = completionAt(text, at);
+    setQuoteError('');
     if (!next) { setCompletion(null); return; }
     if (dismissedCompletion && dismissedCompletion.id === at.id && dismissedCompletion.from === next.from && dismissedCompletion.query === next.query) return;
     dismissedCompletion = null;
@@ -389,11 +392,34 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     if (state && !state.manual && !state.choice) { drafted = true; context.editor.markDraft(completionRange(state, context.editor.view.state.doc.toString())); }
     else if (drafted) { drafted = false; context.editor.markDraft(null); }
   });
-  function insertReference(id: string) {
+  async function insertReference(id: string) {
     const state = completion();
     const source = editing();
-    if (!state || !context.editor || !source) return;
-    const range = completionRange(state, context.editor.view.state.doc.toString());
+    if (!state || !context.editor || !source || quoteBusy()) return;
+    const text = context.editor.view.state.doc.toString();
+    const range = completionRange(state, text);
+    if (state.quote) {
+      setQuoteBusy(true);
+      setQuoteError('');
+      const before = caret();
+      try {
+        const value = await api.quoteSnapshot(id);
+        if (context.disposed || editing() !== source || context.editor?.id !== source || doc.block(source)?.text !== text || completion() !== state) return;
+        const next = `((${id}))`;
+        const result = doc.edit({ kind: 'quote', id: source, value, text: next }, before);
+        if (!result.ok) throw new Error(result.reason);
+        setCompletion(null);
+        context.editor.sync(next);
+        context.editor.view.dispatch({ selection: { anchor: next.length } });
+        setCaret({ id: source, offset: next.length });
+        referenceSpace = null;
+        void doc.flush().catch(reason => capabilities.failure(source, reason));
+        scheduleReport();
+      } catch (reason) {
+        if (completion() === state) setQuoteError(reason instanceof Error ? reason.message : String(reason));
+      } finally { setQuoteBusy(false); }
+      return;
+    }
     const next = context.editor.view.state.doc.sliceString(range.to, range.to + 1);
     // A word after the reference, or the end of the block, gets a separating space so typing continues as prose; an instance value is only its reference.
     const instance = definitionsById().get(fieldEntryId(doc.block(doc.outline.parentOf(source))?.text ?? '') ?? '')?.kind === 'instance' && range.from === 0 && !next;
@@ -459,13 +485,13 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
       referenceSpace = { id: source, offset: state.from + inserted.length };
       return;
     }
-    if (row?.kind === 'field') { insertReference(row.field.id); return; }
+    if (row?.kind === 'field') { await insertReference(row.field.id); return; }
     if (matches.error) return;
-    if (row?.kind === 'block') { insertReference(row.block.id); return; }
+    if (row?.kind === 'block') { await insertReference(row.block.id); return; }
     if (canCreate()) {
       const type = createRows()[index - completionRows().length];
       if (state.instance && !type) return;
-      try { const id = type ? (await createInstance(props.notebook, state.query.trim(), type.text)).id : await props.notebook.createPage(state.query.trim()); insertReference(id); }
+      try { const id = type ? (await createInstance(props.notebook, state.query.trim(), type.text)).id : await props.notebook.createPage(state.query.trim()); await insertReference(id); }
       catch (error) { setMessage(error instanceof Error ? error.message : String(error)); }
     }
   }
@@ -509,6 +535,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
       ...([1, 2, 3] as const).map((level): SlashItem => ({ id: `heading-${level}`, title: `Heading ${level}`, aliases: [`h${level}`], section: 'Text', icon: 'heading', keys: '#'.repeat(level), run: id => apply({ kind: 'heading', id, level }) })),
       { id: 'heading-normal', title: 'Normal text', aliases: ['paragraph'], section: 'Text', icon: 'edit', when: block => !!block?.heading, run: id => apply({ kind: 'heading', id, level: null }) },
       { id: 'reference', title: 'Reference', aliases: ['link', 'page', 'mention'], section: 'Text', icon: 'link', keys: '[[', insert: () => ({ text: '[[', caret: 2 }) },
+      { id: 'quote', title: 'Quote block', aliases: ['quote', 'frozen'], section: 'Text', icon: 'link', keys: '((', when: block => { const state = slashCompletion(); return !!state && !removeToken(block?.text ?? '', state).text.trim(); }, insert: () => ({ text: '(())', caret: 2 }) },
       { id: 'type', title: 'Type', aliases: ['tag', 'supertag'], section: 'Text', icon: 'tag', keys: '#', insert: () => ({ text: '#', caret: 1 }) },
       { id: 'card', title: 'Card', aliases: ['flashcard'], section: 'Cards', icon: 'right', keys: '>>', cardKind: 'forward' },
       { id: 'reverse-card', title: 'Reverse card', aliases: ['reverse', 'flashcard'], section: 'Cards', icon: 'left', keys: '<<', cardKind: 'reverse' },
@@ -534,9 +561,12 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     return true;
   }
 function CompletionPopups(){ return <>
-    <Show when={completion()}><Popup anchor={completionAnchor} width={480} class="picker" label={completion()?.manual ? 'Add type…' : completion()?.types ? 'Type' : completion()?.fields ? 'Field' : completion()?.choice ? `${completion()!.choice!.name} options` : completion()?.blocks ? 'Block reference' : 'Reference completion'} role={completion()?.manual ? 'dialog' : 'listbox'} onDismiss={dismissCompletion} autofocus={!!completion()?.manual}>
+    <Show when={completion()}><Popup anchor={completionAnchor} width={480} class="picker" label={completion()?.manual ? 'Add type…' : completion()?.types ? 'Type' : completion()?.fields ? 'Field' : completion()?.choice ? `${completion()!.choice!.name} options` : completion()?.quote ? 'Quote block' : completion()?.blocks ? 'Block reference' : 'Reference completion'} role={completion()?.manual ? 'dialog' : 'listbox'} onDismiss={dismissCompletion} autofocus={!!completion()?.manual}>
       <Show when={completion()?.manual}><div class="picker-query"><Icon name="tag" class="picker-prefix" /><input class="picker-input" aria-label="Type title" placeholder="Type title" value={completion()?.query ?? ''} onInput={event => { setCompletion(state => state ? { ...state, query: event.currentTarget.value } : null); setCompletionIndex(0); }} onKeyDown={event => { if (!event.isComposing && popupKey(event)) { event.preventDefault(); event.stopPropagation(); } }} /></div></Show>
       <div ref={completionList} class="picker-list" onMouseDown={event => event.preventDefault()}>
+        <Show when={completion()?.blocks}><div class="picker-section">{completion()?.quote ? 'Quote block' : 'Block reference'}</div></Show>
+        <Show when={quoteBusy()}><p class="empty-state" role="status">Capturing quote…</p></Show>
+        <Show when={quoteError()}><p class="error" role="alert">{quoteError()}</p></Show>
         <Show when={completionKey() && matches.loading && !completionRows().length && !canCreate()}><p class="empty-state">Searching…</p></Show>
         <Show when={completionKey() && matches.error}><p class="error" role="alert">Couldn't load completion.</p></Show>
         <For each={completionRows()}>{(row, index) => <div role="option" aria-selected={completionIndex() === index()} class="picker-row" classList={{ selected: completionIndex() === index() }} onClick={() => void chooseCompletion(index())}>

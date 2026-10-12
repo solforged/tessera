@@ -10,7 +10,7 @@ import { OutlineIndex } from './outline-index';
 import type { Action, Command, HistoryEntry, PageCommand, Snapshot } from './types';
 import { emptyCapabilities, isCapabilityAction, questionStatus, sameState, sourceState } from './types';
 import { parseCardText } from '../review/card-text';
-import { textTokens } from './text-tokens';
+import { quoteTarget, textTokens } from './text-tokens';
 import { newTask } from '../tasks/quick-date';
 import { rebaseText } from './text-patch';
 
@@ -35,7 +35,7 @@ export interface DocumentHost {
 }
 type MutableBlockState = { -readonly [K in keyof BlockState]: BlockState[K] } & { history: boolean };
 interface Cell { state: MutableBlockState; set: SetStoreFunction<MutableBlockState> }
-const stateOf = (block: Block): BlockState => ({ id: block.id, kind: block.kind, parentId: block.parent_id, pageId: block.page_id, text: block.text, heading: block.heading, archived: block.archived, keptCopy: block.kept_copy, manual_types: [], task: null, project: null, position: null, question: null, assessment: null, mergeProtected: false, reviewedCards: false, source: null, citations: [], revision: block.revision, pending: false, conflict: null });
+const stateOf = (block: Block): BlockState => ({ id: block.id, kind: block.kind, parentId: block.parent_id, pageId: block.page_id, text: block.text, heading: block.heading, archived: block.archived, keptCopy: block.kept_copy, manual_types: [], task: null, project: null, position: null, question: null, quote: null, assessment: null, mergeProtected: false, reviewedCards: false, source: null, citations: [], revision: block.revision, pending: false, conflict: null });
 /** The reference or tag holding `offset` strictly inside it, where Enter must not cut. */
 const splitToken = (text: string, offset: number) =>
   textTokens(text).find(token => (token.kind === 'reference' || token.kind === 'tag') && offset > token.start && offset < token.end);
@@ -154,7 +154,7 @@ export class Document implements PageDocument {
   isResolving(id: string) { return this.resolving.has(id); }
   private put(block: Block, pending = false, manual_types = this.cells.get(block.id)?.state.manual_types ?? this.baseManualTypes.get(block.id) ?? [], capability = this.capabilities(block.id)) {
     const cell = this.cells.get(block.id);
-    const sidecar = { task: capability.task, project: capability.project, position: capability.position ?? null, question: capability.question ?? null, assessment: capability.assessment ?? null, source: capability.source ?? null, citations: capability.citations ?? [], history: capability.history, mergeProtected: capability.merge_protected, reviewedCards: capability.reviewed_cards, templateCards: capability.template_cards ?? 0 };
+    const sidecar = { task: capability.task, project: capability.project, position: capability.position ?? null, question: capability.question ?? null, quote: capability.quote ?? null, assessment: capability.assessment ?? null, source: capability.source ?? null, citations: capability.citations ?? [], history: capability.history, mergeProtected: capability.merge_protected, reviewedCards: capability.reviewed_cards, templateCards: capability.template_cards ?? 0 };
     this.trackInvestigation(capability);
     this.markArchived(block.id, block.archived);
     if (cell) cell.set({ ...stateOf(block), ...sidecar, manual_types, pending, conflict: cell.state.conflict });
@@ -183,7 +183,7 @@ export class Document implements PageDocument {
   }
   capabilities(id: string, base = false): BlockCapabilities {
     const cell = !base && this.cells.get(id)?.state;
-    const value = cell ? { block_id: id, task: cell.task, project: cell.project, position: cell.position, question: cell.question, assessment: cell.assessment, source: cell.source, citations: cell.citations, history: cell.history, merge_protected: cell.mergeProtected, reviewed_cards: cell.reviewedCards, template_cards: cell.templateCards ?? 0 } : this.baseCapabilities.get(id);
+    const value = cell ? { block_id: id, task: cell.task, project: cell.project, position: cell.position, question: cell.question, quote: cell.quote, assessment: cell.assessment, source: cell.source, citations: cell.citations, history: cell.history, merge_protected: cell.mergeProtected, reviewed_cards: cell.reviewedCards, template_cards: cell.templateCards ?? 0 } : this.baseCapabilities.get(id);
     // Most blocks have no capabilities; a fresh empty value needs no defensive copy.
     return value ? JSON.parse(JSON.stringify(value)) as BlockCapabilities : emptyCapabilities(id);
   }
@@ -216,7 +216,7 @@ export class Document implements PageDocument {
     value.merge_protected = value.task !== null || value.project !== null || Boolean(value.position || value.question || value.assessment) || value.history || value.reviewed_cards;
     if (!base) this.trackInvestigation(value);
     if (base) this.baseCapabilities.set(value.block_id, value);
-    else this.cells.get(value.block_id)?.set({ task: value.task, project: value.project, position: value.position ?? null, question: value.question ?? null, assessment: value.assessment ?? null, source: value.source ?? null, citations: value.citations ?? [], history: value.history, mergeProtected: value.merge_protected, reviewedCards: value.reviewed_cards, templateCards: value.template_cards ?? 0, pending: true });
+    else this.cells.get(value.block_id)?.set({ task: value.task, project: value.project, position: value.position ?? null, question: value.question ?? null, quote: value.quote ?? null, assessment: value.assessment ?? null, source: value.source ?? null, citations: value.citations ?? [], history: value.history, mergeProtected: value.merge_protected, reviewedCards: value.reviewed_cards, templateCards: value.template_cards ?? 0, pending: true });
   }
   private guardMerge(id: string) {
     const value = this.capabilities(id);
@@ -241,7 +241,7 @@ export class Document implements PageDocument {
       if (!this.baseBlocks.has(value.block_id) && !this.cells.has(value.block_id)) continue;
       this.baseCapabilities.set(value.block_id, structuredClone(value));
       this.syncGeneration++;
-      this.cells.get(value.block_id)?.set({ task: value.task, project: value.project, position: value.position ?? null, question: value.question ?? null, assessment: value.assessment ?? null, source: value.source ?? null, citations: value.citations ?? [], history: value.history, mergeProtected: value.merge_protected, reviewedCards: value.reviewed_cards, templateCards: value.template_cards ?? 0 });
+      this.cells.get(value.block_id)?.set({ task: value.task, project: value.project, position: value.position ?? null, question: value.question ?? null, quote: value.quote ?? null, assessment: value.assessment ?? null, source: value.source ?? null, citations: value.citations ?? [], history: value.history, mergeProtected: value.merge_protected, reviewedCards: value.reviewed_cards, templateCards: value.template_cards ?? 0 });
       this.trackInvestigation(value);
       received.add(value.block_id);
     }
@@ -329,6 +329,13 @@ export class Document implements PageDocument {
         const value = this.capabilities(action.id, base);
         const previous = value.question?.state ?? null;
         value.question = action.value ? { state: action.value, status: questionStatus(action.value, false) } : null;
+        this.updateCapabilities(value, base);
+        return [{ ...action, value: previous, previous: action.value }];
+      }
+      case 'quote': {
+        const value = this.capabilities(action.id, base);
+        const previous = value.quote ?? null;
+        value.quote = action.value;
         this.updateCapabilities(value, base);
         return [{ ...action, value: previous, previous: action.value }];
       }
@@ -1256,6 +1263,16 @@ export class Document implements PageDocument {
           if (edit.value && this.block(edit.id)?.assessment) throw new Error('A block cannot be both a question and an answer.');
           if ((previous?.parked || edit.value?.parked) && (previous?.accepted ?? null) !== (edit.value?.accepted ?? null)) throw new Error('Resume the question before accepting an answer.');
           if (!sameState(previous, edit.value)) actions.push({ ...edit, value: structuredClone(edit.value), previous, baseRevision: this.snapshot(edit.id).revision });
+          break;
+        }
+        case 'quote': {
+          const block = this.snapshot(edit.id);
+          const text = edit.text ?? block.text;
+          if (edit.value && (quoteTarget(text) !== edit.value.target_id || edit.value.target_id === edit.id)) throw new Error('Quote target must match a different block.');
+          const previous = this.capabilities(edit.id).quote ?? null;
+          setText(block, text);
+          if (!sameState(previous, edit.value)) actions.push({ kind: 'quote', id: edit.id, value: structuredClone(edit.value), previous, baseRevision: block.revision });
+          if (edit.text !== undefined) caret = { id: edit.id, offset: text.length };
           break;
         }
         case 'assessment': {

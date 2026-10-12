@@ -128,6 +128,53 @@ describe('real notebook operations and recovery', () => {
     doc.release();
   });
 
+  test('quote capture commits text and frozen subtree together and update undo restores its previous snapshot', async () => {
+    const instance = await client();
+    const source = await page(instance, 'Parent');
+    const child = success(source.doc.edit({ kind: 'insert', parentId: source.first, after: null, text: 'Nested source' })).created[0]!;
+    const grandchild = success(source.doc.edit({ kind: 'insert', parentId: child, after: null, text: 'Frozen child' })).created[0]!;
+    success(source.doc.edit({ kind: 'heading', id: child, level: 2 }));
+    await instance.flush();
+    const target = await page(instance, '((Nested))');
+    const snapshot = await api.quoteSnapshot(child);
+    const text = `((${child}))`;
+    success(target.doc.edit({ kind: 'quote', id: target.first, text, value: snapshot }));
+    expect(target.doc.block(target.first)?.text).toBe(text);
+    expect(target.doc.block(target.first)?.quote).toEqual(snapshot);
+    expect(instance.commands(target.id).at(-1)?.actions.map(action => action.kind)).toEqual(['text', 'quote']);
+    await instance.flush();
+    expect((await api.capabilities(target.first)).quote).toEqual(snapshot);
+    expect((await api.page(target.id)).capabilities?.find(value => value.block_id === target.first)?.quote).toEqual(snapshot);
+    target.doc.undo(); await instance.flush();
+    expect(target.doc.block(target.first)?.text).toBe('((Nested))');
+    expect((await api.capabilities(target.first)).quote).toBeNull();
+    target.doc.redo(); await instance.flush();
+    expect(target.doc.block(target.first)?.quote).toEqual(snapshot);
+    const otherWindow = await client();
+    const shared = otherWindow.open(target.id);
+    await eventually(() => shared.status() === 'ready', shared.statusMessage());
+    expect(shared.block(target.first)?.quote).toEqual(snapshot);
+    success(source.doc.edit({ kind: 'text', id: grandchild, text: 'Changed child' }));
+    await instance.flush();
+    expect(target.doc.block(target.first)?.quote?.rows.map(row => [row.depth, row.text, row.heading])).toEqual([[0, 'Nested source', 2], [1, 'Frozen child', null]]);
+    expect((await api.quoteStatus(target.id))[0]).toMatchObject({ block_id: target.first, source_live: true, changed: true });
+    const updated = await api.quoteSnapshot(child);
+    success(target.doc.edit({ kind: 'quote', id: target.first, value: updated }));
+    await instance.flush();
+    await eventually(() => shared.block(target.first)?.quote?.captured_at === updated.captured_at, 'Updated quote did not arrive');
+    expect(target.doc.block(target.first)?.quote?.rows[1]?.text).toBe('Changed child');
+    target.doc.undo(); await instance.flush();
+    expect((await api.capabilities(target.first)).quote).toEqual(snapshot);
+    await eventually(() => shared.block(target.first)?.quote?.captured_at === snapshot.captured_at, 'Quote undo did not arrive');
+    target.doc.redo(); await instance.flush();
+    expect((await api.capabilities(target.first)).quote).toEqual(updated);
+    success(source.doc.edit({ kind: 'delete', ids: [child] }));
+    await instance.flush();
+    expect((await api.quoteStatus(target.id))[0]).toMatchObject({ source_live: false, changed: true });
+    expect((await api.capabilities(target.first)).quote).toEqual(updated);
+    source.doc.release(); target.doc.release(); shared.release();
+  });
+
   test('card template no-op saves do not enqueue empty batches and Apply travels through history', async () => {
     const instance = await client();
     const { id, doc } = await page(instance);

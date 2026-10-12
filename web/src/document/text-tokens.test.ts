@@ -1,5 +1,18 @@
 import { describe, expect, test } from 'bun:test';
-import { referenceBeside, textTokens } from './text-tokens';
+import { quoteTarget, referenceBeside, textTokens } from './text-tokens';
+
+describe('whole-row quote targets', () => {
+  const id = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
+  test('accepts only stable targets with optional surrounding whitespace', () => {
+    expect(quoteTarget(`((${id}))`)).toBe(id);
+    expect(quoteTarget(` \t((${id}))\n`)).toBe(id);
+    expect(quoteTarget(`((${id.toLowerCase()}))`)).toBeNull();
+    expect(quoteTarget(`((8${id.slice(1)}))`)).toBeNull();
+    for (const text of [`see ((${id}))`, `((${id})) next`, `((${id}))\nother`, `((${id})) ((${id}))`,
+      `(( ${id}))`, `((${id} ))`, `(((${id})))`, `((${id}|label))`, `((${id.slice(1)}))`, `((I${id.slice(1)}))`,
+      `((U${id.slice(1)}))`, `[[${id}]]`, `\`((${id}))\``, '((title))', '((']) expect(quoteTarget(text)).toBeNull();
+  });
+});
 
 describe('URL tokens', () => {
   test('links HTTP and HTTPS and stops at whitespace and HTML delimiters', () => {

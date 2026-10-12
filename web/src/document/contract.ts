@@ -16,7 +16,7 @@
 import type { Accessor } from 'solid-js';
 import type { Block, BlockKind, ChangeEvent, Citation, Committed, FieldDefinition, FieldKind, Operation, PassagePoint, ProjectState, SettingsView, SourceRecord, SourceState, TaskState, WorkSession } from '../api/types';
 import type { PositionInfo } from '../api/types';
-import type { AssessmentInfo, AssessmentState, QuestionInfo, QuestionState } from '../api/types';
+import type { AssessmentInfo, AssessmentState, QuestionInfo, QuestionState, QuoteState } from '../api/types';
 import type { ApiClient } from '../api/client';
 import type { CardTemplate, CardTemplateState } from '../api/types';
 import type { BlockCapabilities } from '../api/types';
@@ -50,6 +50,7 @@ export interface BlockState {
   readonly position: PositionInfo | null;
   readonly question: QuestionInfo | null;
   readonly assessment: AssessmentInfo | null;
+  readonly quote: QuoteState | null;
   readonly mergeProtected: boolean;
   readonly reviewedCards: boolean;
   readonly templateCards?: number;
@@ -133,6 +134,8 @@ export type Edit =
   | { kind: 'project'; id: string; value: ProjectState | null }
   | { kind: 'position'; id: string; value: boolean }
   | { kind: 'question'; id: string; value: QuestionState | null }
+  /** Capture or update frozen rows; optional text replaces the picker query in the same undo step. */
+  | { kind: 'quote'; id: string; value: QuoteState | null; text?: string }
   | { kind: 'assessment'; id: string; value: AssessmentState | null }
   | { kind: 'startWork'; id: string; startedAt: number }
   | { kind: 'stopWork'; id: string; session: WorkSession; endedAt: number; note: string }

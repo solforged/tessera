@@ -1,0 +1,9 @@
+.outline-quote { min-width: 0; padding-block: var(--space-4); }
+.outline-quote-frame { padding-left: var(--space-8); border-left: var(--rule-width) solid var(--line); color: var(--muted); font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); font-variation-settings: var(--optical-quote); }
+/* The outline draws no bullets at rest, so a quote indents its rows without them. */
+.outline-quote-frame .block-tree-bullet { display: none; }
+.outline-quote-rubric { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-4) var(--space-8); margin-top: var(--space-4); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); font-variant-numeric: tabular-nums; }
+.outline-quote-rubric .button { min-height: 0; padding: 0; color: var(--muted); font: inherit; letter-spacing: inherit; }
+.outline-quote-rubric .outline-quote-source { color: var(--accent); }
+.outline-quote-truncated, .outline-quote-unresolved { color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.outline-quote-truncated { margin: var(--space-4) 0 0; }

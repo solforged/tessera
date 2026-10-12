@@ -10,7 +10,7 @@ import type { NameMatch } from '../api/types';
 import { cardMarks } from '../review/card-text';
 import type { CardMark } from '../review/card-text';
 
-import { isStableReference, textTokens } from '../document/text-tokens';
+import { isStableReference, quoteTarget, textTokens } from '../document/text-tokens';
 import type { Token } from '../document/text-tokens';
 
 interface Props {
@@ -35,13 +35,22 @@ export function referenceLabel(token: Token, target: Block | null | undefined): 
 }
 /** One line of display text: references read as their targets and tags keep their `#`, for breadcrumbs and labels. */
 export function plainText(text: string, lookup: NotebookClient['lookup']): string {
+  const quoted = quoteTarget(text);
+  if (quoted) return `“${referenceLabel({ kind: 'reference', id: quoted, value: '', start: 0, end: 0 }, lookup(quoted)())}”`;
   return textTokens(text).map(token => isStableReference(token) ? referenceLabel(token, lookup(token.id!)()) : token.kind === 'tag' ? `#${token.value}` : token.value).join('');
 }
 interface DisplayToken extends Token { label: string; visibleStart: number; target: Block | null | undefined; literal: boolean; matches?: NameMatch[] }
 interface TokenGroup { mark?: CardMark; tokens: Token[] }
 const operators = { '>>': { label: 'then', text: '→' }, '<<': { label: 'from', text: '←' }, '<>': { label: 'both ways', text: '↔' }, '>>>': { label: 'child answer', text: '↓' }, '>>1.': { label: 'list answer', text: '↓1.' }, ';;': { label: 'descriptor', text: '›' } };
 
+/** A whole-row `((ID))` reads as a quote of its target wherever a block shows as text: backlinks, breadcrumbs, search. */
 export function BlockText(props: Props) {
+  const quoted = createMemo(() => quoteTarget(props.text));
+  return <Show when={quoted()} keyed fallback={<TokenText {...props} />}>{id =>
+    <span class="quote-label"><span class="quote-label-rubric">Quote</span><TokenText {...props} text={`[[${id}]]`} /></span>}</Show>;
+}
+
+function TokenText(props: Props) {
   const [menu, setMenu] = createSignal<{ token: DisplayToken; anchor: HTMLElement }>();
   const [error, setError] = createSignal('');
   const names = createMemo(() => [...new Set(textTokens(props.text).flatMap(token => token.kind === 'reference' && !isStableReference(token) && token.id?.trim() ? [token.id.trim()] : []))]);

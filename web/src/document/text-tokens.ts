@@ -4,6 +4,11 @@ export function isStableReference(token: Token): boolean {
   return token.kind === 'reference' && /^[0-9A-HJKMNP-TV-Z]{26}$/i.test(token.id ?? '');
 }
 
+/** A whole-row canonical ULID, matching the service's quote target spelling. */
+export function quoteTarget(text: string): string | null {
+  return /^\(\(([0-7][0-9A-HJKMNP-TV-Z]{25})\)\)$/.exec(text.trim())?.[1] ?? null;
+}
+
 export function textTokens(text: string): Token[] {
   const result: Token[] = [];
   const pattern = /\[\[([^\]|]+)(?:\|([^\]]*))?\]\]|(?<![\p{L}\p{N}_])#(?:\[\[([^\]]+)\]\]|([\p{L}\p{N}_/-]+))|(https?:\/\/[^\s<>"']+)/gu;

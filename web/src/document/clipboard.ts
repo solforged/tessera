@@ -1,10 +1,16 @@
 import type { TaskState } from '../api/types';
 import type { BlockClipboard } from './contract';
+import { quoteTarget } from './text-tokens';
 
 export const BLOCK_CLIPBOARD_MIME = 'application/x-tessera-blocks+json';
 
 export function clipboardText(content: BlockClipboard): string {
   return content.blocks.map(({ block, depth, capabilities }) => {
+    const quote = capabilities.quote;
+    if (quote && quoteTarget(block.text) === quote.target_id) {
+      return quote.rows.flatMap(row => row.text.split('\n').map((line, index) =>
+        '  '.repeat(depth) + '> ' + '  '.repeat(row.depth) + (index === 0 && row.heading ? '#'.repeat(row.heading) + ' ' : '') + line)).join('\n');
+    }
     const marker = capabilities.task ? capabilities.task.status === 'done' ? '[x] ' : '[ ] ' : '';
     return block.text.split('\n').map((line, index) => '  '.repeat(depth) + (index === 0 ? marker : '') + line).join('\n');
   }).join('\n');

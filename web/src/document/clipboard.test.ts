@@ -19,6 +19,19 @@ test('plain block clipboard text carries relative indentation, task markers and 
   expect(clipboardText(content)).toBe('[ ] Parent\n  Front >> Back\n    Nested\n  Other child\nNext');
 });
 
+test('plain copy expands a frozen quote into quoted lines without absorbing its annotations', () => {
+  const id = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
+  const quoted = block('quote', `((${id}))`);
+  quoted.capabilities.quote = { target_id: id, captured_at: 0, truncated: false, rows: [
+    { id, depth: 0, text: 'Frozen heading', heading: 2, revision: 1 },
+    { id: 'child', depth: 1, text: 'Child\nSecond line', heading: null, revision: 1 },
+  ] };
+  const content: BlockClipboard = { version: 1, scope: 'notebook', cut: false, blocks: [quoted, block('annotation', 'Annotation', 1)] };
+  expect(clipboardText(content)).toBe('> ## Frozen heading\n>   Child\n>   Second line\n  Annotation');
+  quoted.block.text = 'Ordinary text';
+  expect(clipboardText(content)).toBe('Ordinary text\n  Annotation');
+});
+
 test('structured clipboard data keeps multiline block boundaries and a single selected row', () => {
   const content: BlockClipboard = { version: 1, scope: 'notebook', cut: true, blocks: [block('parent', 'Front >>>\nAnswer one\nAnswer two', 0, todo)] };
   content.blocks[0]!.manualTypes = ['History'];

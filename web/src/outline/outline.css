@@ -97,6 +97,9 @@
 .outline-reference { display: inline; font: inherit; color: var(--accent); border: 0; padding: 0; background: transparent; text-align: left; text-decoration: underline; text-decoration-thickness: var(--rule-width); text-underline-offset: var(--space-4); text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent); cursor: pointer; }
 .outline-reference[role="button"] { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 .outline-reference:hover { text-decoration-color: var(--danger); }
+/* A whole-row quote read as text elsewhere: a mono rubric, then the quoted block in the quote face. */
+.quote-label { font-family: var(--font-display); font-variation-settings: var(--optical-quote); }
+.quote-label-rubric { margin-right: var(--space-8); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); text-transform: uppercase; }
 /* The `[[query]]` a picker is completing: accent text on a tint, so the pending link reads as one span. */
 .outline-reference-draft { color: var(--accent); background: var(--accent-tint); border-radius: var(--radius-control); }
 .outline-reference .icon { width: var(--icon-size-small); height: var(--icon-size-small); display: inline; vertical-align: -2px; margin-right: var(--space-4); }

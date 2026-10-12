@@ -1,11 +1,20 @@
 import { describe, expect, test } from 'bun:test';
 import type { Block } from '../api/types';
 import type { NotebookClient } from '../document/contract';
-import { completionPickKey, headingPrefix, isJournalReference, openReferenceRange, referenceCompletionAt, referenceNewlineAt } from './completion';
+import { completionPickKey, headingPrefix, isJournalReference, isQuoteCompletion, openReferenceRange, referenceCompletionAt, referenceNewlineAt } from './completion';
 import { titleTargets, typedTitles, withLinkedTitles } from './link-titles';
 import { foldName } from './names';
 
 describe('an open reference completion', () => {
+  test('captures only a whole-row block query, including paired closers beyond the caret', () => {
+    for (const [text, from, caret] of [['((', 0, 2], ['(())', 0, 2], ['((nested))', 0, 5], [' \t((nested)) ', 2, 6]] as const) {
+      expect(isQuoteCompletion(text, from, caret)).toBe(true);
+    }
+    for (const [text, from, caret] of [['see ((nested))', 4, 9], ['((nested)) next', 0, 5], ['((nested) ', 0, 8], ['[[nested]]', 0, 5], ['((nested\nnext))', 0, 8]] as const) {
+      expect(isQuoteCompletion(text, from, caret)).toBe(false);
+    }
+  });
+
   test('runs from the brackets through the paired closer when the caret ends the query', () => {
     expect(openReferenceRange('see [[mar]] now', 4, 9, false)).toEqual({ from: 4, to: 11, query: 'mar' });
     expect(openReferenceRange('see ((mar)) now', 4, 9, true)).toEqual({ from: 4, to: 11, query: 'mar' });

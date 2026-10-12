@@ -21,6 +21,8 @@ import type { FieldSheet } from './field-sheet';
 import type { OutlineDrag } from './drag';
 import { checkboxValue } from '../fields/kinds';
 import { KeptCopyActions, KeptCopyLabel } from './KeptCopy';
+import { quoteTarget } from '../document/text-tokens';
+import { Quote, createQuoteStatus } from './Quote';
 
 const questionLabels: Record<QuestionStatus, string> = { open: 'Open', answered: 'Answered', parked: 'Parked', unsettled: 'Unsettled' };
 export function createOutlineRows(context: Pick<OutlineContext,
@@ -40,6 +42,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
     attach, referenceMenu, selectedOffsets, ids, indices, setMessage, apply,
     setConflicts, conflicts, editedConflicts, setEditedConflicts,
   } = context;
+  const quoteStatus = createQuoteStatus(doc, props.notebook);
   /**
    * A task's trailing facts: subtask progress, a running clock, then planning in mono, which opens the planning slip.
    * An open task with no plan offers Plan only while its row is hovered or selected; a finished one says when it was done.
@@ -103,6 +106,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
     const id = () => propsRow.id;
     const block = () => doc.block(id());
     const children = () => doc.outline.children(id()).length > 0;
+    const target = createMemo(() => quoteTarget(block()?.text ?? ''));
     const field = createMemo(() => definitionsById().get(fieldEntryId(block()?.text ?? '') ?? ''));
     const parent = () => doc.outline.parentOf(id());
     const valueField = createMemo(() => definitionsById().get(fieldEntryId(doc.block(parent())?.text ?? '') ?? ''));
@@ -170,6 +174,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
         <div class="outline-source-line"><div class="outline-source">
         <div class="editor-host" classList={{ 'host-active': editing() === id() }} ref={host => attach(id(), host)} />
         <Show when={editing() !== id()}><Switch>
+          <Match when={target()}><Quote id={id()} target={target()!} doc={doc} notebook={props.notebook} status={quoteStatus().get(id())} onOpen={props.onOpen} /></Match>
           <Match when={checked() !== null || emptyEntry() && field()?.kind === 'checkbox'}>
             <button type="button" role="checkbox" class="field-checkbox" aria-checked={!!checked()} aria-label={(valueField() ?? field())?.name} onMouseDown={event => event.stopPropagation()} onClick={() => checked() === null ? sheet.fill(id()) : sheet.toggle(id(), checked()!)}><Show when={checked()}><Icon name="check" /></Show></button>
           </Match>

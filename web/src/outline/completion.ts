@@ -42,6 +42,13 @@ export function openReferenceRange(text: string, from: number, caret: number, bl
   return { from, to: closed ? end + 2 : caret, query: text.slice(from + 2, closed ? end : caret) };
 }
 
+/** A block picker captures only when its query occupies the entire row. */
+export function isQuoteCompletion(text: string, from: number, caret: number): boolean {
+  if (!text.startsWith('((', from)) return false;
+  const range = openReferenceRange(text, from, caret, true);
+  return !text.slice(0, range.from).trim() && !text.slice(range.to).trim();
+}
+
 /** A soft newline leaves a paired reference after its closer, never inside the query. */
 export function referenceNewlineAt(text: string, from: number, caret: number, blocks: boolean): number {
   return openReferenceRange(text, from, caret, blocks).to;
