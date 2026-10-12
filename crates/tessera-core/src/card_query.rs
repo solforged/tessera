@@ -63,16 +63,14 @@ impl Notebook {
             CardSelection::New => "new",
             CardSelection::All => "all",
         };
-        let has_templates: bool =
-            self.conn
-                .query_row("SELECT EXISTS(SELECT 1 FROM card_templates)", [], |row| {
-                    row.get(0)
-                })?;
-        let (day_start, day_end) = if has_templates {
-            let (_, start, end) = crate::card_templates::local_day(&self.conn, now)?;
-            (start, end)
-        } else {
-            (0, 0)
+        // Due uses the same civil-day end as Today and the forecast. A card due
+        // later today is in the queue this morning; intervals are whole days
+        // added to the review timestamp, so the clock time is not the boundary.
+        // A clock jiff cannot place falls back to that instant, so a far-future
+        // query still includes every card already due.
+        let (day_start, day_end) = match crate::card_templates::local_day(&self.conn, now) {
+            Ok((_, start, end)) => (start, end),
+            Err(_) => (0, now.saturating_add(1)),
         };
         // Select and count units before limiting. Only the returned units need
         // grade evidence, and a count-only row preserves total for limit zero.
@@ -82,7 +80,7 @@ impl Notebook {
                 SELECT * FROM ranked WHERE ?4 = 'all'
                 UNION ALL
                 SELECT * FROM paced
-                WHERE (?4 = 'due' AND due_at <= ?5) OR (?4 = 'new' AND is_new)
+                WHERE (?4 = 'due' AND due_at < ?5) OR (?4 = 'new' AND is_new)
             ), selected AS MATERIALIZED (
                 SELECT * FROM queue ORDER BY is_new, due_at,
                     CASE WHEN is_new AND new_per_day IS NOT NULL THEN new_position END, id LIMIT ?6
@@ -120,7 +118,7 @@ impl Notebook {
             day_start,
             day_end,
             selection,
-            now,
+            day_end,
             query.limit.unwrap_or(500) as i64,
         ])?;
         let mut rows = Vec::new();

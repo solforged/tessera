@@ -232,11 +232,15 @@ fn due_boundary_and_new_selection_sort_reviewed_units_before_older_new_units() {
     assert_eq!(nb.card(&boundary.id).unwrap().schedule.due_at, now);
     assert_eq!(nb.card(&future.id).unwrap().schedule.due_at, now + 1);
 
-    let before = nb
-        .card_query(&query(CardSelection::Due), new.schedule.due_at - 1)
-        .unwrap();
-    assert_eq!(before.total, 0);
-    assert!(before.rows.is_empty());
+    // The new card's due instant is on this civil day, so the millisecond
+    // before it is still today.
+    assert_eq!(
+        card_ids(
+            nb.card_query(&query(CardSelection::Due), new.schedule.due_at - 1)
+                .unwrap()
+        ),
+        vec![new.id.clone()]
+    );
     assert_eq!(
         card_ids(
             nb.card_query(&query(CardSelection::Due), new.schedule.due_at)
@@ -251,13 +255,19 @@ fn due_boundary_and_new_selection_sort_reviewed_units_before_older_new_units() {
         ),
         vec![new.id.clone()]
     );
+    let due_today = vec![
+        early.id.clone(),
+        boundary.id.clone(),
+        future.id.clone(),
+        new.id.clone(),
+    ];
     assert_eq!(
         card_ids(nb.card_query(&query(CardSelection::Due), now - 1).unwrap()),
-        vec![early.id.clone(), new.id.clone()]
+        due_today
     );
     assert_eq!(
         card_ids(nb.card_query(&query(CardSelection::Due), now).unwrap()),
-        vec![early.id.clone(), boundary.id.clone(), new.id.clone()]
+        due_today
     );
     assert_eq!(
         card_ids(nb.card_query(&query(CardSelection::All), now).unwrap()),
@@ -269,7 +279,7 @@ fn due_boundary_and_new_selection_sort_reviewed_units_before_older_new_units() {
         ..query(CardSelection::Due)
     };
     let first = nb.card_query(&limited, now).unwrap();
-    assert_eq!(first.total, 3);
+    assert_eq!(first.total, 4);
     assert_eq!(card_ids(first), vec![early.id]);
     let count_only = nb
         .card_query(
@@ -280,8 +290,69 @@ fn due_boundary_and_new_selection_sort_reviewed_units_before_older_new_units() {
             now,
         )
         .unwrap();
-    assert_eq!(count_only.total, 3);
+    assert_eq!(count_only.total, 4);
     assert!(count_only.rows.is_empty());
+}
+
+#[test]
+fn due_includes_a_card_due_later_today_and_excludes_the_next_civil_day() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut nb = Notebook::open(dir.path()).unwrap();
+    apply(
+        &mut nb,
+        vec![
+            page(1, "Cards"),
+            insert(10, 1, "later >> answer"),
+            Operation::SetSetting {
+                key: "time_zone".into(),
+                base_revision: None,
+                value: "UTC".into(),
+            },
+        ],
+    );
+    let reviewed_at = "2030-01-13T15:00:00Z"
+        .parse::<jiff::Timestamp>()
+        .unwrap()
+        .as_millisecond();
+    let card = nb.source_cards(&id(10)).unwrap().remove(0);
+    grade(&mut nb, &card.id, 100, Grade::Good, reviewed_at);
+    let due = nb.card(&card.id).unwrap().schedule.due_at;
+    let due_day = jiff::Timestamp::from_millisecond(due)
+        .unwrap()
+        .to_zoned(jiff::tz::TimeZone::UTC);
+    let morning = due_day
+        .date()
+        .at(9, 0, 0, 0)
+        .to_zoned(jiff::tz::TimeZone::UTC)
+        .unwrap()
+        .timestamp()
+        .as_millisecond();
+    assert!(morning < due);
+    assert_eq!(
+        card_ids(nb.card_query(&query(CardSelection::Due), morning).unwrap()),
+        vec![card.id.clone()]
+    );
+    let previous_evening = due_day
+        .date()
+        .yesterday()
+        .unwrap()
+        .at(23, 0, 0, 0)
+        .to_zoned(jiff::tz::TimeZone::UTC)
+        .unwrap()
+        .timestamp()
+        .as_millisecond();
+    assert!(
+        nb.card_query(&query(CardSelection::Due), previous_evening)
+            .unwrap()
+            .rows
+            .is_empty()
+    );
+    assert_eq!(
+        nb.review_stats(None, &due_day.date().to_string())
+            .unwrap()
+            .due_review,
+        1
+    );
 }
 
 #[test]

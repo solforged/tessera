@@ -859,13 +859,22 @@ fn held_cards_leave_all_queues_counts_and_forecasts_without_changing_schedule() 
     let paused = nb.card(&held.id).unwrap();
     apply(&mut nb, vec![hold(&paused, false)]);
     assert_eq!(nb.card(&held.id).unwrap().schedule, reviewed.schedule);
+    let day_start = jiff::Timestamp::from_millisecond(due)
+        .unwrap()
+        .to_zoned(jiff::tz::TimeZone::system())
+        .date()
+        .at(0, 0, 0, 0)
+        .to_zoned(jiff::tz::TimeZone::system())
+        .unwrap()
+        .timestamp()
+        .as_millisecond();
     assert_eq!(
         nb.card_query(
             &CardQuery {
                 selection: CardSelection::Due,
                 ..query.clone()
             },
-            due - 1
+            day_start - 1
         )
         .unwrap()
         .total,
@@ -1006,14 +1015,8 @@ fn undo_of_start_over_restores_the_schedule_from_before_that_click() {
     );
     let wiped = nb.card(&original.id).unwrap();
     assert_ne!(wiped.schedule, progressed_schedule);
-    apply(
-        &mut nb,
-        vec![undo(&wiped, 101, 102, None, at + 86_400_000)],
-    );
-    assert_eq!(
-        nb.card(&original.id).unwrap().schedule,
-        progressed_schedule
-    );
+    apply(&mut nb, vec![undo(&wiped, 101, 102, None, at + 86_400_000)]);
+    assert_eq!(nb.card(&original.id).unwrap().schedule, progressed_schedule);
     let history = nb.review_events(&original.id).unwrap();
     assert!(history[0].undone_by.is_none());
     assert!(history[1..].iter().all(|event| event.undone_by.is_some()));
