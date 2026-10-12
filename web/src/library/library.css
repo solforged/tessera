@@ -297,12 +297,13 @@
 .library-browse-more.button { align-self: flex-start; margin-left: calc(-1 * var(--space-8)); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .library-browse-check { display: inline-flex; flex: none; width: var(--space-16); }
 .library-browse-picker .picker-row { gap: var(--space-8); }
-/* The rail and measure centre together, as the outline's apparatus margin does; 1096 px fits both with the pane's padding. */
+/* The rail and measure centre together, as the outline's apparatus margin does; 1096 px fits both with the pane's padding.
+   The measure keeps the rail's offset on every tab, rail or not, so switching tabs never slides the page sideways. */
 @container library-pane (min-width: 1096px) {
-  .library-pane:has(.library-browse) .library-toolbar > * { margin-left: calc(50% + (var(--apparatus-width) + var(--space-48) - var(--measure)) / 2); margin-right: 0; }
+  .library-pane:not(.library-inspecting) .library-toolbar > *, .library-pane:not(.library-inspecting, .library-highlights-tab) .library-scroll > .library-main { margin-left: calc(50% + (var(--apparatus-width) + var(--space-48) - var(--measure)) / 2); margin-right: 0; }
   .library-pane:has(.library-browse) .library-scroll { display: flex; align-items: flex-start; }
   .library-scroll > .library-browse { display: flex; flex: none; flex-direction: column; gap: var(--space-24); width: var(--apparatus-width); margin: 0 var(--space-48) 0 calc(50% - (var(--apparatus-width) + var(--space-48) + var(--measure)) / 2); padding-top: var(--space-4); }
-  .library-scroll > .library-browse + .library-main { margin-left: 0; }
+  .library-pane .library-scroll > .library-browse + .library-main { margin-left: 0; }
   .library-browse-button.button { display: none; }
 }
 /* Cover navigation: Reading comes first; Search and Add stay in the heading, and the Inbox follows the cards as Up next. */

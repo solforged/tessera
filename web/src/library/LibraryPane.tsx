@@ -200,6 +200,8 @@ export function LibraryPane(props: LibraryPaneProps) {
   // Shift-click ranges follow what is on screen, so a grouped list selects in group order.
   const orderedSources = createMemo(() => groups()?.flatMap(value => value.rows) ?? displayedSources());
   const slowLoad = createSlowFlag(() => loading() && !hasResult());
+  const slowCollections = createSlowFlag(() => collections.loading || collectionCards.loading);
+  let requestedTab: LibraryTab | undefined;
   const [commandError, setCommandError] = createSignal('');
   const [saving, setSaving] = createSignal(false);
   const [refresh, setRefresh] = createSignal(0);
@@ -526,6 +528,8 @@ export function LibraryPane(props: LibraryPaneProps) {
     const controller = new AbortController();
     setLoading(true); setError('');
     // Typing and bursts of changes wait for a pause; a tab's first rows load at once.
+    const pause = currentTab === requestedTab && untrack(hasResult);
+    requestedTab = currentTab;
     const timer = setTimeout(() => {
       void Promise.all([
         props.notebook.api.library(query, controller.signal),
@@ -553,7 +557,7 @@ export function LibraryPane(props: LibraryPaneProps) {
       }).catch(reason => {
         if (!controller.signal.aborted) { setError(reason instanceof Error ? reason.message : String(reason)); setLoading(false); }
       });
-    }, untrack(hasResult) ? 150 : 0);
+    }, pause ? 150 : 0);
     onCleanup(() => { controller.abort(); clearTimeout(timer); });
   });
 
@@ -1036,7 +1040,7 @@ export function LibraryPane(props: LibraryPaneProps) {
       <Show when={countError() || jobsError() || viewsError() || (showReading() && readingError()) || error()}>{message => <div class="library-error" role="alert">{message()}<Button onClick={() => { setRefresh(value => value + 1); setJobsRefresh(value => value + 1); }}>Retry</Button></div>}</Show>
       <Show when={collections.error || collectionCards.error}><p class="library-error" role="alert">{String(collections.error || collectionCards.error)}</p></Show>
       <Show when={collectionsIndex()}>
-        <Show when={collections.loading || collectionCards.loading}><p class="library-message" role="status">Loading collections…</p></Show>
+        <Show when={slowCollections()}><p class="library-message" role="status">Loading collections…</p></Show>
         <Show when={!collections.loading && !collections()?.length}><p class="library-empty">Select books in the library, then choose Add to collection.</p></Show>
         <div class="library-collections" role="list"><For each={collectionCards()}>{card => <div role="listitem">
           <Button class="library-collection-card" data-collection={card.page.id} onClick={() => update({ view: null, tab: 'collections', collection: card.page.id, text: '', filters: { people: [], decades: [], publishers: [], languages: [] }, scroll: 0 })}>
