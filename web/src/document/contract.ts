@@ -278,8 +278,8 @@ export interface PageDocument {
 /** The notebook-wide client. One per window. */
 export interface NotebookClient {
   readonly api: ApiClient;
-  /** Durable notebook command; resolves only after acknowledgement. */
-  commit(operations: readonly Operation[], reason?: string): Promise<Committed>;
+  /** Durable notebook command; structural writes name pages whose outlines must refresh before acknowledgement is exposed. */
+  commit(operations: readonly Operation[], reason?: string, refreshPages?: readonly string[]): Promise<Committed>;
   /** One acknowledged transaction across pages, with exact field-level undo/redo. */
   editSourceDetails(edits: readonly { pageId: string; edit: SourceDetailsEdit }[]): Promise<DocumentChange>;
   commandState(): SaveState;

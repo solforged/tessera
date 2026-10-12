@@ -69,7 +69,6 @@ export function DatePicker(props: DatePickerProps) {
       if (parsed.date === null) { setError('Enter a date before a time.'); return; }
       const timed = parseTaskDate(`${parsed.date} ${time().trim()}`, props.contextDate);
       if (!timed.ok) { setError(timed.error); return; }
-      if (clock !== null && clock !== timed.time) { setError('Enter one time, in the date or time field.'); return; }
       clock = timed.time;
     }
     void select({ date: parsed.date, time: clock });
@@ -94,7 +93,14 @@ export function DatePicker(props: DatePickerProps) {
       <div class="date-picker-body">
         <div class="date-picker-field">
           <label for={`${id}-date`}>{props.label}</label>
-          <input id={`${id}-date`} class="input" type="text" value={date()} placeholder="today, next Monday, +2d" autocomplete="off" spellcheck={false} disabled={busy()} aria-invalid={!!error()} aria-describedby={error() ? `${id}-error` : undefined} onInput={event => setDate(event.currentTarget.value)} />
+          <input id={`${id}-date`} class="input" type="text" value={date()} placeholder="today, next Monday, +2d" autocomplete="off" spellcheck={false} disabled={busy()} aria-invalid={!!error()} aria-describedby={error() ? `${id}-error` : undefined} onInput={event => {
+            const value = event.currentTarget.value;
+            setDate(value);
+            if (props.time !== undefined) {
+              const parsed = parseTaskDate(value, props.contextDate);
+              if (parsed.ok && parsed.time !== null) setTime(parsed.time);
+            }
+          }} />
         </div>
         <div class="date-picker-quick-picks">
           <Button disabled={busy()} onClick={() => quickPick('today')}>Today</Button>
@@ -107,7 +113,11 @@ export function DatePicker(props: DatePickerProps) {
         <Show when={props.time !== undefined}>
           <div class="date-picker-field">
             <label for={`${id}-time`}>Time (optional)</label>
-            <input id={`${id}-time`} class="input date-picker-time" type="text" value={time()} placeholder="HH:MM" autocomplete="off" spellcheck={false} disabled={busy()} aria-invalid={!!error()} aria-describedby={error() ? `${id}-error` : undefined} onInput={event => setTime(event.currentTarget.value)} />
+            <input id={`${id}-time`} class="input date-picker-time" type="text" value={time()} placeholder="HH:MM" autocomplete="off" spellcheck={false} disabled={busy()} aria-invalid={!!error()} aria-describedby={error() ? `${id}-error` : undefined} onInput={event => {
+              setTime(event.currentTarget.value);
+              const parsed = parseTaskDate(date(), props.contextDate);
+              if (parsed.ok && parsed.time !== null) setDate(parsed.date ?? '');
+            }} />
           </div>
         </Show>
         <Show when={error()}><p id={`${id}-error`} class="error date-picker-error" role="alert">{error()}</p></Show>

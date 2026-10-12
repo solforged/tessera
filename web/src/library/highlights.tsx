@@ -119,7 +119,7 @@ export function createHighlightActions(notebook: NotebookClient, onOpen: (target
         const doc = draft.document, parentId = draft.row.citation.block_id;
         await documentReady(doc);
         const id = ulid();
-        await notebook.commit([{ op: 'insert', id, parent_id: parentId, after: doc.outline.children(parentId).at(-1) ?? null, text, heading: null }], 'Make card from highlight');
+        await notebook.commit([{ op: 'insert', id, parent_id: parentId, after: doc.outline.children(parentId).at(-1) ?? null, text, heading: null }], 'Make card from highlight', [doc.pageId]);
         setLastDocument(undefined);
         if (!disposed) onOpen({ kind: 'page', pageId: draft.row.block.page.id, blockId: parentId, caretId: id, caretOffset: 0 }, true);
       }} />}</Show></>,

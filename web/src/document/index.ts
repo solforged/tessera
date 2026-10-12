@@ -328,17 +328,17 @@ export class Notebook implements NotebookClient, DocumentHost {
     this.schedule(coalesce ? Math.min(Math.max(150, Math.min(300, this.options.coalesceMs ?? 200)), Math.max(0, 1000 - (Date.now() - this.firstQueuedAt))) : 0);
     return command;
   }
-  async commit(operations: readonly Operation[], reason?: string): Promise<Committed> {
-    return this.commitOperations(operations, reason);
+  async commit(operations: readonly Operation[], reason?: string, refreshPages?: readonly string[]): Promise<Committed> {
+    return this.commitOperations(operations, reason, refreshPages);
   }
-  private async commitOperations(operations: readonly Operation[], reason?: string, refreshPages?: string[]): Promise<Committed> {
+  private async commitOperations(operations: readonly Operation[], reason?: string, refreshPages?: readonly string[], retainRejection = true): Promise<Committed> {
     const id = ulid();
     const frozen = JSON.stringify({ actor: { kind: 'client', name: this.actorName }, idempotency_key: id, reason, operations });
     const snapshot: Batch = JSON.parse(frozen);
     if (!this.initialized) await this.ready;
     if (this.closed) throw new Error('The notebook is closed.');
     if (!snapshot.operations.length) throw new Error('A command needs an operation.');
-    const command: NotebookCommand = { kind: 'notebook', id, order: ++this.order, pageId: null, operations: snapshot.operations, reason, refreshPages, actions: [], inverse: [], before: null, after: null, frozen };
+    const command: NotebookCommand = { kind: 'notebook', id, order: ++this.order, pageId: null, operations: snapshot.operations, reason, refreshPages: refreshPages ? [...refreshPages] : undefined, actions: [], inverse: [], before: null, after: null, frozen };
     const waiter = Promise.withResolvers<Committed>();
     this.commandWaiters.set(id, waiter);
     this.queue.push(command);
@@ -347,7 +347,7 @@ export class Notebook implements NotebookClient, DocumentHost {
     return waiter.promise.catch(async (error: unknown) => {
       // These awaited field transactions never adopted optimistic document state.
       // Keep their failed draft in the editor, not as a stale shared recovery command.
-      if (refreshPages?.length && this.rejected.has(id)) {
+      if (!retainRejection && this.rejected.has(id)) {
         await this.outbox?.remove(id);
         this.rejected.delete(id);
         if (this.failure === (error instanceof Error ? error.message : String(error))) this.failure = '';
@@ -403,7 +403,7 @@ export class Notebook implements NotebookClient, DocumentHost {
         operations.push(...this.compile(command, doc).batch.operations);
         return { pageId: part.pageId, actions: inverse, expected: '' };
       });
-      const ack = operations.length ? await this.commitOperations(operations, undefined, parts.map(part => part.pageId)) : undefined;
+      const ack = operations.length ? await this.commitOperations(operations, undefined, parts.map(part => part.pageId), false) : undefined;
       for (let index = 0; index < inverse.length; index++) {
         const doc = docs[index]!;
         const part = inverse[index]!;
