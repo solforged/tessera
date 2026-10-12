@@ -1667,6 +1667,7 @@ fn provisional_cleanup_does_not_backfill_existing_pages_on_upgrade() {
          DROP INDEX review_events_session_order;
          ALTER TABLE review_events DROP COLUMN event_order;
          ALTER TABLE card_units DROP COLUMN held;
+         ALTER TABLE fields DROP COLUMN hide;
          PRAGMA user_version = 20;",
     )
     .unwrap();

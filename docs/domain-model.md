@@ -169,6 +169,8 @@ A field definition is a block under the live page titled `Fields`, the system pa
 
 A field entry is a block whose whole text is one reference to a definition, rendering as its name. The entry's parent owns the field; its children are the values. Typing `Author::` in the editor produces an entry.
 
+Each definition has a `hide` setting for outlines. `never` is the default and shows entries and faint missing template slots. `when_empty` hides entries with no values or only blank values and omits missing slots; `always` hides entries and slots regardless of values. Editing or selecting an entry or its values keeps it visible, as does revealing the owner's hidden fields in that pane. Tables, queries, field pages, the Fields register and exports ignore this setting.
+
 Values are plain blocks read through the field's kind. A value that does not fit shows a problem but is never rejected or rewritten.
 
 | Kind | Value rule |

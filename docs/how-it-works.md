@@ -183,9 +183,11 @@ Dune #[[Book]]                  [owner block]
 
 Example labels stand for real IDs. The index stores `(owner_id, field_id, entry_id, value_id, ordinal)`; multiple entries/value children can contribute to one field. Empty entries have no value rows but remain recognisable by their whole reference. Code: `crates/tessera-core/migrations/006_fields_views.sql:23`; `crates/tessera-core/src/fields.rs:185`; `crates/tessera-core/src/query.rs:368`.
 
-Definitions use block text as their name and an optional `fields` kind row, defaulting to `text`. The [field model](domain-model.md#types-and-fields) lists the kinds and choice structure. Recognition excludes blank, deleted or archived definitions; choice options must be live and unarchived. Code: `crates/tessera-core/src/fields.rs:62` (`definitions`); `crates/tessera-core/migrations/006_fields_views.sql:1`, widened by `010_field_kinds.sql`.
+Definitions use block text as their name and an optional `fields` row, with `kind` defaulting to `text` and the `hide` column defaulting to `never`. Migration `037_field_hide.sql` adds `hide`; definitions without a settings row also read `never`. The [field model](domain-model.md#types-and-fields) lists the kinds, choice structure and outline hiding rules. Recognition excludes blank, deleted or archived definitions; choice options must be live and unarchived. Code: `crates/tessera-core/src/fields.rs` (`definitions`); `crates/tessera-core/migrations/006_fields_views.sql:1`, widened by `010_field_kinds.sql`.
 
 `FieldKind::ALL` and its string mapping in `model.rs` define the ordered kind contract. Database reads reject an unknown stored kind as corruption rather than treating it as text. Tests in `tests/fields.rs` insert every kind through SQLite's CHECK, reject a bogus kind and compare the order against `web/src/fields/kinds.ts::fieldKinds`. The web API type derives from that array, and `kindLabels` is exhaustive. Historical migrations keep their original CHECK definitions.
+
+`FieldHide::ALL` defines the ordered hiding contract, pinned against `web/src/fields/hide.ts::fieldHides` by a Rust parity test. Unknown stored hiding values are corruption.
 
 `fields::reading` interprets authored values using the current kind, retaining invalid source text with a problem reading.
 

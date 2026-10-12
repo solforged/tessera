@@ -1738,6 +1738,17 @@ impl Engine<'_, '_> {
                     params![id, kind.as_str()])?;
                 self.bump(&current, true)
             }
+            Operation::SetFieldHide {
+                id,
+                base_revision,
+                hide,
+            } => {
+                crate::fields::require_definition(self.tx, id)?;
+                let current = self.checked(id, *base_revision, index, false)?;
+                self.tx.execute("INSERT INTO fields(block_id, kind, hide) VALUES (?1, 'text', ?2) ON CONFLICT(block_id) DO UPDATE SET hide = excluded.hide",
+                    params![id, hide.as_str()])?;
+                self.bump(&current, true)
+            }
             Operation::SetFieldTargets {
                 id,
                 base_revision,

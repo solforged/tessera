@@ -1,6 +1,6 @@
 use tessera_core::{
-    Actor, Batch, Committed, Direction, Error, FieldKind, Filter, FilterOp, Notebook, Operation,
-    Query, QueryResult, Reading, ReadingValue, Revision, SortBy, SortKey,
+    Actor, Batch, Committed, Direction, Error, FieldHide, FieldKind, Filter, FilterOp, Notebook,
+    Operation, Query, QueryResult, Reading, ReadingValue, Revision, SortBy, SortKey,
 };
 
 fn id(value: u128) -> String {
@@ -300,6 +300,205 @@ fn field_kind_contract_matches_web_order() {
         .filter(|kind| !kind.is_empty())
         .collect();
     assert_eq!(kinds, FieldKind::ALL.map(FieldKind::as_str));
+}
+
+#[test]
+fn field_hide_contract_matches_web_order() {
+    let source = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../web/src/fields/hide.ts"),
+    )
+    .unwrap();
+    let array = source
+        .split_once("export const fieldHides = [")
+        .expect("exported fieldHides array")
+        .1
+        .split_once("] as const")
+        .expect("readonly fieldHides array")
+        .0;
+    let hides: Vec<_> = array
+        .split(',')
+        .map(|hide| hide.trim().trim_matches(['\'', '"']))
+        .filter(|hide| !hide.is_empty())
+        .collect();
+    assert_eq!(hides, FieldHide::ALL.map(FieldHide::as_str));
+}
+
+#[test]
+fn field_hide_defaults_round_trips_and_preserves_kind_and_query_values() {
+    let (dir, mut nb) = fixture();
+    let definition = nb
+        .field_detail(&id(10), None, None)
+        .unwrap()
+        .field
+        .definition;
+    assert_eq!(definition.hide, FieldHide::Never);
+    let mut legacy = serde_json::to_value(&definition).unwrap();
+    legacy.as_object_mut().unwrap().remove("hide");
+    assert_eq!(
+        serde_json::from_value::<tessera_core::FieldDefinition>(legacy)
+            .unwrap()
+            .hide,
+        FieldHide::Never
+    );
+    let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
+    assert_eq!(
+        conn.query_row(
+            "SELECT count(*) FROM fields WHERE block_id = ?1",
+            [id(10)],
+            |row| row.get::<_, i64>(0)
+        )
+        .unwrap(),
+        0
+    );
+    for hide in FieldHide::ALL {
+        let base_revision = nb.block(&id(10)).unwrap().revision;
+        let committed = apply(
+            &mut nb,
+            vec![Operation::SetFieldHide {
+                id: id(10),
+                base_revision,
+                hide,
+            }],
+        );
+        assert!(committed.revisions.contains(&Revision {
+            id: id(10),
+            revision: base_revision + 1
+        }));
+        let definition = nb
+            .field_detail(&id(10), None, None)
+            .unwrap()
+            .field
+            .definition;
+        assert_eq!(definition.hide, hide);
+        assert_eq!(definition.kind, FieldKind::Text);
+        assert_eq!(serde_json::to_value(hide).unwrap(), hide.as_str());
+        assert_eq!(
+            serde_json::from_value::<FieldHide>(serde_json::json!(hide.as_str())).unwrap(),
+            hide
+        );
+        let result = nb.query(&query()).unwrap();
+        assert_eq!(result.total, 1);
+        assert_eq!(
+            result
+                .fields
+                .iter()
+                .find(|field| field.id == id(10))
+                .unwrap()
+                .hide,
+            hide
+        );
+        assert_eq!(
+            reading(&nb, 10),
+            ok(ReadingValue::Text("1970".into()), None)
+        );
+    }
+    kind(&mut nb, 10, FieldKind::Number);
+    let base_revision = nb.block(&id(10)).unwrap().revision;
+    apply(
+        &mut nb,
+        vec![Operation::SetFieldHide {
+            id: id(10),
+            base_revision,
+            hide: FieldHide::WhenEmpty,
+        }],
+    );
+    drop(nb);
+    let reopened = Notebook::open(dir.path()).unwrap();
+    let definition = reopened
+        .field_detail(&id(10), None, None)
+        .unwrap()
+        .field
+        .definition;
+    assert_eq!(definition.kind, FieldKind::Number);
+    assert_eq!(definition.hide, FieldHide::WhenEmpty);
+    let error = conn
+        .execute(
+            "UPDATE fields SET hide = 'bogus' WHERE block_id = ?1",
+            [id(10)],
+        )
+        .unwrap_err();
+    assert!(matches!(error, rusqlite::Error::SqliteFailure(code, _)
+        if code.extended_code == rusqlite::ffi::SQLITE_CONSTRAINT_CHECK));
+}
+
+#[test]
+fn field_hide_rejects_stale_revisions_and_non_definitions() {
+    let (_dir, mut nb) = fixture();
+    apply(
+        &mut nb,
+        vec![Operation::SetFieldHide {
+            id: id(10),
+            base_revision: 1,
+            hide: FieldHide::Always,
+        }],
+    );
+    assert!(matches!(
+        nb.apply(&batch(vec![Operation::SetFieldHide {
+            id: id(10),
+            base_revision: 1,
+            hide: FieldHide::Never,
+        }])),
+        Err(Error::Conflict { .. })
+    ));
+    for value in [1, 100, 200, 300] {
+        assert!(matches!(
+            nb.apply(&batch(vec![Operation::SetFieldHide {
+                id: id(value),
+                base_revision: 1,
+                hide: FieldHide::Always,
+            }])),
+            Err(Error::Validation { .. })
+        ));
+    }
+    assert_eq!(
+        nb.field_detail(&id(10), None, None)
+            .unwrap()
+            .field
+            .definition
+            .hide,
+        FieldHide::Always
+    );
+    archive(&mut nb, 10, true);
+    assert!(matches!(
+        nb.apply(&batch(vec![Operation::SetFieldHide {
+            id: id(10),
+            base_revision: 3,
+            hide: FieldHide::Never,
+        }])),
+        Err(Error::Validation { .. })
+    ));
+}
+
+#[test]
+fn field_hide_migration_replays_from_schema_36() {
+    let (dir, mut nb) = fixture();
+    kind(&mut nb, 10, FieldKind::Number);
+    drop(nb);
+    let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
+    conn.execute_batch("ALTER TABLE fields DROP COLUMN hide; PRAGMA user_version = 36;")
+        .unwrap();
+    drop(conn);
+    let mut nb = Notebook::open(dir.path()).unwrap();
+    assert_eq!(nb.info().unwrap().schema_version, 37);
+    let definition = nb
+        .field_detail(&id(10), None, None)
+        .unwrap()
+        .field
+        .definition;
+    assert_eq!(definition.hide, FieldHide::Never);
+    assert_eq!(definition.kind, FieldKind::Number);
+    apply(
+        &mut nb,
+        vec![Operation::SetFieldHide {
+            id: id(10),
+            base_revision: definition.revision,
+            hide: FieldHide::WhenEmpty,
+        }],
+    );
+    assert_eq!(
+        nb.fields().unwrap().fields[0].definition.hide,
+        FieldHide::WhenEmpty
+    );
 }
 
 #[test]

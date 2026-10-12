@@ -239,6 +239,11 @@ pub enum Operation {
         base_revision: i64,
         kind: FieldKind,
     },
+    SetFieldHide {
+        id: String,
+        base_revision: i64,
+        hide: FieldHide,
+    },
     SetFieldTargets {
         id: String,
         base_revision: i64,
@@ -657,6 +662,31 @@ impl FieldKind {
     }
 }
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FieldHide {
+    #[default]
+    Never,
+    WhenEmpty,
+    Always,
+}
+
+impl FieldHide {
+    pub const ALL: [Self; 3] = [Self::Never, Self::WhenEmpty, Self::Always];
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Never => "never",
+            Self::WhenEmpty => "when_empty",
+            Self::Always => "always",
+        }
+    }
+
+    pub(crate) fn from_str(value: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|hide| hide.as_str() == value)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Direction {
@@ -760,6 +790,8 @@ pub struct FieldDefinition {
     pub id: String,
     pub name: String,
     pub kind: FieldKind,
+    #[serde(default)]
+    pub hide: FieldHide,
     pub revision: i64,
     pub options: Vec<FieldOption>,
     #[serde(default)]

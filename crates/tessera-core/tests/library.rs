@@ -390,6 +390,7 @@ fn citation_triage_migration_preserves_existing_evidence() {
          ALTER TABLE citations DROP COLUMN triage;
          DROP TABLE field_targets;
          DROP TABLE card_templates;
+         ALTER TABLE fields DROP COLUMN hide;
          PRAGMA user_version = 12;",
     )
     .unwrap();
@@ -666,6 +667,7 @@ fn citation_color_migration_preserves_existing_evidence_with_null_color() {
          ALTER TABLE citations DROP COLUMN color;
          DROP TABLE field_targets;
          DROP TABLE card_templates;
+         ALTER TABLE fields DROP COLUMN hide;
          PRAGMA user_version = 13;",
     )
     .unwrap();

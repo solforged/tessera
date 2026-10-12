@@ -44,6 +44,7 @@ async fn fields_queries_and_saved_views_round_trip_through_http_and_conflict_env
         {"op":"create_page","id":id(1),"title":"Books"},
         {"op":"insert","id":id(10),"parent_id":fields["page_id"],"after":null,"text":"Year","heading":null},
         {"op":"set_field_kind","id":id(10),"base_revision":1,"kind":"number"},
+        {"op":"set_field_hide","id":id(10),"base_revision":2,"hide":"when_empty"},
         {"op":"insert","id":id(100),"parent_id":id(1),"after":null,"text":"A book #books","heading":null},
         {"op":"insert","id":id(200),"parent_id":id(100),"after":null,"text":format!("[[{}]]",id(10)),"heading":null},
         {"op":"insert","id":id(300),"parent_id":id(200),"after":null,"text":"1984","heading":null},
@@ -57,10 +58,20 @@ async fn fields_queries_and_saved_views_round_trip_through_http_and_conflict_env
     )
     .await;
     assert_eq!(status, StatusCode::OK);
+    let (status, fields) = request(&app, "GET", "/api/fields", Value::Null).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(fields["fields"][0]["hide"], "when_empty");
+    assert_eq!(fields["fields"][0]["kind"], "number");
+    assert_eq!(fields["fields"][0]["revision"], 3);
+    let (status, detail) =
+        request(&app, "GET", &format!("/api/fields/{}", id(10)), Value::Null).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(detail["field"]["hide"], "when_empty");
     let query = json!({"type":id(1),"text":null,"filters":[{"field":id(10),"op":"gte","value":"1970"}],"sort":[{"by":"field","field":id(10),"direction":"desc"}],"limit":10,"offset":0});
     let (status, result) = request(&app, "POST", "/api/query", query.clone()).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(result["total"], 1);
+    assert_eq!(result["fields"][0]["hide"], "when_empty");
     assert_eq!(result["rows"][0]["block"]["block"]["id"], id(100));
     assert_eq!(
         result["rows"][0]["values"][id(10)][0]["reading"],
@@ -127,6 +138,7 @@ async fn field_detail_previews_are_read_only_and_missing_definitions_are_not_fou
     .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(preview["field"]["kind"], "text");
+    assert_eq!(preview["field"]["hide"], "never");
     assert_eq!(preview["kind"], "number");
     assert_eq!(preview["owners_total"], 1);
     assert_eq!(preview["problems_total"], 1);

@@ -570,7 +570,7 @@ impl Notebook {
         operations.retain(|operation| {
             !matches!(
                 field(operation, "op"),
-                Some("insert" | "set_field_kind" | "set_field_targets")
+                Some("insert" | "set_field_kind" | "set_field_hide" | "set_field_targets")
             ) || !field(operation, "id").is_some_and(|id| dropped.contains(id))
         });
         Ok(())

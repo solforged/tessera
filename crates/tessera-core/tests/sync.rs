@@ -251,6 +251,79 @@ fn field_targets_and_their_inverse_replicate_after_offline_edits() {
 }
 
 #[test]
+fn field_hide_survives_duplicate_field_merge_and_later_edits() {
+    let mut p = pair();
+    let fields = p.hub.fields().unwrap().page_id;
+    for (notebook, value, hide) in [
+        (&mut p.hub, 50, tessera_core::FieldHide::WhenEmpty),
+        (&mut p.replica, 51, tessera_core::FieldHide::Always),
+    ] {
+        apply(
+            notebook,
+            vec![
+                insert(value, &fields, None, "Author"),
+                Operation::SetFieldKind {
+                    id: id(value),
+                    base_revision: 1,
+                    kind: tessera_core::FieldKind::Instance,
+                },
+                Operation::SetFieldHide {
+                    id: id(value),
+                    base_revision: 2,
+                    hide,
+                },
+            ],
+        );
+    }
+    let report = p.sync();
+    assert!(
+        report
+            .pushed
+            .iter()
+            .all(|receipt| matches!(receipt.outcome, PushOutcome::Accepted { .. })),
+        "{report:?}"
+    );
+    p.assert_converged();
+    let definitions = p.hub.fields().unwrap().fields;
+    assert_eq!(definitions.len(), 1);
+    assert_eq!(definitions[0].definition.id, id(50));
+    // Settings in a duplicate creation batch never overwrite the existing definition.
+    assert_eq!(
+        definitions[0].definition.hide,
+        tessera_core::FieldHide::WhenEmpty
+    );
+    assert_eq!(
+        definitions[0].definition.kind,
+        tessera_core::FieldKind::Instance
+    );
+    let base_revision = p.replica.block(&id(50)).unwrap().revision;
+    apply(
+        &mut p.replica,
+        vec![Operation::SetFieldHide {
+            id: id(50),
+            base_revision,
+            hide: tessera_core::FieldHide::Never,
+        }],
+    );
+    assert!(
+        p.sync()
+            .pushed
+            .iter()
+            .all(|receipt| matches!(receipt.outcome, PushOutcome::Accepted { .. }))
+    );
+    p.assert_converged();
+    assert_eq!(
+        p.hub
+            .field_detail(&id(50), None, None)
+            .unwrap()
+            .field
+            .definition
+            .hide,
+        tessera_core::FieldHide::Never
+    );
+}
+
+#[test]
 fn creator_backfill_on_replica_replicates_as_an_ordinary_change() {
     let mut p = pair_with(|hub| {
         let fields = hub.fields().unwrap().page_id;
@@ -1618,6 +1691,7 @@ fn downgrade_review_order(conn: &Connection) {
          DROP INDEX review_events_card_order;
          DROP INDEX review_events_session_order;
          ALTER TABLE review_events DROP COLUMN event_order;
+         ALTER TABLE fields DROP COLUMN hide;
          PRAGMA user_version = 34;",
     )
     .unwrap();

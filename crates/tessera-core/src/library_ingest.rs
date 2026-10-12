@@ -246,6 +246,7 @@ impl<'a> Planner<'a> {
                 id: id.clone(),
                 name: label.into(),
                 kind,
+                hide: crate::FieldHide::Never,
                 revision: 2,
                 options: vec![],
                 targets: vec![],
