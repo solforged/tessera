@@ -88,8 +88,8 @@ export function ReviewPane(props: ReviewPaneProps) {
   const commandState = createMemo(() => props.notebook.commandState());
   const queued = createMemo(() => ['saving', 'queued', 'offline'].includes(commandState()));
   const locked = createMemo(() => !!pending() || queued());
-  const done = createMemo(() => !!session() && session()!.state !== 'open' && ready() && !loading() && !readError() && !locked() && commandState() === 'saved');
-  const undoDisabled = createMemo(() => locked() || loading() || !!readError() || commandState() !== 'saved' || !latestGrade());
+  const done = createMemo(() => !!session() && session()!.state !== 'open' && ready() && !loading() && !readError() && !locked());
+  const undoDisabled = createMemo(() => locked() || loading() || !!readError() || !latestGrade());
   const deckChoices = createMemo((): DeckChoice[] => {
     const needle = search().trim().toLocaleLowerCase();
     return [{ id: null, name: 'All cards' }, ...decks()].filter(deck => deck.name.toLocaleLowerCase().includes(needle));
@@ -105,7 +105,6 @@ export function ReviewPane(props: ReviewPaneProps) {
   let disposed = false;
   let recover = true;
   let autoFinishAttempt = '';
-  let createdCard: { pageId: string; id: string } | null = null;
   onCleanup(() => { disposed = true; generation++; });
   onMount(() => { scroll.scrollTop = props.view.scroll; });
 
@@ -168,7 +167,7 @@ export function ReviewPane(props: ReviewPaneProps) {
 
   createEffect(() => {
     const current = openSession();
-    if (!current || !ready() || loading() || locked() || commandState() !== 'saved' || readError() || commandError() || stale() || needsReload() || rows().length || shown() || restoredCardId()) return;
+    if (!current || !ready() || loading() || locked() || readError() || stale() || needsReload() || rows().length || shown() || restoredCardId()) return;
     const attempt = `${current.id}:${current.revision}`;
     if (autoFinishAttempt === attempt) return;
     autoFinishAttempt = attempt;
@@ -238,7 +237,8 @@ export function ReviewPane(props: ReviewPaneProps) {
         const ids = [...new Set(original.filter(event => event.grade === 'again').map(event => event.card_id))];
         candidates = (await Promise.all(ids.map(id => loadReviewCard(props.notebook.api, id)))).filter(row => row.card.active && !row.card.held);
       }
-      const remaining = currentSession?.state === 'open' ? await sessionQueue(props.notebook.api, candidates, history, restored) : candidates;
+      const queue = currentSession?.state === 'open' ? await sessionQueue(props.notebook.api, candidates, history, restored) : { rows: candidates, restoredUnavailable: false };
+      const remaining = queue.rows;
       const nextLedger = !currentSession ? await Promise.all([{ id: null, name: 'All cards', query: { source: null } }, ...savedDecks].map(async deck => {
         const [due, fresh, all] = await Promise.all(selections.map(value => props.notebook.api.cardQuery({ source: deck.query.source, selection: value, limit: 0 }).then(found => found.total)));
         return { id: deck.id, name: deck.name, due: due!, new: fresh!, all: all! };
@@ -249,6 +249,9 @@ export function ReviewPane(props: ReviewPaneProps) {
       let nextStale = '';
       if (currentSession?.state !== 'open') {
         nextShown = null;
+      } else if (queue.restoredUnavailable) {
+        nextShown = null;
+        nextStale = 'The restored card is no longer available. Skip it to continue this review.';
       } else if (nextShown) {
         const candidate = remaining.find(row => row.card.id === nextShown!.item.card.id);
         if (!candidate) {
@@ -402,8 +405,10 @@ export function ReviewPane(props: ReviewPaneProps) {
   function acceptUpdated() {
     if (locked() || loading() || readError()) return;
     const next = updated();
-    setShown(next); setUpdated(null); setStale(''); setNeedsReload(false); setCommandError('');
-    if (!next) { setRestoredCardId(null); setRetry(value => value + 1); }
+    batch(() => {
+      if (!next) { setLoading(true); setRestoredCardId(null); setRetry(value => value + 1); }
+      setShown(next); setUpdated(null); setStale(''); setNeedsReload(false); setCommandError('');
+    });
   }
 
   async function deleteDeck(deck: Deck) {
@@ -444,24 +449,17 @@ export function ReviewPane(props: ReviewPaneProps) {
   }
 
   async function createCard(text: string) {
-    const pageId = createdCard?.pageId ?? await props.notebook.today();
+    const pageId = await props.notebook.today();
     const doc = props.notebook.open(pageId);
     try {
       await documentReady(doc);
-      if (createdCard) {
-        const result = doc.edit({ kind: 'text', id: createdCard.id, text });
-        if (!result.ok) throw new Error(result.reason);
-      } else {
-        const last = doc.outline.children(pageId).at(-1);
-        const result = doc.edit({ kind: 'insert', parentId: pageId, after: last ?? null, text });
-        if (!result.ok) throw new Error(result.reason);
-        createdCard = { pageId, id: result.created[0]! };
-      }
-      await doc.flush();
-      if (doc.saveState() === 'error' || doc.saveState() === 'conflict') throw new Error(doc.saveMessage());
+      const id = ulid();
+      await props.notebook.commit([{
+        op: 'insert', id, parent_id: pageId, after: doc.outline.children(pageId).at(-1) ?? null, text, heading: null,
+      }], 'Create card');
       if (!disposed) {
         setComposer(null);
-        props.onOpen({ kind: 'page', pageId, blockId: createdCard.id, caretId: createdCard.id }, false);
+        props.onOpen({ kind: 'page', pageId, blockId: id, caretId: id }, false);
       }
     } finally { doc.release(); }
   }
@@ -498,7 +496,7 @@ export function ReviewPane(props: ReviewPaneProps) {
       <Show when={!session() && ready() && inventory() === 0}><section class="review-done" aria-label="Make your first card">
         <h2>Make your first card</h2>
         <p>Write a question and answer in a note, or turn a source highlight into a card.</p>
-        <div><Button class="review-start" disabled={locked() || loading()} onClick={event => { createdCard = null; setComposer(event.currentTarget); }}>Create a card</Button></div>
+        <div><Button class="review-start" disabled={locked() || loading()} onClick={event => setComposer(event.currentTarget)}>Create a card</Button></div>
         <p class="review-pending"><code>Question &gt;&gt; Answer</code></p>
       </section></Show>
       <Show when={!session() && ready() && inventory() !== 0 && stats()}>{value => <div class="review-landing">
