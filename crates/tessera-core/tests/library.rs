@@ -3182,3 +3182,85 @@ fn collection_filter_uses_whole_instance_values_before_sort_and_limit() {
         all.total
     );
 }
+
+#[test]
+fn bibliographic_page_counts_reject_invalid_writes_atomically_and_allow_legacy_repair() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut n = Notebook::open(dir.path()).unwrap();
+    let (source, _) = ingest(&mut n, &document(), b"page count validation");
+    let fields_page = n.fields().unwrap().page_id;
+    let definition = note(&mut n, &fields_page, "Pages");
+    apply(&mut n, vec![Operation::SetFieldKind {
+        id: definition.clone(), base_revision: 1, kind: FieldKind::Number,
+    }]);
+    let entry = note(&mut n, &source, &format!("[[{definition}]]"));
+    let value = note(&mut n, &entry, "120");
+    let title = n.block(&source).unwrap().text;
+    for invalid in ["-12", "0", "2.5", "NaN", "Infinity", "9007199254740992"] {
+        let result = n.apply(&batch(vec![
+            Operation::EditText {
+                id: source.clone(), base_revision: n.block(&source).unwrap().revision,
+                text: "This title must roll back".into(),
+            },
+            Operation::EditText {
+                id: value.clone(), base_revision: n.block(&value).unwrap().revision,
+                text: invalid.into(),
+            },
+        ]));
+        assert!(matches!(result, Err(Error::Validation { .. })), "{invalid}: {result:?}");
+        assert_eq!(n.block(&value).unwrap().text, "120");
+        assert_eq!(n.block(&source).unwrap().text, title);
+    }
+    edit(&mut n, &value, "");
+    edit(&mut n, &value, "360");
+
+    // Existing notebooks may contain counts accepted before validation existed.
+    let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
+    conn.execute("UPDATE blocks SET text = '-12' WHERE id = ?1", [&value]).unwrap();
+    edit(&mut n, &source, "A corrected title");
+    assert_eq!(n.block(&value).unwrap().text, "-12");
+    let result = n.apply(&batch(vec![Operation::EditText {
+        id: value.clone(), base_revision: n.block(&value).unwrap().revision,
+        text: "-13".into(),
+    }]));
+    assert!(matches!(result, Err(Error::Validation { .. })));
+    edit(&mut n, &value, "240");
+    assert_eq!(n.block(&value).unwrap().text, "240");
+}
+
+#[test]
+fn page_count_constraint_is_bibliographic_and_cannot_be_bypassed_by_reclassification() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut n = Notebook::open(dir.path()).unwrap();
+    let (source, _) = ingest(&mut n, &document(), b"scoped page counts");
+    let fields_page = n.fields().unwrap().page_id;
+    let definition = note(&mut n, &fields_page, "Temperature");
+    apply(&mut n, vec![Operation::SetFieldKind {
+        id: definition.clone(), base_revision: 1, kind: FieldKind::Number,
+    }]);
+    let entry = note(&mut n, &source, &format!("[[{definition}]]"));
+    let value = note(&mut n, &entry, "-12.5");
+    assert_eq!(n.block(&value).unwrap().text, "-12.5");
+    let result = n.apply(&batch(vec![Operation::EditText {
+        id: definition.clone(), base_revision: n.block(&definition).unwrap().revision,
+        text: "Pages".into(),
+    }]));
+    assert!(matches!(result, Err(Error::Validation { .. })));
+    assert_eq!(n.block(&definition).unwrap().text, "Temperature");
+
+    let page = id();
+    apply(&mut n, vec![Operation::CreatePage { id: page.clone(), title: "Ordinary note".into() }]);
+    let pages = note(&mut n, &fields_page, "Pages");
+    let ordinary_entry = note(&mut n, &page, &format!("[[{pages}]]"));
+    let ordinary_value = note(&mut n, &ordinary_entry, "-5");
+    assert_eq!(n.block(&ordinary_value).unwrap().text, "-5");
+    let result = n.apply(&batch(vec![Operation::SetSource {
+        id: page.clone(), base_revision: n.block(&page).unwrap().revision,
+        source: Some(SourceState {
+            format: SourceFormat::Record, state: ReadingState::Inbox,
+            origin: None, match_key: None, citation_key: None,
+        }),
+    }]));
+    assert!(matches!(result, Err(Error::Validation { .. })));
+    assert!(n.capabilities(&page).unwrap().source.is_none());
+}

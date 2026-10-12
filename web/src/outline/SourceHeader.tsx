@@ -30,6 +30,7 @@ export function SourceHeader(props: {
   onOpen: OutlinePaneProps['onOpen']; onError(message: string): void;
   resetItems(): MenuItem[];
   onDelete?: OutlinePaneProps['onDelete'];
+  compact?: boolean;
   highlights?: HighlightResult; colors: string[]; grouped: boolean; fieldsVisible: boolean;
   fields: readonly FieldDefinition[]; ready: boolean; onReady(ready: boolean): void;
   onColors(colors: string[]): void; onGrouped(grouped: boolean): void; onFieldsVisible(visible: boolean): void;
@@ -62,7 +63,7 @@ export function SourceHeader(props: {
   onCleanup(() => coverMedia.removeEventListener('change', coverChanged));
   // Escape the outline's query-container containment, but keep the owning pane's visibility and nav tokens.
   onMount(() => setActionsHost(header.closest<HTMLElement>('.pane') ?? undefined));
-  createEffect(() => props.onReady(!!(source() || source.error) && (!coverLayout() || !!actionsHost())));
+  createEffect(() => props.onReady(!!(source() || source.error) && (props.compact || !coverLayout() || !!actionsHost())));
   let coverInput!: HTMLInputElement;
   async function fillMissing() {
     const identifier = metadata().identifiers[0];
@@ -141,6 +142,7 @@ export function SourceHeader(props: {
     <Button class="bordered" icon="more" label="Source actions" aria-haspopup="menu" onClick={event => { void sourceMenu(event.currentTarget); }} />
   </div>;
   return <>
+    <Show when={props.compact} fallback={<>
     <div ref={header} class="outline-source-header">
       <Show when={snapshot()} fallback={<div class="outline-source-cover library-cover" style={{ visibility: coverVisibility() }}>
         <Show when={cover()} fallback={<span class="library-spine"><span class="library-spine-siglum">{source()?.source.siglum}</span></span>}>{href => <ResourceImage snapshotId="" href={href()} loading="eager" alt="" onLoad={() => setLoadedCover(href())} onError={() => setLoadedCover(href())} />}</Show>
@@ -167,6 +169,15 @@ export function SourceHeader(props: {
         <Show when={overflows()}><Button class="text-button" aria-expanded={expanded()} onClick={() => setExpanded(value => !value)}>{expanded() ? 'Less' : 'More'}</Button></Show>
       </div>}</Show>
     </div>
+    </>}>
+      <div ref={header} class="outline-source-citation">
+        <div>
+          <p class="outline-source-citation-imprint">{imprint()}</p>
+          <Show when={metadata().creators.length}><p class="outline-source-citation-byline">{metadata().creators.map(creator => creator.name).join(' · ')}</p></Show>
+        </div>
+        <Button icon="book" onClick={event => props.onOpen({ kind: 'page', pageId: props.doc.pageId }, event.shiftKey)}>Open source</Button>
+      </div>
+    </Show>
     <Show when={props.highlights}><div class="outline-source-highlight-toolbar">
       <h2>Highlights <span>· {props.highlights!.total}</span></h2>
       <Show when={props.highlights!.total > 0}><div class="outline-source-highlight-controls">

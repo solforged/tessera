@@ -5,6 +5,10 @@
 .library-tabs, .library-controls, .library-filter { display: flex; align-items: center; gap: var(--space-4); }
 .library-toolbar > .library-tabs { overflow-x: auto; }
 .library-tabs > .button { white-space: nowrap; }
+.library-toolbar > .library-primary-tabs { overflow: visible; }
+.library-primary-tabs > [data-library-tab] { flex: none; }
+.library-tabs-more.button { flex: 1; min-width: 0; justify-content: flex-end; }
+.library-tabs-more > span { overflow: hidden; text-overflow: ellipsis; }
 .library-cover-header { display: none; }
 .library-cover-heading { flex: 1; min-width: 0; }
 .library-register { color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
@@ -66,6 +70,7 @@
 .library-error, .library-job-error { color: var(--danger); white-space: pre-wrap; overflow-wrap: anywhere; }
 .library-toolbar .library-message { margin: 0; }
 .library-empty { padding-block: var(--space-24); }
+.library-empty h2 { margin: 0 0 var(--space-8); color: var(--text); font: var(--weight-display-heading) var(--text-h2)/var(--line-h2) var(--font-display); }
 .library-empty p { margin: 0 0 var(--space-8); }
 .library-jobs { display: flex; flex-direction: column; }
 .library-job { flex-wrap: wrap; font-size: var(--text-control); line-height: var(--line-control); }

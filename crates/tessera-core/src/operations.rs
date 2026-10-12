@@ -93,6 +93,28 @@ impl Notebook {
         )?;
         let seq = tx.last_insert_rowid();
         extras.write(&tx, &stamp, seq)?;
+        let validate_page_counts = batch.operations.iter().any(|operation| {
+            matches!(
+                operation,
+                Operation::CreatePage { .. }
+                    | Operation::CreateJournal { .. }
+                    | Operation::Insert { .. }
+                    | Operation::EditText { .. }
+                    | Operation::Split { .. }
+                    | Operation::Merge { .. }
+                    | Operation::MergePage { .. }
+                    | Operation::Move { .. }
+                    | Operation::Delete { .. }
+                    | Operation::Restore { .. }
+                    | Operation::SetArchived { .. }
+                    | Operation::SetSource { .. }
+            )
+        });
+        let previous_invalid_counts = if validate_page_counts {
+            crate::fields::invalid_source_page_counts(&tx, &operations)?
+        } else {
+            HashSet::new()
+        };
         let mut field_changes = crate::fields::FieldChanges::default();
         let mut engine = Engine {
             tx: &tx,
@@ -154,6 +176,16 @@ impl Notebook {
             }
         }
         let owners = field_changes.derive(&tx)?;
+        if validate_page_counts
+            && let Some((_, _, id, _)) =
+                crate::fields::invalid_source_page_counts(&tx, &operations)?
+                    .difference(&previous_invalid_counts)
+                    .next()
+        {
+            return Err(validation(format!(
+                "Pages must be a positive whole number (value {id})"
+            )));
+        }
         engine.derive_templates(owners)?;
         let mut views: Vec<&str> = Vec::new();
         for operation in &batch.operations {

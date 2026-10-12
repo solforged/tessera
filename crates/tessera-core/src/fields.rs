@@ -81,6 +81,56 @@ pub(crate) fn reference(text: &str) -> Option<&str> {
     Some(id)
 }
 
+/// Invalid bibliographic counts touched by a command. Retaining the original
+/// tuples lets unrelated edits preserve legacy data while rejecting new errors.
+pub(crate) fn invalid_source_page_counts(
+    conn: &Connection,
+    operations: &str,
+) -> Result<HashSet<(String, String, String, String)>> {
+    let mut statement = conn.prepare_cached(
+        "WITH changed(id) AS MATERIALIZED (
+           SELECT item.value FROM json_each(?1) operation, json_each(operation.value) item
+           WHERE item.key IN ('id', 'source_id', 'destination_id', 'parent_id') AND item.type = 'text'
+         ), candidates(id) AS (
+           SELECT value_id FROM field_values WHERE value_id IN changed
+           UNION SELECT value_id FROM field_values WHERE entry_id IN changed
+           UNION SELECT value_id FROM field_values WHERE field_id IN changed
+           UNION SELECT value_id FROM field_values WHERE owner_id IN changed
+           UNION SELECT value_id FROM field_values WHERE field_id IN (
+             SELECT id FROM blocks WHERE parent_id IN changed
+           )
+         )
+         SELECT f.owner_id, f.field_id, v.id, v.text
+         FROM candidates c JOIN field_values f ON f.value_id = c.id
+         JOIN sources s ON s.block_id = f.owner_id
+         JOIN blocks d ON d.id = f.field_id JOIN blocks v ON v.id = f.value_id
+         WHERE lower(trim(d.text)) = 'pages'",
+    )?;
+    let mut rows = statement.query([operations])?;
+    let mut invalid = HashSet::new();
+    while let Some(row) = rows.next()? {
+        let text = row.get_ref(3)?.as_str().map_err(|error| {
+            rusqlite::Error::FromSqlConversionFailure(
+                3,
+                rusqlite::types::Type::Text,
+                Box::new(error),
+            )
+        })?;
+        let value = text.trim();
+        if !value.is_empty()
+            && !value.parse::<f64>().is_ok_and(|count| {
+                count.is_finite()
+                    && count > 0.0
+                    && count.fract() == 0.0
+                    && count <= 9_007_199_254_740_991.0
+            })
+        {
+            invalid.insert((row.get(0)?, row.get(1)?, row.get(2)?, text.to_owned()));
+        }
+    }
+    Ok(invalid)
+}
+
 /// Retain old and new ancestry and incoming entries when definitions move or
 /// stop being definitions. Work per text edit is local, not a page rebuild:
 /// a block's siblings are never rescanned, so editing one row of a large

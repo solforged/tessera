@@ -1435,6 +1435,6 @@ export function ReaderPane(props: ReaderPaneProps) {
     </>}</Show>
     <Show when={selection()}><SelectionTools /></Show>
     <Show when={composing()}>{draft => <HighlightComposer notebook={props.notebook} draft={draft()} onClose={() => { setComposing(null); drawInk(composedCitation); }} />}</Show>
-    <actions.TagPopup />
+    <actions.Popups />
   </div>;
 }

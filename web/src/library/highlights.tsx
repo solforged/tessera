@@ -1,10 +1,12 @@
-import { For, createSignal, onCleanup } from 'solid-js';
+import { For, Show, createSignal, onCleanup } from 'solid-js';
 import type { Component } from 'solid-js';
+import { ulid } from 'ulid';
 import type { ApiClient } from '../api/client';
 import type { Citation, HighlightRow, TocEntry } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import type { OpenTarget } from '../shell/contract';
 import { documentReady } from '../tasks/JournalAgenda';
+import { CardComposer } from '../review/CardComposer';
 import { Button } from '../ui/Button';
 import type { MenuItem } from '../ui/Menu';
 import { createHighlightTagPrompt } from './HighlightTagPopup';
@@ -36,6 +38,7 @@ export function createHighlightActions(notebook: NotebookClient, onOpen: (target
   const documents = new Map<string, PageDocument>();
   const tagPrompt = createHighlightTagPrompt();
   const [lastDocument, setLastDocument] = createSignal<PageDocument>();
+  const [cardDraft, setCardDraft] = createSignal<{ document: PageDocument; row: HighlightRow; anchor: DOMRect }>();
   let disposed = false;
   onCleanup(() => { disposed = true; for (const doc of documents.values()) doc.release(); });
   const menu = async (row: HighlightRow, copyText?: string): Promise<HighlightMenu> => {
@@ -47,13 +50,19 @@ export function createHighlightActions(notebook: NotebookClient, onOpen: (target
     const hasNote = document.outline.children(id).some(child => !document.block(child)?.archived && !!document.block(child)?.text.trim());
     const run = async (action: 'note' | 'card' | 'triage' | 'remove') => {
       await documentReady(document);
+      if (disposed) return;
+      if (action === 'card') {
+        const anchor = globalThis.document.activeElement instanceof HTMLElement ? globalThis.document.activeElement : globalThis.document.body;
+        setCardDraft({ document, row, anchor: anchor.getBoundingClientRect() });
+        return;
+      }
       let caretId: string | undefined;
-      if (action === 'note' || action === 'card') {
+      if (action === 'note') {
         // Open the first written note, else reuse a blank one left from an earlier Add note.
         const notes = document.outline.children(id).filter(child => !document.block(child)?.archived);
-        caretId = action === 'note' ? notes.find(child => !!document.block(child)?.text.trim()) ?? notes.find(child => document.block(child)?.text === '' && !document.outline.children(child).length) : undefined;
+        caretId = notes.find(child => !!document.block(child)?.text.trim()) ?? notes.find(child => document.block(child)?.text === '' && !document.outline.children(child).length);
         if (!caretId) {
-          const result = document.edit({ kind: 'insert', parentId: id, after: document.outline.children(id).at(-1) ?? null, text: action === 'card' ? '>> ' : '' });
+          const result = document.edit({ kind: 'insert', parentId: id, after: document.outline.children(id).at(-1) ?? null, text: '' });
           if (!result.ok) throw new Error(result.reason);
           caretId = result.created[0];
         }
@@ -64,7 +73,7 @@ export function createHighlightActions(notebook: NotebookClient, onOpen: (target
       setLastDocument(document);
       await document.flush();
       if (disposed) return;
-      if (caretId) onOpen({ kind: 'page', pageId, blockId: id, caretId, caretOffset: action === 'card' ? 3 : 0 }, true);
+      if (caretId) onOpen({ kind: 'page', pageId, blockId: id, caretId, caretOffset: 0 }, true);
       if (action === 'triage') onProcessed?.(row);
     };
     const fail = (reason: unknown) => { if (!disposed) onError(reason instanceof Error ? reason.message : String(reason)); };
@@ -104,7 +113,16 @@ export function createHighlightActions(notebook: NotebookClient, onOpen: (target
     return { items, Header, openNote: () => fire('note'), makeCard: () => fire('card'), toggleProcessed: () => run('triage'), tag, setColor };
   };
   return Object.assign(menu, {
-    TagPopup: tagPrompt.TagPopup,
+    Popups: () => <><tagPrompt.TagPopup /><Show keyed when={cardDraft()}>{draft => <CardComposer anchor={draft.anchor} initialBack={draft.row.citation.quote}
+      context={<p class="muted">{draft.row.source_title} · ¶{draft.row.citation.ordinal + 1}</p>} onDismiss={() => setCardDraft(undefined)}
+      onSave={async text => {
+        const doc = draft.document, parentId = draft.row.citation.block_id;
+        await documentReady(doc);
+        const id = ulid();
+        await notebook.commit([{ op: 'insert', id, parent_id: parentId, after: doc.outline.children(parentId).at(-1) ?? null, text, heading: null }], 'Make card from highlight');
+        setLastDocument(undefined);
+        if (!disposed) onOpen({ kind: 'page', pageId: draft.row.block.page.id, blockId: parentId, caretId: id, caretOffset: 0 }, true);
+      }} />}</Show></>,
     canUndo: () => lastDocument()?.canUndo() ?? false,
     undo: async () => {
       const doc = lastDocument();
