@@ -709,10 +709,13 @@ impl Notebook {
                 continue;
             }
             if !query.colors.is_empty()
-                && !query.colors.iter().any(|color| match citation.color.as_deref() {
-                    Some(value) => value == color,
-                    None => color == "none",
-                })
+                && !query
+                    .colors
+                    .iter()
+                    .any(|color| match citation.color.as_deref() {
+                        Some(value) => value == color,
+                        None => color == "none",
+                    })
             {
                 continue;
             }

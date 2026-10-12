@@ -55,7 +55,8 @@ impl Notebook {
             .map(|note| (note.id.clone(), NoteSummary::default()))
             .collect();
         let definitions = crate::fields::definitions(&self.conn)?;
-        let definition_ids: HashSet<_> = definitions.iter().map(|field| field.id.as_str()).collect();
+        let definition_ids: HashSet<_> =
+            definitions.iter().map(|field| field.id.as_str()).collect();
         let mut readings = crate::library_export::field_readings(&self.conn, &ids)?;
         let template = type_id
             .map(|id| crate::query::template(&self.conn, id))
@@ -74,8 +75,14 @@ impl Notebook {
                     if name == "gloss" {
                         return None;
                     }
-                    let value = fields.get(&name)?.iter().find(|value| !value.trim().is_empty())?;
-                    Some(SummaryField { name: definition.name.clone(), value: value.clone() })
+                    let value = fields
+                        .get(&name)?
+                        .iter()
+                        .find(|value| !value.trim().is_empty())?;
+                    Some(SummaryField {
+                        name: definition.name.clone(),
+                        value: value.clone(),
+                    })
                 });
             }
         }
@@ -129,10 +136,19 @@ impl Notebook {
         while let Some(row) = rows.next()? {
             let target: String = row.get(0)?;
             let page: String = row.get(2)?;
-            let summary = summaries.get_mut(&target).expect("selected backlink target");
+            let summary = summaries
+                .get_mut(&target)
+                .expect("selected backlink target");
             summary.backlinks += 1;
-            if !summary.referenced_from.iter().any(|target| target.id == page) {
-                summary.referenced_from.push(SeeTarget { id: page, title: row.get(3)? });
+            if !summary
+                .referenced_from
+                .iter()
+                .any(|target| target.id == page)
+            {
+                summary.referenced_from.push(SeeTarget {
+                    id: page,
+                    title: row.get(3)?,
+                });
             }
         }
         let mut highlight_counts: HashMap<String, usize> = HashMap::new();
@@ -146,12 +162,16 @@ impl Notebook {
                AND b.deletion_id IS NULL AND p.deletion_id IS NULL
                AND b.rowid NOT IN (SELECT rowid FROM hidden) GROUP BY s.block_id"
         ))?;
-        for row in statement.query_map([&selected], |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)? as usize)))? {
+        for row in statement.query_map([&selected], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)? as usize))
+        })? {
             let (id, count) = row?;
             highlight_counts.insert(id, count);
         }
         let mut statement = self.conn.prepare_cached(concat!(
-            "SELECT ", source_columns!(), ", b.text FROM sources s JOIN blocks b ON b.id = s.block_id
+            "SELECT ",
+            source_columns!(),
+            ", b.text FROM sources s JOIN blocks b ON b.id = s.block_id
              WHERE s.active = 1 AND s.block_id IN (SELECT value FROM json_each(?1))"
         ))?;
         let mut rows = statement.query([&selected])?;
@@ -160,7 +180,9 @@ impl Notebook {
             let fields = readings.remove(&source.block_id).unwrap_or_default();
             source_siglum(&mut source, &row.get::<_, String>(10)?, &fields);
             let first = |name: &str| fields.get(name).and_then(|values| values.first()).cloned();
-            let summary = summaries.get_mut(&source.block_id).expect("selected source");
+            let summary = summaries
+                .get_mut(&source.block_id)
+                .expect("selected source");
             summary.source = Some(SourceSummary {
                 siglum: source.siglum,
                 citation_key: source.citation_key,
@@ -168,7 +190,9 @@ impl Notebook {
                 authors: fields.get("author").cloned().unwrap_or_default(),
                 publisher: first("publisher"),
                 published: first("published"),
-                highlights: highlight_counts.remove(&source.block_id).unwrap_or_default(),
+                highlights: highlight_counts
+                    .remove(&source.block_id)
+                    .unwrap_or_default(),
             });
         }
         Ok(summaries)

@@ -555,15 +555,19 @@ async fn review_stats_use_local_forecast_boundaries_and_today_or_yesterday_strea
         {"op": "start_review_session", "id": id(11), "deck_id": null, "started_at": 1000}
     ])).await;
     let fresh = get(&app, &format!("/api/blocks/{}/cards", id(5))).await[0].clone();
-    commit(&app, json!([{"op": "reset_card", "id": fresh["id"], "base_revision": fresh["revision"],
-        "event_id": id(19), "session_id": null, "reviewed_at": 1000}])).await;
+    commit(
+        &app,
+        json!([{"op": "reset_card", "id": fresh["id"], "base_revision": fresh["revision"],
+        "event_id": id(19), "session_id": null, "reviewed_at": 1000}]),
+    )
+    .await;
     // Nov 1 is a 25-hour local day: midnight 04:00Z, next midnight 05:00Z.
     for (event, block, at, grade) in [
-        (20, 2, 1_793_289_600_000_i64, "good"), // Oct 29 noon
-        (21, 2, 1_793_332_800_000_i64, "good"), // Oct 30 midnight
+        (20, 2, 1_793_289_600_000_i64, "good"),  // Oct 29 noon
+        (21, 2, 1_793_332_800_000_i64, "good"),  // Oct 30 midnight
         (22, 2, 1_793_462_400_000_i64, "again"), // Oct 31 noon
-        (23, 3, 1_793_332_800_000_i64, "good"), // due exactly Nov 1 midnight
-        (24, 4, 1_793_422_800_000_i64, "good"), // due exactly Nov 2 midnight
+        (23, 3, 1_793_332_800_000_i64, "good"),  // due exactly Nov 1 midnight
+        (24, 4, 1_793_422_800_000_i64, "good"),  // due exactly Nov 2 midnight
     ] {
         let card = get(&app, &format!("/api/blocks/{}/cards", id(block))).await[0].clone();
         commit(&app, json!([{"op": "grade_card", "id": card["id"], "base_revision": card["revision"],
@@ -576,24 +580,48 @@ async fn review_stats_use_local_forecast_boundaries_and_today_or_yesterday_strea
     assert_eq!(stats["due_new"], 1);
     assert_eq!(stats["total_cards"], 4);
     assert_eq!(stats["forecast"].as_array().unwrap().len(), 14);
-    assert_eq!(stats["forecast"][0], json!({"date": "2026-11-01", "count": 3}));
-    assert_eq!(stats["forecast"][1], json!({"date": "2026-11-02", "count": 1}));
+    assert_eq!(
+        stats["forecast"][0],
+        json!({"date": "2026-11-01", "count": 3})
+    );
+    assert_eq!(
+        stats["forecast"][1],
+        json!({"date": "2026-11-02", "count": 1})
+    );
     assert_eq!(stats["streak"], 3); // ending yesterday
     assert_eq!(stats["reviews_this_week"], 5);
     assert_eq!(stats["retention"], 0.8);
-    let scoped = get(&app, &format!("/api/review/stats?deck={}&date=2026-11-01", id(10))).await;
+    let scoped = get(
+        &app,
+        &format!("/api/review/stats?deck={}&date=2026-11-01", id(10)),
+    )
+    .await;
     assert_eq!(scoped["total_cards"], 1); // saved selection and limit do not truncate statistics
     assert_eq!(scoped["streak"], 3);
     assert!((scoped["retention"].as_f64().unwrap() - 2.0 / 3.0).abs() < 1e-12);
-    assert_eq!(get(&app, "/api/review/stats?date=2026-11-02").await["streak"], 0);
+    assert_eq!(
+        get(&app, "/api/review/stats?date=2026-11-02").await["streak"],
+        0
+    );
     assert_eq!(get(&app, "/api/changes").await, before); // every read is read-only
     let card = get(&app, &format!("/api/blocks/{}/cards", id(2))).await[0].clone();
     commit(&app, json!([{"op": "grade_card", "id": card["id"], "base_revision": card["revision"],
         "definition_revision": card["definition_revision"], "event_id": id(25), "session_id": id(11),
         "grade": "easy", "reset": false, "shown_front": card["front"], "shown_back": card["back"], "reviewed_at": 1_793_548_800_000_i64}])).await;
-    assert_eq!(get(&app, "/api/review/stats?date=2026-11-01").await["streak"], 4); // ending today
-    assert_eq!(get(&app, &format!("/api/review-sessions/{}/reviews", id(11))).await.as_array().unwrap().len(), 6);
-    let (status, error) = request(&app, Method::GET, "/api/review/stats?date=2026-02-30", None).await;
+    assert_eq!(
+        get(&app, "/api/review/stats?date=2026-11-01").await["streak"],
+        4
+    ); // ending today
+    assert_eq!(
+        get(&app, &format!("/api/review-sessions/{}/reviews", id(11)))
+            .await
+            .as_array()
+            .unwrap()
+            .len(),
+        6
+    );
+    let (status, error) =
+        request(&app, Method::GET, "/api/review/stats?date=2026-02-30", None).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
     assert_eq!(error["error"]["code"], "validation");
 }
