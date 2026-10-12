@@ -5,26 +5,57 @@ import { DEMO } from '../demo/mode';
 
 /** How often an open replica asks for its sync state; the runner itself syncs on its own schedule. */
 const POLL_MS = 5000;
+/** While the app is on screen, a replica whose last sync is older than this syncs again. */
+export const FRESH_MS = 30_000;
+
+/**
+ * Whether an open replica should sync now. Opening the app tries once even after a failure; while it stays open, a
+ * failing replica waits for the runner's backoff instead. A retired or forgotten copy has nothing to sync.
+ */
+export function syncDue(value: SyncState | null, opening: boolean, now = Date.now()): boolean {
+  const replica = value?.role === 'replica' ? value.replica : null;
+  if (!replica || replica.syncing || replica.retired) return false;
+  if (replica.last_error && (!opening || ['unpaired', 'wrong_device', 'retired'].includes(replica.last_error.code))) return false;
+  return replica.synced_at === null || now - replica.synced_at >= FRESH_MS;
+}
 
 /**
  * This device's sync role and, on a replica, its outbox and last sync, shared by the top-bar status, the sync sheet and
- * Settings. The browser demo has no sync, so it stays null there.
+ * Settings. On a replica it also syncs when the app opens and every half minute while it stays on screen, so the Mac's
+ * edits arrive sooner than the runner's background schedule. The browser demo has no sync, so it stays null there.
  */
 export const sync = createRoot(() => {
   const [state, setState] = createSignal<SyncState | null>(null);
   let timer = 0;
   let inflight: Promise<SyncState | null> | null = null;
+  let running = false;
+  // The next state read follows loading or returning to the app.
+  let opening = true;
+  const visible = () => document.visibilityState === 'visible';
   const schedule = () => {
     window.clearTimeout(timer);
     // Only a replica changes underneath the page; a hub or a standalone notebook is read once per refresh.
-    if (state()?.role === 'replica' && document.visibilityState === 'visible') timer = window.setTimeout(() => { void refresh(); }, POLL_MS);
+    if (state()?.role === 'replica' && visible()) timer = window.setTimeout(() => { void refresh(); }, POLL_MS);
+  };
+  const run = () => {
+    running = true;
+    void api.runSync().then(setState, () => undefined).finally(() => { running = false; schedule(); });
   };
   const refresh = (): Promise<SyncState | null> => {
     if (DEMO) return Promise.resolve(null);
-    inflight ??= api.syncState().then(value => { setState(value); return value; }, () => state()).finally(() => { inflight = null; schedule(); });
+    inflight ??= api.syncState().then(value => {
+      setState(value);
+      const wasOpening = opening;
+      opening = false;
+      if (!running && visible() && syncDue(value, wasOpening)) run();
+      return value;
+    }, () => state()).finally(() => { inflight = null; schedule(); });
     return inflight;
   };
-  if (!DEMO && typeof document !== 'undefined') document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') void refresh(); else window.clearTimeout(timer); });
+  if (!DEMO && typeof document !== 'undefined') document.addEventListener('visibilitychange', () => {
+    if (visible()) { opening = true; void refresh(); }
+    else window.clearTimeout(timer);
+  });
   return { state, refresh, set: (value: SyncState) => { setState(value); schedule(); } };
 });
 
