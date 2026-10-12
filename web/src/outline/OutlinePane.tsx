@@ -38,6 +38,7 @@ import { createOutlineCommands } from './commands';
 import { createOutlineKeyboard } from './keyboard';
 import { createOutlineInteractions } from './interactions';
 import { createOutlineRows } from './Row';
+import { createOutlineDrag } from './drag';
 import { createOutlineRelated } from './Related';
 import { createFieldSheet } from './field-sheet';
 import { createCapabilityPopups } from './CapabilityPopups';
@@ -508,7 +509,7 @@ function Pane(props: OutlinePaneProps) {
   }
   function apply(intent: Edit, keepEditing = editing() !== null): EditResult | undefined {
     if (disposed || composition()) return undefined;
-    const rearrange = intent.kind === 'indent' || intent.kind === 'outdent' || intent.kind === 'move';
+    const rearrange = intent.kind === 'indent' || intent.kind === 'outdent' || intent.kind === 'move' || intent.kind === 'moveTo';
     if (intent.kind === 'indent' || intent.kind === 'outdent' || intent.kind === 'move') intent = { ...intent, zoomRoot: zoom() };
     const before = intent.kind === 'delete' ? ids() : [];
     const firstSelected = selectedIds()[0];
@@ -887,7 +888,8 @@ function Pane(props: OutlinePaneProps) {
   const { horizontal, adjacent, split, editorKey, structuralKey, resetRowKey } = createOutlineKeyboard(context);
   const { selectedOffsets, pointerStart, pointerMove, pointerEnd, clipboard, paste, beforeInput } = createOutlineInteractions(context);
   const fieldSheet = createFieldSheet(context, { offerValue, onField: field => setCreatedFields(previous => previous.some(existing => existing.id === field.id) ? previous : [...previous, field]) });
-  const { Row, TaskSummary, QuestionSummary } = createOutlineRows(context, fieldSheet);
+  const drag = createOutlineDrag(context);
+  const { Row, TaskSummary, QuestionSummary } = createOutlineRows(context, fieldSheet, drag);
   const { related, apparatus, holders, linkedPages, Related } = createOutlineRelated(context);
   const { CapabilityPopups } = createCapabilityPopups(context);
 
@@ -1057,7 +1059,7 @@ function Pane(props: OutlinePaneProps) {
     }
     return groups;
   });
-  return <div ref={scroll} class="outline-pane" classList={{ 'has-apparatus': apparatus(), 'has-sigla': sigla().size > 0, 'source-page': !!doc.root()?.source && !zoom() }} style={{ visibility: sourceReady() ? undefined : 'hidden' }} aria-busy={!sourceReady()} data-pane={props.pane} tabIndex={0} role="tree" aria-label="Page outline" aria-owns={[...virtualItems().keys()].map(id => `outline-${props.pane}-${id}`).join(' ')} onFocusIn={props.onActivate} onFocusOut={report} onKeyDown={event => { finishFoldMotion(); structuralKey(event); }} onWheel={() => { finishFoldMotion(); cancelScroll(); }} onScroll={scrolled}>
+  return <div ref={scroll} class="outline-pane" classList={{ 'has-apparatus': apparatus(), 'has-sigla': sigla().size > 0, 'source-page': !!doc.root()?.source && !zoom(), 'outline-dragging': drag.dragging() }} style={{ visibility: sourceReady() ? undefined : 'hidden' }} aria-busy={!sourceReady()} data-pane={props.pane} tabIndex={0} role="tree" aria-label="Page outline" aria-owns={[...virtualItems().keys()].map(id => `outline-${props.pane}-${id}`).join(' ')} onFocusIn={props.onActivate} onFocusOut={report} onKeyDown={event => { finishFoldMotion(); structuralKey(event); }} onWheel={() => { finishFoldMotion(); cancelScroll(); }} onScroll={scrolled}>
     <Show when={apparatus()}><Apparatus notebook={props.notebook} holders={holders()} linked={linkedPages()} sources={citedSources().flatMap(id => sigla().has(id) ? [{ id, siglum: sigla().get(id)! }] : [])} onOpen={props.onOpen} /></Show>
     <div ref={heading} class="outline-heading">
       <Show when={zoom()}><nav class="outline-breadcrumbs" aria-label="Zoom breadcrumbs"><button type="button" onClick={() => zoomTo(null)}>{doc.root()?.text}</button><For each={breadcrumbs()}>{id => <><Icon name="right" /><button type="button" onClick={() => zoomTo(id)}>{plainText(doc.block(id)?.text ?? '', reference => props.notebook.lookup(reference)) || 'Empty block'}</button></>}</For></nav></Show>
@@ -1107,6 +1109,7 @@ function Pane(props: OutlinePaneProps) {
       <fieldSheet.FieldSlots id={props.pageId} />
     </div>
     <div ref={list} class="outline-list" style={{ height: `${virtualizer.getTotalSize()}px` }}>
+      <Show when={drag.indicator()}>{drop => <div class="outline-drop-indicator" aria-hidden="true" data-drop-depth={drop().depth - baseDepth()} data-drop-edge={drop().edge} style={{ top: `${drop().top}px`, left: `${drop().left}px` }} />}</Show>
       <For each={foldGroups().before}>{id => <Row id={id} item={() => virtualItems().get(id)!} />}</For>
       <div ref={foldChildren} class="outline-motion-group" style={{ opacity: foldMotion()?.opening ? 0 : undefined }}>
         <For each={foldGroups().children}>{id => <Row id={id} item={() => virtualItems().get(id)!} />}</For>

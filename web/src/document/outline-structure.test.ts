@@ -10,6 +10,8 @@ import type { Operation } from '../api/types';
 import type { Edit, PageDocument } from './contract';
 import { createNotebookClient } from './index';
 import type { Notebook } from './index';
+import { outlineDrop } from '../outline/drag';
+import { selectionRoots } from '../outline/visibility';
 
 const port = Bun.env.TESSERA_STRUCTURE_TEST_PORT ?? '4350';
 const baseUrl = `http://127.0.0.1:${port}`;
@@ -118,5 +120,46 @@ describe('outline structural boundaries', () => {
     expect(tree(doc)).toEqual(after);
     await instance.flush();
     expect((await api.page(ids.page!)).rows.map(row => ({ id: row.block.id, parentId: row.block.parent_id, depth: row.depth }))).toEqual(after);
+  });
+
+  test('a child drop moves selected roots with their subtrees in one undo step', async () => {
+    const { doc, instance, ids } = await fixture();
+    const before = tree(doc);
+    const moved = selectionRoots(doc, [ids.B!, ids.B1!, ids.C!]);
+    const destination = outlineDrop(doc.outline, ids.page!, moved, ids.A!, 1, false);
+    expect(destination).toMatchObject({ parentId: ids.A!, after: null, depth: 1, edge: 'child' });
+    if (!destination) throw new Error('The child drop was rejected.');
+    expect(doc.edit({ kind: 'moveTo', ids: moved, parentId: destination.parentId, after: destination.after }).ok).toBe(true);
+    expect(doc.outline.children(ids.A!)).toEqual([ids.B!, ids.C!, ids.A1!, ids.A2!, ids.A3!]);
+    expect(doc.outline.children(ids.B!)).toEqual([ids.B1!]);
+    expect(doc.block(ids.B!)?.text).toBe('B');
+    expect(doc.block(ids.B1!)?.text).toBe('B1');
+    const after = tree(doc);
+    await instance.flush();
+    expect((await api.page(ids.page!)).rows.map(row => ({ id: row.block.id, parentId: row.block.parent_id, depth: row.depth }))).toEqual(after);
+    doc.undo();
+    expect(tree(doc)).toEqual(before);
+    expect(doc.canUndo()).toBe(false);
+    await instance.flush();
+    expect((await api.page(ids.page!)).rows.map(row => ({ id: row.block.id, parentId: row.block.parent_id, depth: row.depth }))).toEqual(before);
+    doc.redo();
+    expect(tree(doc)).toEqual(after);
+  });
+
+  test('drop targets reject moved descendants and stay within the zoom boundary', async () => {
+    const { doc, ids } = await fixture();
+    const before = tree(doc);
+    expect(outlineDrop(doc.outline, ids.page!, [ids.A!], ids.A!, 0, true)).toBeNull();
+    expect(outlineDrop(doc.outline, ids.page!, [ids.A!], ids.A2a!, 2, false)).toBeNull();
+    expect(outlineDrop(doc.outline, ids.page!, [ids.A2!], ids.A2a!, 1, true)).toBeNull();
+    expect(outlineDrop(doc.outline, ids.page!, [ids.A2a!], ids.B!, 0, false, ids.A!)).toBeNull();
+    expect(outlineDrop(doc.outline, ids.page!, [ids.B!], ids.A1!, 1, true, ids.A!)).toBeNull();
+    expect(outlineDrop(doc.outline, ids.page!, [ids.A!], ids.A1!, 1, false, ids.A!)).toBeNull();
+    expect(outlineDrop(doc.outline, ids.page!, [ids.A2a!], ids.A3!, 0, false, ids.A!))
+      .toMatchObject({ parentId: ids.A!, after: ids.A3!, depth: 1, edge: 'after' });
+    expect(outlineDrop(doc.outline, ids.page!, [ids.C!], ids.B!, 0, true))
+      .toMatchObject({ parentId: ids.page!, after: ids.A!, depth: 0, edge: 'before' });
+    expect(tree(doc)).toEqual(before);
+    expect(doc.canUndo()).toBe(false);
   });
 });

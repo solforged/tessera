@@ -53,6 +53,10 @@
 
 /* Rows: [handle][fold] in the gutter, then (bullet) text within the measure. */
 .outline-list { position: relative; }
+.outline-drop-indicator { position: absolute; right: 0; height: 2px; background: var(--accent); pointer-events: none; z-index: 2; }
+.outline-drop-indicator::before { content: ''; position: absolute; left: -3px; top: -2px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+.outline-row :is(.row-menu, .row-bullet) { touch-action: none; }
+.outline-dragging, .outline-dragging * { cursor: grabbing !important; user-select: none; -webkit-user-select: none; }
 .outline-motion-group { position: absolute; inset: 0; pointer-events: none; }
 .outline-motion-group > .outline-row { pointer-events: auto; }
 .outline-row { display: flex; align-items: flex-start; position: absolute; top: 0; left: 0; right: 0; min-height: var(--row-height); padding-block: var(--space-2); padding-left: calc(var(--depth) * var(--indent-width)); border-left: 2px solid transparent; border-radius: var(--radius-control); transition: background-color var(--motion-fast) var(--motion-ease); }
