@@ -42,6 +42,11 @@ export function openReferenceRange(text: string, from: number, caret: number, bl
   return { from, to: closed ? end + 2 : caret, query: text.slice(from + 2, closed ? end : caret) };
 }
 
+/** A soft newline leaves a paired reference after its closer, never inside the query. */
+export function referenceNewlineAt(text: string, from: number, caret: number, blocks: boolean): number {
+  return openReferenceRange(text, from, caret, blocks).to;
+}
+
 const limit = 20;
 interface RootIndex {
   ids: Map<string, Block>;

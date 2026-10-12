@@ -983,7 +983,7 @@ function Pane(props: OutlinePaneProps) {
   };
   const { setCompletion, setCompletionIndex, offerValue, updateCompletion, updateTriggers, taskPrefix, rewriteEditing, referenceInput, forgetReferenceSpace, slashKey, dateKey, popupKey, CompletionPopups } = createOutlineCompletions(context);
   const { openTable, investigationItems, commandDefinitions, unregister, blockMenu, statusMenu, priorityMenu, openPlanning, openProject, leaderMenu, makeCloze, referenceMenu, copy } = createOutlineCommands(context);
-  const { horizontal, adjacent, split, editorKey, structuralKey, resetRowKey } = createOutlineKeyboard(context);
+  const { horizontal, adjacent, split, editorKey, structuralKey, resetRowKey, resetVerticalGoal } = createOutlineKeyboard(context);
   const { selectedOffsets, pointerStart, pointerMove, pointerEnd, clipboard, paste, beforeInput } = createOutlineInteractions(context);
   const fieldSheet = createFieldSheet(context, { offerValue, onField: field => setCreatedFields(previous => previous.some(existing => existing.id === field.id) ? previous : [...previous, field]) });
   const drag = createOutlineDrag(context);
@@ -1011,6 +1011,8 @@ function Pane(props: OutlinePaneProps) {
     };
     scroll.addEventListener('mousedown', clearOutsideRows);
     onCleanup(() => scroll.removeEventListener('mousedown', clearOutsideRows));
+    document.addEventListener('pointerdown', resetVerticalGoal, true);
+    onCleanup(() => document.removeEventListener('pointerdown', resetVerticalGoal, true));
     scroll.addEventListener('paste', paste, true);
     scroll.addEventListener('beforeinput', beforeInput, true);
     onCleanup(() => { scroll.removeEventListener('copy', copy, true); scroll.removeEventListener('cut', cut, true); scroll.removeEventListener('paste', paste, true); scroll.removeEventListener('beforeinput', beforeInput, true); cancelAnimationFrame(compositionFrame); });
@@ -1025,6 +1027,7 @@ function Pane(props: OutlinePaneProps) {
       },
       blur: () => { if (editor?.id && editing() === editor.id) commitFieldEntry(editor.id, false); },
       text: (text, at) => measure('typing', () => {
+        resetVerticalGoal();
         if (compositionSelection) return;
         const heading = headingPrefix(text, at.offset);
         if (heading && !composition()) {
@@ -1119,7 +1122,14 @@ function Pane(props: OutlinePaneProps) {
       if (initial.scroll) restoreAnchor(initial.scroll);
     }
   });
-  createEffect(() => { const id = editing(); const text = id ? doc.block(id)?.text : undefined; if (text !== undefined && editor?.id === id) queueMicrotask(() => { if (editor?.id === id) editor.sync(text); }); });
+  createEffect(() => {
+    const id = editing(), text = id ? doc.block(id)?.text : undefined;
+    if (text !== undefined && editor?.id === id) queueMicrotask(() => {
+      if (editor?.id !== id) return;
+      if (editor.view.state.doc.toString() !== text) resetVerticalGoal();
+      editor.sync(text);
+    });
+  });
   createEffect(() => {
     const id = editing();
     const text = id ? doc.block(id)?.text : undefined;

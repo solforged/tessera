@@ -9,7 +9,7 @@ export type TitleTargets = Map<string, string>;
 /** Hand-typed `[[Title]]` names in `text`, trimmed and deduplicated. */
 export function typedTitles(text: string): string[] {
   if (!text.includes('[[')) return [];
-  return [...new Set(textTokens(text).flatMap(token => token.kind === 'reference' && !isStableReference(token) && !insideProtectedSyntax(text, token.start) && token.id!.trim() ? [token.id!.trim()] : []))];
+  return [...new Set(textTokens(text).flatMap(token => token.kind === 'reference' && !isStableReference(token) && !/[\r\n]/.test(token.value) && !insideProtectedSyntax(text, token.start) && token.id!.trim() ? [token.id!.trim()] : []))];
 }
 
 /**
@@ -36,7 +36,7 @@ export async function titleTargets(notebook: NotebookClient, titles: readonly st
 /** Rewrites resolved names as stable references, retaining the wording of every hand-typed occurrence. */
 export function withLinkedTitles(text: string, targets: TitleTargets): string {
   return textTokens(text).map(token => {
-    const target = token.kind === 'reference' && !isStableReference(token) && !insideProtectedSyntax(text, token.start) ? targets.get(foldName(token.id!)) : undefined;
+    const target = token.kind === 'reference' && !isStableReference(token) && !/[\r\n]/.test(token.value) && !insideProtectedSyntax(text, token.start) ? targets.get(foldName(token.id!)) : undefined;
     const label = token.alias ?? token.id?.trim();
     return target ? `[[${target}|${label}]]` : text.slice(token.start, token.end);
   }).join('');

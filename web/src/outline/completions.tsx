@@ -15,7 +15,7 @@ import { Icon } from '../ui/Icon';
 import type { IconName } from '../ui/Icon';
 import { Popup } from '../ui/Popup';
 import { BlockBreadcrumb, BlockText } from './BlockText';
-import { completeReferences, completionPickKey, isJournalReference, openReferenceRange, referenceCompletionAt } from './completion';
+import { completeReferences, completionPickKey, isJournalReference, openReferenceRange, referenceCompletionAt, referenceNewlineAt } from './completion';
 import { rankSlash, slashTokenAt } from './slash';
 import { insertCard } from './card-insert';
 import type { InsertCardKind } from './card-insert';
@@ -224,7 +224,17 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     editAt(id, date.length, true);
   }
   function popupKey(event: KeyboardEvent) {
-    if (!completion()) return false;
+    const state = completion();
+    if (!state) return false;
+    if (event.key === 'Enter' && event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey && !state.manual && !state.types && !state.fields && !state.choice && context.editor && !textRange() && context.editor.view.state.selection.main.empty) {
+      const id = context.editor.id;
+      const text = context.editor.view.state.doc.toString();
+      const offset = referenceNewlineAt(text, state.from, state.to, !!state.blocks);
+      const selectionBefore = activeRange() ?? undefined;
+      dismissCompletion();
+      replaceSelection('\n', 'text', { anchor: { id, offset }, head: { id, offset } }, selectionBefore);
+      return true;
+    }
     const count = completionRows().length + createRows().length;
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { setCompletionIndex(index => Math.max(0, Math.min(count - 1, index + (event.key === 'ArrowDown' ? 1 : -1)))); return true; }
     if (completionPickKey(event)) { void chooseCompletion(); return true; }

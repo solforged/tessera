@@ -485,7 +485,7 @@ Headings likewise drop their style first. Backspace straight after a reference, 
 **Delete, arrows and tree commands**
 
 - Delete at the end joins the next sibling, appending its children in order. At a zoomed root it does nothing, so it never merges a sibling outside the zoomed subtree.
-- Arrows at a row boundary cross to the neighbouring row keeping the screen column, including across field gutters. Consecutive vertical moves retain the preferred column through shorter rows until another key or a pointer caret move resets it. Escape keeps the caret offset so the next Enter or `i` resumes there.
+- Arrows at a row boundary cross to the neighbouring row keeping the screen column, including across field gutters. The pane retains the preferred column through shorter rows and editor remounts until another key, a pointer action or a text edit resets it. Escape keeps the caret offset so the next Enter or `i` resumes there.
 - Indent, outdent and move act on the selection's roots with their subtrees, never leave the zoomed subtree, and are silent no-ops without a history entry at a boundary (no previous sibling, top level, first or last sibling). Outdent leaves the following siblings under their original parent. A multi-row selection survives the command and its undo or redo.
 - Delete of a subtree selects the previous visible survivor; folding a descendant selects the folded parent; zooming out selects the block being left. A hidden or remotely deleted edited or selected row selects the previous visible survivor, or the next when none precedes it, and keeps outline keyboard ownership.
 
@@ -516,11 +516,13 @@ Typed triggers act in block text. Each character means one thing, opens a picker
 
 `[[` and `((` close their pair as in Roam and Logseq, and a typed closer steps over the paired one. The picker opens under the opening brackets and stays there while the query grows or shrinks. It closes as soon as the text no longer holds an open query, however that text changed.
 
-The open `[[query]]` is tinted in the accent until a choice replaces it with a reference. The picker searches the whole bracketed query, including any text after the caret, and a choice replaces all of it. Unmodified Enter or Tab picks, including when pressed before results arrive; modified chords keep their editing actions. The block being edited is never offered.
+The open `[[query]]` is tinted in the accent until a choice replaces it with a reference. The picker searches the whole bracketed query, including any text after the caret, and a choice replaces all of it. Unmodified Enter or Tab picks, including when pressed before results arrive; modified chords keep their editing actions. Shift+Enter closes the picker and inserts its newline after a paired reference, never inside the query. The block being edited is never offered.
 
 The caret lands after the reference, with a space when a word or the end of the block follows; punctuation or a space typed next takes that space's place, on phone keyboards too. Backspace in an empty `[[]]` removes both pairs. A query that names no page or field exactly offers Create page after the matches, except an ISO date, which only offers its existing journal.
 
 `[[Title]]` typed by hand, or kept as text with Escape, links the one page whose title or alias is that name once the block is left, keeping the typed wording. A name two or more pages share stays unlinked and is marked; see [Aliases](surfaces/notes.md#aliases). A name no page has creates the page; a date only links a journal that already exists.
+
+A hand-typed reference spanning lines stays literal. Name normalization never removes authored newlines.
 
 #### Types
 

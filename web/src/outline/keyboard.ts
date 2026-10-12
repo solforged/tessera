@@ -26,6 +26,9 @@ export function createOutlineKeyboard(context: Pick<OutlineContext,
     setRowRange,
   } = context;
   let rowKey = '';
+  // The editor remounts when a row changes, so its selection cannot own a cross-row navigation goal.
+  let preferredX: number | undefined;
+  function resetVerticalGoal() { preferredX = undefined; }
   function horizontal(direction: 'left' | 'right') {
     const id = selected();
     if (!id) return;
@@ -78,9 +81,13 @@ export function createOutlineKeyboard(context: Pick<OutlineContext,
     const rect = view.coordsAtPos(head);
     const first = view.coordsAtPos(0);
     const vertical = event.key === 'ArrowUp' || event.key === 'ArrowDown';
-    // CodeMirror's goal column is relative to contentDOM; crossings carry it as a screen coordinate.
-    const x = view.state.selection.main.goalColumn === undefined ? rect?.left
-      : view.contentDOM.getBoundingClientRect().left + view.state.selection.main.goalColumn;
+    if (vertical && preferredX === undefined) preferredX = rect?.left;
+    const x = vertical ? preferredX : undefined;
+    if (vertical && x !== undefined) {
+      const selection = view.state.selection.main;
+      const goal = x - view.contentDOM.getBoundingClientRect().left;
+      if (selection.goalColumn !== goal) view.dispatch({ selection: EditorSelection.range(selection.anchor, selection.head, goal) });
+    }
     const last = view.coordsAtPos(view.state.doc.length);
     const boundary = event.key === 'ArrowLeft' ? head === 0 : event.key === 'ArrowRight' ? head === view.state.doc.length
       : direction < 0 ? !!rect && !!first && rect.top <= first.top + 2 : !!rect && !!last && rect.bottom >= last.bottom - 2;
@@ -125,8 +132,9 @@ export function createOutlineKeyboard(context: Pick<OutlineContext,
   }
   function editorKey(event: KeyboardEvent, view: EditorView) {
     const selection = view.state.selection.main;
-    if ((event.key !== 'ArrowUp' && event.key !== 'ArrowDown' || event.altKey || event.metaKey || event.ctrlKey) && selection.goalColumn !== undefined) {
-      view.dispatch({ selection: EditorSelection.range(selection.anchor, selection.head) });
+    if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown' || event.altKey || event.metaKey || event.ctrlKey) {
+      resetVerticalGoal();
+      if (selection.goalColumn !== undefined) view.dispatch({ selection: EditorSelection.range(selection.anchor, selection.head) });
     }
     if (forgetReferenceSpace(event) || slashKey(event) || dateKey(event) || popupKey(event) || fieldKey(event, view)) return true;
     if (commonKey(event)) return true;
@@ -248,5 +256,5 @@ export function createOutlineKeyboard(context: Pick<OutlineContext,
     if (event.ctrlKey && key.toLowerCase() === 'r') { undo(true); return true; }
     return false;
   }
-  return { horizontal, adjacent, split, editorKey, structuralKey, resetRowKey: () => { rowKey = ""; } };
+  return { horizontal, adjacent, split, editorKey, structuralKey, resetVerticalGoal, resetRowKey: () => { rowKey = ""; } };
 }

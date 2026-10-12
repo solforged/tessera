@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import type { Block } from '../api/types';
 import type { NotebookClient } from '../document/contract';
-import { completionPickKey, headingPrefix, isJournalReference, openReferenceRange, referenceCompletionAt } from './completion';
+import { completionPickKey, headingPrefix, isJournalReference, openReferenceRange, referenceCompletionAt, referenceNewlineAt } from './completion';
 import { titleTargets, typedTitles, withLinkedTitles } from './link-titles';
 import { foldName } from './names';
 
@@ -20,6 +20,18 @@ describe('an open reference completion', () => {
     expect(openReferenceRange('[[mar and more', 0, 5, false)).toEqual({ from: 0, to: 5, query: 'mar' });
     expect(openReferenceRange('[[mar\nnext]]', 0, 5, false)).toEqual({ from: 0, to: 5, query: 'mar' });
     expect(openReferenceRange('[[mar [[other]]', 0, 5, false)).toEqual({ from: 0, to: 5, query: 'mar' });
+  });
+
+  test('places a soft newline after the paired query without losing it during title normalization', () => {
+    const text = 'Meet [[QA Inline]] then continue';
+    const after = referenceNewlineAt(text, 5, 10, false);
+    const next = text.slice(0, after) + '\n' + text.slice(after);
+    expect(next).toBe('Meet [[QA Inline]]\n then continue');
+    const targets = new Map<string, string>();
+    targets.set(foldName('QA Inline'), '01ARZ3NDEKTSV4RRFFQ69G5FAV');
+    expect(withLinkedTitles(next, targets)).toBe('Meet [[01ARZ3NDEKTSV4RRFFQ69G5FAV|QA Inline]]\n then continue');
+    expect(referenceNewlineAt('Meet ((QA Inline))', 5, 10, true)).toBe(18);
+    expect(referenceNewlineAt('Meet [[QA Inline', 5, 16, false)).toBe(16);
   });
 });
 
@@ -68,6 +80,15 @@ describe('hand-typed reference linking', () => {
     targets.set(foldName('Canonical'), '01ARZ3NDEKTSV4RRFFQ69G5FAV');
     expect(typedTitles('`[[Canonical]]`')).toEqual([]);
     expect(withLinkedTitles(text, targets)).toBe('`[[Canonical]]` and [[01ARZ3NDEKTSV4RRFFQ69G5FAV|Canonical]]');
+  });
+
+  test('never normalizes or trims authored newlines inside a literal reference', () => {
+    const targets = new Map<string, string>();
+    targets.set(foldName('QA Inline'), '01ARZ3NDEKTSV4RRFFQ69G5FAV');
+    for (const text of ['Meet [[QA Inline\n]]', 'Meet [[QA\nInline]]', 'Meet [[QA Inline|QA\nInline]]', 'Meet [[QA Inline\r\n]]']) {
+      expect(typedTitles(text)).toEqual([]);
+      expect(withLinkedTitles(text, targets)).toBe(text);
+    }
   });
 
   test('ISO queries never create an ordinary page and resolve only an existing journal', async () => {
