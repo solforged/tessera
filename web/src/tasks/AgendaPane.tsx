@@ -339,11 +339,12 @@ export function AgendaPane(props: AgendaPaneProps) {
           <Button icon="right" label={mode() === 'week' ? 'Next week' : 'Next day'} disabled={busy() || !nextDate()} onClick={() => { const next = nextDate(); if (next) changeDay(next); }} />
         </div>
       </header>
-      <div class="agenda-modes mode-tabs tab-strip" role="group" aria-label="Task display">
+      <div class="agenda-modes mode-tabs tab-strip" data-mode-panel=".agenda-mode-content" role="group" aria-label="Task display">
         <Button aria-pressed={mode() === 'agenda'} disabled={busy()} onClick={() => { setStripStart(date()); update({ mode: 'agenda', scroll: 0 }); }}>Day</Button>
         <Button aria-pressed={mode() === 'week'} disabled={busy()} onClick={() => { setStripStart(mondayWeekStart(date()) ?? date()); update({ mode: 'week', scroll: 0 }); }}>Week</Button>
         <Button aria-pressed={mode() === 'tasks'} disabled={busy()} onClick={() => update({ mode: 'tasks', scroll: 0 })}>Tasks</Button>
       </div>
+      <div class="agenda-mode-content">
       <Show when={mode() !== 'week'}><AgendaWeekStrip dates={stripDates()} date={date()} today={props.notebook.todayDate()} rows={weekRows()} loading={weekLoading()} disabled={busy()} onSelect={date => update({ date, scroll: 0 })} /></Show>
       <Show when={mode() === 'agenda'}>
         <div class="agenda-add">
@@ -425,6 +426,7 @@ export function AgendaPane(props: AgendaPaneProps) {
         </Show>
       </section>
       </Show>
+      </div>
       <Show keyed when={popup()}>{state => {
         const dismiss = () => { if (!busy() && popup() === state) setPopup(null); };
         if (state.kind === 'menu') return <Menu anchor={state.anchor} label={state.label} items={state.items} onDismiss={dismiss} />;

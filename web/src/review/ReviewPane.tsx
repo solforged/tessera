@@ -399,7 +399,7 @@ export function ReviewPane(props: ReviewPaneProps) {
       <Button class="review-deck-actions" icon="more" label="Deck actions" aria-haspopup="menu" disabled={locked() || loading()} onClick={event => setActions(event.currentTarget)} />
     </header>
     <div class="review-toolbar">
-      <Show when={!session()}><div role="group" aria-label="Review queue" class="review-queue-controls mode-tabs tab-strip"><For each={selections}>{value => <Button aria-pressed={query().selection === value} disabled={locked() || loading()} onClick={() => {
+      <Show when={!session()}><div role="group" aria-label="Review queue" class="review-queue-controls mode-tabs tab-strip" data-mode-panel=".review-scroll"><For each={selections}>{value => <Button aria-pressed={query().selection === value} disabled={locked() || loading()} onClick={() => {
         if (value === query().selection) return;
         setShown(null); setUpdated(null); setStale(''); setNeedsReload(false); setSelection(value); publish();
       }}>{selectionLabels[value]}<Show when={counts()[value] !== undefined}><span class="review-count">{counts()[value]}</span></Show></Button>}</For></div></Show>

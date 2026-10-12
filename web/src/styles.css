@@ -25,12 +25,14 @@ a { color: var(--accent); }
 /* Modes and tabs: mono labels with a faint count; the current one is gilt with a 2 px rule beneath the whole tab,
    label and count alike, never a box. */
 .mode-tabs { display: flex; align-items: center; gap: var(--space-4); }
-.mode-tabs > .button { font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); color: var(--muted); }
+.mode-tabs > .button { position: relative; font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); color: var(--muted); }
 .mode-tabs > .button:hover:not(:disabled) { color: var(--text); }
-.mode-tabs > .button[aria-pressed="true"] { background: transparent; color: var(--accent); box-shadow: inset 0 calc(-2 * var(--rule-width)) var(--accent); }
+.mode-tabs > .button:is([aria-pressed="true"], [aria-selected="true"]) { background: transparent; color: var(--accent); }
+.mode-tabs > .button::after { content: ''; position: absolute; inset: auto 0 0; height: calc(2 * var(--rule-width)); background: var(--accent); opacity: 0; pointer-events: none; transition: opacity var(--motion-ui) var(--motion-ease); }
+.mode-tabs > .button:is([aria-pressed="true"], [aria-selected="true"])::after { opacity: 1; }
 /* Keyboard focus on a tab is a faint rule, never a ring; on the current tab the label brightens over its gilt rule. */
 .mode-tabs > .button:focus-visible { outline: none; color: var(--text); box-shadow: inset 0 calc(-1 * var(--rule-width)) var(--faint); }
-.mode-tabs > .button[aria-pressed="true"]:focus-visible { color: var(--text); box-shadow: inset 0 calc(-2 * var(--rule-width)) var(--accent); }
+.mode-tabs > .button:is([aria-pressed="true"], [aria-selected="true"]):focus-visible { color: var(--text); box-shadow: none; }
 /* A strip that switches views (Library states, Review queues, Agenda modes) stands on a hairline baseline, and every
    tab's rule lands on that same line. */
 .mode-tabs.tab-strip { align-items: stretch; box-shadow: inset 0 calc(-1 * var(--rule-width)) var(--line); }
@@ -102,12 +104,14 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
 .rail-end > .button { flex-shrink: 0; }
 /* Sidebar rows share one left edge; document controls stay in their panes. */
 .sidebar { grid-column: 1; grid-row: 2; display: flex; flex-direction: column; width: var(--sidebar-width); min-height: 0; padding: var(--space-12) var(--space-8); overflow-y: auto; transition: transform var(--motion-ui) var(--motion-ease), opacity var(--motion-fast) var(--motion-ease), visibility 0s; }
-.sidebar .button { width: 100%; justify-content: flex-start; min-height: var(--row-height); padding: 0 var(--space-8); gap: var(--space-8); border-left: 2px solid transparent; overflow: hidden; white-space: nowrap; color: var(--muted); font-weight: var(--weight-body); }
+.sidebar .button { position: relative; width: 100%; justify-content: flex-start; min-height: var(--row-height); padding: 0 var(--space-8); gap: var(--space-8); border-left: calc(2 * var(--rule-width)) solid transparent; overflow: hidden; white-space: nowrap; color: var(--muted); font-weight: var(--weight-body); }
+.sidebar .button::before { content: ''; position: absolute; inset: 0 auto 0 0; width: calc(2 * var(--rule-width)); background: var(--accent); opacity: 0; pointer-events: none; transition: opacity var(--motion-ui) var(--motion-ease); }
+.sidebar .button.selected::before { opacity: 1; }
 .sidebar .button > .icon { color: var(--faint); }
 /* A flex button cannot ellipsize its own text; the label span can. */
 .sidebar .button > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .sidebar .button.icon-only { width: var(--row-height); padding: 0; justify-content: center; }
-.sidebar .button.selected { border-left-color: var(--accent); background: var(--selection); color: var(--text); }
+.sidebar .button.selected { background: var(--selection); color: var(--text); }
 .sidebar .button.selected > .icon { color: var(--accent); }
 /* The desk: four landmarks, each with its live state at the right. */
 .primary-navigation { display: flex; flex-direction: column; }
@@ -365,4 +369,7 @@ mark { background: var(--selection); color: var(--accent); font-weight: var(--we
   .app.is-reading .pane.active > .pane-header { display: none; }
   .app.is-reading .workspace { margin: 0; border: 0; border-radius: 0; background: var(--canvas); }
   .undo-toast { bottom: calc(var(--bottom-nav-height) + 12px + var(--bottom-inset)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mode-tabs > .button::after, .sidebar .button::before { transition: none; }
 }

@@ -138,7 +138,7 @@ export function ComparePane(props: ComparePaneProps) {
       <div><span class="compare-eyebrow">Reading sheet</span><h2><Button class="compare-subject" title="Open the subject · Shift to open beside" onClick={event => open(props.subjectId, null, event.shiftKey)}>{subject()?.text ?? 'Loading…'}</Button></h2></div>
       <Show when={tab() === 'readings'}><span class="compare-count">{selected().length} of {perspectives().length} readings</span></Show>
     </header>
-    <div class="compare-tabs mode-tabs tab-strip" role="tablist" aria-label="Compare mode">
+    <div class="compare-tabs mode-tabs tab-strip" data-mode-panel=".compare-scroll" role="tablist" aria-label="Compare mode">
       <For each={['readings', 'criteria'] as const}>{mode => <Button role="tab" aria-selected={tab() === mode} onClick={() => { setTabChoice(mode); props.onViewChange({ scroll: scroll?.scrollTop ?? 0, comparison: mode, chosen: chosen() }); }}>{mode === 'readings' ? 'Readings' : 'Criteria'}</Button>}</For>
     </div>
     <Show when={result.error || fieldList.error}><div class="pane-error" role="alert">Couldn’t load readings.</div></Show>

@@ -63,7 +63,7 @@ function DefinitionsPane(props: FieldsPaneProps) {
   let restoredScroll = false;
   onMount(() => {
     const observer = new ResizeObserver(entries => setWide((entries[0]?.contentRect.width ?? 0) >= 1096));
-    observer.observe(scroll);
+    observer.observe(scroll.parentElement!);
     onCleanup(() => observer.disconnect());
   });
   createEffect(() => {
@@ -113,7 +113,7 @@ function DefinitionsPane(props: FieldsPaneProps) {
     if (!result.ok) { setCreateError(result.reason); return; }
     closeCreation(); setNewName(''); setCreateError(''); setSearch('');
   };
-  return <div class="fields-pane" role="region" tabIndex={0} aria-label="Fields" onFocusIn={props.onActivate} onKeyDown={event => {
+  return <div class="fields-pane" data-inspector={wide() && selected() ? '' : undefined} role="region" tabIndex={0} aria-label="Fields" onFocusIn={props.onActivate} onKeyDown={event => {
     if (!(event.target instanceof HTMLInputElement) && (event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === 'z') {
       event.preventDefault(); event.stopPropagation();
       if (event.shiftKey) doc()?.redo(); else doc()?.undo();
