@@ -247,7 +247,8 @@ export function LibraryPane(props: LibraryPaneProps) {
       }, reason => { if (!controller.signal.aborted) setReadingError(reason instanceof Error ? reason.message : String(reason)); });
     onCleanup(() => controller.abort());
   });
-  const showReading = createMemo(() => tab() !== 'highlights' && tab() !== 'collections' && !view().collection && !text().trim() && !filtered() && !view().view);
+  // Reading now leads Reading and All only; the other tabs list their own state.
+  const showReading = createMemo(() => (tab() === 'reading' || tab() === 'all') && !view().collection && !text().trim() && !filtered() && !view().view);
   const [openedSource, setOpenedSource] = createSignal<string>();
   function openSource(target: OpenTarget, beside: boolean) {
     if (target.kind === 'page') setOpenedSource(target.pageId);
@@ -823,7 +824,8 @@ export function LibraryPane(props: LibraryPaneProps) {
       const target: OpenTarget = { kind: 'page', pageId: row.page.id };
       return <div class="library-row library-source-row" classList={{ 'library-row-selected': selected().has(row.page.id), 'library-source-current': openedSource() === row.page.id }} role="listitem" {...sourceLongPress(row)}>
         <div class="library-leading">
-          <span class="library-source-image"><Show when={row.cover} fallback={<Icon name={row.source.format === 'article' ? 'article' : 'book'} />}><ResourceImage snapshotId={row.source.current_snapshot_id ?? ''} href={row.cover!} alt="" loading="lazy" /></Show></span>
+          {/* A 28 px row cannot show a cover legibly; the phone ledger's taller rows can. */}
+          <span class="library-source-image"><Show when={coverLayout() && row.cover} fallback={<Icon name={row.source.format === 'article' ? 'article' : 'book'} />}><ResourceImage snapshotId={row.source.current_snapshot_id ?? ''} href={row.cover!} alt="" loading="lazy" /></Show></span>
           <Button role="checkbox" aria-checked={selected().has(row.page.id)} label={`Select ${row.page.text}`} class="icon-only library-checkbox" onClick={event => toggleSelection(row.page.id, event.shiftKey)}>
             <span class="library-checkbox-square"><Show when={selected().has(row.page.id)}><Icon name="check" /></Show></span>
           </Button>
@@ -832,9 +834,10 @@ export function LibraryPane(props: LibraryPaneProps) {
           <span class="library-siglum" aria-hidden="true">{row.source.siglum}</span><span class="library-title">{row.page.text}</span><span class="library-byline">{sourceByline(row)}</span>
           <Show when={mixedStates()}><span class="library-count library-state">{stateLabels[row.source.state]}</span></Show>
           <span class="library-count library-year" aria-label="Published year">{row.published?.slice(0, 4)}</span>
-          <span class="library-progress"><Show when={row.source.state === 'finished' && row.source.state_changed_at != null} fallback={<Show when={row.progress > 0} fallback="Not started">
+          {/* Finished needs no percentage, and an unread Inbox or Abandoned source needs no "Not started". */}
+          <span class="library-progress"><Show when={row.source.state === 'finished'} fallback={<Show when={row.progress > 0} fallback={row.source.state === 'reading' ? 'Not started' : null}>
             <span class="library-reading-rule library-reading-started" style={{ '--progress': `${row.progress * 100}%` }} aria-hidden="true" /><span>{formatProgress(row.progress)}</span>
-          </Show>}>Finished {finishedDate().format(row.source.state_changed_at!)}</Show></span>
+          </Show>}>{row.source.state_changed_at != null ? `Finished ${finishedDate().format(row.source.state_changed_at)}` : mixedStates() ? null : 'Finished'}</Show></span>
           <span class="library-highlight-count" aria-label={row.unprocessed ? `${row.unprocessed} unprocessed highlights` : undefined}><Show when={row.unprocessed > 0}><Icon name="highlight" />{row.unprocessed}</Show></span>
         </Button>
         <Button icon="more" label={`Actions for ${row.page.text}`} aria-haspopup="menu" disabled={saving()} onClick={event => rowMenu(row, event.currentTarget)} />
@@ -852,7 +855,7 @@ export function LibraryPane(props: LibraryPaneProps) {
               <span class="library-siglum" aria-hidden="true">{row.source.siglum}</span>
               <Show when={mixedStates()}><span class="library-book-state">{stateLabels[row.source.state]}</span></Show>
               <Show when={row.published}><span aria-label="Published year">{row.published!.slice(0, 4)}</span></Show>
-              <Show when={row.progress > 0}><span>{formatProgress(row.progress)}</span></Show>
+              <Show when={row.progress > 0 && row.source.state !== 'finished'}><span>{formatProgress(row.progress)}</span></Show>
               <Show when={row.unprocessed > 0}><span class="library-book-highlights" aria-label={`${row.unprocessed} unprocessed highlights`}><Icon name="highlight" />{row.unprocessed}</span></Show>
             </span>
           </Button>
@@ -904,7 +907,7 @@ export function LibraryPane(props: LibraryPaneProps) {
     }}</Show>;
   }
 
-  return <div ref={libraryHost} class="library-pane" classList={{ 'library-search-open': searchOpen() || !!text(), 'library-highlights-tab': tab() === 'highlights', 'library-all-tab': tab() === 'all' || !!view().collection, 'library-highlight-passage-open': tab() === 'highlights' && coverLayout() && highlightPassageOpen(), 'library-cover-reading': coverLayout() && showReading() && tab() === 'reading', 'library-inspecting': inspecting(), 'library-inspector-narrow': inspecting() && narrowInspector() && !coverLayout(), 'library-inspector-phone': inspecting() && coverLayout() }} data-pane={props.pane} aria-label="Library" tabIndex={props.active ? 0 : -1} onFocusIn={props.onActivate} onPointerDown={props.onActivate}
+  return <div ref={libraryHost} class="library-pane" classList={{ 'library-search-open': searchOpen() || !!text(), 'library-highlights-tab': tab() === 'highlights', 'library-all-tab': tab() === 'all' || !!view().collection, 'library-highlight-passage-open': tab() === 'highlights' && coverLayout() && highlightPassageOpen(), 'library-reading-cards': showReading() && tab() === 'reading', 'library-cover-reading': coverLayout() && showReading() && tab() === 'reading', 'library-inspecting': inspecting(), 'library-inspector-narrow': inspecting() && narrowInspector() && !coverLayout(), 'library-inspector-phone': inspecting() && coverLayout() }} data-pane={props.pane} aria-label="Library" tabIndex={props.active ? 0 : -1} onFocusIn={props.onActivate} onPointerDown={props.onActivate}
     onKeyDown={event => {
       if (event.key === 'Escape' && !event.defaultPrevented && selected().size && !popup() && !(event.target as HTMLElement).closest('input, textarea, [contenteditable="true"]')) { event.preventDefault(); event.stopPropagation(); clearSelection(); }
       if (!inspecting() && tab() !== 'highlights' && (event.metaKey || event.ctrlKey) && !event.shiftKey && event.key.toLowerCase() === 'z' && collectionActions.canUndo() && !(event.target instanceof Element && event.target.closest('input, textarea, [contenteditable="true"]'))) {
@@ -970,23 +973,21 @@ export function LibraryPane(props: LibraryPaneProps) {
         </div>}>
           <Show when={selected().size > 0} fallback={<>
             <input class="input library-search" type="search" aria-label="Search library" placeholder="Search library" value={text()} onInput={event => update({ view: null, text: event.currentTarget.value, scroll: 0 })} />
-            <Button class="library-sort" aria-haspopup="menu" label="Sort and group sources" onClick={event => setPopup({ kind: 'menu', anchor: event.currentTarget, label: 'Sort and group sources', items: [
-              ...sorts.map(item => ({ section: 'Sort', label: item.label, icon: sort() === item.id ? 'check' as const : undefined, action: () => update({ view: null, sort: item.id, scroll: 0 }) })),
-              ...groupings.map(item => ({ section: 'Group', label: item.label, icon: group() === item.id ? 'check' as const : undefined, action: () => update({ group: item.id }) })),
-            ] })}>{sorts.find(item => item.id === sort())!.label}<Show when={group() !== 'none'}><span class="library-sort-group"> · by {groupings.find(item => item.id === group())!.label.toLowerCase()}</span></Show><Icon name="down" /></Button>
+            <Button class="library-sort" aria-haspopup="menu" label="Sort and group sources" onClick={event => {
+              const anchor = event.currentTarget;
+              setPopup({ kind: 'menu', anchor, label: 'Sort and group sources', items: [
+                ...sorts.map(item => ({ section: 'Sort', label: item.label, icon: sort() === item.id ? 'check' as const : undefined, action: () => update({ view: null, sort: item.id, scroll: 0 }) })),
+                ...groupings.map(item => ({ section: 'Group', label: item.label, icon: group() === item.id ? 'check' as const : undefined, action: () => update({ group: item.id }) })),
+                { section: 'View', label: 'Save view…', disabledReason: saving() ? 'Saving…' : undefined, action: () => setPopup({ kind: 'name', anchor, saved: null, id: ulid() }) },
+              ] });
+            }}>{sorts.find(item => item.id === sort())!.label}<Show when={group() !== 'none'}><span class="library-sort-group"> · by {groupings.find(item => item.id === group())!.label.toLowerCase()}</span></Show><Icon name="down" /></Button>
             <div class="library-tabs mode-tabs" data-mode-panel=".library-scroll" role="group" aria-label="Library layout">
               <Button icon="rows" label="List" aria-pressed={layout() === 'list'} onClick={() => chooseLayout('list')} />
               <Button icon="shelf" label="Shelf" aria-pressed={layout() === 'shelf'} onClick={() => chooseLayout('shelf')} />
             </div>
-            <Show when={browseEntries().length}><Button class="library-browse-button" icon="browse" label="Browse" aria-haspopup="dialog" aria-pressed={filtered()} onClick={event => { setBrowseQuery(''); setPopup({ kind: 'browse', anchor: event.currentTarget, field: null }); }} /></Show>
+            {/* Always present, so the search field keeps its width on tabs with nothing to browse. */}
+            <Button class="library-browse-button" icon="browse" label="Browse" aria-haspopup="dialog" aria-pressed={filtered()} disabled={!browseEntries().length} onClick={event => { setBrowseQuery(''); setPopup({ kind: 'browse', anchor: event.currentTarget, field: null }); }} />
             <Button icon="download" label="Export" aria-haspopup="menu" disabled={loading() || !!error() || loadedKey() !== queryKey()} onClick={event => exportMenu(event.currentTarget)}><span class="library-export-label">Export</span><Icon name="down" /></Button>
-            <Button icon="more" label="Library actions" aria-haspopup="menu" onClick={event => {
-              const anchor = event.currentTarget;
-              setPopup({ kind: 'menu', anchor, label: 'Library actions', items: [
-                { label: 'Save view…', disabledReason: saving() ? 'Saving…' : undefined,
-                  action: () => setPopup({ kind: 'name', anchor, saved: null, id: ulid() }) },
-              ] });
-            }} />
           </>}>
             <span class="library-selection-count">{selected().size} selected</span>
             <Button class="bordered" onClick={() => showDetails()}>Details</Button>
@@ -999,7 +1000,7 @@ export function LibraryPane(props: LibraryPaneProps) {
             <Button class="library-clear-selection" onClick={clearSelection}>Clear selection</Button>
           </Show>
         </Show>
-        <Show when={tab() !== 'highlights'}><Button ref={addButton} class="library-add-trigger" icon="plus" aria-haspopup={EMBEDDED ? undefined : 'dialog'} aria-expanded={EMBEDDED ? undefined : popup()?.kind === 'add'} onClick={event => openAdd(event.currentTarget)}>Add</Button></Show>
+        <Show when={tab() !== 'highlights' && !selected().size}><Button ref={addButton} class="library-add-trigger" icon="plus" aria-haspopup={EMBEDDED ? undefined : 'dialog'} aria-expanded={EMBEDDED ? undefined : popup()?.kind === 'add'} onClick={event => openAdd(event.currentTarget)}>Add</Button></Show>
       </div>
       <Show when={tab() !== 'highlights' && chosenFilters().length}><div class="library-filter library-chosen" role="group" aria-label="Browse filters">
         <For each={chosenFilters()}>{item => <Button class="bordered library-chip" aria-label={`Remove filter ${item.label}`} onClick={() => toggleFilter(item.field, item.value)}>{item.label}<Icon name="close" /></Button>}</For>
@@ -1055,7 +1056,7 @@ export function LibraryPane(props: LibraryPaneProps) {
           <h2 class="library-reading-heading" id={`${props.pane}-reading-heading`}>Reading now</h2>
           <div class="library-reading-books" role="list"><For each={reading()}>{row => <div class="library-reading-item library-reading-entry" classList={{ 'library-row-selected': selected().has(row.page.id) }} role="listitem" {...sourceLongPress(row)}>
             <ReadingCard row={row} notebook={props.notebook} selected={openedSource() === row.page.id || selected().has(row.page.id)} onOpen={beside => openSource({ kind: 'page', pageId: row.page.id }, beside)} />
-            <Show when={coverLayout() && tab() === 'reading'}><Button role="checkbox" aria-checked={selected().has(row.page.id)} label={`Select ${row.page.text}`} class="icon-only library-checkbox" onClick={event => toggleSelection(row.page.id, event.shiftKey)}>
+            <Show when={tab() === 'reading'}><Button role="checkbox" aria-checked={selected().has(row.page.id)} label={`Select ${row.page.text}`} class="icon-only library-checkbox" onClick={event => toggleSelection(row.page.id, event.shiftKey)}>
               <span class="library-checkbox-square"><Show when={selected().has(row.page.id)}><Icon name="check" /></Show></span>
             </Button></Show>
             <Button class="library-reading-more" icon="more" label={`Actions for ${row.page.text}`} aria-haspopup="menu" onClick={event => rowMenu(row, event.currentTarget)} />

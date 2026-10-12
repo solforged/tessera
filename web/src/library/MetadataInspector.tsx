@@ -29,11 +29,11 @@ interface Evidence { view: SourceView; extracted: Map<string, string[]> }
 interface HistoryEntry { change: SourceFieldChange; label: string; count: number }
 
 /** Keep long per-source registers bounded without mounting fifty independent editors. */
-function SourceRegister(props: { docs: readonly PageDocument[]; label: string; children(doc: PageDocument): JSX.Element }) {
+function SourceRegister(props: { docs: readonly PageDocument[]; label: string; summary?: string; children(doc: PageDocument): JSX.Element }) {
   const [page, setPage] = createSignal(0);
   createEffect(on(() => props.docs.map(doc => doc.pageId).join(','), () => setPage(0)));
   return <details class="metadata-register">
-    <summary>{props.label}<span>{props.docs.length} sources</span><Icon name="right" /></summary>
+    <summary aria-label={props.label}>{props.summary ?? props.label}<span>{props.docs.length} sources</span><Icon name="right" /></summary>
     <div role="group" aria-label={props.label}>
       <For each={props.docs.slice(page() * 10, (page() + 1) * 10)}>{doc => <div class="metadata-register-source"><div class="metadata-register-title"><span>{doc.root()?.source?.siglum}</span>{doc.root()?.text}</div>{props.children(doc)}</div>}</For>
       <Show when={props.docs.length > 10}><div class="metadata-register-pages"><Button icon="left" label="Previous sources" disabled={page() === 0} onClick={() => setPage(value => value - 1)} /><span>{page() * 10 + 1}–{Math.min((page() + 1) * 10, props.docs.length)} of {props.docs.length} sources</span><Button icon="right" label="Next sources" disabled={(page() + 1) * 10 >= props.docs.length} onClick={() => setPage(value => value + 1)} /></div></Show>
@@ -205,7 +205,8 @@ export function MetadataInspector(props: {
   }
   function perSource(fieldName: SourceField) {
     const values = createMemo(() => metadataValues(docs().map(doc => current(doc, fieldName))));
-    return <Show when={batch() && (values().mixed || dates[fieldName] || fieldName === 'number')} fallback={field(fieldName)}><div class="metadata-register-label">{labels[fieldName]}{values().distinct.length ? ` · ${values().distinct.length} ${values().distinct.length === 1 ? 'value' : 'values'}` : ''}{values().empty ? ` · ${values().empty} empty` : ''} · per source</div><SourceRegister docs={docs()} label={`${labels[fieldName]} per source`}>{doc => field(fieldName, [doc])}</SourceRegister></Show>;
+    // A field that differs across the selection keeps its label column; its body is the per-source register.
+    return <Show when={batch() && (values().mixed || dates[fieldName] || fieldName === 'number')} fallback={field(fieldName)}><div class="metadata-field"><span class="metadata-label">{labels[fieldName]}</span><div class="metadata-field-body"><SourceRegister docs={docs()} label={`${labels[fieldName]} per source`} summary={[values().distinct.length ? `${values().distinct.length} ${values().distinct.length === 1 ? 'value' : 'values'}` : '', values().empty ? `${values().empty} empty` : '', 'per source'].filter(Boolean).join(' · ')}>{doc => field(fieldName, [doc])}</SourceRegister></div></div></Show>;
   }
   function creators(selected: readonly PageDocument[]) {
     const key = `${selected.map(doc => doc.pageId).join(',')}:creators`;
@@ -241,7 +242,7 @@ export function MetadataInspector(props: {
         <span>{batch() ? `${docs().length} sources selected` : `${docs()[0]?.root()?.source?.siglum ?? ''} Catalogue card`}</span>
         <div><Show when={docs().length === 1}><Button class="metadata-open" onClick={event => props.onOpen({ kind: 'page', pageId: docs()[0]!.pageId }, event.shiftKey)}>Open page<Icon name="right" /></Button></Show><Button icon="close" label="Close source details" onClick={props.onClose} /></div>
       </div>
-      <p class="metadata-hint">{batch() ? `An entered value replaces the field on all ${docs().length} sources, unless a source is named.` : 'Click a value to edit. Enter or blur commits.'}</p>
+      <Show when={batch()}><p class="metadata-hint">An entered value replaces the field on all {docs().length} sources, unless a source is named.</p></Show>
     </header>
     <div class="metadata-inspector-scroll">
       <Show when={loading() || definitions.loading && !definitions() || evidence.loading}><p class="metadata-hint" role="status">Loading source details…</p></Show>
@@ -251,8 +252,7 @@ export function MetadataInspector(props: {
           {perSource('title')}{field('subtitle')}
           <div class="metadata-field"><span class="metadata-label">Creators</span><div class="metadata-field-body">
             <Show when={batch() && creatorValues().mixed} fallback={creators(docs())}>
-              <p class="metadata-hint">{creatorValues().distinct.length} values{creatorValues().empty ? ` · ${creatorValues().empty} empty` : ''}. Ordered links and roles belong to each named source.</p>
-              <SourceRegister docs={docs()} label="Creators per source">{doc => creators([doc])}</SourceRegister>
+              <SourceRegister docs={docs()} label="Creators per source" summary={`${creatorValues().distinct.length} values${creatorValues().empty ? ` · ${creatorValues().empty} empty` : ''} · per source`}>{doc => creators([doc])}</SourceRegister>
             </Show>
           </div></div>
           {perSource('firstPublished')}{field('originalLanguage')}
@@ -266,10 +266,10 @@ export function MetadataInspector(props: {
         </InspectorGroup>
         <InspectorGroup number={4} title="About" summary="Description · Cover" phone={props.phone}>
           {field('description')}
-          <Show when={batch()} fallback={cover(docs())}><SourceRegister docs={docs()} label="Covers per source">{doc => cover([doc])}</SourceRegister><Button class="metadata-text-action" onClick={() => { coverDocs = docs(); coverInput.click(); }}>Replace cover on all {docs().length} sources…</Button></Show>
+          <Show when={batch()} fallback={cover(docs())}><div class="metadata-field"><span class="metadata-label">Cover</span><div class="metadata-field-body"><SourceRegister docs={docs()} label="Covers per source" summary="Per source">{doc => cover([doc])}</SourceRegister><Button class="metadata-text-action" onClick={() => { coverDocs = docs(); coverInput.click(); }}>Replace cover on all {docs().length} sources…</Button></div></div></Show>
         </InspectorGroup>
         <InspectorGroup number={5} title="Apparatus" summary="Siglum, citation key" phone={props.phone}>
-          <Show when={batch()} fallback={siglum(docs())}><SourceRegister docs={docs()} label="Sigla per source">{doc => siglum([doc])}</SourceRegister></Show>
+          <Show when={batch()} fallback={siglum(docs())}><div class="metadata-field"><span class="metadata-label">Siglum</span><div class="metadata-field-body"><SourceRegister docs={docs()} label="Sigla per source" summary="Per source">{doc => siglum([doc])}</SourceRegister></div></div></Show>
           {perSource('citationKey')}
         </InspectorGroup>
         <InspectorGroup number={6} title="Shelf" summary="Reading, dates, tags" phone={props.phone}>

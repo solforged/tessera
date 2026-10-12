@@ -28,17 +28,21 @@ export function ReadingCard(props: { row: LibraryRow; notebook: NotebookClient; 
   const chapters = createMemo(() => bookChapters(source()?.toc ?? [], length()));
   const current = createMemo(() => chapterAt(chapters(), at()));
   return <Button class="library-reading-card" classList={{ 'library-reading-current': props.selected }} aria-current={props.selected ? 'page' : undefined} onClick={event => props.onOpen(event.shiftKey)}>
-    <SourceCover row={props.row} siglum={props.row.source.siglum} />
-    <span class="library-reading-text">
-      <span class="library-reading-title">{props.row.page.text}</span>
-      <span class="library-reading-author">{sourceByline(props.row)}</span>
-      <span class="library-reading-chapter">{current()?.chapter.title ? sectionLabel(current()!.chapter.title) : !source() && props.row.section && !isFrontMatter(props.row.section) ? sectionLabel(props.row.section) : progress() ? 'Reading position' : 'Not started'}</span>
-      <Show when={length() > 0}><BookMap chapters={chapters()} length={length()} at={at()} /></Show>
-      <span class="library-reading-position">
-        <span><Show when={current()?.chapter.title ? current() : null}>{value => <>{timeLeft(value().chapter.end - at())} left in chapter</>}</Show></span>
-        <span>{formatProgress(progress())}</span>
+    <span class="library-reading-head">
+      <SourceCover row={props.row} siglum={props.row.source.siglum} />
+      <span class="library-reading-text">
+        <span class="library-reading-title">{props.row.page.text}</span>
+        <span class="library-reading-author">{sourceByline(props.row)}</span>
+        <span class="library-reading-chapter">{current()?.chapter.title ? sectionLabel(current()!.chapter.title) : !source() && props.row.section && !isFrontMatter(props.row.section) ? sectionLabel(props.row.section) : progress() ? 'Reading position' : 'Not started'}</span>
       </span>
-      <Show when={error()}><span class="library-error" role="alert">{error()}</span></Show>
     </span>
+    {/* The map and its figures span the card under the cover, so the time left reads on one line. */}
+    <Show when={length() > 0}><BookMap chapters={chapters()} length={length()} at={at()} /></Show>
+    <span class="library-reading-position">
+      {/* The chapter line above names what the time is left in, so the figure fits beside the percentage. */}
+      <span><Show when={current()?.chapter.title ? current() : null}>{value => <span title={`${timeLeft(value().chapter.end - at())} left in chapter`}>{timeLeft(value().chapter.end - at())} left</span>}</Show></span>
+      <span>{formatProgress(progress())}</span>
+    </span>
+    <Show when={error()}><span class="library-error" role="alert">{error()}</span></Show>
   </Button>;
 }

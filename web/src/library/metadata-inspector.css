@@ -50,7 +50,9 @@
 .metadata-reset { margin-bottom: var(--space-4); }
 .metadata-reset > span { display: block; font: var(--apparatus); color: var(--faint); overflow-wrap: anywhere; }
 .metadata-error { color: var(--danger); margin: var(--space-4) 0 var(--space-8); font: var(--weight-body) var(--text-control)/var(--line-control) var(--font-body); overflow-wrap: anywhere; }
-.metadata-mixed { display: flex; width: 100%; justify-content: space-between; padding: var(--space-4) var(--space-8); border: var(--rule-width) solid var(--line); font: var(--apparatus); }
+/* A mixed value and a per-source register share one control: a hairline row with its summary at the leading edge. */
+.metadata-mixed.button, .metadata-register > summary { display: flex; align-items: center; justify-content: flex-start; gap: var(--space-8); width: 100%; min-height: var(--target-size); padding: var(--space-4) var(--space-8); border: var(--rule-width) solid var(--line); border-radius: var(--radius-control); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
+.metadata-mixed.button > .icon { margin-left: auto; }
 .metadata-distinct { margin: var(--space-4) 0; padding: 0; list-style: none; }
 .metadata-distinct li { display: flex; justify-content: space-between; gap: var(--space-8); padding: var(--space-2) 0; }
 .metadata-distinct li > :first-child { min-width: 0; overflow-wrap: anywhere; white-space: pre-line; }
@@ -61,7 +63,7 @@
 .metadata-field-description .metadata-value.metadata-expanded { display: block; -webkit-line-clamp: unset; }
 .metadata-creators { min-width: 0; }
 .metadata-creator-line { display: flex; align-items: baseline; gap: var(--space-4); min-height: var(--target-size); }
-.metadata-person-link { justify-content: flex-start; text-align: left; white-space: normal; min-width: 0; padding: var(--space-2) 0; color: var(--text); text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: var(--space-4); }
+.metadata-person-link.button { justify-content: flex-start; text-align: left; white-space: normal; min-width: 0; padding: var(--space-2) 0; color: var(--text); text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: var(--space-4); }
 .metadata-person-link:hover { color: var(--accent); background: none; }
 .metadata-creator-line > .metadata-person-link, .metadata-creator-line > span { flex: 1; overflow-wrap: anywhere; }
 .metadata-role { flex: none; margin-left: auto; padding: var(--space-2) var(--space-4); color: var(--muted); font: var(--apparatus); gap: var(--space-4); }
@@ -72,8 +74,7 @@
 .metadata-person-match { border-left: var(--rule-width) solid var(--line); margin: var(--space-8) 0; padding-left: var(--space-8); }
 .metadata-person-match > span { display: block; }
 .metadata-creator .metadata-field { display: block; }
-.metadata-register-label { color: var(--faint); font: var(--apparatus); margin: var(--space-8) 0 var(--space-4); }
-.metadata-register > summary { display: flex; align-items: center; gap: var(--space-8); min-height: var(--target-size); cursor: pointer; color: var(--muted); font: var(--apparatus); list-style: none; }
+.metadata-register > summary { cursor: pointer; list-style: none; }
 .metadata-register > summary::-webkit-details-marker { display: none; }
 .metadata-register > summary > span { margin-left: auto; color: var(--faint); }
 .metadata-register > summary > .icon { flex: none; width: var(--icon-size-small); height: var(--icon-size-small); transition: transform var(--motion-fast) var(--motion-ease); }

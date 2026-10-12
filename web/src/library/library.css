@@ -1,9 +1,10 @@
 .library-pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100%; }
 /* Toolbar and list share the outline measure, like Agenda. */
-.library-toolbar { display: flex; flex-direction: column; gap: var(--page-title-gap); padding: var(--page-top-space) var(--pane-inset) var(--page-head-gap); }
+/* The toolbar reserves the same scrollbar gutter as the list below, so both share one centre and one left edge. */
+.library-toolbar { display: flex; flex: none; flex-direction: column; gap: var(--page-title-gap); padding: var(--page-top-space) var(--pane-inset) var(--page-head-gap); overflow: hidden; scrollbar-gutter: stable; }
 .library-toolbar > *, .library-scroll > * { width: 100%; max-width: var(--measure); margin-inline: auto; }
 .library-tabs, .library-controls, .library-filter { display: flex; align-items: center; gap: var(--space-4); }
-.library-toolbar > .library-tabs { overflow-x: auto; }
+.library-toolbar > .library-tabs { overflow-x: auto; scrollbar-width: none; }
 .library-tabs > .button { white-space: nowrap; }
 .library-toolbar > .library-primary-tabs { overflow: visible; }
 .library-primary-tabs > [data-library-tab] { flex: none; }
@@ -14,7 +15,9 @@
 .library-register { color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .library-cover-header h1 { margin: var(--page-eyebrow-gap) 0 0; font: var(--page-title-font); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
 .library-cover-header > .button { display: none; }
+/* The search line and the selection bar that replaces it share one height, so selecting never moves the list. */
 .library-controls, .library-filter { gap: var(--space-8); }
+.library-controls { min-height: var(--space-32); }
 .library-search { flex: 0 1 var(--search-width); width: 0; min-width: 0; height: var(--row-height); min-height: var(--row-height); }
 .library-sort.button { margin-right: auto; font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
 .library-clear-selection { margin-left: auto; }
@@ -24,7 +27,8 @@
 /* A half pane wraps the same way, so the search keeps its width instead of shrinking to nothing beside the controls. */
 @container library-pane (max-width: 560px) { .library-controls { flex-wrap: wrap; } .library-search { flex: 1 0 100%; } .library-sort-group, .library-export-label { display: none; } }
 .library-selection-count { font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
-.library-scroll { flex: 1; min-height: 0; overflow: auto; padding: 0 var(--pane-inset) var(--page-bottom-space); }
+/* A stable gutter matches the toolbar's, whether or not the list overflows. */
+.library-scroll { flex: 1; min-height: 0; overflow: auto; padding: 0 var(--pane-inset) var(--page-bottom-space); scrollbar-gutter: stable; }
 .library-count, .library-progress, .library-highlight-count { display: inline-flex; align-items: center; gap: var(--space-4); flex-shrink: 0; font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); color: var(--muted); }
 .library-progress { width: 15ch; min-width: 15ch; justify-content: flex-start; gap: var(--space-8); color: var(--faint); white-space: nowrap; }
 .library-progress > .library-reading-rule { flex: 1; }
@@ -62,6 +66,7 @@
 .library-leading { position: relative; display: flex; flex: 0 0 var(--row-height); align-items: center; justify-content: center; height: var(--row-height); color: var(--muted); }
 .library-source-image { display: flex; align-items: center; justify-content: center; width: calc(var(--row-height) * 2 / 3); height: var(--row-height); flex-shrink: 0; }
 .library-source-image img { width: 100%; height: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 1px; box-shadow: 0 0 0 var(--rule-width) var(--line); }
+.library-source-image > .icon { color: var(--faint); }
 .library-checkbox.button { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; }
 .library-checkbox-square { display: flex; align-items: center; justify-content: center; width: var(--space-16); height: var(--space-16); border: 1px solid var(--control-border); border-radius: 2px; }
 .library-source-row:hover .library-checkbox, .library-source-row:focus-within .library-checkbox, .library-has-selection .library-checkbox { opacity: 1; }
@@ -81,6 +86,8 @@
 .library-job-error { flex-basis: 100%; padding-left: calc(var(--row-height) + var(--space-4) + var(--space-8)); padding-bottom: var(--space-8); }
 /* The processing desk shares the pane width between a reading-order queue and the full cited passage. */
 .library-highlights-tab .library-scroll > .library-main { max-width: calc(var(--measure) * 2); margin-inline: auto; }
+/* The desk's controls span the desk, while the tab strip above keeps its place from the other tabs. */
+.library-pane.library-highlights-tab .library-toolbar > .library-controls { max-width: calc(var(--measure) * 2); margin-inline: auto; }
 .library-highlights-tab .library-scroll { display: block; overflow: hidden; }
 .library-highlights-tab .library-main { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 .library-highlights-tab .library-rows { display: flex; flex: 1; flex-direction: column; min-height: 0; }
@@ -261,18 +268,24 @@
 .library-reading { padding-block: 0 var(--section-gap); }
 .library-reading-heading { margin: 0 0 var(--section-item-gap); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .library-reading-books { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--shelf-cover-width) * 2)), 1fr)); gap: var(--card-gap); }
-.library-reading-card.button { display: flex; align-items: stretch; justify-content: flex-start; gap: var(--card-gap); width: 100%; height: 100%; padding: var(--card-padding); border: var(--rule-width) solid var(--line); border-radius: var(--space-8); background: var(--raised); white-space: normal; font-weight: var(--weight-body); }
+.library-reading-card.button { display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: var(--space-8); width: 100%; height: 100%; padding: var(--card-padding); border: var(--rule-width) solid var(--line); border-radius: var(--space-8); background: var(--raised); white-space: normal; font-weight: var(--weight-body); text-align: left; }
+/* Cover and text read top-down; the map and its figures sit at the card's foot, level across a row of cards. */
+.library-reading-head { display: flex; flex: 1; align-items: flex-start; gap: var(--card-gap); min-width: 0; }
 .library-reading-card.button:hover:not(:disabled) { background: var(--hover); border-color: var(--control-border); }
 .library-reading-card.library-reading-current { border-color: var(--accent); }
 .library-reading-card .library-cover { flex: none; align-self: flex-start; width: var(--work-cover-width); }
 .library-reading-card .library-spine { align-items: flex-start; justify-content: center; padding: var(--space-12); }
 .library-reading-card .library-spine-title { display: none; }
 .library-reading-text { display: flex; flex: 1; flex-direction: column; gap: var(--space-4); min-width: 0; }
-.library-reading-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font: var(--weight-source-title) var(--text-gloss)/var(--line-source-title) var(--font-display); font-variation-settings: var(--optical-quote); }
+.library-reading-title { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; color: var(--text); font: var(--weight-source-title) var(--text-gloss)/var(--line-source-title) var(--font-display); font-variation-settings: var(--optical-quote); }
 .library-reading-author, .library-reading-chapter { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
-.library-reading-chapter { margin-top: auto; padding-top: var(--space-8); }
-.library-reading-text .book-map { margin-top: var(--space-8); }
-.library-reading-position { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-8); color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.library-reading-chapter { padding-top: var(--space-8); }
+.library-reading-card > .book-map { margin-top: var(--space-4); }
+.library-reading-position { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-8); color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
+.library-reading-position > :first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* Reading now already shows every Reading source, so the Reading tab's rows would repeat it; search, filters and views bring them back. */
+.library-reading-cards .library-rows > :is([role="list"], .library-group) { display: none; }
+.library-reading-cards .library-rows { border-top: 0; }
 .library-up-next { margin-top: var(--space-4); }
 .library-up-next-book.button { display: flex; justify-content: flex-start; gap: var(--space-12); width: 100%; padding: var(--space-8) 0; border-bottom: var(--rule-width) solid var(--line); border-radius: 0; font-weight: var(--weight-body); }
 .library-up-next-book > span:last-child { display: flex; flex: 1; flex-direction: column; align-items: flex-start; min-width: 0; }
@@ -318,8 +331,6 @@
   .library-cover-reading .library-reading > .library-reading-heading { display: none; }
   .library-reading-books { grid-template-columns: minmax(0, 1fr); }
   .library-reading-card .library-cover { width: calc(var(--space-48) + var(--space-12)); }
-  .library-cover-reading .library-rows > :is([role="list"], .library-group) { display: none; }
-  .library-cover-reading .library-rows { border-top: 0; }
 }
 /* The phone ledger uses the same boxed rhythm as Reading; its cover rail is separate from the readable title and metadata stack. */
 @media (max-width: 599px) {
@@ -338,7 +349,8 @@
 }
 
 /* Collections keep their ordinary page identity; a small fan previews at most three member covers. */
-.library-collection-heading { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); }
+/* The Collections heading stands in for the controls row at the same height, so switching tabs keeps the content in place. */
+.library-collection-heading { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); min-height: var(--space-32); }
 .library-collection-heading h2 { flex: 1; min-width: 0; margin: 0; overflow-wrap: anywhere; font: var(--weight-display-heading) var(--text-h2)/var(--line-h2) var(--font-display); }
 .library-collections { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, calc(var(--shelf-cover-width) * 2)), 1fr)); gap: var(--card-gap); }
 .library-collection-card.button { display: flex; flex-wrap: wrap; justify-content: flex-start; width: 100%; height: 100%; padding: var(--card-padding); gap: var(--space-12); border: var(--rule-width) solid var(--line); border-radius: var(--space-8); background: var(--raised); text-align: left; white-space: normal; }
@@ -356,6 +368,7 @@
 .library-reading-item { position: relative; }
 .library-reading-item.library-row-selected > .library-reading-card { border-color: var(--accent); }
 .library-reading-item > .library-checkbox.button { inset: var(--card-padding) auto auto var(--card-padding); width: var(--target-size); height: var(--target-size); background: var(--surface); }
+.library-reading-item:is(:hover, :focus-within) > .library-checkbox.button, .library-reading-books:has(.library-row-selected) .library-checkbox.button { opacity: 1; }
 .library-source-collections { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4); min-width: 0; }
 .library-collection-chip { display: inline-flex; align-items: center; gap: var(--space-4); padding-left: var(--space-8); border: var(--rule-width) solid var(--line); border-radius: var(--radius-control); }
 .library-collection-chip > span { overflow-wrap: anywhere; }
@@ -377,6 +390,8 @@
 .library-inspecting .library-progress > .library-reading-rule, .library-inspecting .library-highlight-count { display: none; }
 .library-inspector-narrow .library-ledger { display: none; }
 .library-inspector-narrow .library-inspector-host { flex: 1; border-left: 0; }
+/* Replacing the list, the card keeps the list's measure rather than stretching across the pane. */
+.library-inspector-narrow .metadata-inspector-head, .library-inspector-narrow .metadata-inspector-scroll > * { width: 100%; max-width: var(--measure); margin-inline: auto; }
 .library-inspector-grip.button { display: flex; flex: none; width: 100%; min-height: 44px; padding: var(--space-8); justify-content: center; }
 .library-inspector-grip > span { width: 32px; height: 2px; background: var(--faint); }
 .library-inspector-sheet { position: fixed; z-index: 44; left: var(--space-8); right: var(--space-8); bottom: max(calc(var(--bottom-nav-height, 56px) + var(--bottom-inset)), var(--inspector-keyboard-bottom, 0px)); height: calc(var(--inspector-viewport-height, 100dvh) * .7); max-height: calc(var(--inspector-viewport-height, 100dvh) - var(--bottom-nav-height, 56px) - var(--bottom-inset) - var(--space-8)); border: 1px solid var(--line); box-shadow: var(--popup-shadow); }

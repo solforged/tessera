@@ -10,7 +10,7 @@ Tokens, shell and shared popup patterns are in [design](../design.md).
 
 The header starts with Reading, Inbox and Highlights with its unprocessed count, then All, Collections, Finished, Abandoned and saved views. Zero counts are left out. The selected tab's 2 px gilt rule spans its label and count on the strip's baseline. The last tab is remembered per notebook.
 
-Under the tabs sit a 28 px search field, a sort menu (Added, Title, Author, Year, Last read, Progress), Add, and an Export menu (BibTeX, CSL JSON, Markdown) for the selection or the listed sources.
+Under the tabs sit a 28 px search field, a sort menu (Added, Title, Author, Year, Last read, Progress, then Group and Save view…), the List and Shelf toggles, Browse, an Export menu (BibTeX, CSL JSON, Markdown) for the selection or the listed sources, and Add. Every tab keeps this row at one height and the same controls, Browse disabled where the tab has nothing to browse; Collections puts its heading and New collection in the same row. On wide panes the tab strip and the list keep the Browse rail's offset on every tab, so switching tabs never moves them sideways.
 
 Searching, filtering and sorting keep the current rows on screen until the new ones arrive and swap them in one step. Loading… appears only when nothing of that kind is loaded and the load takes over 300 ms.
 
@@ -25,16 +25,16 @@ Searching, filtering and sorting keep the current rows on screen until the new o
 
 Rows read as a ledger on one 28 px line:
 
-- A leading slot holds the cover thumbnail in a hairline frame or a book or article icon.
+- A leading slot holds a book or article glyph in `--faint`. A 28 px row cannot show a cover legibly, so covers appear in the Shelf, Reading now and the phone ledger's taller rows.
 - The siglum is a mono shelfmark in `--faint` that turns gilt on hover.
 - The title precedes the byline in `--muted` (creators, else site). The byline truncates before the title.
 - Trailing fixed-width mono columns show year, progress and the unprocessed highlight count, so figures line up across rows.
 
-Progress pairs a short gilt bar with its percentage. Zero reads `Not started`; a finished source shows `Finished` with its state-change date when recorded. All and saved views spanning several states add a state column (`Inbox`, `Reading`, `Finished`, `Abandoned`) in `--faint` before the year.
+Progress pairs a short gilt bar with its percentage. A Reading source at zero reads `Not started`; Inbox and Abandoned sources leave the column blank rather than repeat it on every row. A finished source shows `Finished` with its state-change date when recorded, never a percentage. All and saved views spanning several states add a state column (`Inbox`, `Reading`, `Finished`, `Abandoned`) in `--faint` before the year.
 
 In a pane narrower than 560 px on a wide screen, the state and year columns step aside and progress keeps only its number, so the title keeps its room.
 
-The leading slot shows a selection checkbox on hover, focus, or while any row is selected. A selected row takes `--selection` and the accent bar. While rows are selected, a bar replaces the search line: the count, Mark as (one batch for all of them), Export, Delete and Clear selection. Escape clears.
+The leading slot shows a selection checkbox on hover, focus, or while any row is selected. A selected row takes `--selection` and the accent bar. While rows are selected, a bar of the same height replaces the search line: the count, Details, Browse, Mark as (one batch for all of them), Export, Add to collection…, Delete and Clear selection. Escape clears.
 
 Clicking a row opens the source page; Shift opens it beside. On a wide touch screen, opening a book uses the other pane so the list and detail stay across the hinge. The opened book keeps a quiet current-page marker.
 
@@ -51,7 +51,7 @@ The shelf is a grid of 2:3 covers at least `--shelf-cover-width` wide, sharing a
 - The reader's 2 px position rule, with its `--line` track only once reading has started.
 - The title in Piazzolla on up to two lines.
 - The byline in `--muted`.
-- One mono apparatus line in `--faint`: siglum (gilt on hover), state in views spanning states, year, progress and the unprocessed highlight count.
+- One mono apparatus line in `--faint`: siglum (gilt on hover), state in views spanning states, year, progress (none once finished) and the unprocessed highlight count.
 
 A source without a cover gets a typeset spine on `--surface`: the gilt siglum over a short rule and the title, centred clear of the corners.
 
@@ -97,11 +97,12 @@ The Works heading and shelf share the page title's left edge. Works and its coun
 
 ### Reading now
 
-Reading now leads the unsearched, unfiltered Library with one card for every Reading source, including books not yet started, most recently read first. Each has:
+Reading now leads the unsearched, unfiltered Reading and All tabs with one card for every Reading source, including books not yet started, most recently read first. Other tabs list only their own state. On the Reading tab the cards replace the rows, which would repeat them; a search, filter or saved view brings the rows back. Each card reads top-down:
 
-- Its real cover or spine tile, title and author.
-- The current chapter (`4 · Deus Vult!`; `Not started` before any reading, `Reading position` in front matter).
-- The segmented chapter map, `N min left in chapter` inside a named chapter, and the book's percentage.
+- Its real cover or spine tile beside the title on up to two lines, the author and the current chapter (`4 · Deus Vult!`; `Not started` before any reading, `Reading position` in front matter).
+- Under the cover, spanning the card, the segmented chapter map, then `N min left` inside a named chapter (the full `N min left in chapter` on hover) and the book's percentage on one line. The maps sit at the cards' feet, level across a row.
+
+On the Reading tab a card's top corner selects it, like a shelf cover.
 
 Cards load the source's contents and text length and cancel their requests when removed. If chapter boundaries are unavailable, the map stays one book-length span and the time is labelled for the book, never a guessed chapter.
 
@@ -188,7 +189,7 @@ Merge is a short explicit confirmation naming the books and notes that follow, t
 
 ### Multi-selection
 
-Several selected sources share one inspector headed N sources selected. Shared values show once. Differing values show a distinct-value count with disclosure and source counts, with known values and empty counts kept separate.
+Several selected sources share one inspector headed N sources selected, with one line saying an entered value replaces the field on all of them unless a source is named; a single source's card carries no instruction line. Shared values show once. Differing values show a distinct-value count with disclosure and source counts, with known values and empty counts kept separate. A mixed value and a per-source register share one control in the field's value column: a hairline row with its summary (`2 values · per source`) at the leading edge and the source count at the trailing edge.
 
 A field editor states that Enter or blur sets every selected source, then offers a counted toast and Undo. Dates, series numbers and differing ordered creator roles remain compact per-source registers, initially folded, so editing a register cell changes only its named source. Mixed titles and citation keys also use named per-source editors, because those values must be unique.
 
@@ -202,7 +203,7 @@ An inspector transaction is not adopted into document state before acknowledgeme
 
 ### Queue and passage
 
-Highlights is a processing desk: a reading-order queue and selected passage share the desktop and unfolded pane, with source and chapter pickers in the toolbar rather than a permanent navigator.
+Highlights is a processing desk: a reading-order queue and selected passage share the desktop and unfolded pane, with source and chapter pickers in the toolbar rather than a permanent navigator. The tab strip keeps its place from the other tabs; the desk's controls span the desk below it.
 
 Sources retain newest-highlight order. Each source's passages retain ordinal and selection-offset order, including distinct overlapping selections. Queue previews clamp to three lines, marked by a 2 px colour bar, with the actual paragraph, date, note count and filing page in mono. A quotation that supplies its own chapter title does not repeat that title above it.
 
