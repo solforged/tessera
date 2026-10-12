@@ -361,6 +361,7 @@ fn fields_page_is_idempotent_recreated_after_deletion_and_migration_backfills_en
          DROP TABLE agent_changes;
          DROP TABLE review_events;
          DROP TABLE review_sessions;
+         DROP TABLE card_templates;
          DROP TABLE card_units;
          DROP TABLE decks;
          DROP TABLE task_views;

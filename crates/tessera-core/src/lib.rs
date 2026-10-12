@@ -8,6 +8,7 @@ pub mod calendar;
 pub mod capabilities;
 mod card_query;
 mod card_store;
+mod card_templates;
 pub mod card_text;
 mod error;
 mod fields;
@@ -65,6 +66,10 @@ pub use capabilities::{
 pub use capabilities::{
     AssessmentInfo, AssessmentState, QuestionInfo, QuestionQuery, QuestionRow, QuestionState,
     QuestionStatus,
+};
+pub use card_templates::{
+    CardTemplate, CardTemplateForecast, CardTemplateInfo, CardTemplatePreview,
+    CardTemplateProvenance, CardTemplateWaiting, TemplateLoadDay,
 };
 pub use error::{Error, Result};
 pub use migrate::SCHEMA_VERSION;

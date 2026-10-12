@@ -80,18 +80,22 @@ pub(crate) fn card_at(row: &rusqlite::Row<'_>, offset: usize) -> rusqlite::Resul
         answer_blocks,
         revision: row.get(offset + 8)?,
         schedule,
+        template: None,
     })
 }
 
 pub(crate) fn card(conn: &Connection, id: &str) -> Result<CardUnit> {
     validate_id(id)?;
-    conn.prepare_cached(
-        "SELECT id, source_block_id, key, kind, active, definition_revision,
+    let mut card = conn
+        .prepare_cached(
+            "SELECT id, source_block_id, key, kind, active, definition_revision,
                 front, back, revision, schedule FROM card_units WHERE id = ?1",
-    )?
-    .query_row([id], |row| card_at(row, 0))
-    .optional()?
-    .ok_or_else(|| not_found(id))
+        )?
+        .query_row([id], |row| card_at(row, 0))
+        .optional()?
+        .ok_or_else(|| not_found(id))?;
+    crate::card_templates::provenance(conn, std::slice::from_mut(&mut card))?;
+    Ok(card)
 }
 
 // Derivation does not need to read or deserialize schedules. Only new units
@@ -163,7 +167,8 @@ pub(crate) fn derive_sources(conn: &Connection, ids: &[String], now: i64) -> Res
     let mut definitions = conn.prepare_cached(
         "SELECT c.source_block_id, c.key, c.id, c.kind, c.active, c.front, c.back, c.revision
          FROM card_units c JOIN blocks b ON b.id = c.source_block_id
-         WHERE b.kind = 'block' AND b.id IN (SELECT value FROM json_each(?1))",
+         WHERE b.kind = 'block' AND c.key NOT LIKE 'tpl:%'
+           AND b.id IN (SELECT value FROM json_each(?1))",
     )?;
     let mut rows = definitions.query([&ids])?;
     while let Some(row) = rows.next()? {
@@ -272,6 +277,7 @@ pub(crate) fn rebuild(conn: &Connection, now: i64) -> Result<()> {
         .query_map([], |row| row.get(0))?
         .collect::<rusqlite::Result<Vec<String>>>()?;
     derive_sources(conn, &ids, now)?;
+    crate::card_templates::derive(conn, None, None, now)?;
     Ok(())
 }
 
@@ -333,7 +339,7 @@ impl Notebook {
         if !exists {
             return Err(not_found(id));
         }
-        Ok(self
+        let mut cards = self
             .conn
             .prepare_cached(
                 "SELECT id, source_block_id, key, kind, active, definition_revision,
@@ -341,7 +347,9 @@ impl Notebook {
              WHERE source_block_id = ?1 ORDER BY key, id",
             )?
             .query_map([id], |row| card_at(row, 0))?
-            .collect::<rusqlite::Result<_>>()?)
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        crate::card_templates::provenance(&self.conn, &mut cards)?;
+        Ok(cards)
     }
 
     /// Read a retained card without applying queue visibility rules.

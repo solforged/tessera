@@ -103,6 +103,7 @@ impl Notebook {
             settings: Vec::new(),
             capability_sources: HashSet::new(),
             card_sources: HashSet::new(),
+            template_types: HashSet::new(),
             cards: BTreeMap::new(),
             work_sessions: BTreeMap::new(),
             review_sessions: BTreeMap::new(),
@@ -122,6 +123,19 @@ impl Notebook {
         for (index, operation) in batch.operations.iter().enumerate() {
             engine.op_index = index;
             field_changes.before(&tx, operation)?;
+            if matches!(
+                operation,
+                Operation::GradeCard { .. } | Operation::ResetCard { .. }
+            ) {
+                engine.derive_tags()?;
+                for revision in &engine.revisions {
+                    if engine.positions[&revision.id].fields {
+                        field_changes.capture(&tx, &revision.id)?;
+                    }
+                }
+                let owners = field_changes.derive(&tx)?;
+                engine.derive_templates(owners)?;
+            }
             engine
                 .operation(operation, index)
                 .map_err(|error| indexed(error, index))?;
@@ -136,7 +150,8 @@ impl Notebook {
                 field_changes.capture(&tx, &revision.id)?;
             }
         }
-        field_changes.derive(&tx)?;
+        let owners = field_changes.derive(&tx)?;
+        engine.derive_templates(owners)?;
         let mut views: Vec<&str> = Vec::new();
         for operation in &batch.operations {
             if let Operation::SaveView { id, .. } | Operation::DeleteView { id, .. } = operation
@@ -314,6 +329,7 @@ struct Engine<'a, 'conn> {
     settings: Vec<SettingRevision>,
     capability_sources: HashSet<String>,
     card_sources: HashSet<String>,
+    template_types: HashSet<String>,
     cards: BTreeMap<String, Revision>,
     work_sessions: BTreeMap<String, WorkSession>,
     review_sessions: BTreeMap<String, ReviewSession>,
@@ -402,6 +418,20 @@ impl Engine<'_, '_> {
         let mut sources: Vec<_> = self.card_sources.drain().collect();
         sources.sort_unstable();
         for revision in crate::card_store::derive_sources(self.tx, &sources, self.now)? {
+            self.cards.insert(revision.id.clone(), revision);
+        }
+        Ok(())
+    }
+
+    fn derive_templates(&mut self, mut owners: Vec<String>) -> Result<()> {
+        owners.extend(self.revisions.iter().map(|revision| revision.id.clone()));
+        owners.sort_unstable();
+        owners.dedup();
+        let mut types: Vec<_> = self.template_types.iter().cloned().collect();
+        types.extend(owners.iter().cloned());
+        for revision in
+            crate::card_templates::derive(self.tx, Some(&owners), Some(&types), self.now)?
+        {
             self.cards.insert(revision.id.clone(), revision);
         }
         Ok(())
@@ -1686,6 +1716,16 @@ impl Engine<'_, '_> {
                     insert.execute(params![subject_id, field, position as i64])?;
                 }
                 self.bump(&current, true)
+            }
+            Operation::CreateCardTemplate { .. }
+            | Operation::UpdateCardTemplate { .. }
+            | Operation::SetCardTemplateApplied { .. }
+            | Operation::DeleteCardTemplate { .. } => {
+                let (type_id, revision) =
+                    crate::card_templates::apply(self.tx, operation, self.now, index)?;
+                self.template_types.insert(type_id);
+                self.record_revision(&revision.id, revision.revision);
+                Ok(())
             }
             Operation::SaveView {
                 id,

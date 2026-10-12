@@ -386,6 +386,7 @@ fn citation_triage_migration_preserves_existing_evidence() {
          ALTER TABLE citations DROP COLUMN resurface_muted_at;
          ALTER TABLE citations DROP COLUMN color;
          ALTER TABLE citations DROP COLUMN triage;
+         DROP TABLE card_templates;
          PRAGMA user_version = 12;",
     )
     .unwrap();
@@ -658,6 +659,7 @@ fn citation_color_migration_preserves_existing_evidence_with_null_color() {
          DROP TABLE highlight_surfacings;
          ALTER TABLE citations DROP COLUMN resurface_muted_at;
          ALTER TABLE citations DROP COLUMN color;
+         DROP TABLE card_templates;
          PRAGMA user_version = 13;",
     )
     .unwrap();

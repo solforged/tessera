@@ -64,25 +64,54 @@ impl Notebook {
             CardSelection::New => "new",
             CardSelection::All => "all",
         };
+        let has_templates: bool =
+            self.conn
+                .query_row("SELECT EXISTS(SELECT 1 FROM card_templates)", [], |row| {
+                    row.get(0)
+                })?;
+        let (day_start, day_end) = if has_templates {
+            let (_, start, end) = crate::card_templates::local_day(&self.conn, now)?;
+            (start, end)
+        } else {
+            (0, 0)
+        };
         // Select and count units before limiting. Only the returned units need
         // grade evidence, and a count-only row preserves total for limit zero.
         let mut statement = self.conn.prepare_cached(concat!(
             hidden_blocks!(),
-            ", eligible AS MATERIALIZED (
-                SELECT c.id,
+            ", first_reviews AS (
+                SELECT c.key, c.id, MIN(e.created_at) AS first_at
+                FROM card_units c JOIN review_events e ON e.card_id = c.id AND e.kind = 'grade'
+                WHERE c.key LIKE 'tpl:%' GROUP BY c.id
+            ), introduced AS (
+                SELECT key, COUNT(*) AS count FROM first_reviews
+                WHERE first_at >= ?5 AND first_at < ?6 GROUP BY key
+            ), candidates AS MATERIALIZED (
+                SELECT c.id, c.key, t.new_per_day, COALESCE(i.count, 0) AS introduced,
                     json_extract(c.schedule, '$.last_reviewed_at') IS NULL AS is_new,
-                    json_extract(c.schedule, '$.due_at') AS due_at
+                    json_extract(c.schedule, '$.due_at') AS due_at,
+                    c.created_at AS created_at,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY c.key, json_extract(c.schedule, '$.last_reviewed_at') IS NULL
+                        ORDER BY c.created_at, b.created_at, b.id, c.id
+                    ) AS new_position
                 FROM card_units c
                 JOIN blocks b ON b.id = c.source_block_id
                 JOIN blocks p ON p.id = b.page_id
+                LEFT JOIN card_templates t ON c.key = 'tpl:' || t.id
+                LEFT JOIN introduced i ON i.key = c.key
                 WHERE c.active = 1 AND b.deletion_id IS NULL AND p.deletion_id IS NULL
                     AND b.rowid NOT IN (SELECT rowid FROM hidden)
                     AND (?1 = 'all'
                         OR (?1 = 'due' AND json_extract(c.schedule, '$.due_at') <= ?2)
                         OR (?1 = 'new' AND json_extract(c.schedule, '$.last_reviewed_at') IS NULL))
                     AND (?3 IS NULL OR c.source_block_id IN (SELECT value FROM json_each(?3)))
+            ), eligible AS MATERIALIZED (
+                SELECT * FROM candidates WHERE NOT is_new OR new_per_day IS NULL
+                    OR new_position <= MAX(0, new_per_day - introduced)
             ), selected AS MATERIALIZED (
-                SELECT * FROM eligible ORDER BY is_new, due_at, id LIMIT ?4
+                SELECT * FROM eligible ORDER BY is_new, due_at,
+                    CASE WHEN is_new AND new_per_day IS NOT NULL THEN new_position END, id LIMIT ?4
             ), grades AS (
                 SELECT e.rowid AS event_rowid, e.card_id,
                     ROW_NUMBER() OVER (
@@ -98,7 +127,8 @@ impl Notebook {
             block_columns!("p"),
             ", e.id, e.card_id, e.session_id, e.kind, e.grade, e.shown_front,
                 e.shown_back, e.definition_revision, e.scheduler_version,
-                e.before_state, e.after_state, e.created_at, e.change_seq, totals.total
+                e.before_state, e.after_state, e.created_at, e.change_seq, totals.total,
+                t.id, t.name, t.type_id, tp.text
             FROM (SELECT COUNT(*) AS total FROM eligible) totals
             LEFT JOIN selected s ON 1
             LEFT JOIN card_units c ON c.id = s.id
@@ -106,13 +136,18 @@ impl Notebook {
             LEFT JOIN blocks p ON p.id = b.page_id
             LEFT JOIN grades g ON g.card_id = c.id AND g.position = 1
             LEFT JOIN review_events e ON e.rowid = g.event_rowid
-            ORDER BY s.is_new, s.due_at, s.id"
+            LEFT JOIN card_templates t ON c.key = 'tpl:' || t.id
+            LEFT JOIN blocks tp ON tp.id = t.type_id
+            ORDER BY s.is_new, s.due_at,
+                CASE WHEN s.is_new AND s.new_per_day IS NOT NULL THEN s.new_position END, s.id"
         ))?;
         let mut cursor = statement.query(params![
             selection,
             now,
             source_ids,
             query.limit.unwrap_or(500) as i64,
+            day_start,
+            day_end,
         ])?;
         let mut rows = Vec::new();
         let mut total = 0;
@@ -127,8 +162,17 @@ impl Notebook {
             } else {
                 Some(review_event_at(row, 30)?)
             };
+            let mut card = card_at(row, 0)?;
+            if let Some(id) = row.get::<_, Option<String>>(44)? {
+                card.template = Some(crate::CardTemplateProvenance {
+                    id,
+                    name: row.get(45)?,
+                    type_id: row.get(46)?,
+                    type_name: row.get(47)?,
+                });
+            }
             rows.push(CardRow {
-                card: card_at(row, 0)?,
+                card,
                 source: BlockInPage {
                     block: block_at(row, 10)?,
                     page: block_at(row, 20)?,

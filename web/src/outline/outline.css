@@ -297,6 +297,7 @@ button.outline-reference { -webkit-touch-callout: none; -webkit-user-select: non
 .outline-cards-list { display: flex; flex-direction: column; gap: var(--space-8); }
 .outline-cards-row { display: flex; align-items: center; gap: var(--space-8); min-width: 0; }
 .outline-cards-kind { color: var(--faint); font-size: var(--text-meta); line-height: var(--line-meta); white-space: nowrap; }
+.outline-cards-provenance { font: var(--apparatus); }
 .outline-cards-front { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .outline-cards-state { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .outline-cards-confirm { display: flex; flex-direction: column; gap: var(--space-8); padding-block: var(--space-8); border-block: 1px solid var(--line); }

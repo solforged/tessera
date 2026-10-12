@@ -402,6 +402,23 @@ export class Notebook implements NotebookClient, DocumentHost {
     };
     for (const action of command.actions) {
       switch (action.kind) {
+        case 'cardTemplate': {
+          const { id, value, previous } = action;
+          let revision = action.baseRevision;
+          if (!value) {
+            operations.push({ op: 'delete_card_template', id, base_revision: revision });
+          } else {
+            const { type_id, name, front, back, new_per_day, applied } = value;
+            if (!previous) {
+              operations.push({ op: 'create_card_template', id, type_id, name, front, back, new_per_day });
+              revision = 1;
+            } else if (name !== previous.name || front !== previous.front || back !== previous.back || new_per_day !== previous.new_per_day) {
+              operations.push({ op: 'update_card_template', id, base_revision: revision++, name, front, back, new_per_day });
+            }
+            if (applied !== (previous?.applied ?? false)) operations.push({ op: 'set_card_template_applied', id, base_revision: revision, applied });
+          }
+          break;
+        }
         case 'settleSyncCopy': {
           const block = current(action.id);
           operations.push({ op: 'settle_sync_copy', id: action.id, settled: action.settled });

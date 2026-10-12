@@ -459,8 +459,8 @@ export function ReviewPane(props: ReviewPaneProps) {
         <p role="alert">{stale()}</p>
         <Show when={updated() && shown() && (updated()!.item.card.front !== shown()!.item.card.front || updated()!.item.card.back !== shown()!.item.card.back)}>
           <div class="review-stale-versions">
-            <section><h2>Shown text</h2><div><BlockText text={shown()!.item.card.front} notebook={props.notebook} interactive={false} /></div><div><CardBack kind={shown()!.item.card.kind} back={shown()!.item.card.back} blocks={shown()!.item.card.answer_blocks} notebook={props.notebook} /></div></section>
-            <section><h2>Current text</h2><div><BlockText text={updated()!.item.card.front} notebook={props.notebook} interactive={false} /></div><div><CardBack kind={updated()!.item.card.kind} back={updated()!.item.card.back} blocks={updated()!.item.card.answer_blocks} notebook={props.notebook} /></div></section>
+            <section><h2>Shown text</h2><div><Show when={shown()!.item.card.template} fallback={<BlockText text={shown()!.item.card.front} notebook={props.notebook} interactive={false} />}>{shown()!.item.card.front}</Show></div><div><CardBack plain={!!shown()!.item.card.template} kind={shown()!.item.card.kind} back={shown()!.item.card.back} blocks={shown()!.item.card.answer_blocks} notebook={props.notebook} /></div></section>
+            <section><h2>Current text</h2><div><Show when={updated()!.item.card.template} fallback={<BlockText text={updated()!.item.card.front} notebook={props.notebook} interactive={false} />}>{updated()!.item.card.front}</Show></div><div><CardBack plain={!!updated()!.item.card.template} kind={updated()!.item.card.kind} back={updated()!.item.card.back} blocks={updated()!.item.card.answer_blocks} notebook={props.notebook} /></div></section>
           </div>
         </Show>
         <Button class="bordered" disabled={locked() || loading() || !!readError()} onClick={acceptUpdated}>{updated() ? 'Review current card' : 'Next card'}</Button>
@@ -468,11 +468,11 @@ export function ReviewPane(props: ReviewPaneProps) {
       <Show keyed when={shown()}>{snapshot => <>
         <div class="review-session-layout" classList={{ 'review-has-context': !!snapshot.context }}>
           <ReviewCard item={snapshot.item} context={snapshot.context} onReveal={setAnswerRevealed} onEdit={beside => { publish(); props.onOpen({ kind: 'page', pageId: snapshot.item.source.page.id, blockId: snapshot.item.source.block.id }, beside); }} notebook={props.notebook} previews={snapshot.previews.current} resetPreviews={snapshot.previews.reset} busy={locked() || loading() || !!readError() || !!stale() || needsReload() || !openSession()} onGrade={(value, restart) => grade(value, restart, snapshot)} onReset={() => reset(snapshot)} onSource={beside => {
-            publish(); props.onOpen(snapshot.context ? { kind: 'reader', sourceId: snapshot.context.citation.source_id, snapshotId: snapshot.context.citation.snapshot_id, at: snapshot.context.citation.start.passage_id, citationId: snapshot.context.citation.id } : { kind: 'page', pageId: snapshot.item.source.page.id, blockId: snapshot.item.source.block.id }, beside);
+            publish(); props.onOpen(snapshot.context && !snapshot.item.card.template ? { kind: 'reader', sourceId: snapshot.context.citation.source_id, snapshotId: snapshot.context.citation.snapshot_id, at: snapshot.context.citation.start.passage_id, citationId: snapshot.context.citation.id } : { kind: 'page', pageId: snapshot.item.source.page.id, blockId: snapshot.item.source.block.id }, beside);
           }} />
           <Show when={snapshot.context}>{context => <ReviewSourcePassage context={context()} revealed={answerRevealed()} />}</Show>
         </div>
-        <Show when={snapshot.item.last_review}><ReviewHistory cardId={snapshot.item.card.id} kind={snapshot.item.card.kind} notebook={props.notebook} /></Show>
+        <Show when={snapshot.item.last_review}><ReviewHistory cardId={snapshot.item.card.id} kind={snapshot.item.card.kind} template={!!snapshot.item.card.template} notebook={props.notebook} /></Show>
       </>}</Show>
     </div>
     <Show when={openSession() && (rows().length || shown())}><footer class="review-session-actions">
@@ -528,18 +528,19 @@ function ReviewForecast(props: { stats: ReviewStats }) {
 
 function ReviewMissedCard(props: { event: ReviewEvent; notebook: NotebookClient }) {
   const [kind, setKind] = createSignal<CardKind>();
+  const [template, setTemplate] = createSignal(false);
   const [error, setError] = createSignal('');
   createEffect(() => {
     let cancelled = false;
     void props.notebook.api.card(props.event.card_id).then(card => {
-      if (!cancelled) { setKind(card.kind); setError(''); }
+      if (!cancelled) { setKind(card.kind); setTemplate(card.key.startsWith('tpl:')); setError(''); }
     }).catch(reason => { if (!cancelled) setError(reason instanceof Error ? reason.message : String(reason)); });
     onCleanup(() => { cancelled = true; });
   });
-  return <div class="review-missed-card"><Show when={kind()} fallback={<p><BlockText text={props.event.shown_front} notebook={props.notebook} interactive={false} /></p>}>{value => <div class="review-missed-answer"><CardBack kind={value()} back={props.event.shown_back} notebook={props.notebook} /></div>}</Show><Show when={error()}><p class="error" role="alert">{error()}</p></Show></div>;
+  return <div class="review-missed-card"><Show when={kind()} fallback={<p><BlockText text={props.event.shown_front} notebook={props.notebook} interactive={false} /></p>}>{value => <div class="review-missed-answer"><CardBack plain={template()} kind={value()} back={props.event.shown_back} notebook={props.notebook} /></div>}</Show><Show when={error()}><p class="error" role="alert">{error()}</p></Show></div>;
 }
 
-function ReviewHistory(props: { cardId: string; kind: CardKind; notebook: NotebookClient }) {
+function ReviewHistory(props: { cardId: string; kind: CardKind; template: boolean; notebook: NotebookClient }) {
   const [open, setOpen] = createSignal(false);
   const [events, setEvents] = createSignal<ReviewEvent[]>([]);
   const [loading, setLoading] = createSignal(false);
@@ -565,7 +566,7 @@ function ReviewHistory(props: { cardId: string; kind: CardKind; notebook: Notebo
       <Show when={!loading() && !error() && !events().length}><p>No review events.</p></Show>
       <ul><For each={[...events()].reverse()}>{event => <li>
         <div><time dateTime={new Date(event.created_at).toISOString()}>{new Date(event.created_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</time> · {event.kind === 'reset' ? 'Reset' : gradeLabels[event.grade!]} · {event.before.interval_days ? formatInterval(event.before.interval_days) : 'New'} → {formatInterval(event.after.interval_days)}</div>
-        <details><summary>Shown text</summary><div class="review-history-text"><BlockText text={event.shown_front} notebook={props.notebook} interactive={false} /></div><div class="review-history-text"><CardBack kind={props.kind} back={event.shown_back} notebook={props.notebook} /></div></details>
+        <details><summary>Shown text</summary><div class="review-history-text"><Show when={props.template} fallback={<BlockText text={event.shown_front} notebook={props.notebook} interactive={false} />}>{event.shown_front}</Show></div><div class="review-history-text"><CardBack plain={props.template} kind={props.kind} back={event.shown_back} notebook={props.notebook} /></div></details>
       </li>}</For></ul>
     </Show>
   </details>;

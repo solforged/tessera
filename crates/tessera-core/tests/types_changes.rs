@@ -775,6 +775,7 @@ fn membership_title_upgrade_preserves_unresolved_mentions_without_resurrecting_p
          DROP TABLE settings;
          DROP TABLE review_events;
          DROP TABLE review_sessions;
+         DROP TABLE card_templates;
          DROP TABLE card_units;
          DROP TABLE decks;
          DROP TABLE task_views;
@@ -1305,6 +1306,7 @@ fn manual_membership_migration_retains_authored_text_tags_and_unresolved_titles(
          DROP TABLE settings;
          DROP TABLE review_events;
          DROP TABLE review_sessions;
+         DROP TABLE card_templates;
          DROP TABLE card_units;
          DROP TABLE decks;
          DROP TABLE task_views;
@@ -1642,6 +1644,8 @@ fn provisional_cleanup_does_not_backfill_existing_pages_on_upgrade() {
          ALTER TABLE changes DROP COLUMN change_id;
          ALTER TABLE changes DROP COLUMN origin;
          DROP TABLE IF EXISTS provisional_pages;
+         DROP TABLE card_templates;
+         DROP INDEX card_units_template;
          PRAGMA user_version = 20;",
     )
     .unwrap();

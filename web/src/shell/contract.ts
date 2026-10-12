@@ -70,6 +70,7 @@ export type OpenTarget =
   | { kind: 'review'; deckId?: string }
   | { kind: 'fields'; typeId?: string }
   | { kind: 'field'; fieldId: string; previewKind?: FieldKind }
+  | { kind: 'cards'; typeId: string; applyId?: string }
   | { kind: 'settings' }
   | { kind: 'library'; tab?: LibraryTab; add?: boolean }
   /** Read a source. `at` is a passage ID to scroll to; `citationId` flashes that citation's range and does not count as reading. */

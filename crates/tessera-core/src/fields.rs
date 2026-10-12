@@ -89,6 +89,7 @@ pub(crate) fn reference(text: &str) -> Option<&str> {
 pub(crate) struct FieldChanges {
     owners: HashSet<String>,
     entries: HashSet<String>,
+    template_owners: HashSet<String>,
 }
 impl FieldChanges {
     pub(crate) fn capture(&mut self, conn: &Connection, id: &str) -> Result<()> {
@@ -103,6 +104,15 @@ impl FieldChanges {
             self.entries.insert(row?);
         }
         self.owners.insert(id.to_owned());
+        let mut owners = conn.prepare_cached(
+            "SELECT owner_id FROM field_values WHERE value_id = ?1 OR entry_id = ?1 OR field_id = ?1
+             UNION SELECT e.parent_id FROM blocks v JOIN blocks e ON e.id = v.parent_id WHERE v.id = ?1 AND e.parent_id IS NOT NULL
+             UNION SELECT f.owner_id FROM links l JOIN field_values f ON f.value_id = l.source_id WHERE l.target_id = ?1
+             UNION SELECT v.parent_id FROM links l JOIN blocks v ON v.id = l.source_id WHERE l.target_id = ?1 AND v.parent_id IS NOT NULL",
+        )?;
+        for owner in owners.query_map([id], |row| row.get::<_, String>(0))? {
+            self.template_owners.insert(owner?);
+        }
         Ok(())
     }
     pub(crate) fn before(&mut self, conn: &Connection, op: &Operation) -> Result<()> {
@@ -133,6 +143,10 @@ impl FieldChanges {
             | Operation::SetFieldKind { id, .. } => self.capture(conn, id),
             Operation::SetTypeFields { .. }
             | Operation::SetSubjectCriteria { .. }
+            | Operation::CreateCardTemplate { .. }
+            | Operation::UpdateCardTemplate { .. }
+            | Operation::SetCardTemplateApplied { .. }
+            | Operation::DeleteCardTemplate { .. }
             | Operation::SettleSyncCopy { .. }
             | Operation::AddType { .. }
             | Operation::RemoveType { .. }
@@ -170,14 +184,26 @@ impl FieldChanges {
             | Operation::DeleteView { .. } => Ok(()),
         }
     }
-    pub(crate) fn derive(self, conn: &Connection) -> Result<()> {
+    pub(crate) fn derive(&self, conn: &Connection) -> Result<Vec<String>> {
         for owner in &self.owners {
             derive_owner(conn, owner)?;
         }
         for entry in &self.entries {
             derive_entry(conn, entry)?;
         }
-        Ok(())
+        let mut owners = self
+            .owners
+            .union(&self.template_owners)
+            .cloned()
+            .collect::<HashSet<_>>();
+        let entries = serde_json::to_string(&self.entries).expect("entry IDs serialize");
+        let mut statement = conn.prepare_cached(
+            "SELECT DISTINCT parent_id FROM blocks WHERE id IN (SELECT value FROM json_each(?1)) AND parent_id IS NOT NULL",
+        )?;
+        for owner in statement.query_map([entries], |row| row.get::<_, String>(0))? {
+            owners.insert(owner?);
+        }
+        Ok(owners.into_iter().collect())
     }
 }
 

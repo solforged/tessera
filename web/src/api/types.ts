@@ -57,6 +57,10 @@ export type Operation =
   | { op: 'set_field_kind'; id: string; base_revision: number; kind: FieldKind }
   | { op: 'set_type_fields'; type_id: string; base_revision: number; fields: string[] }
   | { op: 'set_subject_criteria'; subject_id: string; base_revision: number; fields: string[] }
+  | { op: 'create_card_template'; id: string; type_id: string; name: string; front: string; back: string; new_per_day: number }
+  | { op: 'update_card_template'; id: string; base_revision: number; name: string; front: string; back: string; new_per_day: number }
+  | { op: 'set_card_template_applied'; id: string; base_revision: number; applied: boolean }
+  | { op: 'delete_card_template'; id: string; base_revision: number }
   | { op: 'save_view'; id: string; base_revision: number | null; name: string; query: Query }
   | { op: 'delete_view'; id: string; base_revision: number }
   | { op: 'set_setting'; key: string; base_revision: number | null; value: string }
@@ -255,7 +259,7 @@ export interface FieldDetail {
   problems: FieldValueUse[];
   readable: FieldValueUse[];
 }
-export interface Type { page: Block; fields: string[]; members: number }
+export interface Type { page: Block; fields: string[]; members: number; card_templates: number }
 export interface View { id: string; name: string; query: Query; revision: number; created_at: number; updated_at: number }
 /** A kind notes are filed under: `person`, `group`, `concept`, `thesis`, `question`, `source`, `project`, `type:<id>` or `unfiled`. */
 export interface NoteKind { key: string; name: string; plural: string; type_id: string | null }
@@ -319,7 +323,7 @@ export interface QuestionInfo { state: QuestionState; status: QuestionStatus }
 export interface AssessmentInfo { state: AssessmentState; question_id: string | null; accepted: boolean }
 export interface QuestionQuery { status?: QuestionStatus; review_by?: string; limit?: number }
 export interface QuestionRow { block: BlockInPage; info: QuestionInfo }
-export interface BlockCapabilities { block_id: string; task: TaskState | null; project: ProjectState | null; position: PositionInfo | null; question: QuestionInfo | null; assessment: AssessmentInfo | null; history: boolean; merge_protected: boolean; reviewed_cards: boolean }
+export interface BlockCapabilities { block_id: string; task: TaskState | null; project: ProjectState | null; position: PositionInfo | null; question: QuestionInfo | null; assessment: AssessmentInfo | null; history: boolean; merge_protected: boolean; reviewed_cards: boolean; template_cards?: number }
 
 export interface WorkSession {
   id: string;
@@ -359,6 +363,21 @@ export interface CardUnit {
   answer_blocks: CardAnswerBlock[];
   revision: number;
   schedule: SchedulingState;
+  template: CardTemplateProvenance | null;
+}
+
+export interface CardTemplateState { type_id: string; name: string; front: string; back: string; applied: boolean; new_per_day: number }
+export interface CardTemplate extends CardTemplateState { id: string; position: number; revision: number; created_at: number; updated_at: number }
+export interface CardTemplateProvenance { id: string; name: string; type_id: string; type_name: string }
+export interface CardTemplateInfo extends CardTemplate {
+  front_display: string; back_display: string; ready: number; waiting_total: number; units_active: number; missing: string[];
+  preview: { member_id: string; member_text: string; front: string; back: string } | null;
+}
+export interface CardTemplateForecast {
+  members: number; ready: number; waiting_total: number;
+  waiting: { id: string; text: string; missing: string[] }[];
+  existing_units: number; cards_to_create: number; new_per_day: number; days_to_introduce: number; last_day: string | null;
+  load: { date: string; due: number; added: number }[];
 }
 
 export type ReviewSessionState = 'open' | 'finished' | 'abandoned';

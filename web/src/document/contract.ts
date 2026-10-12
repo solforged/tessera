@@ -18,6 +18,7 @@ import type { Block, BlockKind, ChangeEvent, Citation, Committed, FieldDefinitio
 import type { PositionInfo } from '../api/types';
 import type { AssessmentInfo, AssessmentState, QuestionInfo, QuestionState } from '../api/types';
 import type { ApiClient } from '../api/client';
+import type { CardTemplate, CardTemplateState } from '../api/types';
 
 /** A position in a block's text, in UTF-16 code units. */
 export interface Caret {
@@ -50,6 +51,7 @@ export interface BlockState {
   readonly assessment: AssessmentInfo | null;
   readonly mergeProtected: boolean;
   readonly reviewedCards: boolean;
+  readonly templateCards?: number;
   /** Present on a source page's root. */
   readonly source: SourceRecord | null;
   /** Active citations of this block, in creation order. */
@@ -178,6 +180,7 @@ export type Edit =
   | { kind: 'fieldKind'; definition: FieldDefinition; value: FieldKind }
   /** Replace the subject's explicit criteria; an empty previous list restores derivation on undo. */
   | { kind: 'subjectCriteria'; id: string; fields: string[]; previous: string[]; revision: number }
+  | { kind: 'cardTemplate'; id: string; previous: CardTemplate | null; value: CardTemplateState | null }
   /** An entry per field under `parentId` after `after`, each with one value block holding `value`; one undo step, caret at the end of the first value. */
   | { kind: 'addFieldEntries'; parentId: string; after: string | null; entries: { fieldId: string; value: string }[] }
   | { kind: 'archive'; id: string; archived: boolean }
