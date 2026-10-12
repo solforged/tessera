@@ -31,8 +31,10 @@ async fn opening_finishes_a_staged_restore_without_a_live_database() {
     drop(notebook);
     // Stage a version that still needs migration, as a crash during validation can.
     let conn = Connection::open("/demo/notebook.db").unwrap();
-    conn.execute_batch("DROP TABLE quotes; PRAGMA user_version = 35;")
-        .unwrap();
+    conn.execute_batch(
+        "DROP TABLE quotes; ALTER TABLE fields DROP COLUMN hide; PRAGMA user_version = 35;",
+    )
+    .unwrap();
     drop(conn);
     let bytes = pool.export_db("/demo/notebook.db").unwrap();
     pool.import_db("/demo-restore/notebook.db", &bytes).unwrap();
