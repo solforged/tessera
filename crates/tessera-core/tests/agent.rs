@@ -575,9 +575,21 @@ fn undo_handles_provisional_pages_cleaned_in_this_and_later_changes() {
 fn undo_skips_a_created_page_already_removed_by_another_change() {
     let (_dir, mut nb) = fixture();
     dune(&mut nb);
-    let added = run(&mut nb, &note(page("Dune"), vec![block("[[Agent page]] #agenttag", vec![])]));
+    let added = run(
+        &mut nb,
+        &note(
+            page("Dune"),
+            vec![block("[[Agent page]] #agenttag", vec![])],
+        ),
+    );
     let created = nb.page_by_title("Agent page").unwrap().unwrap();
-    seed(&mut nb, vec![Operation::Delete { id: created.id.clone(), base_revision: created.revision }]);
+    seed(
+        &mut nb,
+        vec![Operation::Delete {
+            id: created.id.clone(),
+            base_revision: created.revision,
+        }],
+    );
     undo(&mut nb, added.seq).unwrap();
     assert!(nb.page_by_title("agenttag").unwrap().is_none());
     assert!(nb.block(&created.id).is_err());

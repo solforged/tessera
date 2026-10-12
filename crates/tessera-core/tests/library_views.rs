@@ -194,9 +194,7 @@ fn completed_jobs_leave_with_their_deleted_source() {
     let finished = |n: &mut Notebook, title: &str| {
         let page = source(n, title, ReadingState::Inbox);
         let url = format!("https://example.org/{title}");
-        let job = n
-            .queue_ingest(IngestInput::Url, &url, title, None)
-            .unwrap();
+        let job = n.queue_ingest(IngestInput::Url, &url, title, None).unwrap();
         n.claim_ingest().unwrap().unwrap();
         n.finish_ingest(&job.id, &page, "snapshot").unwrap();
         (page, job.id)
