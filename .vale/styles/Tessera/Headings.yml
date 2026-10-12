@@ -1,0 +1,21 @@
+extends: capitalization
+message: "Write '%s' in sentence case."
+level: error
+scope: heading
+match: $sentence
+exceptions:
+  - Tessera
+  - Android
+  - macOS
+  - Vim
+  - MCP
+  - EPUB
+  - SQLite
+  - React
+  - Solid
+  - ProseMirror
+  - CodeMirror
+  - WASM
+  - CLI
+  - Orrery
+  - Fold

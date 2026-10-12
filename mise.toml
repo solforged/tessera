@@ -9,6 +9,8 @@ bun = "1.4"
 # Must match the wasm-bindgen crate in Cargo.lock.
 "github:wasm-bindgen/wasm-bindgen" = "0.2.129"
 "github:WebAssembly/binaryen" = { version = "129", version_prefix = "version_" }
+# Checks the prose in README.md and docs/ against .vale.ini.
+vale = "3.24"
 
 [tasks.deps]
 description = "Install the web dependencies"
@@ -30,6 +32,10 @@ run = "bun run --cwd web build"
 description = "Run the editor's tests"
 depends = ["deps"]
 run = "bun run --cwd web test"
+
+[tasks."docs:lint"]
+description = "Check the prose in README.md and docs/ with Vale"
+run = "vale README.md docs"
 
 [tasks.serve]
 description = "Serve the development notebook in .tessera/dev on port 4320"

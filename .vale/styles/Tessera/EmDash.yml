@@ -1,0 +1,6 @@
+extends: existence
+message: "Use a semicolon, comma or period instead of an em dash."
+level: error
+nonword: true
+tokens:
+  - '—'
