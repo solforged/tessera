@@ -1,10 +1,10 @@
--- SQLite changesets do not carry rowid for a TEXT primary key. Persist the
--- evidence order so equal/backdated timestamps and reset+grade stay ordered.
+-- Local rowids are not replicated. Rust recovers each event's ordinal within
+-- changes.operations; change_seq supplies the replicated order between batches.
+-- Retained older patches omit this column and are repaired before sync commits.
 ALTER TABLE review_events ADD COLUMN event_order INTEGER NOT NULL DEFAULT 0;
-UPDATE review_events SET event_order = rowid;
-CREATE INDEX review_events_order ON review_events(event_order);
-CREATE INDEX review_events_card_order ON review_events(card_id, event_order, id);
-CREATE INDEX review_events_session_order ON review_events(session_id, event_order, id);
+CREATE INDEX review_events_unordered ON review_events(change_seq) WHERE event_order = 0;
+CREATE INDEX review_events_card_order ON review_events(card_id, change_seq, event_order, id);
+CREATE INDEX review_events_session_order ON review_events(session_id, change_seq, event_order, id);
 
 -- Corrections are append-only commands, just like their original review evidence.
 -- Applied replication also carries inverse patches during optimistic rollback.

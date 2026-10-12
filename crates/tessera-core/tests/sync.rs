@@ -1364,7 +1364,7 @@ fn undo_grade_rebases_and_preserves_same_timestamp_reset_order_in_patches() {
         event_id: id(event), session_id, grade: tessera_core::scheduler::Grade::Good, reset,
         shown_front: card.front.clone(), shown_back: card.back.clone(), reviewed_at: 1000,
     };
-    // Both writers allocate from the same event-order maximum while offline.
+    // Offline writers can have identical operation ordinals in distinct batches.
     apply(&mut p.replica, vec![grade(&offline, 700, None, false)]);
     apply(&mut p.hub, vec![
         Operation::StartReviewSession { id: id(50), deck_id: None, started_at: 1000 },
@@ -1416,4 +1416,146 @@ fn undo_grade_rebases_and_preserves_same_timestamp_reset_order_in_patches() {
         session_revision: Some(3), undone_at: 1000,
     }])), Err(tessera_core::Error::Validation { .. })));
     assert_eq!(p.replica.card(&first.id).unwrap().schedule, tessera_core::scheduler::new_card(1000));
+}
+
+fn downgrade_review_order(conn: &Connection) {
+    conn.execute_batch(
+        "DROP VIEW effective_review_events;
+         DROP TABLE review_undos;
+         DROP INDEX review_events_unordered;
+         DROP INDEX review_events_card_order;
+         DROP INDEX review_events_session_order;
+         ALTER TABLE review_events DROP COLUMN event_order;
+         PRAGMA user_version = 33;",
+    ).unwrap();
+}
+
+#[test]
+fn review_upgrade_recovers_same_batch_order_despite_different_replica_rowids() {
+    let mut p = pair_with(|hub| {
+        let first = edit(hub, &id(2), "First >> Answer");
+        let second = edit(hub, &id(3), "Second >> Answer");
+        apply(hub, vec![first, second]);
+    });
+    let first = p.hub.source_cards(&id(2)).unwrap().remove(0);
+    let second = p.hub.source_cards(&id(3)).unwrap().remove(0);
+    let grade = |card: &tessera_core::CardUnit, event| Operation::GradeCard {
+        id: card.id.clone(), base_revision: card.revision, definition_revision: card.definition_revision,
+        event_id: id(event), session_id: Some(id(50)), grade: tessera_core::scheduler::Grade::Good,
+        reset: true, shown_front: card.front.clone(), shown_back: card.back.clone(), reviewed_at: 1000,
+    };
+    apply(&mut p.hub, vec![
+        Operation::StartReviewSession { id: id(50), deck_id: None, started_at: 1000 },
+        grade(&first, 900),
+        grade(&second, 100),
+        Operation::FinishReviewSession {
+            id: id(50), base_revision: 1, state: tessera_core::ReviewSessionState::Finished, ended_at: 1000,
+        },
+    ]);
+    p.sync();
+    let hub_path = p.hub.info().unwrap().path;
+    let replica_path = p.replica.info().unwrap().path;
+    for path in [&hub_path, &replica_path] {
+        let conn = Connection::open(path.join(DATABASE_FILE)).unwrap();
+        downgrade_review_order(&conn);
+        if path == &replica_path {
+            // TEXT-key changesets may insert rows in any order. Keep every
+            // replicated value identical while reversing only local rowids.
+            conn.execute("UPDATE review_events SET rowid = -rowid", []).unwrap();
+        }
+    }
+    p.hub = Notebook::open(&hub_path).unwrap();
+    p.replica = Notebook::open(&replica_path).unwrap();
+    p.assert_converged();
+    for notebook in [&p.hub, &p.replica] {
+        let events = notebook.review_session_events(&id(50)).unwrap();
+        assert_eq!(events.iter().filter(|event| event.grade.is_some()).map(|event| event.id.clone()).collect::<Vec<_>>(), vec![id(900), id(100)]);
+        assert_eq!(events[2].kind, tessera_core::ReviewEventKind::Reset);
+        assert_eq!(events[3].id, id(100));
+    }
+    let current = p.replica.card(&second.id).unwrap();
+    apply(&mut p.replica, vec![Operation::UndoGrade {
+        id: current.id, base_revision: current.revision, review_id: id(100), event_id: id(800),
+        session_revision: Some(2), undone_at: 1000,
+    }]);
+    let report = p.sync();
+    assert!(matches!(report.pushed[0].outcome, PushOutcome::Accepted { .. }));
+    p.assert_converged();
+    assert_eq!(p.hub.card(&second.id).unwrap().schedule, tessera_core::scheduler::new_card(1000));
+    assert_eq!(p.hub.review_session(&id(50)).unwrap().state, tessera_core::ReviewSessionState::Open);
+}
+
+#[test]
+fn retained_v33_review_patch_is_ordered_before_it_can_be_undone_after_upgrade() {
+    let mut p = pair_with(|hub| {
+        let operation = edit(hub, &id(2), "First >> Answer");
+        apply(hub, vec![operation]);
+        let card = hub.source_cards(&id(2)).unwrap().remove(0);
+        apply(hub, vec![Operation::GradeCard {
+            id: card.id, base_revision: card.revision, definition_revision: card.definition_revision,
+            event_id: id(900), session_id: None, grade: tessera_core::scheduler::Grade::Good,
+            reset: false, shown_front: card.front, shown_back: card.back, reviewed_at: 1000,
+        }]);
+    });
+    let before = p.hub.source_cards(&id(2)).unwrap().remove(0);
+    let newer = apply(&mut p.hub, vec![Operation::GradeCard {
+        id: before.id.clone(), base_revision: before.revision, definition_revision: before.definition_revision,
+        event_id: id(100), session_id: None, grade: tessera_core::scheduler::Grade::Hard,
+        reset: false, shown_front: before.front.clone(), shown_back: before.back.clone(), reviewed_at: 1000,
+    }]);
+    let hub_path = p.hub.info().unwrap().path;
+    let replica_path = p.replica.info().unwrap().path;
+    let mut old_patch = Vec::new();
+    {
+        let conn = Connection::open(replica_path.join(DATABASE_FILE)).unwrap();
+        downgrade_review_order(&conn);
+        conn.execute("ATTACH DATABASE ?1 AS hub", [hub_path.join(DATABASE_FILE).to_str().unwrap()]).unwrap();
+        let mut recording = rusqlite::session::Session::new(&conn).unwrap();
+        for table in ["changes", "review_events", "card_units"] {
+            recording.attach(Some(table)).unwrap();
+        }
+        // Record the actual grade's effect against schema 33, then roll it
+        // back so this replica still knows only the earlier grade at upgrade.
+        conn.execute_batch("BEGIN IMMEDIATE").unwrap();
+        conn.execute("INSERT INTO changes SELECT * FROM hub.changes WHERE seq = ?1", [newer.seq]).unwrap();
+        conn.execute(
+            "INSERT INTO review_events
+             SELECT id, card_id, session_id, kind, grade, shown_front, shown_back,
+                 definition_revision, scheduler_version, before_state, after_state, created_at, change_seq
+             FROM hub.review_events WHERE change_seq = ?1",
+            [newer.seq],
+        ).unwrap();
+        conn.execute(
+            "UPDATE card_units SET
+                schedule = (SELECT schedule FROM hub.card_units WHERE id = card_units.id),
+                revision = (SELECT revision FROM hub.card_units WHERE id = card_units.id),
+                updated_at = (SELECT updated_at FROM hub.card_units WHERE id = card_units.id)
+             WHERE id = ?1",
+            [&before.id],
+        ).unwrap();
+        recording.changeset_strm(&mut old_patch).unwrap();
+        drop(recording);
+        conn.execute_batch("ROLLBACK").unwrap();
+    }
+    {
+        let conn = Connection::open(hub_path.join(DATABASE_FILE)).unwrap();
+        assert_eq!(conn.execute("UPDATE change_patches SET patch = ?1 WHERE seq = ?2", rusqlite::params![old_patch, newer.seq]).unwrap(), 1);
+        downgrade_review_order(&conn);
+    }
+    p.hub = Notebook::open(&hub_path).unwrap();
+    p.replica = Notebook::open(&replica_path).unwrap();
+    p.sync();
+    p.assert_converged();
+    let current = p.replica.card(&before.id).unwrap();
+    let undo = |review, event| Operation::UndoGrade {
+        id: current.id.clone(), base_revision: current.revision, review_id: id(review), event_id: id(event),
+        session_revision: None, undone_at: 1000,
+    };
+    assert!(matches!(p.replica.apply(&batch(vec![undo(900, 800)])), Err(tessera_core::Error::Validation { .. })));
+    assert_eq!(p.replica.card(&before.id).unwrap(), current);
+    apply(&mut p.replica, vec![undo(100, 801)]);
+    assert_eq!(p.replica.card(&before.id).unwrap().schedule, before.schedule);
+    p.sync();
+    p.assert_converged();
+    assert_eq!(p.hub.review_events(&before.id).unwrap().iter().find(|event| event.id == id(100)).unwrap().undone_by, Some(id(801)));
 }

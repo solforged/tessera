@@ -66,6 +66,9 @@ pub(crate) fn migrate(conn: &mut Connection) -> Result<()> {
     for sql in &MIGRATIONS[found as usize..] {
         tx.execute_batch(sql)?;
     }
+    if found < 34 {
+        crate::review_store::backfill_event_order(&tx)?;
+    }
     if found < 7 {
         // Rebuild raw mentions, including tombstones. Only the original tag
         // migration creates missing pages; later rebuilds must not resurrect them.
@@ -170,6 +173,7 @@ mod tests {
         ];
         let mut expected = Vec::new();
         let mut event_id = 100;
+        let mut operations = Vec::new();
         for (card_id, history) in &histories {
             let mut state = new_card(0);
             for &(grade, at) in history {
@@ -184,12 +188,27 @@ mod tests {
                     "INSERT INTO review_events VALUES (?1, ?2, NULL, ?3, ?4, 'front', 'back', 1, 1, ?5, ?5, ?6, 1)",
                     params![id(event_id), id(*card_id), if grade.is_some() { "grade" } else { "reset" }, grade_json, legacy, at],
                 ).unwrap();
-                // Deliberately reverse IDs; equal timestamps must sort by rowid.
+                operations.push(match grade {
+                    Some(grade) => crate::Operation::GradeCard {
+                        id: id(*card_id), base_revision: 1, definition_revision: 1,
+                        event_id: id(event_id), session_id: None, grade, reset: false,
+                        shown_front: "front".into(), shown_back: "back".into(), reviewed_at: at,
+                    },
+                    None => crate::Operation::ResetCard {
+                        id: id(*card_id), base_revision: 1, event_id: id(event_id),
+                        session_id: None, reviewed_at: at,
+                    },
+                });
+                // Deliberately reverse IDs; equal timestamps must follow commands.
                 event_id -= 1;
                 state = grade.map_or_else(|| new_card(at), |grade| schedule(&state, grade, at));
             }
             expected.push((*card_id, state));
         }
+        conn.execute(
+            "UPDATE changes SET operations = ?1 WHERE seq = 1",
+            [serde_json::to_string(&operations).unwrap()],
+        ).unwrap();
         let evidence = |conn: &Connection| {
             conn.prepare(
                 "SELECT rowid, id, before_state, after_state FROM review_events ORDER BY rowid",
