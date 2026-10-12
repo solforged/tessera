@@ -1,8 +1,19 @@
 /* Mono records what the machine knows. Sans carries the fix. Quiet sync never asks for attention. */
-.sync-mark.button { gap: var(--space-8); padding-inline: var(--space-8); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.sync-mark.button[data-tone="rubric"] { color: var(--danger); }
-.sync-rule { display: inline-block; flex: none; width: var(--space-12); height: var(--rule-width); background: var(--faint); }
-[data-tone="rubric"] > .sync-rule { height: var(--rubric-height); background: var(--danger); }
+.sync-mark.button { flex: none; width: var(--target-size); padding: 0; }
+.sync-mark.button[aria-expanded="true"] { background: var(--hover); }
+.sync-glyph { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: var(--radius-pill); }
+[data-tone="ok"] > .sync-glyph { background: var(--status-done); }
+[data-tone="wait"] > .sync-glyph { border: 1.5px solid var(--warning); }
+[data-tone="act"] > .sync-glyph { width: 7px; height: 7px; border-radius: 0; background: var(--danger); transform: rotate(45deg); }
+.popup.sync-slip { width: max-content; padding: var(--space-8) var(--space-12); overflow: visible; pointer-events: none; }
+.popup-exit.sync-slip { display: none; }
+.popup.sync-slip::before { content: ''; position: absolute; top: -5px; left: calc(var(--target-size) / 2 - 5px); width: 8px; height: 8px; transform: rotate(45deg); border: var(--rule-width) solid var(--line); border-right: 0; border-bottom: 0; background: var(--raised); }
+.popup.sync-slip p { margin: 0; }
+.sync-slip-state { color: var(--text); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); font-variant-numeric: tabular-nums; }
+.sync-slip-state[data-tone="wait"] { color: var(--warning); }
+.sync-slip-state[data-tone="act"] { color: var(--danger); }
+.popup.sync-slip .sync-slip-hint { margin-top: var(--space-2); color: var(--muted); font: var(--weight-body) var(--text-meta)/var(--line-meta) var(--font-body); }
+@media (pointer: coarse) { .popup.sync-slip { display: none; } }
 .sync-mono { font: var(--apparatus); letter-spacing: var(--tracking-apparatus); font-variant-numeric: tabular-nums; }
 .sync-rubric { color: var(--danger); }
 .app > .sync-cover { display: none; }
@@ -55,10 +66,12 @@
 .sync-details small { display: block; margin-top: var(--space-4); color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); }
 .sync-details > .icon { color: var(--faint); }
 .popup.sync-summary-pointer { overflow: visible; }
-.popup.sync-summary-pointer::before { content: ''; position: absolute; left: auto; right: var(--space-24); top: -5px; width: 8px; height: 8px; transform: rotate(45deg); border: var(--rule-width) solid var(--line); border-right: 0; border-bottom: 0; background: var(--raised); }
+.popup.sync-summary-pointer::before { content: ''; position: absolute; left: calc(var(--target-size) / 2 - 5px); top: -5px; width: 8px; height: 8px; transform: rotate(45deg); border: var(--rule-width) solid var(--line); border-right: 0; border-bottom: 0; background: var(--raised); }
 .popup.sync-summary-touch::before { display: none; }
 .sync-summary-touch .sync-summary-inner { max-width: 720px; margin-inline: auto; }
-.sync-summary-inner[data-tone="rubric"]::before { content: ''; position: absolute; top: 0; left: var(--space-16); width: var(--rubric-width); height: var(--rubric-height); background: var(--danger); }
+.sync-summary-inner[data-tone="wait"]::before, .sync-summary-inner[data-tone="act"]::before { content: ''; position: absolute; top: 0; left: calc(var(--target-size) / 2 + var(--space-16)); width: var(--rubric-width); height: var(--rubric-height); background: var(--warning); }
+.sync-summary-inner[data-tone="act"]::before { background: var(--danger); }
+.sync-summary-touch .sync-summary-inner::before { left: var(--space-16); }
 .sync-summary-touch .sync-details { padding-bottom: calc(var(--space-16) + var(--bottom-inset)); }
 .sync-summary-touch .sync-sheet-head h2 { margin-top: var(--space-8); font-size: var(--text-h1); line-height: var(--line-h1); }
 .sync-summary-touch .sync-explanation { font-size: var(--text-body); line-height: var(--line-body); }
@@ -69,9 +82,8 @@
   .app.is-reading.has-sync-cover:not(.is-immersive):not(.keyboard-open) { --bottom-nav-height: 44px; grid-template-rows: minmax(0, 1fr) 44px; }
   .has-sync-cover .bottom-nav { grid-row: 3; height: 56px; }
   .app > .sync-cover.button { display: flex; flex-direction: row; justify-content: flex-start; grid-column: 1 / -1; grid-row: 2; height: 44px; gap: var(--space-8); padding-inline: var(--space-16); border-top: var(--rule-width) solid var(--line); border-bottom: var(--rule-width) solid var(--line); border-radius: 0; color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); font-weight: var(--weight-body); text-align: left; }
-  .app > .sync-cover[data-tone="rubric"] { color: var(--text); }
+  .app > .sync-cover[data-tone="act"] { color: var(--text); }
   .app.is-immersive > .sync-cover, .app.keyboard-open > .sync-cover { display: none; }
-  .sync-cover-rubric { display: flex; align-items: center; color: var(--danger); font: var(--apparatus); }
   .sync-cover-detail { margin-left: auto; color: var(--muted); font: var(--apparatus); }
   .sync-cover > .icon { width: var(--space-12); color: var(--faint); }
 }

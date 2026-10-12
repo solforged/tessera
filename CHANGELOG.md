@@ -22,6 +22,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 - Outline editing, references, fold motion and conflict display on desk and cover screens.
 - Library, review and reader layout on narrow screens.
+- Sync status is a bare glyph beside the wordmark, with a state-and-hint slip on pointer hover or keyboard focus. Click or tap opens its summary; the cover row appears only for waiting or action states.
 
 ## 0.2.0, 2026-10-08
 

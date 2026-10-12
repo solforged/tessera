@@ -601,13 +601,13 @@ export function App() {
       <div class="rail-start">
         <Button icon="sidebar" label="Toggle sidebar" aria-expanded={sidebarVisible()} onClick={toggleSidebar} />
         <span class="wordmark" title={info()?.path}>Tessera</span>
+        <SyncMark open={!!syncAnchor()} onOpen={setSyncAnchor} />
       </div>
       <div class="rail-finder" role="group" aria-label="Find and commands">
         <Button ref={searchButton} class="global-search" icon="find" label="Find or create" shortcut="⌃⇧F" aria-haspopup="dialog" aria-expanded={popup()?.kind === 'search'} onClick={() => showPalette('search')}><span>Find or create…</span><kbd>⌃⇧F</kbd></Button>
         <Button class="global-commands" icon="command" label="Commands" shortcut="⌃⇧P" aria-haspopup="dialog" aria-expanded={popup()?.kind === 'commands'} onClick={() => showPalette('commands')} />
       </div>
       <div class="rail-end">
-        <SyncMark open={!!syncAnchor()} onOpen={setSyncAnchor} />
         <Button icon="panes" label="Layout" aria-haspopup="menu" aria-expanded={popup()?.kind === 'layout'} onClick={event => setPopup({ kind: 'layout', anchor: event.currentTarget, pane: active() })} />
       </div>
     </header>

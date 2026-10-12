@@ -12,7 +12,7 @@ export interface PopupProps {
   children: JSX.Element;
   class?: string;
   style?: JSX.CSSProperties;
-  role?: 'dialog' | 'menu' | 'listbox';
+  role?: 'dialog' | 'menu' | 'listbox' | 'tooltip';
   label: string;
   width?: number;
   placement?: PopupPlacement;
@@ -136,7 +136,7 @@ export function Popup(props: PopupProps) {
   const dismiss = (restore: boolean) => {
     const version = mountVersion;
     props.onDismiss();
-    if (restore) queueMicrotask(() => {
+    if (restore && props.role !== 'tooltip') queueMicrotask(() => {
       // Popups that never took focus (editor completions) must not rewind the caret to where they opened.
       if (version !== mountVersion || !prior?.isConnected || prior.closest('[inert]') || prior.contains(document.activeElement)) return;
       const active = document.activeElement;

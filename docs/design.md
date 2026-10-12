@@ -161,7 +161,7 @@ Permanent across one or two panes. A three-column grid:
 
 | Position | Controls |
 |---|---|
-| Left | Sidebar toggle and Tessera wordmark with its oculus; its tooltip is the notebook path |
+| Left | Sidebar toggle, Tessera wordmark with its oculus and notebook-path tooltip, then the bare sync mark |
 | Centre of the window | Find or create with the Commands icon in one 400 px search-shaped control |
 | Right | Icon-only Layout button |
 
@@ -633,8 +633,8 @@ Escape closes the topmost one and returns focus to the editor or outline that ow
 | New page, Delete page | Confirm | Below their trigger |
 | Reference preview | Preview, 380 px | Below the line of the reference under the pointer, or the reference at the caret |
 | Undo toast | One at a time | Bottom centre |
-| Sync status | A permanent mono line wherever a hub has paired devices or a copy has a Mac: `Synced · 2 min`, `Sending · 3 changes`, `Can’t reach hyperion · 5 min`, `Update Fold · 3 waiting`, `Needs review · 3`, or on the Mac `Devices synced` and `Fold refused · 2 h`, after a short hairline dash. Muted while nothing needs the person; `--danger` for a version mismatch, a forgotten or retired copy, things to review, or two hours unreachable with changes waiting. On the cover screen a row above the bottom nav instead, for every state but Synced | Global rail's right, before Layout; above the bottom nav on the cover screen |
-| Sync summary | Device → Mac register over the state's title, one or two sentences naming the side that is behind or what to check, the one fixing action (Download page on the Mac and GitHub releases, Try again or Sync now, Pair again, Download the notebook again) and `Settings › Devices`, which opens Settings with that device expanded | Under the rail line, 380 px with a pointer; a bottom sheet on touch |
+| Sync status | An icon-only button after the Tessera wordmark wherever a hub has paired devices or a copy has a Mac. Shape and colour together: an 8 px filled circle in `--status-done` for synced or sending (`ok`); an 8 px hollow ring with a 1.5 px `--warning` stroke for unreachable or review (`wait`); a 7 px square rotated 45° in `--danger` for version mismatch, forgotten or retired (`act`). No animation. On pointer devices, hover after 350 ms or keyboard focus shows a slip: the state in mono, coloured `--text`, `--warning` or `--danger`, then a short hint in muted sans. The slip has no controls and hides on leave, blur, Escape or an open summary. Click or tap opens the summary; coarse pointers never show the slip. On the cover screen a row above the bottom nav shows only `wait` or `act`, with the same glyph, label and detail | Global rail's left, immediately after the wordmark; above the bottom nav on the cover screen |
+| Sync summary | Device → Mac register over the state's title, one or two sentences naming the side that is behind or what to check, the one fixing action (Download page on the Mac and GitHub releases, Try again or Sync now, Pair again, Download the notebook again) and `Settings › Devices`, which opens Settings with that device expanded. The top bar uses `--danger` for `act`, `--warning` for `wait`, and no bar for `ok`, clear of the pointer | Under the mark, left-aligned, 380 px with its pointer under the glyph; a bottom sheet on touch |
 | Phone setup | Where is your notebook? with two numbered choices: Use my Mac's notebook (Scan code or Type code, then the Mac's address and code) and Start a notebook on this phone. Pair again shows only the first, with the address filled in | Top centre, 560 px; a bottom sheet on touch; on first run |
 | Save state | Says Saving… only when a save takes longer than a second | Pane header, never a toolbar or a row |
 | Loading notices | Only after 300 ms, so fast reads show nothing until the content arrives | In place of the content they precede, in the pane or section that is loading |

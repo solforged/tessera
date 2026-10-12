@@ -1,4 +1,4 @@
-import { For, Match, Show, Switch, createEffect, createSignal, on, onMount } from 'solid-js';
+import { For, Match, Show, Switch, createEffect, createSignal, on, onCleanup, onMount } from 'solid-js';
 import { Portal } from 'solid-js/web';
 import type { SyncState } from '../api/types';
 import { api } from '../api/client';
@@ -15,15 +15,39 @@ import './sync.css';
 export const currentHealth = () => syncHealth(sync.state(), hubDevices.state(), sync.now(), syncConflicts.state(), DEMO);
 
 export function SyncMark(props: { onOpen(anchor: HTMLElement): void; open: boolean }) {
-  return <Show when={currentHealth()}>{health => <Button class="sync-mark" data-tone={health().tone} aria-haspopup="dialog" aria-expanded={props.open} aria-label={`Sync: ${health().rail}`} onClick={event => props.onOpen(event.currentTarget)}>
-    <span class="sync-rule" aria-hidden="true" /><span>{health().rail}</span>
-  </Button>}</Show>;
+  const [slip, setSlip] = createSignal<HTMLElement | null>(null);
+  let pending = 0;
+  const pointer = () => !window.matchMedia('(pointer: coarse)').matches;
+  const close = () => { window.clearTimeout(pending); setSlip(null); };
+  const over = (event: PointerEvent & { currentTarget: HTMLButtonElement }) => {
+    if (!pointer() || event.pointerType !== 'mouse' || props.open) return;
+    const anchor = event.currentTarget;
+    window.clearTimeout(pending);
+    // Match the delay used by reference previews.
+    pending = window.setTimeout(() => {
+      if (pointer() && !props.open && anchor.isConnected && anchor.matches(':hover')) setSlip(anchor);
+    }, 350);
+  };
+  createEffect(() => { if (props.open) close(); });
+  onCleanup(close);
+  return <Show when={currentHealth()}>{health => <>
+    <Button class="sync-mark" data-tone={health().tone} aria-haspopup="dialog" aria-expanded={props.open} aria-label={`Sync: ${health().rail}`}
+      onPointerEnter={over} onPointerLeave={close} onBlur={close}
+      onFocus={event => { if (pointer() && !props.open && event.currentTarget.matches(':focus-visible')) setSlip(event.currentTarget); }}
+      onClick={event => { close(); props.onOpen(event.currentTarget); }}>
+      <span class="sync-glyph" aria-hidden="true" />
+    </Button>
+    <Show when={!props.open && slip()}>{anchor => <Popup anchor={anchor()} role="tooltip" label="Sync status" class="sync-slip" autofocus={false} onDismiss={close}>
+      <p class="sync-slip-state" data-tone={health().tone}>{health().rail}</p>
+      <p class="sync-slip-hint">{health().hint}</p>
+    </Popup>}</Show>
+  </>}</Show>;
 }
 
 export function SyncCover(props: { onOpen(anchor: HTMLElement): void; open: boolean }) {
   return <Show when={currentHealth()?.cover}>{label => <Button class="sync-cover" data-tone={currentHealth()!.tone} aria-haspopup="dialog" aria-expanded={props.open} aria-label={`Sync: ${label()}, ${currentHealth()!.detail}`} onClick={event => props.onOpen(event.currentTarget)}>
-    <span class="sync-cover-rubric" aria-hidden="true">{currentHealth()!.tone === 'rubric' ? '!' : <span class="sync-rule" />}</span>
-    <span>{label()}</span><span class="sync-cover-detail">{currentHealth()!.kind === 'sending' ? '' : currentHealth()!.detail}</span><Icon name="right" />
+    <span class="sync-glyph" aria-hidden="true" />
+    <span>{label()}</span><span class="sync-cover-detail">{currentHealth()!.detail}</span><Icon name="right" />
   </Button>}</Show>;
 }
 
