@@ -3000,9 +3000,13 @@ fn library_reads_plain_author_edits_without_losing_linked_creators() {
         );
         assert_eq!(row.people[2].role, CreatorRole::Translator);
         assert!(row.people[2].id.is_some());
-        assert!(result.facets.people.iter().any(|person| {
-            person.id.is_none() && person.name == name && person.count == 1
-        }));
+        assert!(
+            result
+                .facets
+                .people
+                .iter()
+                .any(|person| { person.id.is_none() && person.name == name && person.count == 1 })
+        );
         assert!(n.page_by_title(name).unwrap().is_none());
         assert!(
             n.export(std::slice::from_ref(&source), ExportFormat::Markdown)
