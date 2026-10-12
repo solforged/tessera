@@ -929,16 +929,25 @@ mod tests {
             .collect();
         let hash = notebook.put_object(b"search book").unwrap();
         let snapshot = notebook.stage_snapshot(&doc, &hash, &[]).unwrap();
-        let plan = notebook.plan_ingest(&snapshot.id, None, Some("search.epub")).unwrap();
+        let plan = notebook
+            .plan_ingest(&snapshot.id, None, Some("search.epub"))
+            .unwrap();
         let source = plan.source_id;
-        notebook.apply(&Batch {
-            actor: Actor::Person,
-            reason: None,
-            idempotency_key: None,
-            operations: plan.operations,
-        }).unwrap();
+        notebook
+            .apply(&Batch {
+                actor: Actor::Person,
+                reason: None,
+                idempotency_key: None,
+                operations: plan.operations,
+            })
+            .unwrap();
         let app = routes().with_state(state(notebook, constructed));
-        for (suffix, from, count) in [("", 0, 41), ("&offset=40", 40, 41), ("&offset=80", 80, 2), ("&offset=82", 82, 0)] {
+        for (suffix, from, count) in [
+            ("", 0, 41),
+            ("&offset=40", 40, 41),
+            ("&offset=80", 80, 2),
+            ("&offset=82", 82, 0),
+        ] {
             let path = format!("/api/passages/search?q=nature&source={source}&limit=41{suffix}");
             let reply = response(&app, "GET", &path, vec![]).await;
             assert_eq!(reply.status(), StatusCode::OK);
@@ -951,7 +960,13 @@ mod tests {
                 assert_eq!(hit["passage"]["ordinal"], from + index);
             }
         }
-        let invalid = response(&app, "GET", "/api/passages/search?q=nature&offset=-1", vec![]).await;
+        let invalid = response(
+            &app,
+            "GET",
+            "/api/passages/search?q=nature&offset=-1",
+            vec![],
+        )
+        .await;
         assert_eq!(invalid.status(), StatusCode::BAD_REQUEST);
     }
     #[tokio::test]

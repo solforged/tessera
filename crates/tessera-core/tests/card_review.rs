@@ -976,7 +976,13 @@ fn releasing_a_new_card_preserves_its_original_queue_order() {
     assert_eq!(order(&nb), before);
 }
 
-fn undo(card: &CardUnit, review: u128, event: u128, session_revision: Option<i64>, at: i64) -> Operation {
+fn undo(
+    card: &CardUnit,
+    review: u128,
+    event: u128,
+    session_revision: Option<i64>,
+    at: i64,
+) -> Operation {
     Operation::UndoGrade {
         id: card.id.clone(),
         base_revision: card.revision,
@@ -991,11 +997,18 @@ fn undo(card: &CardUnit, review: u128, event: u128, session_revision: Option<i64
 fn undo_restores_exact_schedule_reopens_session_and_replays_after_backup_restore() {
     let (dir, mut nb, original) = fixture();
     let at = tessera_core::now_ms();
-    apply(&mut nb, vec![
-        Operation::StartReviewSession { id: id(50), deck_id: None, started_at: at },
-        grade(&original, 100, Some(50), false, at),
-        finish(50, 1, ReviewSessionState::Finished, at),
-    ]);
+    apply(
+        &mut nb,
+        vec![
+            Operation::StartReviewSession {
+                id: id(50),
+                deck_id: None,
+                started_at: at,
+            },
+            grade(&original, 100, Some(50), false, at),
+            finish(50, 1, ReviewSessionState::Finished, at),
+        ],
+    );
     let evidence = nb.review_events(&original.id).unwrap().remove(0);
     let graded = nb.card(&original.id).unwrap();
     let request = Batch {
@@ -1006,22 +1019,43 @@ fn undo_restores_exact_schedule_reopens_session_and_replays_after_backup_restore
     let restored = nb.card(&original.id).unwrap();
     assert_eq!(restored.schedule, original.schedule);
     assert_eq!(restored.revision, graded.revision + 1);
-    assert_eq!(committed.cards, vec![Revision { id: original.id.clone(), revision: restored.revision }]);
+    assert_eq!(
+        committed.cards,
+        vec![Revision {
+            id: original.id.clone(),
+            revision: restored.revision
+        }]
+    );
     let session = nb.review_session(&id(50)).unwrap();
-    assert_eq!((session.state, session.ended_at, session.revision), (ReviewSessionState::Open, None, 3));
+    assert_eq!(
+        (session.state, session.ended_at, session.revision),
+        (ReviewSessionState::Open, None, 3)
+    );
     assert_eq!(committed.review_sessions, vec![session.clone()]);
     assert!(nb.review_session_events(&id(50)).unwrap().is_empty());
     let mut history = nb.review_events(&original.id).unwrap();
     assert_eq!(history.len(), 1);
     assert_eq!(history[0].undone_by.take(), Some(id(101)));
     assert_eq!(history[0], evidence);
-    let query = CardQuery { source: None, selection: CardSelection::Due, limit: None };
+    let query = CardQuery {
+        source: None,
+        selection: CardSelection::Due,
+        limit: None,
+    };
     let queue = nb.card_query(&query, at).unwrap();
     assert_eq!(queue.total, 1);
     assert_eq!(queue.rows[0].card.id, original.id);
     assert!(queue.rows[0].last_review.is_none());
     let stats = nb.review_stats(None, &nb.today(at).unwrap()).unwrap();
-    assert_eq!((stats.due_new, stats.reviews_this_week, stats.streak, stats.retention), (1, 0, 0, None));
+    assert_eq!(
+        (
+            stats.due_new,
+            stats.reviews_this_week,
+            stats.streak,
+            stats.retention
+        ),
+        (1, 0, 0, None)
+    );
 
     drop(nb);
     let mut nb = Notebook::open(dir.path()).unwrap();
@@ -1031,11 +1065,19 @@ fn undo_restores_exact_schedule_reopens_session_and_replays_after_backup_restore
     assert_eq!(nb.card(&original.id).unwrap().schedule, original.schedule);
     assert_eq!(nb.review_session(&id(50)).unwrap(), session);
     let copies = tempfile::tempdir().unwrap();
-    tessera_core::backup(dir.path(), &copies.path().join("backup")).unwrap();
-    tessera_core::restore(&copies.path().join("backup"), &copies.path().join("restored"), false).unwrap();
+    tessera_core::backup(dir.path(), copies.path().join("backup")).unwrap();
+    tessera_core::restore(
+        copies.path().join("backup"),
+        copies.path().join("restored"),
+        false,
+    )
+    .unwrap();
     let mut copy = Notebook::open(copies.path().join("restored")).unwrap();
     assert_eq!(copy.apply(&request).unwrap(), expected);
-    assert_eq!(copy.review_events(&original.id).unwrap()[0].undone_by, Some(id(101)));
+    assert_eq!(
+        copy.review_events(&original.id).unwrap()[0].undone_by,
+        Some(id(101))
+    );
     assert!(copy.review_session_events(&id(50)).unwrap().is_empty());
 
     // A repeated grade uses the restored state, not a reset or the discarded interval.
@@ -1046,21 +1088,37 @@ fn undo_restores_exact_schedule_reopens_session_and_replays_after_backup_restore
 #[test]
 fn undo_refuses_stale_double_out_of_order_and_abandoned_session_changes() {
     let (_dir, mut nb, first) = fixture();
-    apply(&mut nb, vec![
-        Operation::Insert {
-            id: id(3), parent_id: id(1), after: Some(id(2)),
-            text: "Second >> Answer".into(), heading: None,
-        },
-        Operation::StartReviewSession { id: id(50), deck_id: None, started_at: 1000 },
-        grade(&first, 100, Some(50), false, 1000),
-    ]);
+    apply(
+        &mut nb,
+        vec![
+            Operation::Insert {
+                id: id(3),
+                parent_id: id(1),
+                after: Some(id(2)),
+                text: "Second >> Answer".into(),
+                heading: None,
+            },
+            Operation::StartReviewSession {
+                id: id(50),
+                deck_id: None,
+                started_at: 1000,
+            },
+            grade(&first, 100, Some(50), false, 1000),
+        ],
+    );
     let second = nb.source_cards(&id(3)).unwrap().remove(0);
     apply(&mut nb, vec![grade(&second, 101, Some(50), false, 1000)]);
     let graded_first = nb.card(&first.id).unwrap();
     let graded_second = nb.card(&second.id).unwrap();
     invalid(&mut nb, undo(&graded_first, 100, 102, Some(1), 1000));
-    assert!(matches!(nb.apply(&batch(vec![undo(&second, 101, 102, Some(1), 1000)])), Err(Error::Conflict { .. })));
-    assert!(matches!(nb.apply(&batch(vec![undo(&graded_second, 101, 102, Some(0), 1000)])), Err(Error::Conflict { .. })));
+    assert!(matches!(
+        nb.apply(&batch(vec![undo(&second, 101, 102, Some(1), 1000)])),
+        Err(Error::Conflict { .. })
+    ));
+    assert!(matches!(
+        nb.apply(&batch(vec![undo(&graded_second, 101, 102, Some(0), 1000)])),
+        Err(Error::Conflict { .. })
+    ));
     invalid(&mut nb, undo(&graded_second, 101, 102, None, 1000));
     invalid(&mut nb, undo(&graded_second, 101, 102, Some(1), -1));
     invalid(&mut nb, undo(&graded_second, 101, 100, Some(1), 1000));
@@ -1069,10 +1127,19 @@ fn undo_refuses_stale_double_out_of_order_and_abandoned_session_changes() {
     apply(&mut nb, vec![undo(&graded_second, 101, 102, Some(1), 1000)]);
     let restored_second = nb.card(&second.id).unwrap();
     invalid(&mut nb, undo(&restored_second, 101, 103, Some(2), 1000));
-    assert!(matches!(nb.apply(&batch(vec![undo(&graded_second, 101, 103, Some(2), 1000)])), Err(Error::Conflict { .. })));
-    apply(&mut nb, vec![finish(50, 2, ReviewSessionState::Abandoned, 1000)]);
+    assert!(matches!(
+        nb.apply(&batch(vec![undo(&graded_second, 101, 103, Some(2), 1000)])),
+        Err(Error::Conflict { .. })
+    ));
+    apply(
+        &mut nb,
+        vec![finish(50, 2, ReviewSessionState::Abandoned, 1000)],
+    );
     invalid(&mut nb, undo(&graded_first, 100, 103, Some(3), 1000));
-    assert_eq!(nb.review_session(&id(50)).unwrap().state, ReviewSessionState::Abandoned);
+    assert_eq!(
+        nb.review_session(&id(50)).unwrap().state,
+        ReviewSessionState::Abandoned
+    );
     assert_eq!(nb.card(&first.id).unwrap(), graded_first);
     assert_eq!(nb.review_session_events(&id(50)).unwrap().len(), 1);
 }
@@ -1093,7 +1160,10 @@ fn undo_restores_trained_state_and_never_erases_or_crosses_a_reset() {
     let reset_grade = nb.card(&original.id).unwrap();
     apply(&mut nb, vec![undo(&reset_grade, 103, 104, None, 3000)]);
     let reset_state = nb.card(&original.id).unwrap();
-    assert_eq!(reset_state.schedule, tessera_core::scheduler::new_card(3000));
+    assert_eq!(
+        reset_state.schedule,
+        tessera_core::scheduler::new_card(3000)
+    );
     let history = nb.review_events(&original.id).unwrap();
     assert_eq!(history.len(), 4);
     assert_eq!(history[2].kind, ReviewEventKind::Reset);
