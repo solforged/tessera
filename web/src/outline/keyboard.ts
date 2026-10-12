@@ -11,7 +11,7 @@ export function createOutlineKeyboard(context: Pick<OutlineContext,
   | 'commitFieldEntry' | 'replaceSelection' | 'textRange' | 'deleteTextRange' | 'apply'
   | 'editAt' | 'setTextRange' | 'editor' | 'props' | 'forgetReferenceSpace'
   | 'slashKey' | 'dateKey' | 'popupKey' | 'leaderMenu' | 'undo'
-  | 'openTable' | 'zoomOut' | 'zoomTo' | 'rowRange' | 'statusMenu'
+  | 'openTable' | 'zoomOut' | 'zoomTo' | 'zoom' | 'rowRange' | 'statusMenu'
   | 'capabilities' | 'roots' | 'composition' | 'scroll' | 'depthReason'
   | 'stepDepth' | 'clearSelection' | 'caret' | 'setRowRange' | 'makeCloze'
 >) {
@@ -20,7 +20,7 @@ export function createOutlineKeyboard(context: Pick<OutlineContext,
     indices, rowFocus, ids, editing, commitFieldEntry, replaceSelection,
     textRange, deleteTextRange, apply, editAt, setTextRange, props,
     forgetReferenceSpace, slashKey, dateKey, popupKey, leaderMenu, undo,
-    openTable, zoomOut, zoomTo, rowRange, statusMenu, capabilities,
+    openTable, zoomOut, zoomTo, zoom, rowRange, statusMenu, capabilities,
     roots, composition, depthReason, stepDepth, clearSelection, caret,
     setRowRange,
   } = context;
@@ -63,7 +63,7 @@ export function createOutlineKeyboard(context: Pick<OutlineContext,
     if (selection.head !== (forward ? view.state.doc.length : 0)) return false;
     const row = indices().get(id) ?? 0;
     const previous = ids()[row - 1] ?? null;
-    const intent = boundaryDeletion(doc, id, forward ? 'forward' : 'backward', previous, inlineFields());
+    const intent = boundaryDeletion(doc, id, forward ? 'forward' : 'backward', previous, inlineFields(), zoom());
     if (intent?.kind === 'delete') {
       const neighbor = previous ?? ids()[row + 1];
       apply(intent);

@@ -1,11 +1,12 @@
 import type { Edit, PageDocument } from './contract';
 
 /** Plan a row-boundary deletion using the pane's visible rows and inline fields. */
-export function boundaryDeletion(doc: PageDocument, id: string, direction: 'backward' | 'forward', previousVisible: string | null = null, inlineFields?: ReadonlySet<string>): Edit | null {
+export function boundaryDeletion(doc: PageDocument, id: string, direction: 'backward' | 'forward', previousVisible: string | null = null, inlineFields?: ReadonlySet<string>, zoomRoot?: string | null): Edit | null {
   const block = doc.block(id);
   if (!block) return null;
   const siblings = doc.outline.children(doc.outline.parentOf(id));
   if (direction === 'forward') {
+    if (id === zoomRoot) return null;
     const next = siblings[siblings.indexOf(id) + 1];
     return next ? { kind: 'merge', sourceId: next, destinationId: id } : null;
   }

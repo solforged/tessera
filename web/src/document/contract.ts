@@ -139,11 +139,12 @@ export type Edit =
   /** Update evidence and absorb unreferenced source-page highlights in one undo step. */
   | { kind: 'mergeHighlights'; merges: { citation: Citation; removeIds: string[]; removeCitationIds?: string[] }[]; note?: boolean }
   /**
-   * Enter: the original keeps its ID, children and text before `offset`.
+   * Enter at the start inserts an empty block above and keeps the original.
    * At a parent's end, insert its first child; otherwise insert a sibling.
-   * A caret inside a complete reference or tag is a no-op.
+   * A caret inside a complete reference or tag splits just after it.
+   * `fieldEntry` identifies a known parent field; an empty leaf value exits it.
    */
-  | { kind: 'split'; id: string; offset: number; zoomRoot?: string | null }
+  | { kind: 'split'; id: string; offset: number; zoomRoot?: string | null; fieldEntry?: string | null }
   /** A new empty block. */
   | { kind: 'insert'; parentId: string; after: string | null; text?: string }
   /** Backspace at the start: append `sourceId` to `destinationId`, which keeps its ID. */
@@ -185,6 +186,7 @@ export type Edit =
       text: string;
       mode: 'text' | 'paste' | 'split';
       zoomRoot?: string | null;
+      fieldEntry?: string | null;
     }
   /** Paste plain text at a caret; lines become sibling blocks, leading indentation nests them. */
   | { kind: 'paste'; at: Caret; text: string }

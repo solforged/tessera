@@ -534,7 +534,9 @@ function Pane(props: OutlinePaneProps) {
   function replaceSelection(text: string, mode: 'text' | 'paste' | 'split', range = activeRange(), selectionBefore?: TextRange) {
     if (!range) return;
     const visible = selectionIds(ids(), range);
-    apply({ kind: 'replaceRange', range, selectionBefore, between: visible.slice(1, -1), text, mode, zoomRoot: zoom() }, true);
+    const parent = doc.outline.parentOf(range.anchor.id);
+    const fieldEntry = mode === 'split' && definitionsById().has(fieldEntryId(doc.block(parent)?.text ?? '') ?? '') ? parent : null;
+    apply({ kind: 'replaceRange', range, selectionBefore, between: visible.slice(1, -1), text, mode, zoomRoot: zoom(), fieldEntry }, true);
   }
   function deleteTextRange() { if (textRange()) replaceSelection('', 'text'); }
   function finishFoldMotion() {

@@ -964,15 +964,29 @@ export class Document implements PageDocument {
       if (!parseCardText(block.text).cards.length || !suffix && prefix === block.text) return;
       if (prefix || this.block(block.id)?.reviewedCards) throw new Error('This split would divide or move a card. Keep its source in one block.');
     };
-    const split = (block: Block, prefix: string, suffix: string, zoomRoot?: string | null) => {
+    const split = (block: Block, prefix: string, suffix: string, zoomRoot?: string | null, fieldEntry?: string | null) => {
       const task = this.block(block.id)?.task;
-      if (task && !prefix && !suffix && !this.outline.children(block.id).length) {
+      if (!prefix && suffix) {
+        setText(block, suffix);
+        if (zoomRoot === block.id) insert(block.id, null, '');
+        else insert(block.parent_id!, this.outline.previousSibling(block.id), '');
+        caret = { id: block.id, offset: 0 };
+        return;
+      }
+      if (fieldEntry && fieldEntry === block.parent_id && zoomRoot !== block.id && zoomRoot !== fieldEntry
+        && !prefix && !suffix && !this.outline.children(block.id).length) {
+        this.guardHide(block.id);
+        actions.push({ kind: 'delete', id: block.id });
+        caret = { id: insert(this.outline.parentOf(fieldEntry), fieldEntry, ''), offset: 0 };
+        return;
+      }
+      if (task?.status === 'todo' && !prefix && !suffix && !this.outline.children(block.id).length) {
         setText(block, '');
         actions.push({ kind: 'task', id: block.id, value: null, previous: this.capabilities(block.id).task, baseRevision: block.revision });
         caret = { id: block.id, offset: 0 };
         return;
       }
-      if (block.heading !== null && !prefix && !suffix) {
+      if (!task && block.heading !== null && !prefix && !suffix) {
         setText(block, '');
         actions.push({ kind: 'heading', id: block.id, heading: null });
         caret = { id: block.id, offset: 0 };
@@ -987,7 +1001,7 @@ export class Document implements PageDocument {
       actions.push({ kind: 'split', id: block.id, block: insertion.block, left: prefix, right: suffix });
       if (child) actions.push({ kind: 'move', id, parentId: block.id, after: null });
       if (!suffix && block.heading !== null) actions.push({ kind: 'heading', id, heading: null });
-      if (task && (prefix || suffix)) actions.push({ kind: 'task', id, value: newTask(), previous: null, baseRevision: 0 });
+      if (task) actions.push({ kind: 'task', id, value: newTask(), previous: null, baseRevision: 0 });
       caret = { id, offset: 0 };
     };
     const paste = (block: Block, prefix: string, suffix: string, text: string, zoomRoot?: string | null) => {
@@ -1031,7 +1045,7 @@ export class Document implements PageDocument {
         caret = { id, offset: line.length - whitespace.length };
       }
     };
-    const replace = (range: TextRange, visible: string[], text: string, mode: 'text' | 'paste' | 'split', zoomRoot?: string | null) => {
+    const replace = (range: TextRange, visible: string[], text: string, mode: 'text' | 'paste' | 'split', zoomRoot?: string | null, fieldEntry?: string | null) => {
       let { anchor: start, head: end } = range;
       if (this.outline.indexOf(start.id) < 0 || this.outline.indexOf(end.id) < 0) throw new Error('A selected block no longer exists.');
       if (this.outline.indexOf(start.id) > this.outline.indexOf(end.id) || start.id === end.id && start.offset > end.offset) [start, end] = [end, start];
@@ -1053,7 +1067,7 @@ export class Document implements PageDocument {
       if (start.id !== end.id) this.guardMerge(end.id);
       const multiline = mode === 'split' || mode === 'paste' && /[\r\n]/.test(text);
       if (multiline && (parseCardText(first.text).cards.length || start.id !== end.id && parseCardText(last.text).cards.length)
-        && !(start.id === end.id && startOffset === endOffset && endOffset === first.text.length)) {
+        && !(start.id === end.id && startOffset === endOffset && (endOffset === first.text.length || mode === 'split' && startOffset === 0))) {
         throw new Error('Replace this card in place before splitting its source.');
       }
       const deleted = start.id === end.id ? [] : selected([...between, end.id]);
@@ -1078,7 +1092,7 @@ export class Document implements PageDocument {
       if (start.id !== end.id) actions.push({ kind: 'merge', id: end.id, destinationId: first.id, text: first.text + last.text });
       for (const id of deleted) if (id !== end.id) { this.guardHide(id); actions.push({ kind: 'delete', id }); }
       const merged = start.id === end.id ? first : { ...first, text: first.text + last.text };
-      if (mode === 'split') split(merged, prefix + text, suffix, zoomRoot);
+      if (mode === 'split') split(merged, prefix + text, suffix, zoomRoot, fieldEntry);
       else if (mode === 'paste') paste(merged, prefix, suffix, text, zoomRoot);
       else { setText(merged, prefix + text + suffix); caret = { id: first.id, offset: prefix.length + text.length }; }
     };
@@ -1336,7 +1350,7 @@ export class Document implements PageDocument {
           if (old.kind !== 'block') throw new Error('Only outline blocks can split.');
           const at = Math.max(0, Math.min(edit.offset, old.text.length));
           const offset = splitToken(old.text, at)?.end ?? at;
-          split(old, old.text.slice(0, offset), old.text.slice(offset), edit.zoomRoot);
+          split(old, old.text.slice(0, offset), old.text.slice(offset), edit.zoomRoot, edit.fieldEntry);
           break;
         }
         case 'merge': {
@@ -1396,7 +1410,7 @@ export class Document implements PageDocument {
           replace(edit.range, edit.between, '', 'text');
           break;
         case 'replaceRange':
-          replace(edit.range, edit.between, edit.text, edit.mode, edit.zoomRoot);
+          replace(edit.range, edit.between, edit.text, edit.mode, edit.zoomRoot, edit.fieldEntry);
           break;
         case 'paste': {
           const block = this.snapshot(edit.at.id);

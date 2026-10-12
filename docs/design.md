@@ -439,13 +439,14 @@ Settled by the 2026-10-02 audit; each rule has a document-layer test in `web/src
 |---|---|
 | End of a block with children | Inserts its first child |
 | End of a leaf | Inserts a sibling after it |
-| Start | Inserts an empty block above, with the caret staying in the text |
+| Start of nonempty text | Inserts an empty block above, keeping the original id, children and capabilities and the caret in its text; at a zoomed root the empty block is its first child |
 | Mid-text | Right part moves to a new block; original id stays on the left |
 | End of a multi-line (`>>>`) or list (`>>1.`) card | Starts its first answer line as a child |
 | After a task, including a split that divides it | New block is a fresh todo without planning facts |
 | Empty, childless todo | Removes the checkbox, keeping the caret, to leave the list |
+| Empty, childless field value | Removes the value and inserts an empty sibling after its field entry, with the caret there, even when it was the sole value. A zoomed field entry or value keeps normal Enter inside its subtree. |
 
-Each split and its new task are one undo step. Enter never cuts a `[[reference]]` or `#tag`: with the caret inside one, as in a query kept with Escape, the split falls just after it. A selection reaching into one replaces the whole token.
+Each split and its new task, or exit from a field value, is one undo step. Empty tasks in other states or with children follow the task Enter rule and keep their original status and planning facts. Enter never cuts a `[[reference]]` or `#tag`: with the caret inside one, as in a query kept with Escape, the split falls just after it. A selection reaching into one replaces the whole token.
 
 **Backspace**
 
@@ -462,7 +463,7 @@ Headings likewise drop their style first. Backspace straight after a reference, 
 
 **Delete, arrows and tree commands**
 
-- Delete at the end joins the next sibling, appending its children in order.
+- Delete at the end joins the next sibling, appending its children in order. At a zoomed root it does nothing, so it never merges a sibling outside the zoomed subtree.
 - Arrows at a row boundary cross to the neighbouring row keeping the visual column. Escape keeps the caret offset so the next Enter or `i` resumes there.
 - Indent, outdent and move act on the selection's roots with their subtrees, never leave the zoomed subtree, and are silent no-ops without a history entry at a boundary (no previous sibling, top level, first or last sibling). Outdent leaves the following siblings under their original parent. A multi-row selection survives the command.
 - Delete of a subtree selects the previous visible survivor; folding a descendant selects the folded parent; zooming out selects the block being left.

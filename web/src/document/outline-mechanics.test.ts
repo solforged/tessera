@@ -90,6 +90,92 @@ test('Enter after a parent inserts its first child and restores exact caret thro
   expect((await api.page(pageId)).rows.map(row => row.block.id)).toEqual([first, result.created[0]!, child, sibling]);
 });
 
+test('Enter at the start of a parent keeps its text and children on the original identity', async () => {
+  for (const ranged of [false, true]) {
+    const { client, doc, first, pageId } = await fixture('Parent');
+    const beforeParent = insert(doc, pageId, null, 'Before');
+    const child = insert(doc, first, null, 'Child');
+    const sibling = insert(doc, pageId, first, 'After');
+    await client.flush();
+    const before = snapshot(doc);
+    const at = { id: first, offset: 0 };
+    const range = { anchor: at, head: at };
+    const result = success(doc.edit(ranged
+      ? { kind: 'replaceRange', range, between: [], text: '', mode: 'split' }
+      : { kind: 'split', id: first, offset: 0 }, at));
+    const empty = result.created[0]!;
+    expect(doc.outline.children(pageId)).toEqual([beforeParent, empty, first, sibling]);
+    expect(doc.block(empty)?.text).toBe('');
+    expect(doc.block(first)?.text).toBe('Parent');
+    expect(doc.outline.children(first)).toEqual([child]);
+    expect(result.caret).toEqual(at);
+    await client.flush();
+    expect(doc.undo()).toEqual(ranged ? { ...at, range } : at);
+    expect(snapshot(doc)).toEqual(before);
+    await client.flush();
+    expect(doc.redo()).toEqual(at);
+    await client.flush();
+    expect((await api.block(first)).text).toBe('Parent');
+    expect((await api.block(child)).parent_id).toBe(first);
+  }
+});
+
+test('Enter at the start of a zoomed task preserves its plan and inserts a plain first child', async () => {
+  const { client, doc, first, pageId } = await fixture('Return the library books');
+  const task = { ...newTask(), scheduled: '2026-10-12', scheduled_time: '17:30', priority: 'high' as const };
+  success(doc.edit({ kind: 'task', id: first, value: task }));
+  const child = insert(doc, first, null, 'Existing plan');
+  const hidden = insert(doc, pageId, first, 'Outside the zoom');
+  await client.flush();
+  const before = snapshot(doc);
+  const at = { id: first, offset: 0 };
+  const range = { anchor: at, head: at };
+  const result = success(doc.edit({ kind: 'replaceRange', range, between: [], text: '', mode: 'split', zoomRoot: first }, at));
+  const empty = result.created[0]!;
+  expect(doc.outline.children(first)).toEqual([empty, child]);
+  expect(doc.outline.children(pageId)).toEqual([first, hidden]);
+  expect(doc.block(first)?.text).toBe('Return the library books');
+  expect(doc.block(first)?.task).toEqual(task);
+  expect(doc.block(empty)?.text).toBe('');
+  expect(doc.block(empty)?.task).toBeNull();
+  expect(result.caret).toEqual(at);
+  await client.flush();
+  expect(doc.undo()).toEqual({ ...at, range });
+  expect(snapshot(doc)).toEqual(before);
+  expect(doc.block(first)?.task).toEqual(task);
+  await client.flush();
+  expect(doc.redo()).toEqual(at);
+  await client.flush();
+  expect((await api.capabilities(first)).task).toEqual(task);
+  expect((await api.block(child)).parent_id).toBe(first);
+});
+
+test('Enter at the start of an unreviewed card inserts above without changing its card identity', async () => {
+  for (const ranged of [false, true]) {
+    const { client, doc, first, pageId } = await fixture('Front >> Back');
+    const card = (await api.sourceCards(first))[0]!;
+    expect(card.schedule.last_reviewed_at).toBeNull();
+    const before = snapshot(doc);
+    const at = { id: first, offset: 0 };
+    const range = { anchor: at, head: at };
+    const result = success(doc.edit(ranged
+      ? { kind: 'replaceRange', range, between: [], text: '', mode: 'split' }
+      : { kind: 'split', id: first, offset: 0 }, at));
+    expect(doc.outline.children(pageId)).toEqual([result.created[0]!, first]);
+    expect(doc.block(first)?.text).toBe('Front >> Back');
+    expect(doc.block(result.created[0]!)?.text).toBe('');
+    expect(result.caret).toEqual(at);
+    await client.flush();
+    expect((await api.sourceCards(first)).map(value => value.id)).toEqual([card.id]);
+    expect(doc.undo()).toEqual(ranged ? { ...at, range } : at);
+    expect(snapshot(doc)).toEqual(before);
+    await client.flush();
+    expect(doc.redo()).toEqual(at);
+    await client.flush();
+    expect((await api.sourceCards(first)).map(value => value.id)).toEqual([card.id]);
+  }
+});
+
 test('Enter on child-answer cards makes their first child in one undo step', async () => {
   for (const operator of ['>>>', '>>1.']) {
     const { client, doc, first, pageId } = await fixture(`The six forms ${operator}`);
@@ -137,6 +223,44 @@ test('Enter continues tasks without planning facts and empty tasks leave the lis
       doc.undo();
       expect(doc.block(right)?.task).toEqual(newTask());
       await client.flush();
+    }
+  }
+});
+
+test('Enter on empty tasks only exits childless todos and otherwise preserves the original task', async () => {
+  for (const status of ['doing', 'waiting', 'done', 'cancelled', 'todo'] as const) {
+    for (const withChild of [false, true]) {
+      if (status === 'todo' && !withChild) continue;
+      const { client, doc, first, pageId } = await fixture('');
+      const planned = { ...newTask(), scheduled: '2026-10-12', priority: 'high' as const };
+      success(doc.edit({ kind: 'task', id: first, value: { ...planned, status: status === 'done' ? 'todo' : status } }));
+      if (status === 'done') success(doc.edit({ kind: 'completeTask', id: first, completedOn: '2026-10-11' }));
+      const child = withChild ? insert(doc, first, null, 'Existing child') : null;
+      await client.flush();
+      const task = { ...doc.block(first)!.task! };
+      const before = snapshot(doc);
+      const at = { id: first, offset: 0 };
+      const range = { anchor: at, head: at };
+      const result = success(doc.edit({ kind: 'replaceRange', range, between: [], text: '', mode: 'split' }, at));
+      const fresh = result.created[0]!;
+      expect(result.created).toHaveLength(1);
+      expect(doc.block(first)?.task).toEqual(task);
+      expect(doc.block(first)?.text).toBe('');
+      expect(doc.block(fresh)?.task).toEqual(newTask());
+      expect(doc.block(fresh)?.text).toBe('');
+      expect(doc.outline.children(first)).toEqual(child ? [fresh, child] : []);
+      expect(doc.outline.children(pageId)).toEqual(child ? [first] : [first, fresh]);
+      expect(result.caret).toEqual({ id: fresh, offset: 0 });
+      await client.flush();
+      expect((await api.capabilities(first)).task).toEqual(task);
+      expect((await api.capabilities(first)).history).toBe(status === 'done');
+      expect(doc.undo()).toEqual({ ...at, range });
+      expect(snapshot(doc)).toEqual(before);
+      expect(doc.block(first)?.task).toEqual(task);
+      await client.flush();
+      expect(doc.redo()).toEqual(result.caret);
+      await client.flush();
+      expect(doc.block(fresh)?.task).toEqual(newTask());
     }
   }
 });
@@ -263,6 +387,26 @@ test('Delete at row end joins the next sibling and appends its children in order
   expect((await api.page(pageId)).rows.map(row => row.block.id)).toEqual([first, original, child1, child2]);
 });
 
+test('Delete at the zoomed root end cannot merge a sibling outside its subtree', async () => {
+  const { client, doc, first, pageId } = await fixture('First');
+  const child = insert(doc, first, null, 'Child');
+  const nextChild = insert(doc, first, child, 'Next child');
+  const hidden = insert(doc, pageId, first, 'Hidden');
+  await client.flush();
+  const before = snapshot(doc);
+  const history = { undo: doc.canUndo(), redo: doc.canRedo() };
+  const intent = boundaryDeletion(doc, first, 'forward', null, undefined, first);
+  if (intent) success(doc.edit(intent, { id: first, offset: 5 }));
+  expect(intent).toBeNull();
+  expect(snapshot(doc)).toEqual(before);
+  expect({ undo: doc.canUndo(), redo: doc.canRedo() }).toEqual(history);
+  expect(boundaryDeletion(doc, child, 'forward', first, undefined, first)).toEqual({ kind: 'merge', sourceId: nextChild, destinationId: child });
+  expect(boundaryDeletion(doc, first, 'forward')).toEqual({ kind: 'merge', sourceId: hidden, destinationId: first });
+  await client.flush();
+  expect((await api.block(first)).text).toBe('First');
+  expect((await api.block(hidden)).text).toBe('Hidden');
+});
+
 test('undo of expanded token deletion restores the original collapsed caret', async () => {
   const text = 'before [[01ARZ3NDEKTSV4RRFFQ69G5FAV|label]] after';
   const { client, doc, first } = await fixture(text);
@@ -324,6 +468,60 @@ test('Enter at the inline value end creates a second value that lines up under t
   const result = success(doc.edit({ kind: 'replaceRange', range: { anchor: at, head: at }, between: [], text: '', mode: 'split' }, at));
   expect(doc.outline.children(entry)).toEqual([value, result.created[0]!]);
   expect(rows()).toEqual([first, value, result.created[0]!, after]);
+});
+
+test('Enter on an empty field value exits after the entry in one undo step, even for its sole value', async () => {
+  for (const sole of [false, true]) {
+    const { client, doc, first, pageId, entry, value, after, rows } = await fieldFixture();
+    const empty = sole ? value : insert(doc, entry, value, '');
+    if (sole) success(doc.edit({ kind: 'text', id: value, text: '' }));
+    await client.flush();
+    const before = snapshot(doc);
+    const at = { id: empty, offset: 0 };
+    const range = { anchor: at, head: at };
+    const result = success(doc.edit(sole
+      ? { kind: 'split', id: empty, offset: 0, fieldEntry: entry }
+      : { kind: 'replaceRange', range, between: [], text: '', mode: 'split', fieldEntry: entry }, at));
+    const next = result.created[0]!;
+    expect(doc.block(empty)).toBeUndefined();
+    expect(doc.outline.children(entry)).toEqual(sole ? [] : [value]);
+    expect(doc.outline.children(pageId)).toEqual([first, entry, next, after]);
+    expect(doc.block(next)?.text).toBe('');
+    expect(doc.block(next)?.task).toBeNull();
+    expect(result.caret).toEqual({ id: next, offset: 0 });
+    expect(rows()).toEqual([first, sole ? entry : value, next, after]);
+    await client.flush();
+    expect(doc.undo()).toEqual(sole ? at : { ...at, range });
+    expect(snapshot(doc)).toEqual(before);
+    await client.flush();
+    expect(doc.redo()).toEqual(result.caret);
+    await client.flush();
+    expect((await api.block(next)).parent_id).toBe(pageId);
+    expect((await api.page(pageId)).rows.some(row => row.block.id === empty)).toBe(false);
+  }
+});
+
+test('empty field Enter preserves child notes and stays inside a field-entry or value zoom', async () => {
+  for (const mode of ['children', 'entry zoom', 'value zoom'] as const) {
+    const { client, doc, pageId, entry, value, after } = await fieldFixture();
+    success(doc.edit({ kind: 'text', id: value, text: '' }));
+    const child = mode === 'children' ? insert(doc, value, null, 'Value note') : null;
+    await client.flush();
+    const before = snapshot(doc);
+    const at = { id: value, offset: 0 };
+    const zoomRoot = mode === 'entry zoom' ? entry : mode === 'value zoom' ? value : null;
+    const result = success(doc.edit({ kind: 'split', id: value, offset: 0, fieldEntry: entry, zoomRoot }, at));
+    const empty = result.created[0]!;
+    expect(doc.block(value)?.text).toBe('');
+    expect(doc.outline.children(entry)).toEqual(mode === 'entry zoom' ? [value, empty] : [value]);
+    expect(doc.outline.children(value)).toEqual(child ? [empty, child] : mode === 'value zoom' ? [empty] : []);
+    expect(doc.outline.parentOf(after)).toBe(pageId);
+    expect(result.caret).toEqual({ id: empty, offset: 0 });
+    await client.flush();
+    expect(doc.undo()).toEqual(at);
+    expect(snapshot(doc)).toEqual(before);
+    await client.flush();
+  }
 });
 
 test('Backspace at the start of a later inline value merges it into the value above', async () => {
