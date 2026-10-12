@@ -9,6 +9,7 @@ mod notes;
 mod outline;
 mod query;
 mod render;
+mod sync;
 mod tasks;
 mod tools;
 
@@ -34,9 +35,11 @@ tessera_add_note appends to the end of a page, journal day or block; tessera_edi
 tessera_move_block, tessera_delete_block and tessera_set_task change existing blocks by the \
 IDs tessera_read_page shows. Flashcards, tasks and field entries are written as block text \
 (see tessera_add_note); tessera_cards, tessera_tasks and tessera_query read them back, and \
-tessera_hold_card suspends a card. tessera_library reads books and articles and \
-tessera_cite links blocks to their passages. Every write is one change attributed to you \
-and can be reversed with tessera_undo; tessera_recent_changes lists them.";
+tessera_hold_card suspends a card; tessera_save_deck groups cards into decks. \
+tessera_library reads books and articles and tessera_cite links blocks to their passages. \
+tessera_sync tells whether your edits have reached the notebook's hub. Every write is one \
+change attributed to you and can be reversed with tessera_undo; tessera_recent_changes lists \
+them.";
 
 pub async fn serve(notebook: &Path) -> anyhow::Result<()> {
     let mut lines = tokio::io::BufReader::new(tokio::io::stdin()).lines();
@@ -122,6 +125,8 @@ impl Session<'_> {
                     "tessera_library" => self.library(&arguments).await,
                     "tessera_cite" => self.cite(&arguments).await,
                     "tessera_recent_changes" => self.recent_changes(&arguments).await,
+                    "tessera_sync" => self.sync(&arguments).await,
+                    "tessera_save_deck" => self.save_deck(&arguments).await,
                     "tessera_undo" => self.undo(&arguments).await,
                     _ => return Some(failure(id, -32602, &format!("Unknown tool: {name}"))),
                 };

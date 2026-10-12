@@ -147,7 +147,7 @@ tessera --notebook /path/to/replica sync pin <source-id>
 tessera --notebook /path/to/replica sync reclone
 ```
 
-A running service is the hub. `sync clone` copies its notebook, without original book files, into an empty directory and registers it as a new device. `sync` pushes the replica's changes, files and reading positions and pulls the hub's. When both sides changed one block's text, the hub keeps its text and adds the replica's wording right after it; `sync conflicts` lists those copies and any changes the hub could not apply. A replica keeps every cover; a book's images arrive when it is opened, and `sync pin` keeps a book's original file and images ahead of time. A replica that has not synced for 30 days is retired: its next `sync` still sends its changes, then asks for a new clone, which `sync reclone` makes in place, keeping pins and files. Stop any service using the replica first. Phones and other machines sync this way once the tailnet listener lands; see [sync](docs/sync.md).
+A running service is the hub. `sync clone` copies its notebook, without original book files, into an empty directory and registers it as a new device. `sync` pushes the replica's changes, files and reading positions and pulls the hub's. When both sides changed one block's text, the hub keeps its text and adds the replica's wording right after it; `sync conflicts` lists those copies and any changes the hub could not apply. A replica keeps every cover; a book's images arrive when it is opened, and `sync pin` keeps a book's original file and images ahead of time. A replica that has not synced for 30 days is retired: its next `sync` still sends its changes, then asks for a new clone, which `sync reclone` makes in place, keeping pins and files. A service running on a replica syncs it on its own and logs each sync that moved something, and each failure; while it runs, `sync`, `sync status` and `sync conflicts` go through it, and the other commands need it stopped. A replica on another machine clones with `--code` from the hub's Settings › Devices; see [sync](docs/sync.md).
 
 ### Agents
 
@@ -159,7 +159,7 @@ claude mcp add tessera -- tessera mcp
 
 Other clients take the same command in their JSON configuration: `{"command": "tessera", "args": ["mcp"]}`, adding `--notebook /path` before `mcp` for a non-default notebook.
 
-Seven tools read:
+Eight tools read:
 
 | Tool | Returns |
 |---|---|
@@ -170,24 +170,26 @@ Seven tools read:
 | `tessera_cards` | A block's or page's cards, the due, new or full queue (optionally a deck's or a type's), review statistics, or decks. |
 | `tessera_query` | Types, fields and saved views, or a type's or view's blocks with their field values, filtered and sorted by field name. |
 | `tessera_library` | Sources, a source's contents, its passages in order from an ordinal with passage IDs, passage search, or highlights. |
+| `tessera_sync` | Whether the notebook is a replica, when it last synced, how many of its changes have not reached the hub, and the last sync error; `now` syncs first. |
 
-Seven tools write:
+Eight tools write:
 
 | Tool | Change |
 |---|---|
-| `tessera_add_note` | Appends a Markdown outline to the end of a page, a journal day or a block, creating a missing page or day; without a target it writes to today's journal. List items nest by indentation, headings contain what follows them, and `- [ ]`, `- [x]`, `- [doing]`, `- [waiting]` or `- [cancelled]` items become tasks. The result names the cards the note made and any card syntax that made none. |
+| `tessera_add_note` | Appends a Markdown outline to the end of a page, a journal day or a block, creating a missing page or day; without a target it writes to today's journal. List items nest by indentation, headings contain what follows them, and `- [ ]`, `- [x]`, `- [doing]`, `- [waiting]` or `- [cancelled]` items become tasks. The result lists each card the note made with what it shows and asks for, and any card syntax that made none. |
 | `tessera_edit_block` | Replaces a block's text or heading level; editing a page's root renames the page. |
 | `tessera_move_block` | Moves a block and its children after a sibling, or first or last under a parent. |
 | `tessera_delete_block` | Deletes a block and its children, or a page. |
 | `tessera_set_task` | Makes a block a task or changes its status, scheduled date and time, deadline and time, warning days, repeat or priority; done records a completion. |
 | `tessera_hold_card` | Holds a card out of review, or releases it. |
+| `tessera_save_deck` | Creates, changes or deletes a deck: the cards whose blocks match a type, text or field filters. |
 | `tessera_cite` | Links existing blocks to library passages: a whole passage, a range, or the first occurrence of a quote. |
 
-Written text follows the editor's syntax. `[[Title]]` links the page with that title and creates it when missing. Card operators (`>>`, `<<`, `<>`, `>>>`, `>>1.`) and clozes (`{{c1::answer}}`) make cards. A child block `Name:: value` becomes a field entry on its parent, creating the field when missing. A write given a block's or card's revision is refused if it changed since it was read.
+Written text follows the editor's syntax. `[[Title]]` links the page with that title and creates it when missing. Card operators (`>>`, `<<`, `<>`, `>>>`, `>>1.`) and clozes (`{{c1::answer}}`) make cards; `A << B` shows B and asks for A. A line `Name:: value` is always a block of its own: a field entry on the page at the top level, or on the item it is indented under, creating the field when missing. A write given a block's, card's or deck's revision is refused if it changed since it was read.
 
 Each write is one change attributed to the agent by its MCP client name, and open windows show it at once. `tessera_recent_changes` lists agent changes and `tessera_undo` reverses one; Settings › Agent changes lists them too, with an Undo button. Undo refuses rather than overwrite a later edit by anyone else, so undo several changes newest first. A page or field the change created stays while other blocks use it.
 
-Agents without MCP use the same endpoints: `POST /api/agent-changes` with a body like `{"actor": {"kind": "agent", "name": "my-agent"}, "kind": "add_note", "target": {"kind": "page", "title": "Inbox"}, "blocks": [{"text": "A thought", "children": []}]}`, `GET /api/agent-changes` to list and `POST /api/agent-changes/{seq}/undo` with `{"actor": …}` to undo. The other kinds are `edit_block`, `move_block`, `delete_block`, `set_task`, `set_card_held` and `cite`; `crates/tessera-core/src/agent.rs` defines their fields.
+Agents without MCP use the same endpoints: `POST /api/agent-changes` with a body like `{"actor": {"kind": "agent", "name": "my-agent"}, "kind": "add_note", "target": {"kind": "page", "title": "Inbox"}, "blocks": [{"text": "A thought", "children": []}]}`, `GET /api/agent-changes` to list and `POST /api/agent-changes/{seq}/undo` with `{"actor": …}` to undo. The other kinds are `edit_block`, `move_block`, `delete_block`, `set_task`, `set_card_held`, `cite`, `save_deck` and `delete_deck`; `crates/tessera-core/src/agent.rs` defines their fields.
 
 ## Development
 

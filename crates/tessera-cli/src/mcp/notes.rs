@@ -9,8 +9,11 @@ use tessera_core::{
     PageView, SettingsView, UndoReceipt,
 };
 
-use super::outline::{card_problems, outline, text_problems};
-use super::render::{Clock, PageContext, age, card_label, kind_label, location, quoted, render};
+use super::outline::{note_problems, outline, text_problems};
+use super::render::{
+    Clock, PageContext, age, card_answer, card_label, kind_label, location, one_line, quoted,
+    render, snippet,
+};
 use super::{Api, Session, boolean, describe, integer, required, segment, string};
 
 impl Session<'_> {
@@ -111,7 +114,7 @@ impl Session<'_> {
             (None, None, Some(id)) => NoteTarget::Block { id: id.to_owned() },
             _ => anyhow::bail!("Give at most one of page, journal or parent_id."),
         };
-        let problems = card_problems(&blocks);
+        let problems = note_problems(&blocks);
         let receipt = self
             .send(arguments, AgentEdit::AddNote { target, blocks })
             .await?;
@@ -237,9 +240,11 @@ impl Session<'_> {
                 &serde_json::json!({ "actor": self.actor() }),
             )
             .await?;
+        // The undo's own number is an agent change number, which the receipt
+        // lacks; `committed.seq` counts every notebook change, so it is not it.
         let mut text = format!(
-            "Undid change {} as change {}.",
-            receipt.undone, receipt.committed.seq
+            "Undid change {}; tessera_recent_changes lists the undo.",
+            receipt.undone
         );
         if !receipt.kept_pages.is_empty() {
             text.push_str(&format!(
@@ -271,7 +276,8 @@ pub(super) async fn clock(api: &Api) -> anyhow::Result<Clock> {
     Clock::new(&api.get::<SettingsView>("/api/settings").await?)
 }
 
-/// ` Cards: …` naming the cards a write left on its blocks.
+/// ` Cards: …` naming the cards a write left on its blocks, with what each
+/// shows and what it asks for, so a reversed direction is plain at once.
 async fn card_report(api: &Api, cards: &[CardUnit]) -> anyhow::Result<String> {
     if cards.is_empty() {
         return Ok(String::new());
@@ -281,16 +287,19 @@ async fn card_report(api: &Api, cards: &[CardUnit]) -> anyhow::Result<String> {
         .iter()
         .map(|card| {
             format!(
-                "{} on block {}",
+                "{} on block {} shows “{}” and asks for “{}”",
                 card_label(card, &clock),
-                card.source_block_id
+                card.source_block_id,
+                snippet(&one_line(&card.front)),
+                snippet(&card_answer(card))
             )
         })
         .collect();
     Ok(format!(" Cards: {}.", labels.join("; ")))
 }
 
-/// ` Card syntax problems …` for blocks whose card syntax made no card.
+/// ` Problems …` for card syntax that made no card and field lines that
+/// stayed text.
 fn problem_report(problems: &[(String, String)]) -> String {
     if problems.is_empty() {
         return String::new();
@@ -299,11 +308,11 @@ fn problem_report(problems: &[(String, String)]) -> String {
         .iter()
         .map(|(text, message)| {
             let message = message.trim_end_matches('.');
-            format!("“{}”: {message}", super::render::snippet(text))
+            format!("“{}”: {message}", snippet(text))
         })
         .collect();
     format!(
-        " Card syntax problems, so these blocks made no card: {}. Fix them with tessera_edit_block.",
+        " Problems: {}. Fix them with tessera_edit_block.",
         lines.join("; ")
     )
 }

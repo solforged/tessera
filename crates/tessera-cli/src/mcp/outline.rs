@@ -85,8 +85,36 @@ pub(super) fn outline(markdown: &str) -> Vec<NoteBlock> {
             open = Some(Continuation::Item(indent + (trimmed.len() - content.len())));
             continue;
         }
+        if shorthand_value(trimmed).is_some() {
+            // A field entry is a block of its own: a child of the item whose
+            // text it continues, else a sibling of the paragraph before it.
+            match open {
+                Some(Continuation::Item(column) | Continuation::Fields(column))
+                    if indent >= column =>
+                {
+                    push(
+                        &mut blocks,
+                        headings.len() + items.len(),
+                        text_block(trimmed.to_owned()),
+                    );
+                    open = Some(Continuation::Fields(column));
+                }
+                _ => {
+                    items.clear();
+                    push(&mut blocks, headings.len(), text_block(trimmed.to_owned()));
+                    open = None;
+                }
+            }
+            continue;
+        }
         match open {
             Some(Continuation::Item(column)) if indent >= column => append(&mut blocks, trimmed),
+            // Text after an item's fields is a further child, not field text.
+            Some(Continuation::Fields(column)) if indent >= column => push(
+                &mut blocks,
+                headings.len() + items.len(),
+                text_block(trimmed.to_owned()),
+            ),
             Some(Continuation::Paragraph) => append(&mut blocks, trimmed),
             _ => {
                 items.clear();
@@ -118,31 +146,49 @@ pub(super) fn shorthand_value(text: &str) -> Option<&str> {
     Some(value.strip_prefix(char::is_whitespace).unwrap_or(value))
 }
 
-/// Card syntax problems in the blocks of a note, each with the block's text.
-/// Field shorthand is checked by its value, the block that holds the card.
-pub(super) fn card_problems(blocks: &[NoteBlock]) -> Vec<(String, String)> {
+/// The [`text_problems`] of every block in a note. Field shorthand is
+/// checked by its value, the block that holds the card.
+pub(super) fn note_problems(blocks: &[NoteBlock]) -> Vec<(String, String)> {
     let mut problems = Vec::new();
     for block in blocks {
         problems.extend(text_problems(&block.text));
-        problems.extend(card_problems(&block.children));
+        problems.extend(note_problems(&block.children));
     }
     problems
 }
 
-/// Card syntax problems in one block's text, paired with that text.
+/// Problems in one block's text, each paired with the text it is about:
+/// card syntax that made no card, and field shorthand on one line of a
+/// longer block, which stays text since only a whole block is an entry.
 pub(super) fn text_problems(text: &str) -> Vec<(String, String)> {
+    let fenced = text.trim_start().starts_with(['`', '~']);
+    let mut found: Vec<_> = text
+        .lines()
+        .map(str::trim)
+        .filter(|line| text.contains('\n') && !fenced && shorthand_value(line).is_some())
+        .map(|line| {
+            (
+                line.to_owned(),
+                "A field entry must be a block of its own, so this line stayed text".to_owned(),
+            )
+        })
+        .collect();
     let text = shorthand_value(text).unwrap_or(text);
     let CardParse { problems, .. } = parse_card_text(text);
-    problems
-        .into_iter()
-        .map(|problem| (text.to_owned(), problem.message))
-        .collect()
+    found.extend(
+        problems
+            .into_iter()
+            .map(|problem| (text.to_owned(), problem.message)),
+    );
+    found
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Continuation {
     /// A list item whose text starts at this column.
     Item(usize),
+    /// A list item, starting at this column, that field lines have ended.
+    Fields(usize),
     Paragraph,
 }
 
@@ -285,6 +331,27 @@ mod tests {
     }
 
     #[test]
+    fn field_lines_are_blocks_of_their_own() {
+        let blocks = outline(
+            "Thomas Aquinas, ST I q.2 a.3\nSource:: Leonine text\nmore prose\n\n\
+             - Latin segment\n  Language:: la\n  Source:: Leonine\n  a note\n- next",
+        );
+        assert_eq!(
+            shape(&blocks),
+            [
+                "Thomas Aquinas, ST I q.2 a.3",
+                "Source:: Leonine text",
+                "more prose",
+                "Latin segment",
+                "  Language:: la",
+                "  Source:: Leonine",
+                "  a note",
+                "next",
+            ]
+        );
+    }
+
+    #[test]
     fn tags_are_not_headings_and_fences_stay_whole() {
         let blocks = outline(
             "#Idea worth keeping\n```rust\n- not an item\n\n# nor a heading\n```\n---\n- x",
@@ -335,10 +402,10 @@ mod tests {
     }
 
     #[test]
-    fn card_problems_name_the_block_and_check_a_field_value_alone() {
+    fn note_problems_name_the_block_and_check_a_field_value_alone() {
         let blocks =
             outline("- Kepler >> \n  - The {{c1::Peace\n- Term:: front >> back\n- ok >> fine");
-        let problems = card_problems(&blocks);
+        let problems = note_problems(&blocks);
         assert_eq!(
             problems,
             [
@@ -352,5 +419,18 @@ mod tests {
                 ),
             ]
         );
+    }
+
+    #[test]
+    fn a_field_line_inside_a_longer_block_is_reported_and_fenced_code_is_not() {
+        assert_eq!(
+            text_problems("Thomas Aquinas\nSource:: Leonine"),
+            [(
+                "Source:: Leonine".to_owned(),
+                "A field entry must be a block of its own, so this line stayed text".to_owned()
+            )]
+        );
+        assert!(text_problems("```\nkey:: value\n```").is_empty());
+        assert!(text_problems("Source:: Leonine").is_empty());
     }
 }
