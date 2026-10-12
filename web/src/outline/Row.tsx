@@ -127,6 +127,16 @@ export function createOutlineRows(context: Pick<OutlineContext,
     });
     const cardText = createMemo(() => block()?.text ?? '');
     const cards = createMemo(() => parseCardText(cardText()));
+    const cardCount = () => cards().cards.length + (block()?.templateCards ?? 0);
+    const cardMark = () => !block()?.task && cardCount() > 0;
+    let cardControl: { open(anchor: HTMLElement): void } | undefined;
+    const [cardTextSettled, setCardTextSettled] = createSignal(false);
+    createEffect(on([cardText, () => editing() === id()], ([, active]) => {
+      setCardTextSettled(false);
+      if (!active) return;
+      const timer = window.setTimeout(() => setCardTextSettled(true), 1500);
+      onCleanup(() => window.clearTimeout(timer));
+    }));
     let row!: HTMLDivElement;
     onMount(() => virtualizer.measureElement(row));
     onCleanup(() => { const host = hosts.get(id()); if (host && row.contains(host)) hosts.delete(id()); });
@@ -142,7 +152,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
       <Show when={rowSource() && sigla().get(rowSource()!)}>{mark => <span class="row-siglum" title={props.notebook.lookup(rowSource()!)()?.text}>{mark()}</span>}</Show>
       <button type="button" class="row-menu icon-button" aria-label="Block actions" onClick={event => blockMenu(id(), event.currentTarget)}><Icon name="more" /></button>
       <button type="button" class="row-fold icon-button" classList={{ 'fold-empty': !children(), folded: folds().has(id()) }} aria-label={folds().has(id()) ? 'Unfold children' : 'Fold children'} disabled={!children()} onClick={() => fold(id())}><Icon name="down" /></button>
-      <Show when={!inline() && !emptyEntry()}><button type="button" class="row-bullet icon-button" classList={{ 'bullet-collapsed': children() && folds().has(id()) }} aria-label="Zoom into block" onClick={() => zoomTo(id())}><Icon name="bullet" /></button></Show>
+      <Show when={!inline() && !emptyEntry()}><button type="button" class="row-bullet icon-button" classList={{ 'bullet-collapsed': children() && folds().has(id()), 'row-card-mark': cardMark() }} aria-label={cardMark() ? `Cards: ${cardCount()}` : 'Zoom into block'} aria-haspopup={cardMark() ? 'dialog' : undefined} onMouseDown={event => { if (cardMark()) event.preventDefault(); }} onClick={event => cardMark() ? cardControl?.open(event.currentTarget) : zoomTo(id())}><Icon name={cardMark() ? 'card' : 'bullet'} /></button></Show>
       <Show when={inline()}><Show when={labelled()} fallback={<span class="outline-field-label" aria-hidden="true" />}><button type="button" class="outline-field-label" title={valueField()?.name} onClick={() => editAt(id(), block()?.text.length ?? 0, true)}><Icon name="field" /><span>{valueField()?.name}</span></button></Show></Show>
       <Show when={emptyEntry()}><button type="button" class="outline-field-label" title={field()?.name} onClick={() => editAt(id(), block()?.text.length ?? 0, true)}><Icon name="field" /><span>{field()?.name}</span></button></Show>
       <Show when={block()?.task}><TaskStatusButton task={block()?.task ?? null} disabled={capabilities.busy(id())} onChange={status => capabilities.status(id(), status)} /></Show>
@@ -166,7 +176,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
           <Show when={block()?.project}><Button class="outline-planning" label="Project" aria-haspopup="dialog" onClick={event => capabilities.open(id(), 'project', event.currentTarget)}>Project</Button></Show>
           <QuestionSummary id={id()} />
           <AnswerSummary id={id()} />
-          <Show when={cards().cards.length || block()?.templateCards}><CardSummary blockId={id()} cards={cards().cards} templateCount={block()?.templateCards ?? 0} notebook={props.notebook} onOpen={props.onOpen} /></Show>
+          <Show when={cardCount()}><CardSummary blockId={id()} cards={cards().cards} templateCount={block()?.templateCards ?? 0} notebook={props.notebook} onOpen={props.onOpen} register={control => { cardControl = control; }} /></Show>
           <For each={block()?.citations}>{citation => <CitationChip citation={citation} pageId={props.pageId} notebook={props.notebook} onOpen={props.onOpen} />}</For>
         </span></Show>
         </div>
@@ -174,7 +184,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
         <For each={block()?.citations}>{citation => <Show when={block()?.text.trim() !== citation.quote.trim()}>
           <p class="outline-citation-quote" title={citation.quote}>{citation.quote}</p>
         </Show>}</For>
-        <For each={cards().problems}>{problem => <p class="outline-card-problem" role="alert">{problem.message}</p>}</For>
+        <Show when={editing() !== id() || cardTextSettled()}><For each={cards().problems}>{problem => <p class="outline-card-problem" role="status">{problem.message}</p>}</For></Show>
         <Show when={capabilities.error(id())}><p class="outline-capability-error" role="alert">{capabilities.error(id())}</p></Show>
         <Show when={block()?.archived}><span class="archive-badge">Archived</span> <button class="text-button" type="button" onClick={() => apply({ kind: 'archive', id: id(), archived: false }, false)}>Unarchive</button></Show>
         <Show when={block()?.conflict}><button type="button" class="conflict-label" onClick={() => setConflicts(previous => { const next = new Set(previous); next.has(id()) ? next.delete(id()) : next.add(id()); return next; })}><Icon name="warning" />Conflict</button></Show>

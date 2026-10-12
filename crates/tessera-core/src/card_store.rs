@@ -45,8 +45,8 @@ fn kind_name(kind: CardKind) -> &'static str {
     }
 }
 
-/// Ten columns shared by direct, queue and review reads: id, source_block_id,
-/// key, kind, active, definition_revision, front, back, revision, schedule.
+/// Eleven columns shared by direct, queue and review reads: id, source_block_id,
+/// key, kind, active, definition_revision, front, back, revision, schedule, held.
 pub(crate) fn card_at(row: &rusqlite::Row<'_>, offset: usize) -> rusqlite::Result<CardUnit> {
     let schedule = serde_json::from_str(text_at(row, offset + 9)?).map_err(|error| {
         rusqlite::Error::FromSqlConversionFailure(
@@ -74,6 +74,7 @@ pub(crate) fn card_at(row: &rusqlite::Row<'_>, offset: usize) -> rusqlite::Resul
         key: row.get(offset + 2)?,
         kind,
         active: row.get(offset + 4)?,
+        held: row.get(offset + 10)?,
         definition_revision: row.get(offset + 5)?,
         front: row.get(offset + 6)?,
         back,
@@ -89,7 +90,7 @@ pub(crate) fn card(conn: &Connection, id: &str) -> Result<CardUnit> {
     let mut card = conn
         .prepare_cached(
             "SELECT id, source_block_id, key, kind, active, definition_revision,
-                front, back, revision, schedule FROM card_units WHERE id = ?1",
+                front, back, revision, schedule, held FROM card_units WHERE id = ?1",
         )?
         .query_row([id], |row| card_at(row, 0))
         .optional()?
@@ -343,7 +344,7 @@ impl Notebook {
             .conn
             .prepare_cached(
                 "SELECT id, source_block_id, key, kind, active, definition_revision,
-                    front, back, revision, schedule FROM card_units
+                    front, back, revision, schedule, held FROM card_units
              WHERE source_block_id = ?1 ORDER BY key, id",
             )?
             .query_map([id], |row| card_at(row, 0))?

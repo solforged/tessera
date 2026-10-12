@@ -68,6 +68,8 @@
 .row-bullet .icon { fill: currentColor; }
 .row-bullet.bullet-collapsed { opacity: 1; }
 .row-bullet.bullet-collapsed .icon { background: var(--raised); border: 1px solid var(--muted); border-radius: 50%; padding: 1px; }
+.row-bullet.row-card-mark .icon { fill: none; }
+.outline-row .row-card-mark, .outline-row.row-selected .row-card-mark, .outline-row .row-card-mark:hover { color: var(--faint); }
 /* Prose pages read as paragraphs: bullets rest hidden and return on hover or selection, where they
    still zoom and drag. Hairline threads under each ancestor's handle show depth. Folded rows keep
    their marker, since it is the only sign of hidden children. */
@@ -295,11 +297,14 @@ button.outline-reference { -webkit-touch-callout: none; -webkit-user-select: non
 .card-cloze { text-decoration: underline dotted var(--accent) 1px; text-underline-offset: var(--space-4); }
 .outline-cards-popup { width: var(--search-width); }
 .outline-cards-list { display: flex; flex-direction: column; gap: var(--space-8); }
-.outline-cards-row { display: flex; align-items: center; gap: var(--space-8); min-width: 0; }
+.outline-cards-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; gap: var(--space-4) var(--space-8); min-width: 0; }
 .outline-cards-kind { color: var(--faint); font-size: var(--text-meta); line-height: var(--line-meta); white-space: nowrap; }
 .outline-cards-provenance { font: var(--apparatus); }
-.outline-cards-front { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.outline-cards-state { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.outline-cards-content { min-width: 0; }
+.outline-cards-front { overflow-wrap: anywhere; }
+.outline-cards-answer { color: var(--muted); overflow-wrap: anywhere; }
+.outline-cards-state { color: var(--muted); font: var(--apparatus); white-space: nowrap; }
+.outline-cards-actions { grid-column: 2 / -1; display: flex; gap: var(--space-8); }
 .outline-cards-confirm { display: flex; flex-direction: column; gap: var(--space-8); padding-block: var(--space-8); border-block: 1px solid var(--line); }
 .outline-row-linked > .outline-body { border-radius: var(--radius-control); background: var(--hover); box-shadow: 0 0 0 var(--space-4) var(--hover); }
 /* A source page stays hidden until its header, fields and highlights are known, then fades in whole, as the reader does. */

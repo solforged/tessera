@@ -6,6 +6,7 @@ import { completeReferences, openReferenceRange } from '../outline/completion';
 import { foldName } from '../outline/names';
 import type { TitleTargets } from '../outline/link-titles';
 import { typeSpelling, typeTokenAt } from '../outline/type-completion';
+import { parseCardText } from '../review/card-text';
 import { captureDateToken, dateSuggestions, insideProtectedSyntax, newTask, planDateToken } from '../tasks/quick-date';
 import { relativeDate } from '../tasks/task-labels';
 import { Icon } from '../ui/Icon';
@@ -63,7 +64,10 @@ export function CaptureField(props: CaptureFieldProps) {
   // Escape closes a completion until the text changes.
   const [dismissed, setDismissed] = createSignal<string | null>(null);
   const picked: TitleTargets = new Map();
-  const isTask = () => !!props.taskOnly || task();
+  const taskPrefix = createMemo(() => /^\[ ?\] /.exec(draft())?.[0] ?? '');
+  const bodyText = createMemo(() => draft().slice(taskPrefix().length).trim());
+  const hasCards = createMemo(() => parseCardText(bodyText()).cards.length > 0);
+  const isTask = () => !!props.taskOnly || task() || !!taskPrefix();
   createEffect(on(task, value => props.onTaskChange?.(value), { defer: true }));
 
   const token = createMemo<Token | null>(() => {
@@ -87,7 +91,7 @@ export function CaptureField(props: CaptureFieldProps) {
   const open = () => !!token() && !!choices()?.length;
 
   const plan = createMemo(() => {
-    const text = draft().trim();
+    const text = bodyText();
     const found = captureDateToken(text, props.contextDate());
     if (!found) return null;
     // A plain-word date suffix plans only a task; `@` always plans and so makes one.
@@ -99,7 +103,7 @@ export function CaptureField(props: CaptureFieldProps) {
   const preview = createMemo(() => {
     const state = plan();
     if (!state) return null;
-    if (!state.choice) return { warning: true, label: `Not a date: ${draft().trim().slice(state.token.from, state.token.to)} · it stays in the text` };
+    if (!state.choice) return { warning: true, label: `Not a date: ${bodyText().slice(state.token.from, state.token.to)} · it stays in the text` };
     const when = `${relativeDate(state.choice.date, props.notebook.todayDate())}${state.choice.time ? ` ${state.choice.time}` : ''}`;
     return { warning: false, label: `${isTask() ? '' : 'Task · '}${state.token.field === 'deadline' ? `due ${when}` : when}` };
   });
@@ -127,14 +131,14 @@ export function CaptureField(props: CaptureFieldProps) {
   // Lines save one after another, in the order they were entered, so a quick second Enter is never dropped.
   let saving = Promise.resolve();
   const submit = (again: boolean) => {
-    const text = draft().trim();
+    const text = bodyText();
     if (!text) return;
     const state = plan();
     let body = text, value: TaskState | null = null;
     if (state?.choice) ({ text: body, value } = planDateToken(text, state.token, state.choice, null));
     else if (isTask()) value = { ...newTask(), scheduled: props.schedule ? props.contextDate() : null };
     // The line clears at once so the next one can be typed while this one saves; a failure puts it back.
-    const links = new Map(picked), wasTask = task();
+    const links = new Map(picked), wasTask = isTask();
     picked.clear();
     setDraft(''); setCaret(0); input.value = '';
     if (!props.taskOnly && !again) setTask(false);
@@ -168,6 +172,9 @@ export function CaptureField(props: CaptureFieldProps) {
     } else if (event.key === 'Enter') {
       event.preventDefault();
       void submit(event.shiftKey);
+    } else if (event.key === 'Backspace' && !props.taskOnly && task() && !draft() && input.selectionStart === 0 && input.selectionEnd === 0) {
+      event.preventDefault();
+      setTask(false);
     } else if (event.key === 'Escape') {
       event.preventDefault(); event.stopPropagation();
       if (token()) setDismissed(draft());
@@ -175,18 +182,30 @@ export function CaptureField(props: CaptureFieldProps) {
     }
   };
   const track = () => setCaret(input.selectionStart ?? input.value.length);
-  onMount(() => { props.inputRef?.(input); });
+  const acceptInput = () => {
+    const text = input.value;
+    const prefix = /^\[ ?\] /.exec(text)?.[0] ?? '';
+    const start = Math.max(0, (input.selectionStart ?? text.length) - prefix.length);
+    const end = Math.max(0, (input.selectionEnd ?? text.length) - prefix.length);
+    if (prefix) {
+      setTask(true);
+      input.value = text.slice(prefix.length);
+      input.setSelectionRange(start, end);
+    }
+    setDraft(input.value); track(); setError('');
+  };
+  onMount(() => { acceptInput(); props.inputRef?.(input); });
 
   return <div class="capture-field" classList={{ busy: busy() }}>
     <div ref={line} class="capture-line">
       <Show when={!props.taskOnly} fallback={<Icon name="plus" />}>
         <button type="button" class="capture-kind" aria-pressed={task()} aria-label="Task" title="Task (⌘↵)" onMouseDown={event => event.preventDefault()} onClick={() => setTask(value => !value)}>
-          <Icon name={isTask() || plan()?.explicit && plan()?.choice ? 'select' : 'bullet'} />
+          <Icon name={isTask() || plan()?.explicit && plan()?.choice ? 'select' : hasCards() ? 'card' : 'bullet'} />
         </button>
       </Show>
       <input ref={input} class="capture-input" aria-label={props.label} placeholder={props.placeholder} value={draft()} aria-busy={busy()} autocomplete="off" spellcheck
         role="combobox" aria-expanded={open()} aria-autocomplete="list"
-        onInput={event => { setDraft(event.currentTarget.value); track(); setError(''); }} onKeyDown={keydown} onKeyUp={track} onClick={track} onSelect={track} />
+        onInput={event => { if (event.isComposing) { setDraft(event.currentTarget.value); track(); } else acceptInput(); }} onCompositionEnd={acceptInput} onKeyDown={keydown} onKeyUp={track} onClick={track} onSelect={track} />
     </div>
     <Show when={open()}>
       <Popup anchor={line} role="listbox" label={token()?.kind === 'type' ? 'Types' : 'Pages'} class="picker capture-choices" width={line.offsetWidth} autofocus={false} onDismiss={() => setDismissed(draft())}>

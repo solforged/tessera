@@ -623,7 +623,7 @@ impl Notebook {
         let front = pattern(&template.front)?;
         let back = pattern(&template.back)?;
         let refs = references(&front, &back);
-        let retained: HashMap<String, bool> = self.conn.prepare_cached("SELECT source_block_id, json_extract(schedule, '$.last_reviewed_at') IS NOT NULL FROM card_units WHERE key = ?1")?.query_map([format!("tpl:{id}")], |row| Ok((row.get(0)?, row.get(1)?)))?.collect::<rusqlite::Result<_>>()?;
+        let retained: HashMap<String, bool> = self.conn.prepare_cached("SELECT source_block_id, held = 1 OR json_extract(schedule, '$.last_reviewed_at') IS NOT NULL FROM card_units WHERE key = ?1")?.query_map([format!("tpl:{id}")], |row| Ok((row.get(0)?, row.get(1)?)))?.collect::<rusqlite::Result<_>>()?;
         let mut waiting = Vec::new();
         let mut ready = 0;
         let mut cards_to_create = 0;
@@ -650,7 +650,7 @@ impl Notebook {
             }
         }
         let (date, start, end) = local_day(&self.conn, now)?;
-        let introduced = self.conn.query_row("SELECT COUNT(*) FROM (SELECT c.id, MIN(e.created_at) AS first FROM card_units c JOIN review_events e ON e.card_id = c.id AND e.kind = 'grade' WHERE c.key = ?1 GROUP BY c.id) WHERE first >= ?2 AND first < ?3", params![format!("tpl:{id}"), start, end], |row| row.get::<_, i64>(0))? as usize;
+        let introduced = self.conn.query_row("SELECT COUNT(*) FROM (SELECT c.id, MIN(e.created_at) AS first FROM card_units c JOIN review_events e ON e.card_id = c.id AND e.kind = 'grade' WHERE c.key = ?1 AND c.held = 0 GROUP BY c.id) WHERE first >= ?2 AND first < ?3", params![format!("tpl:{id}"), start, end], |row| row.get::<_, i64>(0))? as usize;
         let limit = template.new_per_day as usize;
         let first = limit.saturating_sub(introduced);
         let days_to_introduce = if introductions == 0 {

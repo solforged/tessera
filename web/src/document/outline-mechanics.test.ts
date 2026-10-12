@@ -10,6 +10,7 @@ import type { Notebook } from './index';
 import type { EditResult, PageDocument } from './contract';
 import { boundaryDeletion } from './outline-mechanics';
 import { inlineFieldValues, selectionIds, selectionRoots, visibleIds } from '../outline/visibility';
+import { newTask } from '../tasks/quick-date';
 
 const port = Bun.env.TESSERA_MECHANICS_TEST_PORT ?? '43862';
 const baseUrl = `http://127.0.0.1:${port}`;
@@ -87,6 +88,71 @@ test('Enter after a parent inserts its first child and restores exact caret thro
   expect(doc.redo()).toEqual(result.caret);
   await client.flush();
   expect((await api.page(pageId)).rows.map(row => row.block.id)).toEqual([first, result.created[0]!, child, sibling]);
+});
+
+test('Enter on child-answer cards makes their first child in one undo step', async () => {
+  for (const operator of ['>>>', '>>1.']) {
+    const { client, doc, first, pageId } = await fixture(`The six forms ${operator}`);
+    const at = { id: first, offset: doc.block(first)!.text.length };
+    const result = success(doc.edit({ kind: 'split', id: first, offset: at.offset }, at));
+    expect(doc.outline.children(first)).toEqual(result.created);
+    expect(doc.outline.children(pageId)).toEqual([first]);
+    expect(result.caret).toEqual({ id: result.created[0]!, offset: 0 });
+    await client.flush();
+    expect(doc.undo()).toEqual(at);
+    expect(doc.outline.children(first)).toEqual([]);
+    await client.flush();
+    doc.redo();
+    await client.flush();
+    expect((await api.page(pageId)).rows.map(row => row.depth)).toEqual([0, 1]);
+  }
+});
+
+test('Enter continues tasks without planning facts and empty tasks leave the list', async () => {
+  for (const offset of [3, 5]) {
+    const { client, doc, first } = await fixture('Draft');
+    const task = { ...newTask(), scheduled: '2026-10-12', priority: 'high' as const };
+    success(doc.edit({ kind: 'task', id: first, value: task }));
+    await client.flush();
+    const at = { id: first, offset };
+    const result = success(doc.edit({ kind: 'replaceRange', range: { anchor: at, head: at }, between: [], text: '', mode: 'split' }, at));
+    const right = result.created[0]!;
+    expect(doc.block(right)?.task).toEqual(newTask());
+    expect(doc.block(first)?.task).toEqual(task);
+    await client.flush();
+    doc.undo();
+    expect(doc.block(first)?.text).toBe('Draft');
+    expect(doc.block(right)).toBeUndefined();
+    await client.flush();
+    doc.redo();
+    await client.flush();
+    expect(doc.block(right)?.task).toEqual(newTask());
+    if (offset === 5) {
+      const empty = { id: right, offset: 0 };
+      const exit = success(doc.edit({ kind: 'split', id: right, offset: 0 }, empty));
+      expect(exit.created).toEqual([]);
+      expect(exit.caret).toEqual(empty);
+      expect(doc.block(right)?.task).toBeNull();
+      await client.flush();
+      doc.undo();
+      expect(doc.block(right)?.task).toEqual(newTask());
+      await client.flush();
+    }
+  }
+});
+
+test('Enter after a finished task starts a fresh todo and does not copy other capabilities', async () => {
+  const { client, doc, first } = await fixture('Finished');
+  success(doc.edit({ kind: 'task', id: first, value: newTask() }));
+  await client.flush();
+  success(doc.edit({ kind: 'completeTask', id: first, completedOn: '2026-10-11' }));
+  await client.flush();
+  const right = success(doc.edit({ kind: 'split', id: first, offset: 8 })).created[0]!;
+  expect(doc.block(first)?.task?.status).toBe('done');
+  expect(doc.block(right)?.task).toEqual(newTask());
+  expect(doc.block(right)?.project).toBeNull();
+  expect(doc.block(right)?.question).toBeNull();
+  await client.flush();
 });
 
 test('Enter inside a reference or tag splits after it, and a range touching one takes it whole', async () => {

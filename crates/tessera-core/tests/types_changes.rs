@@ -1649,6 +1649,7 @@ fn provisional_cleanup_does_not_backfill_existing_pages_on_upgrade() {
          DROP TABLE IF EXISTS provisional_pages;
          DROP TABLE card_templates;
          DROP INDEX card_units_template;
+         ALTER TABLE card_units DROP COLUMN held;
          PRAGMA user_version = 20;",
     )
     .unwrap();

@@ -115,6 +115,7 @@ export interface OutlineContext {
   dateKey: (event: KeyboardEvent) => boolean;
   popupKey: (event: KeyboardEvent) => boolean;
   leaderMenu: (id: string) => void;
+  makeCloze: () => void;
   openTable: (beside: boolean) => void;
   rowRange: Accessor<RowRange | null>;
   statusMenu: (id: string) => void;

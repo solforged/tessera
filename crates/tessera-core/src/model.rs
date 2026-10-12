@@ -362,6 +362,11 @@ pub enum Operation {
         shown_back: String,
         reviewed_at: i64,
     },
+    SetCardHeld {
+        id: String,
+        base_revision: i64,
+        held: bool,
+    },
     ResetCard {
         id: String,
         base_revision: i64,

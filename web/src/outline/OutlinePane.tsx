@@ -740,6 +740,7 @@ function Pane(props: OutlinePaneProps) {
     dateKey: (event) => dateKey(event),
     popupKey: (event) => popupKey(event),
     leaderMenu: (id) => leaderMenu(id),
+    makeCloze: () => makeCloze(),
     openTable: (beside) => openTable(beside),
     rowRange,
     statusMenu: (id) => statusMenu(id),
@@ -767,7 +768,7 @@ function Pane(props: OutlinePaneProps) {
     setEditedConflicts,
   };
   const { setCompletion, setCompletionIndex, offerValue, updateCompletion, updateTriggers, taskPrefix, rewriteEditing, referenceInput, forgetReferenceSpace, slashKey, dateKey, popupKey, CompletionPopups } = createOutlineCompletions(context);
-  const { openTable, investigationItems, commandDefinitions, unregister, blockMenu, statusMenu, priorityMenu, openPlanning, openProject, leaderMenu, referenceMenu, copy } = createOutlineCommands(context);
+  const { openTable, investigationItems, commandDefinitions, unregister, blockMenu, statusMenu, priorityMenu, openPlanning, openProject, leaderMenu, makeCloze, referenceMenu, copy } = createOutlineCommands(context);
   const { horizontal, adjacent, split, editorKey, structuralKey, resetRowKey } = createOutlineKeyboard(context);
   const { selectedOffsets, pointerStart, pointerMove, pointerEnd, clipboard, paste, beforeInput } = createOutlineInteractions(context);
   const fieldSheet = createFieldSheet(context, { offerValue, onField: field => setCreatedFields(previous => previous.some(existing => existing.id === field.id) ? previous : [...previous, field]) });

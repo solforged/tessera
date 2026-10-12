@@ -6,7 +6,7 @@ const schedule: SchedulingState = { stability: 8, difficulty: 5, interval_days: 
 const page: Block = { id: 'page', kind: 'page', parent_id: null, page_id: 'page', text: 'Vocabulary', heading: null, archived: false, revision: 1, created_at: 0, updated_at: 0 };
 const source: Block = { ...page, id: 'source', kind: 'block', parent_id: page.id, text: 'amo >> I love' };
 const row: CardRow = {
-  card: { id: 'card', source_block_id: source.id, key: 'forward', kind: 'forward', active: true, definition_revision: 2, front: 'amo', back: 'I love', answer_blocks: [], revision: 4, schedule, template: null },
+  card: { id: 'card', source_block_id: source.id, key: 'forward', kind: 'forward', active: true, held: false, definition_revision: 2, front: 'amo', back: 'I love', answer_blocks: [], revision: 4, schedule, template: null },
   source: { page, block: source }, last_review: null,
 };
 const session: ReviewSession = { id: 'session', deck_id: 'deck', started_at: 100, ended_at: null, state: 'open', revision: 1 };

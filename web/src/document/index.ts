@@ -403,6 +403,9 @@ export class Notebook implements NotebookClient, DocumentHost {
     };
     for (const action of command.actions) {
       switch (action.kind) {
+        case 'cardHeld':
+          operations.push({ op: 'set_card_held', id: action.id, base_revision: action.baseRevision, held: action.value });
+          break;
         case 'cardTemplate': {
           const { id, value, previous } = action;
           let revision = action.baseRevision;
@@ -733,7 +736,10 @@ export class Notebook implements NotebookClient, DocumentHost {
     }
   }
   private receiveReceipt(ack: Committed) {
-    for (const doc of this.docs.values()) doc.receiveCapabilities(ack.capabilities ?? []);
+    for (const doc of this.docs.values()) {
+      doc.receiveCapabilities(ack.capabilities ?? []);
+      doc.receiveCardRevisions(ack.cards ?? []);
+    }
     for (const session of ack.work_sessions ?? []) {
       if (!session.reversed && session.ended_at === null) this.activeWork = session;
       else if (this.activeWork?.id === session.id) this.activeWork = undefined;

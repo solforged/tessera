@@ -81,6 +81,7 @@ export type Operation =
   | { op: 'finish_review_session'; id: string; base_revision: number; state: ReviewSessionState; ended_at: number }
   | { op: 'grade_card'; id: string; base_revision: number; definition_revision: number; event_id: string; session_id: string | null; grade: Grade; reset: boolean; shown_front: string; shown_back: string; reviewed_at: number }
   | { op: 'reset_card'; id: string; base_revision: number; event_id: string; session_id: string | null; reviewed_at: number }
+  | { op: 'set_card_held'; id: string; base_revision: number; held: boolean }
   | { op: 'save_deck'; id: string; base_revision: number | null; name: string; query: CardQuery }
   | { op: 'delete_deck'; id: string; base_revision: number }
   | { op: 'save_task_view'; id: string; base_revision: number | null; name: string; query: TaskQuery }
@@ -358,6 +359,7 @@ export interface CardUnit {
   key: string;
   kind: CardKind;
   active: boolean;
+  held: boolean;
   definition_revision: number;
   front: string;
   back: string;

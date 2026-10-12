@@ -182,6 +182,8 @@ export type Edit =
   | { kind: 'subjectCriteria'; id: string; fields: string[]; previous: string[]; revision: number }
   | { kind: 'typePresentation'; id: string; revision: number; value: { plural: string | null; icon: string | null }; previous: { plural: string | null; icon: string | null } }
   | { kind: 'cardTemplate'; id: string; previous: CardTemplate | null; value: CardTemplateState | null }
+  /** Hold or release the supplied current card snapshots as one undo step. */
+  | { kind: 'cardHeld'; cards: { id: string; source_block_id: string; revision: number; held: boolean; active: boolean }[]; held: boolean }
   /** An entry per field under `parentId` after `after`, each with one value block holding `value`; one undo step, caret at the end of the first value. */
   | { kind: 'addFieldEntries'; parentId: string; after: string | null; entries: { fieldId: string; value: string }[] }
   | { kind: 'archive'; id: string; archived: boolean }

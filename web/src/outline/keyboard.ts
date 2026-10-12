@@ -13,7 +13,7 @@ export function createOutlineKeyboard(context: Pick<OutlineContext,
   | 'slashKey' | 'dateKey' | 'popupKey' | 'leaderMenu' | 'undo'
   | 'openTable' | 'zoomOut' | 'zoomTo' | 'rowRange' | 'statusMenu'
   | 'capabilities' | 'roots' | 'composition' | 'scroll' | 'depthReason'
-  | 'stepDepth' | 'clearSelection' | 'caret' | 'setRowRange'
+  | 'stepDepth' | 'clearSelection' | 'caret' | 'setRowRange' | 'makeCloze'
 >) {
   const {
     selected, doc, folds, fold, inlineFields, setSelected,
@@ -143,6 +143,7 @@ export function createOutlineKeyboard(context: Pick<OutlineContext,
     return false;
   }
   function commonKey(event: KeyboardEvent) {
+    if (event.metaKey && event.shiftKey && !event.ctrlKey && !event.altKey && event.key.toLowerCase() === 'c') { context.makeCloze(); return true; }
     if (event.metaKey && event.shiftKey && event.key.toLowerCase() === 't') { openTable(false); return true; }
     if (event.metaKey && event.key.toLowerCase() === 'z') { undo(event.shiftKey); return true; }
     const id = editing() ?? selected();

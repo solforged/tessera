@@ -438,3 +438,39 @@ fn thousand_member_apply_is_one_revisioned_transaction_and_waiting_is_capped() {
     assert_eq!(nb.card_templates(&id(1)).unwrap()[0].units_active, 940);
     assert_eq!(queue(&nb, stamp.at).len(), 2);
 }
+
+#[test]
+fn held_template_units_keep_identity_without_consuming_introductions() {
+    let (_dir, mut nb) = fixture(3, 3);
+    applied(&mut nb, true);
+    let now = tessera_core::now_ms();
+    let original = queue(&nb, now)[0].clone();
+    let hold = |card: &CardUnit, held| Operation::SetCardHeld {
+        id: card.id.clone(),
+        base_revision: card.revision,
+        held,
+    };
+    apply(&mut nb, vec![hold(&original, true)]);
+    assert_eq!(queue(&nb, now).len(), 2);
+    assert!(queue(&nb, now).iter().all(|card| card.id != original.id));
+    let forecast = nb.card_template_forecast(&id(50), 14, now).unwrap();
+    assert_eq!(forecast.existing_units, 3);
+    assert_eq!(forecast.cards_to_create, 0);
+    assert_eq!(forecast.load.iter().map(|day| day.added).sum::<usize>(), 2);
+    applied(&mut nb, false);
+    applied(&mut nb, true);
+    let restored = nb.card(&original.id).unwrap();
+    assert!(restored.held);
+    assert_eq!(restored.schedule, original.schedule);
+    apply(&mut nb, vec![hold(&restored, false)]);
+    assert_eq!(queue(&nb, now)[0].id, original.id);
+    let restored = nb.card(&original.id).unwrap();
+    grade(&mut nb, &restored, 9001, now);
+    assert_eq!(queue(&nb, now).len(), 1);
+    let reviewed = nb.card(&original.id).unwrap();
+    apply(&mut nb, vec![hold(&reviewed, true)]);
+    assert_eq!(queue(&nb, now).len(), 2);
+    let forecast = nb.card_template_forecast(&id(50), 14, now).unwrap();
+    assert_eq!(forecast.load[0].added, 2);
+    assert!(forecast.load.iter().all(|day| day.due == 0));
+}

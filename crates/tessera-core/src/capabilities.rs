@@ -225,6 +225,7 @@ pub struct CardUnit {
     pub key: String,
     pub kind: CardKind,
     pub active: bool,
+    pub held: bool,
     pub definition_revision: i64,
     pub front: String,
     pub back: String,

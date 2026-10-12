@@ -9,6 +9,8 @@ import type { IconName } from '../ui/Icon';
 import type { MenuItem } from '../ui/Menu';
 import { textTokens } from '../document/text-tokens';
 import type { OutlineContext } from './context';
+import { insertCard, makeCloze as wrapCloze } from './card-insert';
+import type { InsertCardKind } from './card-insert';
 
 export function createOutlineCommands(context: Pick<OutlineContext,
   | 'doc' | 'editing' | 'commitFieldEntry' | 'props' | 'selected'
@@ -20,7 +22,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
   | 'zoomTo' | 'zoom' | 'zoomOut' | 'anchored' | 'setShowArchived'
   | 'scheduleReport' | 'undo' | 'setConflicts' | 'indices' | 'setFolds'
   | 'setZoom' | 'selectedSet' | 'sourceResets' | 'setCompletionIndex' | 'setCompletion'
-  | 'rowAnchor' | 'rewriteEditing'
+  | 'rowAnchor' | 'rewriteEditing' | 'activeRange'
 >) {
   const {
     doc, editing, commitFieldEntry, props, selected, setMessage,
@@ -137,7 +139,8 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     { id: 'repeat-task', title: 'Repeat task', section: 'Outline', keys: ['Space r'], run: () => selected() && openPlanning(selected()!, 'repeat') },
     { id: 'clock', title: 'Clock in / out', section: 'Outline', keys: ['Space w'], run: () => selected() && capabilities.invoke(capabilities.clock(selected()!)) },
     { id: 'work-sessions', title: 'Work sessions', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.task ? undefined : 'Select a task.', run: () => selected() && capabilities.open(selected()!, 'work') },
-    { id: 'add-card', title: 'Add card', section: 'Editing', keys: ['Space c', '>>'], run: () => selected() && addCard(selected()!) },
+    { id: 'add-card', title: 'Add card', section: 'Editing', keys: ['Space c c', '>>'], run: () => selected() && addCard(selected()!) },
+    { id: 'make-cloze', title: 'Make cloze', section: 'Editing', keys: ['⌘⇧C'], run: makeCloze },
     { id: 'leader', title: 'Show leader keys', section: 'Editing', keys: ['Space'], run: () => selected() && leaderMenu(selected()!) },
     { id: 'make-project', title: 'Make project', section: 'Outline', keys: ['Space o'], disabledReason: () => selected() && doc.block(selected()!)?.project ? 'Already a project.' : undefined, run: () => selected() && capabilities.invoke(capabilities.edit(selected()!, { kind: 'project', id: selected()!, value: { status: 'active', outcome: '', deadline: null } })) },
     { id: 'make-perspective', title: 'Make perspective', section: 'Block', keys: ['Space v'], disabledReason: () => doc.block(selected() ?? '')?.kind !== 'block' ? 'Select an ordinary block.' : doc.block(selected()!)?.position ? 'Already a perspective.' : undefined, run: () => selected() && capabilities.invoke(capabilities.edit(selected()!, { kind: 'position', id: selected()!, value: true })) },
@@ -211,7 +214,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
       ...(parseCardText(doc.block(id)?.text ?? '').cards.length ? [
         { label: 'Review cards', section: 'Cards', action: () => props.onOpen({ kind: 'review' }, false) },
         { label: 'Show card source', action: () => capabilities.source(id) },
-      ] : [{ label: 'Add card', section: 'Cards', shortcut: 'Space c', action: () => addCard(id) }]),
+      ] : [{ label: 'Add card', section: 'Cards', shortcut: 'Space c c', action: () => addCard(id) }]),
       item('insert-below', { section: 'Move', icon: 'plus' }),
       item('indent', { icon: 'right' }),
       item('outdent', { icon: 'left' }),
@@ -250,14 +253,33 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     if (!doc.block(id)?.project) capabilities.invoke(capabilities.edit(id, { kind: 'project', id, value: { status: 'active', outcome: '', deadline: null } }));
     capabilities.open(id, 'project');
   }
-  /** Appends ` >> ` and edits the back of the card. */
-  function addCard(id: string) {
-    const front = (doc.block(id)?.text ?? '').trimEnd();
-    const text = `${front}${front ? ' ' : ''}>> `;
-    if (context.editor?.id === id && editing() === id) { if (rewriteEditing(id, { text, caret: text.length })) editAt(id, text.length, true); return; }
-    const result = doc.edit({ kind: 'text', id, text }, caret());
+  function addCard(id: string, kind: InsertCardKind = 'forward') {
+    const next = insertCard(doc.block(id)?.text ?? '', kind, caret()?.id === id ? caret()!.offset : undefined);
+    if (context.editor?.id === id && editing() === id) { if (rewriteEditing(id, next)) editAt(id, next.caret, true); return; }
+    const result = doc.edit({ kind: 'text', id, text: next.text }, caret());
     if (!result.ok) { setMessage(result.reason); return; }
-    editAt(id, text.length, true);
+    editAt(id, next.caret, true);
+  }
+  function makeCloze() {
+    const id = editing() ?? selected();
+    if (!id) return;
+    const range = context.activeRange();
+    if (range && range.anchor.id !== range.head.id) { setMessage('Select text in one block.'); return; }
+    const text = doc.block(id)?.text ?? '';
+    const from = range ? Math.min(range.anchor.offset, range.head.offset) : caret()?.id === id ? caret()!.offset : text.length;
+    const to = range ? Math.max(range.anchor.offset, range.head.offset) : from;
+    const next = wrapCloze(text, from, to);
+    if ('reason' in next) { setMessage(next.reason); return; }
+    // Range replacement is a discrete document history entry, separate from adjacent typing.
+    replaceSelection(next.text, 'text', { anchor: { id, offset: 0 }, head: { id, offset: text.length } }, range ?? undefined);
+    editAt(id, next.caret, true);
+  }
+  function cardMenu(id: string) {
+    const kinds: [string, string, InsertCardKind][] = [
+      ['c', 'Card', 'forward'], ['r', 'Reverse card', 'reverse'], ['b', 'Reversible card', 'both'],
+      ['m', 'Multi-line card', 'multiline'], ['l', 'List card', 'list'], ['z', 'Cloze', 'cloze'],
+    ];
+    keyboardMenu(id, 'Cards', kinds.map(([key, label, kind]) => ({ key, shortcut: key, label, action: () => addCard(id, kind) })));
   }
   /** Space on a selected row (or in Vim normal mode): one more letter acts on the block. */
   function leaderMenu(id: string) {
@@ -281,9 +303,9 @@ export function createOutlineCommands(context: Pick<OutlineContext,
         ? [leader('q', 'Question…', () => keyboardMenu(id, 'Question', investigationItems(id)), 'Question')]
         : [commandItem('q', ancestor ? 'make-answer' : 'make-question', 'Question')]),
       commandItem('v', block?.position ? 'remove-perspective' : 'make-perspective', 'Block'),
-      leader('c', 'Add card', () => addCard(id)),
+      leader('c', 'Add card', () => cardMenu(id)),
       leader('z', 'Zoom in', () => zoomTo(id)),
     ]);
   }
-  return { openTable, investigationItems, commandDefinitions, unregister, blockMenu, statusMenu, priorityMenu, openPlanning, openProject, leaderMenu, referenceMenu, copy };
+  return { openTable, investigationItems, commandDefinitions, unregister, blockMenu, statusMenu, priorityMenu, openPlanning, openProject, leaderMenu, makeCloze, referenceMenu, copy };
 }
