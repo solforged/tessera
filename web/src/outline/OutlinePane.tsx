@@ -1,5 +1,5 @@
 import { CardSummary } from './CardSummary';
-import { For, Show, batch, createEffect, createMemo, createResource, createSignal, mapArray, onCleanup, onMount, untrack } from 'solid-js';
+import { For, Show, batch, createEffect, createMemo, createResource, createSignal, mapArray, on, onCleanup, onMount, untrack } from 'solid-js';
 import { createVirtualizer, defaultRangeExtractor } from '@tanstack/solid-virtual';
 import type { Block, FieldDefinition } from '../api/types';
 import { api } from '../api/client';
@@ -12,6 +12,8 @@ import { createTemplateCache, startingTemplateFor } from '../fields/templates';
 import { TemplateEditor } from '../fields/TemplateEditor';
 import { pageSigla } from '../library/sigla';
 import { sourceReadingOrder } from '../library/source-order';
+import { isCatalogueField } from '../library/details';
+import { fieldHide } from '../fields/hide';
 import { PersonWorks } from '../library/PersonWorks';
 import { NoteAliases, NoteEyebrow, NoteLine } from '../notes/NoteHeader';
 import type { OutlineIndex } from '../document/outline-index';
@@ -25,8 +27,8 @@ import { BlockText, plainText } from './BlockText';
 import { isStableReference, textTokens } from '../document/text-tokens';
 import { PaneEditor } from './editor';
 import { createOutlineCapabilities } from './capabilities';
-import { inlineFieldValues, selectionIds, selectionRoots, survivingZoomPath, visibleIds } from './visibility';
-import type { DepthFilter } from './visibility';
+import { hiddenFieldEntries, inlineFieldValues, selectionIds, selectionRoots, survivingZoomPath, visibleIds } from './visibility';
+import type { DepthFilter, HiddenFieldEntry } from './visibility';
 import { CitationChip, SourceHeader } from './SourceHeader';
 import { SourceDetails } from './SourceDetails';
 import { GLOSS_FIELD, glossEntry, isGistName, isGlossName } from './gloss';
@@ -90,6 +92,31 @@ function Pane(props: OutlinePaneProps) {
   const [textRange, setTextRange] = createSignal<TextRange | null>(null);
   const [composition, setComposition] = createSignal(false);
   const [message, setMessage] = createSignal('');
+  const [notice, setNotice] = createSignal<{ label: string; undo?: () => Promise<void> } | null>(null);
+  const [noticeBusy, setNoticeBusy] = createSignal(false);
+  const [noticeHeld, setNoticeHeld] = createSignal(false);
+  function showNotice(label: string, undo?: () => Promise<void>) {
+    setMessage('');
+    setNoticeHeld(false);
+    setNotice({ label, undo });
+  }
+  createEffect(() => {
+    if (!notice() || noticeHeld() || noticeBusy()) return;
+    const timer = setTimeout(() => setNotice(null), 10000);
+    onCleanup(() => clearTimeout(timer));
+  });
+  // A newer outline edit returns keyboard history to this document. Until then the notice owns Undo.
+  createEffect(on(() => doc.saveState(), state => {
+    if (state !== 'saved') setNotice(null);
+  }, { defer: true }));
+  async function undoNotice() {
+    const current = notice();
+    if (!current?.undo || noticeBusy()) return;
+    setNoticeBusy(true);
+    try { await current.undo(); if (notice() === current) setNotice(null); }
+    catch (error) { setMessage(error instanceof Error ? error.message : String(error)); }
+    finally { setNoticeBusy(false); restoreFocus(); }
+  }
   const [menu, setMenu] = createSignal<MenuState | null>(null);
   const [renaming, setRenaming] = createSignal(false);
   const [title, setTitle] = createSignal('');
@@ -207,7 +234,8 @@ function Pane(props: OutlinePaneProps) {
   const [sourceDetailsOpen, setSourceDetailsOpen] = createSignal(false);
   const [sourceColors, setSourceColors] = createSignal<string[]>([]);
   const [sourceGrouped, setSourceGrouped] = createSignal(true);
-  const unfoldedIds = createMemo(() => {
+  const [revealedFields, setRevealedFields] = createSignal<ReadonlySet<string>>(new Set());
+  const sourceVisibleIds = createMemo(() => {
     const visible = visibleIds(doc, zoom(), folds(), showArchived(), undefined, depthFilter());
     if (!doc.root()?.source || zoom()) return visible;
     // Field definitions distinguish source metadata from ordinary outline rows; never guess while loading.
@@ -218,11 +246,65 @@ function Pane(props: OutlinePaneProps) {
       const parent = doc.outline.parentOf(id), root = parent === props.pageId ? id : roots.get(parent) ?? id;
       roots.set(id, root);
       const block = doc.block(root);
-      if (sourceFieldName(block?.text ?? '', definitionsById())) return showFields;
+      const name = sourceFieldName(untrack(() => block?.text ?? ''), definitionsById());
+      if (name && isCatalogueField(name)) return showFields;
       const citation = block?.citations.find(value => value.source_id === props.pageId);
       return !citation || !colors.length || !!citation.color && colors.includes(citation.color);
     });
-    return sourceReadingOrder(doc, shown, definitionsById());
+    // Authored non-catalogue fields keep their normal outline position; only source-owned groups reorder.
+    const ordinary = new Set(shown.filter(id => doc.outline.parentOf(id) === props.pageId && untrack(() => {
+      const name = sourceFieldName(doc.block(id)?.text ?? '', definitionsById());
+      return !!name && !isCatalogueField(name);
+    })));
+    if (!ordinary.size) return sourceReadingOrder(doc, shown, definitionsById());
+    const groups = new Map<string, string[]>();
+    for (const id of shown) {
+      const root = roots.get(id)!;
+      const group = groups.get(root);
+      if (group) group.push(id); else groups.set(root, [id]);
+    }
+    const ordered = sourceReadingOrder(doc, shown.filter(id => !ordinary.has(roots.get(id)!)), definitionsById());
+    const remaining = [...new Set(ordered.map(id => roots.get(id)!))];
+    let index = 0;
+    return [...groups].flatMap(([root, group]) => ordinary.has(root) ? group : groups.get(remaining[index++]!)!);
+  });
+  const hideCandidates = mapArray(createMemo(() => {
+    const visible = sourceVisibleIds(), known = definitionsById();
+    return untrack(() => visible.filter(id => known.has(fieldEntryId(doc.block(id)?.text ?? '') ?? '')));
+  }), id => createMemo((): HiddenFieldEntry => {
+    const hide = fieldHide(definitionsById().get(fieldEntryId(doc.block(id)?.text ?? '') ?? ''));
+    doc.archivedVersion();
+    const values = doc.outline.children(id).filter(value => !doc.isArchived(value));
+    const descendants: string[] = [];
+    const start = doc.outline.indexOf(id);
+    for (let index = start + 1, end = doc.outline.subtreeEnd(start); index < end; index++) descendants.push(doc.outline.idAt(index));
+    return { id, hide, values: values.map(id => ({ id, blank: hide === 'when_empty' ? !doc.block(id)?.text.trim() : false })), descendants };
+  }, undefined, { equals: (a, b) => a.hide === b.hide && a.values.length === b.values.length && a.values.every((value, index) => value.id === b.values[index]!.id && value.blank === b.values[index]!.blank) && a.descendants.length === b.descendants.length && a.descendants.every((id, index) => id === b.descendants[index]) }));
+  const hiddenCounts = createMemo(() => {
+    const counts = new Map<string, number>();
+    const hidden = hiddenFieldEntries(hideCandidates().map(value => value()), new Set(), false);
+    for (const id of hidden) {
+      const owner = doc.outline.parentOf(id);
+      counts.set(owner, (counts.get(owner) ?? 0) + 1);
+    }
+    return counts;
+  });
+  const hiddenEntries = createMemo(() => {
+    const retained = new Set([editing(), selected()].filter((id): id is string => !!id));
+    const rows = sourceVisibleIds(), range = rowRange(), text = textRange();
+    if (range) for (const id of selectionIds(rows, { anchor: { id: range.anchor, offset: 0 }, head: { id: range.head, offset: 0 } })) retained.add(id);
+    if (text) for (const id of selectionIds(rows, text)) retained.add(id);
+    const revealed = revealedFields();
+    return hiddenFieldEntries(hideCandidates().map(value => value()).filter(entry => !revealed.has(doc.outline.parentOf(entry.id))), retained, false);
+  }, undefined, { equals: (a, b) => a.size === b.size && [...a].every(id => b.has(id)) });
+  const unfoldedIds = createMemo(() => {
+    const hidden = hiddenEntries(), visible = sourceVisibleIds();
+    if (!hidden.size) return visible;
+    const omitted = new Set(hidden);
+    return visible.filter(id => {
+      if (omitted.has(doc.outline.parentOf(id))) omitted.add(id);
+      return !omitted.has(id);
+    });
   });
   const unfoldedSet = createMemo(() => new Set(unfoldedIds()));
   // Only field entries can fold their values inline. Field entries come from structural edits (shorthand
@@ -292,7 +374,7 @@ function Pane(props: OutlinePaneProps) {
       if (!block || block.archived && !showArchived()) continue;
       const name = sourceFieldName(block.text, definitionsById());
       const citation = name ? undefined : block.citations.find(value => value.source_id === props.pageId);
-      if (name) fields.set(id, name);
+      if (name && isCatalogueField(name)) fields.set(id, name);
       else if (citation) {
         const title = citation.chapter_title ?? null;
         if (sourceGrouped() && title && title !== chapter) chapters.set(id, `${title}${counts.has(title) ? ` · ${counts.get(title)}` : ''}`);
@@ -540,6 +622,8 @@ function Pane(props: OutlinePaneProps) {
     if (!indices().has(id)) { selectSurvivor(id, ids()); return; }
     const previous = editing();
     if (previous && previous !== id && doc.block(previous) && commitFieldEntry(previous)) return;
+    if (previous && previous !== id) pruneEmptyValue(previous);
+    if (openValueEditor(id)) return;
     if (activate) props.onActivate();
     offset = Math.max(0, Math.min(offset, doc.block(id)?.text.length ?? 0));
     setSelected(id);
@@ -551,11 +635,12 @@ function Pane(props: OutlinePaneProps) {
     queueMicrotask(() => mountEditor(id));
     scheduleReport();
   }
-  function rowFocus(id: string, extend = false) {
+  function rowFocus(id: string, extend = false, keepValue = false) {
     if (disposed || composition()) return;
     if (!indices().has(id)) { selectSurvivor(id, ids()); return; }
     const previous = editing();
     if (previous && doc.block(previous) && commitFieldEntry(previous)) return;
+    if (previous && !(keepValue && previous === id)) { const replacement = pruneEmptyValue(previous); if (replacement && id === previous) id = replacement; }
     focusEpoch++;
     focusRequest = null;
     props.onActivate();
@@ -615,6 +700,10 @@ function Pane(props: OutlinePaneProps) {
   }
   function undo(redo = false) {
     if (disposed || composition()) return;
+    if (!redo && notice()?.undo) {
+      scroll.parentElement?.querySelector<HTMLButtonElement>('.outline-notices .notice-undo')?.focus();
+      return;
+    }
     const before = ids();
     focusRestoresPending++;
     const result = redo ? doc.redo() : doc.undo();
@@ -906,6 +995,7 @@ function Pane(props: OutlinePaneProps) {
     setCaret,
     scheduleReport,
     setMessage,
+    showNotice,
     get disposed() { return disposed; },
     rowAnchor,
     editAt,
@@ -919,6 +1009,8 @@ function Pane(props: OutlinePaneProps) {
     activeRange,
     fieldConversion,
     get commandDefinitions() { return commandDefinitions; },
+    fieldMenu: (id, anchor) => fieldMenu(id, anchor),
+    pickField: (owner, anchor) => fieldSheet.pick(owner, anchor),
     openPlanning: (id, kind) => openPlanning(id, kind),
     priorityMenu: (id) => priorityMenu(id),
     openProject: (id) => openProject(id),
@@ -998,14 +1090,18 @@ function Pane(props: OutlinePaneProps) {
     editedConflicts,
     setEditedConflicts,
   };
-  const { setCompletion, setCompletionIndex, offerValue, updateCompletion, updateTriggers, taskPrefix, rewriteEditing, referenceInput, forgetReferenceSpace, slashKey, dateKey, popupKey, CompletionPopups } = createOutlineCompletions(context);
-  const { openTable, investigationItems, commandDefinitions, unregister, blockMenu, statusMenu, priorityMenu, openPlanning, openProject, leaderMenu, makeCloze, referenceMenu, copy } = createOutlineCommands(context);
-  const { horizontal, adjacent, split, editorKey, structuralKey, resetRowKey, resetVerticalGoal } = createOutlineKeyboard(context);
+  const { setCompletion, setCompletionIndex, offerValue, openValueEditor, valueEditorId, updateCompletion, updateTriggers, taskPrefix, rewriteEditing, referenceInput, forgetReferenceSpace, slashKey, dateKey, popupKey, CompletionPopups } = createOutlineCompletions(context);
+  const { openTable, investigationItems, commandDefinitions, unregister, blockMenu, fieldMenu, statusMenu, priorityMenu, openPlanning, openProject, leaderMenu, makeCloze, referenceMenu, copy } = createOutlineCommands(context);
+  const { horizontal, adjacent, split, editorKey, structuralKey, pruneEmptyValue, resetRowKey, resetVerticalGoal } = createOutlineKeyboard(context);
   const { selectedOffsets, pointerStart, pointerMove, pointerEnd, clipboard, paste, beforeInput } = createOutlineInteractions(context);
-  const fieldSheet = createFieldSheet(context, { offerValue, onField: field => setCreatedFields(previous => previous.some(existing => existing.id === field.id) ? previous : [...previous, field]) });
+  const fieldSheet = createFieldSheet(context, {
+    offerValue, onField: field => setCreatedFields(previous => previous.some(existing => existing.id === field.id) ? previous : [...previous, field]),
+    hiddenCounts, revealed: revealedFields,
+    reveal: owner => setRevealedFields(previous => { const next = new Set(previous); next.has(owner) ? next.delete(owner) : next.add(owner); return next; }),
+  });
   const drag = createOutlineDrag(context);
   const { related, relatedError, apparatus, holders, linkedPages, Related, Backlinks, UnlinkedMentions, mentionsAvailable, ReferenceCount } = createOutlineRelated(context);
-  const { Row, TaskSummary, QuestionSummary } = createOutlineRows(context, fieldSheet, drag, ReferenceCount);
+  const { Row, TaskSummary, QuestionSummary } = createOutlineRows(context, fieldSheet, drag, ReferenceCount, openValueEditor);
   const { CapabilityPopups } = createCapabilityPopups(context);
 
   onMount(() => {
@@ -1042,7 +1138,16 @@ function Pane(props: OutlinePaneProps) {
         const matches = editingNames.error ? undefined : editingNames()?.get(foldName(token.id!));
         if (editor?.id && matches && matches.length > 1) setMenu({ anchor, label: 'Choose a page', header: <div class="menu-section">“{token.id}” names {matches.length} pages</div>, items: nameMenuItems(props.notebook, editor.id, token, matches, setMessage) });
       },
-      blur: () => { if (editor?.id && editing() === editor.id) commitFieldEntry(editor.id, false); },
+      blur: () => {
+        const id = editor?.id;
+        if (!id) return;
+        if (editing() === id) commitFieldEntry(id, false);
+        queueMicrotask(() => {
+          if (disposed || composition() || valueEditorId() === id) return;
+          const replacement = pruneEmptyValue(id);
+          if (replacement && editing() === id) { setEditing(null); setSelected(replacement); setCaret({ id: replacement, offset: 0 }); }
+        });
+      },
       text: (text, at) => measure('typing', () => {
         resetVerticalGoal();
         if (compositionSelection) return;
@@ -1200,7 +1305,7 @@ function Pane(props: OutlinePaneProps) {
     }
     return groups;
   });
-  return <div ref={scroll} class="outline-pane" classList={{ 'has-apparatus': apparatus(), 'has-sigla': sigla().size > 0, 'source-page': !!doc.root()?.source && !zoom(), 'outline-dragging': drag.dragging() }} style={{ visibility: sourceReady() ? undefined : 'hidden' }} aria-busy={!sourceReady()} data-pane={props.pane} tabIndex={0} role="tree" aria-label="Page outline" aria-owns={[...virtualItems().keys()].map(id => `outline-${props.pane}-${id}`).join(' ')} onFocusIn={props.onActivate} onFocusOut={report} onKeyDown={event => { finishFoldMotion(); structuralKey(event); }} onWheel={() => { finishFoldMotion(); cancelScroll(); }} onScroll={scrolled}>
+  return <><div ref={scroll} class="outline-pane" classList={{ 'has-apparatus': apparatus(), 'has-sigla': sigla().size > 0, 'source-page': !!doc.root()?.source && !zoom(), 'outline-dragging': drag.dragging() }} style={{ visibility: sourceReady() ? undefined : 'hidden' }} aria-busy={!sourceReady()} data-pane={props.pane} tabIndex={0} role="tree" aria-label="Page outline" aria-owns={[...virtualItems().keys()].map(id => `outline-${props.pane}-${id}`).join(' ')} onFocusIn={props.onActivate} onFocusOut={report} onKeyDown={event => { finishFoldMotion(); structuralKey(event); }} onWheel={() => { finishFoldMotion(); cancelScroll(); }} onScroll={scrolled}>
     <Show when={apparatus()}><Apparatus notebook={props.notebook} holders={holders()} linked={linkedPages()} sources={citedSources().flatMap(id => sigla().has(id) ? [{ id, siglum: sigla().get(id)! }] : [])} onOpen={props.onOpen} /></Show>
     <Show when={sourceDetailsOpen() && doc.root()?.source}><SourceDetails notebook={props.notebook} pageId={props.pageId} onOpen={props.onOpen} onClose={() => setSourceDetailsOpen(false)} /></Show>
     <div ref={heading} class="outline-heading">
@@ -1286,5 +1391,14 @@ function Pane(props: OutlinePaneProps) {
     <Show keyed when={mergeTarget()}>{target => <PageMergeConfirmation anchor={target.anchor} notebook={props.notebook} from={target.from} into={target.page} onDismiss={() => setMergeTarget(undefined)} onMerged={id => { setMergeTarget(undefined); props.onOpen({ kind: 'page', pageId: id }, false); }} />}</Show>
     <CapabilityPopups />
     <CompletionPopups />
-  </div>;
+    <fieldSheet.Popups />
+  </div>
+    <div class="outline-notices">
+      <Show when={notice()}>{value => <div class="undo-toast" role="status" onPointerEnter={() => setNoticeHeld(true)} onPointerLeave={() => setNoticeHeld(false)} onFocusIn={() => setNoticeHeld(true)} onFocusOut={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setNoticeHeld(false); }}>
+        <span>{value().label}</span>
+        <Show when={value().undo}><Button class="notice-undo" icon="undo" disabled={noticeBusy()} onClick={() => { void undoNotice(); }}>Undo</Button></Show>
+        <Button icon="close" label="Dismiss change notice" disabled={noticeBusy()} onClick={() => setNotice(null)} />
+      </div>}</Show>
+    </div>
+  </>;
 }

@@ -16,6 +16,7 @@
 import type { Accessor } from 'solid-js';
 import type { Block, BlockKind, ChangeEvent, Citation, Committed, FieldDefinition, FieldKind, Operation, PassagePoint, ProjectState, SettingsView, SourceRecord, SourceState, TaskState, WorkSession } from '../api/types';
 import type { PositionInfo } from '../api/types';
+import type { FieldHide } from '../fields/hide';
 import type { AssessmentInfo, AssessmentState, QuestionInfo, QuestionState, QuoteState } from '../api/types';
 import type { ApiClient } from '../api/client';
 import type { CardTemplate, CardTemplateState } from '../api/types';
@@ -215,6 +216,7 @@ export type Edit =
   | { kind: 'addField'; name: string; value: FieldKind }
   /** The definition snapshot supplies the previous kind and revision for undo. */
   | { kind: 'fieldKind'; definition: FieldDefinition; value: FieldKind }
+  | { kind: 'fieldHide'; definition: FieldDefinition; value: FieldHide }
   | { kind: 'fieldTargets'; definition: FieldDefinition; targets: string[] }
   /** Replace the subject's explicit criteria; an empty previous list restores derivation on undo. */
   | { kind: 'subjectCriteria'; id: string; fields: string[]; previous: string[]; revision: number }

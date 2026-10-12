@@ -1,10 +1,21 @@
 import { EditorSelection } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
-import { matchFieldEntry } from '../table/query';
+import { fieldEntryId, matchFieldEntry } from '../table/query';
+import type { PageDocument } from '../document/contract';
 import { referenceBeside } from '../document/text-tokens';
 import { boundaryDeletion } from '../document/outline-mechanics';
 import type { OutlineContext } from './context';
 
+/** Only an additional blank leaf value is disposable; the entry's first value is always kept. */
+export function emptyExtraValuePrevious(doc: Pick<PageDocument, 'block' | 'outline' | 'isArchived'>, id: string, definitions: ReadonlyMap<string, unknown>): string | null {
+  const block = doc.block(id);
+  if (!block || block.text.trim() || doc.outline.children(id).length) return null;
+  const parent = doc.outline.parentOf(id);
+  if (!definitions.has(fieldEntryId(doc.block(parent)?.text ?? '') ?? '')) return null;
+  const values = doc.outline.children(parent).filter(value => !doc.isArchived(value));
+  const index = values.indexOf(id);
+  return index > 0 ? values[index - 1]! : null;
+}
 const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 export function createOutlineKeyboard(context: Pick<OutlineContext,
   | 'selected' | 'doc' | 'folds' | 'fold' | 'inlineFields'
@@ -15,6 +26,7 @@ export function createOutlineKeyboard(context: Pick<OutlineContext,
   | 'openTable' | 'zoomOut' | 'zoomTo' | 'zoom' | 'rowRange' | 'statusMenu'
   | 'capabilities' | 'roots' | 'composition' | 'scroll' | 'depthReason'
   | 'stepDepth' | 'clearSelection' | 'caret' | 'setRowRange' | 'makeCloze'
+  | 'definitionsById' | 'setMessage'
 >) {
   const {
     selected, doc, folds, fold, inlineFields, setSelected,
@@ -29,6 +41,14 @@ export function createOutlineKeyboard(context: Pick<OutlineContext,
   // The editor remounts when a row changes, so its selection cannot own a cross-row navigation goal.
   let preferredX: number | undefined;
   function resetVerticalGoal() { preferredX = undefined; }
+  function pruneEmptyValue(id: string): string | null {
+    const previous = emptyExtraValuePrevious(doc, id, context.definitionsById());
+    if (!previous) return null;
+    // The document only coalesces text edits, so this structural cleanup is a separate undo step.
+    const result = doc.edit({ kind: 'delete', ids: [id] });
+    if (!result.ok) { context.setMessage(result.reason); return null; }
+    return previous;
+  }
   function horizontal(direction: 'left' | 'right') {
     const id = selected();
     if (!id) return;
@@ -138,7 +158,7 @@ export function createOutlineKeyboard(context: Pick<OutlineContext,
     }
     if (forgetReferenceSpace(event) || slashKey(event) || dateKey(event) || popupKey(event) || fieldKey(event, view)) return true;
     if (commonKey(event)) return true;
-    if (event.key === 'Escape' && (!props.vim || context.editor?.mode() === 'normal')) { if (editing()) rowFocus(editing()!); return true; }
+    if (event.key === 'Escape' && (!props.vim || context.editor?.mode() === 'normal')) { const id = editing(); if (id) rowFocus(pruneEmptyValue(id) ?? id); return true; }
     if (props.vim && context.editor?.mode() !== 'insert') {
       if (event.key === ' ' && context.editor?.mode() === 'normal' && editing() && !event.metaKey && !event.ctrlKey && !event.altKey) { leaderMenu(editing()!); return true; }
       if (context.editor?.vimUndoKey(event)) { undo(); return true; }
@@ -256,5 +276,5 @@ export function createOutlineKeyboard(context: Pick<OutlineContext,
     if (event.ctrlKey && key.toLowerCase() === 'r') { undo(true); return true; }
     return false;
   }
-  return { horizontal, adjacent, split, editorKey, structuralKey, resetVerticalGoal, resetRowKey: () => { rowKey = ""; } };
+  return { horizontal, adjacent, split, editorKey, structuralKey, pruneEmptyValue, resetVerticalGoal, resetRowKey: () => { rowKey = ""; } };
 }

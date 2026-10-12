@@ -31,8 +31,8 @@ export function FieldPane(props: {
     }
   }}>
     {error() && <p class="error" role="alert">{error()}</p>}
-    <FieldDetails fieldId={props.target.fieldId} previewKind={props.target.previewKind} notebook={props.notebook} document={doc()} onOpen={props.onOpen}
+    <FieldDetails fieldId={props.target.fieldId} previewKind={props.target.previewKind} section={props.target.section} notebook={props.notebook} document={doc()} onOpen={props.onOpen}
       onPreview={previewKind => props.onTargetChange({ kind: 'field', fieldId: props.target.fieldId, ...(previewKind ? { previewKind } : {}) })}
-      onReady={() => { if (!restored) { restored = true; requestAnimationFrame(() => { scroll.scrollTop = props.view.scroll; }); } }} />
+      onReady={() => { if (!restored) { restored = true; requestAnimationFrame(() => { if (!props.target.section) scroll.scrollTop = props.view.scroll; }); } }} />
   </div>;
 }

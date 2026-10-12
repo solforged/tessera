@@ -59,6 +59,7 @@ function DefinitionsPane(props: FieldsPaneProps) {
   const pageFields = createMemo(() => visibleFields().slice(page() * 100, (page() + 1) * 100));
   createEffect(() => { search(); setPage(0); });
   const pageId = createMemo(() => data()?.page_id);
+  let pane!: HTMLDivElement;
   let scroll!: HTMLDivElement;
   let restoredScroll = false;
   onMount(() => {
@@ -113,7 +114,7 @@ function DefinitionsPane(props: FieldsPaneProps) {
     if (!result.ok) { setCreateError(result.reason); return; }
     closeCreation(); setNewName(''); setCreateError(''); setSearch('');
   };
-  return <div class="fields-pane" data-inspector={wide() && selected() ? '' : undefined} role="region" tabIndex={0} aria-label="Fields" onFocusIn={props.onActivate} onKeyDown={event => {
+  return <div ref={pane} class="fields-pane" data-inspector={wide() && selected() ? '' : undefined} role="region" tabIndex={0} aria-label="Fields" onFocusIn={props.onActivate} onKeyDown={event => {
     if (!(event.target instanceof HTMLInputElement) && (event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === 'z') {
       event.preventDefault(); event.stopPropagation();
       if (event.shiftKey) doc()?.redo(); else doc()?.undo();
@@ -127,7 +128,7 @@ function DefinitionsPane(props: FieldsPaneProps) {
       <input class="input fields-search" type="search" aria-label="Filter fields" placeholder="Filter fields…" value={search()} onInput={event => setSearch(event.currentTarget.value)} />
       <Button icon="plus" disabled={!ready()} aria-haspopup="dialog" aria-expanded={!!creating()} onClick={event => { setNewName(search().trim()); setNewKind('text'); setNewKindMenu(null); setCreateError(''); setCreating(event.currentTarget); }}>New field</Button>
       <Button icon="edit" disabled={!pageId()} onClick={event => props.onOpen({ kind: 'page', pageId: pageId()! }, event.shiftKey)}>Edit definitions</Button>
-      <div class="fields-actions"><Button icon="undo" label="Undo field changes" disabled={!doc()?.canUndo()} onClick={() => doc()?.undo()} /><Button icon="redo" label="Redo field changes" disabled={!doc()?.canRedo()} onClick={() => doc()?.redo()} /></div>
+      <div class="fields-actions"><Button icon="undo" label="Undo field changes" disabled={!doc()?.canUndo()} onClick={() => { pane.focus({ preventScroll: true }); doc()?.undo(); }} /><Button icon="redo" label="Redo field changes" disabled={!doc()?.canRedo()} onClick={() => { pane.focus({ preventScroll: true }); doc()?.redo(); }} /></div>
     </div>
     <Show when={error()}><div class="pane-error" role="alert">{error()} <Button onClick={() => setRetry(value => value + 1)}>Retry</Button></div></Show>
     <Show when={documentError()}><div class="pane-error" role="alert">{documentError()}</div></Show>

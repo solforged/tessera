@@ -70,7 +70,7 @@ export type OpenTarget =
   /** `blockId` starts a review of that block's cards. */
   | { kind: 'review'; deckId?: string; blockId?: string }
   | { kind: 'fields'; typeId?: string }
-  | { kind: 'field'; fieldId: string; previewKind?: FieldKind }
+  | { kind: 'field'; fieldId: string; previewKind?: FieldKind; section?: 'options' | 'targets' }
   | { kind: 'cards'; typeId: string; applyId?: string }
   | { kind: 'settings'; section?: 'devices'; deviceId?: string | null }
   | { kind: 'library'; tab?: LibraryTab; add?: boolean; details?: readonly string[] }

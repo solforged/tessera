@@ -2,6 +2,27 @@ import type { Caret, PageDocument, TextRange } from '../document/contract';
 import type { OutlineIndex } from '../document/outline-index';
 import type { Depth } from '../shell/contract';
 import { fieldEntryId } from '../table/query';
+import type { FieldHide } from '../fields/hide';
+
+export interface HiddenFieldEntry {
+  id: string;
+  hide: FieldHide;
+  values: readonly { id: string; blank: boolean }[];
+  /** Includes nested children, so a retained descendant keeps its entire entry visible. */
+  descendants: readonly string[];
+}
+
+/** Outline-only hiding. Tables and queries deliberately do not use this decision. */
+export function hiddenFieldEntries(entries: readonly HiddenFieldEntry[], retained: ReadonlySet<string>, revealed: boolean): Set<string> {
+  const hidden = new Set<string>();
+  if (revealed) return hidden;
+  for (const entry of entries) {
+    if (entry.hide === 'never' || entry.hide === 'when_empty' && entry.values.some(value => !value.blank)) continue;
+    if (retained.has(entry.id) || entry.values.some(value => retained.has(value.id)) || entry.descendants.some(id => retained.has(id))) continue;
+    hidden.add(entry.id);
+  }
+  return hidden;
+}
 
 /** The values that replace a known field entry in the visible list: all of its children, when none has children of its own. */
 export function inlineFieldValues(doc: PageDocument, id: string, definitions: ReadonlyMap<string, unknown>): readonly string[] | null {

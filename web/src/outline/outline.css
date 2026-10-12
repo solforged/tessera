@@ -5,6 +5,9 @@
 .outline-heading, .related-sections, .add-first-block { max-width: var(--measure); margin-inline: auto; }
 .outline-list { width: calc(100% + var(--gutter)); max-width: calc(var(--measure) + var(--gutter)); margin-left: max(calc(-1 * var(--gutter)), calc((100% - var(--measure)) / 2 - var(--gutter))); margin-right: auto; }
 .outline-heading { padding-bottom: var(--page-head-gap); }
+/* The empty root sheet starts at the same offset as the list that replaces its first slot. */
+.outline-heading:has(> .field-slots) { padding-bottom: 0; }
+.outline-heading > .field-slots { margin-top: var(--page-head-gap); }
 
 /* The apparatus appears only when its real side column fits beside the text measure.
    Sigla retain their body rail, but do not add padding to the page heading. */
@@ -105,10 +108,11 @@
 .outline-reference .icon { width: var(--icon-size-small); height: var(--icon-size-small); display: inline; vertical-align: -2px; margin-right: var(--space-4); }
 .field-entry .static-text, .field-entry .outline-reference, .field-entry .editor-host { color: var(--muted); text-decoration: none; }
 /* Inline field label: the icon takes the bullet's slot, the name starts on the text edge. */
-.outline-field-label { display: inline-flex; align-items: center; flex: 0 0 calc(var(--target-size) + var(--space-48) * 2.5); width: calc(var(--target-size) + var(--space-48) * 2.5); min-height: var(--target-size); padding: 0 var(--space-8) 0 0; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--muted); font: inherit; text-align: left; cursor: text; }
+.outline-field-label { display: inline-flex; align-items: flex-start; flex: 0 0 calc(var(--target-size) + var(--space-48) * 3); width: calc(var(--target-size) + var(--space-48) * 3); min-height: var(--target-size); padding: 0 var(--space-8) 0 0; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--muted); font: inherit; text-align: left; cursor: pointer; }
 .outline-field-label:hover { color: var(--text); }
-.outline-field-label span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.outline-field-label .icon { flex: none; width: var(--target-size); height: var(--icon-size-small); }
+/* Long names wrap to a second line rather than losing their ending; the icon stays on the first line. */
+.outline-field-label span, .field-slot-label span { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: break-word; }
+.outline-field-label .icon { flex: none; width: var(--target-size); height: var(--icon-size-small); margin-block: calc((var(--target-size) - var(--icon-size-small)) / 2); }
 /* The gloss reads as the page's standfirst: serif, muted, on the text edge, with no label. Clicking edits it. */
 .row-gloss .outline-field-label { display: none; }
 .row-gloss .outline-body { margin-left: var(--target-size); padding-bottom: var(--space-8); color: var(--muted); font: var(--weight-body) var(--text-gloss)/var(--line-gloss) var(--font-display); font-variation-settings: var(--optical-quote); }
@@ -142,29 +146,38 @@
 .field-draft-icon .icon { width: var(--icon-size-small); height: var(--icon-size-small); }
 .field-draft-name { color: var(--muted); }
 .field-draft-hint { margin-left: var(--space-8); padding: 0 var(--space-4); border-radius: var(--radius-control); background: var(--accent-tint); color: var(--accent); font-size: var(--text-meta); line-height: var(--line-meta); white-space: nowrap; }
-.choice-value .static-text { font-size: var(--text-meta); line-height: var(--line-meta); min-height: calc(var(--line-meta) + 2 * var(--rule-width)); }
+/* Pills sit on the label's line: the meta line is centred in the body line. */
+.choice-value .static-text { font-size: var(--text-meta); line-height: var(--line-meta); min-height: calc(var(--line-meta) + 2 * var(--rule-width)); padding-block: calc((var(--line-body) - var(--line-meta)) / 2 - var(--rule-width)); }
 .outline-value-pill { display: inline-block; max-width: calc(100% - var(--space-2)); vertical-align: top; padding: 0 var(--space-8); margin-right: var(--space-2); border: var(--rule-width) solid var(--line); border-radius: var(--radius-pill); background: var(--raised); font-size: var(--text-meta); line-height: var(--line-meta); }
 .outline-value-pill .outline-reference { color: var(--text); text-decoration: none; }
 .outline-value-pill .outline-reference:hover { text-decoration: underline; }
 .choice-value .editor-host { padding: var(--rule-width) calc(var(--space-8) + var(--rule-width)); margin-right: var(--space-2); font-size: var(--text-meta); line-height: var(--line-meta); }
 .choice-value .editor-host .cm-content { min-height: var(--line-meta); }
-/* The selected block's sheet: its missing template fields and Add field follow its last entry, on the field labels' edge.
-   The slots span the row's full width on the canvas, so the anchor row's hover and selection stay on its own line. */
+.outline-value-text { padding: 0; border: 0; border-radius: 0; background: transparent; color: inherit; font: inherit; line-height: inherit; text-align: left; vertical-align: top; cursor: pointer; }
+.outline-value-text:hover { background: transparent; color: inherit; }
+.outline-reading-problem { text-decoration: underline dotted var(--warning); text-underline-offset: var(--space-4); }
+/* Every owner's missing template fields stay below its last entry, independent of selection.
+   Slots span the canvas so the anchor row's hover and selection stay on its own line. */
 .outline-row:has(> .field-slots) { flex-wrap: wrap; padding-bottom: 0; }
-.field-slots { flex: 0 0 calc(100% + var(--depth) * var(--indent-width) + 2px); display: flex; flex-direction: column; box-sizing: border-box; margin: var(--space-2) 0 0 calc(-2px - var(--depth) * var(--indent-width)); padding: 0 0 var(--space-2) calc(2px + var(--gutter) + var(--slot-depth) * var(--indent-width)); background: var(--canvas); }
+.field-slots { position: relative; flex: 0 0 calc(100% + var(--depth) * var(--indent-width) + 2px); display: flex; flex-direction: column; box-sizing: border-box; margin: var(--space-2) 0 0 calc(-2px - var(--depth) * var(--indent-width)); padding: 0 0 var(--space-2) calc(2px + var(--gutter) + var(--slot-depth) * var(--indent-width)); background: var(--canvas); }
 .outline-heading > .field-slots { margin-left: 0; padding-left: calc(2px + var(--slot-depth) * var(--indent-width)); }
 @container outline-pane (max-width: 856px) {
   .outline-heading > .field-slots { padding-left: calc(2px + var(--gutter) + var(--slot-depth) * var(--indent-width)); }
 }
 .field-slot { display: flex; align-items: center; min-height: var(--row-height); padding: 0; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--faint); font: inherit; text-align: left; cursor: pointer; transition: color var(--motion-fast) var(--motion-ease), background-color var(--motion-fast) var(--motion-ease); }
 .field-slot:is(:hover, :focus-visible) { background: var(--hover); color: var(--muted); }
-.field-slot-label { display: inline-flex; align-items: center; flex: 0 0 calc(var(--target-size) + var(--space-48) * 2.5); min-width: 0; padding-right: var(--space-8); }
-.field-slot-label span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.field-slot-label .icon { flex: none; width: var(--target-size); height: var(--icon-size-small); }
-/* Empty reads like an empty block's prompt, whether it is a real entry or a template slot. */
-.field-slot-empty, .field-empty-value { color: var(--faint); opacity: .65; }
-.field-empty-value { padding: 0; border: 0; background: transparent; font: inherit; cursor: text; }
-.field-empty-value:hover { opacity: 1; }
+.field-slot-label { display: inline-flex; align-items: flex-start; flex: 0 0 calc(var(--target-size) + var(--space-48) * 3); min-width: 0; padding-right: var(--space-8); }
+.field-slot-label .icon { flex: none; width: var(--target-size); height: var(--icon-size-small); margin-block: calc((var(--target-size) - var(--icon-size-small)) / 2); }
+/* Blank values keep a full-width hit target without pretending to contain a value. */
+.field-slot-value { flex: 1; min-width: 0; min-height: var(--target-size); }
+.field-empty-value { display: block; width: 100%; min-height: var(--target-size); padding: 0; border: 0; background: transparent; font: inherit; cursor: text; }
+.field-area-controls { position: absolute; right: 0; bottom: var(--space-2); display: flex; align-items: center; gap: var(--space-8); min-height: var(--row-height); pointer-events: none; }
+.field-area-add, .field-area-hidden { display: inline-flex; align-items: center; gap: var(--space-4); padding: 0 var(--space-4); min-height: var(--target-size); border: 0; border-radius: var(--radius-control); background: var(--canvas); color: var(--faint); font: inherit; font-size: var(--text-meta); cursor: pointer; pointer-events: auto; }
+.field-area-controls:not(.field-area-root, .field-area-active):not(:hover, :focus-within) .field-area-add { visibility: hidden; pointer-events: none; }
+/* A page's Add field line reads at label size and closes the field area with a small gap before the notes. */
+.field-area-controls.field-area-root { position: static; justify-content: space-between; margin-bottom: var(--space-8); pointer-events: auto; }
+.field-area-root .field-area-add { font-size: inherit; }
+.field-area-add:hover, .field-area-hidden:hover { color: var(--muted); background: var(--hover); }
 /* A checkbox value is a control, not the words yes and no. */
 .field-checkbox { display: inline-flex; align-items: center; justify-content: center; flex: none; width: var(--icon-size); height: var(--icon-size); margin-block: calc((var(--line-body) - var(--icon-size)) / 2); padding: 0; border: 1px solid var(--control-border); border-radius: var(--radius-control); background: transparent; color: var(--accent); cursor: pointer; }
 .field-checkbox[aria-checked="true"] { border-color: var(--accent); }
@@ -235,12 +248,6 @@
 .outline-source-highlight-colors .highlight-color-dot { width: var(--space-8); height: var(--space-8); }
 .outline-source-highlight-colors [aria-pressed="true"] .highlight-color-dot { outline: var(--space-2) solid var(--text); outline-offset: var(--space-2); }
 .outline-source-group.button { color: var(--muted); font-weight: var(--weight-body); }
-.source-detail { font-size: var(--text-control); line-height: var(--line-control); }
-.source-detail .static-text { min-height: var(--line-control); padding-block: var(--space-2); color: var(--text); }
-.source-detail.field-entry .static-text { color: var(--muted); }
-.source-detail .outline-field-label { color: var(--muted); }
-.source-detail .outline-field-label .icon, .source-detail.field-entry .outline-reference .icon, .source-detail .field-entry-widget .icon { opacity: 0; }
-.source-detail:hover .outline-field-label .icon, .source-detail:focus-within .outline-field-label .icon, .source-detail.field-entry:hover .outline-reference .icon, .source-detail.field-entry:focus-within .outline-reference .icon, .source-detail:hover .field-entry-widget .icon, .source-detail:focus-within .field-entry-widget .icon { opacity: 1; }
 .source-highlights-start { flex-wrap: wrap; }
 .outline-highlights-label { flex: 0 0 calc(100% - var(--gutter) - var(--indent-width)); margin: var(--space-24) 0 var(--space-4) calc(var(--gutter) + var(--indent-width)); color: var(--faint); font-size: var(--text-meta); line-height: var(--line-meta); }
 .outline-highlights-label span { margin-left: var(--space-8); }
@@ -276,6 +283,8 @@
 .archive-badge { font-size: var(--text-meta); line-height: var(--line-meta); border: 1px solid var(--line); border-radius: var(--radius-control); padding: 0 var(--space-4); }
 .archive-notice, .outline-message { font-size: var(--text-control); line-height: var(--line-control); }
 .outline-message { color: var(--warning); border-left: 2px solid var(--warning); padding-left: var(--space-8); }
+.outline-notices { position: absolute; bottom: var(--space-24); left: 0; right: 0; height: 0; z-index: 40; pointer-events: none; }
+.outline-notices > .undo-toast { position: absolute; bottom: 0; max-width: calc(100% - var(--space-24)); pointer-events: auto; }
 .conflict-label { display: inline-flex; align-items: center; gap: var(--space-4); min-height: var(--target-size); padding: var(--space-4); font-size: var(--text-meta); line-height: var(--line-meta); color: var(--warning); border: 0; border-radius: var(--radius-control); background: transparent; }
 .conflict-label:hover { background: var(--hover); }
 .conflict-label .icon { width: var(--icon-size-small); height: var(--icon-size-small); }
@@ -309,8 +318,8 @@
   .field-slots { order: 3; padding-left: calc(2px + var(--slot-depth) * var(--indent-width)); }
   .outline-heading > .field-slots { padding-left: calc(2px + var(--slot-depth) * var(--indent-width)); }
   /* Field names keep a narrower column, so values are not pushed past the middle of the screen. */
-  .outline-field-label { flex-basis: calc(var(--target-size) + var(--space-48) * 1.5); width: calc(var(--target-size) + var(--space-48) * 1.5); }
-  .field-slot-label { flex-basis: calc(var(--target-size) + var(--space-48) * 1.5); }
+  .outline-field-label { flex-basis: calc(var(--target-size) + var(--space-48) * 2); width: calc(var(--target-size) + var(--space-48) * 2); }
+  .field-slot-label { flex-basis: calc(var(--target-size) + var(--space-48) * 2); }
 }
 
 .card-operator { color: var(--faint); }
@@ -332,6 +341,10 @@
 .outline-pane.source-page[aria-busy="false"] { animation: fade-in var(--motion-ui) var(--motion-ease) both; }
 /* Source highlights read at full measure with a 2 px colour bar, not an editor gutter or a trailing colour dot. Controls return on selection. */
 .source-page > .outline-list { width: 100%; max-width: var(--measure); margin-inline: auto; }
+/* Notes and fields on a wide source page hang their controls in the gutter as on any page, so field labels share the header's edge. */
+@container outline-pane (min-width: 857px) {
+  .source-page > .outline-list .outline-row:not(.source-highlight, .source-highlights-start) { left: calc(-1 * var(--gutter)); }
+}
 .source-page .source-highlight { padding-left: 0; padding-block: var(--space-12); border-left: 0; border-bottom: var(--rule-width) solid var(--line); border-radius: 0; }
 .source-page .source-highlight > .outline-body { border-left: var(--space-2) solid var(--quote-color); padding-left: var(--space-16); padding-right: 0; }
 .source-page .source-highlight > :is(.row-menu, .row-fold, .row-bullet) { position: absolute; display: none; }

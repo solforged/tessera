@@ -1,9 +1,11 @@
-import { For, Show, createMemo, createResource, createSignal, untrack } from 'solid-js';
-import type { JSX } from 'solid-js';
-import type { FieldDefinition } from '../api/types';
+import { For, Show, createEffect, createMemo, createResource, createSignal, mapArray, on, untrack } from 'solid-js';
+import type { Accessor, JSX } from 'solid-js';
+import type { ChangeEvent, FieldDefinition, SubjectCriteria } from '../api/types';
 import { FieldPicker } from '../fields/FieldPicker';
 import { InstancePicker } from '../fields/InstancePicker';
+import { fieldHide } from '../fields/hide';
 import { entryAnchor, typeKeys } from '../fields/templates';
+import { isCatalogueField } from '../library/details';
 import { fieldEntryId } from '../table/query';
 import { Icon } from '../ui/Icon';
 import type { OutlineContext } from './context';
@@ -11,106 +13,178 @@ import { ensureField } from './source-fields';
 
 interface SheetState {
   owner: string;
-  /** The owner's live field entries in outline order, with their fields. */
   entries: readonly { id: string; field: string }[];
-  /** The visible row the slots render under, or the page heading when no field rows are visible. */
-  anchor: string;
-  /** Depth of the owner's entries, so slots line up with their labels whichever row carries them. */
-  depth: number;
   template: readonly string[];
   present: ReadonlySet<string>;
   missing: readonly string[];
 }
+interface PlacedSheet extends SheetState { anchor: string; depth: number }
 
 export interface FieldSheet {
-  /** The empty template slots and Add field, rendered under the owner's last visible field row or page heading. */
   FieldSlots(props: { id: string }): JSX.Element;
-  /** Give an empty entry its first value. */
+  Popups(): JSX.Element;
+  /** Open the shared picker, including for an owner that does not yet have a field area. */
+  pick(owner: string, anchor: HTMLElement): void;
+  hover(id: string | null): void;
   fill(entry: string): void;
-  /** Flip a checkbox value. */
   toggle(value: string, checked: boolean): void;
 }
 
-/**
- * The selected block or page's fields read as one sheet: its entries are ordinary rows, and under the last of them the
- * template fields it lacks wait as empty slots beside an Add field control. An owner with no fields and no template
- * shows nothing extra.
- */
+/** One resource per visible subject; responses only notify owners of that subject. */
+function createSubjectCriteria(
+  subjects: Accessor<readonly string[]>,
+  lastChange: Accessor<ChangeEvent | null>,
+  load: (subject: string) => Promise<SubjectCriteria>,
+) {
+  const resources = mapArray(subjects, subject => {
+    const [criteria, { refetch }] = createResource(() => subject, load);
+    createEffect(on(lastChange, change => {
+      if (change?.blocks.some(block => block.id === subject) || change?.removed.includes(subject)) void refetch();
+    }, { defer: true }));
+    const fields = createMemo(() => !criteria.error && criteria()?.explicit ? criteria()!.fields : [], undefined, {
+      equals: (a, b) => a.length === b.length && a.every((id, index) => id === b[index]),
+    });
+    return [subject, fields] as const;
+  });
+  return createMemo(() => new Map(resources()));
+}
+
+/** Every eligible owner has one stable field area, independent of selection and editing. */
 export function createFieldSheet(context: Pick<OutlineContext,
   | 'doc' | 'props' | 'definitionsById' | 'definitions' | 'indices' | 'selected' | 'editing' | 'zoom'
-  | 'folds' | 'apply' | 'setMessage' | 'templateFor' | 'baseDepth'
->, options: { offerValue(id: string, field: FieldDefinition): void; onField(field: FieldDefinition): void }): FieldSheet {
+  | 'folds' | 'apply' | 'setMessage' | 'showNotice' | 'templateFor' | 'baseDepth' | 'setSelected'
+>, options: {
+  offerValue(id: string, field: FieldDefinition): void;
+  onField(field: FieldDefinition): void;
+  hiddenCounts: Accessor<ReadonlyMap<string, number>>;
+  revealed: Accessor<ReadonlySet<string>>;
+  reveal(owner: string): void;
+}): FieldSheet {
   const { doc, props, definitionsById, definitions, indices, selected, editing, zoom, folds, apply, setMessage, templateFor, baseDepth } = context;
   const fieldOf = (id: string) => definitionsById().get(fieldEntryId(doc.block(id)?.text ?? '') ?? '');
-  /** The block or page whose fields hold the selection, falling back to the visible root when nothing is selected. */
-  const owner = createMemo<string | null>(previous => {
-    const id = editing() ?? selected() ?? zoom() ?? props.pageId;
-    // A deleted value keeps its surviving owner's sheet until the structural caret restore selects its replacement.
-    if (!id || !doc.block(id)) return previous && doc.block(previous) ? previous : null;
-    const parent = doc.outline.parentOf(id);
-    const candidate = fieldOf(id) ? parent : fieldOf(parent) ? doc.outline.parentOf(parent) : id;
-    if (candidate === props.pageId) return zoom() ? null : candidate;
-    return doc.block(candidate)?.kind === 'block' ? candidate : null;
+  const memberships = new Map<string, readonly string[]>();
+  const [membershipVersion, setMembershipVersion] = createSignal(0);
+  // Inspect only committed changed blocks for tag changes; ordinary value typing never invalidates the owner scan.
+  createEffect(on(props.notebook.lastChange, change => {
+    let changed = false;
+    for (const block of change?.blocks ?? []) {
+      const previous = memberships.get(block.id);
+      if (!previous) continue;
+      const next = typeKeys(block.text, []);
+      if (previous.length !== next.length || previous.some((key, index) => key !== next[index])) changed = true;
+    }
+    if (changed) setMembershipVersion(value => value + 1);
+  }));
+  // Only blocks with entries, type memberships or apparatus get per-owner memos/resources.
+  const candidates = createMemo(() => {
+    doc.outline.version(); doc.archivedVersion(); membershipVersion();
+    const known = definitionsById(), owners = new Set<string>();
+    memberships.clear();
+    const consider = (id: string) => {
+      const block = doc.block(id);
+      if (!block || doc.isArchived(id)) return;
+      const text = untrack(() => block.text), keys = typeKeys(text, []);
+      memberships.set(id, keys);
+      if (block.position || block.manual_types.length || keys.length) owners.add(id);
+      if (known.has(fieldEntryId(text) ?? '')) owners.add(doc.outline.parentOf(id));
+    };
+    consider(props.pageId);
+    for (let index = 0; index < doc.outline.size(); index++) consider(doc.outline.idAt(index));
+    return [...owners];
   });
-  const [criteria] = createResource(() => {
-    const subject = doc.block(owner() ?? '')?.position?.subject_id;
-    return subject ? { subject, sequence: props.notebook.changeSequence() } : false;
-  }, async ({ subject }) => ({ subject, criteria: (await props.notebook.api.positions({ subject, limit: 0 })).criteria }));
-  const sheet = createMemo<SheetState | null>(() => {
-    const id = owner();
-    const block = id ? doc.block(id) : undefined;
-    if (!id || !block || folds().has(id)) return null;
-    doc.outline.version(); doc.archivedVersion();
-    const known = definitionsById();
-    // Entries come and go structurally; their text is read untracked so typing in a value does not rebuild the sheet.
-    const entries = untrack(() => doc.outline.children(id).flatMap(child => {
-      const field = doc.isArchived(child) ? null : fieldEntryId(doc.block(child)?.text ?? '');
-      return field && known.has(field) ? [{ id: child, field }] : [];
+  function stateFor(owner: string, subjects: readonly string[] = []): SheetState {
+    const known = definitionsById(), block = doc.block(owner);
+    const entries = untrack(() => doc.outline.children(owner).flatMap(id => {
+      const field = doc.isArchived(id) ? null : fieldEntryId(doc.block(id)?.text ?? '');
+      return field && known.has(field) ? [{ id, field }] : [];
     }));
     const present = new Set(entries.map(entry => entry.field));
-    const subjectCriteria = !criteria.error && criteria()?.subject === block.position?.subject_id ? criteria()?.criteria : undefined;
-    const subjects = subjectCriteria?.explicit ? subjectCriteria.fields : [];
-    const apparatus = block.position ? definitions().filter(field => ['gist', 'work'].includes(field.name.trim().toLowerCase())).sort((a, b) => Number(a.name.trim().toLowerCase() === 'work') - Number(b.name.trim().toLowerCase() === 'work')).map(field => field.id) : [];
-    const template = [...new Set([...apparatus, ...subjects, ...templateFor(typeKeys(block.text, block.manual_types))])].filter(field => known.has(field));
-    if (!entries.length && !template.length) return null;
-    const rows = indices();
-    const entryIds = new Set(entries.map(entry => entry.id));
-    let anchor = id;
-    // Visible order is authoritative after history restores and inline-entry changes. Hidden values and
-    // entries must not send the slots back to the owner while earlier field rows are still visible.
-    for (const row of rows.keys()) {
-      let ancestor = row;
-      while (ancestor !== id && ancestor !== props.pageId && !entryIds.has(ancestor)) {
-        const parent = doc.outline.parentOf(ancestor);
-        if (parent === ancestor) break;
-        ancestor = parent;
-      }
-      if (entryIds.has(ancestor)) anchor = row;
+    const apparatus = block?.position ? definitions().filter(field => ['gist', 'work'].includes(field.name.trim().toLowerCase())).sort((a, b) => Number(a.name.trim().toLowerCase() === 'work') - Number(b.name.trim().toLowerCase() === 'work')).map(field => field.id) : [];
+    const template = [...new Set([...apparatus, ...subjects, ...templateFor(typeKeys(untrack(() => block?.text ?? ''), block?.manual_types ?? []))])]
+      .filter(id => known.has(id) && !(block?.source && isCatalogueField(known.get(id)!.name)));
+    return { owner, entries, template, present, missing: template.filter(id => !present.has(id)) };
+  }
+  const subjects = createMemo(() => {
+    const visible = indices(), result = new Set<string>();
+    for (const owner of candidates()) {
+      if (!visible.has(owner) && !(owner === props.pageId && !zoom())) continue;
+      const subject = doc.block(owner)?.position?.subject_id;
+      if (subject) result.add(subject);
     }
-    if (!rows.has(anchor) && !(anchor === props.pageId && !zoom())) return null;
-    return { owner: id, entries, anchor, depth: doc.outline.depth(id) + 1 - baseDepth(), template, present, missing: template.filter(field => !present.has(field)) };
+    return [...result];
+  }, undefined, { equals: (a, b) => a.length === b.length && a.every((id, index) => id === b[index]) });
+  const criteria = createSubjectCriteria(subjects, props.notebook.lastChange, async subject =>
+    (await props.notebook.api.positions({ subject, limit: 0 })).criteria);
+  const owners = mapArray(candidates, owner => createMemo(() => {
+    doc.outline.version(); doc.archivedVersion(); membershipVersion();
+    const subject = doc.block(owner)?.position?.subject_id;
+    return stateFor(owner, subject ? criteria().get(subject)?.() : undefined);
+  }));
+  const states = createMemo(() => new Map(owners().map(state => [state().owner, state()])));
+  // One pass over visible rows places every area; never re-scan a 1k-row page for each owner.
+  const placed = createMemo(() => {
+    const all = states(), rows = indices(), closed = folds();
+    const entries = new Map<string, string>();
+    for (const state of all.values()) for (const entry of state.entries) entries.set(entry.id, state.owner);
+    const anchors = new Map<string, string>();
+    for (const row of rows.keys()) {
+      for (let id = row; id !== props.pageId;) {
+        const owner = entries.get(id);
+        if (owner) anchors.set(owner, row);
+        const parent = doc.outline.parentOf(id);
+        if (parent === id) break;
+        id = parent;
+      }
+    }
+    const byAnchor = new Map<string, PlacedSheet[]>();
+    for (const state of all.values()) {
+      if (closed.has(state.owner) || !state.entries.length && !state.template.length) continue;
+      if (!rows.has(state.owner) && !(state.owner === props.pageId && !zoom())) continue;
+      const anchor = anchors.get(state.owner) ?? state.owner;
+      const value = { ...state, anchor, depth: doc.outline.depth(state.owner) + 1 - baseDepth() };
+      const group = byAnchor.get(anchor);
+      if (group) group.unshift(value); else byAnchor.set(anchor, [value]);
+    }
+    return byAnchor;
   });
-  const [picker, setPicker] = createSignal<HTMLElement | null>(null);
-  const [instance, setInstance] = createSignal<{ anchor: HTMLElement; row: string; field: FieldDefinition } | null>(null);
-
-  /** One entry with its first value, edited at once; a checkbox is added ticked, since choosing it means yes. */
-  function add(field: FieldDefinition, valueText?: string) {
-    const state = sheet();
-    if (!state) return;
-    const after = entryAnchor(doc.outline.children(state.owner), state.entries, state.template, field.id);
+  const [hovered, setHovered] = createSignal<string | null>(null);
+  function belongs(id: string | null, owner: string): boolean {
+    if (!id) return false;
+    if (id === owner) return true;
+    for (let child = id; child !== props.pageId;) {
+      const parent = doc.outline.parentOf(child);
+      if (parent === owner) return !!fieldOf(child);
+      if (parent === child) break;
+      child = parent;
+    }
+    return false;
+  }
+  const [picker, setPicker] = createSignal<{ owner: string; anchor: HTMLElement } | null>(null);
+  const [instance, setInstance] = createSignal<{ owner: string; anchor: HTMLElement; field: FieldDefinition } | null>(null);
+  function pick(owner: string, anchor: HTMLElement) { setPicker({ owner, anchor }); }
+  function add(owner: string, field: FieldDefinition, valueText?: string) {
+    const state = states().get(owner) ?? stateFor(owner);
+    const after = entryAnchor(doc.outline.children(owner), state.entries, state.template, field.id);
     const checkbox = field.kind === 'checkbox';
-    const result = apply({ kind: 'addFieldEntries', parentId: state.owner, after, entries: [{ fieldId: field.id, value: valueText ?? (checkbox ? 'yes' : '') }] }, !checkbox && !valueText);
+    const result = apply({ kind: 'addFieldEntries', parentId: owner, after, entries: [{ fieldId: field.id, value: valueText ?? (checkbox ? 'yes' : '') }] }, !checkbox && !valueText);
     const value = result?.ok ? result.caret?.id : undefined;
+    // Retain a newly chosen hidden field before the queued structural caret restore checks visible rows.
+    if (value && fieldHide(field) !== 'never') context.setSelected(value);
     if (value && !checkbox && !valueText) queueMicrotask(() => options.offerValue(value, field));
   }
-  async function create(name: string) {
+  function choose(owner: string, anchor: HTMLElement, field: FieldDefinition) {
+    if (field.kind === 'instance') setInstance({ owner, anchor, field });
+    else add(owner, field);
+  }
+  // A source's catalogue fields belong to its header and card, so its own Add field never offers or creates them.
+  async function create(owner: string, name: string) {
+    if (doc.block(owner)?.source && isCatalogueField(name)) { context.showNotice(`Edit ${name.trim()} in the source's details.`); return; }
     try {
       const field = await ensureField(props.notebook, name);
       options.onField(field);
-      add(field);
+      add(owner, field);
     } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); }
   }
-  /** An empty entry gains its first value: a checkbox is ticked, anything else is edited with its picker. */
   function fill(entry: string) {
     const field = fieldOf(entry);
     if (!field) return;
@@ -119,27 +193,36 @@ export function createFieldSheet(context: Pick<OutlineContext,
     const value = result?.ok ? result.caret?.id : undefined;
     if (value && !checkbox) queueMicrotask(() => options.offerValue(value, field));
   }
-  /** Writes the opposite spelling; the value keeps its block. */
   function toggle(value: string, checked: boolean) {
     const result = doc.edit({ kind: 'text', id: value, text: checked ? 'no' : 'yes' });
     if (!result.ok) setMessage(result.reason);
   }
-
-  /** Rendered after the anchor row's body, or in the heading for a page with no visible field rows. */
-  function FieldSlots(slotProps: { id: string }) {
-    return <Show when={sheet()?.anchor === slotProps.id ? sheet() : null}>{state => <div class="field-slots" style={{ '--slot-depth': state().depth }}>
-      <For each={state().missing}>{fieldId => <Show when={definitionsById().get(fieldId)}>{field =>
-        <button type="button" class="field-slot" title={`Add ${field().name}`} onClick={event => field().kind === 'instance' ? setInstance({ anchor: event.currentTarget, row: slotProps.id, field: field() }) : add(field())}>
-          <span class="field-slot-label"><Icon name="field" /><span>{field().name}</span></span>
-          <Show when={field().kind === 'checkbox'} fallback={<span class="field-slot-empty">Empty</span>}><span class="field-checkbox" aria-hidden="true" /></Show>
-        </button>}</Show>}</For>
-      <button type="button" class="field-slot field-slot-add" aria-haspopup="dialog" aria-expanded={!!picker()} onClick={event => setPicker(event.currentTarget)}>
-        <span class="field-slot-label"><Icon name="plus" /><span>Add field</span></span>
-      </button>
-      <Show when={picker()}>{anchor => <FieldPicker anchor={anchor()} label="Add field" fields={definitions()} template={state().template} exclude={state().present}
-        onPick={field => { const anchor = picker()!; setPicker(null); if (field.kind === 'instance') setInstance({ anchor, row: slotProps.id, field }); else add(field); }} onCreate={name => { setPicker(null); void create(name); }} onDismiss={() => setPicker(null)} />}</Show>
-      <Show when={instance()?.row === slotProps.id ? instance() : null}>{state => <InstancePicker anchor={state().anchor} field={state().field} notebook={props.notebook} onDismiss={() => setInstance(null)} onError={setMessage} onPick={page => { add(state().field, `[[${page.id}]]`); setInstance(null); }} />}</Show>
-    </div>}</Show>;
+  function Area(area: { state: PlacedSheet }) {
+    const root = () => area.state.owner === props.pageId;
+    const missing = createMemo(() => area.state.missing.filter(id => options.revealed().has(area.state.owner) || fieldHide(definitionsById().get(id)) === 'never'));
+    const hidden = () => (options.hiddenCounts().get(area.state.owner) ?? 0) + area.state.missing.filter(id => fieldHide(definitionsById().get(id)) !== 'never').length;
+    const active = () => belongs(hovered(), area.state.owner) || belongs(selected(), area.state.owner) || belongs(editing(), area.state.owner);
+    const Controls = () => <div class="field-area-controls" classList={{ 'field-area-active': active(), 'field-area-root': root() }}>
+      <button type="button" class="field-area-add" aria-haspopup="dialog" aria-expanded={picker()?.owner === area.state.owner} onClick={event => pick(area.state.owner, event.currentTarget)}><Icon name="plus" />{root() ? 'Add field' : 'Field'}</button>
+      <Show when={hidden()}><button type="button" class="field-area-hidden" aria-expanded={options.revealed().has(area.state.owner)} onClick={() => options.reveal(area.state.owner)}>{hidden()} hidden</button></Show>
+    </div>;
+    return <Show when={root() || missing().length} fallback={<Controls />}><div class="field-slots" data-field-owner={area.state.owner} style={{ '--slot-depth': area.state.depth }} onPointerEnter={() => setHovered(area.state.owner)} onPointerLeave={() => setHovered(null)}>
+      <For each={missing()}>{id => <Show when={definitionsById().get(id)}>{field => <button type="button" class="field-slot" aria-label={`Add ${field().name} value`} onClick={event => choose(area.state.owner, event.currentTarget, field())}>
+        <span class="field-slot-label"><Icon name="field" /><span>{field().name}</span></span>
+        <span class="field-slot-value"><Show when={field().kind === 'checkbox'}><span class="field-checkbox" aria-hidden="true" /></Show></span>
+      </button>}</Show>}</For>
+      <Controls />
+    </div></Show>;
   }
-  return { FieldSlots, fill, toggle };
+  function FieldSlots(slotProps: { id: string }) {
+    return <For each={placed().get(slotProps.id)}>{state => <Area state={state} />}</For>;
+  }
+  function Popups() {
+    return <>
+      <Show when={picker()}>{value => <FieldPicker anchor={value().anchor} label="Add field" fields={doc.block(value().owner)?.source ? definitions().filter(field => !isCatalogueField(field.name)) : definitions()} template={(states().get(value().owner) ?? stateFor(value().owner)).template} exclude={(states().get(value().owner) ?? stateFor(value().owner)).present}
+        onPick={field => { const state = value(); setPicker(null); choose(state.owner, state.anchor, field); }} onCreate={name => { const owner = value().owner; setPicker(null); void create(owner, name); }} onDismiss={() => setPicker(null)} />}</Show>
+      <Show when={instance()}>{value => <InstancePicker anchor={value().anchor} field={value().field} notebook={props.notebook} onDismiss={() => setInstance(null)} onError={setMessage} onPick={page => { add(value().owner, value().field, `[[${page.id}]]`); setInstance(null); }} />}</Show>
+    </>;
+  }
+  return { FieldSlots, Popups, pick, hover: setHovered, fill, toggle };
 }

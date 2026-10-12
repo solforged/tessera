@@ -16,7 +16,7 @@ export interface PopupProps {
   label: string;
   width?: number;
   placement?: PopupPlacement;
-  /** Flip upward when it fits the content; unset keeps growing lists stable. */
+  /** Measure an internally scrolling form at its natural height before placing it. */
   fitContent?: boolean;
   /** Defaults to the first input or enabled button. false retains editor focus. */
   autofocus?: boolean;
@@ -70,7 +70,7 @@ function retirePanel(panel: HTMLDivElement) {
 export function Popup(props: PopupProps) {
   const token = Symbol('popup');
   let panel!: HTMLDivElement;
-  const [position, setPosition] = createSignal({ left: 8, top: 8, height: 0, visible: false });
+  const [position, setPosition] = createSignal<{ left: number; top: number; height: number; visible: boolean; clipped?: boolean }>({ left: 8, top: 8, height: 0, visible: false });
   const focused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   // Mouse-opened controls borrow the pane's keyboard owner, not the trigger that the click focused.
   // Nested popups still return to the control in their parent popup.
@@ -100,8 +100,9 @@ export function Popup(props: PopupProps) {
     }
     const rect = anchorRect();
     if (!rect) return;
-    const below = Math.max(0, window.innerHeight - rect.bottom - 12);
-    const above = Math.max(0, rect.top - 12);
+    const belowTop = Math.max(8, rect.bottom + 4), aboveBottom = Math.min(window.innerHeight - 8, rect.top - 4);
+    const below = Math.max(0, window.innerHeight - belowTop - 8);
+    const above = Math.max(0, aboveBottom - 8);
     let contentHeight: number;
     if (props.fitContent) {
       // Measure the full body without losing scroll positions when it temporarily expands.
@@ -119,15 +120,10 @@ export function Popup(props: PopupProps) {
     const needed = Math.min(contentHeight, 560);
     const start = rect.left > window.innerWidth / 2 ? rect.right - width : rect.left;
     const left = Math.max(8, Math.min(start, window.innerWidth - width - 8));
-    // A dialog that fits neither side but fits the window slides over its trigger rather than scrolling its own form.
-    if (props.fitContent && needed > Math.max(above, below) && needed <= window.innerHeight - 16) {
-      setPosition({ left, top: Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - needed - 8)), height: needed, visible: true });
-      return;
-    }
-    // Fixed menus and opt-in dialogs flip to fit; growing lists flip only when cramped.
-    const flip = above > below && (props.fitContent ? below < needed : below < Math.min(needed, 180) || (props.role === 'menu' && below < needed && above >= needed));
+    // Keep the trigger visible. Prefer below, then the larger side with internal scrolling.
+    const flip = below < needed && above > below;
     const height = Math.min(needed, flip ? above : below);
-    setPosition({ left, top: flip ? rect.top - height - 4 : rect.bottom + 4, height, visible: true });
+    setPosition({ left, top: flip ? aboveBottom - height : belowTop, height, visible: true, clipped: contentHeight > height });
   };
   const reposition = () => { if (!disposed) { cancelAnimationFrame(frame); frame = requestAnimationFrame(place); } };
   // Internal scrolling does not move the anchor and must not trigger another fit measurement.
@@ -192,5 +188,5 @@ export function Popup(props: PopupProps) {
     if (panel && position().visible) retirePanel(panel);
   });
   const width = () => props.placement === 'sheet' ? '100vw' : props.width ? `${Math.min(props.width, window.innerWidth - 16)}px` : undefined;
-  return <Portal><div ref={panel} class={`popup${props.placement === 'sheet' ? ' popup-sheet' : ''}${position().visible ? ' popup-enter' : ''} ${props.class ?? ''}`} role={props.role ?? 'dialog'} aria-label={props.label} style={{ ...props.style, left: `${position().left}px`, top: `${position().top}px`, width: width(), 'max-height': `${position().height}px`, visibility: position().visible ? 'visible' : 'hidden' }}>{props.children}</div></Portal>;
+  return <Portal><div ref={panel} class={`popup${props.placement === 'sheet' ? ' popup-sheet' : ''}${position().visible ? ' popup-enter' : ''} ${props.class ?? ''}`} role={props.role ?? 'dialog'} aria-label={props.label} style={{ ...props.style, left: `${position().left}px`, top: `${position().top}px`, width: width(), 'max-height': `${position().height}px`, overflow: position().clipped ? 'auto' : undefined, visibility: position().visible ? 'visible' : 'hidden' }}>{props.children}</div></Portal>;
 }

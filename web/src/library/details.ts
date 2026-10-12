@@ -33,6 +33,9 @@ const fields: Record<OrdinaryField, readonly [string, FieldKind]> = {
   started: ['Started', 'date'], finished: ['Finished', 'date'],
 };
 const roles = ['author', 'editor', 'translator'] as const;
+const catalogueFields = new Set([...Object.values(fields).map(([name]) => name.toLowerCase()), ...roles, 'collections']);
+/** Fields owned by the source header and catalogue card, not the ordinary outline. */
+export const isCatalogueField = (name: string): boolean => catalogueFields.has(name.trim().toLowerCase());
 const writes = new WeakMap<NotebookClient, Promise<unknown>>();
 interface FieldPreparation { pageId: string; definitions: FieldDefinition[] }
 

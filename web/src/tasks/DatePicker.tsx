@@ -6,6 +6,8 @@ import { Popup } from '../ui/Popup';
 import type { PopupAnchor } from '../ui/Popup';
 import { createMonthPlanningMarks } from './create-planning-marks';
 import { parseTaskDate } from './date-input';
+import { partialDatePlaceholder } from '../fields/kinds';
+import { partialFieldDate } from '../fields/value-options';
 import './date-picker.css';
 
 export interface DatePickerProps {
@@ -15,6 +17,8 @@ export interface DatePickerProps {
   value: string | null;
   /** A typed inline query can seed the input without becoming the calendar's selected date. */
   initialQuery?: string;
+  /** Field dates may retain year or month precision; task dates always name a day. */
+  partialDates?: boolean;
   /** Omit for date-only values; null enables an optional time. */
   time?: string | null;
   contextDate: string;
@@ -60,6 +64,8 @@ export function DatePicker(props: DatePickerProps) {
   };
   const apply = (input = date()) => {
     if (busy()) return;
+    const partial = props.partialDates ? partialFieldDate(input) : null;
+    if (partial) { void select({ date: partial, time: null }); return; }
     const parsed = parseTaskDate(input, props.contextDate);
     if (!parsed.ok) { setError(parsed.error); return; }
     if (props.time === undefined && parsed.time !== null) {
@@ -87,7 +93,12 @@ export function DatePicker(props: DatePickerProps) {
     if (!event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.repeat) apply();
   };
   // The calendar follows whatever the field currently parses to, so typing `fri` previews the day.
-  const preview = createMemo(() => { const parsed = parseTaskDate(date(), props.contextDate); return parsed.ok ? parsed.date : props.value; });
+  const preview = createMemo(() => {
+    const partial = props.partialDates ? partialFieldDate(date()) : null;
+    if (partial) return partial.includes('-') ? `${partial}-01` : `${partial.padStart(4, '0')}-01-01`;
+    const parsed = parseTaskDate(date(), props.contextDate);
+    return parsed.ok ? parsed.date : null;
+  });
   const planning = createMonthPlanningMarks(() => props.notebook, preview() ?? props.contextDate);
 
   return <Popup anchor={props.anchor} label={props.label} onDismiss={props.onDismiss} class="date-picker" fitContent>
@@ -95,7 +106,7 @@ export function DatePicker(props: DatePickerProps) {
       <div class="date-picker-body">
         <div class="date-picker-field">
           <label for={`${id}-date`}>{props.label}</label>
-          <input id={`${id}-date`} class="input" type="text" value={date()} placeholder="today, next Monday, +2d" autocomplete="off" spellcheck={false} disabled={busy()} aria-invalid={!!error()} aria-describedby={error() ? `${id}-error` : undefined} onInput={event => {
+          <input id={`${id}-date`} class="input" type="text" value={date()} placeholder={props.partialDates ? partialDatePlaceholder : 'today, next Monday, +2d'} autocomplete="off" spellcheck={false} disabled={busy()} aria-invalid={!!error()} aria-describedby={error() ? `${id}-error` : undefined} onInput={event => {
             const value = event.currentTarget.value;
             setDate(value);
             if (props.time !== undefined) {

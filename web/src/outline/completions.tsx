@@ -6,7 +6,8 @@ import type { BlockState, Caret } from '../document/contract';
 import { fieldEntryId } from '../table/query';
 import { kindLabels } from '../fields/kinds';
 import { typeKeys } from '../fields/templates';
-import { createInstance, instancePages } from '../fields/instances';
+import { ValueEditor, writeFieldValue } from '../fields/value-editor';
+import { hasValueEditor } from '../fields/value-options';
 import { DatePicker } from '../tasks/DatePicker';
 import { dateQueryError, dateSuggestions, dateTokenAt, flipDateToken, newTask, planDateToken, removeToken } from '../tasks/quick-date';
 import type { DateSuggestion, DateToken } from '../tasks/quick-date';
@@ -21,16 +22,12 @@ import { insertCard } from './card-insert';
 import type { InsertCardKind } from './card-insert';
 import type { SlashEntry, SlashToken } from './slash';
 import { typeSpelling, typeTokenAt } from './type-completion';
-import { addFieldOption } from './source-fields';
 import type { OutlineContext } from './context';
 import { createPageIcon } from './source';
+import { emptyExtraValuePrevious } from './keyboard';
 
-/**
- * An open `[[` page reference or `((` block quote/reference, a `#` type query, `::` at the start of a block
- * naming a field, the value of a choice field picking an option, or the manual Add type picker. A `[[`
- * under an instance field with target types offers only pages of those types.
- */
-export interface Completion { from: number; to: number; query: string; types?: boolean; blocks?: boolean; quote?: boolean; fields?: boolean; choice?: FieldDefinition; instance?: FieldDefinition; manual?: { blockId: string; anchor: HTMLElement } }
+/** An open page/block reference, a type query, `::` field name, or the manual Add type picker. */
+export interface Completion { from: number; to: number; query: string; types?: boolean; blocks?: boolean; quote?: boolean; fields?: boolean; manual?: { blockId: string; anchor: HTMLElement } }
 /** A slash-menu row: a block verb (`run`) or syntax that replaces the token (`insert`), or both. */
 interface SlashItem extends SlashEntry {
   section: string;
@@ -42,14 +39,14 @@ interface SlashItem extends SlashEntry {
   cardKind?: InsertCardKind;
   run?(id: string): void;
 }
-type CompletionRow = { kind: 'block'; block: Block & Partial<Pick<NameCompletion, 'alias'>> } | { kind: 'field'; field: FieldDefinition } | { kind: 'option'; option: FieldDefinition['options'][number] };
+type CompletionRow = { kind: 'block'; block: Block & Partial<Pick<NameCompletion, 'alias'>> } | { kind: 'field'; field: FieldDefinition };
 export function createOutlineCompletions(context: Pick<OutlineContext,
   | 'contextDate' | 'editing' | 'textRange' | 'composition' | 'caret'
   | 'editor' | 'doc' | 'capabilities' | 'setCaret' | 'scheduleReport'
   | 'setMessage' | 'disposed' | 'rowAnchor' | 'editAt' | 'restoreFocus' | 'props'
   | 'replaceSelection' | 'fields' | 'definitionsById' | 'definitions' | 'activeRange'
   | 'fieldConversion' | 'commandDefinitions' | 'openPlanning' | 'priorityMenu' | 'openProject'
-  | 'investigationItems' | 'apply' | 'zoomTo' | 'copy' | 'templateFor'
+  | 'investigationItems' | 'apply' | 'zoomTo' | 'copy' | 'templateFor' | 'rowFocus'
 >) {
   const {
     contextDate, editing, textRange, composition, caret, doc,
@@ -200,35 +197,40 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     if (event.key === 'Escape') { dismissSlash(); return true; }
     return false;
   }
-  const [valueDate, setValueDate] = createSignal<{ id: string; anchor: HTMLElement } | null>(null);
-  /** A new entry for a choice, date or instance field opens the matching picker for its empty value. */
+  const [valueEditor, setValueEditor] = createSignal<{ id: string; field: FieldDefinition; anchor: HTMLElement } | null>(null);
+  /** Controlled values never enter the raw reference editor, including keyboard Enter. */
+  function openValueEditor(id: string, anchor?: HTMLElement): boolean {
+    const field = definitionsById().get(fieldEntryId(doc.block(doc.outline.parentOf(id))?.text ?? '') ?? '');
+    if (!hasValueEditor(field, doc.block(id)?.text ?? '', contextDate())) return false;
+    context.rowFocus(id, false, true);
+    // Focus tears down the raw editor and may replace its row. Anchor the settled row, not its old button.
+    const element = rowAnchor(id)?.querySelector<HTMLElement>('.outline-body') ?? rowAnchor(id) ?? (anchor?.isConnected ? anchor : null);
+    if (!element) return false;
+    setCompletion(null);
+    setValueEditor({ id, field: field!, anchor: element });
+    return true;
+  }
+  /** New template values use exactly the same picker as existing values. */
   function offerValue(id: string, field: FieldDefinition) {
-    if (field.kind !== 'choice' && field.kind !== 'date' && field.kind !== 'instance') return;
+    if (!hasValueEditor(field, '', contextDate())) return;
     requestAnimationFrame(() => {
-      if (context.disposed || editing() !== id || doc.block(id)?.text) return;
-      if (field.kind === 'choice') { setCompletionIndex(0); setCompletion({ from: 0, to: 0, query: '', choice: field }); return; }
-      if (field.kind === 'instance') {
-        // The editor may still be mounting this new value, so the caret goes in through a focus request, not the live view.
-        const result = doc.edit({ kind: 'text', id, text: '[[]]' }, caret());
-        if (!result.ok) { setMessage(result.reason); return; }
-        editAt(id, 2, true, false, false);
-        queueMicrotask(() => { if (editing() === id) updateCompletion('[[]]', { id, offset: 2 }); });
-        return;
-      }
-      const anchor = rowAnchor(id);
-      if (anchor) setValueDate({ id, anchor });
+      if (!context.disposed && !doc.block(id)?.text) openValueEditor(id);
     });
   }
-  function chooseValueDate(id: string, date: string | null) {
-    if (!date) return;
-    const result = doc.edit({ kind: 'text', id, text: date, caret: date.length }, caret());
-    if (!result.ok) { setMessage(result.reason); return; }
-    editAt(id, date.length, true);
+  function dismissValueEditor(id: string) {
+    setValueEditor(null);
+    const previous = emptyExtraValuePrevious(doc, id, definitionsById());
+    if (previous) {
+      const result = doc.edit({ kind: 'delete', ids: [id] });
+      if (!result.ok) setMessage(result.reason);
+      else context.rowFocus(previous);
+    }
+    restoreFocus();
   }
   function popupKey(event: KeyboardEvent) {
     const state = completion();
     if (!state) return false;
-    if (event.key === 'Enter' && event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey && !state.manual && !state.types && !state.fields && !state.choice && context.editor && !textRange() && context.editor.view.state.selection.main.empty) {
+    if (event.key === 'Enter' && event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey && !state.manual && !state.types && !state.fields && context.editor && !textRange() && context.editor.view.state.selection.main.empty) {
       const id = context.editor.id;
       const text = context.editor.view.state.doc.toString();
       const offset = referenceNewlineAt(text, state.from, state.to, !!state.blocks);
@@ -237,7 +239,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
       replaceSelection('\n', 'text', { anchor: { id, offset }, head: { id, offset } }, selectionBefore);
       return true;
     }
-    const count = completionRows().length + createRows().length;
+    const count = completionRows().length + (canCreate() ? 1 : 0);
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { setCompletionIndex(index => Math.max(0, Math.min(count - 1, index + (event.key === 'ArrowDown' ? 1 : -1)))); return true; }
     if (completionPickKey(event)) { void chooseCompletion(); return true; }
     if (event.key === 'Escape') { dismissCompletion(); return true; }
@@ -271,7 +273,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     if (state?.manual) restoreFocus();
   }
   /**
-   * `::` at the start of a block picks a field, and a choice field's value picks an option. Otherwise `[[`
+   * `::` at the start of a block picks a field. Otherwise `[[`
    * completes pages, fields and blocks; a whole-row `((` captures a quote, while inline `((` inserts a live reference.
    */
   function completionAt(text: string, at: Caret): Completion | null {
@@ -279,15 +281,11 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
       const query = text.slice(2, at.offset);
       return /[\\`[\]#:\n]/.test(query) ? null : { from: 0, to: at.offset, query, fields: true };
     }
-    const parent = doc.outline.parentOf(at.id);
-    const field = parent ? definitionsById().get(fieldEntryId(doc.block(parent)?.text ?? '') ?? '') : undefined;
-    if (field?.kind === 'choice') return text.includes('[[') || text.includes('\n') ? null : { from: 0, to: text.length, query: text, choice: field };
     const typeToken = typeTokenAt(text, at.offset);
     if (typeToken) return { ...typeToken, types: true };
     const reference = referenceCompletionAt(text, at.offset);
     if (!reference) return null;
-    const instance = !reference.blocks && field?.kind === 'instance' && field.targets.length ? field : undefined;
-    return { ...reference, quote: reference.blocks && isQuoteCompletion(text, reference.from, reference.to), ...(instance ? { instance } : {}) };
+    return { ...reference, quote: reference.blocks && isQuoteCompletion(text, reference.from, reference.to) };
   }
   function updateCompletion(text: string, at: Caret) {
     if (completion()?.manual) return;
@@ -302,26 +300,16 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
   // A primitive key: every keystroke sets a fresh completion object, and the same query must not fetch twice.
   const completionKey = createMemo(() => {
     const state = completion();
-    if (!state || state.fields || state.choice) return false;
-    if (state.instance) return `instance:${state.instance.targets.join(',')}|${state.query}`;
+    if (!state || state.fields) return false;
     return `${state.manual || state.types ? 'types' : state.blocks ? 'blocks' : 'text'}:${state.query}`;
   });
-  // A constrained field's pages load once per open picker and filter locally as the query grows.
-  let instanceCache: { targets: string; pages: Promise<Block[]> } | null = null;
-  createEffect(() => { if (!completion()?.instance) instanceCache = null; });
   const [matches] = createResource(completionKey, async key => {
     const mode = key.slice(0, key.indexOf(':'));
     const query = key.slice(key.indexOf(':') + 1);
-    if (mode === 'instance') {
-      const targets = query.slice(0, query.indexOf('|')), needle = query.slice(query.indexOf('|') + 1).trim().toLocaleLowerCase();
-      if (instanceCache?.targets !== targets) instanceCache = { targets, pages: instancePages(props.notebook, targets.split(',')) };
-      return { rows: (await instanceCache.pages).filter(page => page.text.toLocaleLowerCase().includes(needle)).slice(0, 50), canCreate: false };
-    }
     if (mode === 'types') return completeReferences(props.notebook, query, []);
     if (mode === 'blocks') return { rows: query.trim() ? (await api.search(query, 20)).map(hit => hit.block).filter(block => block.kind === 'block') : [], canCreate: false };
     return { rows: await api.complete(query), canCreate: false };
   });
-  const [instanceTypes] = createResource(() => completion()?.instance?.targets.join(',') || false, key => Promise.all(key.split(',').map(id => api.block(id))));
   const completionRows = createMemo<CompletionRow[]>(() => {
     const state = completion();
     if (state?.fields) {
@@ -336,17 +324,13 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
       return definitions().filter(field => field.name.toLowerCase().includes(query)).map((field, index) => ({ field, index }))
         .sort((a, b) => rank(a.field) - rank(b.field) || a.index - b.index).map(({ field }) => ({ kind: 'field', field }));
     }
-    if (state?.choice) {
-      const query = state.query.trim().toLowerCase();
-      return state.choice.options.filter(option => option.text.toLowerCase().includes(query)).map(option => ({ kind: 'option', option }));
-    }
     // The block being typed in matches its own saved draft; it is never a useful target.
     const found = (matches.error ? [] : matches()?.rows ?? []).filter(block => block.id !== editing());
     if (state?.manual || state?.types) return found.filter(block => block.kind === 'page').map(block => ({ kind: 'block', block }));
     if (state && !state.blocks && isJournalReference(state.query)) {
       return found.filter(block => block.kind === 'journal' && block.text === state.query.trim()).map(block => ({ kind: 'block', block }));
     }
-    if (state?.blocks || state?.instance) return found.map(block => ({ kind: 'block', block }));
+    if (state?.blocks) return found.map(block => ({ kind: 'block', block }));
     const query = state?.query.toLowerCase() ?? '';
     const matchingFields = definitions().filter(field => field.name.toLowerCase().includes(query));
     const byId = new Map(matchingFields.map(field => [field.id, field]));
@@ -358,21 +342,18 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     for (const field of byId.values()) rows.push({ kind: 'field', field });
     return rows;
   });
-  /** As in Find or create, a query that names nothing exactly offers Create page, Create field or Add option after the matches. */
+  /** As in Find or create, a query that names nothing exactly offers creation after the matches. */
   const canCreate = createMemo(() => {
     const state = completion();
     const title = state?.query.trim().toLocaleLowerCase();
     if (!state || !title || state.blocks) return false;
     if (state.fields) return !/[\\`[\]#:]/.test(title) && !definitions().some(field => field.name.toLocaleLowerCase() === title);
-    if (state.choice) return !state.choice.options.some(option => option.text.toLocaleLowerCase() === title);
     if (matches.error) return false;
     if (state.manual || state.types) return !matches.loading && !!matches()?.canCreate;
     if (fields.loading || fields.error) return false;
     if (isJournalReference(state.query)) return false;
-    return !completionRows().some(row => (row.kind === 'field' ? row.field.name : row.kind === 'option' || row.block.kind === 'block' ? '' : row.block.text).toLocaleLowerCase() === title);
+    return !completionRows().some(row => (row.kind === 'field' ? row.field.name : row.block.kind === 'block' ? '' : row.block.text).toLocaleLowerCase() === title);
   });
-  /** Create rows after the matches: one per live target type of a constrained instance field, otherwise one. */
-  const createRows = createMemo<(Block | undefined)[]>(() => !canCreate() ? [] : completion()?.instance ? (instanceTypes() ?? []).filter(type => !type.archived) : [undefined]);
   createEffect(() => {
     completionIndex();
     completionRows();
@@ -383,13 +364,13 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
   });
   /** The open query plus the closing brackets the editor paired with it, including any query text after the caret. */
   function completionRange(state: Completion, text: string) {
-    return state.types || state.fields || state.choice ? { from: state.from, to: state.to } : openReferenceRange(text, state.from, state.to, !!state.blocks);
+    return state.types || state.fields ? { from: state.from, to: state.to } : openReferenceRange(text, state.from, state.to, !!state.blocks);
   }
   let drafted = false;
   createEffect(() => {
     const state = completion();
     if (!context.editor) return;
-    if (state && !state.manual && !state.choice) { drafted = true; context.editor.markDraft(completionRange(state, context.editor.view.state.doc.toString())); }
+    if (state && !state.manual) { drafted = true; context.editor.markDraft(completionRange(state, context.editor.view.state.doc.toString())); }
     else if (drafted) { drafted = false; context.editor.markDraft(null); }
   });
   async function insertReference(id: string) {
@@ -421,9 +402,8 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
       return;
     }
     const next = context.editor.view.state.doc.sliceString(range.to, range.to + 1);
-    // A word after the reference, or the end of the block, gets a separating space so typing continues as prose; an instance value is only its reference.
-    const instance = definitionsById().get(fieldEntryId(doc.block(doc.outline.parentOf(source))?.text ?? '') ?? '')?.kind === 'instance' && range.from === 0 && !next;
-    const space = !instance && (!next || /[\p{L}\p{N}]/u.test(next)) ? ' ' : '';
+    // A word after the reference, or the end of the block, gets a separating space so typing continues as prose.
+    const space = !next || /[\p{L}\p{N}]/u.test(next) ? ' ' : '';
     const inserted = `[[${id}]]${space}`;
     const selectionBefore = activeRange() ?? undefined;
     setCompletion(null);
@@ -448,17 +428,6 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
       const id = editing();
       const target = row?.kind === 'field' ? row.field : canCreate() ? state.query.trim() : null;
       if (id && target) fieldConversion.entry(id, target, state.to);
-      return;
-    }
-    if (state.choice) {
-      const id = editing();
-      if (!id) return;
-      try {
-        const option = row?.kind === 'option' ? row.option.id : canCreate() ? await addFieldOption(props.notebook, state.choice, state.query.trim()) : null;
-        if (!option || completion() !== state) return;
-        setCompletion(null);
-        replaceSelection(`[[${option}]]`, 'text', { anchor: { id, offset: 0 }, head: { id, offset: doc.block(id)?.text.length ?? 0 } });
-      } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); }
       return;
     }
     if (state.manual) {
@@ -489,9 +458,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     if (matches.error) return;
     if (row?.kind === 'block') { await insertReference(row.block.id); return; }
     if (canCreate()) {
-      const type = createRows()[index - completionRows().length];
-      if (state.instance && !type) return;
-      try { const id = type ? (await createInstance(props.notebook, state.query.trim(), type.text)).id : await props.notebook.createPage(state.query.trim()); await insertReference(id); }
+      try { const id = await props.notebook.createPage(state.query.trim()); await insertReference(id); }
       catch (error) { setMessage(error instanceof Error ? error.message : String(error)); }
     }
   }
@@ -561,7 +528,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     return true;
   }
 function CompletionPopups(){ return <>
-    <Show when={completion()}><Popup anchor={completionAnchor} width={480} class="picker" label={completion()?.manual ? 'Add type…' : completion()?.types ? 'Type' : completion()?.fields ? 'Field' : completion()?.choice ? `${completion()!.choice!.name} options` : completion()?.quote ? 'Quote block' : completion()?.blocks ? 'Block reference' : 'Reference completion'} role={completion()?.manual ? 'dialog' : 'listbox'} onDismiss={dismissCompletion} autofocus={!!completion()?.manual}>
+    <Show when={completion()}><Popup anchor={completionAnchor} width={480} class="picker" label={completion()?.manual ? 'Add type…' : completion()?.types ? 'Type' : completion()?.fields ? 'Field' : completion()?.quote ? 'Quote block' : completion()?.blocks ? 'Block reference' : 'Reference completion'} role={completion()?.manual ? 'dialog' : 'listbox'} onDismiss={dismissCompletion} autofocus={!!completion()?.manual}>
       <Show when={completion()?.manual}><div class="picker-query"><Icon name="tag" class="picker-prefix" /><input class="picker-input" aria-label="Type title" placeholder="Type title" value={completion()?.query ?? ''} onInput={event => { setCompletion(state => state ? { ...state, query: event.currentTarget.value } : null); setCompletionIndex(0); }} onKeyDown={event => { if (!event.isComposing && popupKey(event)) { event.preventDefault(); event.stopPropagation(); } }} /></div></Show>
       <div ref={completionList} class="picker-list" onMouseDown={event => event.preventDefault()}>
         <Show when={completion()?.blocks}><div class="picker-section">{completion()?.quote ? 'Quote block' : 'Block reference'}</div></Show>
@@ -575,19 +542,16 @@ function CompletionPopups(){ return <>
             return <><Icon name={icon()} /><span class="picker-text">{block().text ? <BlockText text={block().text} notebook={props.notebook} interactive={false} /> : 'Empty block'}</span><Show when={block().alias}>{alias => <span class="reference-via">via {alias()}</span>}</Show><Show when={block().kind === 'block'}><span class="picker-meta"><BlockBreadcrumb block={block()} notebook={props.notebook} /></span></Show></>;
           }}</Show>
           <Show when={row.kind === 'field' ? row.field : null}>{field => <><Icon name="field" /><span class="picker-text">{field().name}</span><span class="picker-meta">{completion()?.fields ? kindLabels[field().kind] : 'Field'}</span></>}</Show>
-          <Show when={row.kind === 'option' ? row.option : null}>{option => <><Icon name="bullet" /><span class="picker-text">{option().text}</span></>}</Show>
         </div>}</For>
-        <For each={createRows()}>{(type, offset) => {
-          const at = () => completionRows().length + offset();
-          return <div role="option" aria-selected={completionIndex() === at()} class="picker-row" classList={{ selected: completionIndex() === at() }} onClick={() => void chooseCompletion(at())}><Icon name="plus" /><span class="picker-text">{type ? `Create ${type.text.toLocaleLowerCase()}` : completion()?.fields ? 'Create field' : completion()?.choice ? 'Add option' : completion()?.types ? 'Create type' : 'Create page'} “{completion()?.query.trim()}”</span></div>;
-        }}</For>
+        <Show when={canCreate()}><div role="option" aria-selected={completionIndex() === completionRows().length} class="picker-row" classList={{ selected: completionIndex() === completionRows().length }} onClick={() => void chooseCompletion(completionRows().length)}><Icon name="plus" /><span class="picker-text">{completion()?.fields ? 'Create field' : completion()?.types ? 'Create type' : 'Create page'} “{completion()?.query.trim()}”</span></div></Show>
         <Show when={!(completionKey() && (matches.loading || matches.error)) && !canCreate() && !completionRows().length}><p class="empty-state">{
-          completion()?.fields ? 'Type a field name.' : completion()?.choice ? 'Type an option to add it.' : completion()?.blocks && !completion()?.query.trim() ? 'Type to search blocks.' : 'No matching blocks.'
+          completion()?.fields ? 'Type a field name.' : completion()?.blocks && !completion()?.query.trim() ? 'Type to search blocks.' : 'No matching blocks.'
         }</p></Show>
       </div>
     </Popup></Show>
-    <Show keyed when={valueDate()}>{state => <DatePicker notebook={props.notebook} anchor={state.anchor} label="Date" value={null} contextDate={contextDate()}
-      onDismiss={() => { setValueDate(null); if (editing() === state.id) editAt(state.id, doc.block(state.id)?.text.length ?? 0, true); }} onSelect={value => chooseValueDate(state.id, value.date)} />}</Show>
+    <Show keyed when={valueEditor()}>{state => <ValueEditor notebook={props.notebook} anchor={state.anchor} field={definitionsById().get(state.field.id) ?? state.field} text={doc.block(state.id)?.text ?? ''} contextDate={contextDate()}
+      onDismiss={() => dismissValueEditor(state.id)} onError={setMessage}
+      onWrite={async text => { writeFieldValue(doc, { field: state.field, ownerId: doc.outline.parentOf(doc.outline.parentOf(state.id)), valueId: state.id }, text); await doc.flush(); }} />}</Show>
     <Show when={dateCompletion()}><Popup anchor={() => caretRect(dateCompletion()?.from ?? 0)} width={320} class="picker" label={dateCompletion()?.field === 'deadline' ? 'Deadline' : 'Scheduled'} role="listbox" onDismiss={dismissDate}>
       <div class="picker-list" onMouseDown={event => event.preventDefault()}>
         <div class="picker-row" role="presentation"><span class="picker-text">{dateCompletion()?.field === 'deadline' ? 'Deadline' : 'Scheduled'}</span><span class="picker-meta"><kbd>Tab</kbd></span></div>
@@ -616,5 +580,5 @@ function CompletionPopups(){ return <>
       </div>
     </Popup></Show>
 </>; }
-  return { setCompletion, setCompletionIndex, offerValue, updateCompletion, updateTriggers, taskPrefix, rewriteEditing, referenceInput, forgetReferenceSpace, slashKey, dateKey, popupKey, CompletionPopups };
+  return { setCompletion, setCompletionIndex, offerValue, openValueEditor, valueEditorId: () => valueEditor()?.id, updateCompletion, updateTriggers, taskPrefix, rewriteEditing, referenceInput, forgetReferenceSpace, slashKey, dateKey, popupKey, CompletionPopups };
 }

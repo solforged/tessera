@@ -8,11 +8,14 @@ import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
 import { Popup } from '../ui/Popup';
 import { fieldKinds, fieldNameProblem, kindLabels } from './kinds';
+import { fieldHide, fieldHides, hideLabels } from './hide';
+import type { FieldHide } from './hide';
 import './field-page.css';
 
 interface FieldDetailsProps {
   fieldId: string;
   previewKind?: FieldKind;
+  section?: 'options' | 'targets';
   inspector?: boolean;
   notebook: NotebookClient;
   document?: PageDocument;
@@ -38,6 +41,7 @@ export function FieldDetails(props: FieldDetailsProps) {
   const [loading, setLoading] = createSignal(true);
   const [applying, setApplying] = createSignal(false);
   const [menu, setMenu] = createSignal<HTMLElement | null>(null);
+  const [hideMenu, setHideMenu] = createSignal<HTMLElement | null>(null);
   const [editing, setEditing] = createSignal<{ id: string; text: string } | null>(null);
   const [adding, setAdding] = createSignal(false);
   const [option, setOption] = createSignal('');
@@ -68,6 +72,19 @@ export function FieldDetails(props: FieldDetailsProps) {
     const pages = new Map((types() ?? []).map(type => [type.page.id, type.page]));
     for (const page of props.notebook.roots()) if (page.kind === 'page' && !page.archived && (['person', 'group'].includes(page.text.toLowerCase()) || data()?.field.targets.includes(page.id))) pages.set(page.id, page);
     return [...pages.values()].sort((a, b) => a.text.localeCompare(b.text));
+  });
+  let article!: HTMLElement;
+  let openedSection = '';
+  createEffect(() => {
+    const section = props.section;
+    if (!data() || !section || openedSection === `${props.fieldId}:${section}`) return;
+    openedSection = `${props.fieldId}:${section}`;
+    const frame = requestAnimationFrame(() => {
+      const target = article.querySelector<HTMLElement>(`[data-field-section="${section}"]`);
+      target?.scrollIntoView({ block: 'start' });
+      target?.querySelector<HTMLElement>('button')?.focus({ preventScroll: true });
+    });
+    onCleanup(() => cancelAnimationFrame(frame));
   });
   const preview = () => !!data() && data()!.kind !== data()!.field.kind;
   const ready = () => !loading() && !applying() && props.document?.status() === 'ready' && props.document.saveState() === 'saved';
@@ -102,6 +119,8 @@ export function FieldDetails(props: FieldDetailsProps) {
     if (!value || !doc || !ready()) return;
     const result = doc.edit({ kind: 'fieldKind', definition: value.field, value: value.kind });
     if (!result.ok) { setError(result.reason); return; }
+    // Keep keyboard history in the pane when Apply is disabled or removed.
+    article.focus({ preventScroll: true });
     setApplying(true);
     try { await doc.flush(); if (doc.saveState() === 'saved') props.onPreview(); }
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
@@ -113,6 +132,18 @@ export function FieldDetails(props: FieldDetailsProps) {
     const result = doc.edit({ kind: 'fieldTargets', definition: value.field, targets: targetsDraft() });
     if (!result.ok) { setError(result.reason); return; }
     setTargetsMenu(null); setApplying(true);
+    article.focus({ preventScroll: true });
+    try { await doc.flush(); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
+    finally { setApplying(false); }
+  };
+  const applyHide = async (hide: FieldHide) => {
+    const value = data(); const doc = props.document;
+    if (!value || !doc || !ready()) return;
+    const result = doc.edit({ kind: 'fieldHide', definition: value.field, value: hide });
+    if (!result.ok) { setError(result.reason); return; }
+    article.focus({ preventScroll: true });
+    setApplying(true);
     try { await doc.flush(); }
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setApplying(false); }
@@ -136,7 +167,7 @@ export function FieldDetails(props: FieldDetailsProps) {
     const values = data()?.readable ?? [];
     return values.find(item => /^\d{1,3}$/.test(item.value.text.trim())) ?? values[0];
   });
-  return <article classList={{ 'field-sheet': true, 'field-inspector': props.inspector }} aria-label={props.inspector ? 'Selected definition' : 'Field definition'}>
+  return <article ref={article} tabIndex={-1} classList={{ 'field-sheet': true, 'field-inspector': props.inspector }} aria-label={props.inspector ? 'Selected definition' : 'Field definition'}>
     <Show when={error()}><p class="error" role="alert">{error()} <Button onClick={() => setVersion(value => value + 1)}>Retry</Button></p></Show>
     <Show when={documentError()}><p class="error" role="alert">{documentError()}</p></Show>
     <Show when={data()} fallback={<Show when={loading()}><p role="status">Loading field…</p></Show>}>{value => <>
@@ -145,9 +176,11 @@ export function FieldDetails(props: FieldDetailsProps) {
       {inlineEdit(props.fieldId)}
       <p class="field-summary">{kindLabels[value().field.kind]} · {value().owners_total} owners · {value().values_total} values</p>
       <div class="field-kind-row"><span>{preview() ? 'Change kind' : 'Kind'}</span><Show when={preview()}><span class="field-apparatus">{kindLabels[value().field.kind]} →</span></Show><Button class="bordered" aria-label={`Kind for ${value().field.name}: ${kindLabels[value().kind]}`} aria-haspopup="menu" aria-expanded={!!menu()} disabled={applying()} onClick={event => setMenu(event.currentTarget)}>{kindLabels[value().kind]} <Icon name="down" /></Button></div>
-      <Show when={value().kind === 'instance' && !preview()}><div class="field-kind-row"><span>Links to</span><Button class="bordered" disabled={!ready()} aria-haspopup="dialog" aria-expanded={!!targetsMenu()} onClick={event => { setTargetsDraft([...value().field.targets]); setTargetsMenu(event.currentTarget); }}>{value().field.targets.map(id => props.notebook.lookup(id)()?.text ?? id).join(', ') || 'Any page'} <Icon name="down" /></Button></div></Show>
+      <Show when={value().kind === 'instance' && !preview()}><div class="field-kind-row" data-field-section="targets"><span>Links to</span><Button class="bordered" disabled={!ready()} aria-haspopup="dialog" aria-expanded={!!targetsMenu()} onClick={event => { setTargetsDraft([...value().field.targets]); setTargetsMenu(event.currentTarget); }}>{value().field.targets.map(id => props.notebook.lookup(id)()?.text ?? id).join(', ') || 'Any page'} <Icon name="down" /></Button></div></Show>
+      <div class="field-kind-row"><span>Hide</span><Button class="bordered" aria-label={`Hide for ${value().field.name}: ${hideLabels[fieldHide(value().field)]}`} aria-haspopup="menu" aria-expanded={!!hideMenu()} disabled={!ready()} onClick={event => setHideMenu(event.currentTarget)}>{hideLabels[fieldHide(value().field)]} <Icon name="down" /></Button></div>
+      <p class="field-note">{fieldHide(value().field) === 'never' ? 'Shown even when empty.' : fieldHide(value().field) === 'when_empty' ? 'Hidden in notes while empty.' : 'Hidden in notes; tables still show it.'}</p>
       <Show when={preview()} fallback={<>
-        <Show when={value().kind === 'choice' && !props.inspector}><section class="field-section"><SectionHead number="01" title="Options" count={`${value().field.options.length} options`} />
+        <Show when={value().kind === 'choice' && !props.inspector}><section class="field-section" data-field-section="options"><SectionHead number="01" title="Options" count={`${value().field.options.length} options`} />
           <table class="field-ledger field-options"><thead><tr><th scope="col">Value</th><th scope="col">Uses</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead><tbody><For each={value().field.options}>{option => <tr><td><Show when={editing()?.id !== option.id} fallback={inlineEdit(option.id)}>{option.text}</Show></td><td class="field-apparatus">{optionUses().get(option.id) ?? 0}</td><td><Button disabled={!ready()} aria-label={`Rename option ${option.text}`} onClick={() => setEditing({ id: option.id, text: option.text })}>Edit…</Button></td></tr>}</For></tbody></table>
           <Show when={adding()} fallback={<Button class="field-add" disabled={!ready()} onClick={() => setAdding(true)}>+ Add option</Button>}><form class="field-inline-edit" onSubmit={event => { event.preventDefault(); addOption(); }}><input class="input" aria-label="New option" value={option()} onInput={event => setOption(event.currentTarget.value)} ref={input => queueMicrotask(() => input.focus())} /><Button type="submit" disabled={!ready() || !option().trim()}>Add option</Button><Button onClick={() => setAdding(false)}>Cancel</Button></form></Show>
         </section></Show>
@@ -168,6 +201,7 @@ export function FieldDetails(props: FieldDetailsProps) {
         </Show>
       </Show>
       <Show when={menu()}>{anchor => <Menu anchor={anchor()} label={`Kind for ${value().field.name}`} onDismiss={() => setMenu(null)} items={fieldKinds.map(kind => ({ label: kindLabels[kind], icon: kind === value().kind ? 'check' : undefined, action: () => { setEditing(null); props.onPreview(kind === value().field.kind ? undefined : kind); } }))} />}</Show>
+      <Show when={hideMenu()}>{anchor => <Menu anchor={anchor()} label={`Hide for ${value().field.name}`} onDismiss={() => setHideMenu(null)} items={fieldHides.map(hide => ({ label: hideLabels[hide], checked: hide === fieldHide(value().field), action: () => { void applyHide(hide); } }))} />}</Show>
       <Show when={targetsMenu()}>{anchor => <Popup anchor={anchor()} label="Links to" onDismiss={() => setTargetsMenu(null)}>
         <h2 class="popup-title">Links to</h2><p class="field-note">No selection means Any page.</p>
         <Show when={types.error}><p class="error" role="alert">Could not load types.</p></Show>

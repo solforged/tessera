@@ -401,6 +401,34 @@ describe('real notebook operations and recovery', () => {
     doc.release();
   });
 
+  test('field hide edits persist, undo and redo through the document outbox', async () => {
+    const instance = await client();
+    const fields = await api.fields();
+    const doc = instance.open(fields.page_id);
+    await eventually(() => doc.status() === 'ready', doc.statusMessage());
+    const id = success(doc.edit({ kind: 'insert', parentId: fields.page_id, after: null, text: `Hide test ${++serial}` })).created[0]!;
+    await instance.flush();
+    const definition = (await api.fields()).fields.find(field => field.id === id)!;
+    success(doc.edit({ kind: 'fieldHide', definition: { ...definition, hide: undefined }, value: 'never' }));
+    expect(doc.block(id)?.pending).toBe(false);
+    success(doc.edit({ kind: 'fieldHide', definition, value: 'when_empty' }));
+    expect(doc.edit({ kind: 'fieldHide', definition, value: 'always' }).ok).toBe(false);
+    await instance.flush();
+    expect((await api.fields()).fields.find(field => field.id === id)?.hide).toBe('when_empty');
+    expect(doc.block(id)?.revision).toBe(definition.revision + 1);
+    doc.undo();
+    await instance.flush();
+    expect((await api.fields()).fields.find(field => field.id === id)?.hide).toBe('never');
+    doc.redo();
+    await instance.flush();
+    expect((await api.fields()).fields.find(field => field.id === id)?.hide).toBe('when_empty');
+    expect(doc.block(id)?.revision).toBe(definition.revision + 3);
+    const stale = doc.edit({ kind: 'fieldHide', definition, value: 'always' });
+    expect(stale.ok).toBe(false);
+    expect((await api.fields()).fields.find(field => field.id === id)?.hide).toBe('when_empty');
+    doc.release();
+  });
+
   test('new tag and manual type pages receive starting templates after creation is acknowledged', async () => {
     for (const scenario of [
       { title: 'Pérsón', manual: false, fields: ['Aliases', 'Lived', 'Affiliated with'] },

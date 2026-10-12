@@ -17,7 +17,7 @@ export interface MenuItem {
   danger?: boolean;
   /** The current choice in a set; drawn as a trailing check so the leading icon can name the choice. */
   checked?: boolean;
-  action(): void;
+  action(event?: MouseEvent | KeyboardEvent): void;
 }
 export function Menu(props: { anchor: PopupAnchor; label: string; items: MenuItem[]; header?: JSX.Element; placement?: PopupPlacement; class?: string; onDismiss(): void }) {
   const iconed = () => props.items.some(item => item.icon);
@@ -25,7 +25,7 @@ export function Menu(props: { anchor: PopupAnchor; label: string; items: MenuIte
     <div onKeyDown={event => {
       if (event.isComposing) return;
       const mnemonic = !event.metaKey && !event.ctrlKey && !event.altKey ? props.items.find(item => item.key === event.key && !item.disabledReason) : undefined;
-      if (mnemonic) { event.preventDefault(); event.stopPropagation(); props.onDismiss(); mnemonic.action(); return; }
+      if (mnemonic) { event.preventDefault(); event.stopPropagation(); props.onDismiss(); mnemonic.action(event); return; }
       // Header controls share the menu's mnemonics and arrow-key order.
       const control = !event.metaKey && !event.ctrlKey && !event.altKey ? Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('button[data-menu-key]:not(:disabled)')).find(button => button.dataset.menuKey === event.key) : undefined;
       if (control) { event.preventDefault(); event.stopPropagation(); control.click(); return; }
@@ -36,7 +36,7 @@ export function Menu(props: { anchor: PopupAnchor; label: string; items: MenuIte
       buttons[next]?.focus(); event.preventDefault();
     }}>
       {props.header}
-      <For each={props.items}>{(item, index) => <>{item.section && item.section !== props.items[index() - 1]?.section && <div class="menu-section">{item.section}</div>}<button type="button" role={item.checked === undefined ? 'menuitem' : 'menuitemradio'} aria-checked={item.checked} class={`menu-item ${item.danger ? 'danger' : ''}`} disabled={!!item.disabledReason} title={item.disabledReason} onClick={() => { props.onDismiss(); item.action(); }}>
+      <For each={props.items}>{(item, index) => <>{item.section && item.section !== props.items[index() - 1]?.section && <div class="menu-section">{item.section}</div>}<button type="button" role={item.checked === undefined ? 'menuitem' : 'menuitemradio'} aria-checked={item.checked} class={`menu-item ${item.danger ? 'danger' : ''}`} disabled={!!item.disabledReason} title={item.disabledReason} onClick={event => { props.onDismiss(); item.action(event); }}>
         {item.icon ? <Icon name={item.icon} /> : iconed() ? <span class="icon" /> : null}<span class="menu-label">{item.label}</span>{item.shortcut && <kbd>{item.shortcut}</kbd>}{item.checked && <Icon name="check" class="menu-check" />}
       </button></>}</For>
     </div>

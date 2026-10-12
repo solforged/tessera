@@ -13,6 +13,7 @@ import { parseCardText } from '../review/card-text';
 import { quoteTarget, textTokens } from './text-tokens';
 import { newTask } from '../tasks/quick-date';
 import { rebaseText } from './text-patch';
+import { fieldHide } from '../fields/hide';
 
 export interface DocumentHost {
   ready: Promise<void>;
@@ -471,6 +472,9 @@ export class Document implements PageDocument {
       case 'fieldKind':
         this.changed(action.id, {}, base);
         return [{ kind: 'fieldKind', id: action.id, value: action.previous, previous: action.value }];
+      case 'fieldHide':
+        this.changed(action.id, {}, base);
+        return [{ kind: 'fieldHide', id: action.id, value: action.previous, previous: action.value }];
       case 'fieldTargets':
         this.changed(action.id, {}, base);
         return [{ kind: 'fieldTargets', id: action.id, targets: action.previous, previous: action.targets }];
@@ -1384,6 +1388,13 @@ export class Document implements PageDocument {
           if (definition.kind !== edit.value) actions.push({ kind: 'fieldKind', id: definition.id, value: edit.value, previous: definition.kind, baseRevision: definition.revision });
           break;
         }
+        case 'fieldHide': {
+          const definition = edit.definition;
+          if (this.snapshot(definition.id).revision !== definition.revision || this.block(definition.id)?.pending) throw new Error('The field changed. Refresh before changing its hide setting.');
+          const previous = fieldHide(definition);
+          if (previous !== edit.value) actions.push({ kind: 'fieldHide', id: definition.id, value: edit.value, previous, baseRevision: definition.revision });
+          break;
+        }
         case 'fieldTargets': {
           const definition = edit.definition;
           if (this.snapshot(definition.id).revision !== definition.revision || this.block(definition.id)?.pending) throw new Error('The field changed. Refresh before changing its targets.');
@@ -1606,7 +1617,7 @@ export class Document implements PageDocument {
     const entry = from.pop();
     if (!entry) return null;
     const actions = (undo ? entry.inverse : entry.forward).map<Action>(action => {
-      if (!undo && (action.kind === 'fieldKind' || action.kind === 'fieldTargets' || action.kind === 'subjectCriteria' || action.kind === 'typePresentation')) return { ...action, baseRevision: undefined };
+      if (!undo && (action.kind === 'fieldKind' || action.kind === 'fieldHide' || action.kind === 'fieldTargets' || action.kind === 'subjectCriteria' || action.kind === 'typePresentation')) return { ...action, baseRevision: undefined };
       return { ...action };
     });
     // Check all text patches before applying any part of the transaction.

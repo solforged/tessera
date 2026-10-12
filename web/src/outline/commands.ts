@@ -11,6 +11,7 @@ import { textTokens } from '../document/text-tokens';
 import type { OutlineContext } from './context';
 import { insertCard, makeCloze as wrapCloze } from './card-insert';
 import type { InsertCardKind } from './card-insert';
+import { createFieldMenu } from '../fields/FieldMenu';
 
 export function createOutlineCommands(context: Pick<OutlineContext,
   | 'doc' | 'editing' | 'commitFieldEntry' | 'props' | 'selected'
@@ -23,6 +24,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
   | 'scheduleReport' | 'undo' | 'setConflicts' | 'indices' | 'setFolds'
   | 'setZoom' | 'selectedSet' | 'sourceResets' | 'setCompletionIndex' | 'setCompletion'
   | 'rowAnchor' | 'rewriteEditing' | 'activeRange'
+  | 'fields' | 'definitionsById' | 'pickField' | 'showNotice'
 >) {
   const {
     doc, editing, commitFieldEntry, props, selected, setMessage,
@@ -32,8 +34,9 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     apply, roots, setRowRange, fold, zoomTo, zoom,
     zoomOut, anchored, setShowArchived, scheduleReport, undo, setConflicts,
     indices, setFolds, setZoom, selectedSet, sourceResets, setCompletionIndex,
-    setCompletion, rowAnchor, rewriteEditing,
+    setCompletion, rowAnchor, rewriteEditing, pickField,
   } = context;
+  const { fieldEntry, fieldMenu } = createFieldMenu(context);
   function openTable(beside: boolean) {
     if (doc.root()?.kind !== 'page') return;
     if (editing()) commitFieldEntry(editing()!, false);
@@ -84,6 +87,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
   const commandsFor = (selected = context.selected): Command[] => [
     { id: 'rename', title: 'Rename page', section: 'Page', disabledReason: () => doc.root()?.kind === 'page' ? undefined : 'Journal dates cannot be renamed.', run: rename },
     { id: 'open-table', title: 'Open as table', section: 'Page', keys: ['⌘⇧T'], disabledReason: () => doc.root()?.kind === 'page' ? undefined : 'Journal days cannot be opened as tables.', run: () => openTable(false) },
+    { id: 'add-field-root', title: 'Add field…', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Page is unavailable.' : undefined, run: () => pickField(props.pageId, context.heading) },
     { id: 'task-root', title: 'Task', section: 'Page', disabledReason: () => doc.status() !== 'ready' || capabilities.busy(props.pageId) ? 'Page is unavailable.' : undefined, run: () => {
       if (!doc.root()?.task) capabilities.invoke(capabilities.status(props.pageId, 'todo'));
       capabilities.open(props.pageId, 'task');
@@ -189,7 +193,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     const rowCommands = commandsFor(() => id);
     const item = (commandId: string, options: { icon?: IconName; section?: string; danger?: boolean } = {}): MenuItem => {
       const command = rowCommands.find(candidate => candidate.id === commandId)!;
-      return { ...options, label: command.title, shortcut: command.keys?.[0], disabledReason: command.disabledReason?.(), action: command.run };
+      return { ...options, label: command.title, shortcut: command.keys?.[0], disabledReason: command.disabledReason?.(), action: () => command.run() };
     };
     const secondary = (label: string, items: MenuItem[]) => setMenu({ anchor, label, items: [
       { label: 'Back to block actions', icon: 'left', action: () => blockMenu(id, anchor) },
@@ -230,6 +234,8 @@ export function createOutlineCommands(context: Pick<OutlineContext,
       item('copy-reference', { icon: 'copy' }),
       item('open-beside', { icon: 'panes' }),
       item('zoom', { icon: 'bullet' }),
+      ...(fieldEntry(id) ? [{ label: 'Field…', section: 'Field', icon: 'field' as const, action: () => fieldMenu(id, anchor) }] : []),
+      { label: 'Add field…', section: 'Field', icon: 'plus', action: () => pickField(id, anchor) },
       { label: 'Add or change…', section: 'More', action: () => secondary('Block capabilities', capabilityItems) },
       { label: 'Select…', icon: 'select', action: () => secondary('Select blocks', [item('select'), item('select-all')]) },
       ...(sourceItems.length ? [{ label: 'Source and citation…', action: () => secondary('Source and citation', sourceItems) }] : []),
@@ -298,12 +304,13 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     const leader = (key: string, label: string, run: () => void, section?: string): MenuItem => ({ key, shortcut: key, label, section, action: run });
     const commandItem = (key: string, commandId: string, section?: string): MenuItem => {
       const command = rowCommands.find(command => command.id === commandId)!;
-      return { key, shortcut: key, label: command.title, section, disabledReason: command.disabledReason?.(), action: command.run };
+      return { key, shortcut: key, label: command.title, section, disabledReason: command.disabledReason?.(), action: () => command.run() };
     };
     const block = doc.block(id);
     let ancestor = block?.parentId ?? null;
     while (ancestor && !doc.block(ancestor)?.question) ancestor = doc.block(ancestor)?.parentId ?? null;
     keyboardMenu(id, 'Leader keys', [
+      ...(fieldEntry(id) ? [leader('f', 'Field…', () => { const anchor = rowAnchor(id); if (anchor) fieldMenu(id, anchor); }, 'Field')] : []),
       leader('t', 'Status…', () => statusMenu(id), 'Task'),
       leader('s', 'Schedule…', () => openPlanning(id, 'schedule')),
       leader('d', 'Deadline…', () => openPlanning(id, 'deadline')),
@@ -319,5 +326,5 @@ export function createOutlineCommands(context: Pick<OutlineContext,
       leader('z', 'Zoom in', () => zoomTo(id)),
     ]);
   }
-  return { openTable, investigationItems, commandDefinitions, unregister, blockMenu, statusMenu, priorityMenu, openPlanning, openProject, leaderMenu, makeCloze, referenceMenu, copy };
+  return { openTable, investigationItems, commandDefinitions, unregister, blockMenu, fieldMenu, statusMenu, priorityMenu, openPlanning, openProject, leaderMenu, makeCloze, referenceMenu, copy };
 }

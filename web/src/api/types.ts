@@ -4,6 +4,7 @@
  * Change both together.
  */
 import type { fieldKinds } from '../fields/kinds';
+import type { FieldHide } from '../fields/hide';
 
 export type BlockKind = 'block' | 'page' | 'journal';
 export interface KeptCopy { of: string; origin: string; origin_name: string | null; mine: boolean }
@@ -56,6 +57,7 @@ export type Operation =
   | { op: 'add_type'; id: string; base_revision: number; title: string }
   | { op: 'remove_type'; id: string; base_revision: number; title: string }
   | { op: 'set_field_kind'; id: string; base_revision: number; kind: FieldKind }
+  | { op: 'set_field_hide'; id: string; base_revision: number; hide: FieldHide }
   | { op: 'set_field_targets'; id: string; base_revision: number; targets: string[] }
   | { op: 'set_type_fields'; type_id: string; base_revision: number; fields: string[] }
   | { op: 'set_type_presentation'; type_id: string; base_revision: number; plural: string | null; icon: string | null }
@@ -270,7 +272,7 @@ export interface Query { type: string | null; text: string | null; filters: Filt
 export type Reading = { ok: true; value: string | number | boolean; target: string | null } | { ok: false; problem: string };
 export interface FieldValue { id: string; text: string; reading: Reading }
 export interface QueryRow { block: BlockInPage; values: Record<string, FieldValue[]> }
-export interface FieldDefinition { id: string; name: string; kind: FieldKind; revision: number; options: { id: string; text: string }[]; targets: string[] }
+export interface FieldDefinition { id: string; name: string; kind: FieldKind; revision: number; options: { id: string; text: string }[]; targets: string[]; hide?: FieldHide }
 export interface QueryResult { fields: FieldDefinition[]; columns: string[]; rows: QueryRow[]; total: number }
 export interface FieldSummary extends FieldDefinition { owners: number; types: { id: string; name: string }[] }
 export interface Fields { page_id: string; fields: FieldSummary[] }

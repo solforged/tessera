@@ -50,6 +50,7 @@ export interface OutlineContext {
   setCaret: Setter<Caret | null>;
   scheduleReport: () => void;
   setMessage: Setter<string>;
+  showNotice: (label: string, undo?: () => Promise<void>) => void;
   readonly disposed: boolean;
   rowAnchor: (id: string) => HTMLElement | null;
   editAt: (id: string, offset?: number, insert?: boolean, reveal?: boolean, activate?: boolean) => void;
@@ -74,6 +75,9 @@ export interface OutlineContext {
   commitFieldEntry: (id: string, focus?: boolean) => boolean;
   selected: Accessor<string | null>;
   setMenu: Setter<MenuState | null>;
+  fieldMenu: (id: string, anchor: HTMLElement) => void;
+  /** Opens the owner-scoped Add field picker, also for owners without a field area. */
+  pickField: (owner: string, anchor: HTMLElement) => void;
   rename: () => void;
   addGloss: () => void;
   addAlias: () => void;
@@ -87,7 +91,7 @@ export interface OutlineContext {
   adjacent: (direction: number, extend?: boolean) => void;
   horizontal: (direction: 'left' | 'right') => void;
   ids: Accessor<string[]>;
-  rowFocus: (id: string, extend?: boolean) => void;
+  rowFocus: (id: string, extend?: boolean, keepValue?: boolean) => void;
   split: (view: EditorView) => void;
   roots: () => string[];
   setRowRange: Setter<RowRange | null>;

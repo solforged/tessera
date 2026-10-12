@@ -9,8 +9,8 @@ import { createInstance, instancePages } from './instances';
 type InstanceRow = { kind: 'page'; page: Block } | { kind: 'create'; title: string; type?: Block };
 
 export function InstancePicker(props: {
-  anchor: PopupAnchor; field: FieldDefinition; notebook: NotebookClient;
-  onPick(page: Block): void; onDismiss(): void; onError(message: string): void;
+  anchor: PopupAnchor; field: FieldDefinition; notebook: NotebookClient; current?: string;
+  onPick(page: Block): void | Promise<void>; onDismiss(): void; onError(message: string): void;
 }) {
   const [query, setQuery] = createSignal('');
   const [busy, setBusy] = createSignal(false);
@@ -29,14 +29,14 @@ export function InstancePicker(props: {
   async function pick(row: InstanceRow) {
     if (busy()) return;
     setBusy(true);
-    try { props.onPick(row.kind === 'page' ? row.page : await createInstance(props.notebook, row.title, row.type?.text)); }
+    try { await props.onPick(row.kind === 'page' ? row.page : await createInstance(props.notebook, row.title, row.type?.text)); }
     catch (reason) { props.onError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setBusy(false); }
   }
   return <Picker<InstanceRow> anchor={props.anchor} label={props.field.name} query={query()} onQuery={setQuery} placeholder="Page name"
     items={busy() ? [] : rows()} key={row => row.kind === 'page' ? row.page.id : `create:${row.type?.id ?? ''}`}
     onPick={row => void pick(row)} onDismiss={props.onDismiss}
-    row={row => row.kind === 'page' ? <><Icon name="page" /><span class="picker-text">{row.page.text}</span></>
+    row={row => row.kind === 'page' ? <><Icon name={row.page.id === props.current ? 'check' : 'page'} /><span class="picker-text">{row.page.text}</span></>
       : <><Icon name="plus" /><span class="picker-text">Create {row.type?.text.toLowerCase() ?? 'page'} “{row.title}”</span></>}
     empty={busy() ? 'Creating…' : pages.error || types.error ? 'Could not load pages.' : pages.loading ? 'Loading…' : 'No matching pages.'} />;
 }

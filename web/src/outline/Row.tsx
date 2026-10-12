@@ -20,6 +20,8 @@ import type { OutlineContext } from './context';
 import type { FieldSheet } from './field-sheet';
 import type { OutlineDrag } from './drag';
 import { checkboxValue } from '../fields/kinds';
+import { hasValueEditor } from '../fields/value-options';
+import { fieldValueProblem } from '../fields/value-reading';
 import { KeptCopyActions, KeptCopyLabel } from './KeptCopy';
 import { quoteTarget } from '../document/text-tokens';
 import { Quote, createQuoteStatus } from './Quote';
@@ -29,11 +31,11 @@ export function createOutlineRows(context: Pick<OutlineContext,
   | 'doc' | 'capabilities' | 'setMenu' | 'investigationItems' | 'definitionsById' | 'contextDate'
   | 'inlineFields' | 'baseDepth' | 'positionSource' | 'sourceDetails' | 'virtualizer'
   | 'hosts' | 'props' | 'folds' | 'selectedSet' | 'editing'
-  | 'coveredSet' | 'glossId' | 'margin' | 'sigla' | 'blockMenu'
+  | 'coveredSet' | 'glossId' | 'margin' | 'sigla' | 'blockMenu' | 'fieldMenu'
   | 'fold' | 'zoomTo' | 'editAt' | 'restoreFocus' | 'pointerStart' | 'attach'
   | 'referenceMenu' | 'selectedOffsets' | 'ids' | 'indices' | 'setMessage' | 'apply'
   | 'setConflicts' | 'conflicts' | 'editedConflicts' | 'setEditedConflicts'
->, sheet: FieldSheet, drag: OutlineDrag, ReferenceCount: Component<{ id: string }>) {
+>, sheet: FieldSheet, drag: OutlineDrag, ReferenceCount: Component<{ id: string }>, openValueEditor: (id: string, anchor?: HTMLElement) => boolean) {
   const {
     doc, capabilities, setMenu, investigationItems, definitionsById, contextDate, inlineFields,
     baseDepth, positionSource, sourceDetails, virtualizer, hosts, props,
@@ -118,6 +120,17 @@ export function createOutlineRows(context: Pick<OutlineContext,
     const checked = () => inline() && valueField()?.kind === 'checkbox' && editing() !== id() ? checkboxValue(block()?.text ?? '') : null;
     const depth = () => (inline() ? doc.outline.depth(parent()) : doc.outline.depth(id())) - baseDepth();
     const pill = () => valueField()?.kind === 'choice' || valueField()?.kind === 'instance';
+    const controlledValue = () => hasValueEditor(valueField(), block()?.text ?? '', contextDate());
+    const valueProblem = createMemo(() => fieldValueProblem(valueField(), block()?.text ?? ''));
+    const valueTarget = createMemo(() => /^\[\[([^\]]+)\]\]$/.exec(block()?.text.trim() ?? '')?.[1]);
+    const openValueTarget = async (beside: boolean) => {
+      const targetId = valueTarget();
+      if (!targetId) return;
+      try {
+        const target = props.notebook.lookup(targetId)() ?? await props.notebook.api.block(targetId);
+        props.onOpen({ kind: 'page', pageId: target.page_id, ...(target.kind === 'block' ? { blockId: target.id } : {}) }, beside);
+      } catch (reason) { setMessage(reason instanceof Error ? reason.message : String(reason)); }
+    };
     const rowSource = createMemo(() => block()?.citations[0]?.source_id ?? (block()?.position ? positionSource(id()) : null));
     const localCitation = createMemo(() => doc.root()?.source ? block()?.citations.find(citation => citation.source_id === props.pageId) : undefined);
     const gist = () => inline() && isGistName(valueField()?.name) && !!doc.block(doc.outline.parentOf(parent()))?.position;
@@ -155,21 +168,26 @@ export function createOutlineRows(context: Pick<OutlineContext,
     onCleanup(() => { const host = hosts.get(id()); if (host && row.contains(host)) hosts.delete(id()); });
     return <div ref={row} id={`outline-${props.pane}-${id()}`} data-index={propsRow.item().index} data-block-id={id()} role="treeitem" aria-level={depth() + 1}
       aria-expanded={children() ? !folds().has(id()) : undefined} aria-selected={selectedSet().has(id())}
-      class="outline-row" classList={{ 'row-position': !!block()?.position, 'row-gist': gist(), 'row-question': !!block()?.question, 'row-assessment': !!block()?.assessment, 'row-selected': selectedSet().has(id()) && editing() !== id(), 'row-covered': coveredSet().has(id()), 'row-editing': editing() === id(), 'row-archived': block()?.archived ?? false, 'field-entry': !!field(), 'inline-field-value': inline(), 'row-gloss': inline() && parent() === glossId(), 'choice-value': pill(), 'source-detail': !!sourceField(), 'source-highlight': !!localCitation(), 'source-highlights-start': sourceDetails().chapters.has(id()), 'outline-row-linked': block()?.citations.some(citation => citation.id === linkedCitation()) ?? false }}
+      class="outline-row" classList={{ 'row-position': !!block()?.position, 'row-gist': gist(), 'row-question': !!block()?.question, 'row-assessment': !!block()?.assessment, 'row-selected': selectedSet().has(id()) && editing() !== id(), 'row-covered': coveredSet().has(id()), 'row-editing': editing() === id(), 'row-archived': block()?.archived ?? false, 'field-entry': !!field(), 'inline-field-value': inline(), 'row-gloss': inline() && parent() === glossId(), 'choice-value': pill(), 'source-highlight': !!localCitation(), 'source-highlights-start': sourceDetails().chapters.has(id()), 'outline-row-linked': block()?.citations.some(citation => citation.id === linkedCitation()) ?? false }}
       data-task-status={block()?.task?.status}
       data-holder={block()?.position?.holder_id ?? undefined}
       data-question-status={block()?.question?.status} data-accepted={block()?.assessment ? String(block()!.assessment!.accepted) : undefined} data-aporia={block()?.assessment?.state.aporia ? 'true' : undefined}
-      onPointerEnter={() => setLinkedCitation(block()?.citations[0]?.id ?? null)} onPointerLeave={() => setLinkedCitation(null)}
+      onPointerEnter={() => { setLinkedCitation(block()?.citations[0]?.id ?? null); sheet.hover(id()); }} onPointerLeave={() => { setLinkedCitation(null); sheet.hover(null); }}
       style={{ transform: `translateY(${propsRow.item().start - margin()}px)`, '--depth': depth(), '--quote-color': localCitation()?.color ? `var(--highlight-${localCitation()!.color})` : 'var(--faint)' }}>
       <Show when={sourceDetails().chapters.get(id())}>{title => <div class="outline-chapter-label">{title()}</div>}</Show>
       <Show when={rowSource() && sigla().get(rowSource()!)}>{mark => <span class="row-siglum" title={props.notebook.lookup(rowSource()!)()?.text}>{mark()}</span>}</Show>
       <button type="button" class="row-menu icon-button" aria-label="Block actions" onPointerDown={event => drag.start(event, id())} onClick={event => blockMenu(id(), event.currentTarget)}><Icon name="more" /></button>
       <button type="button" class="row-fold icon-button" classList={{ 'fold-empty': !children(), folded: folds().has(id()) }} aria-label={folds().has(id()) ? 'Unfold children' : 'Fold children'} disabled={!children()} onClick={() => fold(id())}><Icon name="down" /></button>
       <Show when={!inline() && !emptyEntry()}><button type="button" class="row-bullet icon-button" classList={{ 'bullet-collapsed': children() && folds().has(id()), 'row-card-mark': cardMark() }} aria-label={cardMark() ? `Cards: ${cardCount()}` : 'Zoom into block'} aria-haspopup={cardMark() ? 'dialog' : undefined} onPointerDown={event => drag.start(event, id())} onMouseDown={event => { if (cardMark()) event.preventDefault(); }} onClick={event => cardMark() ? cardControl?.open(event.currentTarget) : zoomTo(id())}><Icon name={cardMark() ? 'card' : 'bullet'} /></button></Show>
-      <Show when={inline()}><Show when={labelled()} fallback={<span class="outline-field-label" aria-hidden="true" />}><button type="button" class="outline-field-label" title={valueField()?.name} onClick={() => editAt(id(), block()?.text.length ?? 0, true)}><Icon name="field" /><span>{valueField()?.name}</span></button></Show></Show>
-      <Show when={emptyEntry()}><button type="button" class="outline-field-label" title={field()?.name} onClick={() => editAt(id(), block()?.text.length ?? 0, true)}><Icon name="field" /><span>{field()?.name}</span></button></Show>
+      <Show when={inline()}><Show when={labelled()} fallback={<span class="outline-field-label" aria-hidden="true" />}><button type="button" class="outline-field-label" title={valueField()?.name} onClick={event => context.fieldMenu(id(), event.currentTarget)}><Icon name="field" /><span>{valueField()?.name}</span></button></Show></Show>
+      <Show when={emptyEntry()}><button type="button" class="outline-field-label" title={field()?.name} onClick={event => context.fieldMenu(id(), event.currentTarget)}><Icon name="field" /><span>{field()?.name}</span></button></Show>
       <Show when={block()?.task}><TaskStatusButton task={block()?.task ?? null} disabled={capabilities.busy(id())} onRestoreFocus={restoreFocus} onChange={status => capabilities.status(id(), status)} /></Show>
-      <div class="outline-body" classList={{ 'heading-1': block()?.heading === 1, 'heading-2': block()?.heading === 2, 'heading-3': block()?.heading === 3 }} onMouseDown={event => pointerStart(event, id(), event.currentTarget)}>
+      <div class="outline-body" classList={{ 'heading-1': block()?.heading === 1, 'heading-2': block()?.heading === 2, 'heading-3': block()?.heading === 3 }} onMouseDown={event => {
+        if (controlledValue() && !(event.target as Element).closest('button, .outline-capability-metadata')) { event.preventDefault(); event.stopPropagation(); }
+        else pointerStart(event, id(), event.currentTarget);
+      }} onClick={event => {
+        if (controlledValue() && !(event.target as Element).closest('button, .outline-capability-metadata')) { event.stopPropagation(); openValueEditor(id(), event.currentTarget); }
+      }}>
         <Show when={block()?.keptCopy}>{copy => <KeptCopyLabel copy={copy()} />}</Show>
         <div class="outline-source-line"><div class="outline-source">
         <div class="editor-host" classList={{ 'host-active': editing() === id() }} ref={host => attach(id(), host)} />
@@ -178,9 +196,16 @@ export function createOutlineRows(context: Pick<OutlineContext,
           <Match when={checked() !== null || emptyEntry() && field()?.kind === 'checkbox'}>
             <button type="button" role="checkbox" class="field-checkbox" aria-checked={!!checked()} aria-label={(valueField() ?? field())?.name} onMouseDown={event => event.stopPropagation()} onClick={() => checked() === null ? sheet.fill(id()) : sheet.toggle(id(), checked()!)}><Show when={checked()}><Icon name="check" /></Show></button>
           </Match>
-          <Match when={emptyEntry()}><button type="button" class="field-empty-value" onMouseDown={event => event.stopPropagation()} onClick={() => sheet.fill(id())}>Empty</button></Match>
+          <Match when={emptyEntry()}><button type="button" class="field-empty-value" aria-label={`Add ${field()?.name} value`} onMouseDown={event => event.stopPropagation()} onClick={() => sheet.fill(id())} /></Match>
+          <Match when={controlledValue()}>
+            <div class="static-text"><button type="button" class={!block()?.text ? 'field-empty-value' : pill() ? 'outline-value-pill text-button' : 'outline-value-text'} classList={{ 'outline-reading-problem': !!valueProblem() }} title={valueProblem()} aria-label={`Edit ${valueField()?.name} value`} aria-haspopup={valueField()?.kind !== 'instance' ? 'dialog' : undefined}
+              onMouseDown={event => { event.preventDefault(); event.stopPropagation(); }}
+              onClick={event => { event.stopPropagation(); if (valueTarget() && (valueField()?.kind === 'instance' || event.shiftKey)) void openValueTarget(event.shiftKey); else openValueEditor(id(), event.currentTarget); }}>
+              <Show when={block()?.text}><BlockText text={displayText()} notebook={props.notebook} interactive={false} /></Show>
+            </button></div>
+          </Match>
           <Match when>
-            <div class="static-text"><span classList={{ 'outline-value-pill': pill() && !!block()?.text }}><BlockText text={displayText()} blockId={id()} onError={setMessage} cards field={field()} notebook={props.notebook} onOpen={props.onOpen} onReferenceMenu={referenceMenu} selection={selectedOffsets(id())} /></span><Show when={!block()?.text && (ids().length === 1 || inline())}><span class="empty-block">{inline() && parent() === glossId() ? 'One or two sentences on what this is' : inline() ? 'Empty' : 'Start writing'}</span></Show></div>
+            <div class="static-text"><span classList={{ 'outline-value-pill': pill() && !!block()?.text, 'outline-reading-problem': !!valueProblem() }} title={valueProblem()}><BlockText text={displayText()} blockId={id()} onError={setMessage} cards field={field()} notebook={props.notebook} onOpen={props.onOpen} onReferenceMenu={referenceMenu} selection={selectedOffsets(id())} /></span><Show when={!block()?.text && inline()}><button type="button" class="field-empty-value" aria-label={`Add ${valueField()?.name} value`} onMouseDown={event => event.stopPropagation()} onClick={() => editAt(id(), 0, true)} /></Show><Show when={!block()?.text && !inline() && ids().length === 1}><span class="empty-block">Start writing</span></Show></div>
           </Match>
         </Switch></Show>
         <For each={block()?.manual_types ?? []}>{title => <TypePill title={title} notebook={props.notebook} onOpen={props.onOpen} onRestoreFocus={restoreFocus} onRemove={() => { const result = doc.removeType(id(), title); if (!result.ok) setMessage(result.reason); }} />}</For>

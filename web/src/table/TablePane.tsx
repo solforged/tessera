@@ -3,7 +3,7 @@ import type { JSX } from 'solid-js';
 import { ulid } from 'ulid';
 import { api } from '../api/client';
 import type { FieldDefinition, FieldKind, Fields, FieldValue, NoteIndex, Operation, Query, QueryResult, QueryRow, SortKey, Type, View } from '../api/types';
-import type { Edit, NotebookClient, PageDocument } from '../document/contract';
+import type { NotebookClient, PageDocument } from '../document/contract';
 import { textTokens } from '../document/text-tokens';
 import { BlockText, plainText } from '../outline/BlockText';
 import type { OpenTarget, PaneId, TableViewState } from '../shell/contract';
@@ -13,7 +13,9 @@ import { Menu } from '../ui/Menu';
 import type { MenuItem } from '../ui/Menu';
 import { Popup } from '../ui/Popup';
 import { TypeModeTabs } from '../ui/TypeModeTabs';
-import { kindLabels, partialDatePlaceholder } from '../fields/kinds';
+import { checkboxValue, kindLabels, partialDatePlaceholder } from '../fields/kinds';
+import { ValueEditor, writeFieldValue } from '../fields/value-editor';
+import { hasValueEditor } from '../fields/value-options';
 import { noteKindIcon } from '../notes/kinds';
 import { autoPlural } from '../fields/presentation';
 import { FilterPopup } from './FilterPopup';
@@ -35,6 +37,7 @@ type PopupState = { kind: 'menu'; anchor: HTMLElement; items: MenuItem[]; label:
   | { kind: 'columns'; anchor: HTMLElement }
   | { kind: 'sources'; anchor: HTMLElement; label: string; sources: TableSource[] }
   | { kind: 'delete'; anchor: HTMLElement; view: View }
+  | { kind: 'value'; anchor: HTMLElement; row: QueryRow; field: FieldDefinition; value?: FieldValue }
   | null;
 const valuePlaceholders: Partial<Record<FieldKind, string>> = { date: partialDatePlaceholder, url: 'https://', identifier: 'ISBN, DOI or arXiv ID' };
 const titleWidthLimits = { min: 170, max: 340, default: 240 };
@@ -65,6 +68,26 @@ export function TablePane(props: TablePaneProps) {
   const [deleting, setDeleting] = createSignal(false);
   const [savedRevision, setSavedRevision] = createSignal(0);
   let region!: HTMLDivElement; let scroll!: HTMLDivElement; let grid!: HTMLTableElement;
+  const documents = new Map<string, PageDocument>();
+  const history: { doc: PageDocument; rowId: string; fieldId: string }[] = [];
+  const undone: typeof history = [];
+  onCleanup(() => { for (const doc of documents.values()) doc.release(); });
+  const focusCell = (rowId: string, fieldId: string) => {
+    region?.querySelector<HTMLElement>(`tr[data-block-id="${rowId}"] [data-field-id="${fieldId}"]`)?.focus({ preventScroll: true });
+  };
+  const showResult = (next: QueryResult) => {
+    const cell = document.activeElement?.closest<HTMLElement>('.table-cell');
+    const rowId = cell?.closest<HTMLElement>('tr')?.dataset.blockId;
+    const fieldId = cell?.dataset.fieldId;
+    const column = cell?.dataset.column;
+    const restore = !!cell && region.contains(cell);
+    setResult(next);
+    if (restore && rowId) {
+      if (fieldId) focusCell(rowId, fieldId);
+      else region.querySelector<HTMLElement>(`tr[data-block-id="${rowId}"] [data-column="${column}"]`)?.focus({ preventScroll: true });
+    }
+  };
+  const refreshCells = async () => showResult(await api.query({ ...copyQuery(query()), offset: 0, limit: Math.max(pageSize(), result()?.rows.length ?? 0) }));
   // Columns past the right edge get a fade over the table rows and a count in the header, so a wide register says it scrolls.
   const [edge, setEdge] = createSignal({ height: 0, hidden: 0 });
   const measureEdge = () => {
@@ -144,7 +167,7 @@ export function TablePane(props: TablePaneProps) {
       void Promise.all([api.query({ ...value, offset: 0 }, controller.signal), api.fields(controller.signal), value.type ? api.type(value.type, controller.signal) : Promise.resolve(undefined), value.type ? api.noteIndex(controller.signal) : Promise.resolve(undefined)])
         .then(([rows, allFields, pageType, index]) => {
           if (controller.signal.aborted) return;
-          setResult(rows); setDefinitions(allFields); setType(pageType); setNoteIndex(index); setError(''); setLoading(false);
+          showResult(rows); setDefinitions(allFields); setType(pageType); setNoteIndex(index); setError(''); setLoading(false);
           if (!restoredScroll) {
             restoredScroll = true;
             requestAnimationFrame(() => { if (scroll) { scroll.scrollTop = props.view.scroll; scroll.scrollLeft = props.view.horizontalScroll ?? 0; } });
@@ -186,19 +209,19 @@ export function TablePane(props: TablePaneProps) {
     await api.submit({ actor: { kind: 'client', name: 'tessera-web-table' }, idempotency_key: ulid(), operations: [operation] });
   };
   const withDocument = async (pageId: string, action: (doc: PageDocument) => void | Promise<void>) => {
-    const doc = props.notebook.open(pageId);
-    try {
-      const ready = Promise.withResolvers<void>();
-      createRoot(dispose => {
-        createEffect(() => {
-          const status = doc.status();
-          if (status === 'ready') { dispose(); ready.resolve(); }
-          else if (status !== 'loading') { dispose(); ready.reject(new Error(doc.statusMessage())); }
-        });
+    let doc = documents.get(pageId);
+    if (!doc) { doc = props.notebook.open(pageId); documents.set(pageId, doc); }
+    const current = doc;
+    const ready = Promise.withResolvers<void>();
+    createRoot(dispose => {
+      createEffect(() => {
+        const status = current.status();
+        if (status === 'ready') { dispose(); ready.resolve(); }
+        else if (status !== 'loading') { dispose(); ready.reject(new Error(current.statusMessage())); }
       });
-      await ready.promise;
-      await action(doc);
-    } finally { doc.release(); }
+    });
+    await ready.promise;
+    await action(current);
   };
   const appendField = async (fieldId: string) => {
     const currentType = type(); if (!currentType || !query().type) return;
@@ -329,12 +352,33 @@ export function TablePane(props: TablePaneProps) {
       props.onOpen({ kind: 'page', pageId: owner.page_id, blockId: entries.length === 1 ? entries[0] : owner.kind === 'block' ? owner.id : undefined }, true);
     }).catch(message);
   };
-  const startEdit = (row: QueryRow, field: FieldDefinition) => {
-    const values = row.values[field.id] ?? [];
-    if (!['text', 'number', 'date', 'url', 'identifier'].includes(field.kind) || values.length > 1 || values.some(value => textTokens(value.text).some(token => token.kind === 'reference' || token.kind === 'tag'))) {
-      openField(row, field);
-      return;
+  const openPill = async (row: QueryRow, field: FieldDefinition, value: FieldValue, anchor: HTMLElement, beside: boolean) => {
+    if (field.kind === 'choice' && !beside) {
+      anchor.closest<HTMLElement>('.table-cell')?.focus({ preventScroll: true });
+      setPopup({ kind: 'value', row, field, value, anchor }); return;
     }
+    const id = fieldEntryId(value.text);
+    if (!id) return;
+    const target = props.notebook.lookup(id)() ?? await props.notebook.api.block(id);
+    props.onOpen({ kind: 'page', pageId: target.page_id, ...(target.kind === 'block' ? { blockId: target.id } : {}) }, beside || window.matchMedia('(pointer: coarse) and (min-width: 900px)').matches);
+  };
+  const writeCell = async (row: QueryRow, field: FieldDefinition, text: string, value = row.values[field.id]?.[0]) => {
+    await withDocument(row.block.page.id, async doc => {
+      if ((value?.text ?? '') === text) return;
+      writeFieldValue(doc, { field, ownerId: row.block.block.id, valueId: value?.id }, text);
+      history.push({ doc, rowId: row.block.block.id, fieldId: field.id }); undone.length = 0;
+      await doc.flush();
+      await refreshCells();
+    });
+  };
+  const startEdit = (row: QueryRow, field: FieldDefinition, anchor: HTMLElement) => {
+    const values = row.values[field.id] ?? [];
+    if (values.length > 1) { openField(row, field); return; }
+    if (field.kind === 'checkbox') { void writeCell(row, field, checkboxValue(values[0]?.text ?? '') ? 'no' : 'yes').catch(message); return; }
+    if (hasValueEditor(field, values[0]?.text ?? '', props.notebook.todayDate())) {
+      setPopup({ kind: 'value', row, field, anchor }); return;
+    }
+    if (values.some(value => textTokens(value.text).some(token => token.kind === 'reference' || token.kind === 'tag'))) { openField(row, field); return; }
     setEditing({ row, field, text: values[0]?.text ?? '' });
   };
   const commitEdit = async () => {
@@ -342,31 +386,31 @@ export function TablePane(props: TablePaneProps) {
     setEditing(null);
     const original = current.row.values[current.field.id]?.[0]?.text ?? '';
     if (current.text === original) return;
-    try {
-      await withDocument(current.row.block.page.id, doc => {
-        const first = current.row.values[current.field.id]?.[0];
-        const apply = (edit: Edit) => { const value = doc.edit(edit); if (!value.ok) throw new Error(value.reason); return value; };
-        if (first) {
-          apply({ kind: 'text', id: first.id, text: current.text });
-        } else {
-          const owner = current.row.block.block.id;
-          let entryId = doc.outline.children(owner).find(id => fieldEntryId(doc.block(id)?.text ?? '') === current.field.id && !doc.block(id)?.archived);
-          if (!entryId) entryId = apply({ kind: 'insert', parentId: owner, after: doc.outline.children(owner).at(-1) ?? null, text: fieldEntryText(current.field.id) }).created[0]!;
-          const blank = doc.outline.children(entryId).find(id => { const block = doc.block(id); return block && !block.archived && !block.text.trim(); });
-          if (blank) apply({ kind: 'text', id: blank, text: current.text });
-          else apply({ kind: 'insert', parentId: entryId, after: null, text: current.text });
-        }
-      });
-    } catch (reason) { message(reason); }
+    try { await writeCell(current.row, current.field, current.text); }
+    catch (reason) { message(reason); }
     requestAnimationFrame(() => region?.querySelector<HTMLElement>(`[data-row="${focused().row}"][data-column="${focused().column}"]`)?.focus());
   };
+  const replayCell = async (redo: boolean) => {
+    const source = redo ? undone : history;
+    const entry = source.pop(); if (!entry) return;
+    redo ? entry.doc.redo() : entry.doc.undo();
+    (redo ? history : undone).push(entry);
+    await entry.doc.flush();
+    await refreshCells();
+    focusCell(entry.rowId, entry.fieldId);
+  };
   const keydown = (event: KeyboardEvent) => {
-    if (event.isComposing || event.target instanceof HTMLElement && event.target.closest('input, select, textarea, button, a')) return;
+    if (event.isComposing || event.target instanceof HTMLElement && event.target.closest('input, select, textarea, [contenteditable="true"]')) return;
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
+      event.preventDefault(); event.stopPropagation(); void replayCell(event.shiftKey).catch(message); return;
+    }
+    if (event.target instanceof HTMLElement && event.target.closest('button, a')) return;
     const current = focused(); const row = members().notes[current.row];
     if (event.key === 'Escape') { region.focus(); event.preventDefault(); return; }
-    if (event.key === 'Enter' && row) {
+    const field = current.column ? fieldById(visibleColumns()[current.column - 1]!) : undefined;
+    if ((event.key === 'Enter' || event.key === ' ' && field?.kind === 'checkbox') && row) {
       if (!current.column) openRow(row, event.shiftKey);
-      else { const field = fieldById(visibleColumns()[current.column - 1]!); if (field) startEdit(row, field); }
+      else if (field && event.target instanceof HTMLElement) startEdit(row, field, event.target);
       event.preventDefault(); return;
     }
     if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) return;
@@ -425,8 +469,8 @@ export function TablePane(props: TablePaneProps) {
           </td>
           <For each={visibleColumns()}>{(id, columnIndex) => {
             const field = () => fieldById(id); const current = () => editing();
-            return <td class={`table-cell table-kind-${field()?.kind ?? 'text'}`} data-row={rowIndex()} data-column={columnIndex() + 1} tabIndex={focused().row === rowIndex() && focused().column === columnIndex() + 1 ? 0 : -1} onFocus={() => { setFocused({ row: rowIndex(), column: columnIndex() + 1 }); setSelectedRow(row.block.block.id); }} onDblClick={() => { if (field()) startEdit(row, field()!); }}>
-              <Show when={current()?.row.block.block.id === row.block.block.id && current()?.field.id === id} fallback={<TableFieldValue field={field()} values={row.values[id] ?? []} notebook={props.notebook} hideCount={id === sourceField()?.id} onSources={(anchor, sources) => setPopup({ kind: 'sources', anchor, label: field()?.name ?? 'Sources', sources })} />}>
+            return <td class={`table-cell table-kind-${field()?.kind ?? 'text'}`} data-row={rowIndex()} data-column={columnIndex() + 1} data-field-id={id} tabIndex={focused().row === rowIndex() && focused().column === columnIndex() + 1 ? 0 : -1} onFocus={() => { setFocused({ row: rowIndex(), column: columnIndex() + 1 }); setSelectedRow(row.block.block.id); }} onClick={event => { event.stopPropagation(); if ((event.target as HTMLElement).closest('input, button, a')) return; event.currentTarget.focus({ preventScroll: true }); if (field()?.kind === 'checkbox') startEdit(row, field()!, event.currentTarget); }} onDblClick={event => { event.stopPropagation(); if (field() && field()!.kind !== 'checkbox') startEdit(row, field()!, event.currentTarget); }}>
+              <Show when={current()?.row.block.block.id === row.block.block.id && current()?.field.id === id} fallback={<TableFieldValue field={field()} values={row.values[id] ?? []} notebook={props.notebook} hideCount={id === sourceField()?.id} onPill={(value, anchor, beside) => { if (field()) void openPill(row, field()!, value, anchor, beside).catch(message); }} onSources={(anchor, sources) => setPopup({ kind: 'sources', anchor, label: field()?.name ?? 'Sources', sources })} />}>
                 <input class="input table-cell-input" type="text" aria-label={`Edit ${field()?.name ?? 'field'} value`} placeholder={field() ? valuePlaceholders[field()!.kind] : undefined} inputmode={field()?.kind === 'number' ? 'decimal' : field()?.kind === 'url' ? 'url' : undefined} value={current()?.text ?? ''} ref={input => queueMicrotask(() => { input.focus(); input.select(); })} onInput={event => { const text = event.currentTarget.value; setEditing(value => value ? { ...value, text } : null); }} onKeyDown={event => {
                   if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); void commitEdit(); }
                   else if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setEditing(null); region.focus(); }
@@ -440,7 +484,7 @@ export function TablePane(props: TablePaneProps) {
         }}>
           <Button class="table-card-title" onClick={event => openRow(row, event.shiftKey)}><BlockText text={props.notebook.lookup(row.block.block.id)()?.text ?? row.block.block.text} notebook={props.notebook} interactive={false} /><span class="table-card-arrow" aria-hidden="true">›</span></Button>
           <div class="table-card-fields"><For each={cardFields(row, visibleColumns(), fields(), sourceField())}>{field => <div class={`table-card-field table-kind-${field.kind}`} classList={{ 'table-card-source': field.id === sourceField()?.id }} role="button" tabIndex={0} aria-label={`Open ${field.name} field`} onClick={event => { event.stopPropagation(); if (!(event.target as HTMLElement).closest('button')) openField(row, field); }} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); openField(row, field); } }}>
-            <TableFieldValue field={field} values={row.values[field.id] ?? []} notebook={props.notebook} hideCount onSources={(anchor, sources) => setPopup({ kind: 'sources', anchor, label: field.name, sources })} />
+            <TableFieldValue field={field} values={row.values[field.id] ?? []} notebook={props.notebook} hideCount onPill={(value, anchor, beside) => { void openPill(row, field, value, anchor, beside).catch(message); }} onSources={(anchor, sources) => setPopup({ kind: 'sources', anchor, label: field.name, sources })} />
           </div>}</For><Show when={showRefs() && (sourcesByRow().get(row.block.block.id) ?? []).length}>{count => <Button class="table-source-count table-card-refs" label={`${count()} references`} aria-haspopup="dialog" onClick={event => { event.stopPropagation(); setPopup({ kind: 'sources', anchor: event.currentTarget, label: sourceField()?.name ?? 'Source', sources: sourcesByRow().get(row.block.block.id) ?? [] }); }}>{count()} {count() === 1 ? 'ref' : 'refs'}</Button>}</Show></div>
         </article>}</For></div>
         <Show when={!loading() && !error() && !members().notes.length}><p class="table-empty">No note members.</p></Show>
@@ -461,6 +505,8 @@ export function TablePane(props: TablePaneProps) {
     </div>
     <Show keyed when={popup()}>{state => <>
       {state.kind === 'menu' && <Menu anchor={state.anchor} label={state.label} header={state.header} items={state.items} onDismiss={() => setPopup(null)} />}
+      {state.kind === 'value' && <ValueEditor anchor={state.anchor} field={fieldById(state.field.id) ?? state.field} text={(state.value ?? state.row.values[state.field.id]?.[0])?.text ?? ''} notebook={props.notebook} contextDate={props.notebook.todayDate()}
+        onWrite={text => writeCell(state.row, state.field, text, state.value)} onError={message} onDismiss={() => { setPopup(null); requestAnimationFrame(() => focusCell(state.row.block.block.id, state.field.id)); }} />}
       {state.kind === 'filter' && <FilterPopup anchor={state.anchor} fields={fields()} initialField={state.field} sheet={window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches} onDismiss={() => setPopup(null)} onNewField={async name => createField(name, false)} onAdd={filter => { updateQuery(addFilter(query(), filter)); setPopup(null); }} />}
       {state.kind === 'name' && <NamePopup anchor={state.anchor} action={state.action} name={state.action === 'rename' ? saved()?.name ?? '' : ''} onDismiss={() => setPopup(null)} onSave={async name => { if (state.action === 'field') await createField(name, !!state.addColumn); else await saveView(name, state.action === 'rename'); }} />}
       {state.kind === 'delete' && <Popup anchor={state.anchor} label="Delete table view?" onDismiss={() => { if (!deleting()) setPopup(null); }}>
@@ -481,13 +527,15 @@ export function TablePane(props: TablePaneProps) {
   </div>;
 }
 
-function TableFieldValue(props: { field: FieldDefinition | undefined; values: FieldValue[]; notebook: NotebookClient; hideCount?: boolean; onSources(anchor: HTMLElement, sources: TableSource[]): void }) {
+function TableFieldValue(props: { field: FieldDefinition | undefined; values: FieldValue[]; notebook: NotebookClient; hideCount?: boolean; onPill(value: FieldValue, anchor: HTMLElement, beside: boolean): void; onSources(anchor: HTMLElement, sources: TableSource[]): void }) {
   const parsed = createMemo(() => props.field?.kind === 'url' || props.field?.kind === 'text' ? props.values.map(value => ({ value, ...sourceText(value.text) })) : []);
   const sources = createMemo(() => parsed().flatMap(value => value.sources));
   const problems = createMemo(() => props.values.flatMap(value => value.reading.ok ? [] : [value.reading.problem]).join('; '));
   return <Show when={sources().length} fallback={<TableCellText>{expanded => <For each={props.values}>{(value, index) => <>
     {index() > 0 ? ', ' : ''}<Show when={value.reading.ok} fallback={<span class="table-reading-problem" title={!value.reading.ok ? value.reading.problem : undefined}><BlockText text={props.field?.kind === 'instance' ? value.text : preview(value.text, expanded)} blockId={value.id} notebook={props.notebook} interactive={false} /></span>}>
-      <span class={props.field?.kind === 'choice' || props.field?.kind === 'instance' ? 'table-value-pill' : ''}><BlockText text={props.field?.kind === 'instance' ? value.text : value.reading.ok ? props.field?.kind === 'text' ? preview(value.text, expanded) : props.field?.kind === 'checkbox' ? value.reading.value ? '☑' : '☐' : String(value.reading.value) : ''} blockId={value.id} notebook={props.notebook} interactive={false} /></span>
+      <Show when={(props.field?.kind === 'choice' || props.field?.kind === 'instance') && fieldEntryId(value.text)} fallback={<span><BlockText text={value.reading.ok ? props.field?.kind === 'text' ? preview(value.text, expanded) : props.field?.kind === 'checkbox' ? value.reading.value ? '☑' : '☐' : String(value.reading.value) : ''} blockId={value.id} notebook={props.notebook} interactive={false} /></span>}>
+        <Button class="table-value-pill" onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') event.stopPropagation(); }} onDblClick={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); props.onPill(value, event.currentTarget, event.shiftKey); }}><BlockText text={props.field?.kind === 'instance' ? value.text : value.reading.ok ? String(value.reading.value) : value.text} blockId={value.id} notebook={props.notebook} interactive={false} /></Button>
+      </Show>
     </Show>
   </>}</For>}</TableCellText>}>
     <div class="table-source-cell">
