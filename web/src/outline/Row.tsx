@@ -4,7 +4,7 @@ import type { VirtualItem } from '@tanstack/solid-virtual';
 import type { QuestionStatus } from '../api/types';
 import { fieldEntryId, matchFieldEntry } from '../table/query';
 import { linkedCitation, setLinkedCitation } from '../library/highlights';
-import { parseCardText } from '../review/card-text';
+import { cardSubject, parseCardText } from '../review/card-text';
 import { TaskStatusButton } from '../tasks/TaskControls';
 import { RunningClock } from '../tasks/WorkSessions';
 import { isFinished, taskFacts } from '../tasks/task-labels';
@@ -127,7 +127,15 @@ export function createOutlineRows(context: Pick<OutlineContext,
     });
     const cardText = createMemo(() => block()?.text ?? '');
     const cards = createMemo(() => parseCardText(cardText()));
-    const cardCount = () => cards().cards.length + (block()?.templateCards ?? 0);
+    // A descriptor's front names its parent, so the core derives no card under an empty parent.
+    const orphanDescriptor = createMemo(() => {
+      if (!cards().cards.some(card => card.kind === 'descriptor')) return false;
+      const parentText = doc.block(parent())?.text;
+      return parentText !== undefined && !cardSubject(parentText);
+    });
+    const derivedCards = createMemo(() => orphanDescriptor() ? [] : cards().cards);
+    const cardProblems = createMemo(() => orphanDescriptor() ? [{ message: 'A descriptor needs a parent with text.' }] : cards().problems);
+    const cardCount = () => derivedCards().length + (block()?.templateCards ?? 0);
     const cardMark = () => !block()?.task && cardCount() > 0;
     let cardControl: { open(anchor: HTMLElement): void } | undefined;
     const [cardTextSettled, setCardTextSettled] = createSignal(false);
@@ -171,12 +179,12 @@ export function createOutlineRows(context: Pick<OutlineContext,
         </Switch></Show>
         <For each={block()?.manual_types ?? []}>{title => <TypePill title={title} notebook={props.notebook} onOpen={props.onOpen} onRemove={() => { const result = doc.removeType(id(), title); if (!result.ok) setMessage(result.reason); }} />}</For>
         </div>
-        <Show when={block()?.task || block()?.project || block()?.question || block()?.assessment || cards().cards.length || block()?.templateCards || block()?.citations.length}><span class="outline-capability-metadata" onMouseDown={event => { if ((event.target as Element).closest('button')) { event.preventDefault(); event.stopPropagation(); } }}>
+        <Show when={block()?.task || block()?.project || block()?.question || block()?.assessment || derivedCards().length || block()?.templateCards || block()?.citations.length}><span class="outline-capability-metadata" onMouseDown={event => { if ((event.target as Element).closest('button')) { event.preventDefault(); event.stopPropagation(); } }}>
           <TaskSummary id={id()} />
           <Show when={block()?.project}><Button class="outline-planning" label="Project" aria-haspopup="dialog" onClick={event => capabilities.open(id(), 'project', event.currentTarget)}>Project</Button></Show>
           <QuestionSummary id={id()} />
           <AnswerSummary id={id()} />
-          <Show when={cardCount()}><CardSummary blockId={id()} cards={cards().cards} templateCount={block()?.templateCards ?? 0} notebook={props.notebook} onOpen={props.onOpen} register={control => { cardControl = control; }} /></Show>
+          <Show when={cardCount()}><CardSummary blockId={id()} cards={derivedCards()} templateCount={block()?.templateCards ?? 0} notebook={props.notebook} onOpen={props.onOpen} register={control => { cardControl = control; }} /></Show>
           <For each={block()?.citations}>{citation => <CitationChip citation={citation} pageId={props.pageId} notebook={props.notebook} onOpen={props.onOpen} />}</For>
         </span></Show>
         </div>
@@ -184,7 +192,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
         <For each={block()?.citations}>{citation => <Show when={block()?.text.trim() !== citation.quote.trim()}>
           <p class="outline-citation-quote" title={citation.quote}>{citation.quote}</p>
         </Show>}</For>
-        <Show when={editing() !== id() || cardTextSettled()}><For each={cards().problems}>{problem => <p class="outline-card-problem" role="status">{problem.message}</p>}</For></Show>
+        <Show when={editing() !== id() || cardTextSettled()}><For each={cardProblems()}>{problem => <p class="outline-card-problem" role="status">{problem.message}</p>}</For></Show>
         <Show when={capabilities.error(id())}><p class="outline-capability-error" role="alert">{capabilities.error(id())}</p></Show>
         <Show when={block()?.archived}><span class="archive-badge">Archived</span> <button class="text-button" type="button" onClick={() => apply({ kind: 'archive', id: id(), archived: false }, false)}>Unarchive</button></Show>
         <Show when={block()?.conflict}><button type="button" class="conflict-label" onClick={() => setConflicts(previous => { const next = new Set(previous); next.has(id()) ? next.delete(id()) : next.add(id()); return next; })}><Icon name="warning" />Conflict</button></Show>

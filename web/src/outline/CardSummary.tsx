@@ -107,7 +107,7 @@ export function CardSummary(props: { blockId: string; cards: ParsedCard[]; templ
       <Show when={error()}><p class="error" role="alert">{error()} <Button onClick={() => setRetry(value => value + 1)}>Retry</Button></p></Show>
       <Show when={!error() && ordered().length}><div class="outline-cards-list">
         <For each={ordered()}>{card => <div class="outline-cards-row">
-          <span class="outline-cards-kind" classList={{ 'outline-cards-provenance': !!card.template }}>{card.template ? `from #${card.template.type_name} · ${card.template.name}` : card.kind === 'cloze' ? `Cloze ${card.key.slice('cloze:c'.length)}` : card.kind === 'forward' ? 'Forward' : card.kind === 'reverse' ? 'Reverse' : card.kind === 'multiline' ? 'Multi-line' : 'List'}</span>
+          <span class="outline-cards-kind" classList={{ 'outline-cards-provenance': !!card.template }}>{card.template ? `from #${card.template.type_name} · ${card.template.name}` : card.kind === 'cloze' ? `Cloze ${card.key.slice('cloze:c'.length)}` : card.kind === 'forward' ? 'Forward' : card.kind === 'reverse' ? 'Reverse' : card.kind === 'multiline' ? 'Multi-line' : card.kind === 'descriptor' ? 'Descriptor' : 'List'}</span>
           <div class="outline-cards-content">
             <div class="outline-cards-front"><BlockText text={card.front} notebook={props.notebook} interactive={false} /></div>
             <div class="outline-cards-answer"><CardAnswer card={card} notebook={props.notebook} /></div>

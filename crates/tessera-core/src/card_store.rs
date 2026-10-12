@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use rusqlite::{Connection, OptionalExtension, params};
 
-use crate::card_text::{CardKind, parse_card_text};
+use crate::card_text::{CardKind, card_subject, parse_card_text};
 use crate::scheduler;
 use crate::storage::{not_found, validate_id, validation};
 use crate::{CardAnswerBlock, CardUnit, Notebook, Result, Revision};
@@ -24,6 +24,7 @@ fn kind_at(row: &rusqlite::Row<'_>, offset: usize) -> rusqlite::Result<CardKind>
         "cloze" => Ok(CardKind::Cloze),
         "multiline" => Ok(CardKind::Multiline),
         "list" => Ok(CardKind::List),
+        "descriptor" => Ok(CardKind::Descriptor),
         kind => Err(rusqlite::Error::FromSqlConversionFailure(
             offset,
             rusqlite::types::Type::Text,
@@ -42,6 +43,7 @@ fn kind_name(kind: CardKind) -> &'static str {
         CardKind::Cloze => "cloze",
         CardKind::Multiline => "multiline",
         CardKind::List => "list",
+        CardKind::Descriptor => "descriptor",
     }
 }
 
@@ -150,7 +152,8 @@ pub(crate) fn derive_sources(conn: &Connection, ids: &[String], now: i64) -> Res
         return Ok(Vec::new());
     }
     // Child edits, moves, deletion, restoration and reordering invalidate every
-    // ancestor definition, not just cards on the edited row itself.
+    // ancestor definition, not just cards on the edited row itself. A descriptor's
+    // front names its parent, so a parent's edit re-derives descriptor children too.
     let ids = serde_json::to_string(ids).expect("source IDs serialize");
     let ids = conn
         .prepare_cached(
@@ -159,7 +162,11 @@ pub(crate) fn derive_sources(conn: &Connection, ids: &[String], now: i64) -> Res
              UNION
              SELECT b.parent_id FROM blocks b JOIN affected a ON b.id = a.id
              WHERE b.parent_id IS NOT NULL
-         ) SELECT id FROM affected ORDER BY id",
+         ) SELECT id FROM affected
+         UNION
+         SELECT b.id FROM blocks b JOIN json_each(?1) j ON b.parent_id = j.value
+         WHERE instr(b.text, ';;') > 0
+         ORDER BY id",
         )?
         .query_map([ids], |row| row.get::<_, String>(0))?
         .collect::<rusqlite::Result<Vec<_>>>()?;
@@ -188,8 +195,8 @@ pub(crate) fn derive_sources(conn: &Connection, ids: &[String], now: i64) -> Res
     drop(rows);
 
     let mut sources = conn.prepare_cached(
-        "SELECT id, text FROM blocks
-         WHERE kind = 'block' AND id IN (SELECT value FROM json_each(?1)) ORDER BY id",
+        "SELECT b.id, b.text, p.text FROM blocks b JOIN blocks p ON p.id = b.parent_id
+         WHERE b.kind = 'block' AND b.id IN (SELECT value FROM json_each(?1)) ORDER BY b.id",
     )?;
     let mut insert = conn.prepare_cached(
         "INSERT INTO card_units
@@ -220,6 +227,12 @@ pub(crate) fn derive_sources(conn: &Connection, ids: &[String], now: i64) -> Res
                     continue;
                 }
                 parsed.back = serde_json::to_string(&answer).expect("answer blocks serialize");
+            } else if parsed.kind == CardKind::Descriptor {
+                let subject = card_subject(text_at(row, 2)?);
+                if subject.is_empty() {
+                    continue;
+                }
+                parsed.front = format!("{subject} › {}", parsed.front);
             }
             if let Some(old) = previous.remove(&parsed.key) {
                 if old.active

@@ -142,6 +142,48 @@ fn child_answers_ignore_blank_typing_rows() {
 }
 
 #[test]
+fn descriptors_follow_their_parents_subject_without_resetting() {
+    let (_dir, mut nb) = fixture("Mitochondria");
+    apply(&mut nb, vec![insert(20, 10, "Function ;; makes ATP")]);
+    let reviewed = grade(&mut nb, 20, "descriptor", 100);
+    assert_eq!(reviewed.kind, CardKind::Descriptor);
+    assert_eq!(
+        (&*reviewed.front, &*reviewed.back),
+        ("Mitochondria › Function", "makes ATP")
+    );
+
+    edit(&mut nb, 10, "Mitochondrion <> powerhouse of the cell");
+    let renamed = unit(&nb, 20, "descriptor");
+    assert_eq!(renamed.id, reviewed.id);
+    assert_eq!(renamed.schedule, reviewed.schedule);
+    assert!(renamed.definition_revision > reviewed.definition_revision);
+    assert_eq!(renamed.front, "Mitochondrion › Function");
+
+    edit(&mut nb, 10, " ");
+    assert!(!unit(&nb, 20, "descriptor").active);
+    edit(&mut nb, 10, "Mitochondrion");
+    let restored = unit(&nb, 20, "descriptor");
+    assert!(restored.active);
+    assert_eq!(restored.schedule, reviewed.schedule);
+
+    // Under a page root, the page title is the subject, and renames follow it.
+    let revision = nb.block(&id(20)).unwrap().revision;
+    apply(
+        &mut nb,
+        vec![Operation::Move {
+            id: id(20),
+            base_revision: revision,
+            parent_id: id(1),
+            after: None,
+        }],
+    );
+    assert_eq!(unit(&nb, 20, "descriptor").front, "Cards › Function");
+    edit(&mut nb, 1, "Cell biology");
+    assert_eq!(unit(&nb, 20, "descriptor").front, "Cell biology › Function");
+    assert_eq!(unit(&nb, 20, "descriptor").id, reviewed.id);
+}
+
+#[test]
 fn child_answers_follow_subtree_edits_order_moves_and_visibility_without_resetting() {
     for (syntax, key) in [(">>>", "multiline"), (">>1.", "list")] {
         let (_dir, mut nb) = fixture(&format!("Front {syntax}"));

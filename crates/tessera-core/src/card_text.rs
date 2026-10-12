@@ -13,6 +13,7 @@ pub enum CardKind {
     Cloze,
     Multiline,
     List,
+    Descriptor,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -55,7 +56,7 @@ fn problem(message: &str, start: usize, end: usize) -> CardProblem {
 }
 
 fn operator(text: &str, at: usize) -> Option<&'static str> {
-    [">>1.", ">>>", ">>", "<<", "<>"]
+    [">>1.", ">>>", ">>", "<<", "<>", ";;"]
         .into_iter()
         .find(|token| text[at..].starts_with(token))
 }
@@ -68,7 +69,7 @@ fn escape_end(text: &str, at: usize) -> Option<usize> {
     }
     let rest = &text[at + 1..];
     if let Some(token) = [
-        ">>1.", ">>>", ">>", "<<", "<>", "{{", "}}", "::", "[[", "]]",
+        ">>1.", ">>>", ">>", "<<", "<>", ";;", "{{", "}}", "::", "[[", "]]",
     ]
     .iter()
     .find(|&&token| rest.starts_with(token))
@@ -411,6 +412,9 @@ pub fn parse_card_text(text: &str) -> CardParse {
                     .cards
                     .push(card("reverse", CardKind::Reverse, right, left));
             }
+            ";;" => result
+                .cards
+                .push(card("descriptor", CardKind::Descriptor, left, right)),
             _ => unreachable!("recognized operator"),
         }
     } else if !clozes.is_empty() {
@@ -451,6 +455,17 @@ pub fn parse_card_text(text: &str) -> CardParse {
         }
     }
     result
+}
+
+/// The text a child descriptor names as its subject: the authored left side of
+/// an operator, the full answer of a cloze, otherwise the whole literal text.
+pub fn card_subject(text: &str) -> String {
+    let parsed = parse_card_text(text);
+    match parsed.cards.into_iter().next() {
+        Some(card) if matches!(card.kind, CardKind::Reverse | CardKind::Cloze) => card.back,
+        Some(card) => card.front,
+        None => trim(&literal(text, 0, text.len())).to_owned(),
+    }
 }
 
 #[cfg(test)]
@@ -581,6 +596,46 @@ mod tests {
                 parse_card_text(&format!(r"Front \\{op}")).cards[0].kind,
                 kind
             );
+        }
+    }
+
+    #[test]
+    fn descriptors_need_both_sides_and_name_their_parents_subject() {
+        assert_eq!(
+            parse_card_text(" Function ;; makes [[ATP]] "),
+            CardParse {
+                cards: vec![card(
+                    "descriptor",
+                    CardKind::Descriptor,
+                    "Function",
+                    "makes [[ATP]]"
+                )],
+                problems: vec![],
+            }
+        );
+        for invalid in ["Function ;;", ";; answer", "a ;; b >> c", "{{c1::a}} ;; b"] {
+            let parsed = parse_card_text(invalid);
+            assert!(parsed.cards.is_empty(), "{invalid}");
+            assert!(!parsed.problems.is_empty(), "{invalid}");
+        }
+        for shielded in [r"a \;; b", "`a ;; b`", "[[ref|a ;; b]]", "a; b; c"] {
+            assert_eq!(
+                parse_card_text(shielded),
+                CardParse::default(),
+                "{shielded}"
+            );
+        }
+        for (parent, subject) in [
+            ("  Mitochondria  ", "Mitochondria"),
+            ("Mitochondria <> organelle", "Mitochondria"),
+            ("Mitochondria << organelle", "Mitochondria"),
+            ("Structure ;; two membranes", "Structure"),
+            ("The {{c1::cell}} wall", "The cell wall"),
+            (r"a \>> b", "a >> b"),
+            ("a >> b >> c", "a >> b >> c"),
+            (" ", ""),
+        ] {
+            assert_eq!(card_subject(parent), subject, "{parent}");
         }
     }
 

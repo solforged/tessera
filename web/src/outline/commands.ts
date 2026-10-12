@@ -277,7 +277,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
   function cardMenu(id: string) {
     const kinds: [string, string, InsertCardKind][] = [
       ['c', 'Card', 'forward'], ['r', 'Reverse card', 'reverse'], ['b', 'Reversible card', 'both'],
-      ['m', 'Multi-line card', 'multiline'], ['l', 'List card', 'list'], ['z', 'Cloze', 'cloze'],
+      ['m', 'Multi-line card', 'multiline'], ['l', 'List card', 'list'], ['d', 'Descriptor card', 'descriptor'], ['z', 'Cloze', 'cloze'],
     ];
     keyboardMenu(id, 'Cards', kinds.map(([key, label, kind]) => ({ key, shortcut: key, label, action: () => addCard(id, kind) })));
   }

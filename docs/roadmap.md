@@ -60,7 +60,9 @@ Exit: study cards from real reading notes and a vocabulary deck in a language be
 
 Status: done. Browser proof studied Greek vocabulary and attention-study notes, including both card directions and independent numbered clozes. It saved and edited source/field-filtered decks, corrected a source beside review, retained progress and shown-text evidence, reset progress without erasing history, and restored the selected deck, queue and session through navigation and reload.
 
-Since then: a type can carry card templates, front and back patterns over its fields that make one card per member once every field they use has a value. A template stays a draft until Apply, which shows how many cards it makes, who is waiting and how a new-per-day limit spreads them over the coming days. Writing a card by hand now has the same reach as the syntax: every kind is in `/` and under Space c, ⌘⇧C turns selected words into a cloze, Enter after `>>>` starts the answer, a card row carries an index-card mark, and Not yet holds a card out of Review until you start it.
+Since then: a type can carry card templates, front and back patterns over its fields that make one card per member once every field they use has a value. A template stays a draft until Apply, which shows how many cards it makes, who is waiting and how a new-per-day limit spreads them over the coming days. Writing a card by hand now has the same reach as the syntax: every kind is in `/` and under Space c, ⌘⇧C turns selected words into a cloze, Enter after `>>>` starts the answer, a card row carries an index-card mark, and Not yet holds a card out of Review until you start it. Descriptor cards, as in RemNote, ask a child `Function ;; makes ATP` in its parent's context, `Mitochondria › Function`.
+
+Next: cards from field entries. A field definition could make cards, so every `Name:: value` entry asks `Owner › Name` with its value as the answer. This reuses the template machinery without needing a type, but applies to every entry of the field rather than one block.
 
 ## 5. Library and reading
 

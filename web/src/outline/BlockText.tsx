@@ -42,7 +42,7 @@ export function plainText(text: string, lookup: NotebookClient['lookup']): strin
 }
 interface DisplayToken extends Token { label: string; visibleStart: number; target: Block | null | undefined; literal: boolean; matches?: NameMatch[] }
 interface TokenGroup { mark?: CardMark; tokens: Token[] }
-const operators = { '>>': { label: 'then', text: '→' }, '<<': { label: 'from', text: '←' }, '<>': { label: 'both ways', text: '↔' }, '>>>': { label: 'child answer', text: '↓' }, '>>1.': { label: 'list answer', text: '↓1.' } };
+const operators = { '>>': { label: 'then', text: '→' }, '<<': { label: 'from', text: '←' }, '<>': { label: 'both ways', text: '↔' }, '>>>': { label: 'child answer', text: '↓' }, '>>1.': { label: 'list answer', text: '↓1.' }, ';;': { label: 'descriptor', text: '›' } };
 
 export function BlockText(props: Props) {
   const [menu, setMenu] = createSignal<{ token: DisplayToken; anchor: HTMLElement }>();
@@ -148,7 +148,8 @@ export function BlockText(props: Props) {
     <Show when={error()}><span class="error" role="alert">{error()}</span></Show></>;
 }
 
-export function BlockBreadcrumb(props: { block: Block; notebook: NotebookClient }) {
+/** The source location of a block. A descriptor card already names its parent, so it can omit it. */
+export function BlockBreadcrumb(props: { block: Block; notebook: NotebookClient; omitParent?: boolean }) {
   const path = createMemo(() => {
     if (props.block.kind !== 'block') return props.block.kind === 'journal' ? 'Journal' : 'Page';
     const ancestors: string[] = [];
@@ -162,7 +163,10 @@ export function BlockBreadcrumb(props: { block: Block; notebook: NotebookClient 
       parent = block.parent_id;
     }
     const page = props.notebook.lookup(props.block.page_id)();
-    return [page?.text ?? 'Loading page…', ...ancestors].join(' › ');
+    const segments = [page?.text ?? 'Loading page…', ...ancestors];
+    // Keep the page title when it is the parent: the source button needs a label.
+    if (props.omitParent && segments.length > 1) segments.pop();
+    return segments.join(' › ');
   });
   return <>{path()}</>;
 }

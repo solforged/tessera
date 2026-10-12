@@ -40,6 +40,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/031_type_presentation.sql"),
     include_str!("../migrations/032_card_hold.sql"),
     include_str!("../migrations/033_field_targets.sql"),
+    include_str!("../migrations/034_descriptor_cards.sql"),
 ];
 
 pub const SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
@@ -97,6 +98,8 @@ pub(crate) fn migrate(conn: &mut Connection) -> Result<()> {
     crate::fields::rebuild(&tx)?;
     if found < 20 {
         crate::review_store::backfill_fsrs(&tx)?;
+    }
+    if found < 34 {
         crate::card_store::rebuild(&tx, now_ms())?;
     }
     tx.pragma_update(None, "user_version", SCHEMA_VERSION)?;
