@@ -994,6 +994,32 @@ fn undo(
 }
 
 #[test]
+fn undo_of_start_over_restores_the_schedule_from_before_that_click() {
+    let (_dir, mut nb, original) = fixture();
+    let at = 1_700_000_000_000;
+    apply(&mut nb, vec![grade(&original, 100, None, false, at)]);
+    let progressed = nb.card(&original.id).unwrap();
+    let progressed_schedule = progressed.schedule.clone();
+    apply(
+        &mut nb,
+        vec![grade(&progressed, 101, None, true, at + 86_400_000)],
+    );
+    let wiped = nb.card(&original.id).unwrap();
+    assert_ne!(wiped.schedule, progressed_schedule);
+    apply(
+        &mut nb,
+        vec![undo(&wiped, 101, 102, None, at + 86_400_000)],
+    );
+    assert_eq!(
+        nb.card(&original.id).unwrap().schedule,
+        progressed_schedule
+    );
+    let history = nb.review_events(&original.id).unwrap();
+    assert!(history[0].undone_by.is_none());
+    assert!(history[1..].iter().all(|event| event.undone_by.is_some()));
+}
+
+#[test]
 fn undo_restores_exact_schedule_reopens_session_and_replays_after_backup_restore() {
     let (dir, mut nb, original) = fixture();
     let at = tessera_core::now_ms();
@@ -1160,15 +1186,22 @@ fn undo_restores_trained_state_and_never_erases_or_crosses_a_reset() {
     let reset_grade = nb.card(&original.id).unwrap();
     apply(&mut nb, vec![undo(&reset_grade, 103, 104, None, 3000)]);
     let reset_state = nb.card(&original.id).unwrap();
-    assert_eq!(
-        reset_state.schedule,
-        tessera_core::scheduler::new_card(3000)
-    );
+    assert_eq!(reset_state.schedule, trained.schedule);
     let history = nb.review_events(&original.id).unwrap();
     assert_eq!(history.len(), 4);
     assert_eq!(history[2].kind, ReviewEventKind::Reset);
-    assert!(history[2].undone_by.is_none());
-    assert_eq!(history[3].undone_by, Some(id(104)));
-    invalid(&mut nb, undo(&reset_state, 100, 105, None, 3000));
-    assert_eq!(nb.card(&original.id).unwrap(), reset_state);
+    assert!(history[2].undone_by.is_some());
+    assert!(history[3].undone_by.is_some());
+    // A later reset that was not part of the undone click still blocks older grades.
+    apply(&mut nb, vec![reset(&reset_state, 106, None, 4000)]);
+    let after_reset = nb.card(&original.id).unwrap();
+    assert_eq!(
+        after_reset.schedule,
+        tessera_core::scheduler::new_card(4000)
+    );
+    invalid(&mut nb, undo(&after_reset, 100, 105, None, 4000));
+    assert_eq!(
+        nb.card(&original.id).unwrap().schedule,
+        tessera_core::scheduler::new_card(4000)
+    );
 }

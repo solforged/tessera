@@ -1405,8 +1405,13 @@ fn undo_grade_rebases_and_preserves_same_timestamp_reset_order_in_patches() {
             .collect::<Vec<_>>(),
         vec![id(900), id(100)]
     );
-    let before = match &events.last().unwrap().before {
-        tessera_core::ReviewSchedulingState::Fsrs(state) => state.clone(),
+    let before = match events
+        .iter()
+        .find(|event| event.card_id == second.id && event.grade.is_none())
+        .expect("start over writes a reset")
+        .before
+    {
+        tessera_core::ReviewSchedulingState::Fsrs(ref state) => state.clone(),
         _ => panic!("new grade uses FSRS"),
     };
     let current = p.replica.card(&second.id).unwrap();
@@ -1440,8 +1445,7 @@ fn undo_grade_rebases_and_preserves_same_timestamp_reset_order_in_patches() {
         );
         let history = notebook.review_events(&second.id).unwrap();
         assert_eq!(history.len(), 2);
-        assert_eq!(history[0].kind, tessera_core::ReviewEventKind::Reset);
-        assert_eq!(history[1].undone_by, Some(id(800)));
+        assert!(history.iter().all(|event| event.undone_by.is_some()));
         let effective = notebook.review_session_events(&id(50)).unwrap();
         assert_eq!(
             effective
@@ -1450,7 +1454,7 @@ fn undo_grade_rebases_and_preserves_same_timestamp_reset_order_in_patches() {
                 .count(),
             1
         );
-        assert_eq!(effective.len(), 3);
+        assert_eq!(effective.len(), 2);
     }
     let first = p.hub.card(&first.id).unwrap();
     apply(
@@ -1582,10 +1586,7 @@ fn review_upgrade_recovers_same_batch_order_despite_different_replica_rowids() {
         PushOutcome::Accepted { .. }
     ));
     p.assert_converged();
-    assert_eq!(
-        p.hub.card(&second.id).unwrap().schedule,
-        tessera_core::scheduler::new_card(1000)
-    );
+    assert_eq!(p.hub.card(&second.id).unwrap().schedule, second.schedule);
     assert_eq!(
         p.hub.review_session(&id(50)).unwrap().state,
         tessera_core::ReviewSessionState::Open

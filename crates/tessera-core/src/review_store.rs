@@ -697,8 +697,22 @@ pub(crate) fn apply(
                     "standalone undo must not include a session revision",
                 ));
             }
-            let restored = match review.before {
-                crate::ReviewSchedulingState::Fsrs(state) => state,
+            // Start over writes a reset and a grade under one click. The grade's
+            // before-state is the wiped card, so undoing only the grade would
+            // leave that reset in effect. Undo the paired reset too.
+            let reset_id = crate::notebook::derived_id(&["reset", review_id]);
+            let paired_reset = conn
+                .prepare_cached(
+                    "SELECT id, card_id, session_id, kind, grade, shown_front, shown_back,
+                        definition_revision, scheduler_version, before_state, after_state,
+                        created_at, change_seq
+                     FROM effective_review_events WHERE id = ?1 AND card_id = ?2",
+                )?
+                .query_row(params![reset_id, id], |row| review_event_at(row, 0))
+                .optional()?;
+            let schedule_of = paired_reset.as_ref().unwrap_or(&review);
+            let restored = match &schedule_of.before {
+                crate::ReviewSchedulingState::Fsrs(state) => state.clone(),
                 crate::ReviewSchedulingState::Legacy { .. } => {
                     // Old evidence stays in its original scheduler format. Match the
                     // migration's FSRS replay, without the corrected final grade.
@@ -708,11 +722,16 @@ pub(crate) fn apply(
                         |row| row.get(0),
                     )?;
                     let mut state = scheduler::new_card(created_at);
+                    let excluded_reset = paired_reset
+                        .as_ref()
+                        .map(|event| event.id.clone())
+                        .unwrap_or_default();
                     let mut history = conn.prepare_cached(
                         "SELECT grade, created_at FROM effective_review_events
-                         WHERE card_id = ?1 AND id <> ?2 ORDER BY created_at, change_seq, event_order, id",
+                         WHERE card_id = ?1 AND id <> ?2 AND id <> ?3
+                         ORDER BY created_at, change_seq, event_order, id",
                     )?;
-                    let mut rows = history.query(params![id, review_id])?;
+                    let mut rows = history.query(params![id, review_id, excluded_reset])?;
                     while let Some(row) = rows.next()? {
                         state = if matches!(row.get_ref(0)?, rusqlite::types::ValueRef::Null) {
                             scheduler::new_card(row.get(1)?)
@@ -723,6 +742,13 @@ pub(crate) fn apply(
                     state
                 }
             };
+            if let Some(reset) = &paired_reset {
+                let undo_id = crate::notebook::derived_id(&["undo-reset", event_id]);
+                conn.execute(
+                    "INSERT INTO review_undos(id, review_id, undone_at, change_seq) VALUES (?1, ?2, ?3, ?4)",
+                    params![undo_id, reset.id, undone_at, seq],
+                )?;
+            }
             conn.execute(
                 "INSERT INTO review_undos(id, review_id, undone_at, change_seq) VALUES (?1, ?2, ?3, ?4)",
                 params![event_id, review_id, undone_at, seq],
