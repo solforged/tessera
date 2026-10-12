@@ -2,8 +2,9 @@ use tessera_core::library::{
     ExtractedDocument, ExtractedMetadata, ExtractedPassage, Passage, PassageKind, SourceFormat,
 };
 use tessera_core::{
-    Actor, AgentCitation, AgentEdit, AgentReceipt, AgentRequest, Batch, BlockKind, Error,
-    NoteBlock, NoteTarget, Notebook, Operation, TaskPriority, TaskState, TaskStatus,
+    Actor, AgentCitation, AgentEdit, AgentReceipt, AgentRequest, Batch, BlockKind, CardQuery,
+    CardSelection, Error, NoteBlock, NoteTarget, Notebook, Operation, TaskPriority, TaskState,
+    TaskStatus,
 };
 
 fn id(value: u128) -> String {
@@ -872,6 +873,284 @@ fn card_holds_refuse_stale_revisions_inactive_cards_and_unchanged_states() {
     assert!(!nb.card(&card.id).unwrap().active);
     refused(nb.agent_edit(&hold(&card.id, None, true)), "inactive");
     refused(nb.agent_edit(&hold(&card.id, None, false)), "inactive");
+}
+
+fn save_deck(
+    id: Option<&str>,
+    revision: Option<i64>,
+    name: &str,
+    query: CardQuery,
+) -> AgentRequest {
+    request(AgentEdit::SaveDeck {
+        id: id.map(str::to_owned),
+        revision,
+        name: name.into(),
+        query,
+    })
+}
+
+fn delete_deck(id: &str, revision: Option<i64>) -> AgentRequest {
+    request(AgentEdit::DeleteDeck {
+        id: id.into(),
+        revision,
+    })
+}
+
+#[test]
+fn created_decks_are_returned_stored_attributed_and_removed_on_undo() {
+    let (_dir, mut nb) = fixture();
+    let query = CardQuery {
+        selection: CardSelection::All,
+        limit: Some(25),
+        ..Default::default()
+    };
+    let receipt = run(
+        &mut nb,
+        &save_deck(None, None, "  Reading  ", query.clone()),
+    );
+    assert_eq!(receipt.summary, "Created deck Reading");
+    assert!(receipt.page.is_none());
+    assert!(receipt.blocks.is_empty());
+    assert!(receipt.created_pages.is_empty());
+    assert!(receipt.created_fields.is_empty());
+    assert_eq!(receipt.decks.len(), 1);
+    let deck = &receipt.decks[0];
+    assert_eq!(deck.name, "Reading");
+    assert_eq!(deck.query, query);
+    assert_eq!(deck.revision, 1);
+    assert_eq!(nb.deck(&deck.id).unwrap(), *deck);
+    assert_eq!(nb.decks().unwrap(), receipt.decks);
+    assert_eq!(receipt.committed.decks[0].id, deck.id);
+    assert_eq!(receipt.committed.decks[0].revision, deck.revision);
+    let change = nb.changes_since(receipt.seq - 1, 1).unwrap().remove(0);
+    assert_eq!(change.actor, agent());
+    assert_eq!(change.reason.as_deref(), Some("summary"));
+    assert_eq!(change.decks, vec![deck.id.clone()]);
+    let listed = nb.agent_changes(10).unwrap();
+    assert_eq!(listed[0].summary, receipt.summary);
+    assert!(listed[0].page.is_none());
+    let undone = undo(&mut nb, receipt.seq).unwrap();
+    assert_eq!(undone.committed.decks[0].id, deck.id);
+    assert!(matches!(nb.deck(&deck.id), Err(Error::NotFound { .. })));
+    assert!(nb.decks().unwrap().is_empty());
+}
+
+#[test]
+fn saving_existing_decks_refuses_stale_revisions() {
+    let (_dir, mut nb) = fixture();
+    let created = run(
+        &mut nb,
+        &save_deck(None, None, "Reading", CardQuery::default()),
+    );
+    let deck = &created.decks[0];
+    assert!(matches!(
+        nb.agent_edit(&save_deck(
+            Some(&deck.id),
+            Some(deck.revision - 1),
+            "Renamed",
+            CardQuery::default(),
+        )),
+        Err(Error::Conflict { id, expected, found, .. })
+            if id == deck.id && expected == deck.revision - 1 && found == Some(deck.revision)
+    ));
+    assert_eq!(nb.deck(&deck.id).unwrap(), *deck);
+    assert_eq!(nb.agent_changes(10).unwrap().len(), 1);
+}
+
+#[test]
+fn deck_renames_and_queries_are_restored_on_undo() {
+    let (_dir, mut nb) = fixture();
+    let created = run(
+        &mut nb,
+        &save_deck(None, None, "Reading", CardQuery::default()),
+    );
+    let before = &created.decks[0];
+    let query = CardQuery {
+        selection: CardSelection::New,
+        limit: Some(12),
+        ..Default::default()
+    };
+    let saved = run(
+        &mut nb,
+        &save_deck(
+            Some(&before.id),
+            Some(before.revision),
+            "New cards",
+            query.clone(),
+        ),
+    );
+    assert_eq!(saved.summary, "Saved deck New cards");
+    assert!(saved.page.is_none());
+    assert_eq!(saved.decks.len(), 1);
+    let after = &saved.decks[0];
+    assert_eq!(after.id, before.id);
+    assert_eq!(after.name, "New cards");
+    assert_eq!(after.query, query);
+    assert_eq!(after.revision, before.revision + 1);
+    assert_eq!(nb.deck(&before.id).unwrap(), *after);
+    undo(&mut nb, saved.seq).unwrap();
+    let restored = nb.deck(&before.id).unwrap();
+    assert_eq!(restored.name, before.name);
+    assert_eq!(restored.query, before.query);
+    assert_eq!(restored.revision, after.revision + 1);
+    // The later save and its undo moved only the deck's revision.
+    undo(&mut nb, created.seq).unwrap();
+    assert!(nb.decks().unwrap().is_empty());
+}
+
+#[test]
+fn deleted_decks_are_recreated_with_their_identity_and_query_on_undo() {
+    let (_dir, mut nb) = fixture();
+    let card = dune_card(&mut nb);
+    let query = CardQuery {
+        selection: CardSelection::All,
+        limit: Some(8),
+        ..Default::default()
+    };
+    let created = run(&mut nb, &save_deck(None, None, "Reading", query));
+    let before = &created.decks[0];
+    let deleted = run(&mut nb, &delete_deck(&before.id, Some(before.revision)));
+    assert_eq!(deleted.summary, "Deleted deck Reading");
+    assert!(deleted.page.is_none());
+    assert!(deleted.decks.is_empty());
+    assert!(matches!(nb.deck(&before.id), Err(Error::NotFound { .. })));
+    assert_eq!(nb.card(&card.id).unwrap(), card);
+    undo(&mut nb, deleted.seq).unwrap();
+    let restored = nb.deck(&before.id).unwrap();
+    assert_eq!(restored.id, before.id);
+    assert_eq!(restored.name, before.name);
+    assert_eq!(restored.query, before.query);
+    assert_eq!(nb.card(&card.id).unwrap(), card);
+    undo(&mut nb, created.seq).unwrap();
+    assert!(nb.decks().unwrap().is_empty());
+}
+
+#[test]
+fn undoing_a_created_deck_refuses_a_later_non_agent_save() {
+    let (_dir, mut nb) = fixture();
+    let created = run(
+        &mut nb,
+        &save_deck(None, None, "Reading", CardQuery::default()),
+    );
+    let deck = &created.decks[0];
+    seed(
+        &mut nb,
+        vec![Operation::SaveDeck {
+            id: deck.id.clone(),
+            base_revision: Some(deck.revision),
+            name: "Person's deck".into(),
+            query: CardQuery::default(),
+        }],
+    );
+    refused(undo(&mut nb, created.seq), "changed after change");
+    assert_eq!(nb.deck(&deck.id).unwrap().name, "Person's deck");
+}
+
+#[test]
+fn deck_edits_reject_invalid_names_queries_and_missing_decks() {
+    let (_dir, mut nb) = fixture();
+    for name in ["", "   ", &"x".repeat(121)] {
+        refused(
+            nb.agent_edit(&save_deck(None, None, name, CardQuery::default())),
+            "deck name must contain 1 to 120 characters",
+        );
+    }
+    refused(
+        nb.agent_edit(&save_deck(
+            None,
+            None,
+            "Invalid query",
+            CardQuery {
+                limit: Some(2001),
+                ..Default::default()
+            },
+        )),
+        "card query limit must not exceed 2000",
+    );
+    let missing = id(99);
+    assert!(matches!(
+        nb.agent_edit(&save_deck(Some(&missing), None, "Missing", CardQuery::default())),
+        Err(Error::NotFound { id, .. }) if id == missing
+    ));
+    assert!(matches!(
+        nb.agent_edit(&delete_deck(&missing, None)),
+        Err(Error::NotFound { id, .. }) if id == missing
+    ));
+    assert!(nb.decks().unwrap().is_empty());
+    assert!(nb.agent_changes(10).unwrap().is_empty());
+}
+
+#[test]
+fn deleting_decks_refuses_stale_revisions_and_recreated_ids() {
+    let (_dir, mut nb) = fixture();
+    let created = run(
+        &mut nb,
+        &save_deck(None, None, "Reading", CardQuery::default()),
+    );
+    let before = &created.decks[0];
+    assert!(matches!(
+        nb.agent_edit(&delete_deck(&before.id, Some(before.revision - 1))),
+        Err(Error::Conflict { id, expected, found, .. })
+            if id == before.id && expected == before.revision - 1 && found == Some(before.revision)
+    ));
+    let deleted = run(&mut nb, &delete_deck(&before.id, None));
+    seed(
+        &mut nb,
+        vec![Operation::SaveDeck {
+            id: before.id.clone(),
+            base_revision: None,
+            name: "Replacement".into(),
+            query: CardQuery::default(),
+        }],
+    );
+    refused(undo(&mut nb, deleted.seq), "changed after change");
+    assert_eq!(nb.deck(&before.id).unwrap().name, "Replacement");
+}
+
+#[test]
+fn deck_revision_shifts_include_undone_deletions_after_multiple_saves() {
+    let (_dir, mut nb) = fixture();
+    let created = run(
+        &mut nb,
+        &save_deck(None, None, "Original", CardQuery::default()),
+    );
+    let deck = &created.decks[0];
+    let saved = run(
+        &mut nb,
+        &save_deck(Some(&deck.id), None, "Renamed", CardQuery::default()),
+    );
+    let deleted = run(&mut nb, &delete_deck(&deck.id, None));
+    undo(&mut nb, deleted.seq).unwrap();
+    undo(&mut nb, saved.seq).unwrap();
+    assert_eq!(nb.deck(&deck.id).unwrap().name, "Original");
+    undo(&mut nb, created.seq).unwrap();
+    assert!(nb.decks().unwrap().is_empty());
+}
+
+#[test]
+fn deck_edit_serde_defaults_and_receipt_compatibility() {
+    let save: AgentEdit = serde_json::from_value(serde_json::json!({
+        "kind": "save_deck", "name": "Reading", "query": {}
+    }))
+    .unwrap();
+    assert_eq!(
+        save,
+        save_deck(None, None, "Reading", CardQuery::default()).edit
+    );
+    let delete: AgentEdit = serde_json::from_value(serde_json::json!({
+        "kind": "delete_deck", "id": id(99)
+    }))
+    .unwrap();
+    assert_eq!(delete, delete_deck(&id(99), None).edit);
+    let (_dir, mut nb) = fixture();
+    let receipt = run(
+        &mut nb,
+        &save_deck(None, None, "Reading", CardQuery::default()),
+    );
+    let mut json = serde_json::to_value(&receipt).unwrap();
+    json.as_object_mut().unwrap().remove("decks");
+    let older: AgentReceipt = serde_json::from_value(json).unwrap();
+    assert!(older.decks.is_empty());
 }
 
 fn evidence(nb: &mut Notebook, attached: bool) -> (String, Vec<Passage>) {

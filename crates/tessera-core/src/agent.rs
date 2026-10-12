@@ -13,8 +13,8 @@ use serde::{Deserialize, Serialize};
 use crate::notebook::{new_ulid, now_ms};
 use crate::storage::{validate_date, validate_id, validation};
 use crate::{
-    Actor, Batch, Block, BlockKind, Committed, Error, Notebook, Operation, Result, Revision,
-    TaskState, TaskStatus,
+    Actor, Batch, Block, BlockKind, CardQuery, Committed, Deck, Error, Notebook, Operation, Result,
+    Revision, TaskState, TaskStatus,
 };
 
 /// Where a note is appended.
@@ -65,8 +65,8 @@ pub struct AgentCitation {
 }
 
 /// What an agent asks to change. `revision`, when given, must be the
-/// target's current revision (a card's own revision for `SetCardHeld`), so a
-/// change made since the agent read it is not overwritten.
+/// target's current revision (a card's own revision for `SetCardHeld`, or a
+/// deck's for deck edits), so a change made since it was read is not overwritten.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum AgentEdit {
@@ -121,6 +121,22 @@ pub enum AgentEdit {
         revision: Option<i64>,
         held: bool,
     },
+    /// Create a deck when `id` is absent, or replace a deck's name and query,
+    /// checked against its revision when given.
+    SaveDeck {
+        #[serde(default)]
+        id: Option<String>,
+        #[serde(default)]
+        revision: Option<i64>,
+        name: String,
+        query: CardQuery,
+    },
+    /// Delete a saved deck. Its cards are untouched.
+    DeleteDeck {
+        id: String,
+        #[serde(default)]
+        revision: Option<i64>,
+    },
     /// Attach library evidence to one or several existing blocks.
     Cite { citations: Vec<AgentCitation> },
 }
@@ -140,7 +156,8 @@ pub struct AgentReceipt {
     /// The change to pass to [`Notebook::undo_agent_change`].
     pub seq: i64,
     pub summary: String,
-    /// The page or journal root the change landed on; `None` once deleted.
+    /// The page or journal root the change landed on; `None` for deck edits
+    /// or once deleted.
     pub page: Option<Block>,
     /// New and changed blocks with their resulting revisions, new blocks in
     /// reading order.
@@ -151,6 +168,9 @@ pub struct AgentReceipt {
     /// Field definitions created by `Name:: value` shorthand.
     #[serde(default)]
     pub created_fields: Vec<Block>,
+    /// Saved decks as stored after the change; empty for deck deletions.
+    #[serde(default)]
+    pub decks: Vec<Deck>,
     pub committed: Committed,
 }
 
@@ -180,7 +200,7 @@ pub struct UndoReceipt {
 /// Stored with each agent change.
 #[derive(Debug, Default, Serialize, Deserialize)]
 struct Undo {
-    /// Inverse operations for edits to existing blocks, in undo order.
+    /// Inverse operations for edits to existing rows, in undo order.
     operations: Vec<Operation>,
     /// The change's new top-level blocks, deleted on undo while live.
     removable: Vec<Revision>,
@@ -224,6 +244,19 @@ enum Step {
         id: String,
         held: bool,
     },
+    DeckCreated {
+        id: String,
+    },
+    DeckSaved {
+        id: String,
+        name: String,
+        query: CardQuery,
+    },
+    DeckDeleted {
+        id: String,
+        name: String,
+        query: CardQuery,
+    },
     Uncite {
         id: String,
         citation_id: String,
@@ -240,6 +273,9 @@ impl Step {
             | Step::Task { id, .. }
             | Step::Uncomplete { id, .. }
             | Step::CardHeld { id, .. }
+            | Step::DeckCreated { id }
+            | Step::DeckSaved { id, .. }
+            | Step::DeckDeleted { id, .. }
             | Step::Uncite { id, .. } => id,
         }
     }
@@ -258,6 +294,7 @@ struct Plan {
     inserted: Vec<String>,
     removable: Vec<String>,
     changed: Vec<String>,
+    saved_decks: Vec<String>,
     /// The revision the next operation on each touched block is based on.
     revisions: HashMap<String, i64>,
 }
@@ -289,28 +326,31 @@ impl Notebook {
     /// it. A failure writes nothing.
     pub fn agent_edit(&mut self, request: &AgentRequest) -> Result<AgentReceipt> {
         let mut plan = Plan::default();
+        let on_page = |(id, summary): (String, String)| (Some(id), summary);
         let (page_id, summary) = match &request.edit {
-            AgentEdit::AddNote { target, blocks } => self.plan_note(&mut plan, target, blocks)?,
+            AgentEdit::AddNote { target, blocks } => {
+                on_page(self.plan_note(&mut plan, target, blocks)?)
+            }
             AgentEdit::EditBlock {
                 id,
                 revision,
                 text,
                 heading,
-            } => self.plan_edit(&mut plan, id, *revision, text.as_deref(), *heading)?,
+            } => on_page(self.plan_edit(&mut plan, id, *revision, text.as_deref(), *heading)?),
             AgentEdit::MoveBlock {
                 id,
                 revision,
                 parent_id,
                 after,
                 first,
-            } => self.plan_move(
+            } => on_page(self.plan_move(
                 &mut plan,
                 id,
                 *revision,
                 parent_id.as_deref(),
                 after.as_deref(),
                 *first,
-            )?,
+            )?),
             AgentEdit::DeleteBlock { id, revision } => {
                 let block = self.block(id)?;
                 touch(&mut plan, &block, *revision);
@@ -328,7 +368,7 @@ impl Notebook {
                 } else {
                     format!("Deleted {}", block.text)
                 };
-                (block.page_id, summary)
+                (Some(block.page_id), summary)
             }
             AgentEdit::SetTask { id, revision, task } => {
                 let block = self.block(id)?;
@@ -338,7 +378,7 @@ impl Notebook {
                 plan.changed.push(id.clone());
                 let page = self.block(&block.page_id)?.text;
                 (
-                    block.page_id,
+                    Some(block.page_id),
                     format!(
                         "{summary} “{}” on {page}",
                         snippet(&self.readable(&block.text)?)
@@ -349,8 +389,20 @@ impl Notebook {
                 card_id,
                 revision,
                 held,
-            } => self.plan_card_held(&mut plan, card_id, *revision, *held)?,
-            AgentEdit::Cite { citations } => self.plan_citations(&mut plan, citations)?,
+            } => on_page(self.plan_card_held(&mut plan, card_id, *revision, *held)?),
+            AgentEdit::SaveDeck {
+                id,
+                revision,
+                name,
+                query,
+            } => (
+                None,
+                self.plan_save_deck(&mut plan, id.as_deref(), *revision, name, query)?,
+            ),
+            AgentEdit::DeleteDeck { id, revision } => {
+                (None, self.plan_delete_deck(&mut plan, id, *revision)?)
+            }
+            AgentEdit::Cite { citations } => on_page(self.plan_citations(&mut plan, citations)?),
         };
         let Plan {
             operations,
@@ -360,6 +412,7 @@ impl Notebook {
             inserted,
             removable,
             changed,
+            saved_decks,
             ..
         } = plan;
         let committed = self.apply_with(
@@ -397,7 +450,10 @@ impl Notebook {
         Ok(AgentReceipt {
             seq: committed.seq,
             summary,
-            page: self.live_block(&page_id)?,
+            page: match &page_id {
+                Some(id) => self.live_block(id)?,
+                None => None,
+            },
             blocks,
             created_pages: created
                 .iter()
@@ -406,6 +462,10 @@ impl Notebook {
             created_fields: created_fields
                 .iter()
                 .map(|id| self.block(id))
+                .collect::<Result<_>>()?,
+            decks: saved_decks
+                .iter()
+                .map(|id| self.deck(id))
                 .collect::<Result<_>>()?,
             committed,
         })
@@ -477,14 +537,23 @@ impl Notebook {
         }
         let mut undo: Undo = serde_json::from_str(&undo)
             .map_err(|error| validation(format!("invalid stored undo: {error}")))?;
-        // Later agent changes that were themselves undone left their blocks as
+        // Later agent changes that were themselves undone left their rows as
         // this change did, so undoing in reverse order works.
         let undone_later = self.undone_after(seq)?;
         for operation in &mut undo.operations {
             let card = matches!(operation, Operation::SetCardHeld { .. });
-            let (id, revision) = base_revision(operation);
+            let deck = matches!(
+                operation,
+                Operation::SaveDeck { .. } | Operation::DeleteDeck { .. }
+            );
+            let Some((id, revision)) = base_revision(operation) else {
+                // Recreating a deleted deck checks that its ID is still absent.
+                continue;
+            };
             *revision += if card {
                 self.card_revision_shift(seq, &undone_later, &id)?
+            } else if deck {
+                self.deck_revision_shift(seq, &undone_later, &id)?
             } else {
                 self.revision_shift(seq, &undone_later, &id)?
             };
@@ -897,6 +966,57 @@ impl Notebook {
         ))
     }
 
+    fn plan_save_deck(
+        &self,
+        plan: &mut Plan,
+        id: Option<&str>,
+        revision: Option<i64>,
+        name: &str,
+        query: &CardQuery,
+    ) -> Result<String> {
+        let (id, base_revision, summary) = if let Some(id) = id {
+            let deck = self.deck(id)?;
+            let base_revision = revision.unwrap_or(deck.revision);
+            plan.steps.push(Step::DeckSaved {
+                id: deck.id.clone(),
+                name: deck.name,
+                query: deck.query,
+            });
+            (
+                deck.id,
+                Some(base_revision),
+                format!("Saved deck {}", name.trim()),
+            )
+        } else {
+            let id = new_ulid().to_string();
+            plan.steps.push(Step::DeckCreated { id: id.clone() });
+            (id, revision, format!("Created deck {}", name.trim()))
+        };
+        plan.operations.push(Operation::SaveDeck {
+            id: id.clone(),
+            base_revision,
+            name: name.to_owned(),
+            query: query.clone(),
+        });
+        plan.saved_decks.push(id);
+        Ok(summary)
+    }
+
+    fn plan_delete_deck(&self, plan: &mut Plan, id: &str, revision: Option<i64>) -> Result<String> {
+        let deck = self.deck(id)?;
+        let summary = format!("Deleted deck {}", deck.name);
+        plan.operations.push(Operation::DeleteDeck {
+            id: id.to_owned(),
+            base_revision: revision.unwrap_or(deck.revision),
+        });
+        plan.steps.push(Step::DeckDeleted {
+            id: deck.id,
+            name: deck.name,
+            query: deck.query,
+        });
+        Ok(summary)
+    }
+
     fn plan_citations(
         &self,
         plan: &mut Plan,
@@ -1227,6 +1347,30 @@ impl Notebook {
         Ok(self.card(id)?.revision - recorded)
     }
 
+    /// Deck revisions, like card revisions, live in committed receipts.
+    fn deck_revision_shift(&self, seq: i64, undone: &HashSet<i64>, id: &str) -> Result<i64> {
+        let mut statement = self.conn.prepare_cached(
+            "SELECT c.seq, json_extract(r.value, '$.revision')
+             FROM changes c, json_each(c.committed, '$.decks') r
+             WHERE c.seq >= ?1 AND json_extract(r.value, '$.id') = ?2
+             ORDER BY c.seq",
+        )?;
+        let mut rows = statement.query(params![seq, id])?;
+        let Some(first) = rows.next()? else {
+            return Ok(0);
+        };
+        if first.get::<_, i64>(0)? != seq {
+            return Ok(0);
+        }
+        let recorded: i64 = first.get(1)?;
+        while let Some(row) = rows.next()? {
+            if !undone.contains(&row.get::<_, i64>(0)?) {
+                return Ok(0);
+            }
+        }
+        Ok(self.deck(id)?.revision - recorded)
+    }
+
     fn live_block(&self, id: &str) -> Result<Option<Block>> {
         match self.block(id) {
             Ok(block) => Ok(Some(block)),
@@ -1400,6 +1544,11 @@ fn inverse(steps: &[Step], committed: &Committed) -> Result<Vec<Operation>> {
         .iter()
         .map(|revision| (revision.id.as_str(), revision.revision))
         .collect();
+    let mut decks: HashMap<&str, i64> = committed
+        .decks
+        .iter()
+        .map(|revision| (revision.id.as_str(), revision.revision))
+        .collect();
     let mut deletions = committed.deletions.iter();
     let deletion_ids: Vec<Option<&String>> = steps
         .iter()
@@ -1410,10 +1559,19 @@ fn inverse(steps: &[Step], committed: &Committed) -> Result<Vec<Operation>> {
         .collect();
     let mut operations = Vec::with_capacity(steps.len());
     for (step, deletion) in steps.iter().zip(deletion_ids).rev() {
-        let revisions = if matches!(step, Step::CardHeld { .. }) {
-            &mut cards
-        } else {
-            &mut revisions
+        if let Step::DeckDeleted { id, name, query } = step {
+            operations.push(Operation::SaveDeck {
+                id: id.clone(),
+                base_revision: None,
+                name: name.clone(),
+                query: query.clone(),
+            });
+            continue;
+        }
+        let revisions = match step {
+            Step::CardHeld { .. } => &mut cards,
+            Step::DeckCreated { .. } | Step::DeckSaved { .. } => &mut decks,
+            _ => &mut revisions,
         };
         let revision = revisions
             .get_mut(step.id())
@@ -1470,6 +1628,14 @@ fn inverse(steps: &[Step], committed: &Committed) -> Result<Vec<Operation>> {
                 base_revision,
                 held: *held,
             },
+            Step::DeckCreated { .. } => Operation::DeleteDeck { id, base_revision },
+            Step::DeckSaved { name, query, .. } => Operation::SaveDeck {
+                id,
+                base_revision: Some(base_revision),
+                name: name.clone(),
+                query: query.clone(),
+            },
+            Step::DeckDeleted { .. } => unreachable!("deleted decks are recreated above"),
             Step::Uncite { citation_id, .. } => Operation::Uncite {
                 id,
                 base_revision,
@@ -1480,8 +1646,9 @@ fn inverse(steps: &[Step], committed: &Committed) -> Result<Vec<Operation>> {
     Ok(operations)
 }
 
-/// The block and revision an inverse operation is checked against.
-fn base_revision(operation: &mut Operation) -> (String, &mut i64) {
+/// The row and revision an inverse operation is checked against, or `None`
+/// when it instead checks that a deleted deck is absent.
+fn base_revision(operation: &mut Operation) -> Option<(String, &mut i64)> {
     match operation {
         Operation::EditText {
             id, base_revision, ..
@@ -1505,6 +1672,7 @@ fn base_revision(operation: &mut Operation) -> (String, &mut i64) {
         | Operation::SetCardHeld {
             id, base_revision, ..
         }
+        | Operation::DeleteDeck { id, base_revision }
         | Operation::Uncite {
             id, base_revision, ..
         }
@@ -1512,7 +1680,12 @@ fn base_revision(operation: &mut Operation) -> (String, &mut i64) {
             id,
             revision: base_revision,
             ..
-        } => (id.clone(), base_revision),
+        } => Some((id.clone(), base_revision)),
+        Operation::SaveDeck {
+            id, base_revision, ..
+        } => base_revision
+            .as_mut()
+            .map(|revision| (id.clone(), revision)),
         _ => unreachable!("undo records only these operations"),
     }
 }
