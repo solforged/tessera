@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { Block, CardQuery, CardRow, ReviewEvent, ReviewSession, SchedulingState } from '../api/types';
-import { copyCardQuery, gradeIntervals, gradeOperation, openReviewSession, reviewedInSession, sameCardSnapshot } from './query';
+import { copyCardQuery, gradeIntervals, gradeOperation, loadReviewCard, openReviewSession, reviewedInSession, sameCardSnapshot, sessionQueue } from './query';
 
 const schedule: SchedulingState = { stability: 8, difficulty: 5, interval_days: 8, repetitions: 3, lapses: 0, due_at: 100, last_reviewed_at: 50 };
 const page: Block = { id: 'page', kind: 'page', parent_id: null, page_id: 'page', text: 'Vocabulary', heading: null, archived: false, revision: 1, created_at: 0, updated_at: 0 };
@@ -14,6 +14,7 @@ const event: ReviewEvent = {
   id: 'grade', card_id: row.card.id, session_id: session.id, kind: 'grade', grade: 'good',
   shown_front: row.card.front, shown_back: row.card.back, definition_revision: row.card.definition_revision,
   scheduler_version: 'fsrs-6', before: schedule, after: { ...schedule, interval_days: 20 }, created_at: 110, change_seq: 8,
+  undone_by: null,
 };
 
 describe('review snapshots and retained session evidence', () => {
@@ -90,4 +91,51 @@ test('rounded interval units cannot collapse distinct grading choices', () => {
     expect(labels.hard).not.toBe(labels.good);
     expect(labels.good).not.toBe(labels.easy);
   }
+});
+
+describe('effective session queue after undo', () => {
+  const api = {
+    card: async () => row.card,
+    block: async (id: string) => id === page.id ? page : source,
+    cardReviews: async () => [] as ReviewEvent[],
+  };
+
+  test('restored cards move before the next card without duplicates or replacing the current schedule', async () => {
+    const other = { ...row, card: { ...row.card, id: 'other' } };
+    const queue = await sessionQueue(api, [other, row], [], row.card.id);
+    expect(queue.map(value => value.card.id)).toEqual([row.card.id, 'other']);
+    expect(queue[0]).toBe(row);
+    expect(await sessionQueue(api, [row], [event], row.card.id)).toEqual([]);
+    expect(await sessionQueue(api, [row], [], null)).toEqual([row]);
+  });
+
+  test('an undone final grade reloads its card before an apparently empty paced queue can settle', async () => {
+    const deferred = Promise.withResolvers<typeof row.card>();
+    const effective = { ...event, id: 'prior-grade' };
+    const undone = { ...event, undone_by: 'correction' };
+    let settled = false;
+    const pending = sessionQueue({
+      ...api, card: () => deferred.promise, cardReviews: async () => [effective, undone],
+    }, [], [], row.card.id).then(queue => { settled = true; return queue; });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    const restored = { ...row.card, revision: 6, schedule: { ...schedule, repetitions: 0, last_reviewed_at: null } };
+    deferred.resolve(restored);
+    const queue = await pending;
+    expect(queue).toHaveLength(1);
+    expect(queue[0]!.card).toBe(restored);
+    expect(queue[0]!.last_review).toBe(effective);
+    expect(queue[0]!.source).toEqual({ block: source, page });
+  });
+
+  test('failed or unavailable restored cards remain errors, never empty successful queues', async () => {
+    await expect(sessionQueue({ ...api, card: async () => { throw new Error('offline'); } }, [], [], row.card.id)).rejects.toThrow('offline');
+    await expect(sessionQueue({ ...api, card: async () => ({ ...row.card, held: true }) }, [], [], row.card.id)).rejects.toThrow('no longer available');
+    await expect(sessionQueue(api, [{ ...row, card: { ...row.card, active: false } }], [], row.card.id)).rejects.toThrow('no longer available');
+  });
+
+  test('raw evidence keeps undone grades out of the current comparison snapshot', async () => {
+    const result = await loadReviewCard({ ...api, cardReviews: async () => [{ ...event, undone_by: 'correction' }] }, row.card.id);
+    expect(result.last_review).toBeNull();
+  });
 });

@@ -1,5 +1,8 @@
 import type { CardQuery, CardRow, CardUnit, Grade, Operation, ReviewEvent, ReviewSession } from '../api/types';
+import type { ApiClient } from '../api/client';
 import { copyQuery } from '../table/query';
+
+type ReviewCardApi = Pick<ApiClient, 'card' | 'block' | 'cardReviews'>;
 
 export const selectionLabels = { due: 'Due', new: 'New', all: 'All' } as const;
 export const gradeLabels: Record<Grade, string> = { again: 'Again', hard: 'Hard', good: 'Good', easy: 'Easy' };
@@ -70,4 +73,22 @@ export function gradeOperation(shown: CardRow, sessionId: string, grade: Grade, 
     session_id: sessionId, grade, reset, shown_front: shown.card.front,
     shown_back: shown.card.back, reviewed_at: reviewedAt,
   };
+}
+
+/** Reload the real source and schedule, never the text retained by a grade event. */
+export async function loadReviewCard(api: ReviewCardApi, id: string): Promise<CardRow> {
+  const card = await api.card(id);
+  const [block, reviews] = await Promise.all([api.block(card.source_block_id), api.cardReviews(id)]);
+  const page = block.id === block.page_id ? block : await api.block(block.page_id);
+  return { card, source: { block, page }, last_review: reviews.filter(event => event.kind === 'grade' && !event.undone_by).at(-1) ?? null };
+}
+
+/** Undo takes priority even when pacing or a query limit leaves the restored card out of the query. */
+export async function sessionQueue(api: ReviewCardApi, candidates: CardRow[], history: ReviewEvent[], restoredCardId: string | null): Promise<CardRow[]> {
+  const reviewed = new Set(history.filter(event => event.kind === 'grade').map(event => event.card_id));
+  const remaining = candidates.filter(row => !reviewed.has(row.card.id));
+  if (!restoredCardId || reviewed.has(restoredCardId)) return remaining;
+  const restored = remaining.find(row => row.card.id === restoredCardId) ?? await loadReviewCard(api, restoredCardId);
+  if (!restored.card.active || restored.card.held) throw new Error('The restored card is no longer available for review. Open its source to check it.');
+  return [restored, ...remaining.filter(row => row.card.id !== restoredCardId)];
 }

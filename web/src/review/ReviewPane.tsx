@@ -10,9 +10,11 @@ import { Menu } from '../ui/Menu';
 import { Picker } from '../ui/Picker';
 import { Popup } from '../ui/Popup';
 import { createSlowFlag } from '../ui/loading';
+import { documentReady } from '../tasks/JournalAgenda';
+import { CardComposer } from './CardComposer';
 import { DeckEditor } from './DeckEditor';
 import { CardBack, ReviewCard } from './ReviewCard';
-import { copyCardQuery, formatInterval, gradeLabels, gradeOperation, openReviewSession, sameCardSnapshot, selectionLabels } from './query';
+import { copyCardQuery, formatInterval, gradeLabels, gradeOperation, loadReviewCard, openReviewSession, sameCardSnapshot, selectionLabels, sessionQueue } from './query';
 import { ReviewSourcePassage, reviewSource } from './ReviewSource';
 import type { ReviewSource } from './ReviewSource';
 import './review.css';
@@ -62,27 +64,32 @@ export function ReviewPane(props: ReviewPaneProps) {
   const [picker, setPicker] = createSignal<{ kind: 'decks' | 'sessions'; anchor: HTMLElement } | null>(null);
   const [search, setSearch] = createSignal('');
   const [actions, setActions] = createSignal<HTMLElement | null>(null);
+  const [composer, setComposer] = createSignal<HTMLElement | null>(null);
   const [editor, setEditor] = createSignal<{ anchor: HTMLElement; deck: Deck | null } | null>(null);
   const [deletion, setDeletion] = createSignal<{ anchor: HTMLElement; deck: Deck } | null>(null);
   const [switching, setSwitching] = createSignal<{ anchor: HTMLElement; target: Destination } | null>(null);
   const [closing, setClosing] = createSignal<{ anchor: HTMLElement; state: 'finished' | 'abandoned' } | null>(null);
   const [events, setEvents] = createSignal<ReviewEvent[]>([]);
   const [stats, setStats] = createSignal<ReviewStats | null>(null);
+  const [inventory, setInventory] = createSignal<number | null>(null);
   const [ledger, setLedger] = createSignal<DeckCounts[]>([]);
   const [answerRevealed, setAnswerRevealed] = createSignal(false);
+  const [restoredCardId, setRestoredCardId] = createSignal<string | null>(null);
+  const latestGrade = createMemo(() => session()?.state !== 'abandoned' ? events().filter(event => event.kind === 'grade').at(-1) ?? null : null);
   const grades = createMemo(() => events().filter(event => event.kind === 'grade'));
   const gradedCount = () => grades().length;
   const missed = createMemo(() => grades().filter(event => event.grade === 'again'));
-  const done = createMemo(() => !!session() && ready() && (session()!.state !== 'open' || !rows().length && !shown()));
   const selectedDeck = createMemo(() => decks().find(deck => deck.id === deckId()));
   const openSession = createMemo(() => session()?.state === 'open' && session()?.id === sessionId() ? session() : null);
-  const sessionActive = createMemo(() => !!openSession() && !done());
+  const sessionActive = createMemo(() => !!openSession());
   const openSessions = createMemo(() => sessions().filter(value => value.state === 'open').sort((a, b) => b.started_at - a.started_at || b.id.localeCompare(a.id)));
   const otherSessions = createMemo(() => openSessions().filter(value => value.id !== sessionId()));
   // Queue bookkeeping must not refresh a shown card unless command state changes.
   const commandState = createMemo(() => props.notebook.commandState());
   const queued = createMemo(() => ['saving', 'queued', 'offline'].includes(commandState()));
   const locked = createMemo(() => !!pending() || queued());
+  const done = createMemo(() => !!session() && session()!.state !== 'open' && ready() && !loading() && !readError() && !locked() && commandState() === 'saved');
+  const undoDisabled = createMemo(() => locked() || loading() || !!readError() || commandState() !== 'saved' || !latestGrade());
   const deckChoices = createMemo((): DeckChoice[] => {
     const needle = search().trim().toLocaleLowerCase();
     return [{ id: null, name: 'All cards' }, ...decks()].filter(deck => deck.name.toLocaleLowerCase().includes(needle));
@@ -97,6 +104,8 @@ export function ReviewPane(props: ReviewPaneProps) {
   let generation = 0;
   let disposed = false;
   let recover = true;
+  let autoFinishAttempt = '';
+  let createdCard: { pageId: string; id: string } | null = null;
   onCleanup(() => { disposed = true; generation++; });
   onMount(() => { scroll.scrollTop = props.view.scroll; });
 
@@ -115,7 +124,7 @@ export function ReviewPane(props: ReviewPaneProps) {
     batch(() => {
       setDeckId(target.deckId); setSessionId(target.sessionId); setSession(null); setSelection(target.selection ?? null);
       setShown(null); setUpdated(null); setStale(''); setNeedsReload(false); setCommandError('');
-      setEvents([]); setStats(null); setLedger([]);
+      setEvents([]); setStats(null); setLedger([]); setInventory(null); setRestoredCardId(null);
       setRows([]); setCounts({}); setReady(false); setLoading(true); setSwitching(null); setRetry(value => value + 1);
     });
     publish();
@@ -150,6 +159,29 @@ export function ReviewPane(props: ReviewPaneProps) {
     });
   }));
 
+  createEffect(on(done, finished => {
+    if (!finished) return;
+    queueMicrotask(() => {
+      if (!disposed && props.active && done() && document.activeElement === document.body) scroll.querySelector<HTMLElement>('[aria-label="Session summary"]')?.focus({ preventScroll: true });
+    });
+  }));
+
+  createEffect(() => {
+    const current = openSession();
+    if (!current || !ready() || loading() || locked() || commandState() !== 'saved' || readError() || commandError() || stale() || needsReload() || rows().length || shown() || restoredCardId()) return;
+    const attempt = `${current.id}:${current.revision}`;
+    if (autoFinishAttempt === attempt) return;
+    autoFinishAttempt = attempt;
+    void closeSession('finished');
+  });
+
+  function keydown(event: KeyboardEvent) {
+    if (event.defaultPrevented || event.repeat || event.isComposing || event.keyCode === 229 || !props.active || undoDisabled() || event.altKey || event.shiftKey || !(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 'z') return;
+    const target = event.target instanceof Element ? event.target : null;
+    if (target?.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]') || target instanceof HTMLElement && target.isContentEditable) return;
+    event.preventDefault(); event.stopPropagation();
+    void undoGrade();
+  }
   async function presentation(item: CardRow): Promise<Presentation> {
     const [previews, context] = await Promise.all([props.notebook.api.cardPreviews(item.card.id), reviewSource(props.notebook.api, item)]);
     const current = await props.notebook.api.card(item.card.id);
@@ -162,14 +194,16 @@ export function ReviewPane(props: ReviewPaneProps) {
     const requestedDeck = deckId();
     const requestedSession = sessionId();
     const requestedSelection = selection();
+    const restored = restoredCardId();
+    // A read started around an unacknowledged command cannot establish exhaustion.
+    if (pending() || queued()) { setLoading(false); return; }
     setLoading(true);
     try {
       const [savedDecks, savedSessions] = await Promise.all([props.notebook.api.decks(), props.notebook.api.reviewSessions()]);
       if (disposed || version !== generation) return;
-      setDecks(savedDecks); setSessions(savedSessions);
       let currentSession = requestedSession ? savedSessions.find(value => value.id === requestedSession) ?? await props.notebook.api.reviewSession(requestedSession) : null;
       if (disposed || version !== generation) return;
-      if (!requestedSession && recover && !pending() && !queued()) {
+      if (!requestedSession && recover) {
         recover = false;
         currentSession = openReviewSession(savedSessions, requestedDeck) ?? null;
         if (currentSession) {
@@ -177,7 +211,6 @@ export function ReviewPane(props: ReviewPaneProps) {
           return;
         }
       }
-      setSession(currentSession);
       if (currentSession?.state === 'open' && currentSession.deck_id !== requestedDeck) {
         setDeckId(currentSession.deck_id); setSelection(null); publish();
         return;
@@ -186,10 +219,11 @@ export function ReviewPane(props: ReviewPaneProps) {
       if (requestedDeck && !deck) throw new Error('This deck was deleted. Finish or abandon any open review, then choose another deck.');
       const nextQuery = copyCardQuery(deck?.query ?? { source: null, selection: 'due', limit: null });
       if (requestedSelection) nextQuery.selection = requestedSelection;
-      const [result, history, nextStats, ...totals] = await Promise.all([
+      const [result, history, nextStats, globalStats, ...totals] = await Promise.all([
         props.notebook.api.cardQuery({ ...nextQuery, limit: nextQuery.limit ?? 2000 }),
         currentSession ? props.notebook.api.reviewSessionEvents(currentSession.id) : Promise.resolve([] as ReviewEvent[]),
         props.notebook.api.reviewStats(requestedDeck, props.notebook.todayDate()),
+        !currentSession && requestedDeck ? props.notebook.api.reviewStats(null, props.notebook.todayDate()) : Promise.resolve(null),
         ...selections.map(value => props.notebook.api.cardQuery({ ...nextQuery, selection: value, limit: 0 }).then(found => found.total)),
       ]);
       if (disposed || version !== generation) return;
@@ -202,47 +236,41 @@ export function ReviewPane(props: ReviewPaneProps) {
       if (missedFrom) {
         const original = await props.notebook.api.reviewSessionEvents(missedFrom);
         const ids = [...new Set(original.filter(event => event.grade === 'again').map(event => event.card_id))];
-        candidates = (await Promise.all(ids.map(async id => {
-          const card = await props.notebook.api.card(id);
-          if (!card.active) return null;
-          const block = await props.notebook.api.block(card.source_block_id);
-          const page = await props.notebook.api.block(block.page_id);
-          const reviews = await props.notebook.api.cardReviews(id);
-          return { card, source: { block, page }, last_review: reviews.filter(event => event.kind === 'grade').at(-1) ?? null };
-        }))).filter((row): row is CardRow => row !== null);
+        candidates = (await Promise.all(ids.map(id => loadReviewCard(props.notebook.api, id)))).filter(row => row.card.active && !row.card.held);
       }
-      const reviewed = new Set(history.filter(event => event.kind === 'grade').map(event => event.card_id));
-      const remaining = currentSession?.state === 'open' ? candidates.filter(row => !reviewed.has(row.card.id)) : candidates;
+      const remaining = currentSession?.state === 'open' ? await sessionQueue(props.notebook.api, candidates, history, restored) : candidates;
       const nextLedger = !currentSession ? await Promise.all([{ id: null, name: 'All cards', query: { source: null } }, ...savedDecks].map(async deck => {
         const [due, fresh, all] = await Promise.all(selections.map(value => props.notebook.api.cardQuery({ source: deck.query.source, selection: value, limit: 0 }).then(found => found.total)));
         return { id: deck.id, name: deck.name, due: due!, new: fresh!, all: all! };
       })) : [];
       if (disposed || version !== generation) return;
-      setQuery(nextQuery); setRows(remaining); setTotal(result.total); setLoadedCount(result.rows.length);
-      setEvents(history); setStats(nextStats); setLedger(nextLedger);
-      setCounts(Object.fromEntries(selections.map((value, index) => [value, totals[index]!])));
-      const previous = shown();
+      let nextShown = shown();
+      let nextUpdated: Presentation | null = null;
+      let nextStale = '';
       if (currentSession?.state !== 'open') {
-        setUpdated(null);
-        setStale(previous ? 'This review was closed elsewhere. Its committed grades are retained.' : '');
-      } else if (previous) {
-        const candidate = remaining.find(row => row.card.id === previous.item.card.id);
+        nextShown = null;
+      } else if (nextShown) {
+        const candidate = remaining.find(row => row.card.id === nextShown!.item.card.id);
         if (!candidate) {
-          setUpdated(null); setStale('This card is no longer in this queue, or was already graded in this review.');
-        } else if (!sameCardSnapshot(previous.item.card, candidate.card) || needsReload()) {
-          const next = await presentation(candidate);
-          if (disposed || version !== generation) return;
-          setUpdated(next);
-          setStale(needsReload() ? 'Review the current card before continuing.' : 'This card changed after it was shown. Review its current text before grading.');
-        } else {
-          setUpdated(null); setStale('');
+          nextStale = 'This card is no longer in this queue, or was already graded in this review.';
+        } else if (!sameCardSnapshot(nextShown.item.card, candidate.card) || needsReload()) {
+          nextUpdated = await presentation(candidate);
+          nextStale = needsReload() ? 'Review the current card before continuing.' : 'This card changed after it was shown. Review its current text before grading.';
         }
-      } else if (remaining[0] && !queued() && !pending()) {
-        const next = await presentation(remaining[0]);
-        if (disposed || version !== generation) return;
-        setShown(next); setUpdated(null); setStale('');
+      } else if (remaining[0]) {
+        nextShown = await presentation(remaining[0]);
       }
-      setReadError(''); setReady(true);
+      if (disposed || version !== generation) return;
+      // Publish one complete snapshot. Empty rows from a superseded/failed read never finish a session.
+      batch(() => {
+        setDecks(savedDecks); setSessions(savedSessions); setSession(currentSession);
+        setQuery(nextQuery); setRows(remaining); setTotal(result.total); setLoadedCount(result.rows.length);
+        setEvents(history); setStats(nextStats); setLedger(nextLedger);
+        if (!currentSession) setInventory((globalStats ?? nextStats).total_cards + (globalStats ?? nextStats).held_cards);
+        setCounts(Object.fromEntries(selections.map((value, index) => [value, totals[index]!])));
+        setShown(nextShown); setUpdated(nextUpdated); setStale(nextStale);
+        setReadError(''); setReady(true); setLoading(false);
+      });
     } catch (reason) {
       if (!disposed && version === generation) setReadError(reason instanceof Error ? reason.message : String(reason));
     } finally {
@@ -264,7 +292,7 @@ export function ReviewPane(props: ReviewPaneProps) {
     if (locked() || loading() || readError() || openSession() || !rows().length) return;
     const id = ulid();
     const targetDeck = deckId();
-    recover = false; setPending('Starting review…'); setCommandError('');
+    generation++; recover = false; setPending('Starting review…'); setCommandError('');
     try {
       await props.notebook.commit([{ op: 'start_review_session', id, deck_id: targetDeck, started_at: Date.now() }], 'Start review');
       if (disposed) return;
@@ -278,8 +306,15 @@ export function ReviewPane(props: ReviewPaneProps) {
   }
 
   async function closeSession(state: 'finished' | 'abandoned', target?: Destination) {
-    const value = openSession();
-    if (!value || locked()) return;
+    if (locked() || loading() || readError()) return;
+    const value = session();
+    if (!value) return;
+    if (value.state !== 'open') {
+      setClosing(null); setSwitching(null);
+      if (target) moveTo(target);
+      return;
+    }
+    generation++;
     setPending(state === 'finished' ? 'Finishing review…' : 'Abandoning review…'); setCommandError('');
     try {
       const receipt = await props.notebook.commit([{ op: 'finish_review_session', id: value.id, base_revision: value.revision, state, ended_at: Date.now() }], state === 'finished' ? 'Finish review' : 'Abandon review');
@@ -294,7 +329,7 @@ export function ReviewPane(props: ReviewPaneProps) {
     } catch (reason) {
       if (!disposed) setCommandError(reason instanceof Error ? reason.message : String(reason));
     } finally {
-      if (!disposed) { setPending(''); setRetry(value => value + 1); }
+      if (!disposed) batch(() => { setLoading(true); setPending(''); setRetry(value => value + 1); });
     }
   }
 
@@ -302,37 +337,62 @@ export function ReviewPane(props: ReviewPaneProps) {
     const currentSession = openSession();
     if (locked() || loading() || readError() || stale() || needsReload() || !currentSession || shown() !== snapshot) return;
     const operation = gradeOperation(snapshot.item, currentSession.id, value, reset, ulid(), Date.now());
-    setPending('Saving grade…'); setCommandError('');
+    generation++; setPending('Saving grade…'); setCommandError('');
     try {
       await props.notebook.commit([operation], 'Grade card');
     } catch (reason) {
       if (!disposed) {
         setNeedsReload(true);
-        setPending(''); await refresh();
+        setLoading(true); setPending(''); await refresh();
       }
       throw reason;
     }
     if (disposed) return;
     // The acknowledgement, not the click or a speculative query, releases the shown snapshot.
-    setShown(null); setUpdated(null); setStale(''); setPending('');
+    batch(() => { setLoading(true); setShown(null); setUpdated(null); setStale(''); setRestoredCardId(null); setPending(''); });
     await refresh();
+  }
+
+  async function undoGrade() {
+    const current = session();
+    const event = latestGrade();
+    if (!current || !event || undoDisabled()) return;
+    generation++; setPending('Undoing grade…'); setCommandError('');
+    try {
+      const card = await props.notebook.api.card(event.card_id);
+      if (disposed) return;
+      const receipt = await props.notebook.commit([{
+        op: 'undo_grade', id: card.id, base_revision: card.revision, review_id: event.id,
+        event_id: ulid(), session_revision: current.revision, undone_at: Date.now(),
+      }], 'Undo last grade');
+      if (disposed) return;
+      batch(() => {
+        setSession(receipt.review_sessions?.find(value => value.id === current.id) ?? current);
+        setRestoredCardId(card.id); setShown(null); setUpdated(null); setStale(''); setNeedsReload(false);
+        setEvents(value => value.filter(item => item.id !== event.id));
+      });
+    } catch (reason) {
+      if (!disposed) setCommandError(`Could not undo the grade: ${reason instanceof Error ? reason.message : String(reason)}`);
+    } finally {
+      if (!disposed) batch(() => { setLoading(true); setPending(''); setRetry(value => value + 1); });
+    }
   }
 
   async function reset(snapshot: Presentation) {
     const currentSession = openSession();
     if (locked() || loading() || readError() || stale() || needsReload() || !currentSession || shown() !== snapshot) return;
-    setPending('Resetting progress…'); setCommandError('');
+    generation++; setPending('Resetting progress…'); setCommandError('');
     try {
       await props.notebook.commit([{ op: 'reset_card', id: snapshot.item.card.id, base_revision: snapshot.item.card.revision, event_id: ulid(), session_id: currentSession.id, reviewed_at: Date.now() }], 'Reset card');
     } catch (reason) {
       if (!disposed) {
         setNeedsReload(true);
-        setPending(''); await refresh();
+        setLoading(true); setPending(''); await refresh();
       }
       throw reason;
     }
     if (disposed) return;
-    setNeedsReload(true); setPending('');
+    setNeedsReload(true); setLoading(true); setPending('');
     await refresh();
     if (disposed) return;
     const next = updated();
@@ -343,7 +403,7 @@ export function ReviewPane(props: ReviewPaneProps) {
     if (locked() || loading() || readError()) return;
     const next = updated();
     setShown(next); setUpdated(null); setStale(''); setNeedsReload(false); setCommandError('');
-    if (!next) setRetry(value => value + 1);
+    if (!next) { setRestoredCardId(null); setRetry(value => value + 1); }
   }
 
   async function deleteDeck(deck: Deck) {
@@ -361,18 +421,14 @@ export function ReviewPane(props: ReviewPaneProps) {
   }
 
   async function reviewMissed() {
-    if (!session() || !missed().length || locked() || loading()) return;
+    if (!done() || !missed().length || locked() || loading()) return;
     const previous = session()!.id;
     const id = ulid();
-    setPending('Starting missed cards…'); setCommandError(''); recover = false;
+    generation++; setPending('Starting missed cards…'); setCommandError(''); recover = false;
     try {
       // Store only the evidence session, never a copied card definition or schedule.
       localStorage.setItem(`tessera.review-missed.${id}`, previous);
-      const current = openSession();
-      await props.notebook.commit([
-        ...(current ? [{ op: 'finish_review_session' as const, id: current.id, base_revision: current.revision, state: 'finished' as const, ended_at: Date.now() }] : []),
-        { op: 'start_review_session', id, deck_id: deckId(), started_at: Date.now() },
-      ], 'Review missed cards');
+      await props.notebook.commit([{ op: 'start_review_session', id, deck_id: deckId(), started_at: Date.now() }], 'Review missed cards');
       if (!disposed) moveTo({ deckId: deckId(), sessionId: id, selection: 'all' });
     } catch (reason) {
       if (!disposed) setCommandError(reason instanceof Error ? reason.message : String(reason));
@@ -382,14 +438,36 @@ export function ReviewPane(props: ReviewPaneProps) {
   }
 
   async function backToToday() {
-    if (openSession()) await closeSession('finished');
-    if (openSession() || disposed) return;
+    if (!done() || locked() || loading() || disposed) return;
     const pageId = await props.notebook.today();
     props.onOpen({ kind: 'page', pageId }, false);
   }
 
+  async function createCard(text: string) {
+    const pageId = createdCard?.pageId ?? await props.notebook.today();
+    const doc = props.notebook.open(pageId);
+    try {
+      await documentReady(doc);
+      if (createdCard) {
+        const result = doc.edit({ kind: 'text', id: createdCard.id, text });
+        if (!result.ok) throw new Error(result.reason);
+      } else {
+        const last = doc.outline.children(pageId).at(-1);
+        const result = doc.edit({ kind: 'insert', parentId: pageId, after: last ?? null, text });
+        if (!result.ok) throw new Error(result.reason);
+        createdCard = { pageId, id: result.created[0]! };
+      }
+      await doc.flush();
+      if (doc.saveState() === 'error' || doc.saveState() === 'conflict') throw new Error(doc.saveMessage());
+      if (!disposed) {
+        setComposer(null);
+        props.onOpen({ kind: 'page', pageId, blockId: createdCard.id, caretId: createdCard.id }, false);
+      }
+    } finally { doc.release(); }
+  }
+
   const deckName = createMemo(() => deckId() ? selectedDeck()?.name ?? 'Unavailable deck' : 'All cards');
-  return <div class="review-pane" classList={{ 'review-session-active': sessionActive(), 'review-session-done': done() }} data-pane={props.pane} role="region" aria-label="Review" tabIndex={0} onFocusIn={props.onActivate} onPointerDown={props.onActivate}>
+  return <div class="review-pane" classList={{ 'review-session-active': sessionActive(), 'review-session-done': done() }} data-pane={props.pane} role="region" aria-label="Review" tabIndex={0} onFocusIn={props.onActivate} onPointerDown={props.onActivate} onKeyDown={keydown}>
     <header class="review-header">
       <div class="review-heading">
         <div class="review-register">Review<Show when={sessionActive()}><span> · in progress</span></Show></div>
@@ -404,7 +482,7 @@ export function ReviewPane(props: ReviewPaneProps) {
         setShown(null); setUpdated(null); setStale(''); setNeedsReload(false); setSelection(value); publish();
       }}>{selectionLabels[value]}<Show when={counts()[value] !== undefined}><span class="review-count">{counts()[value]}</span></Show></Button>}</For></div></Show>
       <Show when={sessionActive() && ready()}><div class="review-session-progress">
-        <span class="review-progress-label">{gradedCount() + 1} of {gradedCount() + rows().length}</span>
+        <span class="review-progress-label">{Math.min(gradedCount() + 1, gradedCount() + rows().length)} of {gradedCount() + rows().length}</span>
         <GradeStrip grades={grades()} remaining={rows().length} />
       </div></Show>
     </div>
@@ -417,13 +495,19 @@ export function ReviewPane(props: ReviewPaneProps) {
     <div ref={scroll} class="review-scroll" onScroll={publish}>
       <Show when={pending() || slowReady()}><p class="review-pending" role="status">{pending() || 'Loading cards…'}</p></Show>
       <Show when={total() > loadedCount() && !done()}><p class="review-pending">Showing {loadedCount()} of {total()} matching cards. Narrow the deck’s source filters to review the rest.</p></Show>
-      <Show when={!session() && ready() && stats()}>{value => <div class="review-landing">
+      <Show when={!session() && ready() && inventory() === 0}><section class="review-done" aria-label="Make your first card">
+        <h2>Make your first card</h2>
+        <p>Write a question and answer in a note, or turn a source highlight into a card.</p>
+        <div><Button class="review-start" disabled={locked() || loading()} onClick={event => { createdCard = null; setComposer(event.currentTarget); }}>Create a card</Button></div>
+        <p class="review-pending"><code>Question &gt;&gt; Answer</code></p>
+      </section></Show>
+      <Show when={!session() && ready() && inventory() !== 0 && stats()}>{value => <div class="review-landing">
         <div class="review-overview">
-          <section class="review-today-load" aria-label="Today’s review load">
-            <h2>Today</h2><div class="review-stat-value">{value().due_review + value().due_new}<small>cards due</small></div>
-            <p>{value().due_review} to review, {value().due_new} new</p>
-            <Button ref={startButton} class="review-start" disabled={locked() || loading() || !!readError() || !rows().length} onClick={() => void start()}>Start review <kbd>Space</kbd></Button>
-            <Show when={!rows().length}><p>{value().total_cards ? 'Nothing in this queue.' : 'Type >> in any block to make a card, or <> for both directions.'}</p></Show>
+          <section class="review-today-load" aria-label="Selected review queue">
+            <h2>{selectionLabels[query().selection]}</h2><div class="review-stat-value">{rows().length}<small>cards to review</small></div>
+            <p>Today: {value().due_review} to review, {value().due_new} new</p>
+            <Button ref={startButton} class="review-start" disabled={locked() || loading() || !!readError() || !rows().length} onClick={() => void start()}>Review {rows().length} cards <kbd>Space</kbd></Button>
+            <Show when={!rows().length}><p>{value().held_cards ? `${value().held_cards} cards are paused or marked Not yet. Start or resume them from their source notes.` : 'Nothing in this queue.'}</p></Show>
           </section>
           <ReviewForecast stats={value()} />
         </div>
@@ -440,9 +524,9 @@ export function ReviewPane(props: ReviewPaneProps) {
           </tr>}</For></tbody></table>
         </section>
       </div>}</Show>
-      <Show when={done() && session()}>{value => <section class="review-done" aria-label="Session summary">
+      <Show when={done() && session()}>{value => <section class="review-done" aria-label="Session summary" tabIndex={-1}>
         <p class="review-register">{deckName()} · {value().state === 'abandoned' ? 'Abandoned' : 'Done'}</p>
-        <h2>{gradedCount()} reviewed in {reviewDuration((value().ended_at ?? grades().at(-1)?.created_at ?? value().started_at) - value().started_at)}</h2>
+        <h2>{gradedCount()} reviewed this session in {reviewDuration((value().ended_at ?? grades().at(-1)?.created_at ?? value().started_at) - value().started_at)}</h2>
         <GradeStrip grades={grades()} />
         <dl class="review-stats">
           <div><dt>Good or easy</dt><dd>{grades().filter(event => event.grade === 'good' || event.grade === 'easy').length}</dd></div>
@@ -453,7 +537,7 @@ export function ReviewPane(props: ReviewPaneProps) {
         <Show when={grades().some(event => event.grade === 'hard')}><p class="review-pending">{grades().filter(event => event.grade === 'hard').length} Hard</p></Show>
         <Show when={stats()}>{value => <ReviewForecast stats={value()} />}</Show>
         <Show when={missed().length}><section class="review-missed"><h3>Missed</h3><For each={missed()}>{event => <ReviewMissedCard event={event} notebook={props.notebook} />}</For></section></Show>
-        <div class="review-done-actions"><Button class="review-start" disabled={locked() || loading()} onClick={() => void backToToday()}>Back to Today</Button><Show when={missed().length}><Button class="bordered" disabled={locked() || loading()} onClick={() => void reviewMissed()}>Review missed</Button></Show><Button disabled={locked()} onClick={() => { if (openSession()) void closeSession('finished', { deckId: deckId(), sessionId: null }); else moveTo({ deckId: deckId(), sessionId: null }); }}>Back to decks</Button></div>
+        <div class="review-done-actions"><Button class="review-start" disabled={locked() || loading()} onClick={() => void backToToday()}>Back to Today</Button><Show when={missed().length}><Button class="bordered" disabled={locked() || loading()} onClick={() => void reviewMissed()}>Review missed</Button></Show><Button disabled={locked() || loading()} onClick={() => moveTo({ deckId: deckId(), sessionId: null })}>Back to decks</Button></div>
       </section>}</Show>
       <Show when={stale()}><section class="review-stale" aria-label="Card changed">
         <p role="alert">{stale()}</p>
@@ -475,10 +559,14 @@ export function ReviewPane(props: ReviewPaneProps) {
         <Show when={snapshot.item.last_review}><ReviewHistory cardId={snapshot.item.card.id} kind={snapshot.item.card.kind} template={!!snapshot.item.card.template} notebook={props.notebook} /></Show>
       </>}</Show>
     </div>
-    <Show when={openSession() && (rows().length || shown())}><footer class="review-session-actions">
-      <Button class="bordered" disabled={locked()} aria-haspopup="dialog" onClick={event => { setCommandError(''); setClosing({ anchor: event.currentTarget, state: 'finished' }); }}>Finish review</Button>
-      <Button disabled={locked()} aria-haspopup="dialog" onClick={event => { setCommandError(''); setClosing({ anchor: event.currentTarget, state: 'abandoned' }); }}>Abandon review</Button>
+    <Show when={openSession() || done() && latestGrade()}><footer class="review-session-actions">
+      <Show when={latestGrade()}><Button disabled={undoDisabled()} aria-keyshortcuts="Meta+Z Control+Z" onClick={() => void undoGrade()}>Undo last grade</Button></Show>
+      <Show when={openSession()}>
+        <Button class="bordered" disabled={locked() || loading() || !!readError()} aria-haspopup="dialog" onClick={event => { setCommandError(''); setClosing({ anchor: event.currentTarget, state: 'finished' }); }}>Finish review</Button>
+        <Button disabled={locked() || loading() || !!readError()} aria-haspopup="dialog" onClick={event => { setCommandError(''); setClosing({ anchor: event.currentTarget, state: 'abandoned' }); }}>Abandon review</Button>
+      </Show>
     </footer></Show>
+    <Show keyed when={composer()}>{anchor => <CardComposer anchor={anchor} context={<p>Saved in Today</p>} onSave={createCard} onDismiss={() => setComposer(null)} />}</Show>
     <Show keyed when={picker()}>{state => state.kind === 'decks'
       ? <Picker<DeckChoice> anchor={state.anchor} label="Deck" query={search()} onQuery={setSearch} placeholder="Find a deck" items={deckChoices()} key={value => value.id ?? 'all'} onDismiss={() => setPicker(null)} onPick={value => { setPicker(null); if (value.id !== deckId()) requestMove({ deckId: value.id, sessionId: null }, state.anchor); }} row={value => <><Icon name={value.id === deckId() ? 'check' : 'table'} /><span class="picker-text">{value.name}</span></>} empty="No matching decks." />
       : <Picker<ReviewSession> anchor={state.anchor} label="Open reviews" query={search()} onQuery={setSearch} placeholder="Find a review" items={sessionChoices()} key={value => value.id} onDismiss={() => setPicker(null)} onPick={value => { setPicker(null); requestMove({ deckId: value.deck_id, sessionId: value.id }, state.anchor); }} row={value => <><Icon name={value.id === sessionId() ? 'check' : 'page'} /><span class="picker-text">{sessionLabel(value)}</span></>} empty="No open reviews." />}</Show>
@@ -565,7 +653,7 @@ function ReviewHistory(props: { cardId: string; kind: CardKind; template: boolea
       <Show when={error()}><p class="error" role="alert">{error()} <Button onClick={() => setRetry(value => value + 1)}>Retry</Button></p></Show>
       <Show when={!loading() && !error() && !events().length}><p>No review events.</p></Show>
       <ul><For each={[...events()].reverse()}>{event => <li>
-        <div><time dateTime={new Date(event.created_at).toISOString()}>{new Date(event.created_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</time> · {event.kind === 'reset' ? 'Reset' : gradeLabels[event.grade!]} · {event.before.interval_days ? formatInterval(event.before.interval_days) : 'New'} → {formatInterval(event.after.interval_days)}</div>
+        <div><time dateTime={new Date(event.created_at).toISOString()}>{new Date(event.created_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</time> · {event.kind === 'reset' ? 'Reset' : gradeLabels[event.grade!]}<Show when={event.undone_by}> · Undone</Show> · {event.before.interval_days ? formatInterval(event.before.interval_days) : 'New'} → {formatInterval(event.after.interval_days)}</div>
         <details><summary>Shown text</summary><div class="review-history-text"><Show when={props.template} fallback={<BlockText text={event.shown_front} notebook={props.notebook} interactive={false} />}>{event.shown_front}</Show></div><div class="review-history-text"><CardBack plain={props.template} kind={props.kind} back={event.shown_back} notebook={props.notebook} /></div></details>
       </li>}</For></ul>
     </Show>
