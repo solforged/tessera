@@ -5,11 +5,13 @@
 # Without arguments, builds a debug APK for arm64 phones under
 # crates/tessera-android/gen/android/app/build/outputs/apk. mise provides the
 # JDK and the Android SDK; the SDK must hold an NDK, or NDK_HOME must name one.
+# The app takes the workspace version, which also sets its versionCode.
 set -euo pipefail
 
 source "$MISE_PROJECT_ROOT/mise-tasks/android/ndk.sh"
+version=$(sed -n 's/^version = "\(.*\)"$/\1/p' "$MISE_PROJECT_ROOT/Cargo.toml")
 bun install --cwd crates/tessera-android --frozen-lockfile --silent
 if [ $# -eq 0 ]; then
   set -- --debug --target aarch64 --apk
 fi
-bun run --silent --cwd crates/tessera-android tauri android build --ci "$@"
+bun run --silent --cwd crates/tessera-android tauri android build --ci --config "{\"version\":\"$version\"}" "$@"

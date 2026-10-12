@@ -88,7 +88,7 @@ mise run android:build
 adb install -r crates/tessera-android/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk
 ```
 
-mise provides the JDK and the Android SDK; the SDK needs an NDK (`sdkmanager --install 'ndk;<version>'`), or `NDK_HOME` must name one. Extra arguments go to `tauri android build`. The Gradle project in `crates/tessera-android/gen/android` is committed; `tauri android init` regenerates it.
+mise provides the JDK and the Android SDK; the SDK needs an NDK (`sdkmanager --install 'ndk;<version>'`), or `NDK_HOME` must name one. Extra arguments go to `tauri android build`; `mise run android:build --target aarch64 --apk` builds a release APK, signed when `TESSERA_ANDROID_KEYSTORE` names a keystore with a `tessera` key and `TESSERA_ANDROID_KEYSTORE_PASSWORD` unlocks it. The Gradle project in `crates/tessera-android/gen/android` is committed; `tauri android init` regenerates it.
 
 ### Command line
 
@@ -120,7 +120,7 @@ The macOS app accepts EPUBs opened from Finder, imports them into its notebook a
 
 While the app runs, **⌘⇧E** from any app opens a small Add to today panel: type a line, press Enter, and it lands at the end of today's journal while focus returns to the app you were in. Inside Tessera, **⌘E** (File → New Capture) opens the same line over the current page. If another app already holds ⌘⇧E, Tessera starts without it and notes that in `~/Library/Logs/tessera/desktop.log`.
 
-Releases come from `v*` tags matching the workspace version. `.github/workflows/release.yml` first publishes the app, its DMG, the macOS command line, the signed updater archive and `latest.json`, which installed apps poll, then adds the Linux command line. Signing the updater archive needs the `TAURI_SIGNING_PRIVATE_KEY` secret, whose public half is in `crates/tessera-desktop/tauri.conf.json`. Losing the private key strands installed apps on their version.
+Releases come from `v*` tags matching the workspace version. `.github/workflows/release.yml` first publishes the app, its DMG, the macOS command line, the signed updater archive and `latest.json`, which installed apps poll, then adds the Linux command line and the arm64 Android APK. Signing the updater archive needs the `TAURI_SIGNING_PRIVATE_KEY` secret, whose public half is in `crates/tessera-desktop/tauri.conf.json`. Losing the private key strands installed apps on their version. The APK is signed with the release keystore in the `ANDROID_KEYSTORE` secret (base64) and `ANDROID_KEYSTORE_PASSWORD`; Android installs an update only over an app signed with the same key, so a phone running a debug build must uninstall it first, and losing the keystore means released APKs can no longer update installed ones.
 
 ### Shipping a build
 

@@ -14,7 +14,21 @@ val tauriProperties = Properties().apply {
     }
 }
 
+// Release builds are signed when TESSERA_ANDROID_KEYSTORE names a keystore
+// with a "tessera" key; TESSERA_ANDROID_KEYSTORE_PASSWORD unlocks both.
+val releaseKeystore = System.getenv("TESSERA_ANDROID_KEYSTORE")?.takeIf { it.isNotEmpty() }
+
 android {
+    signingConfigs {
+        if (releaseKeystore != null) {
+            create("release") {
+                storeFile = file(releaseKeystore)
+                storePassword = System.getenv("TESSERA_ANDROID_KEYSTORE_PASSWORD")
+                keyAlias = "tessera"
+                keyPassword = System.getenv("TESSERA_ANDROID_KEYSTORE_PASSWORD")
+            }
+        }
+    }
     compileSdk = 37
     namespace = "dev.tessera.android"
     defaultConfig {
@@ -39,6 +53,9 @@ android {
             }
         }
         getByName("release") {
+            if (releaseKeystore != null) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             optimization {
                enable = true
             }
