@@ -367,6 +367,14 @@ pub enum Operation {
         shown_back: String,
         reviewed_at: i64,
     },
+    UndoGrade {
+        id: String,
+        base_revision: i64,
+        review_id: String,
+        event_id: String,
+        session_revision: Option<i64>,
+        undone_at: i64,
+    },
     SetCardHeld {
         id: String,
         base_revision: i64,

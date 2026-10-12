@@ -81,6 +81,7 @@ export type Operation =
   | { op: 'start_review_session'; id: string; deck_id: string | null; started_at: number }
   | { op: 'finish_review_session'; id: string; base_revision: number; state: ReviewSessionState; ended_at: number }
   | { op: 'grade_card'; id: string; base_revision: number; definition_revision: number; event_id: string; session_id: string | null; grade: Grade; reset: boolean; shown_front: string; shown_back: string; reviewed_at: number }
+  | { op: 'undo_grade'; id: string; base_revision: number; review_id: string; event_id: string; session_revision: number | null; undone_at: number }
   | { op: 'reset_card'; id: string; base_revision: number; event_id: string; session_id: string | null; reviewed_at: number }
   | { op: 'set_card_held'; id: string; base_revision: number; held: boolean }
   | { op: 'save_deck'; id: string; base_revision: number | null; name: string; query: CardQuery }
@@ -417,6 +418,7 @@ export interface ReviewEvent {
   after: ReviewSchedulingState;
   created_at: number;
   change_seq: number;
+  undone_by: string | null;
 }
 
 export interface DateRange { from: string | null; through: string | null }
@@ -463,7 +465,7 @@ export interface CardPreviews { current: GradePreview[]; reset: GradePreview[] }
 export interface ReviewForecastDay { date: string; count: number }
 export interface ReviewStats {
   date: string; due_review: number; due_new: number; forecast: ReviewForecastDay[];
-  retention: number | null; reviews_this_week: number; streak: number; total_cards: number;
+  retention: number | null; reviews_this_week: number; streak: number; total_cards: number; held_cards: number;
 }
 
 export type SourceFormat = 'epub' | 'article' | 'record';

@@ -52,6 +52,7 @@ pub const TABLES: &[(&str, Replication)] = &[
     ("task_views", Replication::Applied),
     ("review_sessions", Replication::Applied),
     ("review_events", Replication::Applied),
+    ("review_undos", Replication::Applied),
     ("sources", Replication::Applied),
     ("source_snapshots", Replication::Applied),
     ("citations", Replication::Applied),

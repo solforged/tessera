@@ -41,6 +41,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/032_card_hold.sql"),
     include_str!("../migrations/033_field_targets.sql"),
     include_str!("../migrations/034_descriptor_cards.sql"),
+    include_str!("../migrations/035_review_undos.sql"),
 ];
 
 pub const SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
@@ -254,6 +255,26 @@ mod tests {
             .unwrap(),
             schedule_before
         );
+        let tx = conn.transaction().unwrap();
+        crate::review_store::apply(
+            &tx,
+            &crate::Operation::UndoGrade {
+                id: id(13),
+                base_revision: 7,
+                review_id: id(95),
+                event_id: id(1000),
+                session_revision: None,
+                undone_at: 2 * day,
+            },
+            2 * day,
+            1,
+            0,
+        ).unwrap();
+        tx.commit().unwrap();
+        assert_eq!(crate::card_store::card(&conn, &id(13)).unwrap().schedule, new_card(2 * day));
+        crate::review_store::backfill_fsrs(&conn).unwrap();
+        assert_eq!(crate::card_store::card(&conn, &id(13)).unwrap().schedule, new_card(2 * day));
+        assert_eq!(evidence(&conn), before);
     }
 
     #[test]

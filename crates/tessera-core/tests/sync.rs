@@ -1348,3 +1348,72 @@ fn type_presentation_replicates_rebases_and_resets() {
     assert_eq!(p.replica.type_info(&page).unwrap().plural, None);
     assert_eq!(p.replica.type_info(&page).unwrap().icon, None);
 }
+
+#[test]
+fn undo_grade_rebases_and_preserves_same_timestamp_reset_order_in_patches() {
+    let mut p = pair_with(|hub| {
+        let first = edit(hub, &id(2), "First >> Answer");
+        let second = edit(hub, &id(3), "Second >> Answer");
+        apply(hub, vec![first, second, insert(4, &id(1), None, "Offline >> Answer")]);
+    });
+    let first = p.hub.source_cards(&id(2)).unwrap().remove(0);
+    let second = p.hub.source_cards(&id(3)).unwrap().remove(0);
+    let offline = p.replica.source_cards(&id(4)).unwrap().remove(0);
+    let grade = |card: &tessera_core::CardUnit, event, session_id, reset| Operation::GradeCard {
+        id: card.id.clone(), base_revision: card.revision, definition_revision: card.definition_revision,
+        event_id: id(event), session_id, grade: tessera_core::scheduler::Grade::Good, reset,
+        shown_front: card.front.clone(), shown_back: card.back.clone(), reviewed_at: 1000,
+    };
+    // Both writers allocate from the same event-order maximum while offline.
+    apply(&mut p.replica, vec![grade(&offline, 700, None, false)]);
+    apply(&mut p.hub, vec![
+        Operation::StartReviewSession { id: id(50), deck_id: None, started_at: 1000 },
+        grade(&first, 900, Some(id(50)), true),
+        grade(&second, 100, Some(id(50)), true),
+        Operation::FinishReviewSession {
+            id: id(50), base_revision: 1, state: tessera_core::ReviewSessionState::Finished, ended_at: 1000,
+        },
+    ]);
+    p.sync();
+    p.assert_converged();
+    let events = p.replica.review_session_events(&id(50)).unwrap();
+    assert_eq!(events.iter().filter(|event| event.grade.is_some()).map(|event| event.id.clone()).collect::<Vec<_>>(), vec![id(900), id(100)]);
+    let before = match &events.last().unwrap().before {
+        tessera_core::ReviewSchedulingState::Fsrs(state) => state.clone(),
+        _ => panic!("new grade uses FSRS"),
+    };
+    let current = p.replica.card(&second.id).unwrap();
+    let request = batch(vec![Operation::UndoGrade {
+        id: current.id, base_revision: current.revision, review_id: id(100), event_id: id(800),
+        session_revision: Some(2), undone_at: 1000,
+    }]);
+    p.replica.apply(&request).unwrap();
+    apply(&mut p.hub, vec![Operation::CreatePage { id: id(5), title: "Concurrent change".into() }]);
+    let report = p.sync();
+    assert!(matches!(report.pushed[0].outcome, PushOutcome::Accepted { .. }));
+    p.assert_converged();
+    for notebook in [&p.hub, &p.replica] {
+        assert_eq!(notebook.card(&second.id).unwrap().schedule, before);
+        assert_eq!(notebook.review_session(&id(50)).unwrap().state, tessera_core::ReviewSessionState::Open);
+        let history = notebook.review_events(&second.id).unwrap();
+        assert_eq!(history.len(), 2);
+        assert_eq!(history[0].kind, tessera_core::ReviewEventKind::Reset);
+        assert_eq!(history[1].undone_by, Some(id(800)));
+        let effective = notebook.review_session_events(&id(50)).unwrap();
+        assert_eq!(effective.iter().filter(|event| event.grade.is_some()).count(), 1);
+        assert_eq!(effective.len(), 3);
+    }
+    let first = p.hub.card(&first.id).unwrap();
+    apply(&mut p.hub, vec![Operation::ResetCard {
+        id: first.id.clone(), base_revision: first.revision, event_id: id(90),
+        session_id: Some(id(50)), reviewed_at: 1000,
+    }]);
+    p.sync();
+    p.assert_converged();
+    let current = p.replica.card(&first.id).unwrap();
+    assert!(matches!(p.replica.apply(&batch(vec![Operation::UndoGrade {
+        id: current.id, base_revision: current.revision, review_id: id(900), event_id: id(801),
+        session_revision: Some(3), undone_at: 1000,
+    }])), Err(tessera_core::Error::Validation { .. })));
+    assert_eq!(p.replica.card(&first.id).unwrap().schedule, tessera_core::scheduler::new_card(1000));
+}

@@ -2,8 +2,7 @@ use rusqlite::{Connection, OptionalExtension, params};
 
 use crate::card_store::card_at;
 use crate::query::validate_source_query;
-use crate::reads::hidden_blocks;
-use crate::review_store::review_event_at;
+use crate::review_store::{review_event_at, review_pacing};
 use crate::storage::{block_at, block_columns, not_found, validate_id, validation};
 use crate::{
     BlockInPage, CardQuery, CardQueryResult, CardRow, CardSelection, Deck, Notebook, Result,
@@ -78,46 +77,21 @@ impl Notebook {
         // Select and count units before limiting. Only the returned units need
         // grade evidence, and a count-only row preserves total for limit zero.
         let mut statement = self.conn.prepare_cached(concat!(
-            hidden_blocks!(),
-            ", first_reviews AS (
-                SELECT c.key, c.id, MIN(e.created_at) AS first_at
-                FROM card_units c JOIN review_events e ON e.card_id = c.id AND e.kind = 'grade'
-                WHERE c.key LIKE 'tpl:%' AND c.held = 0 GROUP BY c.id
-            ), introduced AS (
-                SELECT key, COUNT(*) AS count FROM first_reviews
-                WHERE first_at >= ?5 AND first_at < ?6 GROUP BY key
-            ), candidates AS MATERIALIZED (
-                SELECT c.id, c.key, t.new_per_day, COALESCE(i.count, 0) AS introduced,
-                    json_extract(c.schedule, '$.last_reviewed_at') IS NULL AS is_new,
-                    json_extract(c.schedule, '$.due_at') AS due_at,
-                    c.created_at AS created_at,
-                    ROW_NUMBER() OVER (
-                        PARTITION BY c.key, json_extract(c.schedule, '$.last_reviewed_at') IS NULL
-                        ORDER BY c.created_at, b.created_at, b.id, c.id
-                    ) AS new_position
-                FROM card_units c
-                JOIN blocks b ON b.id = c.source_block_id
-                JOIN blocks p ON p.id = b.page_id
-                LEFT JOIN card_templates t ON c.key = 'tpl:' || t.id
-                LEFT JOIN introduced i ON i.key = c.key
-                WHERE c.active = 1 AND c.held = 0 AND b.deletion_id IS NULL AND p.deletion_id IS NULL
-                    AND b.rowid NOT IN (SELECT rowid FROM hidden)
-                    AND (?1 = 'all'
-                        OR (?1 = 'due' AND json_extract(c.schedule, '$.due_at') <= ?2)
-                        OR (?1 = 'new' AND json_extract(c.schedule, '$.last_reviewed_at') IS NULL))
-                    AND (?3 IS NULL OR c.source_block_id IN (SELECT value FROM json_each(?3)))
-            ), eligible AS MATERIALIZED (
-                SELECT * FROM candidates WHERE NOT is_new OR new_per_day IS NULL
-                    OR new_position <= MAX(0, new_per_day - introduced)
+            review_pacing!(),
+            ", queue AS MATERIALIZED (
+                SELECT * FROM ranked WHERE ?4 = 'all'
+                UNION ALL
+                SELECT * FROM paced
+                WHERE (?4 = 'due' AND due_at <= ?5) OR (?4 = 'new' AND is_new)
             ), selected AS MATERIALIZED (
-                SELECT * FROM eligible ORDER BY is_new, due_at,
-                    CASE WHEN is_new AND new_per_day IS NOT NULL THEN new_position END, id LIMIT ?4
+                SELECT * FROM queue ORDER BY is_new, due_at,
+                    CASE WHEN is_new AND new_per_day IS NOT NULL THEN new_position END, id LIMIT ?6
             ), grades AS (
-                SELECT e.rowid AS event_rowid, e.card_id,
+                SELECT e.id AS event_id, e.card_id,
                     ROW_NUMBER() OVER (
-                        PARTITION BY e.card_id ORDER BY e.created_at DESC, e.rowid DESC
+                        PARTITION BY e.card_id ORDER BY e.created_at DESC, e.event_order DESC, e.id DESC
                     ) AS position
-                FROM review_events e JOIN selected s ON s.id = e.card_id
+                FROM effective_review_events e JOIN selected s ON s.id = e.card_id
                 WHERE e.kind = 'grade'
             )
             SELECT c.id, c.source_block_id, c.key, c.kind, c.active,
@@ -129,25 +103,25 @@ impl Notebook {
                 e.shown_back, e.definition_revision, e.scheduler_version,
                 e.before_state, e.after_state, e.created_at, e.change_seq, totals.total,
                 t.id, t.name, t.type_id, tp.text
-            FROM (SELECT COUNT(*) AS total FROM eligible) totals
+            FROM (SELECT COUNT(*) AS total FROM queue) totals
             LEFT JOIN selected s ON 1
             LEFT JOIN card_units c ON c.id = s.id
             LEFT JOIN blocks b ON b.id = c.source_block_id
             LEFT JOIN blocks p ON p.id = b.page_id
             LEFT JOIN grades g ON g.card_id = c.id AND g.position = 1
-            LEFT JOIN review_events e ON e.rowid = g.event_rowid
+            LEFT JOIN review_events e ON e.id = g.event_id
             LEFT JOIN card_templates t ON c.key = 'tpl:' || t.id
             LEFT JOIN blocks tp ON tp.id = t.type_id
             ORDER BY s.is_new, s.due_at,
                 CASE WHEN s.is_new AND s.new_per_day IS NOT NULL THEN s.new_position END, s.id"
         ))?;
         let mut cursor = statement.query(params![
-            selection,
-            now,
             source_ids,
-            query.limit.unwrap_or(500) as i64,
             day_start,
             day_end,
+            selection,
+            now,
+            query.limit.unwrap_or(500) as i64,
         ])?;
         let mut rows = Vec::new();
         let mut total = 0;
