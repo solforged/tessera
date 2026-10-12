@@ -92,7 +92,7 @@ export interface HistoryEntry {
   forward: Action[];
   inverse: Action[];
   before: HistoryCaret | null;
-  after: Caret | null;
+  after: HistoryCaret | null;
   commandId: string;
   commands: Set<string>;
   applied: boolean;

@@ -327,7 +327,7 @@ Show bullets and Hide bullets in the page menu override a page's default; overri
 
 ### Gloss and depth
 
-A titled page's gloss is an entry for the built-in Gloss field among its top-level blocks, added or edited from Gloss in the page menu or the palette, which create the field and put the entry first.
+A titled page's gloss is an entry for the built-in Gloss field among its top-level blocks, added or edited from Gloss in the page menu or the palette, which create the field and put the entry first. Adding the entry and its empty value is one undo step.
 
 It reads as a standfirst under the title: Piazzolla at `--text-gloss`, muted, on the text edge, with no field label. Clicking edits it, and an empty gloss says what to write. Reference preview cards show it under the page title and leave it out of their rows.
 
@@ -419,6 +419,8 @@ In recovery banners, Details opens on its own full-width line beneath the status
 
 A change the notebook refused shows and copies the words it carried. Only a change without words, such as a task date or a grade, keeps its raw record, because that is all there is to recover.
 
+Undo preserves another window's later text by patching only non-overlapping regions. If the regions overlap, it skips that history entry and says `Changed elsewhere; nothing to undo here`.
+
 A version that sync kept beside a block sits under it, inset behind a hairline at its left, under a mono label (`Sol's Fold's version, kept beside`). Use this, Discard and Keep both follow as bordered buttons in the control font. Each is one undoable step.
 
 ### Headings and selection
@@ -473,7 +475,7 @@ Headings likewise drop their style first. Backspace straight after a reference, 
 
 - Delete at the end joins the next sibling, appending its children in order. At a zoomed root it does nothing, so it never merges a sibling outside the zoomed subtree.
 - Arrows at a row boundary cross to the neighbouring row keeping the screen column, including across field gutters. Consecutive vertical moves retain the preferred column through shorter rows until another key or a pointer caret move resets it. Escape keeps the caret offset so the next Enter or `i` resumes there.
-- Indent, outdent and move act on the selection's roots with their subtrees, never leave the zoomed subtree, and are silent no-ops without a history entry at a boundary (no previous sibling, top level, first or last sibling). Outdent leaves the following siblings under their original parent. A multi-row selection survives the command.
+- Indent, outdent and move act on the selection's roots with their subtrees, never leave the zoomed subtree, and are silent no-ops without a history entry at a boundary (no previous sibling, top level, first or last sibling). Outdent leaves the following siblings under their original parent. A multi-row selection survives the command and its undo or redo.
 - Delete of a subtree selects the previous visible survivor; folding a descendant selects the folded parent; zooming out selects the block being left.
 
 **Capability identity**
@@ -521,7 +523,7 @@ A page made for a tag or by Add type goes away again once no tag, manual type or
 
 `Name::` reads as a field label while it is typed: the field icon, the name in `--muted`, and a tinted hint at the end, New field for a name no field has or the field's kind until a value is typed.
 
-Space straight after `::`, or Tab anywhere in the name, makes the entry at once and puts the caret in its value; leaving the block converts it as before. `::` at the start of a block opens a field picker listing each field with its kind and Create field for a new name, and picking makes the entry the same way.
+Space straight after `::`, or Tab anywhere in the name, makes the entry at once and puts the caret in its value; leaving the block converts it as before. `::` at the start of a block opens a field picker listing each field with its kind and Create field for a new name, and picking makes the entry the same way. Conversion, including its first empty value, is one undo step.
 
 The picker puts the owner's missing template fields first, in template order, and fields the owner already has last. A choice field's value offers its options as you type, with Add option for a new one. A new date entry opens the date picker for its value, and a new instance entry opens page completion inside `[[]]`.
 

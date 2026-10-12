@@ -219,7 +219,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
   }
   function chooseValueDate(id: string, date: string | null) {
     if (!date) return;
-    const result = doc.edit({ kind: 'text', id, text: date }, caret());
+    const result = doc.edit({ kind: 'text', id, text: date, caret: date.length }, caret());
     if (!result.ok) { setMessage(result.reason); return; }
     editAt(id, date.length, true);
   }

@@ -1,8 +1,8 @@
 import { createEffect, createResource, createRoot } from 'solid-js';
 import { api } from '../api/client';
 import type { FieldDefinition } from '../api/types';
-import type { Caret, EditResult, NotebookClient, PageDocument } from '../document/contract';
-import { fieldEntryText, matchFieldEntry } from '../table/query';
+import type { Caret, NotebookClient, PageDocument } from '../document/contract';
+import { matchFieldEntry } from '../table/query';
 import type { MenuItem } from '../ui/Menu';
 import { extractedResets, sourceFieldName } from './source';
 
@@ -95,24 +95,11 @@ export function createFieldEntryConversion(options: {
    */
   function write(doc: PageDocument, id: string, field: FieldDefinition, valueStart: number, epoch: number, focus: boolean) {
     const text = doc.block(id)!.text;
-    const value = text.slice(valueStart);
     const at = options.caret();
     const before = at?.id === id ? { ...at } : { id, offset: text.length };
-    let result: EditResult;
-    // The paste transaction rewrites the label and inserts a first child atomically. An empty value or
-    // literal leading whitespace needs two edits.
-    if (value && value === value.trimStart()) {
-      result = doc.edit({
-        kind: 'replaceRange', range: { anchor: { id, offset: 0 }, head: { id, offset: text.length } },
-        between: [], text: `${fieldEntryText(field.id)}\n  ${value}`, mode: 'paste',
-      }, before);
-    } else {
-      result = doc.edit({ kind: 'text', id, text: fieldEntryText(field.id) }, before);
-      if (result.ok) result = doc.edit({ kind: 'insert', parentId: id, after: null, text: value }, before);
-    }
+    const result = doc.edit({ kind: 'fieldEntry', id, fieldId: field.id, from: valueStart }, before);
     if (!result.ok) throw new Error(result.reason);
-    const offset = before.id === id ? Math.max(0, Math.min(value.length, before.offset - valueStart)) : value.length;
-    options.onCommitted(id, result.caret ? { ...result.caret, offset } : null, at?.id === id ? options.focusEpoch() : epoch, focus, field);
+    options.onCommitted(id, result.caret, at?.id === id ? options.focusEpoch() : epoch, focus, field);
   }
   function start(id: string, target: FieldDefinition | string, valueStart: number, focus: boolean, still: (text: string) => number | null) {
     pending.add(id);

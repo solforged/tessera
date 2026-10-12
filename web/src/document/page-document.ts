@@ -12,6 +12,7 @@ import { emptyCapabilities, isCapabilityAction, questionStatus, sameState, sourc
 import { parseCardText } from '../review/card-text';
 import { textTokens } from './text-tokens';
 import { newTask } from '../tasks/quick-date';
+import { rebaseText } from './text-patch';
 
 export interface DocumentHost {
   ready: Promise<void>;
@@ -58,6 +59,8 @@ export class Document implements PageDocument {
   private historyCommands = new Map<string, { entry: HistoryEntry; undo: boolean; travel: boolean }>();
   private guardHistories = new Map<string, Set<HistoryEntry>>();
   private historyVersion = createSignal(0);
+  private historyNotice = createSignal('');
+  historyMessage = this.historyNotice[0];
   private resolving = new Set<string>();
   private conflicts = new Set<string>();
   private lastTextEditAt = 0;
@@ -494,7 +497,15 @@ export class Document implements PageDocument {
         return [{ kind: 'restore', id: action.id, snapshots, after }];
       }
       case 'restore': {
-        const rows = action.snapshots.flatMap(snapshot => snapshot.row && index.indexOf(snapshot.block.id) < 0 ? [{ ...snapshot.row }] : []);
+        const depths = new Map<string, number>();
+        const rows = action.snapshots.flatMap(snapshot => {
+          if (!snapshot.row) return [];
+          const parent = snapshot.row.parentId;
+          const depth = parent === this.pageId ? 0 : (depths.get(parent) ?? index.depth(parent)) + 1;
+          depths.set(snapshot.block.id, depth);
+          snapshot.row = { ...snapshot.row, depth };
+          return index.indexOf(snapshot.block.id) < 0 ? [{ ...snapshot.row }] : [];
+        });
         for (const { block, manual_types, capabilities } of action.snapshots) {
           if (base) { this.baseBlocks.set(block.id, { ...block }); this.baseManualTypes.set(block.id, manual_types); this.baseCapabilities.set(block.id, capabilities ?? emptyCapabilities(block.id)); }
           else this.put(block, true, manual_types, capabilities ?? emptyCapabilities(block.id));
@@ -738,7 +749,7 @@ export class Document implements PageDocument {
       const actions = history.undo ? history.entry.inverse : history.entry.forward;
       for (const action of command.actions) if (action.kind === 'text' && action.baseRevision !== undefined) {
         const pair = history.entry.rewrites?.get(action.id);
-        if (pair) { const desired = history.undo ? pair.before : pair.after; action.text = desired.text; action.baseRevision = desired.baseRevision; }
+        if (pair) { const desired = history.undo ? pair.before : pair.after; action.text = desired.text; action.expectedText = desired.expectedText; action.baseRevision = desired.baseRevision; }
       }
       const present = new Set(command.actions.map(action => action.kind === 'insert' ? action.block.id : action.id));
       for (const action of actions) if (action.kind === 'text' && action.baseRevision !== undefined && !present.has(action.id)) command.actions.push({ ...action });
@@ -923,10 +934,10 @@ export class Document implements PageDocument {
       throw new Error('Unsupported source action.');
     }));
   }
-  edit(edit: Edit, caretBefore: Caret | null = null): EditResult {
+  edit(edit: Edit, caretBefore: HistoryCaret | null = null): EditResult {
     if (this.status() !== 'ready') return { ok: false, reason: 'This page is not ready.' };
     const actions: Action[] = [];
-    let caret: Caret | null = caretBefore;
+    let caret: Caret | null = caretBefore ? { id: caretBefore.id, offset: caretBefore.offset } : null;
     const created: string[] = [];
     const insert = (parentId: string, after: string | null, text: string, heading: 1 | 2 | 3 | null = null) => {
       if (!this.block(parentId) && !created.includes(parentId)) throw new Error('The parent no longer exists.');
@@ -1286,6 +1297,7 @@ export class Document implements PageDocument {
         case 'text':
           if (this.snapshot(edit.id).text !== edit.text) actions.push({ kind: 'text', id: edit.id, text: edit.text });
           if (edit.heading !== undefined && this.snapshot(edit.id).heading !== edit.heading) actions.push({ kind: 'heading', id: edit.id, heading: edit.heading });
+          if (edit.caret !== undefined) caret = { id: edit.id, offset: Math.max(0, Math.min(edit.text.length, edit.caret)) };
           break;
         case 'heading': actions.push({ kind: 'heading', id: edit.id, heading: edit.level }); break;
         case 'archive':
@@ -1299,6 +1311,17 @@ export class Document implements PageDocument {
           const id = insert(this.pageId, this.outline.children(this.pageId).at(-1) ?? null, edit.name);
           if (edit.value !== 'text') actions.push({ kind: 'fieldKind', id, value: edit.value, previous: 'text' });
           caret = { id, offset: 0 };
+          break;
+        }
+        case 'fieldEntry': {
+          const block = this.snapshot(edit.id);
+          const from = Math.max(0, Math.min(block.text.length, edit.from));
+          const value = block.text.slice(from);
+          guardSplit(block, '', '');
+          setText(block, `[[${edit.fieldId}]]`);
+          const id = insert(edit.id, null, value);
+          const offset = caretBefore?.id === edit.id ? caretBefore.offset - from : value.length;
+          caret = { id, offset: Math.max(0, Math.min(value.length, offset)) };
           break;
         }
         case 'addFieldEntries': {
@@ -1429,12 +1452,23 @@ export class Document implements PageDocument {
       } });
       const beforeRange = edit.kind === 'replaceRange' ? edit.selectionBefore ?? edit.range : null;
       const before: HistoryCaret | null = beforeRange ? { ...(caretBefore ?? beforeRange.head), range: { anchor: { ...beforeRange.anchor }, head: { ...beforeRange.head } } } : caretBefore;
-      const command = this.host.enqueue(this, actions, inverse, before, caret, edit.kind === 'text' && edit.heading === undefined);
+      const selection = caretBefore?.selection;
+      const treeMove = edit.kind === 'indent' || edit.kind === 'outdent' || edit.kind === 'move' || edit.kind === 'moveTo';
+      const after: HistoryCaret | null = caret && treeMove && selection ? { ...caret, selection: { ...selection } } : caret;
+      const command = this.host.enqueue(this, actions, inverse, before, after, edit.kind === 'text' && edit.heading === undefined);
       const last = this.undoStack.at(-1);
       const textGroup = edit.kind === 'text' && edit.heading === undefined && last?.forward.length === 1 && last.forward[0]!.kind === 'text' && last.forward[0]!.id === edit.id && Date.now() - this.lastTextEditAt < 1000;
       let entry: HistoryEntry;
-      if (last && (last.commandId === command.id || textGroup)) { entry = last; entry.forward = [...command.actions]; entry.after = caret; }
-      else { entry = { forward: actions, inverse, before, after: caret, commandId: command.id, commands: new Set(), applied: true, retained: true }; this.undoStack.push(entry); }
+      if (last && (last.commandId === command.id || textGroup)) {
+        entry = last;
+        const expected = entry.forward[0]?.kind === 'text' ? entry.forward[0].expectedText : undefined;
+        entry.forward = command.actions.map(action => action.kind === 'text' ? { ...action, expectedText: expected ?? action.expectedText } : action);
+        if (edit.kind === 'text') for (const action of entry.inverse) {
+          if (action.kind === 'text' && action.id === edit.id) action.expectedText = edit.text;
+        }
+        entry.after = after;
+      }
+      else { entry = { forward: actions, inverse, before, after, commandId: command.id, commands: new Set(), applied: true, retained: true }; this.undoStack.push(entry); }
       this.rememberHistory(command, entry, false);
       this.lastTextEditAt = edit.kind === 'text' && edit.heading === undefined ? Date.now() : 0;
       const discarded = this.redoStack;
@@ -1460,16 +1494,33 @@ export class Document implements PageDocument {
     this.lastTextEditAt = 0;
     const from = undo ? this.undoStack : this.redoStack;
     const to = undo ? this.redoStack : this.undoStack;
+    this.historyNotice[1]('');
     const entry = from.pop();
     if (!entry) return null;
-    const actions = (undo ? entry.inverse : entry.forward).flatMap<Action>(action => {
-      if (!undo && (action.kind === 'fieldKind' || action.kind === 'fieldTargets' || action.kind === 'subjectCriteria' || action.kind === 'typePresentation')) return [{ ...action, baseRevision: undefined }];
-      if (!undo && (action.kind === 'insert' || action.kind === 'split') && this.baseBlocks.has(action.block.id)) {
-        const restored: Action = { kind: 'restore', id: action.block.id, snapshots: [{ block: action.block, manual_types: this.baseManualTypes.get(action.block.id) ?? [], capabilities: this.capabilities(action.block.id, true), row: { id: action.block.id, parentId: action.block.parent_id!, depth: action.block.parent_id === this.pageId ? 0 : this.outline.depth(action.block.parent_id!) + 1 } }], after: action.kind === 'split' ? action.id : action.after };
-        return action.kind === 'split' ? [{ kind: 'text', id: action.id, text: action.left }, restored] : [restored];
-      }
-      return [{ ...action }];
+    const actions = (undo ? entry.inverse : entry.forward).map<Action>(action => {
+      if (!undo && (action.kind === 'fieldKind' || action.kind === 'fieldTargets' || action.kind === 'subjectCriteria' || action.kind === 'typePresentation')) return { ...action, baseRevision: undefined };
+      return { ...action };
     });
+    // Check all text patches before applying any part of the transaction.
+    const texts = new Map<string, string>();
+    for (const action of actions) {
+      if (action.kind === 'restore') for (const snapshot of action.snapshots) texts.set(snapshot.block.id, snapshot.block.text);
+      else if (action.kind === 'insert' || action.kind === 'split') texts.set(action.block.id, action.block.text);
+      if (action.kind !== 'text') continue;
+      const current = texts.get(action.id) ?? this.cells.get(action.id)?.state.text;
+      if (current === undefined || action.expectedText === undefined) continue;
+      const patched = rebaseText(action.expectedText, action.text, current);
+      if (patched === null) {
+        entry.retained = false;
+        this.pruneHistory(entry);
+        this.historyNotice[1]('Changed elsewhere; nothing to undo here');
+        this.historyVersion[1](value => value + 1);
+        return null;
+      }
+      action.expectedText = current;
+      action.text = patched;
+      texts.set(action.id, patched);
+    }
     try {
       const inverse: Action[] = [];
       batch(() => { for (const action of actions) {
@@ -1477,12 +1528,24 @@ export class Document implements PageDocument {
         inverse.unshift(...this.apply(action));
       } });
       const command = this.host.enqueue(this, actions, inverse, undo ? entry.after : entry.before, undo ? entry.before : entry.after, false);
-      // A highlight's delete inverse restores its citations with the block;
-      // replaying the original insert + cite would cite already-active evidence.
-      if (actions.some(isCapabilityAction) || entry.forward.some(action => action.kind === 'cite')) {
-        if (undo) entry.forward = inverse;
-        else entry.inverse = inverse;
+      // Redo replays the inverse of what undo actually applied. Inserts therefore
+      // become restores even when their original acknowledgement is still in flight.
+      // Keep spelling-rewrite guard identities used by later acknowledgements.
+      for (const action of actions) {
+        if (action.kind !== 'text' || action.baseRevision === undefined) continue;
+        const pair = entry.rewrites?.get(action.id);
+        const guard = undo ? pair?.before : pair?.after;
+        if (guard) { guard.text = action.text; guard.expectedText = action.expectedText; }
       }
+      for (let index = 0; index < inverse.length; index++) {
+        const action = inverse[index]!;
+        if (action.kind !== 'text' || action.baseRevision === undefined) continue;
+        const pair = entry.rewrites?.get(action.id);
+        const guard = undo ? pair?.after : pair?.before;
+        if (guard) { guard.text = action.text; guard.expectedText = action.expectedText; inverse[index] = guard; }
+      }
+      if (undo) entry.forward = inverse;
+      else entry.inverse = inverse;
       entry.applied = !undo;
       this.rememberHistory(command, entry, undo, true);
       to.push(entry);

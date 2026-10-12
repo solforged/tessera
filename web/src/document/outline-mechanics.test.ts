@@ -69,6 +69,88 @@ const snapshot = (doc: PageDocument) => Array.from({ length: doc.outline.size() 
   return { id, text: doc.block(id)!.text, parent: doc.outline.parentOf(id) };
 });
 
+test('nested paste redo restores preorder and depths before any reload', async () => {
+  const { client, doc, first } = await fixture('');
+  const at = { id: first, offset: 0 };
+  const pasted = success(doc.edit({ kind: 'paste', at, text: 'A\n  B\n    C\nD' }, at));
+  const expected = [[first, 'A', 0], [pasted.created[0], 'B', 1], [pasted.created[1], 'C', 2], [pasted.created[2], 'D', 0]];
+  const shape = () => Array.from({ length: doc.outline.size() }, (_, index) => {
+    const id = doc.outline.idAt(index);
+    return [id, doc.block(id)!.text, doc.outline.depth(id)];
+  });
+  await client.flush();
+  for (let count = 0; count < 2; count++) {
+    expect(doc.undo()).toEqual(at);
+    expect(doc.outline.children(first)).toEqual([]);
+    await client.flush();
+    expect(doc.redo()).toEqual(pasted.caret);
+    expect(shape()).toEqual(expected);
+    expect(visibleIds(doc, first, new Set(), false)).toEqual([first, pasted.created[0]!, pasted.created[1]!]);
+    await client.flush();
+    expect(shape()).toEqual(expected);
+  }
+});
+
+test('typing redo restores the caret after the inserted character', async () => {
+  const { client, doc, first, pageId } = await fixture('BB');
+  insert(doc, pageId, first, 'Another row');
+  await client.flush();
+  const before = { id: first, offset: 2 };
+  success(doc.edit({ kind: 'text', id: first, text: 'BBy', caret: 3 }, before));
+  await client.flush();
+  expect(doc.undo()).toEqual(before);
+  expect(doc.block(first)?.text).toBe('BB');
+  await client.flush();
+  const after = doc.redo();
+  expect(after).toEqual({ id: first, offset: 3 });
+  expect(doc.block(first)?.text).toBe('BBy');
+  success(doc.edit({ kind: 'text', id: first, text: `${doc.block(first)!.text.slice(0, after!.offset)}Z${doc.block(first)!.text.slice(after!.offset)}`, caret: 4 }, after));
+  await client.flush();
+  expect(doc.block(first)?.text).toBe('BByZ');
+});
+
+test('field shorthand conversion restores the original block in one undo step', async () => {
+  for (const value of ['', '  literal value']) {
+    const prefix = 'UndoVerify:: ';
+    const original = `${prefix}${value}`;
+    const { client, doc, first } = await fixture(original);
+    const at = { id: first, offset: original.length };
+    const converted = success(doc.edit({ kind: 'fieldEntry', id: first, fieldId: 'field-definition', from: prefix.length }, at));
+    const child = converted.created[0]!;
+    expect(doc.block(first)?.text).toBe('[[field-definition]]');
+    expect(doc.block(child)?.text).toBe(value);
+    expect(converted.caret).toEqual({ id: child, offset: value.length });
+    await client.flush();
+    expect(doc.undo()).toEqual(at);
+    expect(doc.block(first)?.text).toBe(original);
+    expect(doc.outline.children(first)).toEqual([]);
+    await client.flush();
+    expect(doc.redo()).toEqual(converted.caret);
+    expect(doc.outline.children(first)).toEqual([child]);
+    expect(doc.block(child)?.text).toBe(value);
+    await client.flush();
+  }
+});
+
+test('tree move history preserves the row selection anchor and head', async () => {
+  const { client, doc, first, pageId } = await fixture('A');
+  const b = insert(doc, pageId, first, 'B');
+  const c = insert(doc, pageId, b, 'C');
+  insert(doc, pageId, c, 'D');
+  await client.flush();
+  const at = { id: c, offset: 0, selection: { anchor: b, head: c } };
+  success(doc.edit({ kind: 'indent', ids: [b, c] }, at));
+  expect(doc.outline.children(first)).toEqual([b, c]);
+  await client.flush();
+  expect(doc.undo()).toEqual(at);
+  expect(doc.outline.depth(b)).toBe(0);
+  expect(doc.outline.depth(c)).toBe(0);
+  await client.flush();
+  expect(doc.redo()).toEqual(at);
+  expect(doc.outline.children(first)).toEqual([b, c]);
+  await client.flush();
+});
+
 test('Enter after a parent inserts its first child and restores exact caret through history', async () => {
   const { client, doc, first, pageId } = await fixture();
   const child = insert(doc, first, null, 'existing child');

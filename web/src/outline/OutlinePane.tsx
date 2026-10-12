@@ -706,9 +706,18 @@ function Pane(props: OutlinePaneProps) {
       if (value) editAt(value, doc.block(value)?.text.length ?? 0, true);
       return;
     }
-    const result = doc.edit({ kind: 'insert', parentId: props.pageId, after: null, text: '' }, caret());
-    if (!result.ok) { setMessage(result.reason); return; }
-    fieldConversion.entry(result.created[0]!, GLOSS_FIELD, 0, true);
+    const before = caret();
+    const epoch = focusEpoch;
+    void (async () => {
+      try {
+        const field = definitionsByName().get(GLOSS_FIELD.toLowerCase()) ?? await ensureField(props.notebook, GLOSS_FIELD);
+        if (disposed) return;
+        setCreatedFields(previous => previous.some(existing => existing.id === field.id) ? previous : [...previous, field]);
+        const result = doc.edit({ kind: 'addFieldEntries', parentId: props.pageId, after: null, entries: [{ fieldId: field.id, value: '' }] }, before);
+        if (!result.ok) { setMessage(result.reason); return; }
+        if (result.caret && props.active && focusEpoch === epoch) editAt(result.caret.id, result.caret.offset, true, true, false);
+      } catch (error) { if (!disposed) setMessage(error instanceof Error ? error.message : String(error)); }
+    })();
   }
   /** Aliases are ordinary field values; a new one always opens for editing. */
   function addAlias() {
@@ -939,7 +948,7 @@ function Pane(props: OutlinePaneProps) {
           }
           return;
         } else if (taskPrefix(text, at)) return;
-        else { const result = doc.edit({ kind: 'text', id: at.id, text }, caret()); if (!result.ok) setMessage(result.reason); }
+        else { const result = doc.edit({ kind: 'text', id: at.id, text, caret: at.offset }, caret()); if (!result.ok) setMessage(result.reason); }
         updateCompletion(text, at);
         updateTriggers(text, at);
       }),

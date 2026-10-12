@@ -109,7 +109,7 @@ export type Edit =
    * block coalesce into one undo step. `heading`, when present, sets the
    * heading in the same undo step (the `# ` input rule).
    */
-  | { kind: 'text'; id: string; text: string; heading?: 1 | 2 | 3 | null }
+  | { kind: 'text'; id: string; text: string; heading?: 1 | 2 | 3 | null; caret?: number }
   /** Resolve a version kept beside its original, in one batch and undo step. */
   | { kind: 'keptCopy'; id: string; choice: 'use' | 'discard' | 'both' }
   | { kind: 'task'; id: string; value: TaskState | null }
@@ -204,6 +204,8 @@ export type Edit =
   | { kind: 'cardHeld'; cards: { id: string; source_block_id: string; revision: number; held: boolean; active: boolean }[]; held: boolean }
   /** An entry per field under `parentId` after `after`, each with one value block holding `value`; one undo step, caret at the end of the first value. */
   | { kind: 'addFieldEntries'; parentId: string; after: string | null; entries: { fieldId: string; value: string }[] }
+  /** Convert a block to a field entry, keeping the text after `from` in its first value; one undo step. */
+  | { kind: 'fieldEntry'; id: string; fieldId: string; from: number }
   | { kind: 'archive'; id: string; archived: boolean }
   | { kind: 'addType' | 'removeType'; id: string; title: string };
 
@@ -224,8 +226,8 @@ export type EditResult =
   | { ok: true; caret: Caret | null; created: string[] }
   | { ok: false; reason: string };
 
-/** Where undo or redo leaves the user: a caret, plus the text selection to restore if there was one. */
-export type HistoryCaret = Caret & { range?: TextRange };
+/** Where undo or redo leaves the user: a caret, plus the text or row selection to restore if there was one. */
+export type HistoryCaret = Caret & { range?: TextRange; selection?: { anchor: string; head: string } };
 
 export type SaveState =
   /** Everything committed. */
@@ -257,13 +259,15 @@ export interface PageDocument {
   outline: OutlineReader;
 
   /** `caretBefore` is restored by undo. */
-  edit(edit: Edit, caretBefore?: Caret | null): EditResult;
+  edit(edit: Edit, caretBefore?: HistoryCaret | null): EditResult;
   /** Renames a page. Journal titles cannot change. */
   rename(title: string): EditResult;
   addType(blockId: string, title: string): EditResult;
   removeType(blockId: string, title: string): EditResult;
   undo(): HistoryCaret | null;
   redo(): HistoryCaret | null;
+  /** A notice when the latest history entry could not safely be replayed. */
+  historyMessage(): string;
   canUndo(): boolean;
   canRedo(): boolean;
 

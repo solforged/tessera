@@ -1129,6 +1129,87 @@ describe('real notebook operations and recovery', () => {
     } finally { gate.resolve(); globalThis.fetch = actualFetch; }
   });
 
+  test('redo restores field blocks while the original insert acknowledgement is in flight', async () => {
+    const instance = await client();
+    const { doc, first, id } = await page(instance, 'Before the field');
+    const reached = Promise.withResolvers<void>();
+    const gate = Promise.withResolvers<void>();
+    const batches: Batch[] = [];
+    let intercept = true;
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const response = await actualFetch(input, init);
+      if (String(input) === `${baseUrl}/api/batches` && init?.method === 'POST') {
+        batches.push(JSON.parse(String(init.body)));
+        if (intercept) { intercept = false; reached.resolve(); await gate.promise; }
+      }
+      return response;
+    }) as typeof fetch;
+    try {
+      const entry = success(doc.edit({ kind: 'insert', parentId: id, after: first, text: '[[field-definition]]' })).created[0]!;
+      const saving = instance.flush();
+      await reached.promise;
+      expect((await api.block(entry)).text).toBe('[[field-definition]]');
+      const value = success(doc.edit({ kind: 'insert', parentId: entry, after: null, text: '' })).created[0]!;
+      doc.undo();
+      doc.undo();
+      doc.redo();
+      doc.redo();
+      expect(ids(doc)).toEqual([first, entry, value]);
+      expect(doc.outline.depth(value)).toBe(1);
+      gate.resolve();
+      await saving;
+      await instance.flush();
+      expect(doc.saveState()).toBe('saved');
+      const view = await api.page(id);
+      expect(view.rows.map(row => [row.block.id, row.depth])).toEqual([[first, 0], [entry, 0], [value, 1]]);
+      const operations = batches.flatMap(batch => batch.operations);
+      expect(operations.filter(operation => operation.op === 'insert' && operation.id === entry)).toHaveLength(1);
+      expect(operations.filter(operation => operation.op === 'insert' && operation.id === value)).toHaveLength(1);
+      expect(operations.filter(operation => operation.op === 'restore').map(operation => operation.id)).toEqual([entry, value]);
+    } finally { gate.resolve(); globalThis.fetch = actualFetch; }
+  });
+
+  test('coalesced text undo and redo preserve another window’s non-overlapping words', async () => {
+    const instance = await client();
+    const { doc, first, id } = await page(instance, 'Alpha / Omega');
+    success(doc.edit({ kind: 'insert', parentId: id, after: first, text: 'Another row' }));
+    await instance.flush();
+    success(doc.edit({ kind: 'text', id: first, text: 'M Alpha / Omega', caret: 2 }, { id: first, offset: 0 }));
+    success(doc.edit({ kind: 'text', id: first, text: 'My Alpha / Omega', caret: 3 }, { id: first, offset: 2 }));
+    await instance.flush();
+    await api.submit({ actor: { kind: 'agent', name: 'other-window text' }, operations: [
+      { op: 'edit_text', id: first, base_revision: (await api.block(first)).revision, text: 'My Alpha / Elsewhere' },
+    ] });
+    await eventually(() => doc.block(first)?.text === 'My Alpha / Elsewhere', 'remote wording did not arrive');
+    expect(doc.undo()).toEqual({ id: first, offset: 0 });
+    expect(doc.block(first)?.text).toBe('Alpha / Elsewhere');
+    expect(doc.historyMessage()).toBe('');
+    await instance.flush();
+    expect(doc.redo()).toEqual({ id: first, offset: 3 });
+    expect(doc.block(first)?.text).toBe('My Alpha / Elsewhere');
+    await instance.flush();
+    expect((await api.block(first)).text).toBe('My Alpha / Elsewhere');
+  });
+
+  test('text history skips an overlapping remote edit without overwriting it', async () => {
+    const instance = await client();
+    const { doc, first, id } = await page(instance, 'Original');
+    success(doc.edit({ kind: 'insert', parentId: id, after: first, text: 'Another row' }));
+    await instance.flush();
+    success(doc.edit({ kind: 'text', id: first, text: 'Mine', caret: 4 }, { id: first, offset: 0 }));
+    await instance.flush();
+    await api.submit({ actor: { kind: 'agent', name: 'overlapping text' }, operations: [
+      { op: 'edit_text', id: first, base_revision: (await api.block(first)).revision, text: 'Theirs' },
+    ] });
+    await eventually(() => doc.block(first)?.text === 'Theirs', 'remote wording did not arrive');
+    expect(doc.undo()).toBeNull();
+    expect(doc.historyMessage()).toBe('Changed elsewhere; nothing to undo here');
+    expect(doc.canRedo()).toBe(false);
+    expect(doc.block(first)?.text).toBe('Theirs');
+    await instance.flush();
+    expect((await api.block(first)).text).toBe('Theirs');
+  });
+
   test('merging a source with children restores their original parent and order on undo', async () => {
     const instance = await client();
     const { doc, first, id } = await page(instance, 'destination');
