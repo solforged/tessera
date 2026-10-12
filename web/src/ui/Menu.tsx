@@ -7,7 +7,7 @@ import type { PopupAnchor, PopupPlacement } from './Popup';
 
 export interface MenuItem {
   label: string;
-  /** Optional heading for a group of adjacent actions. */
+  /** Optional heading for a group of adjacent actions; adjacent items with the same section show it once. */
   section?: string;
   icon?: IconName;
   shortcut?: string;
@@ -36,7 +36,7 @@ export function Menu(props: { anchor: PopupAnchor; label: string; items: MenuIte
       buttons[next]?.focus(); event.preventDefault();
     }}>
       {props.header}
-      <For each={props.items}>{item => <>{item.section && <div class="menu-section">{item.section}</div>}<button type="button" role={item.checked === undefined ? 'menuitem' : 'menuitemradio'} aria-checked={item.checked} class={`menu-item ${item.danger ? 'danger' : ''}`} disabled={!!item.disabledReason} title={item.disabledReason} onClick={() => { props.onDismiss(); item.action(); }}>
+      <For each={props.items}>{(item, index) => <>{item.section && item.section !== props.items[index() - 1]?.section && <div class="menu-section">{item.section}</div>}<button type="button" role={item.checked === undefined ? 'menuitem' : 'menuitemradio'} aria-checked={item.checked} class={`menu-item ${item.danger ? 'danger' : ''}`} disabled={!!item.disabledReason} title={item.disabledReason} onClick={() => { props.onDismiss(); item.action(); }}>
         {item.icon ? <Icon name={item.icon} /> : iconed() ? <span class="icon" /> : null}<span class="menu-label">{item.label}</span>{item.shortcut && <kbd>{item.shortcut}</kbd>}{item.checked && <Icon name="check" class="menu-check" />}
       </button></>}</For>
     </div>
