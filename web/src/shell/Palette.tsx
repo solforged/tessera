@@ -64,7 +64,7 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
     setPassageHits([]); setPassagesError(''); setPassagesLoading(ready);
     if (!ready) return;
     const controller = new AbortController();
-    void props.notebook.api.searchPassages(q, undefined, 40, controller.signal).then(rows => {
+    void props.notebook.api.searchPassages(q, undefined, 40, 0, controller.signal).then(rows => {
       if (!controller.signal.aborted) { setPassageHits(rows); setPassagesLoading(false); }
     }, reason => {
       if (!controller.signal.aborted) { setPassagesError(String(reason?.message ?? reason)); setPassagesLoading(false); }

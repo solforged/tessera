@@ -1661,9 +1661,9 @@ fn export_reads_authored_fields_and_article_doi_and_search_filters() {
             .unwrap()
             .contains("@online")
     );
-    let hits = n.search_passages("evidence", None, 10).unwrap();
+    let hits = n.search_passages("evidence", None, 10, 0).unwrap();
     assert_eq!(hits.len(), 4);
-    let hits = n.search_passages("Second", Some(&source), 10).unwrap();
+    let hits = n.search_passages("Second", Some(&source), 10, 0).unwrap();
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].snapshot_id, snapshot);
     let mut revised = document();
@@ -1672,17 +1672,126 @@ fn export_reads_authored_fields_and_article_doi_and_search_filters() {
     let (_, new) = ingest(&mut n, &revised, b"revised");
     assert_ne!(new, old);
     assert!(
-        n.search_passages("evidence", None, 10)
+        n.search_passages("evidence", None, 10, 0)
             .unwrap()
             .iter()
             .all(|h| h.source_id == source)
     );
     assert_eq!(
-        n.search_passages("evidence", Some(&book), 10)
+        n.search_passages("evidence", Some(&book), 10, 0)
             .unwrap()
             .len(),
         2
     );
+}
+
+#[test]
+fn passage_search_pages_reach_every_hit_without_crossing_source_scope() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut doc = document();
+    doc.passages = (0..564)
+        .map(|ordinal| ExtractedPassage {
+            kind: PassageKind::Paragraph,
+            level: None,
+            text: "nature".into(),
+            locator: format!("body#{ordinal}"),
+            anchor: None,
+            resource: None,
+            marks: vec![],
+        })
+        .collect();
+    let (source, snapshot) = ingest(&mut n, &doc, b"many passages");
+    doc.metadata.unique_id = Some("urn:book:other".into());
+    doc.metadata.title = Some("Other book".into());
+    doc.passages.truncate(164);
+    let (other, other_snapshot) = ingest(&mut n, &doc, b"other passages");
+    assert_ne!(source, other);
+
+    for (id, snapshot, count) in [(&source, &snapshot, 564), (&other, &other_snapshot, 164)] {
+        let mut offset = 0;
+        let mut seen = std::collections::HashSet::new();
+        loop {
+            let page = n.search_passages("nature", Some(id), 41, offset).unwrap();
+            let shown = page.len().min(40);
+            assert_eq!(shown, (count - offset).min(40));
+            assert_eq!(page.len() > 40, offset + shown < count);
+            for (index, hit) in page.iter().take(40).enumerate() {
+                assert_eq!(&hit.source_id, id);
+                assert_eq!(&hit.snapshot_id, snapshot);
+                assert_eq!(hit.passage.ordinal, (offset + index) as i64);
+                assert!(seen.insert(hit.passage.id.clone()));
+            }
+            offset += shown;
+            if page.len() <= 40 {
+                break;
+            }
+        }
+        assert_eq!(seen.len(), count);
+        assert!(n.search_passages("nature", Some(id), 41, offset).unwrap().is_empty());
+    }
+    assert_eq!(n.search_passages("nature", Some(&source), 1000, 0).unwrap().len(), 500);
+    assert_eq!(n.search_passages("nature", Some(&source), 1000, 500).unwrap().len(), 64);
+    assert!(n.search_passages("nature", Some(&source), 0, 0).unwrap().is_empty());
+    assert!(n.search_passages("nature", Some(&source), 41, usize::MAX).unwrap().is_empty());
+    assert!(n.search_passages("", Some(&source), 41, 40).unwrap().is_empty());
+}
+
+#[test]
+fn passage_search_ties_are_stable_across_sources_and_snapshots() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut doc = document();
+    for passage in &mut doc.passages {
+        passage.text = "nature".into();
+    }
+    let (source, old) = ingest(&mut n, &doc, b"first version");
+    for passage in &mut doc.passages {
+        passage.locator.push_str("-revised");
+    }
+    let (same_source, newest) = ingest(&mut n, &doc, b"next version");
+    assert_eq!(source, same_source);
+    assert_ne!(old, newest);
+    doc.metadata.unique_id = Some("urn:book:other".into());
+    doc.metadata.title = Some("Other book".into());
+    let (other, other_snapshot) = ingest(&mut n, &doc, b"other book");
+    assert_ne!(source, other);
+
+    for scope in [None, Some(source.as_str())] {
+        let hits = n.search_passages("nature", scope, 10, 0).unwrap();
+        assert_eq!(hits.len(), 4);
+        let keys: Vec<_> = hits
+            .iter()
+            .map(|hit| (
+                hit.passage.ordinal,
+                hit.source_id.clone(),
+                hit.snapshot_id.clone(),
+                hit.passage.id.clone(),
+            ))
+            .collect();
+        let mut sorted = keys.clone();
+        sorted.sort();
+        assert_eq!(keys, sorted);
+        for (offset, expected) in keys.iter().enumerate() {
+            let page = n.search_passages("nature", scope, 1, offset).unwrap();
+            assert_eq!(page.len(), 1);
+            let hit = &page[0];
+            assert_eq!(
+                &(hit.passage.ordinal, hit.source_id.clone(), hit.snapshot_id.clone(), hit.passage.id.clone()),
+                expected,
+            );
+        }
+        if scope.is_some() {
+            assert!(hits.iter().all(|hit| hit.source_id == source));
+            assert!(hits.iter().any(|hit| hit.snapshot_id == old));
+            assert!(hits.iter().any(|hit| hit.snapshot_id == newest));
+        } else {
+            assert!(hits.iter().all(|hit| {
+                (hit.source_id == source && hit.snapshot_id == newest)
+                    || (hit.source_id == other && hit.snapshot_id == other_snapshot)
+            }));
+        }
+    }
 }
 
 fn freeze_markdown_dates(dir: &std::path::Path, n: &mut Notebook) {
