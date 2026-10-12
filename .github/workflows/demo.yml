@@ -3,11 +3,20 @@ name: Demo
 # Builds the in-browser demo (tessera-core as wasm over OPFS) and deploys it
 # to the Vercel project behind tessera.solforged.io. Vercel's build image has
 # no Rust toolchain, so the build runs here and Vercel receives prebuilt output.
+# A push to main deploys only after CI succeeds. A manual dispatch publishes a
+# chosen commit without waiting, which is how a bad deploy is rolled back.
 
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
+    inputs:
+      ref:
+        description: Commit, branch or tag to deploy. Defaults to the selected ref.
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -23,11 +32,13 @@ env:
 
 jobs:
   deploy:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ inputs.ref || github.event.workflow_run.head_sha || github.sha }}
           persist-credentials: false
 
       - name: Install tools
@@ -46,4 +57,15 @@ jobs:
           mise run demo:wasm
           bunx vercel@62.5.0 pull --yes --environment=production --token="$VERCEL_TOKEN"
           bunx vercel@62.5.0 build --prod --token="$VERCEL_TOKEN"
-          bunx vercel@62.5.0 deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+          bunx vercel@62.5.0 deploy --prebuilt --prod --token="$VERCEL_TOKEN" | tee "$RUNNER_TEMP/vercel.txt"
+          url=$(grep -Eo 'https://[^ ]+' "$RUNNER_TEMP/vercel.txt" | tail -n 1)
+          test -n "$url"
+          curl -fsS "$url" | grep -q Tessera
+          for _ in 1 2 3 4 5 6; do
+            if curl -fsS https://tessera.solforged.io | grep -q Tessera; then
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "tessera.solforged.io did not serve the demo" >&2
+          exit 1

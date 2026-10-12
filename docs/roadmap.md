@@ -147,7 +147,7 @@ Progress: the model is settled in the [domain model](domain-model.md#notes), and
 
 Exit: offline, highlight a book on the phone while editing today's journal on the Mac; reconnect, and both devices show the highlights and the journal. See [sync](sync.md).
 
-Progress: determinism and identity, the replica protocol on loopback, and objects and library state are done. `tessera sync clone` and `tessera sync` replicate a notebook from a running service, with text conflicts kept as copies, same-day journals, same-title pages and the same book merged, covers kept on every replica, other files fetched when used or pinned, and reading positions and surfacings ordered by a hybrid logical clock. The tailnet listener and the Android client remain. Until then, the Android app (`crates/tessera-android`) keeps its own notebook on the phone for reading and annotation and does not sync with a desktop notebook.
+Progress: determinism and identity, the replica protocol on loopback, and objects and library state are done. `tessera sync clone` and `tessera sync` replicate a notebook from a running service, with text conflicts kept as copies, same-day journals, same-title pages and the same book merged, covers kept on every replica, other files fetched when used or pinned, and reading positions and surfacings ordered by a hybrid logical clock. The tailnet listener, pairing and the Android client are in. A paired phone syncs with the Mac; an unpaired phone keeps its own notebook.
 
 ## Not planned
 

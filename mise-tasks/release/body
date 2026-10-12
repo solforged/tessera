@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+#MISE description="Print the GitHub release body for a tag from CHANGELOG.md"
+#USAGE arg "<tag>" help="Release tag, such as v0.3.0"
+set -euo pipefail
+
+tag=${usage_tag:?}
+version=${tag#v}
+root=$(git rev-parse --show-toplevel)
+cd "$root"
+
+if [ "$tag" = "$version" ] || ! [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "release:body: tag must look like vX.Y.Z" >&2
+  exit 1
+fi
+
+notes=$(mise run release:notes -- "$version" --published)
+repo=${GITHUB_REPOSITORY:-}
+if [ -z "$repo" ]; then
+  remote=$(git remote get-url origin)
+  repo=${remote#*github.com:}
+  repo=${repo#*github.com/}
+  repo=${repo%.git}
+fi
+previous=$(git tag --list 'v*' --sort=-v:refname | grep -v "^${tag}$" | head -n 1 || true)
+compare=
+if [ -n "$previous" ]; then
+  compare="**Full changelog:** https://github.com/${repo}/compare/${previous}...${tag}"
+fi
+
+cat <<EOF
+Try Tessera in the browser: https://tessera.solforged.io
+
+| Platform | File |
+|---|---|
+| macOS app | \`Tessera_${version}_aarch64.dmg\` |
+| macOS command line | \`tessera-${tag}-aarch64-apple-darwin.tar.gz\` |
+| Linux command line | \`tessera-${tag}-x86_64-unknown-linux-gnu.tar.gz\` |
+| Android | \`Tessera_${version}_aarch64.apk\` |
+
+Check \`SHA256SUMS\` before installing. It is attached once every build has finished.
+
+The macOS app is ad-hoc signed, not notarised. After the first download, open it once and choose Open Anyway under System Settings, Privacy and Security, or run \`xattr -dr com.apple.quarantine /Applications/Tessera.app\`. Later updates skip that step.
+
+EOF
+printf '%s\n' "$notes"
+if [ -n "$compare" ]; then
+  printf '%s\n' "$compare"
+fi

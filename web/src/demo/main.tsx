@@ -44,7 +44,7 @@ async function resetDemo(): Promise<void> {
 function DemoApp() {
   return <div class="demo-shell">
     <aside class="demo-notice" aria-label="Browser demo">
-      <span>This is a demo. Your data lives only in this browser.</span>
+      <span>This is a demo. Your data lives only in this browser. <a href="https://github.com/solforged/tessera">Source</a> <a href="https://github.com/solforged/tessera/releases/latest">Download</a></span>
       <Button class="bordered" onClick={() => { void resetDemo(); }}>Reset demo</Button>
     </aside>
     <App />

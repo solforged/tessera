@@ -92,7 +92,7 @@ mise run demo:build
 
 The task compiles the engine with the wasm32 target, binds it with wasm-bindgen into `web/src/demo/pkg`, shrinks it with `wasm-opt`, then builds the pages.
 
-The output in `web/dist-demo` is static. Serve it with every non-asset path rewritten to `demo.html`; see [`web/vercel.json`](../web/vercel.json). [`.github/workflows/demo.yml`](../.github/workflows/demo.yml) builds and deploys it to Vercel on each push to `main` once `VERCEL_TOKEN`, `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID` secrets exist.
+The output in `web/dist-demo` is static. Serve it with every non-asset path rewritten to `demo.html`; see [`web/vercel.json`](../web/vercel.json). [`.github/workflows/demo.yml`](../.github/workflows/demo.yml) deploys it to Vercel after CI succeeds on `main`, once `VERCEL_TOKEN`, `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID` exist. [Releasing](releasing.md#browser-demo) covers a manual deploy and a rollback.
 
 ## Building the app
 
@@ -106,15 +106,7 @@ To develop the window against a development service, run the built app's binary 
 
 ### Releases
 
-Releases come from `v*` tags matching the workspace version. [`.github/workflows/release.yml`](../.github/workflows/release.yml):
-
-1. Publishes the app, its DMG, the macOS command line, the signed updater archive and `latest.json`, which installed apps poll.
-2. Adds the Linux command line and arm64 Android APK.
-
-| Secret | Purpose and risk |
-|---|---|
-| `TAURI_SIGNING_PRIVATE_KEY` | Signs the updater archive. Its public half is in [`crates/tessera-desktop/tauri.conf.json`](../crates/tessera-desktop/tauri.conf.json). Losing the private key strands installed apps on their version. |
-| `ANDROID_KEYSTORE` (base64) and `ANDROID_KEYSTORE_PASSWORD` | Sign the APK with the release keystore. Android updates only an app signed with the same key, so a phone running a debug build must uninstall it first. Losing the keystore prevents released APKs from updating installed ones. |
+Public downloads come from `v*` tags. [Releasing](releasing.md) is the version bump, the changelog, the asset checks and the rollback. Do not create the GitHub release by hand.
 
 ## Shipping a build
 

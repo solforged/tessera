@@ -1,0 +1,128 @@
+#!/usr/bin/env bash
+#MISE description="Print release notes: a draft from commits, or the committed changelog section"
+#USAGE arg "<version>" help="Version, such as 0.4.0"
+#USAGE flag "--published" help="Print the committed changelog section instead of a draft"
+#USAGE flag "--from <tag>" help="Start the draft after this tag. Defaults to the latest v* tag."
+#
+# A draft is for release:prepare. release:cut and the release workflow use
+# --published, which fails while the section still contains the draft marker.
+set -euo pipefail
+
+version=${usage_version:?}
+from=${usage_from:-}
+root=$(git rev-parse --show-toplevel)
+cd "$root"
+
+if ! [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "release:notes: version must be MAJOR.MINOR.PATCH" >&2
+  exit 1
+fi
+
+published=false
+if [ "${usage_published:-false}" != false ]; then
+  published=true
+fi
+
+if $published; then
+  section=$(awk -v ver="$version" '
+    $0 ~ "^## " ver "(,| )" { found = 1; print; next }
+    found && /^## / { exit }
+    found { print }
+  ' CHANGELOG.md)
+  if [ -z "$section" ]; then
+    echo "release:notes: CHANGELOG.md has no section for $version" >&2
+    exit 1
+  fi
+  if printf '%s\n' "$section" | grep -q '<!-- draft'; then
+    echo "release:notes: the $version changelog section is still a draft" >&2
+    exit 1
+  fi
+  printf '%s\n' "$section"
+  exit 0
+fi
+
+if [ -z "$from" ]; then
+  from=$(git tag --list 'v*' --sort=-v:refname | head -n 1 || true)
+fi
+range=HEAD
+if [ -n "$from" ]; then
+  git rev-parse --verify --quiet "${from}^{commit}" >/dev/null || {
+    echo "release:notes: unknown tag $from" >&2
+    exit 1
+  }
+  range="${from}..HEAD"
+fi
+
+capitalize() {
+  local text=${1%.}
+  printf '%s%s.' "$(printf '%s' "${text:0:1}" | tr '[:lower:]' '[:upper:]')" "${text:1}"
+}
+
+added=()
+fixed=()
+faster=()
+documented=()
+other=0
+seen=$'\n'
+
+while IFS= read -r subject; do
+  [ -n "$subject" ] || continue
+  case $subject in
+    'chore(release):'*) continue ;;
+  esac
+  kind=other
+  summary=$subject
+  for prefix in feat fix perf docs refactor style test chore build ci; do
+    case $subject in
+      "$prefix: "*)
+        kind=$prefix
+        summary=${subject#"$prefix: "}
+        break
+        ;;
+      "$prefix("*)
+        kind=$prefix
+        summary=${subject#*: }
+        summary=${summary# }
+        break
+        ;;
+    esac
+  done
+  line="- $(capitalize "$summary")"
+  case $seen in
+    *"
+$line
+"*) continue ;;
+  esac
+  seen="$seen$line
+"
+  case $kind in
+    feat) added+=("$line") ;;
+    fix) fixed+=("$line") ;;
+    perf) faster+=("$line") ;;
+    docs) documented+=("$line") ;;
+    *) other=$((other + 1)) ;;
+  esac
+done < <(git log --format='%s' $range)
+
+date=$(date -u +%Y-%m-%d)
+printf '## %s, %s\n\n' "$version" "$date"
+echo '<!-- draft: edit this section, then delete this line before release:cut -->'
+echo
+
+print_section() {
+  local title=$1
+  shift
+  [ "$#" -gt 0 ] || return 0
+  printf '### %s\n\n' "$title"
+  printf '%s\n' "$@"
+  echo
+}
+
+print_section Added "${added[@]+"${added[@]}"}"
+print_section Fixed "${fixed[@]+"${fixed[@]}"}"
+print_section Faster "${faster[@]+"${faster[@]}"}"
+print_section Documentation "${documented[@]+"${documented[@]}"}"
+
+if [ "$other" -gt 0 ]; then
+  printf '%s other commits are build, test or formatting changes.\n' "$other"
+fi

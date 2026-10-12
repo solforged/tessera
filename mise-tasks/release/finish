@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+#MISE description="Upload SHA256SUMS for a tag and fail if a release asset is missing"
+#USAGE arg "<tag>" help="Release tag, such as v0.3.0"
+#
+# In the release workflow, MACOS, LINUX and ANDROID are the job results. A
+# failed build keeps the release, marks its notes, and fails this task. Locally
+# those variables are unset and the task only checks the files on the release.
+set -euo pipefail
+
+tag=${usage_tag:?}
+version=${tag#v}
+if [ "$tag" = "$version" ]; then
+  echo "release:finish: tag must look like vX.Y.Z" >&2
+  exit 1
+fi
+
+failed=()
+for pair in "macOS:${MACOS:-success}" "Linux:${LINUX:-success}" "Android:${ANDROID:-success}"; do
+  name=${pair%%:*}
+  result=${pair#*:}
+  [ "$result" = success ] || failed+=("$name ($result)")
+done
+if [ "${#failed[@]}" -gt 0 ]; then
+  body=$(gh release view "$tag" --json body --jq .body)
+  note=$(printf 'This release is incomplete: %s.\n\n%s\n' "$(IFS=', '; echo "${failed[*]}")" "$body")
+  gh release edit "$tag" --notes "$note"
+  echo "release:finish: incomplete: ${failed[*]}" >&2
+  exit 1
+fi
+
+required=(
+  latest.json
+  "tessera-${tag}-aarch64-apple-darwin.tar.gz"
+  "Tessera_${version}_aarch64.dmg"
+  "Tessera_${version}_aarch64.app.tar.gz"
+  "Tessera_${version}_aarch64.app.tar.gz.sig"
+  "tessera-${tag}-x86_64-unknown-linux-gnu.tar.gz"
+  "Tessera_${version}_aarch64.apk"
+)
+
+dir=$(mktemp -d)
+trap 'rm -rf "$dir"' EXIT
+gh release download "$tag" --dir "$dir" --clobber
+missing=()
+for name in "${required[@]}"; do
+  [ -f "$dir/$name" ] || missing+=("$name")
+done
+if [ "${#missing[@]}" -gt 0 ]; then
+  echo "release:finish: missing ${missing[*]}" >&2
+  exit 1
+fi
+
+rm -f "$dir/SHA256SUMS"
+(
+  cd "$dir"
+  if command -v sha256sum >/dev/null; then
+    sha256sum -- "${required[@]}"
+  else
+    shasum -a 256 -- "${required[@]}"
+  fi | sort -k2
+) >"$dir/SHA256SUMS"
+gh release upload "$tag" "$dir/SHA256SUMS" --clobber
+echo "release:finish: uploaded SHA256SUMS for $tag"

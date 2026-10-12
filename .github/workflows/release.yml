@@ -1,8 +1,8 @@
 name: Release
 
 # A v* tag publishes the Linux command line, the macOS app with its command
-# line, the signed Android APK, and latest.json, which installed apps poll for
-# signed updates. The tag must match the workspace version.
+# line, the signed Android APK, latest.json and SHA256SUMS. The tag must match
+# the workspace version, and CHANGELOG.md must have a finished section for it.
 
 on:
   push:
@@ -32,6 +32,10 @@ jobs:
         uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         with:
           version: 2026.10.1
+
+      - name: Write release notes
+        run: mise run release:body -- "$TAG" > "$RUNNER_TEMP/notes.md"
+
 
       - name: Build app
         env:
@@ -63,6 +67,7 @@ jobs:
       - name: Upload release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
+          body_path: ${{ runner.temp }}/notes.md
           files: dist/*
           fail_on_unmatched_files: true
 
@@ -140,3 +145,27 @@ jobs:
         with:
           files: Tessera_*_aarch64.apk
           fail_on_unmatched_files: true
+
+  complete:
+    name: release (checksums)
+    needs: [macos, linux, android]
+    if: always() && needs.macos.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install tools
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        with:
+          version: 2026.10.1
+
+      - name: Upload checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MACOS: ${{ needs.macos.result }}
+          LINUX: ${{ needs.linux.result }}
+          ANDROID: ${{ needs.android.result }}
+        run: mise run release:finish -- "${{ github.ref_name }}"
