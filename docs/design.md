@@ -371,6 +371,8 @@ A field whose values are all leaves shows them as aligned rows: the field icon t
 
 Selecting or editing a block or page, or one of its fields, shows its sheet under its last visible field row: a slot for each template field it lacks, in template order, then Add field. A page with no visible field rows shows its slots below the heading. Slots share the field labels' edge, sit on the canvas outside the row's hover and selection, and appear and leave without moving the rows above them.
 
+Inserting or removing a value transfers its sheet and measured height in one layout update, without briefly shrinking or growing the scrollable page.
+
 A slot adds the entry with a blank value and edits it, offering the options of a choice, the date picker for a date and page completion for an instance; a checkbox slot adds a ticked value.
 
 Add field opens a picker with the missing template fields under Template, then the rest, and Create field for a new name. A template field takes its template place among the entries; another follows the last entry. Each addition is one undo step.

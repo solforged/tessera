@@ -349,6 +349,12 @@ function Pane(props: OutlinePaneProps) {
     return false;
   };
   const virtualItems = createMemo(() => new Map(virtualizer.getVirtualItems().map(item => [String(item.key), item])));
+  const [listHeight, setListHeight] = createSignal(virtualizer.getTotalSize());
+  createEffect(() => {
+    const height = virtualizer.getTotalSize();
+    // Removing a sheet-bearing row must not publish a temporarily shorter sizer and clamp the browser's scrollTop.
+    if (!anchorFrame && !scrollingFrame) setListHeight(height);
+  });
 
   function currentAnchor(): ViewState['scroll'] {
     if (!scroll || !list) return null;
@@ -385,19 +391,24 @@ function Pane(props: OutlinePaneProps) {
     setScrollAnchor(null);
     scrollReveal = null;
     previousScrollHeight = -1;
+    setListHeight(virtualizer.getTotalSize());
   }
-  function settleScroll() {
-    anchorFrame = 0;
-    if (disposed) return;
-    const before = scroll.scrollTop;
+  function measureRows() {
     scrollingFrame = true;
-    // Batch both ends of a sheet transfer before reading positions or writing scrollTop.
+    // Refresh both sides of a sheet transfer before publishing their combined list height.
     batch(() => {
       for (const row of list.querySelectorAll<HTMLDivElement>('[data-index]')) {
         virtualizer.resizeItem(Number(row.dataset.index), row.offsetHeight);
       }
     });
+    setListHeight(virtualizer.getTotalSize());
     scrollingFrame = false;
+  }
+  function settleScroll() {
+    anchorFrame = 0;
+    if (disposed) return;
+    const before = scroll.scrollTop;
+    measureRows();
     const bounds = scroll.getBoundingClientRect();
     const anchor = scrollAnchor();
     const row = anchor && indices().has(anchor.id) ? rowAnchor(anchor.id) : null;
@@ -461,7 +472,8 @@ function Pane(props: OutlinePaneProps) {
     const popupFocused = document.activeElement?.closest('[role="dialog"], [role="menu"], [role="listbox"]');
     editor.mount(host, id, block.text, offset, request?.insert ?? !props.vim, !!request && props.active && !popupFocused && !renaming());
     if (same) followText(id);
-    virtualizer.measureElement(host.closest<HTMLDivElement>('[data-index]')!);
+    if (anchorFrame) measureRows();
+    else virtualizer.measureElement(host.closest<HTMLDivElement>('[data-index]')!);
   }
   /**
    * An edit applied through the document (Backspace over a pair or a reference, a chosen completion) reaches
@@ -1232,7 +1244,7 @@ function Pane(props: OutlinePaneProps) {
       </Show>
       <fieldSheet.FieldSlots id={props.pageId} />
     </div>
-    <div ref={list} class="outline-list" style={{ height: `${virtualizer.getTotalSize()}px` }}>
+    <div ref={list} class="outline-list" style={{ height: `${listHeight()}px` }}>
       <Show when={drag.indicator()}>{drop => <div class="outline-drop-indicator" aria-hidden="true" data-drop-depth={drop().depth - baseDepth()} data-drop-edge={drop().edge} style={{ top: `${drop().top}px`, left: `${drop().left}px` }} />}</Show>
       <For each={foldGroups().before}>{id => <Row id={id} item={() => virtualItems().get(id)!} />}</For>
       <div ref={foldChildren} class="outline-motion-group" style={{ opacity: foldMotion()?.opening ? 0 : undefined }}>

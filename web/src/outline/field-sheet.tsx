@@ -43,9 +43,10 @@ export function createFieldSheet(context: Pick<OutlineContext,
   const { doc, props, definitionsById, definitions, indices, selected, editing, zoom, folds, apply, setMessage, templateFor, baseDepth } = context;
   const fieldOf = (id: string) => definitionsById().get(fieldEntryId(doc.block(id)?.text ?? '') ?? '');
   /** The block or page whose fields hold the selection, falling back to the visible root when nothing is selected. */
-  const owner = createMemo(() => {
+  const owner = createMemo<string | null>(previous => {
     const id = editing() ?? selected() ?? zoom() ?? props.pageId;
-    if (!id || !doc.block(id)) return null;
+    // A deleted value keeps its surviving owner's sheet until the structural caret restore selects its replacement.
+    if (!id || !doc.block(id)) return previous && doc.block(previous) ? previous : null;
     const parent = doc.outline.parentOf(id);
     const candidate = fieldOf(id) ? parent : fieldOf(parent) ? doc.outline.parentOf(parent) : id;
     if (candidate === props.pageId) return zoom() ? null : candidate;
