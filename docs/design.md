@@ -456,7 +456,7 @@ Clicking blank canvas below the last row of a page or journal edits its trailing
 
 Settled by the 2026-10-02 audit; each rule has a document-layer test in `web/src/document/outline-*.test.ts`.
 
-Structural edits and paste keep the top visible row at its screen position, then reveal the editing caret only if it would be outside the viewport. Both adjustments settle as one scroll decision per frame, with caret reveal taking precedence even when source reading order moves the edited row.
+Structural edits and paste keep the top visible row at its screen position, then reveal the editing caret only if it would be outside the viewport. Both adjustments settle as one scroll decision before the changed list height paints, with caret reveal taking precedence even when source reading order moves the edited row.
 
 **Enter**
 

@@ -406,6 +406,7 @@ function Pane(props: OutlinePaneProps) {
     scrollingFrame = false;
   }
   function settleScroll() {
+    cancelAnimationFrame(anchorFrame);
     anchorFrame = 0;
     if (disposed) return;
     const before = scroll.scrollTop;
@@ -473,7 +474,8 @@ function Pane(props: OutlinePaneProps) {
     const popupFocused = document.activeElement?.closest('[role="dialog"], [role="menu"], [role="listbox"]');
     editor.mount(host, id, block.text, offset, request?.insert ?? !props.vim, !!request && props.active && !popupFocused && !renaming());
     if (same) followText(id);
-    if (anchorFrame) measureRows();
+    // Publishing the inserted row's height and revealing its caret must finish before the same paint.
+    if (anchorFrame) settleScroll();
     else virtualizer.measureElement(host.closest<HTMLDivElement>('[data-index]')!);
   }
   /**
