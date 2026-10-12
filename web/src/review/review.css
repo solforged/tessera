@@ -115,7 +115,7 @@
   .review-has-context .review-card { min-height: 100%; }
   .review-source-passage { display: block; border-left: 1px solid var(--line); padding-left: var(--space-24); }
   .review-has-context .review-card-following { display: none; }
-  .review-has-context .review-card-book-actions { margin-top: auto; }
+  .review-has-context :is(.review-card-actions, .review-card-comparison, .review-card-grades:not(.review-card-comparison + *)) { margin-top: auto; }
 }
 /* On the cover, a live session owns the navigation's space; reveal and grades stay under the thumb. */
 @media (max-width: 599px) and (pointer: coarse) {
@@ -127,7 +127,7 @@
   .review-session-active .review-scroll { display: flex; flex-direction: column; padding-bottom: var(--space-8); }
   .review-session-active .review-session-layout { display: flex; flex: 1; }
   .review-session-active .review-card { flex: 1; padding-top: var(--space-24); }
-  .review-session-active .review-card-book-actions { margin-top: auto; }
+  .review-session-active :is(.review-card-actions, .review-card-comparison, .review-card-grades:not(.review-card-comparison + *)) { margin-top: auto; }
   .review-session-active .review-history { display: none; }
   .review-session-actions { padding: var(--space-4) var(--space-16) max(var(--space-8), var(--bottom-inset)); }
   .review-overview { grid-template-columns: 1fr; }

@@ -46,9 +46,9 @@ A completed or explicitly closed session with at least one review keeps its coun
 
 The card reads as a quiet sheet on the page rather than a boxed panel. On a fine-pointer device it is headed by the same rubric mark as popups. Its top rule turns gilt only on fine-pointer keyboard focus; touch shows neither this rule nor the rubric, leaving the progress strip alone.
 
-A cited card's mono source line shows siglum, title, chapter and paragraph. Open in the book opens that citation (Shift beside), while Edit card opens its canonical block. An uncited card keeps its source path. Reset progress is in Card actions and requires a revealed answer and confirmation.
+One mono line heads every card: the source at the left, then the kind in faint capitals (`FORWARD`, `REVERSE`, `CLOZE`, `MULTI-LINE`, `LIST`, `DESCRIPTOR`) and Card actions at the right. A cloze is numbered (`CLOZE 2`) only when its block makes several. A cited card's source shows siglum, title, chapter and paragraph and opens that citation (Shift beside); an uncited card's source path opens its block. Card actions holds the same open action, Edit card, which opens the canonical block, and Reset progress, which requires a revealed answer and confirmation.
 
-Prompt and answer use 24 px Piazzolla with a 38 px line height; a rule separates ordinary sides. Multi-line answers keep their child outline, lists reveal one item at a time and grading waits for the last. Clozes reveal in place with a gilt underline, so the sentence appears once.
+Both sides of a card share one size. When both are 40 characters or fewer on one line, and the answer is not an outline, they are set at 24 px with a 30 px line; otherwise both read at 24 px with a 38 px line. A rule separates ordinary sides. Multi-line answers keep their child outline with faint bullets, and list answers number their items in rubric; both markers sit on the text's baseline. Lists reveal one item at a time, with an `N of M` mono count, and grading waits for the last. Clozes reveal in place with a gilt underline, so the sentence appears once; until then a gap reads `[…]`, or `[hint]`, in muted italic.
 
 Once revealed, a cited card shows the following sentence from its snapshot's real passages.
 
@@ -60,7 +60,7 @@ Once revealed, a cited card shows the following sentence from its snapshot's rea
 | Cover | The bottom nav steps aside during a live session. Tapping non-control card space reveals. Interval-bearing grades form a two-by-two block at the bottom. |
 | Larger layouts | Review history stays available. |
 
-Good has the gilt default rule and Space or Enter selects it after reveal; 1–4 remain available.
+Good is ringed in gilt as the default, and Space or Enter selects it after reveal; 1–4 remain available. Again's label is rubric.
 
 ## Grading and progress
 
@@ -108,7 +108,11 @@ Enable… opens the Apply view, in this order:
 4. The first waiting members with Show all, which opens the [type table](fields-tables.md) filtered to the missing field.
 5. Cancel and `Apply · 398 cards`.
 
-Disable pauses a template's cards and keeps their progress. In Review and the outline's cards popup a template card shows plain front and back text under a mono `from #Vocab · Recognition`.
+Disable pauses a template's cards and keeps their progress. In Review a template card shows plain front and back text under a mono `from #Vocab · Recognition`.
+
+## Cards popup
+
+A block's card count opens its cards. Each row puts the kind in the same faint capitals in a fixed column, so every card's text starts at one edge, then the front, the answer in `--muted` and the due state. Clozes show their gaps and gilt answers as Review does. Multi-line and list answers show as their outline, at most five items, then `N more`. A template card reads `TEMPLATE` with its `#Vocab · Recognition` provenance under the text.
 
 ## Done summary and deck forms
 

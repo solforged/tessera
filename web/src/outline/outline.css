@@ -303,9 +303,10 @@ button.outline-reference { -webkit-touch-callout: none; -webkit-user-select: non
 .card-cloze { text-decoration: underline dotted var(--accent) 1px; text-underline-offset: var(--space-4); }
 .outline-cards-popup { width: var(--search-width); }
 .outline-cards-list { display: flex; flex-direction: column; gap: var(--space-8); }
-.outline-cards-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; gap: var(--space-4) var(--space-8); min-width: 0; }
-.outline-cards-kind { color: var(--faint); font-size: var(--text-meta); line-height: var(--line-meta); white-space: nowrap; }
-.outline-cards-provenance { font: var(--apparatus); }
+/* Kind labels share one fixed column, so every card's text starts at the same edge. */
+.outline-cards-row { display: grid; grid-template-columns: 12ch minmax(0, 1fr) auto; align-items: baseline; gap: var(--space-4) var(--space-8); min-width: 0; }
+.outline-cards-kind { color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-notebook); text-transform: uppercase; white-space: nowrap; }
+.outline-cards-provenance, .outline-cards-more { margin: var(--space-2) 0 0; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .outline-cards-content { min-width: 0; }
 .outline-cards-front { overflow-wrap: anywhere; }
 .outline-cards-answer { color: var(--muted); overflow-wrap: anywhere; }
