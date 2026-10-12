@@ -49,6 +49,11 @@ jobs:
       - name: Clippy for the browser demo
         run: mise run demo:lint
 
+      - name: Browser tests for the demo engine
+        env:
+          CHROME_PATH: /usr/bin/google-chrome
+        run: CHROMEDRIVER="$CHROMEWEBDRIVER/chromedriver" mise run demo:test
+
   bench:
     name: backend correctness and scaling
     runs-on: ubuntu-latest

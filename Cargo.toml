@@ -1,6 +1,7 @@
 [workspace]
 resolver = "3"
 members = ["crates/tessera-core", "crates/tessera-ingest", "crates/tessera-service", "crates/tessera-web", "crates/tessera-cli", "crates/tessera-desktop", "crates/tessera-android", "crates/tessera-bench"]
+exclude = ["vendor/sqlite-wasm-vfs"]
 
 [workspace.package]
 version = "0.3.0"
@@ -33,3 +34,9 @@ ulid = "3"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
+
+# sqlite-wasm-vfs 0.2 never rolls back a hot journal; vendor/sqlite-wasm-vfs carries the
+# one-line fix. Drop it for sqlite-wasm-vfs 0.3 once a rusqlite release accepts
+# sqlite-wasm-rs 0.6.
+[patch.crates-io]
+sqlite-wasm-vfs = { path = "vendor/sqlite-wasm-vfs" }

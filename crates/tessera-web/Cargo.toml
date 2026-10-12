@@ -25,5 +25,9 @@ sqlite-wasm-rs = "0.5"
 sqlite-wasm-vfs = "0.2"
 console_error_panic_hook = "0.1"
 
+[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dev-dependencies]
+rusqlite.workspace = true
+wasm-bindgen-test = "0.3"
+
 [lints]
 workspace = true

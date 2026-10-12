@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+#MISE description="Run the browser demo's wasm tests in headless Chrome for Testing"
+#MISE tools={chromedriver="151.0.7922.34"}
+# The tests need OPFS in a real browser worker. CHROME_PATH overrides the
+# Playwright Chrome for Testing that web/perf also uses, and CHROMEDRIVER
+# overrides the pinned driver; the driver must match Chrome's major version.
+set -euo pipefail
+
+chrome=${CHROME_PATH:-$HOME/Library/Caches/ms-playwright/chromium-1234/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing}
+config=$(mktemp)
+trap 'rm -f "$config"' EXIT
+printf '{"goog:chromeOptions":{"binary":"%s","args":["--headless=new"]}}' "$chrome" >"$config"
+
+export AR_wasm32_unknown_unknown="$(rustc --print sysroot)/lib/rustlib/$(rustc -vV | sed -n 's/^host: //p')/bin/llvm-ar"
+export CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=wasm-bindgen-test-runner
+export CHROMEDRIVER=${CHROMEDRIVER:-$(command -v chromedriver)}
+export WASM_BINDGEN_TEST_WEBDRIVER_JSON=$config
+cargo test -p tessera-web --target wasm32-unknown-unknown --locked "$@"

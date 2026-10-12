@@ -76,7 +76,7 @@ Everything is written through a temporary service's API. Pass `--replace` to sta
 | `mise run fmt` | Formats Rust code. |
 | `mise run bench --root /tmp/tessera-bench --fail-on budgets` | Backend budgets; see [Performance](performance.md). |
 
-[CI](../.github/workflows/ci.yml) runs Rust `lint` and `test` on Linux and macOS, plus `web:build`, `demo:lint`, `android:lint`, `cli:lint` and `cli:test`. Its backend job runs 50,000-row correctness and scaling checks with `--sizes 50000 --fail-on scaling`. Absolute budgets are for named devices; shared runners report them but gate only on correctness and no-per-row-work checks.
+[CI](../.github/workflows/ci.yml) runs Rust `lint` and `test` on Linux and macOS, plus `web:build`, `demo:lint`, `demo:test`, `android:lint`, `cli:lint` and `cli:test`. Its backend job runs 50,000-row correctness and scaling checks with `--sizes 50000 --fail-on scaling`. Absolute budgets are for named devices; shared runners report them but gate only on correctness and no-per-row-work checks.
 
 `mise run fonts:keys` redraws the key glyphs in [`web/src/ui/fonts/keys.woff2`](../web/src/ui/fonts/keys.woff2).
 
@@ -93,6 +93,12 @@ mise run demo:build
 The task compiles the engine with the wasm32 target, binds it with wasm-bindgen into `web/src/demo/pkg`, shrinks it with `wasm-opt`, then builds the pages.
 
 The output in `web/dist-demo` is static. Serve it with every non-asset path rewritten to `demo.html`; see [`web/vercel.json`](../web/vercel.json). [`.github/workflows/demo.yml`](../.github/workflows/demo.yml) deploys it to Vercel after CI succeeds on `main`, once `VERCEL_TOKEN`, `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID` exist. [Releasing](releasing.md#browser-demo) covers a manual deploy and a rollback.
+
+```sh
+mise run demo:test
+```
+
+This runs the engine's wasm tests in headless Chrome for Testing, since they need the browser's private storage in a real worker. It uses Playwright's Chrome for Testing build unless `CHROME_PATH` names another Chrome; mise supplies a matching chromedriver. The storage layer is a patched copy of `sqlite-wasm-vfs` in [`vendor/sqlite-wasm-vfs`](../vendor/sqlite-wasm-vfs); the root `Cargo.toml` says when it can go.
 
 ## Building the app
 

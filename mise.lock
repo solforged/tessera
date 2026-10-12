@@ -60,6 +60,38 @@ url = "https://github.com/oven-sh/bun/releases/download/bun-v1.4.3/bun-darwin-x6
 checksum = "sha256:0fde04e8b092156b97fe6432e899baf16d9ed6ce52cbb4218d2d9c07a2f827ef"
 url = "https://github.com/oven-sh/bun/releases/download/bun-v1.4.3/bun-darwin-x64-baseline.zip"
 
+[[tools.chromedriver]]
+version = "151.0.7922.34"
+backend = "vfox:jdx/vfox-chromedriver"
+specifiers = ["151.0.7922.34"]
+
+[tools.chromedriver."platforms.linux-arm64"]
+url = "https://storage.googleapis.com/chrome-for-testing-public/151.0.7922.34/linux64/chromedriver-linux64.zip"
+
+[tools.chromedriver."platforms.linux-arm64-musl"]
+url = "https://storage.googleapis.com/chrome-for-testing-public/151.0.7922.34/linux64/chromedriver-linux64.zip"
+
+[tools.chromedriver."platforms.linux-x64"]
+url = "https://storage.googleapis.com/chrome-for-testing-public/151.0.7922.34/linux64/chromedriver-linux64.zip"
+
+[tools.chromedriver."platforms.linux-x64-baseline"]
+url = "https://storage.googleapis.com/chrome-for-testing-public/151.0.7922.34/linux64/chromedriver-linux64.zip"
+
+[tools.chromedriver."platforms.linux-x64-musl"]
+url = "https://storage.googleapis.com/chrome-for-testing-public/151.0.7922.34/linux64/chromedriver-linux64.zip"
+
+[tools.chromedriver."platforms.linux-x64-musl-baseline"]
+url = "https://storage.googleapis.com/chrome-for-testing-public/151.0.7922.34/linux64/chromedriver-linux64.zip"
+
+[tools.chromedriver."platforms.macos-arm64"]
+url = "https://storage.googleapis.com/chrome-for-testing-public/151.0.7922.34/mac-arm64/chromedriver-mac-arm64.zip"
+
+[tools.chromedriver."platforms.macos-x64"]
+url = "https://storage.googleapis.com/chrome-for-testing-public/151.0.7922.34/mac-x64/chromedriver-mac-x64.zip"
+
+[tools.chromedriver."platforms.macos-x64-baseline"]
+url = "https://storage.googleapis.com/chrome-for-testing-public/151.0.7922.34/mac-x64/chromedriver-mac-x64.zip"
+
 [[tools."github:WebAssembly/binaryen"]]
 version = "129"
 backend = "github:WebAssembly/binaryen"
