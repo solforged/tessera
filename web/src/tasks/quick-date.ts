@@ -137,6 +137,13 @@ export function dateSuggestions(query: string, contextDate: string): DateSuggest
   return suggestions.slice(0, 7);
 }
 
+/** Recognized but impossible dates remain picker errors; unmatched words may return to prose. */
+export function dateQueryError(query: string, contextDate: string): string | null {
+  if (!query.trim()) return null;
+  const parsed = parseTaskDate(query, contextDate);
+  return !parsed.ok && !parsed.unrecognized ? parsed.error : null;
+}
+
 /** Trim the introducing whitespace when the suffix is empty or starts with whitespace. */
 export function removeToken(text: string, token: { from: number; to: number }): { text: string; caret: number } {
   const before = text.slice(0, token.from);
@@ -145,13 +152,16 @@ export function removeToken(text: string, token: { from: number; to: number }): 
   return { text: text.slice(0, start) + after, caret: start };
 }
 
-/** A null choice keeps the current plan for choosing the date in the full picker. */
-export function planDateToken(text: string, token: DateToken, choice: DateSuggestion | null, task: TaskState | null): { text: string; caret: number; value: TaskState } {
+type DateTokenPlan = { text: string; caret: number; value: TaskState };
+/** No date choice means no edit: opening or cancelling the full picker keeps the authored token and task. */
+export function planDateToken(text: string, token: DateToken, choice: DateSuggestion, task: TaskState | null): DateTokenPlan;
+export function planDateToken(text: string, token: DateToken, choice: null, task: TaskState | null): null;
+export function planDateToken(text: string, token: DateToken, choice: DateSuggestion | null, task: TaskState | null): DateTokenPlan | null;
+export function planDateToken(text: string, token: DateToken, choice: DateSuggestion | null, task: TaskState | null): DateTokenPlan | null {
+  if (!choice) return null;
   const base = task ?? newTask();
-  const value = choice
-    ? token.field === 'deadline'
-      ? { ...base, deadline: choice.date, deadline_time: choice.time }
-      : { ...base, scheduled: choice.date, scheduled_time: choice.time }
-    : base;
+  const value = token.field === 'deadline'
+    ? { ...base, deadline: choice.date, deadline_time: choice.time }
+    : { ...base, scheduled: choice.date, scheduled_time: choice.time };
   return { ...removeToken(text, token), value };
 }

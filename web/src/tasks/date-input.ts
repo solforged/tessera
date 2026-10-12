@@ -1,4 +1,4 @@
-type DateResult = { ok: true; date: string | null; time: string | null } | { ok: false; error: string };
+type DateResult = { ok: true; date: string | null; time: string | null } | { ok: false; error: string; unrecognized?: true };
 type CivilDate = { year: number; month: number; day: number };
 
 const monthStarts = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
@@ -78,7 +78,8 @@ export function parseTaskDate(input: string, contextDate: string): DateResult {
     const name = named[monthFirst ? 1 : 2]!;
     const month = months.findIndex(value => value === name || value.slice(0, 3) === name || value === 'september' && name === 'sept') + 1;
     const day = Number(named[monthFirst ? 2 : 1]);
-    if (!month || day < 1 || day > monthDays(2000, month)) return { ok: false, error: 'Enter a valid calendar date.' };
+    if (!month) return { ok: false, error: 'Use a full or abbreviated month name.', unrecognized: true };
+    if (day < 1 || day > monthDays(2000, month)) return { ok: false, error: 'Enter a valid calendar date.' };
     let year = named[3] ? Number(named[3]) : context.year;
     if (named[3]) {
       if (year < 1 || day > monthDays(year, month)) return { ok: false, error: 'Enter a valid calendar date.' };
@@ -99,7 +100,7 @@ export function parseTaskDate(input: string, contextDate: string): DateResult {
       const next = text.startsWith('next ');
       const name = next ? text.slice(5) : text;
       const weekday = weekdays.findIndex(day => day === name || day.slice(0, 3) === name);
-      if (weekday === -1) return { ok: false, error: 'Use YYYY-MM-DD, a month and day, today, tomorrow, yesterday, a weekday, +Nd/+Nw, or in N days/weeks.' };
+      if (weekday === -1) return { ok: false, error: 'Use YYYY-MM-DD, a month and day, today, tomorrow, yesterday, a weekday, +Nd/+Nw, or in N days/weeks.', unrecognized: true };
       offset = next
         ? 7 - (base % 7 + 6) % 7 + (weekday + 6) % 7
         : (weekday - base % 7 + 7) % 7;

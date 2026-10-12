@@ -1,6 +1,33 @@
 import type { Block } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { ApiError, api } from '../api/client';
+import { insideProtectedSyntax } from '../tasks/quick-date';
+
+/** A heading trigger belongs to the space just typed, not to a prefix found later in the text. */
+export function headingPrefix(text: string, caret: number): { text: string; heading: 1 | 2 | 3 } | null {
+  const prefix = /^(#{1,3}) /.exec(text);
+  return prefix && caret === prefix[0].length ? { text: text.slice(prefix[0].length), heading: prefix[1]!.length as 1 | 2 | 3 } : null;
+}
+
+/** Only unmodified Enter or Tab accepts a completion; editing chords retain their own meaning. */
+export function completionPickKey(event: Pick<KeyboardEvent, 'key' | 'shiftKey' | 'metaKey' | 'ctrlKey' | 'altKey'>): boolean {
+  return (event.key === 'Enter' || event.key === 'Tab') && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey;
+}
+
+/** ISO date references name existing journals, never newly created ordinary pages. */
+export function isJournalReference(query: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(query.trim());
+}
+
+/** Find the active opening pair only in authored prose, outside code and references. */
+export function referenceCompletionAt(text: string, caret: number): { from: number; to: number; query: string; blocks: boolean } | null {
+  const prefix = text.slice(0, caret);
+  const page = prefix.lastIndexOf('[['), block = prefix.lastIndexOf('((');
+  const blocks = block > page, from = Math.max(page, block);
+  const typed = prefix.slice(from + 2);
+  if (from < 0 || typed.includes(blocks ? ')' : ']') || typed.includes('\n') || !blocks && prefix[from - 1] === '#' || insideProtectedSyntax(text, from)) return null;
+  return { from, to: caret, query: openReferenceRange(text, from, caret, blocks).query, blocks };
+}
 
 /**
  * An open `[[` or `((` completion: the text a choice replaces and the query it searches. Both run from the

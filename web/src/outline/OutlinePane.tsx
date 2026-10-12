@@ -34,6 +34,7 @@ import { Apparatus } from './Apparatus';
 import { createFieldEntryConversion, createSourceFieldResets, ensureField } from './source-fields';
 import { sourceFieldName } from './source';
 import { createOutlineCompletions } from './completions';
+import { headingPrefix } from './completion';
 import { createOutlineCommands } from './commands';
 import { createOutlineKeyboard } from './keyboard';
 import { createOutlineInteractions } from './interactions';
@@ -928,11 +929,15 @@ function Pane(props: OutlinePaneProps) {
       blur: () => { if (editor?.id && editing() === editor.id) commitFieldEntry(editor.id, false); },
       text: (text, at) => measure('typing', () => {
         if (compositionSelection) return;
-        const heading = /^(#{1,3}) $/.exec(text);
+        const heading = headingPrefix(text, at.offset);
         if (heading && !composition()) {
-          const result = doc.edit({ kind: 'text', id: at.id, text: '', heading: heading[1]!.length as 1 | 2 | 3 }, caret());
+          const result = doc.edit({ kind: 'text', id: at.id, text: heading.text, heading: heading.heading, caret: 0 }, caret());
           if (!result.ok) setMessage(result.reason);
-          else { queueMicrotask(() => editor?.sync('')); setCaret({ id: at.id, offset: 0 }); }
+          else {
+            queueMicrotask(() => { if (editor?.id === at.id) { editor.sync(heading.text); editor.view.dispatch({ selection: { anchor: 0 } }); } });
+            setCaret({ id: at.id, offset: 0 });
+          }
+          return;
         } else if (taskPrefix(text, at)) return;
         else { const result = doc.edit({ kind: 'text', id: at.id, text }, caret()); if (!result.ok) setMessage(result.reason); }
         updateCompletion(text, at);

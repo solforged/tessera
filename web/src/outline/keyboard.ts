@@ -1,3 +1,4 @@
+import { EditorSelection } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import { matchFieldEntry } from '../table/query';
 import { referenceBeside } from '../document/text-tokens';
@@ -77,8 +78,9 @@ export function createOutlineKeyboard(context: Pick<OutlineContext,
     const rect = view.coordsAtPos(head);
     const first = view.coordsAtPos(0);
     const vertical = event.key === 'ArrowUp' || event.key === 'ArrowDown';
-    const lineStart = vertical ? view.coordsAtPos(view.moveToLineBoundary(view.state.selection.main, false, true).head) : null;
-    const column = rect && lineStart ? rect.left - lineStart.left : 0;
+    // CodeMirror's goal column is relative to contentDOM; crossings carry it as a screen coordinate.
+    const x = view.state.selection.main.goalColumn === undefined ? rect?.left
+      : view.contentDOM.getBoundingClientRect().left + view.state.selection.main.goalColumn;
     const last = view.coordsAtPos(view.state.doc.length);
     const boundary = event.key === 'ArrowLeft' ? head === 0 : event.key === 'ArrowRight' ? head === view.state.doc.length
       : direction < 0 ? !!rect && !!first && rect.top <= first.top + 2 : !!rect && !!last && rect.bottom >= last.bottom - 2;
@@ -97,12 +99,15 @@ export function createOutlineKeyboard(context: Pick<OutlineContext,
       if (vertical) {
         const edge = context.editor.view.coordsAtPos(offset);
         if (edge) {
-          const line = context.editor.view.moveToLineBoundary(context.editor.view.state.selection.main, false, true);
-          const start = context.editor.view.coordsAtPos(line.head);
-          if (start) target = context.editor.view.posAtCoords({ x: start.left + column, y: (edge.top + edge.bottom) / 2 }) ?? offset;
+          if (x !== undefined) target = context.editor.view.posAtCoords({ x, y: (edge.top + edge.bottom) / 2 }) ?? offset;
         }
       }
-      if (vertical || event.shiftKey) context.editor.view.dispatch({ selection: { anchor: event.shiftKey ? anchor.id === id ? anchor.offset : direction > 0 ? 0 : context.editor.view.state.doc.length : target, head: target } });
+      if (vertical || event.shiftKey) {
+        const targetView = context.editor.view;
+        const goal = vertical && x !== undefined ? x - targetView.contentDOM.getBoundingClientRect().left : undefined;
+        const start = event.shiftKey ? anchor.id === id ? anchor.offset : direction > 0 ? 0 : targetView.state.doc.length : target;
+        targetView.dispatch({ selection: EditorSelection.range(start, target, goal), userEvent: 'select.keyboard' });
+      }
       if (event.shiftKey) setTextRange({ anchor, head: { id, offset: target } });
     });
     return true;
@@ -119,6 +124,10 @@ export function createOutlineKeyboard(context: Pick<OutlineContext,
     return commitFieldEntry(id);
   }
   function editorKey(event: KeyboardEvent, view: EditorView) {
+    const selection = view.state.selection.main;
+    if ((event.key !== 'ArrowUp' && event.key !== 'ArrowDown' || event.altKey || event.metaKey || event.ctrlKey) && selection.goalColumn !== undefined) {
+      view.dispatch({ selection: EditorSelection.range(selection.anchor, selection.head) });
+    }
     if (forgetReferenceSpace(event) || slashKey(event) || dateKey(event) || popupKey(event) || fieldKey(event, view)) return true;
     if (commonKey(event)) return true;
     if (event.key === 'Escape' && (!props.vim || context.editor?.mode() === 'normal')) { if (editing()) rowFocus(editing()!); return true; }

@@ -13,6 +13,8 @@ export interface DatePickerProps {
   anchor: PopupAnchor;
   label: string;
   value: string | null;
+  /** A typed inline query can seed the input without becoming the calendar's selected date. */
+  initialQuery?: string;
   /** Omit for date-only values; null enables an optional time. */
   time?: string | null;
   contextDate: string;
@@ -24,7 +26,7 @@ export interface DatePickerProps {
 
 export function DatePicker(props: DatePickerProps) {
   const id = createUniqueId();
-  const [date, setDate] = createSignal(props.value ?? '');
+  const [date, setDate] = createSignal(props.initialQuery ?? props.value ?? '');
   const [time, setTime] = createSignal(props.time ?? '');
   const [error, setError] = createSignal('');
   const [busy, setBusy] = createSignal(false);

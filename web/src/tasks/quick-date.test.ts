@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { TaskState } from '../api/types';
-import { captureDateToken, dateSuggestions, dateTokenAt, flipDateToken, newTask, planDateToken, removeToken } from './quick-date';
+import { captureDateToken, dateQueryError, dateSuggestions, dateTokenAt, flipDateToken, newTask, planDateToken, removeToken } from './quick-date';
 
 const context = '2026-10-03';
 const task: TaskState = {
@@ -229,6 +229,18 @@ describe('date completion suggestions', () => {
     expect(dateSuggestions('feb 30', context)).toEqual([]);
   });
 
+  test('keeps impossible named and ISO dates as errors instead of classifying them as prose', () => {
+    for (const query of ['2026-02-30', 'feb 30', '30 February 2028', 'feb 29 2027', 'apr 31', 'feb 30 3pm']) {
+      expect(dateSuggestions(query, context)).toEqual([]);
+      expect(dateQueryError(query, context)).toBe('Enter a valid calendar date.');
+    }
+    for (const query of ['sam about the report', 'sam 30']) {
+      expect(dateSuggestions(query, context)).toEqual([]);
+      expect(dateQueryError(query, context)).toBeNull();
+    }
+    expect(dateQueryError('feb 29', context)).toBeNull();
+  });
+
   test('caps non-empty results at seven while keeping every empty-query preset', () => {
     expect(dateSuggestions('', context)).toHaveLength(8);
     for (const query of ['t', 'w', 's', 'next', 'mon', 'today', '+7d']) {
@@ -282,11 +294,22 @@ describe('date completion plans', () => {
     });
   });
 
-  test('keeps the space before punctuation and keeps the plan when the full picker will choose', () => {
+  test('keeps the space before punctuation when choosing a date', () => {
     const text = 'Read @tom.';
     const token = dateTokenAt(text, 9)!;
-    expect(planDateToken(text, token, null, task)).toEqual({ text: 'Read .', caret: 5, value: task });
-    expect(planDateToken(text, token, null, null).value).toEqual(newTask());
+    const choice = dateSuggestions('tomorrow', context)[0]!;
+    expect(planDateToken(text, token, choice, task)).toEqual({ text: 'Read .', caret: 5, value: { ...task, scheduled: choice.date, scheduled_time: null } });
+  });
+
+  test('opening or cancelling a full picker produces no plan and keeps invalid tokens and task state', () => {
+    for (const text of ['Invalid ISO @2026-02-30', 'Invalid named @feb 30', 'Read @tom', 'Read @due']) {
+      const token = atEnd(text)!;
+      expect(planDateToken(text, token, null, task)).toBeNull();
+      expect(planDateToken(text, token, null, null)).toBeNull();
+    }
+    expect(task.status).toBe('waiting');
+    expect(task.scheduled).toBe('2026-09-01');
+    expect(task.deadline).toBe('2026-12-31');
   });
 
   test('creates a deadline task with a chosen local time and no schedule', () => {
@@ -324,14 +347,14 @@ describe('date completion plans', () => {
     expect(task.deadline_time).toBe('17:00');
   });
 
-  test('clears only the deadline time for an untimed choice and preserves plans for the picker', () => {
+  test('clears only the deadline time for an untimed choice and leaves a picker without a choice unchanged', () => {
     const text = 'Read @due';
     const token = atEnd(text)!;
     expect(planDateToken(text, token, dateSuggestions('', context)[0]!, task)).toEqual({
       text: 'Read', caret: 4, value: { ...task, deadline: context, deadline_time: null },
     });
-    expect(planDateToken(text, token, null, task)).toEqual({ text: 'Read', caret: 4, value: task });
-    expect(planDateToken(text, token, null, null)).toEqual({ text: 'Read', caret: 4, value: newTask() });
+    expect(planDateToken(text, token, null, task)).toBeNull();
+    expect(planDateToken(text, token, null, null)).toBeNull();
   });
 });
 

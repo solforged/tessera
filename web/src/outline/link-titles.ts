@@ -1,14 +1,16 @@
 import type { NotebookClient } from '../document/contract';
 import { textTokens } from '../document/text-tokens';
+import { insideProtectedSyntax } from '../tasks/quick-date';
 import { isStableReference } from './BlockText';
 import { foldName, resolveName } from './names';
+import { isJournalReference } from './completion';
 
-export type TitleTargets = Map<string, { id: string; alias: boolean }>;
+export type TitleTargets = Map<string, string>;
 
 /** Hand-typed `[[Title]]` names in `text`, trimmed and deduplicated. */
 export function typedTitles(text: string): string[] {
   if (!text.includes('[[')) return [];
-  return [...new Set(textTokens(text).flatMap(token => token.kind === 'reference' && !isStableReference(token) && token.id!.trim() ? [token.id!.trim()] : []))];
+  return [...new Set(textTokens(text).flatMap(token => token.kind === 'reference' && !isStableReference(token) && !insideProtectedSyntax(text, token.start) && token.id!.trim() ? [token.id!.trim()] : []))];
 }
 
 /**
@@ -19,21 +21,24 @@ export async function titleTargets(notebook: NotebookClient, titles: readonly st
   const targets: TitleTargets = new Map();
   for (const title of titles) {
     const key = foldName(title);
+    if (isJournalReference(title)) {
+      const target = (await notebook.api.complete(title, 20)).find(block => block.kind === 'journal' && block.text === title)?.id;
+      if (target) targets.set(key, target);
+      continue;
+    }
     const matches = await resolveName(notebook, title);
     if (matches.length > 1) continue;
-    if (matches.length === 1) { targets.set(key, { id: matches[0]!.page.id, alias: matches[0]!.alias !== null }); continue; }
-    const date = /^\d{4}-\d{2}-\d{2}$/.test(title);
-    const target = date ? (await notebook.api.complete(title, 20)).find(block => block.kind === 'journal' && block.text === title)?.id : await notebook.createPage(title);
-    if (target) targets.set(key, { id: target, alias: false });
+    if (matches.length === 1) { targets.set(key, matches[0]!.page.id); continue; }
+    targets.set(key, await notebook.createPage(title));
   }
   return targets;
 }
 
-/** Rewrites resolved names as stable references, keeping a name reached through an alias as the label. */
+/** Rewrites resolved names as stable references, retaining the wording of every hand-typed occurrence. */
 export function withLinkedTitles(text: string, targets: TitleTargets): string {
   return textTokens(text).map(token => {
-    const target = token.kind === 'reference' && !isStableReference(token) ? targets.get(foldName(token.id!)) : undefined;
-    const alias = token.alias ?? (target?.alias ? token.id!.trim() : undefined);
-    return target ? `[[${target.id}${alias !== undefined ? `|${alias}` : ''}]]` : text.slice(token.start, token.end);
+    const target = token.kind === 'reference' && !isStableReference(token) && !insideProtectedSyntax(text, token.start) ? targets.get(foldName(token.id!)) : undefined;
+    const label = token.alias ?? token.id?.trim();
+    return target ? `[[${target}|${label}]]` : text.slice(token.start, token.end);
   }).join('');
 }

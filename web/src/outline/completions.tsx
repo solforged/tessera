@@ -8,14 +8,14 @@ import { kindLabels } from '../fields/kinds';
 import { typeKeys } from '../fields/templates';
 import { createInstance, instancePages } from '../fields/instances';
 import { DatePicker } from '../tasks/DatePicker';
-import { dateSuggestions, dateTokenAt, flipDateToken, newTask, planDateToken, removeToken } from '../tasks/quick-date';
+import { dateQueryError, dateSuggestions, dateTokenAt, flipDateToken, newTask, planDateToken, removeToken } from '../tasks/quick-date';
 import type { DateSuggestion, DateToken } from '../tasks/quick-date';
 import { statusIcons, statusLabels } from '../tasks/TaskControls';
 import { Icon } from '../ui/Icon';
 import type { IconName } from '../ui/Icon';
 import { Popup } from '../ui/Popup';
 import { BlockBreadcrumb, BlockText } from './BlockText';
-import { completeReferences, openReferenceRange } from './completion';
+import { completeReferences, completionPickKey, isJournalReference, openReferenceRange, referenceCompletionAt } from './completion';
 import { rankSlash, slashTokenAt } from './slash';
 import { insertCard } from './card-insert';
 import type { InsertCardKind } from './card-insert';
@@ -62,12 +62,14 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
   const [completionIndex, setCompletionIndex] = createSignal(0);
   const [dateCompletion, setDateCompletion] = createSignal<(DateToken & { id: string }) | null>(null);
   const [dateIndex, setDateIndex] = createSignal(0);
+  const [tokenDate, setTokenDate] = createSignal<(DateToken & { id: string; text: string; anchor: HTMLElement | DOMRect }) | null>(null);
   const [slashCompletion, setSlashCompletion] = createSignal<(SlashToken & { id: string }) | null>(null);
   const [slashIndex, setSlashIndex] = createSignal(0);
   let completionList: HTMLDivElement | undefined;
   let slashList: HTMLDivElement | undefined;
   /** `@` offers dates; choosing one makes the block a scheduled task (or a deadline after `@by`/`@due`) and removes the token. */
   const dateRows = createMemo<DateSuggestion[]>(() => { const state = dateCompletion(); return state ? dateSuggestions(state.query, contextDate()) : []; });
+  const dateError = createMemo(() => { const state = dateCompletion(); return state ? dateQueryError(state.query, contextDate()) : null; });
   createEffect(() => { if (dateCompletion() && editing() !== dateCompletion()!.id) setDateCompletion(null); });
   createEffect(() => { if (slashCompletion() && editing() !== slashCompletion()!.id) setSlashCompletion(null); });
   let dismissedDate: { id: string; from: number } | null = null;
@@ -88,7 +90,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     const token = idle ? null : dateTokenAt(text, at.offset);
     // Once a multi-word `@` query matches no date it is prose (`@sam about the report`), so the picker
     // closes and Enter splits the block as usual; it reopens if the words become a date again.
-    const prose = token && /\s/.test(token.query.trim()) && !dateSuggestions(token.query, contextDate()).length;
+    const prose = token && /\s/.test(token.query.trim()) && !dateQueryError(token.query, contextDate()) && !dateSuggestions(token.query, contextDate()).length;
     if (!token || prose || dismissedDate?.from === token.from) { setDateCompletion(null); return; }
     if (dateCompletion()?.query !== token.query || dateCompletion()?.field !== token.field) setDateIndex(0);
     setDateCompletion({ ...token, id: at.id });
@@ -114,15 +116,29 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     if (!state || !context.editor || id !== state.id || context.editor.id !== id) return;
     const text = context.editor.view.state.doc.toString();
     const choice = dateRows()[index] ?? null;
+    if (!choice) {
+      const anchor = caretRect(state.from) ?? rowAnchor(id);
+      if (!anchor) return;
+      dismissDate();
+      setTokenDate({ ...state, text, anchor });
+      return;
+    }
+    try { applyDateChoice(state, text, choice); }
+    catch (reason) { capabilities.failure(id, reason); }
+  }
+  function applyDateChoice(state: DateToken & { id: string }, text: string, choice: DateSuggestion) {
+    const id = state.id;
+    if (doc.block(id)?.text !== text) throw new Error('The block changed while choosing a date. Its text was kept.');
     const plan = planDateToken(text, state, choice, doc.block(id)?.task ?? null);
     setDateCompletion(null);
     const result = doc.edit({ kind: 'planTask', id, text: plan.text, value: plan.value }, caret());
-    if (!result.ok) { capabilities.failure(id, result.reason); return; }
-    context.editor.sync(plan.text);
-    context.editor.view.dispatch({ selection: { anchor: plan.caret } });
+    if (!result.ok) throw new Error(result.reason);
+    if (context.editor?.id === id) {
+      context.editor.sync(plan.text);
+      context.editor.view.dispatch({ selection: { anchor: plan.caret } });
+    }
     setCaret({ id, offset: plan.caret });
     void doc.flush().catch(reason => capabilities.failure(id, reason));
-    if (!choice) capabilities.open(id, state.field === 'deadline' ? 'deadline' : 'schedule');
     scheduleReport();
   }
   function flipDateField() {
@@ -211,7 +227,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     if (!completion()) return false;
     const count = completionRows().length + createRows().length;
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { setCompletionIndex(index => Math.max(0, Math.min(count - 1, index + (event.key === 'ArrowDown' ? 1 : -1)))); return true; }
-    if (event.key === 'Enter' || event.key === 'Tab' && !event.shiftKey) { void chooseCompletion(); return true; }
+    if (completionPickKey(event)) { void chooseCompletion(); return true; }
     if (event.key === 'Escape') { dismissCompletion(); return true; }
     return false;
   }
@@ -255,13 +271,10 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     if (field?.kind === 'choice') return text.includes('[[') || text.includes('\n') ? null : { from: 0, to: text.length, query: text, choice: field };
     const typeToken = typeTokenAt(text, at.offset);
     if (typeToken) return { ...typeToken, types: true };
-    const prefix = text.slice(0, at.offset);
-    const page = prefix.lastIndexOf('[['), block = prefix.lastIndexOf('((');
-    const blocks = block > page, from = Math.max(page, block);
-    const typed = prefix.slice(from + 2);
-    if (from < 0 || typed.includes(blocks ? ')' : ']') || typed.includes('\n') || !blocks && prefix[from - 1] === '#') return null;
-    const instance = !blocks && field?.kind === 'instance' && field.targets.length ? field : undefined;
-    return { from, to: at.offset, query: openReferenceRange(text, from, at.offset, blocks).query, blocks, ...(instance ? { instance } : {}) };
+    const reference = referenceCompletionAt(text, at.offset);
+    if (!reference) return null;
+    const instance = !reference.blocks && field?.kind === 'instance' && field.targets.length ? field : undefined;
+    return { ...reference, ...(instance ? { instance } : {}) };
   }
   function updateCompletion(text: string, at: Caret) {
     if (completion()?.manual) return;
@@ -316,6 +329,9 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     // The block being typed in matches its own saved draft; it is never a useful target.
     const found = (matches.error ? [] : matches()?.rows ?? []).filter(block => block.id !== editing());
     if (state?.manual || state?.types) return found.filter(block => block.kind === 'page').map(block => ({ kind: 'block', block }));
+    if (state && !state.blocks && isJournalReference(state.query)) {
+      return found.filter(block => block.kind === 'journal' && block.text === state.query.trim()).map(block => ({ kind: 'block', block }));
+    }
     if (state?.blocks || state?.instance) return found.map(block => ({ kind: 'block', block }));
     const query = state?.query.toLowerCase() ?? '';
     const matchingFields = definitions().filter(field => field.name.toLowerCase().includes(query));
@@ -338,6 +354,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     if (matches.error) return false;
     if (state.manual || state.types) return !matches.loading && !!matches()?.canCreate;
     if (fields.loading || fields.error) return false;
+    if (isJournalReference(state.query)) return false;
     return !completionRows().some(row => (row.kind === 'field' ? row.field.name : row.kind === 'option' || row.block.kind === 'block' ? '' : row.block.text).toLocaleLowerCase() === title);
   });
   /** Create rows after the matches: one per live target type of a constrained instance field, otherwise one. */
@@ -535,12 +552,15 @@ function CompletionPopups(){ return <>
         <For each={dateRows()}>{(row, index) => <div role="option" aria-selected={dateIndex() === index()} class="picker-row" classList={{ selected: dateIndex() === index() }} onClick={() => chooseDate(index())}>
           <Icon name={dateCompletion()?.field === 'deadline' ? 'warning' : 'calendar'} /><span class="picker-text">{row.label}</span><span class="picker-meta">{row.date}</span>
         </div>}</For>
-        <Show when={!dateRows().length}><p class="empty-state">No matching date</p></Show>
+        <Show when={dateError()} fallback={<Show when={!dateRows().length}><p class="empty-state">No matching date</p></Show>}>{error => <p class="error" role="alert">{error()}</p>}</Show>
         <div role="option" aria-selected={dateIndex() === dateRows().length} class="picker-row" classList={{ selected: dateIndex() === dateRows().length }} onClick={() => chooseDate(dateRows().length)}>
           <Icon name="more" /><span class="picker-text">Pick a date…</span>
         </div>
       </div>
     </Popup></Show>
+    <Show keyed when={tokenDate()}>{state => <DatePicker notebook={props.notebook} anchor={state.anchor} label={state.field === 'deadline' ? 'Deadline' : 'Schedule task'} value={doc.block(state.id)?.task?.[state.field] ?? null} initialQuery={state.query} time={null} contextDate={contextDate()}
+      onDismiss={() => { setTokenDate(null); if (editing() === state.id) editAt(state.id, caret()?.id === state.id ? caret()!.offset : state.to, true); }}
+      onSelect={value => { if (value.date) applyDateChoice(state, state.text, { label: value.date, date: value.date, time: value.time }); }} />}</Show>
     <Show when={slashCompletion()}><Popup anchor={() => caretRect(slashCompletion()?.from ?? 0)} width={320} class="picker" label="Commands" role="listbox" onDismiss={dismissSlash}>
       <div ref={slashList} class="picker-list" onMouseDown={event => event.preventDefault()}>
         <For each={slashRows()}>{(row, index) => <>
