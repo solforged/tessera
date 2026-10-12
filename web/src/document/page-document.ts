@@ -1615,7 +1615,14 @@ export class Document implements PageDocument {
     try {
       const inverse: Action[] = [];
       batch(() => { for (const action of actions) {
-        if (action.kind === 'text' && action.baseRevision !== undefined && !this.cells.has(action.id)) continue;
+        if (action.kind === 'text' && action.baseRevision !== undefined && !this.cells.has(action.id)) {
+          // Cross-page spelling guards are applied by the server, not this document.
+          // Retain their opposite guard when replacing history with actual inverses.
+          const pair = entry.rewrites?.get(action.id);
+          const opposite = undo ? pair?.after : pair?.before;
+          if (opposite) inverse.unshift(opposite);
+          continue;
+        }
         inverse.unshift(...this.apply(action));
       } });
       const command = this.host.enqueue(this, actions, inverse, undo ? entry.after : entry.before, undo ? entry.before : entry.after, false);

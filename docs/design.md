@@ -423,6 +423,8 @@ A change the notebook refused shows and copies the words it carried. Only a chan
 
 Undo preserves another window's later text by patching only non-overlapping regions. If the regions overlap, it skips that history entry and says `Changed elsewhere; nothing to undo here`.
 
+Undo of a page rename also guards the tag spellings it rewrites in other pages. If a source changed, the rename stays in place and the rejected command is retained.
+
 A version that sync kept beside a block sits under it, inset behind a hairline at its left, under a mono label (`Sol's Fold's version, kept beside`). Use this, Discard and Keep both follow as bordered buttons in the control font. Each is one undoable step.
 
 ### Headings and selection
