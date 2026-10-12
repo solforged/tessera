@@ -1,5 +1,6 @@
 /* Mono records what the machine knows. Sans carries the fix. Quiet sync never asks for attention. */
-.sync-mark.button { flex: none; width: var(--target-size); padding: 0; }
+/* The target stays full size; the negative margin keeps the glyph about 10 px from the wordmark, not 18. */
+.sync-mark.button { flex: none; width: var(--target-size); margin-left: calc(var(--space-4) - var(--target-size) / 2); padding: 0; }
 .sync-mark.button[aria-expanded="true"] { background: var(--hover); }
 .sync-glyph { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: var(--radius-pill); }
 [data-tone="ok"] > .sync-glyph { background: var(--status-done); }
