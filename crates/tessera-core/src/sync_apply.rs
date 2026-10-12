@@ -18,6 +18,7 @@ const REVISIONS: &[(&str, &str)] = &[
     ("source_id", "source_revision"),
     ("destination_id", "destination_revision"),
     ("type_id", "base_revision"),
+    ("subject_id", "base_revision"),
     ("key", "base_revision"),
     ("session_id", "session_revision"),
 ];

@@ -179,6 +179,44 @@ fn state(dir: &Path) -> Vec<(String, Vec<String>)> {
 }
 
 #[test]
+fn criteria_set_offline_rebase_over_a_desktop_edit_of_the_subject() {
+    let mut p = pair_with(|hub| {
+        let fields = hub.fields().unwrap().page_id;
+        apply(hub, vec![insert(50, &fields, None, "Shape")]);
+    });
+    let page = p.page.clone();
+    let subject_revision = p.replica.block(&page).unwrap().revision;
+    apply(
+        &mut p.replica,
+        vec![Operation::SetSubjectCriteria {
+            subject_id: page.clone(),
+            base_revision: subject_revision,
+            fields: vec![id(50)],
+        }],
+    );
+    let rename = edit(&p.hub, &page, "Plans, renamed on the desktop");
+    apply(&mut p.hub, vec![rename]);
+
+    let report = p.sync();
+    assert_eq!(report.pushed.len(), 1);
+    assert!(matches!(
+        report.pushed[0].outcome,
+        PushOutcome::Accepted { .. }
+    ));
+    p.assert_converged();
+    let conn = Connection::open(p.hub.info().unwrap().path.join(DATABASE_FILE)).unwrap();
+    let criteria: Vec<String> = conn
+        .prepare("SELECT field_id FROM subject_criteria WHERE subject_id = ?1")
+        .unwrap()
+        .query_map([&page], |row| row.get(0))
+        .unwrap()
+        .collect::<rusqlite::Result<_>>()
+        .unwrap();
+    assert_eq!(criteria, vec![id(50)]);
+    assert_eq!(text(&p.hub, &page), "Plans, renamed on the desktop");
+}
+
+#[test]
 fn edits_on_both_sides_converge_and_stay_searchable() {
     let mut p = pair();
     let page = p.page.clone();
