@@ -238,6 +238,20 @@ export interface EditorHooks {
   mode(mode: 'insert' | 'normal' | 'visual'): void;
 }
 
+/** Notebook undo owns plain u only when Vim has no operator, prefix or count to finish. */
+export function vimUndoKey(
+  event: Pick<KeyboardEvent, 'key' | 'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey'>,
+  state: Pick<VimModule.vimState, 'insertMode' | 'visualMode' | 'exMode' | 'expectLiteralNext'> & {
+    inputState: Pick<VimModule.InputStateInterface, 'keyBuffer' | 'prefixRepeat' | 'motionRepeat' | 'operator' | 'motion' | 'registerName'>;
+  } | null | undefined,
+): boolean {
+  if (event.key !== 'u' || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey
+    || !state || state.insertMode || state.visualMode || state.exMode || state.expectLiteralNext) return false;
+  const input = state.inputState;
+  return !input.keyBuffer.length && !input.prefixRepeat.length && !input.motionRepeat.length
+    && !input.operator && !input.motion && !input.registerName;
+}
+
 /** Vim loads on first use; most sessions never turn it on. */
 let vimModule: Promise<typeof VimModule> | undefined;
 /** A single retained CM instance moves between row hosts; composition never moves it. */
@@ -327,6 +341,10 @@ export class PaneEditor {
   mode(): 'insert' | 'normal' | 'visual' {
     const state = this.useVim ? this.vimApi?.getCM(this.view)?.state.vim : undefined;
     return !this.useVim || state?.insertMode ? 'insert' : state?.visualMode ? 'visual' : 'normal';
+  }
+
+  vimUndoKey(event: KeyboardEvent): boolean {
+    return this.useVim && vimUndoKey(event, this.vimApi?.getCM(this.view)?.state.vim);
   }
 
   reportMode(): void { this.hooks.mode(this.mode()); }

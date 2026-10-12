@@ -39,8 +39,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     if (editing()) commitFieldEntry(editing()!, false);
     props.onOpen({ kind: 'table', typeId: props.pageId, viewId: null, query: { type: props.pageId, text: null, filters: [], sort: [], limit: null } }, beside);
   }
-  function openSelected(beside: boolean) {
-    const id = selected();
+  function openSelected(beside: boolean, id = selected()) {
     if (!id) return;
     const reference = textTokens(doc.block(id)?.text ?? '').find(token => token.kind === 'reference');
     const target = reference?.id ? props.notebook.lookup(reference.id)() : null;
@@ -82,7 +81,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
         action: () => edit({ kind: 'assessment', id, value: { assessed_on: props.notebook.todayDate(), aporia: false } }) }]),
     ];
   }
-  const commandDefinitions: Command[] = [
+  const commandsFor = (selected = context.selected): Command[] => [
     { id: 'rename', title: 'Rename page', section: 'Page', disabledReason: () => doc.root()?.kind === 'page' ? undefined : 'Journal dates cannot be renamed.', run: rename },
     { id: 'open-table', title: 'Open as table', section: 'Page', keys: ['⌘⇧T'], disabledReason: () => doc.root()?.kind === 'page' ? undefined : 'Journal days cannot be opened as tables.', run: () => openTable(false) },
     { id: 'task-root', title: 'Task', section: 'Page', disabledReason: () => doc.status() !== 'ready' || capabilities.busy(props.pageId) ? 'Page is unavailable.' : undefined, run: () => {
@@ -112,9 +111,9 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     { id: 'last-row', title: 'Select last block', section: 'Navigation', keys: ['G'], run: () => ids().at(-1) && rowFocus(ids().at(-1)!) },
     { id: 'extend-up', title: 'Extend block selection up', section: 'Outline', keys: ['⇧↑'], run: () => adjacent(-1, true) },
     { id: 'extend-down', title: 'Extend block selection down', section: 'Outline', keys: ['⇧↓'], run: () => adjacent(1, true) },
-    { id: 'edit', title: 'Edit block', section: 'Editing', keys: ['Enter', 'i'], run: () => selected() && editAt(selected()!, caret()?.offset ?? 0, true) },
-    { id: 'split', title: 'Split block', section: 'Editing', keys: ['Enter'], run: () => editing() && context.editor && split(context.editor.view) },
-    { id: 'newline', title: 'Insert newline', section: 'Editing', keys: ['⇧Enter'], run: () => context.editor?.view.dispatch(context.editor.view.state.replaceSelection('\n')) },
+    { id: 'edit', title: 'Edit block', section: 'Editing', keys: ['Enter', 'i'], run: () => selected() && editAt(selected()!, caret()?.id === selected() ? caret()!.offset : 0, true) },
+    { id: 'split', title: 'Split block', section: 'Editing', keys: ['Enter'], disabledReason: () => editing() ? undefined : 'Edit a block first.', run: () => editing() && context.editor && split(context.editor.view) },
+    { id: 'newline', title: 'Insert newline', section: 'Editing', keys: ['⇧Enter'], disabledReason: () => editing() ? undefined : 'Edit a block first.', run: () => editing() && context.editor?.view.dispatch(context.editor.view.state.replaceSelection('\n')) },
     { id: 'insert-below', title: 'Insert block below', section: 'Editing', keys: ['o'], run: () => selected() && apply({ kind: 'insert', parentId: doc.outline.parentOf(selected()!), after: selected() }, true) },
     { id: 'insert-above', title: 'Insert block above', section: 'Editing', keys: ['O'], run: () => { const id = selected(); if (!id) return; const parentId = doc.outline.parentOf(id); const siblings = doc.outline.children(parentId); apply({ kind: 'insert', parentId, after: siblings[siblings.indexOf(id) - 1] ?? null }, true); } },
     { id: 'indent', title: 'Indent blocks', section: 'Outline', keys: ['Tab', '>>'], run: () => apply({ kind: 'indent', ids: roots() }) },
@@ -123,10 +122,10 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     { id: 'move-down', title: 'Move blocks down', section: 'Outline', keys: ['⌥↓'], run: () => apply({ kind: 'move', ids: roots(), direction: 'down' }) },
     { id: 'select', title: 'Select blocks', section: 'Outline', keys: ['V', '⇧↑/↓'], run: () => selected() && rowFocus(selected()!, true) },
     { id: 'select-all', title: 'Select all visible blocks', section: 'Outline', run: () => { const first = ids()[0]; const last = ids().at(-1); if (first && last) { rowFocus(last); setRowRange({ anchor: first, head: last }); } } },
-    { id: 'fold', title: 'Fold / unfold children', section: 'View', keys: ['←/→', 'h/l'], run: () => fold() },
+    { id: 'fold', title: 'Fold / unfold children', section: 'View', keys: ['←/→', 'h/l'], run: () => fold(selected() ?? undefined) },
     { id: 'zoom', title: 'Zoom into block', section: 'Navigation', keys: ['⌘.', 'Space z'], run: () => selected() && zoomTo(selected()) },
     { id: 'zoom-out', title: 'Zoom out', section: 'Navigation', keys: ['⌘⇧.'], disabledReason: () => zoom() ? undefined : 'Already at the page root.', run: zoomOut },
-    { id: 'open-beside', title: 'Open selected target beside', section: 'Navigation', keys: ['⌃⇧O'], run: () => openSelected(true) },
+    { id: 'open-beside', title: 'Open selected target beside', section: 'Navigation', keys: ['⌃⇧O'], run: () => openSelected(true, selected()) },
     { id: 'copy-reference', title: 'Copy block reference', section: 'Editing', run: () => selected() && copy(`[[${selected()}]]`) },
     { id: 'make-task', title: 'Make task', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.task ? 'Already a task.' : undefined, run: () => selected() && capabilities.invoke(capabilities.status(selected()!, 'todo')) },
     { id: 'remove-task', title: 'Remove task', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.task ? undefined : 'Select a task.', run: () => selected() && capabilities.invoke(capabilities.status(selected()!, null)) },
@@ -181,13 +180,15 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     } },
     ...([null, 1, 2, 3] as const).map(level => ({ id: `heading-${level ?? 'normal'}`, title: level ? `Heading ${level}` : 'Normal text', section: 'Editing' as const, run: () => selected() && apply({ kind: 'heading', id: selected()!, level }) })),
   ];
-  const commands = commandDefinitions.map(command => ({ ...command, id: `outline.${props.pane}.${command.id}`, disabledReason: () => !props.active ? 'This pane is not active.' : command.disabledReason?.() ?? (command.section !== 'Page' && !['zoom-out', 'show-archived', 'undo', 'redo'].includes(command.id) && !selected() ? 'Select a block first.' : undefined) }));
+  const commandDefinitions = commandsFor();
+  const commands = commandDefinitions.map(command => ({ ...command, id: `outline.${props.pane}.${command.id}`, disabledReason: () => !props.active ? 'This pane is not active.' : command.disabledReason?.() ?? (command.section !== 'Page' && !['first-row', 'zoom-out', 'show-archived', 'undo', 'redo'].includes(command.id) && !selected() ? 'Select a block first.' : undefined) }));
   const unregister = props.commands.register(commands);
   /** Keep routine work in one short menu; transformations and capabilities stay one step away. */
   function blockMenu(id: string, anchor: HTMLElement) {
     if (!selectedSet().has(id)) rowFocus(id);
+    const rowCommands = commandsFor(() => id);
     const item = (commandId: string, options: { icon?: IconName; section?: string; danger?: boolean } = {}): MenuItem => {
-      const command = commandDefinitions.find(candidate => candidate.id === commandId)!;
+      const command = rowCommands.find(candidate => candidate.id === commandId)!;
       return { ...options, label: command.title, shortcut: command.keys?.[0], disabledReason: command.disabledReason?.(), action: command.run };
     };
     const secondary = (label: string, items: MenuItem[]) => setMenu({ anchor, label, items: [
@@ -293,9 +294,10 @@ export function createOutlineCommands(context: Pick<OutlineContext,
   }
   /** Space on a selected row (or in Vim normal mode): one more letter acts on the block. */
   function leaderMenu(id: string) {
+    const rowCommands = commandsFor(() => id);
     const leader = (key: string, label: string, run: () => void, section?: string): MenuItem => ({ key, shortcut: key, label, section, action: run });
     const commandItem = (key: string, commandId: string, section?: string): MenuItem => {
-      const command = commandDefinitions.find(command => command.id === commandId)!;
+      const command = rowCommands.find(command => command.id === commandId)!;
       return { key, shortcut: key, label: command.title, section, disabledReason: command.disabledReason?.(), action: command.run };
     };
     const block = doc.block(id);

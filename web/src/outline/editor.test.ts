@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { Compartment, EditorState } from '@codemirror/state';
-import { fieldDraftDecorations, fieldEntryExtension, pairInput, referenceDecorations } from './editor';
+import { fieldDraftDecorations, fieldEntryExtension, pairInput, referenceDecorations, vimUndoKey } from './editor';
 import type { NameMatch } from '../api/types';
 
 test('known whole-field references keep raw copy text and reject interior carets', () => {
@@ -122,6 +122,27 @@ describe('bracket pairing', () => {
   test('a closer outside an open pair is ordinary text', () => {
     expect(typed(']', '[[a]]x]', 6)).toBe('[[a]]x]|]');
   });
+});
+
+test('notebook undo leaves visual lowercase, control motions and pending Vim commands alone', () => {
+  const event = { key: 'u', metaKey: false, ctrlKey: false, altKey: false, shiftKey: false };
+  const state = {
+    insertMode: false, visualMode: false,
+    inputState: { keyBuffer: [] as string[], prefixRepeat: [] as string[], motionRepeat: [] as string[], operator: null, motion: null },
+  };
+  expect(vimUndoKey(event, state)).toBe(true);
+  expect(vimUndoKey(event, { ...state, visualMode: true })).toBe(false);
+  expect(vimUndoKey(event, { ...state, insertMode: true })).toBe(false);
+  for (const modifier of ['metaKey', 'ctrlKey', 'altKey', 'shiftKey'] as const) {
+    expect(vimUndoKey({ ...event, [modifier]: true }, state)).toBe(false);
+  }
+  for (const pending of [
+    { keyBuffer: ['g'] }, { keyBuffer: ['r'] }, { prefixRepeat: ['2'] },
+    { motionRepeat: ['2'] }, { operator: 'delete' }, { motion: 'find' }, { registerName: 'a' },
+  ]) expect(vimUndoKey(event, { ...state, inputState: { ...state.inputState, ...pending } })).toBe(false);
+  expect(vimUndoKey(event, { ...state, exMode: true })).toBe(false);
+  expect(vimUndoKey(event, { ...state, expectLiteralNext: true })).toBe(false);
+  expect(vimUndoKey(event, undefined)).toBe(false);
 });
 
 /** The draft mark's range and the hint text, if any. */

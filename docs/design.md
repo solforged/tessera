@@ -542,6 +542,8 @@ Chords are for what happens constantly. ⌘ acts on the current block:
 
 ⌃⇧ is shell navigation. ⌥↑ and ⌥↓ move blocks. No ⌥-letter chords: on macOS they type accented letters.
 
+Insert newline and Split block are available in the palette only while editing a block. In Vim, plain `u` invokes notebook undo only in normal mode with no pending command; visual `u`, modified keys and pending commands stay with Vim.
+
 ### Leader
 
 Space on a selected row, or in Vim normal mode, opens a menu of single letters. Unavailable actions stay listed with their reason.
@@ -608,6 +610,8 @@ Escape closes the topmost one and returns focus. Closing retires input handlers 
 | Phone setup | Where is your notebook? with two numbered choices: Use my Mac's notebook (Scan code or Type code, then the Mac's address and code) and Start a notebook on this phone. Pair again shows only the first, with the address filled in | Top centre, 560 px; a bottom sheet on touch; on first run |
 | Save state | Says Saving… only when a save takes longer than a second | Pane header, never a toolbar or a row |
 | Loading notices | Only after 300 ms, so fast reads show nothing until the content arrives | In place of the content they precede, in the pane or section that is loading |
+
+A block menu acts on the row whose handle opened it, even within a larger selection. Explicit multi-row actions such as move, indent and delete still act on the selected roots.
 
 Refreshes after a commit keep the current content on screen and swap in only what changed. An index opened again shows its last read at once.
 

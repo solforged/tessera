@@ -124,7 +124,7 @@ export function createOutlineKeyboard(context: Pick<OutlineContext,
     if (event.key === 'Escape' && (!props.vim || context.editor?.mode() === 'normal')) { if (editing()) rowFocus(editing()!); return true; }
     if (props.vim && context.editor?.mode() !== 'insert') {
       if (event.key === ' ' && context.editor?.mode() === 'normal' && editing() && !event.metaKey && !event.ctrlKey && !event.altKey) { leaderMenu(editing()!); return true; }
-      if (event.key === 'u') { undo(); return true; }
+      if (context.editor?.vimUndoKey(event)) { undo(); return true; }
       if (event.ctrlKey && event.key.toLowerCase() === 'r') { undo(true); return true; }
       return false;
     }
@@ -199,6 +199,10 @@ export function createOutlineKeyboard(context: Pick<OutlineContext,
     if (!handled && event.key === 'ArrowUp') { adjacent(-1, event.shiftKey); handled = true; }
     if (!handled && event.key === 'ArrowLeft') { horizontal('left'); handled = true; }
     if (!handled && event.key === 'ArrowRight') { horizontal('right'); handled = true; }
+    if (!handled && !props.vim && !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey) {
+      if (event.key === 'j' || event.key === 'k') { adjacent(event.key === 'j' ? 1 : -1, !!rowRange()); handled = true; }
+      else if (event.key === 'i' && selected()) { const id = selected()!; editAt(id, caret()?.id === id ? caret()!.offset : 0, true); handled = true; }
+    }
     if (!handled && event.key === 'Enter' && selected()) { props.vim ? zoomTo(selected()) : editAt(selected()!, caret()?.id === selected() ? caret()!.offset : 0, true); handled = true; }
     if (!handled && event.key === 'Backspace') { props.vim ? zoomOut() : apply({ kind: 'delete', ids: roots() }, false); handled = true; }
     if (!handled && event.key === ' ' && selected() && !rowRange() && !textRange() && !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey) { rowKey = ''; leaderMenu(selected()!); handled = true; }
@@ -225,7 +229,7 @@ export function createOutlineKeyboard(context: Pick<OutlineContext,
       apply({ kind: 'insert', parentId, after: key === 'o' ? id : siblings[siblings.indexOf(id) - 1] ?? null }, true);
       return true;
     }
-    if (key === 'u') { undo(); return true; }
+    if (key === 'u' && !event.ctrlKey && !event.shiftKey && !previous && !rowRange() && !textRange()) { undo(); return true; }
     if (event.ctrlKey && key.toLowerCase() === 'r') { undo(true); return true; }
     return false;
   }
