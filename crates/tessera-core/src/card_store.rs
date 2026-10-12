@@ -353,6 +353,28 @@ impl Notebook {
         Ok(cards)
     }
 
+    /// Active units from live blocks on this page, including held cards.
+    pub fn page_cards(&self, page_id: &str) -> Result<Vec<CardUnit>> {
+        validate_id(page_id)?;
+        let page = self.block(page_id)?;
+        if page.parent_id.is_some() {
+            return Err(not_found(page_id));
+        }
+        let mut cards = self
+            .conn
+            .prepare_cached(
+                "SELECT c.id, c.source_block_id, c.key, c.kind, c.active,
+                    c.definition_revision, c.front, c.back, c.revision, c.schedule, c.held
+                 FROM card_units c JOIN blocks b ON b.id = c.source_block_id
+                 WHERE b.page_id = ?1 AND b.deletion_id IS NULL AND c.active = 1
+                 ORDER BY b.ordinal, b.id, c.key, c.id",
+            )?
+            .query_map([page_id], |row| card_at(row, 0))?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        crate::card_templates::provenance(&self.conn, &mut cards)?;
+        Ok(cards)
+    }
+
     /// Read a retained card without applying queue visibility rules.
     pub fn card(&self, id: &str) -> Result<CardUnit> {
         card(&self.conn, id)

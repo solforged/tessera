@@ -36,6 +36,8 @@ pub enum NoteTarget {
 /// One block of a note and its nested children.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NoteBlock {
+    /// `Name:: value` becomes a field entry with the value as its first
+    /// child, before `children`; nested blocks use the same shorthand.
     pub text: String,
     /// Heading level 1 to 3.
     #[serde(default)]
@@ -48,9 +50,23 @@ pub struct NoteBlock {
     pub children: Vec<NoteBlock>,
 }
 
+/// Evidence to attach to an existing block. A quote selects its first exact
+/// occurrence in one passage; otherwise the whole passage or range is cited.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AgentCitation {
+    pub block_id: String,
+    #[serde(default)]
+    pub revision: Option<i64>,
+    pub passage_id: String,
+    #[serde(default)]
+    pub end_passage_id: Option<String>,
+    #[serde(default)]
+    pub quote: Option<String>,
+}
+
 /// What an agent asks to change. `revision`, when given, must be the
-/// block's current revision, so a change made since the agent read the block
-/// is not overwritten; without it the current revision is used.
+/// target's current revision (a card's own revision for `SetCardHeld`), so a
+/// change made since the agent read it is not overwritten.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum AgentEdit {
@@ -60,7 +76,8 @@ pub enum AgentEdit {
         blocks: Vec<NoteBlock>,
     },
     /// Replace a block's text, its heading level, or both. Level 0 removes
-    /// the heading. Editing a page root renames the page.
+    /// the heading. Editing a page root renames the page; ordinary blocks
+    /// accept the same field shorthand as [`NoteBlock`].
     EditBlock {
         id: String,
         #[serde(default)]
@@ -97,6 +114,15 @@ pub enum AgentEdit {
         revision: Option<i64>,
         task: Option<TaskState>,
     },
+    /// Hold a card out of review, or release it, using its own revision.
+    SetCardHeld {
+        card_id: String,
+        #[serde(default)]
+        revision: Option<i64>,
+        held: bool,
+    },
+    /// Attach library evidence to one or several existing blocks.
+    Cite { citations: Vec<AgentCitation> },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -122,6 +148,9 @@ pub struct AgentReceipt {
     /// Pages the change created: a missing target page or pages named by
     /// `[[Title]]` references.
     pub created_pages: Vec<Block>,
+    /// Field definitions created by `Name:: value` shorthand.
+    #[serde(default)]
+    pub created_fields: Vec<Block>,
     pub committed: Committed,
 }
 
@@ -159,6 +188,9 @@ struct Undo {
     inserted: Vec<String>,
     /// Pages the change created, deleted on undo while unused.
     created_pages: Vec<Revision>,
+    /// Field definitions the change created, deleted on undo while unused.
+    #[serde(default)]
+    created_fields: Vec<Revision>,
 }
 
 /// The prior state an inverse operation puts back.
@@ -188,6 +220,14 @@ enum Step {
         id: String,
         occurrence_id: String,
     },
+    CardHeld {
+        id: String,
+        held: bool,
+    },
+    Uncite {
+        id: String,
+        citation_id: String,
+    },
 }
 
 impl Step {
@@ -198,7 +238,9 @@ impl Step {
             | Step::Move { id, .. }
             | Step::Restore { id }
             | Step::Task { id, .. }
-            | Step::Uncomplete { id, .. } => id,
+            | Step::Uncomplete { id, .. }
+            | Step::CardHeld { id, .. }
+            | Step::Uncite { id, .. } => id,
         }
     }
 }
@@ -210,6 +252,9 @@ struct Plan {
     /// Pages resolved or created for this batch, by lowercase title.
     titles: HashMap<String, String>,
     created: Vec<String>,
+    /// Live and newly created field definitions, keyed by lowercase name.
+    fields: Option<HashMap<String, String>>,
+    created_fields: Vec<String>,
     inserted: Vec<String>,
     removable: Vec<String>,
     changed: Vec<String>,
@@ -300,11 +345,18 @@ impl Notebook {
                     ),
                 )
             }
+            AgentEdit::SetCardHeld {
+                card_id,
+                revision,
+                held,
+            } => self.plan_card_held(&mut plan, card_id, *revision, *held)?,
+            AgentEdit::Cite { citations } => self.plan_citations(&mut plan, citations)?,
         };
         let Plan {
             operations,
             steps,
             created,
+            created_fields,
             inserted,
             removable,
             changed,
@@ -323,6 +375,7 @@ impl Notebook {
                     removable: resulting(committed, &removable)?,
                     inserted: inserted.clone(),
                     created_pages: resulting(committed, &created)?,
+                    created_fields: resulting(committed, &created_fields)?,
                 };
                 tx.execute(
                     "INSERT INTO agent_changes(seq, summary, page_id, undo) VALUES (?1, ?2, ?3, ?4)",
@@ -347,6 +400,10 @@ impl Notebook {
             page: self.live_block(&page_id)?,
             blocks,
             created_pages: created
+                .iter()
+                .map(|id| self.block(id))
+                .collect::<Result<_>>()?,
+            created_fields: created_fields
                 .iter()
                 .map(|id| self.block(id))
                 .collect::<Result<_>>()?,
@@ -424,14 +481,24 @@ impl Notebook {
         // this change did, so undoing in reverse order works.
         let undone_later = self.undone_after(seq)?;
         for operation in &mut undo.operations {
+            let card = matches!(operation, Operation::SetCardHeld { .. });
             let (id, revision) = base_revision(operation);
-            *revision += self.revision_shift(seq, &undone_later, &id)?;
+            *revision += if card {
+                self.card_revision_shift(seq, &undone_later, &id)?
+            } else {
+                self.revision_shift(seq, &undone_later, &id)?
+            };
         }
-        for block in undo.removable.iter_mut().chain(&mut undo.created_pages) {
+        for block in undo
+            .removable
+            .iter_mut()
+            .chain(&mut undo.created_pages)
+            .chain(&mut undo.created_fields)
+        {
             block.revision += self.revision_shift(seq, &undone_later, &block.id)?;
         }
         // Blocks this undo deletes or puts back no longer hold the change's links.
-        let owned: HashSet<&str> = undo
+        let mut owned: HashSet<&str> = undo
             .inserted
             .iter()
             .map(String::as_str)
@@ -463,6 +530,27 @@ impl Notebook {
                 id: block.id.clone(),
                 base_revision: block.revision,
             });
+        }
+        for field in &undo.created_fields {
+            let Some(current) = self.live_block(&field.id)? else {
+                continue;
+            };
+            if current.revision == field.revision
+                && self
+                    .live_descendants(&field.id)?
+                    .iter()
+                    .all(|id| owned.contains(id.as_str()))
+                && self
+                    .live_referrers(&field.id)?
+                    .iter()
+                    .all(|id| owned.contains(id.as_str()))
+            {
+                operations.push(Operation::Delete {
+                    id: field.id.clone(),
+                    base_revision: field.revision,
+                });
+                owned.insert(&field.id);
+            }
         }
         let mut kept_pages = Vec::new();
         for page in &undo.created_pages {
@@ -595,7 +683,7 @@ impl Notebook {
     ) -> Result<()> {
         for block in blocks {
             let id = new_ulid().to_string();
-            let text = self.link_titles(plan, &block.text)?;
+            let (text, value) = self.note_text(plan, &block.text)?;
             plan.operations.push(Operation::Insert {
                 id: id.clone(),
                 parent_id: parent_id.to_owned(),
@@ -611,9 +699,90 @@ impl Notebook {
                 plan.revisions.insert(id.clone(), 1);
                 self.plan_task(plan, &id, None, block.task.clone(), false)?;
             }
-            self.plan_blocks(plan, &id, None, &block.children, false)?;
+            let value_id = self.plan_value(plan, &id, value, false)?;
+            self.plan_blocks(plan, &id, value_id, &block.children, false)?;
         }
         Ok(())
+    }
+
+    /// Convert editor field shorthand before resolving ordinary title links.
+    fn note_text<'a>(&self, plan: &mut Plan, text: &'a str) -> Result<(String, Option<&'a str>)> {
+        if let Some((name, value)) = field_shorthand(text) {
+            let field = self.field_target(plan, name)?;
+            Ok((format!("[[{field}]]"), (!value.is_empty()).then_some(value)))
+        } else {
+            Ok((self.link_titles(plan, text)?, None))
+        }
+    }
+
+    fn field_target(&self, plan: &mut Plan, name: &str) -> Result<String> {
+        if plan.fields.is_none() {
+            plan.fields = Some(
+                crate::fields::definitions(&self.conn)?
+                    .into_iter()
+                    .map(|field| (field.name.to_lowercase(), field.id))
+                    .collect(),
+            );
+        }
+        let key = name.to_lowercase();
+        if let Some(id) = plan.fields.as_ref().and_then(|fields| fields.get(&key)) {
+            return Ok(id.clone());
+        }
+        let page = match crate::fields::page_id(&self.conn)? {
+            Some(id) => id,
+            None => self
+                .title_target(plan, "Fields")?
+                .expect("Fields is a page title"),
+        };
+        let after = if let Some(id) = plan.created_fields.last() {
+            Some(id.clone())
+        } else if plan.created.contains(&page) {
+            None
+        } else {
+            self.last_child(&page, &page)?
+        };
+        let id = new_ulid().to_string();
+        plan.operations.push(Operation::Insert {
+            id: id.clone(),
+            parent_id: page,
+            after,
+            text: name.to_owned(),
+            heading: None,
+        });
+        plan.fields
+            .as_mut()
+            .expect("fields were loaded")
+            .insert(key, id.clone());
+        plan.created_fields.push(id.clone());
+        Ok(id)
+    }
+
+    /// A shorthand value always precedes authored children. Values added to
+    /// existing blocks are separate roots for undo, not part of their parent.
+    fn plan_value(
+        &self,
+        plan: &mut Plan,
+        parent_id: &str,
+        value: Option<&str>,
+        removable: bool,
+    ) -> Result<Option<String>> {
+        let Some(value) = value else {
+            return Ok(None);
+        };
+        let id = new_ulid().to_string();
+        let text = self.link_titles(plan, value)?;
+        plan.operations.push(Operation::Insert {
+            id: id.clone(),
+            parent_id: parent_id.to_owned(),
+            after: None,
+            text,
+            heading: None,
+        });
+        plan.inserted.push(id.clone());
+        if removable {
+            plan.removable.push(id.clone());
+        }
+        Ok(Some(id))
     }
 
     fn plan_edit(
@@ -627,11 +796,12 @@ impl Notebook {
         let block = self.block(id)?;
         touch(plan, &block, revision);
         if let Some(text) = text {
-            let text = if block.kind == BlockKind::Block {
-                self.link_titles(plan, text)?
+            let (text, value) = if block.kind == BlockKind::Block {
+                self.note_text(plan, text)?
             } else {
-                text.to_owned()
+                (text.to_owned(), None)
             };
+            self.plan_value(plan, id, value, true)?;
             if text != block.text {
                 plan.operations.push(Operation::EditText {
                     id: id.to_owned(),
@@ -675,6 +845,157 @@ impl Notebook {
             ),
         };
         Ok((block.page_id, summary))
+    }
+
+    fn plan_card_held(
+        &self,
+        plan: &mut Plan,
+        card_id: &str,
+        revision: Option<i64>,
+        held: bool,
+    ) -> Result<(String, String)> {
+        let card = self.card(card_id)?;
+        if let Some(expected) = revision
+            && expected != card.revision
+        {
+            return Err(Error::Conflict {
+                op_index: plan.operations.len(),
+                id: card_id.to_owned(),
+                expected,
+                found: Some(card.revision),
+            });
+        }
+        if !card.active {
+            return Err(validation("inactive cards cannot be held or released"));
+        }
+        if card.held == held {
+            return Err(validation(if held {
+                "nothing to change: the card is already held"
+            } else {
+                "nothing to change: the card is already released"
+            }));
+        }
+        let block = self.block(&card.source_block_id)?;
+        let page = self.block(&block.page_id)?;
+        plan.operations.push(Operation::SetCardHeld {
+            id: card_id.to_owned(),
+            base_revision: card.revision,
+            held,
+        });
+        plan.steps.push(Step::CardHeld {
+            id: card_id.to_owned(),
+            held: card.held,
+        });
+        Ok((
+            page.id,
+            format!(
+                "{} card “{}” on {}",
+                if held { "Held" } else { "Released" },
+                snippet(&card.front),
+                page.text
+            ),
+        ))
+    }
+
+    fn plan_citations(
+        &self,
+        plan: &mut Plan,
+        citations: &[AgentCitation],
+    ) -> Result<(String, String)> {
+        if citations.is_empty() {
+            return Err(validation("a cite change must contain a citation"));
+        }
+        let mut page = None;
+        for citation in citations {
+            let block = self.block(&citation.block_id)?;
+            if let Some(expected) = citation.revision
+                && expected != block.revision
+            {
+                return Err(Error::Conflict {
+                    op_index: plan.operations.len(),
+                    id: block.id,
+                    expected,
+                    found: Some(block.revision),
+                });
+            }
+            if page.is_none() {
+                page = Some(self.block(&block.page_id)?);
+            }
+            if !plan.revisions.contains_key(&block.id) {
+                touch(plan, &block, citation.revision);
+                plan.changed.push(block.id.clone());
+            }
+            if citation.quote.is_some() && citation.end_passage_id.is_some() {
+                return Err(validation("give quote or end_passage_id, not both"));
+            }
+            let first = self.passage(&citation.passage_id)?;
+            let snapshot: String = self.conn.query_row(
+                "SELECT snapshot_id FROM passages WHERE id = ?1",
+                [&first.id],
+                |row| row.get(0),
+            )?;
+            let (start_offset, end_id, end_offset) = if let Some(quote) = &citation.quote {
+                let offset = first.text.find(quote).ok_or_else(|| {
+                    validation(format!("quote not found in passage {}", first.id))
+                })?;
+                (
+                    first.text[..offset].encode_utf16().count(),
+                    first.id.clone(),
+                    first.text[..offset + quote.len()].encode_utf16().count(),
+                )
+            } else {
+                let last = citation
+                    .end_passage_id
+                    .as_deref()
+                    .filter(|id| *id != first.id)
+                    .map(|id| self.passage(id))
+                    .transpose()?;
+                if let Some(last) = &last {
+                    let last_snapshot: String = self.conn.query_row(
+                        "SELECT snapshot_id FROM passages WHERE id = ?1",
+                        [&last.id],
+                        |row| row.get(0),
+                    )?;
+                    if snapshot != last_snapshot {
+                        return Err(validation("citation passages must share one snapshot"));
+                    }
+                }
+                let last = last.as_ref().unwrap_or(&first);
+                (0, last.id.clone(), last.text.encode_utf16().count())
+            };
+            let citation_id = new_ulid().to_string();
+            plan.operations.push(Operation::Cite {
+                id: block.id.clone(),
+                base_revision: next_revision(&mut plan.revisions, &block.id),
+                citation_id: citation_id.clone(),
+                snapshot_id: snapshot,
+                start: crate::library::PassagePoint {
+                    passage_id: first.id,
+                    offset: u32::try_from(start_offset)
+                        .map_err(|_| validation("citation offset exceeds UTF-16 range"))?,
+                },
+                end: crate::library::PassagePoint {
+                    passage_id: end_id,
+                    offset: u32::try_from(end_offset)
+                        .map_err(|_| validation("citation offset exceeds UTF-16 range"))?,
+                },
+                color: None,
+            });
+            plan.steps.push(Step::Uncite {
+                id: block.id,
+                citation_id,
+            });
+        }
+        let page = page.expect("citations are nonempty");
+        Ok((
+            page.id,
+            format!(
+                "Cited {} passage{} on {}",
+                citations.len(),
+                if citations.len() == 1 { "" } else { "s" },
+                page.text
+            ),
+        ))
     }
 
     fn plan_move(
@@ -881,6 +1202,31 @@ impl Notebook {
         })
     }
 
+    /// Cards have their own revision stream, recorded in committed receipts
+    /// rather than in the block-only `change_revisions` table.
+    fn card_revision_shift(&self, seq: i64, undone: &HashSet<i64>, id: &str) -> Result<i64> {
+        let mut statement = self.conn.prepare_cached(
+            "SELECT c.seq, json_extract(r.value, '$.revision')
+             FROM changes c, json_each(c.committed, '$.cards') r
+             WHERE c.seq >= ?1 AND json_extract(r.value, '$.id') = ?2
+             ORDER BY c.seq",
+        )?;
+        let mut rows = statement.query(params![seq, id])?;
+        let Some(first) = rows.next()? else {
+            return Ok(0);
+        };
+        if first.get::<_, i64>(0)? != seq {
+            return Ok(0);
+        }
+        let recorded: i64 = first.get(1)?;
+        while let Some(row) = rows.next()? {
+            if !undone.contains(&row.get::<_, i64>(0)?) {
+                return Ok(0);
+            }
+        }
+        Ok(self.card(id)?.revision - recorded)
+    }
+
     fn live_block(&self, id: &str) -> Result<Option<Block>> {
         match self.block(id) {
             Ok(block) => Ok(Some(block)),
@@ -1049,6 +1395,11 @@ fn inverse(steps: &[Step], committed: &Committed) -> Result<Vec<Operation>> {
         .iter()
         .map(|revision| (revision.id.as_str(), revision.revision))
         .collect();
+    let mut cards: HashMap<&str, i64> = committed
+        .cards
+        .iter()
+        .map(|revision| (revision.id.as_str(), revision.revision))
+        .collect();
     let mut deletions = committed.deletions.iter();
     let deletion_ids: Vec<Option<&String>> = steps
         .iter()
@@ -1059,9 +1410,14 @@ fn inverse(steps: &[Step], committed: &Committed) -> Result<Vec<Operation>> {
         .collect();
     let mut operations = Vec::with_capacity(steps.len());
     for (step, deletion) in steps.iter().zip(deletion_ids).rev() {
+        let revisions = if matches!(step, Step::CardHeld { .. }) {
+            &mut cards
+        } else {
+            &mut revisions
+        };
         let revision = revisions
             .get_mut(step.id())
-            .ok_or_else(|| validation(format!("block {} did not change", step.id())))?;
+            .ok_or_else(|| validation(format!("{} did not change", step.id())))?;
         let base_revision = *revision;
         *revision += 1;
         let id = step.id().to_owned();
@@ -1109,6 +1465,16 @@ fn inverse(steps: &[Step], committed: &Committed) -> Result<Vec<Operation>> {
                 base_revision,
                 occurrence_id: occurrence_id.clone(),
             },
+            Step::CardHeld { held, .. } => Operation::SetCardHeld {
+                id,
+                base_revision,
+                held: *held,
+            },
+            Step::Uncite { citation_id, .. } => Operation::Uncite {
+                id,
+                base_revision,
+                citation_id: citation_id.clone(),
+            },
         });
     }
     Ok(operations)
@@ -1134,6 +1500,12 @@ fn base_revision(operation: &mut Operation) -> (String, &mut i64) {
             id, base_revision, ..
         }
         | Operation::ReverseTaskCompletion {
+            id, base_revision, ..
+        }
+        | Operation::SetCardHeld {
+            id, base_revision, ..
+        }
+        | Operation::Uncite {
             id, base_revision, ..
         }
         | Operation::Restore {
@@ -1176,4 +1548,51 @@ fn snippet(text: &str) -> String {
         Some((end, _)) => format!("{}…", line[..end].trim_end()),
         None => line.to_owned(),
     }
+}
+
+/// Match `matchFieldEntry` without allocating a regex for each block. The
+/// editor's non-Unicode regex counts name length in UTF-16 code units.
+fn field_shorthand(text: &str) -> Option<(&str, &str)> {
+    let (name, value) = text.split_once("::")?;
+    let length = name.encode_utf16().count();
+    if !(1..=60).contains(&length)
+        || name.contains([
+            '\\', '`', '[', ']', '#', ':', '\n', '\r', '\u{2028}', '\u{2029}',
+        ])
+    {
+        return None;
+    }
+    let name = name.trim_matches(editor_whitespace);
+    if name.is_empty() {
+        return None;
+    }
+    let parsed = crate::card_text::parse_card_text(name);
+    if !parsed.cards.is_empty() || !parsed.problems.is_empty() {
+        return None;
+    }
+    let value = match value.chars().next() {
+        Some(ch) if editor_whitespace(ch) => &value[ch.len_utf8()..],
+        _ => value,
+    };
+    if value.contains(['\n', '\r', '\u{2028}', '\u{2029}']) {
+        return None;
+    }
+    Some((name, value))
+}
+
+fn editor_whitespace(ch: char) -> bool {
+    matches!(
+        ch,
+        '\u{0009}'..='\u{000d}'
+            | ' '
+            | '\u{00a0}'
+            | '\u{1680}'
+            | '\u{2000}'..='\u{200a}'
+            | '\u{2028}'
+            | '\u{2029}'
+            | '\u{202f}'
+            | '\u{205f}'
+            | '\u{3000}'
+            | '\u{feff}'
+    )
 }

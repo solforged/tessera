@@ -50,7 +50,8 @@ mod unlogged;
 mod work_store;
 
 pub use agent::{
-    AgentChange, AgentEdit, AgentReceipt, AgentRequest, NoteBlock, NoteTarget, UndoReceipt,
+    AgentChange, AgentCitation, AgentEdit, AgentReceipt, AgentRequest, NoteBlock, NoteTarget,
+    UndoReceipt,
 };
 pub use aliases::{Completion, NameMatch};
 pub use backup::{BackupManifest, backup, backup_beside, backup_directory, restore};
