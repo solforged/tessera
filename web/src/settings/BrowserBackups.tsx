@@ -12,6 +12,24 @@ export function BrowserBackups(props: { id: string; heading: JSX.Element; when(v
   const [working, setWorking] = createSignal<'notebook' | 'upgrade' | 'replace' | null>(null);
   const [confirm, setConfirm] = createSignal<Confirmation | null>(null);
   const [lastBackup, setLastBackup] = createSignal(Number(localStorage.getItem(lastBackupKey)) || null);
+  const [keeping, setKeeping] = createSignal(false);
+  const [declined, setDeclined] = createSignal(false);
+  const [storage, { refetch: refreshStorage }] = createResource(async () => {
+    if (!navigator.storage?.estimate) return null;
+    try {
+      const [estimate, persisted] = await Promise.all([navigator.storage.estimate(), navigator.storage.persisted?.() ?? false]);
+      return { estimate, persisted };
+    } catch (reason) { props.onError(reason instanceof Error ? reason.message : String(reason)); return null; }
+  });
+  const keep = async () => {
+    if (keeping() || !navigator.storage?.persist) return;
+    setKeeping(true); setDeclined(false); props.onError('');
+    try {
+      setDeclined(!await navigator.storage.persist());
+      await refreshStorage();
+    } catch (reason) { props.onError(reason instanceof Error ? reason.message : String(reason)); }
+    finally { setKeeping(false); }
+  };
   const [copy] = createResource(async () => {
     try { return await browserNotebook.upgradeCopy(); }
     catch (reason) { props.onError(reason instanceof Error ? reason.message : String(reason)); return null; }
@@ -85,6 +103,16 @@ export function BrowserBackups(props: { id: string; heading: JSX.Element; when(v
         <Button class="bordered" disabled={busy()} onClick={() => { void download(true); }}>{working() === 'upgrade' ? 'Preparing…' : 'Download'}</Button>
         <Button class="bordered" disabled={busy()} onClick={() => { props.onError(''); setConfirm({ kind: 'upgrade' }); }}>Restore…</Button>
       </>}>{confirmation()}</Show></span>
+    </div>}</Show>
+    <Show when={storage()}>{value => <div class="settings-row">
+      <div class="settings-label"><span class="settings-name">Storage</span>
+        <p>{value().persisted ? 'This browser keeps the notebook until you clear its site data.' : 'This browser may clear the notebook when the disk runs low.'}</p>
+        <Show when={declined() && !value().persisted}><p role="status">The browser declined. Download backups to keep a copy.</p></Show>
+        <Show when={value().estimate.usage !== undefined && value().estimate.quota !== undefined}>
+          <p class="settings-mono">{size(value().estimate.usage!)} used of {size(value().estimate.quota!)}</p>
+        </Show>
+      </div>
+      <span class="settings-backup-actions"><Show when={!value().persisted}><Button class="bordered" disabled={keeping() || !navigator.storage?.persist} onClick={() => { void keep(); }}>Keep it</Button></Show></span>
     </div>}</Show>
     <div class="settings-row">
       <div class="settings-label"><span class="settings-name">Start over</span>

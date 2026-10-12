@@ -32,6 +32,7 @@ import { CaptureSheet } from '../capture/CaptureSheet';
 import { SyncCover, SyncLifecycle, SyncMark, currentHealth } from '../sync/SyncStatus';
 import { NotebookMarker, NotebookOpening, registerNotebookCommands } from '../settings/notebooks';
 import { indexKindTarget, noteIndex, noteKindIcon, tagOnly } from '../notes/kinds';
+import { DEMO } from '../demo/mode';
 
 /** How long the deletion toast stays when nothing rests on it. */
 const UNDO_TOAST_MS = 8000;
@@ -518,8 +519,8 @@ export function App() {
   ]);
   onCleanup(unregister);
   onMount(() => {
-    // The native main window stamps its window controls before the shell loads.
-    if (!document.documentElement.dataset.windowControls) return;
+    // The native window and installed browser window share the shell's command registry.
+    if (!DEMO && !document.documentElement.dataset.windowControls) return;
     const onCommand = (event: Event) => {
       const id: unknown = (event as CustomEvent).detail;
       if (typeof id !== 'string') return;

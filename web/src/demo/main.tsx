@@ -11,6 +11,8 @@ import { App } from '../shell/App';
 import { Button } from '../ui/Button';
 import { DemoFailure, DemoTransport } from './transport';
 import { setBrowserNotebook } from './notebook';
+import { installInstalledWindow } from './installed';
+import { persistOwnNotebook } from './offline';
 import '../styles.css';
 import './demo.css';
 
@@ -19,6 +21,7 @@ if (!root) throw new Error('Missing #root element.');
 const transport = new DemoTransport(new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' }));
 setTransport(transport.fetch);
 setStreamFactory(transport.stream);
+installInstalledWindow();
 window.addEventListener('pagehide', () => transport.dispose(), { once: true });
 
 function State(props: { message: string; failure?: boolean; back?: boolean }) {
@@ -101,6 +104,7 @@ function FirstRun() {
   </main></div>}>{message => <State message={message()} />}</Show>;
 }
 function DemoApp() {
+  persistOwnNotebook();
   const [confirmReset, setConfirmReset] = createSignal(false);
   return <div class="demo-shell">
     <Show when={localStorage.getItem(notebookKey) !== 'own'}>

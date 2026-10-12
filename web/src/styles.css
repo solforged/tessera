@@ -91,6 +91,13 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
 :root[data-window-controls="inset"] .app.is-immersive > .global-rail { display: grid; }
 :root[data-window-controls="inset"] .app.is-immersive > .global-rail > * { visibility: hidden; }
 :root[data-window-controls="inset"] .app.is-immersive .workspace { grid-row: 2; }
+/* Browser window controls can occupy either end of the title bar, independently of the native inset. */
+:root[data-titlebar="overlay"] .app { grid-template-rows: max(var(--rail-height), env(titlebar-area-height, 0px)) minmax(0, 1fr); }
+:root[data-titlebar="overlay"] .global-rail { min-height: env(titlebar-area-height, 0px); padding-left: env(titlebar-area-x, 0px); padding-right: max(0px, calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw))); -webkit-app-region: drag; app-region: drag; }
+:root[data-titlebar="overlay"] .global-rail :is(button, a, input, textarea, select, [role="button"], [tabindex], [contenteditable]) { -webkit-app-region: no-drag; app-region: no-drag; }
+:root[data-titlebar="overlay"] .app.is-immersive > .global-rail { display: grid; }
+:root[data-titlebar="overlay"] .app.is-immersive > .global-rail > * { visibility: hidden; }
+:root[data-titlebar="overlay"] .app.is-immersive .workspace { grid-row: 2; }
 .wordmark { display: flex; align-items: center; gap: var(--oculus-gap); min-width: 0; color: var(--text); font: var(--weight-control) var(--text-meta)/var(--line-meta) var(--font-mono); letter-spacing: var(--tracking-notebook); text-transform: uppercase; white-space: nowrap; }
 .wordmark::before { content: ''; width: var(--icon-size); height: var(--icon-size); flex: none; border-radius: var(--radius-pill); background: radial-gradient(circle, var(--accent) 0 27%, transparent 28% 50%, var(--accent) 51% 66%, transparent 67%); }
 .rail-end { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-8); min-width: 0; }

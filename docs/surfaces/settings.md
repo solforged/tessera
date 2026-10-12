@@ -59,6 +59,7 @@ The browser build keeps one notebook in the browser's private storage, so its Ba
 | Notebook file | Download saves `tessera-YYYY-MM-DD.sqlite`, one file with every page, card and book. A mono line gives the last download on this device, or Not downloaded yet. |
 | Restore a backup | Restore… picks a file, then asks `Replace this notebook with <file name>?` inline. |
 | Before the last upgrade | Only while a copy exists: schema, date and size in mono, with Download and Restore…. |
+| Storage | Only where the browser reports usage: whether the browser keeps the notebook, with Keep it when it may clear it, and usage of quota in mono. A refused request reads `The browser declined. Download backups to keep a copy.` |
 | Start over | Start over… asks `Erase this notebook? Download a backup first to keep it.` inline, then returns to the first-run choice. |
 
 Restore and Start over cover the window while they work, then reload. A file that cannot be restored says why (not a Tessera backup, from a newer version, damaged, or with its books outside it) and leaves the notebook as it was.

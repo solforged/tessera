@@ -94,6 +94,8 @@ The task compiles the engine with the wasm32 target, binds it with wasm-bindgen 
 
 The output in `web/dist-demo` is static. Serve it with every non-asset path rewritten to `demo.html`; see [`web/vercel.json`](../web/vercel.json). [`.github/workflows/demo.yml`](../.github/workflows/demo.yml) deploys it to Vercel after CI succeeds on `main`, once `VERCEL_TOKEN`, `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID` exist. [Releasing](releasing.md#browser-demo) covers a manual deploy and a rollback.
 
+The build is installable: the manifest and icons are in [`web/public-demo`](../web/public-demo), and a plugin in [`web/vite.config.ts`](../web/vite.config.ts) writes `sw.js`, a service worker that caches every built file. Pages load from the network when it answers and from that cache when it does not. [`web/src/demo/installed.ts`](../web/src/demo/installed.ts) handles the installed window: title bar, opened EPUBs, capture links and app shortcuts. [Usage](usage.md#browser-app) describes them.
+
 ```sh
 mise run demo:test
 ```

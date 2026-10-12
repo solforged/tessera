@@ -10,3 +10,7 @@
 .demo-state p { margin: 0 0 var(--space-24); color: var(--muted); font-size: var(--text-body); line-height: var(--line-body); }
 .demo-choices { display: grid; gap: var(--space-16); margin-bottom: var(--space-24); }
 .demo-choices p { margin: var(--space-8) 0 0; }
+
+/* The rail stays at the window's top edge; tour controls stay at its bottom edge. */
+:root[data-titlebar="overlay"] .demo-notice { order: 1; border-top: var(--rule-width) solid var(--line); border-bottom: 0; }
+:root[data-titlebar="overlay"] .demo-shell:has(> .demo-state)::before { content: ''; flex: none; height: max(var(--rail-height), env(titlebar-area-height, 0px)); -webkit-app-region: drag; app-region: drag; }

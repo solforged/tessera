@@ -86,6 +86,28 @@ The signing key comes from the first available source:
 2. `~/.android/tessera-release.jks`, with its password in the login Keychain under service `tessera-android-release-keystore`.
 3. The 1Password item "Tessera Android release key".
 
+## Browser app
+
+<https://tessera.solforged.io> keeps a notebook in the browser's private storage on one device. Chromium browsers can install it as an app (tested in Brave and Helium): use the install button in the address bar or the browser menu. The app opens in its own window, starts without a network connection, and loads the newest version whenever it is online.
+
+- **Storage:** the app asks the browser to keep its storage. Settings › Backups shows whether it does and how much is used, and downloads the notebook as one file. That file is the only copy outside the browser.
+- **One window:** a second window or tab shows `Tessera is open in another tab`.
+- **Title bar:** the chevron in the window's title bar hides it. Tessera's top bar then holds the window buttons and moves the window.
+- **Shortcuts:** in the app window, ⌘N makes a page, ⌘T opens today and ⌘, opens Settings. A browser tab keeps those for the browser. ⌘E adds to today in both.
+
+### Import and capture
+
+- **Opening EPUBs:** Finder's **Open with** lists Tessera once the app is installed. The first open asks permission, then the book goes into the open window's Library.
+- **Capture hotkey:** a launcher such as Raycast can open Add to today with either command. The link asks once before the app may open it. Opening the app with a URL (`open -a Tessera.app <url>`) drops the query and opens no capture.
+
+```sh
+open "web+tessera:capture"
+"/Applications/Brave Browser.app/Contents/MacOS/Brave Browser" --app-id=<id> \
+  --app-launch-url-for-shortcuts-menu-item=https://tessera.solforged.io/?capture
+```
+
+The app id is `CrAppModeShortcutID` in `Contents/Info.plist` of the installed app, under `~/Applications/Brave Browser Apps.localized/` (Helium: `Chromium Apps.localized`).
+
 ## Command line
 
 Build a self-contained binary with [mise](https://mise.jdx.dev). It installs the pinned Rust, Bun and wasm tools from [`mise.toml`](../mise.toml). From the repository root, run:
