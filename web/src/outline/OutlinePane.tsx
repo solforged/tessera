@@ -347,13 +347,18 @@ function Pane(props: OutlinePaneProps) {
     if (!anchor || !indices().has(anchor.id) || disposed) return;
     const epoch = ++anchorEpoch;
     cancelAnimationFrame(anchorFrame);
-    virtualizer.scrollToIndex(indices().get(anchor.id)!, { align: 'start', behavior: 'auto' });
+    // Scroll straight to the anchor's old offset: aligning its row to the top first would paint a frame there.
+    const toAnchor = () => {
+      const item = virtualizer.measurementsCache[indices().get(anchor.id)!];
+      if (item) virtualizer.scrollToOffset(item.start - anchor.offset);
+    };
+    toAnchor();
     let stable = 0;
     let previousHeight = -1;
     const correct = () => {
       if (disposed || epoch !== anchorEpoch || !indices().has(anchor.id)) return;
       const row = hosts.get(anchor.id)?.closest<HTMLElement>('[data-block-id]');
-      if (!row) { virtualizer.scrollToIndex(indices().get(anchor.id)!, { align: 'start' }); anchorFrame = requestAnimationFrame(correct); return; }
+      if (!row) { toAnchor(); anchorFrame = requestAnimationFrame(correct); return; }
       const delta = row.getBoundingClientRect().top - scroll.getBoundingClientRect().top - anchor.offset;
       const before = scroll.scrollTop;
       if (Math.abs(delta) > .5) scroll.scrollTop += delta;
