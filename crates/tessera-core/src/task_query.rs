@@ -188,9 +188,7 @@ fn agenda_plan(state: &TaskState, date: &str) -> Result<(Vec<AgendaReason>, Opti
     let scheduled_time = scheduled
         .then_some(state.scheduled_time.as_deref())
         .flatten();
-    let deadline_time = (deadline || warning)
-        .then_some(state.deadline_time.as_deref())
-        .flatten();
+    let deadline_time = deadline.then_some(state.deadline_time.as_deref()).flatten();
     let time = match (scheduled_time, deadline_time) {
         (Some(left), Some(right)) => Some(left.min(right)),
         (left, right) => left.or(right),

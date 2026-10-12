@@ -441,6 +441,23 @@ fn agenda_uses_displayed_day_all_reasons_and_only_applicable_clock_labels() {
 }
 
 #[test]
+fn agenda_keeps_todays_scheduled_clock_when_the_deadline_is_only_a_warning() {
+    let (_dir, mut nb) = fixture();
+    let mut state = planned(Some("2026-10-03"), Some("2026-10-05"));
+    state.scheduled_time = Some("15:00".into());
+    state.deadline_time = Some("09:00".into());
+    state.warning_days = Some(3);
+    task(&mut nb, 10, state);
+    let agenda = nb.agenda("2026-10-03").unwrap();
+    assert_eq!(agenda.items.len(), 1);
+    assert_eq!(
+        agenda.items[0].reasons,
+        vec![AgendaReason::Scheduled, AgendaReason::Warning]
+    );
+    assert_eq!(agenda.items[0].time.as_deref(), Some("15:00"));
+}
+
+#[test]
 fn historical_journal_projects_latest_occurrence_without_advanced_recurrence_or_duplicates() {
     let (_dir, mut nb) = fixture();
     apply(
