@@ -943,6 +943,14 @@ impl Engine<'_, '_> {
         }
         derive_links(self.tx, &current.block.id, text)?;
         self.touch(&current.block.id, current.block.revision + 1);
+        // A descriptor child's front names this text. Only text edits query the
+        // children, so moving a row out of a large page stays free of per-row work.
+        let mut descriptors = self.tx.prepare_cached(
+            "SELECT id FROM blocks WHERE parent_id = ?1 AND instr(text, ';;') > 0",
+        )?;
+        for id in descriptors.query_map([&current.block.id], |row| row.get::<_, String>(0))? {
+            self.card_sources.insert(id?);
+        }
         self.tags_changed(&current.block.id);
         if let Some(position) = self.rewrite_positions.get(&current.block.id) {
             text.clone_into(&mut self.text_rewrites[*position].after);
