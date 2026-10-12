@@ -1304,6 +1304,8 @@ describe('real notebook operations and recovery', () => {
       await instance.flush();
       expect(instance.rejectedText()).toContain('Local authored text must remain');
       expect(instance.unsavedText()).toContain('Local authored text must remain');
+      // Recovery shows and copies the words, not the action payload with its block IDs.
+      for (const text of [instance.rejectedText(), instance.unsavedText()]) expect(text).not.toContain(first);
       expect(instance.saveState()).toBe('error');
       expect(instance.queuedChanges()).toBe(0);
       await expect(api.block(first)).rejects.toHaveProperty('status', 404);

@@ -354,7 +354,7 @@ export class Notebook implements NotebookClient, DocumentHost {
   commandMessage() {
     const state = this.commandState();
     const rejected = [...this.rejected.values()].filter((command): command is NotebookCommand => command.kind === 'notebook');
-    if (rejected.length) return rejected.map(command => `${command.rejection!.message}\n${JSON.stringify(command.rejection!.operations ?? command.operations)}`).join('\n\n');
+    if (rejected.length) return rejected.map(command => [command.rejection!.message, rejectionText(command)].filter(Boolean).join('\n')).join('\n\n');
     if (this.queue.some(command => command.kind === 'notebook') && this.persistenceFailure) return this.persistenceFailure;
     if (state === 'error') return this.persistenceFailure || this.queue.find(command => command.kind === 'notebook' && command.failed)?.failed || 'Command failed.';
     return state === 'saved' ? 'Saved' : state === 'offline' ? 'Offline · Command kept for retry' : 'Saving…';
@@ -950,7 +950,7 @@ export class Notebook implements NotebookClient, DocumentHost {
     const state = this.state(pageId);
     if (this.persistenceFailure && (pageId ? this.commands(pageId).length : this.queue.length)) return this.persistenceFailure;
     const rejected = [...this.rejected.values()].filter(command => !pageId || command.pageId === pageId);
-    if (rejected.length) return `Couldn’t apply a change · Rejected data kept. ${rejected.map(command => command.rejection?.message).join(' ')}\n${rejected.map(command => command.rejection?.text || JSON.stringify(command.rejection?.operations ?? command.rejection?.actions)).filter(Boolean).join('\n\n')}`;
+    if (rejected.length) return `Couldn’t apply a change · Rejected data kept. ${rejected.map(command => command.rejection?.message).join(' ')}\n${rejected.map(rejectionText).filter(Boolean).join('\n\n')}`;
     if (state === 'conflict') return 'Conflict · Both versions kept';
     if (state === 'error') return `Couldn’t save · Local changes kept. ${this.failure || this.queue.find(command => command.failed)?.failed || ''}`;
     if (state === 'offline') { const n = this.queuedChanges(); return n ? `Offline · ${n} changes queued locally` : 'Offline · All changes saved'; }
@@ -959,10 +959,11 @@ export class Notebook implements NotebookClient, DocumentHost {
   saveMessage() { return this.message(); }
   queuedChanges() { this.revision[0](); return this.queue.filter(command => this.persisted.has(command.id)).reduce((count, command) => count + (command.kind === 'notebook' ? command.operations.length : command.actions.length), 0); }
   unsavedText() {
-    const operations = this.queue.flatMap(command => command.kind === 'notebook' ? [command.frozen ?? JSON.stringify(command.operations)] : command.actions.some(isCapabilityAction) ? [command.frozen ?? JSON.stringify(command.actions)] : []);
+    // A notebook command shows its words; one without words, like a capability change, keeps its payload as the record.
+    const operations = this.queue.flatMap(command => command.kind === 'notebook' ? [authoredText(command.operations).join('\n') || (command.frozen ?? JSON.stringify(command.operations))] : command.actions.some(isCapabilityAction) ? [command.frozen ?? JSON.stringify(command.actions)] : []);
     return [...this.docs.values()].map(doc => doc.localText()).concat(operations, this.rejectedText()).filter(Boolean).join('\n\n');
   }
-  rejectedText() { this.revision[0](); return [...this.rejected.values()].map(command => [command.rejection?.text, JSON.stringify(command.rejection?.operations ?? command.rejection?.actions)].filter(Boolean).join('\n')).filter(Boolean).join('\n\n'); }
+  rejectedText() { this.revision[0](); return [...this.rejected.values()].map(command => rejectionText(command) || command.rejection?.message || '').filter(Boolean).join('\n\n'); }
   dismissRejected() {
     for (const id of this.rejected.keys()) void this.outbox?.remove(id).catch(() => undefined);
     this.rejected.clear();
@@ -1363,6 +1364,37 @@ export class Notebook implements NotebookClient, DocumentHost {
     }
     await this.outbox?.close();
   }
+}
+
+/** Keys whose strings someone wrote. Everything else in a change (IDs, revisions, structure) stays internal. */
+const AUTHORED_KEYS: Record<string, true> = { text: true, title: true, left: true, right: true, name: true, front: true, back: true };
+/** The request's actor, an action's earlier value and another device's kept copy are not this change's words. */
+const FOREIGN_KEYS: Record<string, true> = { actor: true, previous: true, inverse: true, copy: true };
+
+/** The distinct words written in a change, in order, for recovery after the service refuses it. */
+function authoredText(value: unknown, into: string[] = []): string[] {
+  if (Array.isArray(value)) for (const item of value) authoredText(item, into);
+  else if (value && typeof value === 'object') {
+    for (const [key, item] of Object.entries(value)) {
+      if (FOREIGN_KEYS[key]) continue;
+      if (typeof item !== 'string') authoredText(item, into);
+      else if (AUTHORED_KEYS[key] && item.trim() && !into.includes(item)) into.push(item);
+    }
+  }
+  return into;
+}
+
+/**
+ * What a refused change kept for the person: its words, plus the payload only where the change has no words to show.
+ * Task, source and work changes carry dates and states rather than prose, so their payload is the only record.
+ */
+function rejectionText(command: Command): string {
+  const rejection = command.rejection;
+  if (!rejection) return '';
+  const words = rejection.text || authoredText(rejection.operations ?? rejection.actions).join('\n');
+  const structured = (rejection.actions ?? []).filter(isCapabilityAction);
+  const record = structured.length ? JSON.stringify(structured) : words ? '' : JSON.stringify(rejection.operations ?? rejection.actions ?? []);
+  return [words, record].filter(Boolean).join('\n');
 }
 
 export function createNotebookClient(options?: NotebookOptions): Notebook { return new Notebook(options); }
