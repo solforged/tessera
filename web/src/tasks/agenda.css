@@ -194,6 +194,13 @@ div.journal-agenda-toggle { display: flex; align-items: center; gap: var(--space
 .journal-overview-day { position: relative; display: grid; place-items: center; min-width: 0; height: 24px; padding-bottom: var(--space-2); color: var(--muted); font: var(--apparatus); border: var(--rule-width) solid transparent; border-bottom: 2px solid transparent; }
 .journal-overview-day.journal-day-today { border-color: var(--accent); border-radius: 50%; }
 .journal-ledger-error { color: var(--danger); font: var(--apparatus); }
+/* Trail segments, calendar days, week numbers and ledger links are text: hover changes their ink, never paints the shared button box. */
+:is(.journal-trail-segment, .journal-ledger-day, .journal-week-number, .journal-month-overview, .today-carried .button, .today-ledger-open).button:hover:not(:disabled) { background: transparent; }
+.journal-ledger-day.button:hover:not(:disabled) { color: var(--text); }
+.journal-ledger-day.button:hover:not(:disabled):not([aria-current="date"]) .journal-day-numeral { border-color: var(--line); }
+.journal-ledger-day.button.journal-day-current:hover { color: var(--accent); }
+.journal-week-number.button:hover:not(:disabled) { color: var(--accent); }
+.journal-month-overview.button:hover:not(:disabled) { border-color: var(--control-border); }
 @media (pointer: coarse) {
   .journal-trail-segment.button { min-height: 40px; justify-content: flex-start; }
   .journal-trail-segment.button::before { content: ''; position: absolute; inset-block: 0; left: 50%; width: max(100%, 40px); transform: translateX(-50%); }
@@ -230,6 +237,15 @@ div.journal-agenda-toggle { display: flex; align-items: center; gap: var(--space
 .today-carried-move.button { color: var(--muted); }
 .today-carried-move.button:hover:not(:disabled) { color: var(--text); }
 .today-ledger-open.button { display: flex; gap: var(--space-4); margin: var(--space-4) 0 0 auto; padding-inline: var(--space-4); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.today-ledger-open.button:hover:not(:disabled) { color: var(--text); }
+/* Today's ledger has no clock column unless a task has a time: the status sits on the section edge and provenance ends on the right rule, under Move to today. */
+.today-ledger:not(:has(.agenda-time-gutter:not(:empty))) .agenda-row-timetable { grid-template-columns: var(--target-size) minmax(0, 1fr) minmax(0, 20%); }
+.today-ledger:not(:has(.agenda-time-gutter:not(:empty))) .agenda-row-timetable > .agenda-time-gutter { display: none; }
+.today-ledger:not(:has(.agenda-time-gutter:not(:empty))) .agenda-row-timetable .agenda-status { grid-column: 1; }
+.today-ledger:not(:has(.agenda-time-gutter:not(:empty))) .agenda-row-timetable .agenda-source { grid-column: 2; }
+.today-ledger:not(:has(.agenda-time-gutter:not(:empty))) .agenda-row-timetable > :is(.agenda-provenance, .agenda-row-actions) { grid-column: 3; }
+.today-ledger:not(:has(.agenda-time-gutter:not(:empty))) .agenda-row-timetable > :is(.agenda-row-meta, .agenda-error, .agenda-message) { grid-column: 2 / -1; }
+.today-ledger .agenda-provenance { padding-inline-end: var(--space-4); text-align: right; }
 .today-ledger-open > span { color: var(--accent); }
 .agenda-moved { display: flex; align-items: center; gap: var(--space-8); }
 .agenda-moved > .button { min-height: var(--target-size); padding-inline: var(--space-4); color: var(--accent); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
