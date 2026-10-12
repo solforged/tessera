@@ -260,10 +260,10 @@ impl Notebook {
                     );
                 }
             }
-            if let Some(published) = first("published") {
-                if let Some(year) = published.get(..4) {
-                    fields.push(("year", year.into()));
-                }
+            if let Some(published) = first("published")
+                && let Some(year) = published.get(..4)
+            {
+                fields.push(("year", year.into()));
             }
             for (field, bib_name, csl_name) in [
                 ("published", "date", "issued"),
