@@ -12,7 +12,8 @@ use tessera_core::Notebook;
 #[derive(Parser)]
 #[command(version)]
 struct Cli {
-    /// Notebook directory. Defaults to the platform data directory.
+    /// Notebook directory. Defaults to the notebook last opened from the app's notebook
+    /// switcher, or the platform data directory's notebook.
     #[arg(long, global = true, env = "TESSERA_NOTEBOOK")]
     notebook: Option<PathBuf>,
     #[command(subcommand)]
@@ -97,12 +98,13 @@ fn main() -> anyhow::Result<()> {
         .init();
     let cli = Cli::parse();
     let explicit_notebook = cli.notebook.is_some();
+    let registry = tessera_service::notebooks::Registry::platform();
     let notebook = match cli.notebook {
         Some(path) => path,
-        None => dirs::data_dir()
+        None => registry
+            .as_ref()
             .context("no platform data directory; pass --notebook")?
-            .join("tessera")
-            .join("notebook"),
+            .startup(),
     };
     match cli.command {
         Command::Info => {
@@ -133,15 +135,19 @@ fn main() -> anyhow::Result<()> {
             assets,
             dev_origin,
         } => {
-            tokio::runtime::Runtime::new()?.block_on(tessera_service::serve(
-                tessera_service::Config {
-                    notebook,
-                    port,
-                    sync_port,
-                    assets,
-                    dev_origin,
-                },
-            ))?;
+            let runtime = tokio::runtime::Runtime::new()?;
+            let restart = runtime.block_on(tessera_service::serve(tessera_service::Config {
+                notebook,
+                port,
+                sync_port,
+                assets: assets.clone(),
+                dev_origin: dev_origin.clone(),
+                registry,
+                follows_registry: !explicit_notebook,
+            }))?;
+            if let Some(restart) = restart {
+                return reopen(restart, explicit_notebook, assets, dev_origin);
+            }
         }
         Command::Install {
             port,
@@ -168,6 +174,48 @@ fn main() -> anyhow::Result<()> {
         Command::Sync { command } => sync::run(&notebook, command)?,
     }
     Ok(())
+}
+
+/// Start this executable again on the switched-to notebook, at the ports the old one had.
+/// A service following the registry starts without `--notebook`, because the registry now
+/// names the new notebook; on Unix the process image is replaced, keeping the PID launchd watches.
+fn reopen(
+    restart: tessera_service::Restart,
+    explicit_notebook: bool,
+    assets: Option<PathBuf>,
+    dev_origin: Option<String>,
+) -> anyhow::Result<()> {
+    let mut command = std::process::Command::new(
+        std::env::current_exe().context("cannot find this executable to reopen")?,
+    );
+    command.env_remove("TESSERA_NOTEBOOK");
+    if explicit_notebook {
+        command.arg("--notebook").arg(&restart.notebook);
+    }
+    command
+        .arg("serve")
+        .arg("--port")
+        .arg(restart.port.to_string())
+        .arg("--sync-port")
+        .arg(restart.sync_port.to_string());
+    if let Some(assets) = assets {
+        command.arg("--assets").arg(assets);
+    }
+    if let Some(origin) = dev_origin {
+        command.arg("--dev-origin").arg(origin);
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        Err(command.exec()).context("cannot restart on the switched notebook")
+    }
+    #[cfg(not(unix))]
+    {
+        let status = command
+            .status()
+            .context("cannot restart on the switched notebook")?;
+        std::process::exit(status.code().unwrap_or(1));
+    }
 }
 
 async fn service(notebook: &std::path::Path) -> anyhow::Result<(reqwest::Client, String)> {

@@ -49,7 +49,10 @@ struct Service {
 }
 impl Service {
     fn start(notebook: &Path) -> Self {
-        let mut process = ChildGuard(command(notebook).spawn().unwrap());
+        Self::spawn(command(notebook))
+    }
+    fn spawn(mut command: Command) -> Self {
+        let mut process = ChildGuard(command.spawn().unwrap());
         let mut stderr = BufReader::new(process.0.stderr.take().unwrap());
         let mut line = String::new();
         let host = loop {
@@ -271,4 +274,132 @@ fn cli_backup_and_restore_round_trip_while_service_runs() {
         manifest["notebook_id"]
     );
     service.stop();
+}
+
+/// A service whose platform data directory, and so its notebook list, lives under `home`.
+fn isolated(home: &Path, notebook: Option<&Path>) -> Command {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_tessera"));
+    command
+        .env("HOME", home)
+        .env_remove("XDG_DATA_HOME")
+        .env_remove("TESSERA_NOTEBOOK");
+    if let Some(notebook) = notebook {
+        command.arg("--notebook").arg(notebook);
+    }
+    command
+        .args(["serve", "--port", "0", "--sync-port", "0"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped());
+    command
+}
+
+async fn open_notebook(host: &str, path: &Path, create: bool) -> reqwest::Response {
+    reqwest::Client::new()
+        .post(format!("http://{host}/api/notebooks/open"))
+        .json(&serde_json::json!({ "path": path, "create": create }))
+        .send()
+        .await
+        .unwrap()
+}
+
+/// Wait for the service at `host` to answer with the notebook at `path`.
+async fn serving(host: &str, path: &Path) -> serde_json::Value {
+    let path = std::fs::canonicalize(path).unwrap();
+    let deadline = Instant::now() + Duration::from_secs(15);
+    loop {
+        if let Ok(response) = reqwest::get(format!("http://{host}/api/notebook")).await
+            && let Ok(info) = response.json::<serde_json::Value>().await
+            && info["path"].as_str() == path.to_str()
+        {
+            return info;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "service never reopened on {}",
+            path.display()
+        );
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+}
+
+#[tokio::test]
+async fn switching_reopens_the_same_process_and_port_and_refuses_old_windows() {
+    let root = tempfile::tempdir().unwrap();
+    let first = root.path().join("first");
+    let second = root.path().join("second");
+    let mut service = Service::spawn(isolated(root.path(), Some(&first)));
+    let pid = service.process.0.id();
+    let before = serving(&service.host, &first).await;
+    let response = open_notebook(&service.host, &second, false).await;
+    assert_eq!(
+        response.status(),
+        reqwest::StatusCode::NOT_FOUND,
+        "opening must not create a notebook unless asked"
+    );
+    assert!(!second.exists());
+    let response = open_notebook(&service.host, &second, true).await;
+    assert_eq!(response.status(), reqwest::StatusCode::ACCEPTED);
+    let after = serving(&service.host, &second).await;
+    assert_ne!(after["id"], before["id"]);
+    assert!(
+        service.process.0.try_wait().unwrap().is_none(),
+        "the service process must survive the switch"
+    );
+    assert_eq!(service.process.0.id(), pid);
+    // A window that opened the first notebook must not read or write the second.
+    let stale = reqwest::Client::new()
+        .get(format!("http://{}/api/roots", service.host))
+        .header("X-Tessera-Notebook", before["id"].as_str().unwrap())
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(stale.status(), reqwest::StatusCode::CONFLICT);
+    let error: serde_json::Value = stale.json().await.unwrap();
+    assert_eq!(error["error"]["code"], "notebook_changed");
+    let current = reqwest::Client::new()
+        .get(format!("http://{}/api/roots", service.host))
+        .header("X-Tessera-Notebook", after["id"].as_str().unwrap())
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(current.status(), reqwest::StatusCode::OK);
+    // The notebook left behind stays on the list and opens again.
+    let list: serde_json::Value = reqwest::get(format!("http://{}/api/notebooks", service.host))
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let first_path = std::fs::canonicalize(&first).unwrap();
+    assert!(
+        list["notebooks"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|entry| entry["path"].as_str() == first_path.to_str()
+                && entry["current"] == false)
+    );
+    let response = open_notebook(&service.host, &first, false).await;
+    assert_eq!(response.status(), reqwest::StatusCode::ACCEPTED);
+    assert_eq!(serving(&service.host, &first).await["id"], before["id"]);
+    service.stop();
+}
+
+#[tokio::test]
+async fn a_switch_without_notebook_argument_becomes_the_startup_notebook() {
+    let root = tempfile::tempdir().unwrap();
+    let other = root.path().join("other");
+    let mut service = Service::spawn(isolated(root.path(), None));
+    let response = open_notebook(&service.host, &other, true).await;
+    assert_eq!(response.status(), reqwest::StatusCode::ACCEPTED);
+    let opened = serving(&service.host, &other).await;
+    service.stop();
+    let mut restarted = Service::spawn(isolated(root.path(), None));
+    assert_eq!(serving(&restarted.host, &other).await["id"], opened["id"]);
+    restarted.stop();
+    // An explicit notebook still wins over the remembered one.
+    let pinned = root.path().join("pinned");
+    let mut explicit = Service::spawn(isolated(root.path(), Some(&pinned)));
+    serving(&explicit.host, &pinned).await;
+    explicit.stop();
 }

@@ -50,6 +50,7 @@ import type {
   QueryResult,
   View,
   NotebookInfo,
+  KnownNotebooks,
   PageView,
   ProjectRecord,
   PositionQueryResult,
@@ -130,9 +131,30 @@ interface ErrorEnvelope {
   error?: { code?: string; message?: string; details?: unknown };
 }
 
+/**
+ * The notebook each service base was opened on. Requests name it, so a service that has since
+ * switched notebooks refuses them instead of mixing this window's edits into another notebook.
+ */
+const boundNotebooks = new Map<string, string>();
+export function bindNotebook(base: string, notebookId: string): void { boundNotebooks.set(base, notebookId); }
+let reloading = false;
+/** The service now has another notebook open: start over on it. Unsent edits stay in this notebook's outbox. */
+function notebookChanged() {
+  if (reloading || typeof location === 'undefined') return;
+  reloading = true;
+  location.reload();
+}
+
+/** `headers` plus the notebook this window opened on `base`, once known. */
+function notebookHeaders(base: string, headers: Record<string, string> = {}): Record<string, string> {
+  const notebook = boundNotebooks.get(base);
+  return notebook ? { ...headers, 'X-Tessera-Notebook': notebook } : headers;
+}
+
 async function request<T>(base: string, method: 'GET' | 'POST' | 'DELETE', path: string, body?: unknown, signal?: AbortSignal, frozen?: string): Promise<T> {
   const json = frozen ?? (body === undefined ? undefined : JSON.stringify(body));
-  return send<T>(`${base}/api${path}`, { method, signal, headers: json === undefined ? undefined : { 'Content-Type': 'application/json' }, body: json });
+  const headers = notebookHeaders(base, json === undefined ? {} : { 'Content-Type': 'application/json' });
+  return send<T>(`${base}/api${path}`, { method, signal, headers, body: json });
 }
 
 async function send<T>(url: string, init: RequestInit & { signal?: AbortSignal }, decode?: (response: Response) => Promise<T>): Promise<T> {
@@ -147,6 +169,7 @@ async function send<T>(url: string, init: RequestInit & { signal?: AbortSignal }
   const parsed: unknown = await response.json().catch(() => null);
   if (!response.ok) {
     const envelope = (parsed as ErrorEnvelope | null)?.error;
+    if (envelope?.code === 'notebook_changed') notebookChanged();
     throw new ApiError(
       envelope?.message ?? `Request failed with status ${response.status}.`,
       response.status,
@@ -170,6 +193,11 @@ export interface ApiClient {
   service(signal?: AbortSignal): Promise<ServiceInfo>;
   backups(signal?: AbortSignal): Promise<BackupInfo[]>;
   createBackup(signal?: AbortSignal): Promise<CreatedBackup>;
+  /** The Mac service only: known notebooks, and switching the service to one. */
+  notebooks(signal?: AbortSignal): Promise<KnownNotebooks>;
+  /** Resolves once the service has accepted; it then restarts on `path`, and this window reloads. */
+  openNotebook(path: string, create: boolean, signal?: AbortSignal): Promise<{ path: string }>;
+  forgetNotebook(path: string, signal?: AbortSignal): Promise<KnownNotebooks>;
   /** Hub side, the Mac only: paired devices and tailnet sharing. */
   syncDevices(signal?: AbortSignal): Promise<SyncDevices>;
   setSharing(on: boolean, signal?: AbortSignal): Promise<SyncSharing>;
@@ -267,7 +295,7 @@ export interface ApiClient {
   exportQuery(format: ExportFormat, query: LibraryQuery, signal?: AbortSignal): Promise<Blob>;
 }
 
-type NativeMethod = 'service' | 'backups' | 'createBackup' | 'queueUrl' | 'syncDevices' | 'setSharing' | 'forgetDevice' | 'startPairing' | 'pairingStatus' | 'cancelPairing';
+type NativeMethod = 'service' | 'backups' | 'createBackup' | 'notebooks' | 'openNotebook' | 'forgetNotebook' | 'queueUrl' | 'syncDevices' | 'setSharing' | 'forgetDevice' | 'startPairing' | 'pairingStatus' | 'cancelPairing';
 
 export function createApi(base = ''): ApiClient {
   const get = <T>(path: string, signal?: AbortSignal) => request<T>(base, 'GET', path, undefined, signal);
@@ -278,6 +306,9 @@ export function createApi(base = ''): ApiClient {
       service: (signal?: AbortSignal) => get<ServiceInfo>('/service', signal),
       backups: (signal?: AbortSignal) => get<BackupInfo[]>('/backups', signal),
       createBackup: (signal?: AbortSignal) => request<CreatedBackup>(base, 'POST', '/backups', undefined, signal),
+      notebooks: (signal?: AbortSignal) => get<KnownNotebooks>('/notebooks', signal),
+      openNotebook: (path: string, create: boolean, signal?: AbortSignal) => request<{ path: string }>(base, 'POST', '/notebooks/open', { path, create }, signal),
+      forgetNotebook: (path: string, signal?: AbortSignal) => request<KnownNotebooks>(base, 'POST', '/notebooks/forget', { path }, signal),
       queueUrl: (url: string, targetSource?: string, signal?: AbortSignal) => request<IngestJob>(base, 'POST', '/library/jobs', { url, target_source: targetSource ?? null }, signal),
       syncDevices: (signal?: AbortSignal) => get<SyncDevices>('/sync/devices', signal),
       setSharing: (on: boolean, signal?: AbortSignal) => request<SyncSharing>(base, 'POST', '/sync/sharing', { on }, signal),
@@ -359,7 +390,7 @@ export function createApi(base = ''): ApiClient {
     submitFrozen: (json: string, signal?: AbortSignal) => request<Committed>(base, 'POST', '/batches', undefined, signal, json),
     stream: (after: number) => {
       if (streamFactory) return streamFactory(after);
-      const url = new URL(`${base}/api/changes/stream${query({ after })}`, typeof location === 'undefined' ? 'http://127.0.0.1' : location.href);
+      const url = new URL(`${base}/api/changes/stream${query({ after, notebook: boundNotebooks.get(base) })}`, typeof location === 'undefined' ? 'http://127.0.0.1' : location.href);
       url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
       return new WebSocket(url.href);
     },
@@ -367,12 +398,12 @@ export function createApi(base = ''): ApiClient {
     lookup: (query: string, signal?: AbortSignal) => request<LookupPreview>(base, 'POST', '/library/lookup', { query }, signal),
     normalizeMetadata: (metadata: ExtractedMetadata) => request<ExtractedMetadata>(base, 'POST', '/library/metadata', metadata),
     planRecord: (metadata: ExtractedMetadata, cover_url?: string | null) => request<IngestPlan>(base, 'POST', '/library/records/plan', { metadata, cover_url }),
-    uploadCover: (file: Blob) => send<string>(`${base}/api/library/covers`, { method: 'POST', body: file, headers: { 'Content-Type': file.type } }),
+    uploadCover: (file: Blob) => send<string>(`${base}/api/library/covers`, { method: 'POST', body: file, headers: notebookHeaders(base, { 'Content-Type': file.type }) }),
     libraryViews: (signal?: AbortSignal) => get<LibraryView[]>('/library/views', signal),
     ingestJobs: (limit = 50, signal?: AbortSignal) => get<IngestJob[]>(`/library/jobs${query({ limit })}`, signal),
     upload: (file: Blob, name: string, targetSource?: string, signal?: AbortSignal) => send<IngestJob>(`${base}/api/library/uploads${query({ target_source: targetSource })}`, {
       method: 'POST', signal, body: file,
-      headers: { 'Content-Type': file.type || 'application/octet-stream', 'X-Filename': encodeURIComponent(name) },
+      headers: notebookHeaders(base, { 'Content-Type': file.type || 'application/octet-stream', 'X-Filename': encodeURIComponent(name) }),
     }),
     retryJob: (id: string, signal?: AbortSignal) => request<IngestJob>(base, 'POST', `/library/jobs/${segment(id)}/retry`, undefined, signal),
     source: (id: string, signal?: AbortSignal) => get<SourceView>(`/sources/${segment(id)}`, signal),

@@ -2,12 +2,15 @@
 //! agents reach the notebook only through its operation API.
 //! `GET /api/service` reports local runtime details. `POST /api/backups` takes a
 //! portable snapshot, and `GET /api/backups` lists completed snapshots newest first.
+//! `/api/notebooks` lists known notebooks and switches the service to another one.
 
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 mod assets;
 mod capabilities;
 mod error;
 pub mod library;
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+pub mod notebooks;
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 mod pairing;
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
@@ -92,6 +95,19 @@ pub struct Config {
     pub assets: Option<PathBuf>,
     /// Extra allowed browser origin for the Vite dev server.
     pub dev_origin: Option<String>,
+    /// Known notebooks for the in-app switcher; without it the service cannot switch.
+    pub registry: Option<notebooks::Registry>,
+    /// The notebook came from the registry rather than `--notebook`, so a switch also changes
+    /// which notebook later starts open.
+    pub follows_registry: bool,
+}
+
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+/// A switch the service drained for: restart on `notebook` at the ports it had bound.
+pub struct Restart {
+    pub notebook: PathBuf,
+    pub port: u16,
+    pub sync_port: u16,
 }
 
 #[derive(Clone)]
@@ -113,6 +129,8 @@ pub(crate) struct AppState {
     sharing: Arc<tokio::sync::Mutex<()>>,
     #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     replica: Arc<replica::ReplicaRuntime>,
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+    switcher: Option<Arc<notebooks::Switcher>>,
 }
 
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
@@ -127,7 +145,7 @@ pub fn router(
     let sync_port = port
         .checked_add(1)
         .ok_or("the sync port needs an explicit value")?;
-    Ok(routers(notebook, port, sync_port, assets, dev_origin)?.0)
+    Ok(routers(notebook, port, sync_port, assets, dev_origin, None)?.0)
 }
 
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
@@ -137,6 +155,7 @@ fn routers(
     sync_port: u16,
     assets: Option<PathBuf>,
     dev_origin: Option<String>,
+    switcher: Option<Arc<notebooks::Switcher>>,
 ) -> Result<(Router, Router), String> {
     let policy = security::RequestPolicy::new(port, dev_origin)?;
     let notebook = Arc::new(Mutex::new(notebook));
@@ -154,6 +173,7 @@ fn routers(
         pairing: Arc::new(Mutex::new(pairing::Pairing::default())),
         sharing: Arc::new(tokio::sync::Mutex::new(())),
         replica: Arc::default(),
+        switcher,
     };
     replica::start(
         state.notebook.clone(),
@@ -179,6 +199,8 @@ fn routers(
         .merge(library::routes())
         .merge(sync::routes())
         .merge(pairing::editor_routes())
+        .merge(notebooks::routes())
+        .layer(middleware::from_fn_with_state(state.clone(), same_notebook))
         .layer(middleware::from_fn_with_state(policy, security::protect))
         .with_state(state);
     Ok((editor, sync))
@@ -227,6 +249,8 @@ pub fn embedded_router(notebook: Notebook) -> Result<(Router, EmbeddedHandles), 
         sharing: Arc::new(tokio::sync::Mutex::new(())),
         #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         replica,
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+        switcher: None,
     };
     let router = notebook_routes()
         .method_not_allowed_fallback(|| async { ApiError::method_not_allowed() })
@@ -317,8 +341,9 @@ fn notebook_routes() -> Router<AppState> {
 }
 
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-/// Hold exclusive notebook ownership, bind loopback, and drain on termination.
-pub async fn serve(config: Config) -> anyhow::Result<()> {
+/// Hold exclusive notebook ownership, bind loopback, and drain on termination. Returns the
+/// restart a notebook switch asked for, after draining and releasing this notebook.
+pub async fn serve(config: Config) -> anyhow::Result<Option<Restart>> {
     if let Some(origin) = &config.dev_origin {
         validate_dev_origin(origin).map_err(anyhow::Error::msg)?;
     }
@@ -346,8 +371,19 @@ pub async fn serve(config: Config) -> anyhow::Result<()> {
         .context("cannot bind the local sync port")?;
     let sync_port = sync_listener.local_addr()?.port();
     ownership.record(Some(port))?;
-    let (app, sync_app) = routers(notebook, port, sync_port, config.assets, config.dev_origin)
-        .map_err(anyhow::Error::msg)?;
+    let (switch, mut switched) = tokio::sync::watch::channel(None);
+    let switcher = config
+        .registry
+        .map(|registry| notebooks::Switcher::new(registry, config.follows_registry, switch));
+    let (app, sync_app) = routers(
+        notebook,
+        port,
+        sync_port,
+        config.assets,
+        config.dev_origin,
+        switcher,
+    )
+    .map_err(anyhow::Error::msg)?;
     tracing::info!(url = %format_args!("http://127.0.0.1:{port}"), "service listening");
     tracing::info!(url = %format_args!("http://127.0.0.1:{sync_port}"), "sync listening");
     tracing::info!(path = %path.display(), "notebook opened");
@@ -364,18 +400,73 @@ pub async fn serve(config: Config) -> anyhow::Result<()> {
             }),
         )
     };
-    let signal = async move {
-        shutdown.await;
-        let _ = stop.send(true);
+    // A service that cannot switch drops the sender; that switch never comes.
+    let switch = async move {
+        match switched.wait_for(Option::is_some).await {
+            Ok(target) => target.clone(),
+            Err(_) => std::future::pending().await,
+        }
     };
     tokio::pin!(servers);
+    let mut restart = None;
     tokio::select! {
         result = &mut servers => { result?; }
-        () = signal => { servers.await?; }
+        () = shutdown => {
+            let _ = stop.send(true);
+            servers.await?;
+        }
+        target = switch => {
+            let _ = stop.send(true);
+            // Open change streams hold their connections; the restart ends them.
+            match tokio::time::timeout(std::time::Duration::from_secs(5), &mut servers).await {
+                Ok(result) => { result?; }
+                Err(_) => tracing::warn!("connections still open after 5 s; switching anyway"),
+            }
+            restart = target.map(|notebook| Restart { notebook, port, sync_port });
+        }
     }
     drop(ownership);
     tracing::info!("service stopped");
-    Ok(())
+    Ok(restart)
+}
+
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+/// Refuse a window's request meant for another notebook, named by the `X-Tessera-Notebook`
+/// header or, for the change stream, the `notebook` query parameter. A switch or a replica
+/// reclone changes the notebook behind a port; an old window must not write into the new one.
+async fn same_notebook(
+    State(state): State<AppState>,
+    request: axum::extract::Request,
+    next: middleware::Next,
+) -> Response {
+    use axum::response::IntoResponse;
+    let expected = request
+        .headers()
+        .get("x-tessera-notebook")
+        .and_then(|value| value.to_str().ok())
+        .or_else(|| {
+            request
+                .uri()
+                .query()?
+                .split('&')
+                .find_map(|pair| pair.strip_prefix("notebook="))
+        })
+        .map(str::to_owned);
+    if let Some(expected) = expected {
+        match run(&state, |notebook| notebook.info()).await {
+            Ok(info) if info.id != expected => {
+                return ApiError::new(
+                    axum::http::StatusCode::CONFLICT,
+                    "notebook_changed",
+                    format!("The service now has {} open.", info.path.display()),
+                )
+                .into_response();
+            }
+            Ok(_) => {}
+            Err(error) => return error.into_response(),
+        }
+    }
+    next.run(request).await
 }
 
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
@@ -1314,6 +1405,7 @@ mod tests {
                 pairing: Arc::new(Mutex::new(pairing::Pairing::default())),
                 sharing: Arc::new(tokio::sync::Mutex::new(())),
                 replica: Arc::default(),
+                switcher: None,
             });
         let guard = backup.clone().try_lock_owned().unwrap();
         let response = app

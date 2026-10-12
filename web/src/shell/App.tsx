@@ -30,6 +30,7 @@ import { blankCapture, installQuickCapture } from './quick-capture';
 import type { CaptureRequest } from './quick-capture';
 import { CaptureSheet } from '../capture/CaptureSheet';
 import { SyncStatus } from '../sync/SyncStatus';
+import { NotebookOpening, registerNotebookCommands } from '../settings/notebooks';
 import { indexKindTarget, noteIndex, noteKindIcon, tagOnly } from '../notes/kinds';
 
 /** How long the deletion toast stays when nothing rests on it. */
@@ -514,6 +515,7 @@ export function App() {
     })));
     onCleanup(unregisterViews);
   });
+  registerNotebookCommands(commands, notebook, reportError);
   const rootById = createMemo(() => new Map(notebook.roots().map(root => [root.id, root])));
   const pinnedRoots = () => pinned().map(id => rootById().get(id)).filter((root): root is Block => !!root);
   const recentRoots = () => recent().filter(id => !pinned().includes(id)).map(id => rootById().get(id)).filter((root): root is Block => !!root).slice(0, 10);
@@ -691,6 +693,7 @@ export function App() {
     <Show keyed when={capture()}>{request => <CaptureSheet notebook={notebook} request={request} onDismiss={closeCapture} />}</Show>
     <ReferencePreviews notebook={notebook} onOpen={(target, beside, pane) => open(target, beside, pane ?? active())} />
     <Show when={toastShown() && deleted()}>{value => <div class="undo-toast" role="status" onPointerEnter={() => setToastHeld(true)} onPointerLeave={() => setToastHeld(false)} onFocusIn={() => setToastHeld(true)} onFocusOut={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setToastHeld(false); }}><Icon name="trash" /><span>{value().label} deleted</span><Button icon="undo" onClick={() => { void restorePage(); }}>Undo</Button><Button icon="close" label="Dismiss deletion notification" onClick={() => setToastShown(false)} /></div>}</Show>
+    <NotebookOpening />
   </div>;
 }
 

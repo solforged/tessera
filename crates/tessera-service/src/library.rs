@@ -862,6 +862,7 @@ mod tests {
             pairing: Arc::new(Mutex::new(crate::pairing::Pairing::default())),
             sharing: Arc::new(tokio::sync::Mutex::new(())),
             replica: Arc::default(),
+            switcher: None,
         }
     }
     async fn response(app: &Router, method: &str, path: &str, body: Vec<u8>) -> Response {
@@ -1222,6 +1223,7 @@ mod resurface_tests {
             pairing: Arc::new(Mutex::new(crate::pairing::Pairing::default())),
             sharing: Arc::new(tokio::sync::Mutex::new(())),
             replica: Arc::default(),
+            switcher: None,
         });
         let get = app
             .clone()
