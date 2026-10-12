@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use rusqlite::{Connection, OptionalExtension, params};
 
-use crate::fields::{definition_map, definitions, reading};
+use crate::fields::{constrained_reading, definition_map, definitions};
 use crate::reads::{fts_query, hidden_blocks};
 use crate::storage::{block_at, block_columns, not_found, validate_id, validation};
 use crate::{
@@ -310,7 +310,13 @@ impl Notebook {
                     } else {
                         Some(block_at(row, 23)?)
                     };
-                    let reading = reading(definition.kind, &field, text, target.as_ref());
+                    let reading = constrained_reading(
+                        &self.conn,
+                        definition.kind,
+                        definition,
+                        text,
+                        target.as_ref(),
+                    )?;
                     rows.last_mut()
                         .expect("candidate exists")
                         .values

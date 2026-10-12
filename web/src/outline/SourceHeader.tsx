@@ -180,7 +180,7 @@ export function SourceHeader(props: {
     <Show when={result()}><p class="library-message" role="status">{result()}</p></Show>
     <Show when={details()}>{anchor => <Popup anchor={anchor()} fitContent label="Edit details" class="library-add" onDismiss={closeDetails}>
       <h2 class="popup-title">Edit details</h2>
-      <DetailsForm metadata={metadata()} pages={props.notebook.roots} submitLabel="Save" onCancel={closeDetails} onSave={async metadata => { await saveDetails(props.doc, props.notebook, metadata); closeDetails(); }} />
+      <DetailsForm metadata={metadata()} notebook={props.notebook} submitLabel="Save" onCancel={closeDetails} onSave={async metadata => { await saveDetails(props.doc, props.notebook, metadata); closeDetails(); }} />
     </Popup>}</Show>
   </>;
 }

@@ -72,7 +72,9 @@ impl Notebook {
              ON CONFLICT (singleton) DO NOTHING",
             [new_ulid().to_string()],
         )?;
-        Ok(Self { dir, conn })
+        let mut notebook = Self { dir, conn };
+        notebook.backfill_library_creators()?;
+        Ok(notebook)
     }
 
     /// This device's ID, recorded as the origin of the changes it makes.

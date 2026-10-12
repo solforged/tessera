@@ -1668,6 +1668,41 @@ impl Engine<'_, '_> {
                     params![id, kind.as_str()])?;
                 self.bump(&current, true)
             }
+            Operation::SetFieldTargets {
+                id,
+                base_revision,
+                targets,
+            } => {
+                crate::fields::require_definition(self.tx, id)?;
+                let current = self.checked(id, *base_revision, index, false)?;
+                let instance: bool = self.tx.query_row(
+                    "SELECT EXISTS(SELECT 1 FROM fields WHERE block_id = ?1 AND kind = 'instance')",
+                    [id],
+                    |row| row.get(0),
+                )?;
+                if !instance {
+                    return Err(validation("targets require an Instance field"));
+                }
+                let mut unique = HashSet::with_capacity(targets.len());
+                for target in targets {
+                    let block = self.live(target)?;
+                    if block.block.kind != BlockKind::Page || block.block.archived {
+                        return Err(validation("target type must be a live page"));
+                    }
+                    if !unique.insert(target) {
+                        return Err(validation("duplicate field target"));
+                    }
+                }
+                self.tx
+                    .execute("DELETE FROM field_targets WHERE field_id = ?1", [id])?;
+                let mut insert = self.tx.prepare_cached(
+                    "INSERT INTO field_targets(field_id, type_id, position) VALUES (?1, ?2, ?3)",
+                )?;
+                for (position, target) in targets.iter().enumerate() {
+                    insert.execute(params![id, target, position as i64])?;
+                }
+                self.bump(&current, true)
+            }
             Operation::SetTypeFields {
                 type_id,
                 base_revision,

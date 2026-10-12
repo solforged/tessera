@@ -7,11 +7,11 @@ function row(id: string, kind: BlockKind, values: Record<string, string[]> = {})
   return { block: { block, page: { ...block, id: block.page_id, kind: 'page' } }, values: Object.fromEntries(Object.entries(values).map(([field, texts]) => [field, texts.map((text, index) => ({ id: `${field}-${index}`, text, reading: { ok: true, value: text, target: null } }))])) };
 }
 const fields: FieldDefinition[] = [
-  { id: 'title', name: 'Subtitle', kind: 'text', revision: 0, options: [] },
-  { id: 'area', name: 'Area', kind: 'choice', revision: 0, options: [] },
-  { id: 'source', name: 'Source', kind: 'text', revision: 0, options: [] },
-  { id: 'author', name: 'Author', kind: 'instance', revision: 0, options: [] },
-  { id: 'url', name: 'URL', kind: 'url', revision: 0, options: [] },
+  { id: 'title', name: 'Subtitle', kind: 'text', revision: 0, options: [], targets: [] },
+  { id: 'area', name: 'Area', kind: 'choice', revision: 0, options: [], targets: [] },
+  { id: 'source', name: 'Source', kind: 'text', revision: 0, options: [], targets: [] },
+  { id: 'author', name: 'Author', kind: 'instance', revision: 0, options: [], targets: [] },
+  { id: 'url', name: 'URL', kind: 'url', revision: 0, options: [], targets: [] },
 ];
 
 describe('table register presentation', () => {

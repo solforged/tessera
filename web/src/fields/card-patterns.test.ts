@@ -3,8 +3,8 @@ import type { FieldDefinition } from '../api/types';
 import { displayPattern, patternParts, storedPattern, usedFields } from './card-patterns';
 
 const fields: FieldDefinition[] = [
-  { id: '01K00000000000000000000001', name: 'Lemma', kind: 'text', revision: 1, options: [] },
-  { id: '01K00000000000000000000002', name: 'Gloss', kind: 'text', revision: 1, options: [] },
+  { id: '01K00000000000000000000001', name: 'Lemma', kind: 'text', revision: 1, options: [], targets: [] },
+  { id: '01K00000000000000000000002', name: 'Gloss', kind: 'text', revision: 1, options: [], targets: [] },
 ];
 
 describe('template patterns', () => {

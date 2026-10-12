@@ -469,7 +469,8 @@ impl Notebook {
             .conn
             .prepare_cached(
                 "SELECT DISTINCT m.type_id FROM memberships m JOIN blocks b ON b.id = m.block_id
-                 WHERE m.type_id IS NOT NULL AND b.deletion_id IS NULL",
+                 WHERE m.type_id IS NOT NULL AND b.deletion_id IS NULL
+                 UNION SELECT type_id FROM field_targets",
             )?
             .query_map([], |row| row.get::<_, String>(0))?
             .collect::<rusqlite::Result<_>>()?;

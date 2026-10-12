@@ -235,6 +235,11 @@ pub enum Operation {
         base_revision: i64,
         kind: FieldKind,
     },
+    SetFieldTargets {
+        id: String,
+        base_revision: i64,
+        targets: Vec<String>,
+    },
     SetTypeFields {
         type_id: String,
         base_revision: i64,
@@ -702,6 +707,8 @@ pub struct FieldDefinition {
     pub kind: FieldKind,
     pub revision: i64,
     pub options: Vec<FieldOption>,
+    #[serde(default)]
+    pub targets: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

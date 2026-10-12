@@ -43,14 +43,14 @@ export function ensureField(notebook: NotebookClient, name: string): Promise<Fie
       for (const id of fieldsDoc.outline.children(result.page_id)) {
         const block = fieldsDoc.block(id);
         if (!block || block.archived) continue;
-        if (block.text.toLowerCase() === key) return { id, name: block.text, kind: 'text' as const, revision: block.revision, options: [] };
+        if (block.text.toLowerCase() === key) return { id, name: block.text, kind: 'text' as const, revision: block.revision, options: [], targets: [] };
         if (!block.text.trim() && !blank) blank = id;
       }
       const written = blank
         ? fieldsDoc.edit({ kind: 'text', id: blank, text: name })
         : fieldsDoc.edit({ kind: 'insert', parentId: result.page_id, after: fieldsDoc.outline.children(result.page_id).at(-1) ?? null, text: name });
       if (!written.ok) throw new Error(written.reason);
-      return { id: blank ?? written.created[0]!, name, kind: 'text' as const, revision: 0, options: [] };
+      return { id: blank ?? written.created[0]!, name, kind: 'text' as const, revision: 0, options: [], targets: [] };
     } finally { fieldsDoc.release(); }
   })();
   pending.set(key, creation);

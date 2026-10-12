@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createMemo, createSignal, on, onCleanup } from 'solid-js';
+import { For, Show, createEffect, createMemo, createResource, createSignal, on, onCleanup } from 'solid-js';
 import type { FieldDetail, FieldKind, FieldOwner, FieldValueUse } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import type { OpenTarget } from '../shell/contract';
@@ -6,6 +6,7 @@ import { plainText } from '../outline/BlockText';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
+import { Popup } from '../ui/Popup';
 import { fieldKinds, fieldNameProblem, kindLabels } from './kinds';
 import './field-page.css';
 
@@ -40,6 +41,9 @@ export function FieldDetails(props: FieldDetailsProps) {
   const [editing, setEditing] = createSignal<{ id: string; text: string } | null>(null);
   const [adding, setAdding] = createSignal(false);
   const [option, setOption] = createSignal('');
+  const [targetsMenu, setTargetsMenu] = createSignal<HTMLElement | null>(null);
+  const [targetsDraft, setTargetsDraft] = createSignal<string[]>([]);
+  const [types] = createResource(() => props.notebook.changeSequence(), () => props.notebook.api.types());
   createEffect(on(() => props.notebook.changeSequence(), () => {
     const timer = setTimeout(() => setVersion(value => value + 1), 150);
     onCleanup(() => clearTimeout(timer));
@@ -59,6 +63,11 @@ export function FieldDetails(props: FieldDetailsProps) {
   const data = createMemo(() => {
     const value = result();
     return value?.field.id === props.fieldId && value.kind === (props.previewKind ?? value.field.kind) ? value : undefined;
+  });
+  const targetTypes = createMemo(() => {
+    const pages = new Map((types() ?? []).map(type => [type.page.id, type.page]));
+    for (const page of props.notebook.roots()) if (page.kind === 'page' && !page.archived && (['person', 'group'].includes(page.text.toLowerCase()) || data()?.field.targets.includes(page.id))) pages.set(page.id, page);
+    return [...pages.values()].sort((a, b) => a.text.localeCompare(b.text));
   });
   const preview = () => !!data() && data()!.kind !== data()!.field.kind;
   const ready = () => !loading() && !applying() && props.document?.status() === 'ready' && props.document.saveState() === 'saved';
@@ -98,6 +107,16 @@ export function FieldDetails(props: FieldDetailsProps) {
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setApplying(false); }
   };
+  const applyTargets = async () => {
+    const value = data(); const doc = props.document;
+    if (!value || !doc || !ready()) return;
+    const result = doc.edit({ kind: 'fieldTargets', definition: value.field, targets: targetsDraft() });
+    if (!result.ok) { setError(result.reason); return; }
+    setTargetsMenu(null); setApplying(true);
+    try { await doc.flush(); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
+    finally { setApplying(false); }
+  };
   const inlineEdit = (id: string) => <Show when={editing()?.id === id}><form class="field-inline-edit" onSubmit={event => { event.preventDefault(); editText(); }}>
     <input class="input" aria-label={id === props.fieldId ? 'Field name' : 'Option name'} value={editing()?.text ?? ''} ref={input => queueMicrotask(() => { input.focus(); input.select(); })} onInput={event => setEditing({ id, text: event.currentTarget.value })} onKeyDown={event => { if (event.key === 'Escape') setEditing(null); }} />
     <Button type="submit" disabled={!ready()}>Save</Button><Button onClick={() => setEditing(null)}>Cancel</Button>
@@ -126,6 +145,7 @@ export function FieldDetails(props: FieldDetailsProps) {
       {inlineEdit(props.fieldId)}
       <p class="field-summary">{kindLabels[value().field.kind]} · {value().owners_total} owners · {value().values_total} values</p>
       <div class="field-kind-row"><span>{preview() ? 'Change kind' : 'Kind'}</span><Show when={preview()}><span class="field-apparatus">{kindLabels[value().field.kind]} →</span></Show><Button class="bordered" aria-label={`Kind for ${value().field.name}: ${kindLabels[value().kind]}`} aria-haspopup="menu" aria-expanded={!!menu()} disabled={applying()} onClick={event => setMenu(event.currentTarget)}>{kindLabels[value().kind]} <Icon name="down" /></Button></div>
+      <Show when={value().kind === 'instance' && !preview()}><div class="field-kind-row"><span>Links to</span><Button class="bordered" disabled={!ready()} aria-haspopup="dialog" aria-expanded={!!targetsMenu()} onClick={event => { setTargetsDraft([...value().field.targets]); setTargetsMenu(event.currentTarget); }}>{value().field.targets.map(id => props.notebook.lookup(id)()?.text ?? id).join(', ') || 'Any page'} <Icon name="down" /></Button></div></Show>
       <Show when={preview()} fallback={<>
         <Show when={value().kind === 'choice' && !props.inspector}><section class="field-section"><SectionHead number="01" title="Options" count={`${value().field.options.length} options`} />
           <table class="field-ledger field-options"><thead><tr><th scope="col">Value</th><th scope="col">Uses</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead><tbody><For each={value().field.options}>{option => <tr><td><Show when={editing()?.id !== option.id} fallback={inlineEdit(option.id)}>{option.text}</Show></td><td class="field-apparatus">{optionUses().get(option.id) ?? 0}</td><td><Button disabled={!ready()} aria-label={`Rename option ${option.text}`} onClick={() => setEditing({ id: option.id, text: option.text })}>Edit…</Button></td></tr>}</For></tbody></table>
@@ -148,6 +168,12 @@ export function FieldDetails(props: FieldDetailsProps) {
         </Show>
       </Show>
       <Show when={menu()}>{anchor => <Menu anchor={anchor()} label={`Kind for ${value().field.name}`} onDismiss={() => setMenu(null)} items={fieldKinds.map(kind => ({ label: kindLabels[kind], icon: kind === value().kind ? 'check' : undefined, action: () => { setEditing(null); props.onPreview(kind === value().field.kind ? undefined : kind); } }))} />}</Show>
+      <Show when={targetsMenu()}>{anchor => <Popup anchor={anchor()} label="Links to" onDismiss={() => setTargetsMenu(null)}>
+        <h2 class="popup-title">Links to</h2><p class="field-note">No selection means Any page.</p>
+        <Show when={types.error}><p class="error" role="alert">Could not load types.</p></Show>
+        <For each={targetTypes()}>{type => <label class="menu-item"><input type="checkbox" checked={targetsDraft().includes(type.id)} onChange={event => setTargetsDraft(previous => event.currentTarget.checked ? [...previous, type.id] : previous.filter(id => id !== type.id))} />{type.text}</label>}</For>
+        <div class="popup-actions"><Button onClick={() => setTargetsMenu(null)}>Cancel</Button><Button class="bordered" disabled={!ready()} onClick={() => void applyTargets()}>Apply</Button></div>
+      </Popup>}</Show>
     </>}</Show>
   </article>;
 }

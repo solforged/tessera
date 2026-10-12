@@ -436,6 +436,9 @@ export class Document implements PageDocument {
       case 'fieldKind':
         this.changed(action.id, {}, base);
         return [{ kind: 'fieldKind', id: action.id, value: action.previous, previous: action.value }];
+      case 'fieldTargets':
+        this.changed(action.id, {}, base);
+        return [{ kind: 'fieldTargets', id: action.id, targets: action.previous, previous: action.targets }];
       case 'subjectCriteria':
         this.changed(action.id, {}, base);
         return [{ kind: 'subjectCriteria', id: action.id, fields: action.previous, previous: action.fields }];
@@ -1218,6 +1221,12 @@ export class Document implements PageDocument {
           if (definition.kind !== edit.value) actions.push({ kind: 'fieldKind', id: definition.id, value: edit.value, previous: definition.kind, baseRevision: definition.revision });
           break;
         }
+        case 'fieldTargets': {
+          const definition = edit.definition;
+          if (this.snapshot(definition.id).revision !== definition.revision || this.block(definition.id)?.pending) throw new Error('The field changed. Refresh before changing its targets.');
+          if (JSON.stringify(definition.targets) !== JSON.stringify(edit.targets)) actions.push({ kind: 'fieldTargets', id: definition.id, targets: edit.targets, previous: definition.targets, baseRevision: definition.revision });
+          break;
+        }
         case 'subjectCriteria': {
           if (this.snapshot(edit.id).revision !== edit.revision || this.block(edit.id)?.pending) throw new Error('The subject changed. Refresh before changing its criteria.');
           actions.push({ kind: 'subjectCriteria', id: edit.id, fields: [...edit.fields], previous: [...edit.previous], baseRevision: edit.revision });
@@ -1355,7 +1364,7 @@ export class Document implements PageDocument {
     const entry = from.pop();
     if (!entry) return null;
     const actions = (undo ? entry.inverse : entry.forward).flatMap<Action>(action => {
-      if (!undo && (action.kind === 'fieldKind' || action.kind === 'subjectCriteria' || action.kind === 'typePresentation')) return [{ ...action, baseRevision: undefined }];
+      if (!undo && (action.kind === 'fieldKind' || action.kind === 'fieldTargets' || action.kind === 'subjectCriteria' || action.kind === 'typePresentation')) return [{ ...action, baseRevision: undefined }];
       if (!undo && (action.kind === 'insert' || action.kind === 'split') && this.baseBlocks.has(action.block.id)) {
         const restored: Action = { kind: 'restore', id: action.block.id, snapshots: [{ block: action.block, manual_types: this.baseManualTypes.get(action.block.id) ?? [], capabilities: this.capabilities(action.block.id, true), row: { id: action.block.id, parentId: action.block.parent_id!, depth: action.block.parent_id === this.pageId ? 0 : this.outline.depth(action.block.parent_id!) + 1 } }], after: action.kind === 'split' ? action.id : action.after };
         return action.kind === 'split' ? [{ kind: 'text', id: action.id, text: action.left }, restored] : [restored];

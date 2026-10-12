@@ -140,7 +140,8 @@ impl FieldChanges {
             | Operation::Delete { id, .. }
             | Operation::Restore { id, .. }
             | Operation::SetArchived { id, .. }
-            | Operation::SetFieldKind { id, .. } => self.capture(conn, id),
+            | Operation::SetFieldKind { id, .. }
+            | Operation::SetFieldTargets { id, .. } => self.capture(conn, id),
             Operation::SetTypeFields { .. }
             | Operation::SetTypePresentation { .. }
             | Operation::SetSubjectCriteria { .. }
@@ -277,6 +278,13 @@ pub(crate) fn rebuild(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
+pub(crate) fn targets(conn: &Connection, id: &str) -> Result<Vec<String>> {
+    Ok(conn
+        .prepare_cached("SELECT type_id FROM field_targets WHERE field_id = ?1 ORDER BY position")?
+        .query_map([id], |row| row.get(0))?
+        .collect::<rusqlite::Result<_>>()?)
+}
+
 pub(crate) fn definitions(conn: &Connection) -> Result<Vec<FieldDefinition>> {
     definitions_for(conn, None)
 }
@@ -306,6 +314,7 @@ fn definitions_for(conn: &Connection, id: Option<&str>) -> Result<Vec<FieldDefin
         let id: String = row.get(0)?;
         if result.last().is_none_or(|d| d.id != id) {
             result.push(FieldDefinition {
+                targets: targets(conn, &id)?,
                 id,
                 name: name.to_owned(),
                 kind: FieldKind::from_str(&row.get::<_, String>(2)?).ok_or_else(|| {
@@ -504,7 +513,13 @@ impl Notebook {
             } else {
                 Some(block_at(row, 8)?)
             };
-            let reading = reading(kind, id, &text, target.as_ref());
+            let reading = constrained_reading(
+                &self.conn,
+                kind,
+                &detail.field.definition,
+                &text,
+                target.as_ref(),
+            )?;
             if let Reading::Value {
                 target: Some(target),
                 ..
@@ -583,6 +598,48 @@ pub(crate) fn number(text: &str) -> Option<f64> {
         return None;
     }
     text.parse::<f64>().ok().filter(|n| n.is_finite())
+}
+
+pub(crate) fn constrained_reading(
+    conn: &Connection,
+    kind: FieldKind,
+    definition: &FieldDefinition,
+    text: &str,
+    target: Option<&Block>,
+) -> Result<Reading> {
+    let reading = reading(kind, &definition.id, text, target);
+    if kind != FieldKind::Instance || definition.targets.is_empty() {
+        return Ok(reading);
+    }
+    if let Reading::Value {
+        target: Some(id), ..
+    } = &reading
+    {
+        let matches: bool = conn
+            .prepare_cached(
+                "SELECT EXISTS(SELECT 1 FROM memberships m
+             JOIN field_targets t ON t.type_id = m.type_id
+             JOIN blocks p ON p.id = m.block_id
+             JOIN blocks ty ON ty.id = t.type_id
+             WHERE m.block_id = ?1 AND t.field_id = ?2 AND p.kind = 'page'
+             AND ty.deletion_id IS NULL AND ty.archived = 0)",
+            )?
+            .query_row(params![id, definition.id], |row| row.get(0))?;
+        if !matches {
+            let names = conn
+                .prepare_cached(
+                    "SELECT b.text FROM field_targets t JOIN blocks b ON b.id = t.type_id
+                 WHERE t.field_id = ?1 ORDER BY t.position",
+                )?
+                .query_map([&definition.id], |row| row.get::<_, String>(0))?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            return Ok(Reading::Problem {
+                ok: false,
+                problem: format!("Not a {}", names.join(" or ").to_lowercase()),
+            });
+        }
+    }
+    Ok(reading)
 }
 
 pub(crate) fn reading(kind: FieldKind, field: &str, text: &str, target: Option<&Block>) -> Reading {

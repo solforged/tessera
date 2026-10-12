@@ -2,6 +2,7 @@ import type { Block, ExtractedMetadata, FieldDefinition, FieldKind } from '../ap
 import type { NotebookClient, PageDocument } from '../document/contract';
 import { addFieldOption, documentReady } from '../outline/source-fields';
 import { sourceFieldName, valueLabel } from '../outline/source';
+import { createInstance } from '../fields/instances';
 
 export const emptyMetadata = (): ExtractedMetadata => ({ title: null, subtitle: null, creators: [], published: null, publisher: null, language: null, identifiers: [], unique_id: null, url: null, site: null, description: null, cover: null });
 const labels = [ ['Subtitle', 'text'], ['Author', 'instance'], ['Editor', 'instance'], ['Translator', 'instance'], ['Published', 'date'], ['Publisher', 'text'], ['Language', 'text'], ['Identifier', 'identifier'], ['Cover', 'text'] ] as const;
@@ -87,15 +88,29 @@ export async function saveDetails(doc: PageDocument, notebook: NotebookClient, m
         const result = fieldsDoc.edit({ kind: 'addField', name: label, value: kind as FieldKind });
         if (!result.ok) throw new Error(result.reason);
         await fieldsDoc.flush();
-        field = { id: result.created[0]!, name: label, kind, revision: 1, options: [] };
+        field = (await notebook.api.fields()).fields.find(field => field.id === result.created[0])!;
+        if (kind === 'instance') {
+          const targets = await Promise.all(['Person', 'Group'].map(async title => (await notebook.pageByTitle(title, true))!));
+          const targeted = fieldsDoc.edit({ kind: 'fieldTargets', definition: field, targets });
+          if (!targeted.ok) throw new Error(targeted.reason);
+          await fieldsDoc.flush();
+          field = { ...field, targets, revision: field.revision + 1 };
+        }
       } finally { fieldsDoc.release(); }
     }
     if (field.kind === 'instance') {
       values = await Promise.all(values.map(async value => {
         // An existing page with this exact title wins, comma and all; otherwise "Family, Given" names a new page "Given Family".
         const name = value.includes(',') ? value.split(',').reverse().map(s => s.trim()).join(' ') : value;
-        const id = await notebook.pageByTitle(value, false) ?? await notebook.pageByTitle(name, true);
-        if (!id) throw new Error('Could not create the creator page.');
+        let id = await notebook.pageByTitle(value, false) ?? await notebook.pageByTitle(name, false);
+        if (!id) id = (await createInstance(notebook, name, 'Person')).id;
+        else {
+          const kinds = await notebook.api.noteKinds(id);
+          if (!kinds.some(kind => kind.key !== 'unfiled')) {
+            const page = await notebook.api.block(id);
+            await notebook.commit([{ op: 'add_type', id, base_revision: page.revision, title: 'Person' }], 'File creator');
+          }
+        }
         return `[[${id}]]`;
       }));
     } else if (field.kind === 'choice') {

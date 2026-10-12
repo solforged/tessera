@@ -4,7 +4,7 @@ use jiff::{Timestamp, tz::TimeZone};
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 
-use crate::fields::{definitions, reading};
+use crate::fields::{constrained_reading, definitions};
 use crate::reads::hidden_blocks;
 use crate::storage::{block_at, block_columns, not_found, validate_id, validation};
 use crate::{
@@ -330,7 +330,7 @@ fn members(
         } else {
             Some(block_at(row, 3)?)
         };
-        let rendered = match reading(def.kind, &field, &text, target.as_ref()) {
+        let rendered = match constrained_reading(conn, def.kind, def, &text, target.as_ref())? {
             Reading::Value {
                 value: ReadingValue::Text(value),
                 target: Some(_),
