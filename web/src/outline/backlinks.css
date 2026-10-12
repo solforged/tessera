@@ -1,0 +1,24 @@
+.backlink-group { padding-block: var(--space-8); }
+.backlink-group + .backlink-group { border-top: var(--rule-width) solid var(--line); }
+.backlink-group-heading { display: flex; align-items: baseline; gap: var(--space-8); margin: 0 0 var(--space-8); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); text-transform: uppercase; }
+.backlink-group-heading > .button { flex: 1; min-width: 0; justify-content: flex-start; padding: 0; border: 0; background: transparent; color: var(--muted); font: inherit; letter-spacing: inherit; text-align: left; text-transform: inherit; overflow-wrap: anywhere; }
+.backlink-group-heading > .button:hover { color: var(--accent); }
+.backlink-entry + .backlink-entry { margin-top: var(--space-12); }
+.backlink-source-line { display: flex; align-items: flex-start; gap: var(--space-4); }
+.backlink-source-body { flex: 1; min-width: 0; overflow-wrap: anywhere; white-space: pre-wrap; cursor: pointer; }
+.backlink-source-body:focus-visible { outline-offset: -2px; }
+.backlink-beside.button { flex: none; font-size: var(--text-meta); color: var(--faint); }
+.backlink-beside.button:hover { color: var(--accent); }
+.backlink-disclosure.button { flex: none; width: var(--target-size); min-height: var(--target-size); padding: var(--space-4); border: 0; background: transparent; color: var(--faint); }
+.backlink-disclosure > .icon { width: var(--icon-size-small); height: var(--icon-size-small); }
+.backlink-target.button { display: block; max-width: 100%; padding: 0; margin-left: var(--target-size); border: 0; background: transparent; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); text-align: left; overflow-wrap: anywhere; }
+.backlink-target.button:hover { color: var(--accent); }
+/* Like sigla on the left, counts occupy the outside rail: neither prose nor the editor changes width. */
+.block-reference-count.button { position: absolute; inset-inline-start: 100%; top: var(--space-2); min-width: var(--space-16); min-height: var(--target-size); padding: 0; border: 0; background: transparent; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); font-variant-numeric: tabular-nums; }
+.block-reference-count.button:hover { color: var(--accent); }
+.block-backlinks-popup { width: var(--measure); overflow: auto; padding: var(--space-16); }
+.block-backlinks-popup .backlink-source + .backlink-source { border-top: var(--rule-width) solid var(--line); margin-top: var(--space-12); padding-top: var(--space-12); }
+.mention-body { flex: 1; min-width: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.mention-breadcrumb.button { display: block; min-height: 0; padding: 0; border: 0; background: transparent; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); text-align: left; text-transform: uppercase; }
+.mention-breadcrumb.button:hover { color: var(--accent); }
+.mention-link.button { flex: none; align-self: flex-end; font-size: var(--text-meta); }

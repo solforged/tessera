@@ -1,5 +1,5 @@
 import { For, Match, Show, Switch, createEffect, createMemo, createSignal, on, onCleanup, onMount } from 'solid-js';
-import type { Accessor } from 'solid-js';
+import type { Accessor, Component } from 'solid-js';
 import type { VirtualItem } from '@tanstack/solid-virtual';
 import type { QuestionStatus } from '../api/types';
 import { fieldEntryId, matchFieldEntry } from '../table/query';
@@ -31,7 +31,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
   | 'fold' | 'zoomTo' | 'editAt' | 'restoreFocus' | 'pointerStart' | 'attach'
   | 'referenceMenu' | 'selectedOffsets' | 'ids' | 'indices' | 'setMessage' | 'apply'
   | 'setConflicts' | 'conflicts' | 'editedConflicts' | 'setEditedConflicts'
->, sheet: FieldSheet, drag: OutlineDrag) {
+>, sheet: FieldSheet, drag: OutlineDrag, ReferenceCount: Component<{ id: string }>) {
   const {
     doc, capabilities, setMenu, investigationItems, definitionsById, contextDate, inlineFields,
     baseDepth, positionSource, sourceDetails, virtualizer, hosts, props,
@@ -203,6 +203,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
             <Show when={!editedConflicts().has(id())} fallback={<button type="button" onClick={() => doc.resolveConflict(id(), 'mine')}>Use edited text</button>}><button type="button" onClick={() => { setEditedConflicts(previous => new Set([...previous, id()])); editAt(id(), 0, true); }}>Edit merged text</button></Show></div>
         </div></Show>
       </div>
+      <ReferenceCount id={id()} />
       <sheet.FieldSlots id={id()} />
     </div>;
   }

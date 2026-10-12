@@ -1002,8 +1002,8 @@ function Pane(props: OutlinePaneProps) {
   const { selectedOffsets, pointerStart, pointerMove, pointerEnd, clipboard, paste, beforeInput } = createOutlineInteractions(context);
   const fieldSheet = createFieldSheet(context, { offerValue, onField: field => setCreatedFields(previous => previous.some(existing => existing.id === field.id) ? previous : [...previous, field]) });
   const drag = createOutlineDrag(context);
-  const { Row, TaskSummary, QuestionSummary } = createOutlineRows(context, fieldSheet, drag);
-  const { related, relatedError, apparatus, holders, linkedPages, Related } = createOutlineRelated(context);
+  const { related, relatedError, apparatus, holders, linkedPages, Related, Backlinks, UnlinkedMentions, mentionsAvailable, ReferenceCount } = createOutlineRelated(context);
+  const { Row, TaskSummary, QuestionSummary } = createOutlineRows(context, fieldSheet, drag, ReferenceCount);
   const { CapabilityPopups } = createCapabilityPopups(context);
 
   onMount(() => {
@@ -1272,10 +1272,11 @@ function Pane(props: OutlinePaneProps) {
     <Show when={doc.status() === 'ready' && ids().length === 0 && depthFilter() === undefined}><button type="button" class="add-first-block" onClick={() => apply({ kind: 'insert', parentId: zoom() ?? props.pageId, after: null }, true)}><Icon name="plus" />Add a block</button></Show>
     <Show when={!zoom() && doc.root()?.kind === 'journal'}><div class="related-sections journal-highlights"><JournalResurface date={doc.root()!.text} notebook={props.notebook} onOpen={props.onOpen} /></div></Show>
     <Show when={doc.status() === 'ready' && !zoom() && related()?.works.length}><PersonWorks pageId={props.pageId} rows={related()!.works} onOpen={props.onOpen} /></Show>
-    <Show when={doc.status() === 'ready' && (relatedError() || (related()?.backlinks.length ?? 0) + (related()?.tagged.length ?? 0) + (related()?.held.length ?? 0) + (related()?.about.length ?? 0) > 0)}><div class="related-sections">
+    <Show when={doc.status() === 'ready' && (mentionsAvailable() || relatedError() || (related()?.total ?? 0) + (related()?.tagged.length ?? 0) + (related()?.held.length ?? 0) + (related()?.about.length ?? 0) > 0)}><div class="related-sections">
       <Show when={related()?.held.length}><Related title="Perspectives held" rows={related()?.held ?? []} /></Show>
       <Show when={related()?.about.length}><Related title="Perspectives filed elsewhere" rows={related()?.about ?? []} /></Show>
-      <Show when={relatedError() || related()?.backlinks.length}><Related title="Backlinks" rows={relatedError() ? [] : related()?.backlinks ?? []} paged /></Show>
+      <Show when={relatedError() || related()?.total}><Backlinks /></Show>
+      <Show when={mentionsAvailable()}><UnlinkedMentions /></Show>
       <Show when={relatedError() || related()?.tagged.length}><Related title="Tagged blocks" rows={relatedError() ? [] : related()?.tagged ?? []} /></Show>
     </div></Show>
     <Show keyed when={menu()}>{state => <Menu anchor={state.anchor} label={state.label} header={state.header} items={state.items} onDismiss={() => { setMenu(null); restoreFocus(); }} />}</Show>

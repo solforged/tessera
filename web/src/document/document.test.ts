@@ -17,6 +17,7 @@ import { emptyMetadata, fillMissingSourceDetails, saveDetails, saveSourceField, 
 import type { SourceCreator, SourceField } from '../library/details';
 import { sourceReadingOrder } from '../library/source-order';
 import { clipboardText, parseBlockClipboard } from './clipboard';
+import { linkMentionEdit } from './link-mention';
 
 const port = Bun.env.TESSERA_TEST_PORT ?? '4330';
 const baseUrl = `http://127.0.0.1:${port}`;
@@ -78,6 +79,24 @@ afterAll(async () => {
 });
 
 describe('real notebook operations and recovery', () => {
+  test('linking a mention uses source-page undo and redo after release', async () => {
+    const instance = await client();
+    const target = await instance.createPage(`Mention target ${++serial}`);
+    const text = 'A MENTION here, then another mention.';
+    const { id, doc, first } = await page(instance, text);
+    const edit = linkMentionEdit(first, doc.block(first)!.text, target, 'mention');
+    expect(edit).not.toBeNull();
+    success(doc.edit(edit!));
+    await doc.flush();
+    expect((await api.block(first)).text).toBe(`A [[${target}|MENTION]] here, then another mention.`);
+    doc.release();
+    const source = instance.open(id);
+    source.undo(); await source.flush();
+    expect((await api.block(first)).text).toBe(text);
+    source.redo(); await source.flush();
+    expect((await api.block(first)).text).toBe(`A [[${target}|MENTION]] here, then another mention.`);
+    source.release();
+  });
   test('card holds undo and redo after definition edits without changing source revisions', async () => {
     const instance = await client();
     const { doc, first } = await page(instance, 'Front <> Back');
