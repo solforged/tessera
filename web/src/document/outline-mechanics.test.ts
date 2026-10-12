@@ -9,7 +9,7 @@ import { createNotebookClient } from './index';
 import type { Notebook } from './index';
 import type { EditResult, PageDocument } from './contract';
 import { boundaryDeletion } from './outline-mechanics';
-import { inlineFieldValues, selectionIds, selectionRoots, visibleIds } from '../outline/visibility';
+import { inlineFieldValues, selectionIds, selectionRoots, survivingZoomPath, visibleIds } from '../outline/visibility';
 import { newTask } from '../tasks/quick-date';
 
 const port = Bun.env.TESSERA_MECHANICS_TEST_PORT ?? '43862';
@@ -617,4 +617,27 @@ test('depth stops show the gloss, the opening, then headings and positions, and 
   expect(rows('perspectives', new Set([position]))).toEqual([gloss, glossValue, intro, introChild, perspectives, position, section, subsection]);
   expect(rows('full').length).toBe(doc.outline.size());
   expect(rows('gloss', new Set(), section)).toEqual([section, subsection, doc.outline.children(subsection)[0]!]);
+});
+
+test('deleted zoom targets resolve to the closest surviving ancestor and restore page depth at the root', async () => {
+  const { doc, first, pageId } = await fixture();
+  const parent = insert(doc, first, null, 'Parent');
+  const target = insert(doc, parent, null, 'Zoom target');
+  const sibling = insert(doc, first, parent, 'Sibling');
+  const other = insert(doc, pageId, first, 'Other section');
+  success(doc.edit({ kind: 'heading', id: other, level: 2 }));
+  const path = survivingZoomPath(doc, target);
+  expect(path).toEqual([first, parent, target]);
+  success(doc.edit({ kind: 'delete', ids: [target] }));
+  const parentPath = survivingZoomPath(doc, target, path);
+  expect(parentPath).toEqual([first, parent]);
+  expect(visibleIds(doc, parentPath.at(-1)!, new Set(), false)).toEqual([parent]);
+  success(doc.edit({ kind: 'delete', ids: [parent] }));
+  const ancestorPath = survivingZoomPath(doc, parent, parentPath);
+  expect(ancestorPath).toEqual([first]);
+  expect(visibleIds(doc, ancestorPath.at(-1)!, new Set(), false)).toEqual([first, sibling]);
+  success(doc.edit({ kind: 'delete', ids: [first] }));
+  expect(survivingZoomPath(doc, first, ancestorPath)).toEqual([]);
+  const depth = { stop: 'gloss' as const, gloss: null, position: () => false, gist: () => false };
+  expect(visibleIds(doc, target, new Set(), false, undefined, depth)).toEqual([]);
 });

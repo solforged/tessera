@@ -25,7 +25,7 @@ import { BlockText, isStableReference, plainText } from './BlockText';
 import { textTokens } from '../document/text-tokens';
 import { PaneEditor } from './editor';
 import { createOutlineCapabilities } from './capabilities';
-import { inlineFieldValues, selectionIds, selectionRoots, visibleIds } from './visibility';
+import { inlineFieldValues, selectionIds, selectionRoots, survivingZoomPath, visibleIds } from './visibility';
 import type { DepthFilter } from './visibility';
 import { CitationChip, SourceHeader } from './SourceHeader';
 import { GLOSS_FIELD, glossEntry, isGistName, isGlossName } from './gloss';
@@ -57,7 +57,20 @@ function Pane(props: OutlinePaneProps) {
   const doc: PageDocument = props.notebook.open(props.pageId);
   const initial = untrack(() => props.view);
   const journalPeriod = untrack(() => props.journalPeriod);
-  const [zoom, setZoom] = createSignal(initial.zoom);
+  const [zoomTarget, setZoom] = createSignal(initial.zoom);
+  let previousZoomTarget: string | null = null;
+  let previousZoomPath: string[] = [];
+  const breadcrumbs = createMemo(() => {
+    doc.outline.version();
+    const target = zoomTarget();
+    if (doc.status() !== 'ready') return target ? [target] : [];
+    const path = survivingZoomPath(doc, target, target === previousZoomTarget ? previousZoomPath : []);
+    previousZoomTarget = target;
+    previousZoomPath = path;
+    return path;
+  });
+  const zoom = createMemo(() => breadcrumbs().at(-1) ?? null);
+  createEffect(() => { if (doc.status() === 'ready' && zoomTarget() !== zoom()) setZoom(zoom()); });
   const [folds, setFolds] = createSignal(new Set(initial.folds ?? storedFolds.get(`${props.pane}:${props.pageId}`) ?? []));
   const [foldMotion, setFoldMotion] = createSignal<{ id: string; opening: boolean; afterIds: string[]; beforeSize: number }>();
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -763,13 +776,6 @@ function Pane(props: OutlinePaneProps) {
     }
   }
 
-  const breadcrumbs = createMemo(() => {
-    doc.outline.version();
-    const path: string[] = [];
-    let id = zoom();
-    while (id && id !== props.pageId) { path.unshift(id); const parent = doc.outline.parentOf(id); if (parent === id) break; id = parent; }
-    return path;
-  });
 
   // Factories share the pane's owner. Keep signals callable and late-mounted state behind getters;
   // forwarding callbacks connect factories without reading another factory before it is initialized.
@@ -1127,7 +1133,7 @@ function Pane(props: OutlinePaneProps) {
     <Show when={doc.status() === 'ready' && (related.error || (related()?.backlinks.length ?? 0) + (related()?.tagged.length ?? 0) + (related()?.held.length ?? 0) + (related()?.about.length ?? 0) > 0)}><div class="related-sections">
       <Show when={related()?.held.length}><Related title="Perspectives held" rows={related()?.held ?? []} /></Show>
       <Show when={related()?.about.length}><Related title="Perspectives filed elsewhere" rows={related()?.about ?? []} /></Show>
-      <Show when={related.error || related()?.backlinks.length}><Related title="Backlinks" rows={related.error ? [] : related()?.backlinks ?? []} /></Show>
+      <Show when={related.error || related()?.backlinks.length}><Related title="Backlinks" rows={related.error ? [] : related()?.backlinks ?? []} paged /></Show>
       <Show when={related.error || related()?.tagged.length}><Related title="Tagged blocks" rows={related.error ? [] : related()?.tagged ?? []} /></Show>
     </div></Show>
     <Show keyed when={menu()}>{state => <Menu anchor={state.anchor} label={state.label} header={state.header} items={state.items} onDismiss={() => {

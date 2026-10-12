@@ -15,15 +15,16 @@ export function TypePill(props: {
   children?: JSX.Element;
 }) {
   const [anchor, setAnchor] = createSignal<HTMLElement | null>(null);
-  const open = async () => {
+  const open = async (kind: 'table' | 'page') => {
     const id = await props.notebook.pageByTitle(props.title, false);
-    if (id) props.onOpen?.({ kind: 'table', typeId: id, viewId: null, query: { type: id, text: null, filters: [], sort: [], limit: null } }, true);
+    if (id) props.onOpen?.(kind === 'page' ? { kind: 'page', pageId: id } : { kind: 'table', typeId: id, viewId: null, query: { type: id, text: null, filters: [], sort: [], limit: null } }, true);
   };
   return <>
     <button type="button" class="outline-tag" data-source-start={props.start} data-source-end={props.end}
       onClick={event => { event.stopPropagation(); setAnchor(event.currentTarget); }}>{props.children ?? `#${props.title}`}</button>
     <Show when={anchor()}>{element => <Menu anchor={element()} label={`#${props.title}`} onDismiss={() => setAnchor(null)} items={[
-      { label: 'Open table', action: () => void open() },
+      { label: 'Open table', action: () => void open('table') },
+      { label: 'Open type page', action: () => void open('page') },
       { label: 'Remove type', disabledReason: props.onRemove ? undefined : 'From the text. Edit the #tag there to remove it.', action: () => props.onRemove?.() },
     ]} />}</Show>
   </>;

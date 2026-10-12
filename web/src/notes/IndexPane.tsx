@@ -124,6 +124,7 @@ function KindIndexPane(props: IndexPaneProps) {
       <p class="index-eyebrow">{props.kindKey === 'unfiled' ? 'Filing queue' : props.kindKey === 'source' ? 'Index · Bibliography' : 'Index'}</p>
       <div class="index-head"><h1><Icon name={noteKindIcon(props.kind ?? props.kindKey)} />{title()}</h1>
         <Show when={index.latest}>{list => <span class="index-tally">{tally(list().notes.length, props.kindKey === 'source' ? 'source' : 'note')}</span>}</Show>
+        <Show when={groups().length}><NewKindAction kindKey={props.kindKey} kind={props.kind} notebook={props.notebook} onOpen={props.onOpen} /></Show>
       </div>
       <Show when={typeId()}>{id => <TypeModeTabs active="index" indexCount={index.latest?.notes.length ?? 0} tableCount={type()?.members ?? index.latest?.notes.length ?? 0} fieldsCount={type()?.fields.length ?? 0}
         cardsCount={type()?.card_templates ?? 0} onCards={event => props.onOpen({ kind: 'cards', typeId: id() }, event.shiftKey)}
@@ -204,12 +205,11 @@ function KindIndexPane(props: IndexPaneProps) {
   </div>;
 }
 
-/** Built-in kinds a page can start under from their empty finding aid. Sources come from the Library instead. */
+/** Built-in kinds a page can start under from their finding aid. Sources come from the Library instead. */
 const startable: Record<string, 'type' | 'question' | 'project'> = { person: 'type', group: 'type', concept: 'type', thesis: 'type', question: 'question', project: 'project' };
 
 /** An empty kind says how pages arrive in it and, for built-in kinds, starts one. */
 function EmptyKind(props: { kindKey: string; kind: NoteKind | undefined; notebook: NotebookClient; onOpen(target: OpenTarget, beside: boolean): void }) {
-  const [anchor, setAnchor] = createSignal<HTMLElement>();
   const mode = () => props.kind ? startable[props.kindKey] : undefined;
   const hint = () => {
     const name = props.kind?.name ?? '';
@@ -223,9 +223,17 @@ function EmptyKind(props: { kindKey: string; kind: NoteKind | undefined; noteboo
   return <div class="index-empty">
     <p class="index-empty-title">{props.kind ? `No ${props.kind.plural.toLocaleLowerCase()} yet.` : 'No notes of this kind yet.'}</p>
     <Show when={hint()}>{text => <p class="index-empty-hint">{text()}</p>}</Show>
+    <NewKindAction {...props} />
+  </div>;
+}
+
+function NewKindAction(props: Pick<IndexPaneProps, 'kindKey' | 'kind' | 'notebook' | 'onOpen'>) {
+  const [anchor, setAnchor] = createSignal<HTMLElement>();
+  const mode = () => props.kind ? startable[props.kindKey] : undefined;
+  return <>
     <Show when={mode()}><Button class="bordered" icon="plus" aria-haspopup="dialog" onClick={event => setAnchor(event.currentTarget)}>New {props.kind!.name.toLocaleLowerCase()}…</Button></Show>
     <Show when={anchor()}>{target => <NewKindNote kind={props.kind!} mode={mode()!} anchor={target()} notebook={props.notebook} onDismiss={() => setAnchor(undefined)} onOpen={pageId => { setAnchor(undefined); props.onOpen({ kind: 'page', pageId }, false); }} />}</Show>
-  </div>;
+  </>;
 }
 
 /** Names a page and files it under the kind in one acknowledged batch; an existing page of that title is filed instead of duplicated. */

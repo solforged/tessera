@@ -14,10 +14,10 @@ const stateLabels: Record<ReadingState, string | null> = { inbox: null, reading:
  * the person's page. Only a page with such backlinks asks the library for works. `creatorLinks` are the backlinks
  * the works account for, so they are not counted or listed again as references.
  */
-export async function loadWorks(api: ApiClient, pageId: string, backlinks: readonly Backlink[]): Promise<{ rows: LibraryRow[]; creatorLinks: Set<string> }> {
+export async function loadWorks(api: ApiClient, pageId: string, backlinks: readonly Backlink[], signal?: AbortSignal): Promise<{ rows: LibraryRow[]; creatorLinks: Set<string> }> {
   const linkOnly = (text: string) => text.trim() === `[[${pageId}]]` || text.trim().startsWith(`[[${pageId}|`);
   if (!backlinks.some(item => linkOnly(item.source.text))) return { rows: [], creatorLinks: new Set() };
-  const { rows: listed } = await api.library({ people: [pageId], sort: 'year', direction: 'asc', limit: null });
+  const { rows: listed } = await api.library({ people: [pageId], sort: 'year', direction: 'asc', limit: null }, signal);
   // Oldest first, undated works after the dated ones.
   const rows = [...listed.filter(row => row.published), ...listed.filter(row => !row.published)];
   const works = new Set(rows.map(row => row.page.id));

@@ -49,7 +49,7 @@ An empty finding aid says `No people yet.` in muted Piazzolla under a hairline, 
 - Questions and Projects use Make question or Make project in the page menu.
 - Sources arrive through the [Library](library.md).
 
-Every built-in kind except Sources then offers New person…, New question… and so on. The title form creates the page and files it as one acknowledged batch, creating the kind's type page too when it is missing, then opens the page. A title that an existing page already has files that page instead, and the form says so before you submit. The type's own title is refused.
+Every built-in kind except Sources offers New person…, New question… and so on, in the empty state or beside the populated finding aid's tally. The title form creates the page and files it as one acknowledged batch, creating the kind's type page too when it is missing, then opens the page. A title that an existing page already has files that page instead, and the form says so before you submit. The type's own title is refused.
 
 ## Unfiled
 
@@ -72,6 +72,8 @@ The title wraps within its available header width, including unbroken names and 
 A note with aliases shows them under the title: `ALSO` in faint mono, then the aliases in italic Piazzolla at the quote size, separated by faint dots. Then one mono line reads the last ten characters of the note's ID, lower-cased, with the full ID as its tooltip, then `Created 2026-10-06` in the notebook's time zone. The gloss follows as the first row.
 
 Unfiled notes show no kinds. Sources keep their own header; journal days and the Fields page have none.
+
+The Backlinks section appears and its count refreshes when incoming links change, even while collapsed. It reports the full count after removing links already represented as perspectives or works, shows the first 100 rows when expanded, and offers Load more for each further batch.
 
 ## Aliases
 

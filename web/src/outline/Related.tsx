@@ -1,28 +1,24 @@
-import { For, Show, createEffect, createMemo, createResource, createSignal, onCleanup } from 'solid-js';
+import { For, Show, createMemo, createResource, createSignal, onCleanup } from 'solid-js';
 import type { Block } from '../api/types';
 import { api } from '../api/client';
 import { loadWorks } from '../library/PersonWorks';
 import type { OutlineIndex } from '../document/outline-index';
 import { BlockBreadcrumb, BlockText } from './BlockText';
 import type { OutlineContext } from './context';
+import { createSettledChanges } from '../ui/loading';
 
 export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'doc' | 'zoom' | 'localPositions'>) {
   const { props, doc, zoom, localPositions } = context;
-  const [relatedOpen, setRelatedOpen] = createSignal(new Set<string>());
-  const [relatedVersion, setRelatedVersion] = createSignal(0);
-  let relatedTimer: number | undefined;
-  createEffect(() => {
-    props.notebook.changeSequence();
-    window.clearTimeout(relatedTimer);
-    if (!relatedOpen().size) return;
-    relatedTimer = window.setTimeout(() => setRelatedVersion(value => value + 1), 500);
-  });
-  onCleanup(() => window.clearTimeout(relatedTimer));
+  let relatedRequests: AbortController | undefined;
+  const relatedVersion = createSettledChanges(props.notebook);
+  onCleanup(() => relatedRequests?.abort());
   const [related] = createResource(() => `${props.pageId}:${relatedVersion()}`, async () => {
-    const [backlinks, tagged, held, about] = await Promise.all([api.backlinks(props.pageId), api.members(props.pageId), api.positions({ holder: props.pageId }), api.positions({ subject: props.pageId })]);
+    relatedRequests?.abort();
+    const requests = relatedRequests = new AbortController();
+    const [backlinks, tagged, held, about] = await Promise.all([api.backlinks(props.pageId, undefined, requests.signal), api.members(props.pageId, undefined, requests.signal), api.positions({ holder: props.pageId }, requests.signal), api.positions({ subject: props.pageId }, requests.signal)]);
     // A position links its holder and often its subject, so it shows once, as a perspective, not again as a backlink.
     const positions = new Set([...held.rows, ...about.rows].map(row => row.block.block.id));
-    const works = await loadWorks(api, props.pageId, backlinks);
+    const works = await loadWorks(api, props.pageId, backlinks, requests.signal);
     return {
       works: works.rows,
       backlinks: backlinks.filter(item => !positions.has(item.source.id) && !works.creatorLinks.has(item.source.id)).map(item => ({ block: item.source, page: item.page })),
@@ -48,20 +44,22 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
     for (const row of related()?.backlinks ?? []) if (row.page.id !== props.pageId && !holders().includes(row.page.id) && !seen.includes(row.page.id)) seen.push(row.page.id);
     return seen.slice(0, 12);
   });
-  function Related(propsRelated: { title: string; rows: { block: Block; page: Block }[] }) {
-    return <details class="related-section" onToggle={event => setRelatedOpen(previous => {
-      const next = new Set(previous);
-      event.currentTarget.open ? next.add(propsRelated.title) : next.delete(propsRelated.title);
-      return next;
-    })}><summary>{propsRelated.title} <span>{related.error ? 'Unavailable' : related.loading && !related() ? 'Loading…' : propsRelated.rows.length}</span></summary>
+  function Related(propsRelated: { title: string; rows: { block: Block; page: Block }[]; paged?: boolean }) {
+    const [limit, setLimit] = createSignal(100);
+    const [open, setOpen] = createSignal(false);
+    const rows = createMemo(() => propsRelated.paged ? propsRelated.rows.slice(0, limit()) : propsRelated.rows);
+    return <details class="related-section" onToggle={event => setOpen(event.currentTarget.open)}><summary>{propsRelated.title} <span>{related.error ? 'Unavailable' : related.loading && !related() ? 'Loading…' : propsRelated.rows.length}</span></summary>
+      <Show when={open()}>
       <Show when={!related.error} fallback={<p role="alert">Couldn't load related blocks.</p>}>
-      <For each={propsRelated.rows}>{result => {
+      <For each={rows()}>{result => {
         const live = props.notebook.lookup(result.block.id);
         return <div class="related-block"><div class="related-open" role="link" tabIndex={0} onKeyDown={event => { if (event.key === 'Enter') props.onOpen({ kind: 'page', pageId: result.page.id, blockId: result.block.id }, event.shiftKey); }} onClick={event => props.onOpen({ kind: 'page', pageId: result.page.id, blockId: result.block.id }, event.shiftKey)}>
           <span class="related-breadcrumb"><BlockBreadcrumb block={result.block} notebook={props.notebook} /></span>
           <BlockText text={live()?.text ?? result.block.text} blockId={result.block.id} notebook={props.notebook} onOpen={props.onOpen} />
         </div><button type="button" class="text-button" onClick={() => props.onOpen({ kind: 'page', pageId: result.page.id, blockId: result.block.id }, true)}>Open beside</button></div>;
       }}</For>
+      <Show when={propsRelated.paged && limit() < propsRelated.rows.length}><button type="button" class="text-button" onClick={() => setLimit(value => value + 100)}>Load more backlinks ({propsRelated.rows.length - limit()} remaining)</button></Show>
+      </Show>
       </Show>
     </details>;
   }

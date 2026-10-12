@@ -376,7 +376,7 @@ export function createApi(base = ''): ApiClient {
     reviewSession: (id: string, signal?: AbortSignal) => get<ReviewSession>(`/review-sessions/${segment(id)}`, signal),
     reviewStats: (deckId?: string | null, date?: string, signal?: AbortSignal) => get<ReviewStats>(`/review/stats${query({ deck: deckId ?? undefined, date })}`, signal),
     reviewSessionEvents: (id: string, signal?: AbortSignal) => get<ReviewEvent[]>(`/review-sessions/${segment(id)}/reviews`, signal),
-    backlinks: (id: string, limit = 100, signal?: AbortSignal) => get<Backlink[]>(`/blocks/${segment(id)}/backlinks${query({ limit })}`, signal),
+    backlinks: (id: string, limit = Number.MAX_SAFE_INTEGER, signal?: AbortSignal) => get<Backlink[]>(`/blocks/${segment(id)}/backlinks${query({ limit })}`, signal),
     members: (id: string, limit = 100, signal?: AbortSignal) => get<BlockInPage[]>(`/types/${segment(id)}/members${query({ limit })}`, signal),
     fields: (signal?: AbortSignal) => get<Fields>('/fields', signal),
     fieldDetail: (id: string, kind?: FieldKind, limit = 12, signal?: AbortSignal) => get<FieldDetail>(`/fields/${segment(id)}${query({ kind, limit })}`, signal),

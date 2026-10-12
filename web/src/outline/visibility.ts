@@ -21,13 +21,32 @@ export interface DepthFilter {
   gist(id: string): boolean;
 }
 
+/** Retain the closest surviving zoom ancestor after a subtree disappears. Paths omit the page root. */
+export function survivingZoomPath(doc: Pick<PageDocument, 'outline'>, target: string | null, previous: readonly string[] = []): string[] {
+  if (!target) return [];
+  const outline = doc.outline;
+  let id: string | null = outline.indexOf(target) >= 0 ? target : null;
+  for (let index = previous.length - 1; !id && index >= 0; index--) {
+    if (outline.indexOf(previous[index]!) >= 0) id = previous[index]!;
+  }
+  const path: string[] = [];
+  while (id && outline.indexOf(id) >= 0) {
+    path.unshift(id);
+    const parent = outline.parentOf(id);
+    if (parent === id) break;
+    id = parent;
+  }
+  return path;
+}
+
 /** Rebuilt for structure, folds, archive visibility, zoom, depth or inline-field eligibility. A zoomed page shows in full. */
 export function visibleIds(doc: PageDocument, zoom: string | null, folds: ReadonlySet<string>, archived: boolean, inlineFields?: ReadonlySet<string>, depth?: DepthFilter): string[] {
   const outline = doc.outline;
   const result: string[] = [];
   const start = zoom ? outline.indexOf(zoom) : 0;
-  const end = zoom && start >= 0 ? outline.subtreeEnd(start) : outline.size();
-  const stop = zoom || !depth ? 'full' : depth.stop;
+  const zoomed = !!zoom && start >= 0;
+  const end = zoomed ? outline.subtreeEnd(start) : outline.size();
+  const stop = zoomed || !depth ? 'full' : depth.stop;
   // One subscription for every archived flag; a tracked read per row would cost a subscription per row.
   if (!archived) doc.archivedVersion();
   let hiddenDepth: number | null = null;

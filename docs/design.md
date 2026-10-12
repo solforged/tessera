@@ -342,6 +342,8 @@ The dial sits in the pane header as four irises whose pupils widen with depth, t
 
 `[` and `]` step it when no block is being edited, and the palette has a command per stop. Depth belongs to the pane's history entry, so back, forward and reload restore it. A zoomed page always shows in full, and the dial hides there and on journal days. Rows that leave the list stop being edited or selected.
 
+If another pane deletes the zoom target, the pane resolves to its nearest surviving ancestor or the page root. Breadcrumbs and the depth dial follow that resolved target.
+
 ### Text and type pills
 
 Text is the block body. References render inline in the accent with a soft underline; wrapped references align left. While a block is edited a reference stays one label: clicking or tapping it puts the caret at its nearer end, so the row keeps its shape and the ID never shows.
