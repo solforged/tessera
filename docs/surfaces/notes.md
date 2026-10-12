@@ -49,7 +49,9 @@ An empty finding aid says `No people yet.` in muted Piazzolla under a hairline, 
 - Questions and Projects use Make question or Make project in the page menu.
 - Sources arrive through the [Library](library.md).
 
-Every built-in kind except Sources offers New person…, New question… and so on, in the empty state or beside the populated finding aid's tally. The form opens under a `NEW PERSON` rubric with the title in the page-title face on a hairline and an optional gist line beneath it in the gloss face; the gist becomes the page's first block, which the finding aid shows under the title. A type with template fields lists them in mono. Up to four similar pages, matched by title or alias, follow under Similar pages: one already of the kind opens, any other is filed as the kind. Enter creates and opens the page, Shift-Enter opens it beside. Creation files the page as one acknowledged batch, creating the kind's type page too when it is missing. A title that an existing page already has files that page instead, or opens it when it is already of the kind, and the form says so before you submit. The type's own title is refused.
+Every built-in kind except Sources offers New person…, New question… and so on, in the empty state or beside the populated finding aid's tally. Creation files the page as one acknowledged batch, creating the kind's type page too when it is missing, then opens the page; Shift-Enter opens it beside. A title that an existing page already has files that page instead, or opens it when it is already of the kind, and the form says so before you submit. The type's own title is refused.
+
+The form opens under a `NEW PERSON` rubric with the title in the page-title face on a hairline and an optional gist line beneath it in the gloss face. The gist becomes the page's first block, which the finding aid shows under the title. A type with template fields lists them in mono. Up to four similar pages, matched by title or alias, follow under Similar pages: one already of the kind opens, any other is filed as the kind.
 
 ## Unfiled
 
