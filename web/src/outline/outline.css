@@ -40,11 +40,11 @@
 .apparatus-sources button { min-width: 0; overflow: hidden; padding: 0; border: 0; background: none; color: var(--muted); font: inherit; text-align: left; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .apparatus-sources button:hover { color: var(--accent); }
 .outline-title-row { display: flex; align-items: flex-start; gap: var(--space-8); flex-wrap: wrap; }
-.outline-title-row h1 { flex: 1; min-width: 0; }
+.outline-title-row h1 { flex: 1; min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
 .outline-header-actions { display: flex; align-items: center; gap: var(--space-8); margin-left: auto; }
 .table-member-count { min-width: 18px; padding: 0 var(--space-4); border-radius: var(--radius-pill); background: var(--raised); color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); text-align: center; }
 .outline-heading h1 { margin: 0; font: var(--page-title-font); letter-spacing: var(--tracking-title); font-variation-settings: var(--optical-title); }
-.outline-title { font: var(--page-title-font); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); text-align: left; border: 0; padding: 0; background: transparent; color: var(--text); cursor: text; }
+.outline-title { display: block; max-width: 100%; overflow-wrap: anywhere; white-space: normal; font: var(--page-title-font); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); text-align: left; border: 0; padding: 0; background: transparent; color: var(--text); cursor: text; }
 .outline-title:disabled { color: var(--text); opacity: 1; cursor: default; }
 .title-input { width: 100%; font: var(--page-title-font); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
 .outline-breadcrumbs { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4); margin-bottom: var(--page-eyebrow-gap); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); color: var(--muted); }
@@ -91,7 +91,7 @@
 .outline-body.heading-2 { font-size: var(--text-outline-h2); line-height: var(--line-h2); }
 .outline-body.heading-3 { font-size: var(--text-h3); line-height: var(--line-h3); }
 .outline-reference { display: inline; font: inherit; color: var(--accent); border: 0; padding: 0; background: transparent; text-align: left; text-decoration: underline; text-decoration-thickness: var(--rule-width); text-underline-offset: var(--space-4); text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent); cursor: pointer; }
-button.outline-reference { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.outline-reference[role="button"] { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 .outline-reference:hover { text-decoration-color: var(--danger); }
 /* The `[[query]]` a picker is completing: accent text on a tint, so the pending link reads as one span. */
 .outline-reference-draft { color: var(--accent); background: var(--accent-tint); border-radius: var(--radius-control); }
@@ -135,10 +135,12 @@ button.outline-reference { -webkit-touch-callout: none; -webkit-user-select: non
 .field-draft-icon .icon { width: var(--icon-size-small); height: var(--icon-size-small); }
 .field-draft-name { color: var(--muted); }
 .field-draft-hint { margin-left: var(--space-8); padding: 0 var(--space-4); border-radius: var(--radius-control); background: var(--accent-tint); color: var(--accent); font-size: var(--text-meta); line-height: var(--line-meta); white-space: nowrap; }
-.outline-value-pill { display: inline-block; padding: 0 var(--space-8); margin-right: var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-pill); background: var(--raised); font-size: var(--text-meta); line-height: var(--line-meta); }
+.choice-value .static-text { font-size: var(--text-meta); line-height: var(--line-meta); min-height: calc(var(--line-meta) + 2 * var(--rule-width)); }
+.outline-value-pill { display: inline-block; max-width: calc(100% - var(--space-2)); vertical-align: top; padding: 0 var(--space-8); margin-right: var(--space-2); border: var(--rule-width) solid var(--line); border-radius: var(--radius-pill); background: var(--raised); font-size: var(--text-meta); line-height: var(--line-meta); }
 .outline-value-pill .outline-reference { color: var(--text); text-decoration: none; }
 .outline-value-pill .outline-reference:hover { text-decoration: underline; }
-.choice-value .editor-host { padding-inline: calc(var(--space-8) + 1px); font-size: var(--text-meta); }
+.choice-value .editor-host { padding: var(--rule-width) calc(var(--space-8) + var(--rule-width)); margin-right: var(--space-2); font-size: var(--text-meta); line-height: var(--line-meta); }
+.choice-value .editor-host .cm-content { min-height: var(--line-meta); }
 /* The selected block's sheet: its missing template fields and Add field follow its last entry, on the field labels' edge.
    The slots span the row's full width on the canvas, so the anchor row's hover and selection stay on its own line. */
 .outline-row:has(> .field-slots) { flex-wrap: wrap; padding-bottom: 0; }

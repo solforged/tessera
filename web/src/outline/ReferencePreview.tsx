@@ -139,11 +139,11 @@ export function ReferencePreviews(props: ReferencePreviewsProps) {
     if (!id || !link.isConnected || heldLink?.dataset.reference === id) return;
     clearTimeout(pending);
     heldLink = link;
-    // Preview loading refreshes labels, which can replace the rendered button.
+    // Preview loading refreshes labels, which can replace the rendered reference.
     const host = link.parentElement;
     const sourceStart = link.dataset.sourceStart;
     const anchor = () => {
-      const current = link.isConnected ? link : host?.querySelector<HTMLElement>(`button.outline-reference[data-reference="${id}"][data-source-start="${sourceStart}"]`);
+      const current = link.isConnected ? link : host?.querySelector<HTMLElement>(`.outline-reference[role="button"][data-reference="${id}"][data-source-start="${sourceStart}"]`);
       return current ? lineAnchor(current, y)() : null;
     };
     const depth = stack().findIndex(entry => entry.panel?.contains(link)) + 1;
@@ -155,7 +155,7 @@ export function ReferencePreviews(props: ReferencePreviewsProps) {
     heldLink = null;
     if (event.pointerType !== 'touch' || !event.isPrimary) return;
     // Leave the editor's reference widgets and ambiguous-name picker alone.
-    const link = (event.target as Element).closest?.<HTMLElement>('button.outline-reference[data-reference]');
+    const link = (event.target as Element).closest?.<HTMLElement>('.outline-reference[role="button"][data-reference]');
     if (!link) return;
     holding = { pointerId: event.pointerId, link, x: event.clientX, y: event.clientY };
     holdTimer = window.setTimeout(() => { if (holding) touchOpen(holding.link, holding.y); }, HOLD_DELAY);
@@ -167,15 +167,15 @@ export function ReferencePreviews(props: ReferencePreviewsProps) {
     if (holding?.pointerId === event.pointerId) cancelHold();
   };
   const touchContext = (event: MouseEvent) => {
-    const link = (event.target as Element).closest?.<HTMLElement>('button.outline-reference[data-reference]');
+    const link = (event.target as Element).closest?.<HTMLElement>('.outline-reference[role="button"][data-reference]');
     if (!link || holding?.link !== link && heldLink?.dataset.reference !== link.dataset.reference) return;
     event.preventDefault(); event.stopImmediatePropagation();
     touchOpen(link, holding?.y ?? event.clientY);
   };
   const touchClick = (event: MouseEvent) => {
-    const link = (event.target as Element).closest?.<HTMLElement>('button.outline-reference[data-reference]');
+    const link = (event.target as Element).closest?.<HTMLElement>('.outline-reference[role="button"][data-reference]');
     if (!heldLink || link?.dataset.reference !== heldLink.dataset.reference) return;
-    // Loading the preview can replace the token button before the compatibility click.
+    // Loading the preview can replace the reference before the compatibility click.
     event.preventDefault(); event.stopImmediatePropagation();
     heldLink = null;
   };

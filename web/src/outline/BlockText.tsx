@@ -116,13 +116,14 @@ export function BlockText(props: Props) {
         <Show when={props.interactive !== false || token.matches && props.blockId} fallback={<span class="outline-reference" classList={{ 'outline-reference-ambiguous': !!token.matches }} data-source-start={token.start} data-source-end={token.end}>
           <Show when={props.field?.id === token.id}><Icon name="field" /></Show><Show when={token.target === null}><Icon name="brokenLink" /></Show>{text(token)}<Show when={token.matches}><sup>?</sup></Show>
         </span>}>
-          <button class="outline-reference" classList={{ 'outline-reference-ambiguous': !!token.matches }} type="button" data-source-start={token.start} data-source-end={token.end} data-reference={isStableReference(token) ? token.id : undefined}
+          <span class="outline-reference" classList={{ 'outline-reference-ambiguous': !!token.matches }} role="button" tabIndex={0} data-source-start={token.start} data-source-end={token.end} data-reference={isStableReference(token) ? token.id : undefined}
             aria-label={token.matches ? `“${token.id}” names ${token.matches.length} pages` : undefined} aria-haspopup={token.matches ? 'menu' : undefined}
             onMouseDown={event => event.stopPropagation()}
+            onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); if (!event.repeat) event.currentTarget.click(); } }}
             onClick={event => { event.stopPropagation(); if (token.matches && props.blockId) { setMenu({ token, anchor: event.currentTarget }); return; } const block = token.target; if (block) props.onOpen?.({ kind: 'page', pageId: block.page_id, blockId: block.kind === 'block' ? block.id : undefined }, true); }}
             onContextMenu={event => { event.preventDefault(); event.stopPropagation(); if (token.matches && props.blockId) setMenu({ token, anchor: event.currentTarget }); else props.onReferenceMenu?.(token.id!, event.currentTarget); }}>
             <Show when={props.field?.id === token.id}><Icon name="field" /></Show><Show when={token.target === null}><Icon name="brokenLink" /></Show>{text(token)}<Show when={token.matches}><sup>?</sup></Show>
-          </button>
+          </span>
         </Show>
       </Show>
       <Show when={token.kind === 'url'}>

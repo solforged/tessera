@@ -357,7 +357,7 @@ A field whose values are all leaves shows them as aligned rows: the field icon t
 - An entry with no value shows its name and Empty, which adds a value and edits it. A blank value reads Empty in `--faint`.
 - Backspace at the start of the first inline value does nothing; at the start of a later one it joins the value above.
 - A page that opens on a field selects its value row instead of editing.
-- Choice and instance values render as pills outside editing, and a checkbox value is a control that writes `yes` or `no`; other spellings stay text.
+- Choice and instance values render as pills outside editing, and a checkbox value is a control that writes `yes` or `no`; other spellings stay text. Pills and their editors use the same meta line height and text insets so wrapped values keep their row height.
 - An inline field's label edits its value, caret at the end, and the field stays on one line. ← on a selected inline value selects the field entry itself; Enter then edits its name.
 
 ### Field sheet
