@@ -53,6 +53,8 @@
 
 /* Rows: [handle][fold] in the gutter, then (bullet) text within the measure. */
 .outline-list { position: relative; }
+.outline-motion-group { position: absolute; inset: 0; pointer-events: none; }
+.outline-motion-group > .outline-row { pointer-events: auto; }
 .outline-row { display: flex; align-items: flex-start; position: absolute; top: 0; left: 0; right: 0; min-height: var(--row-height); padding-block: var(--space-2); padding-left: calc(var(--depth) * var(--indent-width)); border-left: 2px solid transparent; border-radius: var(--radius-control); transition: background-color var(--motion-fast) var(--motion-ease); }
 .outline-row:hover { background: var(--hover); }
 .outline-row:is(.row-selected, .row-covered) { background: var(--selection); border-left-color: var(--accent); }
@@ -197,6 +199,10 @@ button.outline-reference { -webkit-touch-callout: none; -webkit-user-select: non
 .outline-source-info { grid-column: 2; grid-row: 2; min-width: 0; }
 .outline-source-subtitle { margin: 0 0 var(--space-8); color: var(--muted); font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); }
 .outline-source-summary { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8) var(--space-12); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.outline-source-citation { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-8) var(--space-16); padding-block: var(--space-8); border-bottom: var(--rule-width) solid var(--line); }
+.outline-source-citation > div { flex: 1; min-width: 0; }
+.outline-source-citation-imprint { margin: 0; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.outline-source-citation-byline { margin: var(--space-4) 0 0; color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
 .outline-source-creator, .outline-source-creator.button { display: inline-flex; align-items: center; min-height: var(--row-height); padding: var(--space-2) var(--space-12); border: var(--rule-width) solid var(--line); border-radius: var(--radius-pill); color: var(--text); font: var(--weight-body) var(--text-control)/var(--line-control) var(--font-body); }
 .outline-source-progress-block { grid-column: 1 / -1; display: flex; flex-direction: column; gap: var(--space-8); margin-top: var(--space-16); }
 .outline-source-chapter { margin: 0; color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }

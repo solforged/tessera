@@ -183,46 +183,56 @@ export function createOutlineCommands(context: Pick<OutlineContext,
   ];
   const commands = commandDefinitions.map(command => ({ ...command, id: `outline.${props.pane}.${command.id}`, disabledReason: () => !props.active ? 'This pane is not active.' : command.disabledReason?.() ?? (command.section !== 'Page' && !['zoom-out', 'show-archived', 'undo', 'redo'].includes(command.id) && !selected() ? 'Select a block first.' : undefined) }));
   const unregister = props.commands.register(commands);
-  /** Sections: Block, Move, Select. Pure navigation stays in the command palette and the shortcut list. */
+  /** Keep routine work in one short menu; transformations and capabilities stay one step away. */
   function blockMenu(id: string, anchor: HTMLElement) {
     if (!selectedSet().has(id)) rowFocus(id);
     const item = (commandId: string, options: { icon?: IconName; section?: string; danger?: boolean } = {}): MenuItem => {
       const command = commandDefinitions.find(candidate => candidate.id === commandId)!;
       return { ...options, label: command.title, shortcut: command.keys?.[0], disabledReason: command.disabledReason?.(), action: command.run };
     };
+    const secondary = (label: string, items: MenuItem[]) => setMenu({ anchor, label, items: [
+      { label: 'Back to block actions', icon: 'left', action: () => blockMenu(id, anchor) },
+      ...items,
+    ] });
     const entry = doc.block(id);
-    setMenu({ anchor, label: 'Block actions', items: [
+    const sourceItems = [
       ...sourceResets(id),
-      ...(entry?.citations.length ? [{ label: 'Remove citation', action: () => apply({ kind: 'uncite', id, citationIds: entry.citations.map(citation => citation.id) }, false) }] : []),
+      ...(entry?.citations.length ? [{ label: 'Remove citation', danger: true, action: () => apply({ kind: 'uncite', id, citationIds: entry.citations.map(citation => citation.id) }, false) }] : []),
+    ];
+    const capabilityItems: MenuItem[] = [
       { label: 'Add type…', icon: 'tag', action: () => { setCompletionIndex(0); setCompletion({ from: 0, to: 0, query: '', manual: { blockId: id, anchor } }); } },
-      item('zoom', { icon: 'bullet' }),
-      item('open-beside', { icon: 'panes' }),
-      item('copy-reference', { icon: 'copy' }),
-      ...(doc.block(id)?.task ? [
-        { ...item('toggle-task', { section: 'Task' }), label: isFinished(doc.block(id)!.task!) ? 'Reopen task' : 'Complete task' },
+      ...(entry?.task ? [
+        { ...item('toggle-task', { section: 'Task' }), label: isFinished(entry.task) ? 'Reopen task' : 'Complete task' },
         item('task-status'),
         { label: 'Plan task', action: () => capabilities.open(id, 'task', anchor) },
         { label: 'Work sessions', action: () => capabilities.open(id, 'work', anchor) },
         { label: 'Remove task', action: () => capabilities.invoke(capabilities.status(id, null)) },
       ] : [{ label: 'Make task', section: 'Task', shortcut: '⌘Enter', action: () => capabilities.invoke(capabilities.status(id, 'todo')) }]),
-      ...(doc.block(id)?.project ? [
+      ...(entry?.project ? [
         { label: 'Project', section: 'Project', action: () => capabilities.open(id, 'project', anchor) },
         { label: 'Show actions', action: () => capabilities.showActions(id) },
       ] : [{ label: 'Make project', section: 'Project', action: () => capabilities.invoke(capabilities.edit(id, { kind: 'project', id, value: { status: 'active', outcome: '', deadline: null } })) }]),
-      item(entry?.position ? 'remove-perspective' : 'make-perspective', { section: 'Block' }),
-      ...investigationItems(id).map((item, index) => ({ ...item, section: index === 0 ? 'Question' : undefined })),
-      ...(parseCardText(doc.block(id)?.text ?? '').cards.length ? [
+      item(entry?.position ? 'remove-perspective' : 'make-perspective', { section: 'Perspective' }),
+      ...investigationItems(id).map((item, index) => ({ ...item, section: index === 0 ? 'Question and answer' : undefined })),
+      ...(parseCardText(entry?.text ?? '').cards.length ? [
         { label: 'Review cards', section: 'Cards', action: () => props.onOpen({ kind: 'review' }, false) },
         { label: 'Show card source', action: () => capabilities.source(id) },
-      ] : [{ label: 'Add card', section: 'Cards', shortcut: 'Space c c', action: () => addCard(id) }]),
-      item('insert-below', { section: 'Move', icon: 'plus' }),
-      item('indent', { icon: 'right' }),
-      item('outdent', { icon: 'left' }),
-      item('move-up', { icon: 'up' }),
-      item('move-down', { icon: 'down' }),
-      item('select', { section: 'Select', icon: 'select' }),
-      item('select-all'),
-      item('archive', { section: 'Block', icon: 'archive' }),
+      ] : [{ label: 'Add card…', section: 'Cards', action: () => cardMenu(id) }]),
+    ];
+    setMenu({ anchor, label: 'Block actions', items: [
+      item('edit'),
+      item('insert-below', { icon: 'plus' }),
+      { label: 'Move…', action: () => secondary('Move block', [
+        item('indent', { icon: 'right' }), item('outdent', { icon: 'left' }),
+        item('move-up', { icon: 'up' }), item('move-down', { icon: 'down' }),
+      ]) },
+      item('copy-reference', { icon: 'copy' }),
+      item('open-beside', { icon: 'panes' }),
+      item('zoom', { icon: 'bullet' }),
+      { label: 'Add or change…', section: 'More', action: () => secondary('Block capabilities', capabilityItems) },
+      { label: 'Select…', icon: 'select', action: () => secondary('Select blocks', [item('select'), item('select-all')]) },
+      ...(sourceItems.length ? [{ label: 'Source and citation…', action: () => secondary('Source and citation', sourceItems) }] : []),
+      item('archive', { section: 'Organize', icon: 'archive' }),
       item('delete', { icon: 'trash', danger: true }),
     ] });
   }

@@ -81,9 +81,9 @@ type LibraryPopup =
   | { kind: 'collection-picker'; anchor: HTMLElement; sources: string[] }
   | { kind: 'menu'; anchor: HTMLElement; label: string; items: MenuItem[]; Header?: HighlightMenu['Header']; source?: LibraryRow };
 const tabs: { id: LibraryTab; label: string }[] = [
-  { id: 'inbox', label: 'Inbox' }, { id: 'reading', label: 'Reading' },
+  { id: 'reading', label: 'Reading' }, { id: 'inbox', label: 'Inbox' }, { id: 'highlights', label: 'Highlights' },
+  { id: 'all', label: 'All' }, { id: 'collections', label: 'Collections' },
   { id: 'finished', label: 'Finished' }, { id: 'abandoned', label: 'Abandoned' },
-  { id: 'all', label: 'All' }, { id: 'collections', label: 'Collections' }, { id: 'highlights', label: 'Highlights' },
 ];
 const sorts: { id: LibraryViewState['sort']; label: string }[] = [
   { id: 'added', label: 'Added' }, { id: 'title', label: 'Title' },
@@ -221,7 +221,7 @@ export function LibraryPane(props: LibraryPaneProps) {
   const coverChanged = () => setCoverLayout(coverMedia.matches);
   coverMedia.addEventListener('change', coverChanged);
   onCleanup(() => coverMedia.removeEventListener('change', coverChanged));
-  // A narrow strip scrolls sideways; keep the current tab in it, so Highlights is never left off the edge.
+  // Desktop views may scroll; the cover keeps Reading, Inbox and Highlights visible beside its overflow.
   let tabStrip: HTMLDivElement | undefined;
   let addButton!: HTMLButtonElement;
   createEffect(() => {
@@ -916,18 +916,34 @@ export function LibraryPane(props: LibraryPaneProps) {
         setSearchOpen(value => !value);
         if (searchOpen()) queueMicrotask(() => scroll.closest('.library-pane')?.querySelector<HTMLInputElement>('.library-search')?.focus());
       }} /><Show when={tab() !== 'highlights'}><Button class="bordered" icon="plus" label="Add to library" aria-haspopup={EMBEDDED ? undefined : 'dialog'} onClick={event => openAdd(event.currentTarget)} /></Show></div>
-      <div ref={tabStrip} class="library-tabs mode-tabs tab-strip" data-mode-panel=".library-scroll" role="group" aria-label="Library state">
-        <For each={tabs}>{item => {
+      <div ref={tabStrip} class="library-tabs mode-tabs tab-strip" classList={{ 'library-primary-tabs': coverLayout() }} data-mode-panel=".library-scroll" role="group" aria-label="Library state">
+        <For each={coverLayout() ? tabs.slice(0, 3) : tabs}>{item => {
           // Zero counts are left out so the tabs fit a narrow pane.
           const count = () => item.id === 'collections' ? collections()?.length : item.id === 'highlights' ? unprocessedCount() : !library() ? undefined : item.id === 'all' ? Object.values(library()!.counts).reduce((sum, value) => sum + value, 0) : library()!.counts[item.id as ReadingState];
-          return <Button data-library-tab={item.id} aria-pressed={!view().view && tab() === item.id} onClick={() => update({ view: null, tab: item.id, scroll: 0 })}>
-            {item.label}<Show when={count()}><span class="library-count">{count()}</span></Show>
+          return <Button data-library-tab={item.id} aria-label={count() ? `${item.label}, ${count()}` : item.label} aria-pressed={!view().view && tab() === item.id} onClick={() => update({ view: null, tab: item.id, scroll: 0 })}>
+            {item.label}<Show when={count() && (!coverLayout() || item.id === 'highlights')}><span class="library-count">{count()}</span></Show>
           </Button>;
         }}</For>
+        <Show when={coverLayout()}>
+          <Button class="library-tabs-more" aria-haspopup="menu" aria-label="More library views" aria-pressed={!!view().view || tabs.slice(3).some(item => item.id === tab())}
+            onClick={event => {
+              const anchor = event.currentTarget;
+              const current = views().find(value => value.id === view().view);
+              setPopup({ kind: 'menu', anchor, label: 'Library views', items: [
+                ...tabs.slice(3).map(item => ({ label: item.label, checked: !view().view && tab() === item.id, action: () => update({ view: null, tab: item.id, scroll: 0 }) })),
+                ...views().map((value, index) => ({ label: value.name, section: index === 0 ? 'Saved views' : undefined, checked: view().view === value.id, action: () => chooseView(value) })),
+                ...(current ? [{ label: `Actions for ${current.name}`, section: 'Current view', action: () => viewMenu(current, anchor) }] : []),
+              ] });
+            }}>
+            <span>{views().find(value => value.id === view().view)?.name ?? tabs.slice(3).find(item => item.id === tab())?.label ?? 'More'}</span><Icon name="down" />
+          </Button>
+        </Show>
+        <Show when={!coverLayout()}>
         <For each={views()}>{value => <>
           <Button aria-pressed={view().view === value.id} onClick={() => chooseView(value)}>{value.name}</Button>
           <Button icon="more" label={`Actions for view ${value.name}`} aria-haspopup="menu" disabled={saving()} onClick={event => viewMenu(value, event.currentTarget)} />
         </>}</For>
+        </Show>
       </div>
       <Show when={collectionsIndex()}><div class="library-collection-heading"><h2>Collections</h2><Button icon="plus" onClick={event => setPopup({ kind: 'collection-name', anchor: event.currentTarget })}>New collection</Button></div></Show>
       <Show when={view().collection}><div class="library-collection-heading">
@@ -1088,9 +1104,15 @@ export function LibraryPane(props: LibraryPaneProps) {
             </Show>
           }>
             <Show when={displayedSources().length} fallback={<div class="library-empty">
-              <Show when={text().trim() || filtered()} fallback={<Show when={tab() === 'inbox'} fallback={<p>No sources.</p>}>
-                <p>{EMBEDDED ? 'Nothing in your inbox. Add an EPUB.' : 'Nothing in your inbox. Add a book or article.'}</p>
-              </Show>}><p>No sources match.</p><Button onClick={() => update({ view: null, text: '', filters: { people: [], decades: [], publishers: [], languages: [] }, scroll: 0 })}>{filtered() ? 'Clear search and filters' : 'Clear search'}</Button></Show>
+              <Show when={text().trim() || filtered()} fallback={<>
+                <Show when={!view().collection && !view().view && library() && Object.values(library()!.counts).every(count => !count)} fallback={
+                  <p>{view().collection ? 'This collection has no sources yet.' : tab() === 'all' ? 'No sources.' : `No ${tabs.find(item => item.id === tab())?.label.toLowerCase()} sources yet.`}</p>
+                }>
+                  <h2>Add your first source</h2>
+                  <p>{EMBEDDED ? 'Import an EPUB to read, highlight, and make notes.' : 'Import an EPUB, save an article, or add a catalogue record.'}</p>
+                </Show>
+                <Button class="bordered" icon="plus" onClick={event => openAdd(event.currentTarget)}>{EMBEDDED ? 'Import an EPUB' : 'Add a source'}</Button>
+              </>}><p>No sources match.</p><Button onClick={() => update({ view: null, text: '', filters: { people: [], decades: [], publishers: [], languages: [] }, scroll: 0 })}>{filtered() ? 'Clear search and filters' : 'Clear search'}</Button></Show>
             </div>}>
               <Show when={groups()} fallback={<SourceRows rows={displayedSources()} />}>{list => <For each={list()}>{value => <section class="library-group" aria-label={value.label}>
                 <h3 class="library-group-heading">
@@ -1178,7 +1200,7 @@ export function LibraryPane(props: LibraryPaneProps) {
       if (EMBEDDED) return null;
       return <AddSheet anchor={state.anchor} notebook={props.notebook} onDismiss={dismiss} onChooseFile={() => fileInput.click()} onFiles={files => { void upload(files); }} onJob={recordJob} onAdded={pageId => openSource({ kind: 'page', pageId }, false)} />;
     }}</Show>
-    <highlightActions.TagPopup />
+    <highlightActions.Popups />
   </div>;
 }
 

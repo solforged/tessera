@@ -1,5 +1,5 @@
 import { CardSummary } from './CardSummary';
-import { For, Show, createEffect, createMemo, createResource, createSignal, mapArray, onCleanup, onMount, untrack } from 'solid-js';
+import { For, Show, batch, createEffect, createMemo, createResource, createSignal, mapArray, onCleanup, onMount, untrack } from 'solid-js';
 import { createVirtualizer, defaultRangeExtractor } from '@tanstack/solid-virtual';
 import type { Block, FieldDefinition } from '../api/types';
 import { api } from '../api/client';
@@ -59,6 +59,12 @@ function Pane(props: OutlinePaneProps) {
   const journalPeriod = untrack(() => props.journalPeriod);
   const [zoom, setZoom] = createSignal(initial.zoom);
   const [folds, setFolds] = createSignal(new Set(initial.folds ?? storedFolds.get(`${props.pane}:${props.pageId}`) ?? []));
+  const [foldMotion, setFoldMotion] = createSignal<{ id: string; opening: boolean; afterIds: string[]; beforeSize: number }>();
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  let foldChildren!: HTMLDivElement, foldFollowing!: HTMLDivElement;
+  let foldFrame = 0;
+  let foldAnimations: Animation[] = [];
+  let settleFold: (() => void) | undefined;
   const [showArchived, setShowArchived] = createSignal(initial.showArchived);
   const [depth, setDepth] = createSignal<Depth>(initial.depth ?? 'full');
   const [caret, setCaret] = createSignal<Caret | null>(initial.caret);
@@ -237,13 +243,13 @@ function Pane(props: OutlinePaneProps) {
   const [siglumRecords] = createResource(() => citedSources().length ? citedSources() : false, ids => Promise.all(ids.map(id =>
     api.source(id).then(view => ({ id, siglum: view.source.siglum, basis: view.source.siglum_basis, authored: view.source.siglum_authored }), () => null))));
   const sigla = createMemo(() => pageSigla((siglumRecords.error ? [] : siglumRecords() ?? []).filter(record => record !== null)));
-  const [sourceHighlights] = createResource(() => doc.root()?.source ? [props.pageId, props.notebook.changeSequence()] as const : false,
+  const [sourceHighlights] = createResource(() => doc.root()?.source && !zoom() ? [props.pageId, props.notebook.changeSequence()] as const : false,
     ([source_id]) => props.notebook.api.highlights({ source_id, limit: 100000 }));
   const [sourceHeaderReady, setSourceHeaderReady] = createSignal(false);
   // Mount the designed structure for measurement, but reveal it and its portaled dock together.
   // Keep settled resources visible during background refreshes.
   const sourceReady = () => !doc.root()?.source || sourceHeaderReady()
-    && !!(fields() || fields.error) && !!(sourceHighlights() || sourceHighlights.error);
+    && !!(fields() || fields.error) && (!!zoom() || !!(sourceHighlights() || sourceHighlights.error));
   const filedElsewhere = createMemo(() => (sourceHighlights()?.rows ?? []).filter(row => row.block.page.id !== props.pageId && (!sourceColors().length || !!row.color && sourceColors().includes(row.color)))
     .sort((a, b) => a.citation.ordinal - b.citation.ordinal || a.citation.start.offset - b.citation.start.offset));
   const sourceDetails = createMemo(() => {
@@ -303,7 +309,7 @@ function Pane(props: OutlinePaneProps) {
     get scrollMargin() { return margin(); },
     get getItemKey() { const rows = ids(); return (index: number) => rows[index]!; },
     get rangeExtractor() {
-      const pinned = [editing(), capabilities.popup()?.id].flatMap(id => id ? indices().get(id) ?? [] : []);
+      const pinned = [editing(), capabilities.popup()?.id, ...(foldMotion()?.afterIds ?? [])].flatMap(id => id ? indices().get(id) ?? [] : []);
       return (range: Parameters<typeof defaultRangeExtractor>[0]) => {
         const result = defaultRangeExtractor(range);
         for (const index of pinned) if (!result.includes(index)) result.push(index);
@@ -525,20 +531,76 @@ function Pane(props: OutlinePaneProps) {
     apply({ kind: 'replaceRange', range, selectionBefore, between: visible.slice(1, -1), text, mode, zoomRoot: zoom() }, true);
   }
   function deleteTextRange() { if (textRange()) replaceSelection('', 'text'); }
+  function finishFoldMotion() {
+    cancelAnimationFrame(foldFrame);
+    const settle = settleFold;
+    settleFold = undefined;
+    for (const animation of foldAnimations) animation.cancel();
+    foldAnimations = [];
+    batch(() => { settle?.(); setFoldMotion(undefined); });
+  }
   function fold(id = selected()) {
     if (!id || composition()) return;
+    finishFoldMotion();
     const active = editing() ?? selected();
     if (!folds().has(id) && active && active !== id) {
       const at = doc.outline.indexOf(id);
       const child = doc.outline.indexOf(active);
       if (child > at && child < doc.outline.subtreeEnd(at)) rowFocus(id);
     }
-    anchored(() => setFolds(previous => { const next = new Set(previous); next.has(id) ? next.delete(id) : next.add(id); return next; }));
-    report();
-    scheduleReport();
+    const opening = folds().has(id);
+    const change = () => setFolds(previous => { const next = new Set(previous); opening ? next.delete(id) : next.add(id); return next; });
+    const style = getComputedStyle(scroll);
+    const time = style.getPropertyValue('--motion-ui').trim();
+    const duration = parseFloat(time) * (time.endsWith('ms') ? 1 : 1000);
+    const parentIndex = indices().get(id);
+    if (reducedMotion.matches || !duration || parentIndex === undefined || !hosts.has(id)) {
+      anchored(change); report(); scheduleReport();
+      return;
+    }
+    const rootIndex = doc.outline.indexOf(id), subtreeEnd = doc.outline.subtreeEnd(rootIndex);
+    const afterIds = [...virtualItems().keys()].filter(key => {
+      const at = doc.outline.indexOf(key);
+      return (indices().get(key) ?? 0) > parentIndex && (at <= rootIndex || at >= subtreeEnd);
+    });
+    const state = { id, opening, afterIds, beforeSize: virtualizer.getTotalSize() };
+    const anchor = currentAnchor();
+    settleFold = () => {
+      if (!opening) change();
+      requestAnimationFrame(() => restoreAnchor(anchor));
+      report(); scheduleReport();
+    };
+    batch(() => { setFoldMotion(state); if (opening) change(); });
+    // Retain only the rendered trailing rows while the newly visible children are measured.
+    foldFrame = requestAnimationFrame(() => { foldFrame = requestAnimationFrame(() => {
+      if (foldMotion() !== state || disposed) return;
+      const parent = virtualItems().get(id);
+      const children = foldGroups().children;
+      if (!parent || !children.length) { finishFoldMotion(); return; }
+      const top = parent.end - margin();
+      const next = foldGroups().after[0];
+      const bottom = next ? virtualItems().get(next.id)!.start - margin()
+        : Math.max(...children.map(child => virtualItems().get(child.id)!.end - margin()));
+      const height = Math.max(0, bottom - top);
+      const size = virtualizer.getTotalSize();
+      const clipped = `inset(${top}px 0 ${Math.max(0, size - top)}px 0)`;
+      const revealed = `inset(${top}px 0 ${Math.max(0, size - top - height)}px 0)`;
+      const shift = opening ? size - state.beforeSize : height;
+      const timing: KeyframeAnimationOptions = { duration, easing: style.getPropertyValue('--motion-ease').trim(), fill: 'both' };
+      foldAnimations = [
+        foldChildren.animate(opening ? [{ clipPath: clipped, opacity: 0 }, { clipPath: revealed, opacity: 1 }]
+          : [{ clipPath: revealed, opacity: 1 }, { clipPath: clipped, opacity: 0 }], timing),
+        foldFollowing.animate(opening ? [{ transform: `translateY(${-shift}px)` }, { transform: 'translateY(0)' }]
+          : [{ transform: 'translateY(0)' }, { transform: `translateY(${-shift}px)` }], timing),
+      ];
+      foldAnimations[0]!.id = 'outline-fold-content';
+      foldAnimations[1]!.id = 'outline-fold-following';
+      foldAnimations[0]!.onfinish = () => { if (foldMotion() === state) finishFoldMotion(); };
+    }); });
   }
   function zoomTo(id: string | null) {
     if (composition()) return;
+    finishFoldMotion();
     if (editing() && commitFieldEntry(editing()!)) return;
     const previous = zoom();
     setZoom(id);
@@ -902,6 +964,8 @@ function Pane(props: OutlinePaneProps) {
   });
   createEffect(() => { storedFolds.set(`${props.pane}:${props.pageId}`, new Set(folds())); });
   onCleanup(() => {
+    finishFoldMotion();
+    reducedMotion.removeEventListener('change', finishFoldMotion);
     if (editing()) commitFieldEntry(editing()!, false);
     disposed = true;
     setLinkedCitation(null);
@@ -913,13 +977,31 @@ function Pane(props: OutlinePaneProps) {
     cancelAnimationFrame(anchorFrame);
   });
 
+  reducedMotion.addEventListener('change', finishFoldMotion);
+
   // A titled page at its top level wears the note header; sources keep their own, and the Fields page is not a note.
   const isNote = () => !zoom() && doc.root()?.kind === 'page' && !doc.root()?.source && doc.root()?.text.toLowerCase() !== 'fields';
-  return <div ref={scroll} class="outline-pane" classList={{ 'has-apparatus': apparatus(), 'has-sigla': sigla().size > 0, 'source-page': !!doc.root()?.source && !zoom() }} style={{ visibility: sourceReady() ? undefined : 'hidden' }} aria-busy={!sourceReady()} data-pane={props.pane} tabIndex={0} role="tree" aria-label="Page outline" aria-owns={[...virtualItems().keys()].map(id => `outline-${props.pane}-${id}`).join(' ')} onFocusIn={props.onActivate} onFocusOut={report} onKeyDown={structuralKey} onWheel={() => { anchorEpoch++; cancelAnimationFrame(anchorFrame); }} onScroll={scrolled}>
+  // Row owners stay stable when their DOM moves between the two animated groups.
+  const rowNodes = mapArray(() => [...virtualItems().keys()].filter(id => id !== editing()), id => ({ id, node: <Row id={id} item={() => virtualItems().get(id)!} /> }));
+  const foldGroups = createMemo(() => {
+    const all = rowNodes(), state = foldMotion();
+    const groups = { before: [] as typeof all, children: [] as typeof all, after: [] as typeof all };
+    const start = state ? indices().get(state.id) : undefined;
+    if (!state || start === undefined) { groups.before = all; return groups; }
+    const root = doc.outline.indexOf(state.id), end = doc.outline.subtreeEnd(root);
+    for (const row of all) {
+      const index = indices().get(row.id) ?? 0;
+      const at = doc.outline.indexOf(row.id);
+      groups[index <= start ? 'before' : at > root && at < end ? 'children' : 'after'].push(row);
+    }
+    return groups;
+  });
+  return <div ref={scroll} class="outline-pane" classList={{ 'has-apparatus': apparatus(), 'has-sigla': sigla().size > 0, 'source-page': !!doc.root()?.source && !zoom() }} style={{ visibility: sourceReady() ? undefined : 'hidden' }} aria-busy={!sourceReady()} data-pane={props.pane} tabIndex={0} role="tree" aria-label="Page outline" aria-owns={[...virtualItems().keys()].map(id => `outline-${props.pane}-${id}`).join(' ')} onFocusIn={props.onActivate} onFocusOut={report} onKeyDown={event => { finishFoldMotion(); structuralKey(event); }} onWheel={() => { finishFoldMotion(); anchorEpoch++; cancelAnimationFrame(anchorFrame); }} onScroll={scrolled}>
     <Show when={apparatus()}><Apparatus notebook={props.notebook} holders={holders()} linked={linkedPages()} sources={citedSources().flatMap(id => sigla().has(id) ? [{ id, siglum: sigla().get(id)! }] : [])} onOpen={props.onOpen} /></Show>
     <div ref={heading} class="outline-heading">
       <Show when={zoom()}><nav class="outline-breadcrumbs" aria-label="Zoom breadcrumbs"><button type="button" onClick={() => zoomTo(null)}>{doc.root()?.text}</button><For each={breadcrumbs()}>{id => <><Icon name="right" /><button type="button" onClick={() => zoomTo(id)}>{plainText(doc.block(id)?.text ?? '', reference => props.notebook.lookup(reference)) || 'Empty block'}</button></>}</For></nav></Show>
       <Show when={isNote()}><NoteEyebrow pageId={props.pageId} notebook={props.notebook} onOpen={props.onOpen} /></Show>
+      <Show when={!zoom() || !doc.root()?.source || renaming()}>
       <div class="outline-title-row">
       <Show when={renaming()} fallback={<h1><button class="outline-title" type="button" disabled={doc.root()?.kind !== 'page'} onClick={rename}>{doc.root()?.text || 'Loading…'}</button></h1>}>
         <input ref={titleInput} class="title-input" aria-label="Page title" value={title()} onInput={event => setTitle(event.currentTarget.value)} onKeyDown={event => { if (event.isComposing) return; if (event.key === 'Enter') { event.preventDefault(); commitTitle(); } if (event.key === 'Escape') { setRenaming(false); setMessage(''); } }} />
@@ -929,12 +1011,13 @@ function Pane(props: OutlinePaneProps) {
       </Show>
       <Show when={doc.root()?.kind === 'page' && !doc.root()?.source}><div class="outline-header-actions"><Button icon="table" label="Table" shortcut="⌘⇧T" onClick={event => openTable(event.metaKey)}>Table<Show when={!type.error && (type()?.members ?? 0) > 0}><span class="table-member-count">{type()?.members}</span></Show></Button></div></Show>
       </div>
+      </Show>
       <Show when={isNote()}><NoteAliases doc={doc} notebook={props.notebook} /><NoteLine pageId={props.pageId} notebook={props.notebook} /></Show>
       <Show when={!zoom() && doc.root()?.kind === 'page' && !doc.root()?.source && doc.root()?.text.toLowerCase() !== 'fields' && !type.error && type()}>{value => <Show when={value().members || value().fields.length || startingTemplateFor(value().page.text, value().fields)}>
         <TemplateEditor type={value()} fields={definitions()} notebook={props.notebook} onError={setMessage} />
       </Show>}</Show>
       <Show when={doc.root()?.source}><SourceHeader doc={doc} notebook={props.notebook} resetItems={sourceResets} onOpen={props.onOpen} onError={setMessage} onDelete={props.onDelete}
-        fields={definitions()} ready={sourceReady()} onReady={setSourceHeaderReady}
+        fields={definitions()} compact={!!zoom()} ready={sourceReady()} onReady={setSourceHeaderReady}
         highlights={zoom() ? undefined : sourceHighlights()} colors={sourceColors()} onColors={setSourceColors} grouped={sourceGrouped()} onGrouped={setSourceGrouped} fieldsVisible={sourceFieldsVisible()} onFieldsVisible={setSourceFieldsVisible} /></Show>
       <Show when={doc.root()?.templateCards}><CardSummary blockId={props.pageId} cards={[]} templateCount={doc.root()?.templateCards ?? 0} notebook={props.notebook} onOpen={props.onOpen} /></Show>
       <Show when={doc.root()?.task || doc.root()?.project || doc.root()?.question || doc.root()?.citations.length}><div class="outline-root-capabilities outline-capability-metadata">
@@ -962,7 +1045,13 @@ function Pane(props: OutlinePaneProps) {
       </Show>
     </div>
     <div ref={list} class="outline-list" style={{ height: `${virtualizer.getTotalSize()}px` }}>
-      <For each={[...virtualItems().keys()].filter(id => id !== editing())}>{id => <Row id={id} item={() => virtualItems().get(id)!} />}</For>
+      <For each={foldGroups().before}>{row => row.node}</For>
+      <div ref={foldChildren} class="outline-motion-group" style={{ opacity: foldMotion()?.opening ? 0 : undefined }}>
+        <For each={foldGroups().children}>{row => row.node}</For>
+      </div>
+      <div ref={foldFollowing} class="outline-motion-group" style={{ transform: foldMotion()?.opening ? `translateY(${foldMotion()!.beforeSize - virtualizer.getTotalSize()}px)` : undefined }}>
+        <For each={foldGroups().after}>{row => row.node}</For>
+      </div>
       <Show keyed when={editing() && virtualItems().has(editing()!) ? editing() : null}>{id => <Row id={id} item={() => virtualItems().get(id)!} />}</Show>
     </div>
     <Show when={doc.root()?.source && !zoom() && filedElsewhere().length}><section class="related-sections source-elsewhere" aria-label="Filed elsewhere">
@@ -972,7 +1061,7 @@ function Pane(props: OutlinePaneProps) {
         <span class="library-highlight-meta">¶{row.citation.ordinal + 1} · {row.block.page.text}</span>
       </Button>}</For>
     </section></Show>
-    <Show when={sourceHighlights.error}><p class="library-error" role="alert">{String(sourceHighlights.error)}</p></Show>
+    <Show when={!zoom() && sourceHighlights.error}><p class="library-error" role="alert">{String(sourceHighlights.error)}</p></Show>
     <Show when={doc.root()?.source && fields.error}><p class="library-error" role="alert">{String(fields.error)}</p></Show>
     <Show when={doc.status() === 'ready' && ids().length === 0 && depthFilter() === undefined}><button type="button" class="add-first-block" onClick={() => apply({ kind: 'insert', parentId: zoom() ?? props.pageId, after: null }, true)}><Icon name="plus" />Add a block</button></Show>
     <Show when={!zoom() && doc.root()?.kind === 'journal'}><div class="related-sections journal-highlights"><JournalResurface date={doc.root()!.text} notebook={props.notebook} onOpen={props.onOpen} /></div></Show>
