@@ -30,6 +30,7 @@ mod position_store;
 mod query;
 pub mod question_store;
 mod reads;
+mod references;
 pub mod replication;
 mod resurface;
 mod review_store;
@@ -86,4 +87,7 @@ pub use notebook::{DATABASE_FILE, Notebook, NotebookInfo, now_ms};
 pub use notes::{CrossReference, IndexKind, KindIndex, NoteEntry, NoteIndex, NoteKind, SeeTarget};
 pub use notes_summary::{NoteSummary, SourceSummary, SummaryField};
 pub use ownership::NotebookOwnership;
+pub use references::{
+    Mention, PageReferences, ReferenceCount, ReferenceGroup, ReferenceSource, UnlinkedMentions,
+};
 pub use review_store::{ReviewForecastDay, ReviewStats};

@@ -167,6 +167,13 @@ export interface Backlink {
   page: Block;
 }
 
+export interface PageReferences { total: number; groups: ReferenceGroup[] }
+export interface ReferenceGroup { page: Block; sources: ReferenceSource[] }
+export interface ReferenceSource { source: Block; targets: string[] }
+export interface ReferenceCount { block_id: string; count: number }
+export interface UnlinkedMentions { total: number; rows: Mention[] }
+export interface Mention { block: Block; page: Block; term: string }
+
 /**
  * One committed batch as clients see it, from `GET /api/changes` and the
  * `/api/changes/stream` WebSocket. Block state is current, not historical:

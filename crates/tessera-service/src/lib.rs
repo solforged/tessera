@@ -60,6 +60,7 @@ use tessera_core::{
     NoteIndex, NoteKind, Notebook, NotebookInfo, PageView, QueryResult, SettingsView, TypeInfo,
     UndoReceipt, View,
 };
+use tessera_core::{PageReferences, ReferenceCount, UnlinkedMentions};
 use tokio::sync::broadcast;
 
 use crate::error::ApiError;
@@ -322,6 +323,9 @@ fn notebook_routes() -> Router<AppState> {
         .route("/api/journal/{date}", get(journal))
         .route("/api/blocks/{id}", get(block))
         .route("/api/blocks/{id}/backlinks", get(backlinks))
+        .route("/api/pages/{id}/references", get(page_references))
+        .route("/api/pages/{id}/reference-counts", get(reference_counts))
+        .route("/api/pages/{id}/unlinked-mentions", get(unlinked_mentions))
         .route("/api/types/{id}/members", get(members))
         .route("/api/types/{id}/card-templates", get(card_templates))
         .route(
@@ -931,6 +935,44 @@ async fn backlinks(
         .map(Json)
 }
 
+async fn page_references(
+    State(state): State<AppState>,
+    path: Result<Path<String>, PathRejection>,
+    query: Result<Query<Limit>, QueryRejection>,
+) -> Result<Json<PageReferences>, ApiError> {
+    let Path(id) = path.map_err(ApiError::from)?;
+    let Query(query) = query.map_err(ApiError::from)?;
+    run(&state, move |notebook| {
+        notebook.page_references(&id, query.limit)
+    })
+    .await
+    .map(Json)
+}
+
+async fn reference_counts(
+    State(state): State<AppState>,
+    path: Result<Path<String>, PathRejection>,
+) -> Result<Json<Vec<ReferenceCount>>, ApiError> {
+    let Path(id) = path.map_err(ApiError::from)?;
+    run(&state, move |notebook| notebook.reference_counts(&id))
+        .await
+        .map(Json)
+}
+
+async fn unlinked_mentions(
+    State(state): State<AppState>,
+    path: Result<Path<String>, PathRejection>,
+    query: Result<Query<Limit>, QueryRejection>,
+) -> Result<Json<UnlinkedMentions>, ApiError> {
+    let Path(id) = path.map_err(ApiError::from)?;
+    let Query(query) = query.map_err(ApiError::from)?;
+    run(&state, move |notebook| {
+        notebook.unlinked_mentions(&id, query.limit)
+    })
+    .await
+    .map(Json)
+}
+
 async fn members(
     State(state): State<AppState>,
     path: Result<Path<String>, PathRejection>,
@@ -1361,6 +1403,92 @@ mod tests {
         http::{Request, StatusCode},
     };
     use tower::ServiceExt;
+
+    #[tokio::test]
+    async fn embedded_page_reference_reads_include_children_counts_and_mentions() {
+        use tessera_core::Operation;
+        let dir = tempfile::tempdir().unwrap();
+        let mut notebook = Notebook::open(dir.path()).unwrap();
+        let page = "00000000000000000000000001";
+        let child = "00000000000000000000000002";
+        let other = "00000000000000000000000003";
+        let source = "00000000000000000000000004";
+        let mention = "00000000000000000000000005";
+        notebook
+            .apply(&Batch {
+                actor: Actor::Person,
+                reason: None,
+                idempotency_key: None,
+                operations: vec![
+                    Operation::CreatePage {
+                        id: page.into(),
+                        title: "Rome".into(),
+                    },
+                    Operation::CreatePage {
+                        id: other.into(),
+                        title: "Other".into(),
+                    },
+                    Operation::Insert {
+                        id: child.into(),
+                        parent_id: page.into(),
+                        after: None,
+                        text: "child".into(),
+                        heading: None,
+                    },
+                    Operation::Insert {
+                        id: source.into(),
+                        parent_id: other.into(),
+                        after: None,
+                        text: format!("[[{child}]]"),
+                        heading: None,
+                    },
+                    Operation::Insert {
+                        id: mention.into(),
+                        parent_id: other.into(),
+                        after: None,
+                        text: "Visit Rome".into(),
+                        heading: None,
+                    },
+                ],
+            })
+            .unwrap();
+        let (app, _handles) = embedded_router(notebook).unwrap();
+        for (route, expected) in [
+            ("references?limit=1", serde_json::json!({"total": 1})),
+            (
+                "reference-counts",
+                serde_json::json!([{"block_id": child, "count": 1}]),
+            ),
+            (
+                "unlinked-mentions?limit=0",
+                serde_json::json!({"total": 1, "rows": []}),
+            ),
+        ] {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::get(format!("/api/pages/{page}/{route}"))
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+            let result: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+            if route.starts_with("references") {
+                assert_eq!(result["total"], expected["total"]);
+                assert_eq!(result["groups"][0]["page"]["id"], other);
+                assert_eq!(result["groups"][0]["sources"][0]["source"]["id"], source);
+                assert_eq!(
+                    result["groups"][0]["sources"][0]["targets"],
+                    serde_json::json!([child])
+                );
+            } else {
+                assert_eq!(result, expected);
+            }
+        }
+    }
 
     #[tokio::test]
     async fn change_head_reads_the_local_editor_journal() {

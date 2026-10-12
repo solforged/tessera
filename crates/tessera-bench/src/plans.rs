@@ -128,6 +128,67 @@ pub fn save(dir: &Path, results: &Path, size: usize, corpus: &Corpus, stamp: u12
         ),
         vec![json!(target), json!(100)],
     )?;
+    let page = &corpus.model.blocks[&target].page;
+    // Keep these CTEs aligned with core references.rs.
+    let links = format!(
+        "{HIDDEN}, page_links AS MATERIALIZED (
+            SELECT b.id AS source_id, b.page_id, t.id AS target_id, MIN(l.occurrence) AS occurrence
+            FROM blocks t JOIN links l ON l.target_id = t.id
+            JOIN blocks b ON b.id = l.source_id JOIN blocks p ON p.id = b.page_id
+            WHERE t.page_id = ?1 AND t.deletion_id IS NULL
+              AND b.deletion_id IS NULL AND p.deletion_id IS NULL
+              AND t.rowid NOT IN (SELECT rowid FROM hidden)
+              AND b.rowid NOT IN (SELECT rowid FROM hidden)
+            GROUP BY b.id, t.id)"
+    );
+    capture(
+        &connection,
+        &mut plans,
+        "page_references",
+        format!(
+            "{links}, sources AS MATERIALIZED (
+                SELECT source_id, page_id FROM page_links WHERE page_id != ?1 GROUP BY source_id
+            ), newest AS (
+                SELECT page_id, MAX(source_id) AS newest FROM sources GROUP BY page_id
+            ), ancestry(source_id, parent_id, path) AS (
+                SELECT s.source_id, b.parent_id,
+                       (CASE WHEN b.ordinal < 0 THEN '0' ELSE '1' END) ||
+                       printf('%016llx', b.ordinal & 9223372036854775807) || b.id || '/'
+                FROM sources s JOIN blocks b ON b.id = s.source_id
+                UNION ALL
+                SELECT a.source_id, b.parent_id,
+                       (CASE WHEN b.ordinal < 0 THEN '0' ELSE '1' END) ||
+                       printf('%016llx', b.ordinal & 9223372036854775807) || b.id || '/' || a.path
+                FROM ancestry a JOIN blocks b ON b.id = a.parent_id
+            ), selected AS MATERIALIZED (
+                SELECT s.source_id, s.page_id, n.newest, a.path
+                FROM sources s JOIN newest n ON n.page_id = s.page_id
+                JOIN ancestry a ON a.source_id = s.source_id AND a.parent_id IS NULL
+                ORDER BY n.newest DESC, a.path LIMIT ?2
+            ) SELECT root.kind, root.parent_id, (SELECT COUNT(*) FROM sources), {COLUMNS}, {}, l.target_id
+              FROM blocks root LEFT JOIN selected s ON 1
+              LEFT JOIN blocks b ON b.id = s.source_id LEFT JOIN blocks p ON p.id = s.page_id
+              LEFT JOIN page_links l ON l.source_id = s.source_id
+              WHERE root.id = ?1 AND root.deletion_id IS NULL
+              ORDER BY s.newest DESC, s.path, l.occurrence",
+            COLUMNS.replace("b.", "p.")
+        ),
+        vec![json!(page), json!(100)],
+    )?;
+    capture(
+        &connection,
+        &mut plans,
+        "reference_counts",
+        format!(
+            "{links}, counts AS (
+                SELECT target_id, COUNT(*) AS count FROM page_links
+                WHERE source_id != target_id GROUP BY target_id
+            ) SELECT root.kind, root.parent_id, c.target_id, c.count
+              FROM blocks root LEFT JOIN counts c ON 1
+              WHERE root.id = ?1 AND root.deletion_id IS NULL ORDER BY c.target_id"
+        ),
+        vec![json!(page)],
+    )?;
     std::fs::write(
         results.join(format!("plans-{size}-{stamp}.json")),
         serde_json::to_vec_pretty(

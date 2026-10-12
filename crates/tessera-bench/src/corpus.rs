@@ -6,8 +6,8 @@ use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tessera_core::{
-    Actor, Batch, Block, BlockKind, ChangeEvent, Committed, Notebook, Operation, PageView,
-    Revision, SCHEMA_VERSION,
+    Actor, Batch, Block, BlockKind, ChangeEvent, Committed, Notebook, Operation, PageReferences,
+    PageView, ReferenceCount, Revision, SCHEMA_VERSION,
 };
 
 const GENERATOR_VERSION: u32 = 3;
@@ -642,6 +642,106 @@ impl Model {
             })
             .take(limit)
             .map(|block| block.id.clone())
+            .collect()
+    }
+
+    pub fn check_page_references(
+        &self,
+        page: &str,
+        actual: &PageReferences,
+        limit: usize,
+    ) -> Result<()> {
+        let mut groups = BTreeMap::<&str, BTreeMap<&str, Vec<String>>>::new();
+        for block in self.blocks.values() {
+            if block.page == page || !self.effectively_visible(&block.id) {
+                continue;
+            }
+            let mut targets = Vec::new();
+            for target in references(&block.text) {
+                if self
+                    .blocks
+                    .get(&target)
+                    .is_some_and(|block| block.page == page)
+                    && self.effectively_visible(&target)
+                    && !targets.contains(&target)
+                {
+                    targets.push(target);
+                }
+            }
+            if !targets.is_empty() {
+                groups
+                    .entry(&block.page)
+                    .or_default()
+                    .insert(&block.id, targets);
+            }
+        }
+        let total: usize = groups.values().map(BTreeMap::len).sum();
+        ensure!(
+            actual.total == total,
+            "page reference total differs from naive scan"
+        );
+        let mut groups: Vec<_> = groups.into_iter().collect();
+        groups.sort_by(|a, b| b.1.keys().next_back().cmp(&a.1.keys().next_back()));
+        let mut remaining = limit;
+        let mut actual_groups = actual.groups.iter();
+        for (page, mut sources) in groups {
+            if remaining == 0 {
+                break;
+            }
+            let group = actual_groups.next().context("missing reference group")?;
+            ensure!(group.page.id == page, "reference group order mismatch");
+            self.check_block(&group.page)?;
+            let mut order = vec![(page.to_owned(), 0)];
+            self.preorder(page, 0, &mut order);
+            let mut expected = Vec::new();
+            for (id, _) in order {
+                if remaining == 0 {
+                    break;
+                }
+                if let Some(targets) = sources.remove(id.as_str()) {
+                    expected.push((id, targets));
+                    remaining -= 1;
+                }
+            }
+            ensure!(
+                group.sources.len() == expected.len(),
+                "reference group size mismatch"
+            );
+            for (source, (id, targets)) in group.sources.iter().zip(expected) {
+                ensure!(
+                    source.source.id == id && source.targets == targets,
+                    "reference source or target order mismatch"
+                );
+                self.check_block(&source.source)?;
+            }
+        }
+        ensure!(actual_groups.next().is_none(), "unexpected reference group");
+        Ok(())
+    }
+
+    pub fn reference_counts(&self, page: &str) -> Vec<ReferenceCount> {
+        let mut counts = BTreeMap::<String, usize>::new();
+        for block in self
+            .blocks
+            .values()
+            .filter(|block| self.effectively_visible(&block.id))
+        {
+            let targets: BTreeSet<_> = references(&block.text).into_iter().collect();
+            for target in targets {
+                if target != block.id
+                    && self
+                        .blocks
+                        .get(&target)
+                        .is_some_and(|block| block.page == page)
+                    && self.effectively_visible(&target)
+                {
+                    *counts.entry(target).or_default() += 1;
+                }
+            }
+        }
+        counts
+            .into_iter()
+            .map(|(block_id, count)| ReferenceCount { block_id, count })
             .collect()
     }
 

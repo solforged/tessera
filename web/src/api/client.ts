@@ -6,6 +6,9 @@ import type {
   IngestPlan,
   Agenda,
   Backlink,
+  PageReferences,
+  ReferenceCount,
+  UnlinkedMentions,
   BackupInfo,
   CreatedBackup,
   PrunedBackups,
@@ -251,6 +254,9 @@ export interface ApiClient {
   reviewStats(deckId?: string | null, date?: string, signal?: AbortSignal): Promise<ReviewStats>;
   reviewSessionEvents(id: string, signal?: AbortSignal): Promise<ReviewEvent[]>;
   backlinks(id: string, limit?: number, signal?: AbortSignal): Promise<Backlink[]>;
+  pageReferences(id: string, limit?: number, signal?: AbortSignal): Promise<PageReferences>;
+  referenceCounts(id: string, signal?: AbortSignal): Promise<ReferenceCount[]>;
+  unlinkedMentions(id: string, limit?: number, signal?: AbortSignal): Promise<UnlinkedMentions>;
   members(id: string, limit?: number, signal?: AbortSignal): Promise<BlockInPage[]>;
   fields(signal?: AbortSignal): Promise<Fields>;
   fieldDetail(id: string, kind?: FieldKind, limit?: number, signal?: AbortSignal): Promise<FieldDetail>;
@@ -377,6 +383,9 @@ export function createApi(base = ''): ApiClient {
     reviewStats: (deckId?: string | null, date?: string, signal?: AbortSignal) => get<ReviewStats>(`/review/stats${query({ deck: deckId ?? undefined, date })}`, signal),
     reviewSessionEvents: (id: string, signal?: AbortSignal) => get<ReviewEvent[]>(`/review-sessions/${segment(id)}/reviews`, signal),
     backlinks: (id: string, limit = Number.MAX_SAFE_INTEGER, signal?: AbortSignal) => get<Backlink[]>(`/blocks/${segment(id)}/backlinks${query({ limit })}`, signal),
+    pageReferences: (id: string, limit = Number.MAX_SAFE_INTEGER, signal?: AbortSignal) => get<PageReferences>(`/pages/${segment(id)}/references${query({ limit })}`, signal),
+    referenceCounts: (id: string, signal?: AbortSignal) => get<ReferenceCount[]>(`/pages/${segment(id)}/reference-counts`, signal),
+    unlinkedMentions: (id: string, limit = 100, signal?: AbortSignal) => get<UnlinkedMentions>(`/pages/${segment(id)}/unlinked-mentions${query({ limit })}`, signal),
     members: (id: string, limit = 100, signal?: AbortSignal) => get<BlockInPage[]>(`/types/${segment(id)}/members${query({ limit })}`, signal),
     fields: (signal?: AbortSignal) => get<Fields>('/fields', signal),
     fieldDetail: (id: string, kind?: FieldKind, limit = 12, signal?: AbortSignal) => get<FieldDetail>(`/fields/${segment(id)}${query({ kind, limit })}`, signal),

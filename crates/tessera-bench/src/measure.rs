@@ -5,7 +5,7 @@ use anyhow::{Result, ensure};
 use serde::Serialize;
 use tessera_core::{
     Backlink, Block, BlockInPage, BlockKind, ChangeEvent, Completion, Notebook, Operation,
-    PageView, Revision,
+    PageReferences, PageView, ReferenceCount, Revision,
 };
 
 use crate::corpus::{Corpus, Expected, Model, batch, id, references};
@@ -278,6 +278,84 @@ pub async fn queries(corpus: &Corpus, dir: &Path, recorder: &mut Recorder) -> Re
             check_backlinks(model, &result, &expected)?;
         }
         recorder.record("http", &format!("backlinks:{target}"), None, times, None);
+    }
+    let page = &model.blocks[&target].page;
+    for page in [
+        page,
+        &model
+            .blocks
+            .values()
+            .find(|block| block.parent.is_none() && block.id != *page)
+            .unwrap()
+            .id,
+    ] {
+        let expected_counts = model.reference_counts(page);
+        let mut times = Vec::new();
+        for _ in 0..recorder.runs {
+            let start = Instant::now();
+            let result = notebook.page_references(page, 100)?;
+            times.push(elapsed(start));
+            model.check_page_references(page, &result, 100)?;
+        }
+        recorder.record(
+            "core",
+            &format!("page_references:{page}"),
+            None,
+            times,
+            None,
+        );
+        let mut times = Vec::new();
+        for _ in 0..recorder.runs {
+            let start = Instant::now();
+            let result: PageReferences = http
+                .get(&format!("/api/pages/{page}/references?limit=100"))
+                .await?;
+            times.push(elapsed(start));
+            model.check_page_references(page, &result, 100)?;
+        }
+        recorder.record(
+            "http",
+            &format!("page_references:{page}"),
+            None,
+            times,
+            None,
+        );
+        let mut times = Vec::new();
+        for _ in 0..recorder.runs {
+            let start = Instant::now();
+            let result = notebook.reference_counts(page)?;
+            times.push(elapsed(start));
+            ensure!(
+                result == expected_counts,
+                "reference counts differ from naive scan"
+            );
+        }
+        recorder.record(
+            "core",
+            &format!("reference_counts:{page}"),
+            None,
+            times,
+            None,
+        );
+        let mut times = Vec::new();
+        for _ in 0..recorder.runs {
+            let start = Instant::now();
+            let result: Vec<ReferenceCount> = http
+                .get(&format!("/api/pages/{page}/reference-counts"))
+                .await?;
+            times.push(elapsed(start));
+            ensure!(
+                result == expected_counts,
+                "reference counts differ from naive scan"
+            );
+        }
+        recorder.record(
+            "http",
+            &format!("reference_counts:{page}"),
+            None,
+            times,
+            None,
+        );
     }
     let type_id = model
         .blocks
