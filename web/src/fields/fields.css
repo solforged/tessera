@@ -1,9 +1,11 @@
 /* Definitions use the same heading, apparatus and row rhythm as registers. */
-.fields-pane { display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; padding: var(--page-top-space) var(--pane-inset) 0; outline: none; }
-.fields-heading { width: 100%; max-width: var(--measure); margin-inline: auto; padding-bottom: var(--page-title-gap); }
+.fields-pane { --fields-width: var(--measure); display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; padding: var(--page-top-space) var(--pane-inset) 0; outline: none; }
+.fields-pane[data-inspector] { --fields-width: calc(var(--measure) + var(--space-48) + var(--apparatus-width)); }
+.fields-pane > :is(.fields-heading, .fields-toolbar, .fields-scroll, .fields-footer) { width: 100%; max-width: var(--fields-width); margin-inline: auto; }
+.fields-heading { padding-bottom: var(--page-title-gap); }
 .fields-register { margin-bottom: var(--page-eyebrow-gap); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .fields-title { margin: 0; font: var(--page-title-font); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
-.fields-toolbar { display: flex; align-items: center; flex-wrap: wrap; width: 100%; max-width: var(--measure); margin-inline: auto; gap: var(--space-8); padding-bottom: var(--page-head-gap); border-bottom: var(--rule-width) solid var(--line); }
+.fields-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-8); padding-bottom: var(--page-head-gap); border-bottom: var(--rule-width) solid var(--line); }
 .fields-search { flex: 1 1 16rem; min-width: 0; width: 100%; max-width: 16rem; min-height: var(--row-height); border-width: 0 0 var(--rule-width); border-radius: 0; background: transparent; padding-inline: 0; font-size: var(--text-control); }
 .fields-search:focus-visible { outline: none; border-color: var(--accent); }
 .fields-scroll { flex: 1; min-height: 0; min-width: 0; overflow: auto; padding-bottom: var(--page-bottom-space); }

@@ -17,6 +17,7 @@ import type { IconName } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
 import type { MenuItem } from '../ui/Menu';
 import { Popup } from '../ui/Popup';
+import { createPaneMotion, paneTargetIdentity } from '../ui/pane-motion';
 import { Calendar } from './Calendar';
 import { localDate } from '../ui/MonthGrid';
 import { createCommandRegistry } from './commands';
@@ -760,6 +761,9 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
   const [depthMenu, setDepthMenu] = createSignal<HTMLElement | null>(null);
   const [mergeFrom, setMergeFrom] = createSignal<{ id: string; text: string }>();
   let menuButton!: HTMLButtonElement;
+  let content!: HTMLDivElement;
+  const motionIdentity = createMemo(() => paneTargetIdentity(current().target));
+  createPaneMotion(() => content, motionIdentity);
   createEffect(() => {
     const id = pageId(); setDoc(undefined); if (!id) return;
     const document = props.notebook.open(id); setDoc(document);
@@ -859,7 +863,7 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
       <Show when={props.split}><Button class="pane-secondary" icon="close" label="Close pane" shortcut="⌃⇧X" onClick={props.onClose} /></Show>
     </header>
     <Show when={doc()?.saveState() === 'error' || doc()?.saveState() === 'conflict'}><div class="pane-error" role="alert">{doc()?.saveMessage()}</div></Show>
-    <div class="pane-content"><Show keyed when={props.session().generation}>{generation => <Switch fallback={<OutlinePane pane={props.pane} pageId={pageId()!} journalPeriod={current().target.kind === 'page' ? (current().target as Extract<OpenTarget, { kind: 'page' }>).journalPeriod : undefined} view={copyView(outlineView())} onDelete={anchor => props.onDelete(anchor, true)} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} active={props.active} onActivate={() => { if (generation === props.session().generation && document.activeElement?.closest('.pane')?.getAttribute('data-pane') === props.pane) props.onActivate(); }} vim={props.vim} onVimMode={props.onVimMode} commands={props.commands} notebook={props.notebook} />}>
+    <div ref={content} class="pane-content"><Show keyed when={props.session().generation}>{generation => <Switch fallback={<OutlinePane pane={props.pane} pageId={pageId()!} journalPeriod={current().target.kind === 'page' ? (current().target as Extract<OpenTarget, { kind: 'page' }>).journalPeriod : undefined} view={copyView(outlineView())} onDelete={anchor => props.onDelete(anchor, true)} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} active={props.active} onActivate={() => { if (generation === props.session().generation && document.activeElement?.closest('.pane')?.getAttribute('data-pane') === props.pane) props.onActivate(); }} vim={props.vim} onVimMode={props.onVimMode} commands={props.commands} notebook={props.notebook} />}>
       <Match when={current().target.kind === 'table'}><TablePane pane={props.pane} target={current().target as Extract<OpenTarget, { kind: 'table' }>} view={snapshotView(current().view) as TableViewState} notebook={props.notebook} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onTargetChange={target => { if (generation === props.session().generation) props.onTargetChange(target); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
       <Match when={current().target.kind === 'fields'}><FieldsPane typeId={(current().target as Extract<OpenTarget, { kind: 'fields' }>).typeId} view={snapshotView(current().view) as FieldsViewState} notebook={props.notebook} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
       <Match when={current().target.kind === 'field'}><FieldPane target={current().target as Extract<OpenTarget, { kind: 'field' }>} view={snapshotView(current().view) as FieldViewState} notebook={props.notebook} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onTargetChange={target => { if (generation === props.session().generation) props.onTargetChange(target); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>

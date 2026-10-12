@@ -807,7 +807,7 @@ export function LibraryPane(props: LibraryPaneProps) {
         setSearchOpen(value => !value);
         if (searchOpen()) queueMicrotask(() => scroll.closest('.library-pane')?.querySelector<HTMLInputElement>('.library-search')?.focus());
       }} /><Show when={tab() !== 'highlights'}><Button class="bordered" icon="plus" label="Add to library" aria-haspopup={EMBEDDED ? undefined : 'dialog'} onClick={event => openAdd(event.currentTarget)} /></Show></div>
-      <div ref={tabStrip} class="library-tabs mode-tabs tab-strip" role="group" aria-label="Library state">
+      <div ref={tabStrip} class="library-tabs mode-tabs tab-strip" data-mode-panel=".library-scroll" role="group" aria-label="Library state">
         <For each={tabs}>{item => {
           // Zero counts are left out so the tabs fit a narrow pane.
           const count = () => item.id === 'highlights' ? unprocessedCount() : !library() ? undefined : item.id === 'all' ? Object.values(library()!.counts).reduce((sum, value) => sum + value, 0) : library()!.counts[item.id as ReadingState];
@@ -822,7 +822,7 @@ export function LibraryPane(props: LibraryPaneProps) {
       </div>
       <div class="library-controls">
         <Show when={tab() !== 'highlights'} fallback={<div class="library-filter library-highlight-controls">
-          <div class="library-tabs mode-tabs tab-strip" role="group" aria-label="Highlight processing">
+          <div class="library-tabs mode-tabs tab-strip" data-mode-panel=".library-scroll" role="group" aria-label="Highlight processing">
             <Button aria-pressed={unprocessedOnly()} onClick={() => update({ unprocessedOnly: true, scroll: 0 })}>Unprocessed<Show when={unprocessedCount()}><span class="library-count">{unprocessedCount()}</span></Show></Button>
             <Button aria-pressed={!unprocessedOnly()} onClick={() => update({ unprocessedOnly: false, scroll: 0 })}>All</Button>
           </div>
@@ -836,7 +836,7 @@ export function LibraryPane(props: LibraryPaneProps) {
               ...sorts.map(item => ({ section: 'Sort', label: item.label, icon: sort() === item.id ? 'check' as const : undefined, action: () => update({ view: null, sort: item.id, scroll: 0 }) })),
               ...groupings.map(item => ({ section: 'Group', label: item.label, icon: group() === item.id ? 'check' as const : undefined, action: () => update({ group: item.id }) })),
             ] })}>{sorts.find(item => item.id === sort())!.label}<Show when={group() !== 'none'}><span class="library-sort-group"> · by {groupings.find(item => item.id === group())!.label.toLowerCase()}</span></Show><Icon name="down" /></Button>
-            <div class="library-tabs mode-tabs" role="group" aria-label="Library layout">
+            <div class="library-tabs mode-tabs" data-mode-panel=".library-scroll" role="group" aria-label="Library layout">
               <Button icon="rows" label="List" aria-pressed={layout() === 'list'} onClick={() => chooseLayout('list')} />
               <Button icon="shelf" label="Shelf" aria-pressed={layout() === 'shelf'} onClick={() => chooseLayout('shelf')} />
             </div>

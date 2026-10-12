@@ -133,7 +133,7 @@ function KindIndexPane(props: IndexPaneProps) {
       <Show when={index.latest} fallback={<Show when={slow()}><p class="empty-state" role="status">Loading notes…</p></Show>}>
         <Switch>
           <Match when={props.kindKey === 'unfiled'}>
-            <div class="index-queue-tabs mode-tabs tab-strip" role="group" aria-label="Filing queue">
+            <div class="index-queue-tabs mode-tabs tab-strip" data-mode-panel=".index-queue-layout" role="group" aria-label="Filing queue">
               <Button aria-pressed={filter() === 'all'} onClick={() => { setFilter('all'); setSelected(undefined); }}>All <span class="faint">{index.latest!.notes.length}</span></Button>
               <For each={queue()}>{group => <Button aria-pressed={filter() === group.key} onClick={() => { setFilter(group.key); setSelected(undefined); }}>{group.label} <span class="faint">{group.notes.length}</span></Button>}</For>
             </div>
