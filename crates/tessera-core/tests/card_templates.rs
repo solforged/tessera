@@ -469,9 +469,10 @@ fn held_template_units_keep_identity_without_consuming_introductions() {
     assert_eq!(queue(&nb, now).len(), 1);
     let reviewed = nb.card(&original.id).unwrap();
     apply(&mut nb, vec![hold(&reviewed, true)]);
-    assert_eq!(queue(&nb, now).len(), 2);
+    // The grade still counts as today's introduction after the card is held.
+    assert_eq!(queue(&nb, now).len(), 1);
     let forecast = nb.card_template_forecast(&id(50), 14, now).unwrap();
-    assert_eq!(forecast.load[0].added, 2);
+    assert_eq!(forecast.load[0].added, 1);
     assert!(forecast.load.iter().all(|day| day.due == 0));
 }
 

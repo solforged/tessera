@@ -62,7 +62,7 @@ macro_rules! review_pacing {
             ", first_reviews AS MATERIALIZED (
                 SELECT c.key, c.id, MIN(e.created_at) AS first_at
                 FROM card_units c JOIN effective_review_events e ON e.card_id = c.id
-                WHERE c.key LIKE 'tpl:%' AND c.held = 0 AND e.kind = 'grade'
+                WHERE c.key LIKE 'tpl:%' AND e.kind = 'grade'
                 GROUP BY c.id
             ), introduced AS (
                 SELECT key, COUNT(*) AS count FROM first_reviews
