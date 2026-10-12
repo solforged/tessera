@@ -12,7 +12,7 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
   let relatedRequests: AbortController | undefined;
   const relatedVersion = createSettledChanges(props.notebook);
   onCleanup(() => relatedRequests?.abort());
-  const [related] = createResource(() => `${props.pageId}:${relatedVersion()}`, async () => {
+  const [relatedResource] = createResource(() => `${props.pageId}:${relatedVersion()}:${props.notebook.connection() === 'live'}`, async () => {
     relatedRequests?.abort();
     const requests = relatedRequests = new AbortController();
     const [backlinks, tagged, held, about] = await Promise.all([api.backlinks(props.pageId, undefined, requests.signal), api.members(props.pageId, undefined, requests.signal), api.positions({ holder: props.pageId }, requests.signal), api.positions({ subject: props.pageId }, requests.signal)]);
@@ -29,6 +29,8 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
       aboutHolders: about.rows.filter(row => row.block.page.id !== props.pageId).map(row => row.holder_id),
     };
   });
+  const related = createMemo(() => relatedResource.error ? undefined : relatedResource());
+  const relatedError = createMemo(() => relatedResource.error);
   /** Holders of the perspectives filed under this page, here or elsewhere, each once, in page order. */
   const holders = createMemo(() => {
     const seen: string[] = [];
@@ -48,9 +50,9 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
     const [limit, setLimit] = createSignal(100);
     const [open, setOpen] = createSignal(false);
     const rows = createMemo(() => propsRelated.paged ? propsRelated.rows.slice(0, limit()) : propsRelated.rows);
-    return <details class="related-section" onToggle={event => setOpen(event.currentTarget.open)}><summary>{propsRelated.title} <span>{related.error ? 'Unavailable' : related.loading && !related() ? 'Loading…' : propsRelated.rows.length}</span></summary>
+    return <details class="related-section" onToggle={event => setOpen(event.currentTarget.open)}><summary>{propsRelated.title} <span>{relatedError() ? 'Unavailable' : relatedResource.loading && !related() ? 'Loading…' : propsRelated.rows.length}</span></summary>
       <Show when={open()}>
-      <Show when={!related.error} fallback={<p role="alert">Couldn't load related blocks.</p>}>
+      <Show when={!relatedError()} fallback={<p role="alert">Couldn't load related blocks.</p>}>
       <For each={rows()}>{result => {
         const live = props.notebook.lookup(result.block.id);
         return <div class="related-block"><div class="related-open" role="link" tabIndex={0} onKeyDown={event => { if (event.key === 'Enter') props.onOpen({ kind: 'page', pageId: result.page.id, blockId: result.block.id }, event.shiftKey); }} onClick={event => props.onOpen({ kind: 'page', pageId: result.page.id, blockId: result.block.id }, event.shiftKey)}>
@@ -63,5 +65,5 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
       </Show>
     </details>;
   }
-  return { related, apparatus, holders, linkedPages, Related };
+  return { related, relatedError, apparatus, holders, linkedPages, Related };
 }

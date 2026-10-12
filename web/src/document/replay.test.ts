@@ -148,6 +148,43 @@ test('an offline restart resumes the cursor stored atomically with its cached pa
   expect(doc.block(blockId)?.conflict).toBeNull();
 });
 
+test('an offline restart restores pending text and structure and reconnects without another reload', async () => {
+  const database = `replay-drafts-${ulid()}`, online = client(database);
+  await online.ready;
+  const id = await online.createPage(`Offline drafts ${ulid()}`);
+  const original = online.open(id);
+  await eventually(() => original.status() === 'ready', 'online page did not load');
+  const first = original.outline.idAt(0);
+  expect(original.edit({ kind: 'text', id: first, text: 'Base' }).ok).toBe(true);
+  await online.flush();
+  globalThis.fetch = Object.assign(async (): Promise<Response> => { throw new TypeError('Offline drafts'); }, { preconnect: actualFetch.preconnect });
+  expect(original.edit({ kind: 'text', id: first, text: 'Base pending' }).ok).toBe(true);
+  const split = original.edit({ kind: 'split', id: first, offset: 'Base pending'.length });
+  if (!split.ok) throw new Error(split.reason);
+  const child = split.created[0]!;
+  expect(original.edit({ kind: 'text', id: child, text: 'Child pending' }).ok).toBe(true);
+  expect(original.edit({ kind: 'indent', ids: [child] }).ok).toBe(true);
+  await online.flush();
+  await online.dispose();
+  const recovered = client(database);
+  await recovered.ready;
+  const restored = recovered.open(id);
+  await eventually(() => restored.status() === 'ready', 'offline drafts did not hydrate');
+  expect(restored.block(first)?.text).toBe('Base pending');
+  expect(restored.block(child)?.text).toBe('Child pending');
+  expect(restored.outline.parentOf(child)).toBe(first);
+  expect(restored.outline.depth(child)).toBe(1);
+  expect(restored.edit({ kind: 'text', id: child, text: 'Edited after offline reload' }).ok).toBe(true);
+  await recovered.flush();
+  globalThis.fetch = actualFetch;
+  await eventually(() => recovered.connection() === 'live' && recovered.saveState() === 'saved', 'reconnected drafts did not save');
+  expect((await api.page(id)).rows.map(row => [row.block.id, row.block.text, row.depth])).toEqual([
+    [first, 'Base pending', 0], [child, 'Edited after offline reload', 1],
+  ]);
+  expect(restored.status()).toBe('ready');
+  expect(recovered.queuedChanges()).toBe(0);
+});
+
 for (const kind of ['ahead', 'unknown', 'large gap'] as const) {
   test(`a ${kind} cache cursor reloads snapshots and never replays from zero`, async () => {
     const database = `replay-reset-${ulid()}`;

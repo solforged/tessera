@@ -122,7 +122,8 @@ function Pane(props: OutlinePaneProps) {
   let compositionSelection: { range: TextRange; id: string; original: string; from: number; to: number; committed?: string } | null = null;
   let compositionFrame = 0;
   const [createdFields, setCreatedFields] = createSignal<FieldDefinition[]>([]);
-  const [fields] = createResource(() => props.notebook.changeSequence(), () => api.fields());
+  const live = createMemo(() => props.notebook.connection() === 'live');
+  const [fields] = createResource(() => [props.notebook.changeSequence(), live()] as const, () => api.fields());
   const definitions = createMemo(() => {
     const result = new Map<string, FieldDefinition>((fields.error ? [] : fields()?.fields ?? []).map(field => [field.id, field]));
     for (const field of createdFields()) if (!result.has(field.id)) result.set(field.id, field);
@@ -141,7 +142,7 @@ function Pane(props: OutlinePaneProps) {
   const depthFilter = createMemo<DepthFilter | undefined>(() => doc.root()?.kind === 'page' && depth() !== 'full'
     ? { stop: depth(), gloss: glossId(), position: id => !!doc.block(id)?.position, gist: id => isGistName(definitionsById().get(fieldEntryId(doc.block(id)?.text ?? '') ?? '')?.name) } : undefined);
   const [type] = createResource(
-    () => doc.root()?.kind === 'page' ? [props.pageId, props.notebook.changeSequence()] as const : false,
+    () => doc.root()?.kind === 'page' ? [props.pageId, props.notebook.changeSequence(), live()] as const : false,
     ([pageId]) => api.type(pageId),
   );
   const [editingNames] = createResource(() => {
@@ -208,7 +209,7 @@ function Pane(props: OutlinePaneProps) {
     const visible = visibleIds(doc, zoom(), folds(), showArchived(), undefined, depthFilter());
     if (!doc.root()?.source || zoom()) return visible;
     // Field definitions distinguish source metadata from ordinary outline rows; never guess while loading.
-    if (!fields()) return [];
+    if (!fields.error && !fields()) return [];
     const roots = new Map<string, string>();
     const colors = sourceColors(), showFields = sourceFieldsVisible();
     const shown = visible.filter(id => {
@@ -263,15 +264,15 @@ function Pane(props: OutlinePaneProps) {
   const [siglumRecords] = createResource(() => citedSources().length ? citedSources() : false, ids => Promise.all(ids.map(id =>
     api.source(id).then(view => ({ id, siglum: view.source.siglum, basis: view.source.siglum_basis, authored: view.source.siglum_authored }), () => null))));
   const sigla = createMemo(() => pageSigla((siglumRecords.error ? [] : siglumRecords() ?? []).filter(record => record !== null)));
-  const [sourceHighlights] = createResource(() => doc.root()?.source && !zoom() ? [props.pageId, props.notebook.changeSequence()] as const : false,
+  const [sourceHighlights] = createResource(() => doc.root()?.source && !zoom() ? [props.pageId, props.notebook.changeSequence(), live()] as const : false,
     ([source_id]) => props.notebook.api.highlights({ source_id, limit: 100000 }));
   const [sourceHeaderReady, setSourceHeaderReady] = createSignal(false);
   // Mount the designed structure for measurement, but reveal it and its portaled dock together.
   // Keep settled resources visible during background refreshes, and paint nothing before the first load:
   // the title's "Loading…" placeholder otherwise flashes for a frame on every page open.
   const sourceReady = () => doc.status() !== 'loading' && (!doc.root()?.source || sourceHeaderReady()
-    && !!(fields() || fields.error) && (!!zoom() || !!(sourceHighlights() || sourceHighlights.error)));
-  const filedElsewhere = createMemo(() => (sourceHighlights()?.rows ?? []).filter(row => row.block.page.id !== props.pageId && (!sourceColors().length || !!row.color && sourceColors().includes(row.color)))
+    && !!(fields.error || fields()) && (!!zoom() || !!(sourceHighlights.error || sourceHighlights())));
+  const filedElsewhere = createMemo(() => (sourceHighlights.error ? [] : sourceHighlights()?.rows ?? []).filter(row => row.block.page.id !== props.pageId && (!sourceColors().length || !!row.color && sourceColors().includes(row.color)))
     .sort((a, b) => a.citation.ordinal - b.citation.ordinal || a.citation.start.offset - b.citation.start.offset));
   const sourceDetails = createMemo(() => {
     const fields = new Map<string, string>();
@@ -279,7 +280,7 @@ function Pane(props: OutlinePaneProps) {
     const chapters = new Map<string, string>();
     if (!doc.root()?.source || zoom()) return { fields, chapters };
     const counts = new Map<string, number>();
-    for (const row of sourceHighlights()?.rows ?? []) {
+    for (const row of sourceHighlights.error ? [] : sourceHighlights()?.rows ?? []) {
       const title = row.citation.chapter_title;
       if (row.block.page.id === props.pageId && title && (!sourceColors().length || !!row.color && sourceColors().includes(row.color))) counts.set(title, (counts.get(title) ?? 0) + 1);
     }
@@ -1000,7 +1001,7 @@ function Pane(props: OutlinePaneProps) {
   const fieldSheet = createFieldSheet(context, { offerValue, onField: field => setCreatedFields(previous => previous.some(existing => existing.id === field.id) ? previous : [...previous, field]) });
   const drag = createOutlineDrag(context);
   const { Row, TaskSummary, QuestionSummary } = createOutlineRows(context, fieldSheet, drag);
-  const { related, apparatus, holders, linkedPages, Related } = createOutlineRelated(context);
+  const { related, relatedError, apparatus, holders, linkedPages, Related } = createOutlineRelated(context);
   const { CapabilityPopups } = createCapabilityPopups(context);
 
   onMount(() => {
@@ -1217,7 +1218,7 @@ function Pane(props: OutlinePaneProps) {
       </Show>}</Show>
       <Show when={doc.root()?.source}><SourceHeader doc={doc} notebook={props.notebook} resetItems={sourceResets} onOpen={props.onOpen} onError={setMessage} onDelete={props.onDelete}
         fields={definitions()} compact={!!zoom()} ready={sourceReady()} onReady={setSourceHeaderReady}
-        highlights={zoom() ? undefined : sourceHighlights()} colors={sourceColors()} onColors={setSourceColors} grouped={sourceGrouped()} onGrouped={setSourceGrouped} fieldsVisible={sourceFieldsVisible()} onFieldsVisible={setSourceFieldsVisible} /></Show>
+        highlights={zoom() || sourceHighlights.error ? undefined : sourceHighlights()} colors={sourceColors()} onColors={setSourceColors} grouped={sourceGrouped()} onGrouped={setSourceGrouped} fieldsVisible={sourceFieldsVisible()} onFieldsVisible={setSourceFieldsVisible} /></Show>
       <Show when={doc.root()?.templateCards}><CardSummary blockId={props.pageId} cards={[]} templateCount={doc.root()?.templateCards ?? 0} notebook={props.notebook} onOpen={props.onOpen} /></Show>
       <Show when={doc.root()?.task || doc.root()?.project || doc.root()?.question || doc.root()?.citations.length}><div class="outline-root-capabilities outline-capability-metadata">
         <Show when={doc.root()?.task}>
@@ -1269,11 +1270,11 @@ function Pane(props: OutlinePaneProps) {
     <Show when={doc.status() === 'ready' && ids().length === 0 && depthFilter() === undefined}><button type="button" class="add-first-block" onClick={() => apply({ kind: 'insert', parentId: zoom() ?? props.pageId, after: null }, true)}><Icon name="plus" />Add a block</button></Show>
     <Show when={!zoom() && doc.root()?.kind === 'journal'}><div class="related-sections journal-highlights"><JournalResurface date={doc.root()!.text} notebook={props.notebook} onOpen={props.onOpen} /></div></Show>
     <Show when={doc.status() === 'ready' && !zoom() && related()?.works.length}><PersonWorks pageId={props.pageId} rows={related()!.works} onOpen={props.onOpen} /></Show>
-    <Show when={doc.status() === 'ready' && (related.error || (related()?.backlinks.length ?? 0) + (related()?.tagged.length ?? 0) + (related()?.held.length ?? 0) + (related()?.about.length ?? 0) > 0)}><div class="related-sections">
+    <Show when={doc.status() === 'ready' && (relatedError() || (related()?.backlinks.length ?? 0) + (related()?.tagged.length ?? 0) + (related()?.held.length ?? 0) + (related()?.about.length ?? 0) > 0)}><div class="related-sections">
       <Show when={related()?.held.length}><Related title="Perspectives held" rows={related()?.held ?? []} /></Show>
       <Show when={related()?.about.length}><Related title="Perspectives filed elsewhere" rows={related()?.about ?? []} /></Show>
-      <Show when={related.error || related()?.backlinks.length}><Related title="Backlinks" rows={related.error ? [] : related()?.backlinks ?? []} paged /></Show>
-      <Show when={related.error || related()?.tagged.length}><Related title="Tagged blocks" rows={related.error ? [] : related()?.tagged ?? []} /></Show>
+      <Show when={relatedError() || related()?.backlinks.length}><Related title="Backlinks" rows={relatedError() ? [] : related()?.backlinks ?? []} paged /></Show>
+      <Show when={relatedError() || related()?.tagged.length}><Related title="Tagged blocks" rows={relatedError() ? [] : related()?.tagged ?? []} /></Show>
     </div></Show>
     <Show keyed when={menu()}>{state => <Menu anchor={state.anchor} label={state.label} header={state.header} items={state.items} onDismiss={() => { setMenu(null); restoreFocus(); }} />}</Show>
     <Show keyed when={mergeTarget()}>{target => <PageMergeConfirmation anchor={target.anchor} notebook={props.notebook} from={target.from} into={target.page} onDismiss={() => setMergeTarget(undefined)} onMerged={id => { setMergeTarget(undefined); props.onOpen({ kind: 'page', pageId: id }, false); }} />}</Show>
