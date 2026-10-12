@@ -5,9 +5,11 @@
 #
 # Builds in a separate worktree, so uncommitted edits never ship. Strips the
 # debug info from the native library (about 90 MB instead of 300 to 700 MB),
-# signs it again with ~/.android/debug.keystore, the key every debug build
-# uses, so it installs over an existing Tessera as an update and keeps the
-# notebook. The APK and a page naming its commit replace the previous ones at
+# signs it again with the release key the GitHub release APKs carry, so the
+# two update each other and keep the notebook. The key is the 1Password item
+# "Tessera Android release key" (its password and the keystore attached), or
+# TESSERA_ANDROID_KEYSTORE and TESSERA_ANDROID_KEYSTORE_PASSWORD, as Gradle
+# takes them. The APK and a page naming its commit replace the previous ones at
 # https://<this Mac>.<tailnet>:8443/, served from 127.0.0.1:18791 by the
 # dev.tessera.downloads launch agent and exposed to the tailnet only by
 # Tailscale Serve. Both are set up on the first run.
@@ -24,7 +26,7 @@ port=18791
 https=8443
 label=dev.tessera.downloads
 plist="$HOME/Library/LaunchAgents/$label.plist"
-keystore="$HOME/.android/debug.keystore"
+item="op://Private/Tessera Android release key"
 
 echo "publish: building $build"
 if [ -e "$src/.git" ]; then
@@ -46,13 +48,20 @@ strip=$(find "$NDK_HOME/toolchains/llvm/prebuilt" -path '*/bin/llvm-strip' | hea
 tools=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
+keystore=${TESSERA_ANDROID_KEYSTORE:-}
+if [ -z "$keystore" ]; then
+  keystore="$work/release.jks"
+  op read --out-file "$keystore" "$item/keystore" >/dev/null
+fi
+TESSERA_ANDROID_KEYSTORE_PASSWORD=${TESSERA_ANDROID_KEYSTORE_PASSWORD:-$(op read "$item/password")}
+export TESSERA_ANDROID_KEYSTORE_PASSWORD
 (cd "$work" && mkdir lib && unzip -q "$apk" 'lib/*' -d .)
 find "$work/lib" -name '*.so' -exec "$strip" --strip-debug {} +
 cp "$apk" "$work/stripped.apk"
 zip -q -d "$work/stripped.apk" 'META-INF/*'
 (cd "$work" && zip -q -0 stripped.apk lib/*/*.so)
 "$tools/zipalign" -f -P 16 4 "$work/stripped.apk" "$work/aligned.apk"
-"$tools/apksigner" sign --ks "$keystore" --ks-pass pass:android --ks-key-alias androiddebugkey --out "$work/signed.apk" "$work/aligned.apk"
+"$tools/apksigner" sign --ks "$keystore" --ks-key-alias tessera --ks-pass env:TESSERA_ANDROID_KEYSTORE_PASSWORD --key-pass env:TESSERA_ANDROID_KEYSTORE_PASSWORD --out "$work/signed.apk" "$work/aligned.apk"
 certificate=$("$tools/apksigner" verify --print-certs "$work/signed.apk" | sed -n 's/.*certificate SHA-256 digest: //p' | head -n 1)
 
 name="tessera-$build.apk"
@@ -84,7 +93,7 @@ cat >"$work/index.html" <<EOF
   <h1>Tessera for Android</h1>
   <p class="meta">$build · $(html "$subject")</p>
   <a class="download" href="$name">Download Tessera · $size MB</a>
-  <p>Open the file and allow this browser to install apps if Android asks. It installs over an earlier Tessera as an update and keeps its notebook; a new install starts with notebook setup.</p>
+  <p>Open the file and allow this browser to install apps if Android asks. It installs over a Tessera from this page or a GitHub release as an update and keeps its notebook; a new install starts with notebook setup. A Tessera built for development has another signature: Android refuses the update until it is uninstalled, which deletes that phone's notebook.</p>
   <dl>
     <dt>Commit</dt><dd>$build, $committed</dd>
     <dt>Published</dt><dd>$(date '+%Y-%m-%d %H:%M %Z')</dd>
