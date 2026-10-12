@@ -5,7 +5,7 @@ import { ApiError, CHANGE_CONNECTING, CHANGE_OPEN, bindNotebook, createApi } fro
 import type { Batch, Block, BlockCapabilities, ChangeEvent, Committed, Operation, PageView, SettingsView, WorkSession } from '../api/types';
 import type { ApiClient, ChangeSocket } from '../api/client';
 import { startingTemplateFor } from '../fields/templates';
-import type { Caret, DocumentChange, NotebookClient, PageDocument, SaveState, SourceDetailsEdit } from './contract';
+import type { BlockClipboard, Caret, DocumentChange, NotebookClient, PageDocument, SaveState, SourceDetailsEdit } from './contract';
 import { Document } from './page-document';
 import type { DocumentHost } from './page-document';
 import { Outbox } from './outbox';
@@ -42,6 +42,7 @@ export class Notebook implements NotebookClient, DocumentHost {
   private failedLookups = new Set<string>();
   private queue: Command[] = [];
   private tickets = new Map<string, Ticket>();
+  private notebookId = '';
   private deletedPages = new Map<string, Action>();
   private rejected = new Map<string, Command>();
   private outbox?: Outbox;
@@ -155,6 +156,7 @@ export class Notebook implements NotebookClient, DocumentHost {
       try { notebookId ??= sessionStorage.getItem(key) ?? undefined; } catch { /* No remembered notebook. */ }
       if (!notebookId) { this.failure = error instanceof Error ? error.message : String(error); this.touch(); return; }
     }
+    this.notebookId = notebookId;
     bindNotebook(this.options.baseUrl ?? '', notebookId);
     try { this.cachedVim[1](JSON.parse(localStorage.getItem(`tessera.navigation.${notebookId}`) ?? '{}').vim === true); } catch { /* Optional offline preference. */ }
     // Establish the replay floor before fetching any state a window can show.
@@ -186,6 +188,29 @@ export class Notebook implements NotebookClient, DocumentHost {
     if (warm >= 0) this.warm.splice(warm, 1);
     doc.holds++;
     return doc;
+  }
+  canRestore(ids: readonly string[]) {
+    return ids.every(id => this.cache.get(id)?.[0]() === null && (this.tickets.has(id)
+      || this.queue.some(command => command.actions.some(action => action.kind === 'delete' && action.id === id))));
+  }
+  clipboardScope() { return this.notebookId; }
+  async prepareClipboard(content: BlockClipboard): Promise<BlockClipboard> {
+    if (!content.cut || content.scope !== this.notebookId) return { ...content, cut: false };
+    const roots = content.blocks.filter(item => item.depth === 0).map(item => item.block.id);
+    if (roots.every(id => this.cache.get(id)?.[0]() === null
+      && this.queue.some(command => command.actions.some(action => action.kind === 'delete' && action.id === id)))) return content;
+    let consumed = false;
+    for (const id of roots) {
+      const ticket = await this.outbox?.getTicket(id);
+      if (!ticket) throw new Error('The cut has not finished saving yet. Try pasting again.');
+      try { await this.api.block(id); consumed = true; }
+      catch (error) {
+        if (!(error instanceof ApiError) || error.status !== 404) throw error;
+        this.tickets.set(id, ticket);
+        this.publish(null, id);
+      }
+    }
+    return consumed ? { ...content, cut: false } : content;
   }
   release(doc: Document) {
     doc.holds = Math.max(0, doc.holds - 1);

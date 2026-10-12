@@ -433,6 +433,12 @@ Rows highlight on hover with `--hover`; selection uses `--selection` plus the ac
 
 Shift-click on another row selects the range from the current row; Shift-click inside the block being edited extends its text selection instead.
 
+⌘A in row-selection mode selects all visible outline rows. Backspace and forward Delete remove a row range, and either removes a single selected row when Vim is off.
+
+Copy and cut act on a single selected row or range and include every descendant, folded or archived, as indented plain text plus Tessera's structured clipboard format. Structured paste inserts intact subtrees at the destination depth: copy creates new identities with task state and card syntax, while cut within the same notebook restores and moves the original identities, capabilities, planning and work or review history.
+
+A paste without plain text or Tessera block data leaves the selection untouched. A cut still saving in another window waits for a retry without changing the destination; pasting the same cut after its move creates a copy.
+
 Opening a page selects nothing, so no row lights up that you did not choose; journals still open editing their last empty block. ↓ or `j` then selects the first visible row and ↑ or `k` the last; other keys wait for a selection. Back and forward restore the row you had selected.
 
 An open that names a block selects it, and one that names a caret (Add note, Make card, Highlight and note) starts editing there.

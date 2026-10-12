@@ -16,6 +16,7 @@ import { questionStatus } from './types';
 import { emptyMetadata, fillMissingSourceDetails, saveDetails, saveSourceField, sourceEntries, sourceFieldValue, sourceMetadata } from '../library/details';
 import type { SourceCreator, SourceField } from '../library/details';
 import { sourceReadingOrder } from '../library/source-order';
+import { clipboardText, parseBlockClipboard } from './clipboard';
 
 const port = Bun.env.TESSERA_TEST_PORT ?? '4330';
 const baseUrl = `http://127.0.0.1:${port}`;
@@ -680,6 +681,139 @@ describe('real notebook operations and recovery', () => {
     doc.redo();
     await instance.flush();
     expect(ids(doc).map(id => doc.block(id)?.text)).toEqual(['ax', 'y', 'nestedc']);
+  });
+
+  test('block clipboard capture includes every descendant of selected roots, not just visible rows', async () => {
+    const instance = await client();
+    const { doc, first, id } = await page(instance, 'Parent');
+    const child = success(doc.edit({ kind: 'insert', parentId: first, after: null, text: 'Child' })).created[0]!;
+    const grandchild = success(doc.edit({ kind: 'insert', parentId: child, after: null, text: 'Grandchild' })).created[0]!;
+    const next = success(doc.edit({ kind: 'insert', parentId: id, after: first, text: 'Next' })).created[0]!;
+    await instance.flush();
+    const content = doc.clipboard([first, next], true);
+    expect(content.blocks.map(item => item.block.id)).toEqual([first, child, grandchild, next]);
+    expect(clipboardText(content)).toBe('Parent\n  Child\n    Grandchild\nNext');
+    expect(doc.clipboard([first, child, grandchild]).blocks.map(item => item.block.id)).toEqual([first, child, grandchild]);
+    const single = doc.clipboard([next], true);
+    expect(single.blocks.map(item => item.block.id)).toEqual([next]);
+    success(doc.edit({ kind: 'delete', ids: [first, next] }));
+    expect([first, child, grandchild, next].every(id => !doc.block(id))).toBe(true);
+    expect(content.blocks.map(item => item.block.text)).toEqual(['Parent', 'Child', 'Grandchild', 'Next']);
+  });
+
+  test('cut subtrees paste with their original ids before the deletion has acknowledged', async () => {
+    const instance = await client();
+    const { doc, first, id } = await page(instance, 'Parent');
+    const child = success(doc.edit({ kind: 'insert', parentId: first, after: null, text: 'Child' })).created[0]!;
+    const next = success(doc.edit({ kind: 'insert', parentId: id, after: first, text: 'Next' })).created[0]!;
+    const destination = success(doc.edit({ kind: 'insert', parentId: id, after: next })).created[0]!;
+    await instance.flush();
+    const content = doc.clipboard([first, next], true);
+    success(doc.edit({ kind: 'delete', ids: [first, next] }));
+    const at = { id: destination, offset: 0 };
+    const ready = await doc.prepareClipboard(content);
+    success(doc.edit({ kind: 'pasteBlocks', range: { anchor: at, head: at }, between: [], content: ready }, at));
+    expect(ids(doc)).toEqual([first, child, next]);
+    expect(doc.outline.parentOf(child)).toBe(first);
+    await instance.flush();
+    expect((await api.page(id)).rows.map(row => ({ id: row.block.id, depth: row.depth }))).toEqual([{ id: first, depth: 0 }, { id: child, depth: 1 }, { id: next, depth: 0 }]);
+    doc.release();
+  });
+
+  test('structured copy paste keeps hierarchy, multiline card sources and tasks at destination depth', async () => {
+    const instance = await client();
+    const source = await page(instance, 'Parent');
+    const card = success(source.doc.edit({ kind: 'insert', parentId: source.first, after: null, text: 'Front >>>\nFirst answer\nSecond answer' })).created[0]!;
+    const nested = success(source.doc.edit({ kind: 'insert', parentId: card, after: null, text: 'Nested' })).created[0]!;
+    const other = success(source.doc.edit({ kind: 'insert', parentId: source.first, after: card, text: 'Other child' })).created[0]!;
+    success(source.doc.edit({ kind: 'task', id: source.first, value: { ...todo, scheduled: '2026-10-12', priority: 'high' } }));
+    await instance.flush();
+    const content = parseBlockClipboard(JSON.stringify(source.doc.clipboard([source.first, card, nested, other])))!;
+    for (const depth of [0, 1]) {
+      const destination = await page(instance, depth ? 'Destination' : '');
+      const target = depth ? success(destination.doc.edit({ kind: 'insert', parentId: destination.first, after: null })).created[0]! : destination.first;
+      await instance.flush();
+      const at = { id: target, offset: 0 };
+      const result = success(destination.doc.edit({ kind: 'pasteBlocks', range: { anchor: at, head: at }, between: [], content }, at));
+      const pasted = result.created;
+      expect(pasted).toHaveLength(4);
+      expect(pasted.some(id => content.blocks.some(item => item.block.id === id))).toBe(false);
+      expect(pasted.map(id => destination.doc.outline.depth(id))).toEqual([depth, depth + 1, depth + 2, depth + 1]);
+      expect(destination.doc.outline.parentOf(pasted[1]!)).toBe(pasted[0]!);
+      expect(destination.doc.outline.parentOf(pasted[2]!)).toBe(pasted[1]!);
+      expect(destination.doc.block(pasted[0]!)?.task).toEqual(source.doc.block(source.first)?.task);
+      expect(destination.doc.block(pasted[1]!)?.text).toBe('Front >>>\nFirst answer\nSecond answer');
+      await instance.flush();
+      expect((await api.page(destination.id)).rows.filter(row => pasted.includes(row.block.id)).map(row => row.depth)).toEqual([depth, depth + 1, depth + 2, depth + 1]);
+      expect(await api.sourceCards(pasted[1]!)).toHaveLength((await api.sourceCards(card)).length);
+      destination.doc.undo();
+      await instance.flush();
+      expect(destination.doc.block(target)?.text).toBe('');
+      expect(pasted.every(id => !destination.doc.block(id))).toBe(true);
+      destination.doc.redo();
+      await instance.flush();
+      expect(pasted.map(id => destination.doc.outline.depth(id))).toEqual([depth, depth + 1, depth + 2, depth + 1]);
+      destination.doc.release();
+    }
+    source.doc.release();
+  });
+
+  test('cut paste restores and moves original task, work and card identities across pages and windows', async () => {
+    const instance = await client();
+    const otherWindow = await client();
+    const source = await page(instance, 'Scheduled work');
+    const card = success(source.doc.edit({ kind: 'insert', parentId: source.first, after: null, text: 'Front >> Back' })).created[0]!;
+    const task = { ...todo, scheduled: '2026-10-12', scheduled_time: '17:30', priority: 'high' as const };
+    success(source.doc.edit({ kind: 'task', id: source.first, value: task }));
+    await instance.flush();
+    success(source.doc.edit({ kind: 'startWork', id: source.first, startedAt: 1000 }));
+    await instance.flush();
+    const session = (await api.workSessions(source.first))[0]!;
+    success(source.doc.edit({ kind: 'stopWork', id: source.first, session, endedAt: 2000, note: 'Original work history' }));
+    await instance.flush();
+    const work = await api.workSessions(source.first);
+    const cards = await api.sourceCards(card);
+    const content = parseBlockClipboard(JSON.stringify(source.doc.clipboard([source.first], true)))!;
+    success(source.doc.edit({ kind: 'delete', ids: [source.first] }));
+    await instance.flush();
+    const destination = await page(otherWindow, '');
+    const ready = await destination.doc.prepareClipboard(content);
+    expect(ready.cut).toBe(true);
+    const at = { id: destination.first, offset: 0 };
+    success(destination.doc.edit({ kind: 'pasteBlocks', range: { anchor: at, head: at }, between: [], content: ready }, at));
+    expect(ids(destination.doc)).toEqual([source.first, card]);
+    expect(destination.doc.block(source.first)?.task).toEqual(task);
+    expect(destination.doc.outline.parentOf(card)).toBe(source.first);
+    await otherWindow.flush();
+    const rows = (await api.page(destination.id)).rows;
+    expect(rows.map(row => ({ id: row.block.id, depth: row.depth }))).toEqual([{ id: source.first, depth: 0 }, { id: card, depth: 1 }]);
+    expect((await api.block(source.first)).page_id).toBe(destination.id);
+    expect(await api.workSessions(source.first)).toEqual(work);
+    expect((await api.sourceCards(card)).map(item => item.id)).toEqual(cards.map(item => item.id));
+    expect((await api.capabilities(source.first)).task).toEqual(task);
+    expect((await source.doc.prepareClipboard(content)).cut).toBe(false);
+    source.doc.release();
+    destination.doc.release();
+  });
+
+  test('copying a completed task makes a distinct task without borrowing its work history', async () => {
+    const instance = await client();
+    const source = await page(instance, 'Finished work');
+    success(source.doc.edit({ kind: 'task', id: source.first, value: todo }));
+    success(source.doc.edit({ kind: 'completeTask', id: source.first, completedOn: '2026-10-12' }));
+    await instance.flush();
+    const destination = await page(instance, '');
+    const at = { id: destination.first, offset: 0 };
+    const result = success(destination.doc.edit({ kind: 'pasteBlocks', range: { anchor: at, head: at }, between: [], content: source.doc.clipboard([source.first]) }));
+    const copied = result.created[0]!;
+    expect(copied).not.toBe(source.first);
+    expect(destination.doc.block(copied)?.task).toEqual(source.doc.block(source.first)?.task);
+    await instance.flush();
+    expect((await api.capabilities(copied)).task).toEqual(source.doc.block(source.first)?.task);
+    expect(await api.workSessions(copied)).toEqual([]);
+    expect((await api.taskOccurrences(copied))[0]?.id).not.toBe((await api.taskOccurrences(source.first))[0]?.id);
+    source.doc.release();
+    destination.doc.release();
   });
 
   test('range replacement refuses hidden interiors before changing text, structure, or undo history', async () => {

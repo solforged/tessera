@@ -19,6 +19,7 @@ import type { PositionInfo } from '../api/types';
 import type { AssessmentInfo, AssessmentState, QuestionInfo, QuestionState } from '../api/types';
 import type { ApiClient } from '../api/client';
 import type { CardTemplate, CardTemplateState } from '../api/types';
+import type { BlockCapabilities } from '../api/types';
 
 /** A position in a block's text, in UTF-16 code units. */
 export interface Caret {
@@ -97,6 +98,20 @@ export interface SourceDetailsEdit {
 export interface DocumentChange {
   undo(): Promise<void>;
   redo(): Promise<void>;
+}
+
+/** Complete block subtrees on the clipboard, with depths relative to each selected root. */
+export interface ClipboardBlock {
+  block: Block;
+  depth: number;
+  manualTypes: string[];
+  capabilities: BlockCapabilities;
+}
+export interface BlockClipboard {
+  version: 1;
+  scope: string;
+  cut: boolean;
+  blocks: ClipboardBlock[];
 }
 
 /**
@@ -190,6 +205,8 @@ export type Edit =
     }
   /** Paste plain text at a caret; lines become sibling blocks, leading indentation nests them. */
   | { kind: 'paste'; at: Caret; text: string }
+  /** Insert copied subtrees, or restore and move cut subtrees, without merging their identities into text. */
+  | { kind: 'pasteBlocks'; range: TextRange; between: string[]; content: BlockClipboard; zoomRoot?: string | null }
   | { kind: 'heading'; id: string; level: 1 | 2 | 3 | null }
   /** Append a definition to the Fields page with its kind in one undo step. */
   | { kind: 'addField'; name: string; value: FieldKind }
@@ -257,6 +274,10 @@ export interface PageDocument {
   /** Changes whenever any block's archived flag changes. */
   archivedVersion(): number;
   outline: OutlineReader;
+  /** Capture selected roots and every descendant, including folded and archived rows. */
+  clipboard(ids: readonly string[], cut?: boolean): BlockClipboard;
+  /** Resolve a cut's shared restore tickets before changing its destination. */
+  prepareClipboard(content: BlockClipboard): Promise<BlockClipboard>;
 
   /** `caretBefore` is restored by undo. */
   edit(edit: Edit, caretBefore?: HistoryCaret | null): EditResult;

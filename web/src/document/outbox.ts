@@ -89,6 +89,10 @@ export class Outbox {
     });
   }
   ticket(id: string, ticket: Ticket) { return this.enqueue(db => db.put('tickets', { key: `${this.notebookId}:${id}`, ticket })); }
+  async getTicket(id: string): Promise<Ticket | undefined> {
+    await this.writes;
+    return (await (await this.db).get('tickets', `${this.notebookId}:${id}`))?.ticket;
+  }
   acknowledge(command: Command, blocks: Block[], sequence: number, revisions: Map<string, number>, view?: PageView, deletedIds?: readonly string[]) {
     const actions = command.actions.filter(action => ['insert', 'delete', 'restore', 'move', 'split', 'merge', 'addType', 'removeType'].includes(action.kind));
     return this.enqueue(async db => {

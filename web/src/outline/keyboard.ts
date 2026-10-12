@@ -192,6 +192,12 @@ export function createOutlineKeyboard(context: Pick<OutlineContext,
     }
     if (event.target !== context.scroll || event.isComposing || composition()) return;
     let handled = false;
+    if (!editing() && (event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'a') {
+      const first = ids()[0], last = ids().at(-1);
+      if (first && last) { rowFocus(last); setRowRange({ anchor: first, head: last }); }
+      event.preventDefault();
+      return;
+    }
     if (textRange() && (event.key === 'Backspace' || event.key === 'Delete')) { deleteTextRange(); handled = true; }
     if (!handled) handled = commonKey(event);
     if (!handled && (event.key === '[' || event.key === ']') && !event.metaKey && !event.ctrlKey && !event.altKey && !depthReason()) { stepDepth(event.key === '[' ? -1 : 1); handled = true; }
@@ -213,7 +219,7 @@ export function createOutlineKeyboard(context: Pick<OutlineContext,
       else if (event.key === 'i' && selected()) { const id = selected()!; editAt(id, caret()?.id === id ? caret()!.offset : 0, true); handled = true; }
     }
     if (!handled && event.key === 'Enter' && selected()) { props.vim ? zoomTo(selected()) : editAt(selected()!, caret()?.id === selected() ? caret()!.offset : 0, true); handled = true; }
-    if (!handled && event.key === 'Backspace') { props.vim ? zoomOut() : apply({ kind: 'delete', ids: roots() }, false); handled = true; }
+    if (!handled && (event.key === 'Backspace' || event.key === 'Delete')) { props.vim && !rowRange() && event.key === 'Backspace' ? zoomOut() : apply({ kind: 'delete', ids: roots() }, false); handled = true; }
     if (!handled && event.key === ' ' && selected() && !rowRange() && !textRange() && !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey) { rowKey = ''; leaderMenu(selected()!); handled = true; }
     if (!handled && props.vim && !event.metaKey && !event.altKey) handled = vimStructural(event);
     if (handled) event.preventDefault();

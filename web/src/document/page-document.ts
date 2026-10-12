@@ -5,7 +5,7 @@ import type { SetStoreFunction } from 'solid-js/store';
 import { ulid } from 'ulid';
 import { ApiError } from '../api/client';
 import type { Batch, Block, BlockCapabilities, Committed, PageView, TextRewrite, WorkSession } from '../api/types';
-import type { BlockState, Caret, Edit, EditResult, HistoryCaret, PageDocument, SaveState, SourceDetailsEdit, TextRange } from './contract';
+import type { BlockClipboard, BlockState, Caret, Edit, EditResult, HistoryCaret, PageDocument, SaveState, SourceDetailsEdit, TextRange } from './contract';
 import { OutlineIndex } from './outline-index';
 import type { Action, Command, HistoryEntry, PageCommand, Snapshot } from './types';
 import { emptyCapabilities, isCapabilityAction, questionStatus, sameState, sourceState } from './types';
@@ -29,6 +29,9 @@ export interface DocumentHost {
   release(doc: Document): void;
   retry(): void;
   titleAvailable(title: string, exceptId: string): boolean;
+  canRestore(ids: readonly string[]): boolean;
+  clipboardScope(): string;
+  prepareClipboard(content: BlockClipboard): Promise<BlockClipboard>;
 }
 type MutableBlockState = { -readonly [K in keyof BlockState]: BlockState[K] } & { history: boolean };
 interface Cell { state: MutableBlockState; set: SetStoreFunction<MutableBlockState> }
@@ -184,6 +187,27 @@ export class Document implements PageDocument {
     // Most blocks have no capabilities; a fresh empty value needs no defensive copy.
     return value ? JSON.parse(JSON.stringify(value)) as BlockCapabilities : emptyCapabilities(id);
   }
+  clipboard(ids: readonly string[], cut = false): BlockClipboard {
+    const selected = new Set(ids);
+    const roots = [...selected].filter(id => {
+      if (this.outline.indexOf(id) < 0) return false;
+      let parent = this.outline.parentOf(id);
+      while (parent !== this.pageId) {
+        if (selected.has(parent)) return false;
+        parent = this.outline.parentOf(parent);
+      }
+      return true;
+    }).sort((left, right) => this.outline.indexOf(left) - this.outline.indexOf(right));
+    return { version: 1, scope: this.host.clipboardScope(), cut, blocks: roots.flatMap(id => {
+      const at = this.outline.indexOf(id);
+      const depth = this.outline.depth(id);
+      return this.outline.slice(at, this.outline.subtreeEnd(at)).map(row => ({
+        block: this.snapshot(row.id), depth: row.depth - depth,
+        manualTypes: [...this.block(row.id)!.manual_types], capabilities: this.capabilities(row.id),
+      }));
+    }) };
+  }
+  prepareClipboard(content: BlockClipboard) { return this.host.prepareClipboard(content); }
   private trackInvestigation(value: BlockCapabilities) {
     if (value.question || value.assessment) this.investigationIds.add(value.block_id);
     else this.investigationIds.delete(value.block_id);
@@ -1443,6 +1467,73 @@ export class Document implements PageDocument {
           paste(block, block.text.slice(0, edit.at.offset), block.text.slice(edit.at.offset), edit.text);
           break;
         }
+        case 'pasteBlocks': {
+          const content = edit.content;
+          if (!content.blocks.length) break;
+          let { anchor: start, head: end } = edit.range;
+          if (this.outline.indexOf(start.id) > this.outline.indexOf(end.id) || start.id === end.id && start.offset > end.offset) [start, end] = [end, start];
+          const target = this.snapshot(start.id);
+          const last = this.snapshot(end.id);
+          const prefix = target.text.slice(0, start.offset);
+          const suffix = last.text.slice(end.offset);
+          const zoom = edit.zoomRoot === target.id;
+          if (!zoom) guardSplit(target, prefix, suffix);
+          replace(edit.range, edit.between, '', 'text', edit.zoomRoot);
+          const parentId = zoom ? target.id : target.parent_id!;
+          const depth = zoom ? this.outline.depth(target.id) + 1 : this.outline.depth(target.id);
+          const emptyLeaf = start.id === end.id && !prefix && !suffix && !zoom
+            && !this.outline.children(target.id).length && !this.capabilities(target.id).merge_protected;
+          let after = zoom ? null : !prefix || emptyLeaf ? this.outline.previousSibling(target.id) : target.id;
+          if (emptyLeaf) actions.push({ kind: 'delete', id: target.id });
+          else if (!zoom && prefix && suffix) setText({ ...target, text: prefix + suffix }, prefix);
+          const roots = content.blocks.filter(item => item.depth === 0);
+          const moving = content.cut && content.scope === this.host.clipboardScope();
+          if (moving && !this.host.canRestore(roots.map(item => item.block.id))) throw new Error('Prepare this cut before pasting it.');
+          if (moving) {
+            for (let at = 0; at < content.blocks.length;) {
+              let end = at + 1;
+              while (end < content.blocks.length && content.blocks[end]!.depth > 0) end++;
+              const root = content.blocks[at]!;
+              const snapshots = content.blocks.slice(at, end).map(item => {
+                const parent = item.depth === 0 ? parentId : item.block.parent_id!;
+                return {
+                  block: { ...item.block, parent_id: parent, page_id: this.pageId },
+                  row: { id: item.block.id, parentId: parent, depth: depth + item.depth },
+                  manual_types: [...item.manualTypes], capabilities: item.capabilities,
+                };
+              });
+              actions.push({ kind: 'restore', id: root.block.id, snapshots, after });
+              actions.push({ kind: 'move', id: root.block.id, parentId, after });
+              after = root.block.id;
+              at = end;
+            }
+            const tail = content.blocks.at(-1)!.block;
+            caret = { id: tail.id, offset: tail.text.length };
+          } else {
+            const stack: string[] = [];
+            const previous = new Map<string, string>();
+            for (const item of content.blocks) {
+              const parent = item.depth ? stack[item.depth - 1]! : parentId;
+              if (!parent) throw new Error('The clipboard hierarchy is invalid.');
+              const id = insert(parent, item.depth ? previous.get(parent) ?? null : after, item.block.text, item.block.heading);
+              if (item.capabilities.task) {
+                const task = item.capabilities.task;
+                const value = task.status === 'done' ? { ...task, status: 'todo' as const, completed_on: null } : task;
+                actions.push({ kind: 'task', id, value, previous: null, baseRevision: 0 });
+                if (task.status === 'done') actions.push({ kind: 'completeTask', id, occurrenceId: ulid(), completedOn: task.completed_on!, previous: value, baseRevision: 0 });
+              }
+              for (const title of item.manualTypes) actions.push({ kind: 'addType', id, title });
+              if (item.block.archived) actions.push({ kind: 'archive', id, archived: true });
+              stack[item.depth] = id;
+              stack.length = item.depth + 1;
+              previous.set(parent, id);
+              if (!item.depth) after = id;
+              caret = { id, offset: item.block.text.length };
+            }
+          }
+          if (!zoom && prefix && suffix) insert(parentId, after, suffix, target.heading);
+          break;
+        }
       }
       if (!actions.length) return { ok: true, caret, created };
       const inverse: Action[] = [];
@@ -1450,7 +1541,7 @@ export class Document implements PageDocument {
         const undo = this.apply(action);
         if (edit.kind !== 'highlight' || action.kind !== 'cite') inverse.unshift(...undo);
       } });
-      const beforeRange = edit.kind === 'replaceRange' ? edit.selectionBefore ?? edit.range : null;
+      const beforeRange = edit.kind === 'replaceRange' ? edit.selectionBefore ?? edit.range : edit.kind === 'pasteBlocks' ? edit.range : null;
       const before: HistoryCaret | null = beforeRange ? { ...(caretBefore ?? beforeRange.head), range: { anchor: { ...beforeRange.anchor }, head: { ...beforeRange.head } } } : caretBefore;
       const selection = caretBefore?.selection;
       const treeMove = edit.kind === 'indent' || edit.kind === 'outdent' || edit.kind === 'move' || edit.kind === 'moveTo';

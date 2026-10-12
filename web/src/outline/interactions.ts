@@ -1,4 +1,5 @@
 import type { Caret } from '../document/contract';
+import { BLOCK_CLIPBOARD_MIME, clipboardPlainText, clipboardText, parseBlockClipboard } from '../document/clipboard';
 import { offsetAtPoint } from './BlockText';
 import { orderedRange, selectedText, selectionIds } from './visibility';
 import type { OutlineContext } from './context';
@@ -7,13 +8,13 @@ export function createOutlineInteractions(context: Pick<OutlineContext,
   | 'textRange' | 'ids' | 'doc' | 'editing' | 'editor'
   | 'rowFocus' | 'commitFieldEntry' | 'setTextRange' | 'editAt' | 'scroll'
   | 'restoreSelection' | 'disposed' | 'props' | 'composition' | 'activeRange'
-  | 'rowRange' | 'selectedIds' | 'replaceSelection' | 'apply' | 'roots'
+  | 'rowRange' | 'selected' | 'replaceSelection' | 'apply' | 'roots' | 'zoom' | 'setMessage'
   | 'compositionSelection' | 'deleteTextRange'
 >) {
   const {
     textRange, ids, doc, editing, rowFocus, commitFieldEntry,
     setTextRange, editAt, restoreSelection, props, composition, activeRange,
-    rowRange, selectedIds, replaceSelection, apply, roots, deleteTextRange,
+    rowRange, selected, replaceSelection, apply, roots, deleteTextRange, zoom, setMessage,
   } = context;
   let drag: { anchor: Caret; moved: boolean; native: boolean } | null = null;
   function selectedOffsets(id: string): [number, number] | null {
@@ -65,22 +66,42 @@ export function createOutlineInteractions(context: Pick<OutlineContext,
   function clipboard(event: ClipboardEvent, cut = false) {
     if (!textInputTarget(event) || composition()) return;
     const range = activeRange();
-    const rows = rowRange();
+    const rows = !editing() && (rowRange() || selected());
     const hasText = range && (range.anchor.id !== range.head.id || range.anchor.offset !== range.head.offset);
-    if (!hasText && !rows) return;
+    if ((!hasText && !rows) || !event.clipboardData) return;
+    const content = hasText ? null : doc.clipboard(roots(), cut);
+    if (content && !content.blocks.length) return;
+    event.clipboardData.setData('text/plain', content ? clipboardText(content) : selectedText(doc, ids(), range!));
+    if (content) event.clipboardData.setData(BLOCK_CLIPBOARD_MIME, JSON.stringify(content));
     event.preventDefault();
     event.stopImmediatePropagation();
-    const payload = hasText ? selectedText(doc, ids(), range!) : selectedIds().map(id => doc.block(id)?.text ?? '').join('\n');
-    event.clipboardData?.setData('text/plain', payload);
     if (cut) hasText ? replaceSelection('', 'text', range) : apply({ kind: 'delete', ids: roots() }, false);
   }
   function paste(event: ClipboardEvent) {
     if (!textInputTarget(event) || composition()) return;
-    const text = event.clipboardData?.getData('text/plain');
-    if (text === undefined || !activeRange()) return;
+    const data = event.clipboardData;
+    const range = activeRange();
+    if (!data || !range) return;
+    const content = parseBlockClipboard(data.getData(BLOCK_CLIPBOARD_MIME));
+    const text = clipboardPlainText(data);
     event.preventDefault();
     event.stopImmediatePropagation();
-    replaceSelection(text, 'paste');
+    if (!content && text === null) return;
+    if (!content) { replaceSelection(text!, 'paste'); return; }
+    const intent = { kind: 'pasteBlocks' as const, range, between: selectionIds(ids(), range).slice(1, -1), content, zoomRoot: zoom() };
+    if (!content.cut) { apply(intent, true); return; }
+    const anchorText = doc.block(range.anchor.id)?.text, headText = doc.block(range.head.id)?.text;
+    void doc.prepareClipboard(content).then(ready => {
+      if (context.disposed || !props.active || composition()) return;
+      const current = activeRange();
+      if (!current || current.anchor.id !== range.anchor.id || current.anchor.offset !== range.anchor.offset
+        || current.head.id !== range.head.id || current.head.offset !== range.head.offset
+        || doc.block(range.anchor.id)?.text !== anchorText || doc.block(range.head.id)?.text !== headText) {
+        setMessage('The selection changed before paste. Try pasting again.');
+        return;
+      }
+      apply({ ...intent, content: ready }, true);
+    }).catch(error => { if (!context.disposed) setMessage(error instanceof Error ? error.message : String(error)); });
   }
   function beforeInput(event: InputEvent) {
     if (!textRange() || !textInputTarget(event) || composition() || context.compositionSelection || event.isComposing) return;
