@@ -8,7 +8,7 @@ import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Popup } from '../ui/Popup';
 import { DatePicker } from './DatePicker';
-import { rescheduleTasks } from './reschedule';
+import { movableTo, rescheduleTasks } from './reschedule';
 import { statusIcons, statusLabels } from './TaskControls';
 import { agendaTaskTime, isFinished, relativeDate, taskFacts } from './task-labels';
 import { shiftCalendarDate } from './week-calendar';
@@ -141,12 +141,12 @@ function TaskSourceRow(props: {
   const tomorrow = () => shiftCalendarDate(today(), 1)!;
   const past = () => !!props.now && unfinished() && !!time() && time()! < props.now;
   let item!: HTMLLIElement;
-  const reschedule = (date: string | null) => {
-    if (!date || busy() || props.disabled || props.row.task.scheduled === date) return;
+  const reschedule = (date: string | null, time?: string | null) => {
+    if (!date || busy() || props.disabled || !movableTo([props.row], date, time).length) return;
     // The row may leave this list; keep the keyboard, or the picker it opened, on the row after it.
     const next = item.contains(document.activeElement) || picking() ? siblingSource(item, 1) ?? siblingSource(item, -1) : null;
     setBusy(true); setError('');
-    void rescheduleTasks(props.notebook, [props.row], date, `Reschedule task to ${relativeDate(date, today())}`)
+    void rescheduleTasks(props.notebook, [props.row], date, `Reschedule task to ${relativeDate(date, today())}`, time)
       .then(() => { setPicking(null); props.onChanged(); next?.focus(); }, reason => setError(reason instanceof Error ? reason.message : String(reason)))
       .finally(() => setBusy(false));
   };
@@ -190,7 +190,7 @@ function TaskSourceRow(props: {
         <Button class="agenda-row-pick" icon="calendar" label="Reschedule…" shortcut="S" disabled={busy() || props.disabled} onClick={event => setPicking(event.currentTarget)} />
       </span>
     </Show>
-    <Show when={picking()}>{anchor => <DatePicker notebook={props.notebook} anchor={anchor()} label="Reschedule" value={props.row.task.scheduled} contextDate={props.date} onDismiss={() => setPicking(null)} onSelect={value => reschedule(value.date)} />}</Show>
+    <Show when={picking()}>{anchor => <DatePicker notebook={props.notebook} anchor={anchor()} label="Reschedule" value={props.row.task.scheduled} time={props.row.task.scheduled_time} contextDate={props.date} onDismiss={() => setPicking(null)} onSelect={value => reschedule(value.date, value.time)} />}</Show>
     <Show when={busy()}><p class="agenda-message" role="status">Saving… <Show when={props.notebook.saveState() !== 'saved'}>{props.notebook.saveMessage() || props.notebook.saveState()}</Show></p></Show>
     <Show when={error()}><div class="agenda-error" role="alert"><span>{error()}</span><Button onClick={props.onChanged}>Refresh</Button></div></Show>
     <Show keyed when={running()}>{state => <Popup anchor={state.anchor} label="Stop work and complete?" onDismiss={() => { if (!busy()) setRunning(null); }}>
