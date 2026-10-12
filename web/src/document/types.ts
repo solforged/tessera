@@ -1,5 +1,6 @@
 import type { Block, BlockCapabilities, Batch, Citation, FieldKind, Operation, ProjectState, SourceState, TaskState, WorkSession } from '../api/types';
 import type { AssessmentState, QuestionState, QuestionStatus } from '../api/types';
+import type { CardTemplateState } from '../api/types';
 import type { Caret, HistoryCaret } from './contract';
 import type { OutlineRow } from './outline-index';
 
@@ -43,6 +44,7 @@ export function sameState(left: unknown, right: unknown): boolean {
 }
 export type Action =
   | CapabilityAction
+  | { kind: 'cardTemplate'; id: string; value: CardTemplateState | null; previous: CardTemplateState | null; baseRevision: number }
   | { kind: 'split'; id: string; block: Block; left: string; right: string }
   | { kind: 'merge'; id: string; destinationId: string; text: string }
   | { kind: 'text'; id: string; text: string; baseRevision?: number }

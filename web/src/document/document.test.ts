@@ -76,6 +76,47 @@ afterAll(async () => {
 });
 
 describe('real notebook operations and recovery', () => {
+  test('card template no-op saves do not enqueue empty batches and Apply travels through history', async () => {
+    const instance = await client();
+    const { id, doc } = await page(instance);
+    const templateId = ulid();
+    const value = { type_id: id, name: 'Recognition', front: 'Front', back: 'Back', applied: false, new_per_day: 2 };
+    success(doc.edit({ kind: 'cardTemplate', id: templateId, previous: null, value }));
+    await instance.flush();
+    const previous = (await api.cardTemplates(id))[0]!;
+    const bodies: Batch[] = [];
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === `${baseUrl}/api/batches` && init?.method === 'POST') bodies.push(JSON.parse(String(init.body)));
+      return actualFetch(input, init);
+    }) as typeof fetch;
+    try {
+      success(doc.edit({ kind: 'cardTemplate', id: templateId, previous, value }));
+      await instance.flush();
+      expect(bodies).toHaveLength(0);
+      success(doc.edit({ kind: 'cardTemplate', id: templateId, previous, value: { ...value, applied: true } }));
+      await instance.flush();
+      expect(bodies[0]!.operations.map(operation => operation.op)).toEqual(['set_card_template_applied']);
+      expect((await api.cardTemplates(id))[0]!.applied).toBe(true);
+      doc.undo();
+      await instance.flush();
+      expect((await api.cardTemplates(id))[0]!.applied).toBe(false);
+      doc.redo();
+      await instance.flush();
+      expect((await api.cardTemplates(id))[0]!.applied).toBe(true);
+      expect(bodies).toHaveLength(3);
+      success(doc.edit({ kind: 'cardTemplate', id: templateId, previous: (await api.cardTemplates(id))[0]!, value: null }));
+      await instance.flush();
+      expect(await api.cardTemplates(id)).toHaveLength(0);
+      doc.undo();
+      await instance.flush();
+      expect((await api.cardTemplates(id))[0]!.id).toBe(templateId);
+      expect((await api.cardTemplates(id))[0]!.applied).toBe(true);
+      doc.redo();
+      await instance.flush();
+      expect(await api.cardTemplates(id)).toHaveLength(0);
+    } finally { globalThis.fetch = actualFetch; doc.release(); }
+  });
+
   test('kept-copy choices each save in one batch and undo restores both versions', async () => {
     for (const choice of ['use', 'discard', 'both'] as const) {
       const instance = await client();

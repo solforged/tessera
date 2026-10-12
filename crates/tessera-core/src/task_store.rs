@@ -354,7 +354,8 @@ macro_rules! capability_rows {
               OR EXISTS(SELECT 1 FROM positions pos WHERE pos.block_id=b.id)
               OR EXISTS(SELECT 1 FROM questions q WHERE q.block_id=b.id)
               OR EXISTS(SELECT 1 FROM assessments a WHERE a.block_id=b.id)
-              OR EXISTS(SELECT 1 FROM citations c WHERE c.block_id=b.id)) AS retained
+              OR EXISTS(SELECT 1 FROM citations c WHERE c.block_id=b.id)) AS retained,
+             (SELECT COUNT(*) FROM card_units c WHERE c.source_block_id = b.id AND c.active = 1 AND c.key LIKE 'tpl:%') AS template_cards
              FROM blocks b LEFT JOIN tasks t ON t.block_id = b.id
              LEFT JOIN projects p ON p.block_id = b.id "
         )
@@ -384,6 +385,7 @@ fn capability_at(row: &rusqlite::Row<'_>) -> rusqlite::Result<BlockCapabilities>
         assessment: None,
         history,
         reviewed_cards,
+        template_cards: row.get::<_, i64>(6)? as usize,
         source: None,
         citations: Vec::new(),
     })
@@ -427,7 +429,7 @@ pub(crate) fn page_capabilities(
                     "SELECT * FROM (",
                     capability_rows!(),
                     "WHERE b.page_id = ?1 AND b.deletion_id IS NULL)
-             WHERE retained OR history OR reviewed ORDER BY id"
+             WHERE retained OR history OR reviewed OR template_cards > 0 ORDER BY id"
                 ))?
                 .query_map([page_id], capability_at)?
                 .collect::<rusqlite::Result<_>>()?,

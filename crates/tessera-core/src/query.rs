@@ -127,6 +127,11 @@ impl Notebook {
             page,
             fields: template(&self.conn, id)?,
             members,
+            card_templates: self.conn.query_row(
+                "SELECT COUNT(*) FROM card_templates WHERE type_id = ?1",
+                [id],
+                |row| row.get::<_, i64>(0),
+            )? as usize,
         })
     }
 
@@ -141,11 +146,17 @@ impl Notebook {
              GROUP BY m.type_id"
         ))?;
         let mut rows = statement.query([])?;
+        let template_counts: HashMap<String, usize> = self
+            .conn
+            .prepare_cached("SELECT type_id, COUNT(*) FROM card_templates GROUP BY type_id")?
+            .query_map([], |row| Ok((row.get(0)?, row.get::<_, i64>(1)? as usize)))?
+            .collect::<rusqlite::Result<_>>()?;
         let mut types = Vec::new();
         while let Some(row) = rows.next()? {
             let page = block_at(row, 1)?;
             types.push(TypeInfo {
                 fields: template(&self.conn, &page.id)?,
+                card_templates: template_counts.get(&page.id).copied().unwrap_or(0),
                 page,
                 members: row.get::<_, i64>(0)? as usize,
             });

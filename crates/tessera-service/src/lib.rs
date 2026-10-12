@@ -254,6 +254,11 @@ fn notebook_routes() -> Router<AppState> {
         .route("/api/blocks/{id}", get(block))
         .route("/api/blocks/{id}/backlinks", get(backlinks))
         .route("/api/types/{id}/members", get(members))
+        .route("/api/types/{id}/card-templates", get(card_templates))
+        .route(
+            "/api/card-templates/{id}/forecast",
+            get(card_template_forecast),
+        )
         .route("/api/blocks/{id}/capabilities", get(capabilities::block))
         .route(
             "/api/blocks/{id}/task-occurrences",
@@ -717,6 +722,35 @@ async fn type_info(
     run(&state, move |notebook| notebook.type_info(&id))
         .await
         .map(Json)
+}
+
+async fn card_templates(
+    State(state): State<AppState>,
+    path: Result<Path<String>, PathRejection>,
+) -> Result<Json<Vec<tessera_core::CardTemplateInfo>>, ApiError> {
+    let Path(id) = path.map_err(ApiError::from)?;
+    run(&state, move |notebook| notebook.card_templates(&id))
+        .await
+        .map(Json)
+}
+
+#[derive(Deserialize)]
+struct TemplateForecastQuery {
+    days: Option<usize>,
+}
+
+async fn card_template_forecast(
+    State(state): State<AppState>,
+    path: Result<Path<String>, PathRejection>,
+    query: Result<Query<TemplateForecastQuery>, QueryRejection>,
+) -> Result<Json<tessera_core::CardTemplateForecast>, ApiError> {
+    let Path(id) = path.map_err(ApiError::from)?;
+    let Query(query) = query.map_err(ApiError::from)?;
+    run(&state, move |notebook| {
+        notebook.card_template_forecast(&id, query.days.unwrap_or(14), tessera_core::now_ms())
+    })
+    .await
+    .map(Json)
 }
 
 #[derive(Deserialize)]

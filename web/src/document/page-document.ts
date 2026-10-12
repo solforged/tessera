@@ -147,7 +147,7 @@ export class Document implements PageDocument {
   isResolving(id: string) { return this.resolving.has(id); }
   private put(block: Block, pending = false, manual_types = this.cells.get(block.id)?.state.manual_types ?? this.baseManualTypes.get(block.id) ?? [], capability = this.capabilities(block.id)) {
     const cell = this.cells.get(block.id);
-    const sidecar = { task: capability.task, project: capability.project, position: capability.position ?? null, question: capability.question ?? null, assessment: capability.assessment ?? null, source: capability.source ?? null, citations: capability.citations ?? [], history: capability.history, mergeProtected: capability.merge_protected, reviewedCards: capability.reviewed_cards };
+    const sidecar = { task: capability.task, project: capability.project, position: capability.position ?? null, question: capability.question ?? null, assessment: capability.assessment ?? null, source: capability.source ?? null, citations: capability.citations ?? [], history: capability.history, mergeProtected: capability.merge_protected, reviewedCards: capability.reviewed_cards, templateCards: capability.template_cards ?? 0 };
     this.trackInvestigation(capability);
     this.markArchived(block.id, block.archived);
     if (cell) cell.set({ ...stateOf(block), ...sidecar, manual_types, pending, conflict: cell.state.conflict });
@@ -176,7 +176,7 @@ export class Document implements PageDocument {
   }
   capabilities(id: string, base = false): BlockCapabilities {
     const cell = !base && this.cells.get(id)?.state;
-    const value = cell ? { block_id: id, task: cell.task, project: cell.project, position: cell.position, question: cell.question, assessment: cell.assessment, source: cell.source, citations: cell.citations, history: cell.history, merge_protected: cell.mergeProtected, reviewed_cards: cell.reviewedCards } : this.baseCapabilities.get(id);
+    const value = cell ? { block_id: id, task: cell.task, project: cell.project, position: cell.position, question: cell.question, assessment: cell.assessment, source: cell.source, citations: cell.citations, history: cell.history, merge_protected: cell.mergeProtected, reviewed_cards: cell.reviewedCards, template_cards: cell.templateCards ?? 0 } : this.baseCapabilities.get(id);
     // Most blocks have no capabilities; a fresh empty value needs no defensive copy.
     return value ? JSON.parse(JSON.stringify(value)) as BlockCapabilities : emptyCapabilities(id);
   }
@@ -188,7 +188,7 @@ export class Document implements PageDocument {
     value.merge_protected = value.task !== null || value.project !== null || Boolean(value.position || value.question || value.assessment) || value.history || value.reviewed_cards;
     if (!base) this.trackInvestigation(value);
     if (base) this.baseCapabilities.set(value.block_id, value);
-    else this.cells.get(value.block_id)?.set({ task: value.task, project: value.project, position: value.position ?? null, question: value.question ?? null, assessment: value.assessment ?? null, source: value.source ?? null, citations: value.citations ?? [], history: value.history, mergeProtected: value.merge_protected, reviewedCards: value.reviewed_cards, pending: true });
+    else this.cells.get(value.block_id)?.set({ task: value.task, project: value.project, position: value.position ?? null, question: value.question ?? null, assessment: value.assessment ?? null, source: value.source ?? null, citations: value.citations ?? [], history: value.history, mergeProtected: value.merge_protected, reviewedCards: value.reviewed_cards, templateCards: value.template_cards ?? 0, pending: true });
   }
   private guardMerge(id: string) {
     const value = this.capabilities(id);
@@ -202,7 +202,7 @@ export class Document implements PageDocument {
       if (!this.baseBlocks.has(value.block_id) && !this.cells.has(value.block_id)) continue;
       this.baseCapabilities.set(value.block_id, structuredClone(value));
       this.syncGeneration++;
-      this.cells.get(value.block_id)?.set({ task: value.task, project: value.project, position: value.position ?? null, question: value.question ?? null, assessment: value.assessment ?? null, source: value.source ?? null, citations: value.citations ?? [], history: value.history, mergeProtected: value.merge_protected, reviewedCards: value.reviewed_cards });
+      this.cells.get(value.block_id)?.set({ task: value.task, project: value.project, position: value.position ?? null, question: value.question ?? null, assessment: value.assessment ?? null, source: value.source ?? null, citations: value.citations ?? [], history: value.history, mergeProtected: value.merge_protected, reviewedCards: value.reviewed_cards, templateCards: value.template_cards ?? 0 });
       this.trackInvestigation(value);
       received.add(value.block_id);
     }
@@ -264,6 +264,8 @@ export class Document implements PageDocument {
   private applyAction(action: Action, base = false): Action[] {
     const index = base ? this.baseOutline : this.outline;
     switch (action.kind) {
+      case 'cardTemplate':
+        return [{ ...action, value: action.previous, previous: action.value }];
       case 'task':
       case 'project': {
         const value = this.capabilities(action.id, base);
@@ -663,6 +665,9 @@ export class Document implements PageDocument {
         ...this.host.commands(this.pageId).filter(item => !item.frozen).flatMap(item => [...item.actions, ...item.inverse]),
         ...[...this.undoStack, ...this.redoStack].flatMap(entry => [...entry.forward, ...entry.inverse]),
       ];
+      for (const action of allActions) if (action.kind === 'cardTemplate' && revisions.has(action.id)) {
+        action.baseRevision = revisions.get(action.id)!;
+      }
       for (const action of allActions) if (isCapabilityAction(action)) {
         const revision = revisions.get(action.id);
         if (revision !== undefined && (previousRevisions.get(action.id) ?? 0) <= revision
@@ -783,7 +788,7 @@ export class Document implements PageDocument {
       if (saved && !pending.has(id) && !cell.state.conflict && !this.resolving.has(id)) {
         const value = this.capabilities(id, true);
         this.markArchived(id, saved.archived);
-        cell.set({ text: saved.text, heading: saved.heading, archived: saved.archived, parentId: saved.parent_id, manual_types: this.baseManualTypes.get(id) ?? [], task: value.task, project: value.project, position: value.position ?? null, source: value.source ?? null, citations: value.citations ?? [], history: value.history, mergeProtected: value.merge_protected, reviewedCards: value.reviewed_cards });
+        cell.set({ text: saved.text, heading: saved.heading, archived: saved.archived, parentId: saved.parent_id, manual_types: this.baseManualTypes.get(id) ?? [], task: value.task, project: value.project, position: value.position ?? null, source: value.source ?? null, citations: value.citations ?? [], history: value.history, mergeProtected: value.merge_protected, reviewedCards: value.reviewed_cards, templateCards: value.template_cards ?? 0 });
       }
       this.host.publish(this.snapshot(id));
     }
@@ -946,6 +951,15 @@ export class Document implements PageDocument {
     };
     try {
       switch (edit.kind) {
+        case 'cardTemplate': {
+          if ((edit.value?.type_id ?? edit.previous?.type_id) !== this.pageId) throw new Error('Card templates belong to their type page.');
+          const { previous, value } = edit;
+          if (previous && value && previous.name === value.name && previous.front === value.front && previous.back === value.back
+            && previous.applied === value.applied && previous.new_per_day === value.new_per_day) break;
+          actions.push({ kind: 'cardTemplate', id: edit.id, value: edit.value, previous: edit.previous, baseRevision: edit.previous?.revision ?? 0 });
+          if (!edit.previous) created.push(edit.id);
+          break;
+        }
         case 'keptCopy': {
           const block = this.snapshot(edit.id);
           const copy = block.kept_copy;

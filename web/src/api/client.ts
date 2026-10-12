@@ -22,6 +22,8 @@ import type {
   CardQuery,
   CardQueryResult,
   CardUnit,
+  CardTemplateInfo,
+  CardTemplateForecast,
   ChangeEvent,
   Committed,
   Completion,
@@ -191,6 +193,8 @@ export interface ApiClient {
   resolveName(name: string, signal?: AbortSignal): Promise<NameMatch[]>;
   addAlias(pageId: string, name: string, signal?: AbortSignal): Promise<Committed | null>;
   startingTemplate(typeId: string, signal?: AbortSignal): Promise<Committed | null>;
+  cardTemplates(typeId: string, signal?: AbortSignal): Promise<CardTemplateInfo[]>;
+  cardTemplateForecast(id: string, days?: number, signal?: AbortSignal): Promise<CardTemplateForecast>;
   journal(date: string, signal?: AbortSignal): Promise<Block>;
   block(id: string, signal?: AbortSignal): Promise<Block>;
   capabilities(id: string, signal?: AbortSignal): Promise<BlockCapabilities>;
@@ -297,6 +301,8 @@ export function createApi(base = ''): ApiClient {
     resolveName: (name: string, signal?: AbortSignal) => get<NameMatch[]>(`/names/${segment(name)}`, signal),
     addAlias: (pageId: string, name: string, signal?: AbortSignal) => request<Committed | null>(base, 'POST', `/pages/${segment(pageId)}/aliases`, { name }, signal),
     startingTemplate: (typeId: string, signal?: AbortSignal) => request<Committed | null>(base, 'POST', `/types/${segment(typeId)}/starting-template`, undefined, signal),
+    cardTemplates: (typeId: string, signal?: AbortSignal) => get<CardTemplateInfo[]>(`/types/${segment(typeId)}/card-templates`, signal),
+    cardTemplateForecast: (id: string, days = 14, signal?: AbortSignal) => get<CardTemplateForecast>(`/card-templates/${segment(id)}/forecast${query({ days })}`, signal),
     journal: (date: string, signal?: AbortSignal) => get<Block>(`/journal/${segment(date)}`, signal),
     block: (id: string, signal?: AbortSignal) => get<Block>(`/blocks/${segment(id)}`, signal),
     capabilities: (id: string, signal?: AbortSignal) => get<BlockCapabilities>(`/blocks/${segment(id)}/capabilities`, signal),

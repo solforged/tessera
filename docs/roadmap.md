@@ -60,6 +60,8 @@ Exit: study cards from real reading notes and a vocabulary deck in a language be
 
 Status: done. Browser proof studied Greek vocabulary and attention-study notes, including both card directions and independent numbered clozes. It saved and edited source/field-filtered decks, corrected a source beside review, retained progress and shown-text evidence, reset progress without erasing history, and restored the selected deck, queue and session through navigation and reload.
 
+Since then: a type can carry card templates, front and back patterns over its fields that make one card per member once every field they use has a value. A template stays a draft until Apply, which shows how many cards it makes, who is waiting and how a new-per-day limit spreads them over the coming days.
+
 ## 5. Library and reading
 
 - Fields that sources need: ordered creators with roles (author, editor, translator) as references to person pages; partial dates such as a bare year; URL and identifier kinds for ISBN, DOI and arXiv; values supplied by a snapshot's extracted metadata until an authored value replaces them, with reset back to the extracted value.

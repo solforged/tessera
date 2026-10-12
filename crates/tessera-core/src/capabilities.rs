@@ -196,6 +196,8 @@ pub struct BlockCapabilities {
     /// Live task/project/question/assessment state, history, or reviewed cards.
     pub merge_protected: bool,
     pub reviewed_cards: bool,
+    #[serde(default)]
+    pub template_cards: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -229,6 +231,8 @@ pub struct CardUnit {
     pub answer_blocks: Vec<CardAnswerBlock>,
     pub revision: i64,
     pub schedule: SchedulingState,
+    #[serde(default)]
+    pub template: Option<crate::CardTemplateProvenance>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

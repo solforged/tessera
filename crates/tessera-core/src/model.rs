@@ -142,6 +142,31 @@ pub enum Operation {
         base_revision: i64,
         heading: Option<u8>,
     },
+    CreateCardTemplate {
+        id: String,
+        type_id: String,
+        name: String,
+        front: String,
+        back: String,
+        new_per_day: u32,
+    },
+    UpdateCardTemplate {
+        id: String,
+        base_revision: i64,
+        name: String,
+        front: String,
+        back: String,
+        new_per_day: u32,
+    },
+    SetCardTemplateApplied {
+        id: String,
+        base_revision: i64,
+        applied: bool,
+    },
+    DeleteCardTemplate {
+        id: String,
+        base_revision: i64,
+    },
     /// Split a block in two. `left + right` must equal the current text. The
     /// original ID keeps `left` and its children; `new_id` becomes the next
     /// sibling with `right`.
@@ -691,6 +716,7 @@ pub struct TypeInfo {
     pub page: Block,
     pub fields: Vec<String>,
     pub members: usize,
+    pub card_templates: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
