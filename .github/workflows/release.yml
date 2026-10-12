@@ -1,8 +1,8 @@
 name: Release
 
 # A v* tag publishes the Linux command line, the macOS app with its command
-# line, and latest.json, which installed apps poll for signed updates. The tag
-# must match the workspace version.
+# line, the signed Android APK, and latest.json, which installed apps poll for
+# signed updates. The tag must match the workspace version.
 
 on:
   push:
@@ -96,3 +96,47 @@ jobs:
           files: tessera-${{ github.ref_name }}-x86_64-unknown-linux-gnu.tar.gz
           fail_on_unmatched_files: true
 
+  android:
+    name: release (Android app)
+    needs: macos
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.ref_name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install tools
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        with:
+          version: 2026.10.1
+
+      # Gradle installs the platform and build tools once the SDK licence is
+      # accepted; sdkmanager --licenses no longer records it. The runner's
+      # Android SDK supplies the NDK.
+      - name: Accept the Android SDK licence
+        run: |
+          mise install android-sdk@23.0
+          sdk=$(mise where android-sdk@23.0)
+          mkdir -p "$sdk/licenses"
+          printf '\n24333f8a63b6825ea9c5514f83c2829b004d1fee' > "$sdk/licenses/android-sdk-license"
+
+      - name: Build APK
+        env:
+          ANDROID_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
+          TESSERA_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          test -n "$ANDROID_KEYSTORE"
+          export TESSERA_ANDROID_KEYSTORE="$RUNNER_TEMP/tessera-release.jks"
+          base64 -d <<<"$ANDROID_KEYSTORE" > "$TESSERA_ANDROID_KEYSTORE"
+          NDK_HOME="$ANDROID_NDK_LATEST_HOME" mise run android:build --target aarch64 --apk
+          cp crates/tessera-android/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk \
+            "Tessera_${TAG#v}_aarch64.apk"
+
+      - name: Upload release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          files: Tessera_*_aarch64.apk
+          fail_on_unmatched_files: true
