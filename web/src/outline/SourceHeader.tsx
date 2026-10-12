@@ -14,6 +14,7 @@ import { ResourceImage } from '../library/ResourceImage';
 import { formatProgress } from '../library/query';
 import { shortSourceTitle } from './source';
 import { saveDetails, sourceEntries, sourceMetadata } from '../library/details';
+import { publicationReading } from '../library/publication';
 import { CollectionPicker, SourceCollections, createCollectionActions } from '../library/Collections';
 import { changeCollectionMembers, collectionPages, sourceCollections } from '../document/collections';
 import { highlightColors } from '../library/highlights';
@@ -29,6 +30,7 @@ export function SourceHeader(props: {
   doc: PageDocument; notebook: NotebookClient;
   onOpen: OutlinePaneProps['onOpen']; onError(message: string): void;
   resetItems(): MenuItem[];
+  onEditDetails(): void;
   onDelete?: OutlinePaneProps['onDelete'];
   compact?: boolean;
   highlights?: HighlightResult; colors: string[]; grouped: boolean; fieldsVisible: boolean;
@@ -49,7 +51,7 @@ export function SourceHeader(props: {
   const chapters = createMemo(() => bookChapters(source()?.toc ?? [], length()));
   const current = createMemo(() => chapterAt(chapters(), at()));
   const marks = createMemo(() => (props.highlights?.rows ?? []).flatMap(row => row.citation.snapshot_id === snapshot()?.id && row.citation.position !== undefined ? [{ at: row.citation.position, color: row.color }] : []));
-  const imprint = createMemo(() => [source()?.source.siglum, { epub: 'EPUB', article: 'Article', record: 'Record' }[props.doc.root()!.source!.format], metadata().publisher, metadata().published?.slice(0, 4)].filter(Boolean).join(' · '));
+  const imprint = createMemo(() => [source()?.source.siglum, { epub: 'EPUB', article: 'Article', record: 'Record' }[props.doc.root()!.source!.format], metadata().publisher, publicationReading(metadata().published, source()?.snapshots)?.slice(0, 4)].filter(Boolean).join(' · '));
   const collectionActions = createCollectionActions();
   const [collectionPicker, setCollectionPicker] = createSignal<HTMLElement>();
   const [result, setResult] = createSignal('');
@@ -117,23 +119,23 @@ export function SourceHeader(props: {
     } catch (error) { fail(error); return; }
     if (!anchor.isConnected) return;
     setMenu({ anchor, label: 'Source actions', items: [
-      ...props.resetItems(),
+      { label: 'Edit details…', action: props.onEditDetails },
       { label: 'Copy citation key', icon: 'copy', disabledReason: props.doc.root()?.source?.citation_key ? undefined : 'No citation key', action: () => { void navigator.clipboard.writeText(props.doc.root()!.source!.citation_key!).catch(fail); } },
-      { label: 'Edit details…', action: () => props.onOpen({ kind: 'library', tab: 'all', details: [props.doc.pageId] }, false) },
-      { label: 'Add to collection…', action: () => setCollectionPicker(anchor) },
-      ...collections.map(collection => ({ section: 'Collections', label: `Remove from ${collection.text}`, action: () => { void collectionActions.run(`Removed from ${collection.text}`, () => changeCollectionMembers(props.notebook, collection.id, [props.doc.pageId], false)); } })),
-      { label: props.fieldsVisible ? 'Hide metadata fields' : 'Show metadata fields', action: () => props.onFieldsVisible(!props.fieldsVisible) },
+      { label: 'Fill missing details', disabledReason: busy() ? 'Looking up…' : !metadata().identifiers.length ? 'No identifier' : undefined, action: () => { void fillMissing(); } },
       { label: 'Replace cover…', action: () => coverInput.click() },
-      ...(metadata().identifiers.length ? [{ label: 'Fill missing details', disabledReason: busy() ? 'Looking up…' : undefined, action: () => { void fillMissing(); } }] : []),
-      { label: 'Export BibTeX', icon: 'download', action: () => { void exportSource('bibtex'); } },
-      { label: 'Export CSL JSON', icon: 'download', action: () => { void exportSource('csl'); } },
-      { label: 'Export Markdown', icon: 'download', action: () => { void exportSource('markdown'); } },
-      { label: 'Snapshots', icon: 'history', disabledReason: source.error ? String(source.error) : !source()?.snapshots.length ? 'No snapshots' : undefined,
+      { label: props.fieldsVisible ? 'Hide metadata fields' : 'Show metadata fields', action: () => props.onFieldsVisible(!props.fieldsVisible) },
+      ...props.resetItems(),
+      { section: 'Collections', label: 'Add to collection…', action: () => setCollectionPicker(anchor) },
+      ...collections.map(collection => ({ section: 'Collections', label: `Remove from ${collection.text}`, action: () => { void collectionActions.run(`Removed from ${collection.text}`, () => changeCollectionMembers(props.notebook, collection.id, [props.doc.pageId], false)); } })),
+      { section: 'Export', label: 'BibTeX', icon: 'download', action: () => { void exportSource('bibtex'); } },
+      { section: 'Export', label: 'CSL JSON', icon: 'download', action: () => { void exportSource('csl'); } },
+      { section: 'Export', label: 'Markdown', icon: 'download', action: () => { void exportSource('markdown'); } },
+      { section: 'Organize', label: 'Snapshots', icon: 'history', disabledReason: source.error ? String(source.error) : !source()?.snapshots.length ? 'No snapshots' : undefined,
         action: () => setMenu({ anchor, label: 'Snapshots', items: (source()?.snapshots ?? []).map(snapshot => ({
           label: `${new Date(snapshot.attached_at).toLocaleDateString()} · ${snapshot.passage_count} ${snapshot.passage_count === 1 ? 'passage' : 'passages'}`,
           action: () => props.onOpen({ kind: 'reader', sourceId: props.doc.pageId, snapshotId: snapshot.id }, false),
         })) }) },
-      ...(props.onDelete ? [{ label: 'Delete source…', icon: 'trash' as const, danger: true, action: () => props.onDelete!(anchor) }] : []),
+      ...(props.onDelete ? [{ section: 'Organize', label: 'Delete source…', icon: 'trash' as const, danger: true, action: () => props.onDelete!(anchor) }] : []),
     ] });
   }
   const ReadingActions = () => <div class="outline-source-actions" classList={{ 'source-cover-actions': coverLayout() && !!actionsHost() }} style={{ visibility: props.ready ? undefined : 'hidden' }}>

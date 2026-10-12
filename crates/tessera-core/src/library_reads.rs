@@ -67,7 +67,7 @@ fn language_code(value: &str) -> String {
 }
 
 fn count_value(counts: &mut HashMap<String, usize>, value: Option<&str>) {
-    if let Some(value) = value {
+    if let Some(value) = value.filter(|value| !value.trim().is_empty()) {
         if let Some(count) = counts.get_mut(value) {
             *count += 1;
         } else {
@@ -1128,5 +1128,28 @@ impl Notebook {
             counts,
             facets,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn value_facets_skip_blank_readings_without_changing_exact_values() {
+        let mut counts = HashMap::new();
+        for value in [None, Some(""), Some(" \t\n"), Some("\u{2003}")] {
+            count_value(&mut counts, value);
+        }
+        assert!(counts.is_empty());
+        for value in ["Publisher", "Publisher", " Publisher "] {
+            count_value(&mut counts, Some(value));
+        }
+        let facets = value_facets(counts);
+        assert_eq!(facets.len(), 2);
+        assert_eq!(facets[0].value, "Publisher");
+        assert_eq!(facets[0].count, 2);
+        assert_eq!(facets[1].value, " Publisher ");
+        assert_eq!(facets[1].count, 1);
     }
 }

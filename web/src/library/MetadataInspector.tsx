@@ -12,6 +12,7 @@ import { ResourceImage } from './ResourceImage';
 import { MetadataField } from './MetadataField';
 import { metadataEqual, metadataText, metadataValues } from './metadata-values';
 import { MetadataCreators } from './MetadataCreators';
+import { publicationReading } from './publication';
 import { derivedSourceSiglum, fillMissingSourceDetails, saveSourceField, sourceEntries, sourceFieldValue } from './details';
 import type { SourceCreator, SourceField, SourceFieldChange, SourceFieldValue } from './details';
 import './metadata-inspector.css';
@@ -113,6 +114,7 @@ export function MetadataInspector(props: {
     }
     const key = snapshotFields[field];
     if (!key) return undefined;
+    if (field === 'published') return publicationReading(snapshot.metadata.published, item.view.snapshots) ?? '';
     const raw = item.extracted.get(field === 'identifiers' ? 'identifier' : labels[field].toLocaleLowerCase());
     if (raw) return field === 'identifiers' ? raw.map(text => valueLabel(text, id => props.notebook.lookup(id))) : valueLabel(raw[0] ?? '', id => props.notebook.lookup(id));
     const value = snapshot.metadata[key];
@@ -120,6 +122,7 @@ export function MetadataInspector(props: {
   }
   function current(doc: PageDocument, field: SourceField): SourceFieldValue {
     const value = sourceFieldValue(doc, props.notebook, fields(), field);
+    if (field === 'published') return publicationReading(String(value), evidence()?.get(doc.pageId)?.view.snapshots) ?? '';
     if (['url', 'site', 'description', 'cover'].includes(field) && !sourceEntries(doc, fields()).has(labels[field].toLocaleLowerCase())) return extractedValue(doc, field) ?? value;
     return value;
   }

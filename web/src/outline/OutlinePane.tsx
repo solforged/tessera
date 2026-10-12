@@ -28,6 +28,7 @@ import { createOutlineCapabilities } from './capabilities';
 import { inlineFieldValues, selectionIds, selectionRoots, survivingZoomPath, visibleIds } from './visibility';
 import type { DepthFilter } from './visibility';
 import { CitationChip, SourceHeader } from './SourceHeader';
+import { SourceDetails } from './SourceDetails';
 import { GLOSS_FIELD, glossEntry, isGistName, isGlossName } from './gloss';
 import { positionSource as sharedPositionSource } from './perspectives';
 import { Apparatus } from './Apparatus';
@@ -203,6 +204,7 @@ function Pane(props: OutlinePaneProps) {
   }
 
   const [sourceFieldsVisible, setSourceFieldsVisible] = createSignal(!!initial.caret);
+  const [sourceDetailsOpen, setSourceDetailsOpen] = createSignal(false);
   const [sourceColors, setSourceColors] = createSignal<string[]>([]);
   const [sourceGrouped, setSourceGrouped] = createSignal(true);
   const unfoldedIds = createMemo(() => {
@@ -1200,6 +1202,7 @@ function Pane(props: OutlinePaneProps) {
   });
   return <div ref={scroll} class="outline-pane" classList={{ 'has-apparatus': apparatus(), 'has-sigla': sigla().size > 0, 'source-page': !!doc.root()?.source && !zoom(), 'outline-dragging': drag.dragging() }} style={{ visibility: sourceReady() ? undefined : 'hidden' }} aria-busy={!sourceReady()} data-pane={props.pane} tabIndex={0} role="tree" aria-label="Page outline" aria-owns={[...virtualItems().keys()].map(id => `outline-${props.pane}-${id}`).join(' ')} onFocusIn={props.onActivate} onFocusOut={report} onKeyDown={event => { finishFoldMotion(); structuralKey(event); }} onWheel={() => { finishFoldMotion(); cancelScroll(); }} onScroll={scrolled}>
     <Show when={apparatus()}><Apparatus notebook={props.notebook} holders={holders()} linked={linkedPages()} sources={citedSources().flatMap(id => sigla().has(id) ? [{ id, siglum: sigla().get(id)! }] : [])} onOpen={props.onOpen} /></Show>
+    <Show when={sourceDetailsOpen() && doc.root()?.source}><SourceDetails notebook={props.notebook} pageId={props.pageId} onOpen={props.onOpen} onClose={() => setSourceDetailsOpen(false)} /></Show>
     <div ref={heading} class="outline-heading">
       <Show when={zoom()}><nav class="outline-breadcrumbs" aria-label="Zoom breadcrumbs"><button type="button" onClick={() => zoomTo(null)}>{doc.root()?.text}</button><For each={breadcrumbs()}>{id => <><Icon name="right" /><button type="button" onClick={() => zoomTo(id)}>{plainText(doc.block(id)?.text ?? '', reference => props.notebook.lookup(reference)) || 'Empty block'}</button></>}</For></nav></Show>
       <Show when={isNote()}><NoteEyebrow pageId={props.pageId} notebook={props.notebook} onOpen={props.onOpen} /></Show>
@@ -1219,7 +1222,7 @@ function Pane(props: OutlinePaneProps) {
         <TemplateEditor type={value()} fields={definitions()} notebook={props.notebook} onError={setMessage} />
       </Show>}</Show>
       <Show when={doc.root()?.source}><SourceHeader doc={doc} notebook={props.notebook} resetItems={sourceResets} onOpen={props.onOpen} onError={setMessage} onDelete={props.onDelete}
-        fields={definitions()} compact={!!zoom()} ready={sourceReady()} onReady={setSourceHeaderReady}
+        fields={definitions()} compact={!!zoom()} ready={sourceReady()} onReady={setSourceHeaderReady} onEditDetails={() => setSourceDetailsOpen(true)}
         highlights={zoom() || sourceHighlights.error ? undefined : sourceHighlights()} colors={sourceColors()} onColors={setSourceColors} grouped={sourceGrouped()} onGrouped={setSourceGrouped} fieldsVisible={sourceFieldsVisible()} onFieldsVisible={setSourceFieldsVisible} /></Show>
       <Show when={doc.root()?.templateCards}><CardSummary blockId={props.pageId} cards={[]} templateCount={doc.root()?.templateCards ?? 0} notebook={props.notebook} onOpen={props.onOpen} /></Show>
       <Show when={doc.root()?.task || doc.root()?.project || doc.root()?.question || doc.root()?.citations.length}><div class="outline-root-capabilities outline-capability-metadata">
