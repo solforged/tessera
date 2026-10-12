@@ -74,7 +74,7 @@ Reader settings are a device preference shared by every reader pane. Saved choic
 | Typeface | Sans (Plex); Serif (Piazzolla) | Serif |
 | Size | 15 to 22 px | 17 px |
 | Width | Narrow 28em; Medium 34em; Wide at the outline measure | Medium |
-| Line spacing | 1.5; 1.65; 1.8 | |
+| Line spacing | 1.5; 1.65; 1.8 | 1.65 |
 
 ### Text and media
 

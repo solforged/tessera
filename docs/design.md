@@ -244,7 +244,7 @@ Below 600 px:
 - Field names take a narrower column.
 - The [library search](surfaces/library.md) takes its own line above sort, export and add.
 
-The global rail remains visible in every layout. On the cover screen (a touch screen under 600 px), the rail gives way to a bottom nav: Today, Agenda, Find, Review and Library. Library's long press lists the note types in use. The sidebar opens from a button at the start of the pane header, and the nav steps aside while the keyboard is up. Unfolding brings the usual shell back around the same page.
+The global rail stays visible in every layout except the cover screen (a touch screen under 600 px), where a bottom nav replaces it: Today, Agenda, Find, Review and Library. Library's long press lists the note types in use. The sidebar opens from a button at the start of the pane header, a book's breadcrumb is its title alone, and the nav steps aside while the keyboard is up. Unfolding brings the usual shell back around the same page.
 
 ### Mac menus
 

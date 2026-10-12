@@ -61,11 +61,12 @@ A replica pulls after its last confirmed seq, in pages of at most 500 changes or
 
 ### Rebase
 
-A replica records each local commit's patch with the change. Before applying pulled patches, it:
+A replica records each local commit's patch with the change. When it pulls, it:
 
 1. Undoes unconfirmed changes through their inverted patches, in reverse order.
-2. Drops changes the hub confirmed.
-3. Replays the rest through the hub's rules.
+2. Applies the pulled patches.
+3. Drops changes the hub confirmed.
+4. Replays the rest through the hub's rules.
 
 Two differences from a patch do not signal divergence:
 
