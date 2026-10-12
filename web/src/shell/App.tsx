@@ -31,6 +31,9 @@ import { CaptureSheet } from '../capture/CaptureSheet';
 import { SyncStatus } from '../sync/SyncStatus';
 import { indexKindTarget, noteIndex, noteKindIcon, tagOnly } from '../notes/kinds';
 
+/** How long the deletion toast stays when nothing rests on it. */
+const UNDO_TOAST_MS = 8000;
+
 // Panes other than the outline load on demand and are prefetched once the app is idle.
 const paneModules = {
   table: () => import('../table/TablePane'),
@@ -168,6 +171,15 @@ export function App() {
   const [error, setError] = createSignal('');
   const [offlineUnavailable, setOfflineUnavailable] = createSignal(false);
   const [deleted, setDeleted] = createSignal<{ pages: { id: string; title: string }[]; label: string; reopen: boolean } | null>(null);
+  /** The deletion toast leaves after a while unless the pointer or focus rests on it; Undo page deletion stays in the command palette until the next deletion. */
+  const [toastShown, setToastShown] = createSignal(false);
+  const [toastHeld, setToastHeld] = createSignal(false);
+  createEffect(() => {
+    deleted();
+    if (!toastShown() || toastHeld()) return;
+    const timer = setTimeout(() => setToastShown(false), UNDO_TOAST_MS);
+    onCleanup(() => clearTimeout(timer));
+  });
   const todayDate = () => notebook.todayDate();
   const counts = deskCounts(notebook, todayDate);
   let searchButton!: HTMLButtonElement;
@@ -322,7 +334,7 @@ export function App() {
     try { for (const page of pages) { await notebook.deletePage(page.id); done.push(page); } }
     finally {
       if (done.length) {
-        setDeleted({ pages: done, label: done.length === pages.length ? label : `${done.length} pages`, reopen });
+        batch(() => { setDeleted({ pages: done, label: done.length === pages.length ? label : `${done.length} pages`, reopen }); setToastHeld(false); setToastShown(true); });
         const remaining = notebook.roots().find(block => !ids.has(block.id));
         const previousDay = new Date(`${todayDate()}T12:00:00`);
         previousDay.setDate(previousDay.getDate() - 1);
@@ -340,7 +352,7 @@ export function App() {
     const value = deleted(); if (!value) return;
     try {
       for (const page of value.pages) await notebook.restorePage(page.id);
-      setDeleted(null);
+      batch(() => { setDeleted(null); setToastShown(false); });
       if (value.reopen) open({ kind: 'page', pageId: value.pages[0]!.id });
     } catch (reason) { reportError(reason); }
   };
@@ -676,7 +688,7 @@ export function App() {
     </>}</Show>
     <Show keyed when={capture()}>{request => <CaptureSheet notebook={notebook} request={request} onDismiss={closeCapture} />}</Show>
     <ReferencePreviews notebook={notebook} onOpen={(target, beside, pane) => open(target, beside, pane ?? active())} />
-    <Show when={deleted()}>{value => <div class="undo-toast" role="status"><Icon name="trash" /><span>{value().label} deleted</span><Button icon="undo" onClick={() => { void restorePage(); }}>Undo</Button><Button icon="close" label="Dismiss deletion notification" onClick={() => setDeleted(null)} /></div>}</Show>
+    <Show when={toastShown() && deleted()}>{value => <div class="undo-toast" role="status" onPointerEnter={() => setToastHeld(true)} onPointerLeave={() => setToastHeld(false)} onFocusIn={() => setToastHeld(true)} onFocusOut={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setToastHeld(false); }}><Icon name="trash" /><span>{value().label} deleted</span><Button icon="undo" onClick={() => { void restorePage(); }}>Undo</Button><Button icon="close" label="Dismiss deletion notification" onClick={() => setToastShown(false)} /></div>}</Show>
   </div>;
 }
 
