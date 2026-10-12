@@ -1,0 +1,14 @@
+extends: existence
+message: "Drop '%s'; say the specific thing."
+level: error
+ignorecase: true
+tokens:
+  - load-bearing
+  - comprehensive
+  - robust
+  - seamless(ly)?
+  - leverage[sd]?
+  - utili[sz]e[sd]?
+  - it'?s worth noting
+  - in order to
+  - simply

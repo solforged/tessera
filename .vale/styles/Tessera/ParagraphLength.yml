@@ -1,0 +1,11 @@
+# Long paragraphs hide rules. Split them, or turn parallel cases into a
+# list or a table. Applies to paragraphs, list items and table cells.
+extends: occurrence
+message: "Paragraph runs past 150 words; split it, or use a list or a table."
+level: error
+scope:
+  - paragraph
+  - list
+  - table.cell
+max: 150
+token: \b(\w+)\b
