@@ -1,0 +1,119 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 708" role="img" aria-labelledby="title desc">
+  <title id="title">Desktop shell layout</title>
+  <desc id="desc">A dimension-labelled desktop shell with a 48 px global rail, a centred 400 px Find or create control, a 208 px sidebar, two equal panes with 36 px headers and a 12 px outside gutter. An enlarged pane detail shows a 28 px block row, its 48 px left gutter and at most 760 px measure. The separate wide-pane apparatus is 240 px wide with a 48 px gap to the right, only where the pane fits it. The drawing is not to scale.</desc>
+  <style>
+    :root { color: #253246; --line: #536477; --muted: #536477; --accent: #805915; --wash: #5364770a; }
+    @media (prefers-color-scheme: dark) {
+      :root { color: #e6edf3; --line: #9aaabd; --muted: #b1bece; --accent: #e3b966; --wash: #9aaabd0a; }
+    }
+    text { fill: currentColor; font: 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .heading { font-size: 18px; font-weight: 600; }
+    .small { font-size: 13px; }
+    .mono { font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; font-size: 13px; }
+    .muted { fill: var(--muted); }
+    .box, .rule, .dimension, .leader, .icon { fill: none; stroke: var(--line); stroke-width: 1.4; }
+    .wash { fill: var(--wash); }
+    .dimension, .leader { stroke-width: 1; }
+    .leader { stroke-dasharray: 3 3; }
+    .accent { stroke: var(--accent); }
+    .dot { fill: currentColor; }
+    .pill { fill: none; stroke: var(--line); stroke-width: 1; }
+  </style>
+
+  <text x="30" y="27" class="heading">Desktop shell</text>
+  <text x="930" y="27" text-anchor="end" class="small muted">Schematic; not to scale</text>
+  <text x="54" y="51" class="small muted">Global rail · 48 px</text>
+  <text x="480" y="51" text-anchor="middle" class="small muted">400 px · centred on the window</text>
+  <text x="887" y="51" text-anchor="middle" class="small muted">Layout</text>
+
+  <rect x="30" y="62" width="900" height="258" class="box"/>
+  <rect x="30" y="62" width="900" height="48" class="box wash"/>
+  <path d="M18 62h8 M22 62v48 M18 110h8" class="dimension"/>
+  <rect x="43" y="74" width="24" height="24" rx="2" class="icon"/>
+  <path d="M50 79v14 M55 79v14" class="icon"/>
+  <circle cx="89" cy="86" r="7" class="icon accent"/>
+  <circle cx="89" cy="86" r="2" class="dot"/>
+  <text x="103" y="91">Tessera</text>
+  <text x="177" y="82" class="small muted">Sidebar toggle</text>
+  <text x="177" y="98" class="small muted">+ wordmark</text>
+  <path d="M172 86h-15" class="leader"/>
+  <rect x="280" y="72" width="400" height="28" rx="2" class="box"/>
+  <path d="M293 86q7-10 14 0q-7 10-14 0Z" class="icon"/>
+  <circle cx="300" cy="86" r="2" class="dot"/>
+  <text x="322" y="91">Find or create</text>
+  <path d="M653 79h14 M653 85h14 M653 91h9" class="icon"/>
+  <rect x="875" y="74" width="24" height="24" rx="2" class="box"/>
+  <path d="M880 79h14v14h-14Z M887 79v14" class="icon"/>
+
+  <rect x="30" y="110" width="208" height="210" class="box wash"/>
+  <text x="48" y="136">Sidebar</text>
+  <text x="48" y="164" class="muted">Today</text>
+  <text x="48" y="192" class="muted">Agenda</text>
+  <text x="48" y="220" class="muted">Review</text>
+  <text x="48" y="248" class="muted">Library</text>
+  <path d="M48 277h172" class="rule"/>
+  <text x="48" y="301" class="muted">Settings</text>
+
+  <rect x="238" y="110" width="680" height="198" class="box"/>
+  <path d="M578 110v198" class="rule"/>
+  <rect x="238" y="110" width="340" height="36" class="box wash"/>
+  <rect x="578" y="110" width="340" height="36" class="box wash"/>
+  <text x="255" y="132" class="mono">Pane 1 header · 36 px</text>
+  <text x="595" y="132" class="mono">Pane 2 header · 36 px</text>
+  <text x="408" y="191" text-anchor="middle">Pane 1</text>
+  <text x="748" y="191" text-anchor="middle">Pane 2</text>
+  <text x="408" y="241" text-anchor="middle" class="muted">Workspace frame</text>
+  <text x="748" y="241" text-anchor="middle" class="muted">Two equal panes</text>
+  <path d="M30 334v8 M30 338h208 M238 334v8" class="dimension"/>
+  <text x="134" y="362" text-anchor="middle" class="mono">208 px</text>
+  <path d="M924 213v119h-85" class="leader"/>
+  <path d="M790 314v18h49" class="leader"/>
+  <text x="839" y="353" text-anchor="middle" class="small muted">12 px outside gutter</text>
+  <text x="839" y="371" text-anchor="middle" class="small muted">right and bottom</text>
+
+  <text x="30" y="408" class="heading">Pane anatomy</text>
+  <text x="30" y="430" class="small muted">Wide concept-page detail; the apparatus appears only when eligible and the pane fits it.</text>
+
+  <rect x="78" y="450" width="840" height="216" class="box"/>
+  <text x="177" y="480" class="muted">Title aligned with the text column</text>
+  <rect x="96" y="518" width="48" height="28" class="box wash"/>
+  <rect x="144" y="518" width="506" height="28" class="box"/>
+  <path d="M107 525v14 M111 525v14" class="icon"/>
+  <path d="M126 530l5 5 5-5" class="icon"/>
+  <circle cx="156" cy="532" r="3" class="dot"/>
+  <text x="177" y="537">Block text</text>
+  <rect x="570" y="524" width="65" height="16" rx="8" class="pill"/>
+  <text x="602" y="536" text-anchor="middle" class="small">Pills</text>
+  <path d="M59 518h9 M63 518v28 M59 546h9" class="dimension"/>
+  <text x="13" y="527" class="mono">28 px</text>
+  <text x="13" y="544" class="mono">row</text>
+
+  <text x="99" y="501" class="small muted">Handle</text>
+  <path d="M109 505v13" class="leader"/>
+  <text x="151" y="501" class="small muted">Fold</text>
+  <path d="M165 505l-34 13" class="leader"/>
+  <text x="208" y="501" class="small muted">Bullet</text>
+  <path d="M218 505l-62 13" class="leader"/>
+  <text x="324" y="501" class="small muted">Text</text>
+  <path d="M337 505v13" class="leader"/>
+
+  <path d="M144 488v154 M650 488v154" class="leader"/>
+  <path d="M144 599v10 M144 604h506 M650 599v10" class="dimension"/>
+  <text x="397" y="627" text-anchor="middle" class="mono">Measure · at most 760 px</text>
+  <text x="397" y="646" text-anchor="middle" class="mono muted">--measure</text>
+  <path d="M96 556v8 M96 560h48 M144 556v8" class="dimension"/>
+  <path d="M120 565v22h65" class="leader"/>
+  <text x="196" y="591" class="small muted">48 px left gutter · handle + fold</text>
+
+  <rect x="698" y="476" width="186" height="112" class="box wash"/>
+  <text x="791" y="501" text-anchor="middle">Apparatus margin</text>
+  <text x="791" y="526" text-anchor="middle" class="mono">240 px</text>
+  <text x="791" y="550" text-anchor="middle" class="mono">--apparatus-width</text>
+  <text x="791" y="575" text-anchor="middle" class="small muted">Only where the pane fits it</text>
+  <path d="M650 556v8 M650 560h48 M698 556v8" class="dimension"/>
+  <path d="M674 565v44h62" class="leader"/>
+  <text x="747" y="614" class="small muted">48 px right gap</text>
+  <text x="747" y="634" class="mono muted">--space-48</text>
+
+  <text x="30" y="695" class="small muted">Desktop pointer dimensions. Labels are specified sizes, not the lengths drawn here.</text>
+</svg>

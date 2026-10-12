@@ -1,0 +1,257 @@
+# Reader
+
+The reader displays a source in a pane, with reading progress, chapter navigation and passage highlights.
+
+Tokens, shell and shared popup patterns are in [design](../design.md).
+
+## Layout
+
+The pane header reads Library / source title. The title opens the source page.
+
+One toolbar line sits at the reading measure and spans the spread in [Pages](#pages). Its controls appear in this order:
+
+1. Contents, labelled with the current section as a running head: its numeral in mono `--faint`, its title in Piazzolla italic.
+2. Highlights, with its count.
+3. Find in source.
+4. `Aa`, for reader settings.
+5. Full screen.
+6. An actions menu: Open source page, then every reader shortcut with its key.
+
+Progress sits at the foot, under the text. The [book map](#book-map) sits above one mono line: the chapter's numeral and italic title, its time left, and `N% · time left in the book` at the right. The last item opens the [progress card](#progress-card). The chapter name is absent in front matter and in a foot narrower than 460 px, where the toolbar names it. In Pages, the foot spans the spread as the toolbar does.
+
+The text fades over 24 px under the toolbar and 48 px above the foot, so no line is cut through its letters.
+
+### Title page
+
+The book opens with a title page read from the source page like the Library row. Renaming the book or editing its creators shows there at once; the file's own title stands in only until the page loads.
+
+The title page has:
+
+- A 112 px cover, or 76 px on the cover screen, beside the imprint in mono: siglum, publisher, year.
+- The title in Piazzolla at 2.25 times the reading size, with any subtitle in italic beneath it. The subtitle follows a colon or comes from the source's Subtitle.
+- The author in Piazzolla italic.
+- A gilt rubric rule.
+- The chapter count and reading time in mono.
+- A gilt Begin at link to the first opening: `Begin at Preface`, `Begin at chapter I`.
+
+The file's own cover image at the start is not drawn again.
+
+## Chapters
+
+Chapters are the outermost contents level with two or more entries, as in a printed book. A part whose own text before its first entry is under 2,000 characters, such as a title page or an epigraph, instead holds chapters: the part opens on a page of its own and each chapter in it is a chapter. A chapter with a page or more of its own before its sections keeps them inside it.
+
+The reader's pages, the foot, the running head, the book map, the progress card, the source page, the [Library's reading cards](library.md) and the [journal's reading tile](journal.md) all count chapters this way.
+
+### Front matter
+
+Front matter is a stretch of the map but never named as the chapter. It includes cover, title page, copyright, contents, illustrations, abbreviations, dedication, epigraph, maps, family trees, cast lists, lists of figures and tables, praise, and the author's other books.
+
+### Chapter openings
+
+Chapter openings come from the contents, not the file's heading markup, so every book opens its chapters the same way. Each chapter, except front matter and entries that only repeat the book's title, opens four lines down from the passage before, with:
+
+- A rubric mono label: `CHAPTER I`, `BOOK`, `INTRODUCTION`; none for an unnumbered section.
+- The title in Piazzolla at 2.1 times the reading size.
+- A gilt rubric rule.
+
+The first line of text takes small capitals. A chapter that starts at the same passage as its part has the part above it in `--faint` mono capitals, as `PART ONE · AN EXCESS OF GOOD FORTUNE`.
+
+Numerals are recognised as `Chapter 3`, `Book One`, `Part II`, or a bare upper-case Roman numeral or number before `.` or `:`. A title such as `I Remember` stays a title. Decorations around a title, such as `~Book One~`, are dropped.
+
+### Heading suppression
+
+Heading lines that only restate the entry, its label, its numeral in any style or the book's title are not drawn, from the entry's first passage up to the next opening. Anything else, such as an epigraph, a highlighted passage or an image, ends the run. Find still searches the suppressed lines.
+
+Contents entries that only repeat the book's title, running heads the file marked as navigation, leave the Contents menu, the margin and the book map. Their running-head passages are not drawn.
+
+## Reader settings
+
+Reader settings are a device preference shared by every reader pane. Saved choices are preserved. Changing a setting keeps the first visible passage in place.
+
+| Setting | Choices | Default |
+| --- | --- | --- |
+| Layout | Scroll; Pages | Scroll |
+| Typeface | Sans (Plex); Serif (Piazzolla) | Serif |
+| Size | 15 to 22 px | 17 px |
+| Width | Narrow 28em; Medium 34em; Wide at the outline measure | Medium |
+| Line spacing | 1.5; 1.65; 1.8 | |
+
+### Text and media
+
+- Headings scale from the reader size.
+- Footnote references are superscript links that open the note in a popover.
+- Images keep their natural size up to the measure and 70% of the viewport height. On the dark canvas they are dimmed to 85% brightness until hovered.
+- Code sits on `--surface` in a horizontally scrolling block.
+- Quotations take a 2 px `--line` rule at an indent. When quotes outnumber plain paragraphs among the loaded passages, they read as plain paragraphs instead: some EPUBs wrap the whole text in blockquotes.
+
+[Pages](#pages) has its own image-height limit.
+
+## Contents, highlights and find
+
+Contents opens on the current section, marked with a check. The Highlights picker lists each highlight's colour, quote and section. Find marks matches and counts passages.
+
+Contents falls back to the EPUB guide and fills in lazily when the navigation document is empty. A passage's tooltip names its number and section: `Passage 37 · Chapter 1`.
+
+### Contents margin
+
+Wherever the pane has room for `--apparatus-width` and a 48 px gap left of the text, the contents stay open as a margin beside it. This includes a single pane on a laptop, or full screen beside a two-column spread.
+
+- Every entry uses control text, indented 12 px per level, in `--muted`.
+- The current section is gilt with a 2 px gilt rule at its left edge, kept in view as reading moves on.
+- Clicking an entry jumps there as Contents does.
+- The margin scrolls on its own.
+- Narrower panes, split panes and phones keep only the Contents menu.
+
+Unlike opening a citation, choosing a section in either the margin or Contents moves the reading position there at once, so reopening the book returns to it.
+
+### Find in source
+
+Find in source loads forty matching passages at a time with Load more. Appending preserves the selected result and popup scroll; the final count removes the action. Replacing the query, closing the picker or changing source discards late results from the previous search.
+
+## Progress
+
+Progress anywhere, in library rows, the source header or the reader, is one number: the share of the text before the first passage on screen, rounded down, `<1%` once started.
+
+Until the saved position is restored, the text, the foot line and the Contents label are not drawn and the running head stays quiet, so the start of the book does not flash before the jump. The reading position saves while scrolling. Opening from a citation scrolls to the passage and flashes it without counting as reading.
+
+### Book map
+
+The book map is the same as on the source page and the [Library's reading cards](library.md):
+
+- Chapters are segments sized by length.
+- The map is gilt to the reading point, with a `--text` tick there.
+- Highlights are dots in their colours above it.
+- A book whose contents have no placed entries keeps a 2 px rule that fills to the reading position.
+
+### Progress card
+
+`N% · time left` at the foot opens the progress card: above it on a pointer screen, and as a sheet rising from the bottom edge on the cover screen.
+
+The card shows, in order:
+
+1. `N% of the book`, with the number in Piazzolla; the chapter by name, `4 · Deus Vult!, 43% through`, with nothing in front matter; and the date the book was added in mono at the right.
+2. The map at double height, with Start, the highlight count and End beneath it.
+3. Left in chapter and Left in book, with their numbers in Piazzolla.
+4. The current chapter and the next five as rows. Each has its numeral and title as the toolbar names it and its length in minutes. The current one has a gilt edge and reads `N min left`.
+
+Choosing a row reads on from that chapter, as Contents does. A mono note says the times assume about 250 words a minute. The card leaves out the day's reading and a finish estimate, because Tessera does not record reading sessions.
+
+## Pages
+
+Pages lays the text out in columns the height of the pane and turns them a page at a time. A page holds two columns when the pane fits two of at least 22em, and one otherwise. No column is wider than the reading measure. Two columns are 48 px apart, with a 1 px `--line` rule down the middle as the spine.
+
+### Running heads and openings
+
+A running head in centred mono `--faint` capitals sits over each column:
+
+| Page | Running head |
+| --- | --- |
+| Two columns | The book's title over the left; the chapter, `I · The Violent Tenor of Life`, over the right |
+| One column | The chapter alone |
+| Front matter in two columns | Nothing over the right |
+| Title page or a chapter's opening page | No running head |
+
+A chapter's opening sinks 18% of the viewport height, as a printed chapter starts low on its recto. Each chapter, [counted as above](#chapters), starts on a fresh page. A long chapter splits every 150 passages.
+
+The foot line adds `p. N of M` within the chapter after the chapter's time left. Time left counts the characters after the first passage on screen at 1,500 a minute and reads `<1 min`, `N min`, `H h` or `H h M min`.
+
+### Turning pages
+
+| Input | Behaviour |
+| --- | --- |
+| Mouse | Previous and next arrows in `--faint` sit at the page edges, 8 px outside the text and gilt on hover, hidden at the first and last page of the book. The mouse wheel turns pages. |
+| Keyboard | Arrow keys, Page Up and Down, Space and Shift+Space back turn pages. |
+| Touch drag | A finger carries the page sideways and the next one follows it in. A drag past a quarter of the page or a flick turns it; a shorter one springs back. At the book's first or last page the page only gives a little. |
+| Touch tap | A tap in the outer sixth of the page turns it, unless it lands on a highlight, link or button. The edge arrows are left out. |
+
+Past the last page of a chapter, the next one opens at its first page. Turning back opens the previous chapter at its last.
+
+Headings stay with what follows. Images and code blocks are not split, and images fit within half the viewport height.
+
+Folding, unfolding, resizing the pane and changing a setting keep the first character on the page in view, so a long passage spanning pages does not jump back to its start. Returning to the earlier size returns to the same page.
+
+## Full screen
+
+Full screen, the corner-arrows button after `Aa` or `F`, turns the whole app window into the reader. The rail, sidebar, pane tabs, pane header and the other pane step aside. The reader's own toolbar stays for contents, highlights, find, settings and the way out.
+
+### Fading controls
+
+| Screen | Fade and return | Layout while faded |
+| --- | --- | --- |
+| Mouse | The toolbar and book map at the foot fade 2.5 s after the pointer rests and return when it moves. The line under the map stays. | Everything keeps its room, so the text never moves. |
+| Touch, in full screen or on the cover screen | A tap in the middle of the page, not on a highlight, link or button, fades or returns the toolbar and book map with the cover screen's masthead and pane tabs. | The masthead, toolbar and book map lie over the page, painted the screen's full width with the text fading into them. Once they fade, the page has the screen from the top band's top to the line under the map. |
+
+On Android the status and navigation bars leave and return with the controls, and a swipe from the screen's edge shows them for a moment. Full screen on a touch screen 600 px or wider also gives the page the status bar's room, and the toolbar returns below the bar. The cover screen keeps that room for its camera.
+
+On touch the controls also fade on their own when the book has opened, a page turns, a jump lands or the page is scrolled, so they never cover what is read next.
+
+- A tap that closes a popup or clears a selection does only that.
+- The controls stay while a popup is open, text is selected or keyboard focus is in the toolbar.
+- A click that left focus on a toolbar button does not hold them.
+
+### Window and exit
+
+In the macOS app, an empty strip the rail's height stays on the canvas as the title bar, holding the window buttons and moving the window. Reader full screen does not ask the operating system for full screen; on the desktop, the window menu's Full Screen does that separately.
+
+The same button, `F`, `Esc` after any selection is cleared, Back on Android and the browser's back button leave reader full screen. It also ends when the pane opens something other than the reader. It is not saved, so a reload starts in the normal layout.
+
+## Selection and highlights
+
+Selecting text shows a small toolbar beside the selection, centred on it and below it when there is no room above. [Touch selection](#touch-selection) docks it in thumb reach instead.
+
+| Action | Key | Result |
+| --- | --- | --- |
+| Highlight | `H` | Appends a block quoting the selection to the source page |
+| Highlight and note | `N` | Appends the quoting block, starts an empty child and opens the highlight beside the reader with the caret there |
+| Five colours | `1`–`5` | The five colour choices |
+
+An empty note does not mark the highlight processed. On touch, Highlight and note opens the [note sheet](#highlight-and-note-sheet) instead.
+
+### Highlight ink and interaction
+
+Highlights are ink, not boxes. A band of their colour at 42%, or a neutral 26% `--text` without one, sits under the lower half of each line, from 55% to 92% of the line box. Capitals and ascenders keep the canvas and neighbouring lines stay apart.
+
+Hovering a highlight deepens the band of every range it covers to 62%, or 40% without a colour. One with notes ends in a small note icon in `--faint` that opens them. Clicking a highlight opens its menu; Shift-click opens its block beside the reader.
+
+### Overlapping highlights
+
+Highlighting a selection that overlaps existing highlights extends the earliest one on the source page to cover the union instead of stacking a new mark.
+
+Merge overlapping highlights, in the reader's actions menu, does the same for every overlapping group and reports `Merged N highlights` or `No overlapping highlights`. Highlights cited from other pages are kept and still count toward the union, with `; N cited elsewhere kept` added to the report.
+
+## Touch and the cover screen
+
+The cover screen is a touch screen under 600 px. Its shell rules are in [design](../design.md).
+
+An open book reads edge to edge without the pane header or the nav. A back arrow and the book's name head the page above the reader toolbar. Full screen is left out because nothing remains to hide.
+
+The back arrow returns through the pane's history, or opens the source page when the reader was the first entry. Unfolding brings the usual shell back around the same page.
+
+### Touch selection
+
+The selection toolbar docks across the foot of the page in thumb reach, clear of the system's own text menu beside the selection. It is no wider than the reading measure, with 44 px buttons sharing the width and no key hints. It moves to the head only when the selection runs down there.
+
+### Highlight and note sheet
+
+On a touch screen, Highlight and note keeps the passage in view instead of opening the source page. A sheet covers the shell, showing in order:
+
+1. The book's title and byline.
+2. The reading rule.
+3. The section and position in mono.
+4. The sentence leading into the quotation in `--muted`.
+5. The quotation itself, larger on a highlight tint with a gilt rule.
+6. The sentence after it.
+
+Below, on `--surface`, sit "A thought on this passage" with one way back beside it, the note field and the save state in `--muted`.
+
+The note is the highlight's child block and saves as it is typed. The button reads Back to reading while the note is empty and becomes a gilt Keep note once there is text; Escape does the same. Leaving with nothing typed removes the empty note; the highlight stays.
+
+When the keyboard takes room, the passage scrolls so the whole quotation and as much of the lead-in as fits stay visible, and the byline goes.
+
+### Popups, targets and Android
+
+On a touch screen, Contents and Highlights open without raising the keyboard; their search field takes a tap. `Aa` rises as a sheet from the bottom edge, its rows kept to a column, so the text it changes stays in sight above.
+
+The reader toolbar, the settings and the note sheet's buttons are 44 px touch targets (`--touch-target`). The note mark after a highlight and the progress at the foot reach as far without growing.
+
+On Android the shell and the note sheet sit below the status bar. The app reports its height itself because the WebView leaves it out of the safe-area insets, and the bar's icons follow the app's theme.
