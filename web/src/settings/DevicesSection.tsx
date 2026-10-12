@@ -1,42 +1,51 @@
-import { For, Show, createResource, createSignal, onCleanup } from 'solid-js';
+import { For, Show, createEffect, createSignal, onCleanup } from 'solid-js';
 import type { JSX } from 'solid-js';
 import { api } from '../api/client';
-import type { PairingCode, PairingStatus } from '../api/types';
-import { ANDROID } from '../demo/mode';
+import type { PairingCode, PairingStatus, RejectedChange, SyncAttempt } from '../api/types';
 import { Button } from '../ui/Button';
 import { Popup } from '../ui/Popup';
 import { SyncSetup } from '../sync/SyncSetup';
-import { ago, forgotten, plural, problem, replica, size, sync } from '../sync/state';
+import type { NotebookClient } from '../document/contract';
+import { SyncExplanation, SyncFix, currentHealth } from '../sync/SyncStatus';
+import { syncHealth, versionLine } from '../sync/health';
+import { settleRejection } from '../sync/rejections';
+import { ago, hubDevices, plural, replica, size, sync, syncConflicts } from '../sync/state';
 
 const message = (reason: unknown) => reason instanceof Error ? reason.message : String(reason);
 
-/** Settings › Devices on the Mac: tailnet sharing, pairing and the devices that copy this notebook. */
-export function HubDevices(props: { heading: JSX.Element; onError(message: string): void; onCount(count: number): void }) {
-  const [devices, { refetch, mutate }] = createResource(async () => {
-    try { const value = await api.syncDevices(); props.onCount(value.devices.length); return value; }
-    catch (reason) { props.onError(message(reason)); return undefined; }
-  });
+interface DeviceProps { heading: JSX.Element; notebook: NotebookClient; deviceId?: string | null; onOpenPage(pageId: string): void; onError(message: string): void }
+
+/** The Mac's device rows contain the fix and evidence for each relationship. */
+export function HubDevices(props: DeviceProps & { onCount(count: number): void }) {
   const [busy, setBusy] = createSignal(false);
   const [pairing, setPairing] = createSignal(false);
+  void sync.refresh();
+  createEffect(() => props.onCount(hubDevices.state()?.devices.length ?? 0));
   const share = async (on: boolean) => {
     setBusy(true);
-    try { const sharing = await api.setSharing(on); mutate(value => value && { ...value, sharing }); }
-    catch (reason) { props.onError(message(reason)); }
-    finally { setBusy(false); void refetch(); }
+    try {
+      const sharing = await api.setSharing(on);
+      const value = hubDevices.state();
+      if (value) hubDevices.set({ ...value, sharing });
+    } catch (reason) { props.onError(message(reason)); }
+    finally { setBusy(false); void hubDevices.refresh(); }
   };
   const forget = async (id: string) => {
     try { await api.forgetDevice(id); }
     catch (reason) { props.onError(message(reason)); }
-    void refetch();
+    void hubDevices.refresh();
   };
   return <>
     {props.heading}
-    <Show when={devices()}>{value => <>
+    <Show when={hubDevices.state()}>{value => <>
+      <div class="settings-row devices-hub-row">
+        <div class="settings-label"><span class="settings-name">The Mac<span class="settings-scope">Hub</span></span><p class="settings-mono">{value().hub_name} · {versionLine(value().this_device)}</p>
+          <Show when={value().sharing.url}>{url => <p class="settings-mono devices-url">{url()}</p>}</Show>
+        </div>
+      </div>
       <div class="settings-row">
-        <div class="settings-label">
-          <span class="settings-name"><label for="settings-sharing">Sharing</label><span class="settings-scope">This Mac</span></span>
+        <div class="settings-label"><span class="settings-name"><label for="settings-sharing">Sharing</label><span class="settings-scope">This Mac</span></span>
           <p>{value().sharing.available ? 'Share with my tailnet' : value().sharing.error ?? 'Tailscale is not available on this Mac.'}</p>
-          <Show when={value().sharing.on && value().sharing.url}>{url => <p class="settings-mono devices-url">{url()}</p>}</Show>
         </div>
         <input id="settings-sharing" class="settings-switch" type="checkbox" role="switch" checked={value().sharing.on} disabled={busy() || !value().sharing.available} onChange={event => { void share(event.currentTarget.checked); }} />
       </div>
@@ -44,21 +53,27 @@ export function HubDevices(props: { heading: JSX.Element; onError(message: strin
         <div class="settings-label"><span class="settings-name">Pair a phone</span><p>The phone gets a copy of this notebook. Changes go both ways.</p></div>
         <Button class="bordered" disabled={!value().sharing.on} title={value().sharing.on ? undefined : 'Turn on sharing first'} onClick={() => setPairing(true)}>Pair a phone</Button>
       </div>
-      <For each={value().devices}>{device => <div class="settings-row devices-device" data-state={device.state}>
-        <div class="settings-label"><span class="settings-name">{device.name}</span><p>{
-          device.state === 'retired' && device.retired_at ? `Retired ${ago(device.retired_at)}`
-            : device.last_seen_at ? `Last synced ${ago(device.last_seen_at)}` : 'Not synced yet'
-        }</p></div>
-        <span class="devices-device-end">
-          <Show when={device.state === 'active'}><span class="settings-aside devices-active">Active</span></Show>
-          <Button class="bordered devices-forget" onClick={() => { void forget(device.id); }}>Forget</Button>
-        </span>
-      </div>}</For>
-      <Show when={value().retained.changes > 0}>
-        <p class="settings-mono devices-retained">Keeping {plural(value().retained.changes, 'change')} for devices that have not caught up ({size(value().retained.bytes)}).</p>
-      </Show>
-      <Show when={pairing()}><PairDialog url={value().sharing.url} onDone={() => { setPairing(false); void refetch(); }} /></Show>
+      <For each={value().devices.map(device => device.id)}>{id => {
+        const device = () => value().devices.find(device => device.id === id)!;
+        const health = () => syncHealth(sync.state(), { ...value(), devices: [device()] }, sync.now())!;
+        return <details class="devices-disclosure" data-device-id={id} open={props.deviceId === id}>
+          <summary><span class="devices-name">{device().name}</span><span class="devices-row-status" data-tone={health().tone}>{health().kind === 'synced' ? device().last_seen_at ? `Synced ${ago(device().last_seen_at!, sync.now())}` : 'Not synced yet' : health().title}</span></summary>
+          <div class="devices-expanded">
+            <div class="devices-versions"><div><h3>{device().name}</h3><p class="settings-mono">{versionLine(device().version)}</p></div><div><h3>{value().hub_name}</h3><p class="settings-mono">{versionLine(value().this_device)}</p></div></div>
+            <Show when={health().kind !== 'synced'}><div class="devices-fix" data-tone={health().tone}><h3>{health().title}</h3><SyncExplanation health={health()} /><SyncFix health={health()} onError={props.onError} /></div></Show>
+            <dl class="devices-facts"><dt>Last seen</dt><dd>{device().last_seen_at ? ago(device().last_seen_at!, sync.now()) : 'Not seen yet'}</dd>
+              <Show when={device().refused}>{refusal => <><dt>Refused since</dt><dd>{ago(refusal().since, sync.now())} · {plural(refusal().attempts, 'attempt')}</dd></>}</Show>
+              <Show when={device().last_attempt_at}><dt>Last attempt</dt><dd>{ago(device().last_attempt_at!, sync.now())}</dd></Show>
+            </dl>
+            <AttemptLedger attempts={device().attempts} />
+            <div class="devices-actions"><Button class="bordered" onClick={() => { void forget(id); }}>Forget</Button></div>
+          </div>
+        </details>;
+      }}</For>
+      <Show when={value().retained.changes > 0}><p class="settings-mono devices-retained">Keeping {plural(value().retained.changes, 'change')} for devices that have not caught up ({size(value().retained.bytes)}).</p></Show>
+      <Show when={pairing()}><PairDialog url={value().sharing.url} onDone={() => { setPairing(false); void hubDevices.refresh(); }} /></Show>
     </>}</Show>
+    <NeedsReview notebook={props.notebook} onOpenPage={props.onOpenPage} onError={props.onError} />
   </>;
 }
 
@@ -131,46 +146,85 @@ function PairDialog(props: { url: string | null; onDone(): void }) {
   </Popup>;
 }
 
-/** Settings › Devices on the phone: the Mac it copies, or the way to start copying it. */
-export function PhoneDevices(props: { heading: JSX.Element; onError(message: string): void }) {
+/** A replica has one relationship to inspect: this copy and the Mac that shares it. */
+export function PhoneDevices(props: DeviceProps) {
   const [setup, setSetup] = createSignal(false);
-  const [running, setRunning] = createSignal(false);
-  const run = async () => {
-    setRunning(true);
-    try { sync.set(await api.runSync()); }
-    catch (reason) { props.onError(message(reason)); }
-    finally { setRunning(false); }
-  };
   void sync.refresh();
   return <>
     {props.heading}
     <Show when={sync.state()}>{state => <Show when={replica()} fallback={<>
       <div class="settings-row">
-        <div class="settings-label"><span class="settings-name">Use my Mac's notebook</span><p>A copy of your Mac's notebook. This phone sends its changes to the Mac and gets the Mac's changes.</p></div>
+        <div class="settings-label"><span class="settings-name">Use my Mac's notebook</span><p>A copy of your Mac's notebook. Changes go both ways.</p></div>
         <Button class="bordered" disabled={state().role !== 'none'} onClick={() => setSetup(true)}>Set up</Button>
       </div>
       <Show when={setup()}><SyncSetup onDone={() => setSetup(false)} /></Show>
     </>}>{value => <>
-      <div class="settings-row">
-        <div class="settings-label"><span class="settings-name">{value().hub_name ?? 'Mac'}<span class="settings-scope">Notebook</span></span><p class="settings-mono devices-url">{value().hub_url}</p></div>
-        <span class="settings-aside">{ANDROID ? 'This phone copies it' : 'This device copies it'}</span>
-      </div>
-      <div class="settings-row">
-        <div class="settings-label"><span class="settings-name">Sync</span><p>{
-          value().syncing || running() ? 'Syncing…'
-            : [value().synced_at ? `Synced ${ago(value().synced_at!)}` : 'Not synced yet', value().pending ? `${plural(value().pending, 'change')} waiting` : null].filter(Boolean).join(' · ')
-        }</p><Show when={value().last_error}>{failure => <p class="devices-error" title={failure().message}>{problem(failure())}</p>}</Show></div>
-        <Show when={forgotten()} fallback={<Button class="bordered" disabled={running() || value().syncing || value().retired} onClick={() => { void run(); }}>Sync now</Button>}>
-          <Button class="bordered" onClick={() => setSetup(true)}>Pair again</Button>
-        </Show>
-      </div>
-      <Show when={setup()}><SyncSetup again={{ url: value().hub_url }} onDone={() => setSetup(false)} /></Show>
-      <Show when={value().offline.books > 0}>
-        <div class="settings-row">
-          <div class="settings-label"><span class="settings-name">Offline books</span><p>{plural(value().offline.books, 'book')} · {size(value().offline.bytes)}</p></div>
-          <span class="settings-aside">On this phone</span>
+      <details class="devices-disclosure" data-device-id={value().device_id} open={props.deviceId === value().device_id}>
+        <summary><span class="devices-name">{value().hub_name ?? 'The Mac'}</span><span class="devices-row-status" data-tone={currentHealth()?.tone}>{currentHealth()?.title}</span></summary>
+        <div class="devices-expanded">
+          <div class="devices-versions"><div><h3>{value().device_name ? `This device · ${value().device_name}` : 'This device'}</h3><p class="settings-mono">{versionLine(state().this_device)}</p></div><div><h3>{value().hub_name ? `The Mac · ${value().hub_name}` : 'The Mac'}</h3><p class="settings-mono">{versionLine(value().hub_version)}</p></div></div>
+          <p class="settings-mono devices-url">{value().hub_url}</p>
+          <Show when={currentHealth()}>{health => <div class="devices-fix" data-tone={health().tone}><h3>{health().title}</h3><SyncExplanation health={health()} /><SyncFix health={health()} onError={props.onError} /></div>}</Show>
+          <dl class="devices-facts"><dt>Last synced</dt><dd>{value().synced_at ? ago(value().synced_at!, sync.now()) : 'Not synced yet'}</dd>
+            <Show when={value().failing_since}><dt>{currentHealth()?.kind === 'version' ? 'Refused since' : 'Failing since'}</dt><dd>{ago(value().failing_since!, sync.now())} · {plural(value().attempts.filter(attempt => !attempt.ok && attempt.first_at >= value().failing_since!).reduce((count, attempt) => count + attempt.count, 0), 'attempt')}</dd></Show>
+            <dt>Changes waiting</dt><dd>{value().pending} · kept on this device</dd>
+          </dl>
+          <AttemptLedger attempts={value().attempts} />
         </div>
-      </Show>
+      </details>
+      <Show when={value().offline.books > 0}><div class="settings-row"><div class="settings-label"><span class="settings-name">Offline books</span><p>{plural(value().offline.books, 'book')} · {size(value().offline.bytes)}</p></div><span class="settings-aside">On this device</span></div></Show>
     </>}</Show>}</Show>
+    <NeedsReview notebook={props.notebook} onOpenPage={props.onOpenPage} onError={props.onError} />
   </>;
+}
+
+function AttemptLedger(props: { attempts: SyncAttempt[] }) {
+  const when = (at: number) => new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' }).format(at);
+  return <div class="devices-attempts"><h3>Recent attempts</h3><Show when={props.attempts?.length} fallback={<p>No attempts recorded since this service started.</p>}>
+    <table><thead><tr><th>When</th><th>Result</th><th>Attempts</th></tr></thead><tbody><For each={props.attempts?.slice(0, 6)}>{attempt => <tr><td class="settings-mono"><time dateTime={new Date(attempt.at).toISOString()} title={`First attempt ${when(attempt.first_at)}`}>{when(attempt.at)}</time></td><td data-tone={attempt.ok ? 'muted' : 'rubric'} title={attempt.message ?? undefined}>{attempt.ok ? 'Accepted' : attempt.code === 'schema_mismatch' ? 'Version refused' : attempt.code === 'hub_unreachable' ? 'Could not reach the Mac' : attempt.message ?? attempt.code ?? 'Failed'}</td><td class="settings-mono">{attempt.count}</td></tr>}</For></tbody></table>
+  </Show><p class="devices-ledger-note">Recent attempts from this service run. History clears when Tessera restarts.</p></div>;
+}
+
+function NeedsReview(props: { notebook: NotebookClient; onOpenPage(pageId: string): void; onError(message: string): void }) {
+  const [busy, setBusy] = createSignal(false);
+  const [undo, setUndo] = createSignal<{ label: string; run(): Promise<void> } | null>(null);
+  const settle = async (change: RejectedChange, copy: boolean) => {
+    if (busy()) return;
+    setBusy(true);
+    try {
+      const receipt = await settleRejection(props.notebook, change, copy);
+      setUndo({ label: copy ? 'Text copied back.' : 'Change dismissed.', run: receipt.undo });
+      await sync.refresh(); await syncConflicts.refresh();
+    } catch (reason) { props.onError(message(reason)); }
+    finally { setBusy(false); }
+  };
+  const undoLast = async () => {
+    const last = undo();
+    if (!last || busy()) return;
+    setBusy(true);
+    try { await last.run(); setUndo(null); await sync.refresh(); await syncConflicts.refresh(); }
+    catch (reason) { props.onError(message(reason)); }
+    finally { setBusy(false); }
+  };
+  return <Show when={(syncConflicts.state()?.kept.length ?? 0) + (syncConflicts.state()?.rejected.length ?? 0) > 0 || undo()}>
+    <details class="devices-disclosure devices-review" aria-label="Needs review" open>
+      <summary><span class="devices-name">Needs review</span><span class="devices-row-status">{syncConflicts.state()?.kept.length ?? 0} kept · {syncConflicts.state()?.rejected.length ?? 0} rejected</span></summary>
+      <div class="devices-expanded">
+      <p>Kept versions are beside their blocks. Rejected changes are kept here until you copy them back or dismiss them.</p>
+      <Show when={undo()}>{last => <div class="devices-undo" role="status"><span>{last().label}</span><Button class="bordered" disabled={busy()} onClick={() => { void undoLast(); }}>Undo</Button></div>}</Show>
+      <For each={syncConflicts.state()?.kept}>{copy => <article class="devices-review-item">
+        <p class="settings-mono">{copy.mine ? 'This device' : copy.origin_name ?? 'Another device'} · version kept beside</p><h4>{copy.page_title}</h4><blockquote>{copy.text}</blockquote>
+        <div class="devices-actions"><Button class="bordered" onClick={() => props.onOpenPage(copy.page_id)}>Open the page</Button></div>
+      </article>}</For>
+      <For each={syncConflicts.state()?.rejected}>{change => <article class="devices-review-item">
+        <p class="settings-mono">{change.mine ? 'This device' : change.origin_name ?? 'Another device'} · rejected {ago(change.created_at, sync.now())}</p><h4>{change.page_title ?? 'Page no longer available'}</h4>
+        <For each={change.texts}>{text => <blockquote>{text}</blockquote>}</For><p class="devices-rejection-reason">{change.error}</p>
+        <div class="devices-actions"><Show when={change.page_id}><Button class="bordered" onClick={() => props.onOpenPage(change.page_id!)}>Open the page</Button></Show>
+          <Show when={change.texts.length > 0}><Button class="bordered" disabled={busy()} onClick={() => { void settle(change, true); }}>Copy the text back</Button></Show>
+          <Button class="bordered" disabled={busy()} onClick={() => { void settle(change, false); }}>Dismiss</Button>
+        </div>
+      </article>}</For>
+      </div>
+    </details>
+  </Show>;
 }

@@ -1,6 +1,6 @@
 import { createRoot, createSignal } from 'solid-js';
 import { api } from '../api/client';
-import type { SyncState } from '../api/types';
+import type { SyncConflicts, SyncDevices, SyncState } from '../api/types';
 import { DEMO } from '../demo/mode';
 
 /** How often an open replica asks for its sync state; the runner itself syncs on its own schedule. */
@@ -20,12 +20,13 @@ export function syncDue(value: SyncState | null, opening: boolean, now = Date.no
 }
 
 /**
- * This device's sync role and, on a replica, its outbox and last sync, shared by the top-bar status, the sync sheet and
- * Settings. On a replica it also syncs when the app opens and every half minute while it stays on screen, so the Mac's
- * edits arrive sooner than the runner's background schedule. The browser demo has no sync, so it stays null there.
+ * This device's sync role, outbox and last sync, shared by the rail, cover, summary and Settings.
+ * An open replica syncs every half minute so the Mac's edits arrive sooner than the background schedule.
+ * The browser demo has no sync.
  */
 export const sync = createRoot(() => {
   const [state, setState] = createSignal<SyncState | null>(null);
+  const [now, setNow] = createSignal(Date.now());
   let timer = 0;
   let inflight: Promise<SyncState | null> | null = null;
   let running = false;
@@ -45,6 +46,9 @@ export const sync = createRoot(() => {
     if (DEMO) return Promise.resolve(null);
     inflight ??= api.syncState().then(value => {
       setState(value);
+      setNow(Date.now());
+      if (value.role === 'hub') void hubDevices.refresh();
+      if (value.role !== 'none') void syncConflicts.refresh();
       const wasOpening = opening;
       opening = false;
       if (!running && visible() && syncDue(value, wasOpening)) run();
@@ -56,21 +60,51 @@ export const sync = createRoot(() => {
     if (visible()) { opening = true; void refresh(); }
     else window.clearTimeout(timer);
   });
-  return { state, refresh, set: (value: SyncState) => { setState(value); schedule(); } };
+  return { state, now, refresh, set: (value: SyncState) => {
+    setState(value); setNow(Date.now()); schedule();
+    if (value.role === 'hub') void hubDevices.refresh();
+    if (value.role !== 'none') void syncConflicts.refresh();
+  }, tick: () => setNow(Date.now()) };
+});
+
+/** Hub records are shared rather than fetched again by every indicator and device row. */
+export const hubDevices = createRoot(() => {
+  const [state, setState] = createSignal<SyncDevices | null>(null);
+  let timer = 0;
+  let inflight: Promise<SyncDevices | null> | null = null;
+  const schedule = () => {
+    window.clearTimeout(timer);
+    if (sync.state()?.role === 'hub' && state()?.devices.length && document.visibilityState === 'visible') {
+      timer = window.setTimeout(() => { void refresh(); }, POLL_MS);
+    }
+  };
+  const refresh = (): Promise<SyncDevices | null> => {
+    if (DEMO || sync.state()?.role !== 'hub') return Promise.resolve(null);
+    inflight ??= api.syncDevices().then(value => { setState(value); sync.tick(); void syncConflicts.refresh(); return value; }, () => state())
+      .finally(() => { inflight = null; schedule(); });
+    return inflight;
+  };
+  if (!DEMO && typeof document !== 'undefined') document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') void refresh();
+    else window.clearTimeout(timer);
+  });
+  return { state, refresh, set: (value: SyncDevices) => { setState(value); schedule(); } };
+});
+
+/** A hub needs its own review counts too. Replica polling and hub-device polling keep these current. */
+export const syncConflicts = createRoot(() => {
+  const [state, setState] = createSignal<SyncConflicts | null>(null);
+  let inflight: Promise<SyncConflicts | null> | null = null;
+  const refresh = (): Promise<SyncConflicts | null> => {
+    if (DEMO || !sync.state() || sync.state()?.role === 'none') return Promise.resolve(null);
+    inflight ??= api.syncConflicts().then(value => { setState(value); return value; }, () => state()).finally(() => { inflight = null; });
+    return inflight;
+  };
+  return { state, refresh };
 });
 
 export const replica = () => sync.state()?.replica ?? null;
 
-/** The Mac no longer accepts this device's key: it was forgotten in Settings › Devices and must pair again. */
-export const forgotten = () => ['unpaired', 'wrong_device'].includes(replica()?.last_error?.code ?? '');
-
-/** A sync failure in plain words; the service's message stays in the tooltip for diagnosis. */
-export function problem(error: { code: string; message: string }): string {
-  if (error.code === 'hub_unreachable') return 'Can’t reach the Mac. Tessera tries again shortly.';
-  if (error.code === 'schema_mismatch') return 'The Mac runs a different version of Tessera. Update both to sync.';
-  if (error.code === 'unpaired' || error.code === 'wrong_device') return 'The Mac forgot this device. Pair it again to sync.';
-  return error.message;
-}
 
 /** `4 minutes ago`, `just now`, `3 days ago`. */
 export function ago(at: number, now = Date.now()): string {

@@ -244,7 +244,7 @@ Below 600 px:
 - Field names take a narrower column.
 - The [library search](surfaces/library.md) takes its own line above sort, export and add.
 
-The global rail stays visible in every layout except the cover screen (a touch screen under 600 px), where a bottom nav replaces it: Today, Agenda, Find, Review and Library. Library's long press lists the note types in use. The sidebar opens from a button at the start of the pane header, a book's breadcrumb is its title alone, and the nav steps aside while the keyboard is up. Unfolding brings the usual shell back around the same page.
+The global rail stays visible in every layout except the cover screen (a touch screen under 600 px), where a bottom nav replaces it: Today, Agenda, Find, Review and Library. The rail's sync status moves to a row above the nav, shown only while sync is not Synced. Library's long press lists the note types in use. The sidebar opens from a button at the start of the pane header, a book's breadcrumb is its title alone, and the nav steps aside while the keyboard is up. Unfolding brings the usual shell back around the same page.
 
 ### Mac menus
 
@@ -601,8 +601,8 @@ Escape closes the topmost one and returns focus. Closing retires input handlers 
 | New page, Delete page | Confirm | Below their trigger |
 | Reference preview | Preview, 380 px | Below the line of the reference under the pointer, or the reference at the caret |
 | Undo toast | One at a time | Bottom centre |
-| Sync status | A mono count with a dot, `3 waiting`, `Out of date` or `Not paired`, only while one applies; the dot turns `--danger` after a failure | Global rail's right, before Layout |
-| Sync sheet | Device → Mac register over the title; Sync now with the last sync, kept and rejected changes leading to Conflicts, offline books; a retired copy offers Download the notebook again, a forgotten one Pair again | Top centre, 480 px; a bottom sheet on touch |
+| Sync status | A permanent mono line wherever a hub has paired devices or a copy has a Mac: `Synced · 2 min`, `Sending · 3 changes`, `Can’t reach hyperion · 5 min`, `Update Fold · 3 waiting`, `Needs review · 3`, or on the Mac `Devices synced` and `Fold refused · 2 h`, after a short hairline dash. Muted while nothing needs the person; `--danger` for a version mismatch, a forgotten or retired copy, things to review, or two hours unreachable with changes waiting. On the cover screen a row above the bottom nav instead, for every state but Synced | Global rail's right, before Layout; above the bottom nav on the cover screen |
+| Sync summary | Device → Mac register over the state's title, one or two sentences naming the side that is behind or what to check, the one fixing action (Download page on the Mac and GitHub releases, Try again or Sync now, Pair again, Download the notebook again) and `Settings › Devices`, which opens Settings with that device expanded | Under the rail line, 380 px with a pointer; a bottom sheet on touch |
 | Phone setup | Where is your notebook? with two numbered choices: Use my Mac's notebook (Scan code or Type code, then the Mac's address and code) and Start a notebook on this phone. Pair again shows only the first, with the address filled in | Top centre, 560 px; a bottom sheet on touch; on first run |
 | Save state | Says Saving… only when a save takes longer than a second | Pane header, never a toolbar or a row |
 | Loading notices | Only after 300 ms, so fast reads show nothing until the content arrives | In place of the content they precede, in the pane or section that is loading |

@@ -234,6 +234,13 @@ Android freezes background apps, so a closed phone waits until opened. Each loca
 
 The runner logs counts for each sync that moved changes, files or rows, and logs every failure. The hub logs each push's device and accepted/rejected change counts.
 
+Every sync request carries the replica's schema, version and build in `x-tessera-schema`, `x-tessera-version` and `x-tessera-build`, and every hub response carries the hub's. The hub checks the key before the schema, so it knows which paired device it refuses. A refusal is a 409 `schema_mismatch` with both schemas in its details.
+
+Both sides keep a short health record in memory, lost when the service restarts, so recording it needs no migration:
+
+- The hub keeps, per paired device, the version it last reported, its last attempt, the refusal it is under (reason, since when, how many attempts) until a request succeeds, and its last 20 attempts. Attempts in a row with the same outcome count as one entry, so a sync's several requests read as one. `/api/sync/devices` returns them.
+- A replica keeps the hub's last reported version, when its current run of failures started (`failing_since`) and its last 20 attempts, coalesced the same way. `/api/sync/state` returns them with this device's version.
+
 While a service owns a replica, commands use its routes instead of opening the notebook:
 
 | Command | Route |
@@ -262,7 +269,9 @@ Text edits replace a block's whole text. That is enough for one person's conflic
 4. **Tailnet and Android.** Done: the sync listener behind Tailscale Serve, pairing, the in-process replica runner and the Android client. Interface, chosen from mockups (`~/Documents/tessera-design/sync-devices-mock/`):
    - **Devices** is a Settings section after Backups. On the Mac: the tailnet sharing switch and address, Pair a phone, each device with its last sync and Forget, and how much the hub keeps for devices that have not caught up. On the phone: the Mac it copies, Sync now and offline books, or Use my Mac's notebook.
    - **Pairing.** A new phone first chooses between the Mac's notebook and a separate one of its own, then scans the Mac's QR code or types the Mac's address and its short code. A code is used once and expires after five minutes.
-   - **Status.** The phone's top bar shows how many changes are waiting, only while some are, or that the copy is out of date; it opens a sync sheet with Sync now, kept copies and rejected changes, offline books, and Download the notebook again for a retired copy.
+   - **Status.** Revised from a second round of mockups (`~/Documents/tessera-design/sync-indicator-2026-10-12/`) after a schema change left the phone refused for hours with nothing on screen. The global rail ends with a permanent mono line on the Mac and on the phone: `Synced · 2 min`, `Sending · 3 changes`, `Can’t reach hyperion · 5 min`, `Update Fold · 3 waiting`, `Needs review · 3`; the Mac reads `Devices synced` or `Fold refused · 2 h`. It turns `--danger` for anything the person must act on: a version mismatch, a forgotten or retired copy, things to review, or two hours unable to reach the hub with changes waiting. The cover screen has no rail, so a row above the bottom nav shows every state but Synced. Either opens a short summary with the one fixing action, naming the side that is behind and its update route, and a link to the device in Settings › Devices.
+   - **Devices detail.** Each device in Settings › Devices expands into both sides' versions, the fix, the refusal or failure with its attempts, and a ledger of recent attempts. Needs review lists kept copies and rejected changes with their page and words.
+   - **Rejected changes.** Copy the text back adds a rejected change's words as new blocks at the end of its page, or of today's journal when the page is gone, and settles it; Dismiss settles it alone (`settle_sync_rejection`, which hides it on every device). Each is one undoable step.
    - **Kept copies.** A copy kept beside a block is set off with the device's name and offers Use this (replace the block's text with it), Discard (delete it) and Keep both (`settle_sync_copy`, which makes it an ordinary block on every device). Each is one undoable step. Use this works only while the original is on the same page.
 
 Exit test: offline, highlight a book on the phone while editing today's journal on the Mac; reconnect, and both devices show the highlights and the journal. When both edited the same block, both versions are shown.

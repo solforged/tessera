@@ -33,6 +33,7 @@ export type Actor =
 
 export type Operation =
   | { op: 'settle_sync_copy'; id: string; settled: boolean }
+  | { op: 'settle_sync_rejection'; id: string; settled: boolean }
   | { op: 'create_page'; id: string; title: string }
   | { op: 'set_source'; id: string; base_revision: number; source: SourceState | null }
   | { op: 'attach_snapshot'; id: string; base_revision: number; snapshot_id: string }
@@ -216,8 +217,14 @@ export interface KnownNotebooks { notebooks: KnownNotebook[] }
 
 /** Hub side: Tailscale Serve publishing this Mac's sync listener. */
 export interface SyncSharing { available: boolean; on: boolean; url: string | null; error: string | null }
-export interface PairedDevice { id: string; name: string; paired_at: number; state: 'active' | 'retired' | 'never_synced'; last_seen_at: number | null; retired_at: number | null }
-export interface SyncDevices { sharing: SyncSharing; hub_name: string; devices: PairedDevice[]; retained: { changes: number; bytes: number } }
+export interface SyncVersion { version: string | null; build: string | null; schema: number }
+export interface SyncAttempt { at: number; first_at: number; ok: boolean; code: string | null; message: string | null; count: number }
+export interface PairedDevice {
+  id: string; name: string; paired_at: number; state: 'active' | 'retired' | 'never_synced';
+  last_seen_at: number | null; retired_at: number | null; version: SyncVersion | null; last_attempt_at: number | null;
+  refused: { code: string; message: string; since: number; attempts: number } | null; attempts: SyncAttempt[];
+}
+export interface SyncDevices { this_device: SyncVersion; sharing: SyncSharing; hub_name: string; devices: PairedDevice[]; retained: { changes: number; bytes: number } }
 export interface PairingCode { code: string; display: string; expires_at: number; url: string; qr_svg: string }
 export interface PairingStatus { state: 'none' | 'waiting' | 'paired' | 'expired'; device: { id: string; name: string } | null }
 /** Replica side: this device's copy of a hub's notebook. */
@@ -225,11 +232,15 @@ export interface ReplicaState {
   hub_url: string; hub_name: string | null; device_name: string | null; device_id: string;
   pending: number; unapplied: number; synced_at: number | null; syncing: boolean;
   last_error: { code: string; message: string } | null; retired: boolean;
+  hub_version: SyncVersion | null; failing_since: number | null; attempts: SyncAttempt[];
   kept_copies: number; rejected: number; offline: { books: number; bytes: number };
 }
-export interface SyncState { role: 'hub' | 'replica' | 'none'; replica: ReplicaState | null }
+export interface SyncState { this_device: SyncVersion; role: 'hub' | 'replica' | 'none'; replica: ReplicaState | null }
 export interface KeptCopyRow { id: string; of: string; page_id: string; page_title: string; text: string; origin: string; origin_name: string | null; mine: boolean; created_at: number }
-export interface RejectedChange { id: string; change_id: string; error: string; created_at: number }
+export interface RejectedChange {
+  id: string; change_id: string; error: string; created_at: number; origin: string; origin_name: string | null; mine: boolean;
+  page_id: string | null; page_title: string | null; texts: string[];
+}
 export interface SyncConflicts { kept: KeptCopyRow[]; rejected: RejectedChange[] }
 
 /** `error.details` of a 409 response. */

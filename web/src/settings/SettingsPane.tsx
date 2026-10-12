@@ -1,4 +1,4 @@
-import { For, Show, createMemo, createResource, createSignal, onMount } from 'solid-js';
+import { For, Show, createEffect, createMemo, createResource, createSignal, onMount } from 'solid-js';
 import type { JSX } from 'solid-js';
 import { api } from '../api/client';
 import { ANDROID, EMBEDDED } from '../demo/mode';
@@ -8,14 +8,14 @@ import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Picker } from '../ui/Picker';
 import { setThemePreference, themePreference } from '../shell/theme';
-import { size } from '../sync/state';
+import { size, sync } from '../sync/state';
 import { backupLabel } from './backup';
 import { HubDevices, PhoneDevices } from './DevicesSection';
 import { forgetNotebook, knownNotebooks, loadNotebooks, notebookLabel, notebookOpening, openNotebook } from './notebooks';
 import './settings.css';
 import './devices.css';
 
-export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; notebook: NotebookClient; onOpen(target: OpenTarget, beside: boolean): void; onViewChange(view: SettingsViewState): void }) {
+export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; section?: 'devices'; deviceId?: string | null; notebook: NotebookClient; onOpen(target: OpenTarget, beside: boolean): void; onViewChange(view: SettingsViewState): void }) {
   const [error, setError] = createSignal('');
   const [info] = createResource(async () => {
     try { return await api.notebook(); }
@@ -126,6 +126,10 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; not
   const when = (value: number) => new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(value);
   const heading = (index: number, key: string, label: string, aside?: JSX.Element) =>
     <h2 id={`${sectionId(key)}-heading`}><span class="section-number">{String(index).padStart(2, '0')}</span><span class="settings-section-name">{label}</span>{aside}<span class="section-rule" /></h2>;
+  createEffect(() => {
+    const section = props.section;
+    if (section) requestAnimationFrame(() => reveal(section));
+  });
   onMount(() => {
     region.scrollTop = props.view.scroll;
     follow();
@@ -260,9 +264,9 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; not
           </details></Show>
         </section>}
         {devices && <section id={sectionId('devices')} aria-labelledby={`${sectionId('devices')}-heading`}>
-          {ANDROID
-            ? <PhoneDevices heading={heading(number('devices'), 'devices', 'Devices')} onError={setError} />
-            : <HubDevices heading={heading(number('devices'), 'devices', 'Devices')} onError={setError} onCount={setDeviceCount} />}
+          <Show when={ANDROID || sync.state()?.role === 'replica'} fallback={<HubDevices heading={heading(number('devices'), 'devices', 'Devices')} onError={setError} onCount={setDeviceCount} notebook={props.notebook} deviceId={props.deviceId} onOpenPage={pageId => props.onOpen({ kind: 'page', pageId }, false)} />}>
+            <PhoneDevices heading={heading(number('devices'), 'devices', 'Devices')} onError={setError} notebook={props.notebook} deviceId={props.deviceId} onOpenPage={pageId => props.onOpen({ kind: 'page', pageId }, false)} />
+          </Show>
         </section>}
         <section id={sectionId('agent-changes')} aria-labelledby={`${sectionId('agent-changes')}-heading`} aria-busy={undoing() !== null}>
           {heading(number('agent-changes'), 'agent-changes', 'Agent changes')}

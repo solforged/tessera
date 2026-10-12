@@ -52,15 +52,19 @@ Backup actions disable together while working, refresh the list when complete, a
 
 ## Mac devices
 
-The sharing switch has the tailnet address in mono under it, followed by Pair a phone, disabled until sharing is on. Each paired device shows its last sync and Active. A mono line shows the changes kept for devices that have not caught up. Forget waits for hover where there is hover.
+The Mac's own version line (`hyperion · 0.3.0 · schema 35`) and tailnet address head the section. The sharing switch follows, then Pair a phone, disabled until sharing is on. A mono line shows the changes kept for devices that have not caught up.
 
 Pair a phone opens a dialog: the QR code on white with the code under it in spaced mono, three numbered steps beside it, and the wait on a hairline. The wait turns to `<phone> is paired and copying the notebook.`
 
+Each paired device is a disclosure: its name, and its state at the right in `--danger` when it needs the person. Opened, it shows both sides' versions in mono, then the fix first: a version mismatch says which side is behind, in a block with a 2 px rubric rule at its left, with the update route. Last seen, refused since with the attempt count, and last attempt follow as a mono list, then Recent attempts as a small ledger of time, result and count, and Forget. The rail's summary opens Settings with its device expanded.
+
 ## Devices on the phone
 
-The phone shows the Mac it copies, with its address in mono, then Sync with the last sync and anything waiting, Sync now, and offline books.
+The phone shows the Mac it copies as the same disclosure: this device's and the Mac's versions, the Mac's address in mono, the fix for the current state, then last synced, failing or refused since, changes waiting and Recent attempts. Sync now sits with the facts; a forgotten phone shows Pair again instead. A phone without a Mac shows Use my Mac's notebook and Set up. Offline books follow.
 
-A failure reads in plain words in `--danger`, with the service's message in its tooltip. A forgotten phone shows Pair again instead of Sync now. A phone without a Mac shows Use my Mac's notebook and Set up.
+## Needs review
+
+Both sides list what sync kept for the person, under a Needs review disclosure with mono counts (`1 kept · 2 rejected`). Each item reads its device and age in mono, the page title in Piazzolla and its words as a quotation. A kept copy offers Open the page. A rejected change also gives the hub's reason, with Open the page while the page exists, Copy the text back and Dismiss. A page that is gone reads `Page no longer available`, and Copy the text back then adds the words to today's journal.
 
 ## Agent changes
 

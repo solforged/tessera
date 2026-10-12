@@ -208,7 +208,7 @@ export interface ApiClient {
   startPairing(signal?: AbortSignal): Promise<PairingCode>;
   pairingStatus(signal?: AbortSignal): Promise<PairingStatus>;
   cancelPairing(signal?: AbortSignal): Promise<void>;
-  /** Replica side; the browser demo has no sync, so callers check `DEMO`. */
+  /** This device's sync health; the browser demo has no sync, so callers check `DEMO`. */
   syncState(signal?: AbortSignal): Promise<SyncState>;
   runSync(signal?: AbortSignal): Promise<SyncState>;
   joinHub(url: string, code: string, name: string, signal?: AbortSignal): Promise<SyncState>;

@@ -29,7 +29,7 @@ import { installOpenedFiles } from '../library/opened-files';
 import { blankCapture, installQuickCapture } from './quick-capture';
 import type { CaptureRequest } from './quick-capture';
 import { CaptureSheet } from '../capture/CaptureSheet';
-import { SyncStatus } from '../sync/SyncStatus';
+import { SyncCover, SyncLifecycle, SyncMark, currentHealth } from '../sync/SyncStatus';
 import { NotebookMarker, NotebookOpening, registerNotebookCommands } from '../settings/notebooks';
 import { indexKindTarget, noteIndex, noteKindIcon, tagOnly } from '../notes/kinds';
 
@@ -287,6 +287,7 @@ export function App() {
   };
   // Full screen belongs to one reader pane. It ends when that pane shows something else or the other pane takes over.
   const [immersive, setImmersive] = createSignal<PaneId | null>(null);
+  const [syncAnchor, setSyncAnchor] = createSignal<HTMLElement | null>(null);
   createEffect(() => { const pane = immersive(); if (pane && (active() !== pane || entry(pane)?.target.kind !== 'reader')) setImmersive(null); });
   const immerse = (pane: PaneId, on: boolean) => { if (on) setActive(pane); setImmersive(on ? pane : null); };
   // A history entry lets the system Back gesture (Android) or the browser's back button leave full screen.
@@ -574,7 +575,7 @@ export function App() {
     const shown = [...pinnedRoots().length || pinnedViewList().length ? ['pinned'] : [], ...index()?.kinds.length ? ['index'] : [], ...looseViews().length ? ['views'] : [], 'recent'];
     return String(shown.indexOf(section) + 1).padStart(2, '0');
   };
-  return <div class={`app ${split() ? 'is-split' : ''} ${sidebar() ? 'sidebar-expanded' : ''} ${sidebarCollapsed() ? 'sidebar-collapsed' : ''} ${immersive() ? 'is-immersive' : ''} ${keyboard() ? 'keyboard-open' : ''} ${entry(active())?.target.kind === 'reader' ? 'is-reading' : ''}`} onPointerDown={() => { focusEpoch++; }}>
+  return <div class={`app ${split() ? 'is-split' : ''} ${sidebar() ? 'sidebar-expanded' : ''} ${sidebarCollapsed() ? 'sidebar-collapsed' : ''} ${immersive() ? 'is-immersive' : ''} ${keyboard() ? 'keyboard-open' : ''} ${entry(active())?.target.kind === 'reader' ? 'is-reading' : ''} ${currentHealth()?.cover ? 'has-sync-cover' : ''}`} onPointerDown={() => { focusEpoch++; }}>
     <header class="global-rail" aria-label="Global navigation" data-tauri-drag-region="deep">
       <div class="rail-start">
         <Button icon="sidebar" label="Toggle sidebar" aria-expanded={sidebarVisible()} onClick={toggleSidebar} />
@@ -585,7 +586,7 @@ export function App() {
         <Button class="global-commands" icon="command" label="Commands" shortcut="⌃⇧P" aria-haspopup="dialog" aria-expanded={popup()?.kind === 'commands'} onClick={() => showPalette('commands')} />
       </div>
       <div class="rail-end">
-        <SyncStatus notebook={notebook} onOpenPage={pageId => open({ kind: 'page', pageId })} />
+        <SyncMark open={!!syncAnchor()} onOpen={setSyncAnchor} />
         <Button icon="panes" label="Layout" aria-haspopup="menu" aria-expanded={popup()?.kind === 'layout'} onClick={event => setPopup({ kind: 'layout', anchor: event.currentTarget, pane: active() })} />
       </div>
     </header>
@@ -652,6 +653,8 @@ export function App() {
       </Show>}</For></div>
       <Show when={!entry('main') && !entry('side') && !error()}><div class="startup-state">Opening today’s journal…</div></Show>
     </main>
+    <SyncLifecycle notebook={notebook} anchor={syncAnchor()} onClose={() => setSyncAnchor(null)} onDevices={deviceId => open({ kind: 'settings', section: 'devices', deviceId })} />
+    <SyncCover open={!!syncAnchor()} onOpen={setSyncAnchor} />
     <nav class="bottom-nav" aria-label="Notebook">
       <Button icon="today" class={activeRoot()?.kind === 'journal' && activeRoot()?.text === todayDate() ? 'selected' : ''} onClick={() => { void today(); }}><span>Today</span></Button>
       <Button icon="agenda" class={entry(active())?.target.kind === 'agenda' ? 'selected' : ''} onClick={() => open({ kind: 'agenda', date: journalDate(active()) })}><span>Agenda</span></Button>
@@ -882,7 +885,7 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
       <Match when={current().target.kind === 'fields'}><FieldsPane typeId={(current().target as Extract<OpenTarget, { kind: 'fields' }>).typeId} view={snapshotView(current().view) as FieldsViewState} notebook={props.notebook} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
       <Match when={current().target.kind === 'field'}><FieldPane target={current().target as Extract<OpenTarget, { kind: 'field' }>} view={snapshotView(current().view) as FieldViewState} notebook={props.notebook} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onTargetChange={target => { if (generation === props.session().generation) props.onTargetChange(target); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
       <Match when={current().target.kind === 'cards' ? current().target as Extract<OpenTarget, { kind: 'cards' }> : undefined}>{target => <CardTemplatesPane typeId={target().typeId} applyId={target().applyId} view={snapshotView(current().view) as FieldsViewState} notebook={props.notebook} onActivate={props.onActivate} onOpen={(next, beside) => { if (generation === props.session().generation) props.onOpen(next, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} />}</Match>
-      <Match when={current().target.kind === 'settings'}><SettingsPane pane={props.pane} view={snapshotView(current().view) as SettingsViewState} notebook={props.notebook} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
+      <Match when={current().target.kind === 'settings' ? current().target as Extract<OpenTarget, { kind: 'settings' }> : undefined}>{target => <SettingsPane pane={props.pane} view={snapshotView(current().view) as SettingsViewState} section={target().section} deviceId={target().deviceId} notebook={props.notebook} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} />}</Match>
       <Match when={current().target.kind === 'compare' ? current().target as Extract<OpenTarget, { kind: 'compare' }> : undefined}>{target => <ComparePane subjectId={target().subjectId} view={snapshotView(current().view) as CompareViewState} notebook={props.notebook} onActivate={props.onActivate} onOpen={(next, beside) => { if (generation === props.session().generation) props.onOpen(next, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} />}</Match>
       <Match when={current().target.kind === 'index' ? current().target as Extract<OpenTarget, { kind: 'index' }> : undefined}>{target => <IndexPane kindKey={target().key} kind={props.noteKind} view={snapshotView(current().view) as IndexViewState} notebook={props.notebook} onActivate={props.onActivate} onOpen={(next, beside) => { if (generation === props.session().generation) props.onOpen(next, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} onDeletePages={props.onDeleteSources} />}</Match>
       <Match when={current().target.kind === 'agenda'}><AgendaPane pane={props.pane} view={snapshotView(current().view) as AgendaViewState} notebook={props.notebook} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
