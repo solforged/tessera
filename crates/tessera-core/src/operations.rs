@@ -134,6 +134,7 @@ impl Notebook {
             library_views: BTreeMap::new(),
             positions: HashMap::new(),
             deletions: Vec::new(),
+            removed: HashSet::new(),
             restructured_pages: HashSet::new(),
             changed_titles: HashSet::new(),
             pending_renames: Vec::new(),
@@ -198,9 +199,12 @@ impl Notebook {
         let capabilities = engine.capabilities()?;
         let mut restructured_pages: Vec<_> = engine.restructured_pages.into_iter().collect();
         restructured_pages.sort_unstable();
+        let mut removed: Vec<_> = engine.removed.into_iter().collect();
+        removed.sort_unstable();
         let committed = Committed {
             seq,
             revisions: engine.revisions,
+            removed,
             settings: engine.settings,
             deletions: engine.deletions,
             text_rewrites: engine.text_rewrites,
@@ -373,6 +377,7 @@ struct Engine<'a, 'conn> {
     library_views: BTreeMap<String, Revision>,
     positions: HashMap<String, Touched>,
     deletions: Vec<String>,
+    removed: HashSet<String>,
     restructured_pages: HashSet<String>,
     changed_titles: HashSet<String>,
     pending_renames: Vec<TagRename>,
@@ -1039,6 +1044,7 @@ impl Engine<'_, '_> {
                     "UPDATE blocks SET deletion_id = ?1, revision = revision + 1, updated_at = ?2 WHERE id = ?3",
                 )?.execute(params![event, self.now, id])?;
                 self.touch(&id, revision + 1);
+                self.removed.insert(id);
             }
         }
         Ok(())
@@ -1071,6 +1077,7 @@ impl Engine<'_, '_> {
                     self.changed_titles.insert(row.block.text.to_lowercase());
                 }
                 self.touch(&id, revision + 1);
+                self.removed.remove(&id);
                 self.tags_changed(&id);
             }
         }

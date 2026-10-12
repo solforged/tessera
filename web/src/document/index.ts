@@ -311,7 +311,10 @@ export class Notebook implements NotebookClient, DocumentHost {
     const previous = this.queue.at(-1);
     let command: PageCommand;
     if (coalesce && previous && previous.kind !== 'notebook' && !previous.frozen && previous.pageId === doc.pageId && actions.length === 1 && actions[0]!.kind === 'text' && previous.actions.length === 1 && previous.actions[0]!.kind === 'text' && previous.actions[0]!.id === actions[0]!.id) {
+      const expectedText = previous.actions[0]!.expectedText;
       previous.actions = structuredClone(actions);
+      if (previous.actions[0]!.kind === 'text') previous.actions[0]!.expectedText = expectedText;
+      for (const action of previous.inverse) if (action.kind === 'text') action.expectedText = actions[0]!.text;
       previous.after = after;
       previous.failed = undefined;
       this.persisted.delete(previous.id);
@@ -777,8 +780,11 @@ export class Notebook implements NotebookClient, DocumentHost {
         }
       }
       const merges = command.operations.filter(operation => operation.op === 'merge_page');
-      const removed: string[] = [];
+      const removed = [...(ack.removed ?? [])];
+      const removedIds = new Set(removed);
+      for (const id of removed) this.receiveRemoval(id);
       const blocks = await Promise.all(ack.revisions.map(async value => {
+        if (removedIds.has(value.id)) return undefined;
         try { return await this.api.block(value.id); }
         catch (error) {
           if (error instanceof ApiError && error.status === 404) {
@@ -935,9 +941,13 @@ export class Notebook implements NotebookClient, DocumentHost {
           }
           const fullPage = command.actions.some(action => action.kind === 'insert' && action.block.kind !== 'block' || action.kind === 'restore' && action.id === doc.pageId);
           const blocks: Block[] = [];
-          const removed = command.actions.some(action => action.kind === 'delete' && action.id === doc.pageId) ? [doc.pageId] : [];
+          const removedIds = new Set(ack.removed ?? []);
+          if (command.actions.some(action => action.kind === 'delete' && action.id === doc.pageId)) removedIds.add(doc.pageId);
+          const removed = [...removedIds];
+          for (const id of removed) this.receiveRemoval(id);
           let extraRoots = false;
           for (const id of revisions.keys()) {
+            if (removedIds.has(id)) continue;
             const saved = doc.baseBlocks.get(id);
             const block = saved ? { ...saved } : await this.api.block(id).catch(error => {
               if (error instanceof ApiError && error.status === 404) {
@@ -1008,6 +1018,12 @@ export class Notebook implements NotebookClient, DocumentHost {
                   if (choice) action.text = choice.text;
                 }
                 command.resolutions = choices.map(choice => ({ ...choice, deferred: false }));
+                command.failed = undefined;
+                await this.persist(command);
+                continue;
+              }
+              if (doc.status() === 'ready' && !command.actions.some(action => action.kind === 'text' && doc.block(action.id)?.conflict && !doc.isResolving(action.id))) {
+                for (const action of command.actions) if (action.kind === 'text' && action.baseRevision !== undefined) action.baseRevision = doc.baseBlocks.get(action.id)!.revision;
                 command.failed = undefined;
                 await this.persist(command);
                 continue;

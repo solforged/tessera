@@ -419,8 +419,9 @@ export class Document implements PageDocument {
       }
       case 'text': {
         const old = this.snapshot(action.id, base).text;
+        action.expectedText ??= old;
         this.changed(action.id, { text: action.text }, base);
-        return [{ kind: 'text', id: action.id, text: old }];
+        return [{ kind: 'text', id: action.id, text: old, expectedText: action.text, baseRevision: action.baseRevision }];
       }
       case 'heading': {
         const old = this.snapshot(action.id, base).heading;
@@ -768,6 +769,8 @@ export class Document implements PageDocument {
       } else if (!undo) pair.after.text = rewrite.after;
       pair.before.baseRevision = rewrite.revision;
       pair.after.baseRevision = rewrite.revision;
+      pair.before.expectedText = pair.after.text;
+      pair.after.expectedText = pair.before.text;
     }
     const changed = rewrites.length ? this.syncHistoryCommands(new Set([entry])) : [];
     this.pruneHistory(entry);
@@ -876,7 +879,7 @@ export class Document implements PageDocument {
     const inserted = new Set(actions.flatMap(action => action.kind === 'insert' ? [action.block.id] : []));
     for (const action of actions) {
       switch (action.kind) {
-        case 'text': inverse.unshift({ kind: 'text', id: action.id, text: this.snapshot(action.id).text }); break;
+        case 'text': inverse.unshift({ kind: 'text', id: action.id, text: this.snapshot(action.id).text, expectedText: action.text }); break;
         case 'source': inverse.unshift({ ...action, value: action.previous, previous: action.value }); break;
         case 'addType': inverse.unshift({ kind: 'removeType', id: action.id, title: action.title }); break;
         case 'removeType': inverse.unshift({ kind: 'addType', id: action.id, title: action.title }); break;

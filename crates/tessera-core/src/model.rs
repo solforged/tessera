@@ -472,6 +472,10 @@ pub struct Committed {
     /// The resulting revision of every block the batch changed, in first-
     /// touched order.
     pub revisions: Vec<Revision>,
+    /// Touched blocks that are no longer live after the batch, including
+    /// provisional pages removed by derivation.
+    #[serde(default)]
+    pub removed: Vec<String>,
     /// Deletion events created by `Delete` and `Merge`, in operation order.
     pub deletions: Vec<String>,
     /// Incoming-tag sources considered by a rename, including equal-text

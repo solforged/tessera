@@ -235,12 +235,17 @@ describe('real notebook operations and recovery', () => {
       const lookup = instance.lookup(target!.id);
       await eventually(() => lookup()?.id === target!.id, 'type lookup did not load');
       expect(instance.roots().some(root => root.id === target!.id)).toBe(true);
+      const requested: string[] = [];
+      const readBlock = instance.api.block;
+      instance.api.block = id => { requested.push(id); return readBlock(id); };
       if (viaNotebook) {
         await instance.commit([{ op: 'edit_text', id: first, base_revision: (await api.block(first)).revision, text: '' }]);
       } else {
         success(doc.edit({ kind: 'text', id: first, text: '' }));
         await instance.flush();
       }
+      instance.api.block = readBlock;
+      expect(requested).not.toContain(target!.id);
       await expect(api.pageByTitle(tag)).rejects.toMatchObject({ status: 404 });
       expect((await api.complete(tag)).some(block => block.id === target!.id)).toBe(false);
       expect(lookup()).toBeNull();
@@ -1042,6 +1047,40 @@ describe('real notebook operations and recovery', () => {
       expect(shape(cached)).toEqual(latest);
       expect(cached.block(child)).toBeUndefined();
     } finally { globalThis.fetch = actualFetch; }
+  });
+
+  test('a structural-only 409 rebases pending text and drains unrelated edits', async () => {
+    const instance = await client();
+    const { doc, first, id } = await page(instance, 'Parent');
+    const child = success(doc.edit({ kind: 'insert', parentId: id, after: first, text: 'Child' })).created[0]!;
+    const third = success(doc.edit({ kind: 'insert', parentId: id, after: child, text: 'Third' })).created[0]!;
+    await instance.flush();
+    const current = await api.block(child);
+    const reached = Promise.withResolvers<void>(), gate = Promise.withResolvers<void>();
+    const statuses: number[] = [];
+    let intercept = true;
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const isClientBatch = String(input) === `${baseUrl}/api/batches` && init?.method === 'POST' && String(init.body).includes('"kind":"client"');
+      if (isClientBatch && intercept) { intercept = false; reached.resolve(); await gate.promise; }
+      const response = await actualFetch(input, init);
+      if (isClientBatch) statuses.push(response.status);
+      return response;
+    }) as typeof fetch;
+    try {
+      success(doc.edit({ kind: 'text', id: child, text: 'Child pending' }));
+      const saving = instance.flush();
+      await reached.promise;
+      await api.submit({ actor: { kind: 'person' }, operations: [{ op: 'move', id: child, base_revision: current.revision, parent_id: first, after: null }] });
+      success(doc.edit({ kind: 'text', id: third, text: 'Third saved' }));
+      gate.resolve();
+      await saving;
+      expect(statuses[0]).toBe(409);
+      expect((await api.block(child))).toMatchObject({ parent_id: first, text: 'Child pending' });
+      expect((await api.block(third)).text).toBe('Third saved');
+      expect(doc.block(child)?.conflict).toBeNull();
+      expect(instance.saveState()).toBe('saved');
+      expect(instance.queuedChanges()).toBe(0);
+    } finally { gate.resolve(); globalThis.fetch = actualFetch; doc.release(); }
   });
 
   test('remote edit against unsent local text keeps both versions and resolves explicitly', async () => {

@@ -108,6 +108,8 @@ export interface Committed {
   seq: number;
   /** Resulting revision of every block the batch changed, in first-touched order. */
   revisions: Revision[];
+  /** Touched blocks removed by the batch, including pruned provisional pages. */
+  removed?: string[];
   settings: SettingRevision[];
   /** Deletion events created by `delete`, `merge` and `merge_page`, in operation order. */
   deletions: string[];

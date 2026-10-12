@@ -233,6 +233,8 @@ fn delete_restore_is_exact_and_preserves_archive_and_separate_deletions() {
     assert!(nb.page(&id(1)).unwrap().rows[1].block.archived);
     let separate = apply(&mut nb, vec![deleted(12, 1)]);
     let deletion = apply(&mut nb, vec![deleted(10, 1)]);
+    assert_eq!(separate.removed, vec![id(12)]);
+    assert_eq!(deletion.removed, vec![id(10), id(11)]);
     assert!(rows(&nb, 1).is_empty());
     assert!(matches!(
         nb.apply(&batch(vec![restore(10, 1, &deletion.deletions[0])]))
@@ -263,7 +265,8 @@ fn delete_restore_is_exact_and_preserves_archive_and_separate_deletions() {
             ..
         }
     ));
-    apply(&mut nb, vec![restore(10, 2, &deletion.deletions[0])]);
+    let restored = apply(&mut nb, vec![restore(10, 2, &deletion.deletions[0])]);
+    assert!(restored.removed.is_empty());
     assert_eq!(
         rows(&nb, 1),
         vec![(id(10), 0, "parent".into()), (id(11), 1, "archived".into())]

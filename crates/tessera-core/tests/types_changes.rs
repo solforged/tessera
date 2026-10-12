@@ -1381,6 +1381,7 @@ fn provisional_tag_pages_follow_saved_prefixes_and_emit_normal_deletions() {
         let committed = apply(&mut nb, vec![edit(10, revision, &text)]);
         assert!(nb.block(&previous.id).is_err());
         assert_eq!(committed.deletions.len(), 1);
+        assert_eq!(committed.removed, vec![previous.id.clone()]);
         assert!(committed.revisions.contains(&Revision {
             id: previous.id.clone(),
             revision: 2

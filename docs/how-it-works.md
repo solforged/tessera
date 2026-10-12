@@ -44,6 +44,8 @@ The input half lives in `web/src/outline/editor.ts` (`PaneEditor`), `web/src/out
 
 A successful batch commits authored rows, derived indexes and its receipt together. The service broadcasts the sequence number under the notebook lock. POST returns the receipt; WebSocket consumers fetch committed changes after their cursor. Code: `crates/tessera-core/src/operations.rs:22`; `crates/tessera-service/src/lib.rs:447` (`catch_up`, `stream_changes`).
 
+Receipts list touched blocks removed by the batch, including provisional type pages pruned by derivation. Acknowledgement hydration removes those IDs from local caches without requesting their block endpoints.
+
 Same-page panes in one window share a `Document`. Another window has its own `Notebook` client and learns changes through HTTP catch-up and WebSocket streaming. Code: `web/src/document/index.ts:162` (`reconcileConnection`, `change`); `web/src/shell/App.tsx:504`.
 
 ## Blocks and the outline

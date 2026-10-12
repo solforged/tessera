@@ -164,6 +164,7 @@ impl Notebook {
         let committed = Committed {
             seq,
             revisions: Vec::new(),
+            removed: Vec::new(),
             deletions: Vec::new(),
             text_rewrites: Vec::new(),
             settings: Vec::new(),

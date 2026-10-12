@@ -413,6 +413,8 @@ Held cards leave Review, its counts and forecasts and keep their schedule; holdi
 
 The warning badge opens both retained versions under the row. Resolution actions use the shared hairline buttons; the badge and actions grow to the touch target size on coarse pointers. Long unbroken text wraps inside the panel.
 
+If a revision changed only because a block moved or was indented and its saved text is unchanged, pending text rebases and saves automatically without a conflict notice.
+
 In recovery banners, Details opens on its own full-width line beneath the status and actions, rather than narrowing the explanation into a side column. Its disclosure takes the shared pointer target size.
 
 A change the notebook refused shows and copies the words it carried. Only a change without words, such as a task date or a grade, keeps its raw record, because that is all there is to recover.

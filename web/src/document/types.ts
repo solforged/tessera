@@ -48,7 +48,7 @@ export type Action =
   | { kind: 'cardHeld'; id: string; value: boolean; previous: boolean; baseRevision: number }
   | { kind: 'split'; id: string; block: Block; left: string; right: string }
   | { kind: 'merge'; id: string; destinationId: string; text: string }
-  | { kind: 'text'; id: string; text: string; baseRevision?: number }
+  | { kind: 'text'; id: string; text: string; baseRevision?: number; expectedText?: string }
   | { kind: 'settleSyncCopy'; id: string; settled: boolean; copy: NonNullable<Block['kept_copy']> }
   | { kind: 'heading'; id: string; heading: 1 | 2 | 3 | null }
   | { kind: 'archive'; id: string; archived: boolean }
