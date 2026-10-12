@@ -550,6 +550,132 @@ fn settling_requires_a_copy_conflict() {
 }
 
 #[test]
+fn rejected_changes_keep_batch_text_and_page_and_settle_with_an_inverse() {
+    let mut p = pair();
+    let revision = p.hub.block(&id(3)).unwrap().revision;
+    apply(
+        &mut p.hub,
+        vec![Operation::Delete {
+            id: id(3),
+            base_revision: revision,
+        }],
+    );
+    let change = edit(&p.replica, &id(3), "Call the bookbinder");
+    let revision = p.replica.block(&id(2)).unwrap().revision;
+    apply(
+        &mut p.replica,
+        vec![
+            Operation::CreatePage {
+                id: id(10),
+                title: "Recovery".into(),
+            },
+            insert(11, &p.page, Some(id(3)), "Call the bookbinder"),
+            change,
+            Operation::Split {
+                id: id(2),
+                base_revision: revision,
+                new_id: id(12),
+                left: "Fi".into(),
+                right: "rst".into(),
+            },
+            insert(13, &p.page, Some(id(11)), "  "),
+        ],
+    );
+    p.sync();
+    p.assert_converged();
+    let origin = p.replica.device_id().unwrap();
+    let rejected = p
+        .replica
+        .sync_replica_conflicts()
+        .unwrap()
+        .rejected
+        .remove(0);
+    assert_eq!(rejected.origin, origin);
+    assert!(rejected.mine);
+    assert_eq!(rejected.page_id.as_deref(), Some(p.page.as_str()));
+    assert_eq!(rejected.page_title.as_deref(), Some("Plans"));
+    assert_eq!(
+        rejected.texts,
+        ["Recovery", "Call the bookbinder", "Fi", "rst"]
+    );
+    let conflict_id = rejected.id;
+    apply(
+        &mut p.replica,
+        vec![Operation::SettleSyncRejection {
+            id: conflict_id.clone(),
+            settled: true,
+        }],
+    );
+    assert!(
+        p.replica
+            .sync_replica_conflicts()
+            .unwrap()
+            .rejected
+            .is_empty()
+    );
+    p.sync();
+    p.assert_converged();
+    assert!(p.hub.sync_replica_conflicts().unwrap().rejected.is_empty());
+    apply(
+        &mut p.replica,
+        vec![Operation::SettleSyncRejection {
+            id: conflict_id,
+            settled: false,
+        }],
+    );
+    p.sync();
+    p.assert_converged();
+    assert_eq!(p.hub.sync_replica_conflicts().unwrap().rejected.len(), 1);
+    let revision = p.hub.block(&p.page).unwrap().revision;
+    apply(
+        &mut p.hub,
+        vec![Operation::Delete {
+            id: p.page.clone(),
+            base_revision: revision,
+        }],
+    );
+    p.sync();
+    let rejected = p
+        .replica
+        .sync_replica_conflicts()
+        .unwrap()
+        .rejected
+        .remove(0);
+    assert!(rejected.page_id.is_none());
+    assert!(rejected.page_title.is_none());
+    assert_eq!(
+        rejected.texts,
+        ["Recovery", "Call the bookbinder", "Fi", "rst"]
+    );
+}
+
+#[test]
+fn settling_a_rejection_refuses_other_conflict_kinds_and_unknown_ids() {
+    let mut p = pair();
+    let desktop = edit(&p.hub, &id(2), "Desktop wording");
+    let phone = edit(&p.replica, &id(2), "Phone wording");
+    apply(&mut p.hub, vec![desktop]);
+    apply(&mut p.replica, vec![phone]);
+    p.sync();
+    let copy = p
+        .replica
+        .sync_replica_conflicts()
+        .unwrap()
+        .kept
+        .remove(0)
+        .id;
+    for target in [id(2), id(999), copy] {
+        assert!(matches!(
+            p.replica.apply(&batch(vec![Operation::SettleSyncRejection {
+                id: target,
+                settled: true
+            }])),
+            Err(tessera_core::Error::Validation { .. })
+        ));
+    }
+}
+
+#[test]
 fn a_move_on_one_device_and_an_edit_on_the_other_both_apply() {
     let mut p = pair();
     let base = p.hub.block(&id(2)).unwrap().revision;

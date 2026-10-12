@@ -70,6 +70,10 @@ pub enum Operation {
         id: String,
         settled: bool,
     },
+    SettleSyncRejection {
+        id: String,
+        settled: bool,
+    },
     SetSource {
         id: String,
         base_revision: i64,

@@ -2,7 +2,7 @@
 use super::CloneTicket;
 use crate::storage::validation;
 use crate::{DATABASE_FILE, Notebook, Result};
-use rusqlite::{Connection, params};
+use rusqlite::{Connection, OptionalExtension, params};
 use serde::Serialize;
 use std::path::Path;
 
@@ -24,6 +24,12 @@ pub struct RejectedChange {
     pub change_id: String,
     pub error: String,
     pub created_at: i64,
+    pub origin: String,
+    pub origin_name: Option<String>,
+    pub mine: bool,
+    pub page_id: Option<String>,
+    pub page_title: Option<String>,
+    pub texts: Vec<String>,
 }
 #[derive(Debug, Serialize)]
 pub struct ReplicaConflicts {
@@ -69,7 +75,7 @@ impl Notebook {
              WHERE c.kind = 'copy' AND c.settled_at IS NULL AND b.deletion_id IS NULL
              ORDER BY c.created_at DESC, c.id",
             )?
-            .query_map([device], |r| {
+            .query_map([&device], |r| {
                 Ok(KeptCopy {
                     id: r.get(0)?,
                     of: r.get(1)?,
@@ -83,8 +89,86 @@ impl Notebook {
                 })
             })?
             .collect::<rusqlite::Result<_>>()?;
-        let rejected = self.conn.prepare("SELECT id, change_id, error, created_at FROM sync_conflicts WHERE kind = 'rejected' ORDER BY created_at DESC, id")?
-            .query_map([], |r| Ok(RejectedChange { id:r.get(0)?, change_id:r.get(1)?, error:r.get(2)?, created_at:r.get(3)? }))?.collect::<rusqlite::Result<_>>()?;
+        let rows = self
+            .conn
+            .prepare(
+                "SELECT c.id, c.change_id, c.error, c.created_at, c.origin,
+                    CASE WHEN c.origin = ?1 THEN (SELECT device_name FROM sync_hub) ELSE d.name END,
+                    c.origin = ?1, c.batch
+             FROM sync_conflicts c
+             LEFT JOIN sync_replicas r ON r.device_id = c.origin
+             LEFT JOIN sync_devices d ON d.id = r.paired_device
+             WHERE c.kind = 'rejected' AND c.settled_at IS NULL
+             ORDER BY c.created_at DESC, c.id",
+            )?
+            .query_map([&device], |r| {
+                Ok((
+                    RejectedChange {
+                        id: r.get(0)?,
+                        change_id: r.get(1)?,
+                        error: r.get(2)?,
+                        created_at: r.get(3)?,
+                        origin: r.get(4)?,
+                        origin_name: r.get(5)?,
+                        mine: r.get(6)?,
+                        page_id: None,
+                        page_title: None,
+                        texts: Vec::new(),
+                    },
+                    r.get::<_, String>(7)?,
+                ))
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        let mut page = self.conn.prepare_cached(
+            "SELECT p.id, p.text FROM blocks b JOIN blocks p ON p.id = b.page_id
+             WHERE b.id = ?1 AND b.deletion_id IS NULL AND p.deletion_id IS NULL",
+        )?;
+        let mut rejected = Vec::with_capacity(rows.len());
+        for (mut conflict, batch) in rows {
+            let batch: serde_json::Value = super::parse(&batch)?;
+            let mut seen = std::collections::HashSet::new();
+            for operation in batch["operations"].as_array().into_iter().flatten() {
+                let texts: &[&str] = match operation["op"].as_str() {
+                    Some("create_page") => &["title"],
+                    Some("insert" | "edit_text") => &["text"],
+                    Some("split") => &["left", "right"],
+                    _ => &[],
+                };
+                for field in texts {
+                    if let Some(text) = operation[field].as_str()
+                        && !text.trim().is_empty()
+                        && seen.insert(text)
+                    {
+                        conflict.texts.push(text.to_owned());
+                    }
+                }
+                if conflict.page_id.is_none() {
+                    for field in [
+                        "id",
+                        "source_id",
+                        "destination_id",
+                        "parent_id",
+                        "new_id",
+                        "after",
+                        "type_id",
+                        "subject_id",
+                    ] {
+                        if let Some(id) = operation[field].as_str()
+                            && let Some((id, title)) = page
+                                .query_row([id], |r| {
+                                    Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
+                                })
+                                .optional()?
+                        {
+                            conflict.page_id = Some(id);
+                            conflict.page_title = Some(title);
+                            break;
+                        }
+                    }
+                }
+            }
+            rejected.push(conflict);
+        }
         Ok(ReplicaConflicts { kept, rejected })
     }
 

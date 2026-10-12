@@ -1505,6 +1505,21 @@ impl Engine<'_, '_> {
                 }
                 Ok(())
             }
+            Operation::SettleSyncRejection { id, settled } => {
+                validate_id(id)?;
+                let previous = self.tx.query_row(
+                    "SELECT settled_at IS NOT NULL FROM sync_conflicts WHERE id = ?1 AND kind = 'rejected'",
+                    [id],
+                    |row| row.get::<_, bool>(0),
+                ).optional()?.ok_or_else(|| validation("unknown sync rejection"))?;
+                if previous != *settled {
+                    self.tx.execute(
+                        "UPDATE sync_conflicts SET settled_at = ?2 WHERE id = ?1",
+                        params![id, settled.then_some(self.now)],
+                    )?;
+                }
+                Ok(())
+            }
             Operation::CreatePage { id, title } => self.create(NewBlock {
                 id,
                 kind: BlockKind::Page,

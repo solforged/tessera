@@ -198,6 +198,7 @@ impl FieldChanges {
             | Operation::SetCardTemplateApplied { .. }
             | Operation::DeleteCardTemplate { .. }
             | Operation::SettleSyncCopy { .. }
+            | Operation::SettleSyncRejection { .. }
             | Operation::AddType { .. }
             | Operation::RemoveType { .. }
             | Operation::SaveView { .. }
