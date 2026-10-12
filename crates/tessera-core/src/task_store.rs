@@ -198,9 +198,6 @@ fn complete_task(
     validate_id(occurrence_id)?;
     validate_civil_date(completed_on)?;
     let before = task(conn, id)?.ok_or_else(|| validation("task is not active"))?;
-    if before.status == TaskStatus::Cancelled {
-        return Err(validation("cancelled task cannot be completed"));
-    }
     let used: bool = conn
         .prepare_cached("SELECT EXISTS(SELECT 1 FROM task_occurrences WHERE id = ?1)")?
         .query_row([occurrence_id], |row| row.get(0))?;

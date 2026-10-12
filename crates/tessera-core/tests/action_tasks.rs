@@ -237,8 +237,6 @@ fn status_transitions_require_completion_and_reopening_retains_evidence() {
         );
         assert_eq!(state(&nb, 10).status, status);
     }
-    reject(&mut nb, vec![complete(10, 5, 100, "2024-02-29")]);
-    assert_eq!(nb.block(&id(10)).unwrap().revision, 5);
     apply(&mut nb, vec![set_task(10, 5, Some(TaskState::default()))]);
     reject(
         &mut nb,
@@ -1257,4 +1255,25 @@ fn restoring_done_cannot_invent_or_reuse_a_superseded_completion() {
     );
     assert_eq!(state(&nb, 11), advanced);
     assert_eq!(nb.task_occurrences(&id(11)).unwrap()[0].id, id(102));
+}
+
+#[test]
+fn completing_a_cancelled_task_records_the_occurrence() {
+    let (_dir, mut nb) = fixture();
+    apply(
+        &mut nb,
+        vec![set_task(
+            10,
+            1,
+            Some(TaskState {
+                status: TaskStatus::Cancelled,
+                ..TaskState::default()
+            }),
+        )],
+    );
+    apply(&mut nb, vec![complete(10, 2, 100, "2026-10-12")]);
+    let task = state(&nb, 10);
+    assert_eq!(task.status, TaskStatus::Done);
+    assert_eq!(task.completed_on.as_deref(), Some("2026-10-12"));
+    assert_eq!(nb.task_occurrences(&id(10)).unwrap().len(), 1);
 }
