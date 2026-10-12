@@ -1102,19 +1102,19 @@ fn export_library_metadata_uses_conventional_keys_and_authored_values() {
     doc.metadata.site = Some("Extracted site".into());
     doc.metadata.description = Some("Extracted description".into());
     let (source, _) = ingest(&mut n, &doc, b"metadata");
+    assert_eq!(
+        field(&n, &source, "Description")[0].text,
+        "Extracted description"
+    );
     for (name, value) in [
         ("URL", "https://example.test/authored"),
         ("Site", "Authored site"),
+        ("Description", "Authored description & summary"),
     ] {
         let value_id = field(&n, &source, name)[0].id.clone();
         edit(&mut n, &value_id, value);
     }
     for (name, kind, value) in [
-        (
-            "Description",
-            FieldKind::Text,
-            "Authored description & summary",
-        ),
         ("First published", FieldKind::Date, "1846-05"),
         ("Original language", FieldKind::Text, "de"),
         ("Edition", FieldKind::Text, "Second"),

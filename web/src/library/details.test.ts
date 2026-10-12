@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import type { Block, FieldDefinition } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
-import { derivedSourceSiglum, similarPages, sourceFieldValue, validateSourceValue } from './details';
+import { derivedSourceSiglum, similarPages, sourceFieldValue, storedDescription, validateSourceValue } from './details';
 import type { SourceField, SourceFieldValue } from './details';
 
 const page = (text: string, kind: Block['kind'] = 'page', archived = false): Block => ({ id: text, kind, parent_id: null, page_id: text, text, archived } as Block);
@@ -67,6 +67,14 @@ describe('source field validation', () => {
       { id: 'person-id', name: 'Linked person', role: 'author' }, { id: null, name: 'Unlinked author', role: 'author' },
     ]);
   });
+});
+
+test('a snapshot abstract is stored ahead of a lookup summary', () => {
+  expect(storedDescription('From the page', 'From the lookup')).toBe('From the page');
+  expect(storedDescription('  ', 'From the lookup')).toBe('From the lookup');
+  expect(storedDescription(null, 'From the lookup')).toBe('From the lookup');
+  expect(storedDescription(undefined, '  ')).toBeNull();
+  expect(storedDescription(null, null)).toBeNull();
 });
 
 test('derived siglum keeps its real basis independent of an authored override', () => {

@@ -24,6 +24,15 @@ export function derivedSourceSiglum(creators: readonly SourceCreator[], site: st
 }
 
 export const emptyMetadata = (): ExtractedMetadata => ({ title: null, subtitle: null, creators: [], published: null, publisher: null, language: null, identifiers: [], unique_id: null, url: null, site: null, description: null, cover: null });
+
+/**
+ * The description to store when the page has no Description field.
+ * The snapshot's abstract wins over a lookup summary. The lookup is used only when the snapshot has none.
+ */
+export function storedDescription(snapshot: string | null | undefined, lookup: string | null | undefined): string | null {
+  for (const candidate of [snapshot, lookup]) if (candidate?.trim()) return candidate;
+  return null;
+}
 type OrdinaryField = Exclude<SourceField, 'title' | 'creators' | 'citationKey' | 'state' | 'tags'>;
 const fields: Record<OrdinaryField, readonly [string, FieldKind]> = {
   subtitle: ['Subtitle', 'text'], firstPublished: ['First published', 'date'], originalLanguage: ['Original language', 'text'],
@@ -252,6 +261,13 @@ async function prepareMetadata(doc: PageDocument, notebook: NotebookClient, cont
 export async function saveDetails(doc: PageDocument, notebook: NotebookClient, metadata: ExtractedMetadata, onlyMissing = false, coverOnly = false): Promise<number> {
   return prepareWrite(notebook, async () => {
     const normalized = coverOnly ? metadata : await notebook.api.normalizeMetadata(metadata);
+    if (!coverOnly && (onlyMissing || !normalized.description?.trim())) {
+      try {
+        const view = await notebook.api.source(doc.pageId);
+        const snapshot = view.snapshots.find(item => item.id === view.source.current_snapshot_id)?.metadata;
+        normalized.description = storedDescription(snapshot?.description, normalized.description);
+      } catch { /* A source that cannot be read keeps the description the caller passed. */ }
+    }
     const definitions = await notebook.api.fields();
     const prepared = await prepareMetadata(doc, notebook, { pageId: definitions.page_id, definitions: [...definitions.fields] }, normalized, onlyMissing, coverOnly);
     const result = doc.edit(prepared.edit);
@@ -276,10 +292,12 @@ export async function fillMissingSourceDetails(docs: readonly PageDocument[], no
       const snapshot = view.snapshots.find(item => item.id === view.source.current_snapshot_id)?.metadata;
       const metadata = { ...preview.metadata, title: current.title, cover: preview.cover_url };
       const entries = sourceEntries(doc, context.definitions);
-      // Snapshot-only values already shown by the inspector are not missing.
-      for (const field of ['url', 'site', 'description', 'cover'] as const) {
+      // Snapshot-only URL, site and cover are already shown by the inspector.
+      // Description is stored: the snapshot abstract wins, and a lookup fills it only when the snapshot has none.
+      for (const field of ['url', 'site', 'cover'] as const) {
         if (!entries.has(fields[field][0].toLowerCase()) && snapshot?.[field]) metadata[field] = null;
       }
+      if (!entries.has('description')) metadata.description = storedDescription(snapshot?.description, metadata.description);
       const normalized = await notebook.api.normalizeMetadata(metadata);
       const prepared = await prepareMetadata(doc, notebook, context, normalized, true, false);
       edits.push({ pageId: doc.pageId, edit: prepared.edit });

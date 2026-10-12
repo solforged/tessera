@@ -40,6 +40,7 @@ fn metadata_values(metadata: &ExtractedMetadata) -> Vec<(&'static str, FieldKind
         ("Publisher", FieldKind::Text, &metadata.publisher),
         ("Site", FieldKind::Text, &metadata.site),
         ("Language", FieldKind::Text, &metadata.language),
+        ("Description", FieldKind::Text, &metadata.description),
     ] {
         values.push((
             label,
