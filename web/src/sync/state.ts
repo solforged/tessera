@@ -59,6 +59,32 @@ export const sync = createRoot(() => {
   return { state, refresh, set: (value: SyncState) => { setState(value); schedule(); } };
 });
 
+/**
+ * Split the outbox into changes still applied here and changes whose latest replay failed.
+ * A failed replay stays in the outbox for the hub, but it is not counted as waiting.
+ */
+export function outboxParts(pending: number, unapplied: number): { waiting: number; unapplied: number } {
+  const failed = Math.min(Math.max(0, unapplied), Math.max(0, pending));
+  return { waiting: Math.max(0, pending) - failed, unapplied: failed };
+}
+
+/** Top-bar counts. A fully unapplied outbox reads as “N not applied”, not “N waiting”. */
+export function outboxText(pending: number, unapplied: number): string {
+  const parts = outboxParts(pending, unapplied);
+  return [
+    parts.waiting ? `${parts.waiting} waiting` : '',
+    parts.unapplied ? `${parts.unapplied} not applied` : '',
+  ].filter(Boolean).join(', ');
+}
+
+/** Sheet heading. “Everything sent” only when nothing is waiting and nothing failed to replay. */
+export function outboxHeading(pending: number, unapplied: number): string {
+  const parts = outboxParts(pending, unapplied);
+  if (parts.waiting) return `${plural(parts.waiting, 'change')} waiting`;
+  if (parts.unapplied) return `${plural(parts.unapplied, 'change')} not applied`;
+  return 'Everything sent';
+}
+
 export const replica = () => sync.state()?.replica ?? null;
 
 /** The Mac no longer accepts this device's key: it was forgotten in Settings › Devices and must pair again. */

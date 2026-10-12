@@ -137,6 +137,7 @@ async fn state_value(
         anyhow::Ok(serde_json::json!({"role":"replica","replica":{
             "hub_url":status.hub_url,"hub_name":credentials.hub_name,"device_name":credentials.device_name,
             "device_id":status.device_id,"pending":status.pending,"unapplied":status.unapplied,
+            "unapplied_errors":status.unapplied_errors,
             "synced_at":credentials.synced_at,"syncing":memory.syncing,"last_error":memory.last_error,
             "retired":memory.retired,"kept_copies":conflicts.kept.len(),"rejected":conflicts.rejected.len(),"offline":offline
         }}))

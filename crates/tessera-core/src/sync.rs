@@ -161,6 +161,14 @@ pub struct SyncReport {
     pub received_rows: usize,
 }
 
+/// A local outbox change whose replay failed. It stays pending so the hub can
+/// still accept or reject it; the reason is not replicated.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UnappliedChange {
+    pub change_id: String,
+    pub error: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SyncStatus {
     pub device_id: String,
@@ -168,7 +176,11 @@ pub struct SyncStatus {
     pub hub_notebook_id: String,
     pub confirmed_seq: i64,
     pub pending: usize,
+    /// Outbox rows whose latest replay failed. Waiting changes are `pending`
+    /// minus this count: they are applied here and have not been confirmed.
     pub unapplied: usize,
+    #[serde(default)]
+    pub unapplied_errors: Vec<UnappliedChange>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -409,7 +421,7 @@ pub(crate) fn finish(
             conn.execute(
                 "INSERT INTO sync_pending(change_id, position, stamp, batch, bases, seq, patch)
                  VALUES (?1, (SELECT COALESCE(MAX(position), 0) + 1 FROM sync_pending), ?2, ?3, ?4, ?5, ?6)
-                 ON CONFLICT(change_id) DO UPDATE SET seq = excluded.seq, patch = excluded.patch",
+                 ON CONFLICT(change_id) DO UPDATE SET seq = excluded.seq, patch = excluded.patch, replay_error = NULL",
                 params![stamp.id, json(stamp), json(batch), json(&bases), seq, patch],
             )?;
         }
@@ -973,10 +985,23 @@ impl Notebook {
             return Ok(None);
         };
         let (pending, unapplied): (i64, i64) = self.conn.query_row(
-            "SELECT COUNT(*), COUNT(*) FILTER (WHERE patch IS NULL) FROM sync_pending",
+            "SELECT COUNT(*), COUNT(*) FILTER (WHERE replay_error IS NOT NULL) FROM sync_pending",
             [],
             |row| Ok((row.get(0)?, row.get(1)?)),
         )?;
+        let unapplied_errors = self
+            .conn
+            .prepare(
+                "SELECT change_id, replay_error FROM sync_pending
+                 WHERE replay_error IS NOT NULL ORDER BY position",
+            )?
+            .query_map([], |row| {
+                Ok(UnappliedChange {
+                    change_id: row.get(0)?,
+                    error: row.get(1)?,
+                })
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
         Ok(Some(SyncStatus {
             device_id: self.device_id()?,
             hub_url,
@@ -984,6 +1009,7 @@ impl Notebook {
             confirmed_seq,
             pending: pending as usize,
             unapplied: unapplied as usize,
+            unapplied_errors,
         }))
     }
 
@@ -1061,7 +1087,10 @@ impl Notebook {
         for patch in &applied {
             patcher.apply(&tx, &invert(patch)?)?;
         }
-        tx.execute("UPDATE sync_pending SET seq = NULL, patch = NULL", [])?;
+        tx.execute(
+            "UPDATE sync_pending SET seq = NULL, patch = NULL, replay_error = NULL",
+            [],
+        )?;
         for change in pulled {
             patcher.apply(&tx, &change.patch)?;
         }
@@ -1096,9 +1125,12 @@ impl Notebook {
                     crate::reads::record_editor_event(&self.conn, seq, true)?;
                 }
                 Err(error) if crate::sync_apply::rejectable(&error) => {
-                    report
-                        .unapplied
-                        .push((change.stamp.id.clone(), error.to_string()));
+                    let message = error.to_string();
+                    self.conn.execute(
+                        "UPDATE sync_pending SET replay_error = ?2 WHERE change_id = ?1",
+                        params![change.stamp.id, message],
+                    )?;
+                    report.unapplied.push((change.stamp.id.clone(), message));
                 }
                 Err(error) => return Err(error),
             }

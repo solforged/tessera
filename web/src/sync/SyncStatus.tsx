@@ -7,7 +7,7 @@ import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Popup } from '../ui/Popup';
 import { SETUP_SEEN_KEY, SyncSetup } from './SyncSetup';
-import { ago, forgotten, plural, problem, replica, size, sync } from './state';
+import { ago, forgotten, outboxHeading, outboxParts, outboxText, plural, problem, replica, size, sync } from './state';
 import './sync.css';
 
 /**
@@ -30,7 +30,7 @@ export function SyncStatus(props: { notebook: NotebookClient; onOpenPage(pageId:
     <Show when={shown()}>
       <Button class="sync-status" aria-haspopup="dialog" aria-expanded={open()} title="Sync" onClick={() => setOpen(true)}>
         <span class="sync-dot" data-error={replica()?.last_error ? '' : undefined} aria-hidden="true" />
-        <span>{forgotten() ? 'Not paired' : replica()!.retired ? 'Out of date' : `${replica()!.pending} waiting`}</span>
+        <span>{forgotten() ? 'Not paired' : replica()!.retired ? 'Out of date' : outboxText(replica()!.pending, replica()!.unapplied)}</span>
       </Button>
     </Show>
     <Show when={open()}><SyncSheet onClose={() => setOpen(false)} onOpenPage={pageId => { setOpen(false); props.onOpenPage(pageId); }} /></Show>
@@ -63,8 +63,12 @@ export function SyncSheet(props: { onClose(): void; onOpenPage(pageId: string): 
       <Show when={view() === 'sync'} fallback={<Conflicts conflicts={conflicts()} loading={conflicts.loading} onOpenPage={props.onOpenPage} onBack={() => setView('sync')} />}>
         <Show when={value().retired} fallback={
           <div class="sync-row">
-            <div><strong>{value().pending ? `${plural(value().pending, 'change')} waiting` : 'Everything sent'}</strong>
+            <div><strong>{outboxHeading(value().pending, value().unapplied)}</strong>
               <p>{value().syncing || running() ? 'Syncing…' : value().synced_at ? `Synced ${ago(value().synced_at!)}` : 'Not synced yet'}</p>
+              <Show when={outboxParts(value().pending, value().unapplied).waiting > 0 && value().unapplied > 0}>
+                <p>{plural(value().unapplied, 'change')} not applied</p>
+              </Show>
+              <For each={value().unapplied_errors}>{item => <p class="sync-error" title={item.change_id}>{item.error}</p>}</For>
               <Show when={value().last_error}>{failure => <p class="sync-error" title={failure().message}>{problem(failure())}</p>}</Show>
             </div>
             <Show when={forgotten()} fallback={<Button class="bordered" disabled={running() || value().syncing} onClick={() => { void act(api.runSync); }}>Sync now</Button>}>

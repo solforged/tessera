@@ -838,6 +838,68 @@ fn local_changes_made_after_a_push_replay_on_the_hub_state() {
     );
 }
 
+#[test]
+fn a_failed_replay_is_reported_on_the_outbox_and_not_as_a_conflict() {
+    let mut p = pair();
+    let page = p.page.clone();
+    apply(
+        &mut p.replica,
+        vec![insert(30, &page, Some(id(2)), "Still applies")],
+    );
+    apply(
+        &mut p.replica,
+        vec![insert(31, &id(3), None, "Parent goes away")],
+    );
+    let before = p.replica.sync_status().unwrap().unwrap();
+    assert_eq!(before.pending, 2);
+    assert_eq!(before.unapplied, 0);
+    assert!(before.unapplied_errors.is_empty());
+    let failed = p
+        .replica
+        .sync_outbox()
+        .unwrap()
+        .changes
+        .into_iter()
+        .find(|change| {
+            change.batch.operations.iter().any(|operation| {
+                matches!(operation, Operation::Insert { id: block, .. } if block == &id(31))
+            })
+        })
+        .unwrap()
+        .stamp
+        .id;
+
+    let base = p.hub.block(&id(3)).unwrap().revision;
+    apply(
+        &mut p.hub,
+        vec![Operation::Delete {
+            id: id(3),
+            base_revision: base,
+        }],
+    );
+    let device = p.replica.device_id().unwrap();
+    let confirmed = p.replica.sync_status().unwrap().unwrap().confirmed_seq;
+    let pull = p.hub.sync_pull(&device, confirmed, confirmed, 100).unwrap();
+    let report = p.replica.sync_integrate(&pull.changes).unwrap();
+    assert_eq!(report.replayed, 1);
+    assert_eq!(report.unapplied.len(), 1);
+    assert_eq!(report.unapplied[0].0, failed);
+
+    let status = p.replica.sync_status().unwrap().unwrap();
+    assert_eq!(status.pending, 2);
+    assert_eq!(status.unapplied, 1);
+    assert_eq!(status.unapplied_errors.len(), 1);
+    assert_eq!(status.unapplied_errors[0].change_id, failed);
+    assert!(
+        status.unapplied_errors[0].error.contains(&id(3)),
+        "{}",
+        status.unapplied_errors[0].error
+    );
+    assert_eq!(text(&p.replica, &id(30)), "Still applies");
+    assert!(p.replica.block(&id(31)).is_err());
+    assert!(p.replica.sync_conflicts().unwrap().is_empty());
+}
+
 fn document() -> ExtractedDocument {
     let passage = |text: &str, locator: &str| ExtractedPassage {
         kind: PassageKind::Paragraph,
@@ -1495,6 +1557,7 @@ fn downgrade_review_order(conn: &Connection) {
          DROP INDEX review_events_card_order;
          DROP INDEX review_events_session_order;
          ALTER TABLE review_events DROP COLUMN event_order;
+         ALTER TABLE sync_pending DROP COLUMN replay_error;
          PRAGMA user_version = 34;",
     )
     .unwrap();

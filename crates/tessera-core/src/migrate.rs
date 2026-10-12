@@ -42,6 +42,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/033_field_targets.sql"),
     include_str!("../migrations/034_descriptor_cards.sql"),
     include_str!("../migrations/035_review_undos.sql"),
+    include_str!("../migrations/036_sync_replay_error.sql"),
 ];
 
 pub const SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;

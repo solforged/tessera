@@ -221,9 +221,11 @@ export interface SyncDevices { sharing: SyncSharing; hub_name: string; devices: 
 export interface PairingCode { code: string; display: string; expires_at: number; url: string; qr_svg: string }
 export interface PairingStatus { state: 'none' | 'waiting' | 'paired' | 'expired'; device: { id: string; name: string } | null }
 /** Replica side: this device's copy of a hub's notebook. */
+export interface UnappliedChange { change_id: string; error: string }
 export interface ReplicaState {
   hub_url: string; hub_name: string | null; device_name: string | null; device_id: string;
-  pending: number; unapplied: number; synced_at: number | null; syncing: boolean;
+  pending: number; unapplied: number; unapplied_errors: UnappliedChange[];
+  synced_at: number | null; syncing: boolean;
   last_error: { code: string; message: string } | null; retired: boolean;
   kept_copies: number; rejected: number; offline: { books: number; bytes: number };
 }
