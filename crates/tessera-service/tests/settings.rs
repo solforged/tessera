@@ -27,6 +27,23 @@ async fn request(app: &Router, method: &str, path: &str) -> (StatusCode, Value) 
     (status, serde_json::from_slice(&bytes).unwrap())
 }
 
+fn regular_file_bytes(path: &std::path::Path) -> u64 {
+    std::fs::read_dir(path)
+        .unwrap()
+        .map(|entry| {
+            let entry = entry.unwrap();
+            let kind = entry.file_type().unwrap();
+            if kind.is_dir() {
+                regular_file_bytes(&entry.path())
+            } else if kind.is_file() {
+                entry.metadata().unwrap().len()
+            } else {
+                0
+            }
+        })
+        .sum()
+}
+
 #[tokio::test]
 async fn service_reports_version_bound_port_assets_and_launch_agent() {
     let dir = tempfile::tempdir().unwrap();
@@ -100,8 +117,8 @@ async fn backups_create_portable_snapshot_and_list_newest_first() {
     assert_eq!(
         listed,
         json!([
-            { "path": path, "created_at": created["created_at"], "object_count": 1 },
-            { "path": older, "created_at": manifest.created_at, "object_count": 1 },
+            { "path": path, "created_at": created["created_at"], "object_count": 1, "size": regular_file_bytes(path) },
+            { "path": older, "created_at": manifest.created_at, "object_count": 1, "size": regular_file_bytes(&older) },
         ])
     );
 }

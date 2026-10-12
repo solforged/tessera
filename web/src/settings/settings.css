@@ -64,6 +64,12 @@
 .settings-more[open] summary > .icon, .settings-show-more[aria-expanded="true"] > .icon { rotate: 90deg; }
 .settings-more ul { margin: var(--space-4) 0 0; padding: 0 0 0 calc(var(--icon-size-small) + var(--space-4)); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); list-style: none; overflow-wrap: anywhere; }
 .settings-more li + li { margin-top: var(--space-4); }
+.settings-backup-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--space-8) var(--space-16); padding-block: var(--space-4); border-bottom: var(--rule-width) solid var(--line); }
+.settings-backup-actions { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--space-8); font-family: var(--font-body); letter-spacing: normal; }
+.settings-backup-question { color: var(--danger); }
+@container settings-pane (max-width: 599px) {
+  .settings-backup-row { grid-template-columns: minmax(0, 1fr); }
+}
 
 /* Agent changes: the newest three, newest first; Undo waits for hover where there is hover. */
 .settings-changes { margin: 0; padding: 0; list-style: none; }
