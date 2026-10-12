@@ -73,7 +73,7 @@ A note with aliases shows them under the title: `ALSO` in faint mono, then the a
 
 Unfiled notes show no kinds. Sources keep their own header; journal days and the Fields page have none.
 
-The Backlinks section appears and its count refreshes when incoming links change, even while collapsed. It reports the full count after removing links already represented as perspectives or works, shows the first 100 rows when expanded, and offers Load more for each further batch.
+The Backlinks section appears and its count refreshes when incoming links change, including links to the note's own blocks. It reports the full count after removing links already represented as perspectives or works, groups sources by referring page, shows the first 100 when open, and offers Load more for each further batch. Unlinked mentions of the title and aliases follow it; see [Backlinks](../design.md#backlinks).
 
 ## Aliases
 

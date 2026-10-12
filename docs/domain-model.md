@@ -145,7 +145,17 @@ Parentage gives a block its reading context. A question beneath a source is abou
 
 A reference renders the target's current text. Editing the target updates every reference. A link row records source, target, alias and occurrence order; repeated references stay distinct. Backlinks come from links. A reference to a deleted block renders as unresolved and keeps its raw ID.
 
-Whether some references should freeze a quotation instead of following edits is an open decision.
+A page's backlinks cover references to its root and to every block on it, grouped by referring page. Sources on the same page are left out of that list but count towards each block's reference count. Unlinked mentions are blocks elsewhere that contain the page's title or an alias as a whole word, outside any reference or tag, and do not already link to the page.
+
+### Quotes
+
+A quote is frozen; a reference is live. A block whose whole text is `((ID))` is a quote row. It holds a snapshot of the target and its subtree (text, heading, revision and depth of each row), captured when the quote was made, and records one link to the target so the target's backlinks include it.
+
+- The snapshot travels in the `set_quote` operation, so every device applies the same rows. Applying it never reads the source.
+- A capture keeps at most 200 rows and 64 KiB of text and marks the snapshot truncated past either limit. A root too large to fit is refused.
+- Editing or deleting the source leaves the quote unchanged. A quote reports whether its source is still live and whether any captured row changed or disappeared, or the source gained a descendant. Updating re-captures it as one undoable edit.
+- Editing the row's text away from `((ID))` leaves the snapshot inert rather than deleting it, so undoing that edit brings the quote back.
+- Merging pages redirects quote rows and their stored targets like references; the frozen text stays as captured.
 
 ## Types and fields
 
@@ -650,7 +660,6 @@ Links, full-text search, type membership from text, card definitions and field r
 
 ## Open decisions
 
-- Whether a block reference can freeze its target's text. Passage citations are already frozen.
 - How much change history to keep, and whether old assessments become immutable.
 - Configurable task keywords beyond the five fixed states.
 - Whether blank blocks persist or exist only in drafts.

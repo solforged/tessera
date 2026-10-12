@@ -508,7 +508,7 @@ Typed triggers act in block text. Each character means one thing, opens a picker
 | Trigger | Means |
 |---|---|
 | `[[` | Reference to a page, field or block |
-| `((` | Reference to a block, searching blocks only |
+| `((` | On an otherwise empty row: Quote block, a frozen [quote](domain-model.md#quotes) of a block and its subtree. Inside other text: Block reference, searching blocks only |
 | `#name` | Type: picks a page used as a type, or creates one |
 | `@` | When: `@fri` schedules, `@by fri` or `@due fri` sets a deadline; Tab flips the field, Enter picks |
 | `/` | Every block verb: statuses, schedule, deadline, priority, repeat, clock, project, headings, references, types, cards |
@@ -632,6 +632,7 @@ Escape closes the topmost one and returns focus to the editor or outline that ow
 | Page, notebook, layout, pill, column, view, sort and field kind menus | Menu | Below their trigger |
 | New page, Delete page | Confirm | Below their trigger |
 | Reference preview | Preview, 380 px | Below the line of the reference under the pointer, or the reference at the caret |
+| Block backlinks | Each referring block with its page breadcrumb, parent and children, Open beside; `--measure` wide | Below the row's reference count |
 | Undo toast | One at a time | Bottom centre |
 | Sync status | An icon-only button after the Tessera wordmark wherever a hub has paired devices or a copy has a Mac. Shape and colour together: an 8 px filled circle in `--status-done` for synced or sending (`ok`); an 8 px hollow ring with a 1.5 px `--warning` stroke for unreachable or review (`wait`); a 7 px square rotated 45° in `--danger` for version mismatch, forgotten or retired (`act`). No animation. On pointer devices, hover after 350 ms or keyboard focus shows a slip: the state in mono, coloured `--text`, `--warning` or `--danger`, then a short hint in muted sans. The slip has no controls and hides on leave, blur, Escape or an open summary. Click or tap opens the summary; coarse pointers never show the slip. On the cover screen a row above the bottom nav shows only `wait` or `act`, with the same glyph, label and detail | Global rail's left, immediately after the wordmark; above the bottom nav on the cover screen |
 | Sync summary | Device → Mac register over the state's title, one or two sentences naming the side that is behind or what to check, the one fixing action (Download page on the Mac and GitHub releases, Try again or Sync now, Pair again, Download the notebook again) and `Settings › Devices`, which opens Settings with that device expanded. The top bar uses `--danger` for `act`, `--warning` for `wait`, and no bar for `ok`, clear of the pointer | Under the mark, left-aligned, 380 px with its pointer under the glyph; a bottom sheet on touch |
@@ -662,6 +663,24 @@ Pin or ⌘ keeps the slip open; Unpin restores its compact form. A pinned page l
 Open reading and source links preserve access to the original outline; [Compare readings](surfaces/perspectives.md) opens the subject's sheet. Pages without readings keep their prose preview. Bodies scroll within `--preview-body-height`; unpinned block previews fade only when clipped. References inside a slip open stacked slips.
 
 ⌥Space opens the reference at the caret or the focused reference; Enter opens it, Shift+Enter opens it beside, and Escape closes the topmost slip. Opening does not steal focus; focused slip controls retain native keyboard behaviour. Deleted targets and failed requests have explicit notices.
+
+## Quotes and backlinks
+
+### Quotes
+
+A quote row reads as cited text, not as a link. The frozen rows sit behind a hairline left rule in Piazzolla at the quote size, muted, indented by depth without bullets, like the outline at rest. A final faint mono line `… truncated at capture` marks a snapshot cut at its limit.
+
+One mono rubric line follows: `QUOTE` · the source's page as an accent link (Shift opens it beside) · the capture date in the notebook's time zone. When the source has moved on it adds `Source changed` and `Update`; when the source is gone it reads `Source deleted` and offers no update. Clicking the frame edits the row, which exposes the raw `((ID))`. Children of a quote row are ordinary blocks, for annotating the quote.
+
+A `((ID))` row without a snapshot shows the target's live text in the same frame with `Capture quote`, or `Unresolved quote <ID>` when the target is gone. Elsewhere, in backlinks, breadcrumbs and search, a quote row reads as a mono `QUOTE` rubric followed by its target in the quote face. Copying a captured quote as text writes its frozen rows as `> ` lines.
+
+### Backlinks
+
+Below the outline, Backlinks is open by default and counts every distinct referring block, including references to the page's own blocks. Groups follow the referring page, newest first, under a mono capital heading that opens the page, with the group's count at the right. Each source shows its live text, opens at the block on click (Shift opens beside), and has a disclosure that shows its parent and up to six descendants from the live page, plus Open beside at the right. A source that names one of this page's blocks only through an alias adds a faint mono `→` line naming that block, which zooms to it. Load more fetches the next hundred.
+
+Blocks on the page with incoming references carry their count as a faint mono numeral in the outside right rail, where it cannot shift text or the editor. It opens the Block backlinks popup.
+
+Unlinked mentions follows, collapsed and fetched only once opened. Each mention shows its breadcrumb as a mono capital link, its text with the matched title or alias highlighted, and Link, which turns the first whole-word match into an aliased reference keeping the original wording. The edit belongs to the source page's undo history.
 
 ## Icon
 
