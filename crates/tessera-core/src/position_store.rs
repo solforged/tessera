@@ -38,14 +38,6 @@ pub(crate) fn set(conn: &Connection, id: &str, active: bool) -> Result<bool> {
         != 0)
 }
 
-/// Integration seam: the question capability lane supplies ancestor lookup.
-pub(crate) fn nearest_question_ancestor(
-    _conn: &Connection,
-    _block_id: &str,
-) -> Result<Option<String>> {
-    Ok(None)
-}
-
 /// Resolve both links together, without skipping an invalid first or second link.
 /// An optional ID set keeps page loads and receipts set-based.
 fn derive(conn: &Connection, ids: Option<&[String]>) -> Result<HashMap<String, PositionInfo>> {
@@ -83,7 +75,7 @@ fn derive(conn: &Connection, ids: Option<&[String]>) -> Result<HashMap<String, P
         let (id, page, holder_id, subject) = row?;
         let subject_id = match subject {
             Some(subject) => subject,
-            None => nearest_question_ancestor(conn, &id)?.unwrap_or(page),
+            None => crate::question_store::nearest_question_ancestor(conn, &id)?.unwrap_or(page),
         };
         result.insert(
             id,

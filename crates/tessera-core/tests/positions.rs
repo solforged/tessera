@@ -1,5 +1,5 @@
 use tessera_core::{
-    Actor, Batch, Committed, Error, Notebook, Operation, PositionInfo, PositionQuery,
+    Actor, Batch, Committed, Error, Notebook, Operation, PositionInfo, PositionQuery, QuestionState,
 };
 
 fn id(value: u128) -> String {
@@ -203,6 +203,60 @@ fn position_links_derive_holder_subject_and_follow_text_edits() {
             subject_id: id(1)
         }
     );
+}
+
+#[test]
+fn position_subject_uses_nearest_question_when_the_second_link_does_not() {
+    let (_dir, mut nb) = fixture();
+    let question = Operation::SetQuestion {
+        id: id(11),
+        base_revision: nb.block(&id(11)).unwrap().revision,
+        question: Some(QuestionState::default()),
+    };
+    apply(&mut nb, vec![question]);
+    let position = set(&nb, 12, true);
+    apply(&mut nb, vec![position]);
+    assert_eq!(
+        info(&nb, 12),
+        PositionInfo {
+            holder_id: Some(id(2)),
+            subject_id: id(11),
+        }
+    );
+    let under_question = PositionQuery {
+        subject: Some(id(11)),
+        ..PositionQuery::default()
+    };
+    assert_eq!(
+        nb.positions(&under_question)
+            .unwrap()
+            .rows
+            .iter()
+            .map(|row| row.block.block.id.clone())
+            .collect::<Vec<_>>(),
+        [id(12)]
+    );
+    assert!(
+        nb.positions(&PositionQuery {
+            subject: Some(id(1)),
+            ..PositionQuery::default()
+        })
+        .unwrap()
+        .rows
+        .iter()
+        .all(|row| row.block.block.id != id(12))
+    );
+    edit(&mut nb, 12, &format!("[[{}]] [[{}]]", id(2), id(3)));
+    assert_eq!(info(&nb, 12).subject_id, id(3));
+    edit(&mut nb, 12, &format!("[[{}]]", id(2)));
+    assert_eq!(info(&nb, 12).subject_id, id(11));
+    let clear = Operation::SetQuestion {
+        id: id(11),
+        base_revision: nb.block(&id(11)).unwrap().revision,
+        question: None,
+    };
+    apply(&mut nb, vec![clear]);
+    assert_eq!(info(&nb, 12).subject_id, id(1));
 }
 
 #[test]

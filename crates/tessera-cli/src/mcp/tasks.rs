@@ -27,6 +27,9 @@ impl Session<'_> {
         let task = match string(arguments, "status")? {
             Some("none") => None,
             status => {
+                // id alone must not invent a todo. An existing task with no
+                // fields still goes through submit, which refuses a no-op.
+                require_task_change(current.task.is_some(), arguments)?;
                 let mut task = current.task.clone().unwrap_or_default();
                 if let Some(status) = status {
                     task.status = choice(status, "status", &format!("{STATUSES} or none"))?;
@@ -277,6 +280,35 @@ fn range(arguments: &Value, key: &str) -> anyhow::Result<Option<DateRange>> {
     Ok((from.is_some() || through.is_some()).then_some(DateRange { from, through }))
 }
 
+/// Refuse an id-only call on a block that is not yet a task.
+fn require_task_change(has_task: bool, arguments: &Value) -> anyhow::Result<()> {
+    if has_task || string(arguments, "status")?.is_some() || task_field_given(arguments)? {
+        return Ok(());
+    }
+    anyhow::bail!(
+        "This block is not a task. Give status or another field to make it one; id alone changes nothing."
+    );
+}
+
+/// True when the call names a task field other than status. `reason` and `revision` do not count.
+fn task_field_given(arguments: &Value) -> anyhow::Result<bool> {
+    for key in [
+        "completed_on",
+        "scheduled",
+        "deadline",
+        "scheduled_time",
+        "deadline_time",
+        "repeat",
+        "repeat_mode",
+        "priority",
+    ] {
+        if string(arguments, key)?.is_some() {
+            return Ok(true);
+        }
+    }
+    Ok(integer(arguments, "warning_days")?.is_some())
+}
+
 /// `1d`, `2w`, `3m` or `1y` with a repeat mode.
 fn repeater(interval: &str, mode: RepeatMode) -> anyhow::Result<Repeater> {
     let invalid = || format!("repeat must look like 1d, 2w, 3m or 1y, not {interval:?}");
@@ -303,6 +335,31 @@ fn repeater(interval: &str, mode: RepeatMode) -> anyhow::Result<Repeater> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn id_only_does_not_make_a_non_task_into_a_todo() {
+        let id_only = serde_json::json!({ "id": "block", "reason": "touch", "revision": 3 });
+        let error = require_task_change(false, &id_only)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("id alone"), "{error}");
+        assert!(require_task_change(true, &id_only).is_ok());
+        for arguments in [
+            serde_json::json!({ "id": "block", "status": "todo" }),
+            serde_json::json!({ "status": "none" }),
+            serde_json::json!({ "scheduled": "2026-10-12" }),
+            serde_json::json!({ "deadline": "" }),
+            serde_json::json!({ "priority": "low" }),
+            serde_json::json!({ "warning_days": 0 }),
+            serde_json::json!({ "repeat": "1w" }),
+        ] {
+            assert!(
+                require_task_change(false, &arguments).is_ok(),
+                "{arguments}"
+            );
+        }
+        assert!(require_task_change(false, &serde_json::json!({ "status": null })).is_err());
+    }
 
     #[test]
     fn repeat_intervals_read_count_and_unit() {

@@ -148,7 +148,7 @@ pub(super) fn tools() -> Value {
         {
             "name": "tessera_set_task",
             "title": "Set a task",
-            "description": "Make a block a task or change its task state. Only the given fields change; an empty string clears a field. Setting status done records a completion, which advances a repeating task instead. Repeating an undated task schedules it today.",
+            "description": "Make a block a task or change its task state. Only the given fields change; an empty string clears a field. Passing only the block id is refused: it does not make an ordinary block a task, and it does not rewrite an existing one. Setting status done records a completion, which advances a repeating task instead. Repeating an undated task schedules it today.",
             "inputSchema": {
                 "type": "object",
                 "properties": {

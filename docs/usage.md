@@ -213,7 +213,7 @@ Eight tools write:
 | `tessera_edit_block` | Replaces a block's text or heading level; editing a page's root renames the page. |
 | `tessera_move_block` | Moves a block and its children after a sibling, or first or last under a parent. |
 | `tessera_delete_block` | Deletes a block and its children, or a page. |
-| `tessera_set_task` | Makes a block a task or changes its status, scheduled date and time, deadline and time, warning days, repeat or priority; done records a completion. |
+| `tessera_set_task` | Makes a block a task or changes its status, scheduled date and time, deadline and time, warning days, repeat or priority; done records a completion. Passing only the block id is refused and leaves the block unchanged. |
 | `tessera_hold_card` | Holds a card out of review, or releases it. |
 | `tessera_save_deck` | Creates, changes or deletes a deck: the cards whose blocks match a type, text or field filters. |
 | `tessera_cite` | Links existing blocks to library passages: a whole passage, a range, or the first occurrence of a quote. |
