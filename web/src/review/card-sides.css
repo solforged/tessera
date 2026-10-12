@@ -1,0 +1,9 @@
+/* Card sides, shared by review and the outline's cards popup. Answer outlines use
+   native markers, so bullets and rubric numbers sit on the text's baseline at any size. */
+.card-answer-outline { margin: 0; padding-inline-start: var(--indent-width); }
+ul.card-answer-outline { list-style-type: disc; }
+.card-answer-outline > li::marker { color: var(--faint); }
+ol.card-answer-outline > li::marker { color: var(--danger); font-variant-numeric: tabular-nums; }
+/* A gap is bracketed in muted italic, the same `[…]` the flattened card text uses. */
+.card-cloze-gap { color: var(--muted); font-style: italic; }
+.card-cloze-answer { padding-inline: var(--space-2); background: transparent; color: var(--accent); border-bottom: 1px solid var(--accent); font-weight: var(--weight-body); animation: fade-in var(--motion-ui) var(--motion-ease) both; }

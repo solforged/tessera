@@ -1,9 +1,10 @@
 import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from 'solid-js';
 import { ulid } from 'ulid';
-import type { CardAnswerBlock, CardUnit } from '../api/types';
+import type { CardUnit } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import type { ParsedCard } from '../review/card-text';
-import { clozeSegments } from '../review/card-text';
+import { cardKindLabel, clozeSegments } from '../review/card-text';
+import { CardBack, ClozeText } from '../review/CardSides';
 import { formatInterval } from '../review/query';
 import type { OpenTarget } from '../shell/contract';
 import { Button } from '../ui/Button';
@@ -107,10 +108,10 @@ export function CardSummary(props: { blockId: string; cards: ParsedCard[]; templ
       <Show when={error()}><p class="error" role="alert">{error()} <Button onClick={() => setRetry(value => value + 1)}>Retry</Button></p></Show>
       <Show when={!error() && ordered().length}><div class="outline-cards-list">
         <For each={ordered()}>{card => <div class="outline-cards-row">
-          <span class="outline-cards-kind" classList={{ 'outline-cards-provenance': !!card.template }}>{card.template ? `from #${card.template.type_name} · ${card.template.name}` : card.kind === 'cloze' ? `Cloze ${card.key.slice('cloze:c'.length)}` : card.kind === 'forward' ? 'Forward' : card.kind === 'reverse' ? 'Reverse' : card.kind === 'multiline' ? 'Multi-line' : card.kind === 'descriptor' ? 'Descriptor' : 'List'}</span>
+          <span class="outline-cards-kind">{card.template ? 'Template' : cardKindLabel(card, ordered())}</span>
           <div class="outline-cards-content">
-            <div class="outline-cards-front"><BlockText text={card.front} notebook={props.notebook} interactive={false} /></div>
-            <div class="outline-cards-answer"><CardAnswer card={card} notebook={props.notebook} /></div>
+            <CardPreview card={card} notebook={props.notebook} />
+            <Show when={card.template}>{template => <p class="outline-cards-provenance">#{template().type_name} · {template().name}</p>}</Show>
           </div>
           <span class="outline-cards-state">{card.held ? card.schedule.last_reviewed_at === null ? 'Not yet' : 'Paused' : card.schedule.last_reviewed_at === null ? 'New' : card.schedule.due_at <= now() ? 'Due' : `In ${formatInterval(Math.ceil((card.schedule.due_at - now()) / 86_400_000))}`}</span>
           <div class="outline-cards-actions">
@@ -136,20 +137,26 @@ export function CardSummary(props: { blockId: string; cards: ParsedCard[]; templ
   </>;
 }
 
-function CardAnswer(props: { card: CardUnit; notebook: NotebookClient }) {
+/** A popup row shows at most this many answer items; the rest are counted. */
+const previewItems = 5;
+
+/** The card's sides as review shows them, in the popup's smaller type. */
+function CardPreview(props: { card: CardUnit; notebook: NotebookClient }) {
   const segments = createMemo(() => {
     if (props.card.kind !== 'cloze') return null;
     const text = props.notebook.lookup(props.card.source_block_id)()?.text;
     const parts = text === undefined ? null : clozeSegments(text, props.card.key);
     return parts?.map(part => 'text' in part ? part.text : part.answer).join('') === props.card.back ? parts : null;
   });
-  const answer = createMemo(() => {
-    if (props.card.kind !== 'multiline' && props.card.kind !== 'list') return props.card.back;
-    const lines = (blocks: CardAnswerBlock[]): string[] => blocks.flatMap(block => [block.text, ...lines(block.children)]);
-    const text = lines(props.card.answer_blocks).join(' · ');
-    return text.length > 120 ? `${text.slice(0, 119)}…` : text;
-  });
-  return <Show when={segments()} fallback={<BlockText text={answer()} notebook={props.notebook} interactive={false} />}>{parts => <For each={parts()}>{part => 'text' in part
-    ? <BlockText text={part.text} notebook={props.notebook} interactive={false} />
-    : <span class="card-cloze"><BlockText text={part.answer} notebook={props.notebook} interactive={false} /></span>}</For>}</Show>;
+  const hidden = () => Math.max(0, props.card.answer_blocks.length - previewItems);
+  return <Show when={segments()} fallback={<>
+    <div class="outline-cards-front"><BlockText text={props.card.front} notebook={props.notebook} interactive={false} /></div>
+    <div class="outline-cards-answer">
+      <CardBack kind={props.card.kind} back={props.card.back} blocks={props.card.answer_blocks.slice(0, previewItems)} notebook={props.notebook} />
+      <Show when={hidden()}><p class="outline-cards-more">{hidden()} more</p></Show>
+    </div>
+  </>}>{parts => <>
+    <div class="outline-cards-front"><ClozeText segments={parts()} revealed={false} notebook={props.notebook} /></div>
+    <div class="outline-cards-answer"><ClozeText segments={parts()} revealed notebook={props.notebook} /></div>
+  </>}</Show>;
 }

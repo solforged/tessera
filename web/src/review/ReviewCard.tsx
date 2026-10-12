@@ -1,13 +1,12 @@
 import { For, Show, createEffect, createMemo, createSignal, createUniqueId, on, onCleanup, onMount } from 'solid-js';
-import { Dynamic } from 'solid-js/web';
-import type { CardAnswerBlock, CardKind, CardRow, Grade } from '../api/types';
+import type { CardRow, Grade } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { BlockBreadcrumb, BlockText } from '../outline/BlockText';
 import { Button } from '../ui/Button';
 import { Menu } from '../ui/Menu';
 import { Popup } from '../ui/Popup';
-import { clozeSegments } from './card-text';
-import type { ClozeSegment } from './card-text';
+import { cardKindLabel, clozeSegments, parseCardText } from './card-text';
+import { CardBack, ClozeText } from './CardSides';
 import { gradeIntervals, gradeLabels } from './query';
 import type { ReviewSource } from './ReviewSource';
 import './review-card.css';
@@ -41,6 +40,9 @@ export function ReviewCard(props: ReviewCardProps) {
   const [actions, setActions] = createSignal<HTMLElement | null>(null);
   const answerId = createUniqueId();
   const locked = () => !!props.busy || pending();
+  // One size per card: large only when both sides are short, so a short question never outsizes its answer.
+  const large = () => !props.item.card.answer_blocks.length && terse(props.item.card.front) && terse(props.item.card.back);
+  const kindLabel = createMemo(() => cardKindLabel(props.item.card, parseCardText(props.item.source.block.text).cards));
   const changed = createMemo(() => {
     const last = props.item.last_review;
     return !!last && (last.shown_front !== props.item.card.front || last.shown_back !== props.item.card.back);
@@ -139,24 +141,24 @@ export function ReviewCard(props: ReviewCardProps) {
     reveal();
   }}>
     <div class="review-card-meta">
-      <Button class="review-card-source" title="Open source · Shift opens beside" disabled={locked()} onClick={event => props.onSource(event.shiftKey)}>
+      <Button class="review-card-source" title={`${props.context ? 'Open in the book' : 'Open source'} · Shift opens beside`} disabled={locked()} onClick={event => props.onSource(event.shiftKey)}>
         <Show when={props.context} fallback={<BlockBreadcrumb block={props.item.source.block} notebook={props.notebook} omitParent={props.item.card.kind === 'descriptor'} />}>{context => <span>{context().source.source.siglum} · {context().source.page.text}<Show when={context().chapter}> · {context().chapter}</Show> · ¶{context().citation.ordinal + 1}</span>}</Show>
       </Button>
-      <Show when={props.item.card.kind !== 'forward'}><span class="review-card-kind">{props.item.card.kind === 'reverse' ? 'Reverse' : props.item.card.kind === 'multiline' ? 'Multi-line' : props.item.card.kind === 'list' ? 'List' : props.item.card.kind === 'descriptor' ? 'Descriptor' : `Cloze ${props.item.card.key.slice('cloze:c'.length)}`}</span></Show>
+      <span class="review-card-kind">{kindLabel()}</span>
+      <Button icon="more" label="Card actions" aria-haspopup="menu" disabled={locked()} onClick={event => setActions(event.currentTarget)} />
     </div>
     <Show when={props.item.card.template}>{template => <p class="review-card-meta">from #{template().type_name} · {template().name}</p>}</Show>
     <Show when={changed()}><p class="review-card-change-notice">Wording changed since your last review.</p></Show>
     <Show when={gaps()} fallback={<>
-      <section class="review-card-side" classList={{ 'review-card-terse': terse(props.item.card.front) }} aria-label="Front"><Show when={props.item.card.template} fallback={<BlockText text={props.item.card.front} notebook={props.notebook} interactive={false} />}>{props.item.card.front}</Show></section>
+      <section class="review-card-side" classList={{ 'review-card-terse': large() }} aria-label="Front"><Show when={props.item.card.template} fallback={<BlockText text={props.item.card.front} notebook={props.notebook} interactive={false} />}>{props.item.card.front}</Show></section>
       <Show when={revealedItems() > 0}>
-        <section id={answerId} class="review-card-side review-card-answer" classList={{ 'review-card-terse': !props.item.card.answer_blocks.length && terse(props.item.card.back) }} aria-label="Answer"><Show when={props.item.card.template} fallback={<CardBack kind={props.item.card.kind} back={props.item.card.back} blocks={props.item.card.answer_blocks} visibleItems={revealedItems()} notebook={props.notebook} />}>{props.item.card.back}</Show></section>
+        <section id={answerId} class="review-card-side review-card-answer" classList={{ 'review-card-terse': large() }} aria-label="Answer"><Show when={props.item.card.template} fallback={<CardBack kind={props.item.card.kind} back={props.item.card.back} blocks={props.item.card.answer_blocks} visibleItems={revealedItems()} notebook={props.notebook} />}>{props.item.card.back}</Show></section>
       </Show>
-    </>}>{segments => <section id={revealed() ? answerId : undefined} class="review-card-side" aria-label={revealed() ? 'Answer' : 'Front'}>
+    </>}>{segments => <section id={revealed() ? answerId : undefined} class="review-card-side" classList={{ 'review-card-terse': large() }} aria-label={revealed() ? 'Answer' : 'Front'}>
       <ClozeText segments={segments()} revealed={revealed()} notebook={props.notebook} />
     </section>}</Show>
     <Show when={props.item.card.kind === 'list' && revealedItems() > 0}><p class="review-list-progress" role="status">{revealedItems()} of {itemCount()}</p></Show>
     <Show when={revealed() && props.context?.following}><blockquote class="review-card-following">{props.context!.following}</blockquote></Show>
-    <div class="review-card-book-actions"><Button disabled={locked()} onClick={event => props.onSource(event.shiftKey)}>{props.context ? 'Open in the book' : 'Open source'}</Button><Button icon="more" label="Card actions" aria-haspopup="menu" disabled={locked()} onClick={event => setActions(event.currentTarget)} /></div>
     <Show when={revealed()} fallback={<div class="review-card-actions">
       <Button class="bordered" label={revealedItems() ? 'Reveal next item' : 'Reveal answer'} shortcut="Space" aria-keyshortcuts="Space" aria-expanded={revealedItems() > 0} aria-controls={answerId} disabled={locked()} onClick={reveal}>{revealedItems() ? 'Reveal next item' : 'Reveal answer'} <kbd>Space</kbd></Button>
     </div>}>
@@ -184,7 +186,7 @@ export function ReviewCard(props: ReviewCardProps) {
       </section>}</Show>
       <div class="review-card-grades" role="group" aria-label="Grade answer">
         <For each={grades}>{choice => <Button class="review-card-grade" classList={{ 'review-card-grade-default': choice.grade === 'good', 'review-card-grade-again': choice.grade === 'again' }} label={choice.label} shortcut={choice.shortcut} aria-keyshortcuts={choice.grade === 'good' ? `${choice.shortcut} Space Enter` : choice.shortcut} aria-label={`${choice.label}${choice.grade === 'good' ? ' · default' : ''}${interval(choice.grade) ? ` · ${interval(choice.grade)}` : ''}`} disabled={locked()} onClick={() => grade(choice.grade)}>
-          <span class="review-card-grade-label">{choice.label}<Show when={choice.grade === 'good'}><span class="visually-hidden"> (default)</span></Show> <kbd>{choice.shortcut}</kbd></span>
+          <span class="review-card-grade-label">{choice.label} <kbd>{choice.shortcut}</kbd></span>
           <Show when={interval(choice.grade)}>{value => <span class="review-card-interval">{value()}</span>}</Show>
         </Button>}</For>
       </div>
@@ -204,30 +206,4 @@ export function ReviewCard(props: ReviewCardProps) {
       </div>
     </Popup>}</Show>
   </div>;
-}
-
-/** Canonical child snapshots also render in history and stale-definition views. */
-export function CardBack(props: { kind: CardKind; back: string; blocks?: CardAnswerBlock[]; visibleItems?: number; plain?: boolean; notebook: NotebookClient }) {
-  const blocks = createMemo(() => {
-    if (props.kind !== 'multiline' && props.kind !== 'list') return null;
-    const answer: CardAnswerBlock[] = props.blocks ?? JSON.parse(props.back);
-    return props.kind === 'list' && props.visibleItems !== undefined ? answer.slice(0, props.visibleItems) : answer;
-  });
-  return <Show when={props.plain} fallback={<Show when={blocks()} fallback={<BlockText text={props.back} notebook={props.notebook} interactive={false} />}>{answer => <AnswerOutline blocks={answer()} numbered={props.kind === 'list'} notebook={props.notebook} />}</Show>}>{props.back}</Show>;
-}
-
-/** A list answer numbers its items in rubric, as a manuscript numbers its points; nested blocks keep plain bullets. */
-function AnswerOutline(props: { blocks: CardAnswerBlock[]; numbered?: boolean; notebook: NotebookClient }) {
-  return <Dynamic component={props.numbered ? 'ol' : 'ul'} class="review-answer-outline"><For each={props.blocks}>{block => <li>
-    <BlockText text={block.text} cards notebook={props.notebook} interactive={false} />
-    <Show when={block.children.length}><AnswerOutline blocks={block.children} notebook={props.notebook} /></Show>
-  </li>}</For></Dynamic>;
-}
-
-function ClozeText(props: { segments: ClozeSegment[]; revealed: boolean; notebook: NotebookClient }) {
-  return <For each={props.segments}>{segment => 'text' in segment
-    ? <BlockText text={segment.text} notebook={props.notebook} interactive={false} />
-    : <Show when={props.revealed} fallback={<span class="review-cloze-gap"><span class="visually-hidden">{segment.hint ? 'Blank, hint: ' : 'Blank'}</span>{segment.hint ? <BlockText text={segment.hint} notebook={props.notebook} interactive={false} /> : '…'}</span>}>
-      <mark class="review-cloze-answer"><BlockText text={segment.answer} notebook={props.notebook} interactive={false} /></mark>
-    </Show>}</For>;
 }

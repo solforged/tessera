@@ -265,6 +265,15 @@ export function cardSubject(text: string): string {
   return card.kind === 'reverse' || card.kind === 'cloze' ? card.back : card.front;
 }
 
+const kindLabels: Record<CardKind, string> = { forward: 'Forward', reverse: 'Reverse', cloze: 'Cloze', multiline: 'Multi-line', list: 'List', descriptor: 'Descriptor' };
+
+/** A card's kind as review and the outline name it. A cloze carries its number
+ * only when its block makes several clozes. */
+export function cardKindLabel(card: { kind: CardKind; key: string }, siblings: readonly { kind: CardKind }[]): string {
+  if (card.kind !== 'cloze' || siblings.filter(sibling => sibling.kind === 'cloze').length < 2) return kindLabels[card.kind];
+  return `Cloze ${card.key.slice('cloze:c'.length)}`;
+}
+
 /** Plain text, or one of this card's gaps with its answer and optional hint. */
 export type ClozeSegment = { text: string } | { answer: string; hint: string | null };
 

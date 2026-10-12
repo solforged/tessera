@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { cardMarks, cardSubject, clozeSegments, parseCardText } from './card-text';
+import { cardKindLabel, cardMarks, cardSubject, clozeSegments, parseCardText } from './card-text';
 
 describe('card text', () => {
   test('ordinary prose, fields, and shielded syntax do not create cards', () => {
@@ -65,6 +65,14 @@ describe('card text', () => {
       ['Mitochondria << organelle', 'Mitochondria'], ['Structure ;; two membranes', 'Structure'],
       ['The {{c1::cell}} wall', 'The cell wall'], [String.raw`a \>> b`, 'a >> b'], ['a >> b >> c', 'a >> b >> c'], [' ', ''],
     ]) expect(cardSubject(parent!)).toBe(subject!);
+  });
+
+  test('a cloze is numbered only beside another cloze from the same block', () => {
+    const label = (text: string) => parseCardText(text).cards.map((card, _, cards) => cardKindLabel(card, cards));
+    expect(label('The {{c1::cell}} wall')).toEqual(['Cloze']);
+    expect(label('The {{c2::cell}} and {{c2::wall}}')).toEqual(['Cloze']);
+    expect(label('The {{c1::cell}} {{c2::wall}}')).toEqual(['Cloze 1', 'Cloze 2']);
+    expect(label('Mitochondria <> powerhouse')).toEqual(['Forward', 'Reverse']);
   });
 
   test('syntax escapes render literally, preserve unknown escapes, and respect backslash parity', () => {
