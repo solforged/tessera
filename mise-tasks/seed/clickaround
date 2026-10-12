@@ -1,0 +1,526 @@
+#!/usr/bin/env bun
+//MISE description="Seed a notebook with a realistic past week for clickarounds; arguments: [dir] [--replace]"
+//
+// Writes a fresh notebook (default ~/.local/share/tessera/notebooks/clickaround)
+// holding the week ending today: journal days, two projects with tasks, clocked
+// work and completions, repeating routines, people and concept pages with typed
+// fields, flashcards with a week of review history, the bundled Meditations
+// EPUB with highlights and a reading position, three catalogue records, two
+// collections and saved views. Everything goes through a throwaway service's
+// HTTP API, so it is the same data the app would write. The notebook is added
+// to this computer's notebook list, so Settings → Notebooks can open it.
+//
+// Dates are relative to the day it runs. Run it again with --replace to start
+// over on a new week; it refuses while a service has the notebook open.
+
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
+
+const root = resolve(import.meta.dir, '../..');
+const args = process.argv.slice(2);
+const replace = args.includes('--replace');
+const positional = args.filter(arg => !arg.startsWith('--'));
+const unknown = args.filter(arg => arg.startsWith('--') && arg !== '--replace');
+if (unknown.length || positional.length > 1) fail(`usage: mise run seed:clickaround [dir] [--replace]`);
+const dir = resolve((positional[0] ?? '~/.local/share/tessera/notebooks/clickaround').replace(/^~(?=$|\/)/, homedir()));
+
+function fail(message: string): never {
+  console.error(`seed: ${message}`);
+  process.exit(1);
+}
+
+// ---------------------------------------------------------------- preflight
+
+if (existsSync(join(dir, 'notebook.db'))) {
+  if (!replace) fail(`${dir} already holds a notebook; pass --replace to seed it again`);
+  const holder = heldBy(dir);
+  if (holder) fail(`${dir} is open in the service with PID ${holder}; switch away from it or stop that service first`);
+} else if (existsSync(dir) && !replace) {
+  fail(`${dir} exists but holds no notebook; remove it or pass --replace`);
+}
+
+/** The PID in the service's ownership file when that process is still alive. The file is advisory, but a live PID means a service probably has the notebook open. */
+function heldBy(notebook: string): number | null {
+  try {
+    const { pid } = JSON.parse(readFileSync(join(notebook, 'service.lock'), 'utf8')) as { pid?: number };
+    if (!pid) return null;
+    process.kill(pid, 0);
+    return pid;
+  } catch {
+    return null;
+  }
+}
+
+const bin = process.env.TESSERA_BIN ?? buildCli();
+function buildCli(): string {
+  console.log('seed: building tessera-cli');
+  const build = Bun.spawnSync(['cargo', 'build', '-q', '--locked', '-p', 'tessera-cli'], { cwd: root, stdout: 'inherit', stderr: 'inherit' });
+  if (build.exitCode !== 0) fail('cargo build failed');
+  const metadata = Bun.spawnSync(['cargo', 'metadata', '--no-deps', '--format-version', '1'], { cwd: root });
+  return join(JSON.parse(metadata.stdout.toString()).target_directory, 'debug', 'tessera');
+}
+
+// The seed is written beside the target and moved into place only when complete.
+const staging = `${dir}.seeding`;
+rmSync(staging, { recursive: true, force: true });
+mkdirSync(dirname(dir), { recursive: true });
+
+const port = await freePort();
+const base = `http://127.0.0.1:${port}`;
+const log = `${staging}.log`;
+const { TESSERA_NOTEBOOK: _, ...env } = process.env;
+const service = Bun.spawn([bin, '--notebook', staging, 'serve', '--port', String(port), '--sync-port', '0'], {
+  stdout: Bun.file(log), stderr: Bun.file(log), env,
+});
+
+async function freePort(): Promise<number> {
+  const server = Bun.listen({ hostname: '127.0.0.1', port: 0, socket: { data() {} } });
+  const { port } = server;
+  server.stop(true);
+  return port;
+}
+
+async function ready() {
+  for (let attempt = 0; attempt < 200; attempt++) {
+    if (service.exitCode !== null) throw new Error(`the service exited with ${service.exitCode}`);
+    try {
+      if ((await fetch(`${base}/api/service`)).ok) return;
+    } catch { /* not listening yet */ }
+    await Bun.sleep(50);
+  }
+  throw new Error('the service did not start within 10 s');
+}
+
+/** Add the notebook to the list the app's Notebooks settings read, keeping the current choice. Same file and shape as `notebooks.rs`. */
+function register(path: string) {
+  const data = process.platform === 'darwin'
+    ? join(homedir(), 'Library', 'Application Support')
+    : process.env.XDG_DATA_HOME || join(homedir(), '.local', 'share');
+  const file = join(data, 'tessera', 'notebooks.json');
+  let stored: { current?: string | null; notebooks?: string[] } = {};
+  if (existsSync(file)) stored = JSON.parse(readFileSync(file, 'utf8'));
+  const notebooks = stored.notebooks ?? [];
+  if (notebooks.includes(path)) return;
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(`${file}.tmp`, JSON.stringify({ current: stored.current ?? null, notebooks: [...notebooks, path] }, null, 2));
+  renameSync(`${file}.tmp`, file);
+}
+
+// ---------------------------------------------------------------- API
+
+type Json = Record<string, unknown>;
+type Operation = Json & { op: string };
+interface Committed { revisions: { id: string; revision: number }[]; cards: { id: string; revision: number }[]; work_sessions: { id: string; revision: number }[]; review_sessions: { id: string; revision: number }[] }
+
+async function api<T>(method: string, path: string, body?: unknown, headers: Record<string, string> = {}): Promise<T> {
+  const binary = body instanceof Uint8Array;
+  const response = await fetch(base + path, {
+    method,
+    headers: { Origin: base, ...(body !== undefined && !binary ? { 'Content-Type': 'application/json' } : {}), ...headers },
+    body: body === undefined ? undefined : binary ? body : JSON.stringify(body),
+  });
+  const text = await response.text();
+  if (!response.ok) throw new Error(`${method} ${path}: ${response.status} ${text}`);
+  return text ? JSON.parse(text) as T : undefined as T;
+}
+
+const crockford = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+function ulid(): string {
+  let time = Date.now(), head = '';
+  for (let i = 0; i < 10; i++) { head = crockford[time % 32] + head; time = Math.floor(time / 32); }
+  const random = crypto.getRandomValues(new Uint8Array(16));
+  return head + Array.from(random, byte => crockford[byte % 32]).join('');
+}
+
+/** Revisions of everything the seed has written, from batch receipts. */
+const revision = new Map<string, number>();
+const cardRevision = new Map<string, number>();
+const sessionRevision = new Map<string, number>();
+
+async function commit(operations: Operation[], reason: string): Promise<Committed> {
+  if (!operations.length) throw new Error(`empty batch: ${reason}`);
+  const receipt = await api<Committed>('POST', '/api/batches', { actor: { kind: 'client', name: 'clickaround seed' }, reason, idempotency_key: ulid(), operations })
+    .catch((error: Error) => { throw new Error(`${reason}: ${error.message}\n${JSON.stringify(operations).slice(0, 600)}`); });
+  for (const { id, revision: value } of receipt.revisions) revision.set(id, value);
+  for (const { id, revision: value } of receipt.cards) cardRevision.set(id, value);
+  for (const { id, revision: value } of receipt.work_sessions) sessionRevision.set(id, value);
+  for (const { id, revision: value } of receipt.review_sessions) sessionRevision.set(id, value);
+  return receipt;
+}
+
+/** Revision-checked operations on blocks, one batch per call so each base revision is the current one. */
+async function on(id: string, build: (base: number) => Operation, reason: string) {
+  const base = revision.get(id);
+  if (base === undefined) throw new Error(`no revision for ${id} (${reason})`);
+  return commit([build(base)], reason);
+}
+
+/** Outline writer: pages, journal days and blocks appended in order, committed as one batch. */
+class Outline {
+  operations: Operation[] = [];
+  private last = new Map<string, string>();
+  page(title: string, id = ulid()) { this.operations.push({ op: 'create_page', id, title }); return id; }
+  journal(date: string) { const id = ulid(); this.operations.push({ op: 'create_journal', id, date }); return id; }
+  block(parent: string, text: string, heading: 1 | 2 | 3 | null = null) {
+    const id = ulid();
+    this.operations.push({ op: 'insert', id, parent_id: parent, after: this.last.get(parent) ?? null, text, heading });
+    this.last.set(parent, id);
+    return id;
+  }
+  after(parent: string, sibling: string | null) { if (sibling) this.last.set(parent, sibling); }
+  /** A field entry with its value blocks, as `Name:: value` becomes in the editor. */
+  field(owner: string, field: string, ...values: string[]) {
+    const entry = this.block(owner, `[[${field}]]`);
+    for (const value of values) this.block(entry, value);
+    return entry;
+  }
+  async commit(reason: string) { const receipt = await commit(this.operations, reason); this.operations = []; this.last.clear(); return receipt; }
+}
+
+// ---------------------------------------------------------------- dates
+
+const now = new Date();
+const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+const shift = (days: number) => new Date(midnight.getFullYear(), midnight.getMonth(), midnight.getDate() + days);
+const iso = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+const day = (offset: number) => iso(shift(offset));
+const at = (offset: number, time: string) => { const [h, m] = time.split(':').map(Number); const date = shift(offset); date.setHours(h, m); return Math.min(date.getTime(), Date.now() - 60_000); };
+const nextSunday = (7 - midnight.getDay()) % 7 || 7;
+const firstOfNextMonth = iso(new Date(midnight.getFullYear(), midnight.getMonth() + 1, 1));
+const link = (id: string) => `[[${id}]]`;
+
+type Priority = 'high' | 'medium' | 'low';
+interface Task { status?: 'todo' | 'doing' | 'waiting'; scheduled?: string; time?: string; deadline?: string; warning?: number; repeat?: [number, 'day' | 'week' | 'month' | 'year', 'fixed' | 'catch_up' | 'after_completion']; priority?: Priority }
+const taskState = (task: Task) => ({
+  status: task.status ?? 'todo', scheduled: task.scheduled ?? null, scheduled_time: task.time ?? null,
+  deadline: task.deadline ?? null, deadline_time: null, warning_days: task.warning ?? null,
+  repeater: task.repeat ? { every: task.repeat[0], unit: task.repeat[1], mode: task.repeat[2] } : null,
+  priority: task.priority ?? null, completed_on: null,
+});
+
+// ---------------------------------------------------------------- seed
+
+async function seed() {
+  const { page_id: fieldsPage } = await api<{ page_id: string }>('GET', '/api/fields');
+  const out = new Outline();
+
+  // Types, fields and their templates.
+  const person = out.page('Person');
+  const concept = out.page('Concept');
+  const vocabulary = out.page('Italian word');
+  const role = out.block(fieldsPage, 'Role');
+  const organisation = out.block(fieldsPage, 'Organisation');
+  const lastContact = out.block(fieldsPage, 'Last contact');
+  const stage = out.block(fieldsPage, 'Stage');
+  const stages = Object.fromEntries(['Seedling', 'Budding', 'Evergreen'].map(name => [name, out.block(stage, name)]));
+  await out.commit('Types and fields');
+  await on(lastContact, base => ({ op: 'set_field_kind', id: lastContact, base_revision: base, kind: 'date' }), 'Last contact is a date');
+  await on(stage, base => ({ op: 'set_field_kind', id: stage, base_revision: base, kind: 'choice' }), 'Stage is a choice');
+  await on(person, base => ({ op: 'set_type_fields', type_id: person, base_revision: base, fields: [role, organisation, lastContact] }), 'Person template');
+  await on(concept, base => ({ op: 'set_type_fields', type_id: concept, base_revision: base, fields: [stage] }), 'Concept template');
+  await on(person, base => ({ op: 'set_type_presentation', type_id: person, base_revision: base, plural: 'People', icon: null }), 'People');
+
+  // People.
+  const hana = out.page('Hana Okafor');
+  out.field(hana, role, 'Editor');
+  out.field(hana, organisation, 'Field Notes Quarterly');
+  out.field(hana, lastContact, day(-6));
+  out.block(hana, 'Commissioned the slow reading essay. Prefers a draft early over a polished draft late.');
+  out.block(hana, 'Likes concrete openings; cut throat-clearing.');
+  const priya = out.page('Priya Raman');
+  out.field(priya, role, 'Joiner');
+  out.field(priya, organisation, 'Raman & Daughters Joinery');
+  out.field(priya, lastContact, day(-2));
+  out.block(priya, 'Recommended by the neighbours at 14. Quotes in writing, answers texts in the evening.');
+  const tom = out.page('Tom Becker');
+  out.field(tom, role, 'Climbing partner');
+  out.block(tom, 'Tuesday and Saturday sessions at the wall. Owes me a belay device back.');
+  await out.commit('People');
+  for (const id of [hana, priya, tom]) await on(id, base => ({ op: 'add_type', id, base_revision: base, title: 'Person' }), 'Typed as Person');
+
+  // Concepts, each with a card.
+  const slowReading = out.page('Slow reading');
+  out.field(slowReading, stage, link(stages.Budding));
+  out.block(slowReading, 'Reading for return rather than for coverage: fewer books, more passes.');
+  out.block(slowReading, 'Slow reading >> Reading for return rather than coverage: fewer books, read more than once.');
+  const commonplace = out.page('Commonplace book');
+  out.field(commonplace, stage, link(stages.Evergreen));
+  out.block(commonplace, 'A notebook of excerpts copied under headings, meant to be reused rather than archived.');
+  out.block(commonplace, 'What makes a commonplace book different from a quote file? >> Headings: excerpts are filed under topics so they can be found and reused.');
+  const spaced = out.page('Spaced repetition');
+  out.field(spaced, stage, link(stages.Seedling));
+  out.block(spaced, 'Reviewing just before forgetting. The scheduler here is FSRS.');
+  const premeditatio = out.page('Premeditatio malorum');
+  out.field(premeditatio, stage, link(stages.Budding));
+  out.block(premeditatio, 'Rehearse what could go wrong so that it loses its force when it comes.');
+  out.block(premeditatio, 'Applies to budgets: imagine the overrun before signing the quote.');
+  await out.commit('Concepts');
+  for (const id of [slowReading, commonplace, spaced, premeditatio]) await on(id, base => ({ op: 'add_type', id, base_revision: base, title: 'Concept' }), 'Typed as Concept');
+
+  // Projects.
+  const kitchen = out.page('Kitchen renovation');
+  out.block(kitchen, 'Budget: 18k ceiling, 2k of it contingency. See ' + link(premeditatio) + '.');
+  const cabinets = out.block(kitchen, 'Cabinets and worktop', 2);
+  const measure = out.block(cabinets, 'Measure the pantry wall');
+  out.block(measure, '2,340 mm floor to ceiling; the skirting adds 12 mm.');
+  const quotes = out.block(cabinets, 'Get three quotes for cabinets');
+  out.block(quotes, `Two so far: ${link(priya)} at 9.4k, the flat-pack place at 6.1k.`);
+  const worktop = out.block(cabinets, 'Pick the worktop sample');
+  const tiles = out.block(cabinets, `Call ${link(priya)} about the tile order`);
+  const services = out.block(kitchen, 'Services', 2);
+  const electrician = out.block(services, 'Book the electrician for the hob circuit');
+  const plumber = out.block(services, 'Ask the plumber whether the sink can move 40 cm left');
+
+  const essay = out.page('Essay: the case for slow reading');
+  out.block(essay, `For ${link(hana)} at Field Notes Quarterly. Working thesis: attention is the scarce input, not books.`);
+  const outline = out.block(essay, 'Outline', 2);
+  out.block(outline, 'Attention: what a reading habit spends.');
+  out.block(outline, `Friction: why ${link(commonplace)} copying slows you down usefully.`);
+  out.block(outline, `Return: rereading Marcus and Seneca. Ties to ${link(slowReading)}.`);
+  const outlined = out.block(essay, 'Outline the three sections');
+  const draft = out.block(essay, 'Draft section one');
+  const seneca = out.block(essay, 'Find the Seneca letter about reading many books');
+  out.block(seneca, 'Letter 2, I think: "Everywhere means nowhere."');
+  const send = out.block(essay, `Send the draft to ${link(hana)}`);
+
+  const routines = out.page('Routines');
+  out.block(routines, 'Small repeating things, so Agenda remembers them.');
+  const plants = out.block(routines, 'Water the plants');
+  const stretch = out.block(routines, 'Stretch for ten minutes');
+  const weekly = out.block(routines, 'Weekly review');
+  out.block(weekly, 'Inbox to zero, look at next week, pick three things.');
+  const rent = out.block(routines, 'Pay rent');
+  await out.commit('Projects and routines');
+
+  await on(kitchen, base => ({ op: 'set_project', id: kitchen, base_revision: base, project: { outcome: 'Kitchen usable again by the end of the month', deadline: day(19), status: 'active' } }), 'Kitchen project');
+  await on(essay, base => ({ op: 'set_project', id: essay, base_revision: base, project: { outcome: 'A 3,000-word draft with Hana', deadline: day(10), status: 'active' } }), 'Essay project');
+  const tasks: [string, Task][] = [
+    [measure, { scheduled: day(-4) }],
+    [quotes, { status: 'doing', scheduled: day(-2), priority: 'high' }],
+    [worktop, { deadline: day(2), warning: 3, priority: 'medium' }],
+    [tiles, { status: 'waiting' }],
+    [electrician, { scheduled: day(1) }],
+    [plumber, {}],
+    [outlined, { scheduled: day(-3) }],
+    [draft, { status: 'doing', scheduled: day(-1), priority: 'high' }],
+    [seneca, { scheduled: day(0), time: '09:00', priority: 'medium' }],
+    [send, { deadline: day(10) }],
+    [plants, { scheduled: day(-3), repeat: [3, 'day', 'catch_up'] }],
+    [stretch, { scheduled: day(-1), time: '07:00', repeat: [1, 'day', 'after_completion'] }],
+    [weekly, { scheduled: day(nextSunday), repeat: [1, 'week', 'fixed'] }],
+    [rent, { deadline: firstOfNextMonth, warning: 5, repeat: [1, 'month', 'fixed'] }],
+  ];
+  for (const [id, task] of tasks) await on(id, base => ({ op: 'set_task', id, base_revision: base, task: taskState(task) }), 'Task');
+  for (const [id, date] of [[measure, day(-4)], [outlined, day(-3)], [plants, day(-3)], [stretch, day(-1)]] as const) {
+    await on(id, base => ({ op: 'complete_task', id, base_revision: base, occurrence_id: ulid(), completed_on: date }), 'Completed');
+  }
+  for (const [offset, start, end, note] of [[-2, '07:10', '08:25', 'Opening paragraph; far too long.'], [-1, '06:50', '08:05', 'Got the Seneca bit in. Section one is two thirds done.']] as const) {
+    const session = ulid();
+    await on(draft, base => ({ op: 'start_work', id: draft, base_revision: base, session_id: session, started_at: at(offset, start), note: '' }), 'Clocked in');
+    await on(draft, base => ({ op: 'stop_work', id: draft, base_revision: base, session_id: session, session_revision: sessionRevision.get(session)!, ended_at: at(offset, end), note }), 'Clocked out');
+  }
+
+  // Study pages with cards.
+  const stoicism = out.page('Stoicism notes');
+  out.block(stoicism, 'Who wrote the Meditations? >> Marcus Aurelius, emperor from 161 to 180.');
+  out.block(stoicism, `Premeditatio malorum <> Rehearsing misfortunes in advance so that they lose their force.`);
+  out.block(stoicism, 'Seneca wrote his moral letters to {{c1::Lucilius}}, then governor of {{c2::Sicily}}.');
+  const control = out.block(stoicism, 'The dichotomy of control >>>');
+  out.block(control, 'Up to us: judgement, intention, desire, aversion.');
+  out.block(control, 'Not up to us: body, property, reputation, office.');
+  const debts = out.block(stoicism, 'What Marcus learned in Book I >>1.');
+  out.block(debts, 'From his grandfather Verus: gentleness, and to refrain from anger.');
+  out.block(debts, 'From his mother: piety, generosity, a spare diet.');
+  out.block(debts, 'From Rusticus: the writings of Epictetus.');
+  out.block(stoicism, 'The four Stoic virtues >> Wisdom, justice, courage and temperance.');
+  out.block(stoicism, `Background reading: ${link(slowReading)}, ${link(commonplace)}.`);
+
+  const italian = out.page('Italian: kitchen words');
+  out.block(italian, `For talking to the showroom. Linked from ${link(kitchen)}.`);
+  const words = [
+    'il lavello <> the sink',
+    'il piano di lavoro <> the worktop',
+    'la piastrella <> the tile',
+    'il preventivo <> the quote, the estimate',
+    'la dispensa <> the pantry',
+    'misurare >> to measure',
+    'il rubinetto <> the tap',
+  ].map(text => out.block(italian, text));
+  await out.commit('Study pages');
+  for (const id of words) await on(id, base => ({ op: 'add_type', id, base_revision: base, title: 'Italian word' }), 'Vocabulary type');
+
+  // Library: the bundled Meditations, read about a third through with highlights.
+  const epub = new Uint8Array(readFileSync(join(root, 'web/src/demo/meditations.epub')));
+  let job = await api<{ id: string; state: string; error: string | null; source_id: string | null; snapshot_id: string | null }>('POST', '/api/library/uploads', epub, { 'Content-Type': 'application/epub+zip', 'X-Filename': 'meditations.epub' });
+  for (let attempt = 0; job.state !== 'done'; attempt++) {
+    if (job.state === 'failed' || attempt > 600) throw new Error(`Meditations did not import: ${job.error ?? job.state}`);
+    await Bun.sleep(100);
+    job = await api('GET', `/api/library/jobs/${job.id}`);
+  }
+  const meditations = job.source_id!, snapshot = job.snapshot_id!;
+  const passages: { id: string; ordinal: number; text: string }[] = [];
+  for (let total = Infinity; passages.length < total;) {
+    const page = await api<{ passages: typeof passages; total: number }>('GET', `/api/snapshots/${snapshot}/passages?from=${passages.length}&limit=500`);
+    if (!page.passages.length) break;
+    passages.push(...page.passages);
+    total = page.total;
+  }
+  const highlights: { quote: string; color: string | null; children: string[]; triage?: 'processed' | 'unprocessed' }[] = [
+    { quote: 'Of my grandfather Verus I have learned to be gentle and meek, and to refrain from all anger and passion', color: null, children: [] },
+    { quote: 'Remember how long thou hast already put off these things', color: 'yellow', children: [
+      'The problem is the postponing, not a lack of time.',
+      'What does Marcus say about putting things off? >> That the day set for them has passed many times already, and the time left is limited.',
+    ] },
+    { quote: 'Let it be thy earnest and incessant care as a Roman and a man to perform whatsoever it is that thou art about', color: 'green', children: [`Opening for the essay's section on ${link(slowReading)}? #essay`] },
+    { quote: 'If thou shouldst live three thousand, or as many as ten thousands of years', color: 'blue', children: [] },
+    { quote: 'it is in thy power to retire into thyself, and to be at rest, and free from all businesses', color: 'purple', children: [], triage: 'processed' },
+    { quote: 'Whatsoever is expedient unto thee, O World, is expedient unto me', color: 'red', children: [] },
+  ];
+  const sourcePage = await api<{ rows: { block: { id: string; parent_id: string } }[] }>('GET', `/api/pages/${meditations}`);
+  out.after(meditations, sourcePage.rows.filter(row => row.block.parent_id === meditations).at(-1)?.block.id ?? null);
+  const cited: { id: string; passage: (typeof passages)[number]; offset: number; highlight: (typeof highlights)[number] }[] = [];
+  for (const highlight of highlights) {
+    const passage = passages.find(passage => passage.text.includes(highlight.quote));
+    if (!passage) throw new Error(`Meditations no longer contains "${highlight.quote}"`);
+    const id = out.block(meditations, highlight.quote);
+    for (const child of highlight.children) out.block(id, child);
+    cited.push({ id, passage, offset: passage.text.indexOf(highlight.quote), highlight });
+  }
+  await out.commit('Highlight notes');
+  for (const { id, passage, offset, highlight } of cited) {
+    const citation = ulid();
+    await on(id, base => ({ op: 'cite', id, base_revision: base, citation_id: citation, snapshot_id: snapshot, start: { passage_id: passage.id, offset }, end: { passage_id: passage.id, offset: offset + highlight.quote.length }, color: highlight.color }), 'Highlight');
+    // Triage names the citation and checks its block's revision.
+    if (highlight.triage) await on(id, base => ({ op: 'set_citation_triage', id: citation, base_revision: base, triage: highlight.triage }), 'Triage');
+  }
+  const furthest = Math.max(...cited.map(item => item.passage.ordinal));
+  await api('POST', `/api/snapshots/${snapshot}/position`, { ordinal: furthest + 4 });
+
+  // Catalogue records: one finished, two waiting in Inbox.
+  const record = async (metadata: Json) => {
+    const plan = await api<{ source_id: string; operations: Operation[] }>('POST', '/api/library/records/plan', {
+      metadata: { subtitle: null, published: null, publisher: null, language: 'en', identifiers: [], unique_id: null, url: null, site: null, description: null, cover: null, ...metadata },
+      cover_url: null,
+    });
+    await commit(plan.operations, 'Add source');
+    return plan.source_id;
+  };
+  const letters = await record({ title: 'Letters from a Stoic', subtitle: 'Epistulae Morales ad Lucilium', creators: [{ name: 'Seneca', role: 'author' }, { name: 'Robin Campbell', role: 'translator' }], published: '1969', publisher: 'Penguin Classics', identifiers: ['9780140442106'] });
+  const adler = await record({ title: 'How to Read a Book', creators: [{ name: 'Mortimer J. Adler', role: 'author' }, { name: 'Charles Van Doren', role: 'author' }], published: '1972', publisher: 'Simon & Schuster', identifiers: ['9780671212094'] });
+  const shallows = await record({ title: 'The Shallows', subtitle: 'What the Internet Is Doing to Our Brains', creators: [{ name: 'Nicholas Carr', role: 'author' }], published: '2010', publisher: 'W. W. Norton', identifiers: ['9780393339758'] });
+  const source = await api<{ source: Json }>('GET', `/api/sources/${adler}`);
+  await on(adler, base => ({ op: 'set_source', id: adler, base_revision: base, source: { ...source.source, state: 'finished' } }), 'Finished');
+
+  // Collections, as the Library's Collections tab makes them.
+  const collectionsField = ulid();
+  const collection = out.page('Collection');
+  const stoics = out.page('Stoics');
+  const essaySources = out.page('Essay sources');
+  out.operations.push({ op: 'insert', id: collectionsField, parent_id: fieldsPage, after: null, text: 'Collections', heading: null });
+  await out.commit('Collections');
+  await on(collectionsField, base => ({ op: 'set_field_kind', id: collectionsField, base_revision: base, kind: 'instance' }), 'Collections field');
+  await on(collectionsField, base => ({ op: 'set_field_targets', id: collectionsField, base_revision: base, targets: [collection] }), 'Collections link to collections');
+  for (const id of [stoics, essaySources]) await on(id, base => ({ op: 'add_type', id, base_revision: base, title: 'Collection' }), 'Typed as Collection');
+  // The library worker made the Book type, so its revision comes from the roots list.
+  const bookType = (await api<{ id: string; kind: string; text: string; revision: number }[]>('GET', '/api/roots'))
+    .find(page => page.kind === 'page' && page.text.toLowerCase() === 'book');
+  if (!bookType) throw new Error('the Meditations import made no Book type');
+  const { fields: bookFields } = await api<{ fields: string[] }>('GET', `/api/types/${bookType.id}`);
+  await commit([{ op: 'set_type_fields', type_id: bookType.id, base_revision: bookType.revision, fields: [...bookFields, collectionsField] }], 'Book template');
+  for (const [book, members] of [[meditations, [stoics]], [letters, [stoics, essaySources]], [adler, [essaySources]], [shallows, [essaySources]]] as const) {
+    const entry = out.block(book, `[[${collectionsField}]]`);
+    for (const member of members) out.block(entry, link(member));
+  }
+  await out.commit('Collection members');
+
+  // Journal: the past six days and today.
+  const days = Array.from({ length: 7 }, (_, index) => out.journal(day(index - 6)));
+  const [d6, d5, d4, d3, d2, d1, today] = days;
+  out.block(d6, 'Started keeping the renovation and the essay in one notebook instead of three.');
+  out.block(d6, `Read Book II of ${link(meditations)} on the train. Marked a few passages.`);
+  const callHana = out.block(d6, `Call with ${link(hana)} #Meeting`);
+  out.block(callHana, '3,000 words, due in about two weeks.');
+  out.block(callHana, 'Angle: reading as a practice, not a quantity.');
+  out.block(callHana, `She suggested ${link(shallows)} as the foil.`);
+  out.block(d6, `Idea: a ${link(commonplace)} is a reading tool, not an archive.`);
+  out.block(d5, 'Measured the kitchen twice and got two different numbers. Third time tomorrow, with the laser.');
+  out.block(d5, `Climbing with ${link(tom)}. Finally sent the blue overhang.`);
+  out.block(d5, 'Question for the essay: does rereading count as slow reading, or is it its own thing?');
+  out.block(d4, `Measured the pantry wall properly for ${link(kitchen)}.`);
+  out.block(d4, 'Review on the train: Italian words are sticking better than the Stoics.');
+  out.block(d4, 'Dinner: miso aubergine again. Less sugar next time.');
+  out.block(d3, `Outlined ${link(essay)}: attention, friction, return.`);
+  out.block(d3, `${link(premeditatio)} as budgeting: imagine the overrun before signing anything.`);
+  const visit = out.block(d2, `Site visit with ${link(priya)} #Meeting`);
+  out.block(visit, 'Cabinet quote by Thursday.');
+  out.block(visit, 'Oak veneer rather than solid oak, because of the humidity by the window.');
+  out.block(visit, 'The tile order is two weeks late; she will chase it.');
+  out.block(d2, 'Writing before work, 07:10 to 08:25. The opening paragraph is far too long.');
+  out.block(d1, 'Wrote again before work and got the Seneca bit in.');
+  out.block(d1, `Priya's quote came in at 9.4k. One more and I can decide.`);
+  out.block(d1, `${link(tom)} asked about Saturday. Haven't replied.`);
+  const plan = out.block(today, 'Plan', 2);
+  out.block(plan, 'Morning: find the Seneca letter, then finish section one.');
+  out.block(plan, 'Afternoon: worktop samples at the showroom.');
+  const library = out.block(today, 'Return the library books');
+  const reply = out.block(today, `Reply to ${link(tom)} about Saturday`);
+  out.block(today, '');
+  await out.commit('Journal');
+  await on(library, base => ({ op: 'set_task', id: library, base_revision: base, task: taskState({ scheduled: day(0), time: '17:30' }) }), 'Task');
+  await on(reply, base => ({ op: 'set_task', id: reply, base_revision: base, task: taskState({}) }), 'Task');
+
+  // A week of reviews: a session on four mornings, leaving some cards due today and a few new.
+  type Card = { id: string; definition_revision: number; front: string; back: string };
+  const cards = (await api<{ rows: { card: Card }[] }>('POST', '/api/cards/query', { selection: 'all', limit: 500 })).rows.map(row => row.card);
+  const grades = ['good', 'good', 'hard', 'good', 'again', 'good', 'easy', 'good'] as const;
+  const plans = cards.slice(0, Math.max(0, cards.length - 4)).map((card, index) => {
+    const first = [-6, -6, -4, -4, -2][index % 5];
+    const days = first === -6 ? [-6, -4, -1] : first === -4 ? [-4, -1] : [-2];
+    return { card, reviews: days.map((offset, step) => ({ offset, grade: grades[(index + step) % grades.length] })) };
+  });
+  for (const offset of [-6, -4, -2, -1]) {
+    const due = plans.flatMap(({ card, reviews }) => reviews.filter(review => review.offset === offset).map(review => ({ card, grade: review.grade })));
+    if (!due.length) continue;
+    const session = ulid();
+    const started = at(offset, '07:40');
+    await commit([{ op: 'start_review_session', id: session, deck_id: null, started_at: started }], 'Review');
+    let clock = started;
+    for (const { card, grade } of due) {
+      clock += 25_000;
+      await commit([{ op: 'grade_card', id: card.id, base_revision: cardRevision.get(card.id) ?? 1, definition_revision: card.definition_revision, event_id: ulid(), session_id: session, grade, reset: false, shown_front: card.front, shown_back: card.back, reviewed_at: clock }], 'Grade');
+    }
+    await commit([{ op: 'finish_review_session', id: session, base_revision: sessionRevision.get(session)!, state: 'finished', ended_at: clock + 30_000 }], 'Review finished');
+  }
+
+  // Saved views.
+  const query = (type: string, sortField: string | null = null) => ({ type, text: null, filters: [], sort: sortField ? [{ by: 'field', field: sortField, direction: 'asc' }] : [{ by: 'title', field: null, direction: 'asc' }], limit: 100 });
+  await commit([
+    { op: 'save_view', id: ulid(), base_revision: null, name: 'People', query: query(person) },
+    { op: 'save_view', id: ulid(), base_revision: null, name: 'Concepts by stage', query: query(concept, stage) },
+    { op: 'save_task_view', id: ulid(), base_revision: null, name: 'Kitchen', query: { source: null, filter: { selection: 'unfinished_or_recent', statuses: [], recent_days: 7, scheduled: null, deadline: null, priority: null, project_id: kitchen }, context_date: day(0), limit: null } },
+    { op: 'save_deck', id: ulid(), base_revision: null, name: 'Italian', query: { source: query(vocabulary), selection: 'due', limit: null } },
+    { op: 'save_library_view', id: ulid(), base_revision: null, name: 'Not started', query: { states: ['inbox'], format: null, text: null, people: [], publishers: [], decades: [], languages: [], sort: 'added', direction: 'desc', limit: 100 } },
+  ], 'Saved views');
+}
+
+// ---------------------------------------------------------------- run
+
+try {
+  await ready();
+  await seed();
+} catch (error) {
+  service.kill();
+  await service.exited;
+  console.error(`seed: failed; the partial notebook is in ${staging} and the service log in ${log}`);
+  throw error;
+}
+service.kill();
+await service.exited;
+if (existsSync(dir)) rmSync(dir, { recursive: true, force: true });
+renameSync(staging, dir);
+rmSync(log, { force: true });
+register(dir);
+console.log(`seed: wrote ${dir}`);
+console.log(`seed: open it from Settings → Notebooks, or serve it with: tessera --notebook ${dir} serve --port <port>`);
+
