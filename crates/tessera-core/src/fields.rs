@@ -142,6 +142,7 @@ impl FieldChanges {
             | Operation::SetArchived { id, .. }
             | Operation::SetFieldKind { id, .. } => self.capture(conn, id),
             Operation::SetTypeFields { .. }
+            | Operation::SetTypePresentation { .. }
             | Operation::SetSubjectCriteria { .. }
             | Operation::CreateCardTemplate { .. }
             | Operation::UpdateCardTemplate { .. }

@@ -116,3 +116,9 @@
   .template-field-table .template-field-actions .button { width: calc(var(--space-16) + var(--space-8)); }
   .template-field-usage, .template-field-usage .button { font-size: var(--text-apparatus); }
 }
+
+.type-presentation-form { display: flex; flex-direction: column; gap: var(--space-12); }
+.type-presentation-icons { display: grid; grid-template-columns: repeat(6, minmax(var(--target-size), 1fr)); gap: var(--space-4); }
+.type-presentation-icons .button { min-height: var(--touch-target); }
+.type-presentation-icons .button[aria-pressed="true"] { background: var(--selection); color: var(--accent); }
+.type-presentation-form label { display: flex; flex-direction: column; gap: var(--space-4); color: var(--muted); font: var(--apparatus); }

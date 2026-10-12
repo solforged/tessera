@@ -14,6 +14,8 @@ import type { MenuItem } from '../ui/Menu';
 import { Popup } from '../ui/Popup';
 import { TypeModeTabs } from '../ui/TypeModeTabs';
 import { kindLabels, partialDatePlaceholder } from '../fields/kinds';
+import { noteKindIcon } from '../notes/kinds';
+import { autoPlural } from '../fields/presentation';
 import { FilterPopup } from './FilterPopup';
 import { addFilter, chooseSort, copyQuery, fieldEntryId, fieldEntryText, filterLabel, queriesEqual, removeFilter, removeSort, sortLabel } from './query';
 import { sourceText } from './sources';
@@ -129,7 +131,7 @@ export function TablePane(props: TablePaneProps) {
     reportView();
   };
   const changed = () => !!saved() && !queriesEqual(query(), saved()!.query);
-  const title = () => type()?.page.text ?? props.notebook.lookup(query().type ?? '')()?.text ?? '';
+  const title = () => typeKind()?.plural ?? type()?.plural ?? autoPlural(type()?.page.text ?? props.notebook.lookup(query().type ?? '')()?.text ?? '');
   const updateQuery = (next: Query) => {
     setQuery(copyQuery(next));
     reportView(next);
@@ -382,7 +384,7 @@ export function TablePane(props: TablePaneProps) {
       <header class="table-header">
         <div class="table-heading">
           <div class="table-register-label"><Show when={query().type}><Button class="table-type-label" onClick={event => props.onOpen({ kind: 'page', pageId: query().type! }, event.shiftKey)}>{title()}</Button><span aria-hidden="true"> / </span></Show><span>Register</span></div>
-          <h1><Button class="table-title" label="Views" aria-haspopup="menu" onClick={event => viewMenu(event.currentTarget)}><span>{saved()?.name ?? (title() || 'All blocks')}</span><Icon name="down" /></Button></h1>
+          <h1><Button class="table-title" label="Views" aria-haspopup="menu" onClick={event => viewMenu(event.currentTarget)}><Show when={typeKind()}>{kind => <Icon name={noteKindIcon(kind())} />}</Show><span>{saved()?.name ?? (title() || 'All blocks')}</span><Icon name="down" /></Button></h1>
         </div>
         <div class="table-view-status"><Show when={props.target.viewId && saved()} fallback={<Show when={result()}>{rows => <>{membersLabel(rows().total)}</>}</Show>}>
           <span>{changed() ? 'Unsaved changes' : 'Saved view'}</span><Show when={changed()}><Button onClick={() => { void saveChanges().catch(message); }}>Save</Button><Button onClick={() => { const value = saved(); if (value) switchView(value); }}>Discard</Button></Show>

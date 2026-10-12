@@ -33,6 +33,7 @@ pub const TABLES: &[(&str, Replication)] = &[
     ("provisional_pages", Replication::Applied),
     ("fields", Replication::Applied),
     ("type_fields", Replication::Applied),
+    ("type_presentation", Replication::Applied),
     ("subject_criteria", Replication::Applied),
     ("field_values", Replication::Applied),
     ("views", Replication::Applied),

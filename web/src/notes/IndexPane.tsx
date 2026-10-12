@@ -62,7 +62,7 @@ export function IndexDirectory(props: IndexPaneProps) {
         <Show when={list().kinds.length} fallback={<p class="empty-state">No kinds yet.</p>}>
           <div class="index-directory-list"><For each={list().kinds}>{kind =>
             <div class="index-directory-row">
-              <Icon name={tagOnly(kind) ? 'tag' : noteKindIcon(kind.key)} />
+              <Icon name={noteKindIcon(kind)} />
               <Button class="index-directory-name" onClick={event => props.onOpen(indexKindTarget(kind), event.shiftKey)}>{kind.plural}</Button>
               <span class="index-directory-count">{tagOnly(kind) ? `${kind.tagged_block_count.toLocaleString()} tagged` : tally(kind.count, kind.key === 'source' ? 'source' : 'note')}</span>
               <Button class="index-directory-open" label={`Open ${kind.plural} ${tagOnly(kind) ? 'table' : 'index'}`} onClick={event => props.onOpen(indexKindTarget(kind), event.shiftKey)}>Open {tagOnly(kind) ? 'table' : 'index'}<Icon name="right" /></Button>
@@ -122,7 +122,7 @@ function KindIndexPane(props: IndexPaneProps) {
   return <div ref={scroll} class={`index-pane ${props.kindKey === 'unfiled' ? 'index-unfiled' : props.kindKey === 'source' ? 'index-sources' : ''}`} role="region" tabIndex={0} aria-label={`${title()} index`} onFocusIn={props.onActivate} onScroll={scrollChanged}>
     <div class="index-sheet">
       <p class="index-eyebrow">{props.kindKey === 'unfiled' ? 'Filing queue' : props.kindKey === 'source' ? 'Index · Bibliography' : 'Index'}</p>
-      <div class="index-head"><h1><Icon name={noteKindIcon(props.kindKey)} />{title()}</h1>
+      <div class="index-head"><h1><Icon name={noteKindIcon(props.kind ?? props.kindKey)} />{title()}</h1>
         <Show when={index.latest}>{list => <span class="index-tally">{tally(list().notes.length, props.kindKey === 'source' ? 'source' : 'note')}</span>}</Show>
       </div>
       <Show when={typeId()}>{id => <TypeModeTabs active="index" indexCount={index.latest?.notes.length ?? 0} tableCount={type()?.members ?? index.latest?.notes.length ?? 0} fieldsCount={type()?.fields.length ?? 0}

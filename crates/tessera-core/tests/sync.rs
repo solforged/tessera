@@ -1193,3 +1193,43 @@ fn the_same_book_imported_offline_on_both_devices_is_one_source() {
     let quote = p.replica.block(&id(80)).unwrap();
     assert_eq!(quote.parent_id.as_deref(), Some(desk_source.as_str()));
 }
+
+#[test]
+fn type_presentation_replicates_rebases_and_resets() {
+    let mut p = pair();
+    let page = p.page.clone();
+    let revision = p.replica.block(&page).unwrap().revision;
+    apply(
+        &mut p.replica,
+        vec![Operation::SetTypePresentation {
+            type_id: page.clone(),
+            base_revision: revision,
+            plural: Some("Plans for later".into()),
+            icon: Some("calendar".into()),
+        }],
+    );
+    let rename = edit(&p.hub, &page, "Plan");
+    apply(&mut p.hub, vec![rename]);
+    let report = p.sync();
+    assert!(matches!(
+        report.pushed[0].outcome,
+        PushOutcome::Accepted { .. }
+    ));
+    p.assert_converged();
+    let info = p.hub.type_info(&page).unwrap();
+    assert_eq!(info.plural.as_deref(), Some("Plans for later"));
+    assert_eq!(info.icon.as_deref(), Some("calendar"));
+    apply(
+        &mut p.hub,
+        vec![Operation::SetTypePresentation {
+            type_id: page.clone(),
+            base_revision: info.page.revision,
+            plural: None,
+            icon: None,
+        }],
+    );
+    p.sync();
+    p.assert_converged();
+    assert_eq!(p.replica.type_info(&page).unwrap().plural, None);
+    assert_eq!(p.replica.type_info(&page).unwrap().icon, None);
+}

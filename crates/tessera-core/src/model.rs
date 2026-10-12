@@ -240,6 +240,12 @@ pub enum Operation {
         base_revision: i64,
         fields: Vec<String>,
     },
+    SetTypePresentation {
+        type_id: String,
+        base_revision: i64,
+        plural: Option<String>,
+        icon: Option<String>,
+    },
     SetSubjectCriteria {
         subject_id: String,
         base_revision: i64,
@@ -714,6 +720,8 @@ pub struct View {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TypeInfo {
     pub page: Block,
+    pub plural: Option<String>,
+    pub icon: Option<String>,
     pub fields: Vec<String>,
     pub members: usize,
     pub card_templates: usize,
