@@ -425,6 +425,9 @@ export class Document implements PageDocument {
       case 'subjectCriteria':
         this.changed(action.id, {}, base);
         return [{ kind: 'subjectCriteria', id: action.id, fields: action.previous, previous: action.fields }];
+      case 'typePresentation':
+        this.changed(action.id, {}, base);
+        return [{ kind: 'typePresentation', id: action.id, value: action.previous, previous: action.value }];
       case 'addType':
       case 'removeType': {
         this.snapshot(action.id, base);
@@ -1190,6 +1193,11 @@ export class Document implements PageDocument {
           actions.push({ kind: 'subjectCriteria', id: edit.id, fields: [...edit.fields], previous: [...edit.previous], baseRevision: edit.revision });
           break;
         }
+        case 'typePresentation': {
+          if (this.snapshot(edit.id).revision !== edit.revision || this.block(edit.id)?.pending) throw new Error('The type changed. Refresh before changing its icon or name.');
+          if (!sameState(edit.value, edit.previous)) actions.push({ kind: 'typePresentation', id: edit.id, value: { ...edit.value }, previous: { ...edit.previous }, baseRevision: edit.revision });
+          break;
+        }
         case 'addType':
         case 'removeType': {
           const block = this.block(edit.id);
@@ -1317,7 +1325,7 @@ export class Document implements PageDocument {
     const entry = from.pop();
     if (!entry) return null;
     const actions = (undo ? entry.inverse : entry.forward).flatMap<Action>(action => {
-      if (!undo && (action.kind === 'fieldKind' || action.kind === 'subjectCriteria')) return [{ ...action, baseRevision: undefined }];
+      if (!undo && (action.kind === 'fieldKind' || action.kind === 'subjectCriteria' || action.kind === 'typePresentation')) return [{ ...action, baseRevision: undefined }];
       if (!undo && (action.kind === 'insert' || action.kind === 'split') && this.baseBlocks.has(action.block.id)) {
         const restored: Action = { kind: 'restore', id: action.block.id, snapshots: [{ block: action.block, manual_types: this.baseManualTypes.get(action.block.id) ?? [], capabilities: this.capabilities(action.block.id, true), row: { id: action.block.id, parentId: action.block.parent_id!, depth: action.block.parent_id === this.pageId ? 0 : this.outline.depth(action.block.parent_id!) + 1 } }], after: action.kind === 'split' ? action.id : action.after };
         return action.kind === 'split' ? [{ kind: 'text', id: action.id, text: action.left }, restored] : [restored];

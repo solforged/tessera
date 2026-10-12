@@ -1,4 +1,6 @@
 import { createMemo, createResource, For, Show, untrack } from 'solid-js';
+import { Icon } from '../ui/Icon';
+import { noteKindIcon } from './kinds';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import { foldName } from '../outline/names';
 import { fieldEntryId } from '../table/query';
@@ -11,7 +13,7 @@ export function NoteEyebrow(props: { pageId: string; notebook: NotebookClient; o
   return <Show when={!kinds.error && kinds.latest?.length}>
     <p class="note-eyebrow"><For each={kinds.latest}>{(kind, index) => <>
       <Show when={index()}><span class="note-eyebrow-separator" aria-hidden="true">/</span></Show>
-      <button type="button" title={`Open the ${kind.plural} index · Shift to open beside`} onClick={event => props.onOpen({ kind: 'index', key: kind.key }, event.shiftKey)}>{kind.name}</button>
+      <button type="button" title={`Open the ${kind.plural} index · Shift to open beside`} onClick={event => props.onOpen({ kind: 'index', key: kind.key }, event.shiftKey)}><Icon name={noteKindIcon(kind)} />{kind.plural}</button>
     </>}</For></p>
   </Show>;
 }

@@ -127,7 +127,7 @@ fn notes_file_under_built_in_kinds_capabilities_and_types_you_made() {
             ("question".into(), "Questions".into(), 1),
             ("source".into(), "Sources".into(), 0),
             ("project".into(), "Projects".into(), 1),
-            (format!("type:{historian}"), "Historian".into(), 1),
+            (format!("type:{historian}"), "Historians".into(), 1),
             ("unfiled".into(), "Unfiled".into(), 1),
         ]
     );
@@ -266,8 +266,8 @@ fn index_lists_tag_only_types_without_changing_note_counts() {
             ("Questions", 0, 0),
             ("Sources", 0, 0),
             ("Projects", 0, 0),
-            ("Book", 1, 1),
-            ("Excerpt", 0, 2),
+            ("Books", 1, 1),
+            ("Excerpts", 0, 2),
             ("Unfiled", 1, 0),
         ],
     );
@@ -291,45 +291,81 @@ fn kind_index_summaries_derive_prose_fields_live_counts_and_distinct_backlinks()
     let mut nb = Notebook::open(dir.path()).unwrap();
     let fields = nb.fields().unwrap().page_id;
     let insert = |value, parent_id: String, after, text: String, heading| Operation::Insert {
-        id: id(value), parent_id, after, text, heading,
+        id: id(value),
+        parent_id,
+        after,
+        text,
+        heading,
     };
-    apply(&mut nb, vec![
-        page(1, "Alpha"), page(2, "Beta"), page(3, "Blank"), page(4, "Referrer"),
-        page(5, "Archived referrer"), page(6, "Prepended prose"), page(10, "Topics"),
-        insert(20, fields.clone(), None, "Gloss".into(), None),
-        insert(21, fields, Some(id(20)), "Area".into(), None),
-        insert(100, id(1), None, "Earlier prose".into(), None),
-        insert(101, id(1), Some(id(100)), format!("[[{}]]", id(20)), None),
-        insert(102, id(101), None, "Preferred gloss".into(), None),
-        insert(103, id(1), Some(id(101)), format!("[[{}]]", id(21)), None),
-        insert(104, id(103), None, "Architecture".into(), None),
-        insert(200, id(2), None, format!("[[{}]]", id(21)), None),
-        insert(201, id(200), None, "Not prose".into(), None),
-        insert(202, id(2), Some(id(200)), "Heading".into(), Some(2)),
-        insert(203, id(202), None, "Nested first prose".into(), None),
-        insert(204, id(2), Some(id(202)), "Archived prose".into(), None),
-        insert(205, id(204), None, "Hidden descendant".into(), None),
-        insert(206, id(2), Some(id(204)), "Deleted prose".into(), None),
-        insert(300, id(3), None, "".into(), None),
-        insert(400, id(4), None, format!("[[{}]] [[{}]]", id(3), id(3)), None),
-        insert(401, id(4), Some(id(400)), format!("[[{}]]", id(3)), None),
-        insert(500, id(5), None, format!("[[{}]]", id(3)), None),
-        insert(600, id(6), None, "Later prose".into(), None),
-        insert(601, id(6), None, "Earlier prose".into(), None),
-        insert(602, id(6), None, "Earliest prose".into(), None),
-    ]);
+    apply(
+        &mut nb,
+        vec![
+            page(1, "Alpha"),
+            page(2, "Beta"),
+            page(3, "Blank"),
+            page(4, "Referrer"),
+            page(5, "Archived referrer"),
+            page(6, "Prepended prose"),
+            page(10, "Topics"),
+            insert(20, fields.clone(), None, "Gloss".into(), None),
+            insert(21, fields, Some(id(20)), "Area".into(), None),
+            insert(100, id(1), None, "Earlier prose".into(), None),
+            insert(101, id(1), Some(id(100)), format!("[[{}]]", id(20)), None),
+            insert(102, id(101), None, "Preferred gloss".into(), None),
+            insert(103, id(1), Some(id(101)), format!("[[{}]]", id(21)), None),
+            insert(104, id(103), None, "Architecture".into(), None),
+            insert(200, id(2), None, format!("[[{}]]", id(21)), None),
+            insert(201, id(200), None, "Not prose".into(), None),
+            insert(202, id(2), Some(id(200)), "Heading".into(), Some(2)),
+            insert(203, id(202), None, "Nested first prose".into(), None),
+            insert(204, id(2), Some(id(202)), "Archived prose".into(), None),
+            insert(205, id(204), None, "Hidden descendant".into(), None),
+            insert(206, id(2), Some(id(204)), "Deleted prose".into(), None),
+            insert(300, id(3), None, "".into(), None),
+            insert(
+                400,
+                id(4),
+                None,
+                format!("[[{}]] [[{}]]", id(3), id(3)),
+                None,
+            ),
+            insert(401, id(4), Some(id(400)), format!("[[{}]]", id(3)), None),
+            insert(500, id(5), None, format!("[[{}]]", id(3)), None),
+            insert(600, id(6), None, "Later prose".into(), None),
+            insert(601, id(6), None, "Earlier prose".into(), None),
+            insert(602, id(6), None, "Earliest prose".into(), None),
+        ],
+    );
     tag(&mut nb, 1, "Topics");
     tag(&mut nb, 2, "Topics");
     let type_revision = revision(&nb, 10);
     let archived_revision = revision(&nb, 204);
     let deleted_revision = revision(&nb, 206);
     let referrer_revision = revision(&nb, 5);
-    apply(&mut nb, vec![
-        Operation::SetTypeFields { type_id: id(10), base_revision: type_revision, fields: vec![id(20), id(21)] },
-        Operation::SetArchived { id: id(204), base_revision: archived_revision, archived: true },
-        Operation::Delete { id: id(206), base_revision: deleted_revision },
-        Operation::SetArchived { id: id(5), base_revision: referrer_revision, archived: true },
-    ]);
+    apply(
+        &mut nb,
+        vec![
+            Operation::SetTypeFields {
+                type_id: id(10),
+                base_revision: type_revision,
+                fields: vec![id(20), id(21)],
+            },
+            Operation::SetArchived {
+                id: id(204),
+                base_revision: archived_revision,
+                archived: true,
+            },
+            Operation::Delete {
+                id: id(206),
+                base_revision: deleted_revision,
+            },
+            Operation::SetArchived {
+                id: id(5),
+                base_revision: referrer_revision,
+                archived: true,
+            },
+        ],
+    );
     let index = nb.kind_notes(&format!("type:{}", id(10))).unwrap();
     assert_eq!(index.summaries.len(), 2);
     let alpha = &index.summaries[&id(1)];
@@ -339,16 +375,33 @@ fn kind_index_summaries_derive_prose_fields_live_counts_and_distinct_backlinks()
     assert_eq!(alpha.block_count, 5);
     let beta = &index.summaries[&id(2)];
     assert_eq!(beta.preview.as_deref(), Some("Nested first prose"));
-    assert_eq!(beta.block_count, 6, "live archived descendants count, deleted descendants do not");
-    assert_eq!(beta.text_blocks, 4, "archived ancestry hides nonempty descendants");
+    assert_eq!(
+        beta.block_count, 6,
+        "live archived descendants count, deleted descendants do not"
+    );
+    assert_eq!(
+        beta.text_blocks, 4,
+        "archived ancestry hides nonempty descendants"
+    );
     let unfiled = nb.kind_notes("unfiled").unwrap();
-    assert_eq!(unfiled.summaries[&id(6)].preview.as_deref(), Some("Earliest prose"), "negative sibling ordinals retain outline order");
+    assert_eq!(
+        unfiled.summaries[&id(6)].preview.as_deref(),
+        Some("Earliest prose"),
+        "negative sibling ordinals retain outline order"
+    );
     let blank = &unfiled.summaries[&id(3)];
     assert_eq!(blank.preview, None);
     assert_eq!(blank.block_count, 1);
     assert_eq!(blank.text_blocks, 0);
-    assert_eq!(blank.backlinks, 2, "repeat tokens count once per referring block");
-    assert_eq!(blank.referenced_from.len(), 1, "referring pages deduplicate, archived pages disappear");
+    assert_eq!(
+        blank.backlinks, 2,
+        "repeat tokens count once per referring block"
+    );
+    assert_eq!(
+        blank.referenced_from.len(),
+        1,
+        "referring pages deduplicate, archived pages disappear"
+    );
     assert_eq!(blank.referenced_from[0].id, id(4));
 }
 
@@ -356,31 +409,43 @@ fn kind_index_summaries_derive_prose_fields_live_counts_and_distinct_backlinks()
 fn filing_queue_create_type_and_membership_share_one_batch_and_keep_links() {
     let dir = tempfile::tempdir().unwrap();
     let mut nb = Notebook::open(dir.path()).unwrap();
-    apply(&mut nb, vec![
-        page(1, "Anacyclosis"),
-        page(2, "Polybius"),
-        Operation::Insert {
-            id: id(20),
-            parent_id: id(2),
-            after: None,
-            text: format!("[[{}]]", id(1)),
-            heading: None,
-        },
-    ]);
+    apply(
+        &mut nb,
+        vec![
+            page(1, "Anacyclosis"),
+            page(2, "Polybius"),
+            Operation::Insert {
+                id: id(20),
+                parent_id: id(2),
+                after: None,
+                text: format!("[[{}]]", id(1)),
+                heading: None,
+            },
+        ],
+    );
     let base_revision = revision(&nb, 1);
-    apply(&mut nb, vec![
-        page(3, "Concept"),
-        Operation::AddType {
-            id: id(1),
-            base_revision,
-            title: "Concept".into(),
-        },
-    ]);
+    apply(
+        &mut nb,
+        vec![
+            page(3, "Concept"),
+            Operation::AddType {
+                id: id(1),
+                base_revision,
+                title: "Concept".into(),
+            },
+        ],
+    );
     assert_eq!(nb.page_by_title("Concept").unwrap().unwrap().id, id(3));
     assert_eq!(titles(&nb, "unfiled"), ["Polybius"]);
     assert_eq!(titles(&nb, "concept"), ["Anacyclosis"]);
-    assert_eq!(nb.note_kinds(&id(1)).unwrap()[0].type_id.as_deref(), Some(id(3).as_str()));
-    assert_eq!(nb.kind_notes("concept").unwrap().summaries[&id(1)].backlinks, 1);
+    assert_eq!(
+        nb.note_kinds(&id(1)).unwrap()[0].type_id.as_deref(),
+        Some(id(3).as_str())
+    );
+    assert_eq!(
+        nb.kind_notes("concept").unwrap().summaries[&id(1)].backlinks,
+        1
+    );
     assert_eq!(nb.block(&id(20)).unwrap().text, format!("[[{}]]", id(1)));
 
     // The same membership operation files another note without creating another type page.
@@ -388,4 +453,64 @@ fn filing_queue_create_type_and_membership_share_one_batch_and_keep_links() {
     assert!(titles(&nb, "unfiled").is_empty());
     assert_eq!(titles(&nb, "concept"), ["Anacyclosis", "Polybius"]);
     assert_eq!(nb.page_by_title("Concept").unwrap().unwrap().id, id(3));
+}
+
+#[test]
+fn type_presentation_defaults_overrides_reset_and_validation() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut nb = Notebook::open(dir.path()).unwrap();
+    apply(&mut nb, vec![page(1, "Book"), page(2, "A book")]);
+    tag(&mut nb, 2, "Book");
+    let kind = nb.note_kinds(&id(2)).unwrap().remove(0);
+    assert_eq!(kind.plural, "Books");
+    assert_eq!(kind.icon.as_deref(), Some("book"));
+    assert_eq!(nb.type_info(&id(1)).unwrap().plural, None);
+    let set =
+        |base_revision, plural: Option<&str>, icon: Option<&str>| Operation::SetTypePresentation {
+            type_id: id(1),
+            base_revision,
+            plural: plural.map(str::to_owned),
+            icon: icon.map(str::to_owned),
+        };
+    apply(&mut nb, vec![set(1, Some("  Volumes  "), Some("shelf"))]);
+    let info = nb.type_info(&id(1)).unwrap();
+    assert_eq!(info.plural.as_deref(), Some("Volumes"));
+    assert_eq!(info.icon.as_deref(), Some("shelf"));
+    assert_eq!(nb.types().unwrap()[0], info);
+    let kind = nb.note_kinds(&id(2)).unwrap().remove(0);
+    assert_eq!(kind.plural, "Volumes");
+    assert_eq!(kind.icon.as_deref(), Some("shelf"));
+    for operation in [
+        set(1, None, None),
+        set(2, Some(" "), None),
+        set(2, None, Some("")),
+        set(2, None, Some("not a token")),
+        set(2, None, Some(&"x".repeat(65))),
+        Operation::SetTypePresentation {
+            type_id: id(3),
+            base_revision: 1,
+            plural: None,
+            icon: None,
+        },
+    ] {
+        assert!(
+            nb.apply(&Batch {
+                actor: Actor::Person,
+                reason: None,
+                idempotency_key: None,
+                operations: vec![operation]
+            })
+            .is_err()
+        );
+        assert_eq!(nb.type_info(&id(1)).unwrap(), info);
+    }
+    apply(&mut nb, vec![set(2, None, Some("future-glyph"))]);
+    assert_eq!(
+        nb.note_kinds(&id(2)).unwrap()[0].icon.as_deref(),
+        Some("future-glyph")
+    );
+    apply(&mut nb, vec![set(3, None, None)]);
+    let kind = nb.note_kinds(&id(2)).unwrap().remove(0);
+    assert_eq!(kind.plural, "Books");
+    assert_eq!(kind.icon.as_deref(), Some("book"));
 }

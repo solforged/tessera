@@ -553,7 +553,8 @@ export function App() {
   const activeViewId = () => { const target = entry(active())?.target; return target?.kind === 'table' ? target.viewId ?? undefined : undefined; };
   const activeTypeId = () => { const target = entry(active())?.target; return target?.kind === 'table' && !target.viewId ? target.typeId : null; };
   const activeKindKey = () => { const target = entry(active())?.target; return target?.kind === 'index' ? target.key : (target?.kind === 'fields' || target?.kind === 'cards') && target.typeId ? index()?.kinds.find(kind => kind.type_id === target.typeId)?.key : undefined; };
-  const indexKind = (pane: PaneId) => { const target = entry(pane)?.target; return target?.kind === 'index' ? index()?.kinds.find(kind => kind.key === target.key) : undefined; };
+  /** The note kind a pane shows: its index, or the type behind its fields or cards. */
+  const indexKind = (pane: PaneId) => { const target = entry(pane)?.target; return target?.kind === 'index' ? index()?.kinds.find(kind => kind.key === target.key) : (target?.kind === 'fields' || target?.kind === 'cards') && target.typeId ? index()?.kinds.find(kind => kind.type_id === target.typeId) : undefined; };
   // A table pane is named for its saved view, else its type, and an index pane for its kind, rather than the generic label.
   const paneTitle = (pane: PaneId) => {
     const target = entry(pane)?.target;
@@ -601,7 +602,7 @@ export function App() {
         {/* Kinds re-arrive as fresh objects after each change; Index keeps rows mounted by position. */}
         <Index each={index()!.kinds}>{kind => <>
           {/* Built-in kinds stay listed while empty: a faint name and no count. */}
-          <Button class={`index-kind ${activeKindKey() === kind().key || tagOnly(kind()) && activeTypeId() === kind().type_id ? 'selected' : ''} ${kind().count || kind().tagged_block_count ? '' : 'empty'}`} icon={tagOnly(kind()) ? 'tag' : noteKindIcon(kind().key)} title={kind().plural} onClick={event => open(indexKindTarget(kind()), event.shiftKey)}><span>{kind().plural}</span><Show when={kind().count || kind().tagged_block_count}>{count => <span class="desk-count">{count().toLocaleString()}</span>}</Show></Button>
+          <Button class={`index-kind ${activeKindKey() === kind().key || tagOnly(kind()) && activeTypeId() === kind().type_id ? 'selected' : ''} ${kind().count || kind().tagged_block_count ? '' : 'empty'}`} icon={noteKindIcon(kind())} title={kind().plural} onClick={event => open(indexKindTarget(kind()), event.shiftKey)}><span>{kind().plural}</span><Show when={kind().count || kind().tagged_block_count}>{count => <span class="desk-count">{count().toLocaleString()}</span>}</Show></Button>
           <Show when={kind().type_id !== null && otherViews().some(view => view.query.type === kind().type_id)}><div class="index-views"><ViewLinks views={otherViews().filter(view => view.query.type === kind().type_id)} pinned={false} activeId={activeViewId()} onOpen={openView} onPin={pinView} /></div></Show>
         </>}</Index>
       </section></Show>
@@ -821,9 +822,8 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
   const kindIcon = (): IconName => {
     if (pageId()) return root()?.kind === 'journal' ? 'today' : root()?.source ? 'library' : 'page';
     const target = current().target;
-    if (target.kind === 'index') return noteKindIcon(target.key);
-    if (target.kind === 'fields' && target.typeId) return noteKindIcon(`type:${target.typeId}`);
-    if (target.kind === 'cards') return noteKindIcon(`type:${target.typeId}`);
+    if (target.kind === 'index') return noteKindIcon(props.noteKind ?? target.key);
+    if ((target.kind === 'fields' || target.kind === 'cards') && target.typeId) return noteKindIcon(props.noteKind ?? `type:${target.typeId}`);
     const kind = target.kind;
     return kind === 'agenda' ? 'agenda' : kind === 'review' ? 'review' : kind === 'library' || kind === 'reader' ? 'library' : kind === 'table' ? 'table' : kind === 'fields' || kind === 'field' ? 'field' : kind === 'settings' ? 'settings' : kind === 'compare' ? 'compare' : 'page';
   };

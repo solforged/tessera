@@ -1692,6 +1692,36 @@ impl Engine<'_, '_> {
                 }
                 self.bump(&current, true)
             }
+            Operation::SetTypePresentation {
+                type_id,
+                base_revision,
+                plural,
+                icon,
+            } => {
+                let current = self.checked(type_id, *base_revision, index, false)?;
+                if current.block.kind != BlockKind::Page {
+                    return Err(validation("type must be a page"));
+                }
+                let plural = plural.as_deref().map(str::trim);
+                if plural.is_some_and(str::is_empty) {
+                    return Err(validation("plural must not be empty"));
+                }
+                if icon.as_ref().is_some_and(|icon| {
+                    icon.is_empty()
+                        || icon.len() > 64
+                        || !icon
+                            .bytes()
+                            .all(|c| c.is_ascii_alphanumeric() || c == b'-' || c == b'_')
+                }) {
+                    return Err(validation("icon must be a short glyph token"));
+                }
+                self.tx.execute(
+                    "INSERT INTO type_presentation(type_id, plural, icon) VALUES (?1, ?2, ?3)
+                     ON CONFLICT(type_id) DO UPDATE SET plural = excluded.plural, icon = excluded.icon",
+                    params![type_id, plural, icon],
+                )?;
+                self.bump(&current, true)
+            }
             Operation::SetSubjectCriteria {
                 subject_id,
                 base_revision,

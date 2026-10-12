@@ -598,6 +598,12 @@ export class Notebook implements NotebookClient, DocumentHost {
           block.revision++;
           break;
         }
+        case 'typePresentation': {
+          const block = current(action.id);
+          operations.push({ op: 'set_type_presentation', type_id: block.id, base_revision: action.baseRevision ?? block.revision, ...action.value });
+          block.revision++;
+          break;
+        }
         case 'addType':
         case 'removeType': {
           const block = current(action.id);

@@ -411,6 +411,10 @@ On touch, holding a reference opens its slip without navigating; tapping still o
 
 Pin or ⌘ keeps the slip open; Unpin restores its compact form. A pinned page lists its actual attributed readings, with sigla, holders, gists and inline shape glyphs. Selecting a holder expands authored prose, or opens the original position if there is no prose to expand. Open reading and source links preserve access to the original outline; Compare readings opens the subject's sheet. Pages without readings keep their prose preview. Bodies scroll within `--preview-body-height`; unpinned block previews fade only when clipped. References inside a slip open stacked slips. ⌥Space opens the reference at the caret or the focused reference; Enter opens it, Shift+Enter opens it beside, and Escape closes the topmost slip. Opening does not steal focus; focused slip controls retain native keyboard behavior. Deleted targets and failed requests have explicit notices. Touch input does not open hover slips.
 
+### Type icons and names
+
+A type's template offers **Icon and name…**: a compact glyph grid and an editable plural name. The empty name previews the automatic English plural; Reset removes both overrides. Apply records one undoable change on the type page, shared across devices. The sidebar, Index directory, note eyebrow and table title read the same kind presentation. Book, Article and Collection default to their book, article and shelf glyphs without writing notebook data; other made types use a tag. An unknown glyph also reads as a tag.
+
 ## Icon
 
 The app icon carries the notebook's central idea and its material. The idea is multiperspectival notes: one subject held in several attributed readings, with the source beside what you think of it (see Perspectives and questions). The material is clockwork gold, the brass of an instrument: rings, rules and bevelled facets drawn in a few flat gilt tones. No glows and no multi-stop metallic gradients.

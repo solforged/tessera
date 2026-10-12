@@ -8,6 +8,7 @@ import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { FieldPicker } from './FieldPicker';
 import { kindLabels } from './kinds';
+import { TypePresentation } from './TypePresentation';
 import { entryAnchor, startingTemplateFor } from './templates';
 import './fields.css';
 
@@ -104,6 +105,7 @@ export function TemplateEditor(props: { type: Type; fields: readonly FieldDefini
     <Button icon="close" label={`Remove ${byId().get(id)!.name} from template`} disabled={busy()} onClick={() => void setFields(props.type.fields.filter(field => field !== id))} />
   </span>;
   return <section class={`template-editor ${props.register ? 'template-register' : ''}`} aria-label="Template">
+    <TypePresentation type={props.type} notebook={props.notebook} onError={props.onError} />
     <Show when={!props.register}><Button class="template-toggle" aria-expanded={open()} onClick={() => setOpen(value => !value)}>
       <span class="template-name">Template</span><span class="section-rule" />
       <span class="template-summary">{template().length ? template().map(id => byId().get(id)!.name).join(' · ') : 'No fields'}</span><Icon name="down" />

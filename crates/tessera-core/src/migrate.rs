@@ -37,6 +37,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/028_editor_events.sql"),
     include_str!("../migrations/029_subject_criteria.sql"),
     include_str!("../migrations/030_card_templates.sql"),
+    include_str!("../migrations/031_type_presentation.sql"),
 ];
 
 pub const SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;

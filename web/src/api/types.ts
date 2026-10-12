@@ -56,6 +56,7 @@ export type Operation =
   | { op: 'remove_type'; id: string; base_revision: number; title: string }
   | { op: 'set_field_kind'; id: string; base_revision: number; kind: FieldKind }
   | { op: 'set_type_fields'; type_id: string; base_revision: number; fields: string[] }
+  | { op: 'set_type_presentation'; type_id: string; base_revision: number; plural: string | null; icon: string | null }
   | { op: 'set_subject_criteria'; subject_id: string; base_revision: number; fields: string[] }
   | { op: 'create_card_template'; id: string; type_id: string; name: string; front: string; back: string; new_per_day: number }
   | { op: 'update_card_template'; id: string; base_revision: number; name: string; front: string; back: string; new_per_day: number }
@@ -259,10 +260,10 @@ export interface FieldDetail {
   problems: FieldValueUse[];
   readable: FieldValueUse[];
 }
-export interface Type { page: Block; fields: string[]; members: number; card_templates: number }
+export interface Type { page: Block; fields: string[]; members: number; card_templates: number; plural: string | null; icon: string | null }
 export interface View { id: string; name: string; query: Query; revision: number; created_at: number; updated_at: number }
 /** A kind notes are filed under: `person`, `group`, `concept`, `thesis`, `question`, `source`, `project`, `type:<id>` or `unfiled`. */
-export interface NoteKind { key: string; name: string; plural: string; type_id: string | null }
+export interface NoteKind { key: string; name: string; plural: string; icon: string | null; type_id: string | null }
 export interface IndexKind extends NoteKind { count: number; tagged_block_count: number }
 export interface NoteIndex { kinds: IndexKind[]; notes: number }
 export interface NoteEntry { id: string; title: string; sort_as: string | null; created_at: number }

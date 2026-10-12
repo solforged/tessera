@@ -180,6 +180,7 @@ export type Edit =
   | { kind: 'fieldKind'; definition: FieldDefinition; value: FieldKind }
   /** Replace the subject's explicit criteria; an empty previous list restores derivation on undo. */
   | { kind: 'subjectCriteria'; id: string; fields: string[]; previous: string[]; revision: number }
+  | { kind: 'typePresentation'; id: string; revision: number; value: { plural: string | null; icon: string | null }; previous: { plural: string | null; icon: string | null } }
   | { kind: 'cardTemplate'; id: string; previous: CardTemplate | null; value: CardTemplateState | null }
   /** An entry per field under `parentId` after `after`, each with one value block holding `value`; one undo step, caret at the end of the first value. */
   | { kind: 'addFieldEntries'; parentId: string; after: string | null; entries: { fieldId: string; value: string }[] }

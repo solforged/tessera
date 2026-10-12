@@ -18,6 +18,57 @@ const TYPE_KINDS: [(&str, &str, &str); 4] = [
     ("concept", "Concept", "Concepts"),
     ("thesis", "Thesis", "Theses"),
 ];
+
+const TYPE_ICONS: [(&str, &str); 3] = [
+    ("book", "book"),
+    ("article", "article"),
+    ("collection", "shelf"),
+];
+
+/// Conservative English suffixes; an explicit plural covers ambiguous and irregular titles.
+pub(crate) fn auto_plural(title: &str) -> String {
+    if title.is_empty()
+        || title.chars().any(|c| {
+            c.is_alphabetic() && !matches!(c, 'A'..='Z' | 'a'..='z' | '\u{00c0}'..='\u{024f}')
+        })
+    {
+        return title.to_owned();
+    }
+    let lower = title.to_lowercase();
+    let (stem, suffix) = if lower.ends_with("is") {
+        (&title[..title.len() - 2], "es")
+    } else if lower.ends_with("ss")
+        || lower.ends_with("us")
+        || lower.ends_with('x')
+        || lower.ends_with('z')
+        || lower.ends_with("ch")
+        || lower.ends_with("sh")
+    {
+        (title, "es")
+    } else if lower.ends_with('s') {
+        return title.to_owned();
+    } else if lower.ends_with('y')
+        && lower.len() > 1
+        && !b"aeiou".contains(&lower.as_bytes()[lower.len() - 2])
+        && lower.as_bytes()[lower.len() - 2].is_ascii_alphabetic()
+    {
+        (&title[..title.len() - 1], "ies")
+    } else {
+        (title, "s")
+    };
+    let mut plural = String::with_capacity(stem.len() + suffix.len());
+    plural.push_str(stem);
+    if title
+        .chars()
+        .filter(|c| c.is_alphabetic())
+        .all(|c| c.is_uppercase())
+    {
+        plural.extend(suffix.chars().map(|c| c.to_ascii_uppercase()));
+    } else {
+        plural.push_str(suffix);
+    }
+    plural
+}
 /// Built-in kinds read from capabilities on the page, in index order after the type kinds.
 const CAPABILITY_KINDS: [(&str, &str, &str, &str); 3] = [
     ("question", "Question", "Questions", "questions"),
@@ -33,6 +84,7 @@ pub struct NoteKind {
     pub key: String,
     pub name: String,
     pub plural: String,
+    pub icon: Option<String>,
     /// The type page a kind reads its members from; capability kinds and Unfiled have none.
     pub type_id: Option<String>,
 }
@@ -312,6 +364,7 @@ impl Notebook {
                 key: key.into(),
                 name: name.into(),
                 plural: plural.into(),
+                icon: None,
                 type_id: None,
             })
             .collect();
@@ -333,7 +386,8 @@ impl Notebook {
             kinds.push(NoteKind {
                 key: format!("type:{id}"),
                 name: title.to_owned(),
-                plural: title.to_owned(),
+                plural: auto_plural(title),
+                icon: None,
                 type_id: Some(id.to_owned()),
             });
         }
@@ -342,6 +396,7 @@ impl Notebook {
             key: UNFILED.into(),
             name: "Unfiled".into(),
             plural: "Unfiled".into(),
+            icon: None,
             type_id: None,
         });
 
@@ -372,6 +427,28 @@ impl Notebook {
                 None => by_type[type_id.as_str()],
             };
             tagged_block_counts[kind] += count;
+        }
+        // Read overrides together; defaults are derived, so old notebooks need no backfill.
+        let presentation: HashMap<String, (Option<String>, Option<String>)> = self
+            .conn
+            .prepare_cached("SELECT type_id, plural, icon FROM type_presentation")?
+            .query_map([], |row| Ok((row.get(0)?, (row.get(1)?, row.get(2)?))))?
+            .collect::<rusqlite::Result<_>>()?;
+        for kind in &mut kinds {
+            if let Some((plural, icon)) = kind.type_id.as_ref().and_then(|id| presentation.get(id))
+            {
+                if let Some(plural) = plural {
+                    kind.plural.clone_from(plural);
+                }
+                kind.icon.clone_from(icon);
+            }
+            if kind.icon.is_none() {
+                let title_key = kind.name.to_lowercase();
+                kind.icon = TYPE_ICONS
+                    .iter()
+                    .find(|(name, _)| *name == title_key)
+                    .map(|(_, icon)| (*icon).to_owned());
+            }
         }
         for (offset, (_, _, _, table)) in CAPABILITY_KINDS.iter().enumerate() {
             let sql = format!("SELECT block_id FROM {table} WHERE active = 1");
@@ -415,4 +492,39 @@ fn is_named_kind(key: &str) -> bool {
     key == UNFILED
         || TYPE_KINDS.iter().any(|(name, ..)| *name == key)
         || CAPABILITY_KINDS.iter().any(|(name, ..)| *name == key)
+}
+
+#[cfg(test)]
+mod plural_tests {
+    use super::auto_plural;
+
+    #[test]
+    fn conservative_english_plurals_preserve_case() {
+        for (title, expected) in [
+            ("Book", "Books"),
+            ("BOOK", "BOOKS"),
+            ("book", "books"),
+            ("Story", "Stories"),
+            ("STORY", "STORIES"),
+            ("Boy", "Boys"),
+            ("Class", "Classes"),
+            ("Box", "Boxes"),
+            ("Quiz", "Quizes"),
+            ("Church", "Churches"),
+            ("Wish", "Wishes"),
+            ("Thesis", "Theses"),
+            ("THESIS", "THESES"),
+            ("Analysis", "Analyses"),
+            ("Books", "Books"),
+            ("Stories", "Stories"),
+            ("Bus", "Buses"),
+            ("本", "本"),
+            ("Книга", "Книга"),
+            ("Café", "Cafés"),
+            ("CAFÉ", "CAFÉS"),
+            ("", ""),
+        ] {
+            assert_eq!(auto_plural(title), expected, "{title}");
+        }
+    }
 }

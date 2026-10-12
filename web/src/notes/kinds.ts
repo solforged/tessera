@@ -1,12 +1,14 @@
 import { createEffect, createSignal, onCleanup, type Accessor } from 'solid-js';
-import type { IndexKind, NoteIndex } from '../api/types';
+import type { IndexKind, NoteIndex, NoteKind } from '../api/types';
 import type { NotebookClient } from '../document/contract';
-import type { IconName } from '../ui/glyphs';
+import { paths, type IconName } from '../ui/glyphs';
 import type { OpenTarget } from '../shell/contract';
 import { typeQuery } from '../table/query';
 
 /** One glyph per kind, shared by the sidebar, the finding aid and the note header. */
-export function noteKindIcon(key: string): IconName {
+export function noteKindIcon(kind: string | Pick<NoteKind, 'key' | 'icon'>): IconName {
+  if (typeof kind !== 'string' && kind.icon) return Object.hasOwn(paths, kind.icon) ? kind.icon as IconName : 'tag';
+  const key = typeof kind === 'string' ? kind : kind.key;
   switch (key) {
     case 'all': return 'contents';
     case 'person': case 'group': case 'concept': case 'thesis': return key;

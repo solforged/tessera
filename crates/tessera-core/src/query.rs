@@ -96,6 +96,20 @@ pub(crate) fn template(conn: &Connection, id: &str) -> Result<Vec<String>> {
         .collect::<rusqlite::Result<_>>()?)
 }
 
+pub(crate) fn presentation(
+    conn: &Connection,
+    id: &str,
+) -> Result<(Option<String>, Option<String>)> {
+    Ok(conn
+        .query_row(
+            "SELECT plural, icon FROM type_presentation WHERE type_id = ?1",
+            [id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .optional()?
+        .unwrap_or_default())
+}
+
 fn stored_view(row: &rusqlite::Row<'_>) -> rusqlite::Result<View> {
     let json: String = row.get(2)?;
     let query = serde_json::from_str(&json).map_err(|error| {
@@ -123,8 +137,11 @@ impl Notebook {
              WHERE m.type_id = ?1 AND b.deletion_id IS NULL AND p.deletion_id IS NULL AND t.deletion_id IS NULL
              AND b.rowid NOT IN (SELECT rowid FROM hidden) AND t.rowid NOT IN (SELECT rowid FROM hidden)"))?
             .query_row([id], |row| row.get::<_, i64>(0))? as usize;
+        let (plural, icon) = presentation(&self.conn, id)?;
         Ok(TypeInfo {
             page,
+            plural,
+            icon,
             fields: template(&self.conn, id)?,
             members,
             card_templates: self.conn.query_row(
@@ -154,7 +171,10 @@ impl Notebook {
         let mut types = Vec::new();
         while let Some(row) = rows.next()? {
             let page = block_at(row, 1)?;
+            let (plural, icon) = presentation(&self.conn, &page.id)?;
             types.push(TypeInfo {
+                plural,
+                icon,
                 fields: template(&self.conn, &page.id)?,
                 card_templates: template_counts.get(&page.id).copied().unwrap_or(0),
                 page,
