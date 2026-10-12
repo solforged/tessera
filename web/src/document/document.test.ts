@@ -2505,6 +2505,7 @@ describe('source and citation document commands', () => {
       expect(reopened.block(blockId)?.citations[0]?.id).toBe(nextCitation.id);
       offline = false;
       recovered.retry();
+      await eventually(() => recovered.connection() === 'live', 'Source recovery stream did not reconnect');
       await recovered.flush();
       expect(reopened.saveState()).toBe('saved');
       expect(reopened.block(blockId)?.citations).toEqual((await api.capabilities(blockId)).citations);
