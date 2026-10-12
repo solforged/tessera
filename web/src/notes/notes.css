@@ -95,6 +95,29 @@
   .index-letters > .button { min-width: var(--target-size); }
   .index-queue-actions .button, .index-inspector-actions .button { min-height: calc(var(--space-32) + var(--space-12)); }
 }
+/* New note: a rubric, the title in the page-title voice on a hairline, an optional gist in the gloss voice, then similar pages to file instead. */
+.new-kind-popup { padding: var(--space-16); }
+.new-kind-eyebrow { display: flex; align-items: center; gap: var(--space-8); margin: 0 0 var(--space-8) !important; }
+.new-kind-eyebrow > .icon { width: var(--icon-size-small); height: var(--icon-size-small); }
+.new-kind-title, .new-kind-gist { display: block; width: 100%; padding: var(--space-4) 0; border: 0; border-bottom: var(--rule-width) solid var(--line); border-radius: 0; background: transparent; color: var(--text); transition: border-color var(--motion-fast) var(--motion-ease); }
+.new-kind-title { font: var(--weight-display-heading) var(--text-h1)/var(--line-h1) var(--font-display); font-variation-settings: var(--optical-heading); letter-spacing: var(--tracking-title); }
+.new-kind-gist { margin-top: var(--space-8); color: var(--muted); font: var(--weight-body) var(--text-gloss)/var(--line-gloss) var(--font-display); border-bottom-color: transparent; }
+.new-kind-title:focus, .new-kind-gist:focus { outline: none; border-bottom-color: var(--accent); }
+.new-kind-title::placeholder, .new-kind-gist::placeholder { color: var(--faint); }
+.new-kind-popup .new-kind-note { margin: var(--space-8) 0 0; color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
+.new-kind-popup .new-kind-template { display: flex; gap: var(--space-8); margin: var(--space-12) 0 0; color: var(--muted); font: var(--apparatus); }
+.new-kind-template > span { color: var(--faint); text-transform: uppercase; letter-spacing: var(--tracking-apparatus); }
+.new-kind-matches { margin-top: var(--space-16); border-top: var(--rule-width) solid var(--line); }
+.new-kind-popup .new-kind-matches-label { margin: var(--space-8) 0 var(--space-4); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); text-transform: uppercase; }
+.new-kind-match { display: flex; align-items: baseline; gap: var(--space-12); width: calc(100% + 2 * var(--space-8)); min-height: var(--target-size); padding: var(--space-4) var(--space-8); margin-inline: calc(-1 * var(--space-8)); border: 0; border-radius: var(--radius-control); background: transparent; color: var(--text); font: var(--weight-body) var(--text-control)/var(--line-control) var(--font-display); text-align: left; cursor: pointer; }
+.new-kind-match:hover:not(:disabled), .new-kind-match:focus-visible { background: var(--selection); }
+.new-kind-match-title { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.new-kind-match-action { flex: none; color: var(--faint); font: var(--apparatus); }
+.new-kind-match:hover .new-kind-match-action, .new-kind-match:focus-visible .new-kind-match-action { color: var(--accent); }
+.new-kind-actions { align-items: center; margin-top: var(--space-16) !important; }
+.new-kind-keys { margin-right: auto; color: var(--faint); font: var(--apparatus); white-space: nowrap; }
+.new-kind-keys kbd { color: var(--muted); }
+@media (hover: none) and (pointer: coarse) { .new-kind-keys { display: none; } }
 @media (max-width: 599px) and (pointer: coarse) {
   /* Only the overlaid alphabetical dock needs extra clearance; the nav already has a grid row. */
   .index-sheet:has(.index-letters) { padding-bottom: calc(var(--page-bottom-space) + var(--space-32) + var(--space-12) + var(--space-4) + var(--rule-width)); }

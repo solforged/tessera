@@ -1125,7 +1125,15 @@ function Pane(props: OutlinePaneProps) {
     scroll.addEventListener('mousedown', clearOutsideRows);
     onCleanup(() => scroll.removeEventListener('mousedown', clearOutsideRows));
     document.addEventListener('pointerdown', resetVerticalGoal, true);
-    onCleanup(() => document.removeEventListener('pointerdown', resetVerticalGoal, true));
+    // A rename is committed only by Enter or Save title; pressing anywhere else abandons it, as Escape does.
+    const abandonTitle = (event: PointerEvent) => {
+      if (!renaming() || mergeTarget()) return;
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest('.outline-title-row, [role="dialog"], [role="menu"]')) return;
+      closeTitle();
+    };
+    document.addEventListener('pointerdown', abandonTitle, true);
+    onCleanup(() => { document.removeEventListener('pointerdown', resetVerticalGoal, true); document.removeEventListener('pointerdown', abandonTitle, true); });
     scroll.addEventListener('paste', paste, true);
     scroll.addEventListener('beforeinput', beforeInput, true);
     onCleanup(() => { scroll.removeEventListener('copy', copy, true); scroll.removeEventListener('cut', cut, true); scroll.removeEventListener('paste', paste, true); scroll.removeEventListener('beforeinput', beforeInput, true); cancelAnimationFrame(compositionFrame); });

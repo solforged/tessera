@@ -6,7 +6,7 @@ A concept page holds several attributed readings. Questions and answers mark aut
 
 Make perspective, in the block menu, the palette and `/perspective`, turns a block such as `[[Plato]]` into a position; Remove perspective undoes it.
 
-Its row names the holder in Piazzolla at control weight. The holder link is in `--text` with a `--line` underline that turns gilt on hover, and its source's siglum hangs in the margin. A `Gist::` child drops its label and reads as the line under the holder, so the pair reads "Plato / A line of decline". At the Perspectives depth each position closes to its holder and gist.
+Its row names the holder in Piazzolla at control weight. The holder link is in `--text` with no underline; hover turns it gilt and underlines it. Its source's siglum hangs in the margin. A `Gist::` child drops its label and reads as the line under the holder, so the pair reads "Plato / A line of decline". At the Perspectives depth each position closes to its holder and gist.
 
 ### Holder and subject pages
 
