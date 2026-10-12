@@ -1,0 +1,126 @@
+#!/usr/bin/env bash
+#MISE description="Build a commit (default HEAD) into the Android APK offered for download on the tailnet"
+#USAGE arg "[commit]" help="The commit to publish" default="HEAD"
+#MISE tools={java="temurin-21", android-sdk="23.0"}
+#
+# Builds in a separate worktree, so uncommitted edits never ship. Strips the
+# debug info from the native library (about 90 MB instead of 300 to 700 MB),
+# signs it again with ~/.android/debug.keystore, the key every debug build
+# uses, so it installs over an existing Tessera as an update and keeps the
+# notebook. The APK and a page naming its commit replace the previous ones at
+# https://<this Mac>.<tailnet>:8443/, served from 127.0.0.1:18791 by the
+# dev.tessera.downloads launch agent and exposed to the tailnet only by
+# Tailscale Serve. Both are set up on the first run.
+set -euo pipefail
+
+root=$(git rev-parse --show-toplevel)
+commit=$(git -C "$root" rev-parse --verify "${usage_commit:-HEAD}^{commit}")
+build=$(git -C "$root" rev-parse --short "$commit")
+subject=$(git -C "$root" log -1 --format=%s "$commit")
+committed=$(git -C "$root" log -1 --format=%cs "$commit")
+src="$HOME/Library/Caches/tessera/android-publish"
+site="$HOME/Library/Application Support/tessera/android-downloads"
+port=18791
+https=8443
+label=dev.tessera.downloads
+plist="$HOME/Library/LaunchAgents/$label.plist"
+keystore="$HOME/.android/debug.keystore"
+
+echo "publish: building $build"
+if [ -e "$src/.git" ]; then
+  git -C "$src" checkout --quiet --detach --force "$commit"
+  git -C "$src" clean -fdq
+else
+  mkdir -p "$(dirname "$src")"
+  git -C "$root" worktree add --quiet --detach "$src" "$commit"
+fi
+# The worktree's mise.toml is this repository's, at another path, and Gradle's
+# configuration cache can still name the main checkout.
+mise trust --quiet "$src/mise.toml"
+rm -rf "$src/crates/tessera-android/gen/android/.gradle/configuration-cache"
+CARGO_INCREMENTAL=0 mise --cd "$src" run --quiet android:build >/dev/null
+apk="$src/crates/tessera-android/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk"
+
+source "$root/mise-tasks/android/ndk.sh"
+strip=$(find "$NDK_HOME/toolchains/llvm/prebuilt" -path '*/bin/llvm-strip' | head -n 1)
+tools=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+(cd "$work" && mkdir lib && unzip -q "$apk" 'lib/*' -d .)
+find "$work/lib" -name '*.so' -exec "$strip" --strip-debug {} +
+cp "$apk" "$work/stripped.apk"
+zip -q -d "$work/stripped.apk" 'META-INF/*'
+(cd "$work" && zip -q -0 stripped.apk lib/*/*.so)
+"$tools/zipalign" -f -P 16 4 "$work/stripped.apk" "$work/aligned.apk"
+"$tools/apksigner" sign --ks "$keystore" --ks-pass pass:android --ks-key-alias androiddebugkey --out "$work/signed.apk" "$work/aligned.apk"
+certificate=$("$tools/apksigner" verify --print-certs "$work/signed.apk" | sed -n 's/.*certificate SHA-256 digest: //p' | head -n 1)
+
+name="tessera-$build.apk"
+size=$(du -m "$work/signed.apk" | cut -f1)
+digest=$(shasum -a 256 "$work/signed.apk" | cut -d' ' -f1)
+html() { local s=${1//&/&amp;}; s=${s//</&lt;}; s=${s//>/&gt;}; printf '%s' "$s"; }
+mkdir -p "$site"
+mv "$work/signed.apk" "$site/$name.part"
+mv "$site/$name.part" "$site/$name"
+ln -sfn "$name" "$site/tessera.apk"
+cat >"$work/index.html" <<EOF
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tessera for Android</title>
+<style>
+  :root { color-scheme: dark; --canvas: #12151c; --text: #e6e1d6; --muted: #9a9486; --line: #2a2f3a; --accent: #d8b25c; }
+  body { margin: 0; background: var(--canvas); color: var(--text); font: 17px/1.55 Georgia, serif; }
+  main { max-width: 34rem; margin: 0 auto; padding: 3rem 1.5rem; }
+  h1 { margin: 0 0 .25rem; font-weight: 400; font-size: 2rem; }
+  .meta, dl { color: var(--muted); font: 13px/1.6 ui-monospace, Menlo, monospace; }
+  a.download { display: inline-block; margin: 1.5rem 0; padding: .75rem 1.25rem; border: 1px solid var(--accent); border-radius: 6px; color: var(--accent); text-decoration: none; font: 15px/1 ui-monospace, Menlo, monospace; }
+  dl { display: grid; grid-template-columns: auto 1fr; gap: .25rem 1rem; margin: 0; padding-top: 1rem; border-top: 1px solid var(--line); }
+  dt { color: var(--muted); } dd { margin: 0; color: var(--text); overflow-wrap: anywhere; }
+  p { margin: 0 0 1rem; }
+</style>
+<main>
+  <h1>Tessera for Android</h1>
+  <p class="meta">$build · $(html "$subject")</p>
+  <a class="download" href="$name">Download Tessera · $size MB</a>
+  <p>Open the file and allow this browser to install apps if Android asks. It installs over an earlier Tessera as an update and keeps its notebook; a new install starts with notebook setup.</p>
+  <dl>
+    <dt>Commit</dt><dd>$build, $committed</dd>
+    <dt>Published</dt><dd>$(date '+%Y-%m-%d %H:%M %Z')</dd>
+    <dt>SHA-256</dt><dd>$digest</dd>
+    <dt>Signer</dt><dd>$certificate</dd>
+  </dl>
+</main>
+EOF
+mv "$work/index.html" "$site/index.html"
+find "$site" -name 'tessera-*.apk' ! -name "$name" -delete
+
+# The server and the tailnet address only need setting up once.
+if ! launchctl print "gui/$(id -u)/$label" >/dev/null 2>&1; then
+  mkdir -p "$(dirname "$plist")"
+  cat >"$plist" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>$label</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/python3</string><string>-m</string><string>http.server</string><string>$port</string>
+    <string>--bind</string><string>127.0.0.1</string><string>--directory</string><string>$site</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardErrorPath</key><string>$HOME/Library/Logs/tessera/downloads.log</string>
+</dict>
+</plist>
+EOF
+  mkdir -p "$HOME/Library/Logs/tessera"
+  launchctl bootstrap "gui/$(id -u)" "$plist"
+fi
+host=$(tailscale status --json | /usr/bin/python3 -c 'import json, sys; print(json.load(sys.stdin)["Self"]["DNSName"].rstrip("."))')
+if ! tailscale serve status 2>/dev/null | grep -q "^https://$host:$https "; then
+  tailscale serve --bg --https="$https" "http://127.0.0.1:$port" >/dev/null
+fi
+echo "publish: $build is at https://$host:$https/ ($size MB)"

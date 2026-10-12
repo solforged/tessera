@@ -90,6 +90,8 @@ adb install -r crates/tessera-android/gen/android/app/build/outputs/apk/universa
 
 mise provides the JDK and the Android SDK; the SDK needs an NDK (`sdkmanager --install 'ndk;<version>'`), or `NDK_HOME` must name one. Extra arguments go to `tauri android build`; `mise run android:build --target aarch64 --apk` builds a release APK, signed when `TESSERA_ANDROID_KEYSTORE` names a keystore with a `tessera` key and `TESSERA_ANDROID_KEYSTORE_PASSWORD` unlocks it. The Gradle project in `crates/tessera-android/gen/android` is committed; `tauri android init` regenerates it.
 
+To offer the APK for download on your tailnet instead, run `mise run android:publish [commit]` (default `HEAD`). It builds the commit in its own worktree, strips the native library's debug info (about 90 MB), signs it again with `~/.android/debug.keystore` so it installs over a debug build and keeps the notebook, and replaces the previous APK at `https://<this Mac>.<tailnet>:8443/`. The first run starts the `dev.tessera.downloads` launch agent, which serves the page from `127.0.0.1:18791`, and adds the Tailscale Serve entry, so the page is reachable only from the tailnet.
+
 ### Command line
 
 Build a self-contained binary with [mise](https://mise.jdx.dev), which installs the pinned Rust, Bun and wasm tools from `mise.toml`:
