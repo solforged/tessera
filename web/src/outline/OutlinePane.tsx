@@ -98,7 +98,11 @@ function Pane(props: OutlinePaneProps) {
   let reportingFrame = 0;
   let scrollSettle = 0;
   let anchorFrame = 0;
-  let anchorEpoch = 0;
+  const [scrollAnchor, setScrollAnchor] = createSignal<ViewState['scroll']>(null);
+  let scrollReveal: { id: string; epoch: number; caret: boolean } | null = null;
+  let scrollingFrame = false;
+  let scrollStable = 0;
+  let previousScrollHeight = -1;
   let compositionSelection: { range: TextRange; id: string; original: string; from: number; to: number; committed?: string } | null = null;
   let compositionFrame = 0;
   const [createdFields, setCreatedFields] = createSignal<FieldDefinition[]>([]);
@@ -306,11 +310,13 @@ function Pane(props: OutlinePaneProps) {
     getScrollElement: () => scroll,
     // One unwrapped line, and constant: TanStack re-estimates every unmeasured row whenever any row resizes.
     estimateSize: () => 28,
+    // A sheet moves between value rows in one edit. Sync reads must not reuse either row's old height.
+    measureElement: element => element.offsetHeight,
     overscan: 8,
     get scrollMargin() { return margin(); },
     get getItemKey() { const rows = ids(); return (index: number) => rows[index]!; },
     get rangeExtractor() {
-      const pinned = [editing(), capabilities.popup()?.id, ...(foldMotion()?.afterIds ?? [])].flatMap(id => id ? indices().get(id) ?? [] : []);
+      const pinned = [editing(), scrollAnchor()?.id, capabilities.popup()?.id, ...(foldMotion()?.afterIds ?? [])].flatMap(id => id ? indices().get(id) ?? [] : []);
       return (range: Parameters<typeof defaultRangeExtractor>[0]) => {
         const result = defaultRangeExtractor(range);
         for (const index of pinned) if (!result.includes(index)) result.push(index);
@@ -318,6 +324,14 @@ function Pane(props: OutlinePaneProps) {
       };
     },
   });
+  // Size changes and structural edits share the same anchor/reveal decision, never a second scroll writer.
+  virtualizer.shouldAdjustScrollPositionOnItemSizeChange = item => {
+    if (!scrollingFrame) {
+      if (anchorFrame) scheduleScroll();
+      else if (scroll && item.start < scroll.scrollTop) restoreAnchor(currentAnchor());
+    }
+    return false;
+  };
   const virtualItems = createMemo(() => new Map(virtualizer.getVirtualItems().map(item => [String(item.key), item])));
 
   function currentAnchor(): ViewState['scroll'] {
@@ -344,37 +358,67 @@ function Pane(props: OutlinePaneProps) {
     clearTimeout(scrollSettle);
     scrollSettle = window.setTimeout(scheduleReport, 150);
   }
+  function scheduleScroll() {
+    if (disposed) return;
+    scrollStable = 0;
+    if (!anchorFrame) anchorFrame = requestAnimationFrame(settleScroll);
+  }
+  function cancelScroll() {
+    cancelAnimationFrame(anchorFrame);
+    anchorFrame = 0;
+    setScrollAnchor(null);
+    scrollReveal = null;
+    previousScrollHeight = -1;
+  }
+  function settleScroll() {
+    anchorFrame = 0;
+    if (disposed) return;
+    const before = scroll.scrollTop;
+    scrollingFrame = true;
+    // Batch both ends of a sheet transfer before reading positions or writing scrollTop.
+    batch(() => {
+      for (const row of list.querySelectorAll<HTMLDivElement>('[data-index]')) {
+        virtualizer.resizeItem(Number(row.dataset.index), row.offsetHeight);
+      }
+    });
+    scrollingFrame = false;
+    const bounds = scroll.getBoundingClientRect();
+    const anchor = scrollAnchor();
+    const row = anchor && indices().has(anchor.id) ? rowAnchor(anchor.id) : null;
+    const maximum = Math.max(0, scroll.scrollHeight - scroll.clientHeight);
+    let offset = Math.max(0, Math.min(maximum, before + (row && anchor ? row.getBoundingClientRect().top - bounds.top - anchor.offset : 0)));
+    const request = scrollReveal;
+    const valid = request && props.active && focusEpoch === request.epoch && (request.caret ? editing() : selected()) === request.id;
+    const target = valid ? request.caret
+      ? editor?.id === request.id && hosts.get(request.id)?.contains(editor.view.dom) ? editor.view.coordsAtPos(editor.view.state.selection.main.head) : null
+      : rowAnchor(request.id)?.getBoundingClientRect() : null;
+    if (target) {
+      // Test the caret against the viewport it would have after anchoring, then make only one scroll write.
+      const shift = offset - before;
+      if (target.top - shift < bounds.top) offset += target.top - shift - bounds.top;
+      else if (target.bottom - shift > bounds.bottom) offset += Math.min(target.bottom - shift - bounds.bottom, target.top - shift - bounds.top);
+      offset = Math.max(0, Math.min(maximum, offset));
+    }
+    if (Math.abs(offset - before) > .5) scroll.scrollTop = offset;
+    // Reveal wins. Later measurements retain this resulting position, not the pre-reveal anchor offset.
+    if (row && anchor) {
+      const position = row.getBoundingClientRect().top - bounds.top;
+      if (Math.abs(position - anchor.offset) > .5) setScrollAnchor({ id: anchor.id, offset: position });
+    }
+    scrollStable = scroll.scrollTop === before && scroll.scrollHeight === previousScrollHeight && (!valid || target) ? scrollStable + 1 : 0;
+    previousScrollHeight = scroll.scrollHeight;
+    if (scrollStable < 2) anchorFrame = requestAnimationFrame(settleScroll);
+    else { cancelScroll(); scheduleReport(); }
+  }
   function restoreAnchor(anchor: ViewState['scroll']) {
     if (!anchor || !indices().has(anchor.id) || disposed) return;
-    const epoch = ++anchorEpoch;
-    cancelAnimationFrame(anchorFrame);
-    // Scroll straight to the anchor's old offset: aligning its row to the top first would paint a frame there.
-    const toAnchor = () => {
-      const item = virtualizer.measurementsCache[indices().get(anchor.id)!];
-      if (item) virtualizer.scrollToOffset(item.start - anchor.offset);
-    };
-    toAnchor();
-    let stable = 0;
-    let previousHeight = -1;
-    const correct = () => {
-      if (disposed || epoch !== anchorEpoch || !indices().has(anchor.id)) return;
-      const row = hosts.get(anchor.id)?.closest<HTMLElement>('[data-block-id]');
-      if (!row) { toAnchor(); anchorFrame = requestAnimationFrame(correct); return; }
-      const delta = row.getBoundingClientRect().top - scroll.getBoundingClientRect().top - anchor.offset;
-      const before = scroll.scrollTop;
-      if (Math.abs(delta) > .5) scroll.scrollTop += delta;
-      const clamped = scroll.scrollTop === before && Math.abs(delta) > .5 && previousHeight === scroll.scrollHeight;
-      stable = Math.abs(delta) <= .5 || clamped ? stable + 1 : 0;
-      previousHeight = scroll.scrollHeight;
-      if (stable < 2) anchorFrame = requestAnimationFrame(correct);
-      else scheduleReport();
-    };
-    anchorFrame = requestAnimationFrame(correct);
+    setScrollAnchor({ ...anchor });
+    scheduleScroll();
   }
   function anchored(change: () => void) {
-    const anchor = currentAnchor();
+    if (!scrollAnchor()) setScrollAnchor(currentAnchor());
+    scheduleScroll();
     change();
-    requestAnimationFrame(() => restoreAnchor(anchor));
   }
   function measure(label: 'typing' | 'structural', change: () => void) {
     const start = performance.now();
@@ -424,23 +468,9 @@ function Pane(props: OutlinePaneProps) {
     setRowRange(null);
     setCaret({ id, offset });
     focusRequest = { id, offset, insert, epoch: ++focusEpoch };
+    if (reveal) { scrollReveal = { id, epoch: focusEpoch, caret: true }; scheduleScroll(); }
     setEditing(id);
-    const requestEpoch = focusEpoch;
-    const index = indices().get(id)!;
-    const host = hosts.get(id);
-    const row = host?.closest<HTMLElement>('[data-block-id]');
-    const viewport = scroll.getBoundingClientRect();
-    if (reveal && (!row || row.getBoundingClientRect().top < viewport.top || row.getBoundingClientRect().bottom > viewport.bottom)) virtualizer.scrollToIndex(index, { align: 'auto' });
     queueMicrotask(() => mountEditor(id));
-    if (reveal) requestAnimationFrame(() => requestAnimationFrame(() => {
-      if (disposed || !props.active || editing() !== id || focusEpoch !== requestEpoch) return;
-      const mounted = hosts.get(id)?.closest<HTMLElement>('[data-block-id]');
-      if (!mounted) return;
-      const bounds = scroll.getBoundingClientRect();
-      const target = mounted.getBoundingClientRect();
-      if (target.top < bounds.top) scroll.scrollTop += target.top - bounds.top;
-      else if (target.bottom > bounds.bottom) scroll.scrollTop += Math.min(target.bottom - bounds.bottom, target.top - bounds.top);
-    }));
     scheduleReport();
   }
   function rowFocus(id: string, extend = false) {
@@ -459,7 +489,8 @@ function Pane(props: OutlinePaneProps) {
     if (caret()?.id !== id) setCaret({ id, offset: 0 });
     props.onVimMode(props.vim ? 'outline' : null);
     scroll.focus({ preventScroll: true });
-    virtualizer.scrollToIndex(indices().get(id) ?? 0, { align: 'auto' });
+    scrollReveal = { id, epoch: focusEpoch, caret: false };
+    scheduleScroll();
     scheduleReport();
   }
   function apply(intent: Edit, keepEditing = editing() !== null): EditResult | undefined {
@@ -575,7 +606,7 @@ function Pane(props: OutlinePaneProps) {
     const anchor = currentAnchor();
     settleFold = () => {
       if (!opening) change();
-      requestAnimationFrame(() => restoreAnchor(anchor));
+      restoreAnchor(anchor);
       report(); scheduleReport();
     };
     batch(() => { setFoldMotion(state); if (opening) change(); });
@@ -931,7 +962,7 @@ function Pane(props: OutlinePaneProps) {
         if (id && initial.edit) {
           editAt(id, saved!.offset, !props.vim, !initial.scroll, true);
           scheduleReport();
-          if (initial.scroll) requestAnimationFrame(() => restoreAnchor(initial.scroll));
+          if (initial.scroll) restoreAnchor(initial.scroll);
           return;
         }
         setEditing(null);
@@ -939,7 +970,7 @@ function Pane(props: OutlinePaneProps) {
         setCaret(id ? { id, offset: id === saved?.id ? saved.offset : 0 } : null);
         if (props.active) scroll.focus({ preventScroll: true });
         scheduleReport();
-        if (initial.scroll) requestAnimationFrame(() => restoreAnchor(initial.scroll));
+        if (initial.scroll) restoreAnchor(initial.scroll);
         return;
       }
       if (journalPeriod) {
@@ -969,7 +1000,7 @@ function Pane(props: OutlinePaneProps) {
         else first = id ? { id, offset: 0 } : null;
       }
       if (first) editAt(first.id, first.offset, !props.vim, !initial.scroll, false);
-      if (initial.scroll) requestAnimationFrame(() => restoreAnchor(initial.scroll));
+      if (initial.scroll) restoreAnchor(initial.scroll);
     }
   });
   createEffect(() => { const id = editing(); const text = id ? doc.block(id)?.text : undefined; if (text !== undefined && editor?.id === id) queueMicrotask(() => { if (editor?.id === id) editor.sync(text); }); });
@@ -999,7 +1030,7 @@ function Pane(props: OutlinePaneProps) {
     editor?.destroy();
     cancelAnimationFrame(reportingFrame);
     clearTimeout(scrollSettle);
-    cancelAnimationFrame(anchorFrame);
+    cancelScroll();
   });
 
   reducedMotion.addEventListener('change', finishFoldMotion);
@@ -1020,7 +1051,7 @@ function Pane(props: OutlinePaneProps) {
     }
     return groups;
   });
-  return <div ref={scroll} class="outline-pane" classList={{ 'has-apparatus': apparatus(), 'has-sigla': sigla().size > 0, 'source-page': !!doc.root()?.source && !zoom() }} style={{ visibility: sourceReady() ? undefined : 'hidden' }} aria-busy={!sourceReady()} data-pane={props.pane} tabIndex={0} role="tree" aria-label="Page outline" aria-owns={[...virtualItems().keys()].map(id => `outline-${props.pane}-${id}`).join(' ')} onFocusIn={props.onActivate} onFocusOut={report} onKeyDown={event => { finishFoldMotion(); structuralKey(event); }} onWheel={() => { finishFoldMotion(); anchorEpoch++; cancelAnimationFrame(anchorFrame); }} onScroll={scrolled}>
+  return <div ref={scroll} class="outline-pane" classList={{ 'has-apparatus': apparatus(), 'has-sigla': sigla().size > 0, 'source-page': !!doc.root()?.source && !zoom() }} style={{ visibility: sourceReady() ? undefined : 'hidden' }} aria-busy={!sourceReady()} data-pane={props.pane} tabIndex={0} role="tree" aria-label="Page outline" aria-owns={[...virtualItems().keys()].map(id => `outline-${props.pane}-${id}`).join(' ')} onFocusIn={props.onActivate} onFocusOut={report} onKeyDown={event => { finishFoldMotion(); structuralKey(event); }} onWheel={() => { finishFoldMotion(); cancelScroll(); }} onScroll={scrolled}>
     <Show when={apparatus()}><Apparatus notebook={props.notebook} holders={holders()} linked={linkedPages()} sources={citedSources().flatMap(id => sigla().has(id) ? [{ id, siglum: sigla().get(id)! }] : [])} onOpen={props.onOpen} /></Show>
     <div ref={heading} class="outline-heading">
       <Show when={zoom()}><nav class="outline-breadcrumbs" aria-label="Zoom breadcrumbs"><button type="button" onClick={() => zoomTo(null)}>{doc.root()?.text}</button><For each={breadcrumbs()}>{id => <><Icon name="right" /><button type="button" onClick={() => zoomTo(id)}>{plainText(doc.block(id)?.text ?? '', reference => props.notebook.lookup(reference)) || 'Empty block'}</button></>}</For></nav></Show>
