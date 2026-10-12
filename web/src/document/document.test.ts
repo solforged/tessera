@@ -809,7 +809,7 @@ describe('real notebook operations and recovery', () => {
     expect(copied).not.toBe(source.first);
     expect(destination.doc.block(copied)?.task).toEqual(source.doc.block(source.first)?.task);
     await instance.flush();
-    expect((await api.capabilities(copied)).task).toEqual(source.doc.block(source.first)?.task);
+    expect((await api.capabilities(copied)).task).toEqual(source.doc.block(source.first)?.task ?? null);
     expect(await api.workSessions(copied)).toEqual([]);
     expect((await api.taskOccurrences(copied))[0]?.id).not.toBe((await api.taskOccurrences(source.first))[0]?.id);
     source.doc.release();
