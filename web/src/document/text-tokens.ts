@@ -1,4 +1,9 @@
 export interface Token { start: number; end: number; kind: 'text' | 'reference' | 'tag' | 'url'; value: string; id?: string; alias?: string }
+
+export function isStableReference(token: Token): boolean {
+  return token.kind === 'reference' && /^[0-9A-HJKMNP-TV-Z]{26}$/i.test(token.id ?? '');
+}
+
 export function textTokens(text: string): Token[] {
   const result: Token[] = [];
   const pattern = /\[\[([^\]|]+)(?:\|([^\]]*))?\]\]|(?<![\p{L}\p{N}_])#(?:\[\[([^\]]+)\]\]|([\p{L}\p{N}_/-]+))|(https?:\/\/[^\s<>"']+)/gu;

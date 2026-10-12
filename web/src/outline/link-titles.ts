@@ -1,7 +1,6 @@
 import type { NotebookClient } from '../document/contract';
-import { textTokens } from '../document/text-tokens';
+import { isStableReference, textTokens } from '../document/text-tokens';
 import { insideProtectedSyntax } from '../tasks/quick-date';
-import { isStableReference } from './BlockText';
 import { foldName, resolveName } from './names';
 import { isJournalReference } from './completion';
 

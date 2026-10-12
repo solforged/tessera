@@ -10,7 +10,7 @@ import type { NameMatch } from '../api/types';
 import { cardMarks } from '../review/card-text';
 import type { CardMark } from '../review/card-text';
 
-import { textTokens } from '../document/text-tokens';
+import { isStableReference, textTokens } from '../document/text-tokens';
 import type { Token } from '../document/text-tokens';
 
 interface Props {
@@ -27,9 +27,6 @@ interface Props {
   cards?: boolean;
 }
 
-export function isStableReference(token: Token): boolean {
-  return token.kind === 'reference' && /^[0-9A-HJKMNP-TV-Z]{26}$/i.test(token.id ?? '');
-}
 export function referenceLabel(token: Token, target: Block | null | undefined): string {
   if (!isStableReference(token)) return token.value;
   if (target === undefined) return token.alias || 'Loading reference…';

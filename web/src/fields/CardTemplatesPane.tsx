@@ -8,8 +8,8 @@ import { Button } from '../ui/Button';
 import { TypeModeTabs } from '../ui/TypeModeTabs';
 import { FieldPicker } from './FieldPicker';
 import { displayPattern, patternParts, storedPattern, usedFields } from './card-patterns';
-import { textTokens } from '../document/text-tokens';
-import { isStableReference, referenceLabel } from '../outline/BlockText';
+import { isStableReference, textTokens } from '../document/text-tokens';
+import { referenceLabel } from '../outline/BlockText';
 import './card-templates.css';
 
 interface Props {
