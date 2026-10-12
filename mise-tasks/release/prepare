@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+#MISE description="Bump the workspace version and prepend a changelog draft"
+#USAGE arg "<version>" help="New version, such as 0.4.0"
+#
+# Edits Cargo.toml, Cargo.lock and CHANGELOG.md. It does not commit or tag.
+# Edit the draft, delete its marker, then run release:cut.
+set -euo pipefail
+
+version=${usage_version:?}
+root=$(git rev-parse --show-toplevel)
+cd "$root"
+
+if ! [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "release:prepare: version must be MAJOR.MINOR.PATCH" >&2
+  exit 1
+fi
+
+current=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n 1)
+number() {
+  local major minor patch
+  IFS=. read -r major minor patch <<<"$1"
+  echo $((major * 1000000 + minor * 1000 + patch))
+}
+if [ "$(number "$version")" -le "$(number "$current")" ]; then
+  echo "release:prepare: $version is not newer than $current" >&2
+  exit 1
+fi
+if git rev-parse --verify --quiet "refs/tags/v$version" >/dev/null; then
+  echo "release:prepare: tag v$version already exists" >&2
+  exit 1
+fi
+if grep -q "^## $version\\(,\\| \\)" CHANGELOG.md; then
+  echo "release:prepare: CHANGELOG.md already has $version" >&2
+  exit 1
+fi
+
+tmp=$(mktemp)
+awk -v version="$version" '
+  !done && /^version = "/ { print "version = \"" version "\""; done = 1; next }
+  { print }
+' Cargo.toml >"$tmp"
+mv "$tmp" Cargo.toml
+cargo update -w --offline
+
+draft=$(mktemp)
+mise run release:notes -- "$version" >"$draft"
+marker=$(grep -n '^<!-- releases -->$' CHANGELOG.md | head -n 1 | cut -d: -f1)
+if [ -z "$marker" ]; then
+  echo "release:prepare: CHANGELOG.md is missing the releases marker" >&2
+  exit 1
+fi
+tmp=$(mktemp)
+{
+  head -n "$marker" CHANGELOG.md
+  echo
+  cat "$draft"
+  echo
+  tail -n +"$((marker + 1))" CHANGELOG.md
+} >"$tmp"
+mv "$tmp" CHANGELOG.md
+rm -f "$draft"
+
+echo "release:prepare: $current -> $version"
+echo "release:prepare: edit CHANGELOG.md, delete the draft marker, then mise run release:cut -- $version"

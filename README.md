@@ -12,31 +12,31 @@ Tessera is a local-first outline workstation for notes, questions, evidence, tas
 
 ## Screenshots
 
-The notebook below studies anacyclosis, Polybius's cycle of constitutions. Its quotations come from W. R. Paton's public-domain 1923 translation.
+The notebook below studies anacyclosis, Polybius's cycle of constitutions. Its quotations come from Evelyn S. Shuckburgh's public-domain translation.
 
 ### Perspectives on one idea
 
 Each thinker's position sits under the idea it answers, with its source's siglum in the margin and a constellation of every holder beside the page.
 
-![The Anacyclosis page at Perspectives depth, with six positions marked PLA, ARI, POL, CIC, MAC and KHA beside a constellation of their holders](docs/images/perspectives.png)
+![The Anacyclosis page at Perspectives depth, with six positions marked PLA, ARI, POL, CIC, MAC and IBN beside a constellation of their holders](docs/images/perspectives.png)
 
 ### Compare positions
 
-Compare presents selected readings side by side, with source sigla, shape marks beside the holders and each account's prose. Authored questions sit below the sheet; fields remain in the source outline.
+Compare presents selected readings side by side, with source sigla and each account's gist. The readings stay distinct; fields remain in the source outline.
 
-![A light reading sheet comparing Plato, Polybius and Machiavelli on anacyclosis, with their source titles, prose and an authored question below](docs/images/compare.png)
+![A reading sheet comparing Plato, Polybius and Machiavelli on anacyclosis, with their source titles and gists](docs/images/compare.png)
 
 ### Read and cite sources
 
 A source page sits beside its reader. Highlighting a passage writes an ordinary block on the source page that cites it.
 
-![The Polybius Book 6 source page with its metadata and one cited highlight, beside the reader with that passage highlighted](docs/images/reader.png)
+![The Histories source page with one cited highlight, beside the reader with that passage highlighted](docs/images/reader.png)
 
 ### Tasks and agenda
 
-Project tasks stay in their outline. In Agenda's Tasks view, one query line filters by project, state and dates, and each term becomes a removable chip. Add condition brings task, source and field filters into one searchable picker.
+Project tasks stay in their outline. Agenda's Tasks view lists them across the week, with a query line for project, state and date filters.
 
-![An essay project's tasks beside the Tasks view filtered by the chips show:open, the project and a date range](docs/images/tasks.png)
+![An essay project's four tasks beside the Tasks view for the week of 12 October](docs/images/tasks.png)
 
 ### Review beside the notes
 
@@ -73,6 +73,7 @@ Review a deck beside the notes its cards come from, on a quiet reading sheet wit
 ### Using Tessera
 
 - [Usage](docs/usage.md): installation, backups, replicas and agents.
+- [Changelog](CHANGELOG.md): what each published version contains.
 
 ### Design
 

@@ -2,7 +2,7 @@
 
 ## macOS app
 
-Download `Tessera_<version>_aarch64.dmg` from the [latest release](https://github.com/solforged/tessera/releases/latest) and drag Tessera into Applications. The app is ad-hoc signed, not notarised, so macOS blocks its first launch. Open it once, then choose Open Anyway under System Settings → Privacy & Security, or run:
+Download `Tessera_<version>_aarch64.dmg` from the [latest release](https://github.com/solforged/tessera/releases/latest), check `SHA256SUMS` on that release, and drag Tessera into Applications. The app is ad-hoc signed, not notarised, so macOS blocks its first launch. Open it once, then choose Open Anyway under System Settings → Privacy & Security, or run:
 
 ```sh
 xattr -dr com.apple.quarantine /Applications/Tessera.app
@@ -45,7 +45,7 @@ Opening an EPUB from Finder imports it into the notebook and shows the Library. 
 
 ## Android app
 
-[`crates/tessera-android`](../crates/tessera-android) is a Tauri 2 app for Android phones and foldables. Its notebook lives in private app storage; pages reach it over Tauri's IPC, with no listening port. The phone keeps its own notebook and does not sync with a desktop notebook. Web articles, backups and service details are omitted, as in the [browser demo](contributing.md#browser-demo).
+[`crates/tessera-android`](../crates/tessera-android) is a Tauri 2 app for Android phones and foldables. Its notebook lives in private app storage; pages reach it over Tauri's IPC, with no listening port. A paired phone copies the Mac's notebook and syncs with it. An unpaired phone keeps a notebook of its own. Web articles, backups and service details are omitted, as in the [browser demo](contributing.md#browser-demo).
 
 ### Import and capture
 
