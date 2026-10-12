@@ -21,7 +21,9 @@ Status: applied to the shell, the outline and the table. The permanent global ra
 
 Three voices separate writing from publication and apparatus. IBM Plex Sans Variable is bundled for your writing, inputs and ordinary controls. Piazzolla Variable is bundled in normal and italic for page titles, heading rows, library titles, displayed highlights, quotes and the reader. Writing and title editing stay in Plex. Berkeley Mono is used when installed, with system monospace fallbacks. Its commercial font files are not bundled.
 
-Apparatus uses `--apparatus`: 400 at 11.5 / 16, with tabular numerals and slight tracking. It covers breadcrumbs, save state, Vim mode, sidebar section headings, picker metadata, counts, progress and resurfaced metadata. UI labels stay in sentence case. Key hints (`⌃⇧F`, `⇧↵`, `Space`) keep the apparatus size in the sans voice. Plex has no modifier glyphs, so `web/src/ui/keys.css` adds a face to the Plex family with ⌃ ⇧ ⌘ ⌥ ↵ and the four arrows, drawn by `mise run fonts:keys` at Plex's cap height and stem; without it each system's fallback drew them, at mismatched sizes on Android.
+Apparatus uses `--apparatus`: 400 at 11.5 / 16, with tabular numerals and slight tracking. It covers breadcrumbs, save state, Vim mode, sidebar section headings, picker metadata, counts, progress and resurfaced metadata. UI labels stay in sentence case. Key hints (`⌃⇧F`, `⇧↵`, `Space`) keep the apparatus size in the sans voice.
+
+Plex has no modifier glyphs, so `web/src/ui/keys.css` adds a face to the Plex family with ⌃ ⇧ ⌘ ⌥ ↵ and the four arrows, drawn by `mise run fonts:keys` at Plex's cap height and stem. Without it each system's fallback drew them, at mismatched sizes on Android.
 
 | Token | Size / line | Use |
 |---|---|---|
@@ -40,15 +42,45 @@ Piazzolla page titles use weight 430 and optical size 30. Heading rows use weigh
 
 ### Space and size
 
-Steps 2, 4, 8, 12, 16, 24, 32, 48 px. Row height 28 px; indent 24 px; measure 760 px; gutter 48 px left of the measure; sidebar 208 px; global rail 48 px; pane header 36 px. Pointer targets 24 px. On a coarse pointer (a touch screen) targets grow to 32 px and rows to 36 px, and row menus that wait for hover elsewhere stay visible. Icons 16 px, 14 px inline.
+Steps 2, 4, 8, 12, 16, 24, 32, 48 px.
 
-Every screen composes its page spacing from shared tokens, so moving between screens never shifts the title or the text column: a 24 px pane inset and 24 px from the pane header to the first line (16 px each below 600 px), 4 px from an eyebrow line to the title, 8 px from the title to its metadata or mode tabs, 16 px from the whole heading block to the body, 24 px between sections and 8 px from a section head to its first item, 16 px inside and between boxed cards, and 48 px after the last item, plus the height of any bar fixed over the content. Page titles are Piazzolla at 32/38 px, 24/30 px below 600 px. The reader, a live review session and Find keep their own spacing.
+| Element | Size |
+|---|---|
+| Row height | 28 px |
+| Indent | 24 px |
+| Measure | 760 px |
+| Gutter left of the measure | 48 px |
+| Sidebar | 208 px |
+| Global rail | 48 px |
+| Pane header | 36 px |
+| Pointer targets | 24 px |
+| Icons | 16 px, 14 px inline |
+
+On a coarse pointer (a touch screen), targets grow to 32 px and rows to 36 px. Row menus that wait for hover elsewhere stay visible.
+
+Every screen composes its page spacing from shared tokens, so moving between screens never shifts the title or the text column.
+
+| Spacing | Distance |
+|---|---|
+| Pane inset | 24 px; 16 px below 600 px |
+| Pane header to first line | 24 px; 16 px below 600 px |
+| Eyebrow line to title | 4 px |
+| Title to metadata or mode tabs | 8 px |
+| Whole heading block to body | 16 px |
+| Between sections | 24 px |
+| Section head to first item | 8 px |
+| Inside and between boxed cards | 16 px |
+| After the last item | 48 px, plus the height of any bar fixed over the content |
+
+Page titles are Piazzolla at 32/38 px, 24/30 px below 600 px. The [reader](surfaces/reader.md), a [live review session](surfaces/cards-review.md) and Find keep their own spacing.
 
 ### Colour
 
 Orrery uses midnight `--shell` (#0a0d13), ink-blue `--canvas` (#0e121a), parchment `--text` (#e6e1d6) and gilt `--accent` (#d8aa55). Muted text is cool grey. Rubric red `--danger` (#d97a6b) marks danger and short insertion rules; `--warning` is warm orange. Doing and scheduled work are blue; done is sage. Type and highlight hues stay separate from these roles.
 
-Orrery by day is the light theme: the same roles on vellum, a `--canvas` of #f8f5ee inside a #ebe5d8 shell, ink `--text` (#1f1b15), antique gold `--accent` (#93650f), oxblood `--danger` (#ad3a2b) and a deeper steel blue. It overrides colour tokens only, under `:root[data-theme="light"]`; type, space and shape never change, and reader figures are not dimmed. Settings › Appearance chooses System (the default, following the operating system), Light or Dark per device, stored in local storage rather than the notebook. The entry imports `shell/theme.ts` first so the page paints in the right theme, and `index.html` paints the system theme before any script runs.
+Orrery by day is the light theme: the same roles on vellum, a `--canvas` of #f8f5ee inside a #ebe5d8 shell, ink `--text` (#1f1b15), antique gold `--accent` (#93650f), oxblood `--danger` (#ad3a2b) and a deeper steel blue. It overrides colour tokens only, under `:root[data-theme="light"]`; type, space and shape never change, and reader figures are not dimmed.
+
+[Settings › Appearance](surfaces/settings.md) chooses System (the default, following the operating system), Light or Dark per device, stored in local storage rather than the notebook. The entry imports `shell/theme.ts` first so the page paints in the right theme, and `index.html` paints the system theme before any script runs.
 
 | Role | Token |
 |---|---|
@@ -67,44 +99,207 @@ Orrery by day is the light theme: the same roles on vellum, a `--canvas` of #f8f
 
 Pills take a 12% tint of their hue with a 30% border. A selected row adds a 2 px gilt bar at its left edge; keyboard focus inside a menu looks the same, never a ring.
 
-Controls share four shapes. Modes and tabs (Library states, Highlights processing, Agenda, Week and Tasks, Review's Due, New and All, reader settings, a creator's role) are mono labels with faint counts; the current one is gilt with a 2 px gilt rule beneath the whole tab, label and count alike, never a box or fill. Strips that switch views (Library states, Review queues, Agenda modes) stand on a hairline baseline, and every tab's rule lands on it. Forms use these tabs instead of native selects. Menu triggers and date ranges are bordered buttons with a `--line` hairline that brightens to `--control-border` on hover. Text fields sit on `--surface` with a `--line` hairline that brightens while hovered or typed in; Agenda's add field is a bare row on a hairline under the plus. Section heads (sidebar, journal Agenda and Resurfaced, Settings) are mono: an optional rubric numeral, the name, a hairline rule, then state or count at the right in `--faint`, with the chevron last on collapsible ones. Counts, dates and result lines (`1 of 1 task`, `15 of 15 rows`, `1 card · 1 due`) are mono; sentences never are. Civil dates in the apparatus read as ISO, `2026-10-03`.
+Controls share four shapes:
 
-Focus has one frame per control. A focused text field turns its border gilt with no outer ring. A focused mode tab draws a faint rule beneath its label; the current one keeps its gilt rule and its label brightens. Other controls keep the gilt ring.
+- **Modes and tabs:** [Library states and Highlights processing](surfaces/library.md), [Agenda, Week and Tasks](surfaces/tasks-agenda.md), [Review's Due, New and All](surfaces/cards-review.md), [reader settings](surfaces/reader.md), and a creator's role. They are mono labels with faint counts. The current one is gilt with a 2 px gilt rule beneath the whole tab, label and count alike, never a box or fill. Strips that switch views (Library states, Review queues, Agenda modes) stand on a hairline baseline, and every tab's rule lands on it. Forms use these tabs instead of native selects.
+- **Menu triggers and date ranges:** bordered buttons with a `--line` hairline that brightens to `--control-border` on hover.
+- **Text fields:** sit on `--surface` with a `--line` hairline that brightens while hovered or typed in. Agenda's add field is a bare row on a hairline under the plus.
+- **Section heads:** sidebar, [journal Agenda and Resurfaced](surfaces/journal.md), and [Settings](surfaces/settings.md). They are mono: an optional rubric numeral, the name, a hairline rule, then state or count at the right in `--faint`, with the chevron last on collapsible ones.
+
+Counts, dates and result lines (`1 of 1 task`, `15 of 15 rows`, `1 card · 1 due`) are mono; sentences never are. Civil dates in the apparatus read as ISO, `2026-10-03`.
+
+Focus has one frame per control:
+
+| Focused control | Appearance |
+|---|---|
+| Text field | Border turns gilt, with no outer ring |
+| Mode tab | Faint rule beneath its label |
+| Current mode tab | Keeps its gilt rule; its label brightens |
+| Other controls | Gilt ring |
 
 ### Shape and elevation
 
 Radius 2 px for controls, 3 px for popups, zero for the workspace and resurfaced slips, full for pills. Popups have a 1 px `--line` border and `--popup-shadow`; dialogs `--dialog-shadow`. The workspace frame has a 1 px `--line` border and no shadow. Rows and tables cast none.
 
-Each pane has 9 px registration corners 4 px inside its content, clear of toolbars, gilt when active and `--line` otherwise. Popups carry a 24 × 2 px rubric mark at the top. A resurfaced slip sits on `--raised`, marked by its highlight colour as a 2 px bar at the left; the mono source line carries the short source title, chapter or passage and date, with Open, Keep and Mute beside it. The rail notebook name has an oculus mark in gilt.
+Each pane has 9 px registration corners 4 px inside its content, clear of toolbars, gilt when active and `--line` otherwise. Popups carry a 24 × 2 px rubric mark at the top. The rail notebook name has an oculus mark in gilt.
+
+A [resurfaced slip](surfaces/journal.md) sits on `--raised`, marked by its highlight colour as a 2 px bar at the left. The mono source line carries the short source title, chapter or passage and date, with Open, Keep and Mute beside it.
 
 ### Motion
 
-Motion acknowledges an action without delaying it: 140 ms for popup entry and sidebar movement, 90 ms for popup exit and hover feedback, with a short ease-out and no bounce. Popups travel 4 px; toasts and the reader's selection toolbar rise the same distance. Clickable button icons scale subtly on hover, focus and press. Rows, pills and list items fade their hover fill. Fold and disclosure chevrons turn rather than swap, a menu trigger's trailing chevron turns while its menu is open, and Recent, related sections and review history expand and collapse in place. A revealed answer fades in. The save state icon turns while saving. In the reader a page slides to the next in 220 ms (`--motion-page`), following a finger that drags it and finishing from where the finger let go; past a chapter's edge the page fades a step aside and the next fades in from the side it lies on. A new highlight draws its band under the words left to right in 420 ms (`--motion-ink`). The reader's toolbar and book map drift 4 px toward their edges as they fade. The reader's text and a source page fade in once they are ready rather than arriving in pieces. The note sheet's writing area rises from the bottom edge, and the sheet fades away once the note is kept. Reduced motion sets durations and travel to zero and disables icon scaling.
+Motion acknowledges an action without delaying it: 140 ms for popup entry and sidebar movement, 90 ms for popup exit and hover feedback, with a short ease-out and no bounce. Popups travel 4 px; toasts and the reader's selection toolbar rise the same distance.
 
-Pane destinations enter on target identity, not on document updates: content alone fades and rises by `--motion-distance` over `--motion-ui`; pane chrome stays still. Mode-tab rules fade between selections, and explicitly associated mode panels fade in over the same duration; the outgoing panel is not copied, so a long list costs nothing to leave and input belongs to the new panel immediately. No animation runs while typing or restoring scroll. Reduced motion prevents content animations and removes tab-rule and sidebar-bar transitions entirely.
+- Clickable button icons scale subtly on hover, focus and press. Rows, pills and list items fade their hover fill.
+- Fold and disclosure chevrons turn rather than swap. A menu trigger's trailing chevron turns while its menu is open. Recent, related sections and review history expand and collapse in place.
+- A revealed answer fades in. The save state icon turns while saving.
+- In the [reader](surfaces/reader.md), a page slides to the next in 220 ms (`--motion-page`), following a finger that drags it and finishing from where the finger let go. Past a chapter's edge the page fades a step aside and the next fades in from the side it lies on.
+- A new highlight draws its band under the words left to right in 420 ms (`--motion-ink`). The reader's toolbar and book map drift 4 px toward their edges as they fade.
+- The reader's text and a [source page](surfaces/library.md) fade in once they are ready rather than arriving in pieces. The note sheet's writing area rises from the bottom edge, and the sheet fades away once the note is kept.
+- Reduced motion sets durations and travel to zero and disables icon scaling.
+
+Pane destinations enter on target identity, not on document updates: content alone fades and rises by `--motion-distance` over `--motion-ui`; pane chrome stays still. Mode-tab rules fade between selections, and explicitly associated mode panels fade in over the same duration. The outgoing panel is not copied, so a long list costs nothing to leave and input belongs to the new panel immediately.
+
+No animation runs while typing or restoring scroll. Reduced motion prevents content animations and removes tab-rule and sidebar-bar transitions entirely.
 
 Outline folds animate the visible descendant group and following rows over `--motion-ui`, rather than running one animation per descendant. Outgoing children remain until collapse finishes; virtualization stays bounded and the active editor stays mounted. Reversing a fold settles the previous transition first. Reduced motion changes the tree immediately.
 
 ## Shell
 
-- **Voices by job.** Mono is for what the machine knows: ids, dates, counts, paths and modes. Key hints are the exception, in sans at apparatus size. Sans is for what you write and for places and actions. The serif is for what was written to be read. Glyphs mark places (Today, Agenda, Review, Library) and kinds of page; one glyph stands for one place everywhere it appears, and actions that read well as a word keep the word. Place glyphs are drawn from circles and rules like the oculus, with an optional filled hub.
-- **Global rail.** Permanent across one or two panes. A three-column grid: the sidebar toggle and the Tessera wordmark with its oculus at the left (its tooltip is the notebook path), Find or create with the Commands icon in one 400 px search-shaped control centred on the window, and an icon-only Layout button at the right. Find or create shows the eye glyph and opens its picker beneath the search trigger; Commands opens the command palette. Layout opens the active view beside, switches panes, closes the active pane or toggles the sidebar. Global controls are never duplicated inside pane headers. In the macOS app the rail is the window's title bar: the window buttons sit centred in its height over its left end, so its start moves in by `--window-controls-width` (84 px) except in full screen; dragging any part of it that is not a control moves the window, and double-clicking zooms it.
-- **Sidebar**, 208 px. The desk has no heading: Today, Agenda, Review and Library, in `--text` with their glyphs, each with live state at the right in mono. Today shows the weekday and day; Agenda the tasks planned for today, in `--danger` when any is overdue; Review the cards due; Library the unprocessed highlights. Zero counts are left out. Counts refresh after each committed change, cancelling a refresh still in flight, and disappear rather than go stale when a request fails. Then Pinned, shown only when a page or saved table view is pinned; the Index, described under Notes; unpinned saved Views whose type is not a kind in the Index; and collapsible Recent. Section headings are mono: a rubric numeral counted over the sections shown, the name, a hairline rule and a count. Saved table views have a pin control on hover or keyboard focus, always shown on a screen without hover; pinning is stored per notebook alongside page pins. Task views and decks are selected in their own destinations. Settings sits at the foot above a hairline, with an icon-only Fields button beside it; the foot carries no notebook name or build. Rows are 28 px with one left edge at 8 px. The row for the active pane's target gets the 2 px gilt bar, the selection fill and a gilt glyph. Destinations open in the active pane; Shift-click opens beside.
-- **Workspace frame.** The panes share one square inset canvas, with a 12 px outside gutter at the right and bottom. Collapsing the sidebar adds the same gutter on the left. The rail and sidebar use the same shell surface.
-- **Panes.** Up to two, split equally. Each has a header: back and forward, the glyph of the place or page kind (gilt in the active pane), breadcrumbs or the pane title in mono, save state, the Vim mode when on, the page menu, and Close while split. A table pane is titled with its saved view's name, else its type's, and an index pane with its kind's plural. In a narrow pane the title gives way first: ancestors such as Library keep their width up to 10em, so the header reads `Library / Discourses on…`. On journal days the page menu leaves out what only titled pages can do (Rename, Gloss, Compare perspectives, Make question) rather than listing it disabled. Saved shows as a 4 px dot with a hidden label; slow saves, offline and errors speak in sans, errors in `--danger`. The Vim mode shows only in the active pane, as a hairline-boxed mono tag of fixed width: Normal in `--text`, Insert gilt, Visual on `--selection`, and Blocks, in `--muted`, while moving between blocks. Every label is six letters, so a mode change never shifts the header. Journal headers also hold their own previous-day, calendar and next-day controls; these always target the owning pane. Page errors stay under their owning header. Notebook recovery feedback appears once above both panes, so activating a pane cannot move a control between pointer-down and click. Non-page panes (table, fields, settings, agenda, review, library, reader, index) share the workspace frame.
-- **Narrow layouts.** Below 1048 px the sidebar becomes a toggleable overlay. While it is open, a shade in the shell colour dims the workspace beside it, and tapping or clicking the shade closes the sidebar; on the cover screen the open sidebar covers its own toggle, so the shade is the way back. Hidden navigation is inert immediately, including during its exit. Below 840 px working-pane tabs show one pane at a time. Below 600 px Find or create, Commands and Layout retain accessible labels on icon controls, and the workspace gutter shrinks to 4 px. Outlines there take the 16 px pane inset like every page: titles and headings start at that edge, only the bullet stays left of the text, and the fold and block menu move to the end of the row being edited or selected; field names take a narrower column; the library search takes its own line above sort, export and add. The global rail remains visible in every layout.
-- **Mac menus.** Settings opens from the Tessera menu; File offers New Page, Open Today, Import Book and New Capture, using the same commands as the web shell and bringing the main window forward. About shows the release version with the build hash in parentheses when available.
-- **Measure.** Outline content is at most 760 px, centred, so a note's title sits where every other screen's title does; a gutter of two pointer targets (48 px, 64 px on touch) hangs left of it for row controls. Two panes split the width; text never shrinks to fit.
+![Desktop shell layout](images/shell-layout.svg)
+
+Desktop pointer dimensions, not to scale. The pane detail shows the measure and row controls, and the apparatus margin that eligible wide concept pages gain; split panes do not.
+
+### Voices by job
+
+Mono is for what the machine knows: ids, dates, counts, paths and modes. Key hints are the exception, in sans at apparatus size. Sans is for what you write and for places and actions. The serif is for what was written to be read.
+
+Glyphs mark places (Today, Agenda, Review, Library) and kinds of page; one glyph stands for one place everywhere it appears, and actions that read well as a word keep the word. Place glyphs are drawn from circles and rules like the oculus, with an optional filled hub.
+
+### Global rail
+
+Permanent across one or two panes. A three-column grid:
+
+| Position | Controls |
+|---|---|
+| Left | Sidebar toggle and Tessera wordmark with its oculus; its tooltip is the notebook path |
+| Centre of the window | Find or create with the Commands icon in one 400 px search-shaped control |
+| Right | Icon-only Layout button |
+
+Find or create shows the eye glyph and opens its picker beneath the search trigger; Commands opens the command palette. Layout opens the active view beside, switches panes, closes the active pane or toggles the sidebar. Global controls are never duplicated inside pane headers.
+
+In the macOS app the rail is the window's title bar. The window buttons sit centred in its height over its left end, so its start moves in by `--window-controls-width` (84 px) except in full screen. Dragging any part of it that is not a control moves the window, and double-clicking zooms it.
+
+### Sidebar
+
+Width 208 px. The desk has no heading: Today, Agenda, Review and Library, in `--text` with their glyphs, each with live state at the right in mono.
+
+| Destination | Live state |
+|---|---|
+| Today | Weekday and day |
+| Agenda | Tasks planned for today, in `--danger` when any is overdue |
+| Review | Cards due |
+| Library | Unprocessed highlights |
+
+Zero counts are left out. Counts refresh after each committed change, cancelling a refresh still in flight, and disappear rather than go stale when a request fails.
+
+After the desk, sections appear in this order:
+
+1. Pinned, shown only when a page or saved table view is pinned.
+2. The [Index](surfaces/notes.md).
+3. Unpinned saved Views whose type is not a kind in the Index.
+4. Collapsible Recent.
+
+Section headings are mono: a rubric numeral counted over the sections shown, the name, a hairline rule and a count. Saved table views have a pin control on hover or keyboard focus, always shown on a screen without hover. Pinning is stored per notebook alongside page pins. Task views and decks are selected in their own destinations.
+
+Settings sits at the foot above a hairline, with an icon-only Fields button beside it. The foot carries no notebook name or build. Rows are 28 px with one left edge at 8 px. The row for the active pane's target gets the 2 px gilt bar, the selection fill and a gilt glyph. Destinations open in the active pane; Shift-click opens beside.
+
+### Workspace frame
+
+The panes share one square inset canvas, with a 12 px outside gutter at the right and bottom. Collapsing the sidebar adds the same gutter on the left. The rail and sidebar use the same shell surface.
+
+### Panes
+
+Up to two, split equally. Each has a header, in this order:
+
+1. Back and forward.
+2. The glyph of the place or page kind, gilt in the active pane.
+3. Breadcrumbs or the pane title in mono.
+4. Save state.
+5. The Vim mode when on.
+6. The page menu.
+7. Close while split.
+
+A table pane is titled with its saved view's name, else its type's, and an index pane with its kind's plural. In a narrow pane the title gives way first: ancestors such as Library keep their width up to 10em, so the header reads `Library / Discourses on…`.
+
+On journal days the page menu leaves out what only titled pages can do (Rename, Gloss, Compare perspectives, Make question) rather than listing it disabled. Saved shows as a 4 px dot with a hidden label; slow saves, offline and errors speak in sans, errors in `--danger`.
+
+The Vim mode shows only in the active pane, as a hairline-boxed mono tag of fixed width:
+
+| Mode | Appearance |
+|---|---|
+| Normal | `--text` |
+| Insert | Gilt |
+| Visual | `--selection` |
+| Blocks, while moving between blocks | `--muted` |
+
+Every label is six letters, so a mode change never shifts the header.
+
+[Journal headers](surfaces/journal.md) also hold their own previous-day, calendar and next-day controls; these always target the owning pane. Page errors stay under their owning header. Notebook recovery feedback appears once above both panes, so activating a pane cannot move a control between pointer-down and click.
+
+Non-page panes (table, fields, settings, agenda, review, library, reader, index) share the workspace frame.
+
+### Narrow layouts
+
+| Width | Behaviour |
+|---|---|
+| Below 1048 px | Sidebar becomes a toggleable overlay |
+| Below 840 px | Working-pane tabs show one pane at a time |
+| Below 600 px | Find or create, Commands and Layout retain accessible labels on icon controls; workspace gutter shrinks to 4 px |
+
+While the sidebar is open, a shade in the shell colour dims the workspace beside it. Tapping or clicking the shade closes the sidebar. On the cover screen the open sidebar covers its own toggle, so the shade is the way back. Hidden navigation is inert immediately, including during its exit.
+
+Below 600 px:
+
+- Outlines take the 16 px pane inset like every page. Titles and headings start at that edge, only the bullet stays left of the text, and the fold and block menu move to the end of the row being edited or selected.
+- Field names take a narrower column.
+- The [library search](surfaces/library.md) takes its own line above sort, export and add.
+
+The global rail remains visible in every layout. On the cover screen (a touch screen under 600 px), the rail gives way to a bottom nav: Today, Agenda, Find, Review and Library. Library's long press lists the note types in use. The sidebar opens from a button at the start of the pane header, and the nav steps aside while the keyboard is up. Unfolding brings the usual shell back around the same page.
+
+### Mac menus
+
+Settings opens from the Tessera menu. File offers New Page, Open Today, Import Book and New Capture, using the same commands as the web shell and bringing the main window forward. About shows the release version with the build hash in parentheses when available.
+
+### Measure
+
+Outline content is at most 760 px, centred, so a note's title sits where every other screen's title does. A gutter of two pointer targets (48 px, 64 px on touch) hangs left of it for row controls. Two panes split the width; text never shrinks to fit.
 
 ### Find or create
 
-One picker searches pages, blocks, highlight quotes and the passages inside books; a leading `>` switches to commands. Everything, Highlights, Books and Pages chips filter grouped results under mono headings and live counts: Highlights, Pages and notes (Books when every result is a book page), an explicit Create page row, then In your books. A block already shown as a highlight is not repeated among the note results. Other note matches occupy one column, with their text clamped to two lines and the containing page title as mono apparatus beneath. Quotes are matched case-insensitively against up to 500 highlights loaded once per opening; passage search starts after three characters, debounces by 100 ms and cancels superseded requests, showing up to 40 matches. Books carry their actual percentage and highlight count; passages carry the source siglum, chapter when available and paragraph number. Within page results, a case-insensitive exact title comes first, including a locally created page not yet in server search, and suppresses Create page. At wide widths the finder has equal index and preview halves: page titles with their first lines, or a passage between its neighbours with highlight ranges and every search term marked. On the touch cover it occupies the keyboard-resized viewport, with results growing upward from the bottom field, the best match nearest the thumb, scope chips immediately above and Cancel at the right. Enter opens or creates in the invoking pane; passages and highlights open at their place in the reader, and Shift-Enter opens beside. Arrows select and Escape closes. Creation errors keep the entered title intact. Tab drills into page-result children and Shift-Tab returns; a drilled search never offers root-page creation. New page remains a command with a direct title form anchored below search, not a separate rail button.
+One picker searches pages, blocks, highlight quotes and the passages inside books; a leading `>` switches to commands. Everything, Highlights, Books and Pages chips filter grouped results under mono headings and live counts, in this order:
 
-Command mode starts with Go to: Highlights, Unfiled, Sources, Agenda week, Agenda tasks, This week, This month, This quarter and This year, followed by each notebook type's index and table. The period commands open today's journal with its corresponding inline ledger, not an agenda period. Shift opens these destinations beside. The query stays visible while the longer command list scrolls. Navigation, Page, View and Editing retain their existing commands and shortcut hints below.
+1. Highlights.
+2. Pages and notes, or Books when every result is a book page.
+3. An explicit Create page row.
+4. In your books.
 
-Renaming a titled page to an existing title offers **Merge into “Title”**; the page menu's **Merge into…** uses the page picker. A confirmation explains that the merge is permanent. The surviving page keeps its title and receives the duplicate's blocks, with matching field entries appending their values. References, aliased references, tags and memberships redirect to the survivor, so its backlinks include both pages' former incoming links. Journal days, the Fields page and library sources cannot be merged; source-details title collisions remain errors.
+A block already shown as a highlight is not repeated among the note results. Other note matches occupy one column, with their text clamped to two lines and the containing page title as mono apparatus beneath.
+
+| Result | Search and metadata |
+|---|---|
+| Quotes | Case-insensitive matching against up to 500 highlights loaded once per opening |
+| Passages | Search starts after three characters, debounces by 100 ms and cancels superseded requests; up to 40 matches. Source siglum, chapter when available and paragraph number |
+| Books | Actual percentage and highlight count |
+| Pages | Case-insensitive exact title comes first, including a locally created page not yet in server search, and suppresses Create page |
+
+At wide widths the finder has equal index and preview halves: page titles with their first lines, or a passage between its neighbours with highlight ranges and every search term marked.
+
+On the touch cover it occupies the keyboard-resized viewport, with results growing upward from the bottom field, the best match nearest the thumb, scope chips immediately above and Cancel at the right.
+
+- Enter opens or creates in the invoking pane; passages and highlights open at their place in the [reader](surfaces/reader.md), and Shift-Enter opens beside.
+- Arrows select and Escape closes. Creation errors keep the entered title intact.
+- Tab drills into page-result children and Shift-Tab returns; a drilled search never offers root-page creation.
+- New page remains a command with a direct title form anchored below search, not a separate rail button.
+
+Command mode starts with Go to: [Highlights, Unfiled, Sources](surfaces/library.md), [Agenda week, Agenda tasks](surfaces/tasks-agenda.md), [This week, This month, This quarter and This year](surfaces/journal.md), followed by each notebook type's index and table. The period commands open today's journal with its corresponding inline ledger, not an agenda period. Shift opens these destinations beside. The query stays visible while the longer command list scrolls. Navigation, Page, View and Editing retain their existing commands and shortcut hints below.
+
+Renaming a titled page to an existing title offers **Merge into “Title”**; the page menu's **Merge into…** uses the page picker. A confirmation explains that the merge is permanent.
+
+The surviving page keeps its title and receives the duplicate's blocks, with matching field entries appending their values. References, aliased references, tags and memberships redirect to the survivor, so its backlinks include both pages' former incoming links. Journal days, the Fields page and library sources cannot be merged; source-details title collisions remain errors.
 
 The permanent merge confirmation stays a bounded short-control popup, with the shared popup heading and control-sized explanation rather than expanding to the titles' intrinsic width.
+
+## Surfaces
+
+- [Library](surfaces/library.md): Library pane, adding sources, the inspector, the Highlights desk, source pages, sigla, collections and citation chips.
+- [Reader](surfaces/reader.md): reading books and articles, navigation, selection, highlights, notes and reader settings.
+- [Tasks and agenda](surfaces/tasks-agenda.md): tasks, planning, work sessions, projects, Agenda, Week and Tasks.
+- [Journal](surfaces/journal.md): journal days, the period trail, Today tiles and Add to today.
+- [Cards and review](surfaces/cards-review.md): card authoring, card state, review queues and review sessions.
+- [Perspectives](surfaces/perspectives.md): perspectives, Compare, questions and answers.
+- [Notes](surfaces/notes.md): Index, finding aids, note header, aliases, type icons and names.
+- [Fields and tables](surfaces/fields-tables.md): Fields register, field and type pages, tables and views.
+- [Settings](surfaces/settings.md): notebook and device settings, Appearance, time zone and sync controls.
 
 ## Block row
 
@@ -114,314 +309,289 @@ The permanent merge confirmation stays a bounded short-control popup, with the s
  handle fold  bullet text         type pills              trailing
 ```
 
-- **Handle** and **fold** live in the gutter and show on hover, focus and selection. The handle opens the block menu and drags. The fold is hidden on leaf rows; a collapsed block shows a ringed bullet. Below 600 px both sit at the end of the row being edited or selected instead.
-- **Block menu.** Edit, Insert below, Copy reference, Open beside and Zoom stay in the first menu. Move, Add or change, Select, and source/citation actions open short secondary menus with Back to block actions. Archive and Delete remain last. Closing or completing an action returns keyboard ownership to the editor or outline.
-- **Bullet** is a filled dot in `--faint`, 24 px target, gilt on hover and selection. Click or ⌘. to zoom (⌘⇧. zooms out), drag to move. The page title aligns with the bullet column; below 600 px the bullet is the first thing in the row, just inside the title's edge.
-- **Prose and bullets.** Journal days show bullets; titled pages read as prose. On a prose page the bullet rests hidden and returns on hover or selection, where it still zooms and drags, and a collapsed block keeps its ringed bullet. Depth shows as 1 px `--line` threads under each ancestor's bullet column. Show bullets and Hide bullets in the page menu override a page's default; overrides are stored per notebook with the pins. Editing, keys and export are the same in both.
-- **Gloss.** A titled page's gloss is an entry for the built-in Gloss field among its top-level blocks, added or edited from Gloss in the page menu or the palette, which create the field and put the entry first. It reads as a standfirst under the title: Piazzolla at `--text-gloss`, muted, on the text edge, with no field label; clicking edits it, and an empty gloss says what to write. Reference preview cards show it under the page title and leave it out of their rows.
-- **Depth.** Titled pages have four depths: Gloss (the gloss alone), Opening (the gloss and the top-level text before the first top-level heading), Perspectives (the opening, every heading whose parent shows, and positions directly under a shown heading, each closed to its own row) and Full. The dial sits in the pane header as four irises whose pupils widen with depth, the current one gilt in a `--surface` well, followed by its name in sans; below 600 px the name is dropped so the title keeps its room, and below 480 px only the current iris shows, opening a Depth menu of all four. `[` and `]` step it when no block is being edited, and the palette has a command per stop. Depth belongs to the pane's history entry, so back, forward and reload restore it; a zoomed page always shows in full, and the dial hides there and on journal days. Rows that leave the list stop being edited or selected.
-- **Text** is the block body. References render inline in the accent with a soft underline; wrapped references align left. While a block is edited a reference stays one label: clicking or tapping it puts the caret at its nearer end, so the row keeps its shape and the ID never shows.
-- **Type pills** follow the text at meta size. Clicking a pill opens a menu: open the table, open the type page, remove a manual membership. A text membership says so instead of offering removal.
-- **Field entries** are children rendered with a field icon and muted name; editing one shows the name as an atomic widget, never the reference ID. Values are ordinary child blocks. A field whose values are all leaves shows them as aligned rows: the field icon takes the bullet slot, the name sits in a 144 px muted column beside the first value, and later values follow in the same column with the name left blank. Clicking the name edits the entry, which then shows as two levels; so do fields whose values have children. An entry with no value shows its name and Empty, which adds a value and edits it. A blank value reads Empty in `--faint`. Backspace at the start of the first inline value does nothing; at the start of a later one it joins the value above. A page that opens on a field selects its value row instead of editing. Choice and instance values render as pills outside editing, and a checkbox value is a control that writes `yes` or `no`; other spellings stay text.
-- **Field sheet.** Selecting or editing a block, or one of its fields, shows its sheet under its last field: a slot for each template field it lacks, in template order, then Add field. Slots share the field labels' edge, sit on the canvas outside the row's hover and selection, and appear and leave without moving the rows above them. A slot adds the entry with a blank value and edits it, offering the options of a choice, the date picker for a date and page completion for an instance; a checkbox slot adds a ticked value. Add field opens a picker with the missing template fields under Template, then the rest, and Create field for a new name. A template field takes its template place among the entries; another follows the last entry. Each addition is one undo step.
-  Below 600 px the slots use the same narrow label column as filled entries, and the selected row's fold and menu stay before the sheet rather than wrapping underneath it.
-- **Capability metadata** follows the source text without replacing it. Clicking a task glyph completes the task, or reopens a done or cancelled one; right-click or ⌘⇧Enter opens the status menu, which marks the current status. Open hover previews the done colour. Planning facts read in mono relative to today (`today`, `tomorrow`, `Fri 16`, `17 Oct`, `due Fri 16`, `every week`, `!high`), and a missed date reads `since Tue 6` or `was due Thu 8` in `--danger`. An open task without facts offers a faint Plan only under hover, focus or selection; a page's own task always shows it. Done tasks show `done today` and muted text; cancelled tasks show only muted, struck-through text; neither offers Plan. A parent task shows `1/2` for its done subtasks, cancelled ones left out, and a task with a running work session shows its clock in `--status-doing`, which opens Work sessions. Project and review controls open the attached capability. Source text keeps its natural width; controls wrap beneath it when they cannot fit beside it. Wrapped planning values stay left-aligned.
-  Activating a metadata control does not begin a text selection, so its anchor stays under the pointer while the popup opens.
-- **Cards** show their syntax quietly outside editing: `>>`, `<<` and `<>` become →, ← and ↔ in `--faint`, and cloze answers carry a dotted accent underline with the hint in their tooltip. Clicking places the caret at the same source offset. A block that makes cards takes a small outlined index card in `--faint` in place of its bullet as soon as the syntax yields a card, template cards included; a task keeps its checkbox, and the mark keeps the folded-children ring. The mark and the summary (`2 cards · 1 not yet`) open the Cards popup. Each card there shows its kind, front and, beneath it in `--muted`, the answer: a cloze as the whole sentence with its answer underlined, a multi-line or list answer as its lines joined by `·`. The state reads New, Due, In 6 days, Not yet or Paused. A new card offers Not yet or Start, a reviewed card Pause or Resume and Reset with confirmation; Start all appears when several cards include held ones, then Review. Held cards leave Review, its counts and forecasts and keep their schedule; holding is undoable. Malformed syntax is reported beneath the row once the block is left or its text has rested for 1.5 seconds, politely rather than as an alert. Shift on Review opens it beside.
-- **Conflicts.** The warning badge opens both retained versions under the row. Resolution actions use the shared hairline buttons; the badge and actions grow to the touch target size on coarse pointers. Long unbroken text wraps inside the panel.
-- **Recovery banners.** Details opens on its own full-width line beneath the status and actions, rather than narrowing the explanation into a side column. Its disclosure takes the shared pointer target size. A change the notebook refused shows and copies the words it carried; only a change without words, such as a task date or a grade, keeps its raw record, because that is all there is to recover.
-- **Kept copies.** A version that sync kept beside a block sits under it, inset behind a hairline at its left, under a mono label (`Sol's Fold's version, kept beside`). Use this, Discard and Keep both follow as bordered buttons in the control font. Each is one undoable step.
-- **Headings** are Piazzolla block styles at the h1, outline-h2 and h3 tokens, weight 480. `# ` at block start sets one.
-- Rows highlight on hover with `--hover`; selection uses `--selection` plus the accent bar. While a range is selected, every row under a selected block takes the same fill and bar, field values included, because those rows move, copy and delete with it.
-- Shift-click on another row selects the range from the current row; Shift-click inside the block being edited extends its text selection instead.
-- Opening a page selects nothing, so no row lights up that you did not choose; journals still open editing their last empty block. ↓ or `j` then selects the first visible row and ↑ or `k` the last; other keys wait for a selection. Back and forward restore the row you had selected. An open that names a block selects it, and one that names a caret (Add note, Make card, Highlight and note) starts editing there.
+### Handle, fold and block menu
+
+Handle and fold live in the gutter and show on hover, focus and selection. The handle opens the block menu and drags. The fold is hidden on leaf rows; a collapsed block shows a ringed bullet. Below 600 px both sit at the end of the row being edited or selected instead.
+
+Edit, Insert below, Copy reference, Open beside and Zoom stay in the first menu. Move, Add or change, Select, and source/citation actions open short secondary menus with Back to block actions. Archive and Delete remain last. Closing or completing an action returns keyboard ownership to the editor or outline.
+
+### Bullets and prose
+
+The bullet is a filled dot in `--faint`, 24 px target, gilt on hover and selection. Click or ⌘. to zoom (⌘⇧. zooms out), drag to move. The page title aligns with the bullet column; below 600 px the bullet is the first thing in the row, just inside the title's edge.
+
+[Journal days](surfaces/journal.md) show bullets; [titled pages](surfaces/notes.md) read as prose. On a prose page the bullet rests hidden and returns on hover or selection, where it still zooms and drags, and a collapsed block keeps its ringed bullet. Depth shows as 1 px `--line` threads under each ancestor's bullet column.
+
+Show bullets and Hide bullets in the page menu override a page's default; overrides are stored per notebook with the pins. Editing, keys and export are the same in both.
+
+### Gloss and depth
+
+A titled page's gloss is an entry for the built-in Gloss field among its top-level blocks, added or edited from Gloss in the page menu or the palette, which create the field and put the entry first.
+
+It reads as a standfirst under the title: Piazzolla at `--text-gloss`, muted, on the text edge, with no field label. Clicking edits it, and an empty gloss says what to write. Reference preview cards show it under the page title and leave it out of their rows.
+
+Titled pages have four depths:
+
+| Depth | Visible content |
+|---|---|
+| Gloss | The gloss alone |
+| Opening | The gloss and the top-level text before the first top-level heading |
+| Perspectives | The opening, every heading whose parent shows, and positions directly under a shown heading, each closed to its own row |
+| Full | Full |
+
+The dial sits in the pane header as four irises whose pupils widen with depth, the current one gilt in a `--surface` well, followed by its name in sans. Below 600 px the name is dropped so the title keeps its room. Below 480 px only the current iris shows, opening a Depth menu of all four.
+
+`[` and `]` step it when no block is being edited, and the palette has a command per stop. Depth belongs to the pane's history entry, so back, forward and reload restore it. A zoomed page always shows in full, and the dial hides there and on journal days. Rows that leave the list stop being edited or selected.
+
+### Text and type pills
+
+Text is the block body. References render inline in the accent with a soft underline; wrapped references align left. While a block is edited a reference stays one label: clicking or tapping it puts the caret at its nearer end, so the row keeps its shape and the ID never shows.
+
+Type pills follow the text at meta size. Clicking a pill opens a menu: open the table, open the type page, remove a manual membership. A text membership says so instead of offering removal.
+
+### Field entries
+
+[Field entries](surfaces/fields-tables.md) are children rendered with a field icon and muted name; editing one shows the name as an atomic widget, never the reference ID. Values are ordinary child blocks.
+
+A field whose values are all leaves shows them as aligned rows: the field icon takes the bullet slot, the name sits in a 144 px muted column beside the first value, and later values follow in the same column with the name left blank. Clicking the name edits the entry, which then shows as two levels; so do fields whose values have children.
+
+- An entry with no value shows its name and Empty, which adds a value and edits it. A blank value reads Empty in `--faint`.
+- Backspace at the start of the first inline value does nothing; at the start of a later one it joins the value above.
+- A page that opens on a field selects its value row instead of editing.
+- Choice and instance values render as pills outside editing, and a checkbox value is a control that writes `yes` or `no`; other spellings stay text.
 - An inline field's label edits its value, caret at the end, and the field stays on one line. ← on a selected inline value selects the field entry itself; Enter then edits its name.
+
+### Field sheet
+
+Selecting or editing a block, or one of its fields, shows its sheet under its last field: a slot for each template field it lacks, in template order, then Add field. Slots share the field labels' edge, sit on the canvas outside the row's hover and selection, and appear and leave without moving the rows above them.
+
+A slot adds the entry with a blank value and edits it, offering the options of a choice, the date picker for a date and page completion for an instance; a checkbox slot adds a ticked value.
+
+Add field opens a picker with the missing template fields under Template, then the rest, and Create field for a new name. A template field takes its template place among the entries; another follows the last entry. Each addition is one undo step.
+
+Below 600 px the slots use the same narrow label column as filled entries, and the selected row's fold and menu stay before the sheet rather than wrapping underneath it.
+
+### Capability metadata
+
+Capability metadata follows the source text without replacing it. Clicking a task glyph completes the task, or reopens a done or cancelled one. Right-click or ⌘⇧Enter opens the status menu, which marks the current status. Open hover previews the done colour.
+
+[Planning facts](surfaces/tasks-agenda.md) read in mono relative to today (`today`, `tomorrow`, `Fri 16`, `17 Oct`, `due Fri 16`, `every week`, `!high`). A missed date reads `since Tue 6` or `was due Thu 8` in `--danger`.
+
+| Task state | Appearance and controls |
+|---|---|
+| Open without facts | Faint Plan only under hover, focus or selection; a page's own task always shows it |
+| Done | `done today` and muted text; no Plan |
+| Cancelled | Only muted, struck-through text; no Plan |
+| Parent | `1/2` for its done subtasks, cancelled ones left out |
+| Running work session | Clock in `--status-doing`, opening Work sessions |
+
+Project and review controls open the attached capability. Source text keeps its natural width; controls wrap beneath it when they cannot fit beside it. Wrapped planning values stay left-aligned.
+
+Activating a metadata control does not begin a text selection, so its anchor stays under the pointer while the popup opens.
+
+### Cards
+
+[Cards](surfaces/cards-review.md) show their syntax quietly outside editing: `>>`, `<<` and `<>` become →, ← and ↔ in `--faint`, and cloze answers carry a dotted accent underline with the hint in their tooltip. Clicking places the caret at the same source offset.
+
+A block that makes cards takes a small outlined index card in `--faint` in place of its bullet as soon as the syntax yields a card, template cards included. A task keeps its checkbox, and the mark keeps the folded-children ring. The mark and the summary (`2 cards · 1 not yet`) open the Cards popup.
+
+Each card there shows its kind, front and, beneath it in `--muted`, the answer: a cloze as the whole sentence with its answer underlined, a multi-line or list answer as its lines joined by `·`. The state reads New, Due, In 6 days, Not yet or Paused.
+
+| Card state | Actions |
+|---|---|
+| New | Not yet or Start |
+| Reviewed | Pause or Resume, and Reset with confirmation |
+
+Start all appears when several cards include held ones, then Review.
+
+Held cards leave Review, its counts and forecasts and keep their schedule; holding is undoable. Malformed syntax is reported beneath the row once the block is left or its text has rested for 1.5 seconds, politely rather than as an alert. Shift on Review opens it beside.
+
+### Conflicts and recovery
+
+The warning badge opens both retained versions under the row. Resolution actions use the shared hairline buttons; the badge and actions grow to the touch target size on coarse pointers. Long unbroken text wraps inside the panel.
+
+In recovery banners, Details opens on its own full-width line beneath the status and actions, rather than narrowing the explanation into a side column. Its disclosure takes the shared pointer target size.
+
+A change the notebook refused shows and copies the words it carried. Only a change without words, such as a task date or a grade, keeps its raw record, because that is all there is to recover.
+
+A version that sync kept beside a block sits under it, inset behind a hairline at its left, under a mono label (`Sol's Fold's version, kept beside`). Use this, Discard and Keep both follow as bordered buttons in the control font. Each is one undoable step.
+
+### Headings and selection
+
+Headings are Piazzolla block styles at the h1, outline-h2 and h3 tokens, weight 480. `# ` at block start sets one.
+
+Rows highlight on hover with `--hover`; selection uses `--selection` plus the accent bar. While a range is selected, every row under a selected block takes the same fill and bar, field values included, because those rows move, copy and delete with it.
+
+Shift-click on another row selects the range from the current row; Shift-click inside the block being edited extends its text selection instead.
+
+Opening a page selects nothing, so no row lights up that you did not choose; journals still open editing their last empty block. ↓ or `j` then selects the first visible row and ↑ or `k` the last; other keys wait for a selection. Back and forward restore the row you had selected.
+
+An open that names a block selects it, and one that names a caret (Add note, Make card, Highlight and note) starts editing there.
 
 ### Row mechanics
 
 Settled by the 2026-10-02 audit; each rule has a document-layer test in `web/src/document/outline-*.test.ts`.
 
-- **Enter** at the end of a block with children inserts its first child; at the end of a leaf, a sibling after it; at the start, an empty block above with the caret staying in the text; mid-text, the right part moves to a new block and the original id stays on the left. Enter at the end of a multi-line (`>>>`) or list (`>>1.`) card starts its first answer line as a child. After a task, the new block is a fresh todo without planning facts, also when a split divides the task; Enter on an empty, childless todo removes the checkbox instead, keeping the caret, to leave the list. Each split and its new task are one undo step. Enter never cuts a `[[reference]]` or `#tag`: with the caret inside one, as in a query kept with Escape, the split falls just after it. A selection reaching into one replaces the whole token.
-- **Backspace** at the start merges into the previous visible row (a sibling's last unfolded descendant, never a folded hidden row), the merged block's children follow it. A first child with no previous sibling outdents instead. On a task it acts first on the checkbox: an empty, childless todo is deleted and the caret moves to the end of the previous row; a todo with text loses its task state, and the next Backspace follows the plain rules. Headings likewise drop their style first. Backspace straight after a reference, or Delete straight before one, removes the whole token; undo restores the original caret. Inside a `[[query]]` still being typed, both delete one character.
-- **Delete** at the end joins the next sibling, appending its children in order.
-- **Arrows** at a row boundary cross to the neighbouring row keeping the visual column; Escape keeps the caret offset so the next Enter or `i` resumes there.
-- **Indent, outdent and move** act on the selection's roots with their subtrees, never leave the zoomed subtree, and are silent no-ops without a history entry at a boundary (no previous sibling, top level, first or last sibling). Outdent leaves the following siblings under their original parent. A multi-row selection survives the command.
-- **Delete** of a subtree selects the previous visible survivor; folding a descendant selects the folded parent; zooming out selects the block being left.
-- **Capability identity** stays on the original block through moves, end splits, undo and restoration. A merge cannot remove an active task or project, a block with completion or work history, or reviewed cards; a block that was a task and has no history merges like any other. Deleting is allowed. An interior split cannot divide active card syntax; moving reviewed syntax onto a new source identity is also refused.
+**Enter**
+
+| Caret or block state | Result |
+|---|---|
+| End of a block with children | Inserts its first child |
+| End of a leaf | Inserts a sibling after it |
+| Start | Inserts an empty block above, with the caret staying in the text |
+| Mid-text | Right part moves to a new block; original id stays on the left |
+| End of a multi-line (`>>>`) or list (`>>1.`) card | Starts its first answer line as a child |
+| After a task, including a split that divides it | New block is a fresh todo without planning facts |
+| Empty, childless todo | Removes the checkbox, keeping the caret, to leave the list |
+
+Each split and its new task are one undo step. Enter never cuts a `[[reference]]` or `#tag`: with the caret inside one, as in a query kept with Escape, the split falls just after it. A selection reaching into one replaces the whole token.
+
+**Backspace**
+
+At the start, Backspace merges into the previous visible row (a sibling's last unfolded descendant, never a folded hidden row); the merged block's children follow it. A first child with no previous sibling outdents instead.
+
+On a task it acts first on the checkbox:
+
+| Task state | Result |
+|---|---|
+| Empty, childless todo | Deleted; caret moves to the end of the previous row |
+| Todo with text | Loses its task state; next Backspace follows the plain rules |
+
+Headings likewise drop their style first. Backspace straight after a reference, or Delete straight before one, removes the whole token; undo restores the original caret. Inside a `[[query]]` still being typed, both delete one character.
+
+**Delete, arrows and tree commands**
+
+- Delete at the end joins the next sibling, appending its children in order.
+- Arrows at a row boundary cross to the neighbouring row keeping the visual column. Escape keeps the caret offset so the next Enter or `i` resumes there.
+- Indent, outdent and move act on the selection's roots with their subtrees, never leave the zoomed subtree, and are silent no-ops without a history entry at a boundary (no previous sibling, top level, first or last sibling). Outdent leaves the following siblings under their original parent. A multi-row selection survives the command.
+- Delete of a subtree selects the previous visible survivor; folding a descendant selects the folded parent; zooming out selects the block being left.
+
+**Capability identity**
+
+Capability identity stays on the original block through moves, end splits, undo and restoration. A merge cannot remove an active task or project, a block with completion or work history, or reviewed cards; a block that was a task and has no history merges like any other. Deleting is allowed. An interior split cannot divide active card syntax; moving reviewed syntax onto a new source identity is also refused.
 
 ## Keyboard language
 
-Three layers, each reaching the same actions as the palette and the block menu.
+Three layers, each reaching the same actions as the palette and the block menu: typed triggers, chords and the leader.
 
-1. **Typed triggers** in block text. Each character means one thing, opens a picker at the caret, and Escape keeps it as text. References, inline code and field shorthand never open one.
+### Typed triggers
 
-   | Trigger | Means |
-   |---|---|
-   | `[[` | reference to a page, field or block |
-   | `((` | reference to a block, searching blocks only |
-   | `#name` | type: picks a page used as a type, or creates one |
-   | `@` | when: `@fri` schedules, `@by fri` or `@due fri` sets a deadline; Tab flips the field, Enter picks |
-   | `/` | every block verb: statuses, schedule, deadline, priority, repeat, clock, project, headings, references, types, cards |
-   | `Name::`, `::` at block start | field entry; `::` alone picks the field |
-   | `[] `, `# ` | todo, heading |
-   | `>>`, `<<`, `<>`, `>>>`, `>>1.`, `;;`, `{{c1::}}` | cards; ⌘⇧C wraps the selection in a cloze |
+Typed triggers act in block text. Each character means one thing, opens a picker at the caret, and Escape keeps it as text. References, inline code and field shorthand never open one.
 
-   `[[` and `((` close their pair as in Roam and Logseq, and a typed closer steps over the paired one. The picker opens under the opening brackets and stays there while the query grows or shrinks, and closes as soon as the text no longer holds an open query, however that text changed. The open `[[query]]` is tinted in the accent until a choice replaces it with a reference. The picker searches the whole bracketed query, including any text after the caret, and a choice replaces all of it. Enter or Tab picks, including when pressed before results arrive. The block being edited is never offered. The caret lands after the reference, with a space when a word or the end of the block follows; punctuation or a space typed next takes that space's place, on phone keyboards too. Backspace in an empty `[[]]` removes both pairs. A query that names no page or field exactly offers Create page after the matches.
+| Trigger | Means |
+|---|---|
+| `[[` | Reference to a page, field or block |
+| `((` | Reference to a block, searching blocks only |
+| `#name` | Type: picks a page used as a type, or creates one |
+| `@` | When: `@fri` schedules, `@by fri` or `@due fri` sets a deadline; Tab flips the field, Enter picks |
+| `/` | Every block verb: statuses, schedule, deadline, priority, repeat, clock, project, headings, references, types, cards |
+| `Name::`, `::` at block start | Field entry; `::` alone picks the field |
+| `[] `, `# ` | Todo, heading |
+| `>>`, `<<`, `<>`, `>>>`, `>>1.`, `;;`, `{{c1::}}` | Cards; ⌘⇧C wraps the selection in a cloze |
 
-   `[[Title]]` typed by hand, or kept as text with Escape, links the one page whose title or alias is that name once the block is left, keeping the typed wording; a name two or more pages share stays unlinked and is marked (see Aliases under Notes). A name no page has creates the page; a date only links a journal that already exists.
+#### References
 
-   `#` at block start or after whitespace opens a type picker under the hash once a non-space name character follows. It searches the same pages as Add type and offers Create type for a new name. Enter or Tab replaces the token with `#Title` for a single word of letters, digits, `_`, `-` or `/`, otherwise `#[[Title]]`, followed by a space. Escape keeps the text. A bare `#`, `# `, repeated hashes, URL fragments, references, code, card/cloze syntax and field shorthand do not open the type picker; `# ` at block start still makes a heading. A page made for a tag or by Add type goes away again once no tag, manual type or link uses it, unless it was edited, gained content or is named by a saved query. So typing `#phil` slowly leaves `phil`, not `p`, `ph` and `phi`.
+`[[` and `((` close their pair as in Roam and Logseq, and a typed closer steps over the paired one. The picker opens under the opening brackets and stays there while the query grows or shrinks. It closes as soon as the text no longer holds an open query, however that text changed.
 
-   `Name::` reads as a field label while it is typed: the field icon, the name in `--muted`, and a tinted hint at the end, New field for a name no field has or the field's kind until a value is typed. Space straight after `::`, or Tab anywhere in the name, makes the entry at once and puts the caret in its value; leaving the block converts it as before. `::` at the start of a block opens a field picker listing each field with its kind and Create field for a new name, and picking makes the entry the same way. The picker puts the owner's missing template fields first, in template order, and fields the owner already has last. A choice field's value offers its options as you type, with Add option for a new one; a new date entry opens the date picker for its value, and a new instance entry opens page completion inside `[[]]`.
+The open `[[query]]` is tinted in the accent until a choice replaces it with a reference. The picker searches the whole bracketed query, including any text after the caret, and a choice replaces all of it. Enter or Tab picks, including when pressed before results arrive. The block being edited is never offered.
 
-2. **Chords** for what happens constantly. ⌘ acts on the current block: ⌘Enter toggles todo and done, ⌘⇧Enter opens the status menu, ⌘. zooms in and ⌘⇧. out, ⌘⇧T opens the table. ⌃⇧ is shell navigation. ⌥↑ and ⌥↓ move blocks. No ⌥-letter chords: on macOS they type accented letters.
-3. **Leader.** Space on a selected row, or in Vim normal mode, opens a menu of single letters: `t` status, `s` schedule, `d` deadline, `p` priority, `r` repeat, `w` clock in or out, `o` make project or open its controls, `q` make question (make answer beneath the nearest question, or open the menu of an existing question), `v` make or remove perspective, `c` add card, `z` zoom in. Unavailable actions stay listed with their reason. `c` opens the card kinds: `c` Card, `r` Reverse card, `b` Reversible card, `m` Multi-line card, `l` List card, `z` Cloze, so Space c c makes a forward card.
+The caret lands after the reference, with a space when a word or the end of the block follows; punctuation or a space typed next takes that space's place, on phone keyboards too. Backspace in an empty `[[]]` removes both pairs. A query that names no page or field exactly offers Create page after the matches.
 
-`/` matches titles and aliases (`/due` finds Deadline, `/h1` Heading 1) and shows each row's faster key, so the menu teaches the chords. `/question` finds Make question rather than Card; `/link` finds Reference rather than Copy reference. A slash command removes its `/query` before it runs; syntax rows such as Reference and Cloze replace it with their syntax and leave the caret inside. Planning commands on a plain block make it a todo first. The Cards rows are Card, Reverse card, Reversible card, Multi-line card, List card and Cloze. On an empty block a card row leaves the operator after the caret, so the front is written first; a block that already has an operator keeps it.
+`[[Title]]` typed by hand, or kept as text with Escape, links the one page whose title or alias is that name once the block is left, keeping the typed wording. A name two or more pages share stays unlinked and is marked; see [Aliases](surfaces/notes.md#aliases). A name no page has creates the page; a date only links a journal that already exists.
+
+#### Types
+
+`#` at block start or after whitespace opens a type picker under the hash once a non-space name character follows. It searches the same pages as Add type and offers Create type for a new name. Enter or Tab replaces the token with `#Title` for a single word of letters, digits, `_`, `-` or `/`, otherwise `#[[Title]]`, followed by a space. Escape keeps the text.
+
+A bare `#`, `# `, repeated hashes, URL fragments, references, code, card/cloze syntax and field shorthand do not open the type picker; `# ` at block start still makes a heading.
+
+A page made for a tag or by Add type goes away again once no tag, manual type or link uses it, unless it was edited, gained content or is named by a saved query. So typing `#phil` slowly leaves `phil`, not `p`, `ph` and `phi`.
+
+#### Field shorthand
+
+`Name::` reads as a field label while it is typed: the field icon, the name in `--muted`, and a tinted hint at the end, New field for a name no field has or the field's kind until a value is typed.
+
+Space straight after `::`, or Tab anywhere in the name, makes the entry at once and puts the caret in its value; leaving the block converts it as before. `::` at the start of a block opens a field picker listing each field with its kind and Create field for a new name, and picking makes the entry the same way.
+
+The picker puts the owner's missing template fields first, in template order, and fields the owner already has last. A choice field's value offers its options as you type, with Add option for a new one. A new date entry opens the date picker for its value, and a new instance entry opens page completion inside `[[]]`.
+
+#### Slash commands
+
+`/` matches titles and aliases (`/due` finds Deadline, `/h1` Heading 1) and shows each row's faster key, so the menu teaches the chords. `/question` finds Make question rather than Card; `/link` finds Reference rather than Copy reference.
+
+A slash command removes its `/query` before it runs; syntax rows such as Reference and Cloze replace it with their syntax and leave the caret inside. Planning commands on a plain block make it a todo first.
+
+The Cards rows are Card, Reverse card, Reversible card, Multi-line card, List card and Cloze. On an empty block a card row leaves the operator after the caret, so the front is written first; a block that already has an operator keeps it.
+
+#### Cloze
 
 Make cloze (⌘⇧C, in the palette) wraps the selected words of one block in the next numbered cloze, leaving surrounding spaces outside it; with no selection it inserts an empty one at the caret. It refuses a selection that touches an existing cloze, a reference or code, and a block that already has a card operator, and says why.
 
-## Fields
+### Chords
 
-Fields opens a searchable register with Name, Kind, Used by and Templates columns. The heading, toolbar, table and footer share one centred `--measure` column; rows stay 28 px high. A click selects a row. When the pane's available content is at least 1096 px wide, the selection adds an `--apparatus-width` inspector with a `--space-48` gap; the table and inspector centre together, and heading and footer retain the table's left edge. The inspector shows the name, Open page, the kind, a Reading line for dates, the first owners with their values and problems in rubric, and the templates that use the field. Narrower, a click opens the field page; Enter or double-click always does, and arrow keys move the selection. Template pills open their type table. Kind reads as muted text and shows its menu chevron on row hover or focus. Used by opens the distinct owning blocks, including entries with no values; a field no block uses says Unused in `--faint`. New field asks for Name and Kind together, defaults to Text, and refuses duplicates and the characters `Name::` shorthand refuses. Creating the definition and its chosen kind is one undoable edit; redo restores the same definition. Shift opens any of these beside the index. Narrow panes scroll the table horizontally with Name held in place.
+Chords are for what happens constantly. ⌘ acts on the current block:
 
-A field page is a specimen sheet on the outline measure, crumbed `Fields / Name`. Under the Piazzolla name sit a mono summary (`Choice · 7 owners · 9 values`) and Rename. Numbered sections follow with rubric numerals and hairlines: Options with their uses and inline rename, then Add option (choice fields only); In templates, with each type's pill, the field's place in its template and the member count; Used by, up to twelve owners in three columns with their values in mono, and View all, which opens the field-only table; Problem values, the written text in rubric beside its owner and the problem. Blocks in the pane header opens the definition in the Fields page, where names and options remain ordinary blocks.
-
-Changing kind never applies at once. Choosing a kind on the page, in the inspector or from a register row shows a preview first: `4 of 6 values won't read as Number` with the counts in rubric mono, a rubric rule at its left, then the values that will become problems and those that will read, each with its owner and its reading after the change. Apply kind change is one undoable edit that keeps every value's text; Cancel returns to the page. Edit definitions opens the Fields page. Filtering the index does not change definitions; an empty result offers Clear filter.
-
-Instance definitions show **Links to** below Kind, both on their page and in the Fields inspector. The type checklist applies as one undoable change; no selected type reads **Any page**. A reference outside the selected types stays written and reads as a problem. Library Author, Editor and Translator start with Person and Group targets. Import and the one-time notebook backfill file untyped creator pages as Person without changing pages already filed elsewhere. Metadata suggestions, field-slot pickers and `[[` completion in the value of such a field show members of the target types; a query that names none of them exactly offers **Create person “Name”** and **Create group “Name”**, creating and filing the page together.
-
-A type page shows its template under the title as a Template section, closed by default, headed like the journal's sections: the name, a hairline, the template's fields in mono order and a chevron. Open, it lists the fields with their kinds; on hover or focus each row offers Move up, Move down and Remove. Add field opens the field picker without the fields already there. Under the list sits a count of the members that lack template fields and Fill missing fields, which gives each of them an empty entry for every template field it lacks, placed in template order, in one notebook command. Undo beside the result removes the entries it added that are still empty; an entry that gained a value or a note stays. Changing the template never rewrites members.
-
-The type's Fields tab opens its template as a third in-pane view, with the same Index, Table and Fields strip and live counts. Its bounded register lists Name, Kind and Used by in template order; usage counts are notebook-wide distinct owners, including empty entries. Names open their field pages. Move up, Move down and Remove appear on hover or focus and remain visible on coarse pointers. Add field and Fill missing fields keep the type page's editing behavior. The underlined type crumb opens the ordinary type page; the global Fields register remains separate.
-
-## Settings
-
-Settings is a pane on the outline measure. Its header sticks to the top, so the save status and Undo and Redo stay in reach: a mono `Notebook and device` register over a Piazzolla title, the status in faint mono, and Undo and Redo as icon buttons at its right; a hairline appears under it once the page scrolls. On panes 1096 px and wider, an index of the sections sits left of the measure, as the Library's browse rail does, with mono counts; the current section carries the 2 px gilt bar, and a section chosen from the index stays current until you scroll by hand. Sections head with a rubric numeral, a Piazzolla name and a hairline rule: Preferences, Notebooks and Backups (neither in the embedded demo or on the phone), Devices, Agent changes and About.
-
-- **Preferences.** Theme, Vim keys, Ask before deleting views, Journal day and Reader display. Each row has its name, a mono scope (This device or Notebook) and one muted sentence on the left, and its control flush right; rows divide with hairlines. Theme uses the mode tabs. Notebook switches use a hairline track with a muted knob; on, the track fills gilt and the knob slides across in canvas. Ask before deleting views is on by default and applies to Library, task and table views. Journal day is one trigger reading Device in sans and the zone in mono. Reader display only says that typeface, size, measure and layout are set in the reader, beside the text.
-- **Notebooks.** Each notebook the Mac knows: its name (Default notebook for the platform one, else the folder name) with a mono Open scope on the one in use, and its folder in faint mono under it. Others offer Open, and Forget, which waits for hover and only drops the list entry; a notebook whose folder is gone reads Folder missing. Another notebook takes a full path in a mono field, with Open for an existing notebook and New for an empty one in a new or empty folder. Switching covers the window with `Opening <name>…` in mono until it reloads on the chosen notebook. The palette lists the same notebooks as `Switch to notebook: <name>`. While a notebook other than the default is open, the sidebar's Settings row names it at its right in `--warning` mono, its folder in the tooltip.
-- **Backups.** Back up now, the latest backup's time under the label, and the backup count with total storage in mono. Earlier backups fold into a disclosure of mono date, object count, path and size rows, each with Delete. Delete opens an inline Delete? confirmation with Cancel and Confirm; deleting a backup cannot be undone. When more than ten exist, Delete older backups offers an inline confirmation stating the count to delete and space to free, then keeps the latest ten. The newest backup is always kept as a restore point. Backup actions disable together while working, refresh the list when complete, and report failures in Settings' error slot.
-- **Devices**, on the Mac. The sharing switch with the tailnet address in mono under it, then Pair a phone (disabled until sharing is on), each paired device with its last sync and Active, and a mono line for the changes kept for devices that have not caught up. Forget waits for hover where there is hover. Pair a phone opens a dialog: the QR code on white with the code under it in spaced mono, three numbered steps beside it, and the wait on a hairline, which turns to `<phone> is paired and copying the notebook.`
-- **Devices**, on the phone. The Mac it copies, with its address in mono, then Sync with the last sync and anything waiting, Sync now, and offline books. A failure reads in plain words in `--danger`, the service's message in its tooltip. A forgotten phone shows Pair again instead of Sync now; a phone without a Mac shows Use my Mac's notebook and Set up.
-- **Agent changes.** The newest three, newest first: the summary, then the agent and time in mono and the page as a quiet link that turns gilt on hover. Undo waits for hover where there is hover; Show N earlier unfolds the rest. An undone change reads muted, with Undone in place of the button.
-- **About.** The notebook's path, creation date and id, then the service's version, URL, assets and launch agent, as two mono lists, since they are read rarely and changed never.
-
-Under 600 px (a split pane or the Fold cover) the header tightens, controls stack under their descriptions except the switch, the time-zone trigger fills the width, and the Reader display aside is dropped.
-
-## Notes
-
-A note is a titled page; the [domain model](domain-model.md#notes) defines its kinds.
-
-- **Index.** A sidebar section after Pinned, its count the distinct notes filed, left out at zero. It always lists the built-in kinds, People, Groups, Concepts and Theses (types with those titles), then Questions, Sources and Projects (capabilities on the page), so the notebook's vocabulary is visible before anything is filed and the rows never move as kinds fill. Then each other type by title and Unfiled follow, listed only while they have titled notes or tagged non-page blocks. Rows stay on one line with the name left and a bare mono count right: titled notes for note kinds, tagged blocks for tag-only types, with a tag glyph for those types. An empty built-in kind reads in `--faint` with no count. Note counts and the distinct-note total never include tagged blocks. The Index heading opens a bounded directory in the same order, with explicit note, source or `N tagged` counts; tag-only rows open their member table directly, while other kinds open their finding aid. A saved view sits under the kind whose type it lists, on a hairline elbow and without its table glyph. The section refreshes with the desk counts and disappears rather than go stale when its request fails.
-- **Finding aid.** A kind opens with rubric `INDEX`, its plural in Piazzolla and a mono note tally. A type's Index, Table and Fields modes share the ruled tab strip with live counts; Fields opens that type's template, not the global register. Titles follow in three columns, two below 840 px of pane width and one below 600 px, under rubric letters with a hairline and a distinct-note count. Each note shows two lines of its existing Gloss, else its first non-field prose block, then one populated template field and the live descendant-block count in mono. A title without prose has no empty preview. The batched index read derives this apparatus from existing data, including field entries, values and headings in block counts. Only populated jump letters appear; on the touch cover they sit above bottom navigation, with the selected letter on the shared gilt tab rule and compact inline initials in the list. Sort as, diacritic folding, `#` last and alias cross-references retain their filing rules. A title opens its note; Shift or a coarse pointer at least 900 px wide opens it beside.
-- **Empty kinds.** An empty finding aid says `No people yet.` in muted Piazzolla under a hairline, then one sentence on how pages arrive: filed from Unfiled for the type kinds, Make question or Make project in the page menu for those, and the Library for Sources. Every built-in kind except Sources then offers New person…, New question… and so on: a title form that creates the page and files it as one acknowledged batch, creating the kind's type page too when it is missing, then opens the page. A title that an existing page already has files that page instead, and the form says so before you submit; the type's own title is refused.
-- **Unfiled.** A filing queue groups With text and Blank, with All, With text and Blank filters and real block/backlink apparatus. Blank can still be referenced and is not a deletion recommendation. Each row has File and a menu containing Open, File under a type…, Rename…, Merge into… and Delete…. Desktop and unfolded layouts pair the list with a selected-note inspector and links to its referring pages; the touch cover uses a filing sheet above navigation. The shared type picker lists existing types and explicitly offers Create type “X” and file. Creation and membership are one acknowledged batch of existing operations. Rename uses the canonical page document; merge and delete retain their existing confirmations and undo rules.
-- **Sources.** A bibliography, not a second reading shelf: siglum, source title, author byline, format, publisher, publication year when stored, citation key, highlight count and ordinary page-backlink count. Open source notes is the default; Read hands off to the reader, and Open Library sits in the ruled strip. Reading progress and invented metadata are absent.
-- **Note header.** A note at its top level shows its kinds above the title in rubric mono capitals, separated by a faint slash (`PERSON / ECONOMIST`); each opens that kind's finding aid. A note with aliases shows them under the title: `ALSO` in faint mono, then the aliases in italic Piazzolla at the quote size, separated by faint dots. Then one mono line reads the last ten characters of the note's ID, lower-cased, with the full ID as its tooltip, then `Created 2026-10-06` in the notebook's time zone. The gloss follows as the first row. Unfiled notes show no kinds; sources keep their own header, and journal days and the Fields page have none.
-- **Aliases.** Add alias, in the page menu after Gloss and in the palette, adds the Aliases field after the gloss and starts a new value. `[[` completion and Find name the alias a result was found through as `via Tully`, in faint mono at the row's end. A hand-typed `[[Name]]` that two or more pages answer to stays unlinked and reads in `--warning` with a dotted underline and a small `?`; clicking it lists the pages and Create page, and the choice links it with the typed wording kept. Imported creators with a shared name read the same way. Merging leaves the merged page's title as an alias, which the confirmation states in one sentence.
-- **Starting templates.** A Person, Group or Concept type page with an empty template offers `Start from the Person template` in its template area, naming the fields; a type page the app creates with one of those titles starts with it.
-
-## Tables and views
-
-A table is a query shown as rows: a type's members or a saved view.
-
-- **Register and header**: the heading, mode strip, toolbar, grid and footer share a centred 984 px register (`--measure + --apparatus-width - --space-16`), widening only when the visible fields need more room and never exceeding the pane's inset width. They keep one left edge rather than centring a narrower heading inside a wider grid. A many-column grid scrolls horizontally inside that register with the title held at the left. The type and Register sit in quiet apparatus above a Piazzolla view name. Its menu lists All members of the type and its saved views, then Save as, Rename and Delete separately. Named views store the query only. Query changes show Unsaved changes with Save and Discard; switching views keeps pane-local presentation. A type shares `Index N`, `Table N` and `Fields N` tabs with its index and template register; Fields switches the same pane to that type's ordered template, while its type crumb opens the ordinary type page.
-- **Delete view** confirms that rows are not deleted unless Ask before deleting views is off in Settings. Library, task and table views all offer Undo for ten seconds after deletion; restoring a view keeps its name and query.
-- **Toolbar**: Search rows, Filters, Sort and Columns align to the register. Applied filter and sort chips sit beneath the controls and remove with their own ×. Chips wrap on narrow panes.
-- **Grid**: sticky apparatus headers on `--canvas`, with the title sticky at the left. Cells are 13 px, rows at least 28 px, divided by horizontal rules and one edge beside the title. Numbers and counts are right-aligned tabular mono; dates are left-aligned mono. Choices use quiet pills and instances gilt pills. Source values keep the first authored label and hostname, with a named derived Refs column opening every original URL destination. Labels can be Markdown links or `Title: URL`; bare URLs use their hostname/path. Remaining prose stays visible, and invalid readings retain their warning. Tagged non-page members appear in a separate counted Tagged blocks section, with their text clamped to three lines, source-page context and an Open action that shows the whole block. Columns past the right edge fade under the rows, and `+N ›` at the header's end counts them and scrolls to them.
-- **Editing**: Enter or double-click edits a single plain text, number, date, URL or identifier value inline. Multiple values, references, choices, instances and checkboxes open the field's source outline beside the table. Clearing a value preserves its block and child notes; refilling reuses a blank value block. Inline editors do not replace structured text with a rendered label.
-- **Columns**: the type template's fields first, then fields present on members. Fields used by filters remain available even when every value is empty. Columns hides or restores fields and derived Refs, and sets the sticky title width from 170 to 340 px (240 by default). Visibility, title width and horizontal scroll belong to pane history and survive back/forward and reload; they do not change the saved query or type template. Visible fields also determine card priorities. Column menus contain sort, filter and hide; Edit field opens kind/template operations separately. Add field to type template and Open type template remain explicit actions.
-- **Footer**: a persistent `N of M members` (`1 of 1 member`) readout, followed by `· Show 500 more` while more results remain. Appending retains the loaded rows, scroll position, sort and filters; the action disappears when every result is loaded. Queries page by a zero-based offset with block ID as the deterministic ordering tie-breaker; totals and column metadata cover all matches rather than one batch. Tagged block members count toward both totals rather than disappearing from membership. Load errors stay in the footer.
-- **Empty states** distinguish an empty note section from the separate tagged-block section.
-- **Opening and selection**: desktop title clicks and Enter keep the current-pane behaviour, with Shift opening beside. Selected rows have the gilt left bar and an explicit open-beside affordance. On coarse pointers at least 900 px wide, a row tap opens the canonical note beside by default. A narrow table pane on that unfolded screen becomes a touch-sized row list while keeping its query controls.
-- **Cover**: on coarse pointers below 600 px, cards replace the grid without lateral scrolling. Each shows its title, the first visible non-empty choice and Source or first reference, falling back to other visible values when absent, plus the derived refs count. Field taps open their canonical entries; refs open the destination list. Filters, Sort and Columns form a bottom toolbar above the nav and bottom inset. Filters uses a sheet with 44 px targets and an explicit Apply; draft selections leave the rows and totals unchanged, and saving the named view remains separate.
-
-## Tasks, projects and agenda
-
-Tasks are made as in Tana, Roam and Logseq: ⌘Enter makes a block a todo, then toggles it between todo and done (⌥Enter is an alias); `[] ` or `[ ] ` at the start of a plain block makes it a todo; `/todo`, `/doing` and the other statuses set any status, as does the ⌘⇧Enter menu; Make task sits in block and page menus. The block menu's Task section reads Complete or Reopen task, Set task status…, Plan task, Work sessions, then Remove task. Statuses are Todo, Doing, Waiting (an hourglass), Done and Cancelled. Task state, dates, optional times, deadline warning, priority and repeat are anchored controls, not text prefixes. Plan task opens a compact slip headed by Planning and the task's authored text, or `Planning · done 2026-10-10` once done. Scheduled, Deadline, Priority and Repeat are labelled rows with their current values in mono or a faint None; Warning appears only with a deadline.
-
-Typing `@` after a space or at block start opens date suggestions under the `@`: Today, Tomorrow, the next five weekdays and Next week, with a parsed query first. Dates accept ISO labels, today/tomorrow/yesterday, weekdays, relative forms (`@in 2 weeks`, `@+2d`) and full or abbreviated month names in either order (`@oct 12`, `@12 october 2027`; `sept` also works). A month and day without a year means its next occurrence on or after the context date; impossible dates such as `feb 30` are errors. A bare weekday includes today when it matches; `next mon` means Monday in the following Monday-start week. Times accept `09:30`, `9:30`, `9am` and `3:30pm` after any date, or alone for the context date; `12am` is midnight and `12pm` noon. A leading `by` or `due` word followed by a space or the token's end makes it a deadline (`@by oct 12 3pm`, `@due fri`). The picker's first, non-selectable row reads Scheduled or Deadline, with a mono Tab hint: Tab flips the field by inserting `by ` or removing `by `/`due ` while retaining the query. Enter picks a date: a plain block becomes a todo, the task is scheduled or due, and the token and its leading space leave the text. Other pickers keep Tab to pick. Pick a date… opens the full picker. Escape keeps the `@` as text. A multi-word query that matches no date is prose (`@sam about the report`): the picker closes so Enter splits the block as usual, and it reopens if the words become a date again.
-
-Date pickers pair the text field with a Monday-start month grid shared with the journal calendar. A picker that fits neither above nor below its trigger sits over it, inside the window. Today is ringed. The chosen day is filled with the accent and follows what the field parses (`fri` previews Friday). Scheduled work has a solid dot. Deadlines have an outlined square. These marks count open tasks only, with accessible labels such as `3 scheduled · 1 deadline`. The task's other planning date keeps a separate related-date line. Planning counts load and cache per visible month, and refresh after notebook commits without moving the grid. Clicking a day applies it. Arrows move by day and week, Page Up and Page Down by month. The optional time, Clear and Apply stay in a fixed footer; only the calendar body scrolls when the viewport is short.
-
-Completion uses the displayed journal or agenda date. A repeat counts from a date: setting one on an undated task schedules it for the context day, and the Repeat popup says so before Apply; clearing the last date clears the repeat. Each repeat mode explains itself under the mode choice. Repeating tasks retain their source identity and advance their plan; the advanced facts glow once and announce the next date. History on an earlier day shows that occurrence's plan, not the next repeat. A running work session requires an explicit stop, with Stop and complete offered as one atomic action. Work-session notes and prior sessions remain accessible from the block menu, with times and durations in mono.
-
-Project controls edit outcome, deadline and status. Show actions opens a task query over canonical descendants. Completing a project does not complete its tasks.
-
-The Agenda destination has an Agenda kicker and spoken date heading with Previous / Today / Next alongside it; Day / Week / Tasks sit beneath on the shared ruled tab baseline. The date heading opens the calendar. A seven-day strip has no boxes: each column carries a small mono weekday, serif numeral and faint mono open-task count, deduplicating a task whose schedule and deadline coincide. The selected day has a 2 px gilt rule on the strip's hairline; today's numeral is gilt. Tapping a day changes the list without shifting the strip. The strip and Day lookahead reuse the existing scheduled/deadline task queries. On Day, Add a task sits directly under the strip, so it stays in place however many tasks are overdue. It is the capture line below in its task form: it captures into today's journal, scheduled for the displayed day unless a complete plain-word suffix such as `mon 9am`, a trailing `@date`, or `by`/`due` names another plan. On the cover the field stays fixed above bottom navigation and moves down when the keyboard hides navigation. A live mono preview beneath the field shows the plan as a planning fact (`tomorrow 15:00`, `due Fri 16`) in `--calendar-scheduled`; an unmatched explicit `@` token warns in `--warning` that it stays in the text. The preview shows exactly the first date suggestion that submission will use, including preset prefixes such as `@t` for Today; protected references and code remain authored text.
-
-**Add to today** is Tana-style quick capture: one line that becomes one block at the end of today's journal, reusing a trailing empty block, without leaving what is open. ⌘E (the palette's Add to today) opens it as a slip centred near the top, 560 px; on the cover it rises from the bottom edge above the keyboard. A mono rubric line reads `Add to today` in gilt and `Sun 11 · end of journal` in `--faint`; the line itself is in the writing voice, its kind glyph in the bullet slot. ⌘Enter or the glyph switches between a note and a task. `[] ` or `[ ] ` at the start of the line also makes it a task and disappears, as in the outline, and Backspace on an empty task line returns to a note; a pasted or restored prefix saves as a task too. Card syntax shows the index-card mark in the glyph slot unless the line is a task. `[[` completes pages (with Create page) and `#` types (with Create type) in a picker under the line; a hand-typed `[[Title]]` links as it would on leaving a block. An `@date` plans the line and so makes it a task, with the same preview; a plain-word date suffix plans only a task. Enter adds and closes, Shift+Enter adds and keeps the line for the next item with `N added to today` in place of the key hints, Escape closes an open completion first and then the slip. Touch screens replace keyboard hints with Cancel and Add, and the empty line reads `Add a note or task`. The line clears as soon as it is entered and saves in order, so a fast second line is never dropped; a failed save puts the text back. The macOS app's File › New Capture (⌘E) opens the same slip, and ⌘⇧E anywhere on the Mac opens it as a floating panel over the current app (or the slip, when Tessera is in front); the panel stays 600 px wide, fits its contents before showing, and grows downward from a fixed top edge for previews, errors and completions, up to 340 px. It shrinks when those rows disappear, keeps an unsaved draft when it loses focus, and Enter or Escape returns to the previous app. On Android, the launcher's New note and New task shortcuts and text shared to Tessera open the slip over the current page, the shared text as its line.
-
-Tasks has one mono query line on a hairline: focus edits plain text, Enter or blur applies it, and outside editing each term is a chip with its own remove control. Invalid terms keep their text, carry a `--danger` underline and explain the error beneath; the last valid query stays applied. A faint mono count sits under the line. Terms combine before the result limit, and double quotes group words or multi-word date expressions.
-
-| Task query term | Means |
+| Chord | Action |
 |---|---|
-| `is:todo,doing` | Any of the named statuses: `todo`, `doing`, `waiting`, `done`, `cancelled` |
-| `show:open` | Unfinished tasks only |
-| `show:recent:7`, `show:recent` | Unfinished or completed in the last seven days; this is the default and omitted from the line |
-| `show:all` | All tasks |
-| `priority:high`, `priority:medium`, `priority:low` | Priority |
-| `#Book`, `#[[Research notes]]` | Source type by an existing page title |
-| `[[Finish thesis]]` | Tasks beneath a block with a project capability |
-| `@fri`, `@today..+7d`, `@"next fri"..`, `@..2026-10-12` | Scheduled date or inclusive range; either endpoint may be open |
-| `by:fri`, `due:fri` | Deadline date or range, with the same date syntax |
-| `limit:50` | Result limit |
-| Other words, `"read carefully"` | Source text search |
-
-Add condition opens one searchable picker grouped into Task, Source and Fields. Task holds selection, status, priority, project, scheduled/deadline ranges and result limit; Source holds type and text; Fields lists the notebook's definitions. Choosing a condition replaces the picker with its editor at the same trigger. Changing a syntax-backed condition rewrites the query line. Field predicates stay outside the syntax as editable, removable chips in the condition row, with the task count at the trailing edge. Editing a field predicate preserves its place and the other predicates. Named task views store the `TaskQuery`, never the line's spelling, and preserve its date context. Pane history restores the query across Agenda, Week, Tasks and reload; relative dates become absolute dates when applied.
-
-Day rows have a fixed left mono time gutter, blank for untimed work, then the status glyph and source text, with muted page provenance at the right. Journal provenance reads Journal rather than repeating the stored ISO date; the full page title remains in its tooltip and accessible name. Planning facts sit below the task text, omit dates implied by a day group, and show a carried schedule only as `since Tue 6`, not also an ISO date. Task-query and journal rows retain their compact status, source and trailing planning layout. On touch, Agenda task rows and their completion/source controls are at least 44 px high; the cover's content insets are equal. The whole row takes the hover fill and long task text clamps at two lines. Planning uses the same facts as outline rows, with carried or missed dates in `--danger`. The glyph completes on the displayed agenda date, including from lookahead, or reopens a finished task in Tasks; completed history shows a static check.
-
-Planned rows reschedule without dragging. On hover or focus, quiet mono Today and Tomorrow and a calendar button take the provenance's place, each omitted when it would change nothing; on touch only the calendar button shows, beside the planning facts. On a focused row, j and k (or the arrows) move between rows across sections, t schedules today, m tomorrow, s opens the date picker, x completes, and Alt+Left or Alt+Right moves the schedule a day. Date-only moves keep the time, deadline and repeat, and keep the keyboard on the next row when the task leaves the list. The picker also edits time, including a same-day change; clearing its time makes the task all-day. An inline date/time updates the time field, and editing that field normalizes the date to avoid competing clocks. On today, timed work whose time has passed recedes to `--muted` above a gilt rule that starts from a gilt dot at the present; untimed work and work in progress stay below it.
-
-Day groups canonical tasks as Overdue (carried schedules and missed deadlines) in `--danger`, Today (Planned on other days) for the displayed day's plans and work in progress, then Next 7 days on desktop and unfolded screens. The Overdue heading ends in All to today and All to tomorrow; each moves every unfinished task in one command, keeping times and deadlines, and leaves a `Moved 6 to today · Undo` line until the next move. In an Agenda pane narrower than 560 px the two moves sit on their own line beneath the heading, aligned with Overdue, so the rule and count keep their room. A missed deadline already scheduled today cannot move to today, so that action hides when nothing would move. Today always has a ruled heading and count; when empty it shows one muted Nothing planned line. Next 7 days includes the seven civil days after the displayed date, groups compact rows by their earliest future schedule or deadline, and excludes tasks already listed as overdue or planned. Headings read label, hairline, count. A task appears only once across these sections, even when both planning dates contribute to the strip. Collapsed Unplanned and Done groups retain undated work and completion history. Opening a row still opens its source, and Shift opens it beside; completion and planning never insert copies into the journal.
-
-Week shows the displayed date's Monday-start week in seven day columns. Previous week, Next week and Today use the same single date control. Week drops the week strip, since the grid's header already names the days. The heading, shared tabs, drag hint and drop feedback keep the same 760 px measure and alignment across Day, Week and Tasks even when the week grid is wider. The all-day strip holds untimed scheduled tasks and deadlines labelled Due. Each card leads with its status glyph in the status colour, then the time or Due in mono. Timed scheduled tasks sit in an hourly grid, initially scrolled to 08:00 or the earliest earlier task. Overlapping times use separate lanes. Narrow panes scroll horizontally rather than compressing tasks into overlapping columns, and open with the displayed day first after the hours, which reads as a three-day view on the cover.
-
-Dragging a task into the grid sets its scheduled date and time, snapped to 15 minutes. Dropping in the all-day strip sets its date and clears the time. Each drop is one undoable notebook command. The position changes immediately and rolls back if the commit fails. Focused tasks also support Alt+Left or Alt+Right to move one day, Alt+Up or Alt+Down to move 15 minutes, and Alt+Home to clear the time. Clicking opens the source. Shift-click opens it beside.
-
-Journal days present a spoken date such as Saturday 10 October beneath a mono period trail: `2026 · Q4 · October · Week 41`. Quiet dotted underlines make the segments clickable, brightening to gilt on hover; the open segment has a 2 px gilt rule instead. Each segment toggles one inline ledger beneath the heading; tapping it again or Escape closes it. Week shows Monday through Sunday. Month has ISO week numbers at the left that open the corresponding week, including the neighbouring ISO week-year at New Year. Quarter shows its three months and Year twelve months in four columns, two on the cover. On touch, mini months are whole-month buttons with non-interactive day overviews; choosing one opens the full month with day targets at least 40 px square. A narrow quarter stacks its months. Fine-pointer mini months retain direct day buttons. Only journals with non-empty visible text get muted filled day marks, independently of visiting or selecting the day; today is ringed in gilt and the displayed journal day has a gilt rule. The bounded written-day read refreshes after committed text changes. Day buttons speak the full civil date and open through the existing journal path; the root text remains ISO and other pages retain their own titles.
-
-The period trail keeps even visible gaps around its separators; touch hit areas extend to at least 40 px without widening the labels. Touch mini-month overviews reserve six calendar rows and align at the top so neighbouring months share their title and weekday baselines. Desktop and unfolded Today tiles are at least 120 px tall, enough for the tallest loaded Reading content including the book map, and grow with their content; their placeholders keep the same height.
-
-Today alone leads with Agenda, Review and Reading tiles above the Journal rule and writable outline. Agenda counts the items in the Agenda pane's Today section separately from Overdue and shows the next timed or untimed item; its chevron folds today's tasks open beneath the tiles, open by default and remembered per device. That ledger uses the Day rows, with their time gutter, completion, rescheduling keys and now rule, and ends in `Open agenda ›`. Carried work collapses to one `N carried over` line in `--danger` that expands in place, with Move to today at its end and the same Undo line. Review uses the sidebar's same due-card query and opens the review landing. Reading continues the most recently read EPUB still in Reading, with its cover, short title using the citation-chip rule, resolved chapter time left and the chapter's numeral and title on one ellipsised line, and segmented BookMap with real highlight marks; front matter and unresolved contents use whole-book time left instead of inventing a chapter. The three desktop tiles reserve their loaded height while requests show quiet placeholders. A journal narrower than 640 px uses one ruled list of compact Agenda, Review and Reading rows, with the book map below the Reading row. A coarse pointer at 900 px or wider opens the book beside the journal. Touch journals keep only the bullet left of the text, with the heading and the right edge at the pane inset; task status replaces the bullet rather than adding a second indent, nested rows retain the same depth increment and block actions no longer narrow the row when selected. Below the outline, From your highlights shows one resurfaced highlight at a time with an `N of M` counter and previous/next controls, preserving Open, Keep, Mute and the device's collapse preference. No reading-session duration, pace or finish estimate is shown.
-
-## Cards and review
-
-Author `front >> back`, `front << back`, `front <> back`, or numbered clozes such as `{{c1::answer::hint}}` in ordinary blocks. `::` remains field shorthand. A trailing `>>>` makes a multi-line card whose answer is the block's child outline; a trailing `>>1.` makes a list card whose children are revealed one at a time. The editor draws these markers as `↓` and `↓1.` in `--faint`. A descriptor, `Function ;; makes ATP` beneath `Mitochondria`, draws its marker as `›` and asks `Mitochondria › Function`; it is under `/` as Descriptor card and under Space c as `d`. Its review source line leaves out the parent the front already names. Under an empty parent the row says “A descriptor needs a parent with text.” Explicit malformed syntax shows diagnostics instead of guessed cards. Each numbered cloze and each direction has its own stable progress.
-
-Review is a pane on the outline measure, like Library. Its mono register sits over the deck's Piazzolla title and picker; Open reviews and Deck actions stay at its right. The landing's Due, New and All tabs share the tab-strip baseline, with a 2 px gilt rule under the whole selected tab. The selected queue leads with its bounded batch size and Review N cards (Space). Today's paced due/new counts and fourteen-day forecast stay secondary; All includes deferred introductions. The forecast's first bar is gilt. Every forecast bar has a two-letter weekday label; today's accessible name is “today”. Retention over thirty local days, this week's review count, the streak and total cards follow, then a deck ledger with Due, New and Cards. Counts come from active visible cards and committed review events, never sample data; no time estimate appears because reviews do not record per-card duration. Decks save source predicates, not copied collections. Start takes focus on a mouse-and-keyboard device, but touch leaves it alone and the pane has no focus ring. A session replaces the queue preview with one segment per card: Good/Easy sage, Again rubric, Hard warning, the current card gilt and waiting cards neutral. Its grades survive reload. A completed or explicitly closed session with at least one review keeps its count, elapsed duration, grade breakdown, tomorrow's load, streak, forecast and missed cards; a closed session with no reviews returns straight to the landing. Review missed starts another real session restricted to those Again cards.
-
-The card reads as a quiet sheet on the page rather than a boxed panel, headed by the same rubric mark as popups on a fine-pointer device. Its top rule turns gilt only on fine-pointer keyboard focus; touch shows neither this rule nor the rubric, leaving the progress strip alone. A cited card's mono source line shows siglum, title, chapter and paragraph; Open in the book opens that citation (Shift beside), while Edit card opens its canonical block. An uncited card keeps its source path. Reset progress moves into Card actions and still requires a revealed answer and confirmation. Prompt and answer use 24 px Piazzolla with a 38 px line height; a rule separates ordinary sides. Multi-line answers keep their child outline, lists reveal one item at a time and grading waits for the last. Clozes reveal in place with a gilt underline, so the sentence appears once. Once revealed, a cited card shows the following sentence from its snapshot's real passages. On an unfolded touch screen at least 900 px wide, the card sits left and its passage sits right with the citation highlighted; the passage waits for reveal so it cannot give the answer away. On the cover, the bottom nav steps aside during a live session, tapping non-control card space reveals, and interval-bearing grades form a two-by-two block at the bottom. Good has the gilt default rule and Space or Enter selects it after reveal; 1–4 remain available. Review history stays available on larger layouts.
-
-Space reveals the answer; 1–4 select Again, Hard, Good and Easy. Scheduling is FSRS-6 at 90% retention in whole days. Buttons show the next interval in days, then months and years. When two neighbouring grades have different intervals that round to the same label, both show one decimal (`1.4 mo`), then whole days if they still match; equal intervals, such as Again and Hard on a new card, read the same. A source or schedule change invalidates the shown snapshot and requires Review current card before grading. Changed wording retains identity and progress; the card shows the last reviewed text beside its current text, with Keep progress and Start over choices. Reset progress requires confirmation and keeps review history.
-
-Finish review and Abandon review open anchored confirmations. Cancel keeps the review open; either confirmed action keeps committed grades.
-
-Undo last grade stays visible during a session and on Done, with ⌘Z or Ctrl+Z outside editable controls. It restores the card and its schedule; undoing the final grade reopens the finished session. If that restored card is later held or removed, an explicit unavailable state offers Next rather than silently replacing it. A transport failure remains an error, not an unavailable-card state.
-
-A type's Cards tab, after Fields in the same strip, lists its card templates. A mono line counts members, ready members and those waiting, the last in warning ink with the field they lack. Each template is a numbered section: its Piazzolla name, Enabled or `Draft · not in review`, Front and Back patterns whose field references show as mono chips (typing `{` opens the field picker), `Uses 2 of 5 fields`, a New per day input, and beside them a preview of the first ready member, the front in large Piazzolla over a hairline and the back. Enable… opens the Apply view: the cards it will create and the members waiting in large mono numerals, the introduction schedule (`398 / 10 = 39.8 → 40 days`), a fourteen-day chart of existing reviews in muted bars with the added new cards in scheduled blue above them and two-letter weekday labels, the first waiting members with Show all, which opens the type table filtered to the missing field, then Cancel and `Apply · 398 cards`. Disable pauses a template's cards and keeps their progress. In Review and the outline's cards popup a template card shows plain front and back text under a mono `from #Vocab · Recognition`.
-
-The Done summary returns to the shared page insets and responsive title scale, with section gaps between its grade strip, counts, forecast and missed cards. Its header no longer says in progress. Deck forms retain the popup's viewport gutters on the cover, so fields and actions stay inside both edges.
-
-The current card stays until a grade is acknowledged. Pending commands survive offline reload with their original request bytes; rejection preserves the command for copying and requires a fresh card snapshot. Unrelated local page edits do not invalidate the shown card. Exhausting a confirmed queue shows Finishing review… until the finish is acknowledged, then Done and normal deck actions. Finishing early, abandoning or switching an open review is explicit; committed grades and their shown-text evidence remain. Pane history and reload preserve the deck, queue selection and session. A notebook with no cards offers Create a card, a front/back draft saved in Today; an empty deck or held-only inventory keeps its distinct explanation.
-
-## Library and reading
-
-Library is a pane. Its header starts with Reading, Inbox and Highlights with its unprocessed count, then All, Collections, Finished, Abandoned and saved views; zero counts are left out. The selected tab's 2 px gilt rule spans its label and count on the strip's baseline. The last tab is remembered per notebook. Under them sit a 28 px search field, a sort menu (Added, Title, Author, Year, Last read, Progress), Add, and an Export menu (BibTeX, CSL JSON, Markdown) for the selection or the listed sources. Searching, filtering and sorting keep the current rows on screen until the new ones arrive and swap them in one step; Loading… appears only when nothing of that kind is loaded and the load takes over 300 ms. Rows read as a ledger on one 28 px line: a leading slot with the cover thumbnail in a hairline frame or a book or article icon, the siglum as a mono shelfmark in `--faint` that turns gilt on hover, the title, the byline in `--muted` (creators, else site), and trailing fixed-width mono columns for year, progress and the unprocessed highlight count, so figures line up across rows. In a pane narrower than 560 px on a wide screen, the state and year columns step aside and progress keeps only its number, so the title keeps its room. In a half pane the controls wrap under a full-width search field. Progress pairs a short gilt bar with its percentage; zero reads `Not started`, and a finished source shows `Finished` with its state-change date when recorded. All and saved views spanning several states add a state column (`Inbox`, `Reading`, `Finished`, `Abandoned`) in `--faint` before the year. The byline truncates before the title. The leading slot shows a selection checkbox on hover, focus, or while any row is selected; a selected row takes `--selection` and the accent bar. While rows are selected, a bar replaces the search line: the count, Mark as (one batch for all of them), Export, Delete and Clear selection; Escape clears. Clicking a row opens the source page; Shift opens it beside. On a wide touch screen, opening a book uses the other pane so the list and detail stay across the hinge; the opened book keeps a quiet current-page marker. A row menu offers Read or Continue reading, Mark as reading, finished or abandoned, Return to inbox, Export and Delete…. Delete asks once for all the chosen sources, removes their pages and highlights, moves any pane showing or reading one to another page, and offers Undo in the toast (`2 sources deleted`); undo puts them back in the list without leaving the Library. Delete source… on a source page works the same, and its undo reopens the page.
-
-State and saved-view tab names stay on one line; a narrow desktop pane scrolls the strip horizontally instead of making the toolbar taller. On the phone, Reading, Inbox and Highlights remain visible. More contains All, Collections, Finished, Abandoned and saved views; its label preserves the selected secondary view. Reading and Inbox counts give way before the Highlights count.
-
-Two icon toggles beside the sort menu, List (ledger rows) and Shelf (covers), choose how sources show; the choice is a device preference per notebook. Icons keep the controls on one line on a phone, where the sort button leaves out its grouping and Export shows only its glyph. The shelf is a grid of 2:3 covers at least `--shelf-cover-width` wide, sharing any spare width, at the list's measure. Under each cover sit the reader's 2 px position rule (its `--line` track only once reading has started), the title in Piazzolla on up to two lines, the byline in `--muted`, and one mono apparatus line in `--faint`: siglum (gilt on hover), state in views spanning states, year, progress and the unprocessed highlight count. A source without a cover gets a typeset spine on `--surface`: the gilt siglum over a short rule and the title, centred clear of the corners. The selection checkbox and the actions button sit on the cover's top corners and appear as in the list; a selected cover takes a 2 px accent ring. On touch the actions button is an always-visible surface disc; below 600 px it opens the existing source actions in a sheet above navigation, headed by the title, author and mono imprint and progress, with reading and state actions, exports and deletion separated by rules. Delete still asks for confirmation. Arrow keys move one book sideways and to the nearest cover in the next row up or down, across group headings; Home and End go to the ends.
-
-The sort menu has a second section, Group: None, Author, Decade, Publisher or Language. A source sits in one group, by its first author (else editor), its publication decade, publisher or language. Authors run A–Z by family name, decades newest first, publishers and languages A–Z, and sources without a value come last (`No author`, `Undated`, `No publisher`, `No language`); rows keep the chosen sort within each group, and Shift-click ranges follow the grouped order. Each group opens with a sticky heading on `--canvas`: its name in Piazzolla (an author's name opens their page) and a mono count. In the shelf the heading spans the grid. The sort button then reads `Added · by decade`. Grouping belongs to the pane, not to saved views.
-
-Browse narrows the sources by People, Decades, Publishers and Languages. The service counts each value over the current tab and search, ignoring the Browse filters themselves, so every value the tab offers stays visible. Values combine with OR inside a field and AND across fields; people match as author, editor or translator, by page, so a renamed person keeps their filter. Languages count by primary code, so `en`, `en-US` and `eng` are one English. A pane at least 1096 px wide shows Browse as a rail of 240 px left of the measure, the two centred together: each field's six commonest values with their counts, chosen values pressed, and `All N` opening the rest in a picker. Narrower panes put a Browse glyph beside the layout toggles, pressed while any filter applies; it opens one sectioned picker. Chosen values also show as removable chips under the controls with Clear filters. Continue reading steps aside while Browse filters apply. Filters travel with the query, so saved views and Export of the listed sources keep them.
-
-A person's page lists their works above the related sections: `Works N` in the faint label, then a grid of 72 px covers (`--work-cover-width`) with the title on up to two lines and one mono line of year, Editor or Translator when that is their role, and the reading state or progress. Undated works follow the dated ones, oldest first. The creator field values those works hold are left out of Backlinks, and the person's hover card counts `N works` before its readings and references.
-
-The Works heading and shelf share the page title's left edge. Works and its count sit in mono on either side of a hairline rule.
-
-Reading now leads the unsearched, unfiltered Library with one card for every Reading source, including books not yet started, most recently read first. Each has its real cover or spine tile, title, author, the current chapter (`4 · Deus Vult!`; `Not started` before any reading, `Reading position` in front matter), the segmented chapter map, `N min left in chapter` inside a named chapter, and the book's percentage. Cards load the source's contents and text length and cancel their requests when removed. If chapter boundaries are unavailable, the map stays one book-length span and the time is labelled for the book, never a guessed chapter. Clicking a card opens its source page; Shift, or a wide touch screen, opens it beside. Cards wrap into a vertical stack in narrow panes without dropping books. On the cover, Reading is the first and initial state tab, the cards replace duplicate Reading rows, and the Inbox follows as `Up next · Inbox`. Search and Add sit beside the Library title; Search reveals the search field and the other library controls. No reading-session totals, pace or finish estimates are shown.
-
-A Library with no sources offers Add your first source and a direct Add a source button opening the ordinary ingestion controls. Empty searches, filters and collections retain their contextual guidance instead.
-
-Add opens Add to library anchored under its button: one field for a URL, ISBN, DOI or arXiv ID, then Choose file… at the leading edge and Enter details by hand at the trailing edge, each with its glyph. Enter submits; Looking up… shows while it works. An identifier lookup previews a catalogue card before anything is written: the cover, the title in Piazzolla with its subtitle, the creators with `(ed.)` and `(trans.)` marks, then year, publisher and identifiers as mono apparatus and `From Open Library`, `From Crossref` or `From arXiv` in `--faint`, with Cancel, Edit details and Add. Edit details opens the details form seeded from the lookup, keeping its cover; Enter details by hand opens it empty, in the same popup. Dropping an EPUB on the Library pane or the popup does the same as choosing a file. Each file or article submission becomes a job row above the sources while queued, running or failed: a state icon, the name without its extension, the state, and the error sentence on a second line aligned with the name, with Retry and Dismiss on failures. The name truncates first, so state and actions stay on the first line in a narrow pane. Dismissal is a device preference per notebook. Finished jobs leave the list once their source exists, whichever tab lists it, so a large import never stacks rows above another tab's sources. The Highlights tab shows no jobs. An EPUB creator entry that holds several people (`A; B`, `A & B`, or inverted pairs such as `Bowen, William G., Guthrie, Kevin M.`) becomes one creator each, and Calibre's unknown date, `0101-01-01`, is no date.
-
-The manual details form remains in Add only: labelled rows, Creator name fields with Author, Editor and Translator tabs, Add creator, and the existing “Same as X?” reuse suggestion. Published accepts `YYYY`, `YYYY-MM` or `YYYY-MM-DD`; adding a record saves its fields together.
-
-Selecting a source through its leading slot or checkbox opens a 460 px catalogue-card inspector to the right of the Library ledger or shelf. The title still opens the source page. Details is also available in each source's actions and the batch bar; Edit details… on a source page opens this same Library inspector, not a second popup editor. Browse steps aside while inspecting and its named button brings it back. Closing details clears selection. An edit that moves a source outside the current Library filter leaves its card open. Below the width needed for the list and card, details replaces the list with Back to N sources; returning keeps the query, selection and scroll. A selected shelf cover has a 2 px gilt ring. On the touch cover screen under 600 px, source actions or a long press opens a 70% bottom sheet with an 85% expanded stop, independent group folds and 44 px targets; the sheet resizes above the keyboard.
-
-The card's groups stay in this order: Work (Title, Subtitle, Creators with book roles, First published, Original language), Edition (Published, Publisher, Edition, Series, Number, Pages, Language), Identifiers (every ISBN, DOI and arXiv value, URL and Site), About (Description and Cover), Apparatus (Siglum and Citation key), Shelf (Reading state, Started, Finished, Tags). Missing values remain visible as quiet Add… slots. A value becomes an inline editor on click, commits on Enter or blur and cancels on Escape, with no Save or Cancel buttons. Save state belongs only to the pane header; Saving… appears after a second and invalid fields announce that they were not saved. A blank optional date is not an error; invalid partial dates use `--danger` with their format hint. Language uses English names in the app's Picker. Description uses Piazzolla, clamped to three lines with More, and becomes editable on click. Reset to extracted sits beside a changed snapshot value; Fill missing details sits with the identifiers and writes only empty fields. Replace cover… and Reset to extracted cover stay in About. Apparatus names the derived siglum and its basis, offers Set override… or Use derived, and reports citation-key uniqueness errors inline without saving the conflicting key.
-
-Creator links use the holder-link treatment: `--text`, a `--line` underline, and gilt only on hover or focus. Author, Editor and Translator belong to each book. The person's menu separates Open person, inline Rename person… (with the notebook-wide book count), Merge into… and removal from the current book links. Merge is a short explicit confirmation naming the books and notes that follow, the surviving mark, and the old name that remains as an alias; the existing permanent page-merge command keeps book roles. Add creator offers “Same as X?” without silently treating similarity as identity.
-
-Several selected sources share one inspector headed N sources selected. Shared values show once; differing values show a distinct-value count with disclosure and source counts, with known values and empty counts kept separate. A field editor states that Enter or blur sets every selected source, then offers a counted toast and Undo. Dates, series numbers and differing ordered creator roles remain compact per-source registers, initially folded, so editing a register cell changes only its named source. Mixed titles and citation keys also use named per-source editors, because those values must be unique. Each committed field across the selection is one revision-checked notebook batch and one undo step, including previously empty fields; no server-side metadata operation or alternate storage is introduced. The document layer's shared source-details planner supplies the same ordinary-field actions for individual edits, Add and multi-page batches.
-
-An inspector transaction is not adopted into document state before acknowledgement. A definitive validation rejection writes nothing and is retired from the shared recovery journal; the attempted value stays in its inline editor until corrected or cancelled. An uncertain transport outcome remains durable and retries through the existing idempotent notebook command path.
-
-Highlights is a processing desk: a reading-order queue and selected passage share the desktop and unfolded pane, with source and chapter pickers in the toolbar rather than a permanent navigator. Sources retain newest-highlight order; each source's passages retain ordinal and selection-offset order, including distinct overlapping selections. Queue previews clamp to three lines, marked by a 2 px colour bar, with the actual paragraph, date, note count and filing page in mono. A quotation that supplies its own chapter title does not repeat that title above it. The detail shows the full frozen quotation, preserves rewritten block text, and fetches the following passage from the citation's snapshot without moving the reading position. On the cover, tapping a queue row opens a dedicated passage state with Back to highlights, Previous and Next; the scrollable passage sits above an always-visible action dock, clear of the bottom nav. Colour and tag filters open a labelled sheet; No colour matches unassigned citations. Colour counts appear only for the loaded, unfiltered rows, never as whole-notebook facets, and a truncated queue names its loaded count.
-
-The selected passage keeps Mark processed, Add note or Open note, Make card, Tag, Colour, Undo and Open in reader visible in its dock. On a fine pointer their buttons show E, N, C, T, 1–5, ⌘Z and O in the shared sans key style, with ↑ K and J ↓ beside the pager labels; touch hides the hints. The active Highlights pane owns these unmodified keys only outside editable targets and open popups, preserving shell chords and the other pane's keys. J/K and arrows select and focus the neighbouring queue row; Home and End retain first and last passage navigation. Digits apply yellow, green, blue, red and purple in Reader order. Mark processed advances to the next unprocessed passage in the scoped queue, wrapping when necessary; in All, processed passages offer Mark unprocessed. Undo uses the retained source document's existing history, from the dock or ⌘Z, not a separate triage history or toast. A non-empty child note, an active card or an incoming reference processes a highlight unless its explicit triage overrides that state; tags and colour only organise it. Add note opens the first written child or reuses a blank note. The shared highlight menu keeps the quotation, colour choices, note and card actions, Copy with citation, triage, tags and removal; Library adds Open in reader. Hovering a highlight still links it to the reader and source outline in the other pane without scrolling or taking focus.
-
-Make card opens a deliberate front/back draft with the quotation in Back and source context above it. It creates no empty syntax block and shows no initial invalid-state warning. Cancel leaves no card behind. Successful delivery creates one child under the highlight and opens its refreshed outline; unresolved delivery keeps the form busy rather than permitting duplicate insertion.
-
-When processing empties the scoped queue, Undo stays in the Highlights toolbar so the final action still has a visible route back.
-
-A notebook with no highlights says "Select text in the reader to add highlights." An empty Unprocessed queue in a notebook that still has highlights says "No unprocessed highlights."
-
-A source page puts the current snapshot's cover beside its title, with author chips followed by one mono imprint line: siglum, format, publisher and year, omitting absent values. The cover opens the reader. Below it, the current chapter (`Not started` before any reading, `Reading position` in front matter), chapter map, time left in a named chapter and `book % · time left` share the reader's character-based progress. Each highlight in the current snapshot is a dot in its colour at its exact position: the server gives every citation its start as a character offset in the snapshot's text, the same unit as the contents starts, so the source page, the Library card, Today and the reader place dots identically. The primary gilt Read button becomes Continue reading once a saved position exists, with the state menu and source actions beside it. On the cover those controls are pinned above the bottom nav, within thumb reach. A record source has no snapshot and no Read. Source actions retain Copy citation key, Edit details…, Replace cover…, Fill missing details when the source has an identifier (a fresh lookup that writes only empty fields), Export BibTeX, Export CSL JSON, Export Markdown, Snapshots and Delete source…, and add Show metadata fields to expose the original editable field rows; Hide metadata fields folds them again. The snapshot's description is clamped to three lines with More. It has no Table button; ⌘⇧T and the palette still open the table. The pane header reads Library / title, and Library opens the Library pane (Shift beside); zoomed into a block, Library gives way to the zoom path. The expanded details group uses control size, labels in `--muted`, and field icons only on hover. Languages show their English name and identifiers their scheme (`ISBN 978…`) until edited. A value that differs from what the current snapshot extracted offers Reset to extracted in its field menu. Highlights has its live total, individually spaced colour filters using the highlight tokens, then a separated By chapter control which can switch to Reading order. Highlights follow reading order with their notes beneath; each chapter heading carries its title and matching count. A 2 px colour bar marks the left edge of each full-width quote, with its paragraph number at the right in mono and no trailing colour dot. Highlights filed on other pages remain under Filed elsewhere and respect the same colour filters. Recent shows a book or article icon for source pages.
-
-Zooming into a source annotation uses a compact citation masthead: imprint, creators and Open source, without the cover, reading progress or Continue reading. The unzoomed source landing keeps its full header.
-
-Every source has a siglum, a short mark as in a critical edition. An authored `Siglum::` field wins when its trimmed value is one to four letters, upper-cased; empty, longer or non-letter values are ignored. Otherwise it is the first three letters of the first author's family name (else editor, site, then the title's first word containing letters), upper-cased with Unicode letters kept and non-letters skipped; shorter names use what they have. It is read from the current fields so editing the author changes it. The source header includes it as a bare mono mark in its one-line imprint, never boxed, and CSL JSON exports it as `citation-label`. On any other page, a row that cites a passage hangs its source's siglum right-aligned in the left gutter, boxed in `--control-border`, gilt when the row is selected or its highlight is hovered in the reader. Sigla are assigned per page in order of first appearance: the later derived mark in a collision takes further letters of its basis name (`THO`, then `THOM`, `THOMA`), or adds `2`, `3`, … after the basis runs out. The Library list, shelf and source sheet show each source's own siglum without that disambiguation, because the title beside it already tells the books apart; four Rowling books all read `ROW`. Authored sigla never change. Margin, header, apparatus and Compare marks stay on one line, with boxes sized for four mono letters and room to grow.
-
-A page that shows sigla widens its outline body's left edge by `--siglum-width` plus 8 px, so a four-letter mark is never clipped in a narrow pane; the title keeps the shared inset.
-
-The reader is a pane: the pane header reads Library / source title, and the title opens the source page. Inside, one toolbar line at the reading measure (spanning the spread in Pages) holds Contents labelled with the current section as a running head (its numeral in mono `--faint`, its title in Piazzolla italic), Highlights with its count, Find in source, `Aa` for reader settings, full screen and an actions menu (Open source page, then every reader shortcut with its key). The progress sits at the foot instead, under the text: the book map, as on the source page and the Library's reading cards (the chapters as segments sized by length, gilt to the reading point with a `--text` tick there, and the highlights as dots in their colours above it; a book whose contents have no placed entries keeps a 2 px rule that fills to the reading position), and under it one mono line: the chapter's numeral and italic title (none in front matter, and none in a foot narrower than 460 px, where the toolbar names it), its time left, and at the right `N% · time left in the book`, which opens the progress card. In Pages the foot spans the spread, as the toolbar does. The text fades over 24 px under the toolbar and 48 px above the foot, so no line is cut through its letters. Progress anywhere (library rows, the source header, the reader) is this one number: the share of the text before the first passage on screen, rounded down, `<1%` once started. The book opens with a title page read from the source page like the Library row, so renaming the book or editing its creators shows there at once; the file's own title stands in only until the page loads. A 112 px cover (76 px on the cover screen) sits beside the imprint in mono (siglum, publisher, year), the title in Piazzolla at 2.25 times the reading size with any subtitle (after a colon, or the source's Subtitle) in italic beneath it, the author in Piazzolla italic, a gilt rubric rule, the chapter count and reading time in mono, and a gilt Begin at link to the first opening (`Begin at Preface`, `Begin at chapter I`). The file's own cover image at the start is not drawn again. Chapters are the outermost contents level with two or more entries, as in a printed book, except that a part whose own text before its first entry is under 2,000 characters (a title page, an epigraph) holds chapters: the part opens on a page of its own and each chapter in it is a chapter, while a chapter with a page or more of its own before its sections keeps them inside it. The reader's pages, the foot, the running head, the book map, the progress card, the source page, the Library's reading cards and the journal's reading tile all count chapters this way. Front matter (cover, title page, copyright, contents, illustrations, abbreviations, dedication, epigraph, maps, family trees, cast lists, lists of figures and tables, praise, and the author's other books) is a stretch of the map but never named as the chapter. Chapter openings come from the contents, not the file's heading markup, so every book opens its chapters the same way: each chapter, except front matter and entries that only repeat the book's title, opens with a rubric mono label (`CHAPTER I`, `BOOK`, `INTRODUCTION`, none for an unnumbered section; a chapter that starts at the same passage as its part has the part above it in `--faint` mono capitals, as `PART ONE · AN EXCESS OF GOOD FORTUNE`), the title in Piazzolla at 2.1 times the reading size and a gilt rubric rule, four lines down from the passage before; the first line of text takes small capitals. Numerals are recognised as `Chapter 3`, `Book One`, `Part II`, or a bare upper-case Roman numeral or number before `.` or `:`, so a title such as `I Remember` stays a title; decorations around a title (`~Book One~`) are dropped. Heading lines that only restate the entry, its label, its numeral in any style or the book's title, from the entry's first passage up to the next opening, are not drawn; anything else, such as an epigraph, a highlighted passage or an image, ends the run, and Find still searches them. Contents entries that only repeat the book's title (running heads the file marked as navigation) leave the Contents menu, the margin and the book map, and their running-head passages are not drawn. Reader settings are a device preference shared by every reader pane: Layout Scroll (default) or Pages; Sans (Plex) or Serif (Piazzolla), default Serif; saved choices are preserved. Size is 15 to 22 px, default 17; width Narrow 28em, Medium 34em (default) or Wide at the outline measure; line spacing 1.5, 1.65 or 1.8. Changing one keeps the first visible passage in place. Headings scale from the reader size, footnote references are superscript links that open the note in a popover, images keep their natural size up to the measure and 70% of the viewport height, dimmed to 85% brightness on the dark canvas until hovered, and code sits on `--surface` in a horizontally scrolling block. Quotations take a 2 px `--line` rule at an indent, except in a book whose file marks most paragraphs as quotations (some EPUBs wrap the whole text in blockquotes): when quotes outnumber plain paragraphs among the loaded passages, they read as plain paragraphs. Contents opens on the current section, marked with a check; the Highlights picker lists each highlight's colour, quote and section; Find marks matches and counts passages. Until the saved position is restored, the text, the foot line and the Contents label are not drawn and the running head stays quiet, so the start of the book does not flash before the jump. The reading position saves while scrolling; opening from a citation scrolls to the passage and flashes it without counting as reading. Selecting text shows a small toolbar beside the selection, centred on it and below it when there is no room above (on a touch screen it docks across the foot of the page in thumb reach, clear of the system's own text menu beside the selection and no wider than the reading measure, with 44 px buttons sharing the width and no key hints, and moves to the head only when the selection runs down there), with Highlight (`H`), Highlight and note (`N`) and the five colours (`1`–`5`); both append a block quoting the selection to the source page, and the second also starts an empty child and opens the highlight beside the reader with the caret there. An empty note does not mark the highlight processed. Highlights are ink, not boxes: a band of their colour at 42% (a neutral 26% `--text` without one) under the lower half of each line, from 55% to 92% of the line box, so capitals and ascenders keep the canvas and neighbouring lines stay apart; hovering a highlight deepens the band of every range it covers (62%, or 40% without a colour). One with notes ends in a small note icon in `--faint` that opens them. Clicking a highlight opens its menu; Shift-click opens its block beside the reader.
-
-Find in source loads forty matching passages at a time with Load more. Appending preserves the selected result and popup scroll; the final count removes the action. Replacing the query, closing the picker or changing source discards late results from the previous search.
-
-`N% · time left` at the foot opens the progress card: above it on a pointer screen, and as a sheet rising from the bottom edge on the cover screen. The card shows `N% of the book` with the number in Piazzolla, the chapter by name, `4 · Deus Vult!, 43% through` (nothing in front matter), and the date the book was added in mono at the right. Under them sit the map at double height, with Start, the highlight count and End beneath it, then Left in chapter and Left in book with their numbers in Piazzolla. Last come the current chapter and the next five as rows, each with its numeral and title as the toolbar names it and its length in minutes; the current one has a gilt edge and reads `N min left`. Choosing a row reads on from that chapter, as Contents does. A mono note says the times assume about 250 words a minute. The card leaves out the day's reading and a finish estimate, because Tessera does not record reading sessions.
-
-Wherever the pane has room for `--apparatus-width` and a 48 px gap left of the text (a single pane on a laptop, or full screen beside a two-column spread), the contents stay open as a margin beside it: every entry in control text, indented 12 px per level, in `--muted`; the current section in gilt with a 2 px gilt rule at its left edge, kept in view as reading moves on. Clicking an entry jumps there as Contents does. Unlike opening a citation, choosing a section in either one moves the reading position there at once, so reopening the book returns to it. The margin scrolls on its own; narrower panes, split panes and phones keep only the Contents menu.
-
-Pages lays the text out in columns the height of the pane and turns them a page at a time. A page holds two columns, 48 px apart with a 1 px `--line` rule down the middle as the spine, when the pane fits two of at least 22em, and one otherwise; no column is wider than the reading measure. A running head in centred mono `--faint` capitals sits over each column: the book's title over the left and the chapter (`I · The Violent Tenor of Life`) over the right, or the chapter alone over a single column, and nothing over the right in front matter; the title page and a chapter's opening page go without, and its opening sinks 18% of the viewport height, as a printed chapter starts low on its recto. Each chapter, counted as above, starts on a fresh page, and a long chapter splits every 150 passages. The foot line adds `p. N of M` within the chapter after the chapter's time left. With a mouse, previous and next arrows in `--faint` sit at the page edges, 8 px outside the text and gilt on hover, hidden at the first and last page of the book. Time left counts the characters after the first passage on screen at 1,500 a minute and reads `<1 min`, `N min`, `H h` or `H h M min`. Arrow keys, Page Up and Down, Space (Shift+Space back) and the mouse wheel turn pages. On a touch screen a finger carries the page sideways and the next one follows it in: a drag past a quarter of the page or a flick turns it, a shorter one springs back, and at the book's first or last page the page only gives a little. A tap in the outer sixth of the page turns it too, unless it lands on a highlight, link or button, and the edge arrows are left out. Past the last page of a chapter the next one opens at its first page, and turning back opens the previous chapter at its last. Headings stay with what follows, images and code blocks are not split, and images fit within half the viewport height. Folding, unfolding, resizing the pane and changing a setting keep the first character on the page in view, so a long passage spanning pages does not jump back to its start; returning to the earlier size returns to the same page.
-
-Full screen (the corner-arrows button after `Aa`, or `F`) turns the whole app window into the reader: the rail, sidebar, pane tabs, pane header and the other pane step aside, and the reader's own toolbar stays for contents, highlights, find, settings and the way out. With a mouse, the toolbar and the book map at the foot fade 2.5 s after the pointer rests and return when it moves; the line under the map stays. On a touch screen, in full screen and on the cover screen, a tap in the middle of the page (not on a highlight, link or button) fades or returns them with the cover screen's masthead and pane tabs. On Android the status and navigation bars leave and return with them, and a swipe from the screen's edge shows them for a moment. With a mouse everything keeps its room while faded, so the text never moves. On a touch screen, in full screen and on the cover screen, the masthead, toolbar and book map lie over the page instead, painted the screen's full width with the text fading into them, so once they fade the page has the screen from the top band's top to the line under the map. Full screen on a touch screen 600 px or wider also gives the page the status bar's room, and the toolbar returns below the bar; the cover screen keeps that room for its camera. On touch they also fade on their own when the book has opened, a page turns, a jump lands or the page is scrolled, so they never cover what is read next. A tap that closes a popup or clears a selection does only that. They stay while a popup is open, text is selected or keyboard focus is in the toolbar; a click that left focus on a toolbar button does not hold them. In the macOS app an empty strip the rail's height stays on the canvas as the title bar, holding the window buttons and moving the window. It does not ask the operating system for full screen; on the desktop, the window menu's Full Screen does that separately. The same button, `F`, `Esc` (after any selection is cleared), Back on Android and the browser's back button leave it, and it also ends when the pane opens something other than the reader. It is not saved, so a reload starts in the normal layout.
-
-On the cover screen (a touch screen under 600 px) the rail gives way to a bottom nav: Today, Agenda, Find, Review and Library, with Library's long press listing the note types in use. The sidebar opens from a button at the start of the pane header, a book's breadcrumb is its title alone, and the nav steps aside while the keyboard is up. An open book reads edge to edge without the pane header or the nav: a back arrow and the book's name head the page above the reader toolbar, and full screen is left out because nothing remains to hide. The back arrow returns through the pane's history, or opens the source page when the reader was the first entry. Unfolding brings the usual shell back around the same page.
-
-Highlighting a selection that overlaps existing highlights extends the earliest one on the source page to cover the union instead of stacking a new mark. Merge overlapping highlights, in the reader's actions menu, does the same for every overlapping group and reports `Merged N highlights` or `No overlapping highlights`. Highlights cited from other pages are kept and still count toward the union, with `; N cited elsewhere kept` added to the report. Contents falls back to the EPUB guide and fills in lazily when the navigation document is empty; a passage's tooltip names its number and section, `Passage 37 · Chapter 1`.
-
-On a touch screen, Highlight and note keeps the passage in view instead of opening the source page. A sheet covers the shell: the book's title and byline, the reading rule, the section and position in mono, the sentence leading into the quotation in `--muted`, the quotation itself larger on a highlight tint with a gilt rule, and the sentence after it. Below, on `--surface`, sit "A thought on this passage" with one way back beside it, the note field and the save state in `--muted`. The note is the highlight's child block and saves as it is typed, so the button reads Back to reading while the note is empty and becomes a gilt Keep note once there is text; Escape does the same. Leaving with nothing typed removes the empty note; the highlight stays. When the keyboard takes room, the passage scrolls so the whole quotation and as much of the lead-in as fits stay visible, and the byline goes.
-
-On a touch screen Contents and Highlights open without raising the keyboard; their search field takes a tap. `Aa` rises as a sheet from the bottom edge, its rows kept to a column, so the text it changes stays in sight above. The reader toolbar, the settings and the note sheet's buttons are 44 px touch targets (`--touch-target`), and the note mark after a highlight and the progress at the foot reach as far without growing. On Android the shell and the note sheet sit below the status bar, whose height the app reports itself because the WebView leaves it out of the safe-area insets, and the bar's icons follow the app's theme.
-
-A block with a citation shows a citation chip in its capability metadata: the highlight's colour dot (a hollow ring without colour, as in the library and the reader), the source's short title (before any subtitle colon, cut at a word within 40 characters) and the passage number, `¶231`. On the source's own page the chip shows only `¶231` in `--faint` and stays at the end of the block's first line, the text wrapping beside it. Clicking opens the reader at that passage; Shift opens it beside. A block whose text no longer equals the quote shows the quote beneath it in `--muted` with a quotation rule, so a paraphrase or cloze keeps its evidence visible.
-
-### Collections
-
-Collections follows All in the library's mode tabs. Each card fans up to three member covers above the page name and a mono count; New collection creates an ordinary page typed Collection. The first collection adds a Collections Instance field that links to the Collection type, and appends it to the Book and Article templates that exist; a later collection adds it to library types imported since. Membership lives in that field's reference values, so the collection page's backlinks list its sources and ordinary sync carries every edit.
-
-A collection opens the same sorted rows or shelf as All, filtered by its page ID on the service. Its heading offers Open page, Rename and Delete. Multi-selection and source actions offer Add to collection, with a new-collection row in the picker; the metadata form lists the source's collections with add and remove controls. Inside a collection, selected sources can be removed without deleting them. Each action is one revision-checked document commit with a quiet Undo notice; deletion clears membership values in that same commit and leaves the books intact. Touch selection stays visible and reveals the bulk controls.
-
-These are hand-curated collections. A future smart collection can attach a saved library query to the same page, using a SaveLibraryView record keyed by the collection page ID; it need not replace the page or the manual membership field. No saved-query membership is evaluated yet.
-
-## Perspectives and questions
-
-A concept page holds several attributed readings. Make perspective, in the block menu, the palette and `/perspective`, turns a block such as `[[Plato]]` into a position; Remove perspective undoes it. Its row names the holder in Piazzolla at control weight, the holder link in `--text` with a `--line` underline that turns gilt on hover, and its source's siglum hangs in the margin. A `Gist::` child drops its label and reads as the line under the holder, so the pair reads "Plato / A line of decline". At the Perspectives depth each position closes to its holder and gist.
-
-A holder's page lists Perspectives held above its backlinks, and a subject's page lists Perspectives filed elsewhere (positions about it that live on other pages, such as under a highlight); neither repeats under Backlinks.
-
-Compare perspectives, in the page menu and the palette once a page has two positions filed under it, opens a reading sheet. Its toolbar names the subject in Piazzolla with a mono count; selection starts with two readings, and the holder controls add or remove columns while retaining at least one. Each column shows an unboxed source siglum, an 18 px holder name, its authored Shape glyph alongside, the Work reference, a 17 px gist and 16 px authored prose. Shape is not its own cell. Other fields stay in the source outline, reached through the holder or Open reading (Shift beside), rather than becoming a universal questionnaire. No prose is generated from field values and differing strings are not treated as evidence of disagreement. Actual question blocks on the subject page appear below the sheet and open their original blocks. Columns have a readable minimum width and scroll horizontally on narrow panes.
-
-The reading sheet's heading uses the shared centred page measure and page-title tokens. Its holder choices use the mono tab strip, with gilt rules and no pressed fill.
-
-Compare has Readings and Criteria tabs under the subject title, in the same mono strip; Criteria opens first when the subject has criteria, and the pane remembers the choice. The criteria matrix leaves the heading on the measure and widens to the pane. A mono line counts holders, criteria and questions beside Choose holders and Edit criteria. Each column heads with the siglum in mono, the holder in 18 px Piazzolla and the Work title in mono; each row starts with the criterion's name in Piazzolla in a sticky first column. Cells are the positions' own values. Enter or a click edits one in place, an empty cell offers Add on hover or focus, and both are undoable edits of the position's page. Two or more cells in a row with exactly the same text get a numbered `≡ 1 · exact repeat` mark and a footnote naming the sigla; nothing else is marked. A question that names a criterion follows that row with a `?`, its text in Piazzolla and a mono scope, `Shape · all 6` or `Shape · POL ↔ MAC only`; other questions stay below. Edit criteria lists the criteria with Move up, Move down and Remove and adds fields through the field picker; while the set is derived it says so, and saving stores it. Columns keep a readable minimum width and the matrix scrolls sideways in a split pane.
-
-A titled page with three or more perspectives filed under it gains an apparatus margin, `--apparatus-width` (240 px) wide, 48 px right of the measure, whenever its pane fits both (a 1096 px content width, so a single pane on a laptop but not a split). The column then shifts left so the pair stays centred, and the margin scrolls with the page. It holds the constellation, the page as a gilt hub with its holders on the inner ring (blued-steel spokes, holder names in `--muted`) and up to twelve pages that link to it as faint dots on an outer ring with their titles on hover, then a Sources key pairing each siglum used on the page with its source's title. Every node and source opens its page; Shift opens it beside. Zoomed views and narrower panes have no margin.
-
-Make question and Make answer, in the block menu, the palette and `/question` or `/answer`, mark a block as a question or as an answer beneath one; a titled page can be a question from its page menu. A question reads in Piazzolla. Its state control sits in the capability metadata with the question glyph and its state: Open in gilt, Unsettled in `--agree`, Answered in `--status-done` with the settled glyph, Parked in `--faint`, then any review date. Clicking it opens the question menu: Park or Resume, Keep open or Let it settle, Set review date and Remove question. An answer shows `Answer 2026-10-06`, or `Accepted` in gilt once its question accepts it, and `Aporia` when it records that no answer holds. Commands that cannot apply stay listed with their reason, such as "Resume the question before accepting an answer."
+| ⌘Enter | Toggle todo and done |
+| ⌘⇧Enter | Open the status menu |
+| ⌘. | Zoom in |
+| ⌘⇧. | Zoom out |
+| ⌘⇧T | Open the table |
+
+⌃⇧ is shell navigation. ⌥↑ and ⌥↓ move blocks. No ⌥-letter chords: on macOS they type accented letters.
+
+### Leader
+
+Space on a selected row, or in Vim normal mode, opens a menu of single letters. Unavailable actions stay listed with their reason.
+
+| Letter | Action |
+|---|---|
+| `t` | Status |
+| `s` | Schedule |
+| `d` | Deadline |
+| `p` | Priority |
+| `r` | Repeat |
+| `w` | Clock in or out |
+| `o` | Make project or open its controls |
+| `q` | Make question; make answer beneath the nearest question, or open the menu of an existing question |
+| `v` | Make or remove perspective |
+| `c` | Add card |
+| `z` | Zoom in |
+
+`c` opens the card kinds:
+
+| Letter | Card kind |
+|---|---|
+| `c` | Card |
+| `r` | Reverse card |
+| `b` | Reversible card |
+| `m` | Multi-line card |
+| `l` | List card |
+| `z` | Cloze |
+
+Space c c makes a forward card.
 
 ## Popups and feedback
 
-Floating layers open below the element or caret that opened them, with a 4 px gap, start-aligned unless the anchor is in the viewport's right half, flipping above when below is too short (a menu flips whenever only the space above holds all of its items), clamped to the viewport, never covering the anchor. Fixed forms opt into intrinsic-height fitting and choose the larger space when they cannot fit below; growing result lists keep the stable-placement policy. Find or create opens beneath the global search trigger; the dedicated command palette centres near the top of the viewport. Escape closes the topmost one and returns focus. Closing retires input handlers immediately; only an inert, accessibility-hidden visual remains for the brief exit animation. It has no IDs and cannot steal focus from a successor popup. Reduced motion removes it immediately.
+Floating layers open below the element or caret that opened them, with a 4 px gap. They are start-aligned unless the anchor is in the viewport's right half, flip above when below is too short, are clamped to the viewport and never cover the anchor. A menu flips whenever only the space above holds all of its items.
 
-Shared popup patterns:
+Fixed forms opt into intrinsic-height fitting and choose the larger space when they cannot fit below; growing result lists keep the stable-placement policy. Find or create opens beneath the global search trigger; the dedicated command palette centres near the top of the viewport.
 
-- **Menu**: 28 px rows with an icon slot, label and shortcut at the right; sections as 12 px labels; danger last. The icon column is reserved whenever any item has one, so labels align. A header may sit above the rows, as the highlight menu's quote and colour dots; its buttons join the arrow-key order.
-- **Picker**: an input on top and 28 px rows below. Arrows move, Enter picks, typing filters, the mouse hovers to highlight. Chips before the input show steps already chosen. Optional mono section headings group results without entering the keyboard selection order. Used by the palette, reference completion, Add type, Add condition and the time zone.
-- **Form**: compact labelled controls with an optional 18 px Piazzolla title and an action row. Fixed forms fit their content; a date picker's footer remains visible when its body must scroll.
-- **Confirm**: 13 px body text and two buttons.
-- **Preview**: a read-only card for a reference's target, described under "Reference previews" below.
+Escape closes the topmost one and returns focus. Closing retires input handlers immediately; only an inert, accessibility-hidden visual remains for the brief exit animation. It has no IDs and cannot steal focus from a successor popup. Reduced motion removes it immediately.
+
+### Shared popup patterns
+
+- **Menu:** 28 px rows with an icon slot, label and shortcut at the right; sections as 12 px labels; danger last. The icon column is reserved whenever any item has one, so labels align. A header may sit above the rows, as the highlight menu's quote and colour dots; its buttons join the arrow-key order.
+- **Picker:** an input on top and 28 px rows below. Arrows move, Enter picks, typing filters, the mouse hovers to highlight. Chips before the input show steps already chosen. Optional mono section headings group results without entering the keyboard selection order. Used by the palette, reference completion, Add type, Add condition and the time zone.
+- **Form:** compact labelled controls with an optional 18 px Piazzolla title and an action row. Fixed forms fit their content; a date picker's footer remains visible when its body must scroll.
+- **Confirm:** 13 px body text and two buttons.
+- **Preview:** a read-only card for a reference's target; see [Reference previews](#reference-previews).
 
 | Surface | Shape | Placement |
 |---|---|---|
 | Find or create: pages, blocks and explicit page creation; `>` finds commands | Picker, one line per hit with the page path in meta size; Tab drills into children | Below the global search trigger, 560 px |
 | Dedicated command palette | Picker, grouped by action section, with shortcuts; disabled reasons appear on the selected row and remain available to assistive technology | Top centre, 560 px |
-| Add to today (⌘E) | One capture line under a mono rubric, its completions in a picker beneath, key hints and Add on a hairline | Top centre, 560 px; a bottom sheet on the cover |
+| [Add to today](surfaces/journal.md) (⌘E) | One capture line under a mono rubric, its completions in a picker beneath, key hints and Add on a hairline | Top centre, 560 px; a bottom sheet on the cover |
 | `[[`, `((`, `#`, `Name::` completion and Add type | Picker | Below the opening brackets, the caret or the block |
 | `@` dates and `/` commands | Picker without an input; the block text is the query, sections label `/` rows, faster keys at the right | Below the token |
 | Leader, status and priority menus | Menu; leader letters at the right and pressed directly | Below the row |
@@ -430,37 +600,79 @@ Shared popup patterns:
 | Page, notebook, layout, pill, column, view, sort and field kind menus | Menu | Below their trigger |
 | New page, Delete page | Confirm | Below their trigger |
 | Reference preview | Preview, 380 px | Below the line of the reference under the pointer, or the reference at the caret |
-| Undo toast | Bottom centre, one at a time |
-| Sync status | A mono count with a dot at the rail's right, `3 waiting`, `Out of date` or `Not paired`, only while one applies; the dot turns `--danger` after a failure | Global rail, before Layout |
+| Undo toast | One at a time | Bottom centre |
+| Sync status | A mono count with a dot, `3 waiting`, `Out of date` or `Not paired`, only while one applies; the dot turns `--danger` after a failure | Global rail's right, before Layout |
 | Sync sheet | Device → Mac register over the title; Sync now with the last sync, kept and rejected changes leading to Conflicts, offline books; a retired copy offers Download the notebook again, a forgotten one Pair again | Top centre, 480 px; a bottom sheet on touch |
 | Phone setup | Where is your notebook? with two numbered choices: Use my Mac's notebook (Scan code or Type code, then the Mac's address and code) and Start a notebook on this phone. Pair again shows only the first, with the address filled in | Top centre, 560 px; a bottom sheet on touch; on first run |
-| Save state | Pane header, never a toolbar or a row; it says Saving… only when a save takes longer than a second |
-| Loading notices | In place of the content they precede, only after 300 ms, so fast reads show nothing until the content arrives; refreshes after a commit keep the current content on screen and swap in only what changed. An index opened again shows its last read at once | The pane or section that is loading |
+| Save state | Says Saving… only when a save takes longer than a second | Pane header, never a toolbar or a row |
+| Loading notices | Only after 300 ms, so fast reads show nothing until the content arrives | In place of the content they precede, in the pane or section that is loading |
+
+Refreshes after a commit keep the current content on screen and swap in only what changed. An index opened again shows its last read at once.
 
 Native `<select>` is never used; a bordered menu button or a picker replaces it.
 
 ### Reference previews
 
-Resting the mouse on a `[[reference]]` for 350 ms opens a slip in the outline, editor or another reference-rendering surface. Moving to another reference while a slip is open takes a third of the delay; a 200 ms grace period covers the gap. A page slip shows its breadcrumb, 24 px Piazzolla title, 16 px gloss, existing type/source/task/project metadata, and reading/backlink counts. Without a gloss it shows a short prose preview, with actual field values as a fallback for field-only pages. A block slip retains its parent, highlighted target and first descendants. The footer uses Plex for Beside and Open (Go to block for blocks), mono for counts.
+Resting the mouse on a `[[reference]]` for 350 ms opens a slip in the outline, editor or another reference-rendering surface. Moving to another reference while a slip is open takes a third of the delay; a 200 ms grace period covers the gap.
 
-On touch, holding a reference opens its slip without navigating; tapping still opens the page.
+| Target | Preview |
+|---|---|
+| Page | Breadcrumb, 24 px Piazzolla title, 16 px gloss, existing type/source/task/project metadata, and reading/backlink counts |
+| Page without a gloss | Short prose preview, with actual field values as a fallback for field-only pages |
+| Block | Retains its parent, highlighted target and first descendants |
 
-Pin or ⌘ keeps the slip open; Unpin restores its compact form. A pinned page lists its actual attributed readings, with sigla, holders, gists and inline shape glyphs. Selecting a holder expands authored prose, or opens the original position if there is no prose to expand. Open reading and source links preserve access to the original outline; Compare readings opens the subject's sheet. Pages without readings keep their prose preview. Bodies scroll within `--preview-body-height`; unpinned block previews fade only when clipped. References inside a slip open stacked slips. ⌥Space opens the reference at the caret or the focused reference; Enter opens it, Shift+Enter opens it beside, and Escape closes the topmost slip. Opening does not steal focus; focused slip controls retain native keyboard behavior. Deleted targets and failed requests have explicit notices. Touch input does not open hover slips.
+The footer uses Plex for Beside and Open (Go to block for blocks), mono for counts. On touch, holding a reference opens its slip without navigating; tapping still opens the page. Touch input does not open hover slips.
 
-### Type icons and names
+Pin or ⌘ keeps the slip open; Unpin restores its compact form. A pinned page lists its actual [attributed readings](surfaces/perspectives.md), with sigla, holders, gists and inline shape glyphs. Selecting a holder expands authored prose, or opens the original position if there is no prose to expand.
 
-A type's template offers **Icon and name…**: a compact glyph grid and an editable plural name. The empty name previews the automatic English plural; Reset removes both overrides. Apply records one undoable change on the type page, shared across devices. The sidebar, Index directory, note eyebrow and table title read the same kind presentation. Book, Article and Collection default to their book, article and shelf glyphs without writing notebook data; other made types use a tag. An unknown glyph also reads as a tag.
+Open reading and source links preserve access to the original outline; [Compare readings](surfaces/perspectives.md) opens the subject's sheet. Pages without readings keep their prose preview. Bodies scroll within `--preview-body-height`; unpinned block previews fade only when clipped. References inside a slip open stacked slips.
+
+⌥Space opens the reference at the caret or the focused reference; Enter opens it, Shift+Enter opens it beside, and Escape closes the topmost slip. Opening does not steal focus; focused slip controls retain native keyboard behaviour. Deleted targets and failed requests have explicit notices.
 
 ## Icon
 
-The app icon carries the notebook's central idea and its material. The idea is multiperspectival notes: one subject held in several attributed readings, with the source beside what you think of it (see Perspectives and questions). The material is clockwork gold, the brass of an instrument: rings, rules and bevelled facets drawn in a few flat gilt tones. No glows and no multi-stop metallic gradients.
+The app icon carries the notebook's central idea and its material. The idea is multiperspectival notes: one subject held in several attributed readings, with the source beside what you think of it; see [perspectives](surfaces/perspectives.md). The material is clockwork gold, the brass of an instrument: rings, rules and bevelled facets drawn in a few flat gilt tones. No glows and no multi-stop metallic gradients.
 
-- **Direction.** Gold smalti. Byzantine mosaicists set gold tesserae at slightly different angles so each catches the light differently; that is the multiperspectival idea in material form. The icon is a ring of twelve hand-cut gold tiles, each split into a lit and a dark facet at its own angle, around the oculus (ring and dot) with a wide gap so it never reads as a target. One parchment tile is lifted out of the ring at one o'clock and tilted 18°: a piece taken up to be looked at from another angle. Midnight ground only for now. The source is `crates/tessera-desktop/icons/icon.svg`; desktop PNGs, the icns and the Android launcher icons are rendered from it, Android as a mark-only adaptive foreground on a midnight background.
-- **Grounds.** Orrery midnight (`--shell`) first. Oxblood (`--desk` #290401, Solforge's desk) waits until the mark is settled.
-- **Family.** It belongs with the wordmark's oculus and the place glyphs, which are drawn from circles and rules with an optional filled hub.
-- **Legibility.** One silhouette that still reads at 32 and 16 px, on white and on near-black.
-- **Misreads to avoid.** Safari's compass (a ticked ring with a needle or pointer; Sol judged the dial variants too close), a gear (reads as Settings), a bullseye or target, a letterform (H, T), a camera iris, a loading spinner, a slash through a ring (reads as prohibited), atom-like crossed ellipses, three-way symmetric spokes, puzzle pieces, a shipping box and a stack of photos.
-- **Explorations.** Rounds live in `~/Documents/tessera-design/icon-2026-10-10/`. Round 1 tried the mosaic, the oculus, a tessera hospitalis (a token split between two holders) and a split oculus; round 2 tried orrery arms, a dial with an alidade, a faceted tessera, a three-metal oculus, sight lines and the split oculus on both grounds; round 3 left the compass behind for an isometric cube (a tessera is also a die), a parted hospitalis tile and overlapping tiles. The faceted tessera was on the right track but not distinctive, so round 4 turned the tessera into gold smalti, and rounds 5 and 6 refined the ring with one tile lifted.
+### Direction
+
+Gold smalti. Byzantine mosaicists set gold tesserae at slightly different angles so each catches the light differently; that is the multiperspectival idea in material form.
+
+The icon is a ring of twelve hand-cut gold tiles, each split into a lit and a dark facet at its own angle, around the oculus (ring and dot) with a wide gap so it never reads as a target. One parchment tile is lifted out of the ring at one o'clock and tilted 18°: a piece taken up to be looked at from another angle. Midnight ground only for now.
+
+The source is `crates/tessera-desktop/icons/icon.svg`; desktop PNGs, the icns and the Android launcher icons are rendered from it, Android as a mark-only adaptive foreground on a midnight background.
+
+### Grounds, family and legibility
+
+- Orrery midnight (`--shell`) first. Oxblood (`--desk` #290401, Solforge's desk) waits until the mark is settled.
+- It belongs with the wordmark's oculus and the place glyphs, which are drawn from circles and rules with an optional filled hub.
+- One silhouette that still reads at 32 and 16 px, on white and on near-black.
+
+### Misreads to avoid
+
+- Safari's compass: a ticked ring with a needle or pointer; Sol judged the dial variants too close.
+- A gear: reads as Settings.
+- A bullseye or target.
+- A letterform (H, T).
+- A camera iris.
+- A loading spinner.
+- A slash through a ring: reads as prohibited.
+- Atom-like crossed ellipses.
+- Three-way symmetric spokes.
+- Puzzle pieces.
+- A shipping box.
+- A stack of photos.
+
+### Explorations
+
+Rounds live in `~/Documents/tessera-design/icon-2026-10-10/`.
+
+| Round | Exploration |
+|---|---|
+| 1 | Mosaic, oculus, tessera hospitalis (a token split between two holders) and split oculus |
+| 2 | Orrery arms, dial with an alidade, faceted tessera, three-metal oculus, sight lines and split oculus on both grounds |
+| 3 | Left the compass behind for an isometric cube (a tessera is also a die), a parted hospitalis tile and overlapping tiles |
+| 4 | The faceted tessera was on the right track but not distinctive, so the tessera became gold smalti |
+| 5 and 6 | Refined the ring with one tile lifted |
 
 ## Decisions
 
@@ -469,7 +681,7 @@ The app icon carries the notebook's central idea and its material. The idea is m
 3. Shift is the one "open beside" modifier.
 4. Fields, Settings, tables and views are panes, not dialogs.
 5. Pills are hue-tinted at meta size; bullets stay neutral.
-6. Tables divide rows, not columns; the title column is sticky.
+6. [Tables](surfaces/fields-tables.md) divide rows, not columns; the title column is sticky.
 7. A permanent global rail owns notebook-wide actions; pane headers own document actions.
 
 ## Open
