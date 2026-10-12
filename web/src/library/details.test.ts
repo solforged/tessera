@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import type { Block, FieldDefinition } from '../api/types';
-import type { NotebookClient, PageDocument, SourceDetailsEdit } from '../document/contract';
-import { derivedSourceSiglum, saveSourceField, similarPages, sourceFieldValue } from './details';
+import type { NotebookClient, PageDocument } from '../document/contract';
+import { derivedSourceSiglum, similarPages, sourceFieldValue, validateSourceValue } from './details';
 import type { SourceField, SourceFieldValue } from './details';
 
 const page = (text: string, kind: Block['kind'] = 'page', archived = false): Block => ({ id: text, kind, parent_id: null, page_id: text, text, archived } as Block);
@@ -27,40 +27,27 @@ describe('similarPages', () => {
 });
 
 describe('source field validation', () => {
-  test('invalid dates, numbers, sigla, titles, states and citation keys fail before writing', async () => {
+  test('rejects invalid bibliographic values', () => {
     const invalid: [SourceField, SourceFieldValue][] = [
       ['published', '2023-02-29'], ['firstPublished', '2024-13'], ['started', '0000'], ['finished', '2024-04-31'],
       ['published', '2024-2'], ['firstPublished', '20'], ['started', '2024-01-01T00:00:00'],
       ['number', 'NaN'], ['number', '0x12'], ['pages', 'Infinity'], ['pages', '1e999'], ['pages', '12 pages'],
+      ['pages', '-12'], ['pages', '0'], ['pages', '2.5'], ['pages', '2.0000000000000001'], ['pages', '9007199254740992'],
       ['siglum', 'ABCDE'], ['siglum', 'A1'], ['siglum', 'A B'], ['title', ' '],
       ['state', 'complete'], ['citationKey', '1book'], ['citationKey', 'has spaces'], ['citationKey', 'A'.repeat(65)],
       ['tags', ['Invalid[tag]']], ['identifiers', 'isbn:9780262033848'],
       ['creators', [{ id: null, name: ' ', role: 'author' }]],
     ];
-    for (const [field, value] of invalid) await expect(saveSourceField([], {} as NotebookClient, field, value)).rejects.toThrow();
+    for (const [field, value] of invalid) expect(() => validateSourceValue(field, value)).toThrow();
   });
 
-  test('valid partial dates, finite numbers and blank optional values reach the shared planner', async () => {
-    const definitions: FieldDefinition[] = [
-      { id: 'date', name: 'Published', kind: 'date', revision: 1, options: [], targets: [] },
-      { id: 'pages', name: 'Pages', kind: 'number', revision: 1, options: [], targets: [] },
-      { id: 'siglum', name: 'Siglum', kind: 'text', revision: 1, options: [], targets: [] },
-    ];
-    const captured: SourceDetailsEdit[] = [];
-    const doc = { pageId: 'page', status: () => 'ready', flush: async () => {}, outline: { children: () => [] }, root: () => ({ text: 'Source' }) } as unknown as PageDocument;
-    const notebook = {
-      api: { fields: async () => ({ page_id: 'fields', fields: definitions }) },
-      editSourceDetails: async (edits: { edit: SourceDetailsEdit }[]) => {
-        captured.push(...edits.map(item => item.edit));
-        return { undo: async () => {}, redo: async () => {} };
-      },
-    } as unknown as NotebookClient;
+  test('preserves partial dates and optional blanks while scoping whole counts to Pages', () => {
     for (const value of ['', '0001', '1900', '2024-02', '2024-02-29', '2000-02-29']) {
-      await saveSourceField([doc], notebook, 'published', value);
-      expect(captured.at(-1)!.fields[0]?.values).toEqual(value ? [value] : []);
+      expect(validateSourceValue('published', ` ${value} `)).toBe(value);
     }
-    for (const value of ['', '0', '12.5', '-2', '1e3']) await saveSourceField([doc], notebook, 'pages', value);
-    for (const value of ['', 'A', 'AbCD']) await saveSourceField([doc], notebook, 'siglum', value);
+    for (const value of ['', '0', '12.5', '-2', '1e3']) expect(validateSourceValue('number', value)).toBe(value);
+    for (const value of ['', '1', '120', '9007199254740991']) expect(validateSourceValue('pages', value)).toBe(value);
+    expect(validateSourceValue('siglum', ' AbCD ')).toBe('AbCD');
   });
 
   test('identifiers include all live values across repeated entries and creator refs retain ids', () => {

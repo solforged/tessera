@@ -112,7 +112,7 @@ export function similarPages(name: string, pages: readonly Block[], limit = 3): 
   }).slice(0, limit);
 }
 
-function validateValue(field: SourceField, value: SourceFieldValue): SourceFieldValue {
+export function validateSourceValue(field: SourceField, value: SourceFieldValue): SourceFieldValue {
   if (field === 'creators') {
     if (!Array.isArray(value) || value.some(item => typeof item !== 'object' || !roles.includes(item.role) || !item.name.trim())) throw new Error('Each creator needs a name and role.');
     return (value as SourceCreator[]).map(item => ({ ...item, name: item.name.trim() }));
@@ -133,7 +133,11 @@ function validateValue(field: SourceField, value: SourceFieldValue): SourceField
     const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
     if (!match || year < 1 || month < 1 || month > 12 || day < 1 || day > days[month - 1]!) throw new Error('Use YYYY, YYYY-MM or YYYY-MM-DD.');
   }
-  if ((field === 'number' || field === 'pages') && text && (!/^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i.test(text) || !Number.isFinite(Number(text)))) throw new Error('Enter a finite number.');
+  if (field === 'pages' && text) {
+    const count = Number(text);
+    if (!/^\d+$/.test(text) || !Number.isSafeInteger(count) || count < 1) throw new Error('Pages must be a positive whole number.');
+  }
+  if (field === 'number' && text && (!/^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i.test(text) || !Number.isFinite(Number(text)))) throw new Error('Enter a finite number.');
   if (field === 'siglum' && text && !/^[A-Za-z]{1,4}$/.test(text)) throw new Error('Use one to four letters, or leave blank to derive the siglum.');
   if (field === 'citationKey' && text && !/^[A-Za-z][A-Za-z0-9_:-]{0,63}$/.test(text)) throw new Error('Citation keys must start with a letter and contain at most 64 letters, digits, underscores, colons or hyphens.');
   if (field === 'state' && !['inbox', 'reading', 'finished', 'abandoned'].includes(text)) throw new Error('Choose a reading state.');
@@ -207,7 +211,7 @@ async function prepareSourceField(doc: PageDocument, notebook: NotebookClient, c
 
 /** One field, one acknowledged cross-page command, one exact undo step. */
 export async function saveSourceField(docs: readonly PageDocument[], notebook: NotebookClient, field: SourceField, value: SourceFieldValue): Promise<SourceFieldChange> {
-  let normalized = validateValue(field, value);
+  let normalized = validateSourceValue(field, value);
   return prepareWrite(notebook, async () => {
     await Promise.all(docs.map(async doc => { await documentReady(doc); await doc.flush(); }));
     if (field === 'identifiers') normalized = (await notebook.api.normalizeMetadata({ ...emptyMetadata(), title: docs[0]?.root()?.text ?? 'Source', identifiers: normalized as string[] })).identifiers;
@@ -226,7 +230,7 @@ async function prepareMetadata(doc: PageDocument, notebook: NotebookClient, cont
   const entries = sourceEntries(doc, context.definitions);
   const labels = coverOnly ? ['cover'] as const : ['subtitle', 'published', 'publisher', 'language', 'identifiers', 'url', 'site', 'description', ...(onlyMissing ? ['cover' as const] : [])] as const;
   for (const field of labels) {
-    const value = validateValue(field, field === 'identifiers' ? metadata.identifiers : metadata[field] ?? '');
+    const value = validateSourceValue(field, field === 'identifiers' ? metadata.identifiers : metadata[field] ?? '');
     const old = field === 'identifiers' ? previous.identifiers : previous[field] ?? '';
     if (onlyMissing && old.length || JSON.stringify(old) === JSON.stringify(value)) continue;
     const prepared = await prepareSourceField(doc, notebook, context, field, value);
@@ -240,7 +244,7 @@ async function prepareMetadata(doc: PageDocument, notebook: NotebookClient, cont
     const prepared = await prepareField(notebook, context, label, 'instance', names);
     if (prepared) edit.fields.push({ ...prepared, entries: entries.get(role) ?? [] });
   }
-  if (!onlyMissing && !coverOnly) edit.title = validateValue('title', metadata.title ?? '') as string;
+  if (!onlyMissing && !coverOnly) edit.title = validateSourceValue('title', metadata.title ?? '') as string;
   return { edit, count: edit.fields.length + Number(edit.title !== undefined && edit.title !== previous.title) };
 }
 
