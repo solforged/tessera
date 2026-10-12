@@ -12,6 +12,10 @@
     {
       "source": "/(.*\\.wasm)",
       "headers": [{ "key": "Content-Type", "value": "application/wasm" }]
+    },
+    {
+      "source": "/manifest.webmanifest",
+      "headers": [{ "key": "Content-Type", "value": "application/manifest+json" }]
     }
   ],
   "rewrites": [

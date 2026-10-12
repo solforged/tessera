@@ -6,7 +6,8 @@ export default defineConfig(({ mode }) => ({
   define: { __TESSERA_DEMO__: mode === 'demo', __TESSERA_ANDROID__: mode === 'android' },
   ...(mode === 'demo' ? {
     build: { outDir: 'dist-demo', rollupOptions: { input: 'demo.html' } },
-    publicDir: false,
+    // The installable app's manifest and icons; not the native entry's offline worker.
+    publicDir: 'public-demo',
     worker: { format: 'es' as const },
   } : mode === 'android' ? {
     build: { outDir: 'dist-android', rollupOptions: { input: 'android.html' } },
