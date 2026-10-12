@@ -1,8 +1,9 @@
 //! Shared native replica transport for the CLI and in-process hosts.
-use crate::sync::{SCHEMA_HEADER, TICKET_HEADER};
+use crate::sync::{BUILD_HEADER, SCHEMA_HEADER, TICKET_HEADER, VERSION_HEADER};
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 use tessera_core::sync::{
     CloneTicket, Hub, Pull, PushReceipt, PushedChange, SnapshotContent, UnloggedPull, UnloggedRows,
@@ -30,6 +31,13 @@ fn client(key: Option<&str>) -> anyhow::Result<reqwest::Client> {
         SCHEMA_HEADER,
         reqwest::header::HeaderValue::from(SCHEMA_VERSION),
     );
+    headers.insert(
+        VERSION_HEADER,
+        reqwest::header::HeaderValue::from_static(crate::VERSION),
+    );
+    if let Some(build) = crate::BUILD {
+        headers.insert(BUILD_HEADER, reqwest::header::HeaderValue::from_str(build)?);
+    }
     if let Some(key) = key {
         let mut value = reqwest::header::HeaderValue::from_str(&format!("Bearer {key}"))?;
         value.set_sensitive(true);
@@ -44,7 +52,15 @@ fn client(key: Option<&str>) -> anyhow::Result<reqwest::Client> {
         .build()?)
 }
 
-async fn checked(response: reqwest::Response) -> anyhow::Result<reqwest::Response> {
+async fn checked(
+    response: reqwest::Response,
+    hub_version: &RefCell<Option<crate::SyncVersion>>,
+) -> anyhow::Result<reqwest::Response> {
+    let reported = crate::sync::reported_version(response.headers());
+    let has_headers = reported.is_some();
+    if let Some(version) = reported {
+        *hub_version.borrow_mut() = Some(version);
+    }
     if response.status().is_success() {
         return Ok(response);
     }
@@ -69,6 +85,22 @@ async fn checked(response: reqwest::Response) -> anyhow::Result<reqwest::Respons
         "validation" if message.contains("retired") => "retired",
         other => other,
     };
+    if code == "schema_mismatch"
+        && !has_headers
+        && let Some(schema) = message
+            .split_once("this hub uses schema ")
+            .and_then(|(_, tail)| tail.split_once(" and the replica uses "))
+            .and_then(|(hub, replica)| {
+                replica.split(';').next()?.parse::<u32>().ok()?;
+                hub.parse::<u32>().ok()
+            })
+    {
+        *hub_version.borrow_mut() = Some(crate::SyncVersion {
+            version: None,
+            build: None,
+            schema,
+        });
+    }
     Err(HubError {
         code: code.into(),
         message,
@@ -100,6 +132,7 @@ pub struct HttpHub {
     runtime: tokio::runtime::Runtime,
     client: reqwest::Client,
     pub base: String,
+    hub_version: RefCell<Option<crate::SyncVersion>>,
 }
 impl HttpHub {
     pub fn new(url: &str, key: Option<&str>) -> anyhow::Result<Self> {
@@ -127,7 +160,11 @@ impl HttpHub {
                 .build()?,
             client: client(key)?,
             base: url.as_str().trim_end_matches('/').into(),
+            hub_version: RefCell::default(),
         })
+    }
+    pub fn hub_version(&self) -> Option<crate::SyncVersion> {
+        self.hub_version.borrow().clone()
     }
     pub fn pair(&self, code: &str, name: &str) -> anyhow::Result<Pairing> {
         self.runtime.block_on(async {
@@ -137,6 +174,7 @@ impl HttpHub {
                     .json(&json!({"code": code, "name": name}))
                     .send()
                     .await?,
+                &self.hub_version,
             )
             .await?
             .json()
@@ -159,6 +197,7 @@ impl HttpHub {
                     .post(format!("{}/api/sync/clone", self.base))
                     .send()
                     .await?,
+                &self.hub_version,
             )
             .await?;
             let ticket: CloneTicket = serde_json::from_str(
@@ -203,6 +242,7 @@ impl HttpHub {
                         .json(&body)
                         .send()
                         .await?,
+                    &self.hub_version,
                 )
                 .await?;
                 if response.status() == reqwest::StatusCode::NO_CONTENT {
@@ -274,10 +314,19 @@ impl Hub for HttpHub {
                     .get(format!("{}/api/sync/objects/{sha}", self.base))
                     .send()
                     .await?;
+                if let Some(version) = crate::sync::reported_version(response.headers()) {
+                    *self.hub_version.borrow_mut() = Some(version);
+                }
                 if response.status() == reqwest::StatusCode::NOT_FOUND {
                     return Ok(None);
                 }
-                anyhow::Ok(Some(checked(response).await?.bytes().await?.to_vec()))
+                anyhow::Ok(Some(
+                    checked(response, &self.hub_version)
+                        .await?
+                        .bytes()
+                        .await?
+                        .to_vec(),
+                ))
             })
             .map_err(failed)
     }
@@ -290,6 +339,7 @@ impl Hub for HttpHub {
                         .body(bytes.to_vec())
                         .send()
                         .await?,
+                    &self.hub_version,
                 )
                 .await?;
                 anyhow::Ok(())
@@ -309,5 +359,85 @@ impl Hub for HttpHub {
     }
     fn retire(&mut self, device: &str) -> tessera_core::Result<()> {
         self.call("/api/sync/retire", json!({"device": device}))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::{Router, extract::State, response::IntoResponse, routing::post};
+    use std::{collections::VecDeque, sync::Arc};
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn transport_remembers_versions_from_success_errors_and_legacy_refusals() {
+        let schema = SCHEMA_VERSION;
+        let success = (
+            [
+                (SCHEMA_HEADER, schema.to_string()),
+                (VERSION_HEADER, "current".into()),
+            ],
+            axum::http::StatusCode::NO_CONTENT,
+        )
+            .into_response();
+        let refused = (
+            axum::http::StatusCode::CONFLICT,
+            [
+                (SCHEMA_HEADER, (schema + 1).to_string()),
+                (VERSION_HEADER, "newer".into()),
+            ],
+            axum::Json(json!({"error":{"code":"schema_mismatch","message":"schema mismatch"}})),
+        )
+            .into_response();
+        let old = (
+            axum::http::StatusCode::UNPROCESSABLE_ENTITY,
+            axum::Json(json!({"error":{"code":"validation","message":format!("this hub uses schema {} and the replica uses {schema}; run the same Tessera version on both", schema + 2)}})),
+        ).into_response();
+        let responses = Arc::new(parking_lot::Mutex::new(VecDeque::from([
+            success, refused, old,
+        ])));
+        let app = Router::new()
+            .route(
+                "/api/sync/retire",
+                post(
+                    |State(responses): State<
+                        Arc<parking_lot::Mutex<VecDeque<axum::response::Response>>>,
+                    >| async move { responses.lock().pop_front().unwrap() },
+                ),
+            )
+            .with_state(responses);
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let server = tokio::spawn(async move { axum::serve(listener, app).await });
+        tokio::task::spawn_blocking(move || {
+            let mut hub = HttpHub::new(&url, None).unwrap();
+            hub.retire("replica").unwrap();
+            assert_eq!(hub.hub_version().unwrap().schema, schema);
+            assert_eq!(
+                hub.hub_version().unwrap().version.as_deref(),
+                Some("current")
+            );
+            assert!(hub.retire("replica").is_err());
+            assert_eq!(hub.hub_version().unwrap().schema, schema + 1);
+            assert_eq!(hub.hub_version().unwrap().version.as_deref(), Some("newer"));
+            let error = hub.retire("replica").unwrap_err();
+            let tessera_core::Error::Io(error) = error else {
+                panic!("expected transport error")
+            };
+            assert_eq!(
+                error
+                    .get_ref()
+                    .unwrap()
+                    .downcast_ref::<HubError>()
+                    .unwrap()
+                    .code,
+                "schema_mismatch"
+            );
+            assert_eq!(hub.hub_version().unwrap().schema, schema + 2);
+            assert!(hub.hub_version().unwrap().version.is_none());
+            assert!(hub.hub_version().unwrap().build.is_none());
+        })
+        .await
+        .unwrap();
+        server.abort();
     }
 }

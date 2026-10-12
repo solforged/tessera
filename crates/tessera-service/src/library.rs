@@ -877,6 +877,7 @@ mod tests {
             pairing: Arc::new(Mutex::new(crate::pairing::Pairing::default())),
             sharing: Arc::new(tokio::sync::Mutex::new(())),
             replica: Arc::default(),
+            sync_health: Arc::default(),
             switcher: None,
         }
     }
@@ -1297,6 +1298,7 @@ mod resurface_tests {
             pairing: Arc::new(Mutex::new(crate::pairing::Pairing::default())),
             sharing: Arc::new(tokio::sync::Mutex::new(())),
             replica: Arc::default(),
+            sync_health: Arc::default(),
             switcher: None,
         });
         let get = app

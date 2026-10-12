@@ -49,7 +49,27 @@ fn describe(state: &Value, now: i64) -> String {
             "{n} changes made here have not reached the hub yet."
         )),
     }
-    if let Some(message) = replica["last_error"]["message"].as_str() {
+    if replica["last_error"]["code"].as_str() == Some("schema_mismatch") {
+        if let (Some(local), Some(hub)) = (
+            state["this_device"]["schema"].as_u64(),
+            replica["hub_version"]["schema"].as_u64(),
+        ) {
+            let device = replica["device_name"].as_str().unwrap_or("This device");
+            let hub_name = replica["hub_name"].as_str().unwrap_or("The hub");
+            text.push_str(&format!(
+                " {device} runs Tessera {} (schema {local}). {hub_name} runs Tessera {} (schema {hub}).",
+                state["this_device"]["version"].as_str().unwrap_or("unknown"),
+                replica["hub_version"]["version"].as_str().unwrap_or("unknown"),
+            ));
+            if local < hub {
+                text.push_str(&format!(" Update {device}. It is behind the hub."));
+            } else if hub < local {
+                text.push_str(&format!(" Update {hub_name}. It is behind this device."));
+            }
+        } else if let Some(message) = replica["last_error"]["message"].as_str() {
+            text.push_str(&format!(" The last sync failed: {message}."));
+        }
+    } else if let Some(message) = replica["last_error"]["message"].as_str() {
         text.push_str(&format!(" The last sync failed: {message}."));
     }
     if replica["retired"].as_bool() == Some(true) {

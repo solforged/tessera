@@ -14,6 +14,14 @@ pub(crate) struct ApiError {
     details: Option<serde_json::Value>,
 }
 
+/// The error's code and message, kept on the response so the sync ledger can record them.
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+#[derive(Clone)]
+pub(crate) struct ApiFailure {
+    pub code: &'static str,
+    pub message: String,
+}
+
 impl ApiError {
     pub(crate) fn new(status: StatusCode, code: &'static str, message: impl Into<String>) -> Self {
         Self {
@@ -22,6 +30,12 @@ impl ApiError {
             message: message.into(),
             details: None,
         }
+    }
+
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+    pub(crate) fn with_details(mut self, details: serde_json::Value) -> Self {
+        self.details = Some(details);
+        self
     }
 
     pub(crate) fn internal(error: impl std::fmt::Display) -> Self {
@@ -111,7 +125,13 @@ impl IntoResponse for ApiError {
         struct Envelope {
             error: ErrorBody,
         }
-        (
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+        let failure = ApiFailure {
+            code: self.code,
+            message: self.message.clone(),
+        };
+        #[allow(unused_mut)]
+        let mut response = (
             self.status,
             Json(Envelope {
                 error: ErrorBody {
@@ -121,6 +141,9 @@ impl IntoResponse for ApiError {
                 },
             }),
         )
-            .into_response()
+            .into_response();
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+        response.extensions_mut().insert(failure);
+        response
     }
 }

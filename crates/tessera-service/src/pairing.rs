@@ -109,6 +109,18 @@ pub(crate) async fn authenticate(
     Ok(next.run(request).await)
 }
 
+pub(crate) async fn authenticate_loopback(
+    state: State<AppState>,
+    request: Request,
+    next: Next,
+) -> Result<Response, ApiError> {
+    if request.headers().contains_key(header::AUTHORIZATION) {
+        authenticate(state, request, next).await
+    } else {
+        Ok(next.run(request).await)
+    }
+}
+
 fn unpaired() -> ApiError {
     ApiError::new(
         StatusCode::UNAUTHORIZED,
@@ -248,7 +260,24 @@ async fn devices(State(state): State<AppState>) -> Result<Response, ApiError> {
         Ok((notebook.sync_devices()?, notebook.sync_retained_patches()?))
     })
     .await?;
-    Ok(Json(json!({"sharing":sharing::status(state.sync_port).await,"hub_name":sharing::hub_name().await,"devices":devices,"retained":retained})).into_response())
+    let devices = {
+        let health = state.sync_health.lock();
+        devices
+            .into_iter()
+            .map(|device| {
+                let mut value = serde_json::to_value(&device).map_err(ApiError::internal)?;
+                let empty = crate::sync::DeviceHealth::default();
+                let recorded = health.get(&device.id).unwrap_or(&empty);
+                let fields = serde_json::to_value(recorded).map_err(ApiError::internal)?;
+                let serde_json::Value::Object(fields) = fields else {
+                    unreachable!("health object")
+                };
+                value.as_object_mut().expect("device object").extend(fields);
+                Ok::<_, ApiError>(value)
+            })
+            .collect::<Result<Vec<_>, _>>()?
+    };
+    Ok(Json(json!({"sharing":sharing::status(state.sync_port).await,"hub_name":sharing::hub_name().await,"this_device":crate::SyncVersion::current(),"devices":devices,"retained":retained})).into_response())
 }
 
 #[derive(Deserialize)]
@@ -274,7 +303,9 @@ async fn forget(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
+    let forgotten = id.clone();
     run(&state, move |notebook| notebook.sync_forget_device(&id)).await?;
+    state.sync_health.lock().remove(&forgotten);
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -369,13 +400,93 @@ mod tests {
             pairing: Arc::new(Mutex::new(waiting(now_ms() + LIFETIME_MS))),
             sharing: Arc::new(tokio::sync::Mutex::new(())),
             replica: Arc::default(),
+            sync_health: Arc::default(),
             switcher: None,
         };
         let app = crate::sync::routes()
+            .layer(middleware::from_fn_with_state(
+                state.clone(),
+                crate::sync::record_health,
+            ))
             .layer(middleware::from_fn_with_state(state.clone(), authenticate))
             .merge(public_routes())
+            .layer(middleware::from_fn(crate::sync::version_headers))
             .with_state(state.clone());
         (state, app)
+    }
+
+    #[tokio::test]
+    async fn schema_refusals_remember_the_paired_version_until_a_request_succeeds() {
+        let dir = tempfile::tempdir().unwrap();
+        let (state, app) = hub(dir.path());
+        let device = state
+            .notebook
+            .lock()
+            .sync_pair_device("Fold", "paired-key")
+            .unwrap();
+        for count in 1..=2 {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::post("/api/sync/objects/missing")
+                        .header(header::AUTHORIZATION, "Bearer paired-key")
+                        .header(header::CONTENT_TYPE, "application/json")
+                        .header(crate::sync::SCHEMA_HEADER, tessera_core::SCHEMA_VERSION - 2)
+                        .header(crate::sync::VERSION_HEADER, "0.2.0")
+                        .header(crate::sync::BUILD_HEADER, "old-build")
+                        .body(Body::from(r#"{"ids":[]}"#))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::CONFLICT);
+            assert_eq!(
+                response.headers()[crate::sync::SCHEMA_HEADER],
+                tessera_core::SCHEMA_VERSION.to_string()
+            );
+            let response = value(response).await;
+            assert_eq!(response["error"]["code"], "schema_mismatch");
+            assert_eq!(
+                response["error"]["details"]["hub"]["schema"],
+                tessera_core::SCHEMA_VERSION
+            );
+            assert_eq!(
+                response["error"]["details"]["replica_schema"],
+                tessera_core::SCHEMA_VERSION - 2
+            );
+            let health = state.sync_health.lock();
+            let health = &health[&device.id];
+            let version = health.version.as_ref().unwrap();
+            assert_eq!(version.schema, tessera_core::SCHEMA_VERSION - 2);
+            assert_eq!(version.version.as_deref(), Some("0.2.0"));
+            assert_eq!(version.build.as_deref(), Some("old-build"));
+            assert_eq!(health.refused.as_ref().unwrap().code, "schema_mismatch");
+            assert_eq!(health.refused.as_ref().unwrap().attempts, count);
+            assert_eq!(health.attempts.len(), 1);
+            assert_eq!(health.attempts[0].count, count);
+            assert_eq!(
+                health.attempts[0].first_at,
+                health.refused.as_ref().unwrap().since
+            );
+        }
+        let accepted = request(
+            &app,
+            "/api/sync/objects/missing",
+            Some("paired-key"),
+            json!({"ids":[]}),
+        )
+        .await;
+        assert_eq!(accepted.status(), StatusCode::OK);
+        let health = state.sync_health.lock();
+        let health = &health[&device.id];
+        assert!(health.refused.is_none());
+        assert_eq!(
+            health.version.as_ref().unwrap().schema,
+            tessera_core::SCHEMA_VERSION
+        );
+        assert_eq!(health.attempts.len(), 2);
+        assert!(health.attempts[0].ok);
+        assert!(!health.attempts[1].ok);
     }
 
     #[tokio::test(flavor = "multi_thread")]

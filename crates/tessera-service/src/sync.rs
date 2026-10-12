@@ -6,22 +6,144 @@ use crate::pairing::run_authorized;
 use axum::{
     Extension, Json, Router,
     body::{Body, Bytes},
-    extract::{DefaultBodyLimit, Path, State, rejection::JsonRejection},
+    extract::{DefaultBodyLimit, Path, Request, State, rejection::JsonRejection},
     http::{HeaderMap, HeaderValue, StatusCode, header},
+    middleware::Next,
     response::{IntoResponse, Response},
     routing::{get, post},
 };
 use serde::{Deserialize, Serialize};
-use tessera_core::sync::{PULL_LIMIT, PushedChange, SnapshotContent, UnloggedRows, check_schema};
+use tessera_core::sync::{PULL_LIMIT, PushedChange, SnapshotContent, UnloggedRows};
 use tessera_core::sync_devices::PairedDevice;
 
 use crate::{AppState, error::ApiError, run};
 
 /// The schema version a replica runs; every sync request carries it.
 pub(crate) const SCHEMA_HEADER: &str = "x-tessera-schema";
+pub(crate) const VERSION_HEADER: &str = "x-tessera-version";
+pub(crate) const BUILD_HEADER: &str = "x-tessera-build";
 /// The clone ticket, beside the database bytes it describes.
 pub(crate) const TICKET_HEADER: &str = "x-tessera-clone";
 
+#[derive(Debug, Clone, Serialize)]
+pub(crate) struct Attempt {
+    pub at: i64,
+    pub first_at: i64,
+    pub ok: bool,
+    pub code: Option<String>,
+    pub message: Option<String>,
+    pub count: u64,
+}
+
+pub(crate) fn record_attempt(
+    attempts: &mut std::collections::VecDeque<Attempt>,
+    at: i64,
+    ok: bool,
+    code: Option<&str>,
+    message: Option<&str>,
+) {
+    if let Some(latest) = attempts.front_mut()
+        && latest.ok == ok
+        && latest.code.as_deref() == code
+    {
+        latest.at = at;
+        latest.message = message.map(str::to_owned);
+        latest.count += 1;
+        return;
+    }
+    attempts.push_front(Attempt {
+        at,
+        first_at: at,
+        ok,
+        code: code.map(str::to_owned),
+        message: message.map(str::to_owned),
+        count: 1,
+    });
+    attempts.truncate(20);
+}
+
+#[derive(Default, Serialize)]
+pub(crate) struct DeviceHealth {
+    pub version: Option<crate::SyncVersion>,
+    pub last_attempt_at: Option<i64>,
+    pub refused: Option<Refused>,
+    pub attempts: std::collections::VecDeque<Attempt>,
+}
+
+#[derive(Serialize)]
+pub(crate) struct Refused {
+    pub code: String,
+    pub message: String,
+    pub since: i64,
+    pub attempts: u64,
+}
+
+pub(crate) fn reported_version(headers: &HeaderMap) -> Option<crate::SyncVersion> {
+    Some(crate::SyncVersion {
+        schema: headers.get(SCHEMA_HEADER)?.to_str().ok()?.parse().ok()?,
+        version: headers
+            .get(VERSION_HEADER)
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_owned),
+        build: headers
+            .get(BUILD_HEADER)
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_owned),
+    })
+}
+
+pub(crate) async fn version_headers(request: Request, next: Next) -> Response {
+    let mut response = next.run(request).await;
+    let headers = response.headers_mut();
+    headers.insert(
+        SCHEMA_HEADER,
+        HeaderValue::from(tessera_core::SCHEMA_VERSION),
+    );
+    headers.insert(VERSION_HEADER, HeaderValue::from_static(crate::VERSION));
+    if let Some(build) = crate::BUILD
+        && let Ok(build) = HeaderValue::from_str(build)
+    {
+        headers.insert(BUILD_HEADER, build);
+    }
+    response
+}
+
+pub(crate) async fn record_health(
+    State(state): State<AppState>,
+    request: Request,
+    next: Next,
+) -> Response {
+    let paired = request.extensions().get::<PairedDevice>().cloned();
+    let version = reported_version(request.headers());
+    let response = next.run(request).await;
+    if let Some(paired) = paired {
+        let at = tessera_core::now_ms();
+        let ok = response.status().is_success();
+        let failure = response.extensions().get::<crate::error::ApiFailure>();
+        let code = (!ok).then(|| failure.map_or("http_error", |e| e.code));
+        let message =
+            (!ok).then(|| failure.map_or("The sync request failed.", |e| e.message.as_str()));
+        let mut health = state.sync_health.lock();
+        let health = health.entry(paired.id).or_default();
+        if version.is_some() {
+            health.version = version;
+        }
+        health.last_attempt_at = Some(at);
+        record_attempt(&mut health.attempts, at, ok, code, message);
+        if ok {
+            health.refused = None;
+        } else {
+            let previous = health.refused.take();
+            health.refused = Some(Refused {
+                code: code.unwrap().into(),
+                message: message.unwrap().into(),
+                since: previous.as_ref().map_or(at, |r| r.since),
+                attempts: previous.map_or(1, |r| r.attempts + 1),
+            });
+        }
+    }
+    response
+}
 pub(crate) fn routes() -> Router<AppState> {
     Router::new()
         .route("/api/sync/clone", post(clone))
@@ -39,7 +161,7 @@ pub(crate) fn routes() -> Router<AppState> {
 }
 
 fn same_schema(headers: &HeaderMap) -> Result<(), ApiError> {
-    let version = headers
+    let version: u32 = headers
         .get(SCHEMA_HEADER)
         .and_then(|value| value.to_str().ok())
         .and_then(|value| value.parse().ok())
@@ -50,7 +172,21 @@ fn same_schema(headers: &HeaderMap) -> Result<(), ApiError> {
                 format!("sync requests need an {SCHEMA_HEADER} header"),
             )
         })?;
-    Ok(check_schema(version)?)
+    if version != tessera_core::SCHEMA_VERSION {
+        return Err(
+            ApiError::new(
+                StatusCode::CONFLICT,
+                "schema_mismatch",
+                format!("this hub uses schema {} and the replica uses {version}; run the same Tessera version on both", tessera_core::SCHEMA_VERSION),
+            ).with_details(
+                serde_json::json!({
+                    "hub": crate::SyncVersion::current(),
+                    "replica_schema": version,
+                }),
+            ),
+        );
+    }
+    Ok(())
 }
 
 /// Distinguishes clone files written at the same time.
@@ -374,4 +510,26 @@ pub(crate) async fn object_or_fetch(state: &AppState, sha: String) -> Result<Vec
     })
     .await
     .map_err(ApiError::internal)?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn attempts_keep_only_the_twenty_newest_outcomes() {
+        let mut attempts = std::collections::VecDeque::new();
+        for at in 0..30 {
+            record_attempt(&mut attempts, at, at % 2 == 0, None, None);
+        }
+        assert_eq!(attempts.len(), 20);
+        assert_eq!(attempts.front().unwrap().at, 29);
+        assert_eq!(attempts.back().unwrap().at, 10);
+        record_attempt(&mut attempts, 30, false, None, Some("latest"));
+        assert_eq!(attempts.len(), 20);
+        assert_eq!(attempts[0].count, 2);
+        assert_eq!(attempts[0].at, 30);
+        assert_eq!(attempts[0].first_at, 29);
+        assert_eq!(attempts[0].message.as_deref(), Some("latest"));
+    }
 }

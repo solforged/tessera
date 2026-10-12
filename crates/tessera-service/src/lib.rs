@@ -77,6 +77,25 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const BUILD: Option<&str> = option_env!("TESSERA_BUILD");
 
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SyncVersion {
+    pub version: Option<String>,
+    pub build: Option<String>,
+    pub schema: u32,
+}
+
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+impl SyncVersion {
+    pub(crate) fn current() -> Self {
+        Self {
+            version: Some(VERSION.into()),
+            build: BUILD.map(str::to_owned),
+            schema: tessera_core::SCHEMA_VERSION,
+        }
+    }
+}
+
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 pub const LAUNCH_AGENT_LABEL: &str = "dev.tessera.serve";
 
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
@@ -132,6 +151,8 @@ pub(crate) struct AppState {
     #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     replica: Arc<replica::ReplicaRuntime>,
     #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+    sync_health: Arc<Mutex<std::collections::HashMap<String, sync::DeviceHealth>>>,
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     switcher: Option<Arc<notebooks::Switcher>>,
 }
 
@@ -175,6 +196,7 @@ fn routers(
         pairing: Arc::new(Mutex::new(pairing::Pairing::default())),
         sharing: Arc::new(tokio::sync::Mutex::new(())),
         replica: Arc::default(),
+        sync_health: Arc::default(),
         switcher,
     };
     replica::start(
@@ -185,11 +207,16 @@ fn routers(
     let sync = sync::routes()
         .layer(middleware::from_fn_with_state(
             state.clone(),
+            sync::record_health,
+        ))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
             pairing::authenticate,
         ))
         .merge(pairing::public_routes())
         .method_not_allowed_fallback(|| async { ApiError::method_not_allowed() })
         .fallback(|| async { ApiError::not_found() })
+        .layer(middleware::from_fn(sync::version_headers))
         .with_state(state.clone());
     let editor = notebook_routes()
         .route("/api/service", get(service_info))
@@ -201,7 +228,18 @@ fn routers(
         .fallback(assets::serve)
         .layer(DefaultBodyLimit::max(2 * 1024 * 1024))
         .merge(library::routes())
-        .merge(sync::routes())
+        .merge(
+            sync::routes()
+                .layer(middleware::from_fn_with_state(
+                    state.clone(),
+                    sync::record_health,
+                ))
+                .layer(middleware::from_fn_with_state(
+                    state.clone(),
+                    pairing::authenticate_loopback,
+                ))
+                .layer(middleware::from_fn(sync::version_headers)),
+        )
         .merge(pairing::editor_routes())
         .merge(notebooks::routes())
         .layer(middleware::from_fn_with_state(state.clone(), same_notebook))
@@ -253,6 +291,8 @@ pub fn embedded_router(notebook: Notebook) -> Result<(Router, EmbeddedHandles), 
         sharing: Arc::new(tokio::sync::Mutex::new(())),
         #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         replica,
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+        sync_health: Arc::default(),
         #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         switcher: None,
     };
@@ -1531,6 +1571,7 @@ mod tests {
                 pairing: Arc::new(Mutex::new(pairing::Pairing::default())),
                 sharing: Arc::new(tokio::sync::Mutex::new(())),
                 replica: Arc::default(),
+                sync_health: Arc::default(),
                 switcher: None,
             });
         let guard = backup.clone().try_lock_owned().unwrap();
@@ -1588,6 +1629,7 @@ mod tests {
                 pairing: Arc::new(Mutex::new(pairing::Pairing::default())),
                 sharing: Arc::new(tokio::sync::Mutex::new(())),
                 replica: Arc::default(),
+                sync_health: Arc::default(),
                 switcher: None,
             });
         for created_at in 1..=4 {

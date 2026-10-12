@@ -94,6 +94,9 @@ struct Memory {
     retired: bool,
     completed: u64,
     pairing: Option<(String, String, Pairing)>,
+    hub_version: Option<crate::SyncVersion>,
+    failing_since: Option<i64>,
+    attempts: std::collections::VecDeque<crate::sync::Attempt>,
 }
 #[derive(Default)]
 pub struct ReplicaRuntime {
@@ -127,17 +130,21 @@ async fn state_value(
     runtime: Arc<ReplicaRuntime>,
 ) -> Result<serde_json::Value, LastError> {
     tokio::task::spawn_blocking(move || {
-        let n = notebook.lock();
+        let mut n = notebook.lock();
         let status = n.sync_status()?;
-        let Some(status) = status else { return anyhow::Ok(serde_json::json!({"role":if n.sync_replicas()?.is_empty() {"none"} else {"hub"},"replica":null})); };
+        let Some(status) = status else {
+            let role = if n.sync_devices()?.is_empty() && n.sync_replicas()?.is_empty() { "none" } else { "hub" };
+            return anyhow::Ok(serde_json::json!({"role":role,"replica":null,"this_device":crate::SyncVersion::current()}));
+        };
         let credentials = n.sync_hub_credentials()?.expect("replica credentials row");
         let conflicts = n.sync_replica_conflicts()?;
         let offline = n.sync_offline_files()?;
         let memory = runtime.memory.lock();
-        anyhow::Ok(serde_json::json!({"role":"replica","replica":{
+        anyhow::Ok(serde_json::json!({"role":"replica","this_device":crate::SyncVersion::current(),"replica":{
             "hub_url":status.hub_url,"hub_name":credentials.hub_name,"device_name":credentials.device_name,
             "device_id":status.device_id,"pending":status.pending,"unapplied":status.unapplied,
             "synced_at":credentials.synced_at,"syncing":memory.syncing,"last_error":memory.last_error,
+            "hub_version":memory.hub_version,"failing_since":memory.failing_since,"attempts":memory.attempts,
             "retired":memory.retired,"kept_copies":conflicts.kept.len(),"rejected":conflicts.rejected.len(),"offline":offline
         }}))
     }).await.map_err(|e| LastError::from_error(e.into()))?.map_err(LastError::from_error)
@@ -187,26 +194,31 @@ async fn synchronize(
     let result_runtime = runtime.clone();
     let work = tokio::task::spawn_blocking(move || {
         let _guard = guard;
+        let mut hub = None;
         let result = (|| {
-            let hub = hub_for(&notebook.lock())?;
-            if let Some(mut hub) = hub {
+            hub = hub_for(&notebook.lock())?;
+            if let Some(hub) = hub.as_mut() {
                 let report = sync::sync_with(
                     &mut LockedNotebook {
                         notebook: notebook.clone(),
                         changes,
                     },
-                    &mut hub,
+                    hub,
                 )?;
                 notebook.lock().sync_mark_synced()?;
                 log_sync(&report);
             }
             anyhow::Ok(())
         })();
-        finish(&runtime, &result);
+        finish(
+            &runtime,
+            &result,
+            hub.as_ref().and_then(HttpHub::hub_version),
+        );
     })
     .await;
     if let Err(error) = work {
-        finish(&result_runtime, &Err(error.into()));
+        finish(&result_runtime, &Err(error.into()), None);
     }
 }
 /// One log line per sync: info when anything moved, debug for idle runs.
@@ -233,11 +245,36 @@ fn log_sync(report: &sync::SyncReport) {
         "sync finished"
     );
 }
-fn finish(runtime: &ReplicaRuntime, result: &anyhow::Result<()>) {
+fn finish(
+    runtime: &ReplicaRuntime,
+    result: &anyhow::Result<()>,
+    hub_version: Option<crate::SyncVersion>,
+) {
     let mut memory = runtime.memory.lock();
     memory.syncing = false;
     memory.completed += 1;
     memory.last_error = result.as_ref().err().map(LastError::from_ref);
+    let at = tessera_core::now_ms();
+    if let Some(version) = hub_version {
+        memory.hub_version = Some(version);
+    }
+    if result.is_ok() {
+        memory.failing_since = None;
+    } else {
+        memory.failing_since.get_or_insert(at);
+    }
+    let Memory {
+        last_error,
+        attempts,
+        ..
+    } = &mut *memory;
+    crate::sync::record_attempt(
+        attempts,
+        at,
+        result.is_ok(),
+        last_error.as_ref().map(|e| e.code.as_str()),
+        last_error.as_ref().map(|e| e.message.as_str()),
+    );
     if let Err(error) = result {
         tracing::warn!(%error, "sync failed");
     }
@@ -297,8 +334,9 @@ async fn join(
     let worker = state.clone();
     let result = tokio::task::spawn_blocking(move || {
         let _guard = guard;
-        let result = join_blocking(&worker, request);
-        finish(&worker.replica, &result);
+        let mut hub_version = None;
+        let result = join_blocking(&worker, request, &mut hub_version);
+        finish(&worker.replica, &result, hub_version);
         result
     })
     .await
@@ -307,7 +345,11 @@ async fn join(
     state.replica.wake.notify_one();
     state_value(state.notebook, state.replica).await.map(Json)
 }
-fn join_blocking(state: &AppState, request: Join) -> anyhow::Result<()> {
+fn join_blocking(
+    state: &AppState,
+    request: Join,
+    hub_version: &mut Option<crate::SyncVersion>,
+) -> anyhow::Result<()> {
     let code: String = request
         .code
         .chars()
@@ -321,11 +363,18 @@ fn join_blocking(state: &AppState, request: Join) -> anyhow::Result<()> {
         {
             paired
         }
-        _ => HttpHub::new(&request.url, None)?.pair(&request.code, &request.name)?,
+        _ => {
+            let hub = HttpHub::new(&request.url, None)?;
+            let result = hub.pair(&request.code, &request.name);
+            *hub_version = hub.hub_version();
+            result?
+        }
     };
     state.replica.memory.lock().pairing = Some((request.url.clone(), code, paired.clone()));
     let mut hub = HttpHub::new(&request.url, Some(&paired.key))?;
-    replace(state, &mut hub, Some(&paired))?;
+    let result = replace(state, &mut hub, Some(&paired));
+    *hub_version = hub.hub_version().or_else(|| hub_version.take());
+    result?;
     state.replica.memory.lock().pairing = None;
     Ok(())
 }
@@ -335,12 +384,19 @@ async fn reclone(State(state): State<AppState>) -> Result<Json<serde_json::Value
     let worker = state.clone();
     let result = tokio::task::spawn_blocking(move || {
         let _guard = guard;
+        let mut hub = None;
         let result = (|| {
-            let mut hub = hub_for(&worker.notebook.lock())?
-                .ok_or_else(|| anyhow::anyhow!("this notebook is not a replica"))?;
-            replace(&worker, &mut hub, None)
+            hub = Some(
+                hub_for(&worker.notebook.lock())?
+                    .ok_or_else(|| anyhow::anyhow!("this notebook is not a replica"))?,
+            );
+            replace(&worker, hub.as_mut().expect("replica hub"), None)
         })();
-        finish(&worker.replica, &result);
+        finish(
+            &worker.replica,
+            &result,
+            hub.as_ref().and_then(HttpHub::hub_version),
+        );
         result
     })
     .await
@@ -498,6 +554,43 @@ mod tests {
     };
     use tower::ServiceExt;
 
+    #[test]
+    fn failure_history_coalesces_and_success_clears_the_outage() {
+        let runtime = ReplicaRuntime::default();
+        let failed = Err(HubError {
+            code: "schema_mismatch".into(),
+            message: "schema mismatch".into(),
+        }
+        .into());
+        finish(
+            &runtime,
+            &failed,
+            Some(crate::SyncVersion {
+                schema: tessera_core::SCHEMA_VERSION + 1,
+                version: None,
+                build: None,
+            }),
+        );
+        let since = runtime.memory.lock().failing_since.unwrap();
+        finish(&runtime, &failed, None);
+        {
+            let memory = runtime.memory.lock();
+            assert_eq!(memory.failing_since, Some(since));
+            assert_eq!(
+                memory.hub_version.as_ref().unwrap().schema,
+                tessera_core::SCHEMA_VERSION + 1
+            );
+            assert_eq!(memory.attempts.len(), 1);
+            assert_eq!(memory.attempts[0].count, 2);
+            assert_eq!(memory.attempts[0].first_at, since);
+        }
+        finish(&runtime, &Ok(()), None);
+        let memory = runtime.memory.lock();
+        assert!(memory.failing_since.is_none());
+        assert!(memory.last_error.is_none());
+        assert!(memory.attempts[0].ok);
+        assert_eq!(memory.attempts[1].count, 2);
+    }
     #[tokio::test]
     async fn join_refuses_existing_replica_before_pairing() {
         let hub_dir = tempfile::tempdir().unwrap();
