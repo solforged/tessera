@@ -73,7 +73,7 @@ test('nested paste redo restores preorder and depths before any reload', async (
   const { client, doc, first } = await fixture('');
   const at = { id: first, offset: 0 };
   const pasted = success(doc.edit({ kind: 'paste', at, text: 'A\n  B\n    C\nD' }, at));
-  const expected = [[first, 'A', 0], [pasted.created[0], 'B', 1], [pasted.created[1], 'C', 2], [pasted.created[2], 'D', 0]];
+  const expected = [[first, 'A', 0], [pasted.created[0]!, 'B', 1], [pasted.created[1]!, 'C', 2], [pasted.created[2]!, 'D', 0]];
   const shape = () => Array.from({ length: doc.outline.size() }, (_, index) => {
     const id = doc.outline.idAt(index);
     return [id, doc.block(id)!.text, doc.outline.depth(id)];
