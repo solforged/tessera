@@ -69,10 +69,10 @@ a { color: var(--accent); }
 .menu-context { grid-column: 1 / -1; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; max-width: 36ch; margin-top: var(--space-8); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); overflow-wrap: anywhere; }
 .menu-note { max-width: 36ch; margin: var(--space-4) var(--space-8) 0; padding-top: var(--space-8); border-top: var(--rule-width) solid var(--line); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 /* On a phone a titled menu is a sheet: full-width rows a thumb can hit, its head clear of the rows. */
-.menu-sheet .menu-item { min-height: var(--target-size); }
+.menu-sheet .menu-item { min-height: var(--touch-target); }
 .menu-sheet .menu-head { padding-bottom: var(--space-12); }
 .menu-sheet :is(.menu-context, .menu-note) { max-width: none; }
-.menu-sheet .menu-head-control { min-height: var(--target-size); padding-inline: var(--space-8); margin-right: calc(-1 * var(--space-8)); }
+.menu-sheet .menu-head-control { min-height: var(--touch-target); padding-inline: var(--space-8); margin-right: calc(-1 * var(--space-8)); }
 .page-menu-info { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: var(--space-8); margin: 0 0 var(--space-4); padding: var(--space-4) var(--space-8) var(--space-8); border-bottom: var(--rule-width) solid var(--line); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); font-variant-numeric: tabular-nums; color: var(--faint); }
 .page-menu-info b { font-weight: inherit; color: var(--muted); overflow-wrap: anywhere; }
 .page-menu-info .button { grid-row: 1 / 3; grid-column: 2; padding: 0 var(--space-8); color: var(--text); font: var(--weight-control) var(--text-meta)/var(--line-meta) var(--font-body); }
