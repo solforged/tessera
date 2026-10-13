@@ -58,7 +58,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Review says how many cards come due later today and when the next one is due, instead of a bare "0 cards to review".
 - In a split pane or on a phone, page titles stay readable, depth collapses to its current stop, sigla sit on a short line above their paragraph, and the research desk and field owners use fewer columns.
 - Perspective slips lead with siglum and holder in mono, then the Gist as a serif headline and Work as one faint line. Where they disagree sets each perspective's answer under the question it settles, instead of hiding it under Facts. Slips stack whenever the pane is narrow, including a split unfolded Fold.
-- Holders and pages named in attribute values read as ink with a hairline underline, gilt on hover; prose links keep the gilt and their hover underline is gilt too. Revisit moved into the note's mono ID and date line.
+- Holders and pages named in attribute values read as ink with a hairline underline, gilt on hover; prose links keep the gilt and their hover underline is gilt too. Revisit moved into the note's mono Created line.
 - Priority reads as three rising bars filled to its level, red for high and amber for medium, instead of `!high`.
 - Plan on an unplanned task is a hairline chip with a calendar glyph, so it reads as a control.
 - Work sessions lead with a large `h:mm:ss` clock and one Start, Start again or Stop; past sessions list newest first with one-line notes that save as you leave them. Running clocks on rows tick each second.
@@ -66,6 +66,9 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Journal days read `Tuesday, October 13` under a short `2026 · Oct · W42` trail, and Journal and From your highlights head as H2s.
 - Opening a page turns one leaf: the previous page stays until the next one is ready, then the new one settles from the right going forward and from the left going back. A cover on the shelf or a Reading now card travels into the source page and back.
 - A mode strip's gilt rule glides to the chosen tab instead of fading, and selected-row bars draw down from the top.
+- Agenda Week in a pane narrower than 600 px, such as a phone or a narrow split, lists the seven days as one scroll of Day's rows: past days fold to one line, empty days take one line, and a mono line sums the week. The unfolded Fold fits all seven calendar columns.
+- Tables and saved views on phones show six or seven compact rows instead of one or two cards. The header scrolls away, a bar at the bottom holds Find and Query, and Query opens a sheet with the full query, Save and Revert; group headings stay in view.
+- The note header no longer shows a shortened ID. The page menu opens with the full ID, the creation date and Copy ID, and Copy reference copies a `[[id]]` link.
 
 ### Fixed
 
