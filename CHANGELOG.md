@@ -48,9 +48,11 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 ### Changed
 
 - The notebook's own sentences are set in Plex everywhere in the outline, including rows that cite a source, glosses, positions and questions, and their previews in Find and on hover. Piazzolla stays for titles, headings, quotes and the reader.
+- Sources by the same author keep a three-letter siglum and add a year, a title initial or a number to tell them apart, as `MAT`, `MAT19` and `MAT2`, instead of lengthening the surname.
 
 ### Fixed
 
+- Typing `|` in link completion picks the highlighted page and starts the alias, so `[[gen|memory boost]]` links Generation effect and reads "memory boost".
 - Kept cover-screen writing, capture, date pickers and commands above the browser keyboard.
 - Contained long library bylines and pane titles, and enlarged related-section and highlight backlink touch targets.
 - Preserved prose font metrics when selecting text across outline paragraphs.
