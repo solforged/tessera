@@ -53,6 +53,13 @@ Clicking a reading opens its original position zoomed on its source page. Shift-
 
 Incoming relations appear beneath each listed perspective, naming the source's holder when it is a position. A holder's page can therefore show which readings dispute, support, qualify or answer that holder's perspectives without a text search.
 
+### Saved position presentations
+
+A Positions view can use Register or Matrix without copying its readings. Register groups by subject or holder and shows standfirst sentences, Work and the other fields in an editable bed. Its filling keys and original-page undo match Read. Open reading enters the position dossier; the subject link opens its page or inline question.
+
+Matrix groups every subject into its own sheet. Holders occupy rows and the subject's explicit or derived criteria occupy columns. The common six-holder, three-criterion sheet stays compact. It reuses Compare's cell editor and exact-repeat marks. A phone stacks each holder's labeled criterion cells without document overflow. Both presentations stay live after save and reload.
+
+
 ## Compare perspectives
 
 ### Reading sheet

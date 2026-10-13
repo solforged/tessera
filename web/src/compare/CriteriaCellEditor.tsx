@@ -15,6 +15,7 @@ import { Popup } from '../ui/Popup';
 export function CriteriaCellEditor(props: {
   id: string; text: string; label: string; notebook: NotebookClient;
   onCommit(text: string, restoreFocus: boolean, quote?: QuoteState): void; onCancel(): void;
+  onTab?(text: string, direction: -1 | 1, quote?: QuoteState): void;
 }) {
   let host!: HTMLDivElement;
   let editor: PaneEditor;
@@ -79,6 +80,12 @@ export function CriteriaCellEditor(props: {
           event.preventDefault(); event.stopPropagation(); return true;
         }
         if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); props.onCancel(); return true; }
+        if (event.key === 'Tab' && props.onTab) {
+          event.preventDefault(); event.stopPropagation();
+          const text = view.state.doc.toString();
+          if (!quoteBusy()) props.onTab(text, event.shiftKey ? -1 : 1, captures.get(quoteTarget(text) ?? ''));
+          return true;
+        }
         if (event.key === 'Enter' && !event.shiftKey) {
           event.preventDefault(); event.stopPropagation();
           const text = view.state.doc.toString();

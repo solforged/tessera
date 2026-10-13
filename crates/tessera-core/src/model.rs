@@ -812,6 +812,16 @@ pub enum QuerySource {
     Highlights,
 }
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum QueryLayout {
+    #[default]
+    Table,
+    Register,
+    Matrix,
+    Desk,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct QueryColumn {
     pub key: String,
@@ -830,6 +840,8 @@ pub struct QueryGrouping {
 pub struct Query {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source: Option<QuerySource>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub layout: Option<QueryLayout>,
     pub r#type: Option<String>,
     pub text: Option<String>,
     #[serde(default)]

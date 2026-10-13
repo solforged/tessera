@@ -83,6 +83,16 @@ describe('query edits', () => {
     expect(queriesEqual(secondary, { ...secondary, sort: [...secondary.sort].reverse() })).toBe(false);
     expect(queriesEqual(query, chooseSort(query, { by: 'title', field: null }))).toBe(false);
   });
+  test('layout changes mark a saved recipe modified while old views default to table', () => {
+    const query = { ...typeQuery(null), source: 'positions' as const };
+    expect(queriesEqual(query, { ...query, layout: 'table' })).toBe(true);
+    for (const layout of ['register', 'matrix', 'desk'] as const) {
+      const recipe = { ...query, layout };
+      expect(copyQuery(recipe).layout).toBe(layout);
+      expect(queriesEqual(query, recipe)).toBe(false);
+      expect(queriesEqual(recipe, copyQuery(recipe))).toBe(true);
+    }
+  });
   test('recipes copy independently and equality includes every saved presentation setting', () => {
     const query = { ...typeQuery(null), source: 'positions' as const, columns: [{ key: '@title', width: 240 }, { key: 'gist', width: 320 }], group: { key: '@subject', collapsed: ['anacyclosis'] }, card: ['gist'], purpose: 'Read Aristotle by concept.', filters: [{ field: '@last_assessed', op: 'lt' as const, value: '-30d', or_empty: true }] };
     const copied = copyQuery(query);

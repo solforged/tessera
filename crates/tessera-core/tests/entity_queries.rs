@@ -270,7 +270,7 @@ fn grouping_deduplicates_values_and_recipe_survives_empty_search_and_reopen() {
         [id(10)]
     );
     assert_eq!(result.groups.last().unwrap().title, "None");
-    let recipe = json!({"source":"positions","columns":[{"key":"@title","width":240},{"key":id(101),"width":320},{"key":"@holder"}],"sort":[{"by":"field","field":"@holder","direction":"desc"},{"by":"field","field":id(100),"direction":"asc"}],"group":{"key":"@subject","collapsed":[id(3)]},"card":[id(100)],"purpose":"Compare accounts."});
+    let recipe = json!({"source":"positions","layout":"register","columns":[{"key":"@title","width":240},{"key":id(101),"width":320},{"key":"@holder"}],"sort":[{"by":"field","field":"@holder","direction":"desc"},{"by":"field","field":id(100),"direction":"asc"}],"group":{"key":"@subject","collapsed":[id(3)]},"card":[id(100)],"purpose":"Compare accounts."});
     let query: Query = serde_json::from_value(recipe).unwrap();
     apply(
         &mut nb,
@@ -290,6 +290,15 @@ fn grouping_deduplicates_values_and_recipe_survives_empty_search_and_reopen() {
     drop(nb);
     let nb = Notebook::open(dir.path()).unwrap();
     assert_eq!(nb.view(&id(900)).unwrap().query, query);
+    assert_eq!(serde_json::to_value(&query).unwrap()["layout"], "register");
+    let old: Query = serde_json::from_value(json!({"type":null,"text":null,"limit":null})).unwrap();
+    assert!(old.layout.is_none());
+    for layout in ["table", "register", "matrix", "desk"] {
+        let recipe: Query =
+            serde_json::from_value(json!({"layout":layout,"type":null,"text":null,"limit":null}))
+                .unwrap();
+        assert_eq!(serde_json::to_value(recipe).unwrap()["layout"], layout);
+    }
     assert_eq!(
         serde_json::to_value(&query).unwrap()["columns"][2],
         json!({"key":"@holder"})

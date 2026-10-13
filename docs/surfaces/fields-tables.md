@@ -121,6 +121,19 @@ Span sorts compare start year, then end year. Open starts sort first and open en
 
 Group offers attributes and fields. A heading shows its label and distinct row count; clicking it collapses or reopens its rows. Collapsed heading keys travel with the saved recipe.
 
+### Position layouts
+
+Layout offers Table, Register and Matrix beside Group. Register and Matrix require Positions; other sources show the reason beside their unavailable choices. Old views remain Table.
+
+Register starts grouped by Subject, with Holder also available in Group. Each reading slip leads with its siglum and holder, then its standfirst sentence, an aligned attribute and citation bed, full-width prose and labeled argument relations. Open reading zooms into the position; the subject link opens its original page or question.
+
+Click a value or focus it and press Enter to edit. Values use the field bed's kind pickers and the outline's text editor. Tab and Shift-Tab commit the current value and fill the next or previous field in recipe order. Shift-Enter adds a newline; Enter on an empty value and Escape leave the editor. Each committed value has one undo in its original page history.
+
+Matrix shows one sheet per subject, with holders as rows and criteria as columns. This keeps six readings and three criteria readable without six narrow prose columns. Cells use the existing Compare matrix editor, references and undo. A subject without criteria explains how to add them in Compare; an empty result offers the table's Clear filters action.
+
+On phones the register's labels stack above values. Matrix rows become holder slips with a labeled cell for each criterion. Every value stays within the pane instead of scrolling the document sideways. Saving and reopening keep the layout with the other recipe choices.
+
+
 ### Grid
 
 Apparatus headers are sticky on `--canvas`, with the title sticky at the left. Cells are 13 px; rows are at least 28 px, divided by horizontal rules and one edge beside the title.

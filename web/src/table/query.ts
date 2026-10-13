@@ -81,6 +81,7 @@ export function queriesEqual(left: Query, right: Query): boolean {
     && (left.offset ?? 0) === (right.offset ?? 0)
     && left.note_kind === right.note_kind
     && (left.source ?? 'notes') === (right.source ?? 'notes')
+    && (left.layout ?? 'table') === (right.layout ?? 'table')
     && (left.purpose ?? '') === (right.purpose ?? '')
     && JSON.stringify(left.columns ?? null) === JSON.stringify(right.columns ?? null)
     && left.group?.key === right.group?.key && JSON.stringify(left.group?.collapsed ?? []) === JSON.stringify(right.group?.collapsed ?? [])

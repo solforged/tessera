@@ -16,7 +16,7 @@ interface CriterionValue { id: string; text: string }
 export function CriteriaMatrix(props: {
   rows: PositionRow[]; allRows: PositionRow[]; criteria: string[]; questions: PositionQuestion[]; notebook: NotebookClient;
   docs: Map<string, PageDocument>; fieldName(id: string): string | undefined;
-  focusedCriterion: string | null; onFocusQuestion(id: string): void;
+  focusedCriterion: string | null; onFocusQuestion?(id: string): void; orientation?: 'criteria' | 'holders';
   holder(row: PositionRow): string; siglum(row: PositionRow): string; work(row: PositionRow): string;
   onOpen(target: OpenTarget, beside: boolean): void; onEdited(doc: PageDocument): void;
 }) {
@@ -55,7 +55,7 @@ export function CriteriaMatrix(props: {
     if (editing() !== current) { setSaving(false); return; }
     if (current.value && doc.block(current.value)?.text === text && !quote) { finishEditing(cell); setSaving(false); return; }
     const entry = doc.outline.children(current.position).find(id => !doc.isArchived(id) && fieldEntryId(doc.block(id)?.text ?? '') === current.field);
-    const result = doc.edit(current.value ? quote ? { kind: 'quote', id: current.value, text, value: quote } : { kind: 'text', id: current.value, text }
+    const result = doc.edit(current.value ? quote ? { kind: 'quote', id: current.value, text, value: quote } : { kind: 'replaceRange', range: { anchor: { id: current.value, offset: 0 }, head: { id: current.value, offset: doc.block(current.value)?.text.length ?? 0 } }, between: [], mode: 'text', text }
       : entry ? { kind: 'insert', parentId: entry, after: doc.outline.children(entry).at(-1) ?? null, text, quote }
       : { kind: 'addFieldEntries', parentId: current.position, after: doc.outline.children(current.position).at(-1) ?? null, entries: [{ fieldId: current.field, value: text, quote }] });
     if (!result.ok) { setError(result.reason); setSaving(false); return; }
@@ -82,37 +82,46 @@ export function CriteriaMatrix(props: {
       }} /></div>
     </Show>;
   }
+  function HolderHeader(headerProps: { id: string }) {
+    return <><span class="compare-siglum">{props.siglum(rowById().get(headerProps.id)!)}</span>
+      <Button class="compare-holder-name" title="Open this reading · Shift to open beside" onClick={event => props.onOpen({ kind: 'page', pageId: rowById().get(headerProps.id)!.block.page.id, blockId: headerProps.id }, event.shiftKey)}>{props.holder(rowById().get(headerProps.id)!)}</Button>
+      <div class="compare-work"><BlockText text={props.work(rowById().get(headerProps.id)!)} notebook={props.notebook} onOpen={props.onOpen} /></div></>;
+  }
+  function MatrixCell(cellProps: { id: string; field: string }) {
+    let cell!: HTMLDivElement;
+    const values = () => cells().get(cellProps.id)?.get(cellProps.field) ?? [];
+    const current = () => editing()?.position === cellProps.id && editing()?.field === cellProps.field ? editing() : null;
+    const repeat = () => repeats().find(repeat => repeat.criterion === cellProps.field && repeat.positions.includes(cellProps.id));
+    return <td data-criterion={props.fieldName(cellProps.field)}><div ref={cell} class="criteria-cell" data-position-id={cellProps.id} data-field-id={cellProps.field} tabIndex={0} role="group" aria-label={`${props.fieldName(cellProps.field)} · ${props.holder(rowById().get(cellProps.id)!)}`} onClick={event => { if (!(event.target as HTMLElement).closest('.cm-editor,button')) start(rowById().get(cellProps.id)!, cellProps.field, values()[0]); }} onKeyDown={event => { if (event.key === 'Enter' && !current()) { event.preventDefault(); event.stopPropagation(); start(rowById().get(cellProps.id)!, cellProps.field, values()[0]); } }}>
+      <Show when={current()} fallback={<Show when={values().some(value => value.text.trim())} fallback={<Button class="criteria-add" onClick={() => start(rowById().get(cellProps.id)!, cellProps.field, values()[0])}>Add</Button>}>
+        <For each={values()}>{value => <CellValue value={value} position={cellProps.id} field={cellProps.field} editable />}</For>
+      </Show>}>{edit => <>
+        <For each={values().filter(value => value.id !== edit().value)}>{value => <CellValue value={value} position={cellProps.id} field={cellProps.field} />}</For>
+        <CriteriaCellEditor id={edit().value ?? edit().position} text={edit().text} label={`Edit ${props.fieldName(cellProps.field)} · ${props.holder(rowById().get(cellProps.id)!)}`} notebook={props.notebook} onCommit={(text, restoreFocus, quote) => void commit(text, restoreFocus ? cell : undefined, quote)} onCancel={() => finishEditing(cell)} />
+      </>}</Show>
+    </div><Show when={repeat()}>{mark => <span class="criteria-exact">≡ {mark().number} · exact repeat</span>}</Show></td>;
+  }
   return <>
     <Show when={error()}><p class="pane-error" role="alert">{error()}</p></Show>
-    <div class="criteria-overflow"><table class="criteria-matrix" style={{ '--holder-count': props.rows.length }}>
-      <colgroup><col class="criteria-name-column" /><For each={props.rows}>{() => <col />}</For></colgroup>
-      <thead><tr><th scope="col">Criterion</th><For each={rowIds()}>{id => <th scope="col">
-        <span class="compare-siglum">{props.siglum(rowById().get(id)!)}</span>
-        <Button class="compare-holder-name" title="Open this reading · Shift to open beside" onClick={event => props.onOpen({ kind: 'page', pageId: rowById().get(id)!.block.page.id, blockId: id }, event.shiftKey)}>{props.holder(rowById().get(id)!)}</Button>
-        <div class="compare-work"><BlockText text={props.work(rowById().get(id)!)} notebook={props.notebook} onOpen={props.onOpen} /></div>
-      </th>}</For></tr></thead>
-      <tbody><For each={props.criteria}>{field => <>
-        <tr class="criteria-values" classList={{ 'criteria-focused': props.focusedCriterion === field }}><th scope="row">{props.fieldName(field)}<Show when={props.focusedCriterion === field}><span class="criteria-focus-mark">Focused criterion</span></Show></th><For each={rowIds()}>{id => {
-          let cell!: HTMLDivElement;
-          const values = () => cells().get(id)?.get(field) ?? [];
-          const current = () => editing()?.position === id && editing()?.field === field ? editing() : null;
-          const repeat = () => repeats().find(repeat => repeat.criterion === field && repeat.positions.includes(id));
-          return <td><div ref={cell} class="criteria-cell" tabIndex={0} role="group" aria-label={`${props.fieldName(field)} · ${props.holder(rowById().get(id)!)}`} onClick={event => { if (!(event.target as HTMLElement).closest('.cm-editor,button')) start(rowById().get(id)!, field, values()[0]); }} onKeyDown={event => { if (event.key === 'Enter' && !current()) { event.preventDefault(); start(rowById().get(id)!, field, values()[0]); } }}>
-            <Show when={current()} fallback={<Show when={values().some(value => value.text.trim())} fallback={<Button class="criteria-add" onClick={() => start(rowById().get(id)!, field, values()[0])}>Add</Button>}>
-              <For each={values()}>{value => <CellValue value={value} position={id} field={field} editable />}</For>
-            </Show>}>{edit => <>
-              <For each={values().filter(value => value.id !== edit().value)}>{value => <CellValue value={value} position={id} field={field} />}</For>
-              <CriteriaCellEditor id={edit().value ?? edit().position} text={edit().text} label={`Edit ${props.fieldName(field)} · ${props.holder(rowById().get(id)!)}`} notebook={props.notebook} onCommit={(text, restoreFocus, quote) => void commit(text, restoreFocus ? cell : undefined, quote)} onCancel={() => finishEditing(cell)} />
-            </>}</Show>
-          </div><Show when={repeat()}>{mark => <span class="criteria-exact">≡ {mark().number} · exact repeat</span>}</Show></td>;
-        }}</For></tr>
-        <For each={props.questions.filter(question => question.criterion === field)}>{question => <tr class="criteria-question"><td colSpan={props.rows.length + 1}><div>
-          <span class="criteria-question-mark">?</span><Button class="criteria-question-text" onClick={() => props.onFocusQuestion(question.block.block.id)}><BlockText text={question.block.block.text} notebook={props.notebook} interactive={false} /></Button>
-          <span class="criteria-scope">{props.fieldName(field)} · {question.holders.length ? `${question.holders.map(id => { const row = props.allRows.find(row => row.holder_id === id); return row ? props.siglum(row) : props.notebook.lookup(id)()?.text ?? id; }).join(' ↔ ')} only` : `all ${props.allRows.length}`}</span>
-          <Button onClick={event => props.onOpen({ kind: 'page', pageId: question.block.page.id, blockId: question.block.block.id }, event.shiftKey)}>Open original</Button>
-        </div></td></tr>}</For>
-      </>}</For></tbody>
-    </table></div>
+    <Show when={props.rows.length && props.criteria.length} fallback={<p class="view-empty">{props.rows.length ? 'This subject has no criteria. Open Edit criteria to add them.' : 'No positions match this view. Clear its filters to include more readings.'}</p>}>
+    <div class="criteria-overflow"><table class="criteria-matrix" classList={{ 'criteria-holders': props.orientation === 'holders' }} style={{ '--holder-count': props.orientation === 'holders' ? props.criteria.length : props.rows.length }}>
+      <Show when={props.orientation === 'holders'} fallback={<>
+        <colgroup><col class="criteria-name-column" /><For each={props.rows}>{() => <col />}</For></colgroup>
+        <thead><tr><th scope="col">Criterion</th><For each={rowIds()}>{id => <th scope="col"><HolderHeader id={id} /></th>}</For></tr></thead>
+        <tbody><For each={props.criteria}>{field => <>
+          <tr class="criteria-values" classList={{ 'criteria-focused': props.focusedCriterion === field }}><th scope="row">{props.fieldName(field)}<Show when={props.focusedCriterion === field}><span class="criteria-focus-mark">Focused criterion</span></Show></th><For each={rowIds()}>{id => <MatrixCell id={id} field={field} />}</For></tr>
+          <For each={props.questions.filter(question => question.criterion === field)}>{question => <tr class="criteria-question"><td colSpan={props.rows.length + 1}><div>
+            <span class="criteria-question-mark">?</span><Button class="criteria-question-text" onClick={() => props.onFocusQuestion?.(question.block.block.id)}><BlockText text={question.block.block.text} notebook={props.notebook} interactive={false} /></Button>
+            <span class="criteria-scope">{props.fieldName(field)} · {question.holders.length ? `${question.holders.map(id => { const row = props.allRows.find(row => row.holder_id === id); return row ? props.siglum(row) : props.notebook.lookup(id)()?.text ?? id; }).join(' ↔ ')} only` : `all ${props.allRows.length}`}</span>
+            <Button onClick={event => props.onOpen({ kind: 'page', pageId: question.block.page.id, blockId: question.block.block.id }, event.shiftKey)}>Open original</Button>
+          </div></td></tr>}</For>
+        </>}</For></tbody>
+      </>}>
+        <colgroup><col class="criteria-holder-column" /><For each={props.criteria}>{() => <col />}</For></colgroup>
+        <thead><tr><th scope="col">Holder</th><For each={props.criteria}>{field => <th scope="col">{props.fieldName(field)}</th>}</For></tr></thead>
+        <tbody><For each={rowIds()}>{id => <tr class="criteria-values" data-position-id={id}><th scope="row"><HolderHeader id={id} /></th><For each={props.criteria}>{field => <MatrixCell id={id} field={field} />}</For></tr>}</For></tbody>
+      </Show>
+    </table></div></Show>
     <footer class="criteria-footnotes"><div><For each={repeats()}>{repeat => <p>≡ {repeat.number}　Identical authored value: "{repeat.text}" · {repeat.positions.map(id => props.siglum(props.rows.find(row => row.block.block.id === id)!)).join(', ')}</p>}</For></div><span class="criteria-hint">Enter to edit · Shift-open source</span></footer>
   </>;
 }
