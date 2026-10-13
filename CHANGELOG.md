@@ -37,6 +37,9 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Span fields read historical ranges such as `c. 200–118 BCE` or `fl. 1340s` as years for sorting and filtering, and keep the text as written.
 - Reviewed field changes: changing a field's kind shows how each written value maps before applying it; renaming onto an existing field merges them; deleting a field shows its impact and offers Archive, Detach or Delete values. Each applies as one undoable change.
 - Library catalog cards can hide fields.
+- Register and Matrix layouts for position views: a register reads each position like a Read slip with its Gist and fields editable in place, and a matrix sets holders against the subject's criteria, one matrix per subject.
+- Saved views can live on a page as a block, written `[[view:ID|Name]]`. The embed follows the view's recipe, updates as the notebook changes, keeps cells editable and shows card fields on a phone.
+- Research desk: questions, the selected question's positions, and the sources the selected position cites, in three linked columns. Each column's query can be edited, and a desk can be saved as a view.
 
 ### Fixed
 
