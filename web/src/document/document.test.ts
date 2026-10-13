@@ -1959,7 +1959,7 @@ describe('real notebook operations and recovery', () => {
     const block = view.rows.find(row => row.block.id === first)!.block;
     const changed = { ...block, text: 'hub text', revision: block.revision + delta };
     const pulled = { ...view, rows: view.rows.map(row => row.block.id === first ? { ...row, block: changed } : row) };
-    const seq = (await api.changes(0)).at(-1)!.seq + 1;
+    const seq = (await api.changeHead()) + 1;
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       if (String(input) === `${baseUrl}/api/pages/${id}`) return Response.json(pulled);
       return actualFetch(input, init);
