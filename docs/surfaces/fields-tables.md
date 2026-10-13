@@ -81,7 +81,7 @@ A table is a query shown as rows: a type's members or a saved view.
 
 The heading, mode strip, toolbar, grid and footer share a centered 984 px register (`--measure + --apparatus-width - --space-16`). It widens only when the visible fields need more room and never exceeds the pane's inset width. They keep one left edge rather than centering a narrower heading inside a wider grid. A many-column grid scrolls horizontally inside that register with the title held at the left.
 
-The type and Register sit in quiet apparatus above a Piazzolla view name. Its menu lists All members of the type and its saved views, then Save as, Rename and Delete separately. Named views store the query only. Query changes show Unsaved changes with Save and Discard; switching views keeps pane-local presentation.
+The type and Register sit in quiet apparatus above a Piazzolla view name. Its menu lists All members of the type and its saved views, then Save as, Rename and Delete separately. Named views store the query only. A checkmark means the current query equals that row's query, not merely that the view is open. When it differs, the open row shows faint mono Modified; Save changes updates a saved view in one undoable edit, and Revert changes restores its saved query (or all members for an unnamed table). The footer offers Undo after saving; ⌘Z and ⌘⇧Z also undo and redo the update. Switching views keeps pane-local presentation.
 
 A type shares `Index N`, `Table N` and `Fields N` tabs with its [index](notes.md#finding-aid) and template register. Fields switches the same pane to that type's ordered template; its type crumb opens the ordinary type page.
 
@@ -93,7 +93,9 @@ Delete view confirms that rows are not deleted unless Ask before deleting views 
 
 Search rows, Filters, Sort and Columns align to the register. Applied filter and sort chips sit beneath the controls and remove with their own ×. Chips wrap on narrow panes.
 
-For an instance field, **is** and **is not** choose a page from the field's target types. The filter stores that page's ID and its chip follows the current title. A legacy unresolved value is marked in the picker and needs a page selection.
+Filters offer conditions by kind. Choice and Instance offer **is**, **is not**, **has a value** and **is empty**; Choice selects an existing option, while Instance selects a page from the field's target types. Text, URL and Identifier also offer **contains** and **has the field**; Number and Date add **>**, **≥**, **<** and **≤**. Checkbox offers **is checked** and **is not checked**. **Has the field** means an entry exists, even blank; **has a value** means at least one authored value is nonblank, including problem readings; **is empty** means none is nonblank. Presence is offered separately on scalar kinds, not on Choice, Instance or Checkbox. Instance filters store page IDs and their chips follow current titles. A legacy unresolved instance value is marked in the picker and needs a page selection.
+
+Choice sorts follow the options' order on the field page, first option first when ascending. Problem values follow all options and empty values come last in either direction. Instance fields sort by their target titles, not authored reference labels.
 
 ### Grid
 
@@ -114,7 +116,7 @@ Columns past the right edge fade under the rows. `+N ›` at the header's end co
 
 ### Editing
 
-Enter or double-click edits a single plain text, number, URL or identifier value inline. A cell with one value or none of kind choice, instance or date opens that kind's [value editor](../design.md#field-entries) on the cell, and a checkbox cell toggles on click or Space, keeping focus. Pills follow the outline: a choice pill opens its options, an instance pill opens its page, and Shift opens either beside. Cells with several values open the field's source outline beside the table.
+Enter or double-click edits a single plain text, number, URL or identifier value inline. A cell with one value or none of kind choice, instance or date opens that kind's [value editor](../design.md#field-entries) on the cell, and a checkbox cell toggles on click or Space, keeping focus. Editing a missing field creates its entry on that note; choosing an option writes a reference to that option, as in `Field:: [[option]]`. This works for non-template columns too. Pills follow the outline: a choice pill opens its options, an instance pill opens its page, and Shift opens either beside. Cells with several values open the field's source outline beside the table.
 
 Inline text editors keep authored line breaks. Shift-Enter adds a newline; Enter commits the value.
 
@@ -124,7 +126,7 @@ Cell focus follows the member and field, whether a note or a tagged block, so an
 
 ### Columns
 
-Columns start with the type template's fields, then fields present on members. Fields used by filters remain available even when every value is empty.
+Columns start with the type template's fields, then fields present on all members of the type or the view's base membership, including blank entries. Search rows, filter predicates and pagination never remove or reorder these columns. Field-only views use owners of any named filter field as their base membership. Fields used by filters remain available even when every value is empty.
 
 Columns hides or restores fields and derived Refs, and sets the sticky title width from 170 to 340 px (240 by default). Visibility, title width and horizontal scroll belong to pane history and survive back/forward and reload. They do not change the saved query or type template. Visible fields also determine card priorities.
 
@@ -134,7 +136,7 @@ Column menus contain sort, filter and hide. Edit field opens kind/template opera
 
 The footer has a persistent `N of M members` (`1 of 1 member`) readout, followed by `· Show 500 more` while more results remain. Appending retains the loaded rows, scroll position, sort and filters; the action disappears when every result is loaded.
 
-Queries page by a zero-based offset with block ID as the deterministic ordering tie-breaker. Totals and column metadata cover all matches rather than one batch. Tagged block members count toward both totals rather than disappearing from membership. Load errors stay in the footer.
+Queries page by a zero-based offset with block ID as the deterministic ordering tie-breaker. Totals cover all matches rather than one batch; column metadata covers the base membership before search and filters. Tagged block members count toward both totals rather than disappearing from membership. Load errors stay in the footer.
 
 ### Empty states
 

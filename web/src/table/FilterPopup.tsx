@@ -9,7 +9,7 @@ import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Picker } from '../ui/Picker';
 import { Popup } from '../ui/Popup';
-import { filterLabels } from './query';
+import { filterOperatorLabel, filterOperators } from './query';
 
 type FilterRow = { kind: 'field'; id: string; name: string } | { kind: 'new-field'; name: string } | { kind: 'op'; op: FilterOp } | { kind: 'value'; value: string; label: string };
 /** Three picker steps: field, operator, value. A chip trail above the rows shows what is chosen so far; Backspace on an empty query steps back. */
@@ -21,10 +21,10 @@ export function FilterPopup(props: { anchor: HTMLElement; fields: readonly Field
   const initialIdentity = initial?.kind === 'instance' && (props.initialFilter?.op === 'is' || props.initialFilter?.op === 'is_not');
   const initialValue = props.initialFilter?.value;
   const resolvedInitial = !!initialValue && /^[0-9A-HJKMNP-TV-Z]{26}$/i.test(initialValue);
-  const [query, setQuery] = createSignal(initialIdentity && resolvedInitial ? props.notebook.lookup(initialValue!)()?.text ?? '' : initialValue ?? '');
+  const [query, setQuery] = createSignal(initial?.kind === 'checkbox' ? '' : initialIdentity && resolvedInitial ? props.notebook.lookup(initialValue!)()?.text ?? '' : initialValue ?? '');
   const [draftValue, setDraftValue] = createSignal<string | null | undefined>(initialIdentity && !resolvedInitial ? undefined : initialValue);
   const [busy, setBusy] = createSignal(false); const [error, setError] = createSignal('');
-  const step = () => !field() ? 'field' : !op() || op() === 'present' || op() === 'set' || op() === 'empty' ? 'op' : 'value';
+  const step = () => !field() ? 'field' : !op() || op() === 'present' || op() === 'set' || op() === 'empty' || definition()?.kind === 'checkbox' ? 'op' : 'value';
   const definition = () => props.fields.find(candidate => candidate.id === field()?.id);
   const needle = () => query().trim().toLocaleLowerCase();
   const identity = () => definition()?.kind === 'instance' && (op() === 'is' || op() === 'is_not');
@@ -38,10 +38,11 @@ export function FilterPopup(props: { anchor: HTMLElement; fields: readonly Field
       const exact = props.fields.some(candidate => candidate.name.toLocaleLowerCase() === needle());
       return props.onNewField && query().trim() && !exact ? [...matching, { kind: 'new-field', name: query().trim() }] : matching;
     }
-    if (step() === 'op') return (Object.keys(filterLabels) as FilterOp[]).filter(candidate => filterLabels[candidate].includes(needle())).map(candidate => ({ kind: 'op', op: candidate }));
+    if (step() === 'op') return filterOperators(definition()?.kind).filter(candidate => filterOperatorLabel(candidate, definition()?.kind).includes(needle())).map(candidate => ({ kind: 'op', op: candidate }));
     if (identity()) return (names()?.rows ?? []).map(match => ({ kind: 'value', value: match.page.id, label: match.alias ? `${match.alias} · ${match.page.text}` : match.page.text }));
     const options = definition()?.options ?? [];
     const choices = options.filter(option => option.text.toLocaleLowerCase().includes(needle())).map((option): FilterRow => ({ kind: 'value', value: option.text, label: option.text }));
+    if (definition()?.kind === 'choice') return choices;
     const unchanged = props.initialFilter?.value === query();
     const typed = unchanged ? query() : query().trim();
     return (typed || unchanged) && !options.some(option => option.text === typed) ? [...choices, { kind: 'value', value: typed, label: `“${typed}”` }] : choices;
@@ -63,13 +64,14 @@ export function FilterPopup(props: { anchor: HTMLElement; fields: readonly Field
     else if (row.kind === 'op') {
       setOp(row.op);
       if (row.op === 'present' || row.op === 'set' || row.op === 'empty') { if (props.sheet) setDraftValue(null); else void finish(null); }
+      else if (definition()?.kind === 'checkbox') { if (props.sheet) setDraftValue('true'); else void finish('true'); }
     } else if (props.sheet) setDraftValue(row.value);
     else void finish(row.value);
   };
-  const placeholder = () => step() === 'field' ? 'Field name' : step() === 'op' ? 'Condition' : identity() ? 'Choose a page' : definition()?.kind === 'date' ? partialDatePlaceholder : definition()?.kind === 'choice' ? 'Choose or type a value' : 'Value';
+  const placeholder = () => step() === 'field' ? 'Field name' : step() === 'op' ? 'Condition' : identity() ? 'Choose a page' : definition()?.kind === 'date' ? partialDatePlaceholder : definition()?.kind === 'choice' ? 'Choose an option' : 'Value';
   return <Show when={props.sheet} fallback={<Picker<FilterRow> anchor={props.anchor} width={320} label={props.label ?? (props.initialFilter ? 'Edit condition' : 'Add filter')} onDismiss={props.onDismiss}
     query={query()} onQuery={setQuery} placeholder={placeholder()}
-    prefix={<><Show when={field()}>{chosen => <span class="table-chip">{chosen().name}</span>}</Show><Show when={op()}>{chosen => <span class="table-chip">{filterLabels[chosen()]}</span>}</Show><Show when={unresolved()}><span class="table-chip">{unresolved()}</span></Show></>}
+    prefix={<><Show when={field()}>{chosen => <span class="table-chip">{chosen().name}</span>}</Show><Show when={op()}>{chosen => <span class="table-chip">{filterOperatorLabel(chosen(), definition()?.kind)}</span>}</Show><Show when={unresolved()}><span class="table-chip">{unresolved()}</span></Show></>}
     items={rows()} key={row => row.kind === 'field' ? row.id : row.kind === 'op' ? row.op : row.kind === 'value' ? row.value : 'new'}
     initial={props.initialFilter ? Math.max(0, rows().findIndex(row => row.kind === 'value' ? row.value === props.initialFilter!.value : row.kind === 'op' && row.op === props.initialFilter!.op)) : undefined}
     onPick={pick}
@@ -78,22 +80,22 @@ export function FilterPopup(props: { anchor: HTMLElement; fields: readonly Field
       if (op()) { setOp(null); setDraftValue(undefined); } else if (field()) setField(null); else return false;
       return true;
     }}
-    busy={busy() || !!(identity() && (pages.loading || names.loading))} error={error() || valueError() || undefined} empty={step() === 'value' ? identity() ? unresolved() || 'No matching pages.' : 'Type a value.' : 'No matches.'}
+    busy={busy() || !!(identity() && (pages.loading || names.loading))} error={error() || valueError() || undefined} empty={step() === 'value' ? identity() ? unresolved() || 'No matching pages.' : definition()?.kind === 'choice' ? 'No matching options.' : 'Type a value.' : 'No matches.'}
     row={row => row.kind === 'field' ? <><Icon name="field" /><span class="picker-text">{row.name}</span></>
       : row.kind === 'new-field' ? <><Icon name="plus" /><span class="picker-text">New field “{row.name}”</span></>
-        : row.kind === 'op' ? <span class="picker-text">{filterLabels[row.op]}</span>
+        : row.kind === 'op' ? <span class="picker-text">{filterOperatorLabel(row.op, definition()?.kind)}</span>
           : <span class="picker-text">{row.label}</span>} />}>
     <Portal><div class="table-sheet-shade" aria-hidden="true" onPointerDown={props.onDismiss} /></Portal>
     <Popup anchor={props.anchor} placement="sheet" class="table-filter-sheet" label="Filters" onDismiss={props.onDismiss} autofocus={false} style={{ '--bottom-nav-height': getComputedStyle(props.anchor).getPropertyValue('--bottom-nav-height') || '0px' }}>
       <div class="table-popup-heading">Filters<Button onClick={props.onDismiss}>Cancel</Button></div>
       <div class="table-filter-steps">
         <Button class="bordered" onClick={() => { setField(null); setOp(null); setQuery(''); setDraftValue(undefined); }}>{field()?.name ?? 'Field'}<Icon name="down" /></Button>
-        <Button class="bordered" disabled={!field()} onClick={() => { setOp(null); setQuery(''); setDraftValue(undefined); }}>{op() ? filterLabels[op()!] : 'Condition'}<Icon name="down" /></Button>
+        <Button class="bordered" disabled={!field()} onClick={() => { setOp(null); setQuery(''); setDraftValue(undefined); }}>{op() ? filterOperatorLabel(op()!, definition()?.kind) : 'Condition'}<Icon name="down" /></Button>
       </div>
-      <input class="input table-filter-input" aria-label={placeholder()} placeholder={placeholder()} value={query()} onInput={event => { const value = event.currentTarget.value; setQuery(value); if (step() === 'value') setDraftValue(identity() ? undefined : value.trim() || undefined); }} />
+      <input class="input table-filter-input" aria-label={placeholder()} placeholder={placeholder()} value={query()} onInput={event => { const value = event.currentTarget.value; setQuery(value); if (step() === 'value') setDraftValue(identity() || definition()?.kind === 'choice' ? undefined : value.trim() || undefined); }} />
       <div class="table-filter-options" classList={{ 'table-filter-choices': step() === 'value' && definition()?.kind === 'choice' }}>
         <For each={rows()}>{row => <Button class="bordered" classList={{ selected: row.kind === 'value' && draftValue() === row.value }} aria-pressed={row.kind === 'value' ? draftValue() === row.value : undefined} disabled={busy()} onClick={() => pick(row)}>
-          <span>{row.kind === 'field' ? row.name : row.kind === 'new-field' ? `New field “${row.name}”` : row.kind === 'op' ? filterLabels[row.op] : row.label}</span><Show when={row.kind === 'value' && draftValue() === row.value}><Icon name="check" /></Show>
+          <span>{row.kind === 'field' ? row.name : row.kind === 'new-field' ? `New field “${row.name}”` : row.kind === 'op' ? filterOperatorLabel(row.op, definition()?.kind) : row.label}</span><Show when={row.kind === 'value' && draftValue() === row.value}><Icon name="check" /></Show>
         </Button>}</For>
       </div>
       <Show when={unresolved()}><p class="field-note">{unresolved()}</p></Show>

@@ -1,10 +1,18 @@
-import type { FieldDefinition, Filter, FilterOp, Query, SortKey } from '../api/types';
+import type { FieldDefinition, FieldKind, Filter, FilterOp, Query, SortKey } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { parseCardText } from '../review/card-text';
 
 export const filterLabels: Record<FilterOp, string> = {
-  is: 'is', is_not: 'is not', contains: 'contains', gt: '>', gte: '≥', lt: '<', lte: '≤', present: 'is present', set: 'is set', empty: 'is empty',
+  is: 'is', is_not: 'is not', contains: 'contains', gt: '>', gte: '≥', lt: '<', lte: '≤', present: 'has the field', set: 'has a value', empty: 'is empty',
 };
+export function filterOperators(kind: FieldKind = 'text'): FilterOp[] {
+  if (kind === 'checkbox') return ['is', 'is_not'];
+  if (kind === 'choice' || kind === 'instance') return ['is', 'is_not', 'set', 'empty'];
+  return ['is', 'is_not', 'contains', ...(kind === 'number' || kind === 'date' ? ['gt', 'gte', 'lt', 'lte'] as const : []), 'present', 'set', 'empty'];
+}
+export function filterOperatorLabel(op: FilterOp, kind?: FieldKind): string {
+  return kind === 'checkbox' && (op === 'is' || op === 'is_not') ? op === 'is' ? 'is checked' : 'is not checked' : filterLabels[op];
+}
 export function typeQuery(type: string | null): Query {
   return { type, text: null, filters: [], sort: [], limit: null };
 }
@@ -33,6 +41,9 @@ export function filterLabel(filter: Filter, fields: readonly FieldDefinition[], 
   const name = definition?.name ?? filter.field;
   const value = definition?.kind === 'instance' && (filter.op === 'is' || filter.op === 'is_not') && filter.value
     ? notebook.lookup(filter.value)()?.text ?? filter.value : filter.value;
+  if (definition?.kind === 'checkbox' && (filter.op === 'is' || filter.op === 'is_not') && filter.value?.toLowerCase() === 'true') {
+    return `${name} ${filterOperatorLabel(filter.op, definition.kind)}`;
+  }
   return `${name} ${filterLabels[filter.op]}${filter.op === 'present' || filter.op === 'set' || filter.op === 'empty' ? '' : ` ${value ?? ''}`}`;
 }
 /** Move this key to the front, flipping its direction when chosen again. */

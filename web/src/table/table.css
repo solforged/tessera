@@ -57,6 +57,8 @@
 .table-popup-count, .table-popup-note { color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .table-popup-count { flex: none; white-space: nowrap; }
 .table-popup-note { padding: 0 var(--space-8) var(--space-4); }
+/* The view menu's trailing label is state, not a keyboard hint, including on touch. */
+.menu:has(.table-popup-heading) kbd { display: block; color: var(--faint); font: var(--apparatus); }
 .table-columns-popup .table-column-choice { display: flex; align-items: center; gap: var(--space-8); margin: 0; padding: var(--space-4) var(--space-8); min-height: var(--row-height); cursor: pointer; overflow-wrap: anywhere; }
 .table-column-choice input { flex: none; margin: 0; accent-color: var(--accent); }
 .table-columns-popup .table-width-control { display: block; margin: var(--space-8) 0 0; padding: var(--space-8); border-top: var(--rule-width) solid var(--line); }

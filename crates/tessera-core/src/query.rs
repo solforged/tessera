@@ -96,6 +96,74 @@ pub(crate) fn template(conn: &Connection, id: &str) -> Result<Vec<String>> {
         .collect::<rusqlite::Result<_>>()?)
 }
 
+/// Columns describe the base membership, not the narrowed result. Read entries
+/// rather than values so a blank entry remains an editable column.
+fn column_frequencies<'a>(
+    conn: &Connection,
+    query: &Query,
+    definitions: &HashMap<&'a str, &FieldDefinition>,
+) -> Result<HashMap<&'a str, usize>> {
+    let mut statement = conn.prepare_cached(concat!(
+        hidden_blocks!(),
+        "SELECT e.text, b.id FROM links l JOIN blocks e ON e.id = l.source_id
+         JOIN blocks b ON b.id = e.parent_id
+         JOIN blocks p ON p.id = b.page_id
+         WHERE e.deletion_id IS NULL AND b.deletion_id IS NULL AND p.deletion_id IS NULL
+         AND e.rowid NOT IN (SELECT rowid FROM hidden)
+         AND (?1 IS NULL OR EXISTS (
+             SELECT 1 FROM memberships m JOIN blocks t ON t.id = m.type_id
+             WHERE m.block_id = b.id AND m.type_id = ?1 AND t.deletion_id IS NULL
+             AND t.rowid NOT IN (SELECT rowid FROM hidden)))
+         ORDER BY b.id"
+    ))?;
+    let mut cursor = statement.query([&query.r#type])?;
+    let mut frequencies = HashMap::new();
+    let mut owner = String::new();
+    let mut fields = HashSet::new();
+    let mut count_owner = |fields: &HashSet<&'a str>| {
+        if query.r#type.is_some()
+            || query.filters.is_empty()
+            || query
+                .filters
+                .iter()
+                .any(|filter| fields.contains(filter.field.as_str()))
+        {
+            for &field in fields {
+                *frequencies.entry(field).or_default() += 1;
+            }
+        }
+    };
+    while let Some(row) = cursor.next()? {
+        let id = row.get_ref(1)?.as_str().map_err(|error| {
+            rusqlite::Error::FromSqlConversionFailure(
+                1,
+                rusqlite::types::Type::Text,
+                Box::new(error),
+            )
+        })?;
+        if owner != id {
+            count_owner(&fields);
+            fields.clear();
+            owner.clear();
+            owner.push_str(id);
+        }
+        let text = row.get_ref(0)?.as_str().map_err(|error| {
+            rusqlite::Error::FromSqlConversionFailure(
+                0,
+                rusqlite::types::Type::Text,
+                Box::new(error),
+            )
+        })?;
+        if let Some((field, _)) =
+            crate::fields::reference(text).and_then(|id| definitions.get_key_value(id))
+        {
+            fields.insert(*field);
+        }
+    }
+    count_owner(&fields);
+    Ok(frequencies)
+}
+
 pub(crate) fn presentation(
     conn: &Connection,
     id: &str,
@@ -417,13 +485,26 @@ impl Notebook {
         rows.retain(|row| filters.iter().all(|filter| filter.matches(row)));
         let total = rows.len();
         if !query.sort.is_empty() {
+            let option_order: HashMap<_, _> = query
+                .sort
+                .iter()
+                .filter_map(|key| key.field.as_deref().and_then(|id| defs.get(id)))
+                .filter(|definition| definition.kind == FieldKind::Choice)
+                .flat_map(|definition| {
+                    definition
+                        .options
+                        .iter()
+                        .enumerate()
+                        .map(|(index, option)| (option.id.as_str(), index))
+                })
+                .collect();
             let mut keyed: Vec<_> = rows
                 .into_iter()
                 .map(|row| {
                     let keys = query
                         .sort
                         .iter()
-                        .map(|key| sort_value(&row, key, &defs))
+                        .map(|key| sort_value(&row, key, &defs, &option_order))
                         .collect::<Vec<_>>();
                     (row, keys)
                 })
@@ -434,6 +515,9 @@ impl Notebook {
                         (None, None) => Ordering::Equal,
                         (None, Some(_)) => Ordering::Greater,
                         (Some(_), None) => Ordering::Less,
+                        (Some(SortValue::Problem), Some(SortValue::Problem)) => Ordering::Equal,
+                        (Some(SortValue::Problem), Some(_)) => Ordering::Greater,
+                        (Some(_), Some(SortValue::Problem)) => Ordering::Less,
                         (Some(a), Some(b)) => {
                             let order = a.compare(b);
                             if key.direction == Direction::Desc {
@@ -458,12 +542,7 @@ impl Notebook {
             .transpose()?
             .unwrap_or_default();
         columns.retain(|id| defs.contains_key(id.as_str()));
-        let mut frequencies: HashMap<&str, usize> = HashMap::new();
-        for row in &rows {
-            for field in row.values.keys() {
-                *frequencies.entry(field).or_default() += 1;
-            }
-        }
+        let mut frequencies = column_frequencies(&self.conn, query, &defs)?;
         for filter in &query.filters {
             frequencies.entry(filter.field.as_str()).or_default();
         }
@@ -621,6 +700,8 @@ enum SortValue {
     Number(f64),
     Checkbox(bool),
     Timestamp(i64),
+    Option(usize),
+    Problem,
 }
 impl SortValue {
     fn compare(&self, other: &Self) -> Ordering {
@@ -629,6 +710,7 @@ impl SortValue {
             (Self::Number(a), Self::Number(b)) => a.partial_cmp(b).expect("finite readings"),
             (Self::Checkbox(a), Self::Checkbox(b)) => a.cmp(b),
             (Self::Timestamp(a), Self::Timestamp(b)) => a.cmp(b),
+            (Self::Option(a), Self::Option(b)) => a.cmp(b),
             _ => unreachable!("a sort key has one field kind"),
         }
     }
@@ -637,13 +719,26 @@ fn sort_value(
     row: &QueryRow,
     key: &SortKey,
     definitions: &HashMap<&str, &FieldDefinition>,
+    option_order: &HashMap<&str, usize>,
 ) -> Option<SortValue> {
     Some(match key.by {
         SortBy::Title => SortValue::Text(row.block.block.text.to_lowercase()),
         SortBy::Created => SortValue::Timestamp(row.block.block.created_at),
         SortBy::Updated => SortValue::Timestamp(row.block.block.updated_at),
         SortBy::Field => {
+            let definition = definitions.get(key.field.as_deref()?)?;
             let value = &row.values.get(key.field.as_deref()?)?.first()?.reading;
+            if definition.kind == FieldKind::Choice {
+                return Some(match value {
+                    Reading::Value {
+                        target: Some(target),
+                        ..
+                    } => option_order
+                        .get(target.as_str())
+                        .map_or(SortValue::Problem, |index| SortValue::Option(*index)),
+                    _ => SortValue::Problem,
+                });
+            }
             match value {
                 Reading::Problem { .. } => return None,
                 Reading::Value { value, .. } => match value {

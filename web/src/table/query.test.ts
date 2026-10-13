@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { addFilter, chooseSort, copyQuery, fieldEntryId, fieldEntryText, filterLabel, matchFieldEntry, queriesEqual, removeFilter, removeSort, typeQuery } from './query';
+import { addFilter, chooseSort, copyQuery, fieldEntryId, fieldEntryText, filterLabel, filterOperatorLabel, filterOperators, matchFieldEntry, queriesEqual, removeFilter, removeSort, typeQuery } from './query';
 import type { FieldDefinition } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 
@@ -32,6 +32,28 @@ describe('query edits', () => {
     expect(filterLabel(filter, fields, notebook)).toBe('Author is Aristotle QA');
     expect(filter.value).toBe('person-id');
     expect(filterLabel({ ...filter, op: 'contains', value: 'Aristotle' }, fields, notebook)).toBe('Author contains Aristotle');
+  });
+  test('filter operators follow field kinds and distinguish presence from values', () => {
+    for (const kind of ['choice', 'instance'] as const) {
+      expect(filterOperators(kind)).toEqual(['is', 'is_not', 'set', 'empty']);
+    }
+    for (const kind of ['text', 'url', 'identifier'] as const) {
+      expect(filterOperators(kind)).toEqual(['is', 'is_not', 'contains', 'present', 'set', 'empty']);
+    }
+    for (const kind of ['number', 'date'] as const) {
+      expect(filterOperators(kind)).toEqual(['is', 'is_not', 'contains', 'gt', 'gte', 'lt', 'lte', 'present', 'set', 'empty']);
+    }
+    expect(filterOperators('checkbox')).toEqual(['is', 'is_not']);
+    expect(filterOperatorLabel('present')).toBe('has the field');
+    expect(filterOperatorLabel('set')).toBe('has a value');
+    expect(filterOperatorLabel('is', 'checkbox')).toBe('is checked');
+    expect(filterOperatorLabel('is_not', 'checkbox')).toBe('is not checked');
+    const fields: FieldDefinition[] = [{ id: 'owned', name: 'Owned', kind: 'checkbox', revision: 1, options: [], targets: [] }];
+    const notebook = {} as NotebookClient;
+    expect(filterLabel({ field: 'owned', op: 'is', value: 'true' }, fields, notebook)).toBe('Owned is checked');
+    expect(filterLabel({ field: 'owned', op: 'is_not', value: 'true' }, fields, notebook)).toBe('Owned is not checked');
+    expect(filterLabel({ field: 'owned', op: 'present', value: null }, fields, notebook)).toBe('Owned has the field');
+    expect(filterLabel({ field: 'owned', op: 'set', value: null }, fields, notebook)).toBe('Owned has a value');
   });
   test('saved equality compares all fields and preserves ordered filters and sort precedence', () => {
     const query = chooseSort(addFilter(addFilter(typeQuery('books'), { field: 'year', op: 'gte', value: '2000' }), { field: 'author', op: 'contains', value: 'Herbert' }), { by: 'title', field: null });

@@ -20,7 +20,7 @@ import { hasValueEditor } from '../fields/value-options';
 import { noteKindIcon } from '../notes/kinds';
 import { autoPlural } from '../fields/presentation';
 import { FilterPopup } from './FilterPopup';
-import { addFilter, chooseSort, copyQuery, fieldEntryId, fieldEntryText, filterLabel, queriesEqual, removeFilter, removeSort, sortLabel } from './query';
+import { addFilter, chooseSort, copyQuery, fieldEntryId, fieldEntryText, filterLabel, queriesEqual, removeFilter, removeSort, sortLabel, typeQuery } from './query';
 import { sourceText } from './sources';
 import type { TableSource } from './sources';
 import { cardFields, registerMembers, retainCell, rowSources, sourceDefinition } from './register';
@@ -47,6 +47,8 @@ const clampTitleWidth = (width: number | undefined) => Number.isFinite(width) ? 
 const refsColumn = '$refs';
 const membersLabel = (count: number) => `${count.toLocaleString()} ${count === 1 ? 'member' : 'members'}`;
 
+type TableEdit = { kind: 'cell'; doc: PageDocument; rowId: string; fieldId: string }
+  | { kind: 'view'; before: View; after: View; revision: number };
 export function TablePane(props: TablePaneProps) {
   const [query, setQuery] = createSignal(copyQuery(props.view.query));
   const [search, setSearch] = createSignal(query().text ?? '');
@@ -69,9 +71,12 @@ export function TablePane(props: TablePaneProps) {
   const [deleted, setDeleted] = createSignal<View | null>(null);
   const [deleting, setDeleting] = createSignal(false);
   const [savedRevision, setSavedRevision] = createSignal(0);
+  const [savingView, setSavingView] = createSignal(false);
+  const [viewUndo, setViewUndo] = createSignal(false);
+  const [replaying, setReplaying] = createSignal(false);
   let region!: HTMLDivElement; let scroll!: HTMLDivElement; let grid!: HTMLTableElement;
   const documents = new Map<string, PageDocument>();
-  const history: { doc: PageDocument; rowId: string; fieldId: string }[] = [];
+  const history: TableEdit[] = [];
   const undone: typeof history = [];
   onCleanup(() => { for (const doc of documents.values()) doc.release(); });
   const focusCell = (rowId: string, fieldId: string | null) => {
@@ -231,10 +236,15 @@ export function TablePane(props: TablePaneProps) {
     setPopup(null);
   };
   const saveChanges = async () => {
-    const value = saved(); if (!value) return;
-    await submit({ op: 'save_view', id: value.id, base_revision: value.revision, name: value.name, query: copyQuery(query()) });
-    await refetchSaved();
-    await refetchViews();
+    const value = saved(); if (!value || savingView() || !changed()) return;
+    setSavingView(true);
+    try {
+      const next = { ...value, query: copyQuery(query()), revision: value.revision + 1 };
+      await submit({ op: 'save_view', id: value.id, base_revision: value.revision, name: value.name, query: next.query });
+      history.push({ kind: 'view', before: value, after: next, revision: next.revision }); undone.length = 0;
+      setViewUndo(true); setSaved(next);
+      await refetchViews();
+    } finally { setSavingView(false); }
   };
   const deleteView = async (value: View) => {
     if (deleting()) return;
@@ -282,7 +292,7 @@ export function TablePane(props: TablePaneProps) {
     return fieldId!;
   };
   const switchView = (view: View | null) => {
-    const next = view?.query ?? { type: query().type, text: null, filters: [], sort: [], limit: null };
+    const next = view?.query ?? typeQuery(query().type);
     clearTimeout(searchTimer); setSearch(next.text ?? ''); updateQuery(next); setSaved(view ?? undefined);
     setSelectedRow(null); setFocused({ rowId: null, fieldId: null }); setPopup(null);
     props.onTargetChange({ kind: 'table', typeId: next.type, viewId: view?.id ?? null, query: copyQuery(next) });
@@ -290,13 +300,14 @@ export function TablePane(props: TablePaneProps) {
     reportView(next);
   };
   const viewMenu = (anchor: HTMLElement) => setPopup({ kind: 'menu', anchor, label: 'Views',
-    header: <><div class="table-popup-heading">Views</div><div class="table-popup-note">{title() || 'All blocks'} · {query().filters.length ? `${query().filters.length} filters` : 'No filters'}<Show when={query().sort.length}> · {query().sort.map(key => sortLabel(key, fields())).join(', ')}</Show></div></>,
+    header: <><div class="table-popup-heading">Views</div><div class="table-popup-note">{title() || 'All blocks'} · {query().filters.length ? `${query().filters.length} ${query().filters.length === 1 ? 'filter' : 'filters'}` : 'No filters'}<Show when={query().sort.length}> · {query().sort.map(key => sortLabel(key, fields())).join(', ')}</Show></div></>,
     items: [
-      { label: title() ? `All ${title()}` : 'All blocks', checked: !props.target.viewId, action: () => switchView(null) },
-      ...(views() ?? []).filter(view => view.query.type === query().type).map((view): MenuItem => ({ label: view.name, checked: view.id === props.target.viewId, action: () => switchView(view) })),
+      { label: title() ? `All ${title()}` : 'All blocks', checked: queriesEqual(query(), typeQuery(query().type)), shortcut: !props.target.viewId && !queriesEqual(query(), typeQuery(query().type)) ? 'Modified' : undefined, action: () => switchView(null) },
+      ...(views() ?? []).filter(view => view.query.type === query().type).map((view): MenuItem => ({ label: view.name, checked: queriesEqual(query(), view.query), shortcut: view.id === props.target.viewId && !queriesEqual(query(), view.query) ? 'Modified' : undefined, action: () => switchView(view) })),
       { label: 'Save as view…', section: 'View actions', action: () => setPopup({ kind: 'name', anchor, action: 'save' }) },
+      ...(!props.target.viewId && !queriesEqual(query(), typeQuery(query().type)) ? [{ label: 'Revert changes', action: () => switchView(null) }] : []),
       ...(props.target.viewId ? [
-        ...(changed() ? [{ label: 'Save', action: () => { void saveChanges().catch(message); } }, { label: 'Discard changes', action: () => { const value = saved(); if (value) switchView(value); } }] : []),
+        ...(changed() ? [{ label: 'Save changes', disabledReason: savingView() ? 'Saving…' : undefined, action: () => { void saveChanges().catch(message); } }, { label: 'Revert changes', action: () => { const value = saved(); if (value) switchView(value); } }] : []),
         { label: 'Rename view…', disabledReason: !saved() ? 'Loading…' : undefined, action: () => setPopup({ kind: 'name', anchor, action: 'rename' }) },
         { label: props.notebook.confirmViewDelete() ? 'Delete view…' : 'Delete view', icon: 'trash' as const, danger: true, disabledReason: !saved() ? 'Loading…' : undefined, action: () => { const view = saved(); if (view) { setError(''); if (props.notebook.confirmViewDelete()) setPopup({ kind: 'delete', anchor, view }); else void deleteView(view); } } },
       ] : []),
@@ -359,7 +370,7 @@ export function TablePane(props: TablePaneProps) {
     await withDocument(row.block.page.id, async doc => {
       if ((value?.text ?? '') === text) return;
       writeFieldValue(doc, { field, ownerId: row.block.block.id, valueId: value?.id }, text);
-      history.push({ doc, rowId: row.block.block.id, fieldId: field.id }); undone.length = 0;
+      history.push({ kind: 'cell', doc, rowId: row.block.block.id, fieldId: field.id }); undone.length = 0; setViewUndo(false);
       await doc.flush();
       await refreshCells();
     });
@@ -385,13 +396,37 @@ export function TablePane(props: TablePaneProps) {
     requestAnimationFrame(() => focusCell(current.row.block.block.id, current.field.id));
   };
   const replayCell = async (redo: boolean) => {
+    if (replaying() || savingView()) return;
     const source = redo ? undone : history;
-    const entry = source.pop(); if (!entry) return;
-    redo ? entry.doc.redo() : entry.doc.undo();
-    (redo ? history : undone).push(entry);
-    await entry.doc.flush();
-    await refreshCells();
-    focusCell(entry.rowId, entry.fieldId);
+    const entry = source.at(-1); if (!entry) return;
+    setReplaying(true);
+    try {
+      if (entry.kind === 'view') {
+        const value = redo ? entry.after : entry.before;
+        await submit({ op: 'save_view', id: value.id, base_revision: entry.revision, name: value.name, query: copyQuery(value.query) });
+        entry.revision += 1;
+        if (props.target.viewId === value.id) {
+          clearTimeout(searchTimer); setSearch(value.query.text ?? ''); updateQuery(value.query);
+          setSaved({ ...value, revision: entry.revision });
+        }
+        await refetchViews();
+      } else {
+        redo ? entry.doc.redo() : entry.doc.undo();
+        await entry.doc.flush();
+        await refreshCells();
+        focusCell(entry.rowId, entry.fieldId);
+      }
+      source.pop();
+      (redo ? history : undone).push(entry);
+      // Earlier updates of this view now undo against its current revision.
+      if (entry.kind === 'view') {
+        for (let index = source.length - 1; index >= 0; index--) {
+          const previous = source[index]!;
+          if (previous.kind === 'view' && previous.before.id === entry.before.id) { previous.revision = entry.revision; break; }
+        }
+      }
+      setViewUndo(history.at(-1)?.kind === 'view');
+    } finally { setReplaying(false); }
   };
   const keydown = (event: KeyboardEvent) => {
     if (event.isComposing || event.target instanceof HTMLElement && event.target.closest('input, select, textarea, [contenteditable="true"]')) return;
@@ -433,7 +468,7 @@ export function TablePane(props: TablePaneProps) {
           <h1><Button class="table-title" label="Views" aria-haspopup="menu" onClick={event => viewMenu(event.currentTarget)}><Show when={typeKind()}>{kind => <Icon name={noteKindIcon(kind())} />}</Show><span>{saved()?.name ?? (title() || 'All blocks')}</span><Icon name="down" /></Button></h1>
         </div>
         <div class="table-view-status"><Show when={props.target.viewId && saved()} fallback={<Show when={result()}>{rows => <>{membersLabel(rows().total)}</>}</Show>}>
-          <span>{changed() ? 'Unsaved changes' : 'Saved view'}</span><Show when={changed()}><Button onClick={() => { void saveChanges().catch(message); }}>Save</Button><Button onClick={() => { const value = saved(); if (value) switchView(value); }}>Discard</Button></Show>
+          <span>{changed() ? 'Modified' : 'Saved view'}</span><Show when={changed()}><Button disabled={savingView()} onClick={() => { void saveChanges().catch(message); }}>Save changes</Button><Button onClick={() => { const value = saved(); if (value) switchView(value); }}>Revert changes</Button></Show>
         </Show></div>
       </header>
       <Show when={query().type}>{typeId => <TypeModeTabs active="table" indexCount={typeKind()?.count ?? 0} tableCount={type()?.members ?? 0} fieldsCount={type()?.fields.length ?? 0}
@@ -503,6 +538,7 @@ export function TablePane(props: TablePaneProps) {
       <footer class="table-footer" role="status"><Show when={deleted()} fallback={<>
         <span>{loading() ? 'Loading…' : error() || `${(result()?.rows.length ?? 0).toLocaleString()} of ${membersLabel(result()?.total ?? 0)}`}</span>
         <Show when={!loading() && canAppend()}><span aria-hidden="true">·</span><Button class="table-show-more" disabled={appending()} aria-busy={appending()} onClick={() => { void appendRows(); }}>Show {pageSize().toLocaleString()} more</Button></Show>
+        <Show when={viewUndo()}><span>View saved ·</span><Button disabled={replaying()} onClick={() => { void replayCell(false).catch(message); }}>Undo</Button></Show>
       </>}>View deleted · <Button onClick={() => { void undoDelete().catch(message); }}>Undo</Button></Show></footer>
     </div>
     <Show keyed when={popup()}>{state => <>

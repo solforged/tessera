@@ -255,6 +255,143 @@ fn query_pages_keep_totals_columns_and_deterministic_sort_boundaries() {
 }
 
 #[test]
+fn table_columns_describe_base_membership_not_search_or_filters() {
+    let (_dir, mut nb) = fixture();
+    let fields = nb.fields().unwrap().page_id;
+    let type_revision = nb.block(&id(1)).unwrap().revision;
+    apply(
+        &mut nb,
+        vec![
+            child(11, &fields, "Strand"),
+            child(12, &fields, "Template"),
+            child(13, &fields, "Unused filter"),
+            insert(101, 2, "beta #books"),
+            insert(201, 101, &format!("[[{}]]", id(11))),
+            insert(301, 201, ""),
+            Operation::SetTypeFields {
+                type_id: id(1),
+                base_revision: type_revision,
+                fields: vec![id(12)],
+            },
+        ],
+    );
+    let mut q = query();
+    let columns = nb.query(&q).unwrap().columns;
+    assert_eq!(columns, vec![id(12), id(11), id(10)]);
+    for text in ["alpha", "beta", "nohits", ""] {
+        q.text = Some(text.into());
+        assert_eq!(nb.query(&q).unwrap().columns, columns);
+    }
+    q.filters.push(Filter {
+        field: id(13),
+        op: FilterOp::Set,
+        value: None,
+    });
+    assert!(nb.query(&q).unwrap().rows.is_empty());
+    assert_eq!(
+        nb.query(&q).unwrap().columns,
+        vec![id(12), id(11), id(10), id(13)]
+    );
+    // A field-only view uses owners of its named fields, without its value predicate.
+    q.r#type = None;
+    q.filters = vec![Filter {
+        field: id(10),
+        op: FilterOp::Is,
+        value: Some("no match".into()),
+    }];
+    assert_eq!(nb.query(&q).unwrap().columns, vec![id(10)]);
+}
+
+#[test]
+fn choice_sort_uses_option_order_then_problems_then_empty_in_both_directions() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut nb = Notebook::open(dir.path()).unwrap();
+    let fields = nb.fields().unwrap().page_id;
+    let mut operations = vec![
+        page(1, "Books"),
+        page(2, "Notes"),
+        child(10, &fields, "Strand"),
+        insert(13, 10, "Middle"),
+        insert(12, 10, "Alpha"),
+        insert(11, 10, "Zulu"),
+    ];
+    for member in 100..106 {
+        operations.push(insert(member, 2, &format!("Member {member} #books")));
+    }
+    for (member, text) in [
+        (100, "problem".to_owned()),
+        (102, format!("[[{}]]", id(12))),
+        (103, format!("[[{}|Other label]]", id(11))),
+        (104, format!("[[{}]]", id(13))),
+        (105, " ".to_owned()),
+    ] {
+        operations.push(insert(member + 100, member, &format!("[[{}]]", id(10))));
+        operations.push(insert(member + 200, member + 100, &text));
+    }
+    apply(&mut nb, operations);
+    kind(&mut nb, 10, FieldKind::Choice);
+    assert_eq!(
+        nb.fields()
+            .unwrap()
+            .fields
+            .iter()
+            .find(|field| field.definition.id == id(10))
+            .unwrap()
+            .definition
+            .options
+            .iter()
+            .map(|option| option.id.clone())
+            .collect::<Vec<_>>(),
+        [11, 12, 13].map(id)
+    );
+    let mut q = query();
+    for (direction, expected) in [
+        (Direction::Asc, [103, 102, 104, 100, 101, 105]),
+        (Direction::Desc, [104, 102, 103, 100, 101, 105]),
+    ] {
+        q.sort = vec![SortKey {
+            by: SortBy::Field,
+            field: Some(id(10)),
+            direction,
+        }];
+        assert_eq!(ids(nb.query(&q).unwrap()), expected.map(id));
+    }
+    // Reordering the authored options changes the sort without rewriting values.
+    move_to(&mut nb, 13, &id(10));
+    q.sort[0].direction = Direction::Asc;
+    assert_eq!(
+        ids(nb.query(&q).unwrap()),
+        [104, 103, 102, 100, 101, 105].map(id)
+    );
+}
+
+#[test]
+fn instance_sort_uses_target_titles_not_reference_aliases() {
+    let (_dir, mut nb) = fixture();
+    apply(
+        &mut nb,
+        vec![
+            page(11, "Zulu"),
+            page(12, "Alpha"),
+            insert(101, 2, "beta #books"),
+            insert(201, 101, &format!("[[{}]]", id(10))),
+            insert(301, 201, &format!("[[{}|Zulu alias]]", id(12))),
+        ],
+    );
+    kind(&mut nb, 10, FieldKind::Instance);
+    edit(&mut nb, 300, &format!("[[{}|Alpha alias]]", id(11)));
+    let mut q = query();
+    q.sort = vec![SortKey {
+        by: SortBy::Field,
+        field: Some(id(10)),
+        direction: Direction::Asc,
+    }];
+    assert_eq!(ids(nb.query(&q).unwrap()), [101, 100].map(id));
+    edit(&mut nb, 11, "Aardvark");
+    assert_eq!(ids(nb.query(&q).unwrap()), [100, 101].map(id));
+}
+
+#[test]
 fn field_kind_contract_matches_database_check() {
     let (dir, mut nb) = fixture();
     let fields = nb.fields().unwrap().page_id;
@@ -1686,7 +1823,7 @@ fn default_limit_does_not_change_total_and_explicit_limit_can_reach_the_maximum(
 }
 
 #[test]
-fn blank_values_are_missing_for_rows_filters_columns_and_sorting() {
+fn blank_values_are_missing_for_rows_filters_and_sorting_but_keep_columns() {
     let (_dir, mut nb) = fixture();
     kind(&mut nb, 10, FieldKind::Checkbox);
     apply(
@@ -1704,8 +1841,8 @@ fn blank_values_are_missing_for_rows_filters_columns_and_sorting() {
         let result = nb.query(&q).unwrap();
         assert_eq!(result.total, 1);
         assert!(result.rows[0].values.is_empty());
-        assert!(result.columns.is_empty());
-        assert!(result.fields.is_empty());
+        assert_eq!(result.columns, vec![id(10)]);
+        assert_eq!(result.fields.len(), 1);
         q.filters.push(Filter {
             field: id(10),
             op: FilterOp::Empty,
@@ -1714,6 +1851,8 @@ fn blank_values_are_missing_for_rows_filters_columns_and_sorting() {
         assert_eq!(ids(nb.query(&q).unwrap()), vec![id(100)]);
         q.filters[0].op = FilterOp::Set;
         assert_eq!(nb.query(&q).unwrap().total, 0);
+        q.filters[0].op = FilterOp::Present;
+        assert_eq!(ids(nb.query(&q).unwrap()), vec![id(100)]);
         q = query();
         for direction in [Direction::Asc, Direction::Desc] {
             q.sort = vec![SortKey {
