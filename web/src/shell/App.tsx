@@ -12,6 +12,7 @@ import { createPageIcon } from '../outline/source';
 import { PageMergePicker, pageMergeDisabledReason } from '../outline/PageMerge';
 import { copyTaskQuery, createTaskQuery } from '../tasks/query';
 import { copyQuery, typeQuery } from '../table/query';
+import { querySources } from '../table/attributes';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import type { IconName } from '../ui/Icon';
@@ -74,7 +75,7 @@ type PaneSession = { entries: HistoryEntry[]; index: number; generation: number 
 type SavedNavigation = { pinned?: string[]; pinnedViews?: string[]; pagePresentations?: Record<string, PagePresentation>; pageStyles?: Record<string, 'bullets' | 'prose'>; recent?: string[]; vim?: boolean; panes?: Partial<Record<PaneId, HistoryEntry>>; active?: PaneId };
 type VimMode = 'insert' | 'normal' | 'visual' | 'outline' | null;
 const vimLabels: Record<Exclude<VimMode, null>, string> = { insert: 'Insert', normal: 'Normal', visual: 'Visual', outline: 'Blocks' };
-type PopupState = { kind: 'search' | 'commands' | 'calendar' | 'new' | 'delete' | 'layout'; anchor: HTMLElement; pane: PaneId; date?: string; source?: boolean } | null;
+type PopupState = { kind: 'search' | 'commands' | 'calendar' | 'new' | 'new-view' | 'delete' | 'layout'; anchor: HTMLElement; pane: PaneId; date?: string; source?: boolean } | null;
 const paneIds: PaneId[] = ['main', 'side'];
 /** ⌘ on Apple keyboards, where Ctrl+E stays the editor's end of line; Ctrl elsewhere. */
 const mac = /Mac|iPhone|iPad/.test(navigator.platform);
@@ -512,6 +513,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     { id: 'shell.close', title: 'Close active pane', section: 'View', keys: ['⌃⇧X'], disabledReason: () => !split() ? 'Only one pane is open' : undefined, run: () => closePane(active()) },
     { id: 'shell.new', title: 'New page', section: 'Page', run: () => setPopup({ kind: 'new', anchor: searchButton, pane: active() }) },
     { id: 'shell.new-spread', title: 'New spread', section: 'Page', run: (beside = false) => open({ kind: 'spread', noteIds: [] }, beside) },
+    { id: 'shell.new-view', title: 'New view…', section: 'View', run: () => setPopup({ kind: 'new-view', anchor: searchButton, pane: active() }) },
     { id: 'shell.pin', title: 'Pin / unpin page', section: 'Page', run: () => { const root = activeRoot(); if (root) pin(root.id); } },
     { id: 'shell.delete', title: 'Delete page', section: 'Page', run: () => { const anchor = document.querySelector<HTMLButtonElement>(`[data-pane="${active()}"] .page-menu-button`); if (anchor) setPopup({ kind: 'delete', anchor, pane: active() }); } },
     { id: 'shell.restore-page', title: 'Undo page deletion', section: 'Page', disabledReason: () => deleted() ? undefined : 'No deleted page to restore', run: () => { void restorePage(); } },
@@ -599,7 +601,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   };
   // Sidebar sections carry rubric numerals counted over the sections actually shown.
   const sectionNumber = (section: 'pinned' | 'index' | 'views' | 'recent') => {
-    const shown = [...pinnedRoots().length || pinnedViewList().length ? ['pinned'] : [], ...index()?.kinds.length ? ['index'] : [], ...looseViews().length ? ['views'] : [], 'recent'];
+    const shown = [...pinnedRoots().length || pinnedViewList().length ? ['pinned'] : [], ...index()?.kinds.length ? ['index'] : [], 'views', 'recent'];
     return String(shown.indexOf(section) + 1).padStart(2, '0');
   };
   return <div class={`app ${split() ? 'is-split' : ''} ${sidebar() ? 'sidebar-expanded' : ''} ${sidebarCollapsed() ? 'sidebar-collapsed' : ''} ${immersive() ? 'is-immersive' : ''} ${keyboard() ? 'keyboard-open' : ''} ${entry(active())?.target.kind === 'reader' ? 'is-reading' : ''} ${currentHealth()?.cover ? 'has-sync-cover' : ''}`} style={{ '--visual-viewport-height': `${viewport().height}px`, '--visual-viewport-top': `${viewport().top}px`, '--visual-viewport-bottom-gap': `${Math.max(0, window.innerHeight - viewport().bottom)}px` }} onPointerDown={() => { focusEpoch++; }}>
@@ -639,10 +641,11 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
         </>}</Index>
         <For each={index()?.spreads}>{spread => <Button class={`index-kind ${pageIdOf(entry(active())) === spread.id ? 'selected' : ''}`} icon="panes" title={spread.title} onClick={event => open({ kind: 'page', pageId: spread.id }, event.shiftKey)}><span>{spread.title}</span></Button>}</For>
       </section></Show>
-      <Show when={looseViews().length}><section class="page-list" aria-label="Saved views">
-        <h2><span class="section-number">{sectionNumber('views')}</span>Views<span class="section-rule" /><span class="section-count">{looseViews().length}</span></h2>
+      <section class="page-list" aria-label="Saved views">
+        <h2><span class="section-number">{sectionNumber('views')}</span>Views<span class="section-rule" /><span class="section-count">{looseViews().length || ''}</span></h2>
         <ViewLinks views={looseViews()} pinned={false} activeId={activeViewId()} onOpen={openView} onPin={pinView} />
-      </section></Show>
+        <Button icon="plus" onClick={event => setPopup({ kind: 'new-view', anchor: event.currentTarget, pane: active() })}>New view…</Button>
+      </section>
       <details class="page-list" open>
         <summary><span class="section-number">{sectionNumber('recent')}</span>Recent<span class="section-rule" /><Icon name="down" /></summary>
         <Show when={recentRoots().length} fallback={<p class="sidebar-empty">Pages you open appear here</p>}><PageLinks roots={recentRoots()} sourceIcons notebook={notebook} activeId={pageIdOf(entry(active()))} onOpen={open} /></Show>
@@ -702,6 +705,9 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
       </Show>
       <Show when={state.kind === 'calendar'}>
         <Calendar notebook={notebook} anchor={state.anchor} date={state.date ?? journalDate(state.pane)} today={todayDate()} onToday={() => { void today(state.pane); }} onDismiss={() => setPopup(null)} onSelect={value => { void journal(value, state.pane); }} />
+      </Show>
+      <Show when={state.kind === 'new-view'}>
+        <Menu anchor={state.anchor} label="New view source" header={<div class="table-popup-heading">Choose a source</div>} items={querySources.map(source => ({ label: source.name, action: () => { setPopup(null); open({ kind: 'table', typeId: null, viewId: null, query: { ...typeQuery(null), source: source.key } }, false, state.pane); } }))} onDismiss={() => setPopup(null)} />
       </Show>
       <Show when={state.kind === 'new'}>
         <NewPage anchor={state.anchor} notebook={notebook} onDismiss={() => setPopup(null)} onOpen={id => { setPopup(null); open({ kind: 'page', pageId: id }, false, state.pane); }} />

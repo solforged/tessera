@@ -64,5 +64,9 @@ test('note Find preserves quoted names, repeated predicates and plain words', ()
   expect(parsed.text).toBe('dynasty');
   expect(parsed.terms.map(({ key, value }) => [key, value])).toEqual([['links', 'Three generations of a dynasty'], ['from', 'Asabiyya'], ['cites', 'IK'], ['links', 'Mulk']]);
   expect(parseNoteFind('links:"unfinished name').terms).toEqual([]);
-  expect(parseNoteFind('is:settled revisit:due').text).toBe('is:settled revisit:due');
+  expect(parseNoteFind('is:settled revisit:due').text).toBe('is:settled');
+  expect(parseNoteFind('is:resolved revisit:due revisit:set revisit:none').filters.map(term => term.filter)).toEqual([
+    { field: '@resolved', op: 'is', value: 'true' }, { field: '@revisit', op: 'lte', value: 'today' },
+    { field: '@revisit', op: 'set', value: null }, { field: '@revisit', op: 'empty', value: null },
+  ]);
 });

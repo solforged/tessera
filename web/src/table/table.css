@@ -91,6 +91,17 @@
 .table-member-group-label { display: flex; align-items: baseline; gap: var(--space-8); color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .table-card-group { margin-top: var(--space-16); padding: var(--space-8) var(--card-padding); border-top: var(--rule-width) solid var(--line); }
 .table-empty { color: var(--faint); font-size: var(--text-control); padding: var(--space-16) var(--space-8); }
+.table-purpose { display: block; width: min(100%, var(--measure)); margin-top: var(--space-8); padding: var(--space-4) 0; border: 0; border-bottom: var(--rule-width) solid transparent; background: transparent; color: var(--muted); font: var(--text-control) / var(--line-control) var(--font-body); }
+.table-purpose:hover { border-bottom-color: var(--line); }
+.table-purpose:focus { border-bottom-color: var(--accent); outline: none; }
+.table-purpose::placeholder { color: var(--faint); }
+.table-resize { position: absolute; top: 0; right: 0; width: var(--space-8); height: 100%; cursor: col-resize; touch-action: none; }
+.table-resize:hover { background: var(--selection); }
+.table-sort-priority { color: var(--faint); font: var(--apparatus); }
+.table-columns-popup .input { width: 100%; }
+.table-column-choice { display: flex; align-items: center; gap: var(--space-8); padding: var(--space-4) var(--space-8); }
+.table-card-field-name { margin-right: var(--space-8); color: var(--faint); font: var(--apparatus); }
+.table-grid tr[hidden], .table-cards article[hidden] { display: none; }
 .table-cards { display: none; border-top: var(--rule-width) solid var(--line); }
 .table-card { position: relative; padding: var(--card-padding); border-bottom: var(--rule-width) solid var(--line); }
 .table-card.selected { background: var(--selection); box-shadow: inset var(--space-2) 0 var(--accent); }
@@ -127,11 +138,13 @@
   .table-pane { --table-dock-clearance: calc(var(--space-48) - var(--space-4) + var(--space-12) + var(--rule-width) + var(--space-12) + var(--bottom-inset)); padding-bottom: var(--table-dock-clearance); }
   .table-grid { display: none; }
   .table-cards { display: block; }
+  .table-header { flex-direction: column; gap: var(--space-8); }
+  .table-heading { width: 100%; }
   .table-toolbar .table-search { width: 100%; min-height: calc(var(--space-48) - var(--space-4)); font-size: var(--text-body); }
   .table-query-controls { position: fixed; left: var(--space-24); right: var(--space-24); bottom: calc(var(--bottom-nav-height) + var(--bottom-inset) + var(--space-12)); z-index: 5; border-top: var(--rule-width) solid var(--line); background: var(--canvas); padding-top: var(--space-12); }
   .table-query-controls > .button { flex: 1; justify-content: center; margin: 0; }
   .table-card-title.button { font-size: calc(var(--text-h2) + var(--space-2)); }
-  .table-view-status { padding-top: var(--space-24); font-size: var(--text-apparatus); }
+  .table-view-status { padding-top: 0; font-size: var(--text-apparatus); }
   .table-scroll { overflow-x: hidden; }
   .table-filter-sheet { top: auto !important; bottom: calc(var(--bottom-nav-height, 56px) + var(--bottom-inset)); max-height: calc(85dvh - var(--bottom-nav-height, 56px) - var(--bottom-inset)) !important; padding-bottom: var(--space-16); }
   .table-filter-sheet .button, .table-filter-input { min-height: calc(var(--space-48) - var(--space-4)); }

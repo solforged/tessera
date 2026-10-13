@@ -250,6 +250,8 @@ Grouping uses `group: {key, collapsed?}` and returns distinct row IDs and counts
 
 A view is a saved query with a name and a revision. Views are not blocks; saving and deleting them are operations like any other, so they are attributed and undoable. A type table is the unsaved query for that type's members.
 
+The query also carries its view recipe: ordered columns with widths, sort keys in priority order, grouping with collapsed heading keys, phone card fields and a one-line purpose. Saving, reopening and undoing a saved view keep the recipe with the query. Attributes are read-only cells; ordinary fields on entity blocks use the same value blocks and document history as the outline.
+
 ## Tasks
 
 A task capability adds status (todo, doing, waiting, done, canceled), scheduled and deadline dates with optional times, warning lead, repeater and priority. Dates are local civil dates; times are `HH:MM` labels, not timestamps. Scheduling after a deadline is valid. Removing the capability deactivates it without erasing its history.

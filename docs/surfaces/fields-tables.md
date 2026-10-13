@@ -91,13 +91,13 @@ For a position, Add field begins with From this recipe: missing Gist, Work, then
 
 ## Tables and views
 
-A table is a query shown as rows: a type's members or a saved view.
+A table is a query shown as rows. New view… in the sidebar or Commands asks for Notes, Questions, Positions, Sources, Tasks or Highlights first. The first toolbar chip names the source and changes it. Existing type tables and note views keep their scope.
 
 ### Register and header
 
 The heading, mode strip, toolbar, grid and footer share a centered 984 px register (`--measure + --apparatus-width - --space-16`). It widens only when the visible fields need more room and never exceeds the pane's inset width. They keep one left edge rather than centering a narrower heading inside a wider grid. A many-column grid scrolls horizontally inside that register with the title held at the left.
 
-The type and Register sit in quiet apparatus above a Piazzolla view name. Its menu lists All members of the type and its saved views, then Save as, Rename and Delete separately. Named views store the query only. A checkmark means the current query equals that row's query, not merely that the view is open. When it differs, the open row shows faint mono Modified; Save changes updates a saved view in one undoable edit, and Revert changes restores its saved query (or all members for an unnamed table). The footer offers Undo after saving; ⌘Z and ⌘⇧Z also undo and redo the update. Switching views keeps pane-local presentation.
+The type and Register sit in quiet apparatus above a Piazzolla view name. Its menu lists all members of the source or type and its saved views, then Save as view…, Rename and Delete separately. A checkmark means the current query and recipe equal that row's saved query, not merely that the view is open. When they differ, the open row shows faint mono Modified; Save changes updates a saved view in one undoable edit, and Revert changes restores its saved query and recipe. The footer offers Undo after saving; ⌘Z and ⌘⇧Z also undo and redo the update. The one-line purpose under the name edits in place.
 
 A type shares `Index N`, `Table N` and `Fields N` tabs with its [index](notes.md#finding-aid) and template register. Fields switches the same pane to that type's ordered template; its type crumb opens the ordinary type page.
 
@@ -107,13 +107,17 @@ Delete view confirms that rows are not deleted unless Ask before deleting views 
 
 ### Toolbar
 
-Search rows, Filters, Sort and Columns align to the register. Applied filter and sort chips sit beneath the controls and remove with their own ×. Chips wrap on narrow panes.
+The source chip, Search rows, Filters, Sort, Group and Columns align to the register. Applied filter and numbered sort chips sit beneath the controls and remove with their own ×. Chips wrap on narrow panes. A new sort follows the existing keys rather than replacing the primary key. Its left arrow raises its priority.
 
 Filters offer conditions by kind. Choice and Instance offer **is**, **is not**, **has a value** and **is empty**; Choice selects an existing option, while Instance selects a page from the field's target types. Text, URL and Identifier also offer **contains** and **has the field**; Number and Date add **>**, **≥**, **<** and **≤**. Checkbox offers **is checked** and **is not checked**. **Has the field** means an entry exists, even blank; **has a value** means at least one authored value is nonblank, including problem readings; **is empty** means none is nonblank. Presence is offered separately on scalar kinds, not on Choice, Instance or Checkbox. Instance filters store page IDs and their chips follow current titles. A legacy unresolved instance value is marked in the picker and needs a page selection.
+
+Each picker lists the source's attributes before its fields. Holder, Subject, Parent question, Program, Creator and other instance attributes use the same page picker as instance fields. Choice attributes offer their written options. Date conditions offer Today, 30 days ago, A week from now or a written date. Before and After also offer Or empty. Relative dates stay relative in saved views.
 
 Choice sorts follow the options' order on the field page, first option first when ascending. Problem values follow all options and empty values come last in either direction. Instance fields sort by their target titles, not authored reference labels.
 
 Span sorts compare start year, then end year. Open starts sort first and open ends last among equal starts. Unreadable and empty values follow readable spans. Span filters offer overlaps, before and after; overlap includes both boundary years. Cells keep the authored notation.
+
+Group offers attributes and fields. A heading shows its label and distinct row count; clicking it collapses or reopens its rows. Collapsed heading keys travel with the saved recipe.
 
 ### Grid
 
@@ -134,7 +138,7 @@ Columns past the right edge fade under the rows. `+N ›` at the header's end co
 
 ### Editing
 
-Enter or double-click edits a single plain text, number, URL or identifier value inline. A cell with one value or none of kind choice, instance or date opens that kind's [value editor](../design.md#field-entries) on the cell, and a checkbox cell toggles on click or Space, keeping focus. Editing a missing field creates its entry on that note; choosing an option writes a reference to that option, as in `Field:: [[option]]`. This works for non-template columns too. Pills follow the outline: a choice pill opens its options, an instance pill opens its page, and Shift opens either beside. Cells with several values open the field's source outline beside the table.
+Enter or double-click edits a single plain text, number, URL or identifier value inline. A cell with one value or none of kind choice, instance or date opens that kind's [value editor](../design.md#field-entries) on the cell, and a checkbox cell toggles on click or Space, keeping focus. Editing a missing field creates its entry on that owner, including a position, question or highlight block. Choosing an option writes a reference to that option, as in `Field:: [[option]]`. This works for non-template columns too. Pills follow the outline: a choice pill opens its options, an instance pill opens its page, and Shift opens either beside. Cells with several values open the field's source outline beside the table. Attribute cells are read-only.
 
 Inline text editors keep authored line breaks. Shift-Enter adds a newline; Enter commits the value.
 
@@ -146,9 +150,11 @@ Cell focus follows the member and field, whether a note or a tagged block, so an
 
 Columns start with the type template's fields, then fields present on all members of the type or the view's base membership, including blank entries. Search rows, filter predicates and pagination never remove or reorder these columns. Field-only views use owners of any named filter field as their base membership. Fields used by filters remain available even when every value is empty.
 
-Columns hides or restores fields and derived Refs, and sets the sticky title width from 170 to 340 px (240 by default). Visibility, title width and horizontal scroll belong to pane history and survive back/forward and reload. They do not change the saved query or type template. Visible fields also determine card priorities.
+Columns hides or restores attributes, fields and derived Refs. Title only starts a compact selection. Find columns narrows the choices without changing the recipe. Column headers drag into order; their menus also offer Move left and Move right. Dragging a header's edge resizes it. The sticky title stays first and is 170 to 340 px wide, 240 by default. Chosen columns and widths belong to the query recipe and never change the type template. Search and filtering retain them. Older views without a recipe start with their existing pane-local visibility.
 
-Column menus contain sort, filter and hide. Edit field opens kind/template operations separately. Add field to type template and Open type template remain explicit actions.
+Derived Refs sit beside their visible backing field. Hiding the field also hides its Refs. The separate Refs toggle stays pane-local and is never a saved column key.
+
+Column menus contain sort, filter and hide. Edit field opens the field page and its reviewed kind-change map. Remove from template is separate. Add field to type template and Open type template remain explicit actions.
 
 ### Footer
 
@@ -158,19 +164,19 @@ Queries page by a zero-based offset with block ID as the deterministic ordering 
 
 ### Empty states
 
-Only a result with no members of either kind shows `No members.` once. A block-only register is populated, not an empty note section.
+An empty result names the source and the conditions that excluded its rows. Clear filters removes search, field and link conditions without dropping the chosen columns, sorts or grouping. A source with no rows and no conditions says that it has none yet.
 
 ### Opening and selection
 
 | Input or layout | Behavior |
 | --- | --- |
-| Desktop title click or Enter | Opens the note or the tagged block in its containing page; Shift opens beside. |
+| Desktop title click or Enter | Opens the entity in its original place; a position opens its dossier, a question its block and a highlight its passage. Shift opens beside. |
 | Selected row | Gilt left bar and an explicit open-beside affordance. |
 | Coarse pointer at least 900 px wide | A row tap opens the canonical note or block beside by default. |
 | Narrow table pane on that unfolded screen | Becomes a touch-sized row list while keeping its query controls. |
 
 ### Cover cards
 
-On coarse pointers below 600 px, cards replace the grid without lateral scrolling. Notes and tagged blocks share the same ordered list, with the counted apparatus divider only for mixed membership. Each shows its title (and `in <page title>` beneath a block title), the first visible non-empty choice and Source or first reference, falling back to other visible values when absent, plus the derived refs count. Field taps open their canonical entries; refs open the destination list.
+On coarse pointers below 600 px, cards replace the grid without lateral scrolling. Notes and tagged blocks share the same ordered list, with the counted apparatus divider only for mixed membership. Each shows its title and `in <page title>` beneath a block title. Columns also chooses Phone card fields, which keep their labels; every sort field is always included. A view without a card recipe uses the first visible non-empty choice and Source or first reference, falling back to other visible values. Field taps open their canonical entries; refs open the destination list. Group headings and collapsed state stay the same as on the grid.
 
-Filters, Sort and Columns form a bottom toolbar above the nav and bottom inset. Filters uses a sheet with 44 px targets and an explicit Apply. Draft selections leave the rows and totals unchanged; saving the named view remains separate.
+Filters, Sort, Group and Columns form a bottom toolbar above the nav and bottom inset. Filters uses a sheet with 44 px targets and an explicit Apply. Draft selections leave the rows and totals unchanged; saving the named view remains separate. Saving and reopening restore columns, widths, sort priority, grouping, collapsed headings, card fields and purpose, including after a reload.

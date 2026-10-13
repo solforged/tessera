@@ -23,14 +23,32 @@ export function FilterPopup(props: { anchor: HTMLElement; fields: readonly Field
   const resolvedInitial = !!initialValue && /^[0-9A-HJKMNP-TV-Z]{26}$/i.test(initialValue);
   const [query, setQuery] = createSignal(initial?.kind === 'checkbox' ? '' : initialIdentity && resolvedInitial ? props.notebook.lookup(initialValue!)()?.text ?? '' : initialValue ?? '');
   const [draftValue, setDraftValue] = createSignal<string | null | undefined>(initialIdentity && !resolvedInitial ? undefined : initialValue);
+  const [orEmpty, setOrEmpty] = createSignal(props.initialFilter?.or_empty ?? false);
   const [busy, setBusy] = createSignal(false); const [error, setError] = createSignal('');
   const step = () => !field() ? 'field' : !op() || op() === 'present' || op() === 'set' || op() === 'empty' || definition()?.kind === 'checkbox' ? 'op' : 'value';
   const definition = () => props.fields.find(candidate => candidate.id === field()?.id);
   const needle = () => query().trim().toLocaleLowerCase();
   const identity = () => definition()?.kind === 'instance' && (op() === 'is' || op() === 'is_not');
   const unresolved = () => initialIdentity && !resolvedInitial && draftValue() === undefined && query() === initialValue ? `Unresolved value “${initialValue}”. Choose a page.` : '';
-  const [pages] = createResource(() => identity() && [definition()!, props.notebook.changeSequence()] as const, ([field]) => instancePages(props.notebook, field.targets));
-  const [names] = createResource(() => identity() && pages() ? { pages: pages()!, query: query() } : false, ({ pages, query }) => completeNames(props.notebook, query, pages));
+  const [pages] = createResource(() => identity() && [definition()!, props.notebook.changeSequence()] as const, async ([field]) => {
+    if (field.id === '@parent' || field.id === '@program' || field.id === '@subject') {
+      const questions = await props.notebook.api.questions({ include_inline: true });
+      const candidates = questions.filter(row => field.id !== '@program' || !row.info.parent_id).map(row => row.block.block);
+      return field.id === '@subject' ? [...await instancePages(props.notebook, []), ...candidates.filter(block => block.kind === 'block')] : candidates;
+    }
+    if (field.id === '@page') return props.notebook.roots().filter(block => !block.archived);
+    if (field.id === '@project') {
+      const projects = await props.notebook.api.projects();
+      return Promise.all(projects.map(project => props.notebook.api.block(project.block_id)));
+    }
+    return instancePages(props.notebook, field.targets);
+  });
+  const [names] = createResource(() => identity() && pages() ? { pages: pages()!, query: query() } : false, async ({ pages, query }) => {
+    const names = await completeNames(props.notebook, query, pages);
+    const other = pages.filter(block => block.kind !== 'page');
+    const matches = query.trim() && other.length ? new Set((await props.notebook.api.search(query, 100)).map(row => row.block.id)) : null;
+    return { ...names, rows: [...names.rows, ...other.filter(block => !matches || matches.has(block.id)).map(page => ({ page, alias: null }))] };
+  });
   const valueError = createMemo(() => identity() && (pages.error || names.error) ? 'Could not load matching pages.' : '');
   const rows = createMemo((): FilterRow[] => {
     if (step() === 'field') {
@@ -41,8 +59,13 @@ export function FilterPopup(props: { anchor: HTMLElement; fields: readonly Field
     if (step() === 'op') return filterOperators(definition()?.kind).filter(candidate => filterOperatorLabel(candidate, definition()?.kind).includes(needle())).map(candidate => ({ kind: 'op', op: candidate }));
     if (identity()) return (names()?.rows ?? []).map(match => ({ kind: 'value', value: match.page.id, label: match.alias ? `${match.alias} · ${match.page.text}` : match.page.text }));
     const options = definition()?.options ?? [];
-    const choices = options.filter(option => option.text.toLocaleLowerCase().includes(needle())).map((option): FilterRow => ({ kind: 'value', value: option.text, label: option.text }));
+    const choices = options.filter(option => option.text.toLocaleLowerCase().includes(needle())).map((option): FilterRow => ({ kind: 'value', value: definition()?.id.startsWith('@') ? option.id : option.text, label: option.text }));
     if (definition()?.kind === 'choice') return choices;
+    if (definition()?.kind === 'date') {
+      const dates = [{ value: 'today', label: 'Today' }, { value: '-30d', label: '30 days ago' }, { value: '+7d', label: 'A week from now' }].filter(value => value.label.toLocaleLowerCase().includes(needle())).map((value): FilterRow => ({ kind: 'value', ...value }));
+      if (query().trim()) dates.push({ kind: 'value', value: query().trim(), label: `Date: ${query().trim()}` });
+      return dates;
+    }
     const unchanged = props.initialFilter?.value === query();
     const typed = unchanged ? query() : query().trim();
     return (typed || unchanged) && !options.some(option => option.text === typed) ? [...choices, { kind: 'value', value: typed, label: `“${typed}”` }] : choices;
@@ -53,7 +76,7 @@ export function FilterPopup(props: { anchor: HTMLElement; fields: readonly Field
       const chosen = field()!;
       const id = chosen.id ?? await props.onNewField?.(chosen.name);
       if (!id) throw new Error('Choose a field.');
-      props.onAdd({ field: id, op: op()!, value });
+      props.onAdd({ field: id, op: op()!, value, ...(orEmpty() && definition()?.kind === 'date' && (op() === 'lt' || op() === 'gt') ? { or_empty: true } : {}) });
     } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setBusy(false); }
   };
@@ -72,6 +95,7 @@ export function FilterPopup(props: { anchor: HTMLElement; fields: readonly Field
   return <Show when={props.sheet} fallback={<Picker<FilterRow> anchor={props.anchor} width={320} label={props.label ?? (props.initialFilter ? 'Edit condition' : 'Add filter')} onDismiss={props.onDismiss}
     query={query()} onQuery={setQuery} placeholder={placeholder()}
     prefix={<><Show when={field()}>{chosen => <span class="table-chip">{chosen().name}</span>}</Show><Show when={op()}>{chosen => <span class="table-chip">{filterOperatorLabel(chosen(), definition()?.kind)}</span>}</Show><Show when={unresolved()}><span class="table-chip">{unresolved()}</span></Show></>}
+    status={<Show when={definition()?.kind === 'date' && (op() === 'lt' || op() === 'gt')}><label class="table-column-choice"><input type="checkbox" checked={orEmpty()} onChange={event => setOrEmpty(event.currentTarget.checked)} />Or empty</label></Show>}
     items={rows()} key={row => row.kind === 'field' ? row.id : row.kind === 'op' ? row.op : row.kind === 'value' ? row.value : 'new'}
     initial={props.initialFilter ? Math.max(0, rows().findIndex(row => row.kind === 'value' ? row.value === props.initialFilter!.value : row.kind === 'op' && row.op === props.initialFilter!.op)) : undefined}
     onPick={pick}
@@ -98,6 +122,7 @@ export function FilterPopup(props: { anchor: HTMLElement; fields: readonly Field
           <span>{row.kind === 'field' ? row.name : row.kind === 'new-field' ? `New field “${row.name}”` : row.kind === 'op' ? filterOperatorLabel(row.op, definition()?.kind) : row.label}</span><Show when={row.kind === 'value' && draftValue() === row.value}><Icon name="check" /></Show>
         </Button>}</For>
       </div>
+      <Show when={definition()?.kind === 'date' && (op() === 'lt' || op() === 'gt')}><label class="table-column-choice"><input type="checkbox" checked={orEmpty()} onChange={event => setOrEmpty(event.currentTarget.checked)} />Or empty</label></Show>
       <Show when={unresolved()}><p class="field-note">{unresolved()}</p></Show>
       <Show when={valueError()}><p class="error" role="alert">{valueError()}</p></Show>
       <Show when={error()}><p class="error" role="alert">{error()}</p></Show>

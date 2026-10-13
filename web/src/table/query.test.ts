@@ -1,17 +1,18 @@
 import { describe, expect, test } from 'bun:test';
 import { addFilter, chooseSort, copyQuery, fieldEntryId, fieldEntryText, filterLabel, filterOperatorLabel, filterOperators, matchFieldEntry, queriesEqual, removeFilter, removeSort, typeQuery } from './query';
+import { attributeDefinitions } from './attributes';
 import type { FieldDefinition } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 
 describe('query edits', () => {
-  test('sort choice adds first, replaces without duplicates, and flips direction', () => {
+  test('sort choice keeps the first key primary and flips in place without duplicates', () => {
     const initial = typeQuery('books');
     const title = chooseSort(initial, { by: 'title', field: null });
     const author = chooseSort(title, { by: 'field', field: 'author' });
-    expect(author.sort).toEqual([{ by: 'field', field: 'author', direction: 'asc' }, { by: 'title', field: null, direction: 'asc' }]);
+    expect(author.sort).toEqual([{ by: 'title', field: null, direction: 'asc' }, { by: 'field', field: 'author', direction: 'asc' }]);
     expect(chooseSort(author, { by: 'title', field: null }).sort).toEqual([{ by: 'title', field: null, direction: 'desc' }, { by: 'field', field: 'author', direction: 'asc' }]);
     expect(chooseSort(author, { by: 'field', field: 'author' }, 'asc').sort).toEqual(author.sort);
-    expect(removeSort(author, 0).sort).toEqual(title.sort);
+    expect(removeSort(author, 1).sort).toEqual(title.sort);
     expect(initial.sort).toEqual([]);
   });
   test('filter edits preserve exact order and do not mutate inputs', () => {
@@ -32,6 +33,11 @@ describe('query edits', () => {
     expect(filterLabel(filter, fields, notebook)).toBe('Author is Aristotle QA');
     expect(filter.value).toBe('person-id');
     expect(filterLabel({ ...filter, op: 'contains', value: 'Aristotle' }, fields, notebook)).toBe('Author contains Aristotle');
+  });
+  test('attribute choices show names while preserving their query identities', () => {
+    const fields: FieldDefinition[] = [{ id: '@kind', name: 'Kind', kind: 'choice', revision: 0, options: [{ id: 'type:books', text: 'Book' }], targets: [] }];
+    expect(filterLabel({ field: '@kind', op: 'is', value: 'type:books' }, fields, {} as NotebookClient)).toBe('Kind is Book');
+    expect(attributeDefinitions('tasks').find(field => field.id === '@status')?.options.map(option => option.id)).toEqual(['todo', 'doing', 'waiting', 'done', 'cancelled']);
   });
   test('filter operators follow field kinds and distinguish presence from values', () => {
     for (const kind of ['choice', 'instance'] as const) {
@@ -69,6 +75,16 @@ describe('query edits', () => {
     const secondary = chooseSort(query, { by: 'updated', field: null });
     expect(queriesEqual(secondary, { ...secondary, sort: [...secondary.sort].reverse() })).toBe(false);
     expect(queriesEqual(query, chooseSort(query, { by: 'title', field: null }))).toBe(false);
+  });
+  test('recipes copy independently and equality includes every saved presentation setting', () => {
+    const query = { ...typeQuery(null), source: 'positions' as const, columns: [{ key: '@title', width: 240 }, { key: 'gist', width: 320 }], group: { key: '@subject', collapsed: ['anacyclosis'] }, card: ['gist'], purpose: 'Read Aristotle by concept.', filters: [{ field: '@last_assessed', op: 'lt' as const, value: '-30d', or_empty: true }] };
+    const copied = copyQuery(query);
+    expect(queriesEqual(query, copied)).toBe(true);
+    for (const difference of [{ source: 'notes' as const }, { purpose: '' }, { columns: [...query.columns].reverse() }, { group: { key: '@subject', collapsed: [] } }, { card: [] }, { filters: [{ ...query.filters[0]!, or_empty: false }] }]) expect(queriesEqual(query, { ...copied, ...difference })).toBe(false);
+    copied.columns![1]!.width = 400; copied.group!.collapsed!.push('other'); copied.card!.push('work');
+    expect(query.columns[1]!.width).toBe(320);
+    expect(query.group.collapsed).toEqual(['anacyclosis']);
+    expect(query.card).toEqual(['gist']);
   });
 });
 describe('field entry input rule', () => {

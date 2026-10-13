@@ -1,4 +1,4 @@
-import type { CrossReference, KindIndex, NoteEntry, NoteSummary, Operation } from '../api/types';
+import type { CrossReference, Filter, KindIndex, NoteEntry, NoteSummary, Operation } from '../api/types';
 import { foldName } from '../outline/names';
 
 export type FindingAidEntry =
@@ -58,5 +58,11 @@ export function parseNoteFind(text: string) {
   const plain = text.replace(/\b(links|from|cites):(?:"([^"]*)"|([^\s"]+))/g, (raw, key: NotePredicate, quoted: string | undefined, bare: string | undefined) => {
     terms.push({ key, value: quoted ?? bare ?? '', raw }); return '';
   }).trim();
-  return { terms, text: plain };
+  const filters: { filter: Filter; raw: string }[] = [];
+  const words = plain.replace(/\b(is:resolved|revisit:(?:due|set|none))\b/g, raw => {
+    const filter: Filter = raw === 'is:resolved' ? { field: '@resolved', op: 'is', value: 'true' }
+      : { field: '@revisit', op: raw === 'revisit:due' ? 'lte' : raw === 'revisit:set' ? 'set' : 'empty', value: raw === 'revisit:due' ? 'today' : null };
+    filters.push({ filter, raw }); return '';
+  }).trim();
+  return { terms, filters, text: words };
 }

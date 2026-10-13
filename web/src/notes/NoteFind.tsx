@@ -37,8 +37,9 @@ export function NoteFind(props: { query: Query; plural: string; notebook: Notebo
   const commit = async (text: string) => {
     const token = ++generation;
     const parsed = parseNoteFind(text);
-    let next = { ...props.query, text: parsed.text || null, offset: 0 };
+    let next = { ...props.query, text: parsed.text || null, offset: 0, filters: [...props.query.filters, ...parsed.filters.map(term => term.filter).filter(filter => !props.query.filters.some(existing => existing.field === filter.field && existing.op === filter.op && existing.value === filter.value))] };
     let remaining = text;
+    for (const term of parsed.filters) remaining = remaining.replace(term.raw, '').trim();
     let missing = '';
     for (const term of parsed.terms) {
       const matches = await props.notebook.api.resolveName(term.value);
@@ -71,12 +72,12 @@ export function NoteFind(props: { query: Query; plural: string; notebook: Notebo
   const input = (text: string) => {
     generation++; setDraft(text); setProblem('');
     // Plain words filter immediately; colon terms resolve when completed or submitted.
-    if (!/\b(links|from|cites):/.test(text)) props.onChange({ ...props.query, text: text.trim() || null, offset: 0 });
-    else if (parseNoteFind(text).terms.length && (/"\s*$/.test(text) || /\s$/.test(text))) void commit(text).catch(reason => setProblem(String(reason)));
+    if (!/\b(links|from|cites|is|revisit):/.test(text)) props.onChange({ ...props.query, text: text.trim() || null, offset: 0 });
+    else if ((parseNoteFind(text).terms.length || parseNoteFind(text).filters.length) && (/"\s*$/.test(text) || /\s$/.test(text))) void commit(text).catch(reason => setProblem(String(reason)));
   };
   return <div class="note-find">
     <div class="note-find-line"><div class="note-find-input">
-      <input class="input" aria-label={`Find in ${props.plural}`} placeholder={`Find in ${props.plural}…`} value={draft()} onFocus={() => setFocused(true)} onBlur={() => { setFocused(false); if (/\b(links|from|cites):/.test(draft())) void commit(draft()).catch(reason => setProblem(String(reason))); }} onInput={event => input(event.currentTarget.value)} onKeyDown={event => {
+      <input class="input" aria-label={`Find in ${props.plural}`} placeholder={`Find in ${props.plural}…`} value={draft()} onFocus={() => setFocused(true)} onBlur={() => { setFocused(false); if (/\b(links|from|cites|is|revisit):/.test(draft())) void commit(draft()).catch(reason => setProblem(String(reason))); }} onInput={event => input(event.currentTarget.value)} onKeyDown={event => {
         if (event.key === 'Enter') { event.preventDefault(); void commit(draft()).catch(reason => setProblem(String(reason))); }
         if (event.key === 'Escape') setFocused(false);
       }} />
