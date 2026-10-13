@@ -121,7 +121,7 @@ function KindIndexPane(props: IndexPaneProps) {
   const [saveAnchor, setSaveAnchor] = createSignal<HTMLElement>();
   const [viewName, setViewName] = createSignal('');
   const [picked, setPicked] = createSignal<string[]>([]);
-  let selectionAnchor: string | undefined;
+  let pickAnchor: string | undefined;
   const noteMode = () => props.kindKey !== 'unfiled';
   const grouping = () => query().note_view?.grouping ?? 'letter';
   const report = (next = query()) => props.onViewChange({ scroll: scroll?.scrollTop ?? 0, noteQuery: copyQuery(next), viewId: props.view.viewId });
@@ -152,10 +152,10 @@ function KindIndexPane(props: IndexPaneProps) {
   });
   const toggleSelection = (id: string, extend: boolean) => {
     const order = [...new Set(groups().flatMap(group => group.entries.flatMap(entry => entry.kind === 'note' ? [entry.note.id] : [])))];
-    if (extend && selectionAnchor && order.includes(selectionAnchor)) {
-      const from = order.indexOf(selectionAnchor); const to = order.indexOf(id);
+    if (extend && pickAnchor && order.includes(pickAnchor)) {
+      const from = order.indexOf(pickAnchor); const to = order.indexOf(id);
       setPicked(values => [...new Set([...values, ...order.slice(Math.min(from, to), Math.max(from, to) + 1)])]);
-    } else { setPicked(values => values.includes(id) ? values.filter(value => value !== id) : [...values, id]); selectionAnchor = id; }
+    } else { setPicked(values => values.includes(id) ? values.filter(value => value !== id) : [...values, id]); pickAnchor = id; }
   };
   const selectOrOpen = (note: NoteEntry, event: MouseEvent) => {
     if (event.metaKey || event.ctrlKey || event.shiftKey) toggleSelection(note.id, event.shiftKey);
