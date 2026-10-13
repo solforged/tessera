@@ -273,7 +273,7 @@ A block already shown as a highlight is not repeated among the note results. Oth
 | Books | Actual percentage and highlight count |
 | Pages | Case-insensitive exact title comes first, including a locally created page not yet in server search, and suppresses Create page |
 
-At wide widths the finder has equal index and preview halves: page titles with their first lines, or a passage between its neighbors with highlight ranges and every search term marked.
+At wide widths the finder has equal index and preview halves: page titles with their first lines; block matches in their full surrounding outline, with ancestors dimmed, the target highlighted and scrolled into view; or a passage between its neighbors with highlight ranges and every search term marked. Block previews scroll their outline independently of the page title and opening keys.
 
 On the touch cover Find and Commands occupy the keyboard-resized visual viewport, with results growing upward from the bottom field, the best match nearest the thumb and Cancel at the right. Find puts scope chips immediately above the field. The writing pane also fits this viewport and reveals the active caret; Agenda capture stays above the keyboard, and date pickers keep their actions visible while their body scrolls.
 

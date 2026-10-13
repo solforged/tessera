@@ -1,8 +1,9 @@
 import { createEffect, createMemo, createResource, createSignal, For, onCleanup, Show } from 'solid-js';
 import { api } from '../api/client';
-import type { Block, BlockInPage, Citation, HighlightRow, LibraryRow, PassageHit, PassagePage, SourceView } from '../api/types';
+import type { Block, BlockInPage, Citation, HighlightRow, LibraryRow, PageView, PassageHit, PassagePage, SourceView } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { BlockText } from '../outline/BlockText';
+import { BlockTree, type TreeRow } from '../outline/BlockTree';
 import { cachedExactPage } from '../outline/completion';
 import { createPageIcon } from '../outline/source';
 import { Icon } from '../ui/Icon';
@@ -263,10 +264,36 @@ function MatchText(props: { text: string; query: string; snippet?: boolean }) {
 function FindPreview(props: { entry?: Entry; query: string; notebook: NotebookClient; book?: LibraryRow }) {
   const [content, setContent] = createSignal<{
     title: string; location?: string; cover?: string; lines?: string[];
-    passages?: PassagePage; citation?: Citation;
+    page?: PageView; targetId?: string; passages?: PassagePage; citation?: Citation;
   }>();
   const [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal('');
+  let body: HTMLDivElement | undefined;
+  const previewBlocks = createMemo(() => new Map(content()?.page?.rows.map(row => [row.block.id, row.block]) ?? []));
+  const outlineRows = createMemo<TreeRow[]>(() => {
+    const value = content();
+    if (!value?.page || !value.targetId) return [];
+    const ancestors = new Set<string>();
+    let parent = previewBlocks().get(value.targetId)?.parent_id;
+    while (parent && parent !== value.page.root.id && !ancestors.has(parent)) {
+      ancestors.add(parent);
+      parent = previewBlocks().get(parent)?.parent_id;
+    }
+    return value.page.rows.map(row => ({
+      id: row.block.id, depth: row.depth,
+      role: row.block.id === value.targetId ? 'focus' : ancestors.has(row.block.id) ? 'context' : 'body',
+    }));
+  });
+  createEffect(() => {
+    if (!content()?.targetId) return;
+    const frame = requestAnimationFrame(() => {
+      const target = body?.querySelector<HTMLElement>('.block-tree-row.focus');
+      if (!body || !target) return;
+      const rect = target.getBoundingClientRect();
+      body.scrollTop += rect.top - body.getBoundingClientRect().top - Math.max(0, (body.clientHeight - rect.height) / 2);
+    });
+    onCleanup(() => cancelAnimationFrame(frame));
+  });
   createEffect(() => {
     const entry = props.entry;
     setContent(undefined); setError(''); setLoading(false);
@@ -276,7 +303,11 @@ function FindPreview(props: { entry?: Entry; query: string; notebook: NotebookCl
     const load = async () => {
       if (entry.kind === 'hit' || entry.kind === 'more') {
         const page = await props.notebook.api.page(entry.kind === 'hit' ? entry.hit.page.id : entry.page.id, controller.signal);
-        return { title: page.root.text, cover: props.book?.cover ?? undefined, lines: page.rows.slice(0, 8).map(row => row.block.text) };
+        const targetId = entry.kind === 'hit' && entry.hit.block.id !== page.root.id ? entry.hit.block.id : undefined;
+        return {
+          title: page.root.text, cover: props.book?.cover ?? undefined,
+          ...(targetId ? { page, targetId } : { lines: page.rows.slice(0, 8).map(row => row.block.text) }),
+        };
       }
       const sourceId = entry.kind === 'passage' ? entry.hit.source_id : entry.row.citation.source_id;
       const snapshotId = entry.kind === 'passage' ? entry.hit.snapshot_id : entry.row.citation.snapshot_id;
@@ -301,12 +332,15 @@ function FindPreview(props: { entry?: Entry; query: string; notebook: NotebookCl
     });
     onCleanup(() => controller.abort());
   });
-  return <aside class="find-preview" aria-label="Selected result preview">
+  return <aside class="find-preview" classList={{ 'find-preview-block': !!content()?.targetId }} aria-label="Selected result preview">
     <Show when={loading()}><p class="empty-state">Loading preview…</p></Show>
     <Show when={error()}><p class="error" role="alert">{error()}</p></Show>
     <Show when={content()}>{value => <>
       <header class="find-preview-header"><Show when={value().cover}>{cover => <img src={cover()} alt="" />}</Show><div><h2>{value().title}</h2><Show when={value().location}><small>{value().location}</small></Show></div></header>
-      <div class="find-preview-prose">
+      <div ref={body} class="find-preview-prose">
+        <Show when={value().page}>
+          <BlockTree rows={outlineRows()} block={id => previewBlocks().get(id)} notebook={props.notebook} interactive={false} highlight={props.query} />
+        </Show>
         <For each={value().lines}>{line => <p><BlockText text={line} notebook={props.notebook} interactive={false} highlight={props.query} /></p>}</For>
         <Show when={value().passages}>{page => {
           const ordinals = new Map(page().passages.map(passage => [passage.id, passage.ordinal]));

@@ -41,6 +41,8 @@ export function BlockTree(props: {
   block(id: string): TreeBlock | undefined;
   notebook: NotebookClient;
   onOpen?(target: OpenTarget, beside: boolean): void;
+  interactive?: boolean;
+  highlight?: string;
   /** Pages read as prose without bullets; blocks keep their outline. */
   prose?: boolean;
   rowRef?(element: HTMLElement): void;
@@ -50,7 +52,7 @@ export function BlockTree(props: {
     return <div ref={element => props.rowRef?.(element)} class={`block-tree-row ${row.role}`} classList={{ prose: props.prose }} style={{ '--depth': row.depth }}>
       <Show when={!props.prose}><span class="block-tree-bullet" aria-hidden="true" /></Show>
       <div class="block-tree-text" classList={{ 'heading-1': block()?.heading === 1, 'heading-2': block()?.heading === 2, 'heading-3': block()?.heading === 3 }}>
-        <BlockText text={block()?.text ?? ''} blockId={row.id} notebook={props.notebook} onOpen={props.onOpen} />
+        <BlockText text={block()?.text ?? ''} blockId={props.interactive === false ? undefined : row.id} notebook={props.notebook} onOpen={props.onOpen} interactive={props.interactive} highlight={props.highlight} />
       </div>
     </div>;
   }}</For>;

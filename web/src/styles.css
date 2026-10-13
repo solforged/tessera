@@ -314,6 +314,10 @@ mark { background: var(--selection); color: var(--accent); font-weight: var(--we
 .find-preview-prose p { margin: 0 0 var(--space-12); }
 .find-highlight { box-decoration-break: clone; -webkit-box-decoration-break: clone; }
 .find-preview-keys { display: flex; flex-wrap: wrap; gap: var(--space-16); padding-block: var(--space-12); border-top: 1px solid var(--line); }
+.find-preview-block { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.find-preview-block > .find-preview-header, .find-preview-block > .find-preview-keys { flex: none; }
+.find-preview-block > .find-preview-prose { flex: 1; min-height: 0; overflow: auto; padding-inline: var(--space-4); }
+.find-preview-block .block-tree-row + .block-tree-row { margin-top: var(--space-8); }
 /* On narrow screens the finder is one index, without squeezing its preview into unreadable columns. */
 @media (max-width: 839px) {
   .palette-search { grid-template-columns: minmax(0, 1fr); }
