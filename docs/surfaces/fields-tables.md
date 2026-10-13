@@ -77,7 +77,7 @@ Under the list sits a count of the members that lack template fields and Fill mi
 
 ## Type fields tab
 
-The type's Template tab opens its field template as a third in-pane view, with the same Index, Table, Template and Cards strip. Template counts field slots, not populated fields on members; Cards counts card templates. Its bounded register lists Name, Kind and Used by in template order. Usage counts are notebook-wide distinct owners, including empty entries. Names open their field pages.
+The type's Fields tab opens its field template as a third in-pane view, with the same Index, Table, Fields and Cards strip. Fields counts the template's fields and Cards its card templates, not values or cards on members, and an empty template shows no count. Its bounded register lists Name, Kind and Used by in template order. Usage counts are notebook-wide distinct owners, including empty entries. Names open their field pages.
 
 Move up, Move down and Remove appear on hover or focus and remain visible on coarse pointers. Add field and Fill missing fields keep the type page's editing behavior. The underlined type crumb opens the ordinary type page; the global Fields register remains separate.
 
@@ -101,7 +101,7 @@ The type and Register sit in quiet apparatus above a Piazzolla view name. Its me
 
 A saved view with a detached or deleted field names the remembered field and offers Remove from view. Results pause instead of showing an empty result or a raw identifier. Removing the field clears its filters, sorts, columns, grouping and phone card references, and saves the repaired view. Undoing the field change restores the original recipe.
 
-A type shares `Index N`, `Table N`, `Template N` and `Cards N` tabs with its [index](notes.md#finding-aid) and template registers. Template switches the same pane to that type's ordered field slots; its type crumb opens the ordinary type page.
+A type shares `Index N`, `Table N`, `Fields N` and `Cards N` tabs with its [index](notes.md#finding-aid) and template registers. Fields switches the same pane to that type's ordered template; its type crumb opens the ordinary type page.
 
 ### Delete view
 

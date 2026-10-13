@@ -33,7 +33,7 @@ The Index heading opens a bounded directory in the same order, with explicit not
 
 ## Finding aid
 
-A kind opens with rubric `INDEX`, its plural in Piazzolla and a mono note tally. A type's Index, Table, Template and Cards modes share the ruled tab strip. Index and Table count matching members; Template counts field slots, and Cards counts card templates, not existing values or member cards. Template opens [that type's template](fields-tables.md#type-fields-tab), not the global register.
+A kind opens with rubric `INDEX`, its plural in Piazzolla and a mono note tally. A type's Index, Table, Fields and Cards modes share the ruled tab strip. Index and Table count matching members; Fields counts the template's fields and Cards its card templates, not values or cards on members, and an empty template shows no count. Fields opens [that type's template](fields-tables.md#type-fields-tab), not the global register.
 
 Titles sit under rubric letters with a hairline and a distinct-note count:
 
