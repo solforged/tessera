@@ -35,7 +35,7 @@ import type { DepthFilter, HiddenFieldEntry } from './visibility';
 import { CitationChip, SourceHeader } from './SourceHeader';
 import { SourceDetails } from './SourceDetails';
 import { GLOSS_FIELD, glossEntry, isGistName, isGlossName } from './gloss';
-import { positionSource as sharedPositionSource } from './perspectives';
+import { positionFields, positionSource as sharedPositionSource } from './perspectives';
 import { Apparatus } from './Apparatus';
 import { createFieldEntryConversion, createSourceFieldResets, ensureField } from './source-fields';
 import { sourceFieldName } from './source';
@@ -57,6 +57,7 @@ import { foldName, nameMenuItems, resolveName } from './names';
 import { titleTargets, typedTitles, withLinkedTitles } from './link-titles';
 import { QuestionBranches, QuestionParent } from './Questions';
 import { createCitationSources, hasCitationDetail, referenceSource } from './references';
+import { HeldReadings } from './HeldReadings';
 import './outline.css';
 
 const SpreadPane = lazy(() => import('../notes/SpreadPane').then(module => ({ default: module.SpreadPane })));
@@ -353,6 +354,8 @@ function Pane(props: OutlinePaneProps) {
   const positionSource = (id: string) => sharedPositionSource(doc, id, fieldId => definitionsById().get(fieldId)?.name);
   /** Perspectives on this page filed under it, as opposed to under a question or another subject. */
   const localPositions = createMemo(() => { let count = 0; (doc.outline as OutlineIndex).each(0, doc.outline.size(), row => { if (doc.block(row.id)?.position?.subject_id === props.pageId) count++; }); return count; });
+  const positionZoom = createMemo(() => { const id = zoom(); return id && doc.block(id)?.position ? id : null; });
+  const dossierFields = createMemo(() => positionZoom() ? positionFields(doc, positionZoom()!, id => definitionsById().get(id)?.name) : []);
   const [branches] = createResource(() => doc.root()?.question ? [props.pageId, props.notebook.changeSequence()] as const : false,
     ([parent]) => props.notebook.api.questions({ parent }));
   const branchBoundary = createMemo(() => !zoom() && doc.root()?.question
@@ -1147,8 +1150,11 @@ function Pane(props: OutlinePaneProps) {
   });
   const drag = createOutlineDrag(context);
   const { related, relatedError, apparatus, holders, linkedPages, Related, Backlinks, UnlinkedMentions, mentionsAvailable, ReferenceCount, RowRelations } = createOutlineRelated(context);
+  const holderBoundary = createMemo(() => !zoom() && related()?.heldReadings.length
+    ? ids().find(id => doc.outline.parentOf(id) === props.pageId && !!doc.block(id)?.heading) : undefined);
   const { Row, TaskSummary, QuestionSummary } = createOutlineRows(context, fieldSheet, drag, ReferenceCount, RowRelations, openValueEditor,
-    row => <Show when={branchBoundary() === row.id && !branches.error}><QuestionBranches rows={branches() ?? []} notebook={props.notebook} onOpen={props.onOpen} /></Show>);
+    row => <><Show when={branchBoundary() === row.id && !branches.error}><QuestionBranches rows={branches() ?? []} notebook={props.notebook} onOpen={props.onOpen} /></Show>
+      <Show when={holderBoundary() === row.id}><HeldReadings rows={related()?.heldReadings ?? []} notebook={props.notebook} onOpen={props.onOpen} /></Show></>);
   const { CapabilityPopups } = createCapabilityPopups(context);
   const projectSummary = createProjectSummary({ doc, notebook: props.notebook, date: contextDate, onOpen: props.onOpen, onEdit: anchor => capabilities.open(props.pageId, 'project', anchor) });
 
@@ -1371,7 +1377,17 @@ function Pane(props: OutlinePaneProps) {
     <div ref={heading} class="outline-heading">
       <Show when={zoom()}><nav class="outline-breadcrumbs" aria-label="Zoom breadcrumbs"><button type="button" onClick={() => zoomTo(null)}>{doc.root()?.text}</button><For each={breadcrumbs()}>{id => <><Icon name="right" /><button type="button" onClick={() => zoomTo(id)}>{plainText(doc.block(id)?.text ?? '', reference => props.notebook.lookup(reference)) || 'Empty block'}</button></>}</For></nav></Show>
       <Show when={isNote()}><NoteEyebrow pageId={props.pageId} notebook={props.notebook} onOpen={props.onOpen} /></Show>
-      <Show when={!zoom() || !doc.root()?.source || renaming()}>
+      <Show when={positionZoom()}>{id => <div class="position-dossier">
+        <h1><BlockText text={`[[${doc.block(id())?.position?.holder_id ?? ''}]]`} notebook={props.notebook} onOpen={props.onOpen} />
+          <Show when={dossierFields().find(field => isGistName(field.name))?.value}>{gist => <> · <BlockText text={gist()} notebook={props.notebook} onOpen={props.onOpen} /></>}</Show>
+        </h1>
+        <Show when={dossierFields().find(field => field.name.trim().toLowerCase() === 'work')?.value}>{work => <div class="dossier-work"><BlockText text={work()} notebook={props.notebook} onOpen={props.onOpen} /></div>}</Show>
+        <Show when={doc.block(id())?.position?.subject_id}>{subject => <div class="dossier-subject">on <Button onClick={event => {
+          const block = props.notebook.lookup(subject())();
+          if (block) props.onOpen({ kind: 'page', pageId: block.page_id, ...(block.kind === 'block' ? { blockId: block.id } : {}) }, event.shiftKey);
+        }}><span><BlockText text={props.notebook.lookup(subject())()?.text ?? 'Loading subject…'} notebook={props.notebook} interactive={false} /></span></Button></div>}</Show>
+      </div>}</Show>
+      <Show when={!positionZoom() && (!zoom() || !doc.root()?.source || renaming())}>
       <div class="outline-title-row">
       <Show when={renaming()} fallback={<h1><button class="outline-title" type="button" disabled={doc.root()?.kind !== 'page'} onClick={rename}>{doc.root()?.text || 'Loading…'}</button></h1>}>
         <input ref={titleInput} class="title-input" aria-label="Page title" value={title()} onInput={event => setTitle(event.currentTarget.value)} onKeyDown={event => { if (event.isComposing) return; if (event.key === 'Enter') { event.preventDefault(); commitTitle(); } if (event.key === 'Escape') { event.preventDefault(); closeTitle(); } }} />
@@ -1392,12 +1408,12 @@ function Pane(props: OutlinePaneProps) {
       <Show when={!zoom() && doc.root()?.kind === 'page' && !doc.root()?.source && doc.root()?.text.toLowerCase() !== 'fields' && !type.error && type()}>{value => <Show when={value().members || value().fields.length || startingTemplateFor(value().page.text, value().fields)}>
         <TemplateEditor type={value()} fields={definitions()} notebook={props.notebook} onError={setMessage} />
       </Show>}</Show>
-      <Show when={doc.root()?.source}><SourceHeader doc={doc} notebook={props.notebook} resetItems={sourceResets} onOpen={props.onOpen} onError={setMessage} onDelete={props.onDelete}
+      <Show when={doc.root()?.source && !positionZoom()}><SourceHeader doc={doc} notebook={props.notebook} resetItems={sourceResets} onOpen={props.onOpen} onError={setMessage} onDelete={props.onDelete}
         fields={definitions()} compact={!!zoom()} ready={sourceReady()} onReady={setSourceHeaderReady} onEditDetails={() => setSourceDetailsOpen(true)}
         highlights={zoom() || sourceHighlights.error ? undefined : sourceHighlights()} colors={sourceColors()} onColors={setSourceColors} grouped={sourceGrouped()} onGrouped={setSourceGrouped} fieldsVisible={sourceFieldsVisible()} onFieldsVisible={visible => { setSourceFieldsVisible(visible); scheduleReport(); }} /></Show>
       <Show when={doc.root()?.templateCards}><CardSummary blockId={props.pageId} cards={[]} templateCount={doc.root()?.templateCards ?? 0} notebook={props.notebook} onOpen={props.onOpen} /></Show>
       <Show when={!zoom()}><projectSummary.Summary /></Show>
-      <Show when={doc.root()?.task || doc.root()?.question || doc.root()?.citations.length}><div class="outline-root-capabilities outline-capability-metadata">
+      <Show when={!zoom() && (doc.root()?.task || doc.root()?.question || doc.root()?.citations.length)}><div class="outline-root-capabilities outline-capability-metadata">
         <Show when={doc.root()?.task}>
           <TaskStatusButton task={doc.root()?.task ?? null} disabled={capabilities.busy(props.pageId)} onRestoreFocus={restoreFocus} onChange={status => capabilities.status(props.pageId, status)} />
           <TaskSummary id={props.pageId} />
@@ -1424,6 +1440,7 @@ function Pane(props: OutlinePaneProps) {
       <fieldSheet.FieldSlots id={props.pageId} />
       <Show when={!zoom() && doc.root()?.spread}><SpreadPane doc={doc} notebook={props.notebook} onActivate={props.onActivate} onOpen={props.onOpen} /></Show>
     </div>
+    <Show when={!zoom() && !ids().length && related()?.heldReadings.length}><HeldReadings rows={related()?.heldReadings ?? []} notebook={props.notebook} onOpen={props.onOpen} /></Show>
     <div ref={list} class="outline-list" style={{ height: `${listHeight()}px` }}>
       <Show when={drag.indicator()}>{drop => <div class="outline-drop-indicator" aria-hidden="true" data-drop-depth={drop().depth - baseDepth()} data-drop-edge={drop().edge} style={{ top: `${drop().top}px`, left: `${drop().left}px` }} />}</Show>
       <For each={foldGroups().before}>{id => <Row id={id} item={() => virtualItems().get(id)!} />}</For>
@@ -1437,6 +1454,7 @@ function Pane(props: OutlinePaneProps) {
         <Show keyed when={editing() && virtualItems().has(editing()!) ? editing() : null}>{id => <Row id={id} item={() => virtualItems().get(id)!} />}</Show>
       </div>
     </div>
+    <Show when={!zoom() && ids().length && !holderBoundary() && related()?.heldReadings.length}><HeldReadings rows={related()?.heldReadings ?? []} notebook={props.notebook} onOpen={props.onOpen} /></Show>
     <Show when={!zoom() && doc.root()?.question}>
       <Show when={branches.error}><p class="error" role="alert">Couldn’t load branches · {String(branches.error)}</p></Show>
       <Show when={!branchBoundary() && !branches.error}><QuestionBranches rows={branches() ?? []} notebook={props.notebook} onOpen={props.onOpen} /></Show>
@@ -1455,14 +1473,14 @@ function Pane(props: OutlinePaneProps) {
     <Show when={doc.status() === 'ready' && !zoom() && related()?.works.length}><PersonWorks pageId={props.pageId} rows={related()!.works} onOpen={props.onOpen} /></Show>
     <Show when={!zoom()}><projectSummary.LinkedTasks /></Show>
     <Show when={doc.status() === 'ready' && !zoom() && (doc.root()?.project || doc.root()?.manual_types.some(title => title.toLocaleLowerCase() === 'stream'))}><Arrivals doc={doc} notebook={props.notebook} onOpen={props.onOpen} onFiled={restoreFocus} /></Show>
-    <Show when={doc.status() === 'ready' && (mentionsAvailable() || relatedError() || (related()?.total ?? 0) + (related()?.tagged.length ?? 0) + (related()?.held.length ?? 0) + (related()?.about.length ?? 0) > 0)}><div class="related-sections">
-      <Show when={related()?.held.length}><Related title="Perspectives held" rows={related()?.held ?? []} relations /></Show>
+    <Show when={doc.status() === 'ready' && !zoom() && (mentionsAvailable() || relatedError() || (related()?.total ?? 0) + (related()?.tagged.length ?? 0) + (related()?.about.length ?? 0) > 0)}><div class="related-sections">
       <Show when={related()?.about.length}><Related title="Perspectives filed elsewhere" rows={related()?.about ?? []} relations /></Show>
       <Show when={doc.root()?.source}><Backlinks cited /></Show>
       <Show when={doc.root()?.source || relatedError() || related()?.total}><Backlinks /></Show>
       <Show when={mentionsAvailable()}><UnlinkedMentions /></Show>
       <Show when={relatedError() || related()?.tagged.length}><Related title="Tagged blocks" rows={relatedError() ? [] : related()?.tagged ?? []} /></Show>
     </div></Show>
+    <Show when={doc.status() === 'ready' && zoom()}><div class="related-sections"><Backlinks /></div></Show>
     <Show keyed when={menu()}>{state => <Menu anchor={state.anchor} label={state.label} header={state.header} items={state.items} onDismiss={() => { setMenu(null); restoreFocus(); }} />}</Show>
     <Show keyed when={mergeTarget()}>{target => <PageMergeConfirmation anchor={target.anchor} notebook={props.notebook} from={target.from} into={target.page} onDismiss={() => setMergeTarget(undefined)} onMerged={id => { setMergeTarget(undefined); props.onOpen({ kind: 'page', pageId: id }, false); }} />}</Show>
     <CapabilityPopups />

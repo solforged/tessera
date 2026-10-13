@@ -81,6 +81,7 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
       remaining: sourcePage ? 0 : references.total - loaded,
       tagged,
       held: held.rows.map(row => row.block),
+      heldReadings: held.rows,
       // Perspectives on this page filed elsewhere, such as under a highlight on a source page.
       about: about.rows.filter(row => row.block.page.id !== props.pageId).map(row => row.block),
       aboutHolders: about.rows.filter(row => row.block.page.id !== props.pageId).map(row => row.holder_id),
@@ -108,18 +109,30 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
     return <Show when={count() > 0}><BlockReferenceCount id={propsCount.id} count={count()} version={relatedVersion()} notebook={props.notebook} onOpen={props.onOpen} /></Show>;
   }
   function RowRelations(row: { id: string }) {
-    return <IncomingRelations target={row.id} version={relatedVersion()} enabled={row.id === props.pageId || (countById().get(row.id) ?? 0) > 0} notebook={props.notebook} onOpen={props.onOpen} />;
+    return <IncomingRelations target={row.id} version={relatedVersion()} enabled={row.id === props.pageId || row.id === zoom() || (countById().get(row.id) ?? 0) > 0} notebook={props.notebook} onOpen={props.onOpen} />;
   }
   /** Blocks on this page a source names only through an alias; a plain reference already reads as its target. */
   const hiddenTargets = (text: string, targets: string[]) => {
     const aliased = new Set(textTokens(text).flatMap(token => isStableReference(token) && token.alias ? [token.id!] : []));
     return targets.filter(target => target !== props.pageId && aliased.has(target));
   };
+  const [blockBacklinks] = createResource(() => zoom() ? [zoom()!, relatedVersion(), limit()] as const : false,
+    ([id, , count]) => api.backlinks(id, count));
   function Backlinks(section: { cited?: boolean }) {
     const [open, setOpen] = createSignal(true);
     const [shown, setShown] = createSignal(100);
+    const scoped = () => !!zoom() && !section.cited;
     const all = () => (section.cited ? related()?.cited : related()?.backlinks) ?? [];
     const groups = createMemo(() => {
+      if (scoped()) {
+        const groups = new Map<string, { page: Block; sources: { source: Block; targets: string[] }[] }>();
+        for (const row of blockBacklinks.error ? [] : blockBacklinks() ?? []) {
+          const group = groups.get(row.page.id) ?? { page: row.page, sources: [] };
+          group.sources.push({ source: row.source, targets: [zoom()!] });
+          groups.set(row.page.id, group);
+        }
+        return groups;
+      }
       let remaining = shown();
       return new Map(all().flatMap(group => {
         const sources = group.sources.slice(0, remaining);
@@ -131,9 +144,9 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
     const total = () => section.cited ? related()?.citationTotal ?? 0 : related()?.total ?? 0;
     const remaining = () => Math.max(0, total() - shown());
     return <details class="related-section backlinks-section" open onToggle={event => setOpen(event.currentTarget.open)}>
-      <summary>{section.cited ? 'Cited in' : 'Backlinks'} <span>{relatedError() ? 'Unavailable' : relatedResource.loading && !related() ? 'Loading…' : total()}</span></summary>
+      <summary>{section.cited ? 'Cited in' : zoom() ? 'Linked to this block' : 'Backlinks'} <span>{scoped() ? blockBacklinks.error ? 'Unavailable' : blockBacklinks()?.length ?? 'Loading…' : relatedError() ? 'Unavailable' : relatedResource.loading && !related() ? 'Loading…' : total()}</span></summary>
       <Show when={open()}>
-        <Show when={relatedError()}><p role="alert">Couldn't load backlinks.</p></Show>
+        <Show when={scoped() ? blockBacklinks.error : relatedError()}><p role="alert">Couldn't load backlinks.</p></Show>
         <For each={pages()}>{pageId => {
           const group = () => groups().get(pageId)!;
           const page = createMemo(() => props.notebook.lookup(pageId)() ?? group().page);
@@ -147,7 +160,8 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
             </div>}</For>
           </section>;
         }}</For>
-        <Show when={remaining() > 0}><Button class="text-button" disabled={relatedResource.loading} onClick={() => { setShown(value => value + 100); if (!section.cited && (related()?.remaining ?? 0) > 0) setLimit(value => value + 100); }}>Load more ({remaining()} remaining)</Button></Show>
+        <Show when={!scoped() && remaining() > 0}><Button class="text-button" disabled={relatedResource.loading} onClick={() => { setShown(value => value + 100); if (!section.cited && (related()?.remaining ?? 0) > 0) setLimit(value => value + 100); }}>Load more ({remaining()} remaining)</Button></Show>
+        <Show when={scoped() && (blockBacklinks()?.length ?? 0) >= limit()}><Button class="text-button" disabled={blockBacklinks.loading} onClick={() => setLimit(value => value + 100)}>Load more backlinks</Button></Show>
       </Show>
     </details>;
   }

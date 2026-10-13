@@ -14,9 +14,9 @@ Use place, in the same menus, returns to the nearest ancestor question or the pa
 
 ### Holder and subject pages
 
-A holder's page lists Perspectives held above its backlinks. A subject's page lists Perspectives filed elsewhere: positions about it that live on other pages, such as under a highlight. Neither repeats under Backlinks.
+A holder's page opens into its readings grouped by subject, with a Compare action when that subject has two or more positions. Each row leads with the Gist, then Work and the source siglum; the holder's own name does not repeat. The register follows the opening, before the first heading, or leads when the holder has no rows. It replaces Perspectives held.
 
-Clicking a listed perspective, including its holder name, opens the original position on its source page. Shift-click or Open beside opens that reading in another pane.
+Clicking a reading opens its original position zoomed on its source page. Shift-click opens it beside. A subject's page still lists Perspectives filed elsewhere above its backlinks; neither list repeats under Backlinks.
 
 Incoming relations appear beneath each listed perspective, naming the source's holder when it is a position. A holder's page can therefore show which readings dispute, support, qualify or answer that holder's perspectives without a text search.
 
@@ -24,7 +24,7 @@ Incoming relations appear beneath each listed perspective, naming the source's h
 
 ### Reading sheet
 
-Compare perspectives, in the page menu and the palette once a page has two positions filed under it, opens a reading sheet. Its toolbar names the subject in Piazzolla with a mono count. Selection starts with two readings, and the holder controls add or remove columns while retaining at least one.
+Compare perspectives, in the page menu and the palette once a page has two positions filed under it, opens a reading sheet. Its toolbar names the subject in Piazzolla with a mono count, such as `8 readings by 7 holders`. Readings and Criteria share the same selection, initially all readings. Choose readings adds or removes columns while retaining at least one.
 
 Each column shows, in order:
 
@@ -38,7 +38,7 @@ Shape is not its own cell. Other fields stay in the source outline, reached thro
 
 Relation blocks and their reasoning stay out of reading prose. Each position card shows its outgoing relations on a quiet line, with the kind and linked target, so the argument remains visible without turning its apparatus into another paragraph.
 
-Actual question blocks on the subject page appear below the sheet and open their original blocks. Columns have a readable minimum width and scroll horizontally on narrow panes.
+Actual question blocks on the subject page appear below the sheet. Clicking a question focuses it; Open original opens its block. Columns have a readable minimum width and scroll horizontally on narrow panes.
 
 The reading sheet's heading uses the shared centered page measure and page-title tokens. Its holder choices use the mono tab strip, with gilt rules and no pressed fill.
 
@@ -46,17 +46,25 @@ The reading sheet's heading uses the shared centered page measure and page-title
 
 Compare has Readings and Criteria tabs under the subject title, in the same mono strip. Criteria opens first when the subject has criteria, and the pane remembers the choice.
 
+### Question focus
+
+A focused question stays pinned above either sheet. Only readings held by the holders linked in that question remain; a question without named holders keeps all readings. Criteria marks the question's linked criterion. Clicking the pinned question, Show all readings or Escape restores the sheet. The focus survives reload and switching tabs without changing the reading selection. Open original question remains a separate action.
+
+At phone width the focused reading sheet stacks its readings and the focused matrix fits its columns within the pane. Question text and scope wrap.
+
 ## Criteria matrix
 
 ### Layout and values
 
-The criteria matrix leaves the heading on the measure and widens to the pane. A mono line counts holders, criteria and questions beside Choose holders and Edit criteria.
+The criteria matrix leaves the heading on the measure and widens to the pane. A mono line counts readings, holders, criteria and questions beside Choose readings and Edit criteria.
 
 Each column heads with the siglum in mono, the holder in 18 px Piazzolla and the Work title in mono. Each row starts with the criterion's name in Piazzolla in a sticky first column. Columns keep a readable minimum width and the matrix scrolls sideways in a split pane.
 
 Cells are the positions' own values. Enter or a click edits one in place, an empty cell offers Add on hover or focus, and both are undoable edits of the position's page.
 
-Saving a cell resolves hand-typed `[[Title]]` references by title or alias, retaining the authored spelling, as in the outline. Shared names stay unlinked rather than choosing a page.
+Cells use the outline's CodeMirror block editor, including paired references, completion, Unicode and composition. Enter commits, Shift-Enter adds a newline and Escape cancels. Saving resolves hand-typed `[[Title]]` references by title or alias, retaining the authored spelling, as in the outline. Shared names stay unlinked rather than choosing a page.
+
+Draft undo and redo remain inside the open cell until commit. A committed edit belongs to the position's shared page history, so sheet undo and page undo operate on the same change. The sheet routes undo to the last edited page, not a private edit stack.
 
 Two or more cells in a row with exactly the same text get a numbered `≡ 1 · exact repeat` mark and a footnote naming the sigla; nothing else is marked.
 
@@ -67,6 +75,12 @@ A question that names a criterion follows that row with a `?`, its text in Piazz
 Edit criteria lists the criteria with Move up, Move down and Remove and adds fields through the field picker. While the set is derived it says so, and saving stores it.
 
 Derived criteria exclude Gist, Work and Account. Work attributes the primary work. Account names a secondary account. Neither is a comparison criterion. Evidence remains the passages cited beneath each position. Pinned perspective slips show Work and Account as separate lines too.
+
+## Position dossier
+
+Zooming into a position replaces the concept's title with holder · Gist, then Work and an `on Subject` link. Only backlinks to that block and its incoming relations appear; page-level backlinks, unlinked mentions and the apparatus stay out of the dossier.
+
+Other block zooms also show only their own incoming links, under Linked to this block. Position reference previews lead with Gist and authored argument rather than field scaffolding.
 
 ## Apparatus margin
 

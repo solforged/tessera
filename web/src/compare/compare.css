@@ -54,7 +54,7 @@
 .criteria-value + .criteria-value { margin-top: var(--space-4); }
 .criteria-add.button { opacity: 0; padding: 0; color: var(--faint); }
 .criteria-cell:hover .criteria-add, .criteria-cell:focus-within .criteria-add { opacity: 1; }
-.criteria-input { display: block; width: 100%; min-height: var(--space-48); resize: vertical; padding: var(--space-4); border: 1px solid var(--accent); background: var(--canvas); color: var(--text); font: inherit; outline: none; }
+.criteria-input { display: block; width: 100%; min-height: var(--space-48); padding: var(--space-4); border: var(--rule-width) solid var(--accent); background: var(--canvas); color: var(--text); font: var(--weight-body) var(--text-body)/var(--line-body) var(--font-body); outline: none; }
 .criteria-exact, .criteria-scope, .criteria-footnotes { color: var(--faint); font: var(--apparatus); }
 .criteria-exact { display: block; margin-top: var(--space-8); }
 .criteria-question td { padding: 0 var(--space-8) var(--space-12) var(--criterion-width); border-bottom: 1px solid var(--line); }
@@ -72,3 +72,26 @@
 .criteria-editor-actions .button:first-child { margin-right: auto; }
 @container (max-width: 900px) { .criteria-hint { display: none; } }
 @media (pointer: coarse) { .criteria-add.button { opacity: 1; } }
+.compare-focus { flex: none; margin: 0 var(--pane-inset) var(--space-16); padding: var(--space-12) 0; border-block: var(--rule-width) solid var(--accent); }
+.compare-focus-question.button { display: block; color: var(--text); font: var(--weight-body) var(--text-h2)/var(--line-h2) var(--font-display); text-align: left; white-space: normal; overflow-wrap: anywhere; padding: 0; }
+.compare-focus > div { display: flex; flex-wrap: wrap; gap: var(--space-8) var(--space-16); margin-top: var(--space-8); }
+.compare-focus > div .button { padding: 0; color: var(--accent); font: var(--apparatus); }
+.criteria-focused th { color: var(--accent); }
+.criteria-focus-mark { display: block; margin-top: var(--space-8); font: var(--apparatus); }
+.criteria-focused td { background: var(--surface); }
+.criteria-question .criteria-question-text.button { display: block; color: var(--text); font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); text-align: left; white-space: normal; padding: 0; }
+.criteria-question td > div { flex-wrap: wrap; }
+.compare-question { display: flex; align-items: baseline; gap: var(--space-16); }
+.compare-question > .button:first-child { flex: 1; }
+.compare-question > .button:last-child { flex: none; color: var(--muted); font: var(--apparatus); }
+.compare-embedded .compare-tabs { margin-top: var(--space-16); }
+@media (max-width: 600px) {
+  .compare-focused .compare-readings { min-width: 0; grid-template-columns: 1fr; }
+  .compare-focused .compare-reading + .compare-reading { border-left: 0; border-top: var(--rule-width) solid var(--line); }
+  .compare-focused .criteria-matrix { min-width: 0; --criterion-width: calc(var(--space-48) + var(--space-24)); }
+  .compare-focused .criteria-name-column { width: var(--criterion-width); }
+  .compare-focused .criteria-values th { font: var(--apparatus); overflow-wrap: anywhere; }
+  .criteria-focus-mark { overflow-wrap: normal; }
+  .criteria-question td { padding-left: 0; }
+  .criteria-scope { white-space: normal; }
+}

@@ -94,7 +94,7 @@ export interface TableViewState {
 export interface FieldsViewState { scroll: number }
 export interface FieldViewState { scroll: number }
 export interface SettingsViewState { scroll: number }
-export interface CompareViewState { scroll: number; comparison?: 'readings' | 'criteria'; chosen?: string[] | null }
+export interface CompareViewState { scroll: number; comparison?: 'readings' | 'criteria'; chosen?: string[] | null; focusedQuestion?: string | null }
 export interface IndexViewState { scroll: number; noteQuery?: Query; viewId?: string | null }
 export interface AgendaViewState { date: string; mode: 'agenda' | 'week' | 'tasks'; query: TaskQuery; viewId: string | null; scroll: number }
 /** `blockId` is a one-shot request to review that block's cards; the pane drops it once handled. */

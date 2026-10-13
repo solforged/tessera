@@ -7,10 +7,12 @@ import { fieldEntryId } from '../table/query';
 import { Button } from '../ui/Button';
 import { exactRepeats } from './criteria';
 import { titleTargets, typedTitles, withLinkedTitles } from '../outline/link-titles';
+import { CriteriaCellEditor } from './CriteriaCellEditor';
 
 export function CriteriaMatrix(props: {
   rows: PositionRow[]; allRows: PositionRow[]; criteria: string[]; questions: PositionQuestion[]; notebook: NotebookClient;
   docs: Map<string, PageDocument>; fieldName(id: string): string | undefined;
+  focusedCriterion: string | null; onFocusQuestion(id: string): void;
   holder(row: PositionRow): string; siglum(row: PositionRow): string; work(row: PositionRow): string;
   onOpen(target: OpenTarget, beside: boolean): void; onEdited(doc: PageDocument): void;
 }) {
@@ -28,16 +30,16 @@ export function CriteriaMatrix(props: {
     }))] as const;
   })));
   const repeats = createMemo(() => exactRepeats(props.criteria, props.rows.map(row => row.block.block.id), (id, field) => cells().get(id)?.get(field)?.map(value => value.text).join('\n') ?? ''));
-  async function commit() {
+  async function commit(textDraft: string) {
     const current = editing();
     if (!current || saving()) return;
     const row = props.rows.find(row => row.block.block.id === current.position);
     const doc = row && props.docs.get(row.block.page.id);
     if (!doc || doc.status() !== 'ready') { setError('The position is still loading.'); return; }
-    if (!current.value && !current.text.trim()) { setEditing(null); return; }
+    if (!current.value && !textDraft.trim()) { setEditing(null); return; }
     setSaving(true);
     let text: string;
-    try { text = withLinkedTitles(current.text, await titleTargets(props.notebook, typedTitles(current.text))); }
+    try { text = withLinkedTitles(textDraft, await titleTargets(props.notebook, typedTitles(textDraft))); }
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); setSaving(false); return; }
     if (editing() !== current) { setSaving(false); return; }
     if (current.value && doc.block(current.value)?.text === text) { setEditing(null); setSaving(false); return; }
@@ -64,27 +66,24 @@ export function CriteriaMatrix(props: {
         <div class="compare-work"><BlockText text={props.work(row)} notebook={props.notebook} onOpen={props.onOpen} /></div>
       </th>}</For></tr></thead>
       <tbody><For each={props.criteria}>{field => <>
-        <tr class="criteria-values"><th scope="row">{props.fieldName(field)}</th><For each={props.rows}>{row => {
+        <tr class="criteria-values" classList={{ 'criteria-focused': props.focusedCriterion === field }}><th scope="row">{props.fieldName(field)}<Show when={props.focusedCriterion === field}><span class="criteria-focus-mark">Focused criterion</span></Show></th><For each={props.rows}>{row => {
           const id = row.block.block.id;
           const values = () => cells().get(id)?.get(field) ?? [];
           const current = () => editing()?.position === id && editing()?.field === field ? editing() : null;
           const repeat = () => repeats().find(repeat => repeat.criterion === field && repeat.positions.includes(id));
-          return <td><div class="criteria-cell" tabIndex={0} role="group" aria-label={`${props.fieldName(field)} · ${props.holder(row)}`} onClick={event => { if (!(event.target as HTMLElement).closest('textarea,button')) start(row, field, values()[0]); }} onKeyDown={event => { if (event.key === 'Enter' && !current()) { event.preventDefault(); start(row, field, values()[0]); } }}>
+          return <td><div class="criteria-cell" tabIndex={0} role="group" aria-label={`${props.fieldName(field)} · ${props.holder(row)}`} onClick={event => { if (!(event.target as HTMLElement).closest('.cm-editor,button')) start(row, field, values()[0]); }} onKeyDown={event => { if (event.key === 'Enter' && !current()) { event.preventDefault(); start(row, field, values()[0]); } }}>
             <Show when={current()} fallback={<Show when={values().some(value => value.text.trim())} fallback={<Button class="criteria-add" onClick={() => start(row, field, values()[0])}>Add</Button>}>
               <For each={values()}>{value => <button type="button" class="criteria-value" onClick={() => start(row, field, value)}><BlockText text={value.text} notebook={props.notebook} interactive={false} /></button>}</For>
             </Show>}>{edit => <>
               <For each={values().filter(value => value.id !== edit().value)}>{value => <div class="criteria-value"><BlockText text={value.text} notebook={props.notebook} interactive={false} /></div>}</For>
-              <textarea class="criteria-input" aria-label={`Edit ${props.fieldName(field)} · ${props.holder(row)}`} disabled={saving()} value={edit().text} ref={input => queueMicrotask(() => { input.focus(); input.select(); })} onInput={event => setEditing(current => current ? { ...current, text: event.currentTarget.value } : null)} onBlur={() => void commit()} onKeyDown={event => {
-                if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); event.stopPropagation(); void commit(); }
-                else if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setEditing(null); }
-              }} />
+              <CriteriaCellEditor id={edit().value ?? edit().position} text={edit().text} label={`Edit ${props.fieldName(field)} · ${props.holder(row)}`} notebook={props.notebook} onCommit={text => void commit(text)} onCancel={() => setEditing(null)} />
             </>}</Show>
           </div><Show when={repeat()}>{mark => <span class="criteria-exact">≡ {mark().number} · exact repeat</span>}</Show></td>;
         }}</For></tr>
         <For each={props.questions.filter(question => question.criterion === field)}>{question => <tr class="criteria-question"><td colSpan={props.rows.length + 1}><div>
-          <span class="criteria-question-mark">?</span><span class="criteria-question-text"><BlockText text={question.block.block.text} notebook={props.notebook} onOpen={props.onOpen} /></span>
+          <span class="criteria-question-mark">?</span><Button class="criteria-question-text" onClick={() => props.onFocusQuestion(question.block.block.id)}><BlockText text={question.block.block.text} notebook={props.notebook} interactive={false} /></Button>
           <span class="criteria-scope">{props.fieldName(field)} · {question.holders.length ? `${question.holders.map(id => { const row = props.allRows.find(row => row.holder_id === id); return row ? props.siglum(row) : props.notebook.lookup(id)()?.text ?? id; }).join(' ↔ ')} only` : `all ${props.allRows.length}`}</span>
-          <Button onClick={event => props.onOpen({ kind: 'page', pageId: question.block.page.id, blockId: question.block.block.id }, event.shiftKey)}>Open</Button>
+          <Button onClick={event => props.onOpen({ kind: 'page', pageId: question.block.page.id, blockId: question.block.block.id }, event.shiftKey)}>Open original</Button>
         </div></td></tr>}</For>
       </>}</For></tbody>
     </table></div>

@@ -1,0 +1,25 @@
+.held-readings { width: min(100%, var(--measure)); margin: var(--section-gap) auto; overflow-wrap: anywhere; }
+.held-subject + .held-subject { margin-top: var(--section-gap); }
+.held-subject > header { display: flex; align-items: baseline; gap: var(--space-16); border-bottom: var(--rule-width) solid var(--line); padding-bottom: var(--space-8); }
+.held-subject h2 { flex: 1; min-width: 0; margin: 0; font: var(--weight-display-heading) var(--text-h2)/var(--line-h2) var(--font-display); }
+.held-subject h2 .button { color: var(--text); font: inherit; white-space: normal; text-align: left; padding: 0; }
+.held-compare.button { flex: none; font: var(--apparatus); color: var(--accent); padding: 0; }
+.held-reading { padding-block: var(--space-12); border-bottom: var(--rule-width) solid var(--line); }
+.held-reading-open.button { display: grid; grid-template-columns: var(--siglum-width) minmax(0, 1fr); gap: var(--space-4) var(--space-12); width: 100%; padding: 0; text-align: left; white-space: normal; align-items: baseline; }
+.held-reading-title { grid-column: 2; font: var(--weight-body) var(--text-gloss)/var(--line-gloss) var(--font-display); color: var(--text); }
+.held-siglum { grid-column: 1; grid-row: 1; color: var(--faint); font: var(--apparatus); }
+.held-work { grid-column: 2; color: var(--muted); font: var(--apparatus); }
+.held-reading .incoming-relations { margin-left: calc(var(--siglum-width) + var(--space-12)); }
+.outline-row:has(> .held-readings) { flex-wrap: wrap; }
+.outline-row > .held-readings { flex-basis: 100%; max-width: none; margin-top: 0; padding-left: calc(var(--gutter) + var(--target-size)); }
+@container outline-pane (max-width: 856px) { .outline-row > .held-readings { padding-left: calc(3 * var(--target-size)); } }
+.position-dossier h1 { margin: 0; font: var(--page-title-font); font-variation-settings: var(--optical-title); }
+.position-dossier .dossier-work, .position-dossier .dossier-subject { margin-top: var(--space-8); color: var(--muted); font: var(--apparatus); }
+.position-dossier .dossier-subject .button { padding: 0; font: inherit; color: var(--accent); white-space: normal; }
+@media (max-width: 600px) {
+  .held-reading-open.button { grid-template-columns: minmax(0, 1fr); }
+  .outline-row > .held-readings { padding-left: var(--target-size); }
+  .held-siglum, .held-reading-title, .held-work { grid-column: 1; }
+  .held-siglum { grid-row: auto; }
+  .held-reading .incoming-relations { margin-left: 0; }
+}

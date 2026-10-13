@@ -421,6 +421,10 @@ A subject may own an explicit ordered set of criterion fields. Without rows in t
 
 Questions beneath the subject attach to the first criterion linked in their text. They are scoped to the linked holder pages of its positions, or to all holders when none are named. These attachments are derived.
 
+Compare question focus is view state, never notebook content. It shows the readings of the question's linked holders and marks its criterion; the two sheets share a reading selection. Cell commits edit the ordinary value blocks through their page document and use that document's history.
+
+A holder's register groups its positions by their derived subjects and opens each position in its original place. A position zoom is a dossier of that reading with block-scoped incoming links and relations, not the containing page's backlinks.
+
 Only identical trimmed authored cell text is marked as an exact repeat; differing wording implies nothing.
 
 A page's gloss is an entry for the Gloss field among its top-level blocks: the one- or two-sentence hover form shown under the title and in reference previews. It is an ordinary field, created on first use.

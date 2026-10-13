@@ -16,3 +16,8 @@ export function exactRepeats(criteria: readonly string[], positions: readonly st
   }
   return repeats;
 }
+
+/** A question names holders, so every reading by each named holder belongs to its lens. */
+export function questionReadingIds(rows: readonly { holder_id: string | null; block: { block: { id: string } } }[], holders: readonly string[]): string[] {
+  return rows.filter(row => !holders.length || row.holder_id !== null && holders.includes(row.holder_id)).map(row => row.block.block.id);
+}

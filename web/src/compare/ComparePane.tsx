@@ -14,6 +14,7 @@ import { Button } from '../ui/Button';
 import { ShapeGlyph } from './ShapeGlyph';
 import { CriteriaEditor } from './CriteriaEditor';
 import { CriteriaMatrix } from './CriteriaMatrix';
+import { questionReadingIds } from './criteria';
 import './compare.css';
 
 interface ComparePaneProps {
@@ -23,6 +24,7 @@ interface ComparePaneProps {
   onActivate(): void;
   onOpen(target: OpenTarget, beside: boolean): void;
   onViewChange(view: CompareViewState): void;
+  embedded?: boolean;
 }
 
 interface Perspective {
@@ -51,13 +53,16 @@ export function ComparePane(props: ComparePaneProps) {
   const [chooseHolders, setChooseHolders] = createSignal(false);
   const [holderLimit, setHolderLimit] = createSignal(100);
   const [criteriaEditor, setCriteriaEditor] = createSignal<HTMLElement | null>(null);
-  const history: PageDocument[] = [];
-  const undone: PageDocument[] = [];
-  const edited = (doc: PageDocument) => { history.push(doc); undone.length = 0; };
+  const [historyDoc, setHistoryDoc] = createSignal<PageDocument>();
+  const edited = (doc: PageDocument) => setHistoryDoc(doc);
+  const [focusedQuestionId, setFocusedQuestionId] = createSignal(props.view.focusedQuestion ?? null);
+  const focusedQuestion = createMemo(() => (result()?.questions ?? []).find(question => question.block.block.id === focusedQuestionId()));
   const selectedIds = createMemo(() => {
+    const focus = focusedQuestion();
+    if (focus) return questionReadingIds(rows(), focus.holders);
     const ids = chosen();
     const retained = ids === null ? [] : rows().filter(row => ids.includes(row.block.block.id));
-    return (retained.length ? retained : rows().slice(0, tab() === 'criteria' ? 12 : 2)).map(row => row.block.block.id);
+    return (retained.length ? retained : rows()).map(row => row.block.block.id);
   });
   const [fieldList] = createResource(() => version(), () => api.fields());
   const fieldName = (id: string) => fieldList()?.fields.find(field => field.id === id)?.name;
@@ -90,8 +95,15 @@ export function ComparePane(props: ComparePaneProps) {
     const ids = selected().map(item => item.row.block.block.id);
     if (ids.includes(id)) { if (ids.length > 1) setChosen(ids.filter(value => value !== id)); }
     else setChosen([...ids, id]);
-    props.onViewChange({ scroll: scroll?.scrollTop ?? props.view.scroll, comparison: tab(), chosen: chosen() });
+    reportView();
   };
+  function reportView() {
+    props.onViewChange({ scroll: scroll?.scrollTop ?? props.view.scroll, comparison: tab(), chosen: chosen(), focusedQuestion: focusedQuestionId() });
+  }
+  function focusQuestion(id: string | null) {
+    setFocusedQuestionId(id);
+    reportView();
+  }
   const questions = createMemo(() => (result()?.questions ?? []).filter(question => tab() === 'readings' || !question.criterion));
   const [siglumRecords] = createResource(() => { const ids = [...new Set(perspectives().map(item => item.source).filter(id => id !== null))]; return ids.length ? ids : false; },
     ids => Promise.all(ids.map(id => api.source(id).then(view => ({ id, siglum: view.source.siglum, basis: view.source.siglum_basis, authored: view.source.siglum_authored }), () => null))));
@@ -106,23 +118,31 @@ export function ComparePane(props: ComparePaneProps) {
   let scroll!: HTMLDivElement;
   requestAnimationFrame(() => { if (scroll) scroll.scrollTop = props.view.scroll; });
 
-  return <div class="compare-pane" role="region" tabIndex={0} aria-label="Compare perspectives" onFocusIn={props.onActivate} onKeyDown={event => {
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z' && !(event.target instanceof HTMLTextAreaElement)) {
+  const count = createMemo(() => `${perspectives().length} readings by ${new Set(rows().flatMap(row => row.holder_id ? [row.holder_id] : [])).size} holders`);
+  return <div class="compare-pane" classList={{ 'compare-embedded': props.embedded ?? false, 'compare-focused': !!focusedQuestion() }} role="region" tabIndex={0} aria-label="Compare perspectives" onFocusIn={props.onActivate} onKeyDown={event => {
+    if (event.key === 'Escape' && focusedQuestion() && !(event.target as HTMLElement).closest('.cm-editor')) {
+      event.preventDefault(); event.stopPropagation(); focusQuestion(null);
+    }
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z' && !(event.target as HTMLElement).closest('.cm-editor')) {
       event.preventDefault(); event.stopPropagation();
-      const source = event.shiftKey ? undone : history;
-      const doc = source.pop();
-      if (doc) { event.shiftKey ? doc.redo() : doc.undo(); (event.shiftKey ? history : undone).push(doc); }
+      const doc = historyDoc() ?? docs().values().next().value;
+      if (doc) event.shiftKey ? doc.redo() : doc.undo();
     }
   }}>
-    <header class="compare-toolbar">
-      <div><span class="compare-eyebrow">Reading sheet</span><h2><Button class="compare-subject" title="Open the subject · Shift to open beside" onClick={event => open(props.subjectId, null, event.shiftKey)}>{subject()?.text ?? 'Loading…'}</Button></h2></div>
-      <Show when={tab() === 'readings'}><span class="compare-count">{selected().length} of {perspectives().length} readings</span></Show>
-    </header>
+    <Show when={!props.embedded}><header class="compare-toolbar">
+      <div><span class="compare-eyebrow">Reading sheet</span><h2><Button class="compare-subject" title="Open the subject · Shift to open beside" onClick={event => { const target = subject(); if (target) open(target.page_id, target.kind === 'block' ? target.id : null, event.shiftKey); }}><span><BlockText text={subject()?.text ?? 'Loading…'} notebook={props.notebook} interactive={false} /></span></Button></h2></div>
+      <span class="compare-count">{count()}</span>
+    </header></Show>
     <div class="compare-tabs mode-tabs tab-strip" data-mode-panel=".compare-scroll" role="tablist" aria-label="Compare mode">
-      <For each={['readings', 'criteria'] as const}>{mode => <Button role="tab" aria-selected={tab() === mode} onClick={() => { setTabChoice(mode); props.onViewChange({ scroll: scroll?.scrollTop ?? 0, comparison: mode, chosen: chosen() }); }}>{mode === 'readings' ? 'Readings' : 'Criteria'}</Button>}</For>
+      <For each={['readings', 'criteria'] as const}>{mode => <Button role="tab" aria-selected={tab() === mode} onClick={() => { setTabChoice(mode); reportView(); }}>{mode === 'readings' ? 'Readings' : 'Criteria'}</Button>}</For>
     </div>
+    <Show when={focusedQuestion()}>{question => <section class="compare-focus" aria-label="Focused question">
+      <Button class="compare-focus-question" onClick={() => focusQuestion(null)}><BlockText text={question().block.block.text} notebook={props.notebook} interactive={false} /></Button>
+      <div><Button onClick={() => { setChosen(null); focusQuestion(null); }}>Show all {perspectives().length} readings</Button>
+        <Button onClick={event => open(question().block.page.id, question().block.block.id, event.shiftKey)}>Open original question</Button></div>
+    </section>}</Show>
     <Show when={result.error || fieldList.error}><div class="pane-error" role="alert">Couldn’t load readings.</div></Show>
-    <Show when={perspectives().length >= 2 && (tab() === 'readings' || chooseHolders())}>
+    <Show when={!focusedQuestion() && perspectives().length >= 2 && (tab() === 'readings' || chooseHolders())}>
       <div class="compare-choices mode-tabs tab-strip" role="group" aria-label="Choose readings"><For each={perspectives().slice(0, holderLimit())}>{perspective => {
         const active = () => selected().includes(perspective);
         return <Button aria-pressed={active()} disabled={active() && selected().length === 1} onClick={() => toggle(perspective.row.block.block.id)}>
@@ -131,15 +151,15 @@ export function ComparePane(props: ComparePaneProps) {
         </Button>;
       }}</For><Show when={perspectives().length > holderLimit()}><Button onClick={() => setHolderLimit(value => value + 100)}>More holders</Button></Show></div>
     </Show>
-    <div ref={scroll} class="compare-scroll" onScroll={() => props.onViewChange({ scroll: scroll.scrollTop, comparison: tab(), chosen: chosen() })}>
+    <div ref={scroll} class="compare-scroll" onScroll={reportView}>
       <Show when={result()} fallback={<Show when={!result.error}><p class="empty-state" role="status">Loading readings…</p></Show>}>
         <Show when={tab() === 'criteria'}>
           <div class="compare-matrix">
-            <div class="criteria-tools"><span class="compare-count">{selected().length} of {perspectives().length} holders · {result()?.criteria.fields.length ?? 0} subject criteria · {result()?.questions.length ?? 0} questions</span>
-              <Button aria-expanded={chooseHolders()} onClick={() => setChooseHolders(value => !value)}>Choose holders</Button>
+            <div class="criteria-tools"><span class="compare-count">{count()} · {result()?.criteria.fields.length ?? 0} criteria · {result()?.questions.length ?? 0} questions</span>
+              <Show when={!focusedQuestion()}><Button aria-expanded={chooseHolders()} onClick={() => setChooseHolders(value => !value)}>Choose readings</Button></Show>
               <Button onClick={event => setCriteriaEditor(event.currentTarget)}>Edit criteria</Button>
             </div>
-            <CriteriaMatrix rows={selected().map(item => item.row)} allRows={rows()} criteria={result()?.criteria.fields ?? []} questions={result()?.questions ?? []} notebook={props.notebook} docs={docs()} fieldName={fieldName}
+            <CriteriaMatrix rows={selected().map(item => item.row)} allRows={rows()} criteria={result()?.criteria.fields ?? []} questions={result()?.questions ?? []} focusedCriterion={focusedQuestion()?.criterion ?? null} onFocusQuestion={id => focusQuestion(id)} notebook={props.notebook} docs={docs()} fieldName={fieldName}
               holder={row => row.holder_id ? props.notebook.lookup(row.holder_id)()?.text ?? 'Loading holder…' : 'Unattributed'} siglum={matrixSiglum}
               work={row => perspectives().find(item => item.row.block.block.id === row.block.block.id)?.work?.value ?? ''} onOpen={props.onOpen} onEdited={edited} />
           </div>
@@ -166,7 +186,7 @@ export function ComparePane(props: ComparePaneProps) {
           }}</For></div>
         </Show></Show>
           <Show when={questions().length}><section class="compare-questions" aria-label="Questions on this page">
-            <h3>Questions on this page</h3><For each={questions()}>{question => <Button onClick={event => open(question.block.page.id, question.block.block.id, event.shiftKey)}><BlockText text={question.block.block.text} notebook={props.notebook} interactive={false} /></Button>}</For>
+            <h3>Questions on this page</h3><For each={questions()}>{question => <div class="compare-question"><Button onClick={() => focusQuestion(question.block.block.id)}><BlockText text={question.block.block.text} notebook={props.notebook} interactive={false} /></Button><Button onClick={event => open(question.block.page.id, question.block.block.id, event.shiftKey)}>Open original</Button></div>}</For>
           </section></Show>
       </Show>
     </div>

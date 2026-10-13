@@ -18,8 +18,9 @@ export function isJournalReference(query: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(query.trim());
 }
 
+export interface ReferenceCompletion { from: number; to: number; query: string; blocks: boolean }
 /** Find the active opening pair only in authored prose, outside code and references. */
-export function referenceCompletionAt(text: string, caret: number): { from: number; to: number; query: string; blocks: boolean } | null {
+export function referenceCompletionAt(text: string, caret: number): ReferenceCompletion | null {
   const prefix = text.slice(0, caret);
   const page = prefix.lastIndexOf('[['), block = prefix.lastIndexOf('((');
   const blocks = block > page, from = Math.max(page, block);

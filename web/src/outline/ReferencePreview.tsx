@@ -338,12 +338,18 @@ function ReferenceCard(props: {
   const summary = createMemo(() => { const value = doc(); return value && gloss() ? glossText(value, gloss()) : ''; });
   const summaryId = createMemo(() => { const entry = gloss(); return entry ? doc()?.outline.children(entry)[0] : undefined; });
   // A passing gloss needs no other documents. Field definitions are needed only for prose fallback or pinned readings.
-  const [fieldList] = createResource(() => isPage() && doc()?.status() === 'ready' && (props.pinned || !summary()), () => props.notebook.api.fields());
+  const [fieldList] = createResource(() => doc()?.status() === 'ready' && (!!state()?.position || isPage() && (props.pinned || !summary())), () => props.notebook.api.fields());
   const fieldNames = createMemo(() => new Map((fieldList.error ? [] : fieldList()?.fields ?? []).map(field => [field.id, field.name])));
   const fieldName = (id: string) => fieldNames().get(id);
+  const readingFields = createMemo(() => state()?.position && doc()?.status() === 'ready' ? positionFields(doc()!, props.id, fieldName) : []);
   const rows = createMemo(() => {
     const value = doc();
     if (value?.status() !== 'ready' || (isPage() && !props.pinned && summary())) return [];
+    if (state()?.position) {
+      const gist = readingFields().find(field => isGistName(field.name));
+      return [...(gist?.valueId ? [{ id: gist.valueId, depth: 0, role: 'body' as const }] : []),
+        ...readingPassages(value, props.id, gist?.value, fieldName).slice(0, BLOCK_ROWS).map(row => ({ id: row.id, depth: 0, role: 'body' as const }))];
+    }
     return isPage() ? proseRows(value, value.pageId, gloss(), fieldName, props.pinned ? BLOCK_ROWS : PAGE_ROWS) : blockContextRows(value, props.id, BLOCK_ROWS);
   });
   // One subject query provides the count; the referenced pages are opened only after pinning.
@@ -381,9 +387,12 @@ function ReferenceCard(props: {
           </Button>
         </div>
         <div class="reference-preview-title">
-          <Show when={isPage()} fallback={<span class="reference-preview-kind">Block</span>}><h2>{block().text || 'Untitled'}</h2></Show>
+          <Show when={state()?.position} fallback={<Show when={isPage()} fallback={<span class="reference-preview-kind">Block</span>}><h2>{block().text || 'Untitled'}</h2></Show>}>
+            <h2><BlockText text={block().text} notebook={props.notebook} interactive={false} /></h2>
+          </Show>
         </div>
         <Show when={summary()}><p class="reference-preview-gloss"><BlockText text={doc()?.block(summaryId() ?? '')?.text ?? ''} blockId={summaryId()} notebook={props.notebook} onOpen={props.onNested} /></p></Show>
+        <Show when={readingFields().find(field => field.name.trim().toLowerCase() === 'work')?.value}>{work => <p class="reference-preview-reading-source"><BlockText text={work()} notebook={props.notebook} onOpen={props.onNested} /></p>}</Show>
         <Show when={(state()?.manual_types.length ?? 0) > 0 || state()?.source || state()?.task || state()?.project}>
           <div class="reference-preview-pills">
             <For each={state()?.manual_types}>{title => <span class="outline-tag">#{title}</span>}</For>
@@ -401,8 +410,8 @@ function ReferenceCard(props: {
             <Show when={fieldList.error}><p class="reference-preview-message" role="alert">Couldn’t load field definitions.</p></Show>
             <Show when={!isPage() || !fieldList.loading} fallback={<p class="reference-preview-message" role="status">Loading preview…</p>}>
               <Show when={rows().length} fallback={<p class="reference-preview-message">{isPage() ? summary() ? 'No further text on this page.' : 'Empty page.' : 'Block not found on its page.'}</p>}>
-                <div ref={element => { body = element; observer.observe(element); }} class={`reference-preview-body${isPage() ? ' prose' : ''}${props.pinned ? ' scrollable' : clipped() ? ' clipped' : ''}`}>
-                  <BlockTree rows={rows()} block={id => doc()?.block(id)} notebook={props.notebook} onOpen={props.onNested} prose={isPage()} rowRef={element => observer.observe(element)} />
+                <div ref={element => { body = element; observer.observe(element); }} class={`reference-preview-body${isPage() || state()?.position ? ' prose' : ''}${props.pinned ? ' scrollable' : clipped() ? ' clipped' : ''}`}>
+                  <BlockTree rows={rows()} block={id => doc()?.block(id)} notebook={props.notebook} onOpen={props.onNested} prose={isPage() || !!state()?.position} rowRef={element => observer.observe(element)} />
                 </div>
               </Show>
             </Show>
