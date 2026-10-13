@@ -20,12 +20,15 @@
 .reading-slip { min-width: 0; border-top: var(--rule-width) solid var(--line); padding-top: var(--space-4); }
 .reading-holder .outline-row { padding: 0; min-height: var(--line-control); }
 .reading-holder .outline-source { font-size: var(--text-control); line-height: var(--line-control); color: var(--muted); }
-.reading-register .reading-holder .outline-row > .row-siglum { display: inline; position: static; margin-right: var(--space-8); font: var(--apparatus); }
+.reading-register .reading-holder .outline-row > .row-sigla { position: static; flex-direction: row; margin-right: var(--space-8); }
 .reading-holder .static-text { min-height: var(--line-control); }
 .reading-gist .outline-row { padding-block: 0; }
 .reading-gist { font-size: var(--text-quote); line-height: var(--line-quote); }
 .reading-work .outline-row { min-height: var(--line-control); padding: 0; }
 .reading-work, .reading-work .outline-source { font: var(--apparatus); color: var(--faint); }
+/* The holder line already carries the siglum, and a Work citation stays one quiet apparatus line rather than quoted prose. */
+.reading-register .reading-work .row-sigla { display: none; }
+.reading-register .reading-slip .reading-work .outline-row:has(.outline-citation) .outline-source .static-text { min-height: var(--line-control); font: var(--apparatus); color: var(--faint); }
 .reading-work .static-text { min-height: var(--line-control); }
 .reading-account { color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
 .reading-prose, .reading-facts { margin-top: var(--space-8); }
