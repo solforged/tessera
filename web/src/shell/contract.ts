@@ -58,6 +58,8 @@ export interface ViewState {
   showArchived: boolean;
   /** How much of a titled page shows; absent means full. */
   depth?: Depth;
+  /** Catalogue metadata visibility in a source outline; absent means hidden. */
+  sourceFieldsVisible?: boolean;
   /** Set only by an open that names `caretId`: the pane starts editing at the caret instead of selecting its row. Never reported back, so history does not re-enter editing. */
   edit?: boolean;
 }

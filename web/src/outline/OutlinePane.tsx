@@ -230,7 +230,7 @@ function Pane(props: OutlinePaneProps) {
     })();
   }
 
-  const [sourceFieldsVisible, setSourceFieldsVisible] = createSignal(!!initial.caret);
+  const [sourceFieldsVisible, setSourceFieldsVisible] = createSignal(initial.sourceFieldsVisible ?? false);
   const [sourceDetailsOpen, setSourceDetailsOpen] = createSignal(false);
   const [sourceColors, setSourceColors] = createSignal<string[]>([]);
   const [sourceGrouped, setSourceGrouped] = createSignal(true);
@@ -454,7 +454,7 @@ function Pane(props: OutlinePaneProps) {
   }
   function report() {
     if (restoring || disposed) return;
-    props.onViewChange({ zoom: zoom(), folds: [...folds()], showArchived: showArchived(), depth: depth(), caret: caret(), scroll: currentAnchor() });
+    props.onViewChange({ zoom: zoom(), folds: [...folds()], showArchived: showArchived(), depth: depth(), sourceFieldsVisible: sourceFieldsVisible(), caret: caret(), scroll: currentAnchor() });
   }
   function scheduleReport() {
     cancelAnimationFrame(reportingFrame);
@@ -1336,7 +1336,7 @@ function Pane(props: OutlinePaneProps) {
       </Show>}</Show>
       <Show when={doc.root()?.source}><SourceHeader doc={doc} notebook={props.notebook} resetItems={sourceResets} onOpen={props.onOpen} onError={setMessage} onDelete={props.onDelete}
         fields={definitions()} compact={!!zoom()} ready={sourceReady()} onReady={setSourceHeaderReady} onEditDetails={() => setSourceDetailsOpen(true)}
-        highlights={zoom() || sourceHighlights.error ? undefined : sourceHighlights()} colors={sourceColors()} onColors={setSourceColors} grouped={sourceGrouped()} onGrouped={setSourceGrouped} fieldsVisible={sourceFieldsVisible()} onFieldsVisible={setSourceFieldsVisible} /></Show>
+        highlights={zoom() || sourceHighlights.error ? undefined : sourceHighlights()} colors={sourceColors()} onColors={setSourceColors} grouped={sourceGrouped()} onGrouped={setSourceGrouped} fieldsVisible={sourceFieldsVisible()} onFieldsVisible={visible => { setSourceFieldsVisible(visible); scheduleReport(); }} /></Show>
       <Show when={doc.root()?.templateCards}><CardSummary blockId={props.pageId} cards={[]} templateCount={doc.root()?.templateCards ?? 0} notebook={props.notebook} onOpen={props.onOpen} /></Show>
       <Show when={doc.root()?.task || doc.root()?.project || doc.root()?.question || doc.root()?.citations.length}><div class="outline-root-capabilities outline-capability-metadata">
         <Show when={doc.root()?.task}>

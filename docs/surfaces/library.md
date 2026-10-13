@@ -277,6 +277,8 @@ Edit details… keeps the source page open and shows the Library's 460 px catalo
 
 The header and catalogue card own the catalogue fields: Subtitle, creators, dates, publisher, edition, series, number, pages, languages, identifiers, URL, site, description, cover, siglum, reading dates and Collections. Their entries stay out of the outline until Show metadata fields, and the page offers no slots for them; Add field neither lists nor creates them there. Every other field is the note's own and shows in the [field area](../design.md#field-area) under the header, with its slots and Add field, like any page. The snapshot's description is clamped to three lines with More. The page has no Table button; ⌘⇧T and the palette still open the table.
 
+Show and Hide metadata fields are saved with the pane's view across reloads and history. A remembered caret in the note's own fields does not reveal catalogue fields.
+
 Author, Editor and Translator values may be plain names or linked people. Plain names supply the same Library bylines, creator facets, exports and derived sigla without creating a person page.
 
 The pane header reads Library / title, and Library opens the Library pane (Shift beside). Zoomed into a block, Library gives way to the zoom path.

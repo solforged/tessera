@@ -12,6 +12,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - New typed notes appear in Merge into and show their ID and creation date without a reload.
 - Opening a blank note no longer adds a stored blank block.
 - Gloss keeps its standfirst styling when a page is revisited through Find.
+- Source metadata visibility survives reloads without following an unrelated field's caret.
 
 ## 0.3.0, 2026-10-12
 
