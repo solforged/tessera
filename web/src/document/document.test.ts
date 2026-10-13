@@ -1011,17 +1011,19 @@ describe('real notebook operations and recovery', () => {
     expect((await api.block(child)).parent_id).toBe(first);
   });
 
-  test('an empty ready page seeds one shared blank row and deleting final content remains one undo step', async () => {
+  test('opening an empty page writes nothing and deleting authored final content remains one undo step', async () => {
     const instance = await client();
     const id = ulid();
     await api.submit({ actor: { kind: 'agent', name: 'empty type page' }, operations: [{ op: 'create_page', id, title: `Empty tag page ${++serial}` }] });
     const doc = instance.open(id);
     const shared = instance.open(id);
     await eventually(() => doc.status() === 'ready', 'empty page did not load');
-    const first = doc.outline.idAt(0);
     expect(shared).toBe(doc);
-    expect(ids(doc).map(id => ({ text: doc.block(id)?.text, parent: doc.block(id)?.parentId }))).toEqual([{ text: '', parent: id }]);
-    success(doc.edit({ kind: 'text', id: first, text: 'Final content' }));
+    expect(ids(doc)).toEqual([]);
+    await instance.flush();
+    expect((await api.page(id)).rows).toEqual([]);
+    expect(doc.canUndo()).toBe(false);
+    const first = success(doc.edit({ kind: 'insert', parentId: id, after: null, text: 'Final content' })).created[0]!;
     const child = success(doc.edit({ kind: 'insert', parentId: first, after: null, text: 'Final child' })).created[0]!;
     await instance.flush();
     const result = success(doc.edit({ kind: 'delete', ids: [first] }, { id: first, offset: 5 }));

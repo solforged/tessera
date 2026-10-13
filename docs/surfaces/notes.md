@@ -57,6 +57,8 @@ The form opens under a `NEW PERSON` rubric with the title in the page-title face
 
 Unfiled is a filing queue grouped into With text and Blank, with All, With text and Blank filters and real block/backlink apparatus. Blank can still be referenced and is not a deletion recommendation.
 
+Opening a blank note does not add stored blocks. Add a block starts writing only when chosen.
+
 Each row has File and a menu containing Open, File under a type…, Rename…, Merge into… and Delete…. Desktop and unfolded layouts pair the list with a selected-note inspector and links to its referring pages. The touch cover uses a filing sheet above navigation.
 
 The shared type picker lists existing types and explicitly offers Create type “X” and file. Creation and membership are one acknowledged batch of existing operations. Rename uses the canonical page document; merge and delete retain their existing confirmations and undo rules.

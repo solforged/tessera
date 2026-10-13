@@ -639,12 +639,6 @@ export class Document implements PageDocument {
       // put() wrote every saved cell above; only local commands, conflicts and resolutions can differ from it.
       this.refreshPending(new Set([...this.pendingIds(), ...this.conflicts, ...this.resolving]));
       this.conflictVersion[1](value => value + 1);
-      if (!this.outline.size() && this.root() && this.root()!.revision > 0) {
-        const block: Block = { id: ulid(), kind: 'block', parent_id: this.pageId, page_id: this.pageId, text: '', heading: null, archived: false, kept_copy: null, revision: 0, created_at: Date.now(), updated_at: Date.now() };
-        const action: Action = { kind: 'insert', block, after: null };
-        const inverse = this.apply(action);
-        this.host.enqueue(this, [action], inverse, null, { id: block.id, offset: 0 }, false);
-      }
       this.loadStatus[1]('ready');
       this.loadMessage[1]('');
     });
