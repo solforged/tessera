@@ -1,10 +1,10 @@
 import { ulid } from 'ulid';
-import type { Block, Committed, FieldChoiceCandidate, FieldDefinition, FieldDetail, FieldKind, Operation } from '../api/types';
+import type { Block, Committed, FieldChoiceCandidate, FieldDefinition, FieldDetail, FieldKind, Operation, PageView, Type } from '../api/types';
 import type { DocumentChange, NotebookClient, PageDocument } from '../document/contract';
 import { fieldEntryId } from '../table/query';
 import { documentReady } from '../outline/source-fields';
 
-type Write = Extract<Operation, { op: 'insert' | 'edit_text' | 'set_field_kind' | 'delete' | 'restore' }>;
+type Write = Extract<Operation, { op: 'insert' | 'create_page' | 'edit_text' | 'set_field_kind' | 'set_type_fields' | 'set_archived' | 'move' | 'delete' | 'restore' }>;
 interface Step { forward: Write; backward: Write }
 const revision = (receipt: Committed, id: string) => {
   const value = receipt.revisions.find(value => value.id === id);
@@ -30,9 +30,10 @@ async function commit(notebook: NotebookClient, steps: Step[], pages: string[], 
     const revisions = new Map<string, number>();
     const operations = ordered.map(step => {
       const operation = forward ? step.forward : step.backward;
-      if (operation.op === 'insert') { revisions.set(operation.id, 1); return operation; }
-      const current = revisions.get(operation.id) ?? (operation.op === 'restore' ? operation.revision : operation.base_revision);
-      revisions.set(operation.id, current + 1);
+      const id = operation.op === 'set_type_fields' ? operation.type_id : operation.id;
+      if (operation.op === 'insert' || operation.op === 'create_page') { revisions.set(id, 1); return operation; }
+      const current = revisions.get(id) ?? (operation.op === 'restore' ? operation.revision : operation.base_revision);
+      revisions.set(id, current + 1);
       return operation.op === 'restore' ? { ...operation, revision: current } : { ...operation, base_revision: current };
     });
     const receipt = await notebook.commit(operations, reason, pages);
@@ -42,8 +43,8 @@ async function commit(notebook: NotebookClient, steps: Step[], pages: string[], 
       const opposite = forward ? step.backward : step.forward;
       let next: Write;
       if (sent.op === 'delete') next = { op: 'restore', id: sent.id, revision: revision(receipt, sent.id), deletion_id: receipt.deletions[deletion++]! };
-      else if (sent.op === 'insert' || sent.op === 'restore') next = { op: 'delete', id: sent.id, base_revision: revision(receipt, sent.id) };
-      else next = { ...opposite, base_revision: revision(receipt, sent.id) } as Write;
+      else if (sent.op === 'insert' || sent.op === 'create_page' || sent.op === 'restore') next = { op: 'delete', id: sent.id, base_revision: revision(receipt, sent.id) };
+      else next = { ...opposite, base_revision: revision(receipt, sent.op === 'set_type_fields' ? sent.type_id : sent.id) } as Write;
       if (forward) step.backward = next; else step.forward = next;
     }
     applied = forward;
@@ -53,7 +54,10 @@ async function commit(notebook: NotebookClient, steps: Step[], pages: string[], 
   return { undo: () => travel(false), redo: () => travel(true) };
 }
 
-export async function changeFieldKind(notebook: NotebookClient, detail: FieldDetail, convert: boolean): Promise<DocumentChange> {
+export type Interpretation = { mode: 'keep' } | { mode: 'option' | 'page' | 'create'; value: string };
+export type InterpretationMap = Record<string, Interpretation>;
+
+export async function changeFieldKind(notebook: NotebookClient, detail: FieldDetail, convert: InterpretationMap): Promise<DocumentChange> {
   const steps: Step[] = [];
   const definition = await notebook.api.block(detail.field.id);
   const pages = new Set([definition.page_id]);
@@ -61,7 +65,30 @@ export async function changeFieldKind(notebook: NotebookClient, detail: FieldDet
     forward: { op: 'set_field_kind', id: detail.field.id, base_revision: detail.field.revision, kind: detail.kind },
     backward: { op: 'set_field_kind', id: detail.field.id, base_revision: 0, kind: detail.field.kind },
   });
-  if (convert && detail.kind === 'choice') addCandidates(steps, pages, detail.field, detail.choice_candidates);
+  const options = new Map(detail.field.options.map(option => [option.text.trim().toLocaleLowerCase(), option.id]));
+  const created = new Map<string, string>();
+  let after = detail.field.options.at(-1)?.id ?? null;
+  for (const row of detail.interpretations) {
+    const mapping = convert[row.text];
+    if (!mapping || mapping.mode === 'keep') continue;
+    let target: string;
+    if (mapping.mode === 'option') {
+      const name = mapping.value.trim();
+      if (!name) throw new Error('An option needs a name.');
+      const key = name.toLocaleLowerCase();
+      target = options.get(key) ?? insert(steps, detail.field.id, name, after);
+      if (!options.has(key)) { after = target; options.set(key, target); }
+    } else if (mapping.mode === 'create') {
+      const title = mapping.value.trim();
+      if (!title) throw new Error('A page needs a title.');
+      target = created.get(title) ?? ulid();
+      if (!created.has(title)) {
+        steps.push({ forward: { op: 'create_page', id: target, title }, backward: { op: 'delete', id: target, base_revision: 0 } });
+        created.set(title, target); pages.add(target);
+      }
+    } else target = mapping.value;
+    for (const value of row.values) { pages.add(value.page_id); replace(steps, value, `[[${target}]]`); }
+  }
   return commit(notebook, steps, [...pages], 'Change field kind');
 }
 function addCandidates(steps: Step[], pages: Set<string>, field: FieldDefinition, candidates: FieldChoiceCandidate[]) {
@@ -119,9 +146,89 @@ export async function createOptionValue(notebook: NotebookClient, doc: PageDocum
 }
 
 /** Predict the selected conversion without relaxing Choice's link-only reading rule. */
-export function choicePreview(detail: FieldDetail, convert: boolean): FieldDetail {
-  if (!convert || detail.kind !== 'choice') return detail;
-  const names = new Map(detail.choice_candidates.flatMap(candidate => candidate.values.map(value => [value.id, candidate.text] as const)));
+export function choicePreview(detail: FieldDetail, mappings: InterpretationMap): FieldDetail {
+  const names = new Map(detail.interpretations.flatMap(row => {
+    const mapping = mappings[row.text];
+    return mapping && mapping.mode !== 'keep' && mapping.value.trim() ? row.values.map(value => [value.id, mapping.value] as const) : [];
+  }));
   const converted = detail.problems.filter(item => names.has(item.value.id)).map(item => ({ ...item, value: { ...item.value, reading: { ok: true as const, value: names.get(item.value.id)!, target: null } } }));
-  return { ...detail, problems_total: detail.problems_total - names.size, problems: detail.problems.filter(item => !names.has(item.value.id)), readable: [...detail.readable, ...converted] };
+  const remaining = detail.interpretations.filter(row => !row.reading.ok).reduce((count, row) => count + row.values.filter(value => !names.has(value.id)).length, 0);
+  return { ...detail, problems_total: remaining, problems: detail.problems.filter(item => !names.has(item.value.id)), readable: [...detail.readable, ...converted] };
+}
+
+export interface FieldImpact {
+  detail: FieldDetail;
+  definition: Block;
+  entries: Block[];
+  pages: PageView[];
+  templates: Type[];
+  target?: FieldDetail;
+  conflicts: Block[];
+}
+
+/** Capture revisions at preview time, so a later edit rejects rather than being overwritten. */
+export async function fieldImpact(notebook: NotebookClient, id: string, target?: string): Promise<FieldImpact> {
+  const detail = await notebook.api.fieldDetail(id);
+  const [definition, entries, templates, survivor] = await Promise.all([
+    notebook.api.block(id), Promise.all(detail.entries.map(id => notebook.api.block(id))),
+    Promise.all(detail.templates.map(type => notebook.api.type(type.type_id))),
+    target ? notebook.api.fieldDetail(target) : undefined,
+  ]);
+  const pageIds = [...new Set([definition.page_id, ...entries.map(entry => entry.page_id)])];
+  const pages = await Promise.all(pageIds.map(id => notebook.api.page(id)));
+  const targetEntries = survivor ? await Promise.all(survivor.entries.map(id => notebook.api.block(id))) : [];
+  const targetOwners = new Set(targetEntries.map(entry => entry.parent_id));
+  return { detail, definition, entries, pages, templates, target: survivor, conflicts: entries.filter(entry => targetOwners.has(entry.parent_id)) };
+}
+
+export async function applyFieldImpact(notebook: NotebookClient, impact: FieldImpact, action: 'archive' | 'merge' | 'detach' | 'delete'): Promise<DocumentChange> {
+  const { definition, entries, templates, target } = impact;
+  const steps: Step[] = [];
+  const pages = new Set(impact.pages.map(page => page.root.id));
+  if (action === 'archive') {
+    steps.push({ forward: { op: 'set_archived', id: definition.id, base_revision: definition.revision, archived: true }, backward: { op: 'set_archived', id: definition.id, base_revision: 0, archived: definition.archived } });
+  } else {
+    if (action === 'merge' && (!target || target.field.id === definition.id)) throw new Error('Choose another field.');
+    for (const entry of entries) {
+      if (action === 'merge') replace(steps, entry, `[[${target!.field.id}]]`);
+      else if (action === 'detach') {
+        const children = impact.pages.find(page => page.root.id === entry.page_id)!.rows.map(row => row.block).filter(block => block.parent_id === entry.id);
+        if (!children.length) replace(steps, entry, `${definition.text}:`);
+        let after = entry.id;
+        for (let index = 0; index < children.length; index++) {
+          const value = children[index]!;
+          replace(steps, value, `${definition.text}: ${value.text}`);
+          steps.push({
+            forward: { op: 'move', id: value.id, base_revision: value.revision, parent_id: entry.parent_id!, after },
+            backward: { op: 'move', id: value.id, base_revision: 0, parent_id: entry.id, after: null },
+          });
+          after = value.id;
+        }
+        if (children.length) steps.push({ forward: { op: 'delete', id: entry.id, base_revision: entry.revision }, backward: { op: 'delete', id: entry.id, base_revision: 0 } });
+      } else steps.push({ forward: { op: 'delete', id: entry.id, base_revision: entry.revision }, backward: { op: 'delete', id: entry.id, base_revision: 0 } });
+    }
+    for (const template of templates) {
+      const fields = template.fields.flatMap(id => id === definition.id ? action === 'merge' ? [target!.field.id] : [] : [id]);
+      steps.push({
+        forward: { op: 'set_type_fields', type_id: template.page.id, base_revision: template.page.revision, fields: [...new Set(fields)] },
+        backward: { op: 'set_type_fields', type_id: template.page.id, base_revision: 0, fields: template.fields },
+      });
+      pages.add(template.page.id);
+    }
+    if (action === 'merge') {
+      const definitions = impact.pages.find(page => page.root.id === definition.page_id)!;
+      const children = definitions.rows.map(row => row.block).filter(block => block.parent_id === definition.id);
+      let after = target!.field.options.at(-1)?.id ?? null;
+      for (let index = 0; index < children.length; index++) {
+        const child = children[index]!;
+        steps.push({
+          forward: { op: 'move', id: child.id, base_revision: child.revision, parent_id: target!.field.id, after },
+          backward: { op: 'move', id: child.id, base_revision: 0, parent_id: definition.id, after: null },
+        });
+        after = child.id;
+      }
+    }
+    steps.push({ forward: { op: 'delete', id: definition.id, base_revision: definition.revision }, backward: { op: 'delete', id: definition.id, base_revision: 0 } });
+  }
+  return commit(notebook, steps, [...pages], action === 'merge' ? 'Merge field' : action === 'archive' ? 'Archive field' : action === 'detach' ? 'Detach field values' : 'Delete field values');
 }

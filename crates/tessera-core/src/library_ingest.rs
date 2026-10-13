@@ -268,6 +268,7 @@ impl<'a> Planner<'a> {
                 kind,
                 hide: crate::FieldHide::Never,
                 role: crate::FieldRole::Attribute,
+                archived: false,
                 revision: 2,
                 options: vec![],
                 targets: vec![],

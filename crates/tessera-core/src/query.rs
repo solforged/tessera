@@ -62,6 +62,12 @@ pub(crate) fn validate_query(conn: &Connection, query: &Query) -> Result<Vec<Fie
         {
             crate::entity_query::relative_date(conn, value)?;
         }
+        if kind == FieldKind::Span
+            && !matches!(filter.op, FilterOp::Present | FilterOp::Set | FilterOp::Empty)
+            && crate::fields::span(filter.value.as_deref().expect("validated filter value")).is_none()
+        {
+            return Err(validation("span filter value must be a historical span"));
+        }
     }
     for key in &query.sort {
         if key.by == SortBy::Field {
@@ -704,6 +710,7 @@ struct PreparedFilter<'a> {
     filter: &'a Filter,
     value: String,
     number: Option<f64>,
+    span: Option<crate::YearSpan>,
     instance: bool,
     owners: Option<HashSet<String>>,
 }
@@ -762,6 +769,11 @@ impl<'a> PreparedFilter<'a> {
                 Some(filter_number(
                     filter.value.as_deref().expect("validated filter"),
                 )?)
+            } else {
+                None
+            },
+            span: if kind == FieldKind::Span {
+                filter.value.as_deref().and_then(crate::fields::span)
             } else {
                 None
             },
@@ -829,6 +841,18 @@ impl<'a> PreparedFilter<'a> {
         if self.instance && op == FilterOp::Is {
             return target.as_deref() == self.filter.value.as_deref();
         }
+        if let ReadingValue::Span(left) = value {
+            let Some(right) = &self.span else { return false };
+            let (from, through) = (left.from.unwrap_or(i32::MIN), left.through.unwrap_or(i32::MAX));
+            let (start, end) = (right.from.unwrap_or(i32::MIN), right.through.unwrap_or(i32::MAX));
+            return match op {
+                FilterOp::Is => left == right,
+                FilterOp::Overlaps => from <= end && through >= start,
+                FilterOp::Before | FilterOp::Lt => through < start,
+                FilterOp::After | FilterOp::Gt => from > end,
+                _ => false,
+            };
+        }
         let order = if let Some(right) = self.number {
             let ReadingValue::Number(left) = value else {
                 return false;
@@ -840,6 +864,7 @@ impl<'a> PreparedFilter<'a> {
                 ReadingValue::Text(text) => text.to_lowercase(),
                 ReadingValue::Number(number) => number.to_string(),
                 ReadingValue::Checkbox(value) => value.to_string(),
+                ReadingValue::Span(_) => unreachable!("spans compared above"),
             };
             match op {
                 FilterOp::Is => return text == self.value,
@@ -861,6 +886,7 @@ enum SortValue {
     Text(String),
     Number(f64),
     Checkbox(bool),
+    Span(i32, i32),
     Timestamp(i64),
     Option(usize),
     Problem,
@@ -871,6 +897,7 @@ impl SortValue {
             (Self::Text(a), Self::Text(b)) => a.cmp(b),
             (Self::Number(a), Self::Number(b)) => a.partial_cmp(b).expect("finite readings"),
             (Self::Checkbox(a), Self::Checkbox(b)) => a.cmp(b),
+            (Self::Span(a, b), Self::Span(c, d)) => (a, b).cmp(&(c, d)),
             (Self::Timestamp(a), Self::Timestamp(b)) => a.cmp(b),
             (Self::Option(a), Self::Option(b)) => a.cmp(b),
             _ => unreachable!("a sort key has one field kind"),
@@ -920,6 +947,10 @@ fn sort_value(
                     ),
                     ReadingValue::Number(n) => SortValue::Number(*n),
                     ReadingValue::Checkbox(b) => SortValue::Checkbox(*b),
+                    ReadingValue::Span(span) => SortValue::Span(
+                        span.from.unwrap_or(i32::MIN),
+                        span.through.unwrap_or(i32::MAX),
+                    ),
                 },
             }
         }

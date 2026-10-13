@@ -275,7 +275,7 @@ export interface ConflictDetails {
 
 export type FieldKind = typeof fieldKinds[number];
 export type Direction = 'asc' | 'desc';
-export type FilterOp = 'is' | 'is_not' | 'contains' | 'gt' | 'gte' | 'lt' | 'lte' | 'present' | 'set' | 'empty';
+export type FilterOp = 'is' | 'is_not' | 'contains' | 'gt' | 'gte' | 'lt' | 'lte' | 'overlaps' | 'before' | 'after' | 'present' | 'set' | 'empty';
 export interface Filter { field: string; op: FilterOp; value: string | null; or_empty?: boolean }
 export interface SortKey { by: 'title' | 'created' | 'updated' | 'field'; field: string | null; direction: Direction }
 export interface NoteView { layout: 'index' | 'table'; grouping: string }
@@ -284,13 +284,14 @@ export type QuerySource = 'notes' | 'questions' | 'positions' | 'sources' | 'tas
 export interface QueryColumn { key: string; width?: number }
 export interface QueryGrouping { key: string; collapsed?: string[] }
 export interface Query { source?: QuerySource; type: string | null; text: string | null; filters: Filter[]; sort: SortKey[]; limit: number | null; offset?: number; note_kind?: string; links?: string[]; from?: string[]; cites?: string[]; note_view?: NoteView; columns?: QueryColumn[]; group?: QueryGrouping; card?: string[]; purpose?: string }
-export type Reading = { ok: true; value: string | number | boolean; target: string | null } | { ok: false; problem: string };
+export interface YearSpan { from: number | null; through: number | null }
+export type Reading = { ok: true; value: string | number | boolean | YearSpan; target: string | null } | { ok: false; problem: string };
 export interface FieldValue { id: string; text: string; reading: Reading }
 export interface QueryAttributeValue { text: string; reading: Reading }
 export interface QueryAttribute { key: string; name: string; kind: FieldKind }
 export interface QueryGroup { key: string; title: string; target: string | null; row_ids: string[]; count: number }
 export interface QueryRow { block: BlockInPage; values: Record<string, FieldValue[]>; attributes?: Record<string, QueryAttributeValue[]> }
-export interface FieldDefinition { id: string; name: string; kind: FieldKind; revision: number; options: { id: string; text: string }[]; targets: string[]; hide?: FieldHide; role?: FieldRole }
+export interface FieldDefinition { id: string; name: string; kind: FieldKind; revision: number; options: { id: string; text: string }[]; targets: string[]; hide?: FieldHide; role?: FieldRole; archived?: boolean }
 export interface QueryResult { fields: FieldDefinition[]; columns: string[]; rows: QueryRow[]; total: number; note_groups?: NoteGroup[]; attributes?: QueryAttribute[]; groups?: QueryGroup[] }
 export interface FieldSummary extends FieldDefinition { owners: number; types: { id: string; name: string }[] }
 export interface Fields { page_id: string; fields: FieldSummary[] }
@@ -315,6 +316,8 @@ export interface FieldDetail {
   problems: FieldValueUse[];
   readable: FieldValueUse[];
   choice_candidates: FieldChoiceCandidate[];
+  interpretations: { text: string; reading: Reading; values: FieldChoiceCandidate['values'] }[];
+  entries: string[];
 }
 export interface Type { page: Block; fields: string[]; members: number; card_templates: number; plural: string | null; icon: string | null }
 export interface View { id: string; name: string; query: Query; revision: number; created_at: number; updated_at: number }

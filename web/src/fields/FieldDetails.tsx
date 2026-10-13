@@ -14,8 +14,10 @@ import type { FieldHide } from './hide';
 import { fieldRole, fieldRoles, roleDescriptions, roleLabels } from './roles';
 import type { FieldRole } from './roles';
 import './field-page.css';
-import { ChoiceConversion } from './ChoiceConversion';
-import { changeFieldKind, choicePreview, makeFieldOption } from './commands';
+import { ChoiceConversion, readingLabel } from './ChoiceConversion';
+import { changeFieldKind, choicePreview, makeFieldOption, fieldImpact, applyFieldImpact } from './commands';
+import type { InterpretationMap, FieldImpact } from './commands';
+import { FieldImpactPreview } from './FieldImpactPreview';
 
 interface FieldDetailsProps {
   fieldId: string;
@@ -53,22 +55,35 @@ export function FieldDetails(props: FieldDetailsProps) {
   const [option, setOption] = createSignal('');
   const [targetsMenu, setTargetsMenu] = createSignal<HTMLElement | null>(null);
   const [targetsDraft, setTargetsDraft] = createSignal<string[]>([]);
-  const [convert, setConvert] = createSignal(true);
+  const [mappings, setMappings] = createSignal<InterpretationMap>({});
+  const [impact, setImpact] = createSignal<FieldImpact>();
+  const [register] = createResource(() => props.notebook.changeSequence(), () => props.notebook.api.fields());
   const [lastChange, setLastChange] = createSignal<DocumentChange>();
+  const [removed, setRemoved] = createSignal(false);
+  createEffect(on(() => props.fieldId, () => setRemoved(false)));
   const previewKey = createMemo(() => `${props.fieldId}:${props.previewKind ?? ''}`);
-  createEffect(on(previewKey, () => setConvert(true)));
+  createEffect(on(previewKey, () => { setMappings({}); setImpact(undefined); }));
   const [types] = createResource(() => props.notebook.changeSequence(), () => props.notebook.api.types());
   createEffect(on(() => props.notebook.changeSequence(), () => {
     const timer = setTimeout(() => setVersion(value => value + 1), 150);
     onCleanup(() => clearTimeout(timer));
   }, { defer: true }));
-  createEffect(on([previewKey, version], () => {
+  createEffect(on([previewKey, version, removed], () => {
     const id = props.fieldId; const kind = props.previewKind;
+    if (removed()) { setLoading(false); return; }
     const controller = new AbortController();
     setLoading(true);
-    void props.notebook.api.fieldDetail(id, kind, 12, controller.signal).then(value => {
+    void props.notebook.api.fieldDetail(id, kind, 12, controller.signal).then(async value => {
+      const mappings: InterpretationMap = {};
+      if (kind === 'choice') for (const row of value.interpretations) {
+        if (!row.reading.ok) mappings[row.text] = { mode: 'option', value: value.choice_candidates.find(candidate => candidate.values.some(item => item.id === row.values[0]?.id))?.text ?? row.text.trim() };
+      }
+      if (kind === 'instance') await Promise.all(value.interpretations.filter(row => !row.reading.ok).map(async row => {
+        const matches = await props.notebook.api.resolveName(row.text, controller.signal);
+        if (matches.length === 1) mappings[row.text] = { mode: 'page', value: matches[0]!.page.id };
+      }));
       if (controller.signal.aborted) return;
-      setResult(value); setError(''); setLoading(false); props.onReady?.();
+      setMappings(mappings); setResult(value); setError(''); setLoading(false); props.onReady?.();
     }).catch(reason => {
       if (!controller.signal.aborted) { setError(reason instanceof Error ? reason.message : String(reason)); setLoading(false); }
     });
@@ -76,11 +91,11 @@ export function FieldDetails(props: FieldDetailsProps) {
   }));
   const rawData = createMemo(() => {
     const value = result();
-    return value?.field.id === props.fieldId && value.kind === (props.previewKind ?? value.field.kind) ? value : undefined;
+    return !removed() && value?.field.id === props.fieldId && value.kind === (props.previewKind ?? value.field.kind) ? value : undefined;
   });
   const data = createMemo(() => {
     const detail = rawData();
-    return detail && props.previewKind ? choicePreview(detail, convert()) : detail;
+    return detail && props.previewKind ? choicePreview(detail, mappings()) : detail;
   });
   const targetTypes = createMemo(() => {
     const pages = new Map((types() ?? []).map(type => [type.page.id, type.page]));
@@ -121,8 +136,8 @@ export function FieldDetails(props: FieldDetailsProps) {
     try {
       if (edit.id === props.fieldId) {
         const fields = await props.notebook.api.fields();
-        const problem = fieldNameProblem(text, fields.fields, edit.id);
-        if (problem) { setError(problem); return; }
+        const existing = fields.fields.find(field => field.id !== edit.id && field.name.trim().toLocaleLowerCase() === text.toLocaleLowerCase());
+        if (existing) { setImpact(await fieldImpact(props.notebook, edit.id, existing.id)); setEditing(null); setError(''); return; }
       }
       const result = doc.edit({ kind: 'text', id: edit.id, text });
       if (!result.ok) { setError(result.reason); return; }
@@ -140,7 +155,7 @@ export function FieldDetails(props: FieldDetailsProps) {
   const applyKind = async () => {
     const value = rawData(); const doc = props.document;
     if (!value || !doc || !ready()) return;
-    const convertValues = convert();
+    const convertValues = mappings();
     article.focus({ preventScroll: true });
     setApplying(true);
     try {
@@ -189,12 +204,28 @@ export function FieldDetails(props: FieldDetailsProps) {
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setApplying(false); }
   };
+  const previewImpact = async (target?: string) => {
+    setApplying(true);
+    try { await props.document?.flush(); setImpact(await fieldImpact(props.notebook, props.fieldId, target)); setError(''); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
+    finally { setApplying(false); }
+  };
+  const applyImpact = async (action: 'archive' | 'merge' | 'detach' | 'delete') => {
+    const current = impact(); const doc = props.document;
+    if (!current || !doc || !ready()) return;
+    setApplying(true);
+    try {
+      setLastChange(doc.rememberChange(await applyFieldImpact(props.notebook, current, action)));
+      setRemoved(action !== 'archive'); setImpact(undefined); setError('');
+    } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
+    finally { setApplying(false); }
+  };
   const inlineEdit = (id: string) => <Show when={editing()?.id === id}><form class="field-inline-edit" onSubmit={event => { event.preventDefault(); editText(); }}>
     <input class="input" aria-label={id === props.fieldId ? 'Field name' : 'Option name'} value={editing()?.text ?? ''} ref={input => queueMicrotask(() => { input.focus(); input.select(); })} onInput={event => setEditing({ id, text: event.currentTarget.value })} onKeyDown={event => { if (event.key === 'Escape') setEditing(null); }} />
     <Button type="submit" disabled={!ready()}>Save</Button><Button onClick={() => setEditing(null)}>Cancel</Button>
   </form></Show>;
   const ledger = (items: FieldValueUse[], after: boolean) => <table class="field-ledger"><thead><tr><th scope="col">Written value</th><th scope="col">Owner</th><th scope="col">{after ? 'After applying' : 'Problem'}</th></tr></thead><tbody>
-    <For each={items}>{item => <tr><td classList={{ 'field-rubric': !item.value.reading.ok }}>{plainText(item.value.text, id => props.notebook.lookup(id))}</td><td><Button onClick={event => ownerLink(item.owner, event.shiftKey)}>{plainText(item.owner.text, id => props.notebook.lookup(id))}</Button></td><td class="field-apparatus">{item.value.reading.ok ? String(item.value.reading.value) : item.value.reading.problem}<Show when={!after && data()?.kind === 'choice'}><Button disabled={!ready()} onClick={() => void makeOption(item.value.text)}>Make option</Button></Show></td></tr>}</For>
+    <For each={items}>{item => <tr><td classList={{ 'field-rubric': !item.value.reading.ok }}>{plainText(item.value.text, id => props.notebook.lookup(id))}</td><td><Button onClick={event => ownerLink(item.owner, event.shiftKey)}>{plainText(item.owner.text, id => props.notebook.lookup(id))}</Button></td><td class="field-apparatus">{readingLabel(item.value.reading)}<Show when={!after && data()?.kind === 'choice'}><Button disabled={!ready()} onClick={() => void makeOption(item.value.text)}>Make option</Button></Show></td></tr>}</For>
   </tbody></table>;
   const templates = (value: FieldDetail, title: string) => <section class="field-section">
     <SectionHead number={!props.inspector && !preview() ? '02' : undefined} title={title} count={plural(value.templates.length, 'template')} />
@@ -211,11 +242,14 @@ export function FieldDetails(props: FieldDetailsProps) {
   return <article ref={article} tabIndex={-1} classList={{ 'field-sheet': true, 'field-inspector': props.inspector }} aria-label={props.inspector ? 'Selected definition' : 'Field definition'}>
     <Show when={error()}><p class="error" role="alert">{error()} <Button onClick={() => setVersion(value => value + 1)}>Retry</Button></p></Show>
     <Show when={documentError()}><p class="error" role="alert">{documentError()}</p></Show>
-    <Show when={lastChange()}>{change => <p class="field-note">Field changed. <Button disabled={applying()} onClick={async () => { setApplying(true); try { await change().undo(); setLastChange(undefined); setVersion(value => value + 1); } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); } finally { setApplying(false); } }}>Undo</Button></p>}</Show>
+    <Show when={lastChange()}>{change => <p class="field-note">Field changed. <Button disabled={applying()} onClick={async () => { setApplying(true); try { await change().undo(); setRemoved(false); setLastChange(undefined); setVersion(value => value + 1); } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); } finally { setApplying(false); } }}>Undo</Button></p>}</Show>
     <Show when={data()} fallback={<Show when={loading()}><p role="status">Loading field…</p></Show>}>{value => <>
       <div class="field-eyebrow"><Show when={props.inspector} fallback={<><Button onClick={event => props.onOpen({ kind: 'fields' }, event.shiftKey)}>Fields</Button> / Definition</>}>Selected definition</Show></div>
       <header class="field-heading"><h1>{value().field.name}</h1><Show when={props.inspector} fallback={<Show when={!preview()}><Button disabled={!ready()} onClick={() => setEditing({ id: props.fieldId, text: value().field.name })}>Rename…</Button></Show>}><Button onClick={event => props.onOpen({ kind: 'field', fieldId: props.fieldId }, event.shiftKey)}>Open page ↗</Button></Show></header>
       {inlineEdit(props.fieldId)}
+      <Show when={!preview() && !props.inspector}><Button disabled={!ready()} onClick={() => void previewImpact()}>Delete definition…</Button></Show>
+      <Show when={value().field.archived}><p class="field-note">Archived; values remain readable.</p></Show>
+      <Show when={impact()}>{current => <FieldImpactPreview impact={current()} fields={register()?.fields ?? []} busy={applying()} onTarget={target => void previewImpact(target)} onApply={action => void applyImpact(action)} onCancel={() => setImpact(undefined)} />}</Show>
       <p class="field-summary">{kindLabels[value().field.kind]} · {plural(value().owners_total, 'owner')} · {plural(value().values_total, 'value')}</p>
       <div class="field-kind-row"><span>{preview() ? 'Change kind' : 'Kind'}</span><Show when={preview()}><span class="field-apparatus">{kindLabels[value().field.kind]} →</span></Show><Button class="bordered" aria-label={`Kind for ${value().field.name}: ${kindLabels[value().kind]}`} aria-haspopup="menu" aria-expanded={!!menu()} disabled={applying()} onClick={event => setMenu(event.currentTarget)}>{kindLabels[value().kind]} <Icon name="down" /></Button></div>
       <Show when={value().kind === 'instance' && !preview()}><div class="field-kind-row" data-field-section="targets"><span>Links to</span><Button class="bordered" disabled={!ready()} aria-haspopup="dialog" aria-expanded={!!targetsMenu()} onClick={event => { setTargetsDraft([...value().field.targets]); setTargetsMenu(event.currentTarget); }}>{value().field.targets.map(id => props.notebook.lookup(id)()?.text ?? id).join(', ') || 'Any page'} <Icon name="down" /></Button></div></Show>
@@ -230,14 +264,14 @@ export function FieldDetails(props: FieldDetailsProps) {
         </section></Show>
         <Show when={!props.inspector}>{templates(value(), 'In templates')}</Show>
         <Show when={props.inspector && value().kind === 'date'}><section class="field-section"><SectionHead title="Reading" /><Show when={dateExample()} fallback={<p class="field-note">Accepts bare years from 1 to 9999. No day is added.</p>}>{example => <p class="field-apparatus">{plainText(example().value.text, id => props.notebook.lookup(id))} → {(() => { const reading = example().value.reading; if (!reading.ok) return ''; const text = String(reading.value); return /^\d{1,4}$/.test(text) ? `year ${Number(text)}` : text; })()}</p>}</Show></section></Show>
-        <section class="field-section"><SectionHead number={props.inspector ? undefined : '03'} title="Used by" count={plural(value().owners_total, 'owner')} /><div class="field-owners"><For each={value().owners} fallback={<p class="field-note">No owners yet.</p>}>{item => <div class="field-owner"><Button onClick={event => ownerLink(item.owner, event.shiftKey)}>{plainText(item.owner.text, id => props.notebook.lookup(id))}</Button><div class="field-owner-values"><For each={item.values} fallback={<span class="field-apparatus">Empty</span>}>{fieldValue => <span classList={{ 'field-apparatus': true, 'field-rubric': !fieldValue.reading.ok }}>{fieldValue.reading.ok ? String(fieldValue.reading.value) : plainText(fieldValue.text, id => props.notebook.lookup(id))}</span>}</For></div></div>}</For></div>
+        <section class="field-section"><SectionHead number={props.inspector ? undefined : '03'} title="Used by" count={plural(value().owners_total, 'owner')} /><div class="field-owners"><For each={value().owners} fallback={<p class="field-note">No owners yet.</p>}>{item => <div class="field-owner"><Button onClick={event => ownerLink(item.owner, event.shiftKey)}>{plainText(item.owner.text, id => props.notebook.lookup(id))}</Button><div class="field-owner-values"><For each={item.values} fallback={<span class="field-apparatus">Empty</span>}>{fieldValue => <span classList={{ 'field-apparatus': true, 'field-rubric': !fieldValue.reading.ok }}>{fieldValue.reading.ok && typeof fieldValue.reading.value !== 'object' ? readingLabel(fieldValue.reading) : plainText(fieldValue.text, id => props.notebook.lookup(id))}</span>}</For></div></div>}</For></div>
           <Show when={value().owners_total}><Button class="field-view-all" onClick={event => props.onOpen({ kind: 'table', typeId: null, viewId: null, query: { type: null, text: null, filters: [{ field: props.fieldId, op: 'present', value: null }], sort: [], limit: null } }, event.shiftKey)}>{value().owners_total === 1 ? 'View owner' : `View all ${plural(value().owners_total, 'owner')}`} →</Button></Show>
         </section>
         <Show when={props.inspector}>{templates(value(), 'In templates')}</Show>
         <Show when={!props.inspector}><section class="field-section"><SectionHead number="04" title="Problem values" count={plural(value().problems_total, 'value')} problem={!!value().problems_total} /><Show when={value().problems_total} fallback={<p class="field-note">No problem values.</p>}>{ledger(value().problems, false)}<Show when={value().problems_total > value().problems.length}><p class="field-apparatus">Showing the first {plural(value().problems.length, 'problem')}.</p></Show><p class="field-note">{value().kind === 'choice' ? 'Make it an option, or open its owner to edit it.' : 'The value stays as written. Open its owner to edit it.'}</p></Show></section></Show>
       </>}>
-        <ChoiceConversion detail={rawData()!} checked={convert()} disabled={applying()} onChange={setConvert} />
-        <section class="field-preview-summary"><h2><Show when={value().problems_total} fallback={<span>{value().values_total === 1 ? 'The' : 'All'} {plural(value().values_total, 'value')} will read as {kindLabels[value().kind]}.</span>}><span class="field-rubric">{value().problems_total} of {value().values_total}</span>{` ${value().problems_total === 1 ? 'value' : 'values'} won't read as ${kindLabels[value().kind]}`}</Show></h2><Show when={!props.inspector}><p class="field-note">{convert() && value().kind === 'choice' ? 'Matching values link to their options. Owners and child notes stay in place.' : 'Value text stays as written. Owners and child notes stay in place.'}</p></Show></section>
+        <Show when={!props.inspector}><ChoiceConversion detail={rawData()!} mappings={mappings()} notebook={props.notebook} disabled={applying()} onChange={setMappings} /></Show>
+        <section class="field-preview-summary"><h2>{value().problems_total} of {value().values_total} values remain unreadable</h2><p class="field-note">Owners and child notes stay in place.</p></section>
         <Show when={!props.inspector} fallback={<div class="field-preview-actions"><Button onClick={() => props.onPreview()}>Cancel</Button><Button onClick={event => props.onOpen({ kind: 'field', fieldId: props.fieldId, previewKind: value().kind }, event.shiftKey)}>Open preview</Button></div>}>
           <Show when={value().problems_total}><section class="field-section"><SectionHead title="Will become problems" count={plural(value().problems_total, 'value')} />{ledger(value().problems, true)}<Show when={value().problems_total > value().problems.length}><p class="field-apparatus">Showing the first {plural(value().problems.length, 'problem')}.</p></Show></section></Show>
           <section class="field-section"><SectionHead title={`Will read as ${kindLabels[value().kind]}`} count={plural(value().values_total - value().problems_total, 'value')} />{ledger(value().readable, true)}<Show when={value().values_total - value().problems_total > value().readable.length}><p class="field-apparatus">Showing the first {plural(value().readable.length, 'readable value')}.</p></Show></section>

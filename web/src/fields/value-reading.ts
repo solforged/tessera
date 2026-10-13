@@ -2,6 +2,7 @@ import type { FieldDefinition } from '../api/types';
 import { checkboxValue } from './kinds';
 import { partialFieldDate } from './value-options';
 import { parseTaskDate } from '../tasks/date-input';
+import { readSpan } from './span';
 
 /** Problems decidable from the written value and definition, without fetching owner readings.
  * Mirrors crates/tessera-core/src/fields.rs reading; unresolved reference constraints stay unmarked. */
@@ -11,6 +12,7 @@ export function fieldValueProblem(field: FieldDefinition | undefined, text: stri
   switch (field.kind) {
     case 'number': return /^-?\d+(?:\.\d+)?$/.test(value) && Number.isFinite(Number(value)) ? undefined : 'not a number';
     case 'checkbox': return checkboxValue(value) === null ? 'not a checkbox' : undefined;
+    case 'span': return readSpan(value) ? undefined : 'not a historical span';
     case 'date': {
       if (/^\[\[[^\]]+\]\]$/.test(value) || partialFieldDate(value) !== null) return;
       const parsed = /^\d{4}-\d{2}-\d{2}$/.test(value) && parseTaskDate(value, '2000-01-01');

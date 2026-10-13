@@ -177,6 +177,7 @@ Save state belongs only to the pane header. Saving… appears after a second and
 - Description uses Piazzolla, clamped to three lines with More, and becomes editable on click.
 - Reset to extracted sits beside a changed snapshot value.
 - Fill missing details sits with the identifiers and writes only empty fields.
+- Visible fields keeps each page's catalog-card visibility on this device through reloads. It changes presentation only; the source's own fields stay in its field bed.
 - Replace cover… and Reset to extracted cover stay in About.
 - Apparatus names the derived siglum and its basis, offers Set override… or Use derived, and reports citation-key uniqueness errors inline without saving the conflicting key.
 

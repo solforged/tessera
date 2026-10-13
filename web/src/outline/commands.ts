@@ -231,7 +231,11 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     { id: 'card-source', title: 'Show card source', section: 'Navigation', run: () => selected() && capabilities.source(selected()!) },
     { id: 'archive', title: 'Archive / unarchive block', section: 'Outline', run: () => selected() && apply({ kind: 'archive', id: selected()!, archived: !doc.block(selected()!)?.archived }, false) },
     { id: 'show-archived', title: 'Show / hide archived blocks', section: 'View', run: () => { anchored(() => setShowArchived(value => !value)); scheduleReport(); } },
-    { id: 'delete', title: 'Delete selected subtrees', section: 'Outline', keys: ['Backspace', 'dd'], run: () => apply({ kind: 'delete', ids: roots() }, false) },
+    { id: 'delete', title: 'Delete selected subtrees', section: 'Outline', keys: ['Backspace', 'dd'], run: () => {
+      const definition = roots().find(id => context.definitionsById().has(id));
+      if (definition) { props.onOpen({ kind: 'field', fieldId: definition }, false); setMessage('Review the impact with Delete definition.'); return; }
+      apply({ kind: 'delete', ids: roots() }, false);
+    } },
     { id: 'undo', title: 'Undo', section: 'Editing', keys: ['⌘Z', 'u'], disabledReason: () => doc.canUndo() ? undefined : 'Nothing to undo.', run: () => undo() },
     { id: 'redo', title: 'Redo', section: 'Editing', keys: ['⌘⇧Z', '⌃R'], disabledReason: () => doc.canRedo() ? undefined : 'Nothing to redo.', run: () => undo(true) },
     { id: 'review-conflict', title: 'Review conflict', section: 'Editing', disabledReason: () => {

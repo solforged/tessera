@@ -174,7 +174,7 @@ A type is an ordinary page used as the target of memberships. A block can have m
 A field definition is a block under the live page titled `Fields`, the system page every notebook has:
 
 - Its name is the block's text.
-- Its kind is text, number, date, checkbox, choice, instance, URL or identifier; the default is text.
+- Its kind is text, number, date, span, checkbox, choice, instance, URL or identifier; the default is text.
 - Choice options are child blocks of the definition.
 
 A field entry is a block whose whole text is one reference to a definition, rendering as its name. The entry's parent owns the field; its children are the values. Typing `Author::` in the editor produces an entry.
@@ -188,11 +188,18 @@ Values are plain blocks read through the field's kind. A value that does not fit
 | Kind | Value rule |
 |---|---|
 | Date | Links to a journal day or spells out the date. A bare year or year-month is valid for sources dated no more precisely. |
+| Span | Keeps the written historical notation and reads an inclusive year range. BCE years are negative; unknown bounds are open. |
 | Choice | Links to its option. |
 | URL | An absolute `http` or `https` address. |
 | Identifier | Reads an ISBN, DOI or arXiv ID in its usual spellings. Normalizes to `isbn:` with 13 digits, lowercase `doi:` or `arxiv:`, so the same work matches however it was written. |
 
-Changing a field's kind changes only how values are read. Owner counts include entries with no values and count each owning block once. Archived or deleted entries and owners do not count.
+Changing a field's kind opens a reviewed interpretation map of every distinct written value. Choice mappings reuse or create options, and several spellings can share one option. Instance mappings propose only a unique exact title or alias; creating a page requires an explicit choice. Ambiguous and unreadable values stay as written. Applying the map and kind is one undoable change across every owner. Owner counts include empty entries and count each owning block once. Archived or deleted entries and owners do not count.
+
+Renaming to another definition's name offers a merge preview with affected owners, pages, templates and conflicts. A merge redirects entries and template slots to the surviving definition, keeps conflicting entries side by side and moves option blocks without changing their identities. One undo restores both definitions and their entries.
+
+Deleting a definition first shows its impact. Archive hides it from field pickers but keeps values readable. Detach turns its values into ordinary `Name: value` blocks, retaining their child notes. Delete values requires explicit confirmation and removes their subtrees. Each action has one undo.
+
+Spans accept years and ranges, `c.`, `fl.`, `b.`, `d.`, decades, centuries and `?` for open ends. For example, `c. 200–118 BCE` reads from -200 through -118, and `fl. 1340s` reads from 1340 through 1349. Approximation markers do not invent a wider range. A birth has an open end; a death has an open start. Year zero and reversed ranges are unreadable. Span sorting compares start year, then end year; open bounds extend to infinity. Filters compare inclusive overlap, strictly before or strictly after another span.
 
 Date precision and sorting:
 
@@ -526,7 +533,7 @@ Person, Group and Concept start with templates, filled in only when wanted:
 
 - A new type page with one of these titles gets its template. An existing page with an empty template offers it instead.
 - A question page uses Add alias, since it has no type to carry a template.
-- Lived and Active are text, allowing `c. 1493` and `106–43 BCE`, which a date field cannot hold.
+- Lived and Active start as text. A reviewed kind change can read historical notation such as `c. 1493` and `106–43 BCE` as spans.
 - A Group's members are the people affiliated with it, not a second list.
 - Templates change like any type's and never rewrite notes.
 - Thesis starts without a template until it is settled how a thesis answers a question.

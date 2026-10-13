@@ -8,6 +8,7 @@ import { documentReady } from '../outline/source-fields';
 import { valueLabel } from '../outline/source';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
+import { Popup } from '../ui/Popup';
 import { ResourceImage } from './ResourceImage';
 import { MetadataField } from './MetadataField';
 import { metadataEqual, metadataText, metadataValues } from './metadata-values';
@@ -60,6 +61,21 @@ export function MetadataInspector(props: {
 }): JSX.Element {
   let root!: HTMLDivElement;
   let coverInput!: HTMLInputElement;
+  const [visibilityMenu, setVisibilityMenu] = createSignal<HTMLElement>();
+  const [hiddenFields, setHiddenFields] = createSignal<SourceField[]>([]);
+  createEffect(on(() => props.sourceIds.join(','), () => {
+    try {
+      const preferences = props.sourceIds.map(id => JSON.parse(localStorage.getItem(`tessera.catalogue.hidden.${id}`) ?? '[]') as SourceField[]);
+      setHiddenFields((Object.keys(labels) as SourceField[]).filter(field => preferences.length > 0 && preferences.every(hidden => Array.isArray(hidden) && hidden.includes(field))));
+    } catch { setHiddenFields([]); }
+  }));
+  function setFieldVisible(field: SourceField, visible: boolean) {
+    const next = visible ? hiddenFields().filter(value => value !== field) : [...hiddenFields(), field];
+    setHiddenFields(next);
+    for (const id of props.sourceIds) {
+      try { localStorage.setItem(`tessera.catalogue.hidden.${id}`, JSON.stringify(next)); } catch { /* Session-only preference. */ }
+    }
+  }
   let disposed = false;
   let queue: Promise<unknown> = Promise.resolve();
   let coverDocs: readonly PageDocument[] = [];
@@ -200,17 +216,17 @@ export function MetadataInspector(props: {
       const list = selected.map(doc => extractedValue(doc, field));
       return list[0] !== undefined && list.every(value => value !== undefined && metadataEqual(value, list[0]!)) ? list[0] : undefined;
     });
-    return <MetadataField label={labels[field]} values={values()} disabled={!ready()} extracted={extracted()}
+    return <Show when={!hiddenFields().includes(field)}><MetadataField label={labels[field]} values={values()} disabled={!ready()} extracted={extracted()}
       voice={field === 'title' ? 'title' : field === 'description' ? 'description' : apparatus[field] ? 'mono' : undefined}
       kind={field === 'language' || field === 'originalLanguage' ? 'language' : field === 'state' ? 'state' : field === 'identifiers' || field === 'tags' ? 'lines' : 'text'}
       placeholder={extra.placeholder ?? (dates[field] ? 'Add date' : undefined)}
       scope={selected.length > 1 ? `Enter or blur sets this on all ${selected.length} sources.` : batch() ? `Changes only “${selected[0]?.root()?.text}”.` : undefined}
-      hint={extra.hint} onSave={value => save(selected, field, value)} onError={message => updateError(key, message)} />;
+      hint={extra.hint} onSave={value => save(selected, field, value)} onError={message => updateError(key, message)} /></Show>;
   }
   function perSource(fieldName: SourceField) {
     const values = createMemo(() => metadataValues(docs().map(doc => current(doc, fieldName))));
     // A field that differs across the selection keeps its label column; its body is the per-source register.
-    return <Show when={batch() && (values().mixed || dates[fieldName] || fieldName === 'number')} fallback={field(fieldName)}><div class="metadata-field"><span class="metadata-label">{labels[fieldName]}</span><div class="metadata-field-body"><SourceRegister docs={docs()} label={`${labels[fieldName]} per source`} summary={[values().distinct.length ? `${values().distinct.length} ${values().distinct.length === 1 ? 'value' : 'values'}` : '', values().empty ? `${values().empty} empty` : '', 'per source'].filter(Boolean).join(' · ')}>{doc => field(fieldName, [doc])}</SourceRegister></div></div></Show>;
+    return <Show when={!hiddenFields().includes(fieldName)}><Show when={batch() && (values().mixed || dates[fieldName] || fieldName === 'number')} fallback={field(fieldName)}><div class="metadata-field"><span class="metadata-label">{labels[fieldName]}</span><div class="metadata-field-body"><SourceRegister docs={docs()} label={`${labels[fieldName]} per source`} summary={[values().distinct.length ? `${values().distinct.length} ${values().distinct.length === 1 ? 'value' : 'values'}` : '', values().empty ? `${values().empty} empty` : '', 'per source'].filter(Boolean).join(' · ')}>{doc => field(fieldName, [doc])}</SourceRegister></div></div></Show></Show>;
   }
   function creators(selected: readonly PageDocument[]) {
     const key = `${selected.map(doc => doc.pageId).join(',')}:creators`;
@@ -247,6 +263,7 @@ export function MetadataInspector(props: {
         <div><Show when={docs().length === 1}><Button class="metadata-open" onClick={event => props.onOpen({ kind: 'page', pageId: docs()[0]!.pageId }, event.shiftKey)}>Open page<Icon name="right" /></Button></Show><Button icon="close" label="Close source details" onClick={props.onClose} /></div>
       </div>
       <Show when={batch()}><p class="metadata-hint">An entered value replaces the field on all {docs().length} sources, unless a source is named.</p></Show>
+      <Button aria-haspopup="dialog" aria-expanded={!!visibilityMenu()} onClick={event => setVisibilityMenu(event.currentTarget)}>Visible fields…</Button>
     </header>
     <div class="metadata-inspector-scroll">
       <Show when={loading() || definitions.loading && !definitions() || evidence.loading}><p class="metadata-hint" role="status">Loading source details…</p></Show>
@@ -254,11 +271,11 @@ export function MetadataInspector(props: {
       <Show when={docs().length && definitions()}>
         <InspectorGroup number={1} title="Work" summary="Title, creators" phone={props.phone}>
           {perSource('title')}{field('subtitle')}
-          <div class="metadata-field"><span class="metadata-label">Creators</span><div class="metadata-field-body">
+          <Show when={!hiddenFields().includes('creators')}><div class="metadata-field"><span class="metadata-label">Creators</span><div class="metadata-field-body">
             <Show when={batch() && creatorValues().mixed} fallback={creators(docs())}>
               <SourceRegister docs={docs()} label="Creators per source" summary={`${creatorValues().distinct.length} values${creatorValues().empty ? ` · ${creatorValues().empty} empty` : ''} · per source`}>{doc => creators([doc])}</SourceRegister>
             </Show>
-          </div></div>
+          </div></div></Show>
           {perSource('firstPublished')}{field('originalLanguage')}
         </InspectorGroup>
         <InspectorGroup number={2} title="Edition" summary="Publication, series, language" phone={props.phone}>
@@ -282,6 +299,10 @@ export function MetadataInspector(props: {
       </Show>
       <Show when={actionError()}><p class="metadata-error" role="alert">{actionError()}</p></Show>
     </div>
+    <Show when={visibilityMenu()}>{anchor => <Popup anchor={anchor()} label="Catalogue fields" onDismiss={() => setVisibilityMenu(undefined)}>
+      <h2 class="popup-title">Catalogue fields</h2><p class="metadata-hint">Visibility is kept for each selected page on this device.</p>
+      <For each={(Object.keys(labels) as SourceField[]).filter(field => field !== 'cover' && field !== 'siglum')}>{field => <label class="menu-item"><input type="checkbox" checked={!hiddenFields().includes(field)} onChange={event => setFieldVisible(field, event.currentTarget.checked)} />{labels[field]}</label>}</For>
+    </Popup>}</Show>
     <Show when={toast()}>{notice => <div class="metadata-toast" role="status"><span>{notice().label} on {notice().count} {notice().count === 1 ? 'source' : 'sources'}.</span><Show when={notice().action}><Button disabled={!!pending()} onClick={() => { void travel(notice().action === 'redo'); }}>{notice().action === 'redo' ? 'Redo' : 'Undo'}</Button></Show><Button icon="close" label="Dismiss change notice" onClick={() => setToast(undefined)} /></div>}</Show>
     <input ref={coverInput} hidden type="file" accept="image/png,image/jpeg,image/webp" aria-label="Choose cover image" onChange={event => {
       const file = event.currentTarget.files?.[0]; event.currentTarget.value = '';

@@ -32,7 +32,9 @@ Filtering the index does not change definitions; an empty result offers Clear fi
 
 A field page is a specimen sheet on the outline measure, crumbed `Fields / Name`. Under the Piazzolla name sit a mono summary (`Choice · 7 owners · 9 values`) and Rename. Kind, Links to for instance fields, Hide and Role follow as rows. Hide offers Never, When empty and Always, with one muted line saying what the current choice does. Role offers Standfirst, Attribute, Prose and Citation, with a sentence explaining its presentation. Each change is one undoable edit on the definition. The [field menu](../design.md#field-entries) in any note opens this page, at the kind preview, Options or Links to; its Role menu offers the same choices.
 
-Rename refuses another field's name under the same case-insensitive rule as New field.
+Rename uses New field's case-insensitive duplicate rule. An existing name opens Merge into with affected owners, pages, templates and conflicting values. Apply keeps conflicts as separate entries under the surviving definition; Undo restores the original fields.
+
+Delete definition opens an impact preview. Archive keeps values readable and hides the definition from pickers. Merge into opens the same merge preview. Detach keeps values as ordinary `Name: value` blocks with their child notes. Delete values requires a separate confirmation checkbox. Every action offers one Undo.
 
 Numbered sections follow with rubric numerals and hairlines:
 
@@ -45,15 +47,17 @@ Numbered sections follow with rubric numerals and hairlines:
 
 Blocks in the pane header opens the definition in the Fields page, where names and options remain ordinary blocks. Edit definitions opens the Fields page.
 
-Choice and instance value pickers check the current value, expose it as selected and start the keyboard cursor there. An unmatched choice query offers `Add option “Y”`; adding the option and selecting it are one undoable change, including in tables. A note's Add field picker offers `Create text field “X”` and `Create field “X” as…`; the latter opens Text, Number, Date, Checkbox, Choice, Instance, URL and Identifier. The definition, chosen kind and entry are created together. A new Choice field opens its value picker so its first option can be added there.
+Choice and instance value pickers check the current value, expose it as selected and start the keyboard cursor there. An unmatched choice query offers `Add option “Y”`; adding the option and selecting it are one undoable change, including in tables. A note's Add field picker offers `Create text field “X”` and `Create field “X” as…`; the latter opens Text, Number, Date, Span, Checkbox, Choice, Instance, URL and Identifier. The definition, chosen kind and entry are created together. A new Choice field opens its value picker so its first option can be added there.
 
 Creating a definition always uses a new block ID. Blank outline rows under Fields are not definitions and are never adopted or offered by field pickers.
 
 ## Kind changes
 
-Changing kind never applies at once. Choosing a kind on the page, in the inspector or from a register row shows a preview first: `4 of 6 values won't read as Number`, with the counts in rubric mono and a rubric rule at its left. The preview then shows the values that will become problems and those that will read, each with its owner and its reading after the change. A note's field menu keeps a compact preview inside the popup, with Apply and Open field page, without leaving the note.
+Changing kind opens an interpretation map on the field page before applying. Register rows, the inspector and a note's field menu open the same map. It lists every distinct written value and its use count under Mapped values, Readable as written, or Ambiguous or unreadable.
 
-When the proposed kind is Choice, unreadable values offer a checked-by-default `Add N values as options` checkbox and the distinct trimmed names. Names deduplicate case-insensitively, preserving the first spelling and first-appearance order. The preview lists update when the checkbox changes. Apply creates missing options, reuses matching existing options, and rewrites each matching value to `[[optionId]]` together with the kind change in one undoable change. Choice readings still require option links; plain text never silently reads as an option. Without conversion, changing kind preserves every value's text. Owners and child notes stay in place. Cancel returns to the page.
+Choice rows have an editable option name and a mapping checkbox. Existing options are reused; several written values can share one name. Unchecking a row leaves it as written. Instance rows propose a page only when its title or alias matches exactly and uniquely. Choose page adjusts the target; Create page explicitly requests creation during Apply. Other kinds show their readings, including inclusive year bounds for Span.
+
+Apply changes the kind and all reviewed mappings in one undoable edit. Unmapped values stay as written and show a problem when unreadable. Owners and child notes stay in place. Cancel writes nothing.
 
 ## Links to
 
@@ -108,6 +112,8 @@ Search rows, Filters, Sort and Columns align to the register. Applied filter and
 Filters offer conditions by kind. Choice and Instance offer **is**, **is not**, **has a value** and **is empty**; Choice selects an existing option, while Instance selects a page from the field's target types. Text, URL and Identifier also offer **contains** and **has the field**; Number and Date add **>**, **≥**, **<** and **≤**. Checkbox offers **is checked** and **is not checked**. **Has the field** means an entry exists, even blank; **has a value** means at least one authored value is nonblank, including problem readings; **is empty** means none is nonblank. Presence is offered separately on scalar kinds, not on Choice, Instance or Checkbox. Instance filters store page IDs and their chips follow current titles. A legacy unresolved instance value is marked in the picker and needs a page selection.
 
 Choice sorts follow the options' order on the field page, first option first when ascending. Problem values follow all options and empty values come last in either direction. Instance fields sort by their target titles, not authored reference labels.
+
+Span sorts compare start year, then end year. Open starts sort first and open ends last among equal starts. Unreadable and empty values follow readable spans. Span filters offer overlaps, before and after; overlap includes both boundary years. Cells keep the authored notation.
 
 ### Grid
 

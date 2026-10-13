@@ -4,10 +4,12 @@ import { parseCardText } from '../review/card-text';
 
 export const filterLabels: Record<FilterOp, string> = {
   is: 'is', is_not: 'is not', contains: 'contains', gt: '>', gte: '≥', lt: '<', lte: '≤', present: 'has the field', set: 'has a value', empty: 'is empty',
+  overlaps: 'overlaps', before: 'before', after: 'after',
 };
 export function filterOperators(kind: FieldKind = 'text'): FilterOp[] {
   if (kind === 'checkbox') return ['is', 'is_not'];
   if (kind === 'choice' || kind === 'instance') return ['is', 'is_not', 'set', 'empty'];
+  if (kind === 'span') return ['overlaps', 'before', 'after', 'is', 'is_not', 'present', 'set', 'empty'];
   return ['is', 'is_not', 'contains', ...(kind === 'number' || kind === 'date' ? ['gt', 'gte', 'lt', 'lte'] as const : []), 'present', 'set', 'empty'];
 }
 export function filterOperatorLabel(op: FilterOp, kind?: FieldKind): string {

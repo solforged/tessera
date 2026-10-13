@@ -904,7 +904,7 @@ fn only_complete_references_to_direct_live_definitions_are_entries() {
     move_to(&mut nb, 10, &fields);
     assert_eq!(indexed(&dir, 100), vec![id(300)]);
     archive(&mut nb, 10, true);
-    assert!(indexed(&dir, 100).is_empty());
+    assert_eq!(indexed(&dir, 100), vec![id(300)]);
     archive(&mut nb, 10, false);
     assert_eq!(indexed(&dir, 100), vec![id(300)]);
     let field_page = nb.block(&fields).unwrap();

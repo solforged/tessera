@@ -111,7 +111,7 @@ fn read_field_readings(
         {
             let value = match value {
                 ReadingValue::Text(value) => value,
-                ReadingValue::Number(_) => text,
+                ReadingValue::Number(_) | ReadingValue::Span(_) => text,
                 ReadingValue::Checkbox(_) => continue,
             };
             // Old EPUB imports filed Calibre's unknown date as a real date.

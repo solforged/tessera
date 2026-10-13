@@ -1,12 +1,13 @@
 import type { FieldKind } from '../api/types';
 
-export const fieldKinds = ['text', 'number', 'date', 'checkbox', 'choice', 'instance', 'url', 'identifier'] as const;
+export const fieldKinds = ['text', 'number', 'date', 'span', 'checkbox', 'choice', 'instance', 'url', 'identifier'] as const;
 export const partialDatePlaceholder = 'Year (1–9999), YYYY-MM or YYYY-MM-DD';
 
 export const kindLabels: Record<FieldKind, string> = {
   text: 'Text',
   number: 'Number',
   date: 'Date',
+  span: 'Span',
   checkbox: 'Checkbox',
   choice: 'Choice',
   instance: 'Instance',

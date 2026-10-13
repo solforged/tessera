@@ -3,8 +3,9 @@ use std::collections::{HashMap, HashSet};
 use rusqlite::{Connection, OptionalExtension, params};
 
 use crate::model::{
-    FieldChoiceCandidate, FieldChoiceValue, FieldDetail, FieldOptionUse, FieldOwner,
-    FieldOwnerValues, FieldSummary, FieldTemplate, FieldType, FieldValue, FieldValueUse,
+    FieldChoiceCandidate, FieldChoiceValue, FieldDetail, FieldInterpretation, FieldOptionUse,
+    FieldOwner, FieldOwnerValues, FieldSummary, FieldTemplate, FieldType, FieldValue,
+    FieldValueUse,
 };
 use crate::reads::hidden_blocks;
 use crate::storage::{block_at, block_columns, not_found, validate_date, validate_id, validation};
@@ -43,7 +44,7 @@ pub(crate) fn is_definition(conn: &Connection, id: &str) -> Result<bool> {
     Ok(conn
         .prepare_cached(
             "SELECT d.text FROM blocks d JOIN blocks p ON p.id = d.parent_id
-         WHERE d.id = ?1 AND d.deletion_id IS NULL AND d.archived = 0
+         WHERE d.id = ?1 AND d.deletion_id IS NULL
          AND p.kind = 'page' AND p.title_key = 'fields' AND p.deletion_id IS NULL",
         )?
         .query_row([id], |row| {
@@ -63,7 +64,11 @@ pub(crate) fn is_definition(conn: &Connection, id: &str) -> Result<bool> {
 }
 
 pub(crate) fn require_definition(conn: &Connection, id: &str) -> Result<()> {
-    if is_definition(conn, id)? {
+    if is_definition(conn, id)?
+        && !conn.query_row("SELECT archived FROM blocks WHERE id = ?1", [id], |row| {
+            row.get::<_, bool>(0)
+        })?
+    {
         Ok(())
     } else {
         Err(validation(format!("not a live field definition: {id}")))
@@ -348,11 +353,11 @@ pub(crate) fn definitions(conn: &Connection) -> Result<Vec<FieldDefinition>> {
 
 fn definitions_for(conn: &Connection, id: Option<&str>) -> Result<Vec<FieldDefinition>> {
     let mut statement = conn.prepare_cached(
-        "SELECT d.id, d.text, COALESCE(f.kind, 'text'), d.revision, o.id, o.text, COALESCE(f.hide, 'never'), COALESCE(f.role, 'attribute')
+        "SELECT d.id, d.text, COALESCE(f.kind, 'text'), d.revision, o.id, o.text, COALESCE(f.hide, 'never'), COALESCE(f.role, 'attribute'), d.archived
          FROM blocks p JOIN blocks d ON d.parent_id = p.id LEFT JOIN fields f ON f.block_id = d.id
          LEFT JOIN blocks o ON o.parent_id = d.id AND o.deletion_id IS NULL AND o.archived = 0
          WHERE p.kind = 'page' AND p.title_key = 'fields' AND p.deletion_id IS NULL
-         AND d.deletion_id IS NULL AND d.archived = 0 AND (?1 IS NULL OR d.id = ?1)
+         AND d.deletion_id IS NULL AND (?1 IS NULL OR d.id = ?1)
          ORDER BY d.ordinal, d.id, o.ordinal, o.id",
     )?;
     let mut cursor = statement.query([id])?;
@@ -404,6 +409,7 @@ fn definitions_for(conn: &Connection, id: Option<&str>) -> Result<Vec<FieldDefin
                         )),
                     )
                 })?,
+                archived: row.get(8)?,
                 revision: row.get(3)?,
                 options: Vec::new(),
             });
@@ -522,6 +528,8 @@ impl Notebook {
             problems: Vec::new(),
             readable: Vec::new(),
             choice_candidates: Vec::new(),
+            interpretations: Vec::new(),
+            entries: Vec::new(),
         };
         let option_indices: HashMap<_, _> = detail
             .option_uses
@@ -530,6 +538,7 @@ impl Notebook {
             .map(|(index, option)| (option.option_id.clone(), index))
             .collect();
         let mut choice_values = Vec::<(i64, FieldChoiceValue)>::new();
+        let mut interpretation_indices = HashMap::<String, usize>::new();
         // Entries, including empty ones, follow the register's whole-reference
         // and hidden-ancestor rules. Values and targets join once, not per row.
         let mut statement = self.conn.prepare_cached(concat!(
@@ -575,6 +584,7 @@ impl Notebook {
                 }
             }
             if entry != entry_id {
+                detail.entries.push(entry.clone());
                 detail.empty_total += usize::from(entry_empty);
                 entry_id.clone_from(&entry);
                 entry_empty = true;
@@ -599,6 +609,23 @@ impl Notebook {
                 &text,
                 target.as_ref(),
             )?;
+            let index = *interpretation_indices
+                .entry(text.clone())
+                .or_insert_with(|| {
+                    let index = detail.interpretations.len();
+                    detail.interpretations.push(FieldInterpretation {
+                        text: text.clone(),
+                        reading: reading.clone(),
+                        values: Vec::new(),
+                    });
+                    index
+                });
+            detail.interpretations[index].values.push(FieldChoiceValue {
+                id: row.get(6)?,
+                text: text.clone(),
+                revision: row.get(8)?,
+                page_id: owner.page_id.clone(),
+            });
             if kind == FieldKind::Choice && matches!(reading, Reading::Problem { .. }) {
                 choice_values.push((
                     row.get(9)?,
@@ -793,6 +820,10 @@ pub(crate) fn reading(kind: FieldKind, field: &str, text: &str, target: Option<&
                 problem("not a date")
             }
         }
+        FieldKind::Span => span(text).map_or_else(
+            || problem("not a historical span"),
+            |span| value(ReadingValue::Span(span), None),
+        ),
         FieldKind::Url => {
             if url(text.trim()) {
                 value(ReadingValue::Text(text.trim().to_owned()), None)
@@ -828,6 +859,8 @@ pub(crate) fn reading(kind: FieldKind, field: &str, text: &str, target: Option<&
         }
     }
 }
+
+pub(crate) use crate::spans::span;
 
 /// A calendar date, or a bare year or year and month for sources dated no
 /// more precisely. Sorting pads bare years, never their authored text.

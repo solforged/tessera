@@ -211,10 +211,11 @@ impl Notebook {
                     .flatten()
                     .map(|value| {
                         let title = match &value.reading {
-                            Reading::Value { value, .. } => match value {
+                            Reading::Value { value: reading, .. } => match reading {
                                 crate::ReadingValue::Text(value) => value.clone(),
                                 crate::ReadingValue::Number(value) => value.to_string(),
                                 crate::ReadingValue::Checkbox(value) => value.to_string(),
+                                crate::ReadingValue::Span(_) => value.text.clone(),
                             },
                             Reading::Problem { .. } => value.text.clone(),
                         };

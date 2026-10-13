@@ -98,6 +98,11 @@ fn push(attrs: &mut Attributes, key: &str, value: ReadingValue, target: Option<S
         ReadingValue::Text(text) => text.clone(),
         ReadingValue::Number(number) => number.to_string(),
         ReadingValue::Checkbox(checked) => checked.to_string(),
+        ReadingValue::Span(span) => format!(
+            "{}–{}",
+            span.from.map_or_else(|| "?".into(), |year| year.to_string()),
+            span.through.map_or_else(|| "?".into(), |year| year.to_string()),
+        ),
     };
     let value = QueryAttributeValue {
         text,
@@ -536,6 +541,7 @@ pub(crate) fn groups(query: &Query, rows: &[QueryRow]) -> Vec<QueryGroup> {
                         ReadingValue::Text(value) => value.clone(),
                         ReadingValue::Number(value) => value.to_string(),
                         ReadingValue::Checkbox(value) => value.to_string(),
+                        ReadingValue::Span(_) => text.clone(),
                     },
                     target.clone(),
                 ),

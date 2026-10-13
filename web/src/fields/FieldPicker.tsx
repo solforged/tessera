@@ -22,7 +22,7 @@ export function FieldPicker(props: {
     const needle = query().trim().toLowerCase();
     const template = props.template ?? [];
     const byId = new Map(props.fields.map(field => [field.id, field]));
-    const available = (field: FieldDefinition | undefined): field is FieldDefinition => !!field && !!field.name.trim() && !props.exclude?.has(field.id) && field.name.toLowerCase().includes(needle);
+    const available = (field: FieldDefinition | undefined): field is FieldDefinition => !!field && !field.archived && !!field.name.trim() && !props.exclude?.has(field.id) && field.name.toLowerCase().includes(needle);
     const first = template.map(id => byId.get(id)).filter(available);
     const rest = props.fields.filter(field => !template.includes(field.id) && available(field)).sort((a, b) => a.name.localeCompare(b.name));
     const result: FieldRow[] = [...first.map(field => ({ kind: 'field' as const, field, template: true })), ...rest.map(field => ({ kind: 'field' as const, field, template: false }))];

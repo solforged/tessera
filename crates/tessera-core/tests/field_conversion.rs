@@ -194,3 +194,176 @@ fn new_definition_never_adopts_a_blank_row_or_its_references() {
             .is_empty()
     );
 }
+
+#[test]
+fn merge_keeps_conflicting_entries_and_archive_keeps_readings() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut nb = Notebook::open(dir.path()).unwrap();
+    let fields = nb.fields().unwrap().page_id;
+    apply(
+        &mut nb,
+        vec![
+            insert(10, &fields, "Old"),
+            insert(11, &fields, "Survivor"),
+            Operation::CreatePage {
+                id: id(100),
+                title: "Owner".into(),
+            },
+            insert(200, &id(100), &format!("[[{}]]", id(10))),
+            insert(201, &id(100), &format!("[[{}]]", id(11))),
+            insert(300, &id(200), "First"),
+            insert(301, &id(201), "Second"),
+        ],
+    );
+    let merged = apply(
+        &mut nb,
+        vec![
+            Operation::EditText {
+                id: id(200),
+                base_revision: 1,
+                text: format!("[[{}]]", id(11)),
+            },
+            Operation::Delete {
+                id: id(10),
+                base_revision: 1,
+            },
+        ],
+    );
+    let detail = nb.field_detail(&id(11), None, None).unwrap();
+    assert_eq!(detail.owners_total, 1);
+    assert_eq!(detail.entries.len(), 2);
+    assert_eq!(detail.values_total, 2);
+    assert_eq!(nb.block(&id(300)).unwrap().text, "First");
+    assert_eq!(nb.block(&id(301)).unwrap().text, "Second");
+    apply(
+        &mut nb,
+        vec![
+            Operation::Restore {
+                id: id(10),
+                revision: 2,
+                deletion_id: merged.deletions[0].clone(),
+            },
+            Operation::EditText {
+                id: id(200),
+                base_revision: 2,
+                text: format!("[[{}]]", id(10)),
+            },
+            Operation::SetArchived {
+                id: id(11),
+                base_revision: 1,
+                archived: true,
+            },
+        ],
+    );
+    let archived = nb.field_detail(&id(11), None, None).unwrap();
+    assert!(archived.field.definition.archived);
+    assert_eq!(archived.values_total, 1);
+    assert_eq!(archived.problems_total, 0);
+    assert_eq!(
+        nb.field_detail(&id(10), None, None).unwrap().values_total,
+        1
+    );
+}
+
+#[test]
+fn span_readings_sort_and_filter_inclusive_ranges() {
+    use tessera_core::{
+        Direction, Filter, FilterOp, Query, Reading, ReadingValue, SortBy, SortKey, YearSpan,
+    };
+    let dir = tempfile::tempdir().unwrap();
+    let mut nb = Notebook::open(dir.path()).unwrap();
+    let fields = nb.fields().unwrap().page_id;
+    let mut ops = vec![
+        insert(10, &fields, "Lived"),
+        Operation::SetFieldKind {
+            id: id(10),
+            base_revision: 1,
+            kind: FieldKind::Span,
+        },
+    ];
+    for (n, text) in [
+        "1332–1406",
+        "c. 200–118 BCE",
+        "unknown",
+        "1332–1390",
+        "?–118 BCE",
+    ]
+    .iter()
+    .enumerate()
+    {
+        let n = n as u128;
+        ops.extend([
+            Operation::CreatePage {
+                id: id(100 + n),
+                title: format!("Person {n}"),
+            },
+            insert(200 + n, &id(100 + n), &format!("[[{}]]", id(10))),
+            insert(300 + n, &id(200 + n), text),
+        ]);
+    }
+    apply(&mut nb, ops);
+    let mut query = Query {
+        filters: vec![Filter {
+            field: id(10),
+            op: FilterOp::Present,
+            value: None,
+        }],
+        sort: vec![SortKey {
+            by: SortBy::Field,
+            field: Some(id(10)),
+            direction: Direction::Asc,
+        }],
+        ..Query::default()
+    };
+    let result = nb.query(&query).unwrap();
+    assert_eq!(
+        result
+            .rows
+            .iter()
+            .map(|row| row.block.block.id.clone())
+            .collect::<Vec<_>>(),
+        [104, 101, 103, 100, 102].map(id)
+    );
+    assert_eq!(
+        result.rows[1].values[&id(10)][0].reading,
+        Reading::Value {
+            ok: true,
+            value: ReadingValue::Span(YearSpan {
+                from: Some(-200),
+                through: Some(-118)
+            }),
+            target: None
+        }
+    );
+    for (op, value, expected) in [
+        (FilterOp::Overlaps, "118 BCE", vec![104, 101]),
+        (FilterOp::Before, "118 BCE", vec![]),
+        (FilterOp::After, "118 BCE", vec![103, 100]),
+        (FilterOp::Overlaps, "1406", vec![100]),
+    ] {
+        query.filters = vec![Filter {
+            field: id(10),
+            op,
+            value: Some(value.into()),
+        }];
+        assert_eq!(
+            nb.query(&query)
+                .unwrap()
+                .rows
+                .iter()
+                .map(|row| row.block.block.id.clone())
+                .collect::<Vec<_>>(),
+            expected.into_iter().map(id).collect::<Vec<_>>()
+        );
+    }
+    drop(nb);
+    let reopened = Notebook::open(dir.path()).unwrap();
+    assert_eq!(reopened.block(&id(301)).unwrap().text, "c. 200–118 BCE");
+    assert_eq!(
+        reopened
+            .field_detail(&id(10), None, None)
+            .unwrap()
+            .problems_total,
+        1
+    );
+}

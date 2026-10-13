@@ -651,6 +651,7 @@ pub enum FieldKind {
     Text,
     Number,
     Date,
+    Span,
     Checkbox,
     Choice,
     Instance,
@@ -661,10 +662,11 @@ pub enum FieldKind {
 }
 
 impl FieldKind {
-    pub const ALL: [Self; 8] = [
+    pub const ALL: [Self; 9] = [
         Self::Text,
         Self::Number,
         Self::Date,
+        Self::Span,
         Self::Checkbox,
         Self::Choice,
         Self::Instance,
@@ -677,6 +679,7 @@ impl FieldKind {
             Self::Text => "text",
             Self::Number => "number",
             Self::Date => "date",
+            Self::Span => "span",
             Self::Checkbox => "checkbox",
             Self::Choice => "choice",
             Self::Instance => "instance",
@@ -764,6 +767,9 @@ pub enum FilterOp {
     Gte,
     Lt,
     Lte,
+    Overlaps,
+    Before,
+    After,
     Present,
     Set,
     Empty,
@@ -879,12 +885,20 @@ pub struct NoteGroup {
     pub note_ids: Vec<String>,
 }
 
+/// Inclusive historical years; missing bounds are open, and BCE years are negative.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct YearSpan {
+    pub from: Option<i32>,
+    pub through: Option<i32>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ReadingValue {
     Text(String),
     Number(f64),
     Checkbox(bool),
+    Span(YearSpan),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -953,6 +967,7 @@ pub struct FieldDefinition {
     pub hide: FieldHide,
     #[serde(default)]
     pub role: FieldRole,
+    pub archived: bool,
     pub revision: i64,
     pub options: Vec<FieldOption>,
     #[serde(default)]
@@ -1066,6 +1081,13 @@ pub struct FieldChoiceCandidate {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FieldInterpretation {
+    pub text: String,
+    pub reading: Reading,
+    pub values: Vec<FieldChoiceValue>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FieldDetail {
     pub field: FieldSummary,
     pub kind: FieldKind,
@@ -1080,6 +1102,10 @@ pub struct FieldDetail {
     pub readable: Vec<FieldValueUse>,
     /// Complete conversion candidates, not limited by the displayed samples.
     pub choice_candidates: Vec<FieldChoiceCandidate>,
+    /// Every distinct written value, for reviewed interpretation across all owners.
+    pub interpretations: Vec<FieldInterpretation>,
+    /// All entry identities, including empty entries, for lossless schema changes.
+    pub entries: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

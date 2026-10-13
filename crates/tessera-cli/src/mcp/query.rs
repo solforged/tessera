@@ -255,10 +255,11 @@ pub(super) fn filters(
 /// A value's reading, or its text with the problem that kept it unread.
 fn value_text(value: &FieldValue) -> String {
     match &value.reading {
-        Reading::Value { value, .. } => match value {
+        Reading::Value { value: reading, .. } => match reading {
             ReadingValue::Text(text) => one_line(text),
             ReadingValue::Number(number) => number.to_string(),
             ReadingValue::Checkbox(checked) => checked.to_string(),
+            ReadingValue::Span(_) => one_line(&value.text),
         },
         Reading::Problem { problem, .. } => format!("{} ({problem})", one_line(&value.text)),
     }

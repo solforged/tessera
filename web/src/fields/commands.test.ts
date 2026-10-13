@@ -9,7 +9,7 @@ import type { Operation } from '../api/types';
 import { createNotebookClient } from '../document/index';
 import type { Notebook } from '../document/index';
 import { ensureField } from '../outline/source-fields';
-import { changeFieldKind, choicePreview, createFieldEntry, createOptionValue, makeFieldOption } from './commands';
+import { changeFieldKind, choicePreview, createFieldEntry, createOptionValue, makeFieldOption, fieldImpact, applyFieldImpact } from './commands';
 
 // Real subprocess startup and document I/O require the platform clock, not fake timers.
 async function eventually(predicate: () => boolean) {
@@ -48,11 +48,12 @@ test('field conversion, repair and option creation each have a single exact undo
       await eventually(() => doc.status() === 'ready' && definitions.status() === 'ready');
       const preview = await api.fieldDetail(field, 'choice');
       expect(preview.choice_candidates.map(candidate => candidate.text)).toEqual(['Dynastic cycle', 'Method']);
-      expect(choicePreview(preview, true).problems_total).toBe(0);
-      expect(choicePreview(preview, true).readable).toHaveLength(3);
-      expect(choicePreview(preview, false).problems_total).toBe(3);
+      const mappings = Object.fromEntries(preview.interpretations.map(row => [row.text, { mode: 'option' as const, value: row.text.trim() }]));
+      expect(choicePreview(preview, mappings).problems_total).toBe(0);
+      expect(choicePreview(preview, mappings).readable).toHaveLength(3);
+      expect(choicePreview(preview, {}).problems_total).toBe(3);
       const seq = notebook.changeSequence();
-      doc.rememberChange(await changeFieldKind(notebook, preview, true));
+      doc.rememberChange(await changeFieldKind(notebook, preview, mappings));
       expect(notebook.changeSequence()).toBe(seq + 1);
       expect((await api.fieldDetail(field)).problems_total).toBe(0);
       expect((await api.block(values[0]!)).text).toBe((await api.block(values[1]!)).text);
@@ -63,7 +64,7 @@ test('field conversion, repair and option creation each have a single exact undo
       doc.redo(); await doc.flush();
       expect((await api.fieldDetail(field)).problems_total).toBe(0);
       doc.undo(); await doc.flush();
-      doc.rememberChange(await changeFieldKind(notebook, await api.fieldDetail(field, 'choice'), false));
+      doc.rememberChange(await changeFieldKind(notebook, await api.fieldDetail(field, 'choice'), {}));
       const problem = await api.fieldDetail(field);
       expect(problem.problems_total).toBe(3);
       doc.rememberChange(await makeFieldOption(notebook, problem, texts[0]!));
@@ -95,6 +96,27 @@ test('field conversion, repair and option creation each have a single exact undo
       expect(shorthand.id).not.toBe(blank);
       expect((await api.block(blank)).text).toBe('');
       expect((await api.fields()).fields.every(field => field.name.trim())).toBe(true);
+      const survivor = (await createFieldEntry(notebook, doc, notes[0]!, 'Survivor', 'text')).field;
+      await notebook.commit([{ op: 'edit_text', id: values[0]!, base_revision: (await api.block(values[0]!)).revision, text: 'First meaning' }]);
+      const beforeMerge = await api.page(notes[0]!);
+      const previewMerge = await fieldImpact(notebook, field, survivor.id);
+      expect(previewMerge.conflicts).toHaveLength(1);
+      const merged = await applyFieldImpact(notebook, previewMerge, 'merge');
+      expect((await api.fieldDetail(survivor.id)).entries).toHaveLength(4);
+      expect((await api.block(values[0]!)).text).toBe('First meaning');
+      await merged.undo();
+      expect((await api.fieldDetail(field)).entries).toHaveLength(3);
+      expect((await api.page(notes[0]!)).rows.map(row => [row.block.id, row.block.text, row.block.parent_id])).toEqual(beforeMerge.rows.map(row => [row.block.id, row.block.text, row.block.parent_id]));
+      const archived = await applyFieldImpact(notebook, await fieldImpact(notebook, field), 'archive');
+      expect((await api.fieldDetail(field)).field.archived).toBe(true);
+      expect((await api.fieldDetail(field)).values_total).toBe(3);
+      await archived.undo();
+      const detached = await applyFieldImpact(notebook, await fieldImpact(notebook, field), 'detach');
+      expect((await api.block(values[0]!)).text).toBe('Strand: First meaning');
+      expect((await api.block(values[0]!)).parent_id).toBe(notes[0]!);
+      await detached.undo();
+      expect((await api.block(values[0]!)).text).toBe('First meaning');
+      expect((await api.fieldDetail(field)).entries).toHaveLength(3);
     } finally { doc.release(); definitions.release(); }
   } finally { await notebook?.dispose(); process.kill(); await process.exited; await rm(directory, { recursive: true, force: true }); }
 }, 30000);

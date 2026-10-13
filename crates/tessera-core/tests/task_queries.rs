@@ -734,7 +734,7 @@ fn source_type_text_and_field_filters_intersect_before_task_selection() {
     q.source.as_mut().unwrap().r#type = None;
     assert_eq!(ids(nb.task_query(&q).unwrap()), vec![id(10), id(12)]);
     archive(&mut nb, 3, true);
-    assert!(matches!(nb.task_query(&q), Err(Error::Validation { .. })));
+    assert_eq!(ids(nb.task_query(&q).unwrap()), vec![id(10), id(12)]);
 }
 
 #[test]

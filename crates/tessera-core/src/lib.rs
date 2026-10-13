@@ -41,6 +41,7 @@ mod review_store;
 mod revisit_store;
 pub mod scheduler;
 mod settings;
+mod spans;
 mod spreads;
 mod storage;
 mod streams;
@@ -86,12 +87,12 @@ pub use migrate::SCHEMA_VERSION;
 pub use model::{
     Actor, Backlink, Batch, Block, BlockInPage, BlockKind, ChangeEvent, ChangeStamp, Committed,
     Direction, FieldChoiceCandidate, FieldChoiceValue, FieldDefinition, FieldDetail, FieldHide,
-    FieldKind, FieldOption, FieldOptionUse, FieldOwner, FieldOwnerValues, FieldRole, FieldSummary,
-    FieldTemplate, FieldType, FieldValue, FieldValueUse, FieldsView, Filter, FilterOp, KeptCopy,
-    NoteGroup, NoteLayout, NoteView, Operation, PageView, Query, QueryAttribute,
+    FieldInterpretation, FieldKind, FieldOption, FieldOptionUse, FieldOwner, FieldOwnerValues,
+    FieldRole, FieldSummary, FieldTemplate, FieldType, FieldValue, FieldValueUse, FieldsView, Filter,
+    FilterOp, KeptCopy, NoteGroup, NoteLayout, NoteView, Operation, PageView, Query, QueryAttribute,
     QueryAttributeValue, QueryColumn, QueryGroup, QueryGrouping, QueryResult, QueryRow,
     QuerySource, QuoteState, QuoteStatus, QuotedRow, Reading, ReadingValue, Revision, Row, Setting,
-    SettingRevision, SettingsView, SortBy, SortKey, Subtree, TextRewrite, TypeInfo, View,
+    SettingRevision, SettingsView, SortBy, SortKey, Subtree, TextRewrite, TypeInfo, View, YearSpan,
 };
 pub use notebook::{DATABASE_FILE, Notebook, NotebookInfo, now_ms};
 pub use notes::{CrossReference, IndexKind, KindIndex, NoteEntry, NoteIndex, NoteKind, SeeTarget};
