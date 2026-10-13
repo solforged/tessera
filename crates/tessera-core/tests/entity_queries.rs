@@ -409,4 +409,165 @@ fn highlights_are_blocks_with_editable_fields_and_source_attributes() {
     assert_eq!(result.rows[0].block.block.id, id(40));
     assert_eq!(result.rows[0].values[&id(100)][0].id, id(1013));
     assert_eq!(result.groups[0].key, "yellow");
+    assert_eq!(
+        ids(
+            &nb,
+            json!({"source":"sources","filters":[{"field":"@cited_in","op":"is","value":id(40)}]})
+        ),
+        [id(5)]
+    );
+}
+
+#[test]
+fn desk_question_includes_subject_branch_and_ancestors_but_not_other_subjects() {
+    let (_dir, mut nb) = fixture();
+    apply(
+        &mut nb,
+        vec![
+            insert(60, id(20), "Nested branch".into()),
+            insert(61, id(20), format!("[[{}]]", id(1))),
+            insert(62, id(60), format!("[[{}]]", id(2))),
+            Operation::SetQuestion {
+                id: id(60),
+                base_revision: 1,
+                question: Some(QuestionState::default()),
+            },
+            Operation::SetPosition {
+                id: id(61),
+                base_revision: 1,
+                position: true,
+            },
+            Operation::SetPosition {
+                id: id(62),
+                base_revision: 1,
+                position: true,
+            },
+        ],
+    );
+    for question in [6, 20] {
+        assert_eq!(
+            ids(
+                &nb,
+                json!({"source":"positions","filters":[{"field":"@question","op":"is","value":id(question)}]})
+            ),
+            [id(61), id(62)]
+        );
+    }
+    assert_eq!(
+        ids(
+            &nb,
+            json!({"source":"positions","filters":[{"field":"@question","op":"is","value":id(60)}]})
+        ),
+        [id(62)]
+    );
+    assert!(
+        ids(
+            &nb,
+            json!({"source":"positions","filters":[{"field":"@question","op":"is","value":id(3)}]})
+        )
+        .is_empty()
+    );
+    let revision = nb.block(&id(20)).unwrap().revision;
+    apply(
+        &mut nb,
+        vec![Operation::SetQuestion {
+            id: id(20),
+            base_revision: revision,
+            question: None,
+        }],
+    );
+    assert!(
+        ids(
+            &nb,
+            json!({"source":"positions","filters":[{"field":"@question","op":"is","value":id(6)}]})
+        )
+        .is_empty()
+    );
+}
+
+#[test]
+fn desk_cited_in_inverts_subtree_citations_without_crossing_siblings() {
+    let (_dir, mut nb) = fixture();
+    apply(
+        &mut nb,
+        vec![
+            Operation::CreatePage {
+                id: id(8),
+                title: "Other book".into(),
+            },
+            Operation::SetSource {
+                id: id(8),
+                base_revision: 1,
+                source: Some(SourceState {
+                    format: SourceFormat::Record,
+                    state: ReadingState::Inbox,
+                    origin: None,
+                    match_key: None,
+                    citation_key: None,
+                }),
+            },
+            insert(
+                70,
+                id(10),
+                format!("[[{}||p. 7]] [[{}||p. 8]] [[{}]]", id(8), id(8), id(5)),
+            ),
+        ],
+    );
+    for owner in [10, 70] {
+        assert_eq!(
+            ids(
+                &nb,
+                json!({"source":"sources","filters":[{"field":"@cited_in","op":"is","value":id(owner)}]})
+            ),
+            [id(5), id(8)]
+        );
+    }
+    assert_eq!(
+        ids(
+            &nb,
+            json!({"source":"sources","filters":[{"field":"@cited_in","op":"is","value":id(11)}]})
+        ),
+        [id(5)]
+    );
+    let revision = nb.block(&id(70)).unwrap().revision;
+    apply(
+        &mut nb,
+        vec![Operation::SetArchived {
+            id: id(70),
+            base_revision: revision,
+            archived: true,
+        }],
+    );
+    assert_eq!(
+        ids(
+            &nb,
+            json!({"source":"sources","filters":[{"field":"@cited_in","op":"is","value":id(10)}]})
+        ),
+        [id(5)]
+    );
+}
+
+#[test]
+fn saved_desk_keeps_linked_queries_after_reopen() {
+    let (dir, mut nb) = fixture();
+    let query: Query = serde_json::from_value(json!({
+        "source":"questions", "layout":"desk",
+        "filters":[{"field":"@state","op":"is","value":"recurrent"}],
+        "desk":{
+            "positions":{"source":"positions","filters":[{"field":"@question","op":"is","value":id(6)}]},
+            "sources":{"source":"sources","filters":[{"field":"@cited_in","op":"is","value":id(10)}]}
+        }
+    })).unwrap();
+    apply(
+        &mut nb,
+        vec![Operation::SaveView {
+            id: id(901),
+            base_revision: None,
+            name: "Recurrent desk".into(),
+            query: query.clone(),
+        }],
+    );
+    drop(nb);
+    let nb = Notebook::open(dir.path()).unwrap();
+    assert_eq!(nb.view(&id(901)).unwrap().query, query);
 }

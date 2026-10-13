@@ -30,11 +30,17 @@ export function FilterPopup(props: { anchor: HTMLElement; fields: readonly Field
   const needle = () => query().trim().toLocaleLowerCase();
   const identity = () => definition()?.kind === 'instance' && (op() === 'is' || op() === 'is_not');
   const unresolved = () => initialIdentity && !resolvedInitial && draftValue() === undefined && query() === initialValue ? `Unresolved value “${initialValue}”. Choose a page.` : '';
-  const [pages] = createResource(() => identity() && [definition()!, props.notebook.changeSequence()] as const, async ([field]) => {
-    if (field.id === '@parent' || field.id === '@program' || field.id === '@subject') {
+  const [pages] = createResource(() => identity() && [definition()!, props.notebook.changeSequence(), definition()?.id === '@cited_in' ? query() : ''] as const, async ([field, , search]) => {
+    if (field.id === '@parent' || field.id === '@program' || field.id === '@subject' || field.id === '@question') {
       const questions = await props.notebook.api.questions({ include_inline: true });
       const candidates = questions.filter(row => field.id !== '@program' || !row.info.parent_id).map(row => row.block.block);
       return field.id === '@subject' ? [...await instancePages(props.notebook, []), ...candidates.filter(block => block.kind === 'block')] : candidates;
+    }
+    if (field.id === '@cited_in') {
+      const result = search.trim()
+        ? await props.notebook.api.search(search, 100)
+        : (await props.notebook.api.query({ source: 'positions', type: null, text: null, filters: [], sort: [], limit: 2000 })).rows.map(row => row.block);
+      return [...new Map([...props.notebook.roots().filter(block => !block.archived), ...result.map(row => row.block)].map(block => [block.id, block])).values()];
     }
     if (field.id === '@page') return props.notebook.roots().filter(block => !block.archived);
     if (field.id === '@project') {

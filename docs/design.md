@@ -300,6 +300,7 @@ The permanent merge confirmation stays a bounded short-control popup, with the s
 - [Perspectives](surfaces/perspectives.md): perspectives, Compare, questions and answers.
 - [Notes](surfaces/notes.md): Index, finding aids, note header, aliases, type icons and names.
 - [Fields and tables](surfaces/fields-tables.md): Fields register, field and type pages, tables and views.
+- [Research desk](surfaces/desk.md): linked question, position and cited-source queries.
 - [Settings](surfaces/settings.md): notebook and device settings, Appearance, time zone and sync controls.
 
 ## Block row

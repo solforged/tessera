@@ -62,6 +62,8 @@ Questions opens a ledger rather than the alphabetical finding aid. Its ruled tab
 
 Questions are grouped by their top-level program, with branches below it. Inline questions show their containing page and open their original block. The tally and sidebar count include inline questions. Each row shows state, reading count, current assessment's first line and date, or No current reading, then the next revisit date. No progress percentage is shown.
 
+The sidebar's Questions menu opens the [research desk](desk.md), which links question, position and source queries. A question's own menu offers Open in desk.
+
 ## Empty kinds
 
 An empty finding aid says `No people yet.` in muted Piazzolla under a hairline, then one sentence on how pages arrive:

@@ -18,6 +18,7 @@ import type { RelationKind } from '../api/types';
 import { addRelationReason, relationKinds, relationLabels, relationReason } from './relations';
 import { currentReading } from '../document/types';
 import { questionDescriptions, questionVerbs } from './question-verbs';
+import { deskTarget } from '../desk/query';
 
 export function createOutlineCommands(context: Pick<OutlineContext,
   | 'doc' | 'editing' | 'commitFieldEntry' | 'props' | 'selected'
@@ -103,6 +104,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     const edit = (intent: Extract<Edit, { kind: 'question' | 'assessment' }>) => capabilities.invoke(capabilities.edit(intent.id, intent));
     return [
       ...(question ? [
+        { label: 'Open in desk', action: () => props.onOpen(deskTarget(id), false) },
         { label: question.parked ? 'Resume' : 'Park', secondary: questionVerbs[question.parked ? 'Resume' : 'Park'], action: () => edit({ kind: 'question', id, value: { ...question, parked: !question.parked } }) },
         { label: question.unsettled ? 'Allow resolution' : 'Make recurrent', secondary: questionVerbs[question.unsettled ? 'Allow resolution' : 'Make recurrent'], action: () => edit({ kind: 'question', id, value: { ...question, unsettled: !question.unsettled } }) },
         { label: 'Write assessment', secondary: questionVerbs['Write assessment'], disabledReason: question.parked ? 'Resume the question before writing an assessment.' : undefined, action: () => apply({ kind: 'writeAssessment', parentId: id, assessedOn: props.notebook.todayDate() }, true) },

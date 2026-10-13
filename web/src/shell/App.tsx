@@ -13,6 +13,8 @@ import { PageMergePicker, pageMergeDisabledReason } from '../outline/PageMerge';
 import { copyTaskQuery, createTaskQuery } from '../tasks/query';
 import { copyQuery, typeQuery } from '../table/query';
 import { querySources } from '../table/attributes';
+import { deskTarget } from '../desk/query';
+import '../desk/desk.css';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import type { IconName } from '../ui/Icon';
@@ -96,6 +98,7 @@ function paneLabel(target: OpenTarget | undefined): string {
   if (target?.kind === 'field') return 'Fields / Definition';
   if (target?.kind === 'cards') return 'Cards';
   if (target?.kind === 'spread') return 'Spread';
+  if (target?.kind === 'table' && target.query.layout === 'desk') return 'Research desk';
   return target?.kind === 'table' ? 'Table' : target?.kind === 'fields' ? 'Fields' : target?.kind === 'settings' ? 'Settings' : target?.kind === 'agenda' ? 'Agenda' : target?.kind === 'review' ? 'Review' : target?.kind === 'library' ? 'Library' : target?.kind === 'reader' ? 'Reader' : target?.kind === 'compare' ? 'Compare' : target?.kind === 'index' ? 'Index' : 'Loading…';
 }
 function snapshotView(view: PaneView): PaneView {
@@ -163,6 +166,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   const keyboard = () => viewport().height < screen.height * 0.7;
   // Long-pressing Library in the bottom nav lists the types in use, each opening its table.
   const [typesMenu, setTypesMenu] = createSignal<{ anchor: HTMLElement; types: Type[] } | null>(null);
+  const [questionsMenu, setQuestionsMenu] = createSignal<HTMLElement>();
   const showTypes = async (anchor: HTMLElement) => {
     try { setTypesMenu({ anchor, types: await api.types() }); } catch (reason) { reportError(reason); }
   };
@@ -215,7 +219,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
       if (!root) return;
       setActive(pane);
       const editor = root.querySelector<HTMLElement>('.cm-content');
-      (editor?.getClientRects().length ? editor : root.querySelector<HTMLElement>('.review-card') ?? root.querySelector<HTMLElement>('.outline-pane, .table-pane, .fields-pane, .field-page-pane, .settings-pane, .agenda-pane, .review-pane'))?.focus({ preventScroll: true });
+      (editor?.getClientRects().length ? editor : root.querySelector<HTMLElement>('.review-card') ?? root.querySelector<HTMLElement>('.outline-pane, .table-pane, .research-desk, .fields-pane, .field-page-pane, .settings-pane, .agenda-pane, .review-pane'))?.focus({ preventScroll: true });
     });
   };
   const open = (target: OpenTarget, beside = false, owner = active(), restore?: PaneView) => {
@@ -502,6 +506,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     { id: 'shell.agenda', title: 'Open agenda', section: 'Navigation', run: () => open({ kind: 'agenda', date: journalDate(active()) }) },
     { id: 'shell.review', title: 'Open review', section: 'Navigation', run: () => open({ kind: 'review' }) },
     { id: 'shell.library', title: 'Open library', section: 'Navigation', run: () => open({ kind: 'library' }) },
+    { id: 'shell.research-desk', title: 'Open research desk', section: 'Navigation', run: (beside = false) => open(deskTarget(), beside) },
     { id: 'shell.import-book', title: 'Import book', section: 'Navigation', run: () => open({ kind: 'library', tab: 'inbox', add: true }) },
     { id: 'shell.previous-day', title: 'Previous journal day', section: 'Navigation', run: () => shiftDate(-1) },
     { id: 'shell.next-day', title: 'Next journal day', section: 'Navigation', run: () => shiftDate(1) },
@@ -636,7 +641,10 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
         {/* Kinds re-arrive as fresh objects after each change; Index keeps rows mounted by position. */}
         <Index each={index()!.kinds}>{kind => <>
           {/* Built-in kinds stay listed while empty: a faint name and no count. */}
+          <div classList={{ 'index-question-heading': kind().key === 'question' }}>
           <Button class={`index-kind ${activeKindKey() === kind().key || tagOnly(kind()) && activeTypeId() === kind().type_id ? 'selected' : ''} ${kind().count || kind().tagged_block_count ? '' : 'empty'}`} icon={noteKindIcon(kind())} title={kind().plural} onClick={event => open(indexKindTarget(kind()), event.shiftKey)}><span>{kind().plural}</span><Show when={kind().count || kind().tagged_block_count}>{count => <span class="desk-count">{count().toLocaleString()}</span>}</Show></Button>
+          <Show when={kind().key === 'question'}><Button icon="more" label="Questions menu" aria-haspopup="menu" onClick={event => setQuestionsMenu(event.currentTarget)} /></Show>
+          </div>
           <Show when={otherViews().some(view => viewInKind(view, kind()))}><div class="index-views"><ViewLinks views={otherViews().filter(view => viewInKind(view, kind()))} pinned={false} activeId={activeViewId()} onOpen={openView} onPin={pinView} /></div></Show>
         </>}</Index>
         <For each={index()?.spreads}>{spread => <Button class={`index-kind ${pageIdOf(entry(active())) === spread.id ? 'selected' : ''}`} icon="panes" title={spread.title} onClick={event => open({ kind: 'page', pageId: spread.id }, event.shiftKey)}><span>{spread.title}</span></Button>}</For>
@@ -694,6 +702,9 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
       <Button icon="library" class={entry(active())?.target.kind === 'library' || entry(active())?.target.kind === 'reader' ? 'selected' : ''} aria-haspopup="menu" aria-expanded={!!typesMenu()}
         onClick={() => open({ kind: 'library' })} onContextMenu={event => { event.preventDefault(); void showTypes(event.currentTarget); }}><span>Library</span></Button>
     </nav>
+    <Show when={questionsMenu()}>{anchor => <Menu anchor={anchor()} label="Questions" onDismiss={() => setQuestionsMenu(undefined)} items={[
+      { label: 'Open research desk', icon: 'panes', action: () => { setQuestionsMenu(undefined); open(deskTarget()); } },
+    ]} />}</Show>
     <Show when={typesMenu()}>{state => <Menu anchor={state().anchor} label="Types" onDismiss={() => setTypesMenu(null)} items={[
       { label: 'Library', icon: 'library', checked: entry(active())?.target.kind === 'library', action: () => open({ kind: 'library' }) },
       ...state().types.map(type => ({ section: 'Types', label: type.page.text, icon: 'table' as const, checked: activeTypeId() === type.page.id,

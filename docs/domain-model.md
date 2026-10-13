@@ -239,12 +239,14 @@ Attributes use a leading `@` wherever a field key is accepted, including filters
 |---|---|
 | Notes | `@kind`, `@resolved`, `@revisit` |
 | Questions | `@state`, `@parent`, `@program`, `@readings`, `@current`, `@last_assessed`, `@revisit`, `@inline` |
-| Positions | `@holder`, `@subject`, `@relation`, `@target_holder`, `@cites` |
-| Sources | `@creator`, `@cited_by`, `@highlights` |
+| Positions | `@holder`, `@subject`, `@question`, `@relation`, `@target_holder`, `@cites` |
+| Sources | `@creator`, `@cited_by`, `@cited_in`, `@highlights` |
 | Tasks | `@status`, `@due`, `@scheduled`, `@project` |
 | Highlights | `@source`, `@color` |
 
 The shared attributes are `@title` (text), `@page` (instance), `@created` and `@updated` (dates in the notebook's time zone). Questions use active, recurrent, parked and answered states. `@last_assessed` is the latest live assessment date, accepted or not. `@readings` counts positions about the question. Sources count distinct citing positions and highlighted blocks. Instance attributes compare stable IDs, not labels. Links and citations on a block source refer to its subtree.
+
+Positions' `@question` includes their subject when it is a live question and every effective parent question above it. A parent question therefore selects positions about its branches too. Sources' `@cited_in` names each live block whose subtree cites that source, including positions and containing pages. Both are instance attributes and compare stable IDs. Repeated citations count once per block; hidden or deleted subtrees do not contribute.
 
 Date filters accept `today`, `-30d` and `+7d`, resolved in the notebook's time zone on each read. A filter such as `{"field":"@last_assessed","op":"lt","value":"-30d","or_empty":true}` also matches an absent value. Saved filters keep the relative expression, not its current date.
 
@@ -633,6 +635,12 @@ One query selects titled notes by type kind or capability kind; Index and Table 
 Entity view recipes use that same query JSON. `layout` is `table`, `register` or `matrix`; an omitted layout means Table. This is separate from `note_view.layout`, which keeps Index and Table for note finding aids. `columns` is an ordered array of `{key, width?}`; an explicit array overrides the source's defaults and stays fixed through search and filtering. `sort` keeps its array priority. `group` holds its key and optional collapsed heading keys. `card` names phone card fields, with sort keys also shown by the client, and `purpose` is one line. Saving and reopening preserves each of these values. No table is added.
 
 When detaching or deleting a field leaves a saved recipe naming a missing definition, `field_names` remembers its label as an object keyed by field ID. It is absent from unaffected recipes. Table and Index pause the results and name the missing field, rather than treating a failed predicate as an empty result. Remove from view removes that field's predicates and presentation references, then saves the repaired recipe. Its remembered label is removed when no references remain. Merge redirects references in the same batch as the entries; undo restores the exact earlier query and remembered labels.
+
+### Research desks
+
+A research desk is one saved view with `layout: "desk"`. The top-level query selects questions; `desk: {positions: Query, sources: Query}` carries the other two columns. All three use the existing query language. Selecting a question sets the positions query's `@question` condition. Selecting a position sets the sources query's `@cited_in` condition. Other conditions remain specific to their column.
+
+The default questions query excludes parked and answered questions and groups by `@program`. Saving and reopening keep the three queries together, including their linked conditions. The focused column and selected row IDs belong to pane navigation state, so reload restores them without changing notebook content. Save and update use the ordinary attributed, revision-checked view operations and offer undo.
 
 ### Spreads
 

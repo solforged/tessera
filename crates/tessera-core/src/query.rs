@@ -38,6 +38,18 @@ fn validate_query_fields(
     if query.limit.is_some_and(|limit| limit > 2000) {
         return Err(validation("query limit must not exceed 2000"));
     }
+    if let Some(desk) = &query.desk {
+        if query.source != Some(crate::QuerySource::Questions)
+            || desk.positions.source != Some(crate::QuerySource::Positions)
+            || desk.sources.source != Some(crate::QuerySource::Sources)
+            || desk.positions.desk.is_some()
+            || desk.sources.desk.is_some()
+        {
+            return Err(validation("A desk needs questions, positions and sources."));
+        }
+        validate_query_fields(conn, &desk.positions, saving)?;
+        validate_query_fields(conn, &desk.sources, saving)?;
+    }
     let definitions = definitions(conn)?;
     let defs = definition_map(&definitions);
     let attributes = crate::entity_query::attributes(query.source.unwrap_or_default());

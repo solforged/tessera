@@ -31,6 +31,7 @@ import type { TableCell } from './register';
 import { attributeDefinitions, querySources, sourceName } from './attributes';
 import { TableGrid } from './TableGrid';
 import { ViewBody } from './ViewBody';
+import { DeskPane } from '../desk/DeskPane';
 import './table.css';
 
 type TableTarget = Extract<OpenTarget, { kind: 'table' }>;
@@ -56,6 +57,10 @@ const membersLabel = (count: number) => `${count.toLocaleString()} ${count === 1
 type TableEdit = { kind: 'cell'; doc: PageDocument; rowId: string | null; fieldId: string | null }
   | { kind: 'view'; before: View; after: View; revision: number };
 export function TablePane(props: TablePaneProps) {
+  return <Show when={props.view.query.layout === 'desk'} fallback={<TableContent {...props} />}><DeskPane {...props} /></Show>;
+}
+
+function TableContent(props: TablePaneProps) {
   const [query, setQuery] = createSignal(copyQuery(props.view.query));
   const [search, setSearch] = createSignal(query().text ?? '');
   const [hiddenFields, setHiddenFields] = createSignal([...(props.view.hiddenFields ?? [])]);

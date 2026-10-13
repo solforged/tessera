@@ -20,7 +20,8 @@ export function typeQuery(type: string | null): Query {
   return { type, text: null, filters: [], sort: [], limit: null };
 }
 export function copyQuery(query: Query): Query {
-  return { ...query, filters: query.filters.map(filter => ({ ...filter })), sort: query.sort.map(key => ({ ...key })), ...(query.columns ? { columns: query.columns.map(column => ({ ...column })) } : {}), ...(query.group ? { group: { ...query.group, ...(query.group.collapsed ? { collapsed: [...query.group.collapsed] } : {}) } } : {}), ...(query.card ? { card: [...query.card] } : {}), ...(query.field_names ? { field_names: { ...query.field_names } } : {}), ...(query.note_view ? { note_view: { ...query.note_view } } : {}), ...Object.fromEntries((['links', 'from', 'cites'] as const).filter(key => query[key]).map(key => [key, [...query[key]!]])) };
+  const desk = query.desk ? { positions: copyQuery(query.desk.positions), sources: copyQuery(query.desk.sources) } : undefined;
+  return { ...query, ...(desk ? { desk } : {}), filters: query.filters.map(filter => ({ ...filter })), sort: query.sort.map(key => ({ ...key })), ...(query.columns ? { columns: query.columns.map(column => ({ ...column })) } : {}), ...(query.group ? { group: { ...query.group, ...(query.group.collapsed ? { collapsed: [...query.group.collapsed] } : {}) } } : {}), ...(query.card ? { card: [...query.card] } : {}), ...(query.field_names ? { field_names: { ...query.field_names } } : {}), ...(query.note_view ? { note_view: { ...query.note_view } } : {}), ...Object.fromEntries((['links', 'from', 'cites'] as const).filter(key => query[key]).map(key => [key, [...query[key]!]])) };
 }
 
 /** Definition identities used by a recipe, excluding built-in attributes and group values. */
@@ -32,6 +33,7 @@ export function queryFieldIds(query: Query): string[] {
     ...(query.group ? [query.group.key] : []),
     ...(query.card ?? []),
     ...(query.note_view?.grouping.startsWith('field:') ? [query.note_view.grouping.slice(6)] : []),
+    ...(query.desk ? [...queryFieldIds(query.desk.positions), ...queryFieldIds(query.desk.sources)] : []),
   ])].filter(id => !id.startsWith('@'));
 }
 
@@ -55,6 +57,7 @@ export function remapQueryField(query: Query, from: string, to: string): Query {
     ...(query.group ? { group: { ...query.group, key: key(query.group.key), ...(query.group.collapsed ? { collapsed: query.group.collapsed.map(key) } : {}) } } : {}),
     ...(query.card ? { card: query.card.map(key) } : {}),
     ...(query.note_view ? { note_view: { ...query.note_view, grouping: query.note_view.grouping === `field:${from}` ? `field:${to}` : query.note_view.grouping } } : {}),
+    ...(query.desk ? { desk: { positions: remapQueryField(query.desk.positions, from, to), sources: remapQueryField(query.desk.sources, from, to) } } : {}),
   });
 }
 
@@ -67,6 +70,7 @@ export function removeQueryField(query: Query, id: string): Query {
     ...(query.group?.key === id ? { group: undefined } : {}),
     ...(query.card ? { card: query.card.filter(key => key !== id) } : {}),
     ...(query.note_view?.grouping === `field:${id}` ? { note_view: { ...query.note_view, grouping: 'letter' } } : {}),
+    ...(query.desk ? { desk: { positions: removeQueryField(query.desk.positions, id), sources: removeQueryField(query.desk.sources, id) } } : {}),
   });
   if (!next.type && !next.text && !next.filters.length && !next.note_kind && !next.source) next.source = 'notes';
   return next;
@@ -83,6 +87,8 @@ export function queriesEqual(left: Query, right: Query): boolean {
     && (left.source ?? 'notes') === (right.source ?? 'notes')
     && (left.layout ?? 'table') === (right.layout ?? 'table')
     && (left.purpose ?? '') === (right.purpose ?? '')
+    && (left.layout ?? 'table') === (right.layout ?? 'table')
+    && (!left.desk && !right.desk || !!left.desk && !!right.desk && queriesEqual(left.desk.positions, right.desk.positions) && queriesEqual(left.desk.sources, right.desk.sources))
     && JSON.stringify(left.columns ?? null) === JSON.stringify(right.columns ?? null)
     && left.group?.key === right.group?.key && JSON.stringify(left.group?.collapsed ?? []) === JSON.stringify(right.group?.collapsed ?? [])
     && JSON.stringify(left.card ?? null) === JSON.stringify(right.card ?? null)

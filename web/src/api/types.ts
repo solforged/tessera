@@ -284,7 +284,8 @@ export type QuerySource = 'notes' | 'questions' | 'positions' | 'sources' | 'tas
 export type QueryLayout = 'table' | 'register' | 'matrix' | 'desk';
 export interface QueryColumn { key: string; width?: number }
 export interface QueryGrouping { key: string; collapsed?: string[] }
-export interface Query { source?: QuerySource; layout?: QueryLayout; type: string | null; text: string | null; filters: Filter[]; sort: SortKey[]; limit: number | null; offset?: number; note_kind?: string; links?: string[]; from?: string[]; cites?: string[]; note_view?: NoteView; columns?: QueryColumn[]; group?: QueryGrouping; card?: string[]; purpose?: string; field_names?: Record<string, string> }
+export interface DeskQuery { positions: Query; sources: Query }
+export interface Query { source?: QuerySource; layout?: QueryLayout; type: string | null; text: string | null; filters: Filter[]; sort: SortKey[]; limit: number | null; offset?: number; note_kind?: string; links?: string[]; from?: string[]; cites?: string[]; note_view?: NoteView; columns?: QueryColumn[]; group?: QueryGrouping; card?: string[]; purpose?: string; desk?: DeskQuery; field_names?: Record<string, string> }
 export interface YearSpan { from: number | null; through: number | null }
 export type Reading = { ok: true; value: string | number | boolean | YearSpan; target: string | null } | { ok: false; problem: string };
 export interface FieldValue { id: string; text: string; reading: Reading }

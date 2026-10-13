@@ -34,6 +34,7 @@ pub(crate) fn attributes(source: QuerySource) -> Vec<QueryAttribute> {
         QuerySource::Positions => &[
             ("@holder", "Holder", Instance),
             ("@subject", "Subject", Instance),
+            ("@question", "Question", Instance),
             ("@relation", "Relation", Choice),
             ("@target_holder", "Target holder", Instance),
             ("@cites", "Cites", Instance),
@@ -41,6 +42,7 @@ pub(crate) fn attributes(source: QuerySource) -> Vec<QueryAttribute> {
         QuerySource::Sources => &[
             ("@creator", "Creator", Instance),
             ("@cited_by", "Cited by", Number),
+            ("@cited_in", "Cited in", Instance),
             ("@highlights", "Highlights", Number),
         ],
         QuerySource::Tasks => &[
@@ -174,6 +176,33 @@ fn references(
     Ok(result)
 }
 
+/// Invert live citations once, then include the citing block's visible ancestors.
+fn cited_in(conn: &Connection) -> Result<HashMap<String, HashSet<String>>> {
+    let mut statement = conn.prepare_cached(concat!(
+        hidden_blocks!(),
+        ", refs(block_id, source_id) AS (
+            SELECT source_id, target_id FROM links
+            UNION SELECT c.block_id, s.source_id FROM citations c
+            JOIN source_snapshots s ON s.snapshot_id = c.snapshot_id WHERE c.active = 1
+        ), citing(block_id, source_id) AS (
+            SELECT r.block_id, r.source_id FROM refs r
+            JOIN sources s ON s.block_id = r.source_id AND s.active = 1
+            JOIN blocks b ON b.id = r.block_id
+            WHERE b.deletion_id IS NULL AND b.rowid NOT IN (SELECT rowid FROM hidden)
+            UNION
+            SELECT p.id, c.source_id FROM citing c
+            JOIN blocks b ON b.id = c.block_id JOIN blocks p ON p.id = b.parent_id
+            WHERE p.deletion_id IS NULL AND p.rowid NOT IN (SELECT rowid FROM hidden)
+        ) SELECT source_id, block_id FROM citing"
+    ))?;
+    let mut result = HashMap::<String, HashSet<String>>::new();
+    for pair in statement.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))? {
+        let (source, block) = pair?;
+        result.entry(source).or_default().insert(block);
+    }
+    Ok(result)
+}
+
 impl Notebook {
     pub(crate) fn query_entities(&self, source: QuerySource) -> Result<Option<Entities>> {
         if source == QuerySource::Notes {
@@ -185,6 +214,11 @@ impl Notebook {
             QuerySource::Notes => unreachable!(),
             QuerySource::Positions => {
                 let positions = crate::position_store::derive(&self.conn, None)?;
+                let questions = self.questions(&crate::QuestionQuery::default())?;
+                let parents: HashMap<_, _> = questions
+                    .iter()
+                    .map(|row| (row.block.block.id.as_str(), row.info.parent_id.as_deref()))
+                    .collect();
                 let roots: Vec<_> = positions.keys().cloned().collect();
                 let mut cited = references(&self.conn, &roots, true)?;
                 for (id, position) in &positions {
@@ -193,6 +227,16 @@ impl Notebook {
                         instance(attrs, "@holder", holder, &titles);
                     }
                     instance(attrs, "@subject", &position.subject_id, &titles);
+                    let mut question = position.subject_id.as_str();
+                    let mut seen = HashSet::new();
+                    while let Some(parent) = parents.get(question) {
+                        if !seen.insert(question) {
+                            break;
+                        }
+                        instance(attrs, "@question", question, &titles);
+                        let Some(parent) = parent else { break };
+                        question = parent;
+                    }
                     for source in cited.remove(id).unwrap_or_default() {
                         instance(attrs, "@cites", &source, &titles);
                     }
@@ -315,16 +359,8 @@ impl Notebook {
                 }
             }
             QuerySource::Sources => {
-                let roots = crate::position_store::derive(&self.conn, None)?
-                    .into_keys()
-                    .filter(|id| titles.contains_key(id))
-                    .collect::<Vec<_>>();
-                let mut cited_by = HashMap::<String, usize>::new();
-                for sources in references(&self.conn, &roots, true)?.into_values() {
-                    for source in sources {
-                        *cited_by.entry(source).or_default() += 1;
-                    }
-                }
+                let positions = crate::position_store::derive(&self.conn, None)?;
+                let mut citing = cited_in(&self.conn)?;
                 let mut highlights = HashMap::<String, HashSet<String>>::new();
                 for row in self
                     .highlights(&crate::library::HighlightQuery {
@@ -344,12 +380,15 @@ impl Notebook {
                 for id in statement.query_map([], |r| r.get::<_, String>(0))? {
                     let id = id?;
                     let attrs = entities.entry(id.clone()).or_default();
-                    push(
-                        attrs,
-                        "@cited_by",
-                        ReadingValue::Number(cited_by.get(&id).copied().unwrap_or_default() as f64),
-                        None,
-                    );
+                    let blocks = citing.remove(&id).unwrap_or_default();
+                    let count = blocks
+                        .iter()
+                        .filter(|id| positions.contains_key(*id))
+                        .count();
+                    for block in blocks {
+                        instance(attrs, "@cited_in", &block, &titles);
+                    }
+                    push(attrs, "@cited_by", ReadingValue::Number(count as f64), None);
                     push(
                         attrs,
                         "@highlights",
@@ -377,7 +416,13 @@ impl Notebook {
         }
         entities.retain(|id, _| titles.contains_key(id));
         for attrs in entities.values_mut() {
-            for key in ["@cites", "@relation", "@target_holder"] {
+            for key in [
+                "@cites",
+                "@cited_in",
+                "@question",
+                "@relation",
+                "@target_holder",
+            ] {
                 if let Some(values) = attrs.get_mut(key) {
                     values.sort_by(|a, b| a.text.cmp(&b.text));
                 }

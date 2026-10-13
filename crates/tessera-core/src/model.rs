@@ -836,6 +836,12 @@ pub struct QueryGrouping {
     pub collapsed: Option<Vec<String>>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DeskQuery {
+    pub positions: Query,
+    pub sources: Query,
+}
+
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Query {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -872,6 +878,8 @@ pub struct Query {
     pub card: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub purpose: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub desk: Option<Box<DeskQuery>>,
     /// Remembered labels for references left behind by field detachment or deletion.
     #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
     pub field_names: std::collections::BTreeMap<String, String>,

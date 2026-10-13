@@ -96,6 +96,7 @@ export interface TableViewState {
   query: Query; scroll: number;
   /** Scroll stays pane-local; legacy visibility and title width apply until a query recipe is chosen. */
   hiddenFields?: string[]; titleWidth?: number; horizontalScroll?: number;
+  desk?: { question: string | null; position: string | null; source: string | null; column: 0 | 1 | 2 };
 }
 export interface FieldsViewState { scroll: number }
 export interface FieldViewState { scroll: number }

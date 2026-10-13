@@ -140,6 +140,8 @@ Progress: the model is settled in the [domain model](domain-model.md#notes), and
 
 Note views have title and gloss finding, `links:`, `from:` and `cites:` chips, multi-heading grouping, shared Index and Table queries and counts, saved layout and grouping under each kind, and multi-note selection that opens a spread. Spreads derive aligned fields, sources, links and opening prose, mark exact shared values, and save as pages of references with undoable column edits and ordinary commentary. The note capability, resolved state, revisit menus, attributed revisit events and Questions and notes queue are built. Today lists Research to revisit; agents can read the queue and use its actions. System types, the Form field, `is:` and `revisit:` predicates and State grouping remain.
 
+The [research desk](surfaces/desk.md) links three entity queries: questions, their positions and cited sources. Saved desks keep those queries in one view; spreads remain comparisons of selected notes.
+
 ## 11. Sync
 
 - Determinism and identity: change IDs and origins, a device ID, derived IDs inside apply, content-derived library IDs, table classes.
