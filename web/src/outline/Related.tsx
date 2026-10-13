@@ -13,6 +13,7 @@ import { BacklinkSource, BlockReferenceCount } from './Backlinks';
 import type { OutlineContext } from './context';
 import { Button } from '../ui/Button';
 import { createSettledChanges } from '../ui/loading';
+import { isVirtualJournal, readJournalRelated } from './related-reads';
 
 export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'doc' | 'zoom' | 'zoomTo' | 'localPositions'>) {
   const { props, doc, zoom, zoomTo, localPositions } = context;
@@ -20,18 +21,18 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
   let relatedRequests: AbortController | undefined;
   let countRequest: AbortController | undefined;
   const relatedVersion = createSettledChanges(props.notebook);
-  const version = () => `${props.pageId}:${relatedVersion()}:${props.notebook.connection() === 'live'}`;
+  const version = () => `${props.pageId}:${relatedVersion()}:${props.notebook.connection() === 'live'}:${isVirtualJournal(doc.root())}`;
   onCleanup(() => { relatedRequests?.abort(); countRequest?.abort(); });
   const [counts] = createResource(version, async () => {
     countRequest?.abort();
     countRequest = new AbortController();
-    return api.referenceCounts(props.pageId, countRequest.signal);
+    return readJournalRelated(api.referenceCounts(props.pageId, countRequest.signal), doc.root(), []);
   });
   const countById = createMemo(() => new Map((counts.error ? [] : counts() ?? []).map(row => [row.block_id, row.count])));
   const [relatedResource] = createResource(() => `${version()}:${limit()}`, async () => {
     relatedRequests?.abort();
     const requests = relatedRequests = new AbortController();
-    const [references, tagged, held, about] = await Promise.all([api.pageReferences(props.pageId, limit(), requests.signal), api.members(props.pageId, undefined, requests.signal), api.positions({ holder: props.pageId }, requests.signal), api.positions({ subject: props.pageId }, requests.signal)]);
+    const [references, tagged, held, about] = await Promise.all([readJournalRelated(api.pageReferences(props.pageId, limit(), requests.signal), doc.root(), { total: 0, groups: [] }), api.members(props.pageId, undefined, requests.signal), api.positions({ holder: props.pageId }, requests.signal), api.positions({ subject: props.pageId }, requests.signal)]);
     // A position links its holder and often its subject, so it shows once, as a perspective, not again as a backlink.
     const positions = new Set([...held.rows, ...about.rows].map(row => row.block.block.id));
     const rootLinks = references.groups.flatMap(group => group.sources.filter(row => row.targets.includes(props.pageId)).map(row => ({ source: row.source, page: group.page })));

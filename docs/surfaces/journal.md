@@ -43,7 +43,7 @@ The launcher's New note and New task shortcuts and text shared to Tessera open t
 
 Journal days present a spoken date such as Saturday 10 October beneath a mono period trail: `2026 · Q4 · October · Week 41`.
 
-The latest navigation request wins in its pane. Previous and next step from a pending journal date, and a superseded lookup does not create a missing journal.
+The latest navigation request wins in its pane. Previous and next step from a pending journal date, and a superseded lookup does not create a missing journal. Before a new journal root is committed, missing reference reads show quiet zero counts rather than unavailable sections; successful reads still show real backlinks, and related sections refresh when the root becomes committed.
 
 Quiet dotted underlines make the segments clickable, brightening to gilt on hover; the open segment has a 2 px gilt rule instead. Each segment toggles one inline ledger beneath the heading. Tapping it again or Escape closes it.
 
