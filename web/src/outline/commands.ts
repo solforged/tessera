@@ -147,11 +147,11 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     { id: 'read', title: 'Read', section: 'Page', disabledReason: () => doc.root()?.kind === 'page' ? undefined : 'Only titled pages have projections.', run: () => props.onProjection?.('read') },
     { id: 'outline', title: 'Outline', section: 'Page', disabledReason: () => doc.root()?.kind === 'page' ? undefined : 'Only titled pages have projections.', run: () => props.onProjection?.('outline') },
     { id: 'compare', title: 'Compare readings', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Page is unavailable.' : localPositions() < 2 ? 'Compare needs two readings on this page.' : undefined, run: () => props.onProjection?.('compare') },
-    { id: 'add-reading', title: 'Add reading', section: 'Page', disabledReason: () => doc.root()?.kind === 'page' && !doc.root()?.source ? undefined : 'Choose a titled note.', run: () => context.openRelation(props.pageId, 'reading', context.heading) },
+    { id: 'add-reading', title: 'Add reading', section: 'Page', disabledReason: () => doc.root()?.source ? 'Add readings on the concept or question they are about.' : doc.root()?.kind === 'page' ? undefined : 'Add readings on a titled page.', run: () => context.openRelation(props.pageId, 'reading', context.heading) },
     ...depthStops.map((stop): Command => ({ id: `depth-${stop}`, title: depthTitles[stop], section: 'Page', disabledReason: depthReason, run: () => setStop(stop) })),
     { id: 'depth-less', title: 'Show less of the page', section: 'Page', keys: ['['], disabledReason: () => depthReason() ?? (depth() === 'gloss' ? 'Only the gloss is showing.' : undefined), run: () => stepDepth(-1) },
     { id: 'depth-more', title: 'Show more of the page', section: 'Page', keys: [']'], disabledReason: () => depthReason() ?? (depth() === 'full' ? 'The whole page is showing.' : undefined), run: () => stepDepth(1) },
-    { id: 'question-root', title: 'Make question', section: 'Page', disabledReason: () => doc.root()?.kind !== 'page' || capabilities.busy(props.pageId) ? 'Page is unavailable.' : undefined, run: () => {
+    { id: 'question-root', title: 'Make question', description: 'Marks this page as an active question.', section: 'Page', disabledReason: () => doc.root()?.kind !== 'page' || capabilities.busy(props.pageId) ? 'Page is unavailable.' : undefined, run: () => {
       const item = investigationItems(props.pageId).find(item => item.label === 'Make question');
       if (item && !item.disabledReason) item.action();
       else if (context.heading) setMenu({ anchor: context.heading, label: 'Question', items: investigationItems(props.pageId) });
