@@ -5,10 +5,10 @@
 .week-ledger-heading { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; align-items: baseline; align-content: center; column-gap: var(--space-8); width: 100%; min-height: var(--touch-target); }
 .week-ledger-rule { height: var(--rule-width); background: var(--line); align-self: center; }
 .week-ledger-heading .agenda-day-count { white-space: nowrap; }
-.week-ledger-today .agenda-day-numeral { color: var(--accent); }
 .week-ledger-compact { margin-top: var(--space-4); }
 .week-ledger-compact .week-ledger-heading { min-height: var(--space-32); }
 .week-ledger-compact .agenda-day-numeral { color: var(--muted); font-size: var(--text-h2); line-height: var(--line-h2); }
+.week-ledger-today .agenda-day-numeral { color: var(--accent); }
 .week-ledger-toggle { grid-template-columns: auto auto minmax(0, 1fr) auto auto; border: 0; padding: 0; background: transparent; text-align: left; cursor: pointer; }
 .week-ledger-toggle:hover { background: var(--hover); }
 .week-ledger-toggle > .icon { width: var(--icon-size-small); height: var(--icon-size-small); color: var(--faint); align-self: center; }

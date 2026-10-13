@@ -2,8 +2,9 @@
 .index-pane { flex: 1; min-height: 0; min-width: 0; overflow: auto; outline: none; container: finding-aid / inline-size; }
 .index-sheet { max-width: calc(var(--measure) + 2 * var(--pane-inset)); margin-inline: auto; padding: var(--page-top-space) var(--pane-inset) var(--page-bottom-space); }
 .index-eyebrow { margin: 0; color: var(--danger); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); text-transform: uppercase; }
-.index-head { display: flex; align-items: baseline; gap: var(--space-16); margin: var(--page-eyebrow-gap) 0 var(--page-head-gap); }
-.index-head h1 { display: flex; align-items: baseline; gap: var(--space-12); flex: 1; min-width: 0; margin: 0; font: var(--page-title-font); letter-spacing: var(--tracking-title); font-variation-settings: var(--optical-title); }
+/* A title too long to share its line sends the tally and action to the next line instead of running under them. */
+.index-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-8) var(--space-16); margin: var(--page-eyebrow-gap) 0 var(--page-head-gap); }
+.index-head h1 { display: flex; align-items: baseline; gap: var(--space-12); flex: 1 1 auto; min-width: 0; margin: 0; font: var(--page-title-font); letter-spacing: var(--tracking-title); font-variation-settings: var(--optical-title); }
 .index-head h1 > .icon { flex: none; align-self: center; color: var(--faint); }
 .index-tally { color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .index-head:has(+ :is(.type-mode-tabs, .index-queue-tabs, .index-source-tabs)) { margin-bottom: var(--page-title-gap); }
