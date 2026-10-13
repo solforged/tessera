@@ -12,7 +12,7 @@ import { Popup } from '../ui/Popup';
 /** The outline editor's text, references and composition rules, with a cell-sized commit boundary. */
 export function CriteriaCellEditor(props: {
   id: string; text: string; label: string; notebook: NotebookClient;
-  onCommit(text: string): void; onCancel(): void;
+  onCommit(text: string, restoreFocus: boolean): void; onCancel(): void;
 }) {
   let host!: HTMLDivElement;
   let editor: PaneEditor;
@@ -60,13 +60,13 @@ export function CriteriaCellEditor(props: {
         }
         if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); props.onCancel(); return true; }
         if (event.key === 'Enter' && !event.shiftKey) {
-          event.preventDefault(); event.stopPropagation(); props.onCommit(view.state.doc.toString()); return true;
+          event.preventDefault(); event.stopPropagation(); props.onCommit(view.state.doc.toString(), true); return true;
         }
         return false;
       },
       blur: () => {
         queueMicrotask(() => {
-          if (host.isConnected && !host.contains(document.activeElement) && !document.activeElement?.closest('.picker')) props.onCommit(editor.view.state.doc.toString());
+          if (host.isConnected && !host.contains(document.activeElement) && !document.activeElement?.closest('.picker')) props.onCommit(editor.view.state.doc.toString(), false);
         });
       },
       composition: () => {}, mode: () => {},

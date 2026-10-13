@@ -99,6 +99,8 @@ Cells use the outline's CodeMirror block editor, including paired references, co
 
 Draft undo and redo remain inside the open cell until commit. A committed edit belongs to the position's shared page history, so sheet undo and page undo operate on the same change. The sheet routes undo to the last edited page, not a private edit stack.
 
+Enter and Escape return focus to the same criterion cell. Reloading the joined position data keeps that cell's identity, so an immediate undo chord works without refocusing the sheet. Leaving by clicking another control keeps focus on that control.
+
 Two or more cells in a row with exactly the same text get a numbered `≡ 1 · exact repeat` mark and a footnote naming the sigla; nothing else is marked.
 
 ### Questions and criteria editing

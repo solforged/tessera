@@ -430,6 +430,8 @@ Questions beneath the subject attach to the first criterion linked in their text
 
 Compare question focus is view state, never notebook content. It shows the readings of the question's linked holders and marks its criterion; the two sheets share a reading selection. Cell commits edit the ordinary value blocks through their page document and use that document's history.
 
+A criterion cell is identified by its position and field IDs. A refreshed position read preserves its focused cell; keyboard commit returns focus to that cell for the next history command.
+
 A holder's register groups its positions by their derived subjects and opens each position in its original place. A position zoom is a dossier of that reading with block-scoped incoming links and relations, not the containing page's backlinks.
 
 Only identical trimmed authored cell text is marked as an exact repeat; differing wording implies nothing.
