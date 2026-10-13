@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import type { Block } from '../api/types';
 import type { NotebookClient } from '../document/contract';
-import { completedReference, completionPickKey, headingPrefix, isJournalReference, isQuoteCompletion, openReferenceRange, referenceCompletionAt, referenceNewlineAt } from './completion';
+import { completedReference, completionPickKey, headingPrefix, isJournalReference, isQuoteCompletion, openReferenceRange, referenceAliasInput, referenceCompletionAt, referenceNewlineAt } from './completion';
 import { titleTargets, typedTitles, withLinkedTitles } from './link-titles';
 import { foldName } from './names';
 
@@ -40,6 +40,37 @@ describe('an open reference completion', () => {
     expect(openReferenceRange('[[mar and more', 0, 5, false)).toEqual({ from: 0, to: 5, query: 'mar' });
     expect(openReferenceRange('[[mar\nnext]]', 0, 5, false)).toEqual({ from: 0, to: 5, query: 'mar' });
     expect(openReferenceRange('[[mar [[other]]', 0, 5, false)).toEqual({ from: 0, to: 5, query: 'mar' });
+  });
+
+  test('a pipe accepts the chosen target and starts its alias inside paired closers', () => {
+    const id = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
+    const result = referenceAliasInput('see [[gener]] next', 4, 11, id);
+    expect(result).toEqual({ from: 4, to: 13, insert: `[[${id}|]]`, caret: 4 + id.length + 3 });
+    const text = 'see ' + result.insert + ' next';
+    expect(referenceCompletionAt(text, result.caret)).toBeNull();
+    const aliased = text.slice(0, result.caret) + 'memory boost' + text.slice(result.caret);
+    expect(aliased).toBe(`see [[${id}|memory boost]] next`);
+    expect(referenceCompletionAt(aliased, result.caret + 12)).toBeNull();
+  });
+
+  test('an unmatched target or create row keeps the typed target without creating a page', () => {
+    for (const text of ['[[gener]]', '[[gener']) {
+      expect(referenceAliasInput(text, 0, 7)).toEqual({ from: 0, to: text.length, insert: '[[gener|]]', caret: 8 });
+    }
+    expect(referenceAliasInput('[[Generation effect]]', 0, 19)).toEqual({ from: 0, to: 21, insert: '[[Generation effect|]]', caret: 20 });
+  });
+
+  test('adding an alias to an accepted ID does not replace it with a search hit for its mentions', () => {
+    const id = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
+    const result = referenceAliasInput(`[[${id}]]`, 0, 28, 'another-block');
+    expect(result).toEqual({ from: 0, to: 30, insert: `[[${id}|]]`, caret: 29 });
+  });
+
+  test('editing a target retains an existing alias and locator, but alias typing never completes', () => {
+    const text = '[[Source|label|3.12]]';
+    expect(referenceAliasInput(text, 0, 5, 'target')).toEqual({ from: 0, to: text.length, insert: '[[target|label|3.12]]', caret: 9 });
+    for (let caret = text.indexOf('|') + 1; caret < text.length - 1; caret++) expect(referenceCompletionAt(text, caret)).toBeNull();
+    expect(referenceCompletionAt(text, 5)?.query).toBe('Source');
   });
 
   test('places a soft newline after the paired query without losing it during title normalization', () => {

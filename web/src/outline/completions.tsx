@@ -17,7 +17,7 @@ import { Icon } from '../ui/Icon';
 import type { IconName } from '../ui/Icon';
 import { Popup } from '../ui/Popup';
 import { BlockBreadcrumb, BlockText } from './BlockText';
-import { captureQuoteCompletion, completedReference, completionPickKey, isJournalReference, isQuoteCompletion, openReferenceRange, referenceCompletionAt, referenceNewlineAt } from './completion';
+import { captureQuoteCompletion, completedReference, completionPickKey, isJournalReference, isQuoteCompletion, openReferenceRange, referenceAliasInput, referenceCompletionAt, referenceNewlineAt } from './completion';
 import { rankSlash, slashTokenAt } from './slash';
 import { insertCard } from './card-insert';
 import type { InsertCardKind } from './card-insert';
@@ -266,6 +266,15 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
   function referenceInput(view: EditorView, from: number, to: number, text: string) {
     const at = referenceSpace;
     referenceSpace = null;
+    const state = completion();
+    if (text === '|' && from === to && view.state.selection.main.empty && state && !state.types && !state.fields && !state.blocks && !state.manual && !state.relationTarget && state.to === from) {
+      const row = completionRows()[completionIndex()];
+      const target = row?.kind === 'field' ? row.field.id : row?.block.id;
+      const result = referenceAliasInput(view.state.doc.toString(), state.from, from, target);
+      setCompletion(null);
+      view.dispatch({ changes: { from: result.from, to: result.to, insert: result.insert }, selection: { anchor: result.caret }, userEvent: 'input.type' });
+      return true;
+    }
     if (!at || at.id !== editing() || from !== to || from !== at.offset || !/^[ .,;:!?)]$/.test(text)) return false;
     const selection = view.state.selection.main;
     if (!selection.empty || selection.head !== at.offset || view.state.doc.sliceString(at.offset - 1, at.offset) !== ' ') return false;

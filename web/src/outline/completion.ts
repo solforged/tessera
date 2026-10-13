@@ -33,7 +33,7 @@ export function referenceCompletionAt(text: string, caret: number): ReferenceCom
   const page = prefix.lastIndexOf('[['), block = prefix.lastIndexOf('((');
   const blocks = block > page, from = Math.max(page, block);
   const typed = prefix.slice(from + 2);
-  if (from < 0 || typed.includes(blocks ? ')' : ']') || typed.includes('\n') || !blocks && prefix[from - 1] === '#' || insideProtectedSyntax(text, from)) return null;
+  if (from < 0 || typed.includes(blocks ? ')' : ']') || !blocks && typed.includes('|') || typed.includes('\n') || !blocks && prefix[from - 1] === '#' || insideProtectedSyntax(text, from)) return null;
   return { from, to: caret, query: openReferenceRange(text, from, caret, blocks).query, blocks };
 }
 
@@ -56,6 +56,16 @@ export function completedReference(text: string, from: number, to: number, id: s
   const inner = text.slice(from + 2, to).replace(/\]\]$/, '');
   const separator = inner.indexOf('|');
   return `[[${id}${separator < 0 ? '' : inner.slice(separator)}]]`;
+}
+
+/** `|` finishes the target and leaves the caret in the label, before the paired closer. */
+export function referenceAliasInput(text: string, from: number, caret: number, target?: string): { from: number; to: number; insert: string; caret: number } {
+  const range = openReferenceRange(text, from, caret, false);
+  // An accepted ID already fixes the target; search hits for its mentions must not retarget it.
+  const reference = completedReference(text, range.from, range.to, /^[0-9A-HJKMNP-TV-Z]{26}$/i.test(range.query) ? range.query : target ?? range.query);
+  const separator = reference.indexOf('|');
+  const insert = separator < 0 ? `${reference.slice(0, -2)}|]]` : reference;
+  return { from: range.from, to: range.to, insert, caret: range.from + insert.indexOf('|') + 1 };
 }
 
 /** A block picker captures only when its query occupies the entire row. */

@@ -135,6 +135,8 @@ The Backlinks section appears and its count refreshes when incoming links change
 
 Add alias, in the page menu after Gloss and in the palette, adds the Aliases field after the gloss and starts a new value with keyboard focus, ready for the first typed character. `[[` completion and Find name the alias a result was found through as `via Tully`, in faint mono at the row's end.
 
+An inline link can display different wording without changing its target: `[[Target|alias]]`. While `[[` completion is open, type `|` to accept the highlighted target and begin the alias inside the paired `]]`; if no match or Create page is highlighted, the typed target stays as written without creating a page. Alias text never filters or reopens completion. To add an alias to an existing link, place the caret just before `]]` and type `|alias`. Enter and Tab still accept a completion and continue after the link; Escape still dismisses it without accepting a target.
+
 At a note's top level, populated Aliases entries stay out of the outline while the header's ALSO line presents them. Clicking or tapping that line, or activating it with the keyboard, reveals the field and edits its first value. Add alias also reveals it before starting the new value. Zoomed outlines and sources keep ordinary field presentation.
 
 A hand-typed `[[Name]]` that two or more pages answer to stays unlinked and reads in `--warning` with a dotted underline and a small `?`. Clicking it lists the pages and Create page; the choice links it with the typed wording kept. Imported creators with a shared name read the same way.
