@@ -30,7 +30,7 @@ Filtering the index does not change definitions; an empty result offers Clear fi
 
 ## Field pages
 
-A field page is a specimen sheet on the outline measure, crumbed `Fields / Name`. Under the Piazzolla name sit a mono summary (`Choice · 7 owners · 9 values`) and Rename. Kind, Links to for instance fields, and Hide follow as rows. Hide offers Never, When empty and Always, with one muted line saying what the current choice does; changing it is one undoable edit on the field. The [field menu](../design.md#field-entries) in any note opens this page, at the kind preview, Options or Links to.
+A field page is a specimen sheet on the outline measure, crumbed `Fields / Name`. Under the Piazzolla name sit a mono summary (`Choice · 7 owners · 9 values`) and Rename. Kind, Links to for instance fields, Hide and Role follow as rows. Hide offers Never, When empty and Always, with one muted line saying what the current choice does. Role offers Standfirst, Attribute, Prose and Citation, with a sentence explaining its presentation. Each change is one undoable edit on the definition. The [field menu](../design.md#field-entries) in any note opens this page, at the kind preview, Options or Links to; its Role menu offers the same choices.
 
 Rename refuses another field's name under the same case-insensitive rule as New field.
 
@@ -76,6 +76,14 @@ Under the list sits a count of the members that lack template fields and Fill mi
 The type's Fields tab opens its template as a third in-pane view, with the same Index, Table and Fields strip and live counts. Its bounded register lists Name, Kind and Used by in template order. Usage counts are notebook-wide distinct owners, including empty entries. Names open their field pages.
 
 Move up, Move down and Remove appear on hover or focus and remain visible on coarse pointers. Add field and Fill missing fields keep the type page's editing behavior. The underlined type crumb opens the ordinary type page; the global Fields register remains separate.
+
+## Field bed
+
+An owner's populated fields stay visible at rest. Standfirst sentences lead, without labels. Attributes and citation fields share a compact label and value column; citation references show siglum · locator. Prose fields follow at full width. Empty template and recipe slots stay quiet until the owner or one of its fields is focused. On phones, labels stack above values and long text wraps within the measure.
+
+A value click, or Enter on a selected field, begins filling that owner. Tab and Shift-Tab move through its fields and missing slots in template or recipe order; reaching a missing slot creates its entry and value. Shift-Enter adds a newline. Enter on an empty value leaves for the owner's next ordinary row; Escape leaves without moving. Outside filling mode, Tab and Shift-Tab retain outline indent and outdent. Each value keeps its ordinary undo history.
+
+For a position, Add field begins with From this recipe: missing Gist, Work, then the subject's explicit or derived criteria. The recipe suggests, never requires.
 
 ## Tables and views
 

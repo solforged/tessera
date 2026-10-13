@@ -13,7 +13,7 @@ import { Icon } from '../ui/Icon';
 import { BlockText } from './BlockText';
 import { hasCitationDetail, TypePill } from './references';
 import { CitationChip } from './SourceHeader';
-import { isGistName } from './gloss';
+import { fieldRole } from '../fields/roles';
 import { CardSummary } from './CardSummary';
 import { formatSourceValue } from './source';
 import type { OutlineContext } from './context';
@@ -144,7 +144,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
       ...(block()?.position && positionSource(id()) ? [positionSource(id())!] : []),
     ])].filter(source => sigla().has(source)));
     const localCitation = createMemo(() => doc.root()?.source ? block()?.citations.find(citation => citation.source_id === props.pageId) : undefined);
-    const gist = () => inline() && isGistName(valueField()?.name) && !!doc.block(doc.outline.parentOf(parent()))?.position;
+    const gist = () => inline() && fieldRole(valueField()) === 'standfirst';
     const sourceField = createMemo(() => sourceDetails().fields.get(id()) ?? sourceDetails().fields.get(parent()));
     const displayText = createMemo(() => {
       const text = block()?.text ?? '';
@@ -178,13 +178,14 @@ export function createOutlineRows(context: Pick<OutlineContext,
     onMount(() => { if (!propsRow.natural) virtualizer.measureElement(row); });
     onCleanup(() => { const host = hosts.get(id()); if (host && row.contains(host)) hosts.delete(id()); });
     function StaticText() {
-      return <div class="static-text"><span classList={{ 'outline-value-pill': pill() && !!block()?.text, 'outline-reading-problem': !!valueProblem() }} title={valueProblem()}><BlockText text={displayText()} blockId={id()} onError={setMessage} cards field={field()} notebook={props.notebook} onOpen={props.onOpen} onReferenceClick={(token, anchor) => { if (!block()?.position || token.id !== block()?.position?.holder_id || token.start !== textTokens(block()?.text ?? '').find(value => value.kind === 'reference')?.start) return false; context.openRelation(id(), 'holder', anchor); return true; }} onReferenceMenu={referenceMenu} selection={selectedOffsets(id())} /></span><Show when={!block()?.text && inline()}><button type="button" class="field-empty-value" aria-label={`Add ${valueField()?.name} value`} onMouseDown={event => event.stopPropagation()} onClick={() => editAt(id(), 0, true)} /></Show><Show when={!block()?.text && !inline() && ids().length === 1}><span class="empty-block">Start writing</span></Show></div>;
+      return <div class="static-text"><span classList={{ 'outline-value-pill': pill() && !!block()?.text, 'outline-reading-problem': !!valueProblem() }} title={valueProblem()}><BlockText text={displayText()} blockId={id()} onError={setMessage} cards field={field()} citationApparatus={fieldRole(valueField()) === 'citation'} notebook={props.notebook} onOpen={props.onOpen} onReferenceClick={(token, anchor) => { if (!block()?.position || token.id !== block()?.position?.holder_id || token.start !== textTokens(block()?.text ?? '').find(value => value.kind === 'reference')?.start) return false; context.openRelation(id(), 'holder', anchor); return true; }} onReferenceMenu={referenceMenu} selection={selectedOffsets(id())} /></span><Show when={!block()?.text && inline()}><button type="button" class="field-empty-value" aria-label={`Add ${valueField()?.name} value`} onMouseDown={event => event.stopPropagation()} onClick={() => editAt(id(), 0, true)} /></Show><Show when={!block()?.text && !inline() && ids().length === 1}><span class="empty-block">Start writing</span></Show></div>;
     }
     return <div ref={row} id={`outline-${props.pane}-${id()}`} data-index={propsRow.natural ? undefined : propsRow.item!().index} data-block-id={id()} role="treeitem" aria-level={propsRow.natural ? 1 : depth() + 1}
       aria-expanded={children() ? !folds().has(id()) : undefined} aria-selected={selectedSet().has(id())}
       class="outline-row" classList={{ 'row-position': !!block()?.position, 'row-gist': gist(), 'row-question': !!block()?.question, 'row-assessment': !!block()?.assessment, 'row-selected': selectedSet().has(id()) && editing() !== id(), 'row-covered': coveredSet().has(id()), 'row-editing': editing() === id(), 'row-archived': block()?.archived ?? false, 'field-entry': !!field(), 'inline-field-value': inline(), 'row-gloss': inline() && parent() === glossId(), 'choice-value': pill(), 'source-highlight': !!localCitation(), 'source-highlights-start': sourceDetails().chapters.has(id()), 'outline-row-linked': block()?.citations.some(citation => citation.id === linkedCitation()) ?? false }}
       data-task-status={block()?.task?.status}
       data-holder={block()?.position?.holder_id ?? undefined}
+      data-field-role={inline() ? fieldRole(valueField()) : field() ? fieldRole(field()) : undefined}
       data-question-status={block()?.question?.status} data-accepted={block()?.assessment ? String(block()!.assessment!.accepted) : undefined} data-aporia={block()?.assessment?.state.aporia ? 'true' : undefined}
       onPointerEnter={() => { setLinkedCitation(block()?.citations[0]?.id ?? null); if (!propsRow.natural) sheet.hover(id()); }} onPointerLeave={() => { setLinkedCitation(null); sheet.hover(null); }}
       style={{ transform: propsRow.natural ? undefined : `translateY(${propsRow.item!().start - margin()}px)`, '--depth': propsRow.natural ? 0 : depth(), '--quote-color': localCitation()?.color ? `var(--highlight-${localCitation()!.color})` : 'var(--faint)' }}>
@@ -218,7 +219,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
             <div class="static-text"><button type="button" class={!block()?.text ? 'field-empty-value' : pill() ? 'outline-value-pill text-button' : 'outline-value-text'} classList={{ 'outline-reading-problem': !!valueProblem() }} title={valueProblem()} aria-label={`Edit ${valueField()?.name} value`} aria-haspopup={valueField()?.kind !== 'instance' ? 'dialog' : undefined}
               onMouseDown={event => { event.preventDefault(); event.stopPropagation(); }}
               onClick={event => { event.stopPropagation(); if (valueTarget() && (valueField()?.kind === 'instance' || event.shiftKey)) void openValueTarget(event.shiftKey); else openValueEditor(id(), event.currentTarget); }}>
-              <Show when={block()?.text}><BlockText text={displayText()} notebook={props.notebook} interactive={false} /></Show>
+              <Show when={block()?.text}><BlockText text={displayText()} notebook={props.notebook} citationApparatus={fieldRole(valueField()) === 'citation'} interactive={false} /></Show>
             </button></div>
           </Match>
           <Match when={embed()}><Show keyed when={embed()}>{target => <Embed target={target} notebook={props.notebook} onOpen={props.onOpen} fallback={<StaticText />} />}</Show></Match>

@@ -1,9 +1,9 @@
-import type { PositionQuestion } from '../api/types';
+import type { FieldDefinition, PositionQuestion } from '../api/types';
 import type { PageDocument } from '../document/contract';
 import { fieldEntryId, matchFieldEntry } from '../table/query';
 import { positionFields, positionRelations, readingPassages } from './perspectives';
 import { isCatalogueField } from '../library/details';
-import { isGlossName } from './gloss';
+import { fieldBedRows, fieldRole } from '../fields/roles';
 export interface ReadingField { name: string; entryId: string }
 export interface ReadingQuestion { id: string; holders: string[] }
 
@@ -14,13 +14,15 @@ export interface ReadingSlip {
   work: ReadingField[];
   account: ReadingField[];
   facts: ReadingField[];
+  prose: ReadingField[];
   passages: string[];
   relations: string[];
 }
 export interface ReadingRegister { opening: string[]; remaining: string[]; sectionId: string | null; slips: ReadingSlip[]; disagreements: { criterion: string; questions: ReadingQuestion[] }[] }
 
 /** Project identities only; authored text and capabilities remain in the shared document. */
-export function readingRegister(doc: PageDocument, fieldName: (id: string) => string | undefined, questions: readonly PositionQuestion[]): ReadingRegister {
+export function readingRegister(doc: PageDocument, definition: (id: string) => FieldDefinition | undefined, questions: readonly PositionQuestion[]): ReadingRegister {
+  const fieldName = (id: string) => definition(id)?.name;
   doc.outline.version(); doc.archivedVersion();
   const slips: ReadingSlip[] = [];
   const omitted = new Set<string>();
@@ -40,8 +42,10 @@ export function readingRegister(doc: PageDocument, fieldName: (id: string) => st
     if (!block?.position || doc.isArchived(id)) continue;
     const fields = positionFields(doc, id, fieldName);
     const named = (name: string) => fields.filter(field => field.name.trim().toLowerCase() === name).map(({ name, entryId }) => ({ name, entryId }));
-    const gist = fields.find(field => field.name.trim().toLowerCase() === 'gist');
-    slips.push({ id, holderId: block.position.holder_id, gist: named('gist'), work: named('work'), account: named('account'), facts: fields.filter(field => !['gist', 'work', 'account'].includes(field.name.trim().toLowerCase())).map(({ name, entryId }) => ({ name, entryId })), passages: readingPassages(doc, id, gist?.value, fieldName).map(row => row.id), relations: positionRelations(doc, id).map(row => row.id) });
+    const gist = fields.filter(field => fieldRole(definition(field.fieldId)) === 'standfirst');
+    const prose = fields.filter(field => fieldRole(definition(field.fieldId)) === 'prose');
+    const facts = fields.filter(field => !['standfirst', 'prose'].includes(fieldRole(definition(field.fieldId))) && !['work', 'account'].includes(field.name.trim().toLowerCase()));
+    slips.push({ id, holderId: block.position.holder_id, gist, work: named('work').filter(field => !gist.some(gist => gist.entryId === field.entryId) && !prose.some(prose => prose.entryId === field.entryId)), account: named('account').filter(field => !gist.some(gist => gist.entryId === field.entryId) && !prose.some(prose => prose.entryId === field.entryId)), prose, facts, passages: readingPassages(doc, id, gist[0]?.value, fieldName).map(row => row.id), relations: positionRelations(doc, id).map(row => row.id) });
     omitSubtree(id);
   }
   let sectionId: string | null = null;
@@ -61,7 +65,7 @@ export function readingRegister(doc: PageDocument, fieldName: (id: string) => st
       omitSubtree(id);
       continue;
     }
-    if (isGlossName(name)) continue;
+    if (fieldRole(definition(fieldEntryId(block?.text ?? '') ?? '')) === 'standfirst') continue;
     if (block?.heading && doc.outline.children(id).length) {
       const end = doc.outline.subtreeEnd(at);
       let content = false;
@@ -70,13 +74,14 @@ export function readingRegister(doc: PageDocument, fieldName: (id: string) => st
     }
     ordinary.push(id);
   }
-  const boundary = sectionId ? ordinary.indexOf(sectionId) : slips.length ? ordinary.findIndex(id => doc.outline.indexOf(id) > doc.outline.indexOf(slips[0]!.id)) : -1;
-  return { opening: boundary < 0 ? ordinary : ordinary.slice(0, boundary), remaining: boundary < 0 ? [] : ordinary.slice(boundary).filter(id => id !== sectionId), sectionId, slips, disagreements: [...disagreements].map(([criterion, questions]) => ({ criterion, questions })) };
+  const ordered = fieldBedRows(doc, ordinary, { get: definition }, doc.pageId);
+  const boundary = sectionId ? ordered.indexOf(sectionId) : slips.length ? ordered.findIndex(id => doc.outline.indexOf(id) > doc.outline.indexOf(slips[0]!.id)) : -1;
+  return { opening: boundary < 0 ? ordered : ordered.slice(0, boundary), remaining: boundary < 0 ? [] : ordered.slice(boundary).filter(id => id !== sectionId), sectionId, slips, disagreements: [...disagreements].map(([criterion, questions]) => ({ criterion, questions })) };
 }
 
 export function readingSlipRows(doc: PageDocument, slip: ReadingSlip, disclosures: ReadonlySet<string>): string[] {
   const values = (fields: ReadingField[]) => fields.flatMap(field => doc.outline.children(field.entryId).filter(id => !doc.isArchived(id)));
-  return [slip.id, ...values(slip.gist), ...values(slip.work), ...values(slip.account), ...slip.relations, ...(disclosures.has(`${slip.id}:prose`) ? slip.passages : []), ...(disclosures.has(`${slip.id}:facts`) ? values(slip.facts) : [])];
+  return [slip.id, ...values(slip.gist), ...values(slip.work), ...values(slip.account), ...values(slip.prose), ...slip.relations, ...(disclosures.has(`${slip.id}:prose`) ? slip.passages : []), ...(disclosures.has(`${slip.id}:facts`) ? values(slip.facts) : [])];
 }
 
 export function readingCounts(slips: readonly ReadingSlip[]): string {

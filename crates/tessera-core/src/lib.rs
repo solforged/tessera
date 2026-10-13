@@ -86,7 +86,7 @@ pub use migrate::SCHEMA_VERSION;
 pub use model::{
     Actor, Backlink, Batch, Block, BlockInPage, BlockKind, ChangeEvent, ChangeStamp, Committed,
     Direction, FieldChoiceCandidate, FieldChoiceValue, FieldDefinition, FieldDetail, FieldHide,
-    FieldKind, FieldOption, FieldOptionUse, FieldOwner, FieldOwnerValues, FieldSummary,
+    FieldKind, FieldOption, FieldOptionUse, FieldOwner, FieldOwnerValues, FieldRole, FieldSummary,
     FieldTemplate, FieldType, FieldValue, FieldValueUse, FieldsView, Filter, FilterOp, KeptCopy,
     NoteGroup, NoteLayout, NoteView, Operation, PageView, Query, QueryAttribute,
     QueryAttributeValue, QueryColumn, QueryGroup, QueryGrouping, QueryResult, QueryRow,

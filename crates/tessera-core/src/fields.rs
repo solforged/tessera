@@ -9,8 +9,8 @@ use crate::model::{
 use crate::reads::hidden_blocks;
 use crate::storage::{block_at, block_columns, not_found, validate_date, validate_id, validation};
 use crate::{
-    Block, BlockKind, FieldDefinition, FieldHide, FieldKind, FieldOption, FieldsView, Notebook,
-    Operation, Reading, ReadingValue, Result,
+    Block, BlockKind, FieldDefinition, FieldHide, FieldKind, FieldOption, FieldRole, FieldsView,
+    Notebook, Operation, Reading, ReadingValue, Result,
 };
 
 pub(crate) fn ensure_page(conn: &Connection) -> Result<()> {
@@ -190,6 +190,7 @@ impl FieldChanges {
             | Operation::SetArchived { id, .. }
             | Operation::SetFieldKind { id, .. }
             | Operation::SetFieldHide { id, .. }
+            | Operation::SetFieldRole { id, .. }
             | Operation::SetFieldTargets { id, .. } => self.capture(conn, id),
             Operation::SetTypeFields { .. }
             | Operation::SetTypePresentation { .. }
@@ -347,7 +348,7 @@ pub(crate) fn definitions(conn: &Connection) -> Result<Vec<FieldDefinition>> {
 
 fn definitions_for(conn: &Connection, id: Option<&str>) -> Result<Vec<FieldDefinition>> {
     let mut statement = conn.prepare_cached(
-        "SELECT d.id, d.text, COALESCE(f.kind, 'text'), d.revision, o.id, o.text, COALESCE(f.hide, 'never')
+        "SELECT d.id, d.text, COALESCE(f.kind, 'text'), d.revision, o.id, o.text, COALESCE(f.hide, 'never'), COALESCE(f.role, 'attribute')
          FROM blocks p JOIN blocks d ON d.parent_id = p.id LEFT JOIN fields f ON f.block_id = d.id
          LEFT JOIN blocks o ON o.parent_id = d.id AND o.deletion_id IS NULL AND o.archived = 0
          WHERE p.kind = 'page' AND p.title_key = 'fields' AND p.deletion_id IS NULL
@@ -390,6 +391,16 @@ fn definitions_for(conn: &Connection, id: Option<&str>) -> Result<Vec<FieldDefin
                         Box::new(std::io::Error::new(
                             std::io::ErrorKind::InvalidData,
                             "unknown field hide setting",
+                        )),
+                    )
+                })?,
+                role: FieldRole::from_str(&row.get::<_, String>(7)?).ok_or_else(|| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        7,
+                        rusqlite::types::Type::Text,
+                        Box::new(std::io::Error::new(
+                            std::io::ErrorKind::InvalidData,
+                            "unknown field role",
                         )),
                     )
                 })?,

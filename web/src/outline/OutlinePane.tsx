@@ -36,7 +36,7 @@ import { editingDepth, hiddenFieldEntries, inlineFieldValues, selectionIds, sele
 import type { DepthFilter, HiddenFieldEntry } from './visibility';
 import { CitationChip, SourceHeader } from './SourceHeader';
 import { SourceDetails } from './SourceDetails';
-import { GLOSS_FIELD, glossEntry, isGistName, isGlossName } from './gloss';
+import { GLOSS_FIELD, glossEntry } from './gloss';
 import { positionFields, positionSource as sharedPositionSource } from './perspectives';
 import { Apparatus } from './Apparatus';
 import { createFieldEntryConversion, createSourceFieldResets, ensureField } from './source-fields';
@@ -51,6 +51,7 @@ import { createOutlineDrag } from './drag';
 import { createOutlineRelated } from './Related';
 import { Arrivals } from './Arrivals';
 import { createFieldSheet } from './field-sheet';
+import { fieldBedRows, fieldRole } from '../fields/roles';
 import { createCapabilityPopups } from './CapabilityPopups';
 import { createRelationActions } from './RelationActions';
 import type { MenuState, OutlineContext, RowRange } from './context';
@@ -203,11 +204,11 @@ function Pane(props: OutlinePaneProps) {
   });
   const definitionsById = createMemo(() => new Map(definitions().map(field => [field.id, field])));
   const definitionsByName = createMemo(() => new Map(definitions().map(field => [field.name.toLowerCase(), field])));
-  const register = createMemo(() => readingRegister(doc, id => definitionsById().get(id)?.name, positionQuestions()?.questions ?? []), undefined, { equals: (a, b) => JSON.stringify(a) === JSON.stringify(b) });
+  const register = createMemo(() => readingRegister(doc, id => definitionsById().get(id), positionQuestions()?.questions ?? []), undefined, { equals: (a, b) => JSON.stringify(a) === JSON.stringify(b) });
   const templates = createTemplateCache(() => fields.error ? undefined : fields(), props.notebook.lastChange);
-  const glossId = createMemo(() => doc.root()?.kind === 'page' ? glossEntry(doc, id => isGlossName(definitionsById().get(id)?.name)) : null);
+  const glossId = createMemo(() => doc.root()?.kind === 'page' ? glossEntry(doc, id => fieldRole(definitionsById().get(id)) === 'standfirst') : null);
   const depthFilter = createMemo<DepthFilter | undefined>(() => !reading() && doc.root()?.kind === 'page' && depth() !== 'full'
-    ? { stop: depth(), gloss: glossId(), position: id => !!doc.block(id)?.position, gist: id => isGistName(definitionsById().get(fieldEntryId(doc.block(id)?.text ?? '') ?? '')?.name) } : undefined);
+    ? { stop: depth(), gloss: glossId(), position: id => !!doc.block(id)?.position, gist: id => fieldRole(definitionsById().get(fieldEntryId(doc.block(id)?.text ?? '') ?? '')) === 'standfirst' } : undefined);
   const [type] = createResource(
     () => doc.root()?.kind === 'page' ? [props.pageId, props.notebook.changeSequence(), live()] as const : false,
     ([pageId]) => api.type(pageId),
@@ -382,7 +383,7 @@ function Pane(props: OutlinePaneProps) {
       return [...view.opening, ...(view.sectionId ? [view.sectionId] : []), ...view.slips.flatMap(slip => readingSlipRows(doc, slip, readDisclosures())), ...view.disagreements.flatMap(group => group.questions.map(question => question.id)), ...view.remaining];
     }
     const inline = inlineFields(), visible = unfoldedIds();
-    return inline.size ? visible.filter(id => !inline.has(id)) : visible;
+    return fieldBedRows(doc, inline.size ? visible.filter(id => !inline.has(id)) : visible, definitionsById(), zoom() ?? props.pageId);
   });
   const indices = createMemo(() => new Map(ids().map((id, index) => [id, index])));
   const baseDepth = createMemo(() => zoom() ? doc.outline.depth(zoom()!) : 0);
@@ -715,6 +716,7 @@ function Pane(props: OutlinePaneProps) {
     if (disposed || composition()) return;
     revealRow(id);
     if (!indices().has(id)) { selectSurvivor(id, ids()); return; }
+    if (fieldSheet.start(id)) return;
     const previous = editing();
     if (previous && previous !== id && doc.block(previous) && commitFieldEntry(previous)) return;
     if (previous && previous !== id) pruneEmptyValue(previous);
@@ -986,7 +988,7 @@ function Pane(props: OutlinePaneProps) {
     const epoch = focusEpoch;
     void (async () => {
       try {
-        const field = definitionsByName().get(GLOSS_FIELD.toLowerCase()) ?? await ensureField(props.notebook, GLOSS_FIELD);
+        const field = definitionsByName().get(GLOSS_FIELD.toLowerCase()) ?? await ensureField(props.notebook, GLOSS_FIELD, 'text', 'standfirst');
         if (disposed) return;
         setCreatedFields(previous => previous.some(existing => existing.id === field.id) ? previous : [...previous, field]);
         const result = doc.edit({ kind: 'addFieldEntries', parentId: props.pageId, after: null, entries: [{ fieldId: field.id, value: '' }] }, before);
@@ -1195,7 +1197,7 @@ function Pane(props: OutlinePaneProps) {
     setEditedConflicts,
   };
   const { openRelation, positionReason, placeReason, usePlace, RelationPopups } = createRelationActions(context, async holderId => {
-    const field = definitionsByName().get('gist') ?? await ensureField(props.notebook, 'Gist');
+    const field = definitionsByName().get('gist') ?? await ensureField(props.notebook, 'Gist', 'text', 'standfirst');
     setCreatedFields(previous => previous.some(existing => existing.id === field.id) ? previous : [...previous, field]);
     const last = register().slips.at(-1)?.id;
     const parentId = last ? doc.outline.parentOf(last) : props.pageId;
@@ -1204,12 +1206,13 @@ function Pane(props: OutlinePaneProps) {
     await doc.flush();
     if (result.caret) requestAnimationFrame(() => editAt(result.caret!.id, 0, true));
   });
-  const { setCompletion, setCompletionIndex, offerValue, openValueEditor, valueEditorId, updateCompletion, updateTriggers, taskPrefix, rewriteEditing, referenceInput, forgetReferenceSpace, slashKey, dateKey, popupKey, CompletionPopups } = createOutlineCompletions(context);
+  const { setCompletion, setCompletionIndex, offerValue, openValueEditor, closeValueEditor, valueEditorId, updateCompletion, updateTriggers, taskPrefix, rewriteEditing, referenceInput, forgetReferenceSpace, slashKey, dateKey, popupKey, CompletionPopups } = createOutlineCompletions(context, id => { fieldSheet.start(id); });
   const { openTable, investigationItems, markRelation, relationMenu, commandDefinitions, unregister, blockMenu, fieldMenu, statusMenu, priorityMenu, openPlanning, openProject, leaderMenu, makeCloze, referenceMenu, copy } = createOutlineCommands(context);
-  const { horizontal, adjacent, split, editorKey, structuralKey, pruneEmptyValue, resetRowKey, resetVerticalGoal } = createOutlineKeyboard(context);
+  const { horizontal, adjacent, split, editorKey, structuralKey, pruneEmptyValue, resetRowKey, resetVerticalGoal } = createOutlineKeyboard(context, (event, id) => fieldSheet.key(event, id));
   const { selectedOffsets, pointerStart, pointerMove, pointerEnd, clipboard, paste, beforeInput } = createOutlineInteractions(context);
   const fieldSheet = createFieldSheet(context, {
     offerValue, onField: field => setCreatedFields(previous => previous.some(existing => existing.id === field.id) ? previous : [...previous, field]),
+    controlledId: valueEditorId, closeControlled: closeValueEditor,
     hiddenCounts, revealed: revealedFields,
     reveal: owner => setRevealedFields(previous => { const next = new Set(previous); next.has(owner) ? next.delete(owner) : next.add(owner); return next; }),
   });
@@ -1474,7 +1477,7 @@ function Pane(props: OutlinePaneProps) {
       <Show when={isNote()}><NoteEyebrow pageId={props.pageId} notebook={props.notebook} onOpen={props.onOpen} /></Show>
       <Show when={positionZoom()}>{id => <div class="position-dossier">
         <h1><BlockText text={`[[${doc.block(id())?.position?.holder_id ?? ''}]]`} notebook={props.notebook} onOpen={props.onOpen} />
-          <Show when={dossierFields().find(field => isGistName(field.name))?.value}>{gist => <> · <BlockText text={gist()} notebook={props.notebook} onOpen={props.onOpen} /></>}</Show>
+          <Show when={dossierFields().find(field => fieldRole(definitionsById().get(field.fieldId)) === 'standfirst')?.value}>{gist => <> · <BlockText text={gist()} notebook={props.notebook} onOpen={props.onOpen} /></>}</Show>
         </h1>
         <Show when={dossierFields().find(field => field.name.trim().toLowerCase() === 'work')?.value}>{work => <div class="dossier-work"><BlockText text={work()} notebook={props.notebook} onOpen={props.onOpen} /></div>}</Show>
         <Show when={doc.block(id())?.position?.subject_id}>{subject => <div class="dossier-subject">on <Button onClick={event => {

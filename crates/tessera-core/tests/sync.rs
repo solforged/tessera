@@ -274,6 +274,15 @@ fn field_hide_survives_duplicate_field_merge_and_later_edits() {
                     base_revision: 2,
                     hide,
                 },
+                Operation::SetFieldRole {
+                    id: id(value),
+                    base_revision: 3,
+                    role: if value == 50 {
+                        tessera_core::FieldRole::Citation
+                    } else {
+                        tessera_core::FieldRole::Prose
+                    },
+                },
             ],
         );
     }
@@ -297,6 +306,10 @@ fn field_hide_survives_duplicate_field_merge_and_later_edits() {
     assert_eq!(
         definitions[0].definition.kind,
         tessera_core::FieldKind::Instance
+    );
+    assert_eq!(
+        definitions[0].definition.role,
+        tessera_core::FieldRole::Citation
     );
     let base_revision = p.replica.block(&id(50)).unwrap().revision;
     apply(
@@ -323,6 +336,49 @@ fn field_hide_survives_duplicate_field_merge_and_later_edits() {
             .hide,
         tessera_core::FieldHide::Never
     );
+}
+
+#[test]
+fn later_field_role_and_its_inverse_replicate() {
+    let mut p = pair();
+    let fields = p.hub.fields().unwrap().page_id;
+    apply(
+        &mut p.hub,
+        vec![
+            insert(50, &fields, None, "Summary"),
+            Operation::SetFieldRole {
+                id: id(50),
+                base_revision: 1,
+                role: tessera_core::FieldRole::Standfirst,
+            },
+        ],
+    );
+    p.sync();
+    for role in [
+        tessera_core::FieldRole::Prose,
+        tessera_core::FieldRole::Standfirst,
+    ] {
+        let base_revision = p.replica.block(&id(50)).unwrap().revision;
+        apply(
+            &mut p.replica,
+            vec![Operation::SetFieldRole {
+                id: id(50),
+                base_revision,
+                role,
+            }],
+        );
+        p.sync();
+        p.assert_converged();
+        assert_eq!(
+            p.hub
+                .field_detail(&id(50), None, None)
+                .unwrap()
+                .field
+                .definition
+                .role,
+            role
+        );
+    }
 }
 
 #[test]

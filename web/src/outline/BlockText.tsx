@@ -27,6 +27,7 @@ interface Props {
   interactive?: boolean;
   highlight?: string;
   cards?: boolean;
+  citationApparatus?: boolean;
 }
 
 interface DisplayToken extends Token { label: string; visibleStart: number; target: Block | null | undefined; literal: boolean; matches?: NameMatch[] }
@@ -43,7 +44,7 @@ export function BlockText(props: Props) {
 function TokenText(props: Props) {
   const [menu, setMenu] = createSignal<{ token: DisplayToken; anchor: HTMLElement }>();
   const [error, setError] = createSignal('');
-  const citationSources = createCitationSources(props.notebook, () => [props.text]);
+  const citationSources = createCitationSources(props.notebook, () => [props.text], () => !!props.citationApparatus);
   const names = createMemo(() => [...new Set(textTokens(props.text).flatMap(token => token.kind === 'reference' && !isStableReference(token) && token.id?.trim() ? [token.id.trim()] : []))]);
   const [matches] = createResource(() => names().length ? [names().join('\u0000'), props.notebook.changeSequence()] as const : false, async ([value]) =>
     new Map(await Promise.all(value.split('\u0000').map(async name => [foldName(name), await resolveName(props.notebook, name)] as const))));
@@ -73,7 +74,8 @@ function TokenText(props: Props) {
       const target = isStableReference(token) ? props.notebook.lookup(token.id!)() : undefined;
       const field = props.field?.id === token.id ? props.field : undefined;
       const baseLabel = ambiguous ? token.alias || token.id! : group.mark?.kind === 'operator' || literal || token.kind === 'url' ? token.value : token.kind === 'tag' ? `#${token.value}` : field ? token.alias || field.name : referenceLabel(token, target, id => props.notebook.lookup(id));
-      const label = baseLabel + (!literal && token.locator ? `\u2009${token.locator}` : '');
+      const source = props.citationApparatus ? citationSources()?.get(token.id!) : undefined;
+      const label = (source?.siglum ?? baseLabel) + (!literal && token.locator ? `${source ? ' · ' : '\u2009'}${token.locator}` : '');
       const result: DisplayToken = { ...token, label, target, literal, visibleStart, matches: ambiguous ? resolved : undefined };
       visibleStart += label.length;
       return result;
@@ -89,7 +91,7 @@ function TokenText(props: Props) {
   function text(token: DisplayToken) {
     const selection = props.selection;
     const hits = highlights().filter(([start, end]) => start < token.visibleStart + token.label.length && end > token.visibleStart);
-    const locatorStart = !token.literal && token.locator ? token.label.length - token.locator.length - 1 : token.label.length;
+    const locatorStart = !token.literal && token.locator ? token.label.length - token.locator.length - (props.citationApparatus && citationSources()?.has(token.id!) ? 3 : 1) : token.label.length;
     if (!selection && !hits.length) return <>{token.label.slice(0, locatorStart)}<Show when={locatorStart < token.label.length}><span class="reference-locator">{token.label.slice(locatorStart)}</span></Show></>;
     const selected = selection && (token.literal
       ? [Math.max(0, selection[0] - token.start), Math.min(token.label.length, selection[1] - token.start)] as const

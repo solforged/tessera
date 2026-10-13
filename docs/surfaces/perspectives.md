@@ -12,11 +12,11 @@ Question pages and pages holding active readings about themselves or their inlin
 
 Read puts the title, Gloss and opening on one text edge. Piazzolla remains the prose voice while editing, so entering the editor never changes the measure or the rows below it. Links, completion and undo use the same editor as Outline. Structural edits return to Outline with the caret at the edited block.
 
-Perspectives begins with the reading and holder counts, Compare and Add reading. Each slip shows the source siglum, holder, Gist and Work. Account has its own quiet label, followed by authored argument relations. Prose opens in place; the other fields open under Facts. Neither disclosure writes to the notebook.
+Perspectives begins with the reading and holder counts, Compare and Add reading. Each slip shows the source siglum, holder, standfirst fields and Work. Account has its own quiet label, followed by authored argument relations. Prose-role fields take the full measure; authored non-field prose opens in place. Attributes and citation fields open under Facts. Neither disclosure writes to the notebook.
 
 The readings line appears on question pages and pages with active readings about themselves or their inline questions. Other notes keep Add reading in Commands. A person's readings held elsewhere have their own list; they do not make the page a reading subject.
 
-Outside reading slips, ordinary field entries keep their names above their values. Gloss remains the unlabeled opening summary. A source's catalog fields stay in its source card, so Read never repeats them as loose values.
+Outside reading slips, fields use the same presentation roles as Outline: standfirst sentences, an aligned attribute and citation bed, then full-width prose. A source's catalog fields stay in its source card, so Read never repeats them as loose values.
 
 Open reading on each slip zooms into that position's dossier. Shift opens the reading beside the page. The Gist stays editable in place.
 
@@ -39,7 +39,7 @@ Long Read and Outline pages keep a quiet section line at the top of the scroller
 
 Make perspective, in the block menu, the palette and `/perspective`, turns a block such as `[[Plato]]` into a position; Remove perspective undoes it.
 
-Its row names the holder in Piazzolla at control weight. The holder link is in `--text` with no underline; hover turns it gilt and underlines it. Its source's siglum hangs in the margin. A `Gist::` child drops its label and reads as the line under the holder, so the pair reads "Plato / A line of decline". At the Perspectives depth each position closes to its holder and gist.
+Its row names the holder in Piazzolla at control weight. The holder link is in `--text` with no underline; hover turns it gilt and underlines it. Its source's siglum hangs in the margin. A standfirst field drops its label and reads as the sentence under the holder, so the pair reads "Plato / A line of decline". At the Perspectives depth each position closes to its holder and standfirst.
 
 Change holder and File under are in the block menu, palette and slash menu. Clicking the holder link in its outline attribution opens Change holder. Its picker lists People and Groups, including their refined types, before other pages. File under lists page and inline questions and concepts first. The pickers write ordinary link tokens and preserve the prose.
 

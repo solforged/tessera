@@ -34,9 +34,9 @@ export function referenceSource(notebook: NotebookClient, id: string): Promise<S
 }
 
 /** Shared capability reads keep static text, the editor and gutter in agreement. */
-export function createCitationSources(notebook: NotebookClient, texts: () => readonly string[]) {
+export function createCitationSources(notebook: NotebookClient, texts: () => readonly string[], includeBare: () => boolean = () => false) {
   const [records] = createResource(() => {
-    const ids = [...new Set(texts().flatMap(text => textTokens(text).filter(hasCitationDetail).map(token => token.id!)))];
+    const ids = [...new Set(texts().flatMap(text => textTokens(text).filter(token => includeBare() ? isStableReference(token) : hasCitationDetail(token)).map(token => token.id!)))];
     return [ids, notebook.changeSequence()] as const;
   }, async ([ids]) => new Map((await Promise.all(ids.map(async id => {
     const target = notebook.lookup(id)();

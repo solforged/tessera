@@ -6,7 +6,7 @@ import { pageSigla } from '../library/sigla';
 import { fieldEntryId } from '../table/query';
 import { Button } from '../ui/Button';
 import { BlockText } from './BlockText';
-import { isGistName } from './gloss';
+import { fieldRole } from '../fields/roles';
 import { IncomingRelations } from './RelationLines';
 import './held-readings.css';
 
@@ -16,10 +16,10 @@ export function HeldReadings(props: {
   rows: PositionRow[]; notebook: NotebookClient;
   onOpen(target: OpenTarget, beside: boolean): void;
 }) {
-  const [fields] = createResource(() => props.notebook.api.fields());
+  const [fields] = createResource(() => props.notebook.changeSequence(), () => props.notebook.api.fields());
   const names = createMemo(() => new Map((fields()?.fields ?? []).map(field => [field.id, field.name])));
   const readings = createMemo<HeldReading[]>(() => props.rows.map(row => {
-    const gist = row.fields.find(field => isGistName(names().get(field.field_id) ?? ''))?.values.map(value => value.text).join('\n');
+    const gist = row.fields.find(field => fieldRole(fields()?.fields.find(definition => definition.id === field.field_id)) === 'standfirst')?.values.map(value => value.text).join('\n');
     const work = row.fields.find(field => names().get(field.field_id)?.trim().toLowerCase() === 'work')?.values.map(value => value.text).join('\n') ?? '';
     return { row, gist, work, source: fieldEntryId(work) };
   }));

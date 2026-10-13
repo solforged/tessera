@@ -62,21 +62,30 @@ impl Notebook {
             .map(|id| crate::query::template(&self.conn, id))
             .transpose()?
             .unwrap_or_default();
+        let standfirsts: Vec<_> = definitions
+            .iter()
+            .filter(|field| field.role == crate::FieldRole::Standfirst)
+            .map(|field| field.name.to_lowercase())
+            .collect();
+        let template: Vec<_> = template
+            .iter()
+            .filter_map(|id| definitions.iter().find(|field| &field.id == id))
+            .filter(|field| field.role != crate::FieldRole::Standfirst)
+            .map(|field| (field, field.name.to_lowercase()))
+            .collect();
         for note in notes {
             let summary = summaries.get_mut(&note.id).expect("selected note");
             if let Some(fields) = readings.get(&note.id) {
-                summary.preview = fields
-                    .get("gloss")
-                    .and_then(|values| values.iter().find(|value| !value.trim().is_empty()))
-                    .cloned();
-                summary.field = template.iter().find_map(|id| {
-                    let definition = definitions.iter().find(|field| &field.id == id)?;
-                    let name = definition.name.to_lowercase();
-                    if name == "gloss" {
-                        return None;
-                    }
+                summary.preview = standfirsts.iter().find_map(|name| {
+                    fields
+                        .get(name)?
+                        .iter()
+                        .find(|value| !value.trim().is_empty())
+                        .cloned()
+                });
+                summary.field = template.iter().find_map(|(definition, name)| {
                     let value = fields
-                        .get(&name)?
+                        .get(name)?
                         .iter()
                         .find(|value| !value.trim().is_empty())?;
                     Some(SummaryField {

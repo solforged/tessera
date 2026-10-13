@@ -6,6 +6,8 @@ import { fieldEntryId } from '../table/query';
 import type { MenuItem } from '../ui/Menu';
 import { fieldHide, fieldHides, hideLabels } from './hide';
 import type { FieldHide } from './hide';
+import { fieldRole, fieldRoles, roleLabels } from './roles';
+import type { FieldRole } from './roles';
 import { fieldKinds, kindLabels } from './kinds';
 import { typeKeys } from './templates';
 import { ChoiceConversion } from './ChoiceConversion';
@@ -54,6 +56,17 @@ export function createFieldMenu(context: Pick<OutlineContext,
       await saveHide(field, value);
       const label = value === 'when_empty' ? `${field.name} hidden when empty.` : value === 'always' ? `${field.name} hidden.` : `${field.name} always shown.`;
       context.showNotice(label, () => saveHide(field, previous));
+    } catch (error) { failure(error); }
+  }
+  async function changeRole(field: FieldDefinition, value: FieldRole) {
+    const document = definitionDocument();
+    if (!document || fieldRole(field) === value) return;
+    try {
+      await doc.flush();
+      const result = document.edit({ kind: 'fieldRole', definition: field, value });
+      if (!result.ok) throw new Error(result.reason);
+      await document.flush();
+      context.showNotice('Field role changed.', async () => { document.undo(); await document.flush(); });
     } catch (error) { failure(error); }
   }
   async function changeTemplate(type: Type, field: FieldDefinition, remove: boolean) {
@@ -113,6 +126,7 @@ export function createFieldMenu(context: Pick<OutlineContext,
       ...(field.kind === 'choice' ? [{ label: 'Options…', action: (event?: MouseEvent | KeyboardEvent) => open(event?.shiftKey, { section: 'options' }) }] : []),
       ...(field.kind === 'instance' ? [{ label: 'Links to…', action: (event?: MouseEvent | KeyboardEvent) => open(event?.shiftKey, { section: 'targets' }) }] : []),
       { label: 'Hide', action: () => submenu('Hide', fieldHides.map(value => ({ label: hideLabels[value], checked: value === fieldHide(field), disabledReason: unavailable, action: () => { void changeHide(field, value); } }))) },
+      { label: 'Role', action: () => submenu('Role', fieldRoles.map(value => ({ label: roleLabels[value], checked: value === fieldRole(field), disabledReason: unavailable, action: () => { void changeRole(field, value); } }))) },
       ...ownerTypes.map((type): MenuItem => {
         const present = type.fields.includes(field.id);
         return { label: `${present ? 'Remove from' : 'Add to'} ${type.page.text} template`, section: 'Templates', action: () => { void changeTemplate(type, field, present); } };

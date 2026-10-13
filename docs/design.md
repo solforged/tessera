@@ -242,7 +242,7 @@ While the sidebar is open, a shade in the shell color dims the workspace beside 
 Below 600 px:
 
 - Outlines take the 16 px pane inset like every page. Titles and headings start at that edge, only the bullet stays left of the text, and the fold and block menu move to the end of the row being edited or selected.
-- Field names take a narrower column.
+- Field labels stack above values, so long values keep the measure.
 - The [library search](surfaces/library.md) takes its own line above sort, export and add.
 
 The global rail stays visible in every layout except the cover screen (a touch screen under 600 px), where a bottom nav replaces it: Today, Agenda, Find, Review and Library. Today selects only today's journal, Agenda and Review select their own panes, and Find selects while its picker is open. Library selects only the Library pane or a reader; source pages, type indexes, tables, Fields and Settings select no primary place. The rail's sync status moves to a row above the nav, shown only while sync is not Synced. Library's long press lists the note types in use. The sidebar opens from a button at the start of the pane header, a book's breadcrumb is its title alone, and the nav steps aside while the keyboard is up. Unfolding brings the usual shell back around the same page.
@@ -333,7 +333,7 @@ Show bullets and Hide bullets in the page menu override a page's default; overri
 
 A titled page's gloss is an entry for the built-in Gloss field among its top-level blocks, added or edited from Gloss in the page menu or the palette, which create the field and put the entry first. Adding the entry and its empty value is one undo step.
 
-It reads as a standfirst under the title: Piazzolla at `--text-gloss`, muted, on the text edge, with no field label. Clicking edits it, and an empty gloss says what to write. Reference preview cards show it under the page title and leave it out of their rows.
+The definition's standfirst role gives it Piazzolla at `--text-gloss`, muted, on the text edge, with no field label. The same role works on any definition, including one named Summary. Clicking edits its sentence, and an empty gloss says what to write. Reference preview cards show the page's first standfirst under the title and leave it out of their rows.
 
 Titled pages have four depths:
 
@@ -364,13 +364,13 @@ Type pills follow the text at meta size. Clicking a pill opens a menu: open the 
 
 [Field entries](surfaces/fields-tables.md) are children rendered with a field icon and muted name; editing one shows the name as an atomic widget, never the reference ID. Values are ordinary child blocks.
 
-A field whose values are all leaves shows them as aligned rows: the field icon takes the bullet slot, the name sits in a 168 px muted column beside the first value (120 px below 600 px), and later values follow in the same column with the name left blank. A name that does not fit wraps to a second line between words. Fields whose values have children, and an entry being edited, show as two levels.
+A field whose values are all leaves reads through its definition's role. Standfirst values sit as sentences under their owner, without labels. Attributes and citations form one aligned bed: the field icon takes the bullet slot, the name sits in a 168 px muted column beside the first value, and later values follow with the name left blank. Citation references read as siglum · locator. Prose fields follow the bed at full measure, with their label above. A name that does not fit wraps. Fields whose values have children, and an entry being edited, retain two levels. Phone labels stack above values.
 
-- Clicking a name opens its field menu: Open field page, Kind (which opens the change preview on the field page), Options… or Links to…, Hide, Add to or Remove from each of the owner's type templates, and Remove from this note. The block menu's Field section and the leader key `f` open the same menu.
+- Clicking a name opens its field menu: Open field page, Kind (which opens the change preview on the field page), Options… or Links to…, Hide, Role, Add to or Remove from each of the owner's type templates, and Remove from this note. The block menu's Field section and the leader key `f` open the same menu.
 - An entry with no value shows its name and a blank value; clicking the blank adds a value and edits it. Blank values show no text.
 - Backspace at the start of the first inline value does nothing; at the start of a later one it joins the value above.
 - A page that opens on a field selects its value row instead of editing.
-- ← on a selected inline value selects the field entry itself; Enter then edits its name.
+- Enter on a selected field begins filling its first value.
 
 Each kind has its own value editor, the same in outlines and tables:
 
@@ -386,7 +386,7 @@ Choice and instance values never show their reference text. Their pills sit cent
 
 ### Field area
 
-Every block or page with field entries or template fields shows them in a field area that does not depend on selection: its entries, then a slot for each template field it lacks, in template order. Selecting, editing or clicking elsewhere never adds or removes its rows. A page with no visible field rows shows its slots below the heading.
+Every block or page with field entries or template fields has a field bed at rest. Populated fields stay visible; missing template and recipe slots appear only while their owner or one of its fields is focused. Slots never add content until used.
 
 - On a page, an Add field line closes the area at label size, followed by a small gap before the notes.
 - On a nested block, `+ Field` appears at the end of its last field row while the block or one of its fields is hovered, selected or edited, without changing any row's height.
@@ -394,7 +394,7 @@ Every block or page with field entries or template fields shows them in a field 
 
 Slots read as suggestions: the name in `--faint` and no value text. Slots share the field labels' edge and sit on the canvas outside the row's hover and selection. A slot adds the entry with a blank value and opens its kind's editor; a checkbox slot adds a ticked value.
 
-Add field opens a picker with the missing template fields under Template, then the rest, and Create field for a new name. A template field takes its template place among the entries; another follows the last entry. Each addition is one undo step.
+Add field opens a picker with missing template fields under Template, then the rest, and Create field for a new name. A position instead begins with From this recipe: Gist, Work, then its subject's explicit or derived criteria. A suggested field takes its recipe or template place among the entries; another follows the last entry. Each addition is one undo step.
 
 A definition's Hide setting (Never, When empty, Always; see the [domain model](domain-model.md#types-and-fields)) leaves its entries and slots out of outlines. An entry stays while it or one of its values is edited or selected. The area then counts `N hidden`, which reveals that owner's hidden fields in this pane.
 
@@ -402,7 +402,7 @@ Hide and template changes from the field menu belong to the field and the type r
 
 Inserting or removing a value transfers its area and measured height in one layout update, without briefly shrinking or growing the scrollable page.
 
-Below 600 px the slots use the same label column as filled entries, and the selected row's fold and menu stay before the area rather than wrapping underneath it.
+Clicking a value or pressing Enter on a selected field enters filling mode for that owner. Tab and Shift-Tab move through its fields and missing slots in recipe or template order, creating an entry only when reached. Shift-Enter adds a newline. Enter on an empty value leaves for the next ordinary row under the owner; Escape leaves without moving. Each value keeps its normal undo grouping. Outside filling mode, Tab and Shift-Tab still indent and outdent ordinary outline rows.
 
 ### Capability metadata
 
@@ -494,7 +494,7 @@ Structural edits and paste keep the top visible row at its screen position, then
 | End of a multi-line (`>>>`) or list (`>>1.`) card | Starts its first answer line as a child |
 | After a task, including a split that divides it | New block is a fresh todo without planning facts |
 | Empty, childless todo | Removes the checkbox, keeping the caret, to leave the list |
-| Empty, childless field value | Removes the value and inserts an empty sibling after its field entry, with the caret there, even when it was the sole value. A zoomed field entry or value keeps normal Enter inside its subtree. |
+| Empty, childless field value outside filling mode | Removes the value and inserts an empty sibling after its field entry, with the caret there, even when it was the sole value. A zoomed field entry or value keeps normal Enter inside its subtree. Filling mode instead leaves for the owner's next ordinary row. |
 
 Each split and its new task, or exit from a field value, is one undo step. Empty tasks in other states or with children follow the task Enter rule and keep their original status and planning facts. Enter never cuts a `[[reference]]` or `#tag`: with the caret inside one, as in a query kept with Escape, the split falls just after it. A selection reaching into one replaces the whole token.
 

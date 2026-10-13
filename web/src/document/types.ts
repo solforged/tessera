@@ -4,6 +4,7 @@ import type { CardTemplateState } from '../api/types';
 import type { CaptureIntent, Caret, DocumentChange, HistoryCaret } from './contract';
 import type { OutlineRow } from './outline-index';
 import type { FieldHide } from '../fields/hide';
+import type { FieldRole } from '../fields/roles';
 
 export interface Snapshot { block: Block; row: OutlineRow | null; manual_types: string[]; capabilities?: BlockCapabilities }
 export type CapabilityAction =
@@ -69,6 +70,7 @@ export type Action =
   | { kind: 'archive'; id: string; archived: boolean }
   | { kind: 'fieldKind'; id: string; value: FieldKind; previous: FieldKind; baseRevision?: number }
   | { kind: 'fieldHide'; id: string; value: FieldHide; previous: FieldHide; baseRevision?: number }
+  | { kind: 'fieldRole'; id: string; value: FieldRole; previous: FieldRole; baseRevision?: number }
   | { kind: 'fieldTargets'; id: string; targets: string[]; previous: string[]; baseRevision?: number }
   | { kind: 'subjectCriteria'; id: string; fields: string[]; previous: string[]; baseRevision?: number }
   | { kind: 'typePresentation'; id: string; value: { plural: string | null; icon: string | null }; previous: { plural: string | null; icon: string | null }; baseRevision?: number }

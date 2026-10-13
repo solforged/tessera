@@ -14,6 +14,7 @@ import { isStableReference, quoteTarget, textTokens } from './text-tokens';
 import { newTask } from '../tasks/quick-date';
 import { rebaseText } from './text-patch';
 import { fieldHide } from '../fields/hide';
+import { fieldRole } from '../fields/roles';
 import { fieldEntryId } from '../table/query';
 
 export interface DocumentHost {
@@ -512,6 +513,9 @@ export class Document implements PageDocument {
       case 'fieldHide':
         this.changed(action.id, {}, base);
         return [{ kind: 'fieldHide', id: action.id, value: action.previous, previous: action.value }];
+      case 'fieldRole':
+        this.changed(action.id, {}, base);
+        return [{ kind: 'fieldRole', id: action.id, value: action.previous, previous: action.value }];
       case 'fieldTargets':
         this.changed(action.id, {}, base);
         return [{ kind: 'fieldTargets', id: action.id, targets: action.previous, previous: action.targets }];
@@ -1445,6 +1449,7 @@ export class Document implements PageDocument {
           if (!edit.name.trim()) throw new Error('A field needs a name.');
           const id = insert(this.pageId, this.outline.children(this.pageId).at(-1) ?? null, edit.name);
           if (edit.value !== 'text') actions.push({ kind: 'fieldKind', id, value: edit.value, previous: 'text' });
+          if (edit.role && edit.role !== 'attribute') actions.push({ kind: 'fieldRole', id, value: edit.role, previous: 'attribute' });
           caret = { id, offset: 0 };
           break;
         }
@@ -1506,6 +1511,13 @@ export class Document implements PageDocument {
           if (this.snapshot(definition.id).revision !== definition.revision || this.block(definition.id)?.pending) throw new Error('The field changed. Refresh before changing its hide setting.');
           const previous = fieldHide(definition);
           if (previous !== edit.value) actions.push({ kind: 'fieldHide', id: definition.id, value: edit.value, previous, baseRevision: definition.revision });
+          break;
+        }
+        case 'fieldRole': {
+          const definition = edit.definition;
+          if (this.snapshot(definition.id).revision !== definition.revision || this.block(definition.id)?.pending) throw new Error('The field changed. Refresh before changing its role.');
+          const previous = fieldRole(definition);
+          if (previous !== edit.value) actions.push({ kind: 'fieldRole', id: definition.id, value: edit.value, previous, baseRevision: definition.revision });
           break;
         }
         case 'fieldTargets': {
@@ -1771,7 +1783,7 @@ export class Document implements PageDocument {
     const entry = from.pop();
     if (!entry) return null;
     const actions = (undo ? entry.inverse : entry.forward).map<Action>(action => {
-      if (!undo && (action.kind === 'fieldKind' || action.kind === 'fieldHide' || action.kind === 'fieldTargets' || action.kind === 'subjectCriteria' || action.kind === 'typePresentation')) return { ...action, baseRevision: undefined };
+      if (!undo && (action.kind === 'fieldKind' || action.kind === 'fieldHide' || action.kind === 'fieldRole' || action.kind === 'fieldTargets' || action.kind === 'subjectCriteria' || action.kind === 'typePresentation')) return { ...action, baseRevision: undefined };
       return { ...action };
     });
     // Check all text patches before applying any part of the transaction.

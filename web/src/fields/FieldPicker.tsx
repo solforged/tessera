@@ -13,7 +13,7 @@ type FieldRow = { kind: 'field'; field: FieldDefinition; template: boolean } | {
  * A new name offers Text or the kind list when `onCreate` is given.
  */
 export function FieldPicker(props: {
-  anchor: PopupAnchor; label: string; fields: readonly FieldDefinition[]; template?: readonly string[]; exclude?: ReadonlySet<string>;
+  anchor: PopupAnchor; label: string; fields: readonly FieldDefinition[]; template?: readonly string[]; templateLabel?: string; exclude?: ReadonlySet<string>;
   onPick(field: FieldDefinition): void; onCreate?(name: string, kind: FieldKind): void; onDismiss(): void;
 }) {
   const [query, setQuery] = createSignal('');
@@ -32,7 +32,7 @@ export function FieldPicker(props: {
   });
   return <Show keyed when={creating()} fallback={<Picker<FieldRow> anchor={props.anchor} label={props.label} width={320} query={query()} onQuery={setQuery} placeholder="Field name"
     items={rows()} key={row => row.kind === 'field' ? row.field.id : `${row.kind}:${row.name}`}
-    section={row => row.kind === 'field' ? row.template ? 'Template' : props.template?.length ? 'Other fields' : undefined : undefined}
+    section={row => row.kind === 'field' ? row.template ? props.templateLabel ?? 'Template' : props.template?.length ? 'Other fields' : undefined : undefined}
     onPick={row => row.kind === 'field' ? props.onPick(row.field) : row.kind === 'as' ? setCreating(row.name) : props.onCreate?.(row.name, 'text')} onDismiss={props.onDismiss}
     row={row => row.kind === 'field'
       ? <><Icon name="field" /><span class="picker-text">{row.field.name}</span><span class="picker-meta">{kindLabels[row.field.kind]}</span></>

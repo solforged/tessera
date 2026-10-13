@@ -5,6 +5,7 @@
  */
 import type { fieldKinds } from '../fields/kinds';
 import type { FieldHide } from '../fields/hide';
+import type { FieldRole } from '../fields/roles';
 
 export type BlockKind = 'block' | 'page' | 'journal';
 export interface KeptCopy { of: string; origin: string; origin_name: string | null; mine: boolean }
@@ -58,6 +59,7 @@ export type Operation =
   | { op: 'remove_type'; id: string; base_revision: number; title: string }
   | { op: 'set_field_kind'; id: string; base_revision: number; kind: FieldKind }
   | { op: 'set_field_hide'; id: string; base_revision: number; hide: FieldHide }
+  | { op: 'set_field_role'; id: string; base_revision: number; role: FieldRole }
   | { op: 'set_field_targets'; id: string; base_revision: number; targets: string[] }
   | { op: 'set_type_fields'; type_id: string; base_revision: number; fields: string[] }
   | { op: 'set_type_presentation'; type_id: string; base_revision: number; plural: string | null; icon: string | null }
@@ -288,7 +290,7 @@ export interface QueryAttributeValue { text: string; reading: Reading }
 export interface QueryAttribute { key: string; name: string; kind: FieldKind }
 export interface QueryGroup { key: string; title: string; target: string | null; row_ids: string[]; count: number }
 export interface QueryRow { block: BlockInPage; values: Record<string, FieldValue[]>; attributes?: Record<string, QueryAttributeValue[]> }
-export interface FieldDefinition { id: string; name: string; kind: FieldKind; revision: number; options: { id: string; text: string }[]; targets: string[]; hide?: FieldHide }
+export interface FieldDefinition { id: string; name: string; kind: FieldKind; revision: number; options: { id: string; text: string }[]; targets: string[]; hide?: FieldHide; role?: FieldRole }
 export interface QueryResult { fields: FieldDefinition[]; columns: string[]; rows: QueryRow[]; total: number; note_groups?: NoteGroup[]; attributes?: QueryAttribute[]; groups?: QueryGroup[] }
 export interface FieldSummary extends FieldDefinition { owners: number; types: { id: string; name: string }[] }
 export interface Fields { page_id: string; fields: FieldSummary[] }

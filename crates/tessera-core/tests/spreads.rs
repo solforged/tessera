@@ -58,7 +58,12 @@ fn fields_union_in_column_outline_order_with_blank_cells_and_exact_shared_values
         &mut nb,
         vec![
             child(10, &fields, None, "Stage"),
-            child(11, &fields, Some(10), "Gloss"),
+            child(11, &fields, Some(10), "Summary"),
+            Operation::SetFieldRole {
+                id: id(11),
+                base_revision: 1,
+                role: tessera_core::FieldRole::Standfirst,
+            },
             child(12, &fields, Some(11), "Related"),
             child(13, &fields, Some(12), "Empty"),
             child(14, &fields, Some(13), "Repeated"),

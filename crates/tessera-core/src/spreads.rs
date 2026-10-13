@@ -234,7 +234,7 @@ impl Notebook {
         let definitions = crate::fields::definitions(&self.conn)?;
         let definitions: HashMap<_, _> = definitions
             .iter()
-            .map(|field| (field.id.as_str(), field.name.as_str()))
+            .map(|field| (field.id.as_str(), field))
             .collect();
         let mut kinds = self.spread_kinds(ids)?;
         let mut columns = Vec::with_capacity(ids.len());
@@ -257,7 +257,7 @@ impl Notebook {
             let mut hidden = HashSet::new();
             let mut field_blocks = HashSet::new();
             let mut entries = HashMap::new();
-            // Gloss heads each column, so it never repeats as a field row.
+            // Standfirst values head each column rather than repeating as field rows.
             let mut gloss_entries = HashSet::new();
             for row in &page.rows {
                 let block = &row.block;
@@ -273,7 +273,7 @@ impl Notebook {
                 if row.depth == 0
                     && let Some(field_id) = field
                 {
-                    if definitions[field_id].trim().eq_ignore_ascii_case("gloss") {
+                    if definitions[field_id].role == crate::FieldRole::Standfirst {
                         gloss_entries.insert(block.id.as_str());
                     } else {
                         let next = fields.len();
@@ -281,7 +281,7 @@ impl Notebook {
                             *field_indices.entry(field_id.to_owned()).or_insert_with(|| {
                                 fields.push(SpreadField {
                                     id: field_id.to_owned(),
-                                    name: definitions[field_id].to_owned(),
+                                    name: definitions[field_id].name.clone(),
                                     cells: vec![Vec::new(); ids.len()],
                                 });
                                 next

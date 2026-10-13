@@ -38,7 +38,7 @@ Titles sit under rubric letters with a hairline and a distinct-note count:
 | Below 840 px | Two. |
 | Below 600 px | One. |
 
-Each note shows two lines of its existing Gloss, else its first non-field prose block, then one populated template field and the live descendant-block count in mono. The Collections finding aid instead shows its member-source count in mono, using the same Library collection query as the collection cards. A title without prose has no empty preview. The batched index read derives ordinary note apparatus from existing data, including field entries, values and headings in block counts.
+Each note shows two lines of its first populated standfirst field, else its first non-field prose block, then one populated template field and the live descendant-block count in mono. The Collections finding aid instead shows its member-source count in mono, using the same Library collection query as the collection cards. A title without prose has no empty preview. The batched index read derives ordinary note apparatus from existing data, including field entries, values and headings in block counts.
 
 Only populated jump letters appear, and only with Letter grouping. On the touch cover they sit above bottom navigation, with the selected letter on the shared gilt tab rule and compact inline initials in the list. Sort as, diacritic folding, `#` last and alias cross-references retain their filing rules. A title opens its note; a coarse pointer at least 900 px wide opens it beside.
 

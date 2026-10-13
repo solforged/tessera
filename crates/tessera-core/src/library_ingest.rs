@@ -267,6 +267,7 @@ impl<'a> Planner<'a> {
                 name: label.into(),
                 kind,
                 hide: crate::FieldHide::Never,
+                role: crate::FieldRole::Attribute,
                 revision: 2,
                 options: vec![],
                 targets: vec![],

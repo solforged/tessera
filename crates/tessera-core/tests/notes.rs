@@ -307,7 +307,12 @@ fn kind_index_summaries_derive_prose_fields_live_counts_and_distinct_backlinks()
             page(5, "Archived referrer"),
             page(6, "Prepended prose"),
             page(10, "Topics"),
-            insert(20, fields.clone(), None, "Gloss".into(), None),
+            insert(20, fields.clone(), None, "Summary".into(), None),
+            Operation::SetFieldRole {
+                id: id(20),
+                base_revision: 1,
+                role: tessera_core::FieldRole::Standfirst,
+            },
             insert(21, fields, Some(id(20)), "Area".into(), None),
             insert(100, id(1), None, "Earlier prose".into(), None),
             insert(101, id(1), Some(id(100)), format!("[[{}]]", id(20)), None),

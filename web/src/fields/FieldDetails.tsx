@@ -11,6 +11,8 @@ import { Popup } from '../ui/Popup';
 import { fieldKinds, fieldNameProblem, kindLabels } from './kinds';
 import { fieldHide, fieldHides, hideLabels } from './hide';
 import type { FieldHide } from './hide';
+import { fieldRole, fieldRoles, roleDescriptions, roleLabels } from './roles';
+import type { FieldRole } from './roles';
 import './field-page.css';
 import { ChoiceConversion } from './ChoiceConversion';
 import { changeFieldKind, choicePreview, makeFieldOption } from './commands';
@@ -45,6 +47,7 @@ export function FieldDetails(props: FieldDetailsProps) {
   const [applying, setApplying] = createSignal(false);
   const [menu, setMenu] = createSignal<HTMLElement | null>(null);
   const [hideMenu, setHideMenu] = createSignal<HTMLElement | null>(null);
+  const [roleMenu, setRoleMenu] = createSignal<HTMLElement | null>(null);
   const [editing, setEditing] = createSignal<{ id: string; text: string } | null>(null);
   const [adding, setAdding] = createSignal(false);
   const [option, setOption] = createSignal('');
@@ -176,6 +179,16 @@ export function FieldDetails(props: FieldDetailsProps) {
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setApplying(false); }
   };
+  const applyRole = async (role: FieldRole) => {
+    const value = data(); const doc = props.document;
+    if (!value || !doc || !ready()) return;
+    const result = doc.edit({ kind: 'fieldRole', definition: value.field, value: role });
+    if (!result.ok) { setError(result.reason); return; }
+    setRoleMenu(null); article.focus({ preventScroll: true }); setApplying(true);
+    try { await doc.flush(); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
+    finally { setApplying(false); }
+  };
   const inlineEdit = (id: string) => <Show when={editing()?.id === id}><form class="field-inline-edit" onSubmit={event => { event.preventDefault(); editText(); }}>
     <input class="input" aria-label={id === props.fieldId ? 'Field name' : 'Option name'} value={editing()?.text ?? ''} ref={input => queueMicrotask(() => { input.focus(); input.select(); })} onInput={event => setEditing({ id, text: event.currentTarget.value })} onKeyDown={event => { if (event.key === 'Escape') setEditing(null); }} />
     <Button type="submit" disabled={!ready()}>Save</Button><Button onClick={() => setEditing(null)}>Cancel</Button>
@@ -208,6 +221,8 @@ export function FieldDetails(props: FieldDetailsProps) {
       <Show when={value().kind === 'instance' && !preview()}><div class="field-kind-row" data-field-section="targets"><span>Links to</span><Button class="bordered" disabled={!ready()} aria-haspopup="dialog" aria-expanded={!!targetsMenu()} onClick={event => { setTargetsDraft([...value().field.targets]); setTargetsMenu(event.currentTarget); }}>{value().field.targets.map(id => props.notebook.lookup(id)()?.text ?? id).join(', ') || 'Any page'} <Icon name="down" /></Button></div></Show>
       <div class="field-kind-row"><span>Hide</span><Button class="bordered" aria-label={`Hide for ${value().field.name}: ${hideLabels[fieldHide(value().field)]}`} aria-haspopup="menu" aria-expanded={!!hideMenu()} disabled={!ready()} onClick={event => setHideMenu(event.currentTarget)}>{hideLabels[fieldHide(value().field)]} <Icon name="down" /></Button></div>
       <p class="field-note">{fieldHide(value().field) === 'never' ? 'Shown even when empty.' : fieldHide(value().field) === 'when_empty' ? 'Hidden in notes while empty.' : 'Hidden in notes; tables still show it.'}</p>
+      <div class="field-kind-row"><span>Role</span><Button class="bordered" aria-label={`Role for ${value().field.name}: ${roleLabels[fieldRole(value().field)]}`} aria-haspopup="menu" aria-expanded={!!roleMenu()} disabled={!ready()} onClick={event => setRoleMenu(event.currentTarget)}>{roleLabels[fieldRole(value().field)]} <Icon name="down" /></Button></div>
+      <p class="field-note">{roleDescriptions[fieldRole(value().field)]}</p>
       <Show when={preview()} fallback={<>
         <Show when={value().kind === 'choice' && !props.inspector}><section class="field-section" data-field-section="options"><SectionHead number="01" title="Options" count={plural(value().field.options.length, 'option')} />
           <table class="field-ledger field-options"><thead><tr><th scope="col">Value</th><th scope="col">Uses</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead><tbody><For each={value().field.options}>{option => <tr><td><Show when={editing()?.id !== option.id} fallback={inlineEdit(option.id)}>{option.text}</Show></td><td class="field-apparatus">{optionUses().get(option.id) ?? 0}</td><td><Button disabled={!ready()} aria-label={`Rename option ${option.text}`} onClick={() => setEditing({ id: option.id, text: option.text })}>Edit…</Button></td></tr>}</For></tbody></table>
@@ -232,6 +247,7 @@ export function FieldDetails(props: FieldDetailsProps) {
       </Show>
       <Show when={menu()}>{anchor => <Menu anchor={anchor()} label={`Kind for ${value().field.name}`} onDismiss={() => setMenu(null)} items={fieldKinds.map(kind => ({ label: kindLabels[kind], icon: kind === value().kind ? 'check' : undefined, action: () => { setEditing(null); props.onPreview(kind === value().field.kind ? undefined : kind); } }))} />}</Show>
       <Show when={hideMenu()}>{anchor => <Menu anchor={anchor()} label={`Hide for ${value().field.name}`} onDismiss={() => setHideMenu(null)} items={fieldHides.map(hide => ({ label: hideLabels[hide], checked: hide === fieldHide(value().field), action: () => { void applyHide(hide); } }))} />}</Show>
+      <Show when={roleMenu()}>{anchor => <Menu anchor={anchor()} label={`Role for ${value().field.name}`} onDismiss={() => setRoleMenu(null)} items={fieldRoles.map(role => ({ label: roleLabels[role], checked: role === fieldRole(value().field), action: () => { void applyRole(role); } }))} />}</Show>
       <Show when={targetsMenu()}>{anchor => <Popup anchor={anchor()} label="Links to" onDismiss={() => setTargetsMenu(null)}>
         <h2 class="popup-title">Links to</h2><p class="field-note">No selection means Any page.</p>
         <Show when={types.error}><p class="error" role="alert">Could not load types.</p></Show>

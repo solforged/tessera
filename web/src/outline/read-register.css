@@ -57,3 +57,9 @@
   .pane-header:has(.page-projection-tabs) .pane-breadcrumbs { flex: 1; min-width: 0; }
   .pane-header:has(.page-projection-tabs) .pane-navigation, .pane-header:has(.page-projection-tabs) .pane-kind { display: none; }
 }
+.reading-register .inline-field-value[data-field-role="attribute"] > .outline-field-label,
+.reading-register .inline-field-value[data-field-role="citation"] > .outline-field-label { display: inline-flex; }
+.reading-register .inline-field-value[data-field-role="standfirst"] .outline-body { margin-left: 0; }
+.reading-register .inline-field-value[data-field-role="prose"] .outline-body { margin-left: 0; flex-basis: 100%; }
+.reading-field-prose:empty { display: none; }
+.reading-facts .outline-row > .outline-field-label { display: none !important; }

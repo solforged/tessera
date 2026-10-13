@@ -54,7 +54,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
   | 'fieldConversion' | 'commandDefinitions' | 'openPlanning' | 'priorityMenu' | 'openProject'
   | 'investigationItems' | 'markRelation' | 'relationMenu' | 'apply' | 'zoomTo' | 'copy' | 'templateFor' | 'rowFocus' | 'openRelation' | 'placeReason' | 'usePlace'
   | 'showNotice'
->) {
+>, startFilling: (id: string) => void = () => {}) {
   const {
     contextDate, editing, textRange, composition, caret, doc,
     capabilities, setCaret, scheduleReport, setMessage, rowAnchor, editAt, restoreFocus,
@@ -214,6 +214,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
   function openValueEditor(id: string, anchor?: HTMLElement): boolean {
     const field = definitionsById().get(fieldEntryId(doc.block(doc.outline.parentOf(id))?.text ?? '') ?? '');
     if (!hasValueEditor(field, doc.block(id)?.text ?? '', contextDate())) return false;
+    startFilling(id);
     context.rowFocus(id, false, true);
     // Focus tears down the raw editor and may replace its row. Anchor the settled row, not its old button.
     const element = rowAnchor(id)?.querySelector<HTMLElement>('.outline-body') ?? rowAnchor(id) ?? (anchor?.isConnected ? anchor : null);
@@ -624,5 +625,5 @@ function CompletionPopups(){ return <>
       </div>
     </Popup></Show>
 </>; }
-  return { setCompletion, setCompletionIndex, offerValue, openValueEditor, valueEditorId: () => valueEditor()?.id, updateCompletion, updateTriggers, taskPrefix, rewriteEditing, referenceInput, forgetReferenceSpace, slashKey, dateKey, popupKey, CompletionPopups };
+  return { setCompletion, setCompletionIndex, offerValue, openValueEditor, closeValueEditor: () => setValueEditor(null), valueEditorId: () => valueEditor()?.id, updateCompletion, updateTriggers, taskPrefix, rewriteEditing, referenceInput, forgetReferenceSpace, slashKey, dateKey, popupKey, CompletionPopups };
 }

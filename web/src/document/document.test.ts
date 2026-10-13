@@ -678,7 +678,7 @@ describe('real notebook operations and recovery', () => {
     for (const question of [scoped, unscoped]) success(doc.edit({ kind: 'question', id: question, value: { unsettled: false, parked: false, accepted: null, review_on: null } }));
     await instance.flush();
     const result = await api.positions({ subject: id });
-    const project = () => readingRegister(doc, fieldId => fieldId === criterion ? 'Reading criterion' : undefined, result.questions);
+    const project = () => readingRegister(doc, fieldId => fieldId === criterion ? { id: criterion, name: 'Reading criterion', kind: 'text', revision: 1, options: [], targets: [] } : undefined, result.questions);
     const projected = project();
     expect(projected.disagreements).toEqual([{ criterion, questions: [{ id: scoped, holders: [holder] }] }]);
     expect(projected.remaining).toContain(unscoped);
@@ -703,7 +703,7 @@ describe('real notebook operations and recovery', () => {
     const nested = success(doc.edit({ kind: 'addFieldEntries', parentId: first, after: null, entries: [{ fieldId: publisher, value: 'A nested note, not catalog data' }] }));
     const shorthand = success(doc.edit({ kind: 'insert', parentId: id, after: empty, text: 'Publisher:: An explicit catalog shorthand' })).created[0]!;
     await instance.flush();
-    const projected = readingRegister(doc, fieldId => fields.find(field => field.id === fieldId)?.name, []);
+    const projected = readingRegister(doc, fieldId => fields.find(field => field.id === fieldId), []);
     const rows = [...projected.opening, ...projected.remaining];
     expect(rows).toContain(first);
     for (const fieldId of [publisher, fields.find(field => field.name === 'Published')!.id]) {
@@ -862,6 +862,25 @@ describe('real notebook operations and recovery', () => {
     const stale = doc.edit({ kind: 'fieldHide', definition, value: 'always' });
     expect(stale.ok).toBe(false);
     expect((await api.fields()).fields.find(field => field.id === id)?.hide).toBe('when_empty');
+    doc.release();
+  });
+
+  test('field roles persist with one undo and reject a stale definition', async () => {
+    const instance = await client();
+    const fields = await api.fields();
+    const doc = instance.open(fields.page_id);
+    await eventually(() => doc.status() === 'ready', doc.statusMessage());
+    const id = success(doc.edit({ kind: 'addField', name: `Summary ${++serial}`, value: 'text' })).created[0]!;
+    await instance.flush();
+    const definition = (await api.fields()).fields.find(field => field.id === id)!;
+    success(doc.edit({ kind: 'fieldRole', definition, value: 'standfirst' }));
+    await instance.flush();
+    expect((await api.fields()).fields.find(field => field.id === id)?.role).toBe('standfirst');
+    expect(doc.edit({ kind: 'fieldRole', definition, value: 'prose' }).ok).toBe(false);
+    doc.undo(); await instance.flush();
+    expect((await api.fields()).fields.find(field => field.id === id)?.role).toBe('attribute');
+    doc.redo(); await instance.flush();
+    expect((await api.fields()).fields.find(field => field.id === id)?.role).toBe('standfirst');
     doc.release();
   });
 

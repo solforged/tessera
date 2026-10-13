@@ -27,7 +27,7 @@ export function createOutlineKeyboard(context: Pick<OutlineContext,
   | 'capabilities' | 'roots' | 'composition' | 'scroll' | 'depthReason'
   | 'stepDepth' | 'clearSelection' | 'caret' | 'setRowRange' | 'makeCloze'
   | 'definitionsById' | 'setMessage'
->) {
+>, fillingKey: (event: KeyboardEvent, id: string) => boolean = () => false) {
   const {
     selected, doc, folds, fold, inlineFields, setSelected,
     indices, rowFocus, ids, editing, commitFieldEntry, replaceSelection,
@@ -158,6 +158,7 @@ export function createOutlineKeyboard(context: Pick<OutlineContext,
     }
     if (forgetReferenceSpace(event) || slashKey(event) || dateKey(event) || popupKey(event) || fieldKey(event, view)) return true;
     if (commonKey(event)) return true;
+    if (editing() && fillingKey(event, editing()!)) return true;
     if (event.key === 'Escape' && (!props.vim || context.editor?.mode() === 'normal')) { const id = editing(); if (id) rowFocus(pruneEmptyValue(id) ?? id); return true; }
     if (props.vim && context.editor?.mode() !== 'insert') {
       if (event.key === ' ' && context.editor?.mode() === 'normal' && editing() && !event.metaKey && !event.ctrlKey && !event.altKey) { leaderMenu(editing()!); return true; }

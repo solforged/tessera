@@ -49,6 +49,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/040_relations.sql"),
     include_str!("../migrations/041_spreads.sql"),
     include_str!("../migrations/042_note_revisits.sql"),
+    include_str!("../migrations/043_field_roles.sql"),
 ];
 
 pub const SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
@@ -72,9 +73,9 @@ pub(crate) fn migrate(conn: &mut Connection) -> Result<()> {
     }
     for sql in &MIGRATIONS[found as usize..] {
         tx.execute_batch(sql)?;
-        if *sql == include_str!("../migrations/039_instance_filters.sql") {
-            crate::query::migrate_instance_filters(&tx)?;
-        }
+    }
+    if found < 39 {
+        crate::query::migrate_instance_filters(&tx)?;
     }
     if found < 35 {
         crate::review_store::backfill_event_order(&tx)?;

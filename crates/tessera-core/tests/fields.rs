@@ -1,8 +1,8 @@
 mod common;
 
 use tessera_core::{
-    Actor, Batch, Committed, Direction, Error, FieldHide, FieldKind, Filter, FilterOp, Notebook,
-    Operation, Query, QueryResult, Reading, ReadingValue, Revision, SortBy, SortKey,
+    Actor, Batch, Committed, Direction, Error, FieldHide, FieldKind, FieldRole, Filter, FilterOp,
+    Notebook, Operation, Query, QueryResult, Reading, ReadingValue, Revision, SortBy, SortKey,
 };
 
 fn id(value: u128) -> String {
@@ -464,6 +464,97 @@ fn field_hide_contract_matches_web_order() {
         .filter(|hide| !hide.is_empty())
         .collect();
     assert_eq!(hides, FieldHide::ALL.map(FieldHide::as_str));
+}
+
+#[test]
+fn field_roles_migrate_only_existing_summaries_and_preserve_kind() {
+    let (dir, mut nb) = fixture();
+    let fields = nb.fields().unwrap().page_id;
+    apply(
+        &mut nb,
+        vec![
+            child(50, &fields, "Gist"),
+            child(51, &fields, "Gloss"),
+            child(52, &fields, "Summary"),
+        ],
+    );
+    kind(&mut nb, 10, FieldKind::Number);
+    drop(nb);
+    let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
+    conn.execute_batch("ALTER TABLE fields DROP COLUMN role; PRAGMA user_version = 42;")
+        .unwrap();
+    drop(conn);
+    let mut nb = Notebook::open(dir.path()).unwrap();
+    for value in [50, 51] {
+        assert_eq!(
+            nb.field_detail(&id(value), None, None)
+                .unwrap()
+                .field
+                .definition
+                .role,
+            FieldRole::Standfirst
+        );
+    }
+    let definition = nb
+        .field_detail(&id(10), None, None)
+        .unwrap()
+        .field
+        .definition;
+    assert_eq!(definition.kind, FieldKind::Number);
+    assert_eq!(definition.role, FieldRole::Attribute);
+    for role in FieldRole::ALL {
+        let base_revision = nb.block(&id(52)).unwrap().revision;
+        apply(
+            &mut nb,
+            vec![Operation::SetFieldRole {
+                id: id(52),
+                base_revision,
+                role,
+            }],
+        );
+        assert_eq!(
+            nb.field_detail(&id(52), None, None)
+                .unwrap()
+                .field
+                .definition
+                .role,
+            role
+        );
+        assert!(matches!(
+            nb.apply(&batch(vec![Operation::SetFieldRole {
+                id: id(52),
+                base_revision,
+                role: FieldRole::Attribute
+            }])),
+            Err(Error::Conflict { .. })
+        ));
+    }
+    edit(&mut nb, 52, "Gist renamed");
+    assert_eq!(
+        nb.field_detail(&id(52), None, None)
+            .unwrap()
+            .field
+            .definition
+            .role,
+        FieldRole::Citation
+    );
+    apply(&mut nb, vec![child(53, &fields, "Gloss created later")]);
+    assert_eq!(
+        nb.field_detail(&id(53), None, None)
+            .unwrap()
+            .field
+            .definition
+            .role,
+        FieldRole::Attribute
+    );
+    let mut legacy = serde_json::to_value(definition).unwrap();
+    legacy.as_object_mut().unwrap().remove("role");
+    assert_eq!(
+        serde_json::from_value::<tessera_core::FieldDefinition>(legacy)
+            .unwrap()
+            .role,
+        FieldRole::Attribute
+    );
 }
 
 #[test]

@@ -244,6 +244,11 @@ pub enum Operation {
         base_revision: i64,
         hide: FieldHide,
     },
+    SetFieldRole {
+        id: String,
+        base_revision: i64,
+        role: FieldRole,
+    },
     SetFieldTargets {
         id: String,
         base_revision: i64,
@@ -710,6 +715,38 @@ impl FieldHide {
     }
 }
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FieldRole {
+    Standfirst,
+    #[default]
+    Attribute,
+    Prose,
+    Citation,
+}
+
+impl FieldRole {
+    pub const ALL: [Self; 4] = [
+        Self::Standfirst,
+        Self::Attribute,
+        Self::Prose,
+        Self::Citation,
+    ];
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Standfirst => "standfirst",
+            Self::Attribute => "attribute",
+            Self::Prose => "prose",
+            Self::Citation => "citation",
+        }
+    }
+
+    pub(crate) fn from_str(value: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|role| role.as_str() == value)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Direction {
@@ -914,6 +951,8 @@ pub struct FieldDefinition {
     pub kind: FieldKind,
     #[serde(default)]
     pub hide: FieldHide,
+    #[serde(default)]
+    pub role: FieldRole,
     pub revision: i64,
     pub options: Vec<FieldOption>,
     #[serde(default)]

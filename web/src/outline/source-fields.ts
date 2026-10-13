@@ -1,6 +1,7 @@
 import { createEffect, createResource, createRoot } from 'solid-js';
 import { api } from '../api/client';
 import type { FieldDefinition, FieldKind } from '../api/types';
+import type { FieldRole } from '../fields/roles';
 import type { Caret, NotebookClient, PageDocument } from '../document/contract';
 import { matchFieldEntry } from '../table/query';
 import type { MenuItem } from '../ui/Menu';
@@ -25,7 +26,7 @@ export function documentReady(doc: PageDocument): Promise<void> {
 }
 
 /** The named definition, created with the requested kind on first use; concurrent calls share one creation. */
-export function ensureField(notebook: NotebookClient, name: string, kind: FieldKind = 'text'): Promise<FieldDefinition> {
+export function ensureField(notebook: NotebookClient, name: string, kind: FieldKind = 'text', role: FieldRole = 'attribute'): Promise<FieldDefinition> {
   const pending = fieldCreations.get(notebook) ?? new Map<string, Promise<FieldDefinition>>();
   fieldCreations.set(notebook, pending);
   const key = name.toLowerCase();
@@ -43,10 +44,10 @@ export function ensureField(notebook: NotebookClient, name: string, kind: FieldK
         if (block && !block.archived && block.text.trim() && block.text.toLowerCase() === key) return { id, name: block.text, kind: 'text' as const, revision: block.revision, options: [], targets: [] };
       }
       // Blank outline rows may have references or history: never adopt their identity.
-      const written = fieldsDoc.edit({ kind: 'addField', name, value: kind });
+      const written = fieldsDoc.edit({ kind: 'addField', name, value: kind, role });
       if (!written.ok) throw new Error(written.reason);
       await fieldsDoc.flush();
-      return { id: written.created[0]!, name, kind, revision: fieldsDoc.block(written.created[0]!)!.revision, options: [], targets: [] };
+      return { id: written.created[0]!, name, kind, role, revision: fieldsDoc.block(written.created[0]!)!.revision, options: [], targets: [] };
     } finally { fieldsDoc.release(); }
   })();
   pending.set(key, creation);

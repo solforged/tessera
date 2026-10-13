@@ -179,7 +179,9 @@ A field definition is a block under the live page titled `Fields`, the system pa
 
 A field entry is a block whose whole text is one reference to a definition, rendering as its name. The entry's parent owns the field; its children are the values. Typing `Author::` in the editor produces an entry.
 
-Each definition has a `hide` setting for outlines. `never` is the default and shows entries and faint missing template slots. `when_empty` hides entries with no values or only blank values and omits missing slots; `always` hides entries and slots regardless of values. Editing or selecting an entry or its values keeps it visible, as does revealing the owner's hidden fields in that pane. Tables, queries, field pages, the Fields register and exports ignore this setting.
+Each definition has a `hide` setting for outlines. `never` is the default and shows entries and, while the owner is focused, faint missing template slots. `when_empty` hides entries with no values or only blank values and omits missing slots; `always` hides entries and slots regardless of values. Editing or selecting an entry or its values keeps it visible, as does revealing the owner's hidden fields in that pane. Tables, queries, field pages, the Fields register and exports ignore this setting.
+
+A definition also has a presentation role: `standfirst`, `attribute` (the default), `prose` or `citation`. Standfirst values read as sentences under their owner, attributes form an aligned field bed, prose follows it at full width, and citation values show references as siglum and locator. The role changes no value or kind. Changing it is revision-checked, attributed and undoable; sync keeps the later change. Migration gives existing Gist and Gloss definitions the standfirst role. A later rename never changes a role.
 
 Values are plain blocks read through the field's kind. A value that does not fit shows a problem but is never rejected or rewritten.
 
@@ -442,6 +444,8 @@ A position can therefore sit beneath a source-page highlight and still be filed 
 Positions on the same subject are compared side by side, never merged. Assessments cite positions and passages, tracing a conclusion to its evidence.
 
 A subject may own an explicit ordered set of criterion fields. Without rows in that set, Compare derives criteria from active positions' field entries in outline order, excluding Gist, Work and Account. Position values remain ordinary entry/value blocks; explicit criteria offer missing fields as empty slots.
+
+A position's recipe offers Gist, Work, then its subject's criteria, explicit when present and otherwise derived. Add field lists the missing recipe fields first under From this recipe. Filling mode uses the same order. Recipes are derived suggestions, not stored templates; they never require or add a field without an edit.
 
 Questions beneath the subject attach to the first criterion linked in their text. They are scoped to the linked holder pages of its positions, or to all holders when none are named. These attachments are derived.
 

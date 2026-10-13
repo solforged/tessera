@@ -13,7 +13,8 @@ import { Popup } from '../ui/Popup';
 import { BlockBreadcrumb, BlockText } from './BlockText';
 import { BlockTree, blockContextRows } from './BlockTree';
 import type { TreeRow } from './BlockTree';
-import { glossEntry, glossText, isGistName, isGlossName } from './gloss';
+import { glossEntry, glossText } from './gloss';
+import { fieldRole } from '../fields/roles';
 import { positionFields, positionRelations, positionSource, readingPassages } from './perspectives';
 import { OutgoingRelations } from './RelationLines';
 import './reference-preview.css';
@@ -333,12 +334,10 @@ function ReferenceCard(props: {
   const isPage = () => target()?.kind !== 'block';
   const state = () => doc()?.block(props.id);
   const [citationSource] = createResource(() => props.citation && state()?.source ? [props.id, props.notebook.changeSequence()] as const : false, ([id]) => referenceSource(props.notebook, id));
-  // A gloss entry references a Gloss field definition, an ordinary block on the Fields page.
-  const gloss = createMemo(() => { const value = doc(); return value?.status() === 'ready' && isPage() ? glossEntry(value, id => { const field = props.notebook.lookup(id)(); return field?.kind === 'block' && isGlossName(field.text); }) : null; });
+  const [fieldList] = createResource(() => doc()?.status() === 'ready' ? props.notebook.changeSequence() : false, () => props.notebook.api.fields());
+  const gloss = createMemo(() => { const value = doc(); return value?.status() === 'ready' && isPage() ? glossEntry(value, id => fieldRole(fieldList()?.fields.find(field => field.id === id)) === 'standfirst') : null; });
   const summary = createMemo(() => { const value = doc(); return value && gloss() ? glossText(value, gloss()) : ''; });
   const summaryId = createMemo(() => { const entry = gloss(); return entry ? doc()?.outline.children(entry)[0] : undefined; });
-  // A passing gloss needs no other documents. Field definitions are needed only for prose fallback or pinned readings.
-  const [fieldList] = createResource(() => doc()?.status() === 'ready' && (!!state()?.position || isPage() && (props.pinned || !summary())), () => props.notebook.api.fields());
   const fieldNames = createMemo(() => new Map((fieldList.error ? [] : fieldList()?.fields ?? []).map(field => [field.id, field.name])));
   const fieldName = (id: string) => fieldNames().get(id);
   const readingFields = createMemo(() => state()?.position && doc()?.status() === 'ready' ? positionFields(doc()!, props.id, fieldName) : []);
@@ -346,7 +345,7 @@ function ReferenceCard(props: {
     const value = doc();
     if (value?.status() !== 'ready' || (isPage() && !props.pinned && summary())) return [];
     if (state()?.position) {
-      const gist = readingFields().find(field => isGistName(field.name));
+      const gist = readingFields().find(field => fieldRole(fieldList()?.fields.find(definition => definition.id === field.fieldId)) === 'standfirst');
       return [...(gist?.valueId ? [{ id: gist.valueId, depth: 0, role: 'body' as const }] : []),
         ...readingPassages(value, props.id, gist?.value, fieldName).slice(0, BLOCK_ROWS).map(row => ({ id: row.id, depth: 0, role: 'body' as const }))];
     }
@@ -418,7 +417,7 @@ function ReferenceCard(props: {
           </Show>
         }>
           <Show when={fieldList.error}><p class="reference-preview-message" role="alert">Couldn’t load reading fields.</p></Show>
-          <PinnedReadings rows={positionRows()} notebook={props.notebook} fieldName={fieldName} onOpen={props.onNested} />
+          <PinnedReadings rows={positionRows()} notebook={props.notebook} fieldName={fieldName} standfirst={id => fieldRole(fieldList()?.fields.find(field => field.id === id)) === 'standfirst'} onOpen={props.onNested} />
           <Show when={positionRows().length >= 2}>
             <Button class="reference-preview-compare" onClick={event => props.onNested({ kind: 'compare', subjectId: props.id }, event.shiftKey)}>Compare readings →</Button>
           </Show>
@@ -439,6 +438,7 @@ function PinnedReadings(props: {
   rows: readonly PositionRow[];
   notebook: NotebookClient;
   fieldName(id: string): string | undefined;
+  standfirst(id: string): boolean;
   onOpen(target: OpenTarget, beside: boolean): void;
 }) {
   const [selected, setSelected] = createSignal<string | null>(null);
@@ -455,13 +455,13 @@ function PinnedReadings(props: {
     const fields = ready ? positionFields(doc, row.block.block.id, props.fieldName) : [];
     return {
       row, doc,
-      gist: fields.find(field => isGistName(field.name))?.value,
-      gistId: fields.find(field => isGistName(field.name))?.valueId,
+      gist: fields.find(field => props.standfirst(field.fieldId))?.value,
+      gistId: fields.find(field => props.standfirst(field.fieldId))?.valueId,
       work: fields.find(field => field.name.trim().toLowerCase() === 'work'),
       account: fields.find(field => field.name.trim().toLowerCase() === 'account'),
       source: ready ? positionSource(doc, row.block.block.id, props.fieldName) : null,
       shape: fields.find(field => field.name.trim().toLowerCase() === 'shape')?.value,
-      prose: ready ? readingPassages(doc, row.block.block.id, fields.find(field => isGistName(field.name))?.value, props.fieldName).slice(0, BLOCK_ROWS) : [],
+      prose: ready ? readingPassages(doc, row.block.block.id, fields.find(field => props.standfirst(field.fieldId))?.value, props.fieldName).slice(0, BLOCK_ROWS) : [],
     };
   }));
   const [siglumRecords] = createResource(() => {

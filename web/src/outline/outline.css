@@ -409,3 +409,17 @@
 :is(.outline-body, .outline-value-pill, .table-value-pill) .outline-reference.outline-reference-ambiguous { color: var(--warning); text-decoration-line: underline; text-decoration-style: dotted; text-decoration-color: var(--warning); }
 .outline-reference-ambiguous sup { font: var(--apparatus); margin-inline-start: var(--space-2); }
 .reference-via { color: var(--faint); font: var(--apparatus); white-space: nowrap; }
+
+/* Definitions choose the reading voice; spelling does not choose presentation. */
+.inline-field-value[data-field-role="standfirst"] .outline-field-label { display: none; }
+.inline-field-value[data-field-role="standfirst"] .outline-body { margin-left: var(--target-size); font: var(--weight-body) var(--text-gloss)/var(--line-gloss) var(--font-display); color: var(--muted); }
+.inline-field-value[data-field-role="prose"] { flex-wrap: wrap; }
+.inline-field-value[data-field-role="prose"] > .outline-field-label { flex-basis: 100%; width: 100%; font: var(--apparatus); }
+.inline-field-value[data-field-role="prose"] > .outline-body { flex-basis: calc(100% - var(--gutter) - var(--target-size)); margin-left: calc(var(--gutter) + var(--target-size)); }
+.inline-field-value[data-field-role="citation"] .static-text { font: var(--apparatus); color: var(--muted); }
+.inline-field-value[data-field-role="attribute"] .outline-field-label { font-size: var(--text-meta); }
+@media (max-width: 599px) {
+  .inline-field-value:is([data-field-role="attribute"], [data-field-role="citation"], [data-field-role="prose"]) { flex-wrap: wrap; }
+  .inline-field-value:is([data-field-role="attribute"], [data-field-role="citation"], [data-field-role="prose"]) > .outline-field-label { flex-basis: 100%; width: 100%; font: var(--apparatus); }
+  .inline-field-value:is([data-field-role="attribute"], [data-field-role="citation"], [data-field-role="prose"]) > .outline-body { flex-basis: calc(100% - var(--target-size)); margin-left: var(--target-size); min-width: 0; }
+}

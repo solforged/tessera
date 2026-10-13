@@ -4,7 +4,7 @@ import type { PositionRow } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import { pageSigla } from '../library/sigla';
 import { BlockText } from '../outline/BlockText';
-import { isGistName } from '../outline/gloss';
+import { fieldRole } from '../fields/roles';
 import { positionFields, positionRelations, positionSource, readingPassages } from '../outline/perspectives';
 import type { PositionField, ReadingPassage } from '../outline/perspectives';
 import { OutgoingRelations } from '../outline/RelationLines';
@@ -81,7 +81,7 @@ export function ComparePane(props: ComparePaneProps) {
       name: fieldName(entry.field_id) ?? '', fieldId: entry.field_id, entryId: entry.entry_id,
       valueId: entry.values[0]?.id ?? null, value: entry.values[0]?.text ?? '',
     }));
-    const gist = fields.find(field => isGistName(field.name));
+    const gist = fields.find(field => fieldRole(fieldList()?.fields.find(definition => definition.id === field.fieldId)) === 'standfirst');
     const work = fields.find(field => field.name.trim().toLowerCase() === 'work');
     return { row, gist, work,
       account: fields.find(field => field.name.trim().toLowerCase() === 'account'),
