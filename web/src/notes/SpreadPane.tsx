@@ -21,6 +21,7 @@ interface SpreadPaneProps {
 
 /** The saved form uses the same page document as its commentary, including its undo history. */
 export function SpreadPane(props: SpreadPaneProps) {
+  let pane: HTMLElement | undefined;
   const changes = createSettledChanges(props.notebook);
   const [result, { refetch }] = createResource(() => [props.doc?.pageId, props.noteIds?.join(','), changes()] as const,
     ([pageId]) => pageId ? props.notebook.api.savedSpread(pageId) : props.notebook.api.spread(props.noteIds ?? []));
@@ -43,6 +44,7 @@ export function SpreadPane(props: SpreadPaneProps) {
       if (!result.ok) throw new Error(result.reason);
       await doc.flush();
       await refetch();
+      pane?.focus({ preventScroll: true });
     } catch (reason) { fail(reason); }
     finally { setBusy(false); }
   };
@@ -100,7 +102,7 @@ export function SpreadPane(props: SpreadPaneProps) {
     <Show when={value.shared}><span class="spread-mark" title="Shared" aria-label="Shared">=</span></Show>
     <Show when={value.between_columns}><span class="spread-mark" title="Links to a column" aria-label="Links to a column">↔</span></Show>
   </div>}</For>;
-  return <section class={`spread-pane ${props.doc ? 'spread-saved' : 'spread-unsaved'}`} aria-label="Spread" onFocusIn={props.onActivate} onKeyDown={event => {
+  return <section ref={pane} tabindex="-1" class={`spread-pane ${props.doc ? 'spread-saved' : 'spread-unsaved'}`} aria-label="Spread" onFocusIn={props.onActivate} onKeyDown={event => {
     if (props.doc && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z' && !(event.target instanceof HTMLInputElement)) {
       event.preventDefault(); event.stopPropagation();
       event.shiftKey ? props.doc.redo() : props.doc.undo();
