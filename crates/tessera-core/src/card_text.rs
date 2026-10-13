@@ -108,7 +108,7 @@ fn line_prefix(text: &str, at: usize) -> bool {
 
 // Unclosed code and references shield the remainder while the author is typing.
 // Their markup and backslashes are kept verbatim in the resulting card text.
-fn protected_end(text: &str, at: usize) -> Option<usize> {
+pub(crate) fn protected_end(text: &str, at: usize) -> Option<usize> {
     if text[at..].starts_with("[[") {
         let mut cursor = at + 2;
         while cursor < text.len() {

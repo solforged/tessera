@@ -266,6 +266,52 @@ fn unlinked_mentions_confirm_words_alias_precedence_and_ignore_reference_and_tag
 }
 
 #[test]
+fn unlinked_mentions_exclude_urls_and_code_but_keep_adjacent_prose() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut nb = Notebook::open(dir.path()).unwrap();
+    apply(&mut nb, vec![page(1, "Plato"), page(10, "Notes")]);
+    let protected = [
+        "https://plato.stanford.edu/entries/linguistics/whorfianism.html",
+        "http://example.org/Plato?q=Plato#Plato",
+        "`Plato`",
+        "``Plato ` literal``",
+        "```md\nPlato\n```",
+        "~~~md\nPlato\n~~~",
+    ];
+    for (index, text) in protected.iter().enumerate() {
+        apply(
+            &mut nb,
+            vec![
+                insert(20 + index as u128, 10, None, text),
+                insert(40 + index as u128, 10, None, &format!("{text}\nPlato")),
+            ],
+        );
+    }
+    for (index, text) in ["`Plato", "``Plato`", "```\nPlato", "~~~\nPlato"]
+        .iter()
+        .enumerate()
+    {
+        apply(&mut nb, vec![insert(60 + index as u128, 10, None, text)]);
+    }
+    let mentions = nb.unlinked_mentions(&id(1), 100).unwrap();
+    assert_eq!(mentions.total, protected.len());
+    assert!(
+        mentions
+            .rows
+            .iter()
+            .all(|row| row.block.id >= id(40) && row.block.id < id(60))
+    );
+    apply(
+        &mut nb,
+        vec![
+            page(2, "New York"),
+            insert(80, 10, None, "New `literal` York"),
+        ],
+    );
+    assert_eq!(nb.unlinked_mentions(&id(2), 100).unwrap().total, 0);
+}
+
+#[test]
 fn page_read_validation_and_ineligible_mention_pages() {
     let dir = tempfile::tempdir().unwrap();
     let mut nb = Notebook::open(dir.path()).unwrap();

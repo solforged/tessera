@@ -16,6 +16,20 @@ describe('linking an unlinked mention', () => {
     expect(linked('[[Planet]] [[other|Planet]] #Planet #[[Planet]] Planet', 'Planet')).toBe(`[[Planet]] [[other|Planet]] #Planet #[[Planet]] [[${page}|Planet]]`);
     expect(linked('[[Planet]] #Planet #[[Planet]]', 'Planet')).toBeNull();
   });
+  test('never rewrites URL hosts, paths, query values or fragments', () => {
+    for (const url of ['https://plato.stanford.edu/entries/', 'http://example.org/Plato?q=Plato#Plato']) {
+      expect(linked(url, 'Plato')).toBeNull();
+      expect(linked(`${url} Plato`, 'Plato')).toBe(`${url} [[${page}|Plato]]`);
+    }
+  });
+  test('protects inline code, unequal delimiters, fences and unfinished code', () => {
+    for (const code of ['`Plato`', '``Plato ` literal``', '```md\nPlato\n```', '~~~md\nPlato\n~~~']) {
+      expect(linked(code, 'Plato')).toBeNull();
+      expect(linked(`${code}\nPlato`, 'Plato')).toBe(`${code}\n[[${page}|Plato]]`);
+    }
+    for (const code of ['`Plato', '``Plato`', '```\nPlato', '~~~\nPlato']) expect(linked(code, 'Plato')).toBeNull();
+    expect(linked('New `literal` York', 'New York')).toBeNull();
+  });
   test('recognizes Unicode boundaries and multiword aliases literally', () => {
     expect(linked('Étherx xÉther éTHER', 'Éther')).toBe(`Étherx xÉther [[${page}|éTHER]]`);
     expect(linked('The A+B (C) reading', 'A+B (C)')).toBe(`The [[${page}|A+B (C)]] reading`);

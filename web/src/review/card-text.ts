@@ -43,7 +43,7 @@ function linePrefix(text: string, at: number): boolean {
 
 // Preserve code/reference markup verbatim. Unclosed spans shield the remainder
 // while the author is typing, rather than deriving accidental cards inside it.
-function protectedEnd(text: string, at: number): number | null {
+export function protectedEnd(text: string, at: number): number | null {
   if (text.startsWith('[[', at)) {
     let cursor = at + 2;
     while (cursor < text.length) {

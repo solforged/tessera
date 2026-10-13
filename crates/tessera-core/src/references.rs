@@ -270,12 +270,26 @@ fn whole_word(text: &str, term: &str) -> bool {
 fn mention_text(text: &str) -> String {
     let mut spans: Vec<_> = tag_tokens(text).map(|token| token.span).collect();
     let mut cursor = 0;
-    while let Some(start) = text[cursor..].find("[[").map(|offset| cursor + offset) {
-        let Some(end) = text[start + 2..].find("]]") else {
-            break;
-        };
-        cursor = start + 2 + end + 2;
-        spans.push(start..cursor);
+    while cursor < text.len() {
+        let rest = &text[cursor..];
+        if rest.starts_with('\\') {
+            cursor += 1;
+            if let Some(ch) = text[cursor..].chars().next() {
+                cursor += ch.len_utf8();
+            }
+        } else if let Some(end) = crate::card_text::protected_end(text, cursor) {
+            spans.push(cursor..end);
+            cursor = end;
+        } else if rest.starts_with("https://") || rest.starts_with("http://") {
+            let end = cursor
+                + rest
+                    .find(|ch: char| ch.is_whitespace() || matches!(ch, '<' | '>' | '"' | '\''))
+                    .unwrap_or(rest.len());
+            spans.push(cursor..end);
+            cursor = end;
+        } else {
+            cursor += rest.chars().next().expect("in bounds").len_utf8();
+        }
     }
     spans.sort_unstable_by_key(|span| span.start);
     let mut plain = String::with_capacity(text.len());
@@ -283,7 +297,7 @@ fn mention_text(text: &str) -> String {
     for span in spans {
         if span.start >= cursor {
             plain.push_str(&text[cursor..span.start]);
-            plain.push(' ');
+            plain.push('\0');
         }
         cursor = cursor.max(span.end);
     }
