@@ -283,7 +283,7 @@ export function TablePane(props: TablePaneProps) {
   const switchView = (view: View | null) => {
     const next = view?.query ?? { type: query().type, text: null, filters: [], sort: [], limit: null };
     clearTimeout(searchTimer); setSearch(next.text ?? ''); updateQuery(next); setSaved(view ?? undefined);
-    setSelectedRow(null); setFocused({ row: 0, column: 0 }); setPopup(null);
+    setSelectedRow(null); setFocused({ rowId: null, fieldId: null }); setPopup(null);
     props.onTargetChange({ kind: 'table', typeId: next.type, viewId: view?.id ?? null, query: copyQuery(next) });
     if (scroll) { scroll.scrollTop = 0; scroll.scrollLeft = 0; }
     reportView(next);
