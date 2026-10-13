@@ -162,13 +162,14 @@ The card's groups stay in this order:
 | Group | Fields |
 | --- | --- |
 | Work | Title, Subtitle, Creators with book roles, First published, Original language |
-| Edition | Published, Publisher, Edition, Series, Number, Pages, Language |
+| Edition | Published, Publisher, Edition, Series, Number, Volume, Issue, Page range, Pages, Language |
 | Identifiers | Every ISBN, DOI and arXiv value, URL and Site |
 | About | Description and Cover |
 | Apparatus | Siglum and Citation key |
 | Shelf | Reading state, Started, Finished, Tags |
 
 Missing values remain visible as quiet Add… slots. A value becomes an inline editor on click, commits on Enter or blur and cancels on Escape, with no Save or Cancel buttons.
+Volume and Issue keep journal labels as written. Page range holds a journal's pages or article locator; Pages remains the total page count.
 
 Save state belongs only to the pane header. Saving… appears after a second and invalid fields announce that they were not saved. A blank optional date is not an error; invalid partial dates use `--danger` with their format hint.
 
@@ -277,7 +278,7 @@ Edit details… keeps the source page open and shows the Library's 460 px catalo
 
 The remaining page column keeps field labels, block controls and highlight chapter headings inside its inset, rather than hanging their gutter outside the pane.
 
-The header and catalogue card own the catalogue fields: Subtitle, creators, dates, publisher, edition, series, number, pages, languages, identifiers, URL, site, description, cover, siglum, reading dates and Collections. Their entries stay out of the outline until Show metadata fields, and the page offers no slots for them; Add field neither lists nor creates them there. Every other field is the note's own and shows in the [field area](../design.md#field-area) under the header, with its slots and Add field, like any page. The snapshot's description is clamped to three lines with More. The page has no Table button; ⌘⇧T and the palette still open the table.
+The header and catalogue card own the catalogue fields: Subtitle, creators, dates, publisher, edition, series, number, volume, issue, page range, pages, languages, identifiers, URL, site, description, cover, siglum, reading dates and Collections. Their entries stay out of the outline until Show metadata fields, and the page offers no slots for them; Add field neither lists nor creates them there. Every other field is the note's own and shows in the [field area](../design.md#field-area) under the header, with its slots and Add field, like any page. The snapshot's description is clamped to three lines with More. The page has no Table button; ⌘⇧T and the palette still open the table.
 
 Show and Hide metadata fields are saved with the pane's view across reloads and history. A remembered caret in the note's own fields does not reveal catalogue fields.
 

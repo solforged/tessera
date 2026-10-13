@@ -20,12 +20,13 @@ import './metadata-inspector.css';
 const labels: Record<SourceField, string> = {
   title: 'Title', subtitle: 'Subtitle', creators: 'Creators', firstPublished: 'First published', originalLanguage: 'Original language',
   published: 'Published', publisher: 'Publisher', edition: 'Edition', series: 'Series', number: 'Number', pages: 'Pages', language: 'Language',
+  volume: 'Volume', issue: 'Issue', pageRange: 'Page range',
   identifiers: 'ISBN, DOI, arXiv', url: 'URL', site: 'Site', description: 'Description', cover: 'Cover', siglum: 'Siglum', citationKey: 'Citation key',
   state: 'Reading state', started: 'Started', finished: 'Finished', tags: 'Tags',
 };
 const dates: Partial<Record<SourceField, true>> = { firstPublished: true, published: true, started: true, finished: true };
-const apparatus: Partial<Record<SourceField, true>> = { ...dates, number: true, pages: true, identifiers: true, siglum: true, citationKey: true };
-const snapshotFields: Partial<Record<SourceField, keyof ExtractedMetadata>> = { title: 'title', subtitle: 'subtitle', published: 'published', publisher: 'publisher', language: 'language', identifiers: 'identifiers', url: 'url', site: 'site', description: 'description', cover: 'cover' };
+const apparatus: Partial<Record<SourceField, true>> = { ...dates, number: true, pages: true, volume: true, issue: true, pageRange: true, identifiers: true, siglum: true, citationKey: true };
+const snapshotFields: Partial<Record<SourceField, keyof ExtractedMetadata>> = { title: 'title', subtitle: 'subtitle', published: 'published', publisher: 'publisher', language: 'language', identifiers: 'identifiers', url: 'url', site: 'site', description: 'description', cover: 'cover', volume: 'volume', issue: 'issue', pageRange: 'page_range' };
 interface Evidence { view: SourceView; extracted: Map<string, string[]> }
 interface HistoryEntry { change: SourceFieldChange; label: string; count: number }
 
@@ -261,7 +262,7 @@ export function MetadataInspector(props: {
           {perSource('firstPublished')}{field('originalLanguage')}
         </InspectorGroup>
         <InspectorGroup number={2} title="Edition" summary="Publication, series, language" phone={props.phone}>
-          {perSource('published')}{field('publisher')}{field('edition')}{field('series')}{perSource('number')}{field('pages')}{field('language')}
+          {perSource('published')}{field('publisher')}{field('edition')}{field('series')}{perSource('number')}{field('volume')}{field('issue')}{field('pageRange')}{field('pages')}{field('language')}
         </InspectorGroup>
         <InspectorGroup number={3} title="Identifiers" summary="ISBN, DOI, arXiv, URL" phone={props.phone}>
           {field('identifiers')}{field('url')}{field('site')}

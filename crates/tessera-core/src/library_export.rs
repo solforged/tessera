@@ -330,12 +330,17 @@ impl Notebook {
                 ("original language", "origlanguage", "original-language"),
                 ("edition", "edition", "edition"),
                 ("series", "series", "collection-title"),
+                ("volume", "volume", "volume"),
+                ("issue", "number", "issue"),
+                ("page range", "pages", "page"),
                 ("number", "number", "collection-number"),
                 ("pages", "pages", "number-of-pages"),
                 ("description", "abstract", "abstract"),
             ] {
                 if let Some(value) = first(field) {
-                    fields.push((bib_name, value.into()));
+                    if !fields.iter().any(|(name, _)| *name == bib_name) {
+                        fields.push((bib_name, value.into()));
+                    }
                     item.insert(csl_name.into(), json!(value));
                 }
             }

@@ -336,6 +336,9 @@ mod mapping {
                     .collect(),
                 url: text(&work["URL"]),
                 site: text(&work["container-title"][0]),
+                volume: text(&work["volume"]),
+                issue: text(&work["issue"]),
+                page_range: text(&work["page"]),
                 ..Default::default()
             },
             cover_url: None,
@@ -588,6 +591,9 @@ mod tests {
             Some("Springer Science and Business Media LLC")
         );
         assert_eq!(preview.metadata.identifiers, ["doi:10.1038/nature14539"]);
+        assert_eq!(preview.metadata.volume.as_deref(), Some("521"));
+        assert_eq!(preview.metadata.issue.as_deref(), Some("7553"));
+        assert_eq!(preview.metadata.page_range.as_deref(), Some("436-444"));
     }
     #[test]
     fn map_arxiv() {

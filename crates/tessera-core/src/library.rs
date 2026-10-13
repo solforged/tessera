@@ -53,6 +53,12 @@ pub struct ExtractedMetadata {
     pub url: Option<String>,
     /// Site or publication name of an article.
     pub site: Option<String>,
+    /// Journal volume and issue, kept as written (not necessarily numbers).
+    pub volume: Option<String>,
+    pub issue: Option<String>,
+    /// Journal page range or article locator, distinct from a total page count.
+    #[serde(alias = "page", alias = "pages")]
+    pub page_range: Option<String>,
     /// Plain-text description or abstract.
     pub description: Option<String>,
     /// `href` of the cover image among the resources.

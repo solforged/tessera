@@ -8,7 +8,7 @@ import { createInstance, instancePages } from '../fields/instances';
 
 const roles: readonly [ExtractedCreator['role'], string][] = [['author', 'Author'], ['editor', 'Editor'], ['translator', 'Translator']];
 const textFields = [['title', 'Title'], ['subtitle', 'Subtitle']] as const;
-const detailFields = [['published', 'Published', 'YYYY, YYYY-MM or YYYY-MM-DD'], ['publisher', 'Publisher', ''], ['language', 'Language', 'en, fr, la…']] as const;
+const detailFields = [['published', 'Published', 'YYYY, YYYY-MM or YYYY-MM-DD'], ['publisher', 'Publisher', ''], ['volume', 'Volume', ''], ['issue', 'Issue', ''], ['page_range', 'Page range', ''], ['language', 'Language', 'en, fr, la…']] as const;
 
 /** A catalogue card: one labelled row per detail, creators as name and role pairs. A creator whose name resembles an
  * existing page offers that page, so a variant spelling links to the person already in the notebook. */

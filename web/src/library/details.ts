@@ -5,7 +5,7 @@ import { addFieldOption, documentReady } from '../outline/source-fields';
 import { sourceFieldName, valueLabel } from '../outline/source';
 import { createInstance } from '../fields/instances';
 
-export type SourceField = 'title' | 'subtitle' | 'creators' | 'firstPublished' | 'originalLanguage' | 'published' | 'publisher' | 'edition' | 'series' | 'number' | 'pages' | 'language' | 'identifiers' | 'url' | 'site' | 'description' | 'cover' | 'siglum' | 'citationKey' | 'state' | 'started' | 'finished' | 'tags';
+export type SourceField = 'title' | 'subtitle' | 'creators' | 'firstPublished' | 'originalLanguage' | 'published' | 'publisher' | 'edition' | 'series' | 'number' | 'pages' | 'volume' | 'issue' | 'pageRange' | 'language' | 'identifiers' | 'url' | 'site' | 'description' | 'cover' | 'siglum' | 'citationKey' | 'state' | 'started' | 'finished' | 'tags';
 export interface SourceCreator { id: string | null; name: string; role: 'author' | 'editor' | 'translator' }
 export type SourceFieldValue = string | string[] | SourceCreator[];
 export interface SourceFieldChange extends DocumentChange {}
@@ -29,6 +29,7 @@ const fields: Record<OrdinaryField, readonly [string, FieldKind]> = {
   subtitle: ['Subtitle', 'text'], firstPublished: ['First published', 'date'], originalLanguage: ['Original language', 'text'],
   published: ['Published', 'date'], publisher: ['Publisher', 'text'], edition: ['Edition', 'text'], series: ['Series', 'text'],
   number: ['Number', 'number'], pages: ['Pages', 'number'], language: ['Language', 'text'], identifiers: ['Identifier', 'identifier'],
+  volume: ['Volume', 'text'], issue: ['Issue', 'text'], pageRange: ['Page range', 'text'],
   url: ['URL', 'url'], site: ['Site', 'text'], description: ['Description', 'text'], cover: ['Cover', 'text'], siglum: ['Siglum', 'text'],
   started: ['Started', 'date'], finished: ['Finished', 'date'],
 };
@@ -82,6 +83,7 @@ export function sourceMetadata(doc: PageDocument, notebook: NotebookClient, defi
     creators: (sourceFieldValue(doc, notebook, definitions, 'creators') as SourceCreator[]).map(({ name, role }) => ({ name, role })),
     published: text('published') || null, publisher: text('publisher') || null, language: text('language') || null,
     identifiers: sourceFieldValue(doc, notebook, definitions, 'identifiers') as string[], cover: text('cover') || null,
+    volume: text('volume') || null, issue: text('issue') || null, page_range: text('pageRange') || null,
     url: text('url') || null, site: text('site') || null, description: text('description') || null };
 }
 
@@ -231,10 +233,11 @@ async function prepareMetadata(doc: PageDocument, notebook: NotebookClient, cont
   const edit: SourceDetailsEdit = { kind: 'sourceDetails', fields: [] };
   const previous = sourceMetadata(doc, notebook, context.definitions);
   const entries = sourceEntries(doc, context.definitions);
-  const labels = coverOnly ? ['cover'] as const : ['subtitle', 'published', 'publisher', 'language', 'identifiers', 'url', 'site', 'description', ...(onlyMissing ? ['cover' as const] : [])] as const;
+  const labels = coverOnly ? ['cover'] as const : ['subtitle', 'published', 'publisher', 'volume', 'issue', 'pageRange', 'language', 'identifiers', 'url', 'site', 'description', ...(onlyMissing ? ['cover' as const] : [])] as const;
   for (const field of labels) {
-    const value = validateSourceValue(field, field === 'identifiers' ? metadata.identifiers : metadata[field] ?? '');
-    const old = field === 'identifiers' ? previous.identifiers : previous[field] ?? '';
+    const key = field === 'pageRange' ? 'page_range' : field;
+    const value = validateSourceValue(field, field === 'identifiers' ? metadata.identifiers : metadata[key] ?? '');
+    const old = field === 'identifiers' ? previous.identifiers : previous[key] ?? '';
     if (onlyMissing && old.length || JSON.stringify(old) === JSON.stringify(value)) continue;
     const prepared = await prepareSourceField(doc, notebook, context, field, value);
     edit.fields.push(...prepared.fields);

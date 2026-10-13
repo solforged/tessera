@@ -123,3 +123,40 @@ fn identifiers_share_field_normalization_and_date_validation() {
     assert!(Notebook::valid_publication_date("1813-01"));
     assert!(!Notebook::valid_publication_date("1813-13"));
 }
+
+#[test]
+fn journal_locators_survive_record_plans_and_citation_exports() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut notebook = Notebook::open(dir.path()).unwrap();
+    for (title, volume, issue, locator) in [
+        ("Russian blues", "104", "19", "7780-7785"),
+        ("Future Tense", "10", "7", "e0132145"),
+        ("Massive Migration", "522", "7555", "207-211"),
+    ] {
+        let metadata: ExtractedMetadata = serde_json::from_value(serde_json::json!({
+            "title": title, "creators": [], "identifiers": ["doi:10.1038/nature14539"],
+            "site": "Journal", "volume": volume, "issue": issue, "pages": locator
+        })).unwrap();
+        let plan = notebook.plan_source_record(&metadata).unwrap();
+        let id = plan.source_id;
+        notebook.apply(&Batch {
+            actor: Actor::Person, reason: None, idempotency_key: None,
+            operations: plan.operations,
+        }).unwrap();
+        let csl: serde_json::Value = serde_json::from_str(
+            &notebook.export(std::slice::from_ref(&id), ExportFormat::CslJson).unwrap()
+        ).unwrap();
+        assert_eq!(csl[0]["volume"], volume);
+        assert_eq!(csl[0]["issue"], issue);
+        assert_eq!(csl[0]["page"], locator);
+        assert!(csl[0].get("number-of-pages").is_none());
+        let bib = notebook.export(std::slice::from_ref(&id), ExportFormat::Bibtex).unwrap();
+        for field in [
+            format!("volume = {{{volume}}}"),
+            format!("number = {{{issue}}}"),
+            format!("pages = {{{locator}}}"),
+        ] {
+            assert!(bib.contains(&field), "{bib}");
+        }
+    }
+}

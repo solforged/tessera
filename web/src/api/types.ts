@@ -523,6 +523,7 @@ export interface ExtractedMetadata {
   published: string | null; publisher: string | null; language: string | null;
   identifiers: string[]; unique_id: string | null; url: string | null;
   site: string | null; description: string | null; cover: string | null;
+  volume?: string | null; issue?: string | null; page_range?: string | null;
 }
 export interface LookupPreview { metadata: ExtractedMetadata; cover_url: string | null; provider: string }
 /** `start` is the entry's character offset in the snapshot text, present once the entry resolves to a passage. */

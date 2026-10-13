@@ -298,12 +298,12 @@ Bibliographic metadata uses ordinary fields and entry/value blocks. The Library 
 | Subtitle | Subtitle |
 | Ordered creators | Author, Editor and Translator person references |
 | Work | First published, Original language |
-| Edition | Published, Publisher, Edition, Series, Number, Pages, Language |
+| Edition | Published, Publisher, Edition, Series, Number, Volume, Issue, Page range, Pages, Language |
 | Identifiers | Repeated Identifier values for ISBN, DOI and arXiv |
 | Description and location | URL, Site, Description, Cover |
 | Reading dates | Started, Finished |
 
-Title remains the page title; tags remain page tags. Citation key and reading state belong to the source capability. Pages is a total page count, not a cited range; Number is the source's number within its series. Publication dates may be a year, year-month or full date.
+Title remains the page title; tags remain page tags. Citation key and reading state belong to the source capability. Pages is a total page count, not a cited range; Number is the source's number within its series. Volume and Issue retain the journal's labels as text. Page range holds a journal locator, including an article number such as `e0132145`. Publication dates may be a year, year-month or full date.
 
 Non-empty bibliographic Pages values must contain only decimal digits and represent a positive whole number no greater than 9,007,199,254,740,991:
 
@@ -328,12 +328,15 @@ Exports read current field values, including authored overrides, and omit absent
 | Edition | `edition` | `edition` |
 | Series | `series` | `collection-title` |
 | Number | `number` | `collection-number` |
+| Volume | `volume` | `volume` |
+| Issue | `number` | `issue` |
+| Page range | `pages` | `page` |
 | Pages | `pages` | `number-of-pages` |
 | URL | `url` | `URL` |
 | Site | `organization` | `container-title` |
 | Description | `abstract` | `abstract` |
 
-Partial original dates retain their precision independently of Published. CSL's `number-of-pages` is a count, never its `page` range.
+Partial original dates retain their precision independently of Published. CSL's `number-of-pages` is a count, never its `page` range. When both exist, BibTeX uses Page range for `pages`; Issue takes precedence over series Number for `number`. Record plans accept `volume`, `issue` and `page_range` (also `page` or `pages`); lookup and snapshot ingestion keep these values in ordinary fields.
 
 Markdown retains the source title, author/date/citation-key heading, URL, highlights and notes, and adds metadata as labelled values. Started and Finished export only as Markdown labels. They are reading history, not publication or access dates, so neither standard format receives a misleading date or custom key.
 
