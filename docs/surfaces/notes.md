@@ -81,7 +81,7 @@ The Backlinks section appears and its count refreshes when incoming links change
 
 ## Aliases
 
-Add alias, in the page menu after Gloss and in the palette, adds the Aliases field after the gloss and starts a new value. `[[` completion and Find name the alias a result was found through as `via Tully`, in faint mono at the row's end.
+Add alias, in the page menu after Gloss and in the palette, adds the Aliases field after the gloss and starts a new value with keyboard focus, ready for the first typed character. `[[` completion and Find name the alias a result was found through as `via Tully`, in faint mono at the row's end.
 
 A hand-typed `[[Name]]` that two or more pages answer to stays unlinked and reads in `--warning` with a dotted underline and a small `?`. Clicking it lists the pages and Create page; the choice links it with the typed wording kept. Imported creators with a shared name read the same way.
 

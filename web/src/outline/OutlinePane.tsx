@@ -634,7 +634,8 @@ function Pane(props: OutlinePaneProps) {
     focusRequest = { id, offset, insert, epoch: ++focusEpoch };
     if (reveal) { scrollReveal = { id, epoch: focusEpoch, caret: true }; scheduleScroll(); }
     setEditing(id);
-    queueMicrotask(() => mountEditor(id));
+    mountEditor(id);
+    if (focusRequest) queueMicrotask(() => mountEditor(id));
     scheduleReport();
   }
   function rowFocus(id: string, extend = false, keepValue = false) {
@@ -904,7 +905,7 @@ function Pane(props: OutlinePaneProps) {
   function addAlias() {
     void (async () => {
       try {
-        const field = await ensureField(props.notebook, 'Aliases');
+        const field = definitionsByName().get('aliases') ?? await ensureField(props.notebook, 'Aliases');
         setCreatedFields(previous => previous.some(existing => existing.id === field.id) ? previous : [...previous, field]);
         if (disposed) return;
         if (zoom()) zoomTo(null);
