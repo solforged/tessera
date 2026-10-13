@@ -137,7 +137,7 @@ The Backlinks section appears and its count refreshes when incoming links change
 
 ## Reference previews
 
-Resting on an inline reference opens its read-only slip at the hovered line, including links in the standfirst and fields. The slip prefers below the link, flips above when that side has more room, and remains inside the originating pane and visible viewport. Its content and fonts load before it is measured and shown; it fades in without travelling or resizing. Refreshing a reference label keeps the same anchor rather than reopening the slip.
+Resting on an inline reference opens its read-only slip at the hovered line, including links in the standfirst and fields. The slip prefers below the link, flips above when that side has more room, and remains inside the originating pane and visible viewport. Its content and fonts load before it is measured and shown; it fades in without moving or resizing. Refreshing a reference label keeps the same anchor rather than reopening the slip.
 
 Pinning with ⌘ or Pin expands the slip to its readings and permits scrolling. Open and Beside retain the originating pane; nested references open further slips within that pane. A passive preview leaves global navigation shortcuts available and closes when the pane navigates; focusing its controls gives the card keyboard ownership until it is closed.
 
