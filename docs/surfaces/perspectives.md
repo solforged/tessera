@@ -14,7 +14,9 @@ Question pages and pages holding active perspectives about themselves or their i
 
 Read puts the title, Gloss and opening on one text edge. Piazzolla remains the prose voice while editing, so entering the editor never changes the measure or the rows below it. Links, completion and undo use the same editor as Outline. Structural edits return to Outline with the caret at the edited block.
 
-Perspectives puts the perspective and holder counts, Compare and Add perspective on the section heading's line, in mono: the counts faint, the actions muted until hovered. A page without an authored heading above its perspectives gets a Perspectives heading. A pane narrower than 480 px moves them to their own line at the text edge. Each slip leads with the source siglum and holder in mono, then its standfirst as a Piazzolla headline at the gloss size and Work as one faint mono line that truncates. A standfirst that repeats the page's Gloss word for word is not printed again. Account has its own quiet label, followed by authored argument relations. Prose-role fields take the full measure; authored non-field prose opens in place. Attributes and citation fields open under Facts, except criteria asked about under Where they disagree. Neither disclosure writes to the notebook. Open perspective ends the slip's last line.
+Perspectives puts the perspective and holder counts, Compare and Add perspective on the section heading's line, in mono: the counts faint, the actions muted until hovered. A page without an authored heading above its perspectives gets a Perspectives heading. A pane narrower than 480 px moves them to their own line at the text edge.
+
+Each slip leads with the source siglum and holder in mono, then its standfirst as a Piazzolla headline at the gloss size and Work as one faint mono line that truncates. A standfirst that repeats the page's Gloss word for word is not printed again. Account has its own quiet label, followed by authored argument relations. Prose-role fields take the full measure; authored non-field prose opens in place. Attributes and citation fields open under Facts, except criteria asked about under Where they disagree. Neither disclosure writes to the notebook. Open perspective ends the slip's last line.
 
 Slips sit in two columns when the pane is at least 620 px wide and stack otherwise, so a split unfolded Fold reads like a phone. A lone perspective takes the full measure. A stored Work that points at a highlight takes its source's siglum.
 
@@ -49,7 +51,7 @@ Make perspective, in the block menu, the palette and `/perspective`, turns a blo
 
 Its row names the holder at control weight. The holder link keeps the text color with a `--line` hairline underline; hover or focus turns both gilt. Attribute values that name pages, such as Work, read the same way, while links in prose stay gilt. Its source's siglum hangs in the margin; rows inside the perspective do not repeat it. A standfirst field drops its label and reads as the sentence under the holder, so the pair reads "Plato / A line of decline". At the Perspectives depth each perspective closes to its holder and standfirst.
 
-Clicking the holder link opens the holder's page beside, like any reference, in Read and Outline. Change holder and File under are in the block menu, palette and slash menu. Its picker lists People and Groups, including their refined types, before other pages. File under lists page and inline questions and concepts first. The pickers write ordinary link tokens and preserve the prose.
+Clicking the holder link opens the holder's page beside, like any reference, in Read and Outline. Change holder and File under are in the block menu's Perspective…, the palette and the slash menu. Its picker lists People and Groups, including their refined types, before other pages. File under lists page and inline questions and concepts first. The pickers write ordinary link tokens and preserve the prose.
 
 Use place, in the same menus, returns to the nearest ancestor question or the page. It removes the subject only when that link is a standalone token immediately after the holder. Otherwise the action shows why the author must edit the prose. Each change has one undo step; the palette names the selected perspective.
 
@@ -72,7 +74,7 @@ Matrix groups every subject into its own sheet. Holders occupy rows and the subj
 
 ### Perspective sheet
 
-Compare perspectives, in the page menu and the palette once a page has two perspectives filed under it, opens a perspective sheet under a Perspective sheet eyebrow. Its toolbar names the subject in Piazzolla with a mono count, such as `8 perspectives by 7 holders`. Perspectives and Criteria share the same selection, initially all perspectives. Choose perspectives adds or removes columns while retaining at least one.
+Compare perspectives, from the Compare tab and the palette once a page has two perspectives filed under it, opens a perspective sheet under a Perspective sheet eyebrow. Its toolbar names the subject in Piazzolla with a mono count, such as `8 perspectives by 7 holders`. Perspectives and Criteria share the same selection, initially all perspectives. Choose perspectives adds or removes columns while retaining at least one.
 
 Each column shows, in order:
 
@@ -164,9 +166,9 @@ Every node and source opens its page; Shift opens it beside.
 
 ## Argument relations
 
-Supports…, Disputes…, Qualifies… and Answers… in the block menu, Commands and slash completion mark the selected block as a relation. On an empty block, the action opens link completion for the target. Existing edges offer Change kind and Remove relation; removal keeps the text and children.
+Supports…, Disputes…, Qualifies… and Answers…, under Make… → Relation… in the block menu and in Commands and slash completion, mark the selected block as a relation. On an empty block, the action opens link completion for the target. Existing edges offer Change kind and Remove relation under the block menu's Relation…; removal keeps the text and children.
 
-Add relation… on a perspective, assessment or question asks for the kind and target, then adds a last child edge as one undoable change. A question, perspective or assessment cannot itself become an edge; the unavailable action explains why.
+Add relation… on a perspective, assessment or question asks for the kind and target, then adds a last child edge as one undoable change. A question, perspective or assessment cannot itself become an edge, so its Make… leaves Relation… out; Commands and slash completion explain why.
 
 An edge keeps its ordinary editable row. Its kind appears before the text as a quiet small-caps field label. A problem marker explains a missing or deleted target, or an Answers target that is not a question, without changing the text.
 
