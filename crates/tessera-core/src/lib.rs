@@ -99,6 +99,6 @@ pub use references::{
     Mention, PageReferences, ReferenceCount, ReferenceGroup, ReferenceSource, UnlinkedMentions,
 };
 pub use review_store::{ReviewForecastDay, ReviewStats};
+pub use revisit_store::{NoteState, RevisitAction, RevisitEvent, RevisitRow, RevisitSnapshot};
 pub use spreads::{Spread, SpreadColumn, SpreadField, SpreadReference, SpreadValue};
 pub use streams::{BatchSubtree, BatchSubtrees, StreamArrival};
-pub use revisit_store::{NoteState, RevisitAction, RevisitEvent, RevisitRow, RevisitSnapshot};
