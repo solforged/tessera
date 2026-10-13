@@ -9,6 +9,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 - Kept cover-screen writing, capture, date pickers and commands above the browser keyboard.
 - Contained long library bylines and pane titles, and enlarged related-section and highlight backlink touch targets.
+- Preserved prose font metrics when selecting text across outline paragraphs.
 
 
 ## Unreleased

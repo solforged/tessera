@@ -279,7 +279,7 @@
 /* Type pills: a hue tint behind the name. The hue is a CSS variable the renderer may set; default is neutral. */
 .outline-tag { --pill-hue: var(--type-6); display: inline-block; font: inherit; font-size: var(--text-meta); line-height: var(--line-meta); font-weight: var(--weight-control); color: var(--text); background: color-mix(in srgb, var(--pill-hue) 12%, transparent); border: 1px solid color-mix(in srgb, var(--pill-hue) 30%, transparent); border-radius: var(--radius-pill); padding: 1px var(--space-8); margin: 0 var(--space-2); vertical-align: 2px; cursor: pointer; transition: background-color var(--motion-fast) var(--motion-ease); }
 .outline-tag:hover { background: color-mix(in srgb, var(--pill-hue) 22%, transparent); }
-.outline-body mark { background: var(--text-selection); color: inherit; }
+.outline-body mark { background: var(--text-selection); color: inherit; font-weight: inherit; }
 .row-archived { color: var(--muted); }
 .archive-badge { font-size: var(--text-meta); line-height: var(--line-meta); border: 1px solid var(--line); border-radius: var(--radius-control); padding: 0 var(--space-4); }
 .archive-notice, .outline-message { font-size: var(--text-control); line-height: var(--line-control); }
