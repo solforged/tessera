@@ -116,6 +116,8 @@ Enter or double-click edits a single plain text, number, URL or identifier value
 
 Inline text editors keep authored line breaks. Shift-Enter adds a newline; Enter commits the value.
 
+Cell focus follows the note and field, so an edit that re-sorts the table keeps the keyboard on that note's value.
+
 ⌘Z and ⌘⇧Z in the table undo and redo its value edits. Clearing a value preserves its block and child notes; refilling reuses a blank value block. Inline editors do not replace structured text with a rendered label.
 
 ### Columns

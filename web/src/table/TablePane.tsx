@@ -22,7 +22,8 @@ import { FilterPopup } from './FilterPopup';
 import { addFilter, chooseSort, copyQuery, fieldEntryId, fieldEntryText, filterLabel, queriesEqual, removeFilter, removeSort, sortLabel } from './query';
 import { sourceText } from './sources';
 import type { TableSource } from './sources';
-import { cardFields, rowSources, sourceDefinition, splitMembers } from './register';
+import { cardFields, retainCell, rowSources, sourceDefinition, splitMembers } from './register';
+import type { TableCell } from './register';
 import './table.css';
 
 type TableTarget = Extract<OpenTarget, { kind: 'table' }>;
@@ -61,7 +62,7 @@ export function TablePane(props: TablePaneProps) {
   let appendController: AbortController | undefined;
   const [error, setError] = createSignal('');
   const [popup, setPopup] = createSignal<PopupState>(null);
-  const [focused, setFocused] = createSignal({ row: 0, column: 0 });
+  const [focused, setFocused] = createSignal<TableCell>({ rowId: null, fieldId: null });
   const [selectedRow, setSelectedRow] = createSignal<string | null>(null);
   const [editing, setEditing] = createSignal<{ row: QueryRow; field: FieldDefinition; text: string } | null>(null);
   const [deleted, setDeleted] = createSignal<View | null>(null);
@@ -72,20 +73,16 @@ export function TablePane(props: TablePaneProps) {
   const history: { doc: PageDocument; rowId: string; fieldId: string }[] = [];
   const undone: typeof history = [];
   onCleanup(() => { for (const doc of documents.values()) doc.release(); });
-  const focusCell = (rowId: string, fieldId: string) => {
-    region?.querySelector<HTMLElement>(`tr[data-block-id="${rowId}"] [data-field-id="${fieldId}"]`)?.focus({ preventScroll: true });
+  const focusCell = (rowId: string, fieldId: string | null) => {
+    region?.querySelector<HTMLElement>(`tr[data-block-id="${rowId}"] ${fieldId ? `[data-field-id="${fieldId}"]` : '.table-title-column.table-cell'}`)?.focus({ preventScroll: true });
   };
   const showResult = (next: QueryResult) => {
     const cell = document.activeElement?.closest<HTMLElement>('.table-cell');
     const rowId = cell?.closest<HTMLElement>('tr')?.dataset.blockId;
-    const fieldId = cell?.dataset.fieldId;
-    const column = cell?.dataset.column;
+    const fieldId = cell?.dataset.fieldId ?? null;
     const restore = !!cell && region.contains(cell);
     setResult(next);
-    if (restore && rowId) {
-      if (fieldId) focusCell(rowId, fieldId);
-      else region.querySelector<HTMLElement>(`tr[data-block-id="${rowId}"] [data-column="${column}"]`)?.focus({ preventScroll: true });
-    }
+    if (restore && rowId) focusCell(rowId, fieldId);
   };
   const refreshCells = async () => showResult(await api.query({ ...copyQuery(query()), offset: 0, limit: Math.max(pageSize(), result()?.rows.length ?? 0) }));
   // Columns past the right edge get a fade over the table rows and a count in the header, so a wide register says it scrolls.
@@ -137,13 +134,8 @@ export function TablePane(props: TablePaneProps) {
     const kind = fieldById(id)?.kind;
     return kind === 'text' || kind === 'url' ? 'var(--table-source-width)' : kind === 'number' || kind === 'checkbox' || kind === 'date' ? 'var(--table-compact-width)' : 'var(--table-field-width)';
   };
-  let previousColumns: string[] = [];
   createEffect(() => {
-    const columns = visibleColumns(); const rowCount = members().notes.length;
-    const current = untrack(focused); const field = previousColumns[current.column - 1];
-    const column = current.column === 0 ? 0 : field ? Math.max(0, columns.indexOf(field) + 1) : Math.min(current.column, columns.length);
-    if (current.column !== column || current.row >= rowCount) setFocused({ row: Math.max(0, Math.min(current.row, rowCount - 1)), column });
-    previousColumns = columns;
+    setFocused(retainCell(untrack(focused), members().notes, visibleColumns()));
   });
   const reportView = (value = query()) => props.onViewChange({
     query: copyQuery(value), scroll: scroll?.scrollTop ?? props.view.scroll,
@@ -385,10 +377,11 @@ export function TablePane(props: TablePaneProps) {
     const current = editing(); if (!current) return;
     setEditing(null);
     const original = current.row.values[current.field.id]?.[0]?.text ?? '';
-    if (current.text === original) return;
-    try { await writeCell(current.row, current.field, current.text); }
-    catch (reason) { message(reason); }
-    requestAnimationFrame(() => region?.querySelector<HTMLElement>(`[data-row="${focused().row}"][data-column="${focused().column}"]`)?.focus());
+    if (current.text !== original) {
+      try { await writeCell(current.row, current.field, current.text); }
+      catch (reason) { message(reason); }
+    }
+    requestAnimationFrame(() => focusCell(current.row.block.block.id, current.field.id));
   };
   const replayCell = async (redo: boolean) => {
     const source = redo ? undone : history;
@@ -405,17 +398,25 @@ export function TablePane(props: TablePaneProps) {
       event.preventDefault(); event.stopPropagation(); void replayCell(event.shiftKey).catch(message); return;
     }
     if (event.target instanceof HTMLElement && event.target.closest('button, a')) return;
-    const current = focused(); const row = members().notes[current.row];
+    const current = focused(); const rows = members().notes; const columns = visibleColumns();
+    const rowIndex = Math.max(0, rows.findIndex(row => row.block.block.id === current.rowId));
+    const columnIndex = current.fieldId ? columns.indexOf(current.fieldId) + 1 : 0;
+    const row = rows[rowIndex];
     if (event.key === 'Escape') { region.focus(); event.preventDefault(); return; }
-    const field = current.column ? fieldById(visibleColumns()[current.column - 1]!) : undefined;
+    const field = current.fieldId ? fieldById(current.fieldId) : undefined;
     if ((event.key === 'Enter' || event.key === ' ' && field?.kind === 'checkbox') && row) {
-      if (!current.column) openRow(row, event.shiftKey);
+      if (!current.fieldId) openRow(row, event.shiftKey);
       else if (field && event.target instanceof HTMLElement) startEdit(row, field, event.target);
       event.preventDefault(); return;
     }
     if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) return;
-    const next = { row: Math.max(0, Math.min((members().notes.length || 1) - 1, current.row + (event.key === 'ArrowDown' ? 1 : event.key === 'ArrowUp' ? -1 : 0))), column: Math.max(0, Math.min(visibleColumns().length, current.column + (event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0))) };
-    setFocused(next); region.querySelector<HTMLElement>(`[data-row="${next.row}"][data-column="${next.column}"]`)?.focus(); event.preventDefault();
+    const nextRow = rows[Math.max(0, Math.min(rows.length - 1, rowIndex + (event.key === 'ArrowDown' ? 1 : event.key === 'ArrowUp' ? -1 : 0)))];
+    const nextColumn = Math.max(0, Math.min(columns.length, columnIndex + (event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0)));
+    if (nextRow) {
+      const next = { rowId: nextRow.block.block.id, fieldId: columns[nextColumn - 1] ?? null };
+      setFocused(next); focusCell(next.rowId, next.fieldId);
+    }
+    event.preventDefault();
   };
   onMount(() => {
     if (props.active) region.focus({ preventScroll: true });
@@ -460,16 +461,16 @@ export function TablePane(props: TablePaneProps) {
           <thead><tr><th scope="col" class="table-title-column"><Button aria-haspopup="menu" onClick={event => columnMenu(event.currentTarget, undefined)}>Title</Button></th>
           <For each={visibleColumns()}>{id => <th scope="col"><Button aria-haspopup="menu" onClick={event => columnMenu(event.currentTarget, fieldById(id))}>{fieldById(id)?.name ?? id}</Button></th>}</For>
           <Show when={showRefs()}><th scope="col" class="table-refs" title={`Derived from ${sourceField()?.name ?? 'Source'}`}>Refs</th></Show>
-        </tr></thead><tbody><For each={members().notes}>{(row, rowIndex) => <tr data-block-id={row.block.block.id} classList={{ selected: selectedRow() === row.block.block.id }} onClick={event => {
+        </tr></thead><tbody><For each={members().notes}>{row => <tr data-block-id={row.block.block.id} classList={{ selected: selectedRow() === row.block.block.id }} onClick={event => {
           if (window.matchMedia('(pointer: coarse) and (min-width: 900px)').matches && !(event.target as HTMLElement).closest('button, input, textarea, a')) openRow(row, true);
         }}>
-          <td class="table-title-column table-cell" data-row={rowIndex()} data-column={0} tabIndex={focused().row === rowIndex() && focused().column === 0 ? 0 : -1} onFocus={() => { setFocused({ row: rowIndex(), column: 0 }); setSelectedRow(row.block.block.id); }} onClick={event => { event.stopPropagation(); openRow(row, event.shiftKey); }}>
+          <td class="table-title-column table-cell" tabIndex={focused().rowId === row.block.block.id && focused().fieldId === null ? 0 : -1} onFocus={() => { setFocused({ rowId: row.block.block.id, fieldId: null }); setSelectedRow(row.block.block.id); }} onClick={event => { event.stopPropagation(); openRow(row, event.shiftKey); }}>
             <TableCellText>{expanded => <BlockText text={preview(props.notebook.lookup(row.block.block.id)()?.text ?? row.block.block.text, expanded)} notebook={props.notebook} interactive={false} />}</TableCellText>
             <Button class="table-row-beside" label="Open note beside" onClick={event => { event.stopPropagation(); openRow(row, true); }}>↗</Button>
           </td>
-          <For each={visibleColumns()}>{(id, columnIndex) => {
+          <For each={visibleColumns()}>{id => {
             const field = () => fieldById(id); const current = () => editing();
-            return <td class={`table-cell table-kind-${field()?.kind ?? 'text'}`} data-row={rowIndex()} data-column={columnIndex() + 1} data-field-id={id} tabIndex={focused().row === rowIndex() && focused().column === columnIndex() + 1 ? 0 : -1} onFocus={() => { setFocused({ row: rowIndex(), column: columnIndex() + 1 }); setSelectedRow(row.block.block.id); }} onClick={event => { event.stopPropagation(); if ((event.target as HTMLElement).closest('input, textarea, button, a')) return; event.currentTarget.focus({ preventScroll: true }); if (field()?.kind === 'checkbox') startEdit(row, field()!, event.currentTarget); }} onDblClick={event => { event.stopPropagation(); if (!(event.target as HTMLElement).closest('input, textarea') && field() && field()!.kind !== 'checkbox') startEdit(row, field()!, event.currentTarget); }}>
+            return <td class={`table-cell table-kind-${field()?.kind ?? 'text'}`} data-field-id={id} tabIndex={focused().rowId === row.block.block.id && focused().fieldId === id ? 0 : -1} onFocus={() => { setFocused({ rowId: row.block.block.id, fieldId: id }); setSelectedRow(row.block.block.id); }} onClick={event => { event.stopPropagation(); if ((event.target as HTMLElement).closest('input, textarea, button, a')) return; event.currentTarget.focus({ preventScroll: true }); if (field()?.kind === 'checkbox') startEdit(row, field()!, event.currentTarget); }} onDblClick={event => { event.stopPropagation(); if (!(event.target as HTMLElement).closest('input, textarea') && field() && field()!.kind !== 'checkbox') startEdit(row, field()!, event.currentTarget); }}>
               <Show when={current()?.row.block.block.id === row.block.block.id && current()?.field.id === id} fallback={<TableFieldValue field={field()} values={row.values[id] ?? []} notebook={props.notebook} hideCount={id === sourceField()?.id} onPill={(value, anchor, beside) => { if (field()) void openPill(row, field()!, value, anchor, beside).catch(message); }} onSources={(anchor, sources) => setPopup({ kind: 'sources', anchor, label: field()?.name ?? 'Sources', sources })} />}>
                 <textarea class="input table-cell-input" aria-label={`Edit ${field()?.name ?? 'field'} value`} placeholder={field() ? valuePlaceholders[field()!.kind] : undefined} inputmode={field()?.kind === 'number' ? 'decimal' : field()?.kind === 'url' ? 'url' : undefined} rows={Math.min(8, Math.max(1, (current()?.text.match(/\n/g)?.length ?? 0) + 1))} value={current()?.text ?? ''} ref={input => queueMicrotask(() => { input.focus(); input.select(); })} onInput={event => { const text = event.currentTarget.value; setEditing(value => value ? { ...value, text } : null); }} onKeyDown={event => {
                   if (event.isComposing) return;

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { BlockKind, FieldDefinition, QueryRow } from '../api/types';
-import { cardFields, rowSources, sourceDefinition, splitMembers } from './register';
+import { cardFields, retainCell, rowSources, sourceDefinition, splitMembers } from './register';
 
 function row(id: string, kind: BlockKind, values: Record<string, string[]> = {}): QueryRow {
   const block = { id, kind, parent_id: kind === 'block' ? 'page' : null, page_id: kind === 'block' ? 'page' : id, text: id, heading: null, archived: false, revision: 0, created_at: 0, updated_at: 0 } as const;
@@ -36,5 +36,20 @@ describe('table register presentation', () => {
     expect(cardFields(note, ['title'], fields, source).map(field => field.id)).toEqual(['title']);
     expect(cardFields(row('empty', 'page', { area: [' '] }), ['area'], fields, source)).toEqual([]);
     expect(cardFields(row('choice-only', 'page', { area: ['[[topic]]'], title: ['Subtitle'] }), ['area', 'title'], fields, undefined).map(field => field.id)).toEqual(['area', 'title']);
+  });
+});
+
+describe('table cell ownership', () => {
+  test('keeps the edited entity and field through sorting in either direction', () => {
+    const rows = [row('Ibn', 'page'), row('Spengler', 'page'), row('Toynbee', 'page'), row('Polybius', 'page')];
+    const cell = { rowId: 'Polybius', fieldId: 'lived' };
+    expect(retainCell(cell, [rows[3]!, ...rows.slice(0, 3)], ['gloss', 'lived'])).toBe(cell);
+    expect(retainCell(cell, rows, ['lived', 'gloss'])).toBe(cell);
+  });
+  test('uses the title when the field is hidden and a surviving entity when the row leaves', () => {
+    const cell = { rowId: 'Polybius', fieldId: 'lived' };
+    expect(retainCell(cell, [row('Polybius', 'page')], ['gloss'])).toEqual({ rowId: 'Polybius', fieldId: null });
+    expect(retainCell(cell, [row('Ibn', 'page')], ['lived'])).toEqual({ rowId: 'Ibn', fieldId: 'lived' });
+    expect(retainCell(cell, [], ['lived'])).toEqual({ rowId: null, fieldId: 'lived' });
   });
 });

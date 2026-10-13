@@ -3,6 +3,15 @@ import { textTokens } from '../document/text-tokens';
 import { sourceText } from './sources';
 import type { TableSource } from './sources';
 
+export interface TableCell { rowId: string | null; fieldId: string | null }
+
+/** Re-sorting retains the entity and field; only a removed row or hidden column changes the target. */
+export function retainCell(cell: TableCell, rows: readonly QueryRow[], columns: readonly string[]): TableCell {
+  const rowId = rows.some(row => row.block.block.id === cell.rowId) ? cell.rowId : rows[0]?.block.block.id ?? null;
+  const fieldId = cell.fieldId && columns.includes(cell.fieldId) ? cell.fieldId : null;
+  return rowId === cell.rowId && fieldId === cell.fieldId ? cell : { rowId, fieldId };
+}
+
 /** Block memberships remain visible, but never masquerade as titled notes. */
 export function splitMembers(rows: readonly QueryRow[]): { notes: QueryRow[]; blocks: QueryRow[] } {
   const notes: QueryRow[] = []; const blocks: QueryRow[] = [];
