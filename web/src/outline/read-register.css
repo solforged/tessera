@@ -62,6 +62,8 @@
 }
 .reading-register .inline-field-value[data-field-role="attribute"] > .outline-field-label,
 .reading-register .inline-field-value[data-field-role="citation"] > .outline-field-label { display: inline-flex; }
+/* Work is the slip's attribution line under the Gist, not a labelled attribute. */
+.reading-register .reading-work .inline-field-value > .outline-field-label { display: none; }
 .reading-register .inline-field-value[data-field-role="standfirst"] .outline-body { margin-left: 0; }
 .reading-register .inline-field-value[data-field-role="prose"] .outline-body { margin-left: 0; flex-basis: 100%; }
 .reading-field-prose:empty { display: none; }
