@@ -10,6 +10,8 @@ import { statusIcons, statusLabels } from './TaskControls';
 import { isFinished } from './task-labels';
 import { calendarWeekDates, fetchWeekTaskRange, keyboardWeekSchedule, layoutWeekTimedEntries, mergeWeekTaskRows, mondayWeekStart, scheduleWeekTask, snapWeekMinutes, weekTaskEntries } from './week-calendar';
 import type { IncompleteWeekRange, TimedWeekEntry, WeekEntry } from './week-calendar';
+import { WeekScheduleHistory } from './week-schedule';
+import type { ScheduledWeekTask } from './week-schedule';
 import './agenda.css';
 import './week-calendar.css';
 
@@ -17,12 +19,6 @@ export interface WeekCalendarProps {
   date: string;
   notebook: NotebookClient;
   onOpen(target: OpenTarget, beside: boolean): void;
-}
-
-interface OptimisticTask {
-  row: TaskRow;
-  pending: boolean;
-  committedSequence: number | null;
 }
 
 interface WeekDrop {
@@ -48,7 +44,7 @@ export function WeekCalendar(props: WeekCalendarProps) {
   const start = createMemo(() => mondayWeekStart(props.date));
   const dates = createMemo(() => calendarWeekDates(props.date));
   const [fetchedRows, setFetchedRows] = createSignal<TaskRow[]>([]);
-  const [optimistic, setOptimistic] = createSignal(new Map<string, OptimisticTask>());
+  const [optimistic, setOptimistic] = createSignal(new Map<string, ScheduledWeekTask>());
   const [incomplete, setIncomplete] = createSignal<IncompleteWeekRange[]>([]);
   const [loading, setLoading] = createSignal(true);
   const [error, setError] = createSignal('');
@@ -66,6 +62,18 @@ export function WeekCalendar(props: WeekCalendarProps) {
   let initializedStart: string | null = null;
   let acknowledgedSequence = 0;
   let disposed = false;
+  const history = new WeekScheduleHistory(props.notebook, (id, value) => {
+    if (disposed) return;
+    if (value.committedSequence !== null) acknowledgedSequence = Math.max(acknowledgedSequence, value.committedSequence);
+    setOptimistic(values => new Map(values).set(id, value));
+    if (value.pending) focusTask(id, 'scheduled');
+    else {
+      const task = value.row.task;
+      const label = `${task.scheduled}${task.scheduled_time ? ` at ${task.scheduled_time}` : ', all-day'}`;
+      setAnnouncement(`Scheduled ${value.row.source.block.text || 'Empty task'} for ${label}.`);
+      setRefresh(value => value + 1);
+    }
+  });
 
   const rows = createMemo(() => {
     const byId = new Map(fetchedRows().map(row => [row.source.block.id, row]));
@@ -160,46 +168,38 @@ export function WeekCalendar(props: WeekCalendarProps) {
     });
   }
 
-  async function reschedule(row: TaskRow, task: TaskState, restoreFocus: WeekEntry['kind'] | null) {
-    const id = row.source.block.id;
-    if (optimistic().get(id)?.pending || task.scheduled === row.task.scheduled && task.scheduled_time === row.task.scheduled_time) return;
-    const previous = optimistic().get(id);
+  async function reschedule(row: TaskRow, task: TaskState, restoreFocus: WeekEntry['kind']) {
     setCommandError('');
-    setOptimistic(values => new Map(values).set(id, { row: { ...row, task }, pending: true, committedSequence: null }));
-    if (restoreFocus) focusTask(id, restoreFocus);
-    const label = `${task.scheduled}${task.scheduled_time ? ` at ${task.scheduled_time}` : ', all-day'}`;
-    setAnnouncement(`Saving schedule for ${row.source.block.text || 'Empty task'}: ${label}.`);
     try {
-      const result = await props.notebook.commit([{ op: 'set_task', id, base_revision: row.source.block.revision, task }], `Reschedule task to ${label}`);
-      acknowledgedSequence = Math.max(acknowledgedSequence, result.seq);
-      if (disposed) return;
-      const revision = result.revisions.find(value => value.id === id)?.revision ?? row.source.block.revision;
-      setOptimistic(values => new Map(values).set(id, {
-        row: { ...row, source: { ...row.source, block: { ...row.source.block, revision } }, task },
-        pending: false, committedSequence: result.seq,
-      }));
-      setAnnouncement(`Scheduled ${row.source.block.text || 'Empty task'} for ${label}.`);
-      setRefresh(value => value + 1);
+      const saving = history.schedule(row, task);
+      focusTask(row.source.block.id, restoreFocus);
+      await saving;
     } catch (reason) {
-      if (disposed) return;
-      setOptimistic(values => {
-        const next = new Map(values);
-        if (previous) next.set(id, previous); else next.delete(id);
-        return next;
-      });
-      setCommandError(`Could not reschedule ${row.source.block.text || 'this task'}: ${reason instanceof Error ? reason.message : String(reason)}. The previous schedule was restored.`);
-      setAnnouncement('');
-      if (restoreFocus) focusTask(id, restoreFocus);
+      if (!disposed) {
+        setCommandError(`Could not reschedule ${row.source.block.text || 'this task'}: ${reason instanceof Error ? reason.message : String(reason)}.`);
+        setAnnouncement('');
+        focusTask(row.source.block.id, restoreFocus);
+      }
     }
+  }
+
+  function historyKeyDown(event: KeyboardEvent) {
+    if (!(event.metaKey || event.ctrlKey) || event.altKey || event.key.toLowerCase() !== 'z') return;
+    event.preventDefault(); event.stopPropagation();
+    setCommandError('');
+    void history.undo(event.shiftKey).catch(reason => {
+      if (!disposed) setCommandError(`Could not restore the schedule: ${reason instanceof Error ? reason.message : String(reason)}.`);
+    });
   }
 
   function taskKeyDown(event: KeyboardEvent, entry: WeekEntry) {
     if (!event.altKey || event.ctrlKey || event.metaKey || !scheduleKeys[event.key]) return;
     event.preventDefault(); event.stopPropagation();
-    if (drag || optimistic().get(entry.row.source.block.id)?.pending) return;
-    const task = keyboardWeekSchedule(entry.row.task, entry.date, event.key);
+    if (drag) return;
+    const row = history.latest(entry.row);
+    const task = keyboardWeekSchedule(row.task, row.task.scheduled ?? entry.date, event.key);
     if (!task) { setCommandError('The scheduled date must stay between 0001-01-01 and 9999-12-31.'); return; }
-    void reschedule(entry.row, task, entry.kind);
+    void reschedule(row, task, entry.kind);
   }
 
   function updateDrop() {
@@ -270,7 +270,7 @@ export function WeekCalendar(props: WeekCalendarProps) {
     const previous = finishDrag();
     if (!previous?.active) return;
     event.preventDefault();
-    if (target) void reschedule(previous.row, scheduleWeekTask(previous.row.task, target.date, target.minutes), null);
+    if (target) void reschedule(previous.row, scheduleWeekTask(history.latest(previous.row).task, target.date, target.minutes), 'scheduled');
     else setAnnouncement('Schedule unchanged. Drop on an all-day column or a time slot to reschedule.');
   }
 
@@ -297,6 +297,7 @@ export function WeekCalendar(props: WeekCalendarProps) {
   onCleanup(() => { disposed = true; finishDrag(); });
 
   return <section ref={root} class="week-calendar" aria-label={`Week of ${start() ?? props.date}`} aria-busy={loading()} tabIndex={-1}
+    onKeyDown={historyKeyDown}
     onLostPointerCapture={event => { if (drag?.pointerId === event.pointerId) cancelDrag(); }}
     on:click={{ capture: true, handleEvent: event => {
       if (event.detail > 0 && suppressNextClick) {

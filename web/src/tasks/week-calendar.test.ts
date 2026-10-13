@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test';
-import type { Block, TaskQuery, TaskQueryResult, TaskRow, TaskState, TaskStatus } from '../api/types';
+import type { Block, Committed, Operation, TaskQuery, TaskQueryResult, TaskRow, TaskState, TaskStatus } from '../api/types';
 import { calendarWeekDates, fetchWeekTaskRange, keyboardWeekSchedule, layoutWeekTimedEntries, mergeWeekTaskRows, mondayWeekStart, scheduleWeekTask, shiftCalendarDate, snapWeekMinutes, timeMinutes, weekRangeQuery, weekTaskEntries } from './week-calendar';
+import { WeekScheduleHistory } from './week-schedule';
+import type { ScheduledWeekTask } from './week-schedule';
 
 const task: TaskState = {
   status: 'waiting', scheduled: '2026-10-06', scheduled_time: '10:30',
@@ -212,5 +214,59 @@ describe('complete week task queries', () => {
 
   test('propagates query failures for the calendar error state', async () => {
     await expect(fetchWeekTaskRange(async () => { throw new Error('Unavailable'); }, 'scheduled', '2026-10-05', '2026-10-11')).rejects.toThrow('Unavailable');
+  });
+});
+
+describe('ordered week scheduling history', () => {
+  test('rapid day and time moves compose while the first commit is pending', async () => {
+    const first = Promise.withResolvers<Committed>();
+    const calls: Operation[][] = [];
+    const values: ScheduledWeekTask[] = [];
+    const history = new WeekScheduleHistory({ commit: async operations => {
+      calls.push([...operations]);
+      if (calls.length === 1) return first.promise;
+      return { seq: calls.length, revisions: [{ id: 'task', revision: calls.length + 1 }] } as Committed;
+    } }, (_id, value) => values.push(value));
+    const original = row('task');
+    const right = history.schedule(original, keyboardWeekSchedule(original.task, task.scheduled!, 'ArrowRight')!);
+    const pending = history.latest(original);
+    const down = history.schedule(pending, keyboardWeekSchedule(pending.task, pending.task.scheduled!, 'ArrowDown')!);
+    expect(history.latest(original).task).toMatchObject({ scheduled: '2026-10-07', scheduled_time: '10:45', deadline: task.deadline, repeater: task.repeater });
+    await Promise.resolve();
+    expect(calls).toHaveLength(1);
+    first.resolve({ seq: 1, revisions: [{ id: 'task', revision: 2 }] } as Committed);
+    await Promise.all([right, down]);
+    expect(calls[1]![0]).toMatchObject({ op: 'set_task', base_revision: 2, task: { scheduled: '2026-10-07', scheduled_time: '10:45' } });
+    expect(values.at(-1)).toMatchObject({ pending: false, committedSequence: 2 });
+  });
+
+  test('a drop can be undone before its commit returns and redone with the new revision', async () => {
+    const first = Promise.withResolvers<Committed>();
+    const calls: Operation[][] = [];
+    const history = new WeekScheduleHistory({ commit: async operations => {
+      calls.push([...operations]);
+      if (calls.length === 1) return first.promise;
+      return { seq: calls.length, revisions: [{ id: 'task', revision: calls.length + 1 }] } as Committed;
+    } }, () => {});
+    const original = row('task');
+    const drop = history.schedule(original, scheduleWeekTask(original.task, '2026-10-08', null));
+    const undo = history.undo();
+    expect(history.latest(original).task).toEqual(original.task);
+    first.resolve({ seq: 1, revisions: [{ id: 'task', revision: 2 }] } as Committed);
+    await Promise.all([drop, undo]);
+    expect(calls[1]![0]).toMatchObject({ base_revision: 2, task: original.task });
+    await history.undo(true);
+    expect(calls[2]![0]).toMatchObject({ base_revision: 3, task: { scheduled: '2026-10-08', scheduled_time: null } });
+  });
+
+  test('failed schedules roll back and do not leave an undo entry', async () => {
+    const values: ScheduledWeekTask[] = [];
+    let commits = 0;
+    const history = new WeekScheduleHistory({ commit: async () => { commits++; throw new Error('Changed elsewhere'); } }, (_id, value) => values.push(value));
+    const original = row('task');
+    await expect(history.schedule(original, scheduleWeekTask(original.task, '2026-10-08', null))).rejects.toThrow('Changed elsewhere');
+    expect(values.at(-1)).toMatchObject({ row: original, pending: false });
+    await history.undo();
+    expect(commits).toBe(1);
   });
 });
