@@ -155,7 +155,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     { id: 'depth-more', title: 'Show more of the page', section: 'Page', keys: [']'], disabledReason: () => depthReason() ?? (depth() === 'full' ? 'The whole page is showing.' : undefined), run: () => stepDepth(1) },
     { id: 'question-root', title: 'Make question', description: 'Marks this page as an active question.', section: 'Page', disabledReason: () => doc.root()?.kind !== 'page' || capabilities.busy(props.pageId) ? 'Page is unavailable.' : undefined, run: () => {
       const item = investigationItems(props.pageId).find(item => item.label === 'Make question');
-      if (item && !item.disabledReason) item.action();
+      if (item && !item.disabledReason) item.action?.();
       else if (context.heading) setMenu({ anchor: context.heading, label: 'Question', items: investigationItems(props.pageId) });
     } },
     { id: 'add-relation-root', title: 'Add relation…', section: 'Page', disabledReason: () => addRelationReason(doc.root()), run: () => relationMenu(props.pageId, true) },
@@ -224,7 +224,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
       },
       run: () => {
         const item = investigationItems(selected() ?? props.pageId).find(item => item.label === title);
-        if (item && !item.disabledReason) item.action();
+        if (item && !item.disabledReason) item.action?.();
       },
     })),
     { id: 'project', title: 'Project', section: 'Outline', keys: ['Space o'], disabledReason: () => selected() && doc.block(selected()!)?.project ? undefined : 'Select a project.', run: () => selected() && capabilities.open(selected()!, 'project') },
@@ -342,7 +342,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     if (!anchor) return;
     const prior = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const refocus = () => { if (prior?.isConnected) prior.focus({ preventScroll: true }); };
-    setMenu({ anchor, label, items: items.map(item => ({ ...item, action: () => { refocus(); item.action(); } })) });
+    setMenu({ anchor, label, items: items.map(item => ({ ...item, action: () => { refocus(); item.action?.(); } })) });
   }
   function statusMenu(id: string) {
     const task = doc.block(id)?.task;

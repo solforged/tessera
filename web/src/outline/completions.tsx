@@ -543,16 +543,16 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
         disabledReason: id => investigationItems(id).find(item => item.label === `Make ${kind}`)?.disabledReason ?? (kind === 'assessment' && doc.block(id)?.question ? 'Remove the question first.' : doc.block(id)?.[kind] ? `Already a ${kind}.` : undefined),
         run: id => {
           const item = investigationItems(id).find(item => item.label === `Make ${kind}`);
-          if (item && !item.disabledReason) item.action();
+          if (item && !item.disabledReason) item.action?.();
         },
       })),
       { id: 'question-parent', title: 'Set parent question…', secondary: questionDescriptions['Set parent question…'], aliases: ['parent', 'part of', 'branch'], section: 'Question', icon: 'question-open', when: block => !!block?.question, run: id => capabilities.open(id, 'question-parent') },
-      { id: 'remove-parent', title: 'Remove parent', secondary: questionDescriptions['Remove parent'], aliases: [], section: 'Question', icon: 'question-open', when: block => !!block?.question?.state.parent, run: id => investigationItems(id).find(item => item.label === 'Remove parent')?.action() },
+      { id: 'remove-parent', title: 'Remove parent', secondary: questionDescriptions['Remove parent'], aliases: [], section: 'Question', icon: 'question-open', when: block => !!block?.question?.state.parent, run: id => investigationItems(id).find(item => item.label === 'Remove parent')?.action?.() },
       ...Object.keys(questionVerbs).map((title): SlashItem => ({
         id: title.toLowerCase().replaceAll(' ', '-'), title, aliases: [], section: 'Question', icon: 'question-open', secondary: questionVerbs[title],
         when: block => !!block?.question || !!block?.assessment,
         disabledReason: id => investigationItems(id).find(item => item.label === title)?.disabledReason ?? (!investigationItems(id).some(item => item.label === title) ? 'Select a matching question or assessment.' : undefined),
-        run: id => { const item = investigationItems(id).find(item => item.label === title); if (item && !item.disabledReason) item.action(); },
+        run: id => { const item = investigationItems(id).find(item => item.label === title); if (item && !item.disabledReason) item.action?.(); },
       })),
       ...([1, 2, 3] as const).map((level): SlashItem => ({ id: `heading-${level}`, title: `Heading ${level}`, aliases: [`h${level}`], section: 'Text', icon: 'heading', keys: '#'.repeat(level), run: id => apply({ kind: 'heading', id, level }) })),
       { id: 'heading-normal', title: 'Normal text', aliases: ['paragraph'], section: 'Text', icon: 'edit', when: block => !!block?.heading, run: id => apply({ kind: 'heading', id, level: null }) },

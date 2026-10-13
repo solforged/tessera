@@ -188,7 +188,7 @@ export function Popup(props: PopupProps) {
     // max-height pins the panel, so growth only shows up on its content.
     for (const child of panel.children) observer.observe(child);
     if (props.autofocus !== false) queueMicrotask(() => {
-      if (panel.isConnected && topmost()) (panel.querySelector<HTMLElement>('input, textarea') ?? panel.querySelector<HTMLElement>('button:not(:disabled), [tabindex="0"]'))?.focus();
+      if (panel.isConnected && topmost()) (panel.querySelector<HTMLElement>('input, textarea') ?? panel.querySelector<HTMLElement>('button:not(:disabled):not([tabindex="-1"]), [tabindex="0"]'))?.focus();
     });
     onCleanup(() => observer.disconnect());
   });

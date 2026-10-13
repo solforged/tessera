@@ -1,14 +1,23 @@
-import { createUniqueId, For } from 'solid-js';
+import { createSignal, createUniqueId, For, Show } from 'solid-js';
 import type { JSX } from 'solid-js';
 import { Icon } from './Icon';
 import type { IconName } from './Icon';
 import { Popup } from './Popup';
 import type { PopupAnchor, PopupPlacement } from './Popup';
 
+/** A drill-in: its rows replace the menu's in place, under its own title and a header Back. */
+export interface MenuPage {
+  title: string;
+  items: MenuItem[];
+  /** One plain line under the rows, for what the whole page does rather than each row. */
+  note?: string;
+}
 export interface MenuItem {
   label: string;
   /** Optional heading for a group of adjacent actions; adjacent items with the same section show it once. */
   section?: string;
+  /** Draws a hairline above the item, starting an unnamed group. */
+  divider?: boolean;
   icon?: IconName;
   shortcut?: string;
   /** A single key that runs the item while the menu has focus, as in a leader menu. */
@@ -18,29 +27,79 @@ export interface MenuItem {
   danger?: boolean;
   /** The current choice in a set; drawn as a trailing check so the leading icon can name the choice. */
   checked?: boolean;
-  action(event?: MouseEvent | KeyboardEvent): void;
+  /** Opens this page inside the same menu instead of running an action; built when opened. */
+  submenu?: () => MenuPage;
+  action?(event?: MouseEvent | KeyboardEvent): void;
 }
-export function Menu(props: { anchor: PopupAnchor; label: string; items: MenuItem[]; header?: JSX.Element; placement?: PopupPlacement; class?: string; onDismiss(): void }) {
+/** A titled menu becomes a bottom sheet on a phone-sized touch screen. */
+const phoneSheet = () => window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches;
+
+export function Menu(props: {
+  anchor: PopupAnchor; label: string; items: MenuItem[];
+  /** Names the menu in a header with Close; drill-ins replace it with their own title and Back. */
+  title?: string;
+  /** A short mono line under the title naming what the menu acts on. */
+  context?: JSX.Element;
+  header?: JSX.Element; placement?: PopupPlacement; class?: string; onDismiss(): void;
+}) {
   const reasonId = createUniqueId();
-  const iconed = () => props.items.some(item => item.icon);
-  return <Popup anchor={props.anchor} onDismiss={props.onDismiss} role="menu" label={props.label} placement={props.placement} class={`menu ${props.class ?? ''}`}>
-    <div onKeyDown={event => {
+  const [pages, setPages] = createSignal<{ page: MenuPage; from: number }[]>([]);
+  const page = () => pages().at(-1)?.page;
+  const items = () => page()?.items ?? props.items;
+  const iconed = () => items().some(item => item.icon);
+  const sheet = () => props.placement === undefined && props.title !== undefined && phoneSheet();
+  let body!: HTMLDivElement;
+  const focusRow = (index: number) => queueMicrotask(() => {
+    const rows = Array.from(body.querySelectorAll<HTMLButtonElement>('.menu-item'));
+    (rows[index] && rows[index].getAttribute('aria-disabled') !== 'true' ? rows[index] : rows.find(row => row.getAttribute('aria-disabled') !== 'true'))?.focus();
+  });
+  const open = (item: MenuItem, index: number) => { setPages(stack => [...stack, { page: item.submenu!(), from: index }]); focusRow(0); };
+  const back = () => { const from = pages().at(-1)?.from ?? 0; setPages(stack => stack.slice(0, -1)); focusRow(from); };
+  const run = (item: MenuItem, index: number, event?: MouseEvent | KeyboardEvent) => {
+    if (item.disabledReason) return;
+    if (item.submenu) { open(item, index); return; }
+    props.onDismiss(); item.action?.(event);
+  };
+  return <Popup anchor={props.anchor} onDismiss={props.onDismiss} role="menu" label={page()?.title ?? props.label} placement={sheet() ? 'sheet' : props.placement} class={`menu ${sheet() ? 'menu-sheet' : ''} ${props.class ?? ''}`}>
+    <div ref={body} onKeyDown={event => {
       if (event.isComposing) return;
-      const mnemonic = !event.metaKey && !event.ctrlKey && !event.altKey ? props.items.find(item => item.key === event.key && !item.disabledReason) : undefined;
-      if (mnemonic) { event.preventDefault(); event.stopPropagation(); props.onDismiss(); mnemonic.action(event); return; }
+      const plain = !event.metaKey && !event.ctrlKey && !event.altKey;
+      if (pages().length && plain && (event.key === 'ArrowLeft' || event.key === 'Backspace')) { event.preventDefault(); event.stopPropagation(); back(); return; }
+      if (plain && event.key === 'ArrowRight' && document.activeElement instanceof HTMLButtonElement) {
+        const index = Array.from(body.querySelectorAll('.menu-item')).indexOf(document.activeElement);
+        const item = items()[index];
+        if (item?.submenu && !item.disabledReason) { event.preventDefault(); event.stopPropagation(); open(item, index); return; }
+      }
+      const mnemonicIndex = plain ? items().findIndex(item => item.key === event.key && !item.disabledReason) : -1;
+      const mnemonic = items()[mnemonicIndex];
+      if (mnemonic) { event.preventDefault(); event.stopPropagation(); run(mnemonic, mnemonicIndex, event); return; }
       // Header controls share the menu's mnemonics and arrow-key order.
-      const control = !event.metaKey && !event.ctrlKey && !event.altKey ? Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('button[data-menu-key]:not(:disabled)')).find(button => button.dataset.menuKey === event.key) : undefined;
+      const control = plain ? Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('button[data-menu-key]:not(:disabled)')).find(button => button.dataset.menuKey === event.key) : undefined;
       if (control) { event.preventDefault(); event.stopPropagation(); control.click(); return; }
       if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
-      const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'));
+      const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled):not(.menu-head-control)'));
       const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
       const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (index + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length;
       buttons[next]?.focus(); event.preventDefault();
     }}>
-      {props.header}
-      <For each={props.items}>{(item, index) => <>{item.section && item.section !== props.items[index() - 1]?.section && <div class="menu-section">{item.section}</div>}<button type="button" role={item.checked === undefined ? 'menuitem' : 'menuitemradio'} aria-checked={item.checked} class={`menu-item ${item.danger ? 'danger' : ''}`} aria-disabled={!!item.disabledReason} aria-describedby={item.disabledReason ? `${reasonId}-${index()}` : undefined} title={item.disabledReason} onClick={event => { if (item.disabledReason) return; props.onDismiss(); item.action(event); }}>
-        {item.icon ? <Icon name={item.icon} /> : iconed() ? <span class="icon" /> : null}<span class="menu-label">{item.label}{(item.disabledReason || item.secondary) && <span class="menu-disabled-reason" id={`${reasonId}-${index()}`}>{item.disabledReason || item.secondary}</span>}</span>{item.shortcut && <kbd>{item.shortcut}</kbd>}{item.checked && <Icon name="check" class="menu-check" />}
-      </button></>}</For>
+      <Show when={props.title !== undefined}>
+        <header class="menu-head">
+          <h2>{page()?.title ?? props.title}</h2>
+          <Show when={pages().length} fallback={<button type="button" class="menu-head-control" tabIndex={-1} onClick={() => props.onDismiss()}>Close</button>}>
+            <button type="button" class="menu-head-control" tabIndex={-1} onClick={back}><Icon name="left" />Back</button>
+          </Show>
+          <Show when={props.context}><div class="menu-context">{props.context}</div></Show>
+        </header>
+      </Show>
+      <Show when={!pages().length}>{props.header}</Show>
+      <For each={items()}>{(item, index) => <>
+        {item.section && item.section !== items()[index() - 1]?.section && <div class="menu-section">{item.section}</div>}
+        {item.divider && index() > 0 && <hr class="menu-divider" />}
+        <button type="button" role={item.checked === undefined ? 'menuitem' : 'menuitemradio'} aria-checked={item.checked} aria-haspopup={item.submenu ? 'menu' : undefined} class={`menu-item ${item.danger ? 'danger' : ''}`} aria-disabled={!!item.disabledReason} aria-describedby={item.disabledReason ? `${reasonId}-${index()}` : undefined} title={item.disabledReason} onClick={event => run(item, index(), event)}>
+          {item.icon ? <Icon name={item.icon} /> : iconed() ? <span class="icon" /> : null}<span class="menu-label">{item.label}{(item.disabledReason || item.secondary) && <span class="menu-disabled-reason" id={`${reasonId}-${index()}`}>{item.disabledReason || item.secondary}</span>}</span>{item.shortcut && <kbd>{item.shortcut}</kbd>}{item.checked && <Icon name="check" class="menu-check" />}{item.submenu && <Icon name="right" class="menu-drill" />}
+        </button>
+      </>}</For>
+      <Show when={page()?.note}>{note => <p class="menu-note">{note()}</p>}</Show>
     </div>
   </Popup>;
 }
