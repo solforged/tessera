@@ -588,6 +588,7 @@ export class Notebook implements NotebookClient, DocumentHost {
     const work = new Map<string, WorkSession>();
     const initialRevisions = new Map<string, number>();
     const deleted: string[] = [];
+    const restoredPositions = new Map<string, { parentId: string; after: string | null }>();
     const current = (id: string) => {
       let block = working.get(id);
       if (!block) {
@@ -764,6 +765,7 @@ export class Notebook implements NotebookClient, DocumentHost {
           break;
         }
         case 'merge': {
+          restoredPositions.delete(action.id);
           const source = current(action.id);
           const destination = current(action.destinationId);
           operations.push({ op: 'merge', source_id: action.id, source_revision: source.revision, destination_id: destination.id, destination_revision: destination.revision });
@@ -844,6 +846,7 @@ export class Notebook implements NotebookClient, DocumentHost {
           break;
         }
         case 'move': {
+          restoredPositions.delete(action.id);
           const block = current(action.id);
           const after = action.after && current(action.after).parent_id === action.parentId ? action.after : null;
           operations.push({ op: 'move', id: block.id, base_revision: block.revision, parent_id: action.parentId, after });
@@ -852,6 +855,7 @@ export class Notebook implements NotebookClient, DocumentHost {
           break;
         }
         case 'delete': {
+          restoredPositions.delete(action.id);
           const block = current(action.id);
           operations.push({ op: 'delete', id: block.id, base_revision: block.revision });
           deleted.push(block.id);
@@ -867,13 +871,22 @@ export class Notebook implements NotebookClient, DocumentHost {
           operations.push({ op: 'restore', id: action.id, deletion_id: ticket.deletionId, revision: ticket.revision });
           for (const snapshot of action.snapshots) {
             const saved = doc.baseBlocks.get(snapshot.block.id);
-            working.set(snapshot.block.id, { ...snapshot.block, revision: (saved?.revision ?? this.tickets.get(snapshot.block.id)?.revision ?? snapshot.block.revision) + 1 });
+            working.set(snapshot.block.id, { ...snapshot.block, revision: (this.tickets.get(snapshot.block.id)?.revision ?? saved?.revision ?? snapshot.block.revision) + 1 });
             initialRevisions.set(snapshot.block.id, saved?.revision ?? snapshot.block.revision);
             capabilities.set(snapshot.block.id, snapshot.capabilities ?? emptyCapabilities(snapshot.block.id));
           }
+          const block = current(action.id);
+          if (block.parent_id) restoredPositions.set(block.id, { parentId: block.parent_id, after: action.after });
           break;
         }
       }
+    }
+    // Restored tombstones may have lost their gap to later moves. Reapply the
+    // captured position last: a no-op move does not increment the core revision.
+    for (const [id, position] of restoredPositions) {
+      const block = current(id);
+      const after = position.after && current(position.after).parent_id === position.parentId ? position.after : null;
+      operations.push({ op: 'move', id, base_revision: block.revision, parent_id: position.parentId, after });
     }
     return { batch: { actor: { kind: 'client', name: this.actorName }, idempotency_key: command.id, operations }, deleted };
   }

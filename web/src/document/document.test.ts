@@ -191,6 +191,19 @@ describe('real notebook operations and recovery', () => {
     doc.undo(); await instance.flush();
     expect((await api.savedSpread(spread)).note_ids).toEqual(notes);
     expect(doc.block(commentary)?.text).toBe('Column commentary');
+    success(doc.edit({ kind: 'moveTo', ids: [refs[1]!], parentId: spread, after: null }));
+    await instance.flush();
+    success(doc.edit({ kind: 'delete', ids: [refs[0]!] }));
+    await instance.flush();
+    success(doc.edit({ kind: 'moveTo', ids: [refs[2]!], parentId: spread, after: null }));
+    await instance.flush();
+    doc.undo(); await instance.flush();
+    expect((await api.savedSpread(spread)).note_ids).toEqual([notes[1]!, notes[2]!]);
+    doc.undo(); await instance.flush();
+    expect((await api.savedSpread(spread)).note_ids).toEqual([notes[1]!, notes[0]!, notes[2]!]);
+    expect(doc.block(commentary)?.text).toBe('Column commentary');
+    doc.undo(); await instance.flush();
+    expect((await api.savedSpread(spread)).note_ids).toEqual(notes);
     success(doc.edit({ kind: 'spread', id: spread, value: false }));
     await instance.flush();
     expect((await api.capabilities(spread)).spread).toBe(false);
@@ -546,6 +559,7 @@ describe('real notebook operations and recovery', () => {
     doc.redo();
     expect(doc.block(id)?.text).toBe(name);
     await instance.flush();
+    expect(doc.saveState()).toBe('saved');
     expect((await api.fields()).fields.find(field => field.id === id)).toMatchObject({ id, name, kind: 'number' });
     expect((await api.page(fields.page_id)).rows.find(row => row.block.id === id)?.block.text).toBe(name);
     doc.release();
