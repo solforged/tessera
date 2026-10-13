@@ -487,7 +487,14 @@ impl Notebook {
                     });
                     plan.changed.push(id.clone());
                 }
-                (Some(block.page_id), "Changed revisit".into())
+                let summary = match action {
+                    crate::RevisitAction::Revisited => "Revisited",
+                    crate::RevisitAction::Later => "Moved the revisit date",
+                    crate::RevisitAction::Resolve => "Resolved",
+                    crate::RevisitAction::Reopen => "Reopened",
+                    crate::RevisitAction::KeepRecurrent => "Kept recurrent",
+                };
+                (Some(block.page_id), summary.into())
             }
             AgentEdit::SetCardHeld {
                 card_id,

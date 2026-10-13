@@ -19,6 +19,10 @@ export function createRevisits(notebook: NotebookClient) {
   return { rows, error };
 }
 
+const revisitSummaries: Record<RevisitAction, string> = {
+  revisited: 'Revisited', later: 'Moved the revisit date', resolve: 'Resolved', reopen: 'Reopened', keep_recurrent: 'Kept recurrent',
+};
+
 /** Review advances across pages, so this history stays with the action, not the next page's outline. */
 export async function changeRevisit(notebook: NotebookClient, id: string, action: RevisitAction, nextOn: string | null): Promise<DocumentChange | undefined> {
   let block = await notebook.api.block(id);
@@ -28,7 +32,7 @@ export async function changeRevisit(notebook: NotebookClient, id: string, action
   const capabilities = await notebook.api.capabilities(id);
   const state: RevisitSnapshot = { note: capabilities.note ?? workingNote(), question: capabilities.question?.state ?? null };
   let eventId = action === 'revisited' || action === 'keep_recurrent' ? ulid() : null;
-  const result = await notebook.commit([{ op: 'revisit', id, base_revision: block.revision, action, next_on: nextOn, event_id: eventId }], 'Changed revisit', [block.page_id]);
+  const result = await notebook.commit([{ op: 'revisit', id, base_revision: block.revision, action, next_on: nextOn, event_id: eventId }], revisitSummaries[action], [block.page_id]);
   let revision = result.revisions.find(value => value.id === id)?.revision;
   if (revision === undefined) return;
   let applied = true;
@@ -40,7 +44,7 @@ export async function changeRevisit(notebook: NotebookClient, id: string, action
     const committed = await notebook.commit([forward
       ? { op: 'revisit', id, base_revision: revision!, action, next_on: nextOn, event_id: nextEventId }
       : { op: 'restore_revisit', id, base_revision: revision!, state, event_id: eventId }],
-    forward ? 'Redid revisit' : 'Undid revisit', [block.page_id]);
+    `${forward ? 'Redid' : 'Undid'}: ${revisitSummaries[action]}`, [block.page_id]);
     revision = committed.revisions.find(value => value.id === id)?.revision ?? revision;
     if (forward) eventId = nextEventId;
     applied = forward;
