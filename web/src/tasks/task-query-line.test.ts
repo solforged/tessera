@@ -30,6 +30,16 @@ describe('task query line', () => {
     expect(parseTaskQueryLine('show:recent:14', ctx).query.filter.recent_days).toBe(14);
   });
 
+  test('outline order combines with a project and round trips without becoming source text', () => {
+    const result = parseTaskQueryLine('[[Finish thesis]] sort:outline', ctx);
+    expect(result.errors).toEqual([]);
+    expect(result.query.filter).toMatchObject({ project_id: 'thesis', sort: 'outline' });
+    expect(result.query.source).toBeNull();
+    expect(formatTaskQueryLine(result.query, ctx)).toBe('[[Finish thesis]] sort:outline');
+    expect(parseTaskQueryLine('sort:unknown', ctx).errors).toHaveLength(1);
+    expect(parseTaskQueryLine('"sort:outline"', ctx).query.source?.text).toBe('sort:outline');
+  });
+
   test('each status, priority, limit, type and project term combines with text', () => {
     const result = parseTaskQueryLine('is:todo,doing,waiting,done,cancelled priority:high #book [[Finish thesis]] limit:50 read notes', ctx);
     expect(result.errors).toEqual([]);

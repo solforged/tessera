@@ -32,6 +32,8 @@ export function taskQueriesEqual(left: TaskQuery, right: TaskQuery): boolean {
     && (left.source === right.source || !!left.source && !!right.source && queriesEqual(left.source, right.source))
     && a.selection === b.selection && a.recent_days === b.recent_days
     && a.priority === b.priority && a.project_id === b.project_id
+    && (a.sort ?? 'plan') === (b.sort ?? 'plan')
+    && (a.project_via ?? 'both') === (b.project_via ?? 'both')
     && a.statuses.length === b.statuses.length && a.statuses.every(status => b.statuses.includes(status))
     && rangesEqual(a.scheduled, b.scheduled) && rangesEqual(a.deadline, b.deadline);
 }

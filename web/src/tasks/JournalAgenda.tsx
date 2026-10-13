@@ -37,6 +37,8 @@ export function TaskSourceRows(props: {
   disabled?: boolean;
   /** Day view puts the clock in a fixed gutter and provenance at the trailing edge. */
   timetable?: boolean;
+  /** Outline-sorted queries show each contiguous section without changing task order. */
+  sections?: boolean;
   /** A lookahead group implies this plan date, while completion still uses the displayed date. */
   plannedDate?: string;
   /** Offers Today, Tomorrow and a date on unfinished rows, with the same keys. */
@@ -56,9 +58,15 @@ export function TaskSourceRows(props: {
     const index = times.findIndex(time => !time || time >= props.now!);
     return index < 0 ? 'end' : ids()[index]!;
   });
-  return <ul class="agenda-rows"><For each={ids()}>{id => {
+  return <ul class="agenda-rows"><For each={ids()}>{(id, index) => {
     const initial = byId().get(id)!;
-    return <TaskSourceRow row={byId().get(id) ?? initial} date={props.date} pageId={props.pageId} notebook={props.notebook} disabled={props.disabled} timetable={props.timetable} plannedDate={props.plannedDate} plan={props.plan} now={props.now} nowBefore={nowAt() === id} onOpen={props.onOpen} onChanged={props.onChanged} />;
+    const section = () => {
+      if (!props.sections) return null;
+      const row = byId().get(id);
+      const previous = byId().get(ids()[index() - 1]!);
+      return row && 'section_id' in row && row.section_id && (!previous || !('section_id' in previous) || previous.section_id !== row.section_id) ? row.section_text : null;
+    };
+    return <><Show when={section()}>{text => <li class="agenda-day-section"><h3 class="agenda-lookahead-date"><BlockText text={text()} notebook={props.notebook} interactive={false} /></h3></li>}</Show><TaskSourceRow row={byId().get(id) ?? initial} date={props.date} pageId={props.pageId} notebook={props.notebook} disabled={props.disabled} timetable={props.timetable} plannedDate={props.plannedDate} plan={props.plan} now={props.now} nowBefore={nowAt() === id} onOpen={props.onOpen} onChanged={props.onChanged} /></>;
   }}</For><Show when={nowAt() === 'end'}><li class="agenda-now agenda-now-end" aria-hidden="true" /></Show></ul>;
 }
 
@@ -182,6 +190,7 @@ function TaskSourceRow(props: {
     <span class="agenda-row-meta">
       <Show when={!props.timetable && time()}><span class="agenda-time">{time()}</span></Show>
       <For each={facts()}>{fact => <span classList={{ 'agenda-late': !!fact.late }} title={fact.label}>{fact.text}</span>}</For>
+      <Show when={props.row.project_id !== props.pageId ? props.row.project_id : null}>{id => <span><BlockText text={props.notebook.lookup(id())()?.text ?? ''} notebook={props.notebook} interactive={false} /></span>}</Show>
     </span>
     <Show when={props.plan && unfinished()}>
       <span class="agenda-row-actions">

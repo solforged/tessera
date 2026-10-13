@@ -86,7 +86,7 @@ export function createOutlineCapabilities(options: {
   }
   function showActions(id: string, beside = false) {
     const date = options.contextDate();
-    options.onOpen({ kind: 'agenda', date, query: { source: null, filter: { selection: 'unfinished', statuses: [], recent_days: 7, scheduled: null, deadline: null, priority: null, project_id: id }, context_date: date, limit: null } }, beside);
+    options.onOpen({ kind: 'agenda', date, query: { source: null, filter: { selection: 'unfinished', statuses: [], recent_days: 7, scheduled: null, deadline: null, priority: null, project_id: id, sort: 'outline' }, context_date: date, limit: null } }, beside);
   }
   function source(id: string, beside = false) { options.onOpen({ kind: 'page', pageId: doc.pageId, blockId: id }, beside); }
   /** Planning commands always land on a task; a plain block becomes a todo first. */

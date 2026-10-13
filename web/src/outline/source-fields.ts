@@ -1,6 +1,6 @@
 import { createEffect, createResource, createRoot } from 'solid-js';
 import { api } from '../api/client';
-import type { FieldDefinition } from '../api/types';
+import type { FieldDefinition, FieldKind } from '../api/types';
 import type { Caret, NotebookClient, PageDocument } from '../document/contract';
 import { matchFieldEntry } from '../table/query';
 import type { MenuItem } from '../ui/Menu';
@@ -24,20 +24,26 @@ export function documentReady(doc: PageDocument): Promise<void> {
   return promise;
 }
 
-/** The definition named `name`, created as a text field when none exists; concurrent calls share one creation. */
-export function ensureField(notebook: NotebookClient, name: string): Promise<FieldDefinition> {
+/** The named definition, created with the requested kind on first use; concurrent calls share one creation. */
+export function ensureField(notebook: NotebookClient, name: string, kind: FieldKind = 'text'): Promise<FieldDefinition> {
   const pending = fieldCreations.get(notebook) ?? new Map<string, Promise<FieldDefinition>>();
   fieldCreations.set(notebook, pending);
   const key = name.toLowerCase();
   const existing = pending.get(key);
   if (existing) return existing;
   const creation = (async () => {
-    const result = await api.fields();
+    const result = await notebook.api.fields();
     const definition = result.fields.find(field => field.name.toLowerCase() === key);
     if (definition) return definition;
     const fieldsDoc = notebook.open(result.page_id);
     try {
       await documentReady(fieldsDoc);
+      if (kind !== 'text') {
+        const written = fieldsDoc.edit({ kind: 'addField', name, value: kind });
+        if (!written.ok) throw new Error(written.reason);
+        await fieldsDoc.flush();
+        return { id: written.created[0]!, name, kind, revision: fieldsDoc.block(written.created[0]!)!.revision, options: [], targets: [] };
+      }
       // An empty page is seeded with one blank block on load; name it instead of adding a sibling.
       let blank: string | undefined;
       for (const id of fieldsDoc.outline.children(result.page_id)) {

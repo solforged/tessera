@@ -20,6 +20,7 @@ import type { OutlineIndex } from '../document/outline-index';
 import { JournalHeader } from '../tasks/JournalHeader';
 import { JournalResurface } from '../tasks/JournalResurface';
 import { TaskStatusButton } from '../tasks/TaskControls';
+import { createProjectSummary } from '../projects/ProjectSummary';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
@@ -1129,6 +1130,7 @@ function Pane(props: OutlinePaneProps) {
   const { Row, TaskSummary, QuestionSummary } = createOutlineRows(context, fieldSheet, drag, ReferenceCount, RowRelations, openValueEditor,
     row => <Show when={branchBoundary() === row.id && !branches.error}><QuestionBranches rows={branches() ?? []} notebook={props.notebook} onOpen={props.onOpen} /></Show>);
   const { CapabilityPopups } = createCapabilityPopups(context);
+  const projectSummary = createProjectSummary({ doc, notebook: props.notebook, date: contextDate, onOpen: props.onOpen, onEdit: anchor => capabilities.open(props.pageId, 'project', anchor) });
 
   onMount(() => {
     const copy = (event: ClipboardEvent) => clipboard(event);
@@ -1367,13 +1369,13 @@ function Pane(props: OutlinePaneProps) {
         fields={definitions()} compact={!!zoom()} ready={sourceReady()} onReady={setSourceHeaderReady} onEditDetails={() => setSourceDetailsOpen(true)}
         highlights={zoom() || sourceHighlights.error ? undefined : sourceHighlights()} colors={sourceColors()} onColors={setSourceColors} grouped={sourceGrouped()} onGrouped={setSourceGrouped} fieldsVisible={sourceFieldsVisible()} onFieldsVisible={visible => { setSourceFieldsVisible(visible); scheduleReport(); }} /></Show>
       <Show when={doc.root()?.templateCards}><CardSummary blockId={props.pageId} cards={[]} templateCount={doc.root()?.templateCards ?? 0} notebook={props.notebook} onOpen={props.onOpen} /></Show>
-      <Show when={doc.root()?.task || doc.root()?.project || doc.root()?.question || doc.root()?.citations.length}><div class="outline-root-capabilities outline-capability-metadata">
+      <Show when={!zoom()}><projectSummary.Summary /></Show>
+      <Show when={doc.root()?.task || doc.root()?.question || doc.root()?.citations.length}><div class="outline-root-capabilities outline-capability-metadata">
         <Show when={doc.root()?.task}>
           <TaskStatusButton task={doc.root()?.task ?? null} disabled={capabilities.busy(props.pageId)} onRestoreFocus={restoreFocus} onChange={status => capabilities.status(props.pageId, status)} />
           <TaskSummary id={props.pageId} />
           <Button class="outline-planning" onClick={event => capabilities.open(props.pageId, 'work', event.currentTarget)}>Work sessions</Button>
         </Show>
-        <Show when={doc.root()?.project}><Button class="outline-planning" onClick={event => capabilities.open(props.pageId, 'project', event.currentTarget)}>Project</Button></Show>
         <QuestionSummary id={props.pageId} />
         <For each={doc.root()?.citations}>{citation => <CitationChip citation={citation} pageId={props.pageId} notebook={props.notebook} onOpen={props.onOpen} />}</For>
       </div></Show>
@@ -1423,6 +1425,7 @@ function Pane(props: OutlinePaneProps) {
     <Show when={doc.status() === 'ready' && ids().length === 0 && depthFilter() === undefined}><button type="button" class="add-first-block" onClick={() => apply({ kind: 'insert', parentId: zoom() ?? props.pageId, after: null }, true)}><Icon name="plus" />Add a block</button></Show>
     <Show when={!zoom() && doc.root()?.kind === 'journal'}><div class="related-sections journal-highlights"><JournalResurface date={doc.root()!.text} notebook={props.notebook} onOpen={props.onOpen} /></div></Show>
     <Show when={doc.status() === 'ready' && !zoom() && related()?.works.length}><PersonWorks pageId={props.pageId} rows={related()!.works} onOpen={props.onOpen} /></Show>
+    <Show when={!zoom()}><projectSummary.LinkedTasks /></Show>
     <Show when={doc.status() === 'ready' && !zoom() && (doc.root()?.project || doc.root()?.manual_types.some(title => title.toLocaleLowerCase() === 'stream'))}><Arrivals doc={doc} notebook={props.notebook} onOpen={props.onOpen} onFiled={restoreFocus} /></Show>
     <Show when={doc.status() === 'ready' && (mentionsAvailable() || relatedError() || (related()?.total ?? 0) + (related()?.tagged.length ?? 0) + (related()?.held.length ?? 0) + (related()?.about.length ?? 0) > 0)}><div class="related-sections">
       <Show when={related()?.held.length}><Related title="Perspectives held" rows={related()?.held ?? []} relations /></Show>

@@ -14,6 +14,7 @@ import { isStableReference, quoteTarget, textTokens } from './text-tokens';
 import { newTask } from '../tasks/quick-date';
 import { rebaseText } from './text-patch';
 import { fieldHide } from '../fields/hide';
+import { fieldEntryId } from '../table/query';
 
 export interface DocumentHost {
   ready: Promise<void>;
@@ -1434,6 +1435,21 @@ export class Document implements PageDocument {
             first ??= { id: value, offset: entry.value.length };
           }
           caret = first!;
+          break;
+        }
+        case 'taskProject': {
+          if (!this.block(edit.id)?.task) throw new Error('Task removed.');
+          const entries = this.outline.children(edit.id).filter(id => !this.block(id)?.archived && fieldEntryId(this.block(id)?.text ?? '') === edit.fieldId);
+          const remove = edit.projectId === null ? entries : entries.slice(1);
+          for (const id of remove) { this.guardHide(id); actions.push({ kind: 'delete', id }); }
+          if (edit.projectId !== null) {
+            const entry = entries[0] ?? insert(edit.id, this.outline.children(edit.id).at(-1) ?? null, `[[${edit.fieldId}]]`);
+            const values = this.outline.children(entry).filter(id => !this.block(id)?.archived);
+            const text = `[[${edit.projectId}]]`;
+            if (values[0]) setText(this.snapshot(values[0]), text);
+            else insert(entry, null, text);
+            for (const id of values.slice(1)) { this.guardHide(id); actions.push({ kind: 'delete', id }); }
+          }
           break;
         }
         case 'fieldKind': {

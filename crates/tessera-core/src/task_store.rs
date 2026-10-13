@@ -528,7 +528,7 @@ impl Notebook {
                 "SELECT p.block_id, p.state FROM projects p
                  JOIN blocks b ON b.id = p.block_id JOIN blocks root ON root.id = b.page_id
                  WHERE p.active = 1 AND b.deletion_id IS NULL AND root.deletion_id IS NULL
-                 AND b.rowid NOT IN (SELECT rowid FROM hidden) ORDER BY p.block_id"
+                 AND b.rowid NOT IN (SELECT rowid FROM hidden) ORDER BY b.text COLLATE NOCASE, b.id"
             ))?
             .query_map([], |row| {
                 Ok(ProjectRecord {

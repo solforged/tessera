@@ -1,12 +1,12 @@
 import { describe, expect, test } from 'bun:test';
-import type { AgendaItem, AgendaReason, Block, TaskState } from '../api/types';
+import type { AgendaItem, AgendaReason, Block, TaskRow, TaskState } from '../api/types';
 import { agendaTaskTime, groupAgenda, groupDayAgenda, planTask, plannedTaskCounts, relativeDate, taskFacts } from './task-labels';
 
 const todo: TaskState = { status: 'todo', scheduled: null, scheduled_time: null, deadline: null, deadline_time: null, warning_days: null, repeater: null, priority: null, completed_on: null };
 
-function item(id: string, reasons: AgendaReason[], patch: Partial<TaskState> = {}, pageId = 'page'): AgendaItem {
+function item(id: string, reasons: AgendaReason[], patch: Partial<TaskState> = {}, pageId = 'page'): AgendaItem & TaskRow {
   const page: Block = { id: pageId, page_id: pageId, parent_id: null, kind: 'page', text: 'Plan', heading: null, archived: false, revision: 1, created_at: 1, updated_at: 1 };
-  return { source: { page, block: { ...page, id, parent_id: pageId, kind: 'block', text: id } }, task: { ...todo, ...patch }, reasons, project_id: null, time: null };
+  return { source: { page, block: { ...page, id, parent_id: pageId, kind: 'block', text: id } }, task: { ...todo, ...patch }, reasons, project_id: null, time: null, section_id: null, section_text: null };
 }
 
 describe('relativeDate', () => {

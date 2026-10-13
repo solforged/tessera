@@ -1,6 +1,7 @@
 import { Show, createEffect, createMemo, createSignal, on } from 'solid-js';
 import type { TaskState, TaskStatus } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { NotebookClient, PageDocument } from '../document/contract';
+import { TaskProjectControl } from '../projects/TaskProjectControl';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import type { IconName } from '../ui/Icon';
@@ -72,7 +73,7 @@ export function TaskStatusButton(props: { task: TaskState | null; disabled?: boo
 
 type TaskPopup = { kind: 'scheduled' | 'deadline' | 'warning' | 'priority' | 'repeat'; anchor: HTMLElement };
 
-export function TaskControls(props: { notebook: NotebookClient; task: TaskState; contextDate: string; disabled?: boolean; onChange(value: TaskState): void | Promise<void> }) {
+export function TaskControls(props: { notebook: NotebookClient; doc: PageDocument; id: string; task: TaskState; contextDate: string; disabled?: boolean; onChange(value: TaskState): void | Promise<void> }) {
   const [popup, setPopup] = createSignal<TaskPopup | null>(null);
   const [busy, setBusy] = createSignal(false);
   const [failure, setFailure] = createSignal<{ priority: Priority; message: string } | null>(null);
@@ -106,6 +107,7 @@ export function TaskControls(props: { notebook: NotebookClient; task: TaskState;
     <Button class="task-metadata task-planning-row" label={`Priority: ${priorityLabel(props.task.priority)}`} disabled={blocked()} aria-haspopup="menu" aria-expanded={popup()?.kind === 'priority'} onClick={event => open('priority', event.currentTarget)}>
       <span class="task-planning-label">Priority</span><span class="task-metadata-value task-planning-value" classList={{ 'task-planning-empty': !props.task.priority }}>{priorityLabel(props.task.priority)}</span>
     </Button>
+    <TaskProjectControl notebook={props.notebook} doc={props.doc} id={props.id} disabled={blocked()} />
     <Button class="task-metadata task-planning-row" label={`Repeat: ${repeatDescription()}`} disabled={blocked()} aria-haspopup="dialog" aria-expanded={popup()?.kind === 'repeat'} onClick={event => open('repeat', event.currentTarget)}>
       <span class="task-planning-label">Repeat</span><span class="task-metadata-value task-planning-value" classList={{ 'task-planning-empty': !props.task.repeater }}>{repeatDescription()}</span>
     </Button>

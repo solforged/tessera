@@ -438,7 +438,7 @@ Relation reads filter by kind, source, target, source holder or target holder, w
 
 ## Projects
 
-A project capability gives a block an outcome, an optional deadline and active, done or canceled status. Tasks anywhere beneath it are its canonical actions; nested tasks report their nearest active project capability. A completed project's capability remains active until explicitly removed. Completing a project does not complete its tasks or reassess questions beneath it. Removing the capability retains its history and block identity.
+A project capability gives a block an outcome, an optional deadline and active, done or canceled status. Tasks belong by ancestry or by an explicit `Project` instance field whose value references a block with an active project capability. The explicit field wins over ancestry; otherwise nested tasks report their nearest active project. A link in task prose does not assign membership. Removing a field assignment restores ancestry membership, if any. A completed project's capability remains active until explicitly removed. Completing a project does not complete its tasks or reassess questions beneath it. Removing the capability retains its history and block identity.
 
 ## Notes
 

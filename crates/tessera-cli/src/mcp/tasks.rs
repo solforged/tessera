@@ -219,6 +219,8 @@ impl Session<'_> {
                         .map(|priority| choice(priority, "priority", "high, medium or low"))
                         .transpose()?,
                     project_id: string(arguments, "project")?.map(str::to_owned),
+                    sort: Default::default(),
+                    project_via: Default::default(),
                 },
                 context_date: today,
                 limit: Some(limit(arguments, "limit", 50, 500)?),

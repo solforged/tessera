@@ -15,7 +15,7 @@ const page: Block = {
 function row(id: string, state: Partial<TaskState> = {}, revision = 3): TaskRow {
   return {
     source: { block: { ...page, id, kind: 'block', parent_id: page.id, text: id, revision }, page },
-    task: { ...task, ...state }, project_id: null,
+    task: { ...task, ...state }, project_id: null, section_id: null, section_text: null,
   };
 }
 function commandBoundary() {

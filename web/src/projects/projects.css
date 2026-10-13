@@ -4,3 +4,9 @@
 .project-controls-row { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-8); min-width: 0; }
 .project-controls-row > .button { max-width: 100%; }
 .project-error { margin: 0; overflow-wrap: anywhere; }
+.project-summary { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-8); margin-top: var(--page-title-gap); }
+.project-summary-facts, .project-summary-progress { display: flex; align-items: center; gap: var(--space-12); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.project-summary-outcome.button { padding: 0; text-align: left; color: var(--muted); font-size: var(--text-body); line-height: var(--line-body); }
+.project-progress-rule { width: 12ch; height: var(--space-2); background: linear-gradient(var(--accent), var(--accent)) no-repeat 0 0 / var(--progress, 0%) 100%; background-color: var(--line); }
+.project-summary-next.button { padding: 0; color: var(--muted); font: var(--apparatus); text-align: left; }
+.project-linked-tasks > .outline-highlights-label { margin: 0 0 var(--section-item-gap); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }

@@ -982,3 +982,205 @@ fn saved_task_views_validate_revisions_replay_and_execute_after_reload() {
     ));
     assert!(nb.task_views().unwrap().is_empty());
 }
+
+fn project_field(nb: &mut Notebook) {
+    let fields = nb.fields().unwrap().page_id;
+    apply(
+        nb,
+        vec![
+            Operation::Insert {
+                id: id(800),
+                parent_id: fields,
+                after: None,
+                text: "Project".into(),
+                heading: None,
+            },
+            Operation::SetFieldKind {
+                id: id(800),
+                base_revision: 1,
+                kind: tessera_core::FieldKind::Instance,
+            },
+        ],
+    );
+}
+
+fn link_project(nb: &mut Notebook, task: u128, entry: u128, project: u128) {
+    apply(
+        nb,
+        vec![
+            insert(entry, task, &format!("[[{}]]", id(800))),
+            insert(entry + 1, entry, &format!("[[{}]]", id(project))),
+        ],
+    );
+}
+
+#[test]
+fn project_fields_include_journal_tasks_override_ancestry_and_require_live_projects() {
+    let (_dir, mut nb) = fixture();
+    project_field(&mut nb);
+    apply(
+        &mut nb,
+        vec![
+            insert(10, 1, "Ancestral project"),
+            insert(11, 1, "Explicit project"),
+            insert(20, 10, "Nested action"),
+            Operation::CreateJournal {
+                id: id(2),
+                date: "2026-10-03".into(),
+            },
+            insert(21, 2, "Journal action"),
+            insert(22, 2, &format!("A prose link [[{}]]", id(11))),
+        ],
+    );
+    for value in [10, 11] {
+        project(&mut nb, value, Some(ProjectState::default()));
+    }
+    for value in [20, 21, 22] {
+        set_task(&mut nb, value, Some(TaskState::default()));
+    }
+    link_project(&mut nb, 20, 100, 11);
+    link_project(&mut nb, 21, 110, 11);
+    let mut q = query();
+    q.filter.project_id = Some(id(11));
+    assert_eq!(ids(nb.task_query(&q).unwrap()), vec![id(20), id(21)]);
+    assert!(
+        nb.task_query(&q)
+            .unwrap()
+            .rows
+            .iter()
+            .all(|row| row.project_id == Some(id(11)) && row.section_id.is_none())
+    );
+    assert_eq!(
+        nb.agenda("2026-10-03")
+            .unwrap()
+            .items
+            .iter()
+            .find(|row| row.source.block.id == id(21))
+            .unwrap()
+            .project_id,
+        Some(id(11))
+    );
+    q.filter.project_id = Some(id(10));
+    assert!(nb.task_query(&q).unwrap().rows.is_empty());
+    let base_revision = nb.block(&id(110)).unwrap().revision;
+    apply(
+        &mut nb,
+        vec![Operation::Delete {
+            id: id(110),
+            base_revision,
+        }],
+    );
+    q.filter.project_id = Some(id(11));
+    assert_eq!(ids(nb.task_query(&q).unwrap()), vec![id(20)]);
+    archive(&mut nb, 11, true);
+    q.filter.project_id = Some(id(10));
+    assert_eq!(ids(nb.task_query(&q).unwrap()), vec![id(20)]);
+    archive(&mut nb, 11, false);
+    project(&mut nb, 11, None);
+    assert_eq!(nb.task_query(&q).unwrap().rows[0].project_id, Some(id(10)));
+    q.filter.project_id = None;
+    assert_eq!(
+        nb.task_query(&q)
+            .unwrap()
+            .rows
+            .iter()
+            .find(|row| row.source.block.id == id(21))
+            .unwrap()
+            .project_id,
+        None
+    );
+}
+
+#[test]
+fn outline_sort_keeps_preorder_sections_and_appends_linked_tasks_in_plan_order() {
+    let (_dir, mut nb) = fixture();
+    project_field(&mut nb);
+    apply(
+        &mut nb,
+        vec![
+            insert(10, 1, "Project"),
+            insert(30, 10, "Sync"),
+            insert(31, 30, "Sync first"),
+            insert(20, 10, "Reader"),
+            insert(22, 20, "Reader second"),
+            insert(21, 20, "Reader first"),
+            insert(23, 21, "Nested task"),
+            insert(24, 23, "Detail"),
+            insert(25, 24, "Deep task"),
+            insert(19, 10, "Direct"),
+            insert(40, 1, "Linked later"),
+            insert(41, 1, "Linked earlier"),
+        ],
+    );
+    project(&mut nb, 10, Some(ProjectState::default()));
+    for value in [19, 21, 22, 23, 25, 31, 40, 41] {
+        set_task(&mut nb, value, Some(TaskState::default()));
+    }
+    set_task(&mut nb, 31, Some(planned(Some("2026-10-01"), None)));
+    set_task(&mut nb, 41, Some(planned(Some("2026-10-02"), None)));
+    link_project(&mut nb, 40, 100, 10);
+    link_project(&mut nb, 41, 110, 10);
+    let mut q = query();
+    q.filter.project_id = Some(id(10));
+    assert_eq!(nb.task_query(&q).unwrap().rows[0].source.block.id, id(31));
+    q.filter.sort = tessera_core::TaskSort::Outline;
+    let rows = nb.task_query(&q).unwrap().rows;
+    assert_eq!(
+        rows.iter()
+            .map(|row| row.source.block.id.clone())
+            .collect::<Vec<_>>(),
+        [19, 21, 23, 25, 22, 31, 41, 40].map(id)
+    );
+    assert_eq!(
+        rows.iter()
+            .map(|row| row.section_id.clone())
+            .collect::<Vec<_>>(),
+        [
+            None,
+            Some(id(20)),
+            Some(id(20)),
+            Some(id(24)),
+            Some(id(20)),
+            Some(id(30)),
+            None,
+            None
+        ]
+    );
+    assert_eq!(rows[1].section_text.as_deref(), Some("Reader"));
+    q.limit = Some(2);
+    assert_eq!(nb.task_query(&q).unwrap().total, 8);
+    assert_eq!(nb.task_query(&q).unwrap().rows[1].source.block.id, id(21));
+    q.filter.project_via = tessera_core::TaskProjectVia::Field;
+    q.limit = Some(1);
+    let linked = nb.task_query(&q).unwrap();
+    assert_eq!(linked.total, 2);
+    assert_eq!(linked.rows[0].source.block.id, id(41));
+    link_project(&mut nb, 19, 120, 10);
+    let assigned_descendant = nb.task_query(&q).unwrap();
+    assert_eq!(assigned_descendant.total, 3);
+    assert_eq!(assigned_descendant.rows[0].source.block.id, id(19));
+}
+
+#[test]
+fn projects_are_ordered_by_case_insensitive_title_then_identity() {
+    let (_dir, mut nb) = fixture();
+    apply(
+        &mut nb,
+        vec![
+            insert(10, 1, "zebra"),
+            insert(12, 1, "alpha"),
+            insert(11, 1, "Alpha"),
+        ],
+    );
+    for value in [10, 11, 12] {
+        project(&mut nb, value, Some(ProjectState::default()));
+    }
+    assert_eq!(
+        nb.projects()
+            .unwrap()
+            .iter()
+            .map(|project| project.block_id.clone())
+            .collect::<Vec<_>>(),
+        [11, 12, 10].map(id)
+    );
+}

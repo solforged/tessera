@@ -25,7 +25,7 @@ Statuses are Todo, Doing, Waiting (an hourglass), Done and Canceled. Task state,
 
 ### Planning slip
 
-Plan task opens a compact slip headed by Planning and the task's authored text, or `Planning · done 2026-10-10` once done. Scheduled, Deadline, Priority and Repeat are labeled rows with their current values in mono or a faint None. Warning appears only with a deadline.
+Plan task opens a compact slip headed by Planning and the task's authored text, or `Planning · done 2026-10-10` once done. Scheduled, Deadline, Priority, Project and Repeat are labeled rows with their current values in mono or a faint None. Warning appears only with a deadline. Project opens a searchable, title-ordered picker; choosing a project replaces the task's explicit Project field in one undo step, and None removes it.
 
 ## Dates and times
 
@@ -81,7 +81,9 @@ A running work session requires an explicit stop, with Stop and complete offered
 
 ## Projects
 
-Project controls edit outcome, deadline and status. Show actions opens a task query over canonical descendants. Completing a project does not complete its tasks.
+Project controls edit outcome, deadline and status. Show actions opens an outline-ordered task query over descendants and explicit Project field members. The project page summarizes status, deadline, outcome, completed count and the first unfinished task in outline order. Linked tasks below the outline shows explicit field members written elsewhere, ordered by plan. Task rows elsewhere show their project as a trailing fact. Completing a project does not complete its tasks.
+
+The task API's optional `project_via: "field"` filter restricts results to explicit field assignments before the result limit. Its default, `both`, also includes ancestry members. Linked tasks uses the field-only read and excludes the project page's own descendants. Counts and Next are computed before limiting rows; the task API's 2,000-row cap remains unchanged.
 
 ## Agenda destination
 
@@ -116,7 +118,8 @@ A faint mono count sits under the line. Terms combine before the result limit, a
 | `show:all` | All tasks |
 | `priority:high`, `priority:medium`, `priority:low` | Priority |
 | `#Book`, `#[[Research notes]]` | Source type by an existing page title |
-| `[[Finish thesis]]` | Tasks beneath a block with a project capability |
+| `[[Finish thesis]]` | Tasks belonging to the project by ancestry or an explicit Project instance field |
+| `sort:outline` | Descendants in project preorder, grouped by their nearest non-task ancestor below the project, then field members in plan order; the default remains plan order |
 | `@fri`, `@today..+7d`, `@"next fri"..`, `@..2026-10-12` | Scheduled date or inclusive range; either endpoint may be open |
 | `by:fri`, `due:fri` | Deadline date or range, with the same date syntax |
 | `limit:50` | Result limit |

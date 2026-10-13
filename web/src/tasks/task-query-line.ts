@@ -102,6 +102,10 @@ export function parseTaskQueryLine(text: string, ctx: TaskQueryLineContext): { q
       const value = term.slice(9);
       if (value === 'high' || value === 'medium' || value === 'low') query.filter.priority = value;
       else fail('Use high, medium or low after priority:.');
+    } else if (term.startsWith('sort:')) {
+      const value = term.slice(5);
+      if (value === 'outline' || value === 'plan') query.filter.sort = value;
+      else fail('Use outline or plan after sort:.');
     } else if (raw.startsWith('#')) {
       const value = raw.slice(1);
       const title = value.startsWith('[[') && value.endsWith(']]') ? titleValue(value) : unquote(value);
@@ -145,12 +149,13 @@ export function formatTaskQueryLine(query: TaskQuery, ctx: TaskQueryLineContext)
     terms.push(/[\[\]"\\\s]/.test(title) ? `#${titleTerm(title)}` : `#${title}`);
   }
   if (query.filter.project_id) terms.push(titleTerm(ctx.projectTitle(query.filter.project_id) ?? query.filter.project_id));
+  if (query.filter.sort === 'outline') terms.push('sort:outline');
   if (query.filter.scheduled) terms.push(`@${formatRange(query.filter.scheduled)}`);
   if (query.filter.deadline) terms.push(`by:${formatRange(query.filter.deadline)}`);
   if (query.limit !== null) terms.push(`limit:${query.limit}`);
   if (query.source?.text) {
     const text = query.source.text;
-    terms.push(/\s|["\\]/.test(text) || /^(?:is:|show:|priority:|by:|due:|limit:|#|@|\[\[)/.test(text) ? JSON.stringify(text) : text);
+    terms.push(/\s|["\\]/.test(text) || /^(?:is:|show:|priority:|sort:|by:|due:|limit:|#|@|\[\[)/.test(text) ? JSON.stringify(text) : text);
   }
   return terms.join(' ');
 }

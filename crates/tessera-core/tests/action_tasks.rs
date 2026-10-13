@@ -828,7 +828,7 @@ fn projects_list_all_statuses_but_exclude_hidden_deleted_and_inactive_without_ca
             .iter()
             .map(|project| project.block_id.clone())
             .collect::<Vec<_>>(),
-        vec![id(10), id(11), id(12)]
+        vec![id(10), id(12), id(11)]
     );
     let before = nb.page(&id(1)).unwrap();
     reject(

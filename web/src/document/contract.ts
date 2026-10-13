@@ -137,6 +137,8 @@ export type Edit =
   | { kind: 'planTask'; id: string; text: string; value: TaskState }
   | { kind: 'completeTask'; id: string; completedOn: string; stopWork?: WorkSession }
   | { kind: 'project'; id: string; value: ProjectState | null }
+  /** Replace or remove a task's explicit Project field in one undo step. */
+  | { kind: 'taskProject'; id: string; fieldId: string; projectId: string | null }
   | { kind: 'position'; id: string; value: boolean }
   /** Set the authored kind and optional text together (including a slash command's removal). */
   | { kind: 'relation'; id: string; value: RelationKind | null; text?: string }

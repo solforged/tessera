@@ -66,6 +66,8 @@ describe('task query drafts', () => {
       { ...copyTaskQuery(projectQuery), source: { ...projectQuery.source!, text: 'phonology' } },
       { ...copyTaskQuery(projectQuery), filter: { ...projectQuery.filter, project_id: 'phonology-project' } },
       { ...copyTaskQuery(projectQuery), filter: { ...projectQuery.filter, recent_days: 30 } },
+      { ...copyTaskQuery(projectQuery), filter: { ...projectQuery.filter, project_via: 'field' } },
+      { ...copyTaskQuery(projectQuery), filter: { ...projectQuery.filter, sort: 'outline' } },
       taskRange(projectQuery, 'scheduled', 'through', '2026-10-02'),
       taskRange(projectQuery, 'deadline', 'from', '2026-09-15'),
     ];

@@ -8,8 +8,8 @@ use crate::reads::hidden_blocks;
 use crate::storage::{block_at, block_columns, not_found, validate_id, validation};
 use crate::{
     Agenda, AgendaItem, AgendaReason, BlockInPage, DateRange, Error, Notebook, Operation, Result,
-    Revision, TaskPriority, TaskQuery, TaskQueryResult, TaskRow, TaskSelection, TaskState,
-    TaskStatus, TaskView,
+    Revision, TaskPriority, TaskProjectVia, TaskQuery, TaskQueryResult, TaskRow, TaskSelection,
+    TaskSort, TaskState, TaskStatus, TaskView,
 };
 
 pub(crate) fn validate(conn: &Connection, query: &TaskQuery) -> Result<()> {
@@ -73,7 +73,11 @@ fn state_at(row: &rusqlite::Row<'_>, offset: usize) -> rusqlite::Result<TaskStat
     })
 }
 
-fn visible_tasks(conn: &Connection, project_id: Option<&str>) -> Result<Vec<TaskRow>> {
+fn visible_tasks(
+    conn: &Connection,
+    project_id: Option<&str>,
+    via: TaskProjectVia,
+) -> Result<Vec<TaskRow>> {
     let mut statement = conn.prepare_cached(concat!(
         hidden_blocks!(),
         ", visible_tasks AS MATERIALIZED (
@@ -87,15 +91,47 @@ fn visible_tasks(conn: &Connection, project_id: Option<&str>) -> Result<Vec<Task
             UNION ALL
             SELECT a.task_id, b.parent_id, a.depth + 1 FROM ancestors a
             JOIN blocks b ON b.id = a.ancestor_id WHERE b.parent_id IS NOT NULL
+         ), live_projects AS MATERIALIZED (
+            SELECT pr.block_id FROM projects pr JOIN blocks b ON b.id = pr.block_id
+            JOIN blocks p ON p.id = b.page_id WHERE pr.active = 1
+            AND b.deletion_id IS NULL AND p.deletion_id IS NULL
+            AND b.rowid NOT IN (SELECT rowid FROM hidden)
+         ), memberships AS MATERIALIZED (
+            SELECT t.block_id, t.state,
+            (SELECT l.target_id FROM field_values fv
+             JOIN blocks d ON d.id = fv.field_id JOIN fields f ON f.block_id = d.id
+             JOIN blocks e ON e.id = fv.entry_id JOIN blocks v ON v.id = fv.value_id
+             JOIN links l ON l.source_id = v.id AND l.occurrence = 0
+             JOIN live_projects pr ON pr.block_id = l.target_id
+             WHERE fv.owner_id = t.block_id AND lower(d.text) = 'project' AND f.kind = 'instance'
+             AND d.rowid NOT IN (SELECT rowid FROM hidden)
+             AND v.rowid NOT IN (SELECT rowid FROM hidden)
+             AND (trim(v.text) = '[[' || l.target_id || ']]'
+                  OR trim(v.text) LIKE '[[' || l.target_id || '|%]]')
+             ORDER BY e.ordinal, e.id, v.ordinal, v.id LIMIT 1) AS explicit_project,
+            (SELECT a.ancestor_id FROM ancestors a JOIN live_projects pr ON pr.block_id = a.ancestor_id
+             WHERE a.task_id = t.block_id ORDER BY a.depth LIMIT 1) AS ancestor_project
+            FROM visible_tasks t
+         ), selected AS MATERIALIZED (
+            SELECT *, coalesce(explicit_project, ancestor_project) AS project_id
+            FROM memberships m WHERE (?2 = 0 OR explicit_project IS NOT NULL) AND (?1 IS NULL OR
+            CASE WHEN explicit_project IS NOT NULL THEN explicit_project = ?1
+                 ELSE EXISTS(SELECT 1 FROM ancestors a
+                      WHERE a.task_id = m.block_id AND a.ancestor_id = ?1) END)
+         ), sections AS (
+            SELECT s.*, (SELECT a.ancestor_id FROM ancestors a
+              WHERE a.task_id = s.block_id AND a.depth < (
+                SELECT boundary.depth FROM ancestors boundary WHERE boundary.task_id = s.block_id
+                AND boundary.ancestor_id = coalesce(?1, s.project_id))
+              AND NOT EXISTS(SELECT 1 FROM visible_tasks t WHERE t.block_id = a.ancestor_id)
+              ORDER BY a.depth LIMIT 1) AS section_id FROM selected s
          ) SELECT ", block_columns!("b"), ", ", block_columns!("p"), ", t.state,
-         (SELECT a.ancestor_id FROM ancestors a JOIN projects pr ON pr.block_id = a.ancestor_id
-          WHERE a.task_id = t.block_id AND pr.active = 1 ORDER BY a.depth LIMIT 1)
-         FROM visible_tasks t JOIN blocks b ON b.id = t.block_id JOIN blocks p ON p.id = b.page_id
-         WHERE ?1 IS NULL OR EXISTS (SELECT 1 FROM ancestors a
-             WHERE a.task_id = t.block_id AND a.ancestor_id = ?1)"
+         t.project_id, t.section_id, section.text
+         FROM sections t JOIN blocks b ON b.id = t.block_id JOIN blocks p ON p.id = b.page_id
+         LEFT JOIN blocks section ON section.id = t.section_id"
     ))?;
     Ok(statement
-        .query_map([project_id], |row| {
+        .query_map(params![project_id, via == TaskProjectVia::Field], |row| {
             Ok(TaskRow {
                 source: BlockInPage {
                     block: block_at(row, 0)?,
@@ -103,6 +139,8 @@ fn visible_tasks(conn: &Connection, project_id: Option<&str>) -> Result<Vec<Task
                 },
                 task: state_at(row, 20)?,
                 project_id: row.get(21)?,
+                section_id: row.get(22)?,
+                section_text: row.get(23)?,
             })
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?)
@@ -160,6 +198,27 @@ fn compare_tasks(left: &TaskRow, right: &TaskRow) -> Ordering {
         .then_with(|| missing_last(left_time, right_time))
         .then_with(|| priority(left.task.priority).cmp(&priority(right.task.priority)))
         .then_with(|| left.source.block.id.cmp(&right.source.block.id))
+}
+
+/// Sibling ranks avoid depending on ordinal spacing and put parents before descendants.
+fn outline_ranks(conn: &Connection, project: Option<&str>) -> Result<HashMap<String, usize>> {
+    let mut statement = conn.prepare_cached(
+        "WITH RECURSIVE siblings AS (
+           SELECT id, parent_id, ROW_NUMBER() OVER (PARTITION BY parent_id ORDER BY ordinal, id) AS rank
+           FROM blocks WHERE deletion_id IS NULL
+         ), outline(id, path) AS (
+           SELECT id, printf('%020d', rank) FROM siblings
+           WHERE (?1 IS NULL AND parent_id IS NULL) OR id = ?1
+           UNION ALL
+           SELECT b.id, o.path || '/' || printf('%020d', b.rank)
+           FROM siblings b JOIN outline o ON b.parent_id = o.id
+         ) SELECT id FROM outline ORDER BY path",
+    )?;
+    Ok(statement
+        .query_map([project], |row| row.get::<_, String>(0))?
+        .enumerate()
+        .map(|(rank, id)| id.map(|id| (id, rank)))
+        .collect::<rusqlite::Result<_>>()?)
 }
 
 fn agenda_plan(state: &TaskState, date: &str) -> Result<(Vec<AgendaReason>, Option<String>)> {
@@ -314,7 +373,7 @@ impl Notebook {
         } else {
             HashSet::new()
         };
-        let mut rows = visible_tasks(&self.conn, filter.project_id.as_deref())?;
+        let mut rows = visible_tasks(&self.conn, filter.project_id.as_deref(), filter.project_via)?;
         rows.retain(|row| {
             let state = &row.task;
             (state.status != TaskStatus::Cancelled
@@ -336,7 +395,18 @@ impl Notebook {
                     .priority
                     .is_none_or(|priority| state.priority == Some(priority))
         });
-        rows.sort_unstable_by(compare_tasks);
+        if filter.sort == TaskSort::Outline {
+            let ranks = outline_ranks(&self.conn, filter.project_id.as_deref())?;
+            rows.sort_unstable_by(|left, right| {
+                missing_last(
+                    ranks.get(&left.source.block.id),
+                    ranks.get(&right.source.block.id),
+                )
+                .then_with(|| compare_tasks(left, right))
+            });
+        } else {
+            rows.sort_unstable_by(compare_tasks);
+        }
         let total = rows.len();
         rows.truncate(query.limit.unwrap_or(500));
         Ok(TaskQueryResult { rows, total })
@@ -355,7 +425,7 @@ impl Notebook {
         )?.query_map([date], |row| Ok((row.get::<_, String>(0)?, state_at(row, 1)?)))?
             .collect::<rusqlite::Result<HashMap<_, _>>>()?;
         let mut items = Vec::new();
-        for row in visible_tasks(&self.conn, None)? {
+        for row in visible_tasks(&self.conn, None, TaskProjectVia::Both)? {
             if row.task.status == TaskStatus::Cancelled {
                 continue;
             }

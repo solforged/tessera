@@ -384,7 +384,7 @@ export function AgendaPane(props: AgendaPaneProps) {
         <Show when={!loading() && !error()}>
           <Show when={!rows().length && mode() === 'tasks'}><p class="agenda-message">No tasks match these filters.</p></Show>
         </Show>
-        <Show when={mode() === 'agenda'} fallback={<TaskSourceRows rows={rows()} date={date()} pageId={dayPage()} notebook={props.notebook} disabled={busy() || loading() || !!error()} onOpen={props.onOpen} onChanged={() => setRefresh(value => value + 1)} />}>
+        <Show when={mode() === 'agenda'} fallback={<TaskSourceRows rows={rows()} date={date()} pageId={dayPage()} sections={query().filter.sort === 'outline'} notebook={props.notebook} disabled={busy() || loading() || !!error()} onOpen={props.onOpen} onChanged={() => setRefresh(value => value + 1)} />}>
           <overdueMove.Notice />
           <Show when={dayGroups().overdue.length}>
             <section class="agenda-day-section" aria-label="Overdue">

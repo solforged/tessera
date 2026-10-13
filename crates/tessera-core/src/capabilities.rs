@@ -377,6 +377,22 @@ pub enum TaskSelection {
     UnfinishedOrRecent,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TaskSort {
+    #[default]
+    Plan,
+    Outline,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TaskProjectVia {
+    #[default]
+    Both,
+    Field,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct TaskFilter {
@@ -387,6 +403,8 @@ pub struct TaskFilter {
     pub deadline: Option<DateRange>,
     pub priority: Option<TaskPriority>,
     pub project_id: Option<String>,
+    pub sort: TaskSort,
+    pub project_via: TaskProjectVia,
 }
 
 impl Default for TaskFilter {
@@ -399,6 +417,8 @@ impl Default for TaskFilter {
             deadline: None,
             priority: None,
             project_id: None,
+            sort: TaskSort::Plan,
+            project_via: TaskProjectVia::Both,
         }
     }
 }
@@ -417,6 +437,8 @@ pub struct TaskRow {
     pub source: BlockInPage,
     pub task: TaskState,
     pub project_id: Option<String>,
+    pub section_id: Option<String>,
+    pub section_text: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

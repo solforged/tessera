@@ -7,7 +7,7 @@ function taskRow(id: string, patch: Partial<TaskState> = {}): TaskRow {
   return {
     source: { page, block: { ...page, id, parent_id: page.id, kind: 'block', text: id } },
     task: { status: 'todo', scheduled: null, scheduled_time: null, deadline: null, deadline_time: null, warning_days: null, repeater: null, priority: null, completed_on: null, ...patch },
-    project_id: null,
+    project_id: null, section_id: null, section_text: null,
   };
 }
 

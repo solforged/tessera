@@ -5,6 +5,7 @@ import { fieldEntryId, matchFieldEntry } from '../table/query';
 import { linkedCitation, setLinkedCitation } from '../library/highlights';
 import { cardSubject, parseCardText } from '../review/card-text';
 import { TaskStatusButton } from '../tasks/TaskControls';
+import { createTaskProjects } from '../projects/task-project';
 import { RunningClock } from '../tasks/WorkSessions';
 import { isFinished, taskFacts } from '../tasks/task-labels';
 import { Button } from '../ui/Button';
@@ -47,6 +48,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
     setConflicts, conflicts, editedConflicts, setEditedConflicts,
   } = context;
   const quoteStatus = createQuoteStatus(doc, props.notebook);
+  const taskProjects = createTaskProjects(doc, props.notebook);
   /**
    * A task's trailing facts: subtask progress, a running clock, then planning in mono, which opens the planning slip.
    * An open task with no plan offers Plan only while its row is hovered or selected; a finished one says when it was done.
@@ -85,6 +87,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
           </Show>
         </Button>
       </Show>
+      <Show when={taskProjects.project(propsTask.id)}>{id => <Show when={id() !== doc.pageId}><span class="outline-task-facts"><BlockText text={props.notebook.lookup(id())()?.text ?? ''} notebook={props.notebook} interactive={false} /></span></Show>}</Show>
       <Show when={advanced()}><span class="visually-hidden" role="status">{advanced()}</span></Show>
     </>}</Show>;
   }
