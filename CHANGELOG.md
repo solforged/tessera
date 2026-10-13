@@ -53,6 +53,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 ### Fixed
 
 - Typing `|` in link completion picks the highlighted page and starts the alias, so `[[gen|memory boost]]` links Generation effect and reads "memory boost".
+- Link previews open at full size beside their link without jumping, stay inside their pane, and no longer block shortcuts such as Today. Page menus use the screen's height on phones, so Delete is no longer cut off.
 - Kept cover-screen writing, capture, date pickers and commands above the browser keyboard.
 - Contained long library bylines and pane titles, and enlarged related-section and highlight backlink touch targets.
 - Preserved prose font metrics when selecting text across outline paragraphs.
