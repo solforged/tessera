@@ -65,6 +65,16 @@ Each row has File and a menu containing Open, File under a type…, Rename…, M
 
 The shared type picker lists existing types and explicitly offers Create type “X” and file. Creation and membership are one acknowledged batch of existing operations. Rename uses the canonical page document; merge and delete retain their existing confirmations and undo rules.
 
+## Streams
+
+A stream is a running page such as Reading inbox or Japanese practice. Make stream, in the page menu after Make project, adds the `Stream` type, so streams get their own Index entry; Remove stream takes it off.
+
+Notes are written in the journal, under a line that links the stream. On a stream or project page, Arrivals sits between the outline and Backlinks: the direct children of those journal lines, grouped by day with the newest first, each with a mono nested count and File. Field entries under the line are not arrivals.
+
+File links rather than moves. It adds a whole-row `[[note]]` line at the end of the page, filling a trailing empty line first, in one undo step, and the note stays in its journal. The page outline is the stream's order, so the usual drag and ⌥⇧↑/↓ reorder it.
+
+A whole-row link to a block, other than a field entry or value, shows that block live: its text, up to 12 nested lines and then `Show N more`, and a faint mono provenance (`Mon 12`, or the page title) that opens the source, Shift beside. Editing the note in its journal updates every stream that shows it.
+
 ## Sources
 
 Sources is a bibliography, not a second reading shelf. It shows siglum, source title, author byline, format, publisher, publication year when stored, citation key, highlight count and ordinary page-backlink count. Open source notes is the default; Read appears only for sources with a current snapshot and hands off to the [reader](reader.md), and Open Library sits in the ruled strip. Reading progress and invented metadata are absent.

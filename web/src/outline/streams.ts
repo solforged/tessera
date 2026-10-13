@@ -17,9 +17,11 @@ export function createFiledTargets(doc: PageDocument) {
   })));
 }
 
-/** Filing uses ordinary outline insertion, so order and undo need no sidecar. */
+/** Filing uses ordinary outline insertion, so order and undo need no sidecar; like Add to today, it fills a trailing empty block first. */
 export function fileArrival(doc: PageDocument, id: string) {
-  return doc.edit({ kind: 'insert', parentId: doc.pageId, after: doc.outline.children(doc.pageId).at(-1) ?? null, text: `[[${id}]]` });
+  const last = doc.outline.children(doc.pageId).at(-1);
+  if (last && !doc.block(last)?.text && !doc.outline.children(last).length) return doc.edit({ kind: 'text', id: last, text: `[[${id}]]` });
+  return doc.edit({ kind: 'insert', parentId: doc.pageId, after: last ?? null, text: `[[${id}]]` });
 }
 
 export function streamDay(date: string) {

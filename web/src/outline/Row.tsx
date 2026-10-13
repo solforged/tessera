@@ -114,11 +114,12 @@ export function createOutlineRows(context: Pick<OutlineContext,
     const block = () => doc.block(id());
     const children = () => doc.outline.children(id()).length > 0;
     const target = createMemo(() => quoteTarget(block()?.text ?? ''));
-    const embed = createMemo(() => embedTarget(block()?.text ?? ''));
     const field = createMemo(() => definitionsById().get(fieldEntryId(block()?.text ?? '') ?? ''));
     const parent = () => doc.outline.parentOf(id());
     const valueField = createMemo(() => definitionsById().get(fieldEntryId(doc.block(parent())?.text ?? '') ?? ''));
     const inline = () => inlineFields().has(parent());
+    // Field entries are whole-row links to their definition, and values belong to their field; neither is an embed.
+    const embed = createMemo(() => field() || inline() ? undefined : embedTarget(block()?.text ?? ''));
     // Values of one entry line up in one column; only the first carries the field's name.
     const labelled = () => { const index = indices().get(id()) ?? 0; return !index || doc.outline.parentOf(ids()[index - 1]!) !== parent(); };
     // A known entry with no live values reads as its label and an empty slot until it is edited.

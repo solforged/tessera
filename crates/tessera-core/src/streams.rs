@@ -100,6 +100,7 @@ impl Notebook {
                AND p.text >= ?2 AND p.text <= ?3
                AND a.deletion_id IS NULL AND p.deletion_id IS NULL AND c.deletion_id IS NULL
                AND c.rowid NOT IN (SELECT rowid FROM hidden)
+               AND NOT EXISTS (SELECT 1 FROM field_values v WHERE v.entry_id = c.id)
                AND EXISTS (SELECT 1 FROM blocks s WHERE s.id = ?1 AND s.parent_id IS NULL AND s.deletion_id IS NULL)
                AND NOT EXISTS (SELECT 1 FROM blocks f WHERE f.page_id = ?1
                    AND f.parent_id IS NOT NULL AND f.deletion_id IS NULL

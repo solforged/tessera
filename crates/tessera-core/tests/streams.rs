@@ -145,6 +145,30 @@ fn filing_excludes_only_whole_row_references_and_undo_restores_arrivals() {
 }
 
 #[test]
+fn field_entries_under_an_anchor_are_not_arrivals() {
+    let (_dir, mut nb) = fixture();
+    let fields = nb.fields().unwrap().page_id;
+    let definition = ulid::Ulid::from(60u128).to_string();
+    apply(
+        &mut nb,
+        vec![
+            Operation::Insert {
+                id: definition.clone(),
+                parent_id: fields,
+                after: None,
+                text: "Project".into(),
+                heading: None,
+            },
+            insert(61, 20, Some(22), &format!("[[{definition}]]")),
+            insert(62, 61, None, "Tessera Android"),
+        ],
+    );
+    let arrivals = nb.stream_arrivals(&id(1), "2026-10-12", 100, 200).unwrap();
+    assert!(arrivals.iter().all(|row| row.block.id != id(61)));
+    assert!(arrivals.iter().any(|row| row.block.id == id(22)));
+}
+
+#[test]
 fn batch_subtrees_preserve_preorder_and_report_each_cap_and_missing_target() {
     let (_dir, nb) = fixture();
     let result = nb.subtrees(&[id(10), id(20), id(999)], 3, 4).unwrap();

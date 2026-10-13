@@ -131,6 +131,12 @@ export function createOutlineCommands(context: Pick<OutlineContext,
       if (!doc.root()?.project) capabilities.invoke(capabilities.edit(props.pageId, { kind: 'project', id: props.pageId, value: { status: 'active', outcome: '', deadline: null } }));
       capabilities.open(props.pageId, 'project');
     } },
+    // A stream page collects notes written under journal lines that link it; the Stream type marks it and lists it in the Index.
+    { id: 'stream-root', title: 'Make or remove stream', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Page is unavailable.' : doc.root()?.kind !== 'page' ? 'Journal days cannot be streams.' : undefined, run: () => {
+      const current = doc.root()?.manual_types.find(title => title.toLocaleLowerCase() === 'stream');
+      const result = current ? doc.removeType(props.pageId, current) : doc.addType(props.pageId, 'Stream');
+      if (!result.ok) setMessage(result.reason);
+    } },
     { id: 'gloss', title: 'Add or edit gloss', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Page is unavailable.' : doc.root()?.kind !== 'page' ? 'Journal days have no gloss.' : undefined, run: addGloss },
     { id: 'alias', title: 'Add alias', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Page is unavailable.' : doc.root()?.kind !== 'page' ? 'Journal days have no aliases.' : undefined, run: addAlias },
     { id: 'compare', title: 'Compare perspectives', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Page is unavailable.' : localPositions() < 2 ? 'Compare needs two perspectives on this page.' : undefined, run: () => props.onOpen({ kind: 'compare', subjectId: props.pageId }, false) },

@@ -844,6 +844,7 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
     ] satisfies MenuItem[] : []),
     { label: root()?.task ? 'Task' : 'Make task', icon: 'check', disabledReason: root() ? undefined : 'Page is still loading', action: () => rootCapability('task') },
     { label: root()?.project ? 'Project' : 'Make project', icon: 'flag', disabledReason: root() ? undefined : 'Page is still loading', action: () => rootCapability('project') },
+    ...(titled() ? [{ label: root()?.manual_types.some(title => title.toLocaleLowerCase() === 'stream') ? 'Remove stream' : 'Make stream', icon: 'link', disabledReason: outlineCommand('stream-root')?.disabledReason?.(), action: () => outlineCommand('stream-root')?.run() } satisfies MenuItem] : []),
     ...(titled() ? [{ label: root()?.question ? 'Question' : 'Make question', icon: 'question-open', disabledReason: root() ? undefined : 'Page is still loading', action: () => rootCapability('question') } satisfies MenuItem] : []),
     { label: 'Undo', icon: 'undo', shortcut: '⌘Z', disabledReason: !doc()?.canUndo() ? 'Nothing to undo' : undefined, action: () => undo(false) },
     { label: 'Redo', icon: 'redo', shortcut: '⌘⇧Z', disabledReason: !doc()?.canRedo() ? 'Nothing to redo' : undefined, action: () => undo(true) },
