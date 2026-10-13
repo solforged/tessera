@@ -516,6 +516,7 @@ Headings likewise drop their style first. Backspace straight after a reference, 
 - Delete at the end joins the next sibling, appending its children in order. At a zoomed root it does nothing, so it never merges a sibling outside the zoomed subtree.
 - Arrows at a row boundary cross to the neighboring row keeping the screen column, including across field gutters. The pane retains the preferred column through shorter rows and editor remounts until another key, a pointer action or a text edit resets it. Escape keeps the caret offset so the next Enter or `i` resumes there.
 - Indent, outdent and move act on the selection's roots with their subtrees, never leave the zoomed subtree, and are silent no-ops without a history entry at a boundary (no previous sibling, top level, first or last sibling). Outdent leaves the following siblings under their original parent. A multi-row selection survives the command and its undo or redo.
+- Outdenting a single empty, childless todo without planning facts, as Enter leaves after a task, keeps it a todo only when it lands below a task. Below a plain line it becomes a plain line in the same undo step, so a heading typed after a task list is not a task.
 - Delete of a subtree selects the previous visible survivor; folding a descendant selects the folded parent; zooming out selects the block being left. A hidden or remotely deleted edited or selected row selects the previous visible survivor, or the next when none precedes it, and keeps outline keyboard ownership.
 
 **Capability identity**
@@ -538,7 +539,7 @@ Typed triggers act in block text. Each character means one thing, opens a picker
 | `@` | When: `@fri` schedules, `@by fri` or `@due fri` sets a deadline; Tab flips the field, Enter picks |
 | `/` | Every block verb: statuses, schedule, deadline, priority, repeat, clock, project, headings, references, types, cards |
 | `Name::`, `::` at block start | Field entry; `::` alone picks the field |
-| `[] `, `# ` | Todo, heading |
+| `[] `, `# ` | Todo, heading; on a line that is already a task, `[] ` just disappears |
 | `>>`, `<<`, `<>`, `>>>`, `>>1.`, `;;`, `{{c1::}}` | Cards; ⌘⇧C wraps the selection in a cloze |
 
 #### References

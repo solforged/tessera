@@ -1465,6 +1465,11 @@ export class Document implements PageDocument {
           const parent = this.outline.parentOf(ids[0]!);
           if (parent === this.pageId || parent === edit.zoomRoot) break;
           move(ids, this.outline.parentOf(parent), parent);
+          // An empty todo that Enter continued leaves the task list with its indent: below a plain line it becomes a plain line.
+          const only = ids.length === 1 ? this.snapshot(ids[0]!) : null;
+          const task = only && this.block(only.id)?.task;
+          if (only && task && !only.text && !this.outline.children(only.id).length && !this.block(parent)?.task && sameState(task, newTask()))
+            actions.push({ kind: 'task', id: only.id, value: null, previous: this.capabilities(only.id).task, baseRevision: only.revision });
           break;
         }
         case 'move': {

@@ -1962,6 +1962,35 @@ describe('durable Action and Learning document commands', () => {
     await doc.flush();
   });
 
+  test('Shift+Tab takes an empty continued todo out of its list only below a plain line', async () => {
+    const instance = await client();
+    const { doc, first } = await page(instance, 'Reader');
+    const jitter = success(doc.edit({ kind: 'insert', parentId: first, after: null, text: 'Fix jitter' })).created[0]!;
+    success(doc.edit({ kind: 'task', id: jitter, value: todo }));
+    const next = success(doc.edit({ kind: 'split', id: jitter, offset: 'Fix jitter'.length })).created[0]!;
+    expect(doc.block(next)?.task).toEqual(todo);
+    await doc.flush();
+    const at = { id: next, offset: 0 };
+    success(doc.edit({ kind: 'outdent', ids: [next] }, at));
+    expect(doc.outline.parentOf(next)).toBe(doc.outline.parentOf(first));
+    expect(doc.block(next)?.task).toBeNull();
+    await doc.flush();
+    expect(doc.undo()).toEqual(at);
+    expect(doc.outline.parentOf(next)).toBe(first);
+    expect(doc.block(next)?.task).toEqual(todo);
+    await doc.flush();
+    // Below a task the outdented line stays in that task list, and written text keeps its task.
+    success(doc.edit({ kind: 'task', id: first, value: todo }));
+    success(doc.edit({ kind: 'outdent', ids: [next] }, at));
+    expect(doc.block(next)?.task).toEqual(todo);
+    success(doc.edit({ kind: 'indent', ids: [next] }, at));
+    success(doc.edit({ kind: 'task', id: first, value: null }));
+    success(doc.edit({ kind: 'text', id: next, text: 'Sync' }));
+    success(doc.edit({ kind: 'outdent', ids: [next] }, at));
+    expect(doc.block(next)?.task).toEqual(todo);
+    await doc.flush();
+  });
+
   test('completion protects a removed task until undo receives authoritative cleared history', async () => {
     const instance = await client();
     const { doc, first, id } = await page(instance, 'Destination');

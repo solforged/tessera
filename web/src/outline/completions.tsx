@@ -516,12 +516,12 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
       { id: 'copy-reference', title: 'Copy reference', section: 'Block', icon: 'copy', run: id => copy(`[[${id}]]`) },
     ];
   }
-  /** Typing `[] ` or `[ ] ` at the start of a plain block makes it a task. */
+  /** Typing `[] ` or `[ ] ` at the start of a block makes it a task; on a block that already is one, the prefix just disappears. */
   function taskPrefix(text: string, at: Caret): boolean {
     const prefix = /^\[ ?\] /.exec(text)?.[0];
-    if (!prefix || at.offset !== prefix.length || composition() || doc.block(at.id)?.task) return false;
+    if (!prefix || at.offset !== prefix.length || composition()) return false;
     const rest = text.slice(prefix.length);
-    const result = doc.edit({ kind: 'planTask', id: at.id, text: rest, value: newTask() }, caret());
+    const result = doc.block(at.id)?.task ? doc.edit({ kind: 'text', id: at.id, text: rest, caret: 0 }, caret()) : doc.edit({ kind: 'planTask', id: at.id, text: rest, value: newTask() }, caret());
     if (!result.ok) { setMessage(result.reason); return true; }
     queueMicrotask(() => { if (context.editor?.id !== at.id) return; context.editor.sync(rest); context.editor.view.dispatch({ selection: { anchor: 0 } }); });
     setCaret({ id: at.id, offset: 0 });
