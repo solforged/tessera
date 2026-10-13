@@ -75,6 +75,7 @@ export type Operation =
   | { op: 'reverse_task_completion'; id: string; base_revision: number; occurrence_id: string }
   | { op: 'set_project'; id: string; base_revision: number; project: ProjectState | null }
   | { op: 'set_position'; id: string; base_revision: number; position: boolean }
+  | { op: 'set_relation'; id: string; base_revision: number; relation: RelationKind | null }
   | { op: 'set_quote'; id: string; base_revision: number; quote: QuoteState | null }
   | { op: 'set_question'; id: string; base_revision: number; question: QuestionState | null }
   | { op: 'set_assessment'; id: string; base_revision: number; assessment: AssessmentState | null }
@@ -349,6 +350,11 @@ export interface PositionRow { block: BlockInPage; holder_id: string | null; sub
 export interface SubjectCriteria { explicit: boolean; fields: string[] }
 export interface PositionQuestion extends QuestionRow { criterion: string | null; holders: string[] }
 export interface PositionQueryResult { rows: PositionRow[]; criteria: SubjectCriteria; questions: PositionQuestion[] }
+export type RelationKind = 'supports' | 'disputes' | 'qualifies' | 'answers';
+export interface RelationInfo { kind: RelationKind; source_id: string; target_id: string | null; problem: string | null }
+export interface RelationQuery { kind?: RelationKind; source?: string; target?: string; source_holder?: string; target_holder?: string; limit?: number }
+export interface RelationEndpoint { block: BlockInPage; holder_id: string | null }
+export interface RelationRow { block: BlockInPage; kind: RelationKind; source: RelationEndpoint; target: RelationEndpoint | null; problem: string | null }
 export type QuestionStatus = 'open' | 'answered' | 'parked' | 'unsettled';
 export interface QuestionState { unsettled: boolean; parked: boolean; review_on: string | null; accepted: string | null }
 export interface AssessmentState { assessed_on: string; aporia: boolean }
@@ -360,7 +366,7 @@ export interface QuotedRow { id: string; depth: number; text: string; heading: n
 export interface QuoteState { target_id: string; captured_at: number; rows: QuotedRow[]; truncated: boolean }
 export interface Subtree { rows: Row[]; truncated: boolean }
 export interface QuoteStatus { block_id: string; source_live: boolean; changed: boolean }
-export interface BlockCapabilities { block_id: string; task: TaskState | null; project: ProjectState | null; position: PositionInfo | null; question: QuestionInfo | null; assessment: AssessmentInfo | null; quote?: QuoteState | null; history: boolean; merge_protected: boolean; reviewed_cards: boolean; template_cards?: number }
+export interface BlockCapabilities { block_id: string; task: TaskState | null; project: ProjectState | null; position: PositionInfo | null; relation: RelationInfo | null; question: QuestionInfo | null; assessment: AssessmentInfo | null; quote?: QuoteState | null; history: boolean; merge_protected: boolean; reviewed_cards: boolean; template_cards?: number }
 
 export interface WorkSession {
   id: string;

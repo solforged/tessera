@@ -132,6 +132,59 @@ pub struct PositionInfo {
     pub subject_id: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RelationKind {
+    Supports,
+    Disputes,
+    Qualifies,
+    Answers,
+}
+
+impl RelationKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Supports => "supports",
+            Self::Disputes => "disputes",
+            Self::Qualifies => "qualifies",
+            Self::Answers => "answers",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RelationInfo {
+    pub kind: RelationKind,
+    pub source_id: String,
+    pub target_id: Option<String>,
+    pub problem: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RelationQuery {
+    pub kind: Option<RelationKind>,
+    pub source: Option<String>,
+    pub target: Option<String>,
+    pub source_holder: Option<String>,
+    pub target_holder: Option<String>,
+    pub limit: Option<u32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RelationEndpoint {
+    pub block: BlockInPage,
+    pub holder_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RelationRow {
+    pub block: BlockInPage,
+    pub kind: RelationKind,
+    pub source: RelationEndpoint,
+    pub target: Option<RelationEndpoint>,
+    pub problem: Option<String>,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PositionQuery {
     pub holder: Option<String>,
@@ -187,6 +240,8 @@ pub struct BlockCapabilities {
     #[serde(default)]
     pub assessment: Option<AssessmentInfo>,
     #[serde(default)]
+    pub relation: Option<RelationInfo>,
+    #[serde(default)]
     pub quote: Option<crate::QuoteState>,
     #[serde(default)]
     pub source: Option<crate::library::SourceRecord>,
@@ -195,7 +250,7 @@ pub struct BlockCapabilities {
     /// Non-reversed task occurrences or work sessions exist for this source.
     #[serde(default)]
     pub history: bool,
-    /// Live task/project/question/assessment state, history, or reviewed cards.
+    /// Live capability state, history, or reviewed cards.
     pub merge_protected: bool,
     pub reviewed_cards: bool,
     #[serde(default)]

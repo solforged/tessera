@@ -63,6 +63,8 @@ import type {
   PositionQueryResult,
   QuestionQuery,
   QuestionRow,
+  RelationQuery,
+  RelationRow,
   ReviewEvent,
   ReviewSession,
   ReviewStats,
@@ -243,6 +245,7 @@ export interface ApiClient {
   activeWorkSession(signal?: AbortSignal): Promise<WorkSession | null>;
   projects(signal?: AbortSignal): Promise<ProjectRecord[]>;
   positions(query: { holder?: string; subject?: string; limit?: number }, signal?: AbortSignal): Promise<PositionQueryResult>;
+  relations(query: RelationQuery, signal?: AbortSignal): Promise<RelationRow[]>;
   questions(query: QuestionQuery, signal?: AbortSignal): Promise<QuestionRow[]>;
   taskQuery(value: TaskQuery, signal?: AbortSignal): Promise<TaskQueryResult>;
   agenda(date: string, signal?: AbortSignal): Promise<Agenda>;
@@ -369,6 +372,7 @@ export function createApi(base = ''): ApiClient {
       if (query.limit !== undefined) params.set('limit', String(query.limit));
       return get<PositionQueryResult>(`/positions?${params}`, signal);
     },
+    relations: (value: RelationQuery, signal?: AbortSignal) => get<RelationRow[]>(`/relations${query({ ...value })}`, signal),
     questions: (query: QuestionQuery, signal?: AbortSignal) => {
       const params = new URLSearchParams();
       if (query.status !== undefined) params.set('status', query.status);

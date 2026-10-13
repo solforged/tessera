@@ -32,6 +32,7 @@ pub mod question_store;
 mod quote_store;
 mod reads;
 mod references;
+mod relation_store;
 pub mod replication;
 mod resurface;
 mod review_store;
@@ -70,6 +71,7 @@ pub use capabilities::{
     AssessmentInfo, AssessmentState, QuestionInfo, QuestionQuery, QuestionRow, QuestionState,
     QuestionStatus,
 };
+pub use capabilities::{RelationEndpoint, RelationInfo, RelationKind, RelationQuery, RelationRow};
 pub use card_templates::{
     CardTemplate, CardTemplateForecast, CardTemplateInfo, CardTemplatePreview,
     CardTemplateProvenance, CardTemplateWaiting, TemplateLoadDay,

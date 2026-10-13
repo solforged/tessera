@@ -5,10 +5,11 @@ import type { NotebookClient, PageDocument } from '../document/contract';
 import { pageSigla } from '../library/sigla';
 import { BlockText } from '../outline/BlockText';
 import { isGistName } from '../outline/gloss';
-import { positionFields, positionSource } from '../outline/perspectives';
-import type { PositionField } from '../outline/perspectives';
+import { positionFields, positionRelations, positionSource, readingPassages } from '../outline/perspectives';
+import type { PositionField, ReadingPassage } from '../outline/perspectives';
+import { OutgoingRelations } from '../outline/RelationLines';
 import type { CompareViewState, OpenTarget } from '../shell/contract';
-import { fieldEntryId, matchFieldEntry } from '../table/query';
+import { fieldEntryId } from '../table/query';
 import { Button } from '../ui/Button';
 import { ShapeGlyph } from './ShapeGlyph';
 import { CriteriaEditor } from './CriteriaEditor';
@@ -24,7 +25,6 @@ interface ComparePaneProps {
   onViewChange(view: CompareViewState): void;
 }
 
-interface Passage { id: string; text: string; heading: boolean }
 interface Perspective {
   row: PositionRow;
   gist: PositionField | undefined;
@@ -32,29 +32,7 @@ interface Perspective {
   account: PositionField | undefined;
   shape: PositionField | undefined;
   source: string | null;
-  passages: Passage[];
-}
-
-/** Read authored prose, not a questionnaire reconstructed from field values. */
-function readingPassages(doc: PageDocument, id: string, gist: string | undefined, fieldName: (id: string) => string | undefined): Passage[] {
-  doc.outline.version(); doc.archivedVersion();
-  const outline = doc.outline;
-  const start = outline.indexOf(id);
-  const passages: Passage[] = [];
-  if (start < 0) return passages;
-  for (let at = start + 1, end = outline.subtreeEnd(start); at < end;) {
-    const blockId = outline.idAt(at);
-    const block = doc.block(blockId);
-    const field = fieldEntryId(block?.text ?? '');
-    if (!block || doc.isArchived(blockId) || (field && fieldName(field)) || matchFieldEntry(block.text) || block.position) {
-      at = outline.subtreeEnd(at);
-      continue;
-    }
-    const text = block.text.trim();
-    if (text && text !== gist?.trim()) passages.push({ id: blockId, text: block.text, heading: block.heading !== null });
-    at++;
-  }
-  return passages;
+  passages: ReadingPassage[];
 }
 
 /** Readings and criteria share authored positions and their page documents. */
@@ -182,6 +160,7 @@ export function ComparePane(props: ComparePaneProps) {
               </header>
               <Show when={perspective.gist?.value}>{gist => <p class="compare-gist"><BlockText text={perspective.gist?.valueId ? docs().get(page)?.block(perspective.gist.valueId)?.text ?? gist() : gist()} blockId={perspective.gist?.valueId ?? undefined} notebook={props.notebook} onOpen={props.onOpen} /></p>}</Show>
               <For each={perspective.passages}>{passage => <div class="compare-passage" classList={{ 'compare-passage-heading': passage.heading }}><BlockText text={passage.text} blockId={passage.id} notebook={props.notebook} onOpen={props.onOpen} /></div>}</For>
+              <OutgoingRelations rows={docs().get(page)?.status() === 'ready' ? positionRelations(docs().get(page)!, id) : []} notebook={props.notebook} onOpen={props.onOpen} />
               <Button class="compare-open" onClick={event => open(page, id, event.shiftKey)}>Open reading</Button>
             </article>;
           }}</For></div>

@@ -352,6 +352,7 @@ macro_rules! capability_rows {
              (t.block_id IS NOT NULL OR p.block_id IS NOT NULL
               OR EXISTS(SELECT 1 FROM sources s WHERE s.block_id=b.id)
               OR EXISTS(SELECT 1 FROM positions pos WHERE pos.block_id=b.id)
+              OR EXISTS(SELECT 1 FROM relations r WHERE r.block_id=b.id)
               OR EXISTS(SELECT 1 FROM questions q WHERE q.block_id=b.id)
               OR EXISTS(SELECT 1 FROM assessments a WHERE a.block_id=b.id)
               OR q.block_id IS NOT NULL
@@ -399,6 +400,7 @@ fn capability_at(row: &rusqlite::Row<'_>) -> rusqlite::Result<BlockCapabilities>
         position: None,
         question: None,
         assessment: None,
+        relation: None,
         quote,
         history,
         reviewed_cards,
@@ -412,7 +414,7 @@ pub(crate) fn capabilities_for(
     conn: &Connection,
     ids: &[String],
 ) -> Result<Vec<BlockCapabilities>> {
-    crate::position_store::hydrate(
+    let capabilities = crate::position_store::hydrate(
         conn,
         crate::question_store::hydrate(
             conn,
@@ -429,14 +431,15 @@ pub(crate) fn capabilities_for(
                 .collect::<rusqlite::Result<_>>()?,
             )?,
         )?,
-    )
+    )?;
+    crate::relation_store::hydrate(conn, capabilities)
 }
 
 pub(crate) fn page_capabilities(
     conn: &Connection,
     page_id: &str,
 ) -> Result<Vec<BlockCapabilities>> {
-    crate::position_store::hydrate(
+    let capabilities = crate::position_store::hydrate(
         conn,
         crate::question_store::hydrate(
             conn,
@@ -452,7 +455,8 @@ pub(crate) fn page_capabilities(
                 .collect::<rusqlite::Result<_>>()?,
             )?,
         )?,
-    )
+    )?;
+    crate::relation_store::hydrate(conn, capabilities)
 }
 
 pub(crate) fn guard_merge(conn: &Connection, source_id: &str) -> Result<()> {
@@ -461,6 +465,7 @@ pub(crate) fn guard_merge(conn: &Connection, source_id: &str) -> Result<()> {
             "SELECT EXISTS(SELECT 1 FROM tasks WHERE block_id = b.id AND active = 1)
              OR EXISTS(SELECT 1 FROM projects WHERE block_id = b.id AND active = 1)
              OR EXISTS(SELECT 1 FROM positions WHERE block_id = b.id AND active = 1)
+             OR EXISTS(SELECT 1 FROM relations WHERE block_id = b.id AND active = 1)
              OR EXISTS(SELECT 1 FROM questions WHERE block_id = b.id AND active = 1)
              OR EXISTS(SELECT 1 FROM assessments WHERE block_id = b.id AND active = 1)
              OR ",

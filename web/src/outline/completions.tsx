@@ -1,6 +1,6 @@
 import { For, Show, createEffect, createMemo, createResource, createSignal } from 'solid-js';
 import type { EditorView } from '@codemirror/view';
-import type { Block, Completion as NameCompletion, FieldDefinition, TaskStatus } from '../api/types';
+import type { Block, Completion as NameCompletion, FieldDefinition, RelationKind, TaskStatus } from '../api/types';
 import { api } from '../api/client';
 import type { BlockState, Caret } from '../document/contract';
 import { fieldEntryId } from '../table/query';
@@ -25,9 +25,10 @@ import { completeTypes, typeSpelling, typeTokenAt } from './type-completion';
 import type { OutlineContext } from './context';
 import { createPageIcon } from './source';
 import { emptyExtraValuePrevious } from './keyboard';
+import { addRelationReason, relationKinds, relationLabels, relationReason } from './relations';
 
 /** An open page/block reference, a type query, `::` field name, or the manual Add type picker. */
-export interface Completion { from: number; to: number; query: string; types?: boolean; blocks?: boolean; quote?: boolean; fields?: boolean; manual?: { blockId: string; anchor: HTMLElement } }
+export interface Completion { from: number; to: number; query: string; types?: boolean; blocks?: boolean; quote?: boolean; fields?: boolean; manual?: { blockId: string; anchor: HTMLElement }; relationTarget?: { parentId: string; kind: RelationKind; anchor: HTMLElement; sourceText?: string } }
 /** A slash-menu row: a block verb (`run`) or syntax that replaces the token (`insert`), or both. */
 interface SlashItem extends SlashEntry {
   section: string;
@@ -37,6 +38,8 @@ interface SlashItem extends SlashEntry {
   disabledReason?(id: string): string | undefined;
   insert?(text: string): { text: string; caret: number };
   cardKind?: InsertCardKind;
+  relationKind?: RelationKind;
+  relationAction?: 'add' | 'change' | 'remove';
   run?(id: string): void;
 }
 type CompletionRow = { kind: 'block'; block: Block & Partial<Pick<NameCompletion, 'alias'>> } | { kind: 'field'; field: FieldDefinition };
@@ -46,7 +49,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
   | 'setMessage' | 'disposed' | 'rowAnchor' | 'editAt' | 'restoreFocus' | 'props'
   | 'replaceSelection' | 'fields' | 'definitionsById' | 'definitions' | 'activeRange'
   | 'fieldConversion' | 'commandDefinitions' | 'openPlanning' | 'priorityMenu' | 'openProject'
-  | 'investigationItems' | 'apply' | 'zoomTo' | 'copy' | 'templateFor' | 'rowFocus' | 'openRelation' | 'placeReason' | 'usePlace'
+  | 'investigationItems' | 'markRelation' | 'relationMenu' | 'apply' | 'zoomTo' | 'copy' | 'templateFor' | 'rowFocus' | 'openRelation' | 'placeReason' | 'usePlace'
 >) {
   const {
     contextDate, editing, textRange, composition, caret, doc,
@@ -181,6 +184,12 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
       ? { text: text.slice(0, state.from) + insertion.text + text.slice(state.to), caret: state.from + insertion.caret }
       : removed;
     setSlashCompletion(null);
+    if (item.relationKind || item.relationAction) {
+      if (item.relationKind) context.markRelation(id, item.relationKind, next.text);
+      else if (item.relationAction === 'remove') context.markRelation(id, null, next.text);
+      else context.relationMenu(id, item.relationAction === 'add', next.text);
+      return;
+    }
     if (!rewriteEditing(id, next)) return;
     if (insertion || item.cardKind) { updateCompletion(next.text, { id, offset: next.caret }); updateTriggers(next.text, { id, offset: next.caret }); }
     void doc.flush().catch(reason => capabilities.failure(id, reason));
@@ -229,7 +238,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
   function popupKey(event: KeyboardEvent) {
     const state = completion();
     if (!state) return false;
-    if (event.key === 'Enter' && event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey && !state.manual && !state.types && !state.fields && context.editor && !textRange() && context.editor.view.state.selection.main.empty) {
+    if (event.key === 'Enter' && event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey && !state.manual && !state.relationTarget && !state.types && !state.fields && context.editor && !textRange() && context.editor.view.state.selection.main.empty) {
       const id = context.editor.id;
       const text = context.editor.view.state.doc.toString();
       const offset = referenceNewlineAt(text, state.from, state.to, !!state.blocks);
@@ -267,9 +276,9 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
   let dismissedCompletion: { id: string; from: number; query: string } | null = null;
   function dismissCompletion() {
     const state = completion();
-    if (state && !state.manual && context.editor) dismissedCompletion = { id: context.editor.id, from: state.from, query: state.query };
+    if (state && !state.manual && !state.relationTarget && context.editor) dismissedCompletion = { id: context.editor.id, from: state.from, query: state.query };
     setCompletion(null);
-    if (state?.manual) restoreFocus();
+    if (state?.manual || state?.relationTarget) restoreFocus();
   }
   /**
    * `::` at the start of a block picks a field. Otherwise `[[`
@@ -287,7 +296,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     return { ...reference, quote: reference.blocks && isQuoteCompletion(text, reference.from, reference.to) };
   }
   function updateCompletion(text: string, at: Caret) {
-    if (completion()?.manual) return;
+    if (completion()?.manual || completion()?.relationTarget) return;
     const next = completionAt(text, at);
     if (!next) { setCompletion(null); return; }
     if (dismissedCompletion && dismissedCompletion.id === at.id && dismissedCompletion.from === next.from && dismissedCompletion.query === next.query) return;
@@ -325,6 +334,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     // The block being typed in matches its own saved draft; it is never a useful target.
     const found = (matches.error ? [] : matches()?.rows ?? []).filter(block => block.id !== editing());
     if (state?.manual || state?.types) return found.filter(block => block.kind === 'page').map(block => ({ kind: 'block', block }));
+    if (state?.relationTarget) return found.map(block => ({ kind: 'block', block }));
     if (state && !state.blocks && isJournalReference(state.query)) {
       return found.filter(block => block.kind === 'journal' && block.text === state.query.trim()).map(block => ({ kind: 'block', block }));
     }
@@ -368,11 +378,20 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
   createEffect(() => {
     const state = completion();
     if (!context.editor) return;
-    if (state && !state.manual) { drafted = true; context.editor.markDraft(completionRange(state, context.editor.view.state.doc.toString())); }
+    if (state && !state.manual && !state.relationTarget) { drafted = true; context.editor.markDraft(completionRange(state, context.editor.view.state.doc.toString())); }
     else if (drafted) { drafted = false; context.editor.markDraft(null); }
   });
   async function insertReference(id: string) {
     const state = completion();
+    if (state?.relationTarget) {
+      const target = state.relationTarget;
+      const result = apply({ kind: 'addRelation', parentId: target.parentId, value: target.kind, targetId: id, sourceText: target.sourceText }, true);
+      if (result?.ok) {
+        setCompletion(null);
+        void doc.flush().catch(reason => capabilities.failure(target.parentId, reason));
+      }
+      return;
+    }
     const source = editing();
     if (!state || !context.editor || !source || quoteBusy()) return;
     const text = context.editor.view.state.doc.toString();
@@ -471,6 +490,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
   function completionAnchor(): DOMRect | null {
     const state = completion();
     if (state?.manual) return state.manual.anchor.getBoundingClientRect();
+    if (state?.relationTarget) return state.relationTarget.anchor.getBoundingClientRect();
     return state && context.editor ? caretRect(state.from) : null;
   }
   /** The slash menu: block verbs from the command list plus syntax inserts; each row shows its faster key. */
@@ -490,12 +510,19 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
       { id: 'clock', title: 'Clock in / out', aliases: ['timer', 'start work', 'stop work'], section: 'Task', icon: 'clock', keys: keys('clock'), run: id => capabilities.invoke(capabilities.clock(id)) },
       { id: 'remove-task', title: 'Remove task', aliases: ['plain'], section: 'Task', icon: 'close', when: block => !!block?.task, run: id => capabilities.invoke(capabilities.status(id, null)) },
       { id: 'project', title: 'Project', aliases: ['outcome'], section: 'Project', icon: 'flag', keys: 'Space o', run: openProject },
-      { id: 'perspective', title: 'Make perspective', aliases: ['position', 'view'], section: 'Block', icon: 'link', keys: 'Space v', when: block => block?.kind === 'block' && !block.position, run: id => capabilities.invoke(capabilities.edit(id, { kind: 'position', id, value: true })) },
+      { id: 'perspective', title: 'Make perspective', aliases: ['position', 'view'], section: 'Block', icon: 'link', keys: 'Space v', when: block => block?.kind === 'block' && !block.position, disabledReason: id => doc.block(id)?.relation ? 'Remove the relation first.' : undefined, run: id => capabilities.invoke(capabilities.edit(id, { kind: 'position', id, value: true })) },
       { id: 'remove-perspective', title: 'Remove perspective', aliases: ['remove position', 'remove view'], section: 'Block', icon: 'close', keys: 'Space v', when: block => block?.kind === 'block' && !!block.position, run: id => capabilities.invoke(capabilities.edit(id, { kind: 'position', id, value: false })) },
       { id: 'change-holder', title: 'Change holder…', aliases: ['holder', 'attribution'], section: 'Block', icon: 'link', when: block => !!block?.position, run: id => context.openRelation(id, 'holder') },
       { id: 'file-under', title: 'File under…', aliases: ['subject', 'file'], section: 'Block', icon: 'link', when: block => !!block?.position, disabledReason: id => !doc.block(id)?.position?.holder_id ? 'Choose a holder before filing this perspective.' : undefined, run: id => context.openRelation(id, 'subject') },
       { id: 'use-place', title: 'Use place', aliases: ['implicit subject'], section: 'Block', icon: 'close', when: block => !!block?.position, disabledReason: context.placeReason, run: context.usePlace },
       ...(doc.root()?.kind === 'journal' ? [{ id: 'integrate', title: 'Integrate…', aliases: ['move', 'file thought'], section: 'Block', icon: 'link' as const, run: (id: string) => context.openRelation(id, 'integrate') }] : []),
+      ...relationKinds.map((kind): SlashItem => ({
+        id: `relation-${kind}`, title: `${relationLabels[kind]}…`, aliases: [kind, 'relation'], section: 'Relation', icon: 'link',
+        disabledReason: id => relationReason(doc.block(id)), relationKind: kind,
+      })),
+      { id: 'relation-kind', title: 'Change kind', aliases: ['relation kind'], section: 'Relation', icon: 'link', when: block => !!block?.relation, relationAction: 'change' },
+      { id: 'remove-relation', title: 'Remove relation', section: 'Relation', icon: 'close', when: block => !!block?.relation, relationAction: 'remove' },
+      { id: 'add-relation', title: 'Add relation…', section: 'Relation', icon: 'plus', when: block => !addRelationReason(block), relationAction: 'add' },
       ...(['question', 'answer'] as const).map((kind): SlashItem => ({
         id: kind, title: `Make ${kind}`, aliases: [kind], section: 'Question', icon: kind === 'question' ? 'question-open' : 'question-settled', keys: 'Space q',
         disabledReason: id => investigationItems(id).find(item => item.label === `Make ${kind}`)?.disabledReason ?? (doc.block(id)?.[kind === 'question' ? 'question' : 'assessment'] ? `Already a ${kind}.` : undefined),
@@ -533,8 +560,8 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     return true;
   }
 function CompletionPopups(){ return <>
-    <Show when={completion()}><Popup anchor={completionAnchor} width={480} class="picker" label={completion()?.manual ? 'Add type…' : completion()?.types ? 'Type' : completion()?.fields ? 'Field' : completion()?.quote ? 'Quote block' : completion()?.blocks ? 'Block reference' : 'Reference completion'} role={completion()?.manual ? 'dialog' : 'listbox'} onDismiss={dismissCompletion} autofocus={!!completion()?.manual}>
-      <Show when={completion()?.manual}><div class="picker-query"><Icon name="tag" class="picker-prefix" /><input class="picker-input" aria-label="Type title" placeholder="Type title" value={completion()?.query ?? ''} onInput={event => { setCompletion(state => state ? { ...state, query: event.currentTarget.value } : null); setCompletionIndex(0); }} onKeyDown={event => { if (!event.isComposing && popupKey(event)) { event.preventDefault(); event.stopPropagation(); } }} /></div></Show>
+    <Show when={completion()}><Popup anchor={completionAnchor} width={480} class="picker" label={completion()?.relationTarget ? 'Relation target' : completion()?.manual ? 'Add type…' : completion()?.types ? 'Type' : completion()?.fields ? 'Field' : completion()?.quote ? 'Quote block' : completion()?.blocks ? 'Block reference' : 'Reference completion'} role={completion()?.manual || completion()?.relationTarget ? 'dialog' : 'listbox'} onDismiss={dismissCompletion} autofocus={!!(completion()?.manual || completion()?.relationTarget)}>
+      <Show when={completion()?.manual || completion()?.relationTarget}><div class="picker-query"><Icon name={completion()?.relationTarget ? 'link' : 'tag'} class="picker-prefix" /><input class="picker-input" aria-label={completion()?.relationTarget ? 'Relation target' : 'Type title'} placeholder={completion()?.relationTarget ? 'Find a target' : 'Type title'} value={completion()?.query ?? ''} onInput={event => { setCompletion(state => state ? { ...state, query: event.currentTarget.value } : null); setCompletionIndex(0); }} onKeyDown={event => { if (!event.isComposing && popupKey(event)) { event.preventDefault(); event.stopPropagation(); } }} /></div></Show>
       <div ref={completionList} class="picker-list" onMouseDown={event => event.preventDefault()}>
         <Show when={completion()?.blocks}><div class="picker-section">{completion()?.quote ? 'Quote block' : 'Block reference'}</div></Show>
         <Show when={quoteBusy()}><p class="empty-state" role="status">Capturing quote…</p></Show>

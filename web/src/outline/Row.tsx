@@ -25,6 +25,7 @@ import { fieldValueProblem } from '../fields/value-reading';
 import { KeptCopyActions, KeptCopyLabel } from './KeptCopy';
 import { quoteTarget, textTokens } from '../document/text-tokens';
 import { Quote, createQuoteStatus } from './Quote';
+import { relationLabels } from './relations';
 
 const questionLabels: Record<QuestionStatus, string> = { open: 'Open', answered: 'Answered', parked: 'Parked', unsettled: 'Unsettled' };
 export function createOutlineRows(context: Pick<OutlineContext,
@@ -35,7 +36,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
   | 'fold' | 'zoomTo' | 'editAt' | 'restoreFocus' | 'pointerStart' | 'attach'
   | 'referenceMenu' | 'selectedOffsets' | 'ids' | 'indices' | 'setMessage' | 'apply'
   | 'setConflicts' | 'conflicts' | 'editedConflicts' | 'setEditedConflicts'
->, sheet: FieldSheet, drag: OutlineDrag, ReferenceCount: Component<{ id: string }>, openValueEditor: (id: string, anchor?: HTMLElement) => boolean) {
+>, sheet: FieldSheet, drag: OutlineDrag, ReferenceCount: Component<{ id: string }>, RowRelations: Component<{ id: string }>, openValueEditor: (id: string, anchor?: HTMLElement) => boolean) {
   const {
     doc, capabilities, setMenu, investigationItems, definitionsById, contextDate, inlineFields,
     baseDepth, positionSource, sourceDetails, virtualizer, hosts, props,
@@ -189,7 +190,9 @@ export function createOutlineRows(context: Pick<OutlineContext,
         if (controlledValue() && !(event.target as Element).closest('button, .outline-capability-metadata')) { event.stopPropagation(); openValueEditor(id(), event.currentTarget); }
       }}>
         <Show when={block()?.keptCopy}>{copy => <KeptCopyLabel copy={copy()} />}</Show>
-        <div class="outline-source-line"><div class="outline-source">
+        <div class="outline-source-line">
+        <Show when={block()?.relation}>{relation => <span class="relation-label">{relationLabels[relation().kind]}<Show when={relation().problem}>{problem => <span class="relation-problem" role="img" aria-label={problem()} title={problem()}><Icon name="warning" /></span>}</Show></span>}</Show>
+        <div class="outline-source">
         <div class="editor-host" classList={{ 'host-active': editing() === id() }} ref={host => attach(id(), host)} />
         <Show when={editing() !== id()}><Switch>
           <Match when={target()}><Quote id={id()} target={target()!} doc={doc} notebook={props.notebook} status={quoteStatus().get(id())} onOpen={props.onOpen} /></Match>
@@ -219,6 +222,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
           <For each={block()?.citations}>{citation => <CitationChip citation={citation} pageId={props.pageId} notebook={props.notebook} onOpen={props.onOpen} />}</For>
         </span></Show>
         </div>
+        <RowRelations id={id()} />
         <Show when={block()?.keptCopy}><KeptCopyActions id={id()} apply={edit => apply(edit, false)} /></Show>
         <For each={block()?.citations}>{citation => <Show when={block()?.text.trim() !== citation.quote.trim()}>
           <p class="outline-citation-quote" title={citation.quote}>{citation.quote}</p>

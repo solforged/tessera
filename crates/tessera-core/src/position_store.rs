@@ -29,6 +29,7 @@ pub(crate) fn set(conn: &Connection, id: &str, active: bool) -> Result<bool> {
             .execute([id])?
             != 0);
     }
+    crate::relation_store::guard_other(conn, id, "a perspective")?;
     Ok(conn
         .prepare_cached(
             "INSERT INTO positions(block_id, active) VALUES (?1, 1)
@@ -48,7 +49,10 @@ pub(crate) fn nearest_question_ancestor(
 
 /// Resolve both links together, without skipping an invalid first or second link.
 /// An optional ID set keeps page loads and receipts set-based.
-fn derive(conn: &Connection, ids: Option<&[String]>) -> Result<HashMap<String, PositionInfo>> {
+pub(crate) fn derive(
+    conn: &Connection,
+    ids: Option<&[String]>,
+) -> Result<HashMap<String, PositionInfo>> {
     let mut statement = conn.prepare_cached(concat!(
         hidden_blocks!(),
         ", candidates AS (

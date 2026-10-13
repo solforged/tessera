@@ -812,6 +812,7 @@ impl Engine<'_, '_> {
                  AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.block_id = b.id)
                  AND NOT EXISTS (SELECT 1 FROM projects p WHERE p.block_id = b.id)
                  AND NOT EXISTS (SELECT 1 FROM positions p WHERE p.block_id = b.id)
+                 AND NOT EXISTS (SELECT 1 FROM relations r WHERE r.block_id = b.id)
                  AND NOT EXISTS (SELECT 1 FROM questions q WHERE q.block_id = b.id)
                  AND NOT EXISTS (SELECT 1 FROM questions q WHERE json_extract(q.state, '$.accepted') = +b.id)
                  AND NOT EXISTS (SELECT 1 FROM assessments a WHERE a.block_id = b.id)
@@ -1480,17 +1481,31 @@ impl Engine<'_, '_> {
             }
             _ => None,
         };
+        let relation_affected = match operation {
+            Operation::SetPosition { id, .. }
+            | Operation::SetRelation { id, .. }
+            | Operation::EditText { id, .. }
+            | Operation::Split { id, .. } => Some(id),
+            _ => affected,
+        };
         if let Some(id) = affected {
             crate::question_store::affected(self.tx, id, &mut self.capability_sources)?;
+        }
+        if let Some(id) = relation_affected {
+            crate::relation_store::affected(self.tx, id, &mut self.capability_sources)?;
         }
         self.apply_operation(operation, index)?;
         if let Some(id) = affected {
             crate::question_store::affected(self.tx, id, &mut self.capability_sources)?;
         }
+        if let Some(id) = relation_affected {
+            crate::relation_store::affected(self.tx, id, &mut self.capability_sources)?;
+        }
         if let Operation::Merge { destination_id, .. }
         | Operation::MergePage { destination_id, .. } = operation
         {
             crate::question_store::affected(self.tx, destination_id, &mut self.capability_sources)?;
+            crate::relation_store::affected(self.tx, destination_id, &mut self.capability_sources)?;
         }
         Ok(())
     }
@@ -2007,6 +2022,18 @@ impl Engine<'_, '_> {
                 crate::position_store::validate_source(self.tx, id)?;
                 let current = self.checked(id, *base_revision, index, false)?;
                 if crate::position_store::set(self.tx, id, *position)? {
+                    self.bump(&current, false)?;
+                    self.capability_sources.insert(id.clone());
+                }
+                Ok(())
+            }
+            Operation::SetRelation {
+                id,
+                base_revision,
+                relation,
+            } => {
+                let current = self.checked(id, *base_revision, index, false)?;
+                if crate::relation_store::set(self.tx, id, *relation)? {
                     self.bump(&current, false)?;
                     self.capability_sources.insert(id.clone());
                 }

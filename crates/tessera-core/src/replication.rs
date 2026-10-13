@@ -44,6 +44,7 @@ pub const TABLES: &[(&str, Replication)] = &[
     ("task_occurrences", Replication::Applied),
     ("work_sessions", Replication::Applied),
     ("positions", Replication::Applied),
+    ("relations", Replication::Applied),
     ("questions", Replication::Applied),
     ("quotes", Replication::Applied),
     ("assessments", Replication::Applied),

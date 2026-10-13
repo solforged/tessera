@@ -625,3 +625,56 @@ async fn review_stats_use_local_forecast_boundaries_and_today_or_yesterday_strea
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
     assert_eq!(error["error"]["code"], "validation");
 }
+
+#[tokio::test]
+async fn relation_holder_filters_return_attribution_and_live_capabilities() {
+    let dir = tempfile::tempdir().unwrap();
+    let app = app(dir.path());
+    for path in ["/api/relations", "/api/relations?limit=10"] {
+        let (status, error) = request(&app, Method::GET, path, None).await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(error["error"]["code"], "validation");
+    }
+    commit(
+        &app,
+        json!([
+            {"op": "create_page", "id": id(1), "title": "Writing"},
+            {"op": "create_page", "id": id(2), "title": "Scribner"},
+            {"op": "create_page", "id": id(3), "title": "Goody"},
+            insert(4, 1, &format!("[[{}]]", id(2))),
+            insert(5, 1, &format!("[[{}]]", id(3))),
+            {"op": "set_position", "id": id(4), "base_revision": 1, "position": true},
+            {"op": "set_position", "id": id(5), "base_revision": 1, "position": true},
+            insert(6, 4, &format!("Disputes [[{}]].", id(5))),
+            {"op": "set_relation", "id": id(6), "base_revision": 1, "relation": "disputes"}
+        ]),
+    )
+    .await;
+    let path = format!("/api/relations?kind=disputes&target_holder={}", id(3));
+    let rows = get(&app, &path).await;
+    assert_eq!(rows.as_array().unwrap().len(), 1);
+    assert_eq!(rows[0]["block"]["block"]["id"], id(6));
+    assert_eq!(rows[0]["source"]["block"]["block"]["id"], id(4));
+    assert_eq!(rows[0]["source"]["holder_id"], id(2));
+    assert_eq!(rows[0]["target"]["block"]["block"]["id"], id(5));
+    assert_eq!(rows[0]["target"]["holder_id"], id(3));
+    assert_eq!(rows[0]["problem"], Value::Null);
+    let capability = get(&app, &format!("/api/blocks/{}/capabilities", id(6))).await;
+    assert_eq!(
+        capability["relation"],
+        json!({"kind": "disputes", "source_id": id(4), "target_id": id(5), "problem": null})
+    );
+    let page = get(&app, &format!("/api/pages/{}", id(1))).await;
+    assert!(
+        page["capabilities"]
+            .as_array()
+            .unwrap()
+            .contains(&capability)
+    );
+    commit(
+        &app,
+        json!([{"op": "set_relation", "id": id(6), "base_revision": 2, "relation": null}]),
+    )
+    .await;
+    assert_eq!(get(&app, &path).await, json!([]));
+}

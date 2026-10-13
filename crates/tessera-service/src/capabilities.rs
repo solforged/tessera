@@ -12,6 +12,7 @@ use tessera_core::{
     TaskQuery, TaskQueryResult, TaskView, WorkSession,
 };
 use tessera_core::{QuestionQuery, QuestionRow};
+use tessera_core::{RelationQuery, RelationRow};
 
 use crate::{AppState, error::ApiError, run};
 
@@ -65,6 +66,16 @@ pub(crate) async fn positions(
 ) -> Result<Json<PositionQueryResult>, ApiError> {
     let Query(query) = query.map_err(ApiError::from)?;
     run(&state, move |notebook| notebook.positions(&query))
+        .await
+        .map(Json)
+}
+
+pub(crate) async fn relations(
+    State(state): State<AppState>,
+    query: Result<Query<RelationQuery>, QueryRejection>,
+) -> Result<Json<Vec<RelationRow>>, ApiError> {
+    let Query(query) = query.map_err(ApiError::from)?;
+    run(&state, move |notebook| notebook.relations(&query))
         .await
         .map(Json)
 }

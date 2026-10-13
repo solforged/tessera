@@ -18,6 +18,8 @@ A holder's page lists Perspectives held above its backlinks. A subject's page li
 
 Clicking a listed perspective, including its holder name, opens the original position on its source page. Shift-click or Open beside opens that reading in another pane.
 
+Incoming relations appear beneath each listed perspective, naming the source's holder when it is a position. A holder's page can therefore show which readings dispute, support, qualify or answer that holder's perspectives without a text search.
+
 ## Compare perspectives
 
 ### Reading sheet
@@ -33,6 +35,8 @@ Each column shows, in order:
 - A 17 px gist and 16 px authored prose.
 
 Shape is not its own cell. Other fields stay in the source outline, reached through the holder or Open reading (Shift beside), rather than becoming a universal questionnaire. No prose is generated from field values and differing strings are not treated as evidence of disagreement.
+
+Relation blocks and their reasoning stay out of reading prose. Each position card shows its outgoing relations on a quiet line, with the kind and linked target, so the argument remains visible without turning its apparatus into another paragraph.
 
 Actual question blocks on the subject page appear below the sheet and open their original blocks. Columns have a readable minimum width and scroll horizontally on narrow panes.
 
@@ -83,6 +87,16 @@ The margin holds the constellation, then a Sources key pairing each siglum used 
 | Up to twelve pages that link to it | Faint dots on an outer ring, with their titles on hover |
 
 Every node and source opens its page; Shift opens it beside.
+
+## Argument relations
+
+Supports…, Disputes…, Qualifies… and Answers… in the block menu, Commands and slash completion mark the selected block as a relation. On an empty block, the action opens link completion for the target. Existing edges offer Change kind and Remove relation; removal keeps the text and children.
+
+Add relation… on a position, assessment or question asks for the kind and target, then adds a last child edge as one undoable change. A question, position or assessment cannot itself become an edge; the unavailable action explains why.
+
+An edge keeps its ordinary editable row. Its kind appears before the text as a quiet small-caps field label. A problem marker explains a missing or deleted target, or an Answers target that is not a question, without changing the text.
+
+A target shows one quiet line beneath its row: Supported by, Disputed by, Qualified by or Answered by, followed by each source's holder name or source label. Each name opens that source. Labels and incoming lines wrap on narrow screens.
 
 ## Questions and answers
 

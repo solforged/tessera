@@ -232,7 +232,7 @@ pub(super) fn repeat_text(repeat: &Repeater) -> String {
     format!("{}{unit}", repeat.every)
 }
 
-/// Project, question, assessment, position, source and citation details.
+/// Project, question, assessment, position, relation, source and citation details.
 fn capability_details(caps: &BlockCapabilities) -> Vec<String> {
     let mut parts = Vec::new();
     if let Some(project) = &caps.project {
@@ -261,6 +261,17 @@ fn capability_details(caps: &BlockCapabilities) -> Vec<String> {
     }
     if caps.position.is_some() {
         parts.push("position".into());
+    }
+    if let Some(relation) = &caps.relation {
+        let mut part = format!(
+            "relation {} target {}",
+            relation.kind.as_str(),
+            relation.target_id.as_deref().unwrap_or("none")
+        );
+        if let Some(problem) = &relation.problem {
+            part.push_str(&format!(" ({problem})"));
+        }
+        parts.push(part);
     }
     if let Some(source) = &caps.source {
         parts.push(format!(
@@ -501,5 +512,55 @@ mod tests {
         assert!(output.contains("  > - Frozen root\n    > - ## Frozen child\n"));
         assert!(!output.contains(&marker));
         assert!(!output.contains("Live replacement"));
+    }
+
+    #[test]
+    fn page_render_shows_relation_kind_target_and_problem() {
+        use tessera_core::{Actor, Batch, Notebook, Operation, RelationKind};
+        let dir = tempfile::tempdir().unwrap();
+        let mut nb = Notebook::open(dir.path()).unwrap();
+        let id = |n| format!("{n:026}");
+        nb.apply(&Batch {
+            actor: Actor::Person,
+            reason: None,
+            idempotency_key: None,
+            operations: vec![
+                Operation::CreatePage {
+                    id: id(1),
+                    title: "Person".into(),
+                },
+                Operation::CreatePage {
+                    id: id(3),
+                    title: "Reasoning".into(),
+                },
+                Operation::Insert {
+                    id: id(2),
+                    parent_id: id(3),
+                    after: None,
+                    text: format!("[[{}]]", id(1)),
+                    heading: None,
+                },
+                Operation::SetRelation {
+                    id: id(2),
+                    base_revision: 1,
+                    relation: Some(RelationKind::Answers),
+                },
+            ],
+        })
+        .unwrap();
+        let fields = HashMap::new();
+        let clock = Clock {
+            zone: jiff::tz::TimeZone::UTC,
+            today: "2026-10-12".into(),
+        };
+        let context = PageContext {
+            fields: &fields,
+            cards: &[],
+            clock: &clock,
+        };
+        let output = render(&nb.page(&id(3)).unwrap(), &context, None).unwrap();
+        assert!(output.contains(&format!("relation answers target {}", id(1))));
+        assert!(output.contains("question as its target"));
+        assert!(output.contains("[[Person]]"));
     }
 }

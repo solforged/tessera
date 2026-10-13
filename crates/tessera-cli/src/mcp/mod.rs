@@ -8,6 +8,7 @@ mod library;
 mod notes;
 mod outline;
 mod query;
+mod relations;
 mod render;
 mod sync;
 mod tasks;
@@ -32,10 +33,11 @@ const PROTOCOL_VERSIONS: [&str; 3] = ["2025-06-18", "2025-03-26", "2024-11-05"];
 const INSTRUCTIONS: &str = "Tessera is a local outline notebook. Every note is a tree of \
 blocks on a named page or a journal day. Search or read before writing to avoid duplicates. \
 tessera_add_note appends to the end of a page, journal day or block; tessera_edit_block, \
-tessera_move_block, tessera_delete_block and tessera_set_task change existing blocks by the \
+tessera_move_block, tessera_delete_block, tessera_set_task and tessera_set_relation change existing blocks by the \
 IDs tessera_read_page shows. Flashcards, tasks and field entries are written as block text \
 (see tessera_add_note); tessera_cards, tessera_tasks and tessera_query read them back, and \
 tessera_hold_card suspends a card; tessera_save_deck groups cards into decks. \
+tessera_relations reads explicitly authored supports, disputes, qualifies and answers relations. \
 tessera_library reads books and articles and tessera_cite links blocks to their passages. \
 tessera_sync tells whether your edits have reached the notebook's hub. Every write is one \
 change attributed to you and can be reversed with tessera_undo; tessera_recent_changes lists \
@@ -118,6 +120,8 @@ impl Session<'_> {
                     "tessera_move_block" => self.move_block(&arguments).await,
                     "tessera_delete_block" => self.delete_block(&arguments).await,
                     "tessera_set_task" => self.set_task(&arguments).await,
+                    "tessera_set_relation" => self.set_relation(&arguments).await,
+                    "tessera_relations" => self.relations(&arguments).await,
                     "tessera_tasks" => self.tasks(&arguments).await,
                     "tessera_cards" => self.cards(&arguments).await,
                     "tessera_hold_card" => self.hold_card(&arguments).await,

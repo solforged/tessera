@@ -1,7 +1,7 @@
 import type { Accessor, JSX, Resource, Setter } from 'solid-js';
 import type { Virtualizer } from '@tanstack/solid-virtual';
 import type { EditorView } from '@codemirror/view';
-import type { FieldDefinition, Fields, TaskStatus } from '../api/types';
+import type { FieldDefinition, Fields, RelationKind, TaskStatus } from '../api/types';
 import type { Caret, Edit, EditResult, PageDocument, TextRange } from '../document/contract';
 import type { Command, Depth, OutlinePaneProps } from '../shell/contract';
 import type { MenuItem } from '../ui/Menu';
@@ -73,6 +73,8 @@ export interface OutlineContext {
   priorityMenu: (id: string) => void;
   openProject: (id: string) => void;
   investigationItems: (id: string) => MenuItem[];
+  markRelation: (id: string, kind: RelationKind | null, text?: string) => void;
+  relationMenu: (id: string, add?: boolean, text?: string) => void;
   apply: (intent: Edit, keepEditing?: boolean) => EditResult | undefined;
   zoomTo: (id: string | null) => void;
   copy: (text: string) => void;

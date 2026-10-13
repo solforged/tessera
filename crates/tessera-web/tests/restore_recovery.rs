@@ -35,6 +35,7 @@ async fn opening_finishes_a_staged_restore_without_a_live_database() {
     // Stage a version that still needs migration, as a crash during validation can.
     let conn = Connection::open("/demo/notebook.db").unwrap();
     common::restore_authored_search(&conn);
+    common::restore_pre_relations(&conn);
     conn.execute_batch(
         "DROP TABLE quotes; ALTER TABLE fields DROP COLUMN hide; PRAGMA user_version = 35;",
     )

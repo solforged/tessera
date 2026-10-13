@@ -14,6 +14,7 @@ import type { OutlineContext } from './context';
 import { Button } from '../ui/Button';
 import { createSettledChanges } from '../ui/loading';
 import { isVirtualJournal, readJournalRelated } from './related-reads';
+import { IncomingRelations } from './RelationLines';
 
 export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'doc' | 'zoom' | 'zoomTo' | 'localPositions'>) {
   const { props, doc, zoom, zoomTo, localPositions } = context;
@@ -76,6 +77,9 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
   function ReferenceCount(propsCount: { id: string }) {
     const count = () => propsCount.id === props.pageId ? 0 : countById().get(propsCount.id) ?? 0;
     return <Show when={count() > 0}><BlockReferenceCount id={propsCount.id} count={count()} version={relatedVersion()} notebook={props.notebook} onOpen={props.onOpen} /></Show>;
+  }
+  function RowRelations(row: { id: string }) {
+    return <IncomingRelations target={row.id} version={relatedVersion()} enabled={row.id === props.pageId || (countById().get(row.id) ?? 0) > 0} notebook={props.notebook} onOpen={props.onOpen} />;
   }
   /** Blocks on this page a source names only through an alias; a plain reference already reads as its target. */
   const hiddenTargets = (text: string, targets: string[]) => {
@@ -159,7 +163,7 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
       </Show>
     </details>;
   }
-  function Related(propsRelated: { title: string; rows: { block: Block; page: Block }[] }) {
+  function Related(propsRelated: { title: string; rows: { block: Block; page: Block }[]; relations?: boolean }) {
     const [open, setOpen] = createSignal(false);
     return <details class="related-section" onToggle={event => setOpen(event.currentTarget.open)}><summary>{propsRelated.title} <span>{relatedError() ? 'Unavailable' : relatedResource.loading && !related() ? 'Loading…' : propsRelated.rows.length}</span></summary>
       <Show when={open()}>
@@ -169,11 +173,11 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
         return <div class="related-block"><div class="related-open" role="link" tabIndex={0} onKeyDown={event => { if (event.key === 'Enter') props.onOpen({ kind: 'page', pageId: result.page.id, blockId: result.block.id }, event.shiftKey); }} onClick={event => props.onOpen({ kind: 'page', pageId: result.page.id, blockId: result.block.id }, event.shiftKey)}>
           <span class="related-breadcrumb"><BlockBreadcrumb block={result.block} notebook={props.notebook} /></span>
           <BlockText text={live()?.text ?? result.block.text} notebook={props.notebook} interactive={false} />
-        </div><button type="button" class="text-button" onClick={() => props.onOpen({ kind: 'page', pageId: result.page.id, blockId: result.block.id }, true)}>Open beside</button></div>;
+        </div><button type="button" class="text-button" onClick={() => props.onOpen({ kind: 'page', pageId: result.page.id, blockId: result.block.id }, true)}>Open beside</button><Show when={propsRelated.relations}><IncomingRelations target={result.block.id} version={relatedVersion()} notebook={props.notebook} onOpen={props.onOpen} /></Show></div>;
       }}</For>
       </Show>
       </Show>
     </details>;
   }
-  return { related, relatedError, apparatus, holders, linkedPages, Related, Backlinks, UnlinkedMentions, mentionsAvailable, ReferenceCount };
+  return { related, relatedError, apparatus, holders, linkedPages, Related, Backlinks, UnlinkedMentions, mentionsAvailable, ReferenceCount, RowRelations };
 }

@@ -15,7 +15,7 @@
 
 import type { Accessor } from 'solid-js';
 import type { Block, BlockKind, ChangeEvent, Citation, Committed, FieldDefinition, FieldKind, Operation, PassagePoint, ProjectState, SettingsView, SourceRecord, SourceState, TaskState, WorkSession } from '../api/types';
-import type { PositionInfo } from '../api/types';
+import type { PositionInfo, RelationInfo, RelationKind } from '../api/types';
 import type { FieldHide } from '../fields/hide';
 import type { AssessmentInfo, AssessmentState, QuestionInfo, QuestionState, QuoteState } from '../api/types';
 import type { ApiClient } from '../api/client';
@@ -49,6 +49,7 @@ export interface BlockState {
   readonly task: TaskState | null;
   readonly project: ProjectState | null;
   readonly position: PositionInfo | null;
+  readonly relation: RelationInfo | null;
   readonly question: QuestionInfo | null;
   readonly assessment: AssessmentInfo | null;
   readonly quote: QuoteState | null;
@@ -136,6 +137,10 @@ export type Edit =
   | { kind: 'completeTask'; id: string; completedOn: string; stopWork?: WorkSession }
   | { kind: 'project'; id: string; value: ProjectState | null }
   | { kind: 'position'; id: string; value: boolean }
+  /** Set the authored kind and optional text together (including a slash command's removal). */
+  | { kind: 'relation'; id: string; value: RelationKind | null; text?: string }
+  /** Insert a last child with its kind and target in one authored change. */
+  | { kind: 'addRelation'; parentId: string; value: RelationKind; targetId: string; sourceText?: string }
   | { kind: 'question'; id: string; value: QuestionState | null }
   /** Capture or update frozen rows; optional text replaces the picker query in the same undo step. */
   | { kind: 'quote'; id: string; value: QuoteState | null; text?: string }

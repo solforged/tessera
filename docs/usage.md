@@ -212,22 +212,23 @@ For a non-default notebook, add `--notebook /path` before `mcp`.
 
 ### Read tools
 
-Eight tools read:
+Nine tools read:
 
 | Tool | Returns |
 |---|---|
 | `tessera_search` | Blocks matching text, with their pages. |
 | `tessera_list_pages` | Page titles, optionally with journal days. |
-| `tessera_read_page` | A page, journal day or one block's subtree as an indented Markdown outline. Each block's comment gives its ID and revision, tags, task planning, project, question, citations and cards; field entries show as `Name::`. |
+| `tessera_read_page` | A page, journal day or one block's subtree as an indented Markdown outline. Each block's comment gives its ID and revision, tags, task planning, project, question, position, relation, citations and cards; field entries show as `Name::`. |
 | `tessera_tasks` | The agenda for a day or a run of days, or tasks filtered by status, dates, priority, project or a saved task view. |
 | `tessera_cards` | A block's or page's cards, the due, new or full queue (optionally a deck's or a type's), review statistics, or decks. |
 | `tessera_query` | Types, fields and saved views, or a type's or view's blocks with their field values, filtered and sorted by field name. |
 | `tessera_library` | Sources, a source's contents, its passages in order from an ordinal with passage IDs, passage search, or highlights. |
 | `tessera_sync` | Whether the notebook is a replica, when it last synced, how many of its changes have not reached the hub, and the last sync error; `now` syncs first. |
+| `tessera_relations` | Authored argument edges filtered by `kind`, `source`, `target`, `source_holder` or `target_holder`, with an optional `limit`. At least one filter is required; rows name both endpoints and holders, and any problem. |
 
 ### Write tools
 
-Eight tools write:
+Nine tools write:
 
 | Tool | Change |
 |---|---|
@@ -236,6 +237,7 @@ Eight tools write:
 | `tessera_move_block` | Moves a block and its children after a sibling, or first or last under a parent. |
 | `tessera_delete_block` | Deletes a block and its children, or a page. |
 | `tessera_set_task` | Makes a block a task or changes its status, scheduled date and time, deadline and time, warning days, repeat or priority; done records a completion. |
+| `tessera_set_relation` | Marks a block as `supports`, `disputes`, `qualifies` or `answers`, changes its kind, or removes the capability with `relation: null`. Its first link supplies the target; its ancestors supply the source. The block's text stays unchanged. |
 | `tessera_hold_card` | Holds a card out of review, or releases it. |
 | `tessera_save_deck` | Creates, changes or deletes a deck: the cards whose blocks match a type, text or field filters. |
 | `tessera_cite` | Links existing blocks to library passages: a whole passage, a range, or the first occurrence of a quote. |
@@ -273,4 +275,4 @@ Agents without MCP use the same endpoints:
 {"actor": {"kind": "agent", "name": "my-agent"}, "kind": "add_note", "target": {"kind": "page", "title": "Inbox"}, "blocks": [{"text": "A thought", "children": []}]}
 ```
 
-Other change kinds are `edit_block`, `move_block`, `delete_block`, `set_task`, `set_card_held`, `cite`, `save_deck` and `delete_deck`. [`crates/tessera-core/src/agent.rs`](../crates/tessera-core/src/agent.rs) defines their fields.
+Other change kinds are `edit_block`, `move_block`, `delete_block`, `set_task`, `set_relation`, `set_card_held`, `cite`, `save_deck` and `delete_deck`. [`crates/tessera-core/src/agent.rs`](../crates/tessera-core/src/agent.rs) defines their fields.

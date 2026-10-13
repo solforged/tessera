@@ -478,6 +478,7 @@ fn field_hide_migration_replays_from_schema_36() {
     drop(nb);
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
     common::restore_authored_search(&conn);
+    common::restore_pre_relations(&conn);
     conn.execute_batch("ALTER TABLE fields DROP COLUMN hide; PRAGMA user_version = 36;")
         .unwrap();
     drop(conn);
@@ -541,6 +542,7 @@ fn fields_page_is_idempotent_recreated_after_deletion_and_migration_backfills_en
     drop(nb);
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
     common::restore_authored_search(&conn);
+    common::restore_pre_relations(&conn);
     conn.execute_batch(
         "DROP TABLE type_presentation;
          DROP TABLE subject_criteria;

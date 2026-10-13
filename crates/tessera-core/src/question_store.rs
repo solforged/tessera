@@ -212,6 +212,9 @@ pub(crate) fn withdraw_acceptance(conn: &Connection, answer: &str) -> Result<Vec
 pub(crate) fn apply(conn: &Connection, operation: &Operation) -> Result<bool> {
     match operation {
         Operation::SetQuestion { id, question, .. } => {
+            if question.is_some() {
+                crate::relation_store::guard_other(conn, id, "a question")?;
+            }
             let current = relations(conn, std::slice::from_ref(id))?
                 .into_iter()
                 .find(|r| r.id == *id)
@@ -265,6 +268,7 @@ pub(crate) fn apply(conn: &Connection, operation: &Operation) -> Result<bool> {
                 .find(|r| r.id == *id)
                 .expect("Engine checked block");
             if let Some(next) = assessment {
+                crate::relation_store::guard_other(conn, id, "an answer")?;
                 validate_civil_date(&next.assessed_on)?;
                 if current.question.is_some() {
                     return Err(validation(

@@ -1686,6 +1686,7 @@ fn undo_grade_rebases_and_preserves_same_timestamp_reset_order_in_patches() {
 
 fn downgrade_review_order(conn: &Connection) {
     common::restore_authored_search(conn);
+    common::restore_pre_relations(conn);
     conn.execute_batch(
         "DROP VIEW effective_review_events;
          DROP TABLE review_undos;
@@ -1979,4 +1980,110 @@ fn frozen_quote_replays_after_hub_source_deletion_and_rebases_its_revision() {
     p.sync();
     p.assert_converged();
     assert_eq!(p.hub.capabilities(&id(20)).unwrap().quote, Some(updated));
+}
+
+#[test]
+fn relation_kinds_rebase_and_replicate_with_later_changes_winning() {
+    use tessera_core::{RelationKind, RelationQuery};
+    let mut p = pair_with(|hub| {
+        apply(
+            hub,
+            vec![
+                Operation::EditText {
+                    id: id(2),
+                    base_revision: 1,
+                    text: format!("[[{}]]", id(3)),
+                },
+                Operation::SetRelation {
+                    id: id(2),
+                    base_revision: 2,
+                    relation: Some(RelationKind::Supports),
+                },
+            ],
+        );
+    });
+    assert_eq!(
+        p.replica
+            .capabilities(&id(2))
+            .unwrap()
+            .relation
+            .unwrap()
+            .kind,
+        RelationKind::Supports
+    );
+    apply(
+        &mut p.replica,
+        vec![Operation::SetRelation {
+            id: id(2),
+            base_revision: 3,
+            relation: Some(RelationKind::Disputes),
+        }],
+    );
+    apply(
+        &mut p.hub,
+        vec![Operation::SetRelation {
+            id: id(2),
+            base_revision: 3,
+            relation: Some(RelationKind::Qualifies),
+        }],
+    );
+    let report = p.sync();
+    assert!(
+        report
+            .pushed
+            .iter()
+            .all(|receipt| matches!(receipt.outcome, PushOutcome::Accepted { .. }))
+    );
+    p.assert_converged();
+    assert_eq!(
+        p.hub.capabilities(&id(2)).unwrap().relation.unwrap().kind,
+        RelationKind::Disputes
+    );
+    let revision = p.replica.block(&id(2)).unwrap().revision;
+    apply(
+        &mut p.replica,
+        vec![Operation::SetRelation {
+            id: id(2),
+            base_revision: revision,
+            relation: None,
+        }],
+    );
+    apply(
+        &mut p.hub,
+        vec![Operation::SetRelation {
+            id: id(2),
+            base_revision: revision,
+            relation: Some(RelationKind::Answers),
+        }],
+    );
+    p.sync();
+    p.assert_converged();
+    assert!(p.hub.capabilities(&id(2)).unwrap().relation.is_none());
+    let revision = p.hub.block(&id(2)).unwrap().revision;
+    apply(
+        &mut p.hub,
+        vec![
+            Operation::SetRelation {
+                id: id(2),
+                base_revision: revision,
+                relation: Some(RelationKind::Answers),
+            },
+            Operation::Delete {
+                id: id(3),
+                base_revision: 1,
+            },
+        ],
+    );
+    p.sync();
+    p.assert_converged();
+    let rows = p
+        .replica
+        .relations(&RelationQuery {
+            kind: Some(RelationKind::Answers),
+            ..Default::default()
+        })
+        .unwrap();
+    assert_eq!(rows.len(), 1);
+    assert!(rows[0].target.is_none());
+    assert!(rows[0].problem.as_ref().unwrap().contains("deleted"));
 }

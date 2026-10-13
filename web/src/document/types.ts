@@ -1,4 +1,4 @@
-import type { Block, BlockCapabilities, Batch, Citation, FieldKind, Operation, ProjectState, SourceState, TaskState, WorkSession } from '../api/types';
+import type { Block, BlockCapabilities, Batch, Citation, FieldKind, Operation, ProjectState, RelationKind, SourceState, TaskState, WorkSession } from '../api/types';
 import type { AssessmentState, QuestionState, QuestionStatus, QuoteState } from '../api/types';
 import type { CardTemplateState } from '../api/types';
 import type { CaptureIntent, Caret, HistoryCaret } from './contract';
@@ -10,6 +10,7 @@ export type CapabilityAction =
   | { kind: 'task'; id: string; value: TaskState | null; previous: TaskState | null; baseRevision: number; restore?: boolean }
   | { kind: 'project'; id: string; value: ProjectState | null; previous: ProjectState | null; baseRevision: number }
   | { kind: 'position'; id: string; value: boolean; previous: boolean; baseRevision: number }
+  | { kind: 'relation'; id: string; value: RelationKind | null; previous: RelationKind | null; baseRevision: number }
   | { kind: 'question'; id: string; value: QuestionState | null; previous: QuestionState | null; baseRevision: number }
   | { kind: 'quote'; id: string; value: QuoteState | null; previous: QuoteState | null; baseRevision: number }
   | { kind: 'assessment'; id: string; value: AssessmentState | null; previous: AssessmentState | null; baseRevision: number }
@@ -26,9 +27,9 @@ export type CapabilityAction =
   | { kind: 'workNote'; id: string; session: WorkSession; note: string; baseRevision: number }
   | { kind: 'workState'; id: string; session: WorkSession; endedAt: number | null; reversed: boolean; baseRevision: number };
 export function isCapabilityAction(action: Action): action is CapabilityAction {
-  return ['task', 'project', 'position', 'question', 'quote', 'assessment', 'source', 'cite', 'uncite', 'citationTriage', 'highlightColor', 'citationRange', 'completeTask', 'reverseTaskCompletion', 'startWork', 'stopWork', 'workNote', 'workState'].includes(action.kind);
+  return ['task', 'project', 'position', 'relation', 'question', 'quote', 'assessment', 'source', 'cite', 'uncite', 'citationTriage', 'highlightColor', 'citationRange', 'completeTask', 'reverseTaskCompletion', 'startWork', 'stopWork', 'workNote', 'workState'].includes(action.kind);
 }
-export const emptyCapabilities = (id: string): BlockCapabilities => ({ block_id: id, task: null, project: null, position: null, question: null, quote: null, assessment: null, source: null, citations: [], history: false, merge_protected: false, reviewed_cards: false });
+export const emptyCapabilities = (id: string): BlockCapabilities => ({ block_id: id, task: null, project: null, position: null, relation: null, question: null, quote: null, assessment: null, source: null, citations: [], history: false, merge_protected: false, reviewed_cards: false });
 export function questionStatus(state: QuestionState, acceptedLive: boolean): QuestionStatus {
   return state.parked ? 'parked' : state.unsettled ? 'unsettled' : acceptedLive ? 'answered' : 'open';
 }

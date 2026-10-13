@@ -13,8 +13,8 @@ use serde::{Deserialize, Serialize};
 use crate::notebook::{new_ulid, now_ms};
 use crate::storage::{validate_date, validate_id, validation};
 use crate::{
-    Actor, Batch, Block, BlockKind, CardQuery, Committed, Deck, Error, Notebook, Operation, Result,
-    Revision, TaskState, TaskStatus,
+    Actor, Batch, Block, BlockKind, CardQuery, Committed, Deck, Error, Notebook, Operation,
+    RelationKind, Result, Revision, TaskState, TaskStatus,
 };
 
 /// Where a note is appended.
@@ -113,6 +113,13 @@ pub enum AgentEdit {
         #[serde(default)]
         revision: Option<i64>,
         task: Option<TaskState>,
+    },
+    /// Set or remove an explicitly authored relation kind.
+    SetRelation {
+        id: String,
+        #[serde(default)]
+        revision: Option<i64>,
+        relation: Option<RelationKind>,
     },
     /// Hold a card out of review, or release it, using its own revision.
     SetCardHeld {
@@ -236,6 +243,10 @@ enum Step {
         /// The state before and after the change.
         states: Box<(Option<TaskState>, Option<TaskState>)>,
     },
+    Relation {
+        id: String,
+        relation: Option<RelationKind>,
+    },
     Uncomplete {
         id: String,
         occurrence_id: String,
@@ -271,6 +282,7 @@ impl Step {
             | Step::Move { id, .. }
             | Step::Restore { id }
             | Step::Task { id, .. }
+            | Step::Relation { id, .. }
             | Step::Uncomplete { id, .. }
             | Step::CardHeld { id, .. }
             | Step::DeckCreated { id }
@@ -384,6 +396,32 @@ impl Notebook {
                         snippet(&self.readable(&block.text)?)
                     ),
                 )
+            }
+            AgentEdit::SetRelation {
+                id,
+                revision,
+                relation,
+            } => {
+                let block = self.block(id)?;
+                touch(&mut plan, &block, *revision);
+                let previous = self.capabilities(id)?.relation.map(|info| info.kind);
+                plan.operations.push(Operation::SetRelation {
+                    id: id.clone(),
+                    base_revision: next_revision(&mut plan.revisions, id),
+                    relation: *relation,
+                });
+                if previous != *relation {
+                    plan.steps.push(Step::Relation {
+                        id: id.clone(),
+                        relation: previous,
+                    });
+                    plan.changed.push(id.clone());
+                }
+                let summary = match relation {
+                    Some(kind) => format!("Set {} relation", kind.as_str()),
+                    None => "Removed relation".into(),
+                };
+                (Some(block.page_id), summary)
             }
             AgentEdit::SetCardHeld {
                 card_id,
@@ -1618,6 +1656,11 @@ fn inverse(steps: &[Step], committed: &Committed) -> Result<Vec<Operation>> {
                     task: before.clone(),
                 },
             },
+            Step::Relation { relation, .. } => Operation::SetRelation {
+                id,
+                base_revision,
+                relation: *relation,
+            },
             Step::Uncomplete { occurrence_id, .. } => Operation::ReverseTaskCompletion {
                 id,
                 base_revision,
@@ -1661,6 +1704,9 @@ fn base_revision(operation: &mut Operation) -> Option<(String, &mut i64)> {
         }
         | Operation::Delete { id, base_revision }
         | Operation::SetTask {
+            id, base_revision, ..
+        }
+        | Operation::SetRelation {
             id, base_revision, ..
         }
         | Operation::RestoreTaskState {

@@ -1031,6 +1031,8 @@ function Pane(props: OutlinePaneProps) {
     priorityMenu: (id) => priorityMenu(id),
     openProject: (id) => openProject(id),
     investigationItems: (id) => investigationItems(id),
+    markRelation: (id, kind, text) => markRelation(id, kind, text),
+    relationMenu: (id, add, text) => relationMenu(id, add, text),
     apply,
     zoomTo,
     copy: (text) => copy(text),
@@ -1108,7 +1110,7 @@ function Pane(props: OutlinePaneProps) {
   };
   const { openRelation, positionReason, placeReason, usePlace, RelationPopups } = createRelationActions(context);
   const { setCompletion, setCompletionIndex, offerValue, openValueEditor, valueEditorId, updateCompletion, updateTriggers, taskPrefix, rewriteEditing, referenceInput, forgetReferenceSpace, slashKey, dateKey, popupKey, CompletionPopups } = createOutlineCompletions(context);
-  const { openTable, investigationItems, commandDefinitions, unregister, blockMenu, fieldMenu, statusMenu, priorityMenu, openPlanning, openProject, leaderMenu, makeCloze, referenceMenu, copy } = createOutlineCommands(context);
+  const { openTable, investigationItems, markRelation, relationMenu, commandDefinitions, unregister, blockMenu, fieldMenu, statusMenu, priorityMenu, openPlanning, openProject, leaderMenu, makeCloze, referenceMenu, copy } = createOutlineCommands(context);
   const { horizontal, adjacent, split, editorKey, structuralKey, pruneEmptyValue, resetRowKey, resetVerticalGoal } = createOutlineKeyboard(context);
   const { selectedOffsets, pointerStart, pointerMove, pointerEnd, clipboard, paste, beforeInput } = createOutlineInteractions(context);
   const fieldSheet = createFieldSheet(context, {
@@ -1117,8 +1119,8 @@ function Pane(props: OutlinePaneProps) {
     reveal: owner => setRevealedFields(previous => { const next = new Set(previous); next.has(owner) ? next.delete(owner) : next.add(owner); return next; }),
   });
   const drag = createOutlineDrag(context);
-  const { related, relatedError, apparatus, holders, linkedPages, Related, Backlinks, UnlinkedMentions, mentionsAvailable, ReferenceCount } = createOutlineRelated(context);
-  const { Row, TaskSummary, QuestionSummary } = createOutlineRows(context, fieldSheet, drag, ReferenceCount, openValueEditor);
+  const { related, relatedError, apparatus, holders, linkedPages, Related, Backlinks, UnlinkedMentions, mentionsAvailable, ReferenceCount, RowRelations } = createOutlineRelated(context);
+  const { Row, TaskSummary, QuestionSummary } = createOutlineRows(context, fieldSheet, drag, ReferenceCount, RowRelations, openValueEditor);
   const { CapabilityPopups } = createCapabilityPopups(context);
 
   onMount(() => {
@@ -1350,6 +1352,7 @@ function Pane(props: OutlinePaneProps) {
       </div>
       </Show>
       <Show when={isNote()}><NoteAliases doc={doc} notebook={props.notebook} /><NoteLine pageId={props.pageId} notebook={props.notebook} /></Show>
+      <RowRelations id={zoom() ?? props.pageId} />
       <Show when={!zoom() && doc.root()?.kind === 'page' && !doc.root()?.source && doc.root()?.text.toLowerCase() !== 'fields' && !type.error && type()}>{value => <Show when={value().members || value().fields.length || startingTemplateFor(value().page.text, value().fields)}>
         <TemplateEditor type={value()} fields={definitions()} notebook={props.notebook} onError={setMessage} />
       </Show>}</Show>
@@ -1408,8 +1411,8 @@ function Pane(props: OutlinePaneProps) {
     <Show when={!zoom() && doc.root()?.kind === 'journal'}><div class="related-sections journal-highlights"><JournalResurface date={doc.root()!.text} notebook={props.notebook} onOpen={props.onOpen} /></div></Show>
     <Show when={doc.status() === 'ready' && !zoom() && related()?.works.length}><PersonWorks pageId={props.pageId} rows={related()!.works} onOpen={props.onOpen} /></Show>
     <Show when={doc.status() === 'ready' && (mentionsAvailable() || relatedError() || (related()?.total ?? 0) + (related()?.tagged.length ?? 0) + (related()?.held.length ?? 0) + (related()?.about.length ?? 0) > 0)}><div class="related-sections">
-      <Show when={related()?.held.length}><Related title="Perspectives held" rows={related()?.held ?? []} /></Show>
-      <Show when={related()?.about.length}><Related title="Perspectives filed elsewhere" rows={related()?.about ?? []} /></Show>
+      <Show when={related()?.held.length}><Related title="Perspectives held" rows={related()?.held ?? []} relations /></Show>
+      <Show when={related()?.about.length}><Related title="Perspectives filed elsewhere" rows={related()?.about ?? []} relations /></Show>
       <Show when={relatedError() || related()?.total}><Backlinks /></Show>
       <Show when={mentionsAvailable()}><UnlinkedMentions /></Show>
       <Show when={relatedError() || related()?.tagged.length}><Related title="Tagged blocks" rows={relatedError() ? [] : related()?.tagged ?? []} /></Show>

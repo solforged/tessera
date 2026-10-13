@@ -10,7 +10,7 @@ use crate::capabilities::{
 };
 use crate::library::{PassagePoint, SourceState};
 use crate::scheduler::Grade;
-use crate::{AssessmentState, QuestionState};
+use crate::{AssessmentState, QuestionState, RelationKind};
 
 /// What a block is. Pages and journal days are roots; everything else has a
 /// parent.
@@ -312,6 +312,11 @@ pub enum Operation {
         id: String,
         base_revision: i64,
         position: bool,
+    },
+    SetRelation {
+        id: String,
+        base_revision: i64,
+        relation: Option<RelationKind>,
     },
     SetQuote {
         id: String,

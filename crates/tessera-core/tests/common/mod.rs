@@ -31,3 +31,8 @@ pub fn restore_authored_search(conn: &Connection) {
     let end = start + sync[start..].find("END;").unwrap() + 4;
     conn.execute_batch(&sync[start..end]).unwrap();
 }
+
+/// Before schema 40, authored argument edges had no capability table.
+pub fn restore_pre_relations(conn: &Connection) {
+    conn.execute_batch("DROP TABLE relations;").unwrap();
+}

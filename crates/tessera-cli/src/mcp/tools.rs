@@ -173,6 +173,39 @@ pub(super) fn tools() -> Value {
             "annotations": writes(false)
         },
         {
+            "name": "tessera_set_relation",
+            "title": "Set a relation",
+            "description": "Set an ordinary block's explicit relation kind, or remove it with null. Its first link is the target; its source comes from its ancestors. Does not change the block's text. Undo with tessera_undo.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "id": { "type": "string", "description": "Block ID." },
+                    "relation": { "type": ["string", "null"], "enum": ["supports", "disputes", "qualifies", "answers", null] },
+                    "revision": { "type": "integer", "description": REVISION },
+                    "reason": { "type": "string" }
+                },
+                "required": ["id", "relation"]
+            },
+            "annotations": writes(false)
+        },
+        {
+            "name": "tessera_relations",
+            "title": "Find relations",
+            "description": "Read authored relations with their source, target, holders and problems. Give at least one filter besides limit. Holder filters also match an endpoint that is the holder itself.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "kind": { "type": "string", "enum": ["supports", "disputes", "qualifies", "answers"] },
+                    "source": { "type": "string", "description": "Source block or page ID." },
+                    "target": { "type": "string", "description": "Target block or page ID." },
+                    "source_holder": { "type": "string", "description": "Source holder page ID." },
+                    "target_holder": { "type": "string", "description": "Target holder page ID." },
+                    "limit": { "type": "integer", "minimum": 1, "maximum": 500, "default": 50 }
+                }
+            },
+            "annotations": read_only()
+        },
+        {
             "name": "tessera_tasks",
             "title": "Find tasks",
             "description": "The agenda (view agenda): everything scheduled, due, warned, overdue or completed on a day, then for each following day what is scheduled or due on it. Or a task list (view list) filtered by status, dates, priority, project or a saved task view.",

@@ -14,6 +14,8 @@ import type { OutlineContext } from './context';
 import { insertCard, makeCloze as wrapCloze } from './card-insert';
 import type { InsertCardKind } from './card-insert';
 import { createFieldMenu } from '../fields/FieldMenu';
+import type { RelationKind } from '../api/types';
+import { addRelationReason, relationKinds, relationLabels, relationReason } from './relations';
 
 export function createOutlineCommands(context: Pick<OutlineContext,
   | 'doc' | 'editing' | 'commitFieldEntry' | 'props' | 'selected'
@@ -60,6 +62,34 @@ export function createOutlineCommands(context: Pick<OutlineContext,
       { label: 'Copy reference', icon: 'copy', action: () => copy(`[[${id}]]`) },
     ] });
   }
+  function markRelation(id: string, kind: RelationKind | null, text?: string) {
+    const block = doc.block(id);
+    if (!block) return;
+    const empty = kind !== null && !(text ?? block.text).trim();
+    const next = empty ? '[[]]' : text;
+    const result = apply({ kind: 'relation', id, value: kind, text: next });
+    if (!result?.ok) return;
+    if (next !== undefined && context.editor?.id === id) context.editor.sync(next);
+    if (empty) requestAnimationFrame(() => {
+      editAt(id, 2, true);
+      setCompletionIndex(0);
+      setCompletion({ from: 0, to: 2, query: '' });
+    });
+    void doc.flush().catch(reason => capabilities.failure(id, reason));
+  }
+  function relationMenu(id: string, add = false, text?: string) {
+    const anchor = rowAnchor(id) ?? context.heading;
+    if (!anchor) return;
+    setMenu({ anchor, label: add ? 'Add relation…' : 'Change kind', items: relationKinds.map(kind => ({
+      label: relationLabels[kind],
+      checked: !add && doc.block(id)?.relation?.kind === kind,
+      action: () => {
+        if (!add) { markRelation(id, kind, text); return; }
+        setCompletionIndex(0);
+        setCompletion({ from: 0, to: 0, query: '', relationTarget: { parentId: id, kind, anchor, sourceText: text } });
+      },
+    })) });
+  }
   function investigationItems(id: string): MenuItem[] {
     const block = doc.block(id);
     if (!block) return [];
@@ -75,15 +105,16 @@ export function createOutlineCommands(context: Pick<OutlineContext,
         { label: question.unsettled ? 'Let it settle' : 'Keep open', action: () => edit({ kind: 'question', id, value: { ...question, unsettled: !question.unsettled } }) },
         { label: 'Set review date', action: () => capabilities.open(id, 'review-date') },
         { label: 'Remove question', disabledReason: question.parked && question.accepted ? 'Resume the question before accepting an answer.' : undefined, action: () => edit({ kind: 'question', id, value: null }) },
-      ] : [{ label: 'Make question', disabledReason: assessment ? 'Remove the answer first.' : block.kind === 'journal' ? 'Make an ordinary block or page a question.' : undefined,
+      ] : [{ label: 'Make question', disabledReason: block.relation ? 'Remove the relation first.' : assessment ? 'Remove the answer first.' : block.kind === 'journal' ? 'Make an ordinary block or page a question.' : undefined,
         action: () => edit({ kind: 'question', id, value: { unsettled: false, parked: false, accepted: null, review_on: null } }) }]),
       ...(assessment ? [
         { label: 'Accept answer', disabledReason: !owner ? 'Put the answer under a question first.' : owner.state.parked ? 'Resume the question before accepting an answer.' : assessment.accepted ? 'Already accepted.' : undefined,
           action: () => { if (ownerId && owner) edit({ kind: 'question', id: ownerId, value: { ...owner.state, accepted: id } }); } },
         { label: assessment.state.aporia ? 'Clear aporia' : 'Record aporia', action: () => edit({ kind: 'assessment', id, value: { ...assessment.state, aporia: !assessment.state.aporia } }) },
         { label: 'Remove answer', action: () => edit({ kind: 'assessment', id, value: null }) },
-      ] : [{ label: 'Make answer', disabledReason: question ? 'Remove the question first.' : !owner ? 'Put the answer under a question first.' : owner.state.parked ? 'Resume the question before answering it.' : undefined,
+      ] : [{ label: 'Make answer', disabledReason: block.relation ? 'Remove the relation first.' : question ? 'Remove the question first.' : !owner ? 'Put the answer under a question first.' : owner.state.parked ? 'Resume the question before answering it.' : undefined,
         action: () => edit({ kind: 'assessment', id, value: { assessed_on: props.notebook.todayDate(), aporia: false } }) }]),
+      ...(block.kind === 'page' && question ? [{ label: 'Add relation…', action: () => relationMenu(id, true) }] : []),
     ];
   }
   const commandsFor = (selected = context.selected): Command[] => [
@@ -109,6 +140,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
       if (item && !item.disabledReason) item.action();
       else if (context.heading) setMenu({ anchor: context.heading, label: 'Question', items: investigationItems(props.pageId) });
     } },
+    { id: 'add-relation-root', title: 'Add relation…', section: 'Page', disabledReason: () => addRelationReason(doc.root()), run: () => relationMenu(props.pageId, true) },
     { id: 'previous-row', title: 'Select previous block', section: 'Navigation', keys: ['↑', 'k'], run: () => adjacent(-1) },
     { id: 'next-row', title: 'Select next block', section: 'Navigation', keys: ['↓', 'j'], run: () => adjacent(1) },
     { id: 'parent', title: 'Fold children / select parent', section: 'Navigation', keys: ['←', 'h'], run: () => horizontal('left') },
@@ -148,12 +180,20 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     { id: 'make-cloze', title: 'Make cloze', section: 'Editing', keys: ['⌘⇧C'], run: makeCloze },
     { id: 'leader', title: 'Show leader keys', section: 'Editing', keys: ['Space'], run: () => selected() && leaderMenu(selected()!) },
     { id: 'make-project', title: 'Make project', section: 'Outline', keys: ['Space o'], disabledReason: () => selected() && doc.block(selected()!)?.project ? 'Already a project.' : undefined, run: () => selected() && capabilities.invoke(capabilities.edit(selected()!, { kind: 'project', id: selected()!, value: { status: 'active', outcome: '', deadline: null } })) },
-    { id: 'make-perspective', title: 'Make perspective', section: 'Block', keys: ['Space v'], disabledReason: () => doc.block(selected() ?? '')?.kind !== 'block' ? 'Select an ordinary block.' : doc.block(selected()!)?.position ? 'Already a perspective.' : undefined, run: () => selected() && capabilities.invoke(capabilities.edit(selected()!, { kind: 'position', id: selected()!, value: true })) },
+    { id: 'make-perspective', title: 'Make perspective', section: 'Block', keys: ['Space v'], disabledReason: () => doc.block(selected() ?? '')?.kind !== 'block' ? 'Select an ordinary block.' : doc.block(selected()!)?.relation ? 'Remove the relation first.' : doc.block(selected()!)?.position ? 'Already a perspective.' : undefined, run: () => selected() && capabilities.invoke(capabilities.edit(selected()!, { kind: 'position', id: selected()!, value: true })) },
     { id: 'remove-perspective', title: 'Remove perspective', section: 'Block', keys: ['Space v'], disabledReason: () => doc.block(selected() ?? '')?.kind !== 'block' ? 'Select an ordinary block.' : !doc.block(selected()!)?.position ? 'Select a perspective.' : undefined, run: () => selected() && capabilities.invoke(capabilities.edit(selected()!, { kind: 'position', id: selected()!, value: false })) },
     { id: 'change-holder', title: 'Change holder…', section: 'Block', disabledReason: () => context.positionReason(selected() ?? ''), run: () => selected() && context.openRelation(selected()!, 'holder') },
     { id: 'file-under', title: 'File under…', section: 'Block', disabledReason: () => context.positionReason(selected() ?? '') ?? (!textTokens(doc.block(selected() ?? '')?.text ?? '').some(token => token.kind === 'reference') ? 'Choose a holder before filing this perspective.' : undefined), run: () => selected() && context.openRelation(selected()!, 'subject') },
     { id: 'use-place', title: 'Use place', section: 'Block', disabledReason: () => context.placeReason(selected() ?? ''), run: () => selected() && context.usePlace(selected()!) },
     ...(doc.root()?.kind === 'journal' ? [{ id: 'integrate', title: 'Integrate…', section: 'Block' as const, disabledReason: () => doc.block(selected() ?? '')?.kind !== 'block' ? 'Select a journal block.' : undefined, run: () => selected() && context.openRelation(selected()!, 'integrate') }] : []),
+    ...relationKinds.map((kind): Command => ({
+      id: `relation-${kind}`, title: `${relationLabels[kind]}…`, section: 'Block',
+      disabledReason: () => relationReason(doc.block(selected() ?? '')),
+      run: () => { const id = selected(); if (id) markRelation(id, kind); },
+    })),
+    { id: 'relation-kind', title: 'Change kind', section: 'Block', disabledReason: () => doc.block(selected() ?? '')?.relation ? undefined : 'Select a relation.', run: () => { const id = selected(); if (id) relationMenu(id); } },
+    { id: 'remove-relation', title: 'Remove relation', section: 'Block', disabledReason: () => doc.block(selected() ?? '')?.relation ? undefined : 'Select a relation.', run: () => { const id = selected(); if (id) markRelation(id, null); } },
+    { id: 'add-relation', title: 'Add relation…', section: 'Block', disabledReason: () => addRelationReason(doc.block(selected() ?? '')), run: () => { const id = selected(); if (id) relationMenu(id, true); } },
     ...['Make question', 'Make answer', 'Accept answer', 'Record aporia', 'Clear aporia', 'Park question', 'Resume question', 'Keep open', 'Let it settle', 'Set review date', 'Remove question', 'Remove answer'].map((title): Command => ({
       id: title.toLowerCase().replaceAll(' ', '-'), title, section: 'Outline', keys: title === 'Make question' || title === 'Make answer' ? ['Space q'] : undefined,
       disabledReason: () => {
@@ -242,6 +282,9 @@ export function createOutlineCommands(context: Pick<OutlineContext,
       item(entry?.position ? 'remove-perspective' : 'make-perspective', { section: 'Perspective' }),
       ...(entry?.position ? [item('change-holder'), item('file-under'), item('use-place')] : []),
       ...investigationItems(id).map((item, index) => ({ ...item, section: index === 0 ? 'Question and answer' : undefined })),
+      ...relationKinds.map((kind, index) => item(`relation-${kind}`, { section: index === 0 ? 'Relation' : undefined })),
+      ...(entry?.relation ? [item('relation-kind'), item('remove-relation')] : []),
+      ...(!addRelationReason(entry) ? [item('add-relation')] : []),
       ...(parseCardText(entry?.text ?? '').cards.length ? [
         { label: 'Review cards', section: 'Cards', action: () => props.onOpen({ kind: 'review', blockId: id }, false) },
         { label: 'Show card source', action: () => capabilities.source(id) },
@@ -350,5 +393,5 @@ export function createOutlineCommands(context: Pick<OutlineContext,
       leader('z', 'Zoom in', () => zoomTo(id)),
     ]);
   }
-  return { openTable, investigationItems, commandDefinitions, unregister, blockMenu, fieldMenu, statusMenu, priorityMenu, openPlanning, openProject, leaderMenu, makeCloze, referenceMenu, copy };
+  return { openTable, investigationItems, markRelation, relationMenu, commandDefinitions, unregister, blockMenu, fieldMenu, statusMenu, priorityMenu, openPlanning, openProject, leaderMenu, makeCloze, referenceMenu, copy };
 }

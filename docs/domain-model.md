@@ -413,6 +413,19 @@ A page's gloss is an entry for the Gloss field among its top-level blocks: the o
 
 These map the three kinds of knowledge in the [vision](vision.md): a fact is an ordinary block, with a passage when it came from reading; someone else's view is a position; your own conclusion is an assessment. A perspective lens is a view of positions grouped by holder.
 
+### Relations
+
+A relation capability marks an ordinary block as an authored argument edge. Its stored kind is `supports`, `disputes`, `qualifies` or `answers`. The block's text and children hold the reasoning and may cite passages. An edge cannot also be a position, question or assessment. Relations are never inferred from wording, link labels or differences between readings.
+
+The endpoints are derived from the block's text and place, never stored:
+
+- **Target:** the first linked block or page, when it is live and visible.
+- **Source:** the nearest ancestor position or assessment; without either, the nearest ancestor question; without one, the page root. The edge itself is excluded.
+
+An edge with no target or a deleted target shows a problem. An `answers` edge also shows a problem when its target is not an active question. These problems never reject or rewrite the authored text.
+
+Relation reads filter by kind, source, target, source holder or target holder, with at least one filter. A holder filter matches a position held by that page or the holder page itself. Results include the edge, both endpoints with their containing pages, each position endpoint's holder and any problem. Moving an edge or changing its first link changes its derived endpoints.
+
 ## Projects
 
 A project capability gives a block an outcome, an optional deadline and active, done or canceled status. Tasks anywhere beneath it are its canonical actions; nested tasks report their nearest active project capability. A completed project's capability remains active until explicitly removed. Completing a project does not complete its tasks or reassess questions beneath it. Removing the capability retains its history and block identity.

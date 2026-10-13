@@ -14,7 +14,8 @@ import { BlockBreadcrumb, BlockText } from './BlockText';
 import { BlockTree, blockContextRows } from './BlockTree';
 import type { TreeRow } from './BlockTree';
 import { glossEntry, glossText, isGistName, isGlossName } from './gloss';
-import { positionFields, positionSource } from './perspectives';
+import { positionFields, positionRelations, positionSource, readingPassages } from './perspectives';
+import { OutgoingRelations } from './RelationLines';
 import './reference-preview.css';
 
 /** Resting on a reference this long opens its card; moving to another reference while one is open takes a third of it. */
@@ -284,6 +285,7 @@ function proseRows(doc: PageDocument, parent: string, excluded: string | null, f
     const id = outline.idAt(index);
     if (doc.isArchived(id) || id === excluded) { index = outline.subtreeEnd(index); continue; }
     const block = doc.block(id);
+    if (block?.relation) { index = outline.subtreeEnd(index); continue; }
     const text = block?.text.trim() ?? '';
     const field = fieldEntryId(text);
     const shorthand = matchFieldEntry(text);
@@ -444,7 +446,7 @@ function PinnedReadings(props: {
       account: fields.find(field => field.name.trim().toLowerCase() === 'account'),
       source: ready ? positionSource(doc, row.block.block.id, props.fieldName) : null,
       shape: fields.find(field => field.name.trim().toLowerCase() === 'shape')?.value,
-      prose: ready ? proseRows(doc, row.block.block.id, null, props.fieldName, BLOCK_ROWS) : [],
+      prose: ready ? readingPassages(doc, row.block.block.id, fields.find(field => isGistName(field.name))?.value, props.fieldName).slice(0, BLOCK_ROWS) : [],
     };
   }));
   const [siglumRecords] = createResource(() => {
@@ -487,6 +489,7 @@ function PinnedReadings(props: {
         }>
           <Show when={summary()}>{text => <p class="reference-preview-gist"><BlockText text={text()} blockId={summaryId() ?? undefined} notebook={props.notebook} onOpen={props.onOpen} /></p>}</Show>
         </Show>
+        <OutgoingRelations rows={reading.doc.status() === 'ready' ? positionRelations(reading.doc, id) : []} notebook={props.notebook} onOpen={props.onOpen} />
         <Show when={selected() === id}>
           <div class="reference-preview-reading-detail">
             <Show when={reading.doc.status() === 'ready'}>
