@@ -96,7 +96,7 @@ export function readingSlipRows(doc: PageDocument, slip: ReadingSlip, disclosure
 
 export function readingCounts(slips: readonly ReadingSlip[]): string {
   const holders = new Set(slips.flatMap(slip => slip.holderId ? [slip.holderId] : [])).size;
-  return `${slips.length} ${slips.length === 1 ? 'reading' : 'readings'} · ${holders} ${holders === 1 ? 'holder' : 'holders'}`;
+  return `${slips.length} ${slips.length === 1 ? 'perspective' : 'perspectives'} · ${holders} ${holders === 1 ? 'holder' : 'holders'}`;
 }
 
 /** Perspectives on this page filed under it, as opposed to under a question or another subject. */

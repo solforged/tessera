@@ -58,7 +58,7 @@ export function QuestionBranches(props: { rows: QuestionRow[]; notebook: Noteboo
     <h3>Branches</h3><For each={props.rows}>{row => <Button class="question-branch" onClick={event => props.onOpen({ kind: 'page', pageId: row.block.page.id, blockId: row.block.block.kind === 'block' ? row.block.block.id : undefined }, event.shiftKey)}>
       <span class="question-branch-title"><BlockText text={row.block.block.text} notebook={props.notebook} interactive={false} /></span>
       <span class="outline-question" data-question-status={row.info.status}><Icon name={row.info.status === 'answered' ? 'question-settled' : 'question-open'} />{questionLabels[row.info.status]}</span>
-      <span class="question-branch-count">{row.position_count} {row.position_count === 1 ? 'reading' : 'readings'}</span>
+      <span class="question-branch-count">{row.position_count} {row.position_count === 1 ? 'perspective' : 'perspectives'}</span>
       <span class="question-branch-reading"><Show when={row.current} fallback="No current reading">{current => <><BlockText text={current().text} notebook={props.notebook} interactive={false} /><span class="question-branch-count"> · {current().assessed_on}</span></>}</Show></span>
       <span class="question-branch-count">Revisit {row.review_on ?? 'not set'}</span>
     </Button>}</For>

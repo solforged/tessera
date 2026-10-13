@@ -18,7 +18,7 @@ export function pageMergeDisabledReason(root: BlockState | undefined): string | 
   if (root.project) return "A project can't be merged.";
   if (root.task) return "A page with a task can't be merged.";
   if (root.question) return "A question page can't be merged.";
-  if (root.position) return "A page with a reading can't be merged.";
+  if (root.position) return "A perspective page can't be merged.";
   if (root.assessment) return "A page with an assessment can't be merged.";
   if (root.relation) return "A page with a relation can't be merged.";
   if (root.quote) return "A page with a quoted copy can't be merged.";

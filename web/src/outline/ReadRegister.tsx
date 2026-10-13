@@ -15,7 +15,7 @@ export function ReadRegister(props: { register: Register; doc: PageDocument; not
   return <div class="reading-register">
     <div class="reading-opening"><For each={props.register.opening}>{props.row}</For></div>
       <Show when={props.register.sectionId}>{id => props.row(id())}</Show>
-      <Show when={isReadingSubject(props.doc)}><div class="reading-register-actions"><span>{readingCounts(props.register.slips)}</span><Button disabled={props.register.slips.length < 2} onClick={props.onCompare}>Compare</Button><Button onClick={event => props.onAddReading(event.currentTarget)}>Add reading</Button><Show when={props.register.slips.length < 2}><span>Compare needs two readings.</span></Show></div></Show>
+      <Show when={isReadingSubject(props.doc)}><div class="reading-register-actions"><span>{readingCounts(props.register.slips)}</span><Button disabled={props.register.slips.length < 2} onClick={props.onCompare}>Compare</Button><Button onClick={event => props.onAddReading(event.currentTarget)}>Add perspective</Button><Show when={props.register.slips.length < 2}><span>Compare needs two perspectives.</span></Show></div></Show>
     <Show when={props.register.slips.length}>
       <div class="reading-slips"><For each={slipIds()}>{id => {
         const slip = () => slips().get(id)!;
@@ -26,7 +26,7 @@ export function ReadRegister(props: { register: Register; doc: PageDocument; not
         <Show when={slip().account.length}><div class="reading-account"><span class="relation-label">Account</span><For each={values(slip().account)}>{props.row}</For></div></Show>
         <div class="reading-field-prose"><For each={values(slip().prose)}>{props.row}</For></div>
         <div class="reading-relations"><For each={slip().relations}>{props.row}</For></div>
-        <div class="reading-disclosures"><Show when={slip().passages.length}><Button aria-expanded={props.disclosures.has(`${id}:prose`)} onClick={() => props.onDisclosure(`${id}:prose`)}>Prose</Button></Show><Show when={slip().facts.length}><Button aria-expanded={props.disclosures.has(`${id}:facts`)} onClick={() => props.onDisclosure(`${id}:facts`)}>Facts</Button></Show><Button title="Open this reading · Shift to open beside" onClick={event => props.onOpenReading(id, event.shiftKey)}>Open reading</Button></div>
+        <div class="reading-disclosures"><Show when={slip().passages.length}><Button aria-expanded={props.disclosures.has(`${id}:prose`)} onClick={() => props.onDisclosure(`${id}:prose`)}>Prose</Button></Show><Show when={slip().facts.length}><Button aria-expanded={props.disclosures.has(`${id}:facts`)} onClick={() => props.onDisclosure(`${id}:facts`)}>Facts</Button></Show><Button title="Open this perspective · Shift to open beside" onClick={event => props.onOpenReading(id, event.shiftKey)}>Open perspective</Button></div>
         <Show when={props.disclosures.has(`${id}:prose`)}><div class="reading-prose"><For each={slip().passages}>{props.row}</For></div></Show>
         <Show when={props.disclosures.has(`${id}:facts`)}><div class="reading-facts"><For each={slip().facts.map(field => field.entryId)}>{entryId => <div><span class="relation-label">{slip().facts.find(field => field.entryId === entryId)?.name}</span><For each={values([{ entryId }])}>{props.row}</For></div>}</For></div></Show>
       </article>;

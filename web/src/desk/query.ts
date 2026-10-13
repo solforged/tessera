@@ -7,7 +7,7 @@ import { copyQuery, filterLabel, typeQuery } from '../table/query';
 
 export type DeskSelection = NonNullable<TableViewState['desk']>;
 export type DeskColumn = DeskSelection['column'];
-export const columnNames = ['Questions', 'Positions', 'Sources'] as const;
+export const columnNames = ['Questions', 'Perspectives', 'Sources'] as const;
 
 export function deskQuery(question?: string): Query {
   return {

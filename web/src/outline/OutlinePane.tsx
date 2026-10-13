@@ -1426,7 +1426,7 @@ function Pane(props: OutlinePaneProps) {
         if (initial.reveal === anchor.id) highlightReading(anchor.id);
       } else {
         if (caret()?.id === anchor.id && !doc.block(anchor.id)) setCaret(null);
-        if (initial.reveal === anchor.id) setMessage('This reading is no longer available on its subject page.');
+        if (initial.reveal === anchor.id) setMessage('This perspective is no longer available on its subject page.');
       }
       setPendingReadAnchor(null);
       scheduleReport();
@@ -1500,7 +1500,7 @@ function Pane(props: OutlinePaneProps) {
   return <>
     <Show when={doc.root()?.kind === 'page' && !zoom() && props.projection !== 'compare'}><div class="section-navigator" style={{ visibility: longPage() ? undefined : 'hidden' }}><Button aria-haspopup="menu" onClick={event => {
       const sections = Array.from({ length: doc.outline.size() }, (_, at) => doc.outline.idAt(at)).filter(id => !doc.isArchived(id) && (doc.block(id)?.position || doc.block(id)?.heading && doc.outline.parentOf(id) === props.pageId));
-      setMenu({ anchor: event.currentTarget, label: 'Sections and readings', items: [{ label: 'Opening', action: () => { cancelScroll(); scroll.scrollTop = 0; scrolled(); } }, ...sections.map(id => ({ label: doc.block(id)?.position ? `Perspectives · ${doc.block(id)?.position?.holder_id ? props.notebook.lookup(doc.block(id)!.position!.holder_id!)()?.text ?? 'Loading holder…' : 'Unattributed'}` : plainText(doc.block(id)?.text ?? '', props.notebook.lookup), action: () => {
+      setMenu({ anchor: event.currentTarget, label: 'Sections and perspectives', items: [{ label: 'Opening', action: () => { cancelScroll(); scroll.scrollTop = 0; scrolled(); } }, ...sections.map(id => ({ label: doc.block(id)?.position ? `Perspectives · ${doc.block(id)?.position?.holder_id ? props.notebook.lookup(doc.block(id)!.position!.holder_id!)()?.text ?? 'Loading holder…' : 'Unattributed'}` : plainText(doc.block(id)?.text ?? '', props.notebook.lookup), action: () => {
         revealRow(id);
         if (!reading() && indices().has(id)) virtualizer.scrollToIndex(indices().get(id)!, { align: 'start' });
         requestAnimationFrame(() => {
@@ -1549,7 +1549,7 @@ function Pane(props: OutlinePaneProps) {
         if (value) editAt(value, doc.block(value)?.text.length ?? 0, true);
       }} /><NoteLine pageId={props.pageId} notebook={props.notebook} /></Show>
       <Show when={isNote() && doc.status() === 'ready' && !doc.root()?.question}><NoteRevisit id={props.pageId} notebook={props.notebook} /></Show>
-      <Show when={isReadingSubject(doc) && !reading() && !zoom()}><div class="reading-register-actions"><span>{readingCounts(register().slips)}</span><Button disabled={localPositions() < 2} onClick={() => props.onProjection?.('compare')}>Compare</Button><Button onClick={event => openRelation(props.pageId, 'reading', event.currentTarget)}>Add reading</Button><Show when={localPositions() < 2}><span>Compare needs two readings.</span></Show></div></Show>
+      <Show when={isReadingSubject(doc) && !reading() && !zoom()}><div class="reading-register-actions"><span>{readingCounts(register().slips)}</span><Button disabled={localPositions() < 2} onClick={() => props.onProjection?.('compare')}>Compare</Button><Button onClick={event => openRelation(props.pageId, 'reading', event.currentTarget)}>Add perspective</Button><Show when={localPositions() < 2}><span>Compare needs two perspectives.</span></Show></div></Show>
       <RowRelations id={zoom() ?? props.pageId} />
       <Show when={!zoom() && doc.root()?.kind === 'page' && !doc.root()?.source && doc.root()?.text.toLowerCase() !== 'fields' && !type.error && type()}>{value => <Show when={value().members || value().fields.length || startingTemplateFor(value().page.text, value().fields)}>
         <TemplateEditor type={value()} fields={definitions()} notebook={props.notebook} onError={setMessage} />

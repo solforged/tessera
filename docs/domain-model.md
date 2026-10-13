@@ -189,7 +189,7 @@ Each definition has a `hide` setting for outlines. `never` is the default and sh
 
 A definition also has a presentation role: `standfirst`, `attribute` (the default), `prose` or `citation`. Standfirst values read as sentences under their owner, attributes form an aligned field bed, prose follows it at full width, and citation values show references as siglum and locator. The role changes no value or kind. Changing it is revision-checked, attributed and undoable; sync keeps the later change. Migration gives existing Gist and Gloss definitions the standfirst role. A later rename never changes a role.
 
-The reading register projects field entry identities and reads each value from the shared document. Editing a blank standfirst does not replace its reading slip or editor. Add reading enters filling mode at the new Gist value; its recipe order continues with Work and the subject's criteria.
+The reading register projects field entry identities and reads each value from the shared document. Editing a blank standfirst does not replace its perspective slip or editor. Add perspective enters filling mode at the new Gist value; its recipe order continues with Work and the subject's criteria.
 
 Values are plain blocks read through the field's kind. A value that does not fit shows a problem but is never rejected or rewritten.
 
@@ -260,7 +260,7 @@ Grouping uses `group: {key, collapsed?}` and returns distinct row IDs and counts
 
 A view is a saved query with a name and a revision. Views are not blocks; saving and deleting them are operations like any other, so they are attributed and undoable. A type table is the unsaved query for that type's members.
 
-The query also carries its view recipe: `layout`, ordered columns with widths, sort keys in priority order, grouping with collapsed heading keys, phone card fields and a one-line purpose. Layout is `table` by default; positions also offer `register` and `matrix`. Register shows attributed reading slips with editable field beds. Matrix groups positions by subject and places holders against that subject's criteria. Both edit the original value blocks through their page documents, with one undo per committed value. Saving, reopening and undoing a saved view keep the recipe with the query. Attributes remain read-only.
+The query also carries its view recipe: `layout`, ordered columns with widths, sort keys in priority order, grouping with collapsed heading keys, phone card fields and a one-line purpose. Layout is `table` by default; positions also offer `register` and `matrix`. Register shows attributed perspective slips with editable field beds. Matrix groups positions by subject and places holders against that subject's criteria. Both edit the original value blocks through their page documents, with one undo per committed value. Saving, reopening and undoing a saved view keep the recipe with the query. Attributes remain read-only.
 
 An unsaved entity view starts with its key attributes, applicable standfirst fields and fields filled on at least a quarter of its first result's rows. The register uses at most six starting columns, including Title and derived Refs. It records that choice in pane history, so later searches keep it. Existing saved recipes remain unchanged.
 
@@ -448,7 +448,7 @@ A highlight is an authored block on the source's page that cites a passage. Like
 
 Marking a highlight processed or unprocessed overrides that rule until cleared; this is the only stored triage state. Because passages never change, a passage citation is a frozen quotation by construction.
 
-A position is an attributed claim: who holds it, about which question or subject, supported by which passages. A position capability marks an ordinary block as one. Holder and subject are derived from its text and place, never stored:
+A position is an attributed claim: who holds it, about which question or subject, supported by which passages. A position capability marks an ordinary block as one; the interface calls it a perspective, and the `positions` query source is labeled Perspectives. Holder and subject are derived from its text and place, never stored:
 
 - **Holder:** the page its first link points to.
 - **Subject:** the block or page its second link points to, else its nearest ancestor question, else its page.
@@ -470,7 +470,7 @@ A position's recipe offers Gist, Work, then its subject's criteria, explicit whe
 
 Questions beneath the subject attach to the first criterion linked in their text. They are scoped to the linked holder pages of its positions, or to all holders when none are named. These attachments are derived.
 
-Compare question focus is view state, never notebook content. It shows the readings of the question's linked holders and marks its criterion; the two sheets share a reading selection. Cell commits edit the ordinary value blocks through their page document and use that document's history.
+Compare question focus is view state, never notebook content. It shows the perspectives of the question's linked holders and marks its criterion; the two sheets share a perspective selection. Cell commits edit the ordinary value blocks through their page document and use that document's history.
 
 A criterion cell is identified by its position and field IDs. A refreshed position read preserves its focused cell; keyboard commit returns focus to that cell for the next history command.
 
@@ -478,7 +478,7 @@ Criterion cells use the definition's kind and the field bed's shared value edito
 
 Quoted criterion values keep the ordinary block's frozen quote capability and `((ID))` text. A newly inserted value and its snapshot share one document change, including the field entry when it is missing.
 
-A holder's register groups its positions by their derived subjects and opens each position in its original place. A position zoom is a dossier of that reading with block-scoped incoming links and relations, not the containing page's backlinks.
+A holder's register groups its positions by their derived subjects and opens each position in its original place. A position zoom is a dossier of that perspective with block-scoped incoming links and relations, not the containing page's backlinks.
 
 Read from a position zoom opens its titled subject in the unzoomed Read projection, revealing that position in the subject's local register or filed-elsewhere section. Reveal and its brief highlight are pane navigation state. The stored caret and scroll retain the location after reload; no block is copied or edited.
 

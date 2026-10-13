@@ -87,11 +87,11 @@ An owner's populated fields stay visible at rest. Standfirst sentences lead, wit
 
 A value click, or Enter on a selected field, begins filling that owner. Tab and Shift-Tab move through its fields and missing slots in template or recipe order; reaching a missing slot creates its entry and value. Shift-Enter adds a newline. Enter on an empty value leaves for the owner's next ordinary row; Escape leaves without moving. Outside filling mode, Tab and Shift-Tab retain outline indent and outdent. Each value keeps its ordinary undo history.
 
-For a position, Add field begins with From this recipe: missing Gist, Work, then the subject's explicit or derived criteria. The recipe suggests, never requires.
+For a perspective, Add field begins with From this recipe: missing Gist, Work, then the subject's explicit or derived criteria. The recipe suggests, never requires.
 
 ## Tables and views
 
-A table is a query shown as rows. New view… in the sidebar or Commands asks for Notes, Questions, Positions, Sources, Tasks or Highlights first. The first toolbar chip names the source and changes it. Existing type tables and note views keep their scope.
+A table is a query shown as rows. New view… in the sidebar or Commands asks for Notes, Questions, Perspectives, Sources, Tasks or Highlights first. The first toolbar chip names the source and changes it. Existing type tables and note views keep their scope.
 
 ### Register and header
 
@@ -133,17 +133,17 @@ Span sorts compare start year, then end year. Open starts sort first and open en
 
 Group offers attributes and fields. A heading shows its label and distinct row count; clicking it collapses or reopens its rows. Collapsed heading keys travel with the saved recipe.
 
-### Position layouts
+### Perspective layouts
 
-Layout offers Table, Register and Matrix beside Group. Register and Matrix require Positions; other sources show the reason beside their unavailable choices. Old views remain Table.
+Layout offers Table, Register and Matrix beside Group. Register and Matrix require Perspectives; other sources show the reason beside their unavailable choices. Old views remain Table.
 
-Register starts grouped by Subject, with Holder also available in Group. Each reading slip leads with its siglum and holder, then its standfirst sentence, an aligned attribute and citation bed, full-width prose and labeled argument relations. Open reading zooms into the position; the subject link opens its original page or question.
+Register starts grouped by Subject, with Holder also available in Group. Each perspective slip leads with its siglum and holder, then its standfirst sentence, an aligned attribute and citation bed, full-width prose and labeled argument relations. Open perspective zooms into the perspective; the subject link opens its original page or question.
 
 Click a value or focus it and press Enter to edit. Values use the field bed's kind pickers and the outline's text editor. Tab and Shift-Tab commit the current value and fill the next or previous field in recipe order. Shift-Enter adds a newline; Enter on an empty value and Escape leave the editor. Each committed value has one undo in its original page history.
 
 Live result refreshes keep the row's editor and focus. Clicking an empty value writes its entry and text together at commit, so one undo removes both. Tab filling creates a missing recipe slot when reached.
 
-Matrix shows one sheet per subject, with holders as rows and criteria as columns. This keeps six readings and three criteria readable without six narrow prose columns. Cells use the existing Compare matrix editor, references and undo. A subject without criteria explains how to add them in Compare; an empty result offers the table's Clear filters action.
+Matrix shows one sheet per subject, with holders as rows and criteria as columns. This keeps six perspectives and three criteria readable without six narrow prose columns. Cells use the existing Compare matrix editor, references and undo. A subject without criteria explains how to add them in Compare; an empty result offers the table's Clear filters action.
 
 On phones the register's labels stack above values. Matrix rows become holder slips with a labeled cell for each criterion. Every value stays within the pane instead of scrolling the document sideways. Saving and reopening keep the layout with the other recipe choices.
 
@@ -181,7 +181,7 @@ Changing the column selection returns the grid to its left edge. Entering an inl
 
 Columns start with the type template's fields, then fields present on all members of the type or the view's base membership, including blank entries. Search rows, filter predicates and pagination never remove or reorder these columns. Field-only views use owners of any named filter field as their base membership. Fields used by filters remain available even when every value is empty.
 
-New entity views start with the source's key attributes, its standfirst fields, then fields filled on at least a quarter of the first result's rows. There are at most six starting columns, including Title and derived Refs. Positions start with Holder and Subject; Questions with State, Readings, Last assessed and Revisit; Sources with Creator; Highlights with Source. Saved recipes keep their chosen columns.
+New entity views start with the source's key attributes, its standfirst fields, then fields filled on at least a quarter of the first result's rows. There are at most six starting columns, including Title and derived Refs. Perspectives start with Holder and Subject; Questions with State, Perspectives, Last assessed and Revisit; Sources with Creator; Highlights with Source. Saved recipes keep their chosen columns.
 
 Columns hides or restores attributes, fields and derived Refs. Title only starts a compact selection. Find columns narrows the choices without changing the recipe. Column headers drag into order; their menus also offer Move left and Move right. Dragging a header's edge resizes it. The sticky title stays first and is 170 to 340 px wide, 240 by default. Chosen columns and widths belong to the query recipe and never change the type template. Search and filtering retain them. Older views without a recipe start with their existing pane-local visibility.
 
@@ -205,7 +205,7 @@ An empty result names the source and the conditions that excluded its rows. Clea
 
 | Input or layout | Behavior |
 | --- | --- |
-| Desktop title click or Enter | Opens the entity in its original place; a position opens its dossier, a question its block and a highlight its passage. Shift opens beside. |
+| Desktop title click or Enter | Opens the entity in its original place; a perspective opens its dossier, a question its block and a highlight its passage. Shift opens beside. |
 | Selected row | Gilt left bar and an explicit open-beside affordance. |
 | Coarse pointer at least 900 px wide | A row tap opens the canonical note or block beside by default. |
 | Narrow table pane on that unfolded screen | Becomes a touch-sized row list while keeping its query controls. |

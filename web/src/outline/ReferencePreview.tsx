@@ -388,7 +388,7 @@ function ReferenceCard(props: {
   };
   const counts = createMemo(() => [
     !references.error && references()?.works ? `${references()!.works} ${references()!.works === 1 ? 'work' : 'works'}` : '',
-    positions.error ? 'Readings unavailable' : positionRows().length ? `${positionRows().length} ${positionRows().length === 1 ? 'reading' : 'readings'}` : '',
+    positions.error ? 'Perspectives unavailable' : positionRows().length ? `${positionRows().length} ${positionRows().length === 1 ? 'perspective' : 'perspectives'}` : '',
     referenceCount(),
   ].filter(Boolean).join(' · '));
   // Loading placeholders and late field/count requests must never size a painted slip.
@@ -432,8 +432,8 @@ function ReferenceCard(props: {
       <Show when={doc()?.status() === 'ready'} fallback={<p class="reference-preview-message">{doc()?.status() === 'loading' || !doc() ? 'Loading…' : doc()?.statusMessage()}</p>}>
         <Show when={props.pinned && isPage() && positionRows().length} fallback={
           <Show when={!isPage() || props.pinned || !summary()}>
-            <Show when={props.pinned && positions.loading}><p class="reference-preview-message" role="status">Loading readings…</p></Show>
-            <Show when={props.pinned && positions.error}><p class="reference-preview-message" role="alert">Couldn’t load readings. The page preview is still available.</p></Show>
+            <Show when={props.pinned && positions.loading}><p class="reference-preview-message" role="status">Loading perspectives…</p></Show>
+            <Show when={props.pinned && positions.error}><p class="reference-preview-message" role="alert">Couldn’t load perspectives. The page preview is still available.</p></Show>
             <Show when={fieldList.error}><p class="reference-preview-message" role="alert">Couldn’t load field definitions.</p></Show>
             <Show when={!isPage() || !fieldList.loading} fallback={<p class="reference-preview-message" role="status">Loading preview…</p>}>
               <Show when={rows().length} fallback={<p class="reference-preview-message">{isPage() ? summary() ? 'No further text on this page.' : 'Empty page.' : 'Block not found on its page.'}</p>}>
@@ -444,10 +444,10 @@ function ReferenceCard(props: {
             </Show>
           </Show>
         }>
-          <Show when={fieldList.error}><p class="reference-preview-message" role="alert">Couldn’t load reading fields.</p></Show>
+          <Show when={fieldList.error}><p class="reference-preview-message" role="alert">Couldn’t load perspective fields.</p></Show>
           <PinnedReadings rows={positionRows()} notebook={props.notebook} fieldName={fieldName} standfirst={id => fieldRole(fieldList()?.fields.find(field => field.id === id)) === 'standfirst'} onOpen={props.onNested} />
           <Show when={positionRows().length >= 2}>
-            <Button class="reference-preview-compare" onClick={event => props.onNested({ kind: 'compare', subjectId: props.id }, event.shiftKey)}>Compare readings →</Button>
+            <Button class="reference-preview-compare" onClick={event => props.onNested({ kind: 'compare', subjectId: props.id }, event.shiftKey)}>Compare perspectives →</Button>
           </Show>
         </Show>
       </Show>
@@ -501,8 +501,8 @@ function PinnedReadings(props: {
   ))));
   const sigla = createMemo(() => pageSigla((siglumRecords.error ? [] : siglumRecords() ?? []).filter(record => record !== null)));
 
-  return <section class="reference-preview-readings" aria-label="Readings">
-    <div class="reference-preview-section-heading"><span>Readings</span><span class="reference-preview-rule" /><span>{props.rows.length}</span></div>
+  return <section class="reference-preview-readings" aria-label="Perspectives">
+    <div class="reference-preview-section-heading"><span>Perspectives</span><span class="reference-preview-rule" /><span>{props.rows.length}</span></div>
     <For each={readings()}>{reading => {
       const id = reading.row.block.block.id;
       const holderName = createMemo(() => {
@@ -518,7 +518,7 @@ function PinnedReadings(props: {
         <div class="reference-preview-reading-heading">
           <Show when={reading.source && sigla().get(reading.source)}>{mark => <span class="reference-preview-siglum" title={props.notebook.lookup(reading.source!)()?.text}>{mark()}</span>}</Show>
           <Button class="reference-preview-holder" aria-expanded={reading.prose.length ? selected() === id : undefined}
-            title={reading.prose.length ? 'Expand this reading · Shift to open beside' : 'Open this reading · Shift to open beside'}
+            title={reading.prose.length ? 'Expand this perspective · Shift to open beside' : 'Open this perspective · Shift to open beside'}
             onClick={event => event.shiftKey || !reading.prose.length ? open(event.shiftKey) : setSelected(value => value === id ? null : id)}>
             <span>{holderName()}</span>
             <Show when={reading.shape}>{shape => <ShapeGlyph value={shape()} />}</Show>
@@ -528,7 +528,7 @@ function PinnedReadings(props: {
         <Show when={reading.work?.value}>{work => <p class="reference-preview-reading-source"><BlockText text={work()} blockId={reading.work?.valueId ?? undefined} notebook={props.notebook} onOpen={props.onOpen} /></p>}</Show>
         <Show when={reading.account?.value}>{account => <p class="reference-preview-reading-source"><span class="relation-label">Account</span> <BlockText text={account()} blockId={reading.account?.valueId ?? undefined} notebook={props.notebook} onOpen={props.onOpen} /></p>}</Show>
         <Show when={reading.doc.status() === 'ready'} fallback={
-          <p class="reference-preview-reading-message" role={reading.doc.status() === 'loading' ? 'status' : 'alert'}>{reading.doc.status() === 'loading' ? 'Loading reading…' : reading.doc.statusMessage()}</p>
+          <p class="reference-preview-reading-message" role={reading.doc.status() === 'loading' ? 'status' : 'alert'}>{reading.doc.status() === 'loading' ? 'Loading perspective…' : reading.doc.statusMessage()}</p>
         }>
           <Show when={summary()}>{text => <p class="reference-preview-gist"><BlockText text={text()} blockId={summaryId() ?? undefined} notebook={props.notebook} onOpen={props.onOpen} /></p>}</Show>
         </Show>
@@ -546,9 +546,9 @@ function PinnedReadings(props: {
                 </Button>
               }</Show>
               <For each={reading.prose}>{row => <p class="reference-preview-reading-prose"><BlockText text={reading.doc.block(row.id)?.text ?? ''} blockId={row.id} notebook={props.notebook} onOpen={props.onOpen} /></p>}</For>
-              <Show when={!reading.prose.length}><p class="reference-preview-reading-message">No further text in this reading.</p></Show>
+              <Show when={!reading.prose.length}><p class="reference-preview-reading-message">No further text in this perspective.</p></Show>
             </Show>
-            <Button class="reference-preview-open-reading" onClick={event => open(event.shiftKey)}>Open reading →</Button>
+            <Button class="reference-preview-open-reading" onClick={event => open(event.shiftKey)}>Open perspective →</Button>
           </div>
         </Show>
       </article>;

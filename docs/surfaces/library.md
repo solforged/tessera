@@ -91,7 +91,7 @@ Chosen values also show as removable chips under the controls with Clear filters
 
 A person's page lists their works above the related sections: `Works N` in the faint label, then a grid of 72 px covers (`--work-cover-width`). Each has the title on up to two lines and one mono line of year, Editor or Translator when that is their role, and the reading state or progress. Undated works follow the dated ones, oldest first.
 
-The creator field values those works hold are left out of Backlinks, and the person's hover card counts `N works` before its readings and references.
+The creator field values those works hold are left out of Backlinks, and the person's hover card counts `N works` before its perspectives and references.
 
 The Works heading and shelf share the page title's left edge. Works and its count sit in mono on either side of a hairline rule.
 

@@ -36,7 +36,7 @@ export function ViewValue(props: {
   async function write(draft: string, focus = true, quote?: QuoteState, direction?: -1 | 1, option?: string) {
     if (busy()) return;
     const doc = props.doc;
-    if (!doc || doc.status() !== 'ready') { props.onError('The reading is still loading.'); return; }
+    if (!doc || doc.status() !== 'ready') { props.onError('The page is still loading.'); return; }
     setBusy(true);
     try {
       const original = values().find(value => value.id === valueId())?.text ?? '';
@@ -70,7 +70,7 @@ export function ViewValue(props: {
     if (props.field.kind === 'checkbox') { void write(checkboxValue(text) ? 'no' : 'yes'); return; }
     if (!value && filling) {
       const doc = props.doc;
-      if (!doc || doc.status() !== 'ready') { props.onError('The reading is still loading.'); return; }
+      if (!doc || doc.status() !== 'ready') { props.onError('The page is still loading.'); return; }
       try {
         writeFieldValue(doc, { field: props.field, ownerId: props.row.block.block.id }, '');
         const entry = doc.outline.children(props.row.block.block.id).find(id => !doc.isArchived(id) && fieldEntryId(doc.block(id)?.text ?? '') === props.field.id);

@@ -69,9 +69,9 @@ Their chips use the same attribute labels as entity views: Resolved and Revisit 
 
 Questions opens a ledger rather than the alphabetical finding aid. Its ruled tabs are Active, Recurrent, Due, Answered, Parked and All, kept on one horizontally scrolling line in narrow panes. Active includes questions that are active or recurrent; Due selects non-parked questions whose revisit date has arrived. Each tab reads the same state filter from `/api/questions`. Find in Questions uses the finding aid's words, link/source predicates and Revisit/Resolved chips, intersected with the selected state; it includes inline questions and preserves program grouping.
 
-Questions are grouped by their top-level program, with branches below it. Inline questions show their containing page and open their original block. The tally and sidebar count include inline questions. Each row shows state, reading count, current assessment's first line and date, or No current reading, then the next revisit date. No progress percentage is shown.
+Questions are grouped by their top-level program, with branches below it. Inline questions show their containing page and open their original block. The tally and sidebar count include inline questions. Each row shows state, perspective count, current assessment's first line and date, or No current reading, then the next revisit date. No progress percentage is shown.
 
-The sidebar's Questions menu opens the [research desk](desk.md), which links question, position and source queries. A question's own menu offers Open in desk.
+The sidebar's Questions menu opens the [research desk](desk.md), which links question, perspective and source queries. A question's own menu offers Open in desk.
 
 ## Empty kinds
 
@@ -139,7 +139,7 @@ The Backlinks section appears and its count refreshes when incoming links change
 
 Resting on an inline reference opens its read-only slip at the hovered line, including links in the standfirst and fields. The slip prefers below the link, flips above when that side has more room, and remains inside the originating pane and visible viewport. Its content and fonts load before it is measured and shown; it fades in without moving or resizing. Refreshing a reference label keeps the same anchor rather than reopening the slip.
 
-Pinning with ⌘ or Pin expands the slip to its readings and permits scrolling. Open and Beside retain the originating pane; nested references open further slips within that pane. A passive preview leaves global navigation shortcuts available and closes when the pane navigates; focusing its controls gives the card keyboard ownership until it is closed.
+Pinning with ⌘ or Pin expands the slip to its perspectives and permits scrolling. Open and Beside retain the originating pane; nested references open further slips within that pane. A passive preview leaves global navigation shortcuts available and closes when the pane navigates; focusing its controls gives the card keyboard ownership until it is closed.
 
 ## Aliases
 

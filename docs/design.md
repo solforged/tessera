@@ -1,6 +1,6 @@
 # Design
 
-How the browser client looks and behaves. Tokens live in `web/src/tokens.css`; components use tokens, never raw values. Orrery gives the notebook a midnight desk, an ink-blue canvas and gilt focus. Reference slips, registers and reading sheets carry the same type hierarchy into floating and comparative surfaces.
+How the browser client looks and behaves. Tokens live in `web/src/tokens.css`; components use tokens, never raw values. Orrery gives the notebook a midnight desk, an ink-blue canvas and gilt focus. Reference slips, registers and perspective sheets carry the same type hierarchy into floating and comparative surfaces.
 
 Status: applied to the shell, the outline and the table. The permanent global rail and inset workspace are being evaluated in the running app. Later stages add their sections here before they are built.
 
@@ -300,7 +300,7 @@ The permanent merge confirmation stays a bounded short-control popup, with the s
 - [Perspectives](surfaces/perspectives.md): perspectives, Compare, questions and answers.
 - [Notes](surfaces/notes.md): Index, finding aids, note header, aliases, type icons and names.
 - [Fields and tables](surfaces/fields-tables.md): Fields register, field and type pages, tables and views.
-- [Research desk](surfaces/desk.md): linked question, position and cited-source queries.
+- [Research desk](surfaces/desk.md): linked question, perspective and cited-source queries.
 - [Settings](surfaces/settings.md): notebook and device settings, Appearance, time zone and sync controls.
 
 ## Block row
@@ -342,7 +342,7 @@ Titled pages have four depths:
 |---|---|
 | Gloss | The gloss alone |
 | Opening | The gloss and the top-level text before the first top-level heading |
-| Perspectives | The opening, every heading whose parent shows, and positions directly under a shown heading, each closed to its own row |
+| Perspectives | The opening, every heading whose parent shows, and perspectives directly under a shown heading, each closed to its own row |
 | Full | Full |
 
 The dial sits in the pane header as four irises whose pupils widen with depth, the current one gilt in a `--surface` well, followed by its name in sans. Below 840 px of pane width only the current iris shows, opening a Depth menu of all four; neither a desktop split nor a phone sacrifices its title to the other stops.
@@ -397,7 +397,7 @@ Every block or page with field entries or template fields has a field bed at res
 
 Slots read as suggestions: the name in `--faint` and no value text. On a page, slot names take the specimen block's mono apparatus without the icon, the value reads `Add…` in `--faint`, and a dotted hairline follows each slot. Slots share the field labels' edge and sit on the canvas outside the row's hover and selection. A slot adds the entry with a blank value and opens its kind's editor; a checkbox slot adds a ticked value.
 
-Add field opens a picker with missing template fields under Template, then the rest, and Create field for a new name. A position instead begins with From this recipe: Gist, Work, then its subject's explicit or derived criteria. A suggested field takes its recipe or template place among the entries; another follows the last entry. Each addition is one undo step.
+Add field opens a picker with missing template fields under Template, then the rest, and Create field for a new name. A perspective instead begins with From this recipe: Gist, Work, then its subject's explicit or derived criteria. A suggested field takes its recipe or template place among the entries; another follows the last entry. Each addition is one undo step.
 
 A definition's Hide setting (Never, When empty, Always; see the [domain model](domain-model.md#types-and-fields)) leaves its entries and slots out of outlines. An entry stays while it or one of its values is edited or selected. The area then counts `N hidden`, which reveals that owner's hidden fields in this pane.
 
@@ -683,15 +683,15 @@ Resting the mouse on a `[[reference]]` for 350 ms opens a slip in the outline, e
 
 | Target | Preview |
 |---|---|
-| Page | Breadcrumb, 24 px Piazzolla title, 16 px gloss, existing type/source/task/project metadata, and reading/backlink counts |
+| Page | Breadcrumb, 24 px Piazzolla title, 16 px gloss, existing type/source/task/project metadata, and perspective/backlink counts |
 | Page without a gloss | Short prose preview, with actual field values as a fallback for field-only pages |
 | Block | Retains its parent, highlighted target and first descendants |
 
 The footer uses Plex for Beside and Open (Go to block for blocks), mono for counts. On touch, holding a reference opens its slip without navigating; tapping still opens the page. Touch input does not open hover slips.
 
-Pin or ⌘ keeps the slip open; Unpin restores its compact form. A pinned page lists its actual [attributed readings](surfaces/perspectives.md), with sigla, holders, gists and inline shape glyphs. Selecting a holder expands authored prose, or opens the original position if there is no prose to expand.
+Pin or ⌘ keeps the slip open; Unpin restores its compact form. A pinned page lists its actual [attributed perspectives](surfaces/perspectives.md), with sigla, holders, gists and inline shape glyphs. Selecting a holder expands authored prose, or opens the original perspective if there is no prose to expand.
 
-Open reading and source links preserve access to the original outline; [Compare readings](surfaces/perspectives.md) opens the subject's sheet. Pages without readings keep their prose preview. Bodies scroll within `--preview-body-height`; unpinned block previews fade only when clipped. References inside a slip open stacked slips.
+Open perspective and source links preserve access to the original outline; [Compare perspectives](surfaces/perspectives.md) opens the subject's sheet. Pages without perspectives keep their prose preview. Bodies scroll within `--preview-body-height`; unpinned block previews fade only when clipped. References inside a slip open stacked slips.
 
 ⌥Space opens the reference at the caret or the focused reference; Enter opens it, Shift+Enter opens it beside, and Escape closes the topmost slip. Opening does not steal focus; focused slip controls retain native keyboard behavior. Deleted targets and failed requests have explicit notices.
 
@@ -715,7 +715,7 @@ Unlinked mentions follows, collapsed and fetched only once opened. Each mention 
 
 ## Icon
 
-The app icon carries the notebook's central idea and its material. The idea is multiperspectival notes: one subject held in several attributed readings, with the source beside what you think of it; see [perspectives](surfaces/perspectives.md). The material is clockwork gold, the brass of an instrument: rings, rules and bevelled facets drawn in a few flat gilt tones. No glows and no multi-stop metallic gradients.
+The app icon carries the notebook's central idea and its material. The idea is multiperspectival notes: one subject held in several attributed perspectives, with the source beside what you think of it; see [perspectives](surfaces/perspectives.md). The material is clockwork gold, the brass of an instrument: rings, rules and bevelled facets drawn in a few flat gilt tones. No glows and no multi-stop metallic gradients.
 
 ### Direction
 

@@ -882,15 +882,15 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
     const zoom = outlineView().zoom;
     if (!zoom) return root()?.kind === 'page' ? undefined : 'Only titled pages have projections.';
     const block = doc()?.block(zoom);
-    if (!block?.position) return 'This zoom is not a reading. Open its page to use Read.';
-    if (doc()?.isArchived(zoom)) return 'This reading is archived. Restore it to use Read.';
+    if (!block?.position) return 'This zoom is not a perspective. Open its page to use Read.';
+    if (doc()?.isArchived(zoom)) return 'This perspective is archived. Restore it to use Read.';
     const subject = readSubject();
-    if (subject === undefined) return 'The reading’s subject is loading.';
-    if (!subject || subject.archived) return 'The reading’s subject is unavailable.';
+    if (subject === undefined) return 'The perspective’s subject is loading.';
+    if (!subject || subject.archived) return 'The perspective’s subject is unavailable.';
     const page = subject.id === subject.page_id ? subject : props.notebook.lookup(subject.page_id)();
-    if (page === undefined) return 'The reading’s subject page is loading.';
-    if (!page || page.archived) return 'The reading’s subject page is unavailable.';
-    if (page.kind !== 'page') return 'Read needs a titled subject. File this reading under a concept or question.';
+    if (page === undefined) return 'The perspective’s subject page is loading.';
+    if (!page || page.archived) return 'The perspective’s subject page is unavailable.';
+    if (page.kind !== 'page') return 'Read needs a titled subject. File this perspective under a concept or question.';
     return undefined;
   };
   const setProjection = (value: PageProjection, beside = false) => {
@@ -928,7 +928,7 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
   const compareReason = () => {
     const page = doc();
     if (!readerTarget()) return outlineCommand('compare')?.disabledReason?.()?.replace(/\.$/, '');
-    return page?.status() !== 'ready' ? 'Page is unavailable' : localPositionCount(page) < 2 ? 'Compare needs two readings on this page' : undefined;
+    return page?.status() !== 'ready' ? 'Page is unavailable' : localPositionCount(page) < 2 ? 'Compare needs two perspectives on this page' : undefined;
   };
   const ProjectionTabs = () => <div class="mode-tabs tab-strip page-projection-tabs" role="tablist" aria-label="Page projection"><For each={['read', 'outline', 'compare'] as const}>{value => <Button role="tab" aria-selected={projection() === value} disabled={value === 'read' ? !!projectionReason(value) : value === 'compare' && !!compareReason()} aria-describedby={value === 'read' && projectionReason(value) ? `read-reason-${props.pane}` : undefined} onClick={event => setProjection(value, event.shiftKey)}>{value === 'read' ? 'Read' : value === 'outline' ? 'Outline' : 'Compare'}</Button>}</For></div>;
   const breadcrumbs = createMemo(() => {
@@ -972,7 +972,7 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
     ...(titled() ? [
       { label: 'Gloss', icon: 'edit', disabledReason: root() ? undefined : 'Page is still loading', action: () => outlineCommand('gloss')?.run() },
       { label: 'Add alias', icon: 'edit', disabledReason: root() ? undefined : 'Page is still loading', action: () => outlineCommand('alias')?.run() },
-      { label: 'Compare readings', icon: 'compare', disabledReason: compareReason(), action: () => setProjection('compare') },
+      { label: 'Compare perspectives', icon: 'compare', disabledReason: compareReason(), action: () => setProjection('compare') },
     ] satisfies MenuItem[] : []),
     { label: root()?.task ? 'Task' : 'Make task', icon: 'check', disabledReason: root() ? undefined : 'Page is still loading', action: () => rootCapability('task') },
     { label: root()?.project ? 'Project' : 'Make project', icon: 'flag', disabledReason: root() ? undefined : 'Page is still loading', action: () => rootCapability('project') },

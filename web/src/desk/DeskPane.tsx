@@ -124,7 +124,7 @@ export function DeskPane(props: TablePaneProps) {
     const words = value.filters.map(condition => conditionLabel(column, condition));
     if (value.text) words.unshift(`Text contains ${value.text}`);
     if (value.type) words.unshift(`Type is ${props.notebook.lookup(value.type)()?.text ?? 'Unavailable type'}`);
-    return words.length ? words.join('; ') : column === 1 ? 'Positions for the selected question' : column === 2 ? 'Sources cited by the selected position' : 'All questions';
+    return words.length ? words.join('; ') : column === 1 ? 'Perspectives on the selected question' : column === 2 ? 'Sources cited by the selected perspective' : 'All questions';
   };
   const openRow = (row: QueryRow, beside: boolean) => props.onOpen(rowTarget(row), beside);
   const submit = (operation: Operation) => api.submit({ actor: { kind: 'client', name: 'tessera-web-desk' }, idempotency_key: ulid(), operations: [operation] });
@@ -183,14 +183,14 @@ export function DeskPane(props: TablePaneProps) {
     setFilter(undefined);
   };
   return <div ref={region} class="research-desk" tabIndex={-1} onKeyDown={keydown} onFocusIn={props.onActivate}>
-    <header class="desk-heading"><div><p class="desk-rubric">Research desk</p><h1>{saved()?.name ?? 'Questions, positions, sources'}</h1></div><div class="desk-actions">
+    <header class="desk-heading"><div><p class="desk-rubric">Research desk</p><h1>{saved()?.name ?? 'Questions, perspectives, sources'}</h1></div><div class="desk-actions">
       <Show when={saved() && !queriesEqual(saved()!.query, query())}><Button disabled={busy()} onClick={() => void save(false)}>Save changes</Button></Show>
       <Button class="bordered" onClick={event => { setName(''); setSaveAnchor(event.currentTarget); }}>Save desk</Button>
       <Show when={history()}><Button disabled={busy()} onClick={() => void replay()}>{history()!.undone ? 'Redo save' : 'Undo save'}</Button></Show>
     </div></header>
     <Show when={error()}><p class="error" role="alert">{error()}</p></Show>
     <MissingFields fields={missing()} busy={busy()} onRemove={id => changeQuery(removeQueryField(query(), id))} />
-    <nav class="desk-breadcrumb" aria-label="Research desk steps"><For each={columns}>{column => <><Show when={column > 0}><span aria-hidden="true">›</span></Show><Button disabled={!enabled(column)} aria-current={selection().column === column ? 'step' : undefined} onClick={() => focusColumn(column)}>{column === 0 ? 'Question' : column === 1 ? 'Position' : 'Sources'}</Button></>}</For></nav>
+    <nav class="desk-breadcrumb" aria-label="Research desk steps"><For each={columns}>{column => <><Show when={column > 0}><span aria-hidden="true">›</span></Show><Button disabled={!enabled(column)} aria-current={selection().column === column ? 'step' : undefined} onClick={() => focusColumn(column)}>{column === 0 ? 'Question' : column === 1 ? 'Perspective' : 'Sources'}</Button></>}</For></nav>
     <div class="desk-columns"><For each={columns}>{column => <section data-desk-column={column} class="desk-column" classList={{ 'desk-current': selection().column === column }} aria-label={columnNames[column]}>
       <header class="desk-column-heading"><h2>{columnNames[column]} <span>{enabled(column) ? result(column).total : ''}</span></h2><Button aria-label={`Edit ${columnNames[column].toLowerCase()} query`} aria-expanded={editing() === column} onClick={() => setEditing(editing() === column ? null : column)}>Edit</Button></header>
       <p class="desk-query">{label(column)}<Show when={columnQueries[column]!().group}><span>; grouped by {pickerFields(column).find(field => field.id === columnQueries[column]!().group!.key)?.name ?? 'field'}</span></Show></p>
@@ -200,17 +200,17 @@ export function DeskPane(props: TablePaneProps) {
         <Button onClick={event => setFilter({ column, anchor: event.currentTarget })}>+ Filter</Button><Button onClick={() => clear(column)}>Clear filters</Button>
       </div></Show>
       <div class="desk-rows" role="listbox" aria-label={columnNames[column]} tabIndex={0}>
-        <Show when={enabled(column)} fallback={<p class="desk-empty">{column === 1 ? 'Select a question to see its positions.' : 'Select a position to see its sources.'}<Button onClick={() => focusColumn(column === 1 ? 0 : selection().question ? 1 : 0)}>{column === 1 || !selection().question ? 'Choose a question' : 'Choose a position'}</Button></p>}>
+        <Show when={enabled(column)} fallback={<p class="desk-empty">{column === 1 ? 'Select a question to see its perspectives.' : 'Select a perspective to see its sources.'}<Button onClick={() => focusColumn(column === 1 ? 0 : selection().question ? 1 : 0)}>{column === 1 || !selection().question ? 'Choose a question' : 'Choose a perspective'}</Button></p>}>
           <Show when={results[column]![0].error}><p class="error" role="alert">{String(results[column]![0].error)}<Button onClick={() => results[column]![1].refetch()}>Try again</Button></p></Show>
-          <Show when={!loading(column) && !result(column).rows.length && !results[column]![0].error}><p class="desk-empty">No {columnNames[column].toLowerCase()} match this query.<Button onClick={() => { setEditing(column); clear(column); }}>Clear filters</Button><Show when={column > 0}><Button onClick={() => focusColumn(column === 1 ? 0 : 1)}>Choose another {column === 1 ? 'question' : 'position'}</Button></Show></p></Show>
+          <Show when={!loading(column) && !result(column).rows.length && !results[column]![0].error}><p class="desk-empty">No {columnNames[column].toLowerCase()} match this query.<Button onClick={() => { setEditing(column); clear(column); }}>Clear filters</Button><Show when={column > 0}><Button onClick={() => focusColumn(column === 1 ? 0 : 1)}>Choose another {column === 1 ? 'question' : 'perspective'}</Button></Show></p></Show>
           <For each={orderedRows(column)}>{(row, index) => <>
             <Show when={columnQueries[column]!().group && (index() === 0 || attribute(orderedRows(column)[index() - 1]!, columnQueries[column]!().group!.key) !== attribute(row, columnQueries[column]!().group!.key)) && plainText(attribute(row, columnQueries[column]!().group!.key), id => props.notebook.lookup(id)) !== plainText(title(row, column), id => props.notebook.lookup(id))}><h3 class="desk-group"><BlockText text={attribute(row, columnQueries[column]!().group!.key) || 'None'} notebook={props.notebook} interactive={false} /></h3></Show>
             <div class="desk-row" role="option" tabIndex={selection()[selectionKey[column]] === row.block.block.id ? 0 : -1} aria-selected={selection()[selectionKey[column]] === row.block.block.id} data-desk-row={row.block.block.id} onClick={event => { if (event.shiftKey) { openRow(row, true); return; } select(column, row, getComputedStyle(region.querySelector('.desk-breadcrumb')!).display !== 'none'); }} onDblClick={event => openRow(row, event.shiftKey)}>
               <div class="desk-row-title"><BlockText text={title(row, column)} notebook={props.notebook} interactive={false} /></div>
-              <Show when={column === 0}><p class="desk-meta">{attribute(row, '@state')} · {attribute(row, '@readings')} readings</p><p class="desk-meta">Last assessed {attribute(row, '@last_assessed') || 'never'} · Revisit {attribute(row, '@revisit') || 'not set'}</p></Show>
+              <Show when={column === 0}><p class="desk-meta">{attribute(row, '@state')} · {attribute(row, '@readings')} {attribute(row, '@readings') === '1' ? 'perspective' : 'perspectives'}</p><p class="desk-meta">Last assessed {attribute(row, '@last_assessed') || 'never'} · Revisit {attribute(row, '@revisit') || 'not set'}</p></Show>
               <Show when={column === 1}><Show when={fieldValue(row, 'Gist')}><p class="desk-gist"><BlockText text={fieldValue(row, 'Gist')} notebook={props.notebook} interactive={false} /></p></Show><Show when={fieldValue(row, 'Work')}><p class="desk-meta">Work · <BlockText text={fieldValue(row, 'Work')} notebook={props.notebook} interactive={false} /></p></Show></Show>
               <Show when={column === 2}><p class="desk-meta">{attribute(row, '@creator') || 'Creator not recorded'}<Show when={fieldValue(row, 'Published')}> · {plainText(fieldValue(row, 'Published'), id => props.notebook.lookup(id))}</Show></p><Show when={positionPage()?.get(row.block.block.id)?.length}><p class="desk-locators">{positionPage()!.get(row.block.block.id)!.join(' · ')}</p></Show></Show>
-              <div class="desk-row-actions"><Button label={`Open ${column === 0 ? 'question' : column === 1 ? 'position' : 'source'}`} onClick={event => { event.stopPropagation(); openRow(row, event.shiftKey); }}>Open<Icon name="right" /></Button><Button icon="panes" label="Open beside" onClick={event => { event.stopPropagation(); openRow(row, true); }} /></div>
+              <div class="desk-row-actions"><Button label={`Open ${column === 0 ? 'question' : column === 1 ? 'perspective' : 'source'}`} onClick={event => { event.stopPropagation(); openRow(row, event.shiftKey); }}>Open<Icon name="right" /></Button><Button icon="panes" label="Open beside" onClick={event => { event.stopPropagation(); openRow(row, true); }} /></div>
             </div>
           </>}</For>
           <Show when={result(column).rows.length < result(column).total}><Button disabled={loading(column)} onClick={() => setLimits(values => values.map((value, index) => index === column ? value + 500 : value))}>Show more</Button></Show>

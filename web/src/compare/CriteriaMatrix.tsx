@@ -52,7 +52,7 @@ export function CriteriaMatrix(props: {
     const row = props.rows.find(row => row.block.block.id === current.position);
     const doc = row && props.docs.get(row.block.page.id);
     const field = props.field(current.field);
-    if (!doc || doc.status() !== 'ready') { setError('The position is still loading.'); return; }
+    if (!doc || doc.status() !== 'ready') { setError('The perspective is still loading.'); return; }
     if (!field) { setError('The criterion is still loading.'); return; }
     if (!current.value && !textDraft.trim() && !option) { finishEditing(cell); return; }
     setSaving(true);
@@ -99,7 +99,7 @@ export function CriteriaMatrix(props: {
   }
   function HolderHeader(headerProps: { id: string }) {
     return <><span class="compare-siglum">{props.siglum(rowById().get(headerProps.id)!)}</span>
-      <Button class="compare-holder-name" title="Open this reading · Shift to open beside" onClick={event => props.onOpen({ kind: 'page', pageId: rowById().get(headerProps.id)!.block.page.id, blockId: headerProps.id }, event.shiftKey)}>{props.holder(rowById().get(headerProps.id)!)}</Button>
+      <Button class="compare-holder-name" title="Open this perspective · Shift to open beside" onClick={event => props.onOpen({ kind: 'page', pageId: rowById().get(headerProps.id)!.block.page.id, blockId: headerProps.id }, event.shiftKey)}>{props.holder(rowById().get(headerProps.id)!)}</Button>
       <div class="compare-work"><BlockText text={props.work(rowById().get(headerProps.id)!)} notebook={props.notebook} onOpen={props.onOpen} /></div></>;
   }
   function MatrixCell(cellProps: { id: string; field: string }) {
@@ -123,7 +123,7 @@ export function CriteriaMatrix(props: {
   }
   return <>
     <Show when={error()}><p class="pane-error" role="alert">{error()}</p></Show>
-    <Show when={props.rows.length && props.criteria.length} fallback={<p class="view-empty">{props.rows.length ? 'This subject has no criteria. Open Edit criteria to add them.' : 'No positions match this view. Clear its filters to include more readings.'}</p>}>
+    <Show when={props.rows.length && props.criteria.length} fallback={<p class="view-empty">{props.rows.length ? 'This subject has no criteria. Open Edit criteria to add them.' : 'No perspectives match this view. Clear its filters to include more.'}</p>}>
     <div class="criteria-overflow"><table class="criteria-matrix" classList={{ 'criteria-holders': props.orientation === 'holders' }} style={{ '--holder-count': props.orientation === 'holders' ? props.criteria.length : props.rows.length }}>
       <Show when={props.orientation === 'holders'} fallback={<>
         <colgroup><col class="criteria-name-column" /><For each={props.rows}>{() => <col />}</For></colgroup>

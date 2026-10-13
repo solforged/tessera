@@ -38,19 +38,19 @@ export function HeldReadings(props: {
   const [sources] = createResource(() => [...new Set(readings().map(reading => reading.source).filter(id => id !== null))],
     ids => Promise.all(ids.map(id => props.notebook.api.source(id).then(view => view.source, () => null))));
   const sigla = createMemo(() => pageSigla((sources() ?? []).filter(row => row !== null)));
-  return <section class="held-readings" aria-label="Readings held">
-    <Show when={fields.error}><p class="pane-error" role="alert">Couldn’t load reading fields.</p></Show>
+  return <section class="held-readings" aria-label="Perspectives held">
+    <Show when={fields.error}><p class="pane-error" role="alert">Couldn’t load perspective fields.</p></Show>
     <For each={groups()}>{group => <section class="held-subject">
-      <header><h2><Show when={group.subject} fallback="Unfiled readings">{subject => <Button onClick={event => {
+      <header><h2><Show when={group.subject} fallback="Unfiled perspectives">{subject => <Button onClick={event => {
         const block = props.notebook.lookup(subject())();
         if (block) props.onOpen({ kind: 'page', pageId: block.page_id, ...(block.kind === 'block' ? { blockId: block.id } : {}) }, event.shiftKey);
       }}><span><BlockText text={props.notebook.lookup(subject())()?.text ?? 'Loading subject…'} notebook={props.notebook} interactive={false} /></span></Button>}</Show></h2>
         <Show when={group.subject && (countBySubject().get(group.subject) ?? 0) >= 2}><Button class="held-compare" onClick={event => props.onOpen({ kind: 'compare', subjectId: group.subject! }, event.shiftKey)}>Compare</Button></Show>
       </header>
       <For each={group.readings}>{reading => <article class="held-reading">
-        <Button class="held-reading-open" title="Open reading · Shift opens beside" onClick={event => props.onOpen({ kind: 'page', pageId: reading.row.block.page.id, blockId: reading.row.block.block.id }, event.shiftKey)}>
+        <Button class="held-reading-open" title="Open perspective · Shift opens beside" onClick={event => props.onOpen({ kind: 'page', pageId: reading.row.block.page.id, blockId: reading.row.block.block.id }, event.shiftKey)}>
           <Show when={reading.source && sigla().get(reading.source)}>{mark => <span class="held-siglum">{mark()}</span>}</Show>
-          <span class="held-reading-title"><BlockText text={reading.gist || 'Reading without a gist'} notebook={props.notebook} interactive={false} /></span>
+          <span class="held-reading-title"><BlockText text={reading.gist || 'Perspective without a gist'} notebook={props.notebook} interactive={false} /></span>
           <Show when={reading.work}><span class="held-work"><BlockText text={reading.work} notebook={props.notebook} interactive={false} /></span></Show>
         </Button>
         <IncomingRelations target={reading.row.block.block.id} version={props.notebook.changeSequence()} notebook={props.notebook} onOpen={props.onOpen} />
