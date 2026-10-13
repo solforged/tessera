@@ -29,6 +29,14 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - The Questions index groups questions by program, includes inline questions, and has Active, Recurrent, Due, Answered and Parked tabs.
 - Revisits: notes and questions with a revisit date come back in Review's Questions and notes queue and in Today, with Revisited, Later, Resolve and Keep recurrent.
 - `GET /api/revisits`, `GET /api/questions` state and inline filters, and the MCP tools `tessera_revisits` and `tessera_revisit`.
+- Views over research entities: a view's source can be notes, questions, positions, sources, tasks or highlights, with their own attributes (holder, subject, relation, state, last assessed, revisit, cites and more) as filters, sorts, groups and columns. Dates can be relative, such as 30 days ago, with an Or empty option.
+- Saved views keep their recipe: column order and widths, sorts in priority order, grouping with collapsed groups, phone card fields and a one-line purpose.
+- Position, question and highlight values render in views and edit in place with one undo.
+- Field roles: standfirst, attribute, prose and citation decide how a field is shown. Gist and Gloss became standfirsts.
+- Filling fields by keyboard: Tab and Shift-Tab move between a block's fields, Shift-Enter adds a line, and Enter on an empty value leaves. Add field offers the reading's recipe fields first.
+- Span fields read historical ranges such as `c. 200–118 BCE` or `fl. 1340s` as years for sorting and filtering, and keep the text as written.
+- Reviewed field changes: changing a field's kind shows how each written value maps before applying it; renaming onto an existing field merges them; deleting a field shows its impact and offers Archive, Detach or Delete values. Each applies as one undoable change.
+- Library catalog cards can hide fields.
 
 ### Fixed
 
