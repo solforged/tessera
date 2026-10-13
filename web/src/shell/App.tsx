@@ -21,7 +21,8 @@ import type { IconName } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
 import type { MenuItem } from '../ui/Menu';
 import { Popup } from '../ui/Popup';
-import { createPaneMotion, paneTargetIdentity } from '../ui/pane-motion';
+import { createPaneMotion, navigatePane, paneTargetIdentity } from '../ui/pane-motion';
+import { installTabRule } from '../ui/tab-rule';
 import { createVisualViewport } from '../ui/visual-viewport';
 import { Calendar } from './Calendar';
 import { localDate } from '../ui/MonthGrid';
@@ -125,6 +126,7 @@ function targetFromView(entry: HistoryEntry): OpenTarget {
 }
 
 export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
+  installTabRule();
   const identityKey = `tessera.identity.${location.origin}`;
   let cachedIdentity: NotebookInfo | undefined;
   try {
@@ -253,18 +255,24 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
                 : target.kind === 'reader' ? { snapshotId: target.snapshotId ?? null, ordinal: -1, offset: 0 }
                   : target.readAt ? { zoom: null, caret: { id: target.readAt, offset: 0 }, scroll: { id: target.readAt, offset: 0 }, folds: null, showArchived: false, reveal: target.readAt }
                     : { zoom: target.blockId ?? null, caret: target.blockId ? { id: target.caretId ?? target.blockId, offset: target.caretOffset ?? 0 } : null, scroll: null, folds: null, showArchived: false, ...(target.blockId && target.caretId ? { edit: true } : {}) };
-      batch(() => {
-        if (target.kind === 'page' && target.readAt) setPagePresentations(values => ({ ...values, [target.pageId]: { ...values[target.pageId], projection: 'read' } }));
-        setSessions(values => {
-          const previous = values[pane];
-          const next = { entries: [...previous.entries.slice(0, previous.index + 1), { target, view }], index: previous.index + 1, generation: previous.generation + 1 };
-          return { ...values, [pane]: next };
+      // The pane changes inside the transition, after the outgoing view is captured; focus and Recent follow it.
+      navigatePane(pane, 'forward', () => {
+        batch(() => {
+          if (target.kind === 'page' && target.readAt) setPagePresentations(values => ({ ...values, [target.pageId]: { ...values[target.pageId], projection: 'read' } }));
+          setSessions(values => {
+            const previous = values[pane];
+            const next = { entries: [...previous.entries.slice(0, previous.index + 1), { target, view }], index: previous.index + 1, generation: previous.generation + 1 };
+            return { ...values, [pane]: next };
+          });
         });
-      });
+        arrive();
+      }, target.kind === 'page' ? target.pageId : undefined);
+    } else arrive();
+    function arrive() {
+      setActive(pane); setSidebar(false);
+      if (target.kind === 'page') remember(target.pageId);
+      focusPane(pane);
     }
-    setActive(pane); setSidebar(false);
-    if (target.kind === 'page') remember(target.pageId);
-    focusPane(pane);
   };
   const changeView = (pane: PaneId, view: PaneView, restore = false) => setSessions(values => {
     const session = values[pane]; const current = session.entries[session.index]; if (!current) return values;
@@ -285,9 +293,14 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     const session = sessions()[pane]; const index = session.index + delta;
     if (index < 0 || index >= session.entries.length) return;
     cancelNavigation(pane);
-    setSessions(values => ({ ...values, [pane]: { ...values[pane], index, generation: values[pane].generation + 1 } }));
-    setActive(pane); const pageId = pageIdOf(session.entries[index]); if (pageId) remember(pageId);
-    focusPane(pane);
+    navigatePane(pane, delta < 0 ? 'back' : 'forward', () => {
+      // A second Back pressed before the first turn applied steps from where the first one lands.
+      const latest = sessions()[pane]; const next = latest.index + delta;
+      if (next < 0 || next >= latest.entries.length) return;
+      setSessions(values => ({ ...values, [pane]: { ...values[pane], index: next, generation: values[pane].generation + 1 } }));
+      setActive(pane); const pageId = pageIdOf(latest.entries[next]); if (pageId) remember(pageId);
+      focusPane(pane);
+    }, pageIdOf(session.entries[index]) ?? pageIdOf(session.entries[session.index]));
   };
   const journal = async (value: string | null, owner = active(), beside = false, journalPeriod?: Extract<OpenTarget, { kind: 'page' }>['journalPeriod']) => {
     const pane: PaneId = beside ? owner === 'main' ? 'side' : 'main' : owner;

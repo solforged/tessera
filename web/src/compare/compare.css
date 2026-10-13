@@ -32,7 +32,6 @@
 
 .compare-tabs { width: min(100%, calc(var(--measure) + 2 * var(--pane-inset))); margin: 0 auto var(--space-16); padding-inline: var(--pane-inset); gap: var(--space-24); }
 .compare-tabs .button { padding: 0 0 var(--space-8); }
-.compare-tabs.mode-tabs > .button[aria-selected="true"] { color: var(--accent); box-shadow: inset 0 calc(-2 * var(--rule-width)) var(--accent); }
 .compare-matrix { container-type: inline-size; padding: 0 var(--pane-inset) var(--space-16); --criterion-width: calc(var(--space-48) * 2 + var(--space-12)); }
 .criteria-tools { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-16); margin-bottom: var(--space-8); }
 .criteria-tools .compare-count { margin-right: auto; }

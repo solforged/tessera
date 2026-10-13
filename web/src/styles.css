@@ -24,12 +24,12 @@ a { color: var(--accent); }
 .button:active:not(:disabled) > .icon { scale: var(--icon-press-scale); }
 /* Modes and tabs: mono labels with a faint count; the current one is gilt with a 2 px rule beneath the whole tab,
    label and count alike, never a box. */
-.mode-tabs { display: flex; align-items: center; gap: var(--space-4); }
+.mode-tabs { position: relative; display: flex; align-items: center; gap: var(--space-4); }
 .mode-tabs > .button { position: relative; font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); color: var(--muted); }
 .mode-tabs > .button:hover:not(:disabled) { color: var(--text); }
 .mode-tabs > .button:is([aria-pressed="true"], [aria-selected="true"]) { background: transparent; color: var(--accent); }
-.mode-tabs > .button::after { content: ''; position: absolute; inset: auto 0 0; height: calc(2 * var(--rule-width)); background: var(--accent); opacity: 0; pointer-events: none; transition: opacity var(--motion-ui) var(--motion-ease); }
-.mode-tabs > .button:is([aria-pressed="true"], [aria-selected="true"])::after { opacity: 1; }
+/* A one-pixel pen scales to the tab's width, so the glide never animates layout. */
+.mode-tabs > .tab-rule { position: absolute; left: 0; bottom: 0; width: 1px; height: calc(2 * var(--rule-width)); background: var(--accent); opacity: var(--tab-rule-visible, 0); pointer-events: none; transform-origin: left; transform: translateX(var(--tab-rule-x, 0px)) scaleX(var(--tab-rule-w, 0)); transition: transform var(--tab-rule-duration, 0ms) var(--motion-ease); }
 /* Keyboard focus on a tab is a faint rule, never a ring; on the current tab the label brightens over its gilt rule. */
 .mode-tabs > .button:focus-visible { outline: none; color: var(--text); box-shadow: inset 0 calc(-1 * var(--rule-width)) var(--faint); }
 .mode-tabs > .button:is([aria-pressed="true"], [aria-selected="true"]):focus-visible { color: var(--text); box-shadow: none; }
@@ -270,6 +270,24 @@ span.pane-breadcrumbs { display: block; overflow: hidden; text-overflow: ellipsi
 @keyframes rise-in { from { opacity: 0; translate: 0 var(--motion-distance); } to { opacity: 1; translate: 0 0; } }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes fade-out { from { opacity: 1; } to { opacity: 0; } }
+/* A pane navigation turns one leaf (navigatePane in ui/pane-motion.ts): the outgoing content lifts away toward the
+   side it leaves by, and the incoming one settles from the side it lies on, forward from the right, back from the left.
+   The rest of the window changes at once, and pointer input passes through to the page underneath. */
+::view-transition { pointer-events: none; }
+::view-transition-group(root), ::view-transition-new(root) { animation: none; }
+::view-transition-old(root) { display: none; }
+::view-transition-group(pane-main), ::view-transition-group(pane-side), ::view-transition-group(source-cover) { animation-duration: var(--motion-page); animation-timing-function: var(--motion-ease); }
+::view-transition-old(pane-main), ::view-transition-old(pane-side) { animation: leaf-out var(--motion-fast) var(--motion-ease) both; }
+::view-transition-new(pane-main), ::view-transition-new(pane-side) { animation: leaf-in var(--motion-page) var(--motion-ease) both; }
+:root[data-pane-direction="back"]::view-transition-old(pane-main), :root[data-pane-direction="back"]::view-transition-old(pane-side) { animation-name: leaf-out-back; }
+:root[data-pane-direction="back"]::view-transition-new(pane-main), :root[data-pane-direction="back"]::view-transition-new(pane-side) { animation-name: leaf-in-back; }
+/* A cover travels between the shelf and its source page above both leaves. */
+::view-transition-group(source-cover) { z-index: 1; }
+::view-transition-old(source-cover), ::view-transition-new(source-cover) { animation-duration: var(--motion-page); animation-timing-function: var(--motion-ease); }
+@keyframes leaf-in { from { opacity: 0; translate: var(--motion-leaf) 0; } }
+@keyframes leaf-in-back { from { opacity: 0; translate: calc(-1 * var(--motion-leaf)) 0; } }
+@keyframes leaf-out { to { opacity: 0; translate: calc(-.5 * var(--motion-leaf)) 0; } }
+@keyframes leaf-out-back { to { opacity: 0; translate: calc(.5 * var(--motion-leaf)) 0; } }
 /* Disclosures open and close in place, like Recent. */
 details::details-content { opacity: 0; overflow: clip; block-size: 0; interpolate-size: allow-keywords; transition: block-size var(--motion-ui) var(--motion-ease), opacity var(--motion-fast) var(--motion-ease), content-visibility var(--motion-ui) allow-discrete; }
 details[open]::details-content { opacity: 1; block-size: auto; }
@@ -423,5 +441,5 @@ mark { background: var(--selection); color: var(--accent); font-weight: var(--we
   .sidebar-foot .notebook-marker { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .mode-tabs > .button::after, .sidebar .button::before { transition: none; }
+  .mode-tabs > .tab-rule, .sidebar .button::before { transition: none; }
 }

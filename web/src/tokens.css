@@ -150,6 +150,7 @@
   --motion-distance: var(--space-4);
   --motion-page: 220ms;      /* a page sliding across the reader */
   --motion-ink: 420ms;       /* a new highlight drawn under its words */
+  --motion-leaf: calc(3 * var(--motion-distance)); /* a pane's leaf settling from the side it lies on */
   --icon-hover-scale: 1.08;
   --icon-press-scale: .94;
 

@@ -20,11 +20,89 @@ export function paneTargetIdentity(target: OpenTarget): string {
   }
 }
 
+/** Resolves true once nothing under `root` is marked `data-pane-pending`, or false when `cap` ms pass first. */
+function settled(root: HTMLElement, cap: number): Promise<boolean> {
+  if (!root.querySelector('[data-pane-pending]')) return Promise.resolve(true);
+  const { promise, resolve } = Promise.withResolvers<boolean>();
+  // Rendering is paused while a view transition waits, so nothing here may depend on animation frames.
+  const observer = new MutationObserver(() => { if (!root.querySelector('[data-pane-pending]')) finish(true); });
+  const timer = setTimeout(() => finish(false), cap);
+  function finish(value: boolean) { observer.disconnect(); clearTimeout(timer); resolve(value); }
+  observer.observe(root, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-pane-pending'] });
+  return promise;
+}
+
+/** A visible source cover for `sourceId` under `root`: a shelf or Reading now cover, or a source page header. */
+function sourceCover(root: ParentNode, sourceId: string): HTMLElement | null {
+  const id = CSS.escape(sourceId);
+  for (const element of root.querySelectorAll<HTMLElement>(`[data-library-row="${id}"] .library-cover, [data-source-cover="${id}"]`)) {
+    const rect = element.getBoundingClientRect();
+    if (rect.width && rect.height && rect.bottom > 0 && rect.top < window.innerHeight && getComputedStyle(element).visibility === 'visible') return element;
+  }
+  return null;
+}
+
+/** How long a navigation holds the outgoing view for the incoming one to be ready. */
+const holdLimit = 400;
+let navigation: object | null = null;
+
+/**
+ * Applies a pane navigation as one leaf turning. The outgoing content stays on screen until the incoming surface
+ * has something to show (no `data-pane-pending` left, up to `holdLimit`), then the old leaf lifts away and the new
+ * one settles from the side it lies on: forward from the right, back from the left. A source cover visible on both
+ * sides travels between them. Without view transitions or with reduced motion the change applies at once and the
+ * pane's own entry fade runs.
+ */
+export function navigatePane(pane: string, direction: 'forward' | 'back', apply: () => void, sourceId?: string) {
+  const content = () => document.querySelector<HTMLElement>(`section.pane[data-pane="${CSS.escape(pane)}"] > .pane-content`);
+  const start = document.startViewTransition?.bind(document);
+  if (!start || window.matchMedia('(prefers-reduced-motion: reduce)').matches || document.visibilityState !== 'visible') {
+    content()?.removeAttribute('data-entered');
+    apply();
+    return;
+  }
+  const token = {};
+  navigation = token;
+  const name = `pane-${pane}`;
+  const root = document.documentElement;
+  const named = new Set<HTMLElement>();
+  const nameElement = (element: HTMLElement | null | undefined, value: string) => {
+    if (!element) return;
+    element.style.setProperty('view-transition-name', value);
+    named.add(element);
+  };
+  const clearNames = () => { for (const element of named) element.style.removeProperty('view-transition-name'); named.clear(); };
+  const outgoing = content();
+  nameElement(outgoing, name);
+  nameElement(sourceId ? sourceCover(document, sourceId) : null, 'source-cover');
+  root.dataset.paneDirection = direction;
+  const transition = start(async () => {
+    clearNames();
+    content()?.setAttribute('data-transition', '');
+    apply();
+    const incoming = content();
+    if (!incoming) return;
+    nameElement(incoming, name);
+    const ready = await settled(incoming, holdLimit);
+    // A surface shown ready by the transition skips its own entry fade; one still loading keeps it for when it lands.
+    incoming.toggleAttribute('data-entered', ready);
+    if (ready && sourceId) nameElement(sourceCover(incoming, sourceId), 'source-cover');
+  });
+  const finish = () => {
+    clearNames();
+    content()?.removeAttribute('data-transition');
+    if (navigation === token) { navigation = null; delete root.dataset.paneDirection; }
+  };
+  void transition.finished.then(finish, finish);
+}
+
 /** Content enters on navigation; explicit mode panels fade in without remounting or delaying focus. */
 export function createPaneMotion(content: Accessor<HTMLElement>, identity: Accessor<string>) {
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
   const animations = new Set<Animation>();
+  let waiting: (() => void) | null = null;
   const stop = () => {
+    waiting?.();
     for (const animation of animations) animation.cancel();
     animations.clear();
   };
@@ -47,7 +125,8 @@ export function createPaneMotion(content: Accessor<HTMLElement>, identity: Acces
     const panel = content().firstElementChild;
     if (!pendingEntry || !(panel instanceof HTMLElement)) return;
     pendingEntry = false;
-    if (reduced.matches) return;
+    // A view transition is presenting this navigation; a second fade would run on its captured leaf.
+    if (reduced.matches || content().hasAttribute('data-transition')) return;
     const distance = getComputedStyle(content()).getPropertyValue('--motion-distance').trim();
     animate(panel, [{ opacity: 0, transform: `translateY(${distance})` }, { opacity: 1, transform: 'translateY(0)' }], 'pane-enter');
   };
@@ -69,6 +148,7 @@ export function createPaneMotion(content: Accessor<HTMLElement>, identity: Acces
       stop();
     };
     // A mode switch fades the new panel in. The old one is gone already; cloning it for a cross-fade cost a deep copy of large lists on every click.
+    // A panel still showing the previous selection's rows marks itself aria-busy; it fades when its own rows land, not at the click.
     const click = (event: MouseEvent) => {
       const button = (event.target as Element).closest<HTMLButtonElement>('.mode-tabs > button');
       const strip = button?.parentElement;
@@ -81,7 +161,16 @@ export function createPaneMotion(content: Accessor<HTMLElement>, identity: Acces
         if (!incoming) return;
         stop();
         pendingEntry = false;
-        animate(incoming, [{ opacity: 0 }, { opacity: 1 }], 'mode-enter');
+        if (incoming.getAttribute('aria-busy') !== 'true') { animate(incoming, [{ opacity: 0 }, { opacity: 1 }], 'mode-enter'); return; }
+        const observer = new MutationObserver(() => {
+          if (incoming.getAttribute('aria-busy') === 'true') return;
+          release();
+          if (incoming.isConnected) animate(incoming, [{ opacity: 0 }, { opacity: 1 }], 'mode-enter');
+        });
+        const release = () => { observer.disconnect(); clearTimeout(timer); if (waiting === release) waiting = null; };
+        const timer = setTimeout(release, 2000);
+        waiting = release;
+        observer.observe(incoming, { attributes: true, attributeFilter: ['aria-busy'] });
       });
     };
     element.addEventListener('click', click, true);

@@ -1351,7 +1351,7 @@ export function ReaderPane(props: ReaderPaneProps) {
 
   /** In Pages the toolbar and the foot span the spread; in Scroll they keep the reading measure. */
   const spreadWidth = () => paged() && pageFrame().width ? `${pageFrame().width}px` : undefined;
-  return <div class="reader-pane" classList={{ 'reader-chrome-hidden': chromeHides() && chromeHidden(), 'reader-chrome-over': chromeOverlays(), 'reader-loading': loading() }} style={readerStyle()} onPointerDown={props.onActivate}
+  return <div class="reader-pane" classList={{ 'reader-chrome-hidden': chromeHides() && chromeHidden(), 'reader-chrome-over': chromeOverlays(), 'reader-loading': loading() }} data-pane-pending={loading() ? '' : undefined} style={readerStyle()} onPointerDown={props.onActivate}
     onFocusIn={props.onActivate} onPointerMove={pointerMoved}>
     {/* The cover screen hides the pane header and bottom nav while reading; the book's name heads the page instead. */}
     <div class="reader-masthead">
