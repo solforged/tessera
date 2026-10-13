@@ -59,13 +59,13 @@ export function ViewValue(props: {
     } catch (reason) { props.onError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setBusy(false); }
   }
-  function start(id?: string) {
+  function start(id?: string, filling = false) {
     if (busy()) return;
     const value = id ? values().find(value => value.id === id) : values()[0];
     setValueId(value?.id);
     const text = value?.text ?? '';
     if (props.field.kind === 'checkbox') { void write(checkboxValue(text) ? 'no' : 'yes'); return; }
-    if (!value) {
+    if (!value && filling) {
       const doc = props.doc;
       if (!doc || doc.status() !== 'ready') { props.onError('The reading is still loading.'); return; }
       try {
@@ -79,7 +79,7 @@ export function ViewValue(props: {
     if (hasValueEditor(props.field, text, props.notebook.todayDate())) setPicker(true);
     else setEditing(text);
   }
-  onMount(() => props.onReady?.(start));
+  onMount(() => props.onReady?.(() => start(undefined, true)));
   return <div ref={host} class="view-value" data-field-id={props.field.id} data-field-role={props.field.role ?? 'attribute'} tabIndex={0} role="group" aria-label={`Edit ${props.field.name} value`} aria-busy={busy()} onClick={event => {
     if (!(event.target as HTMLElement).closest('.cm-editor,button,.picker')) { event.stopPropagation(); start(); }
   }} onKeyDown={event => {

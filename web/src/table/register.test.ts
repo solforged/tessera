@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { BlockKind, FieldDefinition, QueryResult, QueryRow } from '../api/types';
-import { cardFields, cellScrollLeft, defaultEntityColumns, registerMembers, retainCell, rowSources, sourceDefinition } from './register';
+import { cardFields, cellScrollLeft, createGridRows, defaultEntityColumns, registerMembers, retainCell, rowSources, sourceDefinition } from './register';
 
 function row(id: string, kind: BlockKind, values: Record<string, string[]> = {}): QueryRow {
   const block = { id, kind, parent_id: kind === 'block' ? 'page' : null, page_id: kind === 'block' ? 'page' : id, text: id, heading: null, archived: false, revision: 0, created_at: 0, updated_at: 0 } as const;
@@ -15,6 +15,29 @@ const fields: FieldDefinition[] = [
 ];
 
 describe('table register presentation', () => {
+  test('query refreshes retain the row and value identities that own an editor', () => {
+    const reconcileRows = createGridRows();
+    const first = reconcileRows([{ row: row('position', 'block', { title: ['Before'] }), hidden: false }]);
+    const owner = first[0]!.row;
+    const value = owner.values.title![0];
+    const refreshed = reconcileRows([{ row: row('position', 'block', { title: ['After'] }), hidden: false }]);
+    expect(refreshed[0]).toBe(first[0]);
+    expect(refreshed[0]!.row).toBe(owner);
+    expect(refreshed[0]!.row.values.title![0]!.id).toBe(value!.id);
+    expect(refreshed[0]!.row.values.title![0]!.text).toBe('After');
+  });
+  test('one position in several groups keeps a separate stable occurrence in each', () => {
+    const reconcileRows = createGridRows();
+    const group = (key: string) => ({ key, title: key, target: null, row_ids: ['position'], count: 1 });
+    const first = reconcileRows(['first', 'second'].map(key => ({ row: row('position', 'block'), group: group(key), hidden: false })));
+    const refreshed = reconcileRows(['first', 'second'].map(key => ({ row: row('position', 'block'), group: group(key), hidden: key === 'first' })));
+    expect(first[0]).not.toBe(first[1]);
+    expect(refreshed[0]).toBe(first[0]);
+    expect(refreshed[1]).toBe(first[1]);
+    expect(refreshed[0]!.hidden).toBe(true);
+    reconcileRows([]);
+    expect(reconcileRows([{ row: row('position', 'block'), group: group('first'), hidden: false }])[0]).not.toBe(first[0]);
+  });
   test('orders notes before tagged blocks, retaining query order, values and journal members', () => {
     const rows = [row('tagged', 'block', { title: ['Block field value'] }), row('first', 'page'), row('another-tag', 'block'), row('day', 'journal')] as const;
     const members = registerMembers(rows);

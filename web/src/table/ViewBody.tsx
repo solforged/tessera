@@ -40,10 +40,12 @@ export function ViewBody(props: ViewBodyProps) {
   const definition = (id: string) => definitions().find(field => field.id === id);
   const rows = createMemo(() => {
     const next = props.result.rows;
-    const active = document.activeElement?.closest<HTMLElement>('.view-value, .criteria-cell, .table-cell');
+    const focusedElement = document.activeElement;
+    const active = focusedElement?.closest<HTMLElement>('.view-value, .criteria-cell, .table-cell');
     const row = active?.dataset.positionId ?? active?.closest<HTMLElement>('[data-block-id]')?.dataset.blockId;
     const field = active?.dataset.fieldId;
     if (active && row && field && region?.contains(active)) queueMicrotask(() => {
+      if (focusedElement?.isConnected) return;
       region.querySelector<HTMLElement>(`[data-block-id="${row}"] .view-value[data-field-id="${field}"], .criteria-cell[data-position-id="${row}"][data-field-id="${field}"]`)?.focus({ preventScroll: true });
     });
     return next;
@@ -102,6 +104,8 @@ export function ViewBody(props: ViewBodyProps) {
     for (const row of positions()) grouped.set(row.subject_id, [...grouped.get(row.subject_id) ?? [], row.block.block.id]);
     return [...grouped].map(([id, row_ids]) => ({ key: id, title: props.notebook.lookup(id)()?.text ?? 'Loading subject…', target: id, row_ids, count: row_ids.length }));
   });
+  const groupKeys = createMemo(() => groups().map(group => group.key));
+  const groupByKey = createMemo(() => new Map(groups().map(group => [group.key, group])));
   const groupedRows = createMemo(() => groups().length ? groups().flatMap(group => group.row_ids.flatMap((id, index) => {
     const row = rowById().get(id);
     return row ? [{ row, group: index === 0 ? group : undefined, hidden: props.query.group?.collapsed?.includes(group.key) ?? false }] : [];
@@ -160,7 +164,7 @@ export function ViewBody(props: ViewBodyProps) {
   }}>
     <Show when={error() || fields.error || subjectResults.error}><p class="pane-error" role="alert">{error() || 'Could not load the reading fields. Reopen the view to try again.'}</p></Show>
     <Switch>
-      <Match when={props.query.source === 'positions' && props.query.layout === 'register'}><div class="position-register"><For each={groups()}>{group => <section><h2 class="view-group-heading"><Button aria-expanded={!props.query.group?.collapsed?.includes(group.key)} onClick={() => toggleGroup(group.key)}><Icon name={props.query.group?.collapsed?.includes(group.key) ? 'right' : 'down'} />{group.title}<span>{group.count}</span></Button></h2><Show when={!props.query.group?.collapsed?.includes(group.key)}><For each={group.row_ids}>{id => <Show when={rowById().has(id)}><RegisterRow id={id} /></Show>}</For></Show></section>}</For></div></Match>
+      <Match when={props.query.source === 'positions' && props.query.layout === 'register'}><div class="position-register"><For each={groupKeys()}>{key => { const group = () => groupByKey().get(key)!; return <section><h2 class="view-group-heading"><Button aria-expanded={!props.query.group?.collapsed?.includes(key)} onClick={() => toggleGroup(key)}><Icon name={props.query.group?.collapsed?.includes(key) ? 'right' : 'down'} />{group().title}<span>{group().count}</span></Button></h2><Show when={!props.query.group?.collapsed?.includes(key)}><For each={group().row_ids}>{id => <Show when={rowById().has(id)}><RegisterRow id={id} /></Show>}</For></Show></section>; }}</For></div></Match>
       <Match when={props.query.source === 'positions' && props.query.layout === 'matrix'}><div class="view-matrices"><For each={subjects()}>{subject => <section class="view-subject-matrix"><h2 class="view-group-heading"><Button onClick={event => void openTarget(subject, event.shiftKey).catch(reason => setError(String(reason)))}>{props.notebook.lookup(subject)()?.text ?? 'Loading subject…'}</Button><span>{positions().filter(row => row.subject_id === subject).length} readings</span></h2><Show when={criteria().get(subject)?.length} fallback={<p class="view-empty">{subjectResults.loading ? 'Loading criteria…' : 'This subject has no criteria. Open its page and choose Edit criteria in Compare.'}</p>}><CriteriaMatrix orientation="holders" rows={positions().filter(row => row.subject_id === subject)} allRows={positions().filter(row => row.subject_id === subject)} criteria={criteria().get(subject) ?? []} questions={[]} notebook={props.notebook} docs={docs()} fieldName={id => definition(id)?.name} focusedCriterion={null} holder={row => row.holder_id ? props.notebook.lookup(row.holder_id)()?.text ?? 'Loading holder…' : 'Unattributed'} siglum={row => sigla().get(sources().find(item => item.id === row.block.block.id)?.source ?? '') ?? ''} work={row => row.fields.find(field => definition(field.field_id)?.name.trim().toLowerCase() === 'work')?.values.map(value => value.text).join('\n') ?? ''} onOpen={props.onOpen} onEdited={edited} /></Show></section>}</For><Show when={!rowIds().length}><p class="view-empty">No positions match this view. Clear its filters to include more readings.</p></Show></div></Match>
       <Match when={true}><Show when={props.table} fallback={<div class="view-shared-table" style={{ '--table-title-width': `${props.query.columns?.find(column => column.key === '@title')?.width ?? 240}px`, '--table-width': `${(props.query.columns?.find(column => column.key === '@title')?.width ?? 240) + columns().reduce((width, id) => width + (props.query.columns?.find(column => column.key === id)?.width ?? 180), 0)}px` }}><TableGrid rows={groupedRows()} columns={columns()} notebook={props.notebook} field={tableField} fieldName={id => tableField(id)?.name ?? 'Missing field'} columnWidth={id => `${props.query.columns?.find(column => column.key === id)?.width ?? 180}px`} tagged={registerMembers(rows()).taggedGroup} grouped={!!props.query.group} onOpen={openRow} onGroup={toggleGroup} title={row => <BlockText text={row.block.block.text} notebook={props.notebook} interactive={false} cards />} cell={tableValue} cardFields={phoneFields} cardCell={(row, field) => <div class="table-card-field"><span class="table-card-field-name">{field.name}</span>{tableValue(row, field.id)}</div>} /></div>}>{render => render()()}</Show></Match>
     </Switch>

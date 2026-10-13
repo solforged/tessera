@@ -1,13 +1,14 @@
-import { For, Show } from 'solid-js';
+import { For, Show, createMemo } from 'solid-js';
 import type { JSX } from 'solid-js';
-import type { FieldDefinition, QueryGroup, QueryRow } from '../api/types';
+import type { FieldDefinition, QueryRow } from '../api/types';
+import { createGridRows } from './register';
+import type { GroupedRow } from './register';
 import type { NotebookClient } from '../document/contract';
 import { BlockText } from '../outline/BlockText';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import './table.css';
 
-export interface GroupedRow { row: QueryRow; group?: QueryGroup; hidden: boolean }
 export interface TableGridProps {
   rows: GroupedRow[]; columns: string[]; notebook: NotebookClient;
   field(id: string): FieldDefinition | undefined; fieldName(id: string): string;
@@ -28,12 +29,14 @@ export interface TableGridProps {
 /** One grid and phone-card projection for managed tables and embedded query results. */
 export function TableGrid(props: TableGridProps) {
   let dragged: string | undefined;
+  const reconcileRows = createGridRows();
+  const rows = createMemo(() => reconcileRows(props.rows));
   return <>
     <table ref={props.gridRef} class="type-table table-grid" role="grid"><colgroup><col style={{ width: 'var(--table-title-width)' }} /><For each={props.columns}>{id => <col style={{ width: props.columnWidth(id) }} />}</For><Show when={props.refs}><col style={{ width: 'var(--table-refs-width)' }} /></Show></colgroup>
       <thead><tr><th scope="col" class="table-title-column"><Button aria-haspopup={props.onHeader ? 'menu' : undefined} onClick={event => props.onHeader?.(event.currentTarget)}>Title</Button><Show when={props.onResize}><span class="table-resize" role="separator" aria-label="Resize Title" aria-orientation="vertical" onPointerDown={event => props.onResize?.(event, '@title')} /></Show></th>
         <For each={props.columns}>{id => <th scope="col" draggable={!!props.onMove} onDragStart={event => { dragged = id; event.dataTransfer?.setData('text/plain', id); }} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); if (dragged) props.onMove?.(dragged, id); dragged = undefined; }}><Button aria-haspopup={props.onHeader ? 'menu' : undefined} onClick={event => props.onHeader?.(event.currentTarget, props.field(id))}>{props.fieldName(id)}</Button><Show when={props.onResize}><span class="table-resize" role="separator" aria-label={`Resize ${props.fieldName(id)}`} aria-orientation="vertical" onPointerDown={event => props.onResize?.(event, id)} /></Show></th>}</For>
         <Show when={props.refs}><th scope="col" class="table-refs" title={props.refsHeading}>Refs</th></Show>
-      </tr></thead><tbody><For each={props.rows}>{entry => { const row = entry.row; return <>
+      </tr></thead><tbody><For each={rows()}>{entry => { const row = entry.row; return <>
         <Show when={entry.group}>{group => <tr class="table-member-group"><th colSpan={1 + props.columns.length + (props.refs ? 1 : 0)}><Button aria-expanded={!entry.hidden} onClick={() => props.onGroup?.(group().key)}><Icon name={entry.hidden ? 'right' : 'down'} />{group().title}<span class="table-popup-count">{group().count}</span></Button></th></tr>}</Show>
         <Show when={!props.grouped && props.tagged?.rowId === row.block.block.id}><tr class="table-member-group"><th colSpan={1 + props.columns.length + (props.refs ? 1 : 0)}><span class="table-member-group-label">Tagged blocks <span>{props.tagged?.count}</span></span></th></tr></Show>
         <tr hidden={entry.hidden} data-block-id={row.block.block.id} classList={{ selected: props.selected === row.block.block.id }} onClick={event => { if (window.matchMedia('(pointer: coarse) and (min-width: 900px)').matches && !(event.target as HTMLElement).closest('button, input, textarea, a, .cm-editor')) props.onOpen(row, true); }}>
@@ -42,7 +45,7 @@ export function TableGrid(props: TableGridProps) {
           <Show when={props.refs}><td class="table-refs">{props.reference?.(row, false)}</td></Show>
         </tr></>; }}</For></tbody>
     </table>
-    <div class="table-cards" role="list" aria-label="Members"><For each={props.rows}>{entry => { const row = entry.row; return <>
+    <div class="table-cards" role="list" aria-label="Members"><For each={rows()}>{entry => { const row = entry.row; return <>
       <Show when={entry.group}>{group => <div class="table-card-group"><Button aria-expanded={!entry.hidden} onClick={() => props.onGroup?.(group().key)}><Icon name={entry.hidden ? 'right' : 'down'} />{group().title}<span class="table-popup-count">{group().count}</span></Button></div>}</Show>
       <Show when={!props.grouped && props.tagged?.rowId === row.block.block.id}><div class="table-card-group" role="presentation"><span class="table-member-group-label">Tagged blocks <span>{props.tagged?.count}</span></span></div></Show>
       <article hidden={entry.hidden} class="table-card" data-block-id={row.block.block.id} classList={{ selected: props.selected === row.block.block.id }} role="listitem" onClick={event => { if (!(event.target as HTMLElement).closest('button, [role="button"], a, .cm-editor')) props.onOpen(row, event.shiftKey); }}>

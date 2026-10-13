@@ -129,6 +129,8 @@ Register starts grouped by Subject, with Holder also available in Group. Each re
 
 Click a value or focus it and press Enter to edit. Values use the field bed's kind pickers and the outline's text editor. Tab and Shift-Tab commit the current value and fill the next or previous field in recipe order. Shift-Enter adds a newline; Enter on an empty value and Escape leave the editor. Each committed value has one undo in its original page history.
 
+Live result refreshes keep the row's editor and focus. Clicking an empty value writes its entry and text together at commit, so one undo removes both. Tab filling creates a missing recipe slot when reached.
+
 Matrix shows one sheet per subject, with holders as rows and criteria as columns. This keeps six readings and three criteria readable without six narrow prose columns. Cells use the existing Compare matrix editor, references and undo. A subject without criteria explains how to add them in Compare; an empty result offers the table's Clear filters action.
 
 On phones the register's labels stack above values. Matrix rows become holder slips with a labeled cell for each criterion. Every value stays within the pane instead of scrolling the document sideways. Saving and reopening keep the layout with the other recipe choices.

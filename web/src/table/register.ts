@@ -1,9 +1,38 @@
-import type { FieldDefinition, QueryResult, QueryRow, QuerySource } from '../api/types';
+import { createStore, reconcile } from 'solid-js/store';
+import type { SetStoreFunction } from 'solid-js/store';
+import type { FieldDefinition, QueryGroup, QueryResult, QueryRow, QuerySource } from '../api/types';
 import { textTokens } from '../document/text-tokens';
 import { sourceText } from './sources';
 import type { TableSource } from './sources';
 
 export interface TableCell { rowId: string | null; fieldId: string | null }
+export interface GroupedRow { row: QueryRow; group?: QueryGroup; hidden: boolean }
+
+/** Refreshes reconcile data without replacing the row proxy that owns a live cell editor. */
+export function createGridRows() {
+  const cache = new Map<string, { state: GroupedRow; set: SetStoreFunction<GroupedRow> }>();
+  return (rows: readonly GroupedRow[]): GroupedRow[] => {
+    const retained = new Set<string>();
+    let group = '';
+    const next = rows.map(entry => {
+      if (entry.group) group = entry.group.key;
+      const key = `${group}:${entry.row.block.block.id}`;
+      retained.add(key);
+      let cached = cache.get(key);
+      if (cached) {
+        cached.set('row', reconcile(entry.row));
+        cached.set('group', entry.group);
+        cached.set('hidden', entry.hidden);
+      } else {
+        const [state, set] = createStore(entry);
+        cached = { state, set }; cache.set(key, cached);
+      }
+      return cached.state;
+    });
+    for (const key of cache.keys()) if (!retained.has(key)) cache.delete(key);
+    return next;
+  };
+}
 
 /** Re-sorting retains the entity and field; only a removed row or hidden column changes the target. */
 export function retainCell(cell: TableCell, rows: readonly QueryRow[], columns: readonly string[]): TableCell {
