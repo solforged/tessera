@@ -583,8 +583,12 @@ function CardReviewPane(props: ReviewPaneProps) {
         <div class="review-overview">
           <section class="review-today-load" aria-label="Selected review queue">
             <h2>{selectionLabels[query().selection]}</h2><div class="review-stat-value">{total()}<small>{query().selection === 'due' ? 'due now' : 'cards in this queue'}</small></div>
-            <p>{counts().due ?? 0} due now · {Math.max(0, value().due_review + value().due_new - (counts().due ?? 0))} later today</p>
-            <Show when={!(counts().due ?? 0) && nextDue()}>{due => <p>Next card due {new Intl.DateTimeFormat('en-CA', { timeZone: props.notebook.settings()?.time_zone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(due())}.</p>}</Show>
+            {/* The figure already says how many are due now on Due; the line adds what follows today and when the next card comes. */}
+            <p>{[
+              query().selection === 'due' ? '' : `${counts().due ?? 0} due now`,
+              `${Math.max(0, value().due_review + value().due_new - (counts().due ?? 0))} later today`,
+              !(counts().due ?? 0) && nextDue() ? `next ${new Intl.DateTimeFormat('en-CA', { timeZone: props.notebook.settings()?.time_zone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(nextDue()!).replace(`${props.notebook.todayDate()}, `, 'at ')}` : '',
+            ].filter(Boolean).join(' · ')}</p>
             <Button ref={startButton} class="review-start" disabled={locked() || loading() || !!readError() || !rows().length} onClick={() => void start()}>Review {rows().length} cards <kbd>Space</kbd></Button>
             <Show when={!rows().length}><p>{value().held_cards ? `${value().held_cards} cards are paused or marked Not yet. Start or resume them from their source notes.` : 'Nothing in this queue.'}</p></Show>
           </section>
