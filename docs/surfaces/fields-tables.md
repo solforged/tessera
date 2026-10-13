@@ -38,9 +38,9 @@ Numbered sections follow with rubric numerals and hairlines:
 
 | Section | Contents and actions |
 | --- | --- |
-| Options | Options with their uses and inline rename, then Add option; choice fields only. |
+| Options | Options with their uses and inline rename, then Add option; choice fields only. Option names may wrap; Uses and Edit retain their intrinsic one-line width, including on phones. |
 | In templates | Each type's pill, the field's place in its template and the member count. |
-| Used by | Up to twelve owners in three columns with their values in mono. View all opens the field-only table. |
+| Used by | Up to twelve owners in three columns with their values in mono. View owner (one owner) or View all N owners opens the field-only table. |
 | Problem values | The written text in rubric beside its owner and the problem. |
 
 Blocks in the pane header opens the definition in the Fields page, where names and options remain ordinary blocks. Edit definitions opens the Fields page.

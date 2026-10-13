@@ -22,10 +22,11 @@
 .field-ledger:not(.field-options) td:first-child { font-family: var(--font-mono); }
 .field-ledger th:nth-child(2) { width: 43%; }
 .field-ledger .button { min-height: 0; padding: 0; text-align: left; justify-content: flex-start; white-space: normal; font-weight: var(--weight-body); }
-.field-options th:first-child { width: 68%; }
-.field-options th:nth-child(2) { width: 16%; }
+.field-options { table-layout: auto; }
+.field-options th:first-child { width: auto; }
+.field-options :is(th, td):nth-child(n + 2) { width: 1%; white-space: nowrap; }
 .field-options :is(th, td):nth-child(2), .field-options td:last-child { text-align: right; }
-.field-options td:last-child .button { color: var(--faint); font: var(--apparatus); }
+.field-options td:last-child .button { color: var(--faint); font: var(--apparatus); white-space: nowrap; }
 .field-inline-edit { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-8); padding-block: var(--space-4); }
 .field-inline-edit .input { flex: 1; min-width: 0; width: 100%; }
 .field-add.button { margin-top: var(--space-8); padding-inline: 0; color: var(--muted); font-weight: var(--weight-body); }
@@ -60,6 +61,6 @@
 @media (max-width: 599px) {
   .field-owners { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .field-template-row { gap: var(--space-8); }
-  .field-ledger th:nth-child(2) { width: 36%; }
+  .field-ledger:not(.field-options) th:nth-child(2) { width: 36%; }
   .field-preview-actions > :first-child { flex-basis: 100%; }
 }
