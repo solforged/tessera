@@ -324,7 +324,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
       ...(entry.citations.length ? [{ label: 'Remove citation', divider: true, danger: true, action: () => apply({ kind: 'uncite', id, citationIds: entry.citations.map(citation => citation.id) }, false) }] : []),
     ];
     const managers: MenuItem[] = [
-      ...(fieldEntry(id) ? [{ label: 'Field…', icon: 'field' as const, action: () => fieldMenu(id, anchor) }] : []),
+      ...(fieldEntry(id) ? [{ label: 'Field…', action: () => fieldMenu(id, anchor) }] : []),
       ...(entry.task ? [group('Task…', 'Task', () => [
         item('toggle-task', isFinished(entry.task!) ? 'Reopen' : 'Complete'),
         group('Status…', 'Task status', () => statusMenuItems(entry.task, status => capabilities.invoke(capabilities.status(id, status)))),

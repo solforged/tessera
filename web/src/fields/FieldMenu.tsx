@@ -2,6 +2,7 @@ import { createEffect, createResource, createSignal, onCleanup } from 'solid-js'
 import type { FieldDefinition, Type } from '../api/types';
 import type { PageDocument } from '../document/contract';
 import type { OutlineContext } from '../outline/context';
+import { plainText } from '../outline/names';
 import { fieldEntryId } from '../table/query';
 import type { MenuItem } from '../ui/Menu';
 import { fieldHide, fieldHides, hideLabels } from './hide';
@@ -86,8 +87,8 @@ export function createFieldMenu(context: Pick<OutlineContext,
     const ownerTypes = (types() ?? []).filter(type => keys.includes(type.page.text.toLowerCase()) || keys.includes(type.page.id.toLowerCase()));
     const document = definitionDocument();
     const unavailable = document?.status() !== 'ready' ? 'Field definitions are loading.' : document.saveState() !== 'saved' ? 'Wait for field changes to save.' : undefined;
-    setMenu({ anchor, label: field.name, title: field.name, context: block?.text || field.name, items: [
-      { label: 'Open field page', icon: 'field', action: event => open(event?.shiftKey) },
+    setMenu({ anchor, label: field.name, title: field.name, context: (block && plainText(block.text, target => props.notebook.lookup(target))) || field.name, items: [
+      { label: 'Open field page', action: event => open(event?.shiftKey) },
       { label: 'Definition…', submenu: () => ({ title: 'Definition', items: [
         { label: 'Kind…', submenu: () => ({ title: 'Kind', items: fieldKinds.map(kind => ({ label: kindLabels[kind], checked: kind === field.kind, action: () => { if (kind !== field.kind) open(false, { previewKind: kind }); } })) }) },
         ...(field.kind === 'choice' ? [{ label: 'Options…', action: (event?: MouseEvent | KeyboardEvent) => open(event?.shiftKey, { section: 'options' }) }] : []),
@@ -103,7 +104,7 @@ export function createFieldMenu(context: Pick<OutlineContext,
         ...(types.loading ? [{ label: 'Loading templates…', disabledReason: 'Types are loading.' }] : []),
         ...(types.error ? [{ label: 'Templates unavailable', disabledReason: 'Could not load types.' }] : []),
       ] }) }] : []),
-      { label: 'Remove from this note', divider: true, icon: 'trash', danger: true, action: () => apply({ kind: 'delete', ids: [entry.id] }, false) },
+      { label: 'Remove from this note', divider: true, danger: true, action: () => apply({ kind: 'delete', ids: [entry.id] }, false) },
     ] });
   }
   return { fieldEntry, fieldMenu };

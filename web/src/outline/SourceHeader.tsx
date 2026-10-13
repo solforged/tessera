@@ -123,7 +123,7 @@ export function SourceHeader(props: {
     if (!anchor.isConnected) return;
     setMenu({ anchor, label: 'Source actions', title: 'Source actions', context: props.doc.root()?.text, items: [
       { label: 'Edit details…', action: props.onEditDetails },
-      { label: 'Copy citation key', icon: 'copy', disabledReason: props.doc.root()?.source?.citation_key ? undefined : 'No citation key', action: () => { void navigator.clipboard.writeText(props.doc.root()!.source!.citation_key!).catch(fail); } },
+      { label: 'Copy citation key', disabledReason: props.doc.root()?.source?.citation_key ? undefined : 'No citation key', action: () => { void navigator.clipboard.writeText(props.doc.root()!.source!.citation_key!).catch(fail); } },
       { label: 'Collections…', divider: true, submenu: () => ({ title: 'Collections', items: [
         { label: 'Add to collection…', action: () => setCollectionPicker(anchor) },
         ...collections.map(collection => ({ label: `Remove from ${collection.text}`, action: () => { void collectionActions.run(`Removed from ${collection.text}`, () => changeCollectionMembers(props.notebook, collection.id, [props.doc.pageId], false)); } })),
@@ -138,13 +138,13 @@ export function SourceHeader(props: {
         { label: 'Replace cover…', action: () => coverInput.click() },
         { label: props.fieldsVisible ? 'Hide metadata fields' : 'Show metadata fields', action: () => props.onFieldsVisible(!props.fieldsVisible) },
         ...props.resetItems(),
-        { label: 'Snapshots…', icon: 'history', disabledReason: source.error ? String(source.error) : !source()?.snapshots.length ? 'No snapshots' : undefined,
+        { label: 'Snapshots…', disabledReason: source.error ? String(source.error) : !source()?.snapshots.length ? 'No snapshots' : undefined,
           submenu: () => ({ title: 'Snapshots', items: (source()?.snapshots ?? []).map(snapshot => ({
             label: `${new Date(snapshot.attached_at).toLocaleDateString()} · ${snapshot.passage_count} ${snapshot.passage_count === 1 ? 'passage' : 'passages'}`,
             action: () => props.onOpen({ kind: 'reader', sourceId: props.doc.pageId, snapshotId: snapshot.id }, false),
           })) }) },
       ] }) },
-      ...(props.onDelete ? [{ divider: true, label: 'Delete source…', icon: 'trash' as const, danger: true, action: () => props.onDelete!(anchor) }] : []),
+      ...(props.onDelete ? [{ divider: true, label: 'Delete source…', danger: true, action: () => props.onDelete!(anchor) }] : []),
     ] });
   }
   const ReadingActions = () => <div class="outline-source-actions" classList={{ 'source-cover-actions': coverLayout() && !!actionsHost() }} style={{ visibility: props.ready ? undefined : 'hidden' }}>
