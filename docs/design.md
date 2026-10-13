@@ -378,7 +378,7 @@ A field whose values are all leaves reads through its definition's role. Standfi
 
 A page's own fields read as a specimen block under the imprint, as the site sets title, standfirst, imprint, then text. Names are mono apparatus in `--faint` without the field icon, starting on the title edge. Attribute values are `--text-control` in `--muted`, and a dotted hairline separates rows. On phones each name sits over its value, both on the title edge. Nested fields sit inside prose and keep the bed above; journal days and the reading register set fields their own way.
 
-- Clicking a name opens its field menu: Open field page, Kind (which opens the change preview on the field page), Options… or Links to…, Hide, Role, Add to or Remove from each of the owner's type templates, and Remove from this note. The block menu's Field section and the leader key `f` open the same menu.
+- Clicking a name opens a menu titled with the field name and its owning note as context: Open field page, Definition…, Templates… and Remove from this note last. Definition groups Kind…, Options… or Links to…, Hide… and Role…; Kind opens the change preview on the field page. Templates holds Add to or Remove from each owning type's template and is omitted without an owning type. Nested choices replace the rows in place with a header Back. The block menu's Field manager and the leader key `f` open the same menu.
 - An entry with no value shows its name and a blank value; clicking the blank adds a value and edits it. Blank values show no text.
 - Backspace at the start of the first inline value does nothing; at the start of a later one it joins the value above.
 - A page that opens on a field selects its value row instead of editing.
@@ -672,6 +672,8 @@ Escape closes the topmost one and returns focus to the editor or outline that ow
 | Block menu | Routine actions, Move drill-in, present-feature managers, Add field and Make chooser | Below the handle; bottom sheet on coarse phones |
 | Page actions | Titled Menu with page context, full ID, Copy ID and Created; Description, Make and Appearance drill in with Back | Below its trigger; bottom sheet with Close and 44 px rows on coarse phones |
 | Note actions | Titled Menu with the existing note header; Open, File under, Rename and Delete, then More for Merge and Copy reference | Below its trigger; bottom sheet on coarse phones |
+| Source actions | Edit details, Copy citation key, Collections…, Export…, Source settings… and Delete source last; drill-ins replace rows with a header Back | Below the trigger; a bottom sheet below 600 px with a coarse pointer |
+| Field entry | Open field page, Definition…, Templates… when an owning type exists, Remove from this note last; Kind, Hide and Role drill into Definition | Below the field name; a bottom sheet below 600 px with a coarse pointer |
 | Notebook, layout, pill, column, view, sort and field kind menus | Menu | Below their trigger |
 | New page, Delete page | Confirm | Below their trigger |
 | Reference preview | Preview, 380 px | Below the line of the reference under the pointer, or the reference at the caret |

@@ -1,4 +1,5 @@
 import { For, Show, createEffect, createMemo, createResource, createSignal, onCleanup, onMount } from 'solid-js';
+import type { JSX } from 'solid-js';
 import { Portal } from 'solid-js/web';
 import { api, exportExtensions } from '../api/client';
 import type { ExportFormat } from '../api/client';
@@ -39,7 +40,7 @@ export function SourceHeader(props: {
   onColors(colors: string[]): void; onGrouped(grouped: boolean): void; onFieldsVisible(visible: boolean): void;
 }) {
   const [source] = createResource(() => props.notebook.changeSequence(), () => props.notebook.api.source(props.doc.pageId));
-  const [menu, setMenu] = createSignal<{ anchor: HTMLElement; label: string; items: MenuItem[] } | null>(null);
+  const [menu, setMenu] = createSignal<{ anchor: HTMLElement; label: string; title?: string; context?: JSX.Element; items: MenuItem[] } | null>(null);
   const snapshot = createMemo(() => source()?.snapshots.find(snapshot => snapshot.id === source()?.source.current_snapshot_id));
   const metadata = createMemo(() => sourceMetadata(props.doc, props.notebook, props.fields));
   const authored = createMemo(() => sourceEntries(props.doc, props.fields));
@@ -120,24 +121,30 @@ export function SourceHeader(props: {
       collections = pages.filter(page => ids.includes(page.id));
     } catch (error) { fail(error); return; }
     if (!anchor.isConnected) return;
-    setMenu({ anchor, label: 'Source actions', items: [
+    setMenu({ anchor, label: 'Source actions', title: 'Source actions', context: props.doc.root()?.text, items: [
       { label: 'Edit details…', action: props.onEditDetails },
       { label: 'Copy citation key', icon: 'copy', disabledReason: props.doc.root()?.source?.citation_key ? undefined : 'No citation key', action: () => { void navigator.clipboard.writeText(props.doc.root()!.source!.citation_key!).catch(fail); } },
-      { label: 'Fill missing details', disabledReason: busy() ? 'Looking up…' : !metadata().identifiers.length ? 'No identifier' : undefined, action: () => { void fillMissing(); } },
-      { label: 'Replace cover…', action: () => coverInput.click() },
-      { label: props.fieldsVisible ? 'Hide metadata fields' : 'Show metadata fields', action: () => props.onFieldsVisible(!props.fieldsVisible) },
-      ...props.resetItems(),
-      { section: 'Collections', label: 'Add to collection…', action: () => setCollectionPicker(anchor) },
-      ...collections.map(collection => ({ section: 'Collections', label: `Remove from ${collection.text}`, action: () => { void collectionActions.run(`Removed from ${collection.text}`, () => changeCollectionMembers(props.notebook, collection.id, [props.doc.pageId], false)); } })),
-      { section: 'Export', label: 'BibTeX', icon: 'download', action: () => { void exportSource('bibtex'); } },
-      { section: 'Export', label: 'CSL JSON', icon: 'download', action: () => { void exportSource('csl'); } },
-      { section: 'Export', label: 'Markdown', icon: 'download', action: () => { void exportSource('markdown'); } },
-      { section: 'Organize', label: 'Snapshots', icon: 'history', disabledReason: source.error ? String(source.error) : !source()?.snapshots.length ? 'No snapshots' : undefined,
-        action: () => setMenu({ anchor, label: 'Snapshots', items: (source()?.snapshots ?? []).map(snapshot => ({
-          label: `${new Date(snapshot.attached_at).toLocaleDateString()} · ${snapshot.passage_count} ${snapshot.passage_count === 1 ? 'passage' : 'passages'}`,
-          action: () => props.onOpen({ kind: 'reader', sourceId: props.doc.pageId, snapshotId: snapshot.id }, false),
-        })) }) },
-      ...(props.onDelete ? [{ section: 'Organize', label: 'Delete source…', icon: 'trash' as const, danger: true, action: () => props.onDelete!(anchor) }] : []),
+      { label: 'Collections…', divider: true, submenu: () => ({ title: 'Collections', items: [
+        { label: 'Add to collection…', action: () => setCollectionPicker(anchor) },
+        ...collections.map(collection => ({ label: `Remove from ${collection.text}`, action: () => { void collectionActions.run(`Removed from ${collection.text}`, () => changeCollectionMembers(props.notebook, collection.id, [props.doc.pageId], false)); } })),
+      ] }) },
+      { label: 'Export…', submenu: () => ({ title: 'Export', items: [
+        { label: 'BibTeX', icon: 'download', action: () => { void exportSource('bibtex'); } },
+        { label: 'CSL JSON', icon: 'download', action: () => { void exportSource('csl'); } },
+        { label: 'Markdown', icon: 'download', action: () => { void exportSource('markdown'); } },
+      ] }) },
+      { label: 'Source settings…', submenu: () => ({ title: 'Source settings', items: [
+        { label: 'Fill missing details', disabledReason: busy() ? 'Looking up…' : !metadata().identifiers.length ? 'No identifier' : undefined, action: () => { void fillMissing(); } },
+        { label: 'Replace cover…', action: () => coverInput.click() },
+        { label: props.fieldsVisible ? 'Hide metadata fields' : 'Show metadata fields', action: () => props.onFieldsVisible(!props.fieldsVisible) },
+        ...props.resetItems(),
+        { label: 'Snapshots…', icon: 'history', disabledReason: source.error ? String(source.error) : !source()?.snapshots.length ? 'No snapshots' : undefined,
+          submenu: () => ({ title: 'Snapshots', items: (source()?.snapshots ?? []).map(snapshot => ({
+            label: `${new Date(snapshot.attached_at).toLocaleDateString()} · ${snapshot.passage_count} ${snapshot.passage_count === 1 ? 'passage' : 'passages'}`,
+            action: () => props.onOpen({ kind: 'reader', sourceId: props.doc.pageId, snapshotId: snapshot.id }, false),
+          })) }) },
+      ] }) },
+      ...(props.onDelete ? [{ divider: true, label: 'Delete source…', icon: 'trash' as const, danger: true, action: () => props.onDelete!(anchor) }] : []),
     ] });
   }
   const ReadingActions = () => <div class="outline-source-actions" classList={{ 'source-cover-actions': coverLayout() && !!actionsHost() }} style={{ visibility: props.ready ? undefined : 'hidden' }}>
@@ -193,7 +200,7 @@ export function SourceHeader(props: {
       </div></Show>
     </div></Show>
     <Show when={source.error}><p class="outline-capability-error" role="alert">{String(source.error)}</p></Show>
-    <Show when={menu()}>{state => <Menu {...state()} onDismiss={() => setMenu(null)} />}</Show>
+    <Show when={menu()}>{state => <Menu {...state()} class="source-actions-menu" onDismiss={() => setMenu(null)} />}</Show>
     <input ref={coverInput} hidden type="file" aria-label="Choose cover image" accept="image/png,image/jpeg,image/webp" onChange={event => {
       const file = event.currentTarget.files?.[0]; event.currentTarget.value = '';
       if (file) void props.notebook.api.uploadCover(file).then(cover => saveDetails(props.doc, props.notebook, { ...metadata(), cover }, false, true)).catch(fail);

@@ -272,14 +272,17 @@ The primary gilt Read button becomes Continue reading once a saved position exis
 
 ### Source actions and fields
 
-Source actions groups its items:
+Source actions is titled `Source actions`, with the source title in mono beneath it. Six routine rows keep longer choices in drill-ins:
 
-| Group | Items |
+| Menu | Items |
 | --- | --- |
-| Unheaded | Edit details…, Copy citation key, Fill missing details, Replace cover…, Show or Hide metadata fields |
+| Source actions | Edit details…, Copy citation key, Collections…, Export…, Source settings…, Delete source… last |
 | Collections | Add to collection…, Remove from each collection |
 | Export | BibTeX, CSL JSON, Markdown |
-| Organize | Snapshots, Delete source… last |
+| Source settings | Fill missing details, Replace cover…, Show or Hide metadata fields, Reset to extracted when values differ, Snapshots… |
+| Snapshots | Each snapshot's date and passage count, opening its reader |
+
+Drill-ins replace rows in the same popup and offer a header Back, including Snapshots inside Source settings. Hairlines separate the root groups and the final danger action. Below 600 px with a coarse pointer, the menu is a bottom sheet with 44 px rows and an explicit Close on its root; desktop stays anchored.
 
 Fill missing details is a fresh lookup that writes only empty fields; without an identifier it stays in the menu, disabled with No identifier.
 

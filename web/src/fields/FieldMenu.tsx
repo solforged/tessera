@@ -80,30 +80,30 @@ export function createFieldMenu(context: Pick<OutlineContext,
     const entry = fieldEntry(id);
     if (!entry) return;
     const { field, owner } = entry;
-    const label = `${field.name} · ${kindLabels[field.kind]}`;
     const open = (beside = false, extra: { previewKind?: FieldDefinition['kind']; section?: 'options' | 'targets' } = {}) => props.onOpen({ kind: 'field', fieldId: field.id, ...extra }, beside);
-    const submenu = (title: string, items: MenuItem[]) => setMenu({ anchor, label: title, header: <div class="menu-section">{title}</div>, items: [
-      { label: `Back to ${field.name}`, icon: 'left', action: () => fieldMenu(id, anchor) }, ...items,
-    ] });
     const block = doc.block(owner);
     const keys = typeKeys(block?.text ?? '', block?.manual_types ?? []);
     const ownerTypes = (types() ?? []).filter(type => keys.includes(type.page.text.toLowerCase()) || keys.includes(type.page.id.toLowerCase()));
     const document = definitionDocument();
     const unavailable = document?.status() !== 'ready' ? 'Field definitions are loading.' : document.saveState() !== 'saved' ? 'Wait for field changes to save.' : undefined;
-    setMenu({ anchor, label, header: <div class="menu-section">{label}</div>, items: [
+    setMenu({ anchor, label: field.name, title: field.name, context: block?.text || field.name, items: [
       { label: 'Open field page', icon: 'field', action: event => open(event?.shiftKey) },
-      { label: 'Kind', section: 'Definition', action: () => submenu('Kind', fieldKinds.map(kind => ({ label: kindLabels[kind], checked: kind === field.kind, action: () => { if (kind !== field.kind) open(false, { previewKind: kind }); } }))) },
-      ...(field.kind === 'choice' ? [{ label: 'Options…', action: (event?: MouseEvent | KeyboardEvent) => open(event?.shiftKey, { section: 'options' }) }] : []),
-      ...(field.kind === 'instance' ? [{ label: 'Links to…', action: (event?: MouseEvent | KeyboardEvent) => open(event?.shiftKey, { section: 'targets' }) }] : []),
-      { label: 'Hide', action: () => submenu('Hide', fieldHides.map(value => ({ label: hideLabels[value], checked: value === fieldHide(field), disabledReason: unavailable, action: () => { void changeHide(field, value); } }))) },
-      { label: 'Role', action: () => submenu('Role', fieldRoles.map(value => ({ label: roleLabels[value], checked: value === fieldRole(field), disabledReason: unavailable, action: () => { void changeRole(field, value); } }))) },
-      ...ownerTypes.map((type): MenuItem => {
-        const present = type.fields.includes(field.id);
-        return { label: `${present ? 'Remove from' : 'Add to'} ${type.page.text} template`, section: 'Templates', action: () => { void changeTemplate(type, field, present); } };
-      }),
-      ...(keys.length && types.loading ? [{ label: 'Loading templates…', section: 'Templates', disabledReason: 'Types are loading.', action: () => {} }] : []),
-      ...(types.error ? [{ label: 'Templates unavailable', section: 'Templates', disabledReason: 'Could not load types.', action: () => {} }] : []),
-      { label: 'Remove from this note', section: 'This note', icon: 'trash', danger: true, action: () => apply({ kind: 'delete', ids: [entry.id] }, false) },
+      { label: 'Definition…', submenu: () => ({ title: 'Definition', items: [
+        { label: 'Kind…', submenu: () => ({ title: 'Kind', items: fieldKinds.map(kind => ({ label: kindLabels[kind], checked: kind === field.kind, action: () => { if (kind !== field.kind) open(false, { previewKind: kind }); } })) }) },
+        ...(field.kind === 'choice' ? [{ label: 'Options…', action: (event?: MouseEvent | KeyboardEvent) => open(event?.shiftKey, { section: 'options' }) }] : []),
+        ...(field.kind === 'instance' ? [{ label: 'Links to…', action: (event?: MouseEvent | KeyboardEvent) => open(event?.shiftKey, { section: 'targets' }) }] : []),
+        { label: 'Hide…', submenu: () => ({ title: 'Hide', items: fieldHides.map(value => ({ label: hideLabels[value], checked: value === fieldHide(field), disabledReason: unavailable, action: () => { void changeHide(field, value); } })) }) },
+        { label: 'Role…', submenu: () => ({ title: 'Role', items: fieldRoles.map(value => ({ label: roleLabels[value], checked: value === fieldRole(field), disabledReason: unavailable, action: () => { void changeRole(field, value); } })) }) },
+      ] }) },
+      ...(ownerTypes.length || (keys.length && (types.loading || types.error)) ? [{ label: 'Templates…', submenu: () => ({ title: 'Templates', items: [
+        ...ownerTypes.map((type): MenuItem => {
+          const present = type.fields.includes(field.id);
+          return { label: `${present ? 'Remove from' : 'Add to'} ${type.page.text} template`, action: () => { void changeTemplate(type, field, present); } };
+        }),
+        ...(types.loading ? [{ label: 'Loading templates…', disabledReason: 'Types are loading.' }] : []),
+        ...(types.error ? [{ label: 'Templates unavailable', disabledReason: 'Could not load types.' }] : []),
+      ] }) }] : []),
+      { label: 'Remove from this note', divider: true, icon: 'trash', danger: true, action: () => apply({ kind: 'delete', ids: [entry.id] }, false) },
     ] });
   }
   return { fieldEntry, fieldMenu };

@@ -283,6 +283,7 @@
 .outline-source-description p.expanded { display: block; }
 .outline-source-description .button { flex: none; }
 .outline-source-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); margin-top: var(--space-8); }
+.source-actions-menu[aria-label="Snapshots"] .menu-label { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .outline-source-read.button { padding-inline: var(--space-16); border-color: var(--accent); background: var(--accent); color: var(--surface); }
 .outline-source-read.button:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 88%, var(--text)); }
 /* Colour filters keep individual touch targets and real highlight hues. Their buttons' padding counts toward the interval before the grouping control, whose own padding hangs past the column so its chevron meets the paragraph numbers' edge. */
