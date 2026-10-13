@@ -76,6 +76,7 @@ export type Operation =
   | { op: 'set_project'; id: string; base_revision: number; project: ProjectState | null }
   | { op: 'set_position'; id: string; base_revision: number; position: boolean }
   | { op: 'set_relation'; id: string; base_revision: number; relation: RelationKind | null }
+  | { op: 'set_spread'; id: string; base_revision: number; spread: boolean }
   | { op: 'set_quote'; id: string; base_revision: number; quote: QuoteState | null }
   | { op: 'set_question'; id: string; base_revision: number; question: QuestionState | null }
   | { op: 'set_assessment'; id: string; base_revision: number; assessment: AssessmentState | null }
@@ -310,9 +311,14 @@ export interface View { id: string; name: string; query: Query; revision: number
 /** A kind notes are filed under: `person`, `group`, `concept`, `thesis`, `question`, `source`, `project`, `type:<id>` or `unfiled`. */
 export interface NoteKind { key: string; name: string; plural: string; icon: string | null; type_id: string | null }
 export interface IndexKind extends NoteKind { count: number; tagged_block_count: number }
-export interface NoteIndex { kinds: IndexKind[]; notes: number }
+export interface NoteIndex { kinds: IndexKind[]; notes: number; spreads: SeeTarget[] }
 export interface NoteEntry { id: string; title: string; sort_as: string | null; created_at: number }
 export interface SeeTarget { id: string; title: string }
+export interface SpreadValue { text: string; target_id: string | null; shared: boolean; between_columns: boolean }
+export interface SpreadColumn { id: string; title: string; kinds: NoteKind[]; gloss: SpreadValue[]; sources: SpreadValue[]; links: SpreadValue[]; opening: SpreadValue[] }
+export interface SpreadField { id: string; name: string; cells: SpreadValue[][] }
+export interface SpreadReference { block_id: string; note_id: string }
+export interface Spread { note_ids: string[]; columns: SpreadColumn[]; fields: SpreadField[]; references: SpreadReference[] }
 export interface CrossReference { alias: string; targets: SeeTarget[] }
 export interface SummaryField { name: string; value: string }
 export interface SourceSummary { siglum: string; citation_key: string | null; format: SourceFormat; authors: string[]; publisher: string | null; published: string | null; highlights: number }
@@ -379,6 +385,7 @@ export interface QuoteState { target_id: string; captured_at: number; rows: Quot
 export interface Subtree { rows: Row[]; truncated: boolean }
 export interface QuoteStatus { block_id: string; source_live: boolean; changed: boolean }
 export interface BlockCapabilities { block_id: string; task: TaskState | null; project: ProjectState | null; position: PositionInfo | null; relation: RelationInfo | null; question: QuestionInfo | null; assessment: AssessmentInfo | null; quote?: QuoteState | null; history: boolean; merge_protected: boolean; reviewed_cards: boolean; template_cards?: number }
+export interface BlockCapabilities { spread?: boolean }
 
 export interface WorkSession {
   id: string;

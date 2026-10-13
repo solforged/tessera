@@ -245,6 +245,8 @@ pub struct BlockCapabilities {
     #[serde(default)]
     pub position: Option<PositionInfo>,
     #[serde(default)]
+    pub spread: bool,
+    #[serde(default)]
     pub question: Option<QuestionInfo>,
     #[serde(default)]
     pub assessment: Option<AssessmentInfo>,

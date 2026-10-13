@@ -122,3 +122,15 @@ A Person, Group or Concept type page with an empty template offers `Start from t
 A type's template offers **Icon and name…**: a compact glyph grid and an editable plural name. The empty name previews the automatic English plural; Reset removes both overrides. Apply records one undoable change on the type page, shared across devices.
 
 The sidebar, Index directory, note eyebrow and table title read the same kind presentation. Book, Article and Collection default to their book, article and shelf glyphs without writing notebook data; other made types use a tag. An unknown glyph also reads as a tag.
+
+## Spreads
+
+New spread opens an unsaved sheet; a view's selected notes can open the same sheet. Add note… uses the note picker, up to five columns. The `SPREAD` rubric heads aligned rows: kind, title and gloss; the union of fields in first-column-then-next outline order, with absent cells blank; Sources, Links and Opening. Sources include passage citations and references to a source page. Opening is the first visible non-field prose block.
+
+An exact value shared by at least two columns carries `=` with title Shared. Text is compared after trimming; a whole reference is compared by its target, regardless of its label. A link to a selected column carries `↔`. Differences carry no mark.
+
+Each column offers Move left, Move right and Remove column. Save spread asks for a title, initially the column titles joined with ` / `. Saving creates a page with the spread capability and one top-level `[[id]]` block per column in order. Saved spreads appear after kinds in the Index directory and sidebar.
+
+On a saved page, the sheet sits above the ordinary outline. Children of a reference are commentary on that column; other top-level blocks are notes on the whole spread. Column controls insert, move or delete these reference subtrees through the page document, preserving attributed history and Undo/Redo. Shift opens notes, saved spreads and the newly saved page beside.
+
+With fewer than two notes the sheet says `Select two to five notes to compare them.` The selected column remains available to remove or accompany with another note.

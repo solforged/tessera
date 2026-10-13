@@ -165,6 +165,42 @@ describe('real notebook operations and recovery', () => {
     doc.release();
   });
 
+  test('spread capability and ordinary column subtrees share undo and redo', async () => {
+    const instance = await client();
+    const notes = [ulid(), ulid(), ulid()];
+    const spread = ulid(), refs = [ulid(), ulid(), ulid()], commentary = ulid();
+    await instance.commit([
+      ...notes.map((id, i) => ({ op: 'create_page' as const, id, title: `Spread ${++serial} note ${i}` })),
+      { op: 'create_page', id: spread, title: `Spread ${++serial}` },
+      { op: 'set_spread', id: spread, base_revision: 1, spread: true },
+      ...notes.map((id, i) => ({ op: 'insert' as const, id: refs[i]!, parent_id: spread, after: refs[i - 1] ?? null, text: `[[${id}]]`, heading: null })),
+      { op: 'insert', id: commentary, parent_id: refs[0]!, after: null, text: 'Column commentary', heading: null },
+    ]);
+    const doc = instance.open(spread);
+    await eventually(() => doc.status() === 'ready', 'spread did not load');
+    expect(doc.root()?.spread).toBe(true);
+    success(doc.edit({ kind: 'moveTo', ids: [refs[1]!], parentId: spread, after: null }));
+    await instance.flush();
+    expect((await api.savedSpread(spread)).note_ids).toEqual([notes[1]!, notes[0]!, notes[2]!]);
+    doc.undo(); await instance.flush();
+    expect((await api.savedSpread(spread)).note_ids).toEqual(notes);
+    success(doc.edit({ kind: 'delete', ids: [refs[0]!] }));
+    await instance.flush();
+    expect((await api.savedSpread(spread)).note_ids).toEqual(notes.slice(1));
+    expect(doc.block(commentary)).toBeUndefined();
+    doc.undo(); await instance.flush();
+    expect((await api.savedSpread(spread)).note_ids).toEqual(notes);
+    expect(doc.block(commentary)?.text).toBe('Column commentary');
+    success(doc.edit({ kind: 'spread', id: spread, value: false }));
+    await instance.flush();
+    expect((await api.capabilities(spread)).spread).toBe(false);
+    doc.undo(); await instance.flush();
+    expect((await api.capabilities(spread)).spread).toBe(true);
+    doc.redo(); await instance.flush();
+    expect((await api.capabilities(spread)).spread).toBe(false);
+    doc.release();
+  });
+
   test('all accepted quick captures survive reload before delivery and keep their plans', async () => {
     const session = `capture-recovery-${++serial}`;
     const instance = await client(session);

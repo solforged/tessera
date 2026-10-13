@@ -1,5 +1,5 @@
 import { CardSummary } from './CardSummary';
-import { For, Show, batch, createEffect, createMemo, createResource, createSignal, mapArray, on, onCleanup, onMount, untrack } from 'solid-js';
+import { For, Show, batch, createEffect, createMemo, createResource, createSignal, lazy, mapArray, on, onCleanup, onMount, untrack } from 'solid-js';
 import { createVirtualizer, defaultRangeExtractor } from '@tanstack/solid-virtual';
 import type { Block, FieldDefinition } from '../api/types';
 import { api } from '../api/client';
@@ -58,6 +58,8 @@ import { titleTargets, typedTitles, withLinkedTitles } from './link-titles';
 import { QuestionBranches, QuestionParent } from './Questions';
 import { createCitationSources, hasCitationDetail, referenceSource } from './references';
 import './outline.css';
+
+const SpreadPane = lazy(() => import('../notes/SpreadPane').then(module => ({ default: module.SpreadPane })));
 
 const storedFolds = new Map<string, Set<string>>();
 
@@ -1415,6 +1417,7 @@ function Pane(props: OutlinePaneProps) {
         <JournalHeader date={doc.root()!.text} journalPeriod={journalPeriod} notebook={props.notebook} onOpen={props.onOpen} />
       </Show>
       <fieldSheet.FieldSlots id={props.pageId} />
+      <Show when={!zoom() && doc.root()?.spread}><SpreadPane doc={doc} notebook={props.notebook} onActivate={props.onActivate} onOpen={props.onOpen} /></Show>
     </div>
     <div ref={list} class="outline-list" style={{ height: `${listHeight()}px` }}>
       <Show when={drag.indicator()}>{drop => <div class="outline-drop-indicator" aria-hidden="true" data-drop-depth={drop().depth - baseDepth()} data-drop-edge={drop().edge} style={{ top: `${drop().top}px`, left: `${drop().left}px` }} />}</Show>

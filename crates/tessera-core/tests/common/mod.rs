@@ -36,3 +36,8 @@ pub fn restore_authored_search(conn: &Connection) {
 pub fn restore_pre_relations(conn: &Connection) {
     conn.execute_batch("DROP TABLE relations;").unwrap();
 }
+
+/// Before schema 41, saved spreads had no capability table.
+pub fn restore_pre_spreads(conn: &Connection) {
+    conn.execute_batch("DROP TABLE spreads;").unwrap();
+}

@@ -54,6 +54,7 @@ import type {
   SourceView,
   Type,
   NoteIndex,
+  Spread,
   NoteKind,
   Query,
   QueryResult,
@@ -276,6 +277,8 @@ export interface ApiClient {
   types(signal?: AbortSignal): Promise<Type[]>;
   type(id: string, signal?: AbortSignal): Promise<Type>;
   noteIndex(signal?: AbortSignal): Promise<NoteIndex>;
+  spread(ids: string[], signal?: AbortSignal): Promise<Spread>;
+  savedSpread(pageId: string, signal?: AbortSignal): Promise<Spread>;
   kindNotes(key: string, signal?: AbortSignal): Promise<KindIndex>;
   noteKinds(pageId: string, signal?: AbortSignal): Promise<NoteKind[]>;
   query(value: Query, signal?: AbortSignal): Promise<QueryResult>;
@@ -412,6 +415,8 @@ export function createApi(base = ''): ApiClient {
     types: (signal?: AbortSignal) => get<Type[]>('/types', signal),
     type: (id: string, signal?: AbortSignal) => get<Type>(`/types/${segment(id)}`, signal),
     noteIndex: (signal?: AbortSignal) => get<NoteIndex>('/index', signal),
+    spread: (ids: string[], signal?: AbortSignal) => request<Spread>(base, 'POST', '/spreads', ids, signal),
+    savedSpread: (pageId: string, signal?: AbortSignal) => get<Spread>(`/pages/${segment(pageId)}/spread`, signal),
     kindNotes: (key: string, signal?: AbortSignal) => get<KindIndex>(`/index/${segment(key)}`, signal),
     noteKinds: (pageId: string, signal?: AbortSignal) => get<NoteKind[]>(`/pages/${segment(pageId)}/kinds`, signal),
     query: (value: Query, signal?: AbortSignal) => request<QueryResult>(base, 'POST', '/query', value, signal),

@@ -55,6 +55,7 @@ async fn upgrade_copy_precedes_migration_and_can_be_exported_restored_and_erased
     drop(notebook);
     let conn = Connection::open("/demo/notebook.db").unwrap();
     common::restore_authored_search(&conn);
+    common::restore_pre_spreads(&conn);
     common::restore_pre_relations(&conn);
     conn.execute_batch(
         "DROP TABLE quotes; ALTER TABLE fields DROP COLUMN hide; PRAGMA user_version = 35;",

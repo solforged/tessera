@@ -582,7 +582,7 @@ A spread sets several notes side by side. Selecting two to five notes in a view 
 2. Each field any selected note has, blank where absent.
 3. Cited sources, linked notes and opening prose.
 
-Values shared exactly by two or more columns are marked, as are links between columns. Differing values imply nothing.
+Values shared exactly by two or more columns are marked, as are links between columns. Text is compared after trimming; whole references compare by link target, not label. Repeating a value within one column does not make it shared. Differing values imply nothing. Fields are ordered by their first appearance in the first column's outline, then the next column's, including empty entries. Cited sources include passage citations of their snapshots and references to their source pages.
 
 A spread is a page with a spread capability. Its top-level blocks reference notes in column order, following them as they change:
 

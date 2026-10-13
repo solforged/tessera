@@ -517,6 +517,7 @@ fn upgrading_old_notebooks_does_not_infer_relations_from_text() {
         drop(nb);
         let conn =
             rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
+        common::restore_pre_spreads(&conn);
         common::restore_pre_relations(&conn);
         if version < 38 {
             common::restore_authored_search(&conn);

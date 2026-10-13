@@ -80,6 +80,7 @@ export type OpenTarget =
   | { kind: 'reader'; sourceId: string; snapshotId?: string; at?: string; citationId?: string }
   /** The perspectives filed under a subject, side by side. */
   | { kind: 'compare'; subjectId: string }
+  | { kind: 'spread'; noteIds: string[] }
   /** One kind's notes by title. `key` is a `NoteKind.key`, or `all` for the kinds directory. */
   | { kind: 'index'; key: string; query?: Query; viewId?: string | null };
 

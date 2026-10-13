@@ -319,6 +319,8 @@ fn notebook_routes() -> Router<AppState> {
         .route("/api/names/{name}", get(resolve_name))
         .route("/api/index", get(note_index))
         .route("/api/index/{key}", get(kind_notes))
+        .route("/api/spreads", post(spread))
+        .route("/api/pages/{id}/spread", get(saved_spread))
         .route("/api/journal/written", get(written_journal_dates))
         .route("/api/journal/{date}", get(journal))
         .route("/api/blocks/{id}", get(block))
@@ -1171,6 +1173,26 @@ async fn note_kinds(
 ) -> Result<Json<Vec<NoteKind>>, ApiError> {
     let Path(id) = path.map_err(ApiError::from)?;
     run(&state, move |notebook| notebook.note_kinds(&id))
+        .await
+        .map(Json)
+}
+
+async fn spread(
+    State(state): State<AppState>,
+    body: Result<Json<Vec<String>>, JsonRejection>,
+) -> Result<Json<tessera_core::Spread>, ApiError> {
+    let Json(ids) = body.map_err(ApiError::from)?;
+    run(&state, move |notebook| notebook.spread(&ids))
+        .await
+        .map(Json)
+}
+
+async fn saved_spread(
+    State(state): State<AppState>,
+    path: Result<Path<String>, PathRejection>,
+) -> Result<Json<tessera_core::Spread>, ApiError> {
+    let Path(id) = path.map_err(ApiError::from)?;
+    run(&state, move |notebook| notebook.saved_spread(&id))
         .await
         .map(Json)
 }

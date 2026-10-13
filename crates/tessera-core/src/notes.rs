@@ -104,6 +104,8 @@ pub struct IndexKind {
 pub struct NoteIndex {
     pub kinds: Vec<IndexKind>,
     pub notes: usize,
+    #[serde(default)]
+    pub spreads: Vec<SeeTarget>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -181,6 +183,7 @@ impl Notebook {
                 })
                 .collect(),
             notes: listed,
+            spreads: self.saved_spreads()?,
         })
     }
 
@@ -279,6 +282,25 @@ impl Notebook {
             .iter()
             .map(|&index| filing.kinds[index].clone())
             .filter(|kind| kind.key != UNFILED)
+            .collect())
+    }
+
+    pub(crate) fn spread_kinds(&self, ids: &[String]) -> Result<HashMap<String, Vec<NoteKind>>> {
+        let filing = self.filing()?;
+        Ok(filing
+            .notes
+            .into_iter()
+            .filter(|note| ids.contains(&note.entry.id))
+            .map(|note| {
+                let kinds = note
+                    .kinds
+                    .into_iter()
+                    .map(|index| &filing.kinds[index])
+                    .filter(|kind| kind.key != UNFILED)
+                    .cloned()
+                    .collect();
+                (note.entry.id, kinds)
+            })
             .collect())
     }
 

@@ -1,0 +1,22 @@
+.spread-pane { min-width: 0; }
+.spread-unsaved { flex: 1; overflow: auto; padding: var(--page-top-space) var(--pane-inset) var(--page-bottom-space); }
+.spread-saved { margin-block: var(--section-gap); }
+.outline-heading:has(> .spread-pane) { max-width: none; }
+.spread-toolbar { display: flex; align-items: center; gap: var(--space-8); margin-bottom: var(--page-head-gap); flex-wrap: wrap; }
+.spread-rubric, .spread-kind { font: var(--apparatus); letter-spacing: var(--tracking-apparatus); color: var(--faint); text-transform: uppercase; }
+.spread-toolbar .section-rule { flex: 1; }
+.spread-scroll { overflow-x: auto; }
+.spread-table { width: 100%; min-width: calc(var(--space-48) * 2 + var(--spread-count) * var(--apparatus-width)); table-layout: fixed; border-collapse: collapse; }
+.spread-table th, .spread-table td { padding: var(--space-12); text-align: left; vertical-align: top; font-weight: var(--weight-body); overflow-wrap: anywhere; border-bottom: var(--rule-width) solid var(--line); }
+.spread-table tr > :first-child { width: calc(var(--space-48) * 2); padding-left: 0; color: var(--muted); font: var(--apparatus); }
+.spread-table tr > :not(:first-child) { border-left: var(--rule-width) solid var(--line); }
+.spread-table h2 { margin: var(--page-eyebrow-gap) 0 var(--page-title-gap); font: var(--weight-title) var(--text-h1)/var(--line-h1) var(--font-display); }
+.spread-title.button { display: block; white-space: normal; padding: 0; height: auto; text-align: left; font: inherit; }
+.spread-gloss { font: var(--weight-body) var(--text-gloss)/var(--line-gloss) var(--font-display); color: var(--muted); }
+.spread-column-controls { display: flex; gap: var(--space-4); margin-top: var(--space-8); }
+.spread-value + .spread-value { margin-top: var(--space-8); }
+.spread-mark { margin-left: var(--space-4); color: var(--accent); font: var(--apparatus); }
+.spread-link.button { display: inline; white-space: normal; height: auto; padding: 0; font: inherit; text-align: left; color: var(--agree); }
+.spread-save { padding: var(--card-padding); }
+.spread-save label { display: grid; gap: var(--space-8); }
+.spread-save input { width: 100%; }

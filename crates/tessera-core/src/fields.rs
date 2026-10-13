@@ -218,6 +218,7 @@ impl FieldChanges {
             | Operation::SetProject { .. }
             | Operation::SetPosition { .. }
             | Operation::SetRelation { .. }
+            | Operation::SetSpread { .. }
             | Operation::SetQuestion { .. }
             | Operation::SetQuote { .. }
             | Operation::SetAssessment { .. }

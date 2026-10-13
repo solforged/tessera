@@ -176,6 +176,7 @@ impl Notebook {
                 field_changes.capture(&tx, &revision.id)?;
             }
         }
+        crate::spreads::validate_pages(&tx, &engine.revisions)?;
         let owners = field_changes.derive(&tx)?;
         if validate_page_counts
             && let Some((_, _, id, _)) =
@@ -2039,6 +2040,21 @@ impl Engine<'_, '_> {
             } => {
                 let current = self.checked(id, *base_revision, index, false)?;
                 if crate::relation_store::set(self.tx, id, *relation)? {
+                    self.bump(&current, false)?;
+                    self.capability_sources.insert(id.clone());
+                }
+                Ok(())
+            }
+            Operation::SetSpread {
+                id,
+                base_revision,
+                spread,
+            } => {
+                let current = self.checked(id, *base_revision, index, false)?;
+                if current.block.kind != BlockKind::Page {
+                    return Err(validation("Only a page can be a spread."));
+                }
+                if crate::spreads::set(self.tx, id, *spread)? {
                     self.bump(&current, false)?;
                     self.capability_sources.insert(id.clone());
                 }

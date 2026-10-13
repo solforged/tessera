@@ -72,6 +72,13 @@ export function IndexDirectory(props: IndexPaneProps) {
               <span class="index-directory-count">{tagOnly(kind) ? `${kind.tagged_block_count.toLocaleString()} tagged` : tally(kind.count, kind.key === 'source' ? 'source' : 'note')}</span>
               <Button class="index-directory-open" label={`Open ${kind.plural} ${tagOnly(kind) ? 'table' : 'index'}`} onClick={event => props.onOpen(indexKindTarget(kind), event.shiftKey)}>Open {tagOnly(kind) ? 'table' : 'index'}<Icon name="right" /></Button>
             </div>
+          }</For><For each={list().spreads}>{spread =>
+            <div class="index-directory-row">
+              <Icon name="panes" />
+              <Button class="index-directory-name" onClick={event => props.onOpen({ kind: 'page', pageId: spread.id }, event.shiftKey)}>{spread.title}</Button>
+              <span class="index-directory-count">Spread</span>
+              <Button class="index-directory-open" onClick={event => props.onOpen({ kind: 'page', pageId: spread.id }, event.shiftKey)}>Open spread<Icon name="right" /></Button>
+            </div>
           }</For></div>
         </Show>
       }</Show>

@@ -1686,6 +1686,7 @@ fn undo_grade_rebases_and_preserves_same_timestamp_reset_order_in_patches() {
 
 fn downgrade_review_order(conn: &Connection) {
     common::restore_authored_search(conn);
+    common::restore_pre_spreads(conn);
     common::restore_pre_relations(conn);
     conn.execute_batch(
         "DROP VIEW effective_review_events;

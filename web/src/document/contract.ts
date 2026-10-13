@@ -51,6 +51,7 @@ export interface BlockState {
   readonly project: ProjectState | null;
   readonly position: PositionInfo | null;
   readonly relation: RelationInfo | null;
+  readonly spread?: boolean;
   readonly question: QuestionInfo | null;
   readonly assessment: AssessmentInfo | null;
   readonly quote: QuoteState | null;
@@ -144,6 +145,7 @@ export type Edit =
   | { kind: 'relation'; id: string; value: RelationKind | null; text?: string }
   /** Insert a last child with its kind and target in one authored change. */
   | { kind: 'addRelation'; parentId: string; value: RelationKind; targetId: string; sourceText?: string }
+  | { kind: 'spread'; id: string; value: boolean }
   | { kind: 'question'; id: string; value: QuestionState | null }
   /** Capture or update frozen rows; optional text replaces the picker query in the same undo step. */
   | { kind: 'quote'; id: string; value: QuoteState | null; text?: string }

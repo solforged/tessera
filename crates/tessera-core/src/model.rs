@@ -318,6 +318,11 @@ pub enum Operation {
         base_revision: i64,
         relation: Option<RelationKind>,
     },
+    SetSpread {
+        id: String,
+        base_revision: i64,
+        spread: bool,
+    },
     SetQuote {
         id: String,
         base_revision: i64,

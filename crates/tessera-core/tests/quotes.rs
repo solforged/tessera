@@ -430,6 +430,7 @@ fn migration_indexes_existing_quote_markers() {
     drop(nb);
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
     common::restore_authored_search(&conn);
+    common::restore_pre_spreads(&conn);
     common::restore_pre_relations(&conn);
     conn.execute_batch(
         "DROP TABLE quotes; DELETE FROM links; ALTER TABLE fields DROP COLUMN hide; PRAGMA user_version = 35;",

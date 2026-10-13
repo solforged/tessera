@@ -39,6 +39,7 @@ mod resurface;
 mod review_store;
 pub mod scheduler;
 mod settings;
+mod spreads;
 mod storage;
 mod streams;
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
@@ -97,4 +98,5 @@ pub use references::{
     Mention, PageReferences, ReferenceCount, ReferenceGroup, ReferenceSource, UnlinkedMentions,
 };
 pub use review_store::{ReviewForecastDay, ReviewStats};
+pub use spreads::{Spread, SpreadColumn, SpreadField, SpreadReference, SpreadValue};
 pub use streams::{BatchSubtree, BatchSubtrees, StreamArrival};

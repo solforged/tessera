@@ -348,6 +348,7 @@ fn citation_triage_migration_preserves_existing_evidence() {
     drop(n);
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
     common::restore_authored_search(&conn);
+    common::restore_pre_spreads(&conn);
     common::restore_pre_relations(&conn);
     downgrade_card_schema(&conn);
     conn.execute_batch(
@@ -628,6 +629,7 @@ fn citation_color_migration_preserves_existing_evidence_with_null_color() {
     drop(n);
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
     common::restore_authored_search(&conn);
+    common::restore_pre_spreads(&conn);
     common::restore_pre_relations(&conn);
     downgrade_card_schema(&conn);
     conn.execute_batch(

@@ -633,6 +633,7 @@ export class Notebook implements NotebookClient, DocumentHost {
         case 'project':
         case 'position':
         case 'relation':
+        case 'spread':
         case 'question':
         case 'quote':
         case 'assessment':
@@ -672,6 +673,11 @@ export class Notebook implements NotebookClient, DocumentHost {
             operations.push({ op: 'set_relation', id: action.id, base_revision: block.revision, relation: action.value });
             changed = (value.relation?.kind ?? null) !== action.value;
             value.relation = action.value ? { kind: action.value, source_id: block.page_id, target_id: null, problem: null } : null;
+          } else if (action.kind === 'spread') {
+            if (!!value.spread !== action.previous) throw new Error('Spread changed. Rejected command kept.');
+            operations.push({ op: 'set_spread', id: action.id, base_revision: block.revision, spread: action.value });
+            changed = !!value.spread !== action.value;
+            value.spread = action.value;
           } else if (action.kind === 'question') {
             if (!sameState(value.question?.state ?? null, action.previous)) throw new Error('Question changed. Rejected command kept.');
             operations.push({ op: 'set_question', id: action.id, base_revision: block.revision, question: action.value });
