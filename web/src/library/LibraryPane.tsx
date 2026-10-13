@@ -16,7 +16,7 @@ import { Popup } from '../ui/Popup';
 import { Picker } from '../ui/Picker';
 import { downloadBlob } from '../ui/download';
 import { createSlowFlag } from '../ui/loading';
-import { formatProgress, groupSources, highlightChapterHeading, highlightChapters, highlightEmptyMessage, highlightMeta, importJobName, jobLabel, libraryQuery, nextUnprocessedHighlight, recentJobs, retryTime, selectSources, sourceByline, sourceStateOperation, visibleJobs } from './query';
+import { formatProgress, groupSources, highlightChapterHeading, highlightChapters, highlightEmptyMessage, highlightMeta, importJobName, jobLabel, keepRows, libraryQuery, nextUnprocessedHighlight, recentJobs, retryTime, selectSources, sourceByline, sourceStateOperation, visibleJobs } from './query';
 import { formatSourceValue } from '../outline/source';
 import { createHighlightActions, highlightColors, setLinkedCitation } from './highlights';
 import type { HighlightMenu } from './highlights';
@@ -298,8 +298,8 @@ export function LibraryPane(props: LibraryPaneProps) {
     void props.notebook.api.library({ states: includeInbox ? ['reading', 'inbox'] : ['reading'], sort: order, direction, limit: 100000 }, controller.signal)
       .then(result => {
         if (controller.signal.aborted) return;
-        cache.reading = result.rows.filter(row => row.source.state === 'reading');
-        cache.upNext = result.rows.filter(row => row.source.state === 'inbox');
+        cache.reading = keepRows(reading(), result.rows.filter(row => row.source.state === 'reading'));
+        cache.upNext = keepRows(upNext(), result.rows.filter(row => row.source.state === 'inbox'));
         batch(() => { setReading(cache.reading!); setUpNext(cache.upNext!); setReadingError(''); });
       }, reason => { if (!controller.signal.aborted) setReadingError(reason instanceof Error ? reason.message : String(reason)); });
     onCleanup(() => controller.abort());
@@ -615,7 +615,7 @@ export function LibraryPane(props: LibraryPaneProps) {
           setLibrary(sources);
           if (cited) setHighlights(cited);
           else {
-            setSourceRows(sources.rows);
+            setSourceRows(rows => keepRows(rows, sources.rows));
             const ids = new Set(sources.rows.map(row => row.page.id));
             // Leave the card open when its edits move a source out of the current filter.
             if (!inspecting()) setSelected(previous => new Set([...previous].filter(id => ids.has(id))));
@@ -911,7 +911,7 @@ export function LibraryPane(props: LibraryPaneProps) {
       return <div class="library-row library-source-row" classList={{ 'library-row-selected': selected().has(row.page.id), 'library-source-current': openedSource() === row.page.id }} role="listitem" {...sourceLongPress(row)}>
         <div class="library-leading">
           {/* A 28 px row cannot show a cover legibly; the phone ledger's taller rows can. */}
-          <span class="library-source-image"><Show when={coverLayout() && row.cover} fallback={<Icon name={row.source.format === 'article' ? 'article' : 'book'} />}><ResourceImage snapshotId={row.source.current_snapshot_id ?? ''} href={row.cover!} alt="" loading="lazy" /></Show></span>
+          <span class="library-source-image"><Show when={coverLayout() && row.cover} fallback={<Icon name={(row.snapshot_format ?? row.source.format) === 'article' ? 'article' : 'book'} />}><ResourceImage snapshotId={row.source.current_snapshot_id ?? ''} href={row.cover!} alt="" loading="lazy" /></Show></span>
           <Button role="checkbox" aria-checked={selected().has(row.page.id)} label={`Select ${row.page.text}`} class="icon-only library-checkbox" onClick={event => toggleSelection(row.page.id, event.shiftKey)}>
             <span class="library-checkbox-square"><Show when={selected().has(row.page.id)}><Icon name="check" /></Show></span>
           </Button>
@@ -1239,7 +1239,7 @@ export function LibraryPane(props: LibraryPaneProps) {
         const sheet = coverLayout() && !!state.source;
         const source = state.source;
         return <Menu anchor={state.anchor} label={state.label} items={state.items} placement={sheet ? 'sheet' : 'anchor'} class={sheet ? 'library-source-sheet' : undefined} header={sheet && source ? <header class="library-source-sheet-head">
-          <div><h2>{source.page.text}</h2><p>{sourceByline(source)}</p><p class="library-highlight-meta">{[source.source.siglum, source.source.format === 'epub' ? 'Book' : source.source.format === 'article' ? 'Article' : 'Record', source.publisher, source.progress > 0 ? `${formatProgress(source.progress)} read` : null].filter(Boolean).join(' · ')}</p></div>
+          <div><h2>{source.page.text}</h2><p>{sourceByline(source)}</p><p class="library-highlight-meta">{[source.source.siglum, { epub: 'Book', article: 'Article', record: 'Record' }[source.snapshot_format ?? source.source.format], source.publisher, source.progress > 0 ? `${formatProgress(source.progress)} read` : null].filter(Boolean).join(' · ')}</p></div>
           <Button icon="close" label="Close source actions" onClick={dismiss} />
         </header> : state.Header && <state.Header onDismiss={dismiss} />} onDismiss={dismiss} />;
       }

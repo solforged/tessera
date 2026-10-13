@@ -619,6 +619,8 @@ export interface LibraryPerson { id: string | null; name: string; role: Extracte
 export interface LibraryRow {
   page: Block; source: SourceRecord; creators: string[]; people: LibraryPerson[]; published: string | null;
   publisher: string | null; language: string | null; site: string | null; cover: string | null;
+  /** The current snapshot's format; a record with a saved web page reads `article` here before its source loads. */
+  snapshot_format: SourceFormat | null;
   progress: number; section: string | null; highlights: number; unprocessed: number;
 }
 export interface LibraryFacets {

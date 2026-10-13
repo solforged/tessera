@@ -20,12 +20,17 @@ export function paneTargetIdentity(target: OpenTarget): string {
   }
 }
 
-/** Resolves true once nothing under `root` is marked `data-pane-pending`, or false when `cap` ms pass first. */
+/**
+ * Resolves true once `root` shows a surface with nothing under it marked `data-pane-pending`, or false when `cap` ms
+ * pass first. A lazily loaded pane renders nothing until its module resolves, a microtask after mounting even when it
+ * is cached, so an empty root is still pending.
+ */
 function settled(root: HTMLElement, cap: number): Promise<boolean> {
-  if (!root.querySelector('[data-pane-pending]')) return Promise.resolve(true);
+  const pending = () => !root.firstElementChild || !!root.querySelector('[data-pane-pending]');
+  if (!pending()) return Promise.resolve(true);
   const { promise, resolve } = Promise.withResolvers<boolean>();
   // Rendering is paused while a view transition waits, so nothing here may depend on animation frames.
-  const observer = new MutationObserver(() => { if (!root.querySelector('[data-pane-pending]')) finish(true); });
+  const observer = new MutationObserver(() => { if (!pending()) finish(true); });
   const timer = setTimeout(() => finish(false), cap);
   function finish(value: boolean) { observer.disconnect(); clearTimeout(timer); resolve(value); }
   observer.observe(root, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-pane-pending'] });
@@ -50,8 +55,9 @@ let navigation: object | null = null;
  * Applies a pane navigation as one leaf turning. The outgoing content stays on screen until the incoming surface
  * has something to show (no `data-pane-pending` left, up to `holdLimit`), then the old leaf lifts away and the new
  * one settles from the side it lies on: forward from the right, back from the left. A source cover visible on both
- * sides travels between them. Without view transitions or with reduced motion the change applies at once and the
- * pane's own entry fade runs.
+ * sides travels between them. A surface marked `data-pane-loading` needs animation frames to finish, which the held
+ * transition never gives, so the leaf turns at once and that surface fades in when it lands. Without view
+ * transitions or with reduced motion the change applies at once and the pane's own entry fade runs.
  */
 export function navigatePane(pane: string, direction: 'forward' | 'back', apply: () => void, sourceId?: string) {
   const content = () => document.querySelector<HTMLElement>(`section.pane[data-pane="${CSS.escape(pane)}"] > .pane-content`);
@@ -83,7 +89,7 @@ export function navigatePane(pane: string, direction: 'forward' | 'back', apply:
     const incoming = content();
     if (!incoming) return;
     nameElement(incoming, name);
-    const ready = await settled(incoming, holdLimit);
+    const ready = await settled(incoming, holdLimit) && !incoming.querySelector('[data-pane-loading]');
     // A surface shown ready by the transition skips its own entry fade; one still loading keeps it for when it lands.
     incoming.toggleAttribute('data-entered', ready);
     if (ready && sourceId) nameElement(sourceCover(incoming, sourceId), 'source-cover');
@@ -106,7 +112,7 @@ export function createPaneMotion(content: Accessor<HTMLElement>, identity: Acces
     for (const animation of animations) animation.cancel();
     animations.clear();
   };
-  const animate = (element: HTMLElement, frames: Keyframe[], id: string, finished?: () => void) => {
+  const animate = (element: HTMLElement, frames: Keyframe[], id: string, finished?: () => void): Animation | undefined => {
     if (reduced.matches) { finished?.(); return; }
     const style = getComputedStyle(content());
     const time = style.getPropertyValue('--motion-ui').trim();
@@ -118,6 +124,7 @@ export function createPaneMotion(content: Accessor<HTMLElement>, identity: Acces
     const done = () => { animations.delete(animation); finished?.(); };
     animation.onfinish = done;
     animation.oncancel = done;
+    return animation;
   };
   let previous: string | undefined;
   let pendingEntry = false;
@@ -148,7 +155,8 @@ export function createPaneMotion(content: Accessor<HTMLElement>, identity: Acces
       stop();
     };
     // A mode switch fades the new panel in. The old one is gone already; cloning it for a cross-fade cost a deep copy of large lists on every click.
-    // A panel still showing the previous selection's rows marks itself aria-busy; it fades when its own rows land, not at the click.
+    // A panel still showing the previous selection's rows marks itself aria-busy. It is held clear from the click and fades when its own rows
+    // land, so neither stale rows nor a first render shows at full strength and then dips into the fade. A slow load shows after `holdLimit`.
     const click = (event: MouseEvent) => {
       const button = (event.target as Element).closest<HTMLButtonElement>('.mode-tabs > button');
       const strip = button?.parentElement;
@@ -161,14 +169,16 @@ export function createPaneMotion(content: Accessor<HTMLElement>, identity: Acces
         if (!incoming) return;
         stop();
         pendingEntry = false;
-        if (incoming.getAttribute('aria-busy') !== 'true') { animate(incoming, [{ opacity: 0 }, { opacity: 1 }], 'mode-enter'); return; }
-        const observer = new MutationObserver(() => {
-          if (incoming.getAttribute('aria-busy') === 'true') return;
-          release();
-          if (incoming.isConnected) animate(incoming, [{ opacity: 0 }, { opacity: 1 }], 'mode-enter');
-        });
-        const release = () => { observer.disconnect(); clearTimeout(timer); if (waiting === release) waiting = null; };
-        const timer = setTimeout(release, 2000);
+        const fade = animate(incoming, [{ opacity: 0 }, { opacity: 1 }], 'mode-enter');
+        if (!fade || incoming.getAttribute('aria-busy') !== 'true') return;
+        fade.pause();
+        const observer = new MutationObserver(() => { if (incoming.getAttribute('aria-busy') !== 'true') release(); });
+        const release = () => {
+          observer.disconnect(); clearTimeout(timer);
+          if (waiting === release) waiting = null;
+          if (fade.playState === 'paused') fade.play();
+        };
+        const timer = setTimeout(release, holdLimit);
         waiting = release;
         observer.observe(incoming, { attributes: true, attributeFilter: ['aria-busy'] });
       });

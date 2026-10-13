@@ -1511,6 +1511,9 @@ fn reading_position_changes_state_once_and_library_filters_sort() {
     assert_eq!(library.rows[0].cover, None);
     assert_eq!(library.rows[1].site, None);
     assert_eq!(library.rows[1].cover.as_deref(), Some("images/cover.jpg"));
+    // Lists choose a cover or a spine from the snapshot before loading the source.
+    assert_eq!(library.rows[0].snapshot_format.as_deref(), Some("article"));
+    assert_eq!(library.rows[1].snapshot_format.as_deref(), Some("epub"));
     assert_eq!(library.rows[1].progress, second.progress);
     // The row names the innermost contents entry at the reading position.
     assert_eq!(library.rows[1].section.as_deref(), Some("Later"));

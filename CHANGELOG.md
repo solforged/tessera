@@ -78,6 +78,9 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ### Fixed
 
+- Returning to the Library from a source page carries the cover back into its card or shelf slot, instead of the leaf cutting short because the cards remounted under it. A Library refresh keeps unchanged cards and covers in place.
+- Opening the Library from the sidebar holds the previous page until its rows arrive, and other panes until they first render, instead of turning to an empty pane. Opening a book turns to the reader at once and fades its text in where it lands.
+- Switching Library tabs no longer shows the new rows at full strength and then dims them into the fade; the list fades in once its own rows arrive. Reading now cards no longer flash a spine on articles or change their chapter line after the tab returns, and the Library's list shows the article icon for saved web pages.
 - Clicking a perspective's holder opens the holder's page instead of the Change holder picker, and a Work that points at a highlight shows its source's siglum.
 - Read shows a field such as Strand once beside its value, instead of a second label row above it, and a Work cited from a highlight stays faint on its slip.
 - Typing `|` in link completion picks the highlighted page and starts the alias, so `[[gen|memory boost]]` links Generation effect and reads "memory boost".

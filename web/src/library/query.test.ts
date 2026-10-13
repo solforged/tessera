@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { Citation, HighlightRow, IngestJob, LibraryFilters, LibraryRow } from '../api/types';
-import { groupSources, highlightChapterHeading, highlightChapters, highlightEmptyMessage, highlightLocation, highlightMeta, importJobName, jobLabel, libraryQuery, nextUnprocessedHighlight, recentJobs, retryTime, selectSources, sourceByline, sourceStateOperation, visibleJobs } from './query';
+import { groupSources, highlightChapterHeading, highlightChapters, highlightEmptyMessage, highlightLocation, highlightMeta, importJobName, jobLabel, keepRows, libraryQuery, nextUnprocessedHighlight, recentJobs, retryTime, selectSources, sourceByline, sourceStateOperation, visibleJobs } from './query';
 
 const filters: LibraryFilters = { people: [], decades: [], publishers: [], languages: [] };
 
@@ -18,6 +18,16 @@ describe('library queries', () => {
       expect(libraryQuery({ tab: 'inbox', text: '', sort, filters }).direction).toBe(sort === 'title' || sort === 'author' ? 'asc' : 'desc');
     }
   });
+});
+
+test('a refresh keeps unchanged rows as the same objects and replaces changed ones', () => {
+  const row = (id: string, progress: number) => ({ page: { id }, progress, people: [] }) as unknown as LibraryRow;
+  const before = [row('a', 0.1), row('b', 0.2)];
+  const after = keepRows(before, [row('b', 0.2), row('a', 0.5), row('c', 0)]);
+  // Lists key their items by object, so a kept row keeps its card, its cover and a cover in flight.
+  expect(after[0]).toBe(before[1]!);
+  expect(after[1]).not.toBe(before[0]!);
+  expect(after.map(value => [value.page.id, value.progress])).toEqual([['b', 0.2], ['a', 0.5], ['c', 0]]);
 });
 
 test('groups keep listed order, use the first author or editor, and put missing values last', () => {

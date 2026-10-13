@@ -886,11 +886,13 @@ impl Notebook {
             .filter_map(|(s, _)| s.current_snapshot_id.as_ref())
             .collect();
         let mut statement = self.conn.prepare_cached(
-            "SELECT id, json_extract(metadata, '$.cover') FROM snapshots
+            "SELECT id, format, json_extract(metadata, '$.cover') FROM snapshots
              WHERE id IN (SELECT value FROM json_each(?1))",
         )?;
-        let covers: HashMap<String, Option<String>> = statement
-            .query_map([json(&snapshot_ids)], |r| Ok((r.get(0)?, r.get(1)?)))?
+        let snapshots: HashMap<String, (String, Option<String>)> = statement
+            .query_map([json(&snapshot_ids)], |r| {
+                Ok((r.get(0)?, (r.get(1)?, r.get(2)?)))
+            })?
             .collect::<rusqlite::Result<_>>()?;
         let mut statement = self.conn.prepare_cached(
             "SELECT s.id, CAST(p.start AS REAL) / s.text_length, rp.passage_ordinal
@@ -1020,18 +1022,15 @@ impl Notebook {
                 .and_then(|id| positions.get(id))
                 .map_or(0.0, |(progress, _)| *progress);
             let (highlights, unprocessed) = totals.remove(&source.block_id).unwrap_or_default();
+            let snapshot = source
+                .current_snapshot_id
+                .as_ref()
+                .and_then(|id| snapshots.get(id));
             let cover = fields
                 .get("cover")
                 .and_then(|values| values.first())
                 .cloned()
-                .or_else(|| {
-                    source
-                        .current_snapshot_id
-                        .as_ref()
-                        .and_then(|id| covers.get(id))
-                        .cloned()
-                        .flatten()
-                });
+                .or_else(|| snapshot.and_then(|(_, cover)| cover.clone()));
             rows.push(LibraryRow {
                 page,
                 source,
@@ -1042,6 +1041,7 @@ impl Notebook {
                 published: published.cloned(),
                 site: fields.get("site").and_then(|v| v.first()).cloned(),
                 cover,
+                snapshot_format: snapshot.map(|(format, _)| format.clone()),
                 progress,
                 section: None,
                 highlights,

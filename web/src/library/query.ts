@@ -3,6 +3,7 @@ import type { LibraryGroup, LibraryViewState } from '../shell/contract';
 import { formatSourceValue } from '../outline/source';
 import type { HighlightSection } from './highlights';
 import { referenceValue } from '../outline/names';
+import { sameState } from '../document/types';
 
 export function libraryQuery(view: Pick<LibraryViewState, 'tab' | 'text' | 'sort' | 'filters' | 'collection'>): LibraryQuery {
   return {
@@ -61,6 +62,19 @@ export function sourceByline(row: Pick<LibraryRow, 'creators' | 'site' | 'publis
 /** Whole percent, rounded down so a source never reads 100% before its last passage; a started source never reads as 0%. */
 export function formatProgress(progress: number): string {
   return progress > 0 && progress < 0.01 ? '<1%' : `${Math.floor(progress * 100)}%`;
+}
+
+/**
+ * `next`, with each row that has not changed since `previous` kept as the same object. Lists key their items by
+ * object, so a refresh then leaves unchanged rows, their covers and any cover a view transition is carrying in place.
+ */
+export function keepRows(previous: readonly LibraryRow[] | undefined, next: LibraryRow[]): LibraryRow[] {
+  if (!previous?.length) return next;
+  const earlier = new Map(previous.map(row => [row.page.id, row]));
+  return next.map(row => {
+    const old = earlier.get(row.page.id);
+    return old && sameState(old, row) ? old : row;
+  });
 }
 
 export function highlightEmptyMessage(total: number | undefined, unprocessedOnly: boolean): string {

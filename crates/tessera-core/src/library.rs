@@ -456,6 +456,10 @@ pub struct LibraryRow {
     pub published: Option<String>,
     pub site: Option<String>,
     pub cover: Option<String>,
+    /// The current snapshot's format, such as `article` for a record with a saved web page, so lists can show the
+    /// right cover or spine before loading the source.
+    #[serde(default)]
+    pub snapshot_format: Option<String>,
     pub progress: f64,
     /// Contents entry covering the saved reading position.
     pub section: Option<String>,
