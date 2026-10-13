@@ -23,7 +23,7 @@ import { FilterPopup } from './FilterPopup';
 import { addFilter, chooseSort, copyQuery, fieldEntryId, fieldEntryText, filterLabel, queriesEqual, removeFilter, removeSort, sortLabel } from './query';
 import { sourceText } from './sources';
 import type { TableSource } from './sources';
-import { cardFields, retainCell, rowSources, sourceDefinition, splitMembers } from './register';
+import { cardFields, registerMembers, retainCell, rowSources, sourceDefinition } from './register';
 import type { TableCell } from './register';
 import './table.css';
 
@@ -126,7 +126,7 @@ export function TablePane(props: TablePaneProps) {
   });
   const fieldById = (id: string) => fields().find(field => field.id === id);
   const visibleColumns = createMemo(() => (result()?.columns ?? []).filter(id => !hiddenFields().includes(id)));
-  const members = createMemo(() => splitMembers(result()?.rows ?? []));
+  const members = createMemo(() => registerMembers(result()?.rows ?? []));
   const sourceField = createMemo(() => sourceDefinition(result()?.columns ?? [], fields()));
   const showRefs = () => !!sourceField() && !hiddenFields().includes(refsColumn);
   const sourcesByRow = createMemo(() => new Map((result()?.rows ?? []).map(row => [row.block.block.id, rowSources(row, sourceField())])));
@@ -136,7 +136,7 @@ export function TablePane(props: TablePaneProps) {
     return kind === 'text' || kind === 'url' ? 'var(--table-source-width)' : kind === 'number' || kind === 'checkbox' || kind === 'date' ? 'var(--table-compact-width)' : 'var(--table-field-width)';
   };
   createEffect(() => {
-    setFocused(retainCell(untrack(focused), members().notes, visibleColumns()));
+    setFocused(retainCell(untrack(focused), members().rows, visibleColumns()));
   });
   const reportView = (value = query()) => props.onViewChange({
     query: copyQuery(value), scroll: scroll?.scrollTop ?? props.view.scroll,
@@ -399,7 +399,7 @@ export function TablePane(props: TablePaneProps) {
       event.preventDefault(); event.stopPropagation(); void replayCell(event.shiftKey).catch(message); return;
     }
     if (event.target instanceof HTMLElement && event.target.closest('button, a')) return;
-    const current = focused(); const rows = members().notes; const columns = visibleColumns();
+    const current = focused(); const rows = members().rows; const columns = visibleColumns();
     const rowIndex = Math.max(0, rows.findIndex(row => row.block.block.id === current.rowId));
     const columnIndex = current.fieldId ? columns.indexOf(current.fieldId) + 1 : 0;
     const row = rows[rowIndex];
@@ -462,12 +462,15 @@ export function TablePane(props: TablePaneProps) {
           <thead><tr><th scope="col" class="table-title-column"><Button aria-haspopup="menu" onClick={event => columnMenu(event.currentTarget, undefined)}>Title</Button></th>
           <For each={visibleColumns()}>{id => <th scope="col"><Button aria-haspopup="menu" onClick={event => columnMenu(event.currentTarget, fieldById(id))}>{fieldById(id)?.name ?? id}</Button></th>}</For>
           <Show when={showRefs()}><th scope="col" class="table-refs" title={`Derived from ${sourceField()?.name ?? 'Source'}`}>Refs</th></Show>
-        </tr></thead><tbody><For each={members().notes}>{row => <tr data-block-id={row.block.block.id} classList={{ selected: selectedRow() === row.block.block.id }} onClick={event => {
+        </tr></thead><tbody><For each={members().rows}>{row => <>
+        <Show when={members().taggedGroup?.rowId === row.block.block.id}><tr class="table-member-group"><th colSpan={1 + visibleColumns().length + (showRefs() ? 1 : 0)}><span class="table-member-group-label">Tagged blocks <span>{members().taggedGroup?.count}</span></span></th></tr></Show>
+        <tr data-block-id={row.block.block.id} classList={{ selected: selectedRow() === row.block.block.id }} onClick={event => {
           if (window.matchMedia('(pointer: coarse) and (min-width: 900px)').matches && !(event.target as HTMLElement).closest('button, input, textarea, a')) openRow(row, true);
         }}>
           <td class="table-title-column table-cell" tabIndex={focused().rowId === row.block.block.id && focused().fieldId === null ? 0 : -1} onFocus={() => { setFocused({ rowId: row.block.block.id, fieldId: null }); setSelectedRow(row.block.block.id); }} onClick={event => { event.stopPropagation(); openRow(row, event.shiftKey); }}>
-            <TableCellText>{expanded => <BlockText text={preview(props.notebook.lookup(row.block.block.id)()?.text ?? row.block.block.text, expanded)} notebook={props.notebook} interactive={false} />}</TableCellText>
-            <Button class="table-row-beside" label="Open note beside" onClick={event => { event.stopPropagation(); openRow(row, true); }}>↗</Button>
+            <TableCellText>{expanded => <BlockText text={preview(props.notebook.lookup(row.block.block.id)()?.text ?? row.block.block.text, expanded)} notebook={props.notebook} interactive={false} cards />}</TableCellText>
+            <Show when={row.block.block.kind === 'block'}><div class="table-page-title">in {row.block.page.text}</div></Show>
+            <Button class="table-row-beside" label={row.block.block.kind === 'block' ? 'Open block beside' : 'Open note beside'} onClick={event => { event.stopPropagation(); openRow(row, true); }}>↗</Button>
           </td>
           <For each={visibleColumns()}>{id => {
             const field = () => fieldById(id); const current = () => editing();
@@ -481,23 +484,19 @@ export function TablePane(props: TablePaneProps) {
               </Show>
             </td>;
           }}</For><Show when={showRefs()}><td class="table-refs"><Show when={(sourcesByRow().get(row.block.block.id) ?? []).length}>{count => <Button class="table-source-count" label={`${count()} ${count() === 1 ? 'reference' : 'references'}`} aria-haspopup="dialog" onClick={event => { event.stopPropagation(); setPopup({ kind: 'sources', anchor: event.currentTarget, label: sourceField()?.name ?? 'Source', sources: sourcesByRow().get(row.block.block.id) ?? [] }); }}>{count()}</Button>}</Show></td></Show>
-        </tr>}</For></tbody></table>
-        <div class="table-cards" role="list" aria-label="Notes"><For each={members().notes}>{row => <article class="table-card" data-block-id={row.block.block.id} classList={{ selected: selectedRow() === row.block.block.id }} role="listitem" onClick={event => {
+        </tr></>}</For></tbody></table>
+        <div class="table-cards" role="list" aria-label="Members"><For each={members().rows}>{row => <>
+        <Show when={members().taggedGroup?.rowId === row.block.block.id}><div class="table-card-group" role="presentation"><span class="table-member-group-label">Tagged blocks <span>{members().taggedGroup?.count}</span></span></div></Show>
+        <article class="table-card" data-block-id={row.block.block.id} classList={{ selected: selectedRow() === row.block.block.id }} role="listitem" onClick={event => {
           if (!(event.target as HTMLElement).closest('button, [role="button"], a')) openRow(row, event.shiftKey);
         }}>
-          <Button class="table-card-title" onClick={event => openRow(row, event.shiftKey)}><BlockText text={props.notebook.lookup(row.block.block.id)()?.text ?? row.block.block.text} notebook={props.notebook} interactive={false} /><span class="table-card-arrow" aria-hidden="true">›</span></Button>
+          <Button class="table-card-title" onClick={event => openRow(row, event.shiftKey)}><span class="table-card-text"><BlockText text={props.notebook.lookup(row.block.block.id)()?.text ?? row.block.block.text} notebook={props.notebook} interactive={false} cards /></span><span class="table-card-arrow" aria-hidden="true">›</span></Button>
+          <Show when={row.block.block.kind === 'block'}><div class="table-page-title">in {row.block.page.text}</div></Show>
           <div class="table-card-fields"><For each={cardFields(row, visibleColumns(), fields(), sourceField())}>{field => <div class={`table-card-field table-kind-${field.kind}`} classList={{ 'table-card-source': field.id === sourceField()?.id }} role="button" tabIndex={0} aria-label={`Open ${field.name} field`} onClick={event => { event.stopPropagation(); if (!(event.target as HTMLElement).closest('button')) openField(row, field); }} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); openField(row, field); } }}>
             <TableFieldValue field={field} values={row.values[field.id] ?? []} notebook={props.notebook} hideCount onPill={(value, anchor, beside) => { void openPill(row, field, value, anchor, beside).catch(message); }} onSources={(anchor, sources) => setPopup({ kind: 'sources', anchor, label: field.name, sources })} />
           </div>}</For><Show when={showRefs() && (sourcesByRow().get(row.block.block.id) ?? []).length}>{count => <Button class="table-source-count table-card-refs" label={`${count()} references`} aria-haspopup="dialog" onClick={event => { event.stopPropagation(); setPopup({ kind: 'sources', anchor: event.currentTarget, label: sourceField()?.name ?? 'Source', sources: sourcesByRow().get(row.block.block.id) ?? [] }); }}>{count()} {count() === 1 ? 'ref' : 'refs'}</Button>}</Show></div>
-        </article>}</For></div>
-        <Show when={!loading() && !error() && !members().notes.length}><p class="table-empty">No note members.</p></Show>
-        <Show when={members().blocks.length}><section class="table-tagged-blocks" aria-label="Tagged blocks">
-          <h2>Tagged blocks <span class="table-popup-count">{members().blocks.length}</span></h2>
-          <For each={members().blocks}>{row => <div class="table-block-member" data-block-id={row.block.block.id}>
-            <div><div class="table-block-text"><BlockText text={preview(props.notebook.lookup(row.block.block.id)()?.text ?? row.block.block.text, false)} notebook={props.notebook} interactive={false} /></div><div class="table-page-title">Block in {row.block.page.text}</div></div>
-            <Button class="bordered" onClick={event => openRow(row, event.shiftKey)}>Open ↗</Button>
-          </div>}</For>
-        </section></Show>
+        </article></>}</For></div>
+        <Show when={!loading() && !error() && !members().rows.length}><p class="table-empty">No members.</p></Show>
       </div>
       <Show when={edge().hidden}><div class="table-more-right" style={{ height: `${edge().height}px` }}><Button class="table-more-columns" label={`Scroll to ${edge().hidden} more ${edge().hidden === 1 ? 'column' : 'columns'}`} onClick={showMoreColumns}>+{edge().hidden} <Icon name="right" /></Button></div></Show>
       </div>

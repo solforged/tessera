@@ -108,7 +108,7 @@ Apparatus headers are sticky on `--canvas`, with the title sticky at the left. C
 
 Source values keep the first authored label and hostname, with a named derived Refs column opening every original URL destination. Labels can be Markdown links or `Title: URL`; bare URLs use their hostname/path. Remaining prose stays visible, and invalid readings retain their warning.
 
-Tagged non-page members appear in a separate counted Tagged blocks section. Their text is clamped to three lines, with source-page context and an Open action that shows the whole block.
+Note and tagged non-page members share the same grid and field cells, ordered notes first and then blocks while retaining query order within each kind. Only a mixed register inserts a full-width mono Tagged blocks row with its count and a hairline above; a block-only register needs no divider. Block titles use the same three-line clamp and More/Less expansion as note titles, followed by a faint apparatus `in <page title>` line (the journal date for journal pages). Titles reuse the outline's quiet card display: direction arrows are faint and cloze answers have a dotted underline.
 
 Columns past the right edge fade under the rows. `+N ›` at the header's end counts them and scrolls to them.
 
@@ -118,7 +118,7 @@ Enter or double-click edits a single plain text, number, URL or identifier value
 
 Inline text editors keep authored line breaks. Shift-Enter adds a newline; Enter commits the value.
 
-Cell focus follows the note and field, so an edit that re-sorts the table keeps the keyboard on that note's value.
+Cell focus follows the member and field, whether a note or a tagged block, so an edit that re-sorts the table keeps the keyboard on that member's value.
 
 ⌘Z and ⌘⇧Z in the table undo and redo its value edits. Clearing a value preserves its block and child notes; refilling reuses a blank value block. Inline editors do not replace structured text with a rendered label.
 
@@ -138,19 +138,19 @@ Queries page by a zero-based offset with block ID as the deterministic ordering 
 
 ### Empty states
 
-Empty states distinguish an empty note section from the separate tagged-block section.
+Only a result with no members of either kind shows `No members.` once. A block-only register is populated, not an empty note section.
 
 ### Opening and selection
 
 | Input or layout | Behavior |
 | --- | --- |
-| Desktop title click or Enter | Keeps the current-pane behavior; Shift opens beside. |
+| Desktop title click or Enter | Opens the note or the tagged block in its containing page; Shift opens beside. |
 | Selected row | Gilt left bar and an explicit open-beside affordance. |
-| Coarse pointer at least 900 px wide | A row tap opens the canonical note beside by default. |
+| Coarse pointer at least 900 px wide | A row tap opens the canonical note or block beside by default. |
 | Narrow table pane on that unfolded screen | Becomes a touch-sized row list while keeping its query controls. |
 
 ### Cover cards
 
-On coarse pointers below 600 px, cards replace the grid without lateral scrolling. Each shows its title, the first visible non-empty choice and Source or first reference, falling back to other visible values when absent, plus the derived refs count. Field taps open their canonical entries; refs open the destination list.
+On coarse pointers below 600 px, cards replace the grid without lateral scrolling. Notes and tagged blocks share the same ordered list, with the counted apparatus divider only for mixed membership. Each shows its title (and `in <page title>` beneath a block title), the first visible non-empty choice and Source or first reference, falling back to other visible values when absent, plus the derived refs count. Field taps open their canonical entries; refs open the destination list.
 
 Filters, Sort and Columns form a bottom toolbar above the nav and bottom inset. Filters uses a sheet with 44 px targets and an explicit Apply. Draft selections leave the rows and totals unchanged; saving the named view remains separate.

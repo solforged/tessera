@@ -12,11 +12,11 @@ export function retainCell(cell: TableCell, rows: readonly QueryRow[], columns: 
   return rowId === cell.rowId && fieldId === cell.fieldId ? cell : { rowId, fieldId };
 }
 
-/** Block memberships remain visible, but never masquerade as titled notes. */
-export function splitMembers(rows: readonly QueryRow[]): { notes: QueryRow[]; blocks: QueryRow[] } {
+/** One register orders notes before blocks, with an apparatus divider only for mixed membership. */
+export function registerMembers(rows: readonly QueryRow[]): { rows: QueryRow[]; taggedGroup: { rowId: string; count: number } | null } {
   const notes: QueryRow[] = []; const blocks: QueryRow[] = [];
   for (const row of rows) (row.block.block.kind === 'block' ? blocks : notes).push(row);
-  return { notes, blocks };
+  return { rows: [...notes, ...blocks], taggedGroup: notes.length && blocks.length ? { rowId: blocks[0]!.block.block.id, count: blocks.length } : null };
 }
 
 /** Refs is a derived view of the authored Source field, not a stored field. */

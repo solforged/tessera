@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { BlockKind, FieldDefinition, QueryRow } from '../api/types';
-import { cardFields, retainCell, rowSources, sourceDefinition, splitMembers } from './register';
+import { cardFields, registerMembers, retainCell, rowSources, sourceDefinition } from './register';
 
 function row(id: string, kind: BlockKind, values: Record<string, string[]> = {}): QueryRow {
   const block = { id, kind, parent_id: kind === 'block' ? 'page' : null, page_id: kind === 'block' ? 'page' : id, text: id, heading: null, archived: false, revision: 0, created_at: 0, updated_at: 0 } as const;
@@ -15,10 +15,19 @@ const fields: FieldDefinition[] = [
 ];
 
 describe('table register presentation', () => {
-  test('separates tagged blocks without losing order or journal members', () => {
-    const rows = [row('first', 'page'), row('tagged', 'block'), row('day', 'journal'), row('another-tag', 'block')] as const;
-    expect(splitMembers(rows)).toEqual({ notes: [rows[0], rows[2]], blocks: [rows[1], rows[3]] });
-    expect(rows).toHaveLength(4);
+  test('orders notes before tagged blocks, retaining query order, values and journal members', () => {
+    const rows = [row('tagged', 'block', { title: ['Block field value'] }), row('first', 'page'), row('another-tag', 'block'), row('day', 'journal')] as const;
+    const members = registerMembers(rows);
+    expect(members.rows).toEqual([rows[1], rows[3], rows[0], rows[2]]);
+    expect(members.rows[2]).toBe(rows[0]);
+    expect(members.rows[2]!.values.title![0]!.text).toBe('Block field value');
+    expect(members.taggedGroup).toEqual({ rowId: 'tagged', count: 2 });
+    expect(rows.map(member => member.block.block.id)).toEqual(['tagged', 'first', 'another-tag', 'day']);
+  });
+  test('single-kind and empty registers never introduce a tagged-block divider', () => {
+    for (const rows of [[], [row('first', 'page'), row('day', 'journal')], [row('tagged', 'block'), row('another-tag', 'block')]]) {
+      expect(registerMembers(rows)).toEqual({ rows, taggedGroup: null });
+    }
   });
   test('derives refs from Source before a URL field and preserves repeated authored destinations', () => {
     const source = sourceDefinition(['url', 'source'], fields);
@@ -45,6 +54,13 @@ describe('table cell ownership', () => {
     const cell = { rowId: 'Polybius', fieldId: 'lived' };
     expect(retainCell(cell, [rows[3]!, ...rows.slice(0, 3)], ['gloss', 'lived'])).toBe(cell);
     expect(retainCell(cell, rows, ['lived', 'gloss'])).toBe(cell);
+  });
+  test('retains a tagged block cell across mixed-member grouping and sorting', () => {
+    const tagged = row('tagged', 'block', { title: ['Field value'] });
+    const note = row('note', 'page');
+    const cell = { rowId: 'tagged', fieldId: 'title' };
+    expect(retainCell(cell, registerMembers([tagged, note]).rows, ['title'])).toBe(cell);
+    expect(retainCell(cell, registerMembers([note, tagged]).rows, ['title'])).toBe(cell);
   });
   test('uses the title when the field is hidden and a surviving entity when the row leaves', () => {
     const cell = { rowId: 'Polybius', fieldId: 'lived' };

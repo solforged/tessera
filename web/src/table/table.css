@@ -42,7 +42,7 @@
 .table-cell.table-title-column { cursor: pointer; }
 .type-table :is(.table-kind-number, .table-refs) { text-align: right; font: var(--apparatus); font-variant-numeric: tabular-nums; }
 .table-kind-date { font: var(--apparatus); font-variant-numeric: tabular-nums; }
-.table-page-title { color: var(--faint); font: var(--apparatus); margin-top: var(--space-8); }
+.table-page-title { color: var(--faint); font: var(--apparatus); margin-top: var(--space-4); white-space: normal; }
 .table-value-pill.button { display: inline-block; min-height: 0; padding: 0 var(--space-8); margin: var(--rule-width) var(--space-2) var(--rule-width) 0; border: var(--rule-width) solid var(--line); border-radius: var(--radius-pill); background: transparent; font-size: var(--text-meta); font-weight: var(--weight-body); line-height: var(--line-meta); white-space: normal; }
 .table-reading-problem { text-decoration: underline dotted var(--warning); text-underline-offset: var(--space-4); }
 .table-cell-input { display: block; width: 100%; min-width: 0; padding: var(--space-4); min-height: var(--row-height); resize: vertical; font: inherit; line-height: inherit; }
@@ -84,17 +84,16 @@
 .table-grid tr:hover .table-row-beside, .table-grid tr.selected .table-row-beside, .table-row-beside:focus-visible { visibility: visible; }
 .table-kind-instance .table-value-pill { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 30%, transparent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
 .table-kind-choice .table-value-pill { background: var(--surface); color: var(--muted); }
-.table-tagged-blocks { margin-top: var(--space-32); padding-top: var(--space-16); border-top: var(--rule-width) solid var(--line); }
-.table-tagged-blocks h2 { display: flex; align-items: baseline; gap: var(--space-12); margin: 0 0 var(--space-12); font-family: var(--font-display); font-size: var(--text-h2); line-height: var(--line-h2); font-weight: var(--weight-display-heading); font-variation-settings: var(--optical-heading); }
-.table-block-member { display: flex; align-items: center; gap: var(--space-16); padding: var(--space-16) var(--space-8); border-top: var(--rule-width) solid var(--line); }
-.table-block-member > div { flex: 1; min-width: 0; }
-.table-block-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; color: var(--muted); overflow-wrap: anywhere; font-size: var(--text-control); line-height: var(--line-control); }
-.table-block-member > .button { flex: none; }
+.type-table .table-member-group th { position: static; padding: var(--space-16) var(--space-8) var(--space-8); border-top: var(--rule-width) solid var(--line); border-bottom: 0; }
+.type-table tr:has(+ .table-member-group) td { border-bottom: 0; }
+.table-member-group-label { display: flex; align-items: baseline; gap: var(--space-8); color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.table-card-group { margin-top: var(--space-16); padding: var(--space-8) var(--card-padding); border-top: var(--rule-width) solid var(--line); }
 .table-empty { color: var(--faint); font-size: var(--text-control); padding: var(--space-16) var(--space-8); }
 .table-cards { display: none; border-top: var(--rule-width) solid var(--line); }
 .table-card { position: relative; padding: var(--card-padding); border-bottom: var(--rule-width) solid var(--line); }
 .table-card.selected { background: var(--selection); box-shadow: inset var(--space-2) 0 var(--accent); }
 .table-card-title.button { justify-content: flex-start; width: 100%; padding: 0; border: 0; text-align: left; font-family: var(--font-display); font-size: var(--text-h2); line-height: var(--line-h2); font-weight: var(--weight-display-heading); font-variation-settings: var(--optical-heading); }
+.table-card-text { min-width: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
 .table-card-arrow { margin-left: auto; flex: none; color: var(--faint); }
 .table-card-fields { display: flex; align-items: center; flex-wrap: wrap; gap: var(--section-item-gap) var(--space-12); margin-top: var(--section-item-gap); }
 .table-card-field { display: flex; align-items: center; min-width: var(--target-size); min-height: var(--target-size); max-width: 100%; cursor: pointer; color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
