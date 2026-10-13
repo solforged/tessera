@@ -181,7 +181,7 @@ Planned rows reschedule without dragging:
 
 Date-only moves keep the time, deadline and repeat, and keep the keyboard on the next row when the task leaves the list. The picker also edits time, including a same-day change; clearing its time makes the task all-day. An inline date/time updates the time field, and editing that field normalizes the date to avoid competing clocks.
 
-On today, timed work whose time has passed recedes to `--muted` above a gilt rule that starts from a gilt dot at the present. Untimed work and work in progress stay below it.
+On today, timed rows stay chronological regardless of status, with every elapsed clock above a gilt rule that starts from a gilt dot at the present. Past work recedes to `--muted`; work in progress keeps its status appearance. Untimed work stays below the rule.
 
 ### Groups
 
@@ -205,13 +205,17 @@ Opening a row still opens its source, and Shift opens it beside. Completion and 
 
 ## Week
 
-Week shows the displayed date's Monday-start week in seven day columns. Previous week, Next week and Today use the same single date control. Week drops the week strip, since the grid's header already names the days.
+Week shows the displayed date's Monday-start week. Previous week, Next week and Today use the same single date control. Week drops the week strip, since its day headings already name the days.
 
 The heading, shared tabs, drag hint and drop feedback keep the same 760 px measure and alignment across Day, Week and Tasks even when the week grid is wider.
 
 The all-day strip holds untimed scheduled tasks and deadlines labeled Due. Each card leads with its status glyph in the status color, then the time or Due in mono. Timed scheduled tasks sit in an hourly grid, initially scrolled to 08:00 or the earliest earlier task. Overlapping times use separate lanes.
 
-Narrow panes scroll horizontally rather than compressing tasks into overlapping columns. They open with the displayed day first after the hours, which reads as a three-day view on the cover.
+At an Agenda container width below 600 px, Week becomes a seven-day ledger on one scroll axis, including narrow desktop splits. Mono weekdays, serif numerals, hairlines and faint open counts head Day's canonical task rows. Today's numeral and now rule are gilt. Timed rows stay chronological regardless of status, with every elapsed clock above the rule and untimed work below it. Empty days take one line. Days before today fold to a done count and any open count, and expand on tap.
+
+The ledger replaces the drag hint with a mono week range, open-task count and due count. A task with both dates on the same day appears once. It has no drag: each open row offers Day's calendar button and keyboard planning behavior, and completion uses that row's day.
+
+At 600 px and wider the grid remains. Intermediate-width panes, including the unfolded Fold, fit all seven columns and subdivide overlapping lanes inside each day without sideways scrolling. Wider desktop grids retain their existing column measure.
 
 ### Dragging and keyboard moves
 

@@ -46,16 +46,26 @@ export function TaskSourceRows(props: {
   plan?: boolean;
   /** The notebook clock while the displayed day is today: past timed rows fade under a now rule. */
   now?: string;
+  /** Week keeps today's rule even when no row has a clock. */
+  showNow?: boolean;
+  /** Week's gutter names an untimed deadline and uses only this day's exact plan clock. */
+  deadlineLabel?: boolean;
   onOpen(target: OpenTarget, beside: boolean): void;
   onChanged(): void;
 }) {
   const byId = createMemo(() => new Map(props.rows.map(row => [row.source.block.id, row])));
-  const ids = createMemo(() => [...byId().keys()]);
+  const ids = createMemo(() => {
+    const keys = [...byId().keys()];
+    if (!props.now || !props.timetable) return keys;
+    const times = new Map(keys.map(id => [id, agendaTaskTime(byId().get(id)!, props.plannedDate ?? props.date, !props.deadlineLabel) ?? '']));
+    return keys.sort((left, right) => Number(!!times.get(right) && times.get(right)! < props.now!) - Number(!!times.get(left) && times.get(left)! < props.now!)
+      || times.get(left)!.localeCompare(times.get(right)!));
+  });
   // The now rule sits above the first row not yet due, once any row has a time; after the last when all are past.
   const nowAt = createMemo(() => {
     if (!props.now || !props.timetable) return null;
-    const times = ids().map(id => agendaTaskTime(byId().get(id)!, props.plannedDate ?? props.date));
-    if (!times.some(Boolean)) return null;
+    const times = ids().map(id => agendaTaskTime(byId().get(id)!, props.plannedDate ?? props.date, !props.deadlineLabel));
+    if (!props.showNow && !times.some(Boolean)) return null;
     const index = times.findIndex(time => !time || time >= props.now!);
     return index < 0 ? 'end' : ids()[index]!;
   });
@@ -67,8 +77,8 @@ export function TaskSourceRows(props: {
       const previous = byId().get(ids()[index() - 1]!);
       return row && 'section_id' in row && row.section_id && (!previous || !('section_id' in previous) || previous.section_id !== row.section_id) ? row.section_text : null;
     };
-    return <><Show when={section()}>{text => <li class="agenda-day-section"><h3 class="agenda-lookahead-date"><BlockText text={text()} notebook={props.notebook} interactive={false} /></h3></li>}</Show><TaskSourceRow row={byId().get(id) ?? initial} date={props.date} pageId={props.pageId} notebook={props.notebook} disabled={props.disabled} timetable={props.timetable} plannedDate={props.plannedDate} plan={props.plan} now={props.now} nowBefore={nowAt() === id} onOpen={props.onOpen} onChanged={props.onChanged} /></>;
-  }}</For><Show when={nowAt() === 'end'}><li class="agenda-now agenda-now-end" aria-hidden="true" /></Show></ul>;
+    return <><Show when={section()}>{text => <li class="agenda-day-section"><h3 class="agenda-lookahead-date"><BlockText text={text()} notebook={props.notebook} interactive={false} /></h3></li>}</Show><TaskSourceRow row={byId().get(id) ?? initial} date={props.date} pageId={props.pageId} notebook={props.notebook} disabled={props.disabled} timetable={props.timetable} plannedDate={props.plannedDate} plan={props.plan} deadlineLabel={props.deadlineLabel} showNow={props.showNow} now={props.now} nowBefore={nowAt() === id} onOpen={props.onOpen} onChanged={props.onChanged} /></>;
+  }}</For><Show when={nowAt() === 'end'}><li class="agenda-now agenda-now-end" aria-hidden="true"><Show when={props.showNow}><span>{props.now}</span></Show></li></Show></ul>;
 }
 
 /** The source button of the row `step` away, across sections of the same `[data-task-rows]` region. */
@@ -87,6 +97,8 @@ function TaskSourceRow(props: {
   timetable?: boolean;
   plannedDate?: string;
   plan?: boolean;
+  deadlineLabel?: boolean;
+  showNow?: boolean;
   /** The notebook clock while the displayed day is today. */
   now?: string;
   /** Draws the now rule above this row. */
@@ -100,7 +112,7 @@ function TaskSourceRow(props: {
   const [picking, setPicking] = createSignal<HTMLElement | null>(null);
   const historical = () => 'reasons' in props.row && props.row.reasons.includes('recently_completed');
   const unfinished = () => !historical() && !isFinished(props.row.task);
-  const time = createMemo(() => props.timetable ? agendaTaskTime(props.row, props.plannedDate ?? props.date) : 'time' in props.row ? props.row.time : null);
+  const time = createMemo(() => props.timetable ? agendaTaskTime(props.row, props.plannedDate ?? props.date, !props.deadlineLabel) : 'time' in props.row ? props.row.time : null);
   const facts = createMemo(() => historical() ? [] : taskFacts(props.row.task, { date: props.plannedDate ?? props.date, today: props.notebook.todayDate(), listed: props.timetable || 'reasons' in props.row, timeShown: !!time() }));
   /** Opens the canonical source, runs one edit on its task block and saves it. */
   const editSource = async (row: TaskRow | AgendaItem, edit: (doc: PageDocument) => Promise<boolean | void>) => {
@@ -148,7 +160,7 @@ function TaskSourceRow(props: {
   });
   const today = () => props.notebook.todayDate();
   const tomorrow = () => shiftCalendarDate(today(), 1)!;
-  const past = () => !!props.now && unfinished() && !!time() && time()! < props.now;
+  const past = () => !!props.now && unfinished() && props.row.task.status !== 'doing' && !!time() && time()! < props.now;
   let item!: HTMLLIElement;
   const reschedule = (date: string | null, time?: string | null) => {
     if (!date || busy() || props.disabled || !movableTo([props.row], date, time).length) return;
@@ -175,8 +187,8 @@ function TaskSourceRow(props: {
     event.preventDefault(); event.stopPropagation();
   };
   return <li ref={item} class="agenda-row" classList={{ 'agenda-row-timetable': props.timetable, 'agenda-row-past': past(), 'agenda-row-picking': !!picking(), 'agenda-row-completed': historical() || props.row.task.status === 'done', 'agenda-row-cancelled': !historical() && props.row.task.status === 'cancelled' }} aria-busy={busy()} onKeyDown={keydown}>
-    <Show when={props.nowBefore}><span class="agenda-now" aria-hidden="true" /></Show>
-    <Show when={props.timetable}><span class="agenda-time-gutter">{time()}</span></Show>
+    <Show when={props.nowBefore}><span class="agenda-now" aria-hidden="true"><Show when={props.showNow}><span>{props.now}</span></Show></span></Show>
+    <Show when={props.timetable}><span class="agenda-time-gutter" classList={{ 'week-ledger-due': !!props.deadlineLabel && !time() && props.row.task.deadline === props.date }}>{time() || (props.deadlineLabel && props.row.task.deadline === props.date ? 'Due' : '')}</span></Show>
     <Show when={!historical()} fallback={<span class="agenda-status task-status-button" data-status="done" aria-label="Done"><Icon name="check" /></span>}>
       <Button class="agenda-status task-status-button" data-status={props.row.task.status} label={`${unfinished() ? 'Complete' : 'Reopen'} task (${statusLabels[props.row.task.status]}): ${props.row.source.block.text}`} title={unfinished() ? `Complete on ${props.date}` : 'Reopen task'} disabled={busy() || props.disabled}
         onClick={event => { void (unfinished() ? complete(event.currentTarget, props.date) : reopen()); }}><Icon name={statusIcons[props.row.task.status]} /></Button>

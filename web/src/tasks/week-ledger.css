@@ -1,0 +1,25 @@
+.week-ledger { width: 100%; max-width: var(--measure); margin-inline: auto; }
+.week-ledger-summary { margin: 0 0 var(--space-8); color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.week-ledger-day { margin-top: var(--space-16); }
+.week-ledger-day > h2 { margin: 0; }
+.week-ledger-heading { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; align-items: baseline; align-content: center; column-gap: var(--space-8); width: 100%; min-height: var(--touch-target); }
+.week-ledger-rule { height: var(--rule-width); background: var(--line); align-self: center; }
+.week-ledger-heading .agenda-day-count { white-space: nowrap; }
+.week-ledger-today .agenda-day-numeral { color: var(--accent); }
+.week-ledger-compact { margin-top: var(--space-4); }
+.week-ledger-compact .week-ledger-heading { min-height: var(--space-32); }
+.week-ledger-compact .agenda-day-numeral { color: var(--muted); font-size: var(--text-h2); line-height: var(--line-h2); }
+.week-ledger-toggle { grid-template-columns: auto auto minmax(0, 1fr) auto auto; border: 0; padding: 0; background: transparent; text-align: left; cursor: pointer; }
+.week-ledger-toggle:hover { background: var(--hover); }
+.week-ledger-toggle > .icon { width: var(--icon-size-small); height: var(--icon-size-small); color: var(--faint); align-self: center; }
+.week-ledger .week-ledger-due { color: var(--calendar-deadline); }
+.week-ledger .agenda-source-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.week-ledger .agenda-now { left: calc(var(--space-48) + var(--space-8)); }
+.week-ledger .agenda-now > span { position: absolute; left: calc(-1 * (var(--space-48) + var(--space-8))); top: calc(-1 * var(--line-apparatus) / 2); color: var(--accent); font: var(--apparatus); }
+.week-ledger .agenda-row:has(> .agenda-now) { margin-top: var(--space-16); }
+.week-ledger li.agenda-now-end { margin-block: var(--space-16); }
+/* A narrow mouse-driven split gets the same visible calendar action as Day on touch. */
+.week-ledger .agenda-row-timetable .agenda-row-actions { display: flex; grid-column: 3 / -1; grid-row: 2; justify-self: end; position: static; }
+.week-ledger .agenda-row-actions > .button:not(.agenda-row-pick) { display: none; }
+.week-ledger .agenda-row-pick.button { min-width: var(--touch-target); min-height: var(--touch-target); }
+.week-ledger .agenda-row-timetable .agenda-row-meta { padding-right: var(--touch-target); }

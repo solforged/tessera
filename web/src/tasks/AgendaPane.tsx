@@ -1,4 +1,4 @@
-import { For, Show, batch, createEffect, createMemo, createSignal, on, onCleanup } from 'solid-js';
+import { For, Show, batch, createEffect, createMemo, createSignal, on, onCleanup, onMount } from 'solid-js';
 import type { JSX } from 'solid-js';
 import { ulid } from 'ulid';
 import type { Agenda, FieldDefinition, ProjectRecord, TaskQuery, TaskQueryResult, TaskRow, TaskView } from '../api/types';
@@ -26,6 +26,7 @@ import { TaskConditions } from './TaskConditions';
 import { TaskQueryLine } from './TaskQueryLine';
 import type { TaskQueryLineContext } from './task-query-line';
 import { WeekCalendar } from './WeekCalendar';
+import { WeekLedger } from './WeekLedger';
 import { fetchWeekTaskRange, mergeWeekTaskRows, mondayWeekStart, shiftCalendarDate } from './week-calendar';
 import './agenda.css';
 import '../table/table.css';
@@ -115,6 +116,12 @@ export function AgendaPane(props: AgendaPaneProps) {
     };
   });
   let scroll!: HTMLDivElement;
+  const [narrowWeek, setNarrowWeek] = createSignal(false);
+  onMount(() => {
+    const resize = new ResizeObserver(entries => setNarrowWeek(entries[0]!.contentRect.width < 600));
+    resize.observe(scroll);
+    onCleanup(() => resize.disconnect());
+  });
   let restoredScroll = false;
   let requested: { mode: AgendaViewState['mode']; date: string; query: TaskQuery } | null = null;
   createEffect(on(() => props.view, next => {
@@ -376,7 +383,12 @@ export function AgendaPane(props: AgendaPaneProps) {
       <Show when={busy() || props.notebook.commandState() !== 'saved'}><p class="agenda-message" role="status">{props.notebook.commandMessage() || (busy() ? 'Saving task view…' : props.notebook.commandState())}</p></Show>
       <Show when={commandError()}><p class="agenda-error" role="alert">{commandError()}</p></Show>
       <Show when={deleted()}><footer class="table-footer" role="status">View deleted · <Button disabled={busy()} onClick={() => { void undoDelete(); }}>Undo</Button></footer></Show>
-      <Show when={mode() === 'week'}><WeekCalendar date={date()} notebook={props.notebook} onOpen={props.onOpen} /></Show>
+      <Show when={mode() === 'week'}>
+        <Show when={narrowWeek()} fallback={<WeekCalendar date={date()} notebook={props.notebook} onOpen={props.onOpen} />}>
+          <Show when={slowWeekLoading()}><p class="agenda-message" role="status">Loading week…</p></Show>
+          <WeekLedger date={date()} rows={weekRows()} notebook={props.notebook} loading={weekLoading()} disabled={busy() || weekLoading() || !!weekError()} onOpen={props.onOpen} onChanged={() => setRefresh(value => value + 1)} />
+        </Show>
+      </Show>
       <Show when={mode() !== 'week'}>
       <section class="agenda-results" data-task-rows aria-label={mode() === 'agenda' ? `Agenda for ${date()}` : 'Task results'} aria-busy={loading()}>
         <Show when={slowLoading()}><p class="agenda-message" role="status">Loading {mode() === 'agenda' ? 'agenda' : 'tasks'}…</p></Show>

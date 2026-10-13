@@ -132,11 +132,11 @@ export function groupDayAgenda(items: readonly AgendaItem[], futureRows: readonl
 }
 
 /** Time belongs to the visible plan, not another scheduled day; carried agenda rows retain their original clock. */
-export function agendaTaskTime(row: TaskRow | AgendaItem, date: string): string | null {
+export function agendaTaskTime(row: TaskRow | AgendaItem, date: string, carried = true): string | null {
   if (isFinished(row.task) || 'reasons' in row && row.reasons.includes('recently_completed')) return null;
-  if ('time' in row && row.time && ('reasons' in row && !row.task.scheduled || row.task.scheduled === date || !!row.task.scheduled && row.task.scheduled < date)) return row.time;
-  if (row.task.scheduled === date || !!row.task.scheduled && row.task.scheduled < date) return row.task.scheduled_time;
-  if (row.task.deadline === date || !!row.task.deadline && row.task.deadline < date) return row.task.deadline_time;
+  if ('time' in row && row.time && ('reasons' in row && !row.task.scheduled || row.task.scheduled === date || carried && !!row.task.scheduled && row.task.scheduled < date)) return row.time;
+  if (row.task.scheduled === date || carried && !!row.task.scheduled && row.task.scheduled < date) return row.task.scheduled_time;
+  if (row.task.deadline === date || carried && !!row.task.deadline && row.task.deadline < date) return row.task.deadline_time;
   return null;
 }
 
