@@ -58,7 +58,6 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
   const [completion, setCompletion] = createSignal<Completion | null>(null);
   const [completionIndex, setCompletionIndex] = createSignal(0);
   const [quoteBusy, setQuoteBusy] = createSignal(false);
-  const [quoteError, setQuoteError] = createSignal('');
   const [dateCompletion, setDateCompletion] = createSignal<(DateToken & { id: string }) | null>(null);
   const [dateIndex, setDateIndex] = createSignal(0);
   const [tokenDate, setTokenDate] = createSignal<(DateToken & { id: string; text: string; anchor: HTMLElement | DOMRect }) | null>(null);
@@ -290,7 +289,6 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
   function updateCompletion(text: string, at: Caret) {
     if (completion()?.manual) return;
     const next = completionAt(text, at);
-    setQuoteError('');
     if (!next) { setCompletion(null); return; }
     if (dismissedCompletion && dismissedCompletion.id === at.id && dismissedCompletion.from === next.from && dismissedCompletion.query === next.query) return;
     dismissedCompletion = null;
@@ -381,24 +379,27 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     const range = completionRange(state, text);
     if (state.quote) {
       setQuoteBusy(true);
-      setQuoteError('');
       const before = caret();
+      // Enter owns this choice now. Closing the picker or leaving insert mode cannot revoke it.
+      setCompletion(null);
+      const held = props.notebook.open(doc.pageId);
       try {
         const value = await api.quoteSnapshot(id);
-        if (context.disposed || editing() !== source || context.editor?.id !== source || doc.block(source)?.text !== text || completion() !== state) return;
+        if (doc.block(source)?.text !== text) throw new Error('The quote row changed before its snapshot arrived.');
         const next = `((${id}))`;
         const result = doc.edit({ kind: 'quote', id: source, value, text: next }, before);
         if (!result.ok) throw new Error(result.reason);
-        setCompletion(null);
-        context.editor.sync(next);
-        context.editor.view.dispatch({ selection: { anchor: next.length } });
-        setCaret({ id: source, offset: next.length });
+        if (!context.disposed && editing() === source && context.editor?.id === source) {
+          context.editor.sync(next);
+          context.editor.view.dispatch({ selection: { anchor: next.length } });
+          setCaret({ id: source, offset: next.length });
+        }
         referenceSpace = null;
-        void doc.flush().catch(reason => capabilities.failure(source, reason));
-        scheduleReport();
+        void doc.flush().catch(reason => { if (!context.disposed) capabilities.failure(source, reason); });
+        if (!context.disposed) scheduleReport();
       } catch (reason) {
-        if (completion() === state) setQuoteError(reason instanceof Error ? reason.message : String(reason));
-      } finally { setQuoteBusy(false); }
+        if (!context.disposed) capabilities.failure(source, reason);
+      } finally { held.release(); setQuoteBusy(false); }
       return;
     }
     const next = context.editor.view.state.doc.sliceString(range.to, range.to + 1);
@@ -533,7 +534,6 @@ function CompletionPopups(){ return <>
       <div ref={completionList} class="picker-list" onMouseDown={event => event.preventDefault()}>
         <Show when={completion()?.blocks}><div class="picker-section">{completion()?.quote ? 'Quote block' : 'Block reference'}</div></Show>
         <Show when={quoteBusy()}><p class="empty-state" role="status">Capturing quote…</p></Show>
-        <Show when={quoteError()}><p class="error" role="alert">{quoteError()}</p></Show>
         <Show when={completionKey() && matches.loading && !completionRows().length && !canCreate()}><p class="empty-state">Searching…</p></Show>
         <Show when={completionKey() && matches.error}><p class="error" role="alert">Couldn't load completion.</p></Show>
         <For each={completionRows()}>{(row, index) => <div role="option" aria-selected={completionIndex() === index()} class="picker-row" classList={{ selected: completionIndex() === index() }} onClick={() => void chooseCompletion(index())}>

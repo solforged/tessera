@@ -546,6 +546,8 @@ Typed triggers act in block text. Each character means one thing, opens a picker
 
 The open `[[query]]` is tinted in the accent until a choice replaces it with a reference. The picker searches the whole bracketed query, including any text after the caret, and a choice replaces all of it. Unmodified Enter or Tab picks, including when pressed before results arrive; modified chords keep their editing actions. Shift+Enter closes the picker and inserts its newline after a paired reference, never inside the query. The block being edited is never offered.
 
+Enter accepts a selected Quote before its snapshot lookup finishes. An immediate Escape leaves editing without cancelling that choice; a later edit to the same row instead keeps the authored text and reports why the quote could not be saved.
+
 The caret lands after the reference, with a space when a word or the end of the block follows; punctuation or a space typed next takes that space's place, on phone keyboards too. Backspace in an empty `[[]]` removes both pairs. A query that names no page or field exactly offers Create page after the matches, except an ISO date, which only offers its existing journal.
 
 `[[Title]]` typed by hand, or kept as text with Escape, links the one page whose title or alias is that name once the block is left, keeping the typed wording. A name two or more pages share stays unlinked and is marked; see [Aliases](surfaces/notes.md#aliases). A name no page has creates the page; a date only links a journal that already exists.
