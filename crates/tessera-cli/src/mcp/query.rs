@@ -26,7 +26,10 @@ impl Session<'_> {
             .map(|field| &field.definition)
             .collect();
         let mut query = match (string(arguments, "type")?, string(arguments, "view")?) {
-            (None, None) => return overview(&api, &fields).await,
+            (None, None) if string(arguments, "source")?.is_none() => {
+                return overview(&api, &fields).await;
+            }
+            (None, None) => Query::default(),
             (Some(_), Some(_)) => anyhow::bail!("Give type or view, not both."),
             (Some(wanted), None) => Query {
                 r#type: Some(type_id(&api, wanted).await?),
@@ -46,6 +49,13 @@ impl Session<'_> {
                     .query
             }
         };
+        if let Some(source) = string(arguments, "source")? {
+            query.source = Some(choice(
+                source,
+                "source",
+                "notes, questions, positions, sources, tasks or highlights",
+            )?);
+        }
         if let Some(text) = string(arguments, "text")? {
             query.text = Some(text.to_owned());
         }
@@ -93,12 +103,35 @@ impl Session<'_> {
                 row.block.block.id,
                 location(&row.block.page)
             ));
+            for (key, values) in &row.attributes {
+                if !values.is_empty() {
+                    text.push_str(&format!(
+                        "; {key}: {}",
+                        values
+                            .iter()
+                            .map(|value| {
+                                match &value.reading {
+                                    Reading::Value {
+                                        target: Some(target),
+                                        ..
+                                    } => format!("{} ({target})", one_line(&value.text)),
+                                    _ => one_line(&value.text),
+                                }
+                            })
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ));
+                }
+            }
             let values: Vec<_> = result
                 .columns
                 .iter()
                 .filter_map(|column| {
                     let values = row.values.get(column).filter(|values| !values.is_empty())?;
-                    let shown: Vec<_> = values.iter().map(value_text).collect();
+                    let shown: Vec<_> = values
+                        .iter()
+                        .map(|value| format!("{} (value {})", value_text(value), value.id))
+                        .collect();
                     Some(format!(
                         "{}: {}",
                         names.get(column.as_str()).unwrap_or(&column.as_str()),
@@ -181,6 +214,9 @@ async fn overview(api: &Api, fields: &FieldsView) -> anyhow::Result<String> {
 
 /// A field definition's ID from its name or ID, ignoring case.
 fn field_id(definitions: &[&FieldDefinition], wanted: &str) -> anyhow::Result<String> {
+    if wanted.starts_with('@') {
+        return Ok(wanted.to_owned());
+    }
     definitions
         .iter()
         .find(|field| field.id == wanted || field.name.eq_ignore_ascii_case(wanted))
@@ -207,9 +243,10 @@ pub(super) fn filters(
             let op: FilterOp = choice(op, "op", OPS)?;
             anyhow::ensure!(op != FilterOp::Present, "op must be {OPS}, not \"present\"");
             Ok(Filter {
+                or_empty: super::boolean(filter, "or_empty")?.unwrap_or(false),
                 field: field_id(definitions, field)?,
                 op,
-                value: string(filter, "value")?.map(str::to_lowercase),
+                value: string(filter, "value")?.map(str::to_owned),
             })
         })
         .collect()
@@ -224,5 +261,23 @@ fn value_text(value: &FieldValue) -> String {
             ReadingValue::Checkbox(checked) => checked.to_string(),
         },
         Reading::Problem { problem, .. } => format!("{} ({problem})", one_line(&value.text)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn attribute_filters_preserve_instance_ids_and_empty_option() {
+        let id = "01M4RZJX98EF6B3WZHPRT2F68S";
+        let filters = super::filters(
+            &serde_json::json!({"filters": [
+                {"field": "@holder", "value": id},
+                {"field": "@last_assessed", "op": "lt", "value": "-30d", "or_empty": true}
+            ]}),
+            &[],
+        )
+        .unwrap();
+        assert_eq!(filters[0].value.as_deref(), Some(id));
+        assert!(filters[1].or_empty);
     }
 }

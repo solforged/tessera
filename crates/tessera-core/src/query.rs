@@ -15,6 +15,7 @@ pub(crate) fn validate_query(conn: &Connection, query: &Query) -> Result<Vec<Fie
     if query.r#type.is_none()
         && query.text.is_none()
         && query.filters.is_empty()
+        && query.source.is_none()
         && !query.selects_notes()
     {
         return Err(validation("query needs a type, text or filter"));
@@ -27,13 +28,25 @@ pub(crate) fn validate_query(conn: &Connection, query: &Query) -> Result<Vec<Fie
     }
     let definitions = definitions(conn)?;
     let defs = definition_map(&definitions);
-    let require = |id: &str| -> Result<&FieldDefinition> {
+    let attributes = crate::entity_query::attributes(query.source.unwrap_or_default());
+    let require = |id: &str| -> Result<FieldKind> {
+        if id.starts_with('@') {
+            return attributes
+                .iter()
+                .find(|attribute| attribute.key == id)
+                .map(|attribute| attribute.kind)
+                .ok_or_else(|| {
+                    validation(format!(
+                        "The attribute {id} does not belong to this source."
+                    ))
+                });
+        }
         defs.get(id)
-            .copied()
+            .map(|definition| definition.kind)
             .ok_or_else(|| validation(format!("not a live field definition: {id}")))
     };
     for filter in &query.filters {
-        let definition = require(&filter.field)?;
+        let kind = require(&filter.field)?;
         if !matches!(
             filter.op,
             FilterOp::Present | FilterOp::Set | FilterOp::Empty
@@ -41,8 +54,13 @@ pub(crate) fn validate_query(conn: &Connection, query: &Query) -> Result<Vec<Fie
         {
             return Err(validation("filter value is required"));
         }
-        if definition.kind == FieldKind::Number && ordered(filter.op) {
+        if kind == FieldKind::Number && ordered(filter.op) {
             filter_number(filter.value.as_deref().expect("validated filter value"))?;
+        }
+        if kind == FieldKind::Date
+            && let Some(value) = &filter.value
+        {
+            crate::entity_query::relative_date(conn, value)?;
         }
     }
     for key in &query.sort {
@@ -53,6 +71,24 @@ pub(crate) fn validate_query(conn: &Connection, query: &Query) -> Result<Vec<Fie
                     .ok_or_else(|| validation("field sort needs a field"))?,
             )?;
         }
+    }
+    for key in query
+        .columns
+        .iter()
+        .flatten()
+        .map(|column| column.key.as_str())
+        .chain(query.group.iter().map(|group| group.key.as_str()))
+        .chain(query.card.iter().flatten().map(String::as_str))
+    {
+        require(key)?;
+    }
+    if query
+        .columns
+        .iter()
+        .flatten()
+        .any(|column| column.width == Some(0))
+    {
+        return Err(validation("Column widths must be greater than zero."));
     }
     Ok(definitions)
 }
@@ -381,6 +417,12 @@ impl Notebook {
             validate_source_type(&self.conn, query)?;
         }
         let defs = definition_map(&definitions);
+        let source = query.source.unwrap_or_default();
+        let attributes = crate::entity_query::attributes(source);
+        let mut entities = self.query_entities(source)?;
+        let entity_members = entities
+            .as_ref()
+            .map(|entities| entities.keys().cloned().collect::<HashSet<_>>());
         let note_candidates = self.note_candidates(query)?;
         let matched = if query.selects_notes() {
             None
@@ -390,13 +432,23 @@ impl Notebook {
         let filters = query
             .filters
             .iter()
-            .map(|filter| PreparedFilter::new(&self.conn, filter, defs[filter.field.as_str()].kind))
+            .map(|filter| {
+                let kind = attributes
+                    .iter()
+                    .find(|attribute| attribute.key == filter.field)
+                    .map_or_else(
+                        || defs[filter.field.as_str()].kind,
+                        |attribute| attribute.kind,
+                    );
+                PreparedFilter::new(&self.conn, filter, kind)
+            })
             .collect::<Result<Vec<_>>>()?;
         let present_owners = filters.iter().find_map(|filter| filter.owners.as_ref());
         let owners = if present_owners.is_none()
             && query.r#type.is_none()
             && query.text.is_none()
             && !query.selects_notes()
+            && entities.is_none()
         {
             let mut owners = HashSet::new();
             let mut entries = self.conn.prepare_cached(concat!(
@@ -440,8 +492,12 @@ impl Notebook {
                       WHERE m.block_id = b.id AND m.type_id = ?1 AND type.deletion_id IS NULL
                       AND type.rowid NOT IN (SELECT rowid FROM hidden)))
                   AND (?2 IS NULL OR b.rowid IN (SELECT rowid FROM blocks_fts WHERE blocks_fts MATCH ?2))
+                  AND (?3 IS NULL OR b.id IN (SELECT value FROM json_each(?3)))
                   ORDER BY b.id, e.ordinal, e.id, f.ordinal, v.id"))?;
-            let mut cursor = statement.query(params![query.r#type, matched])?;
+            let selected = entity_members
+                .as_ref()
+                .map(|members| serde_json::to_string(members).expect("IDs serialize"));
+            let mut cursor = statement.query(params![query.r#type, matched, selected])?;
             while let Some(row) = cursor.next()? {
                 let id: &str = row.get_ref(0)?.as_str().map_err(|error| {
                     rusqlite::Error::FromSqlConversionFailure(
@@ -451,6 +507,9 @@ impl Notebook {
                     )
                 })?;
                 if candidates.is_some_and(|owners| !owners.contains(id))
+                    || entity_members
+                        .as_ref()
+                        .is_some_and(|members| !members.contains(id))
                     || note_candidates
                         .as_ref()
                         .is_some_and(|notes| !notes.contains(id))
@@ -464,6 +523,10 @@ impl Notebook {
                             page: block_at(row, 10)?,
                         },
                         values: BTreeMap::new(),
+                        attributes: entities
+                            .as_mut()
+                            .and_then(|entities| entities.remove(id))
+                            .unwrap_or_default(),
                     });
                 }
                 if let Some(field) = row.get::<_, Option<String>>(20)?
@@ -503,6 +566,10 @@ impl Notebook {
                         });
                 }
             }
+        }
+        self.hydrate_query_attributes(source, &mut rows)?;
+        if source != crate::QuerySource::Notes {
+            self.retain_entity_references(query, &mut rows)?;
         }
         rows.retain(|row| filters.iter().all(|filter| filter.matches(row)));
         let total = rows.len();
@@ -557,13 +624,11 @@ impl Notebook {
             });
             rows = keyed.into_iter().map(|(row, _)| row).collect();
         }
-        let mut columns = query
-            .r#type
-            .as_deref()
-            .map(|id| template(&self.conn, id))
-            .transpose()?
-            .unwrap_or_default();
-        columns.retain(|id| defs.contains_key(id.as_str()));
+        let mut columns = crate::entity_query::default_columns(source, &definitions);
+        if let Some(id) = query.r#type.as_deref() {
+            columns.extend(template(&self.conn, id)?);
+        }
+        columns.retain(|id| id.starts_with('@') || defs.contains_key(id.as_str()));
         // A note view's columns describe its kind, not the find terms that narrow it.
         let kind_members = query
             .note_kind
@@ -577,9 +642,16 @@ impl Notebook {
                     .collect())
             })
             .transpose()?;
-        let mut frequencies = column_frequencies(&self.conn, query, &defs, kind_members.as_ref())?;
+        let mut frequencies = column_frequencies(
+            &self.conn,
+            query,
+            &defs,
+            entity_members.as_ref().or(kind_members.as_ref()),
+        )?;
         for filter in &query.filters {
-            frequencies.entry(filter.field.as_str()).or_default();
+            if !filter.field.starts_with('@') {
+                frequencies.entry(filter.field.as_str()).or_default();
+            }
         }
         let mut extra: Vec<_> = frequencies
             .into_iter()
@@ -589,6 +661,9 @@ impl Notebook {
             (std::cmp::Reverse(*count), defs[id].name.to_lowercase(), *id)
         });
         columns.extend(extra.into_iter().map(|(id, _)| id.to_owned()));
+        if let Some(explicit) = &query.columns {
+            columns = explicit.iter().map(|column| column.key.clone()).collect();
+        }
         let needed: HashSet<&str> = columns
             .iter()
             .map(String::as_str)
@@ -600,12 +675,15 @@ impl Notebook {
                     .filter(|s| s.by == SortBy::Field)
                     .filter_map(|s| s.field.as_deref()),
             )
+            .chain(query.group.iter().map(|group| group.key.as_str()))
+            .chain(query.card.iter().flatten().map(String::as_str))
             .collect();
         let fields = definitions
             .into_iter()
             .filter(|d| needed.contains(d.id.as_str()))
             .collect();
         let note_groups = self.note_groups(query, &rows)?;
+        let groups = crate::entity_query::groups(query, &rows);
         if truncate {
             rows.drain(..query.offset.min(rows.len()));
             rows.truncate(query.limit.unwrap_or(500));
@@ -616,6 +694,8 @@ impl Notebook {
             rows,
             total,
             note_groups,
+            attributes,
+            groups,
         })
     }
 }
@@ -629,7 +709,7 @@ struct PreparedFilter<'a> {
 }
 impl<'a> PreparedFilter<'a> {
     fn new(conn: &Connection, filter: &'a Filter, kind: FieldKind) -> Result<Self> {
-        let owners = if filter.op == FilterOp::Present {
+        let owners = if filter.op == FilterOp::Present && !filter.field.starts_with('@') {
             let mut owners = HashSet::new();
             let mut statement = conn.prepare_cached(concat!(
                 hidden_blocks!(),
@@ -670,7 +750,14 @@ impl<'a> PreparedFilter<'a> {
             filter,
             owners,
             instance: kind == FieldKind::Instance,
-            value: filter.value.as_deref().unwrap_or_default().to_lowercase(),
+            value: if kind == FieldKind::Date {
+                crate::entity_query::relative_date(
+                    conn,
+                    filter.value.as_deref().unwrap_or_default(),
+                )?
+            } else {
+                filter.value.as_deref().unwrap_or_default().to_lowercase()
+            },
             number: if kind == FieldKind::Number && ordered(filter.op) {
                 Some(filter_number(
                     filter.value.as_deref().expect("validated filter"),
@@ -681,24 +768,62 @@ impl<'a> PreparedFilter<'a> {
         })
     }
     fn matches(&self, row: &QueryRow) -> bool {
-        let values = row
-            .values
-            .get(&self.filter.field)
-            .map(Vec::as_slice)
-            .unwrap_or_default();
+        let (empty, matched) = if self.filter.field.starts_with('@') {
+            let values = row
+                .attributes
+                .get(&self.filter.field)
+                .map(Vec::as_slice)
+                .unwrap_or_default();
+            (
+                values.is_empty(),
+                values.iter().any(|value| {
+                    self.compare(
+                        &value.reading,
+                        if self.filter.op == FilterOp::IsNot {
+                            FilterOp::Is
+                        } else {
+                            self.filter.op
+                        },
+                    )
+                }),
+            )
+        } else {
+            let values = row
+                .values
+                .get(&self.filter.field)
+                .map(Vec::as_slice)
+                .unwrap_or_default();
+            (
+                values.is_empty(),
+                values.iter().any(|value| {
+                    self.compare(
+                        &value.reading,
+                        if self.filter.op == FilterOp::IsNot {
+                            FilterOp::Is
+                        } else {
+                            self.filter.op
+                        },
+                    )
+                }),
+            )
+        };
+        if empty && self.filter.or_empty {
+            return true;
+        }
         match self.filter.op {
+            FilterOp::Present if self.filter.field.starts_with('@') => !empty,
             FilterOp::Present => self
                 .owners
                 .as_ref()
                 .is_some_and(|owners| owners.contains(&row.block.block.id)),
-            FilterOp::Set => !values.is_empty(),
-            FilterOp::Empty => values.is_empty(),
-            FilterOp::IsNot => !values.iter().any(|v| self.compare(v, FilterOp::Is)),
-            op => values.iter().any(|v| self.compare(v, op)),
+            FilterOp::Set => !empty,
+            FilterOp::Empty => empty,
+            FilterOp::IsNot => !matched,
+            _ => matched,
         }
     }
-    fn compare(&self, field: &FieldValue, op: FilterOp) -> bool {
-        let Reading::Value { value, target, .. } = &field.reading else {
+    fn compare(&self, reading: &Reading, op: FilterOp) -> bool {
+        let Reading::Value { value, target, .. } = reading else {
             return false;
         };
         if self.instance && op == FilterOp::Is {
@@ -763,9 +888,14 @@ fn sort_value(
         SortBy::Created => SortValue::Timestamp(row.block.block.created_at),
         SortBy::Updated => SortValue::Timestamp(row.block.block.updated_at),
         SortBy::Field => {
-            let definition = definitions.get(key.field.as_deref()?)?;
-            let value = &row.values.get(key.field.as_deref()?)?.first()?.reading;
-            if definition.kind == FieldKind::Choice {
+            let field = key.field.as_deref()?;
+            let definition = definitions.get(field);
+            let value = if field.starts_with('@') {
+                &row.attributes.get(field)?.first()?.reading
+            } else {
+                &row.values.get(field)?.first()?.reading
+            };
+            if definition.is_some_and(|definition| definition.kind == FieldKind::Choice) {
                 return Some(match value {
                     Reading::Value {
                         target: Some(target),
@@ -780,7 +910,7 @@ fn sort_value(
                 Reading::Problem { .. } => return None,
                 Reading::Value { value, .. } => match value {
                     ReadingValue::Text(text) => SortValue::Text(
-                        if definitions.get(key.field.as_deref()?)?.kind == FieldKind::Date
+                        if definition.is_some_and(|definition| definition.kind == FieldKind::Date)
                             && text.len() < 4
                         {
                             format!("{text:0>4}")

@@ -114,6 +114,7 @@ fn query(n: &Notebook) -> tessera_core::QueryResult {
         r#type: None,
         text: None,
         filters: vec![tessera_core::Filter {
+            or_empty: false,
             field: author,
             op: tessera_core::FilterOp::Present,
             value: None,

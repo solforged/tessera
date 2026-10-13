@@ -10,6 +10,7 @@ mod card_query;
 mod card_store;
 mod card_templates;
 pub mod card_text;
+mod entity_query;
 mod error;
 mod fields;
 pub mod library;
@@ -87,9 +88,10 @@ pub use model::{
     Direction, FieldChoiceCandidate, FieldChoiceValue, FieldDefinition, FieldDetail, FieldHide,
     FieldKind, FieldOption, FieldOptionUse, FieldOwner, FieldOwnerValues, FieldSummary,
     FieldTemplate, FieldType, FieldValue, FieldValueUse, FieldsView, Filter, FilterOp, KeptCopy,
-    NoteGroup, NoteLayout, NoteView, Operation, PageView, Query, QueryResult, QueryRow, QuoteState,
-    QuoteStatus, QuotedRow, Reading, ReadingValue, Revision, Row, Setting, SettingRevision,
-    SettingsView, SortBy, SortKey, Subtree, TextRewrite, TypeInfo, View,
+    NoteGroup, NoteLayout, NoteView, Operation, PageView, Query, QueryAttribute,
+    QueryAttributeValue, QueryColumn, QueryGroup, QueryGrouping, QueryResult, QueryRow,
+    QuerySource, QuoteState, QuoteStatus, QuotedRow, Reading, ReadingValue, Revision, Row, Setting,
+    SettingRevision, SettingsView, SortBy, SortKey, Subtree, TextRewrite, TypeInfo, View,
 };
 pub use notebook::{DATABASE_FILE, Notebook, NotebookInfo, now_ms};
 pub use notes::{CrossReference, IndexKind, KindIndex, NoteEntry, NoteIndex, NoteKind, SeeTarget};

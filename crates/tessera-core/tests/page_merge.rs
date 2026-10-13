@@ -78,6 +78,7 @@ fn field_query(nb: &Notebook, field: &str) -> QueryResult {
         r#type: None,
         text: None,
         filters: vec![Filter {
+            or_empty: false,
             field: field.into(),
             op: FilterOp::Present,
             value: None,

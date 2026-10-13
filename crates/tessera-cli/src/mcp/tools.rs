@@ -320,11 +320,12 @@ pub(super) fn tools() -> Value {
         },
         {
             "name": "tessera_query",
-            "title": "Query typed notes",
-            "description": "Without type or view: list types (from #Tag), field definitions with their kinds and options, and saved views. With type or view: the matching blocks with their field values, filtered and sorted by field names.",
+            "title": "Query notes and entities",
+            "description": "Without source, type or view: list types, fields and saved views. Query sources: notes (default), questions, positions, sources, tasks, highlights. Filters and sorts accept field names or attributes. All sources: @title, @page, @created, @updated. Notes: @kind, @resolved, @revisit. Questions: @state, @parent, @program, @readings, @current, @last_assessed, @revisit, @inline. Positions: @holder, @subject, @relation, @target_holder, @cites. Sources: @creator, @cited_by, @highlights. Tasks: @status, @due, @scheduled, @project. Highlights: @source, @color. Instance equality uses block IDs. Dates accept today, -30d or +7d; or_empty also includes missing values. Rows include entity identity, attributes and editable field value block IDs.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
+                    "source": { "type": "string", "enum": ["notes", "questions", "positions", "sources", "tasks", "highlights"] },
                     "type": { "type": "string", "description": "A type's name, such as Book." },
                     "view": { "type": "string", "description": "A saved view's name, instead of type." },
                     "text": { "type": "string", "description": "Only blocks whose text contains this." },
@@ -335,7 +336,8 @@ pub(super) fn tools() -> Value {
                             "properties": {
                                 "field": { "type": "string", "description": "Field name." },
                                 "op": { "type": "string", "enum": ["is", "is_not", "contains", "gt", "gte", "lt", "lte", "set", "empty"], "default": "is" },
-                                "value": { "type": "string", "description": "Compared without case; not used by set and empty." }
+                                "value": { "type": "string", "description": "Text, an instance ID or a date; date filters also accept today, -30d or +7d." },
+                                "or_empty": { "type": "boolean", "default": false }
                             },
                             "required": ["field"]
                         }

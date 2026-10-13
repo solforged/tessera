@@ -720,6 +720,7 @@ fn source_type_text_and_field_filters_intersect_before_task_selection() {
         r#type: Some(id(2)),
         text: Some("Candidate".into()),
         filters: vec![Filter {
+            or_empty: false,
             field: id(3),
             op: FilterOp::Is,
             value: Some("Ready".into()),
@@ -810,6 +811,7 @@ fn query_validation_covers_civil_boundaries_ranges_limits_and_live_inputs() {
         r#type: None,
         text: None,
         filters: vec![Filter {
+            or_empty: false,
             field: id(999),
             op: FilterOp::Present,
             value: None,

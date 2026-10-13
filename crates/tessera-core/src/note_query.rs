@@ -8,14 +8,55 @@ use crate::{NoteGroup, Notebook, Query, QueryRow, Reading, Result};
 
 impl Query {
     pub(crate) fn selects_notes(&self) -> bool {
-        self.note_kind.is_some()
-            || !self.links.is_empty()
-            || !self.from.is_empty()
-            || !self.cites.is_empty()
+        self.source.unwrap_or_default() == crate::QuerySource::Notes
+            && (self.note_kind.is_some()
+                || !self.links.is_empty()
+                || !self.from.is_empty()
+                || !self.cites.is_empty()
+                || (self.r#type.is_none() && self.source == Some(crate::QuerySource::Notes))
+                || (self.r#type.is_none()
+                    && self
+                        .filters
+                        .iter()
+                        .any(|filter| filter.field.starts_with('@')))
+                || self.filters.iter().any(|filter| {
+                    matches!(filter.field.as_str(), "@kind" | "@resolved" | "@revisit")
+                }))
     }
 }
 
 impl Notebook {
+    pub(crate) fn query_reference_ids(
+        &self,
+        term: &str,
+        sources: Option<&crate::KindIndex>,
+    ) -> Result<HashSet<String>> {
+        let mut ids = if validate_id(term).is_ok() {
+            HashSet::from([term.to_owned()])
+        } else {
+            self.resolve_name(term)?
+                .into_iter()
+                .map(|matched| matched.page.id)
+                .collect()
+        };
+        if let Some(sources) = sources {
+            let key = fold(term);
+            for (id, summary) in &sources.summaries {
+                if let Some(source) = &summary.source
+                    && (fold(&source.siglum) == key
+                        || source
+                            .citation_key
+                            .as_ref()
+                            .is_some_and(|value| fold(value) == key))
+                {
+                    ids.insert(id.clone());
+                }
+            }
+            ids.retain(|id| sources.summaries.contains_key(id));
+        }
+        Ok(ids)
+    }
+
     pub(crate) fn note_candidates(&self, query: &Query) -> Result<Option<HashSet<String>>> {
         if !query.selects_notes() {
             return Ok(None);
@@ -24,7 +65,7 @@ impl Notebook {
             self.conn
                 .prepare_cached(concat!(hidden_blocks!(),
             "SELECT b.id, b.text FROM blocks b WHERE b.kind = 'page' AND b.deletion_id IS NULL
-             AND b.rowid NOT IN (SELECT rowid FROM hidden)"))?
+             AND b.title_key IS NOT 'fields' AND b.rowid NOT IN (SELECT rowid FROM hidden)"))?
                 .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
                 .collect::<rusqlite::Result<_>>()?;
         if let Some(kind) = &query.note_kind {
@@ -61,31 +102,14 @@ impl Notebook {
             (&query.cites, "cites"),
         ] {
             for term in terms {
-                let mut ids: HashSet<String> = if validate_id(term).is_ok() {
-                    HashSet::from([term.clone()])
-                } else {
-                    self.resolve_name(term)?
-                        .into_iter()
-                        .map(|matched| matched.page.id)
-                        .collect()
-                };
-                if let Some(sources) = &sources
-                    && direction == "cites"
-                {
-                    let key = fold(term);
-                    for (id, summary) in &sources.summaries {
-                        if let Some(source) = &summary.source
-                            && (fold(&source.siglum) == key
-                                || source
-                                    .citation_key
-                                    .as_ref()
-                                    .is_some_and(|value| fold(value) == key))
-                        {
-                            ids.insert(id.clone());
-                        }
-                    }
-                    ids.retain(|id| sources.summaries.contains_key(id));
-                }
+                let ids = self.query_reference_ids(
+                    term,
+                    if direction == "cites" {
+                        sources.as_ref()
+                    } else {
+                        None
+                    },
+                )?;
                 // An ambiguous title or alias requires an explicit page selection; never union guesses.
                 if ids.len() != 1 {
                     pages.clear();

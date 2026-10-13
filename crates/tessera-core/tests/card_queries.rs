@@ -521,6 +521,7 @@ fn saved_decks_round_trip_full_source_filters_revisions_and_executable_selection
             r#type: Some(id(2)),
             text: Some("selected".into()),
             filters: vec![Filter {
+                or_empty: false,
                 field: id(3),
                 op: FilterOp::Gt,
                 value: Some("2".into()),
@@ -617,6 +618,7 @@ fn invalid_limits_and_source_inputs_are_rejected_on_reads_and_saves() {
     oversized.limit = Some(2001);
     let mut missing_field = source_query("text");
     missing_field.filters = vec![Filter {
+        or_empty: false,
         field: id(999),
         op: FilterOp::Present,
         value: None,

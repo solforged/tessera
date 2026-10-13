@@ -221,7 +221,7 @@ Nine tools read:
 | `tessera_read_page` | A page, journal day or one block's subtree as an indented Markdown outline. Each block's comment gives its ID and revision, tags, task planning, project, question, position, relation, citations and cards; field entries show as `Name::`. |
 | `tessera_tasks` | The agenda for a day or a run of days, or tasks filtered by status, dates, priority, project or a saved task view. |
 | `tessera_cards` | A block's or page's cards, the due, new or full queue (optionally a deck's or a type's), review statistics, or decks. |
-| `tessera_query` | Types, fields and saved views, or a type's or view's blocks with their field values, filtered and sorted by field name. |
+| `tessera_query` | Types, fields and saved views, or notes, questions, positions, sources, tasks and highlights selected by `source`. Filters and sorts accept field names or `@` attributes; rows include editable field value IDs. Date values may be relative, such as `-30d`, and `or_empty` includes absent values. |
 | `tessera_library` | Sources, a source's contents, its passages in order from an ordinal with passage IDs, passage search, or highlights. |
 | `tessera_sync` | Whether the notebook is a replica, when it last synced, how many of its changes have not reached the hub, and the last sync error; `now` syncs first. |
 | `tessera_relations` | Authored argument edges filtered by `kind`, `source`, `target`, `source_holder` or `target_holder`, with an optional `limit`. At least one filter is required; rows name both endpoints and holders, and any problem. |

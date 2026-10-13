@@ -208,7 +208,7 @@ A type may carry a template: an ordered list of fields shown first in its table 
 
 ## Queries and views
 
-A query selects blocks by type, text search or field ownership, filters by fields, sorts by title, creation, update or a field, and limits the result. A field-only query considers blocks owning any named field.
+A query selects notes, questions, positions, sources, tasks or highlights with `source`. Omitting it preserves the existing type, text and field-owner selection. An explicit notes source without a type selects titled notes; type tables still include tagged blocks. Other sources select the entity's own block, not its containing page. Every row names both and carries its ordinary field values with their value block IDs for editing.
 
 | Predicate | Matches when |
 |---|---|
@@ -221,6 +221,23 @@ A query selects blocks by type, text search or field ownership, filters by field
 Missing and unreadable values sort last. Fields used by filters remain table columns even when all their values are empty.
 
 Instance equality and inequality compare the selected page's ID, not its label. A saved filter keeps its members when that page is renamed. Older label-only filters migrate when the title identifies one page; an unresolved value matches nothing and must be selected again.
+
+Attributes use a leading `@` wherever a field key is accepted, including filters, sorts, columns and grouping. Their values are derived and read-only; they have no value block IDs. Unknown attributes, including one from another source, are validation errors.
+
+| Source | Attributes beyond title, page, created and updated |
+|---|---|
+| Notes | `@kind`, `@resolved`, `@revisit` |
+| Questions | `@state`, `@parent`, `@program`, `@readings`, `@current`, `@last_assessed`, `@revisit`, `@inline` |
+| Positions | `@holder`, `@subject`, `@relation`, `@target_holder`, `@cites` |
+| Sources | `@creator`, `@cited_by`, `@highlights` |
+| Tasks | `@status`, `@due`, `@scheduled`, `@project` |
+| Highlights | `@source`, `@color` |
+
+The shared attributes are `@title` (text), `@page` (instance), `@created` and `@updated` (dates in the notebook's time zone). Questions use active, recurrent, parked and answered states. `@last_assessed` is the latest live assessment date, accepted or not. `@readings` counts positions about the question. Sources count distinct citing positions and highlighted blocks. Instance attributes compare stable IDs, not labels. Links and citations on a block source refer to its subtree.
+
+Date filters accept `today`, `-30d` and `+7d`, resolved in the notebook's time zone on each read. A filter such as `{"field":"@last_assessed","op":"lt","value":"-30d","or_empty":true}` also matches an absent value. Saved filters keep the relative expression, not its current date.
+
+Grouping uses `group: {key, collapsed?}` and returns distinct row IDs and counts under every applicable heading, including None for empty values. Counts cover the full match before pagination. Instance headings use target IDs, so renaming a target keeps the collapsed group identity.
 
 A view is a saved query with a name and a revision. Views are not blocks; saving and deleting them are operations like any other, so they are attributed and undoable. A type table is the unsaved query for that type's members.
 
@@ -577,8 +594,8 @@ A note view queries notes with a layout and grouping. It selects by kind and sup
 
 | Constraint | Find-line example |
 |---|---|
-| State (planned) | `is:resolved` |
-| Revisit: due, set or none (planned) | `revisit:due` |
+| State | `is:resolved` |
+| Revisit: due, set or none | `revisit:due` |
 | Links to a note | `links:Polybius` |
 | Links from a note | `from:Postone` |
 | Cited source, by siglum, citation key, title or alias | `cites:MAR` |
@@ -592,9 +609,11 @@ One query has two layouts:
 | Index | Titles in columns under headings; resolved marks and revisit dates are planned |
 | Table | One note per row, fields as columns, as in type tables |
 
-Index groups by first letter unless source cited, note linked, created month or a field's values is chosen. State grouping awaits the note capability. A note appears under every applicable heading, as in a book index. Source, link and field-value headings sort by descending distinct-note count, ties by name, with None last. Source headings show siglum then title; link headings open the note. Created months sort newest first. Only Letter grouping shows the jump strip.
+Index groups by first letter unless source cited, note linked, created month or a field's values is chosen. A query's `group` can also name any source attribute or field. A note appears under every applicable heading, as in a book index. Source, link and field-value headings sort by descending distinct-note count, ties by name, with None last. Source headings show siglum then title; link headings open the note. Created months sort newest first. Only Letter grouping shows the jump strip.
 
 One query selects titled notes by type kind or capability kind; Index and Table show and count the same matches. Saving a note view stores its query, layout and grouping in the existing view's query JSON, filed in the sidebar under the kind it lists. Older stored queries without note presentation remain table views and default to Letter when opened in Index. No second store or database migration is needed.
+
+Entity view recipes use that same query JSON. `columns` is an ordered array of `{key, width?}`; an explicit array overrides the source's defaults and stays fixed through search and filtering. `sort` keeps its array priority. `group` holds its key and optional collapsed heading keys. `card` names phone card fields, with sort keys also shown by the client, and `purpose` is one line. Saving and reopening preserves each of these values. No table is added.
 
 ### Spreads
 

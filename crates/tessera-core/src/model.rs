@@ -737,6 +737,8 @@ pub struct Filter {
     pub field: String,
     pub op: FilterOp,
     pub value: Option<String>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub or_empty: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -755,11 +757,41 @@ pub struct SortKey {
     pub direction: Direction,
 }
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum QuerySource {
+    #[default]
+    Notes,
+    Questions,
+    Positions,
+    Sources,
+    Tasks,
+    Highlights,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct QueryColumn {
+    pub key: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub width: Option<u32>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct QueryGrouping {
+    pub key: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub collapsed: Option<Vec<String>>,
+}
+
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Query {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<QuerySource>,
     pub r#type: Option<String>,
     pub text: Option<String>,
+    #[serde(default)]
     pub filters: Vec<Filter>,
+    #[serde(default)]
     pub sort: Vec<SortKey>,
     pub limit: Option<usize>,
     /// Rows skipped after sorting; total and column metadata cover all matches.
@@ -777,6 +809,14 @@ pub struct Query {
     /// Presentation travels in the existing saved query JSON, not a second view store.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub note_view: Option<NoteView>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub columns: Option<Vec<QueryColumn>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group: Option<QueryGrouping>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub card: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub purpose: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -832,9 +872,33 @@ pub struct FieldValue {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct QueryAttributeValue {
+    pub text: String,
+    pub reading: Reading,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct QueryAttribute {
+    pub key: String,
+    pub name: String,
+    pub kind: FieldKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct QueryGroup {
+    pub key: String,
+    pub title: String,
+    pub target: Option<String>,
+    pub row_ids: Vec<String>,
+    pub count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct QueryRow {
     pub block: BlockInPage,
     pub values: std::collections::BTreeMap<String, Vec<FieldValue>>,
+    #[serde(default)]
+    pub attributes: std::collections::BTreeMap<String, Vec<QueryAttributeValue>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -864,6 +928,10 @@ pub struct QueryResult {
     pub total: usize,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub note_groups: Vec<NoteGroup>,
+    #[serde(default)]
+    pub attributes: Vec<QueryAttribute>,
+    #[serde(default)]
+    pub groups: Vec<QueryGroup>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

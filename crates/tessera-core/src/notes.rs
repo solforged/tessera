@@ -152,6 +152,23 @@ struct Filing {
 }
 
 impl Notebook {
+    pub(crate) fn query_note_kinds(&self) -> Result<HashMap<String, Vec<String>>> {
+        let filing = self.filing()?;
+        Ok(filing
+            .notes
+            .into_iter()
+            .map(|note| {
+                (
+                    note.entry.id,
+                    note.kinds
+                        .into_iter()
+                        .map(|index| filing.kinds[index].key.clone())
+                        .collect(),
+                )
+            })
+            .collect())
+    }
+
     /// Kinds with independent note and tagged-block counts, for the sidebar.
     pub fn note_index(&self) -> Result<NoteIndex> {
         let filing = self.filing()?;

@@ -242,6 +242,7 @@ fn query_pages_keep_totals_columns_and_deterministic_sort_boundaries() {
     q.sort.clear();
     q.offset = 1;
     q.filters = vec![Filter {
+        or_empty: false,
         field: id(10),
         op: FilterOp::Gte,
         value: Some("2".into()),
@@ -284,6 +285,7 @@ fn table_columns_describe_base_membership_not_search_or_filters() {
         assert_eq!(nb.query(&q).unwrap().columns, columns);
     }
     q.filters.push(Filter {
+        or_empty: false,
         field: id(13),
         op: FilterOp::Set,
         value: None,
@@ -296,6 +298,7 @@ fn table_columns_describe_base_membership_not_search_or_filters() {
     // A field-only view uses owners of its named fields, without its value predicate.
     q.r#type = None;
     q.filters = vec![Filter {
+        or_empty: false,
         field: id(10),
         op: FilterOp::Is,
         value: Some("no match".into()),
@@ -1335,6 +1338,7 @@ fn filters_use_any_value_except_negative_and_empty_and_validate_even_without_hit
     for (op, value, expected) in cases {
         let mut q = query();
         q.filters.push(Filter {
+            or_empty: false,
             field: id(10),
             op,
             value: value.map(str::to_owned),
@@ -1347,6 +1351,7 @@ fn filters_use_any_value_except_negative_and_empty_and_validate_even_without_hit
     }
     let mut q = query();
     q.filters = vec![Filter {
+        or_empty: false,
         field: id(10),
         op: FilterOp::Gt,
         value: Some("invalid".into()),
@@ -1369,12 +1374,14 @@ fn filters_use_any_value_except_negative_and_empty_and_validate_even_without_hit
     edit(&mut nb, 300, "Äuthor");
     q = query();
     q.filters.push(Filter {
+        or_empty: false,
         field: id(10),
         op: FilterOp::Contains,
         value: Some("ÄUTH".into()),
     });
     assert_eq!(ids(nb.query(&q).unwrap()), vec![id(100)]);
     q.filters.push(Filter {
+        or_empty: false,
         field: id(10),
         op: FilterOp::IsNot,
         value: Some("1980".into()),
@@ -1691,6 +1698,7 @@ fn date_text_and_boolean_filters_use_readings_and_numeric_zero_is_equal() {
     let (_dir, mut nb) = fixture();
     let mut q = query();
     q.filters.push(Filter {
+        or_empty: false,
         field: id(10),
         op: FilterOp::Gte,
         value: Some("2024-01-01".into()),
@@ -1729,6 +1737,7 @@ fn saved_instance_equality_uses_identity_across_renames_and_aliases() {
     edit(&mut nb, 300, &format!("[[{}|The philosopher]]", id(20)));
     let mut q = query();
     q.filters.push(Filter {
+        or_empty: false,
         field: id(10),
         op: FilterOp::Is,
         value: Some(id(20)),
@@ -1787,6 +1796,7 @@ fn columns_count_owners_not_values_and_use_names_for_frequency_ties() {
     );
     let mut q = query();
     q.filters.push(Filter {
+        or_empty: false,
         field: id(12),
         op: FilterOp::IsNot,
         value: Some("ada".into()),
@@ -1847,6 +1857,7 @@ fn blank_values_are_missing_for_rows_filters_and_sorting_but_keep_columns() {
         assert_eq!(result.columns, vec![id(10)]);
         assert_eq!(result.fields.len(), 1);
         q.filters.push(Filter {
+            or_empty: false,
             field: id(10),
             op: FilterOp::Empty,
             value: None,
@@ -1951,6 +1962,7 @@ fn field_presence_includes_empty_entries_but_not_mentions() {
     );
     let mut q = query();
     q.filters.push(Filter {
+        or_empty: false,
         field: id(10),
         op: FilterOp::Present,
         value: None,
@@ -1962,6 +1974,7 @@ fn field_presence_includes_empty_entries_but_not_mentions() {
         nb.fields().unwrap().fields[0].owners
     );
     q.filters.push(Filter {
+        or_empty: false,
         field: id(10),
         op: FilterOp::Empty,
         value: None,

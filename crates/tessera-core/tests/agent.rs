@@ -909,7 +909,7 @@ fn save_deck(
         id: id.map(str::to_owned),
         revision,
         name: name.into(),
-        query,
+        query: Box::new(query),
     })
 }
 

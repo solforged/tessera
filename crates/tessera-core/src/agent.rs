@@ -144,7 +144,7 @@ pub enum AgentEdit {
         #[serde(default)]
         revision: Option<i64>,
         name: String,
-        query: CardQuery,
+        query: Box<CardQuery>,
     },
     /// Delete a saved deck. Its cards are untouched.
     DeleteDeck {

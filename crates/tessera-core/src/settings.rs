@@ -56,7 +56,7 @@ impl Notebook {
     }
 }
 
-fn time_zone(conn: &rusqlite::Connection) -> Result<TimeZone> {
+pub(crate) fn time_zone(conn: &rusqlite::Connection) -> Result<TimeZone> {
     let name: Option<String> = conn
         .prepare_cached("SELECT value FROM settings WHERE key = 'time_zone'")?
         .query_row([], |row| row.get(0))
@@ -71,7 +71,7 @@ pub(crate) fn today_in_connection(conn: &rusqlite::Connection, now_ms: i64) -> R
     date_in_zone(now_ms, time_zone(conn)?)
 }
 
-fn date_in_zone(now_ms: i64, zone: TimeZone) -> Result<String> {
+pub(crate) fn date_in_zone(now_ms: i64, zone: TimeZone) -> Result<String> {
     let instant =
         Timestamp::from_millisecond(now_ms).map_err(|error| validation(error.to_string()))?;
     Ok(instant.to_zoned(zone).date().to_string())

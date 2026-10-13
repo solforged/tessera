@@ -73,7 +73,7 @@ fn state_at(row: &rusqlite::Row<'_>, offset: usize) -> rusqlite::Result<TaskStat
     })
 }
 
-fn visible_tasks(
+pub(crate) fn visible_tasks(
     conn: &Connection,
     project_id: Option<&str>,
     via: TaskProjectVia,

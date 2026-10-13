@@ -151,11 +151,11 @@ impl Session<'_> {
                     id: existing.map(|deck| deck.id.clone()),
                     revision,
                     name: deck_name,
-                    query: CardQuery {
+                    query: Box::new(CardQuery {
                         source,
                         selection,
                         limit: None,
-                    },
+                    }),
                 },
             )
             .await?;

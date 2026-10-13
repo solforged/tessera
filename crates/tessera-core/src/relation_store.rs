@@ -77,7 +77,10 @@ fn kind_at(row: &rusqlite::Row<'_>, index: usize) -> rusqlite::Result<RelationKi
 
 // One ancestry walk for the requested edges, including inactive ancestors only
 // as traversal steps. A closer question never shadows an attributed source.
-fn derive(conn: &Connection, ids: Option<&[String]>) -> Result<HashMap<String, RelationInfo>> {
+pub(crate) fn derive(
+    conn: &Connection,
+    ids: Option<&[String]>,
+) -> Result<HashMap<String, RelationInfo>> {
     let mut statement = conn.prepare_cached(concat!(
         hidden_blocks!(),
         ", candidates AS (
