@@ -1,14 +1,19 @@
-/** A journal's civil date spoken in English; UTC carries the label without a time-zone shift. */
+/**
+ * Journal dates speak in one place so their form can become a setting: weekday, month, then day (`Tuesday, October 13`).
+ * UTC carries the label without a time-zone shift.
+ */
+const spoken = (date: string, options: Intl.DateTimeFormatOptions) => new Date(`${date}T12:00:00Z`).toLocaleDateString('en-US', { ...options, timeZone: 'UTC' });
+
 export function spokenJournalDate(date: string): string {
-  return new Date(`${date}T12:00:00Z`).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).replace(',', '');
+  return spoken(date, { weekday: 'long', month: 'long', day: 'numeric' });
 }
 
 export function journalDayLabel(date: string): string {
-  return new Date(`${date}T12:00:00Z`).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).replace(',', '');
+  return spoken(date, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 }
 
 export function journalMonthLabel(date: string): string {
-  return new Date(`${date}T12:00:00Z`).toLocaleDateString('en-GB', { month: 'long', timeZone: 'UTC' });
+  return spoken(date, { month: 'long' });
 }
 
 /** ISO weeks are named by their Thursday, including dates that fall in the neighbouring week-year. */

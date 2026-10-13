@@ -5,13 +5,13 @@ import { journalDayLabel, journalISOWeek, journalMonthGrid, journalMonthLabel, j
 
 type Period = 'year' | 'quarter' | 'month' | 'week';
 const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-/** `5–11 October`, or `28 September – 4 October` across a month boundary. */
+/** `October 5–11`, or `September 28 – October 4` across a month boundary. */
 function weekRange(days: string[]) {
   const first = days[0]!, last = days[days.length - 1]!;
   const day = (date: string) => Number(date.slice(8));
   return first.slice(0, 7) === last.slice(0, 7)
-    ? `${day(first)}–${day(last)} ${journalMonthLabel(last)}`
-    : `${day(first)} ${journalMonthLabel(first)} – ${day(last)} ${journalMonthLabel(last)}`;
+    ? `${journalMonthLabel(first)} ${day(first)}–${day(last)}`
+    : `${journalMonthLabel(first)} ${day(first)} – ${journalMonthLabel(last)} ${day(last)}`;
 }
 
 export function JournalTrail(props: { date: string; journalPeriod?: Period; notebook: NotebookClient; onSelect(date: string): Promise<void> }) {
@@ -45,11 +45,12 @@ export function JournalTrail(props: { date: string; journalPeriod?: Period; note
   const focus = () => ledger()?.date ?? props.date;
   const quarter = createMemo(() => journalQuarter(focus()));
   const week = createMemo(() => journalISOWeek(focus()));
+  // The trail stays short under the spoken date: year, month and week; the quarter shows only while its ledger is open.
   const segments = createMemo(() => [
-    { kind: 'year' as const, label: focus().slice(0, 4) },
-    { kind: 'quarter' as const, label: `Q${quarter().quarter}` },
-    { kind: 'month' as const, label: journalMonthLabel(focus()) },
-    { kind: 'week' as const, label: `Week ${week().week}` },
+    { kind: 'year' as const, label: focus().slice(0, 4), name: focus().slice(0, 4) },
+    ...(ledger()?.kind === 'quarter' ? [{ kind: 'quarter' as const, label: `Q${quarter().quarter}`, name: `Quarter ${quarter().quarter}` }] : []),
+    { kind: 'month' as const, label: journalMonthLabel(focus()).slice(0, 3), name: journalMonthLabel(focus()) },
+    { kind: 'week' as const, label: `W${week().week}`, name: `Week ${week().week}, ${week().year}` },
   ]);
   let ledgerElement: HTMLDivElement | undefined;
   /** Opening a finer period from inside a ledger lands on it, rather than leaving the page scrolled past a shorter ledger. */
@@ -116,7 +117,7 @@ export function JournalTrail(props: { date: string; journalPeriod?: Period; note
     <nav class="journal-trail" aria-label="Journal periods"><For each={segments()}>{(segment, index) => <>
       <Show when={index() > 0}><span class="journal-trail-separator" aria-hidden="true">·</span></Show>
       <Button ref={element => triggers.set(segment.kind, element)} class="journal-trail-segment" aria-expanded={ledger()?.kind === segment.kind} aria-controls={id}
-        label={`${segment.label}${segment.kind === 'week' ? `, ${week().year}` : ''} journal ledger`} onClick={() => setLedger(value => value?.kind === segment.kind ? null : { kind: segment.kind, date: value?.date ?? props.date })}>{segment.label}</Button>
+        label={`${segment.name} journal ledger`} onClick={() => setLedger(value => value?.kind === segment.kind ? null : { kind: segment.kind, date: value?.date ?? props.date })}>{segment.label}</Button>
     </>}</For></nav>
     <h1>{spokenJournalDate(props.date)}</h1>
     <Show when={ledger()}>{open => <div ref={ledgerElement} id={id} class="journal-ledger" aria-label={`${open().kind} journal ledger`} aria-busy={busy()}>

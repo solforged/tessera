@@ -3,8 +3,8 @@ import { journalDayLabel, journalISOWeek, journalMonthGrid, journalQuarter, jour
 
 describe('journal date presentation', () => {
   test('speaks a civil date without changing its stored ISO label', () => {
-    expect(spokenJournalDate('2026-10-10')).toBe('Saturday 10 October');
-    expect(spokenJournalDate('2026-01-01')).toBe('Thursday 1 January');
+    expect(spokenJournalDate('2026-10-13')).toBe('Tuesday, October 13');
+    expect(spokenJournalDate('2026-01-01')).toBe('Thursday, January 1');
   });
   test('uses ISO weeks at both ends of the calendar year', () => {
     expect(journalWeek('2026-10-10')).toBe(41);
@@ -46,6 +46,6 @@ describe('journal date presentation', () => {
     expect(journalYearMonths('2027-12-31').at(-1)).toBe('2027-12-01');
   });
   test('day buttons have a full spoken civil label including the year', () => {
-    expect(journalDayLabel('2027-01-01')).toBe('Friday 1 January 2027');
+    expect(journalDayLabel('2027-01-01')).toBe('Friday, January 1, 2027');
   });
 });
