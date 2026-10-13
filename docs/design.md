@@ -389,7 +389,7 @@ Choice and instance values never show their reference text. Their pills sit cent
 
 ### Field area
 
-Every block or page with field entries or template fields has a field bed at rest. Populated fields stay visible; missing template and recipe slots appear only while their owner or one of its fields is focused. Slots never add content until used.
+Every block or page with field entries or template fields has a field bed at rest. Populated fields stay visible. A page's missing template slots stay visible under its heading, since the page itself is never selected or edited; a nested owner's missing template and recipe slots appear only while it or one of its fields is focused. Slots never add content until used.
 
 - On a page, an Add field line in mono apparatus closes the area, followed by a small gap before the notes.
 - On a nested block, `+ Field` appears at the end of its last field row while the block or one of its fields is hovered, selected or edited, without changing any row's height.

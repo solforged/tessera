@@ -268,7 +268,8 @@ export function createFieldSheet(context: Pick<OutlineContext,
   }
   function Area(area: { state: PlacedSheet }) {
     const root = () => area.state.owner === props.pageId;
-    const focused = () => filling() === area.state.owner || belongs(selected(), area.state.owner) || belongs(editing(), area.state.owner);
+    // A page owner is never selected or edited itself, so its slots stay at rest; nested owners show them only while focused.
+    const focused = () => root() || filling() === area.state.owner || belongs(selected(), area.state.owner) || belongs(editing(), area.state.owner);
     const missing = createMemo(() => focused() ? area.state.missing.filter(id => options.revealed().has(area.state.owner) || fieldHide(definitionsById().get(id)) === 'never') : []);
     const hidden = () => (options.hiddenCounts().get(area.state.owner) ?? 0) + area.state.missing.filter(id => fieldHide(definitionsById().get(id)) !== 'never').length;
     const active = () => belongs(hovered(), area.state.owner) || belongs(selected(), area.state.owner) || belongs(editing(), area.state.owner);
