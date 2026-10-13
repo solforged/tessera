@@ -47,7 +47,7 @@ Long Read and Outline pages keep a quiet section line at the top of the scroller
 
 Make perspective, in the block menu, the palette and `/perspective`, turns a block such as `[[Plato]]` into a perspective; Remove perspective undoes it. Internally the capability is still called a position.
 
-Its row names the holder at control weight. The holder link keeps the text colour with a `--line` hairline underline; hover or focus turns both gilt. Attribute values that name pages, such as Work, read the same way, while links in prose stay gilt. Its source's siglum hangs in the margin; rows inside the perspective do not repeat it. A standfirst field drops its label and reads as the sentence under the holder, so the pair reads "Plato / A line of decline". At the Perspectives depth each perspective closes to its holder and standfirst.
+Its row names the holder at control weight. The holder link keeps the text color with a `--line` hairline underline; hover or focus turns both gilt. Attribute values that name pages, such as Work, read the same way, while links in prose stay gilt. Its source's siglum hangs in the margin; rows inside the perspective do not repeat it. A standfirst field drops its label and reads as the sentence under the holder, so the pair reads "Plato / A line of decline". At the Perspectives depth each perspective closes to its holder and standfirst.
 
 Clicking the holder link opens the holder's page beside, like any reference, in Read and Outline. Change holder and File under are in the block menu, palette and slash menu. Its picker lists People and Groups, including their refined types, before other pages. File under lists page and inline questions and concepts first. The pickers write ordinary link tokens and preserve the prose.
 
