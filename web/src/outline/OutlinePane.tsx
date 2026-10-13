@@ -27,7 +27,7 @@ import { BlockText, plainText } from './BlockText';
 import { isStableReference, textTokens } from '../document/text-tokens';
 import { PaneEditor } from './editor';
 import { createOutlineCapabilities } from './capabilities';
-import { hiddenFieldEntries, inlineFieldValues, selectionIds, selectionRoots, survivingZoomPath, visibleIds } from './visibility';
+import { editingDepth, hiddenFieldEntries, inlineFieldValues, selectionIds, selectionRoots, survivingZoomPath, visibleIds } from './visibility';
 import type { DepthFilter, HiddenFieldEntry } from './visibility';
 import { CitationChip, SourceHeader } from './SourceHeader';
 import { SourceDetails } from './SourceDetails';
@@ -583,6 +583,7 @@ function Pane(props: OutlinePaneProps) {
       if (folds().has(parent)) ancestors.push(parent);
     }
     if (ancestors.length) setFolds(previous => { const next = new Set(previous); for (const parent of ancestors) next.delete(parent); return next; });
+    setDepth(editingDepth(doc, id, zoom(), folds(), showArchived(), depthFilter()));
   }
   function visibleNeighbor(id: string, before: readonly string[]) {
     const visible = indices();

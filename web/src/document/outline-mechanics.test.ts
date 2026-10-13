@@ -9,7 +9,7 @@ import { createNotebookClient } from './index';
 import type { Notebook } from './index';
 import type { EditResult, PageDocument } from './contract';
 import { boundaryDeletion } from './outline-mechanics';
-import { inlineFieldValues, selectionIds, selectionRoots, survivingZoomPath, visibleIds } from '../outline/visibility';
+import { editingDepth, inlineFieldValues, selectionIds, selectionRoots, survivingZoomPath, visibleIds } from '../outline/visibility';
 import { newTask } from '../tasks/quick-date';
 
 const port = Bun.env.TESSERA_MECHANICS_TEST_PORT ?? '43862';
@@ -699,6 +699,23 @@ test('depth stops show the gloss, the opening, then headings and positions, and 
   expect(rows('perspectives', new Set([position]))).toEqual([gloss, glossValue, intro, introChild, perspectives, position, section, subsection]);
   expect(rows('full').length).toBe(doc.outline.size());
   expect(rows('gloss', new Set(), section)).toEqual([section, subsection, doc.outline.children(subsection)[0]!]);
+});
+
+test('editing an inserted sibling at Perspectives depth reveals its own caret target', async () => {
+  const { doc, first: heading } = await fixture('Perspectives');
+  success(doc.edit({ kind: 'heading', id: heading, level: 2 }));
+  const position = insert(doc, heading, null, 'Plato');
+  const filter = { stop: 'perspectives' as const, gloss: null, position: (id: string) => id === position, gist: () => false };
+  const folds = new Set<string>();
+  expect(editingDepth(doc, position, null, folds, false, filter)).toBe('perspectives');
+  const inserted = success(doc.edit({ kind: 'insert', parentId: heading, after: position }));
+  expect(inserted.caret?.id).toBe(inserted.created[0]);
+  const id = inserted.caret!.id;
+  expect(visibleIds(doc, null, folds, false, undefined, filter)).not.toContain(id);
+  const stop = editingDepth(doc, id, null, folds, false, filter);
+  expect(stop).toBe('full');
+  expect(visibleIds(doc, null, folds, false, undefined, { ...filter, stop })).toEqual([heading, position, id]);
+  expect(editingDepth(doc, id, heading, folds, false, filter)).toBe('perspectives');
 });
 
 test('deleted zoom targets resolve to the closest surviving ancestor and restore page depth at the root', async () => {

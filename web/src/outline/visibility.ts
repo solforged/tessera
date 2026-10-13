@@ -107,6 +107,11 @@ export function visibleIds(doc: PageDocument, zoom: string | null, folds: Readon
   return result;
 }
 
+/** A structural edit must expose its caret target before the visible-row list restores selection. */
+export function editingDepth(doc: PageDocument, id: string, zoom: string | null, folds: ReadonlySet<string>, archived: boolean, depth?: DepthFilter): Depth {
+  return depth && depth.stop !== 'full' && !visibleIds(doc, zoom, folds, archived, undefined, depth).includes(id) ? 'full' : depth?.stop ?? 'full';
+}
+
 export function selectionIds(ids: readonly string[], range: TextRange): string[] {
   const a = ids.indexOf(range.anchor.id);
   const b = ids.indexOf(range.head.id);
