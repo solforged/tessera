@@ -102,6 +102,12 @@ export function JournalHeader(props: { date: string; journalPeriod?: Extract<Ope
   const [carriedOpen, setCarriedOpen] = createSignal(false);
   const clock = createClock(props.notebook);
   const dayGroups = createMemo(() => { const agenda = desk()?.agenda; return agenda ? groupDayAgenda(agenda.items, [], props.date) : null; });
+  // Tasks written in this journal already sit in the outline below with their plan, so the ledger lists only work from elsewhere.
+  const ledgerRows = createMemo(() => {
+    const planned = dayGroups()?.planned ?? [];
+    const elsewhere = planned.filter(row => row.source.page.kind !== 'journal' || row.source.page.text !== props.date);
+    return { elsewhere, below: planned.length - elsewhere.length };
+  });
   // Every commit refreshes the desk, so the ledger needs no refresh of its own.
   const carried = createBulkMove(props.notebook, () => {});
   const Placeholder = () => <span class="journal-tile-placeholder" aria-hidden="true"><span /><span /></span>;
@@ -148,8 +154,9 @@ export function JournalHeader(props: { date: string; journalPeriod?: Extract<Ope
           </div>
           <Show when={carriedOpen()}><TaskSourceRows rows={groups().overdue} date={props.date} notebook={props.notebook} timetable plan onOpen={props.onOpen} onChanged={() => {}} /></Show>
         </Show>
-        <Show when={groups().planned.length} fallback={<p class="agenda-message agenda-day-empty">Nothing planned today</p>}>
-          <TaskSourceRows rows={groups().planned} date={props.date} notebook={props.notebook} timetable plan now={clock()} onOpen={props.onOpen} onChanged={() => {}} />
+        <Show when={ledgerRows().elsewhere.length} fallback={<p class="agenda-message agenda-day-empty">{ledgerRows().below ? `${ledgerRows().below} planned in the journal below` : 'Nothing planned today'}</p>}>
+          <TaskSourceRows rows={ledgerRows().elsewhere} date={props.date} notebook={props.notebook} timetable plan now={clock()} onOpen={props.onOpen} onChanged={() => {}} />
+          <Show when={ledgerRows().below}><p class="agenda-message agenda-day-empty">{ledgerRows().below} more in the journal below</p></Show>
         </Show>
         <Button class="today-ledger-open" onClick={event => props.onOpen({ kind: 'agenda', date: props.date }, event.shiftKey)}>Open agenda<span aria-hidden="true">›</span></Button>
       </section>}</Show>
