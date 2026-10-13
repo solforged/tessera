@@ -19,13 +19,13 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Bulk filing on Unfiled: select notes, file them under one type in a single change, and undo it in one step.
 - Changing a Text field to Choice can add its existing values as options in the same undoable change, and Make option repairs a value that is not an option.
 - Add field can create a field of any kind.
-- Read, Outline and Compare projections on titled pages. Concept and question pages open in Read: the opening on one text edge, then one slip per reading with its Gist, Work and Account, facts folded, and disagreements filed under the criterion they name. Prose stays editable in place.
-- Add reading: pick who holds it, and the reading opens with its Gist ready to write.
-- A section line at the top of long pages names the section and reading you are in, and jumps to any other.
-- Compare focuses a disagreement on the readings it names, and criterion cells use the outline's editor, with references, quotes and one undo history.
-- Zooming into a reading opens its dossier: holder, Gist, Work and what links to that reading, without the page's backlinks.
-- Holder pages open into the readings they hold, grouped by subject.
-- Questions as research programs: branches show their state, readings, current reading and revisit date; Write assessment, Accept current reading and Withdraw current reading keep every dated assessment; verbs say which state they lead to.
+- Read, Outline and Compare projections on titled pages. Concept and question pages open in Read: the opening on one text edge, then one slip per perspective with its Gist, Work and Account, facts folded, and disagreements filed under the criterion they name. Prose stays editable in place.
+- Add perspective: pick who holds it, and the perspective opens with its Gist ready to write.
+- A section line at the top of long pages names the section and perspective you are in, and jumps to any other.
+- Compare focuses a disagreement on the perspectives it names, and criterion cells use the outline's editor, with references, quotes and one undo history.
+- Zooming into a perspective opens its dossier: holder, Gist, Work and what links to that perspective, without the page's backlinks.
+- Holder pages open into the perspectives they hold, grouped by subject.
+- Questions as research programs: branches show their state, perspectives, current reading and revisit date; Write assessment, Accept current reading and Withdraw current reading keep every dated assessment; verbs say which state they lead to.
 - The Questions index groups questions by program, includes inline questions, and has Active, Recurrent, Due, Answered and Parked tabs.
 - Revisits: notes and questions with a revisit date come back in Review's Questions and notes queue and in Today, with Revisited, Later, Resolve and Keep recurrent.
 - `GET /api/revisits`, `GET /api/questions` state and inline filters, and the MCP tools `tessera_revisits` and `tessera_revisit`.
@@ -33,7 +33,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Saved views keep their recipe: column order and widths, sorts in priority order, grouping with collapsed groups, phone card fields and a one-line purpose.
 - Position, question and highlight values render in views and edit in place with one undo.
 - Field roles: standfirst, attribute, prose and citation decide how a field is shown. Gist and Gloss became standfirsts.
-- Filling fields by keyboard: Tab and Shift-Tab move between a block's fields, Shift-Enter adds a line, and Enter on an empty value leaves. Add field offers the reading's recipe fields first.
+- Filling fields by keyboard: Tab and Shift-Tab move between a block's fields, Shift-Enter adds a line, and Enter on an empty value leaves. Add field offers the perspective's recipe fields first.
 - Span fields read historical ranges such as `c. 200–118 BCE` or `fl. 1340s` as years for sorting and filtering, and keep the text as written.
 - Reviewed field changes: changing a field's kind shows how each written value maps before applying it; renaming onto an existing field merges them; deleting a field shows its impact and offers Archive, Detach or Delete values. Each applies as one undoable change.
 - Library catalog cards can hide fields.
@@ -47,8 +47,10 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ### Changed
 
-- The notebook's own sentences are set in Plex everywhere in the outline, including rows that cite a source, glosses, positions and questions, and their previews in Find and on hover. Piazzolla stays for titles, headings, quotes and the reader.
+- The notebook's own sentences are set in Plex everywhere in the outline, including rows that cite a source, glosses, perspectives and questions, and their previews in Find and on hover. Piazzolla stays for titles, headings, quotes and the reader.
 - Sources by the same author keep a three-letter siglum and add a year, a title initial or a number to tell them apart, as `MAT`, `MAT19` and `MAT2`, instead of lengthening the surname.
+- Read, Compare, the research desk and tables all call a holder's stance a perspective, with the same counts, tabs and actions.
+- On a source with a snapshot, Read in the page header opens the book at your saved position (Shift opens it beside). The reader keeps the source's Read, Outline and Compare tabs, so Outline returns to the page.
 - Failed imports sit only in the Library Inbox, folded behind one `N imports failed` line with Retry, Dismiss and Dismiss all, and name the page they tried (`pubmed.ncbi.nlm.nih.gov/16507066`).
 - Finding aids count a note's prose blocks, not its field entries, and leave out zero counts; people without prose show their backlinks instead. Sources reads as a denser bibliography with plain author names.
 - Review says how many cards come due later today and when the next one is due, instead of a bare "0 cards to review".
