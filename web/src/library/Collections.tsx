@@ -1,4 +1,4 @@
-import { For, Show, createResource, createSignal } from 'solid-js';
+import { For, Show, createEffect, createMemo, createResource, createSignal, onCleanup } from 'solid-js';
 import type { Accessor, JSX } from 'solid-js';
 import type { Block } from '../api/types';
 import type { NotebookClient } from '../document/contract';
@@ -23,7 +23,27 @@ export function createCollectionActions(): CollectionActions {
   const [changed, setChanged] = createSignal<{ label: string; change: CollectionChange } | null>(null);
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal('');
-  const record = (change: CollectionChange | null, label: string) => { if (change) setChanged({ change, label }); };
+  const [hovered, setHovered] = createSignal(false);
+  const [focused, setFocused] = createSignal(false);
+  const [leaving, setLeaving] = createSignal(false);
+  const record = (change: CollectionChange | null, label: string) => {
+    setError('');
+    if (change) { setLeaving(false); setChanged({ change, label }); }
+  };
+  createEffect(() => {
+    setLeaving(false);
+    if (!changed()) { setHovered(false); setFocused(false); return; }
+    if (hovered() || focused() || busy()) return;
+    let exitTimer: ReturnType<typeof setTimeout> | undefined;
+    const timer = setTimeout(() => {
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { setChanged(null); return; }
+      setLeaving(true);
+      const duration = getComputedStyle(document.documentElement).getPropertyValue('--motion-fast').trim();
+      const milliseconds = parseFloat(duration) * (duration.endsWith('ms') ? 1 : 1000);
+      exitTimer = setTimeout(() => setChanged(null), milliseconds);
+    }, 10000);
+    onCleanup(() => { clearTimeout(timer); clearTimeout(exitTimer); });
+  });
   async function run(label: string, action: () => Promise<CollectionChange | null>): Promise<boolean> {
     if (busy()) return false;
     setBusy(true); setError('');
@@ -40,7 +60,7 @@ export function createCollectionActions(): CollectionActions {
     finally { setBusy(false); }
   }
   const Notice = () => <>
-    <Show when={changed()}>{value => <p class="library-message library-collection-notice" role="status">{value().label}<Button disabled={busy()} onClick={() => { void undo(); }}>Undo</Button></p>}</Show>
+    <Show when={changed()}>{value => <p class="library-message library-collection-notice" classList={{ leaving: leaving() }} role="status" onPointerEnter={() => setHovered(true)} onPointerLeave={() => setHovered(false)} onFocusIn={() => setFocused(true)} onFocusOut={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocused(false); }}>{value().label}<Button disabled={busy()} onClick={() => { void undo(); }}>Undo</Button></p>}</Show>
     <Show when={error()}><p class="library-error" role="alert">{error()}</p></Show>
   </>;
   return { busy, record, run, undo, canUndo: () => !!changed(), Notice };
@@ -97,11 +117,21 @@ export function CollectionPicker(props: { anchor: HTMLElement; notebook: Noteboo
 export function SourceCollections(props: { notebook: NotebookClient; sourceId: string; actions: CollectionActions }) {
   const [data] = createResource(() => [props.sourceId, props.notebook.changeSequence()] as const, async ([id]) => {
     const [pages, ids] = await Promise.all([collectionPages(props.notebook.api), sourceCollections(props.notebook.api, id)]);
-    return pages.filter(page => ids.includes(page.id));
+    return { sourceId: id, collections: pages.filter(page => ids.includes(page.id)) };
+  });
+  // Preserve chip identity across refetches, and treat the first result for each source as already filed.
+  const chips = createMemo<{ sourceId: string; entries: { id: string; stamped: boolean }[] } | undefined>(previous => {
+    const value = data();
+    if (!value) return previous;
+    const existing = previous?.sourceId === value.sourceId ? previous : undefined;
+    return { sourceId: value.sourceId, entries: value.collections.map(collection => existing?.entries.find(entry => entry.id === collection.id) ?? { id: collection.id, stamped: !!existing }) };
   });
   const [picker, setPicker] = createSignal<HTMLElement>();
   return <div class="library-details-row" role="group" aria-label="Collections"><span>Collections</span><div class="library-source-collections">
-    <For each={data()}>{collection => <span class="library-collection-chip"><span>{collection.text}</span><Button icon="close" label={`Remove from ${collection.text}`} disabled={props.actions.busy()} onClick={() => { void props.actions.run(`Removed from ${collection.text}`, () => changeCollectionMembers(props.notebook, collection.id, [props.sourceId], false)); }} /></span>}</For>
+    <For each={chips()?.entries}>{entry => {
+      const collection = () => data()?.collections.find(collection => collection.id === entry.id);
+      return <span class="library-collection-chip" classList={{ 'library-collection-chip-new': entry.stamped }}><span>{collection()?.text}</span><Button icon="close" label={`Remove from ${collection()?.text}`} disabled={props.actions.busy()} onClick={() => { void props.actions.run(`Removed from ${collection()?.text}`, () => changeCollectionMembers(props.notebook, entry.id, [props.sourceId], false)); }} /></span>;
+    }}</For>
     <Button icon="plus" disabled={props.actions.busy()} onClick={event => setPicker(event.currentTarget)}>Add to collection…</Button>
     <Show when={data.error}><p class="library-error" role="alert">{String(data.error)}</p></Show>
     <props.actions.Notice />

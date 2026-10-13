@@ -148,10 +148,10 @@ export function SourceHeader(props: {
   return <>
     <Show when={props.compact} fallback={<>
     <div ref={header} class="outline-source-header" classList={{ 'outline-source-coverless-article': (snapshot()?.format ?? props.doc.root()?.source?.format) === 'article' && !cover() }}>
-      <Show when={snapshot()} fallback={<div class="outline-source-cover library-cover" style={{ visibility: coverVisibility() }}>
+      <Show when={snapshot()} fallback={<div class="outline-source-cover library-cover" data-source-cover={props.doc.pageId} data-pane-pending={coverVisibility() ? '' : undefined} style={{ visibility: coverVisibility() }}>
         <Show when={cover()} fallback={<span class="library-spine"><span class="library-spine-siglum">{source()?.source.siglum}</span></span>}>{href => <ResourceImage snapshotId="" href={href()} loading="eager" alt="" onLoad={() => setLoadedCover(href())} onError={() => setLoadedCover(href())} />}</Show>
       </div>}>
-        <Button class="outline-source-cover library-cover" style={{ visibility: coverVisibility() }} label={source()?.position ? 'Continue reading' : 'Read'} onClick={event => props.onOpen({ kind: 'reader', sourceId: props.doc.pageId }, event.shiftKey)}>
+        <Button class="outline-source-cover library-cover" data-source-cover={props.doc.pageId} data-pane-pending={coverVisibility() ? '' : undefined} style={{ visibility: coverVisibility() }} label={source()?.position ? 'Continue reading' : 'Read'} onClick={event => props.onOpen({ kind: 'reader', sourceId: props.doc.pageId }, event.shiftKey)}>
           <Show when={cover()} fallback={<span class="library-spine"><span class="library-spine-siglum">{source()?.source.siglum}</span></span>}>{href => <ResourceImage snapshotId={snapshot()!.id} href={href()} loading="eager" alt="" onLoad={() => setLoadedCover(href())} onError={() => setLoadedCover(href())} />}</Show>
         </Button>
       </Show>
@@ -200,7 +200,6 @@ export function SourceHeader(props: {
     }} />
     <Show when={result()}><p class="library-message" role="status">{result()}</p></Show>
     <SourceCollections notebook={props.notebook} sourceId={props.doc.pageId} actions={collectionActions} />
-    <collectionActions.Notice />
     <Show when={collectionPicker()}>{anchor => <CollectionPicker anchor={anchor()} notebook={props.notebook} sourceIds={[props.doc.pageId]} onChanged={collectionActions.record} onDismiss={() => setCollectionPicker(undefined)} />}</Show>
   </>;
 }

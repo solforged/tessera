@@ -38,7 +38,7 @@ export function ReadingCard(props: { row: LibraryRow; notebook: NotebookClient; 
       </span>
     </span>
     {/* The map and its figures span the card under the cover, so the time left reads on one line. */}
-    <Show when={length() > 0}><BookMap chapters={chapters()} length={length()} at={at()} /></Show>
+    <Show when={length() > 0} fallback={<span class="book-map library-reading-map-pending" aria-hidden="true" />}><BookMap chapters={chapters()} length={length()} at={at()} /></Show>
     <span class="library-reading-position">
       {/* The chapter line above names what the time is left in, so the figure fits beside the percentage. */}
       <span><Show when={current()?.chapter.title ? current() : null}>{value => <span title={`${timeLeft(value().chapter.end - at())} left in chapter`}>{timeLeft(value().chapter.end - at())} left</span>}</Show></span>

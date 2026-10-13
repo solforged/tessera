@@ -63,9 +63,12 @@
 /* Without hover the row menu would never show, and tapping the row opens the book. */
 @media (hover: none) { .library-row > .button:last-child { opacity: 1; } }
 .library-row:hover { background: var(--hover); }
-.library-source-row.library-row-selected { background: var(--selection); box-shadow: inset 2px 0 var(--accent); }
+.library-source-row { position: relative; }
+.library-row.library-row-selected { background: var(--selection); }
 /* The book opened beside the shelf keeps a quiet current-page marker, separate from batch selection. */
-.library-source-row.library-source-current { background: var(--selection); box-shadow: inset var(--space-2) 0 var(--accent); }
+.library-source-row.library-source-current { background: var(--selection); }
+.library-row.library-row-selected::before, .library-source-row.library-source-current::before { content: ''; position: absolute; inset: 0 auto 0 0; width: var(--space-2); background: var(--accent); transform-origin: top; pointer-events: none; animation: library-marker-in var(--motion-ui) var(--motion-ease) both; }
+@keyframes library-marker-in { from { transform: scaleY(0); } to { transform: scaleY(1); } }
 .library-leading { position: relative; display: flex; flex: 0 0 var(--row-height); align-items: center; justify-content: center; height: var(--row-height); color: var(--muted); }
 .library-source-image { display: flex; align-items: center; justify-content: center; width: calc(var(--row-height) * 2 / 3); height: var(--row-height); flex-shrink: 0; }
 .library-source-image img { width: 100%; height: 100%; aspect-ratio: 2 / 3; object-fit: cover; border-radius: 1px; box-shadow: 0 0 0 var(--rule-width) var(--line); }
@@ -249,6 +252,8 @@
 .library-book-open.button:hover:not(:disabled) { background: transparent; }
 .library-cover { position: relative; display: block; width: 100%; aspect-ratio: 2 / 3; overflow: hidden; border-radius: var(--radius-control); background: var(--surface); box-shadow: 0 0 0 var(--rule-width) var(--line); transition: box-shadow var(--motion-fast) var(--motion-ease); }
 .library-cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
+img[data-resource-image="pending"] { opacity: 0; }
+img[data-resource-image="loaded"] { animation: fade-in var(--motion-ui) var(--motion-ease) both; }
 .library-book-open:hover .library-cover { box-shadow: 0 0 0 var(--rule-width) var(--control-border); }
 .library-book.library-row-selected { background: none; box-shadow: none; }
 .library-book.library-row-selected .library-cover { box-shadow: 0 0 0 var(--space-2) var(--accent); }
@@ -256,7 +261,7 @@
 .library-spine { display: flex; flex-direction: column; justify-content: center; gap: var(--space-8); height: 100%; padding: var(--space-12); }
 .library-spine-siglum { color: var(--accent); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .library-spine-siglum::after { content: ""; display: block; width: var(--space-16); margin-top: var(--space-8); border-top: var(--rule-width) solid var(--line); }
-.library-spine-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6; overflow: hidden; overflow-wrap: anywhere; color: var(--text); font: var(--weight-title) var(--text-library-title)/var(--line-source-title) var(--font-display); font-variation-settings: var(--optical-quote); }
+.library-spine-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6; overflow: hidden; overflow-wrap: break-word; hyphens: auto; color: var(--text); font: var(--weight-title) var(--text-library-title)/var(--line-source-title) var(--font-display); font-variation-settings: var(--optical-quote); }
 /* The reader's 2 px position rule, filled to `--progress`; the track shows once reading has started. */
 .library-reading-rule { display: block; height: var(--space-2); background: linear-gradient(var(--accent), var(--accent)) no-repeat 0 0 / var(--progress, 0%) 100%; }
 .library-reading-rule.library-reading-started { background-color: var(--line); }
@@ -296,6 +301,8 @@
 .library-reading-author, .library-reading-chapter { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
 .library-reading-chapter { padding-top: var(--space-8); }
 .library-reading-card > .book-map { margin-top: var(--space-4); }
+.library-reading-map-pending { background: var(--line); }
+.library-reading-card > .book-map:not(.library-reading-map-pending) { animation: fade-in var(--motion-ui) var(--motion-ease) both; }
 .library-reading-position { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-8); color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
 .library-reading-position > :first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 /* Reading now already shows every Reading source, so the Reading tab's rows would repeat it; search, filters and views bring them back. */
@@ -385,14 +392,23 @@
 .library-collection-covers .library-spine-title { font-size: var(--text-control); }
 .library-collection-title { flex: 1; min-width: 0; overflow-wrap: anywhere; color: var(--text); font: var(--weight-source-title) var(--text-library-title)/var(--line-source-title) var(--font-display); }
 .library-collection-name { display: flex; flex-direction: column; gap: var(--space-8); }
-.library-collection-notice { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); }
+.library-collection-notice { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); animation: rise-in var(--motion-ui) var(--motion-ease) both; }
+.library-collection-notice.leaving { animation: fade-out var(--motion-fast) var(--motion-ease) both; }
 .library-toolbar > .library-collection-notice { margin-inline: auto; }
 .library-reading-item { position: relative; }
 .library-reading-item.library-row-selected > .library-reading-card { border-color: var(--accent); }
 .library-reading-item > .library-checkbox.button { inset: var(--card-padding) auto auto var(--card-padding); width: var(--target-size); height: var(--target-size); background: var(--surface); }
 .library-reading-item:is(:hover, :focus-within) > .library-checkbox.button, .library-reading-books:has(.library-row-selected) .library-checkbox.button { opacity: 1; }
 .library-source-collections { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4); min-width: 0; }
-.library-collection-chip { display: inline-flex; align-items: center; gap: var(--space-4); padding-left: var(--space-8); border: var(--rule-width) solid var(--line); border-radius: var(--radius-control); }
+.library-collection-chip { position: relative; display: inline-flex; align-items: center; gap: var(--space-4); padding-left: var(--space-8); border: var(--rule-width) solid var(--line); border-radius: var(--radius-control); }
+.library-collection-chip-new { animation: library-chip-in var(--motion-ui) var(--motion-ease) both; }
+/* A gilt seal fades over the resting hairline without repainting the border colour every frame. */
+.library-collection-chip-new::after { content: ''; position: absolute; inset: calc(-1 * var(--rule-width)); border: var(--rule-width) solid var(--accent); border-radius: inherit; pointer-events: none; animation: fade-out var(--motion-ink) var(--motion-ease) both; }
+@keyframes library-chip-in { from { scale: .96; } to { scale: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .library-collection-notice, .library-collection-notice.leaving, .library-collection-chip-new, .library-collection-chip-new::after, img[data-resource-image="loaded"], .library-row.library-row-selected::before, .library-source-row.library-source-current::before, .library-reading-card > .book-map:not(.library-reading-map-pending) { animation: none; }
+  .library-collection-chip-new::after { opacity: 0; }
+}
 .library-collection-chip > span { overflow-wrap: anywhere; }
 @media (pointer: coarse) {
   .library-pane .library-checkbox.button { opacity: 1; }

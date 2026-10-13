@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createMemo, createResource, createSignal, on, onCleanup, onMount } from 'solid-js';
+import { For, Show, batch as solidBatch, createEffect, createMemo, createResource, createSignal, on, onCleanup, onMount, untrack } from 'solid-js';
 import type { JSX } from 'solid-js';
 import type { ExtractedMetadata, FieldDefinition, SourceView } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
@@ -9,6 +9,7 @@ import { valueLabel } from '../outline/source';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Popup } from '../ui/Popup';
+import { createSlowFlag } from '../ui/loading';
 import { ResourceImage } from './ResourceImage';
 import { MetadataField } from './MetadataField';
 import { metadataEqual, metadataText, metadataValues } from './metadata-values';
@@ -29,6 +30,8 @@ const dates: Partial<Record<SourceField, true>> = { firstPublished: true, publis
 const apparatus: Partial<Record<SourceField, true>> = { ...dates, number: true, pages: true, volume: true, issue: true, pageRange: true, identifiers: true, siglum: true, citationKey: true };
 const snapshotFields: Partial<Record<SourceField, keyof ExtractedMetadata>> = { title: 'title', subtitle: 'subtitle', published: 'published', publisher: 'publisher', language: 'language', identifiers: 'identifiers', url: 'url', site: 'site', description: 'description', cover: 'cover', volume: 'volume', issue: 'issue', pageRange: 'page_range' };
 interface Evidence { view: SourceView; extracted: Map<string, string[]> }
+interface InspectorSelection { notebook: NotebookClient; docs: PageDocument[]; released: boolean }
+interface InspectorContent { selection: InspectorSelection; fields: readonly FieldDefinition[]; evidence: Map<string, Evidence> }
 interface HistoryEntry { change: SourceFieldChange; label: string; count: number }
 
 /** Keep long per-source registers bounded without mounting fifty independent editors. */
@@ -63,23 +66,32 @@ export function MetadataInspector(props: {
   let coverInput!: HTMLInputElement;
   const [visibilityMenu, setVisibilityMenu] = createSignal<HTMLElement>();
   const [hiddenFields, setHiddenFields] = createSignal<SourceField[]>([]);
-  createEffect(on(() => props.sourceIds.join(','), () => {
+  function hiddenFor(ids: readonly string[]): SourceField[] {
     try {
-      const preferences = props.sourceIds.map(id => JSON.parse(localStorage.getItem(`tessera.catalogue.hidden.${id}`) ?? '[]') as SourceField[]);
-      setHiddenFields((Object.keys(labels) as SourceField[]).filter(field => preferences.length > 0 && preferences.every(hidden => Array.isArray(hidden) && hidden.includes(field))));
-    } catch { setHiddenFields([]); }
-  }));
+      const preferences = ids.map(id => JSON.parse(localStorage.getItem(`tessera.catalogue.hidden.${id}`) ?? '[]') as SourceField[]);
+      return (Object.keys(labels) as SourceField[]).filter(field => preferences.length > 0 && preferences.every(hidden => Array.isArray(hidden) && hidden.includes(field)));
+    } catch { return []; }
+  }
   function setFieldVisible(field: SourceField, visible: boolean) {
     const next = visible ? hiddenFields().filter(value => value !== field) : [...hiddenFields(), field];
     setHiddenFields(next);
-    for (const id of props.sourceIds) {
-      try { localStorage.setItem(`tessera.catalogue.hidden.${id}`, JSON.stringify(next)); } catch { /* Session-only preference. */ }
+    for (const doc of docs()) {
+      try { localStorage.setItem(`tessera.catalogue.hidden.${doc.pageId}`, JSON.stringify(next)); } catch { /* Session-only preference. */ }
     }
   }
   let disposed = false;
   let queue: Promise<unknown> = Promise.resolve();
   let coverDocs: readonly PageDocument[] = [];
-  const [docs, setDocs] = createSignal<PageDocument[]>([]);
+  const [displayed, setDisplayed] = createSignal<InspectorContent>();
+  const [requested, setRequested] = createSignal<InspectorSelection>();
+  const docs = createMemo(() => displayed()?.selection.docs ?? []);
+  let motion: Animation | undefined;
+  function release(selected: InspectorSelection) {
+    if (selected.released) return;
+    selected.released = true;
+    // A blur commit still owns the outgoing documents until its queued transaction finishes.
+    void queue.then(() => { for (const doc of selected.docs) doc.release(); });
+  }
   const [loading, setLoading] = createSignal(true);
   const [loadError, setLoadError] = createSignal('');
   const [actionError, setActionError] = createSignal('');
@@ -92,27 +104,62 @@ export function MetadataInspector(props: {
   const selection = createMemo(() => [...new Set(props.sourceIds)].join('\0'));
   createEffect(on(() => [props.notebook, selection()] as const, ([notebook, ids]) => {
     let cancelled = false;
-    const opened = ids ? ids.split('\0').map(id => notebook.open(id)) : [];
-    setDocs([]); setLoading(true); setLoadError(''); setErrors(new Map()); setActionError('');
-    void Promise.all(opened.map(documentReady)).then(() => {
+    motion?.cancel();
+    const selected: InspectorSelection = { notebook, docs: ids ? ids.split('\0').map(id => notebook.open(id)) : [], released: false };
+    setRequested(undefined); setLoading(true); setLoadError('');
+    void Promise.all(selected.docs.map(documentReady)).then(() => {
       if (cancelled) return;
-      if (opened.some(doc => !doc.root()?.source)) throw new Error('One of the selected pages is no longer a source.');
-      setDocs(opened); setLoading(false);
+      if (selected.docs.some(doc => !doc.root()?.source)) throw new Error('One of the selected pages is no longer a source.');
+      solidBatch(() => { setRequested(selected); setLoading(false); });
     }).catch(reason => { if (!cancelled) { setLoadError(reason instanceof Error ? reason.message : String(reason)); setLoading(false); } });
-    onCleanup(() => { cancelled = true; for (const doc of opened) doc.release(); });
+    onCleanup(() => {
+      cancelled = true;
+      if (untrack(displayed)?.selection !== selected) release(selected);
+    });
   }));
   const [definitions] = createResource(() => [props.notebook, props.notebook.changeSequence()] as const, ([notebook]) => notebook.api.fields());
-  const evidenceKey = createMemo(() => docs().map(doc => `${doc.pageId}:${doc.root()?.source?.current_snapshot_id ?? ''}`).join('\0'));
-  const [evidence] = createResource(() => [props.notebook, evidenceKey()] as const, async ([notebook, key]) => {
-    const result = await Promise.all((key ? key.split('\0') : []).map(async source => {
-      const id = source.split(':', 1)[0]!;
-      const [view, extracted] = await Promise.all([notebook.api.source(id), notebook.api.extracted(id)]);
+  const evidenceKey = createMemo(() => requested()?.docs.map(doc => `${doc.pageId}:${doc.root()?.source?.current_snapshot_id ?? ''}`).join('\0') ?? '');
+  const [loadedEvidence] = createResource(() => {
+    const selected = requested();
+    return selected ? { selected, key: evidenceKey() } : undefined;
+  }, async ({ selected, key }) => {
+    const result = await Promise.all(selected.docs.map(async doc => {
+      const id = doc.pageId;
+      const [view, extracted] = await Promise.all([selected.notebook.api.source(id), selected.notebook.api.extracted(id)]);
       return [id, { view, extracted: new Map(extracted.map(([name, values]) => [name.toLocaleLowerCase(), values])) }] as const;
     }));
-    return new Map<string, Evidence>(result);
+    return { selected, key, items: new Map<string, Evidence>(result) };
   });
-  const fields = createMemo<readonly FieldDefinition[]>(() => definitions()?.fields ?? []);
-  const ready = createMemo(() => !loading() && !loadError() && !!definitions() && !definitions.error && !evidence.loading && !evidence.error);
+  createEffect(() => {
+    const selected = requested(), definitionsValue = definitions(), evidenceValue = loadedEvidence();
+    if (!selected || loading() || loadError() || !definitionsValue || definitions.loading || definitions.error || loadedEvidence.loading || loadedEvidence.error || evidenceValue?.selected !== selected || evidenceValue.key !== evidenceKey()) return;
+    const previous = untrack(displayed);
+    solidBatch(() => {
+      if (previous?.selection !== selected) {
+        setHiddenFields(hiddenFor(selected.docs.map(doc => doc.pageId))); setErrors(new Map()); setActionError(''); setVisibilityMenu(undefined);
+      }
+      setDisplayed({ selection: selected, fields: definitionsValue.fields, evidence: evidenceValue.items });
+    });
+    if (previous && previous.selection !== selected) release(previous.selection);
+  });
+  const evidence = () => displayed()?.evidence;
+  const fields = createMemo<readonly FieldDefinition[]>(() => displayed()?.fields ?? []);
+  const ready = createMemo(() => displayed()?.selection === requested() && !!requested() && !loading() && !loadError() && !definitions.error && !loadedEvidence.error);
+  const slowLoading = createSlowFlag(() => !displayed() && !loadError() && (loading() || definitions.loading || loadedEvidence.loading));
+  createEffect(on(() => displayed()?.selection, (selected, previous) => {
+    if (!selected || !root) return;
+    motion?.cancel();
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const style = getComputedStyle(root), time = style.getPropertyValue('--motion-ui').trim();
+    const duration = parseFloat(time) * (time.endsWith('ms') ? 1 : 1000);
+    if (!duration) return;
+    const sheet = !previous && props.phone ? root.closest<HTMLElement>('.library-inspector-sheet') : null;
+    const frames: Keyframe[] = previous ? [{ opacity: .4 }, { opacity: 1 }] : [
+      { opacity: 0, transform: sheet ? 'translateY(100%)' : `translateX(${style.getPropertyValue('--metadata-entry-x').trim()})` },
+      { opacity: 1, transform: 'translate(0)' },
+    ];
+    motion = (sheet ?? root).animate(frames, { duration, easing: style.getPropertyValue('--motion-ease').trim() });
+  }));
   const batch = createMemo(() => docs().length > 1);
   function extractedValue(doc: PageDocument, field: SourceField): SourceFieldValue | undefined {
     const item = evidence()?.get(doc.pageId);
@@ -148,7 +195,7 @@ export function MetadataInspector(props: {
   });
   createEffect(() => {
     const count = errors().size;
-    const fatal = loadError() || (definitions.error ? String(definitions.error) : '') || (evidence.error ? String(evidence.error) : '') || actionError();
+    const fatal = loadError() || (definitions.error ? String(definitions.error) : '') || (loadedEvidence.error ? String(loadedEvidence.error) : '') || actionError();
     if (count) props.onSaveState?.('error', `${count} ${count === 1 ? 'field' : 'fields'} not saved`);
     else if (fatal) props.onSaveState?.('error', fatal);
     else if (slow()) props.onSaveState?.('saving', 'Saving…');
@@ -208,7 +255,7 @@ export function MetadataInspector(props: {
     document.addEventListener('keydown', keydown, true);
     onCleanup(() => document.removeEventListener('keydown', keydown, true));
   });
-  onCleanup(() => { disposed = true; props.onSaveState?.('saved'); });
+  onCleanup(() => { disposed = true; motion?.cancel(); const selected = displayed()?.selection; if (selected) release(selected); props.onSaveState?.('saved'); });
   function field(field: SourceField, selected: readonly PageDocument[] = docs(), extra: { hint?: JSX.Element; placeholder?: string } = {}) {
     const values = createMemo(() => selected.map(doc => current(doc, field)));
     const key = `${selected.map(doc => doc.pageId).join(',')}:${field}`;
@@ -255,7 +302,7 @@ export function MetadataInspector(props: {
     try { await perform('Missing details checked', selected.length, () => fillMissingSourceDetails(selected, props.notebook)); }
     catch (reason) { setActionError(reason instanceof Error ? reason.message : String(reason)); }
   }
-  return <div ref={root} class="metadata-inspector" classList={{ 'metadata-inspector-phone': !!props.phone }} tabIndex={-1} aria-label="Source details">
+  return <div ref={root} class="metadata-inspector" classList={{ 'metadata-inspector-phone': !!props.phone, 'metadata-inspector-visible': !!displayed() || slowLoading() || !!loadError() || !!definitions.error || !!loadedEvidence.error }} data-pane-pending={!ready() && !loadError() && !definitions.error && !loadedEvidence.error ? '' : undefined} tabIndex={-1} aria-label="Source details">
     <header class="metadata-inspector-head">
       <Show when={props.backLabel}><Button class="metadata-back" icon="left" onClick={() => (props.onBack ?? props.onClose)()}>{props.backLabel}</Button></Show>
       <div class="metadata-inspector-heading">
@@ -266,9 +313,9 @@ export function MetadataInspector(props: {
       <Button aria-haspopup="dialog" aria-expanded={!!visibilityMenu()} onClick={event => setVisibilityMenu(event.currentTarget)}>Visible fields…</Button>
     </header>
     <div class="metadata-inspector-scroll">
-      <Show when={loading() || definitions.loading && !definitions() || evidence.loading}><p class="metadata-hint" role="status">Loading source details…</p></Show>
-      <Show when={loadError() || definitions.error || evidence.error}><p class="metadata-error" role="alert">{loadError() || String(definitions.error || evidence.error)}</p></Show>
-      <Show when={docs().length && definitions()}>
+      <Show when={slowLoading()}><p class="metadata-hint" role="status">Loading source details…</p></Show>
+      <Show when={loadError() || definitions.error || loadedEvidence.error}><p class="metadata-error" role="alert">{loadError() || String(definitions.error || loadedEvidence.error)}</p></Show>
+      <Show when={displayed()?.selection} keyed>
         <InspectorGroup number={1} title="Work" summary="Title, creators" phone={props.phone}>
           {perSource('title')}{field('subtitle')}
           <Show when={!hiddenFields().includes('creators')}><div class="metadata-field"><span class="metadata-label">Creators</span><div class="metadata-field-body">

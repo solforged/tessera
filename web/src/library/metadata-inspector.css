@@ -1,5 +1,6 @@
 .metadata-inspector {
   --metadata-label-width: calc(var(--space-48) * 2 + var(--space-4));
+  --metadata-entry-x: var(--motion-leaf);
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -10,6 +11,10 @@
   color: var(--text);
   font: var(--weight-body) var(--text-control)/var(--line-control) var(--font-body);
 }
+.library-inspector-narrow .metadata-inspector, .metadata-inspector-phone { --metadata-entry-x: 0px; }
+/* The ledger stays in place until the first card or a genuinely slow loading notice is ready. */
+.library-inspector-host:has(> .metadata-inspector:not(.metadata-inspector-visible)) { display: none; }
+.library-inspector-narrow:has(.metadata-inspector:not(.metadata-inspector-visible)) .library-ledger { display: flex; }
 .metadata-inspector-head { flex: none; padding: var(--space-24) var(--space-24) var(--space-8); }
 .metadata-inspector-heading, .metadata-inspector-heading > div { display: flex; align-items: center; gap: var(--space-8); }
 .metadata-inspector-heading { justify-content: space-between; gap: var(--space-4); color: var(--faint); font: var(--apparatus); }

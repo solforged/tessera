@@ -96,19 +96,71 @@ const stateActions: { state: ReadingState; label: string }[] = [
 ];
 const stateLabels: Record<ReadingState, string> = { inbox: 'Inbox', reading: 'Reading', finished: 'Finished', abandoned: 'Abandoned' };
 
+interface LibraryRead { library: LibraryResult; highlights?: HighlightResult }
+interface CollectionCard { page: Block; count: number; covers: LibraryRow[] }
+interface LibraryCache {
+  notebookId?: string;
+  queries: Map<string, LibraryRead>;
+  library?: LibraryResult;
+  reading?: LibraryRow[];
+  upNext?: LibraryRow[];
+  unprocessedCount?: number;
+  highlightCount?: number;
+  views?: LibraryView[];
+  collections?: Block[];
+  collectionCards?: CollectionCard[];
+}
+// Reopening either pane paints its last read before the service refreshes it.
+const libraryReads = new WeakMap<NotebookClient, LibraryCache>();
+function libraryPreferences(id?: string) {
+  const tabKey = id ? `tessera.library.tab.${id}` : undefined;
+  const layoutKey = id ? `tessera.library.layout.${id}` : undefined;
+  const dismissedKey = id ? `tessera.library.dismissed.${id}` : undefined;
+  let layout: 'list' | 'shelf' = 'list';
+  let remembered: string | null = null;
+  let dismissed: string[] = [];
+  try {
+    if (layoutKey && localStorage.getItem(layoutKey) === 'shelf') layout = 'shelf';
+    if (tabKey) remembered = localStorage.getItem(tabKey);
+    const stored: unknown = JSON.parse(dismissedKey ? localStorage.getItem(dismissedKey) ?? '[]' : '[]');
+    if (Array.isArray(stored)) dismissed = stored.filter((id): id is string => typeof id === 'string');
+  } catch { /* Session-only preferences. */ }
+  return { tabKey, layoutKey, dismissedKey, layout, remembered, dismissed };
+}
+
 export function LibraryPane(props: LibraryPaneProps) {
-  const [view, setView] = createSignal({ ...props.view });
+  const cache: LibraryCache = libraryReads.get(props.notebook) ?? { queries: new Map<string, LibraryRead>() };
+  libraryReads.set(props.notebook, cache);
+  const preferences = libraryPreferences(cache.notebookId);
+  const coverMedia = window.matchMedia('(max-width: 599px) and (pointer: coarse)');
+  const initialView = { ...props.view };
+  if (cache.notebookId && !initialView.view && initialView.tab === 'inbox') {
+    const remembered = preferences.remembered;
+    const counts = cache.library?.counts;
+    const initialTab = coverMedia.matches ? 'reading' : tabs.some(tab => tab.id === remembered) ? remembered as LibraryTab
+      : counts ? counts.inbox ? 'inbox' : counts.reading ? 'reading' : 'all' : 'inbox';
+    if (initialTab !== initialView.tab) { initialView.tab = initialTab; initialView.scroll = 0; }
+  }
+  const [view, setView] = createSignal(initialView);
+  const [preferencesReady, setPreferencesReady] = createSignal(!!cache.notebookId);
   const tab = createMemo(() => view().tab);
   const text = createMemo(() => view().text);
   const collectionActions = createCollectionActions();
   const collectionsIndex = createMemo(() => tab() === 'collections' && !view().collection);
-  const [collections] = createResource(() => props.notebook.changeSequence(), () => collectionPages(props.notebook.api));
+  const [collections] = createResource(() => props.notebook.changeSequence(), async () => {
+    const result = await collectionPages(props.notebook.api);
+    cache.collections = result;
+    return result;
+  }, { initialValue: cache.collections });
   const collection = createMemo(() => collections()?.find(page => page.id === view().collection));
-  const [collectionCards] = createResource(() => collectionsIndex() && { pages: collections() ?? [], sequence: props.notebook.changeSequence() }, async ({ pages }) =>
-    Promise.all(pages.map(async page => {
+  const [collectionCards] = createResource(() => collectionsIndex() && collections.latest && { pages: collections.latest, sequence: props.notebook.changeSequence() }, async ({ pages }) => {
+    const result = await Promise.all(pages.map(async page => {
       const result = await props.notebook.api.library({ collection_id: page.id, limit: 3 });
       return { page, count: result.total, covers: result.rows };
-    })));
+    }));
+    cache.collectionCards = result;
+    return result;
+  }, { initialValue: cache.collectionCards });
   const sort = createMemo(() => view().sort);
   const unprocessedOnly = createMemo(() => view().unprocessedOnly);
   const colors = createMemo(() => view().colors);
@@ -118,7 +170,7 @@ export function LibraryPane(props: LibraryPaneProps) {
   const filtered = createMemo(() => Object.values(filters()).some(values => values.length > 0));
   const [tagQuery, setTagQuery] = createSignal('');
   const [browseQuery, setBrowseQuery] = createSignal('');
-  const [views, setViews] = createSignal<LibraryView[]>([]);
+  const [views, setViews] = createSignal<LibraryView[]>(cache.views ?? []);
   const [viewsError, setViewsError] = createSignal('');
   const saved = createMemo(() => views().find(value => value.id === view().view));
   const [deleted, setDeleted] = createSignal<LibraryView | null>(null);
@@ -137,13 +189,14 @@ export function LibraryPane(props: LibraryPaneProps) {
   const [sheetExpanded, setSheetExpanded] = createSignal(false);
   let selectionAnchor: string | null = null;
   createEffect(on(queryKey, () => { setSelected(new Set<string>()); setInspectorOpen(false); selectionAnchor = null; }));
-  const [loadedKey, setLoadedKey] = createSignal('');
-  const [library, setLibrary] = createSignal<LibraryResult>();
+  const initialRead = cache.queries.get(queryKey());
+  const [loadedKey, setLoadedKey] = createSignal(initialRead ? queryKey() : '');
+  const [library, setLibrary] = createSignal<LibraryResult | undefined>(initialRead?.library);
   // Keep each row kind until its replacement arrives, even when the other tab loads.
-  const [sourceRows, setSourceRows] = createSignal<LibraryRow[]>();
-  const [highlights, setHighlights] = createSignal<HighlightResult>();
-  const [unprocessedCount, setUnprocessedCount] = createSignal<number>();
-  const [highlightCount, setHighlightCount] = createSignal<number>();
+  const [sourceRows, setSourceRows] = createSignal<LibraryRow[] | undefined>(initialRead && tab() !== 'highlights' ? initialRead.library.rows : undefined);
+  const [highlights, setHighlights] = createSignal<HighlightResult | undefined>(initialRead?.highlights);
+  const [unprocessedCount, setUnprocessedCount] = createSignal<number | undefined>(cache.unprocessedCount);
+  const [highlightCount, setHighlightCount] = createSignal<number | undefined>(cache.highlightCount);
   const [countError, setCountError] = createSignal('');
   const highlightGroups = createMemo(() => {
     const groups = new Map<string, { sourceId: string; title: string; rows: HighlightRow[] }>();
@@ -195,12 +248,12 @@ export function LibraryPane(props: LibraryPaneProps) {
   const [loading, setLoading] = createSignal(true);
   const [error, setError] = createSignal('');
   const displayedSources = createMemo(() => tab() === 'highlights' || error() ? [] : sourceRows() ?? []);
-  const hasResult = createMemo(() => tab() === 'highlights' ? highlights() !== undefined : sourceRows() !== undefined);
+  const hasResult = createMemo(() => collectionsIndex() ? collectionCards.latest !== undefined : tab() === 'highlights' ? highlights() !== undefined : sourceRows() !== undefined);
   const groups = createMemo(() => group() === 'none' || tab() === 'highlights' ? undefined : groupSources(displayedSources(), group() as Exclude<LibraryGroup, 'none'>));
   // Shift-click ranges follow what is on screen, so a grouped list selects in group order.
   const orderedSources = createMemo(() => groups()?.flatMap(value => value.rows) ?? displayedSources());
   const slowLoad = createSlowFlag(() => loading() && !hasResult());
-  const slowCollections = createSlowFlag(() => collections.loading || collectionCards.loading);
+  const slowCollections = createSlowFlag(() => !collectionCards.latest && (collections.loading || collectionCards.loading));
   let requestedTab: LibraryTab | undefined;
   const [commandError, setCommandError] = createSignal('');
   const [saving, setSaving] = createSignal(false);
@@ -209,14 +262,13 @@ export function LibraryPane(props: LibraryPaneProps) {
   const [jobsError, setJobsError] = createSignal('');
   const [jobsRefresh, setJobsRefresh] = createSignal(0);
   const [retrying, setRetrying] = createSignal<string[]>([]);
-  const [dismissedJobs, setDismissedJobs] = createSignal<Set<string>>(new Set());
-  let dismissedKey: string | undefined;
-  let tabKey: string | undefined;
-  let layoutKey: string | undefined;
+  const [dismissedJobs, setDismissedJobs] = createSignal<Set<string>>(new Set(preferences.dismissed));
+  let dismissedKey = preferences.dismissedKey;
+  let tabKey = preferences.tabKey;
+  let layoutKey = preferences.layoutKey;
   let tabChosen = false;
   // List or Shelf is a device preference per notebook, like the last tab.
-  const [layout, setLayout] = createSignal<'list' | 'shelf'>('list');
-  const coverMedia = window.matchMedia('(max-width: 599px) and (pointer: coarse)');
+  const [layout, setLayout] = createSignal<'list' | 'shelf'>(preferences.layout);
   const [coverLayout, setCoverLayout] = createSignal(coverMedia.matches);
   const [searchOpen, setSearchOpen] = createSignal(false);
   const finishedDate = createMemo(() => new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', timeZone: props.notebook.settings()?.time_zone }));
@@ -231,10 +283,11 @@ export function LibraryPane(props: LibraryPaneProps) {
     queueMicrotask(() => tabStrip?.querySelector('[aria-pressed="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }));
   });
   // Every Reading source gets a card, including books not yet started; the cover adds its Inbox below.
-  const [reading, setReading] = createSignal<LibraryRow[]>([]);
-  const [upNext, setUpNext] = createSignal<LibraryRow[]>([]);
+  const [reading, setReading] = createSignal<LibraryRow[]>(cache.reading ?? []);
+  const [upNext, setUpNext] = createSignal<LibraryRow[]>(cache.upNext ?? []);
   const [readingError, setReadingError] = createSignal('');
   createEffect(() => {
+    if (!preferencesReady()) return;
     props.notebook.changeSequence(); refresh();
     const includeInbox = coverLayout();
     const controller = new AbortController();
@@ -243,9 +296,9 @@ export function LibraryPane(props: LibraryPaneProps) {
     void props.notebook.api.library({ states: includeInbox ? ['reading', 'inbox'] : ['reading'], sort: order, direction, limit: 100000 }, controller.signal)
       .then(result => {
         if (controller.signal.aborted) return;
-        setReading(result.rows.filter(row => row.source.state === 'reading'));
-        setUpNext(result.rows.filter(row => row.source.state === 'inbox'));
-        setReadingError('');
+        cache.reading = result.rows.filter(row => row.source.state === 'reading');
+        cache.upNext = result.rows.filter(row => row.source.state === 'inbox');
+        batch(() => { setReading(cache.reading!); setUpNext(cache.upNext!); setReadingError(''); });
       }, reason => { if (!controller.signal.aborted) setReadingError(reason instanceof Error ? reason.message : String(reason)); });
     onCleanup(() => controller.abort());
   });
@@ -263,6 +316,7 @@ export function LibraryPane(props: LibraryPaneProps) {
     setPopup({ kind: 'add', anchor });
   }
   onMount(() => {
+    if (initialView.tab !== props.view.tab) props.onViewChange({ ...initialView });
     if (props.add) { openAdd(addButton); props.onAddOpened?.(); }
     if (props.details?.length) {
       setSelected(new Set(props.details)); setInspectorOpen(true);
@@ -292,25 +346,25 @@ export function LibraryPane(props: LibraryPaneProps) {
     const controller = new AbortController();
     void props.notebook.api.notebook(controller.signal).then(async info => {
       if (controller.signal.aborted) return;
-      dismissedKey = `tessera.library.dismissed.${info.id}`;
-      try {
-        const stored: unknown = JSON.parse(localStorage.getItem(dismissedKey) ?? '[]');
-        if (Array.isArray(stored)) setDismissedJobs(previous => new Set([...previous, ...stored.filter((id): id is string => typeof id === 'string')]));
-      } catch { /* The preference lasts for this tab. */ }
-      tabKey = `tessera.library.tab.${info.id}`;
-      layoutKey = `tessera.library.layout.${info.id}`;
-      try { if (localStorage.getItem(layoutKey) === 'shelf') setLayout('shelf'); } catch { /* Session-only preference. */ }
-      let remembered: string | null = null;
-      try { remembered = localStorage.getItem(tabKey); } catch { /* Session-only preference. */ }
-      if (!tabChosen && !view().view && view().tab === 'inbox') {
-        if (coverLayout()) update({ tab: 'reading', scroll: 0 });
-        else if (tabs.some(tab => tab.id === remembered)) update({ tab: remembered as LibraryTab, scroll: 0 });
-        else {
-          const result = await props.notebook.api.library({ limit: 0 }, controller.signal);
-          if (!controller.signal.aborted && !tabChosen) update({ tab: result.counts.inbox ? 'inbox' : result.counts.reading ? 'reading' : 'all', scroll: 0 });
+      cache.notebookId = info.id;
+      if (!untrack(preferencesReady)) {
+        const stored = libraryPreferences(info.id);
+        dismissedKey = stored.dismissedKey; tabKey = stored.tabKey; layoutKey = stored.layoutKey;
+        batch(() => {
+          setDismissedJobs(previous => new Set([...previous, ...stored.dismissed]));
+          setLayout(stored.layout);
+        });
+        if (!tabChosen && !view().view && view().tab === 'inbox') {
+          if (coverLayout()) update({ tab: 'reading', scroll: 0 });
+          else if (tabs.some(tab => tab.id === stored.remembered)) update({ tab: stored.remembered as LibraryTab, scroll: 0 });
+          else {
+            const result = await props.notebook.api.library({ limit: 0 }, controller.signal);
+            if (!controller.signal.aborted && !tabChosen) update({ tab: result.counts.inbox ? 'inbox' : result.counts.reading ? 'reading' : 'all', scroll: 0 });
+          }
         }
       }
-    }).catch(reason => { if (!controller.signal.aborted) setJobsError(reason instanceof Error ? reason.message : String(reason)); });
+    }).catch(reason => { if (!controller.signal.aborted) setJobsError(reason instanceof Error ? reason.message : String(reason)); })
+      .finally(() => { if (!controller.signal.aborted) setPreferencesReady(true); });
     onCleanup(() => controller.abort());
   });
   function chooseLayout(value: 'list' | 'shelf') {
@@ -356,7 +410,10 @@ export function LibraryPane(props: LibraryPaneProps) {
   const mixedStates = createMemo(() => currentQuery().states?.length !== 1);
   let scroll!: HTMLDivElement;
   let fileInput!: HTMLInputElement;
-  let restoreScroll: number | null = props.view.scroll;
+  let restoreScroll: number | null = initialView.scroll;
+  onMount(() => {
+    if (hasResult()) { scroll.scrollTop = restoreScroll ?? 0; restoreScroll = null; }
+  });
   let disposed = false;
   onCleanup(() => { disposed = true; setLinkedCitation(null); });
 
@@ -500,6 +557,7 @@ export function LibraryPane(props: LibraryPaneProps) {
     const controller = new AbortController();
     void props.notebook.api.libraryViews(controller.signal).then(result => {
       if (controller.signal.aborted) return;
+      cache.views = result;
       batch(() => {
         setViews(result); setViewsError('');
         const id = view().view;
@@ -520,12 +578,16 @@ export function LibraryPane(props: LibraryPaneProps) {
       props.notebook.api.highlights({ unprocessed: true, limit: 0 }, controller.signal),
       props.notebook.api.highlights({ limit: 0 }, controller.signal),
     ]).then(([unprocessed, all]) => {
-      if (!controller.signal.aborted) { setUnprocessedCount(unprocessed.total); setHighlightCount(all.total); setCountError(''); }
+      if (!controller.signal.aborted) {
+        cache.unprocessedCount = unprocessed.total; cache.highlightCount = all.total;
+        batch(() => { setUnprocessedCount(unprocessed.total); setHighlightCount(all.total); setCountError(''); });
+      }
     }).catch(reason => { if (!controller.signal.aborted) setCountError(reason instanceof Error ? reason.message : String(reason)); });
     onCleanup(() => controller.abort());
   });
 
   createEffect(() => {
+    if (!preferencesReady()) return;
     const currentTab = tab();
     const query = currentQuery();
     const unprocessed = unprocessedOnly();
@@ -543,6 +605,8 @@ export function LibraryPane(props: LibraryPaneProps) {
         currentTab === 'highlights' ? props.notebook.api.highlights({ unprocessed, colors: highlightColors, tags: highlightTags, limit: 200 }, controller.signal) : Promise.resolve(undefined),
       ]).then(([sources, cited]) => {
         if (controller.signal.aborted) return;
+        cache.queries.set(currentKey, { library: sources, highlights: cited });
+        cache.library = sources;
         const focused = scroll.contains(document.activeElement) ? (document.activeElement as HTMLElement)?.dataset.libraryRow : undefined;
         batch(() => {
           setLibrary(sources);
@@ -926,7 +990,7 @@ export function LibraryPane(props: LibraryPaneProps) {
     }}</Show>;
   }
 
-  return <div ref={libraryHost} class="library-pane" classList={{ 'library-search-open': searchOpen() || !!text(), 'library-highlights-tab': tab() === 'highlights', 'library-all-tab': tab() === 'all' || !!view().collection, 'library-highlight-passage-open': tab() === 'highlights' && coverLayout() && highlightPassageOpen(), 'library-reading-cards': readingCards(), 'library-cover-reading': coverLayout() && readingCards(), 'library-inspecting': inspecting(), 'library-inspector-narrow': inspecting() && narrowInspector() && !coverLayout(), 'library-inspector-phone': inspecting() && coverLayout() }} data-pane={props.pane} aria-label="Library" tabIndex={props.active ? 0 : -1} onFocusIn={props.onActivate} onPointerDown={props.onActivate}
+  return <div ref={libraryHost} class="library-pane" classList={{ 'library-search-open': searchOpen() || !!text(), 'library-highlights-tab': tab() === 'highlights', 'library-all-tab': tab() === 'all' || !!view().collection, 'library-highlight-passage-open': tab() === 'highlights' && coverLayout() && highlightPassageOpen(), 'library-reading-cards': readingCards(), 'library-cover-reading': coverLayout() && readingCards(), 'library-inspecting': inspecting(), 'library-inspector-narrow': inspecting() && narrowInspector() && !coverLayout(), 'library-inspector-phone': inspecting() && coverLayout() }} data-pane={props.pane} data-pane-pending={!hasResult() ? '' : undefined} aria-label="Library" tabIndex={props.active ? 0 : -1} onFocusIn={props.onActivate} onPointerDown={props.onActivate}
     onKeyDown={event => {
       if (event.key === 'Escape' && !event.defaultPrevented && selected().size && !popup() && !(event.target as HTMLElement).closest('input, textarea, [contenteditable="true"]')) { event.preventDefault(); event.stopPropagation(); clearSelection(); }
       if (!inspecting() && tab() !== 'highlights' && (event.metaKey || event.ctrlKey) && !event.shiftKey && event.key.toLowerCase() === 'z' && collectionActions.canUndo() && !(event.target instanceof Element && event.target.closest('input, textarea, [contenteditable="true"]'))) {
@@ -1033,7 +1097,7 @@ export function LibraryPane(props: LibraryPaneProps) {
     <input ref={fileInput} type="file" hidden aria-label="Choose EPUB files" accept=".epub,application/epub+zip" multiple onChange={event => {
       const files = Array.from(event.currentTarget.files ?? []); event.currentTarget.value = ''; void upload(files);
     }} />
-    <div ref={scroll} class="library-scroll" onScroll={() => {
+    <div ref={scroll} class="library-scroll" aria-busy={loading() && loadedKey() !== queryKey() ? true : undefined} onScroll={() => {
       if (restoreScroll !== null || inspecting() && narrowInspector() && !coverLayout()) return;
       const next = { ...view(), scroll: scroll.scrollTop };
       setView(next); props.onViewChange({ ...next });
