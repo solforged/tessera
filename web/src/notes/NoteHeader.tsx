@@ -64,11 +64,10 @@ export function NoteAliases(props: { doc: PageDocument; notebook: NotebookClient
   </Show>;
 }
 
-/** The note's apparatus line under its title: a short mark from its ID, the day it was created in the notebook's time zone, then any trailing controls such as Revisit. */
+/** The note's apparatus line under its title: the day it was created in the notebook's time zone, then any trailing controls such as Revisit. */
 export function NoteLine(props: { pageId: string; notebook: NotebookClient; children?: JSX.Element }) {
   const root = createMemo(() => props.notebook.roots().find(block => block.id === props.pageId));
   return <Show when={root()}>{page => <p class="note-line">
-    <span class="note-mark" title={page().id}>{page().id.slice(-10).toLowerCase()}</span>
     <span>Created {new Intl.DateTimeFormat('en-CA', { timeZone: props.notebook.settings()?.time_zone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(page().created_at)}</span>
     {props.children}
   </p>}</Show>;

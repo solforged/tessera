@@ -859,6 +859,18 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
   const paneGeneration = createMemo(() => props.session().generation);
   createEffect(() => { paneGeneration(); setLibrarySave({ state: 'saved', message: '' }); });
   const [menu, setMenu] = createSignal<HTMLElement | null>(null);
+  const [copyMessage, setCopyMessage] = createSignal('');
+  createEffect(() => { pageId(); setCopyMessage(''); });
+  async function copyPage(reference: boolean) {
+    const id = pageId();
+    if (!id) return;
+    try {
+      await navigator.clipboard.writeText(reference ? `[[${id}]]` : id);
+      setCopyMessage(reference ? 'Copied reference' : 'Copied ID');
+    } catch (error) {
+      setCopyMessage(`Couldn't copy: ${String(error)}`);
+    }
+  }
   const [depthMenu, setDepthMenu] = createSignal<HTMLElement | null>(null);
   const [mergeFrom, setMergeFrom] = createSignal<{ id: string; text: string }>();
   let menuButton!: HTMLButtonElement;
@@ -980,6 +992,7 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
     ...(titled() ? [{ label: 'Merge into…', icon: 'merge', disabledReason: pageMergeDisabledReason(root()), action: () => { const page = root(); if (page) setMergeFrom({ id: page.id, text: page.text }); } } satisfies MenuItem] : []),
     { label: props.pinned ? 'Unpin' : 'Pin', icon: 'pin', action: props.onPin },
     { label: 'Open page beside', icon: 'panes', action: props.onPageBeside },
+    { label: 'Copy reference', icon: 'link', action: () => { void copyPage(true); } },
     ...(projection() === 'outline' ? [{ label: pageStyle() === 'prose' ? 'Show bullets' : 'Hide bullets', icon: 'bullet', disabledReason: root() ? undefined : 'Page is still loading', action: () => props.onPagePresentation(pageId()!, { ...presentation(), bullets: pageStyle() === 'prose' }) } satisfies MenuItem] : []),
     { label: 'Add field…', icon: 'field', disabledReason: outlineCommand('add-field-root')?.disabledReason?.(), action: () => outlineCommand('add-field-root')?.run() },
     ...(titled() ? [
@@ -1047,6 +1060,7 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
     </header>
     <Show when={pageId() && outlineView().zoom && projectionReason('read')}>{reason => <p class="page-projection-reason" id={`read-reason-${props.pane}`} role="status">{reason()}</p>}</Show>
     <Show when={doc()?.saveState() === 'error' || doc()?.saveState() === 'conflict'}><div class="pane-error" role="alert">{doc()?.saveMessage()}</div></Show>
+    <Show when={copyMessage() && !menu()}><p class="page-projection-reason" role="status">{copyMessage()}</p></Show>
     <div ref={content} class="pane-content"><Show keyed when={props.session().generation}>{generation => <Switch fallback={<OutlinePane pane={props.pane} pageId={pageId()!} projection={projection()} onProjection={setProjection} projectionReason={projectionReason} journalPeriod={current().target.kind === 'page' ? (current().target as Extract<OpenTarget, { kind: 'page' }>).journalPeriod : undefined} view={copyView(outlineView())} onDelete={anchor => props.onDelete(anchor, true)} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} active={props.active} onActivate={() => { if (generation === props.session().generation && document.activeElement?.closest('.pane')?.getAttribute('data-pane') === props.pane) props.onActivate(); }} vim={props.vim} onVimMode={props.onVimMode} commands={props.commands} notebook={props.notebook} />}>
       <Match when={current().target.kind === 'table'}><TablePane pane={props.pane} target={current().target as Extract<OpenTarget, { kind: 'table' }>} view={snapshotView(current().view) as TableViewState} notebook={props.notebook} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onTargetChange={target => { if (generation === props.session().generation) props.onTargetChange(target); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
       <Match when={current().target.kind === 'fields'}><FieldsPane typeId={(current().target as Extract<OpenTarget, { kind: 'fields' }>).typeId} view={snapshotView(current().view) as FieldsViewState} notebook={props.notebook} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
@@ -1069,7 +1083,14 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
       <Match when={current().target.kind === 'reader'}><ReaderPane pane={props.pane} target={current().target as Extract<OpenTarget, { kind: 'reader' }>} view={snapshotView(current().view) as ReaderViewState} notebook={props.notebook} active={props.active} immersive={props.immersive} onImmersive={props.onImmersive} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }}
         onBack={() => { if (props.session().index > 0) props.onTravel(-1); else props.onOpen({ kind: 'page', pageId: (current().target as Extract<OpenTarget, { kind: 'reader' }>).sourceId }, false); }} /></Match>
     </Switch>}</Show></div>
-    <Show when={menu()}>{anchor => <Menu anchor={anchor()} label="Page actions" items={items()} onDismiss={() => setMenu(null)} />}</Show>
+    <Show when={menu()}>{anchor => <Menu anchor={anchor()} label="Page actions" items={items()} onDismiss={() => setMenu(null)} header={
+      <Show when={props.notebook.roots().find(page => page.id === pageId())}>{page => <div class="page-menu-info">
+        <b>{page().id}</b>
+        <Button class="bordered" onClick={() => { void copyPage(false); }}>{copyMessage() === 'Copied ID' ? 'Copied' : 'Copy ID'}</Button>
+        <span>Created {new Intl.DateTimeFormat('en-CA', { timeZone: props.notebook.settings()?.time_zone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(page().created_at)}</span>
+        <Show when={copyMessage()}><span class={copyMessage().startsWith("Couldn't copy:") ? 'error' : 'visually-hidden'} role="status">{copyMessage()}</span></Show>
+      </div>}</Show>
+    } />}</Show>
     <Show when={depthMenu()}>{anchor => <Menu anchor={anchor()} label="Depth" onDismiss={() => setDepthMenu(null)}
       items={depthStops.map(stop => ({ label: depthLabels[stop], icon: `depth-${stop}` as const, checked: depth() === stop, action: () => outlineCommand(`depth-${stop}`)?.run() }))} />}</Show>
     <Show keyed when={mergeFrom()}>{from => <PageMergePicker anchor={menuButton} notebook={props.notebook} from={from} onDismiss={() => setMergeFrom(undefined)} onMerged={id => { setMergeFrom(undefined); props.onOpen({ kind: 'page', pageId: id }, false); }} />}</Show>

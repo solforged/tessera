@@ -11,5 +11,3 @@
 .note-aliases-label { margin-right: var(--space-8); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); text-transform: uppercase; }
 .note-aliases-separator { color: var(--faint); font-style: normal; }
 .note-line { display: flex; flex-wrap: wrap; gap: 0 var(--space-8); margin: var(--page-title-gap) 0 0; color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
-.note-line > span + span::before { content: "·"; margin-right: var(--space-8); }
-.note-mark { color: var(--muted); }
