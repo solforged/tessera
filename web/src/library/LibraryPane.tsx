@@ -16,7 +16,7 @@ import { Popup } from '../ui/Popup';
 import { Picker } from '../ui/Picker';
 import { downloadBlob } from '../ui/download';
 import { createSlowFlag } from '../ui/loading';
-import { formatProgress, groupSources, highlightChapterHeading, highlightChapters, highlightEmptyMessage, highlightMeta, jobLabel, libraryQuery, nextUnprocessedHighlight, recentJobs, retryTime, selectSources, sourceByline, sourceStateOperation, visibleJobs } from './query';
+import { formatProgress, groupSources, highlightChapterHeading, highlightChapters, highlightEmptyMessage, highlightMeta, importJobName, jobLabel, libraryQuery, nextUnprocessedHighlight, recentJobs, retryTime, selectSources, sourceByline, sourceStateOperation, visibleJobs } from './query';
 import { formatSourceValue } from '../outline/source';
 import { createHighlightActions, highlightColors, setLinkedCitation } from './highlights';
 import type { HighlightMenu } from './highlights';
@@ -328,8 +328,9 @@ export function LibraryPane(props: LibraryPaneProps) {
   });
   const doneJobs = new Set<string>();
   const sourceTitles = createMemo(() => new Map(props.notebook.roots().map(root => [root.id, root.text])));
-  // Jobs concern sources; the Highlights tab shows none. A finished job leaves once its source exists, whichever view lists it.
-  const shownJobs = createMemo(() => tab() === 'highlights' || tab() === 'collections' || error() ? [] : visibleJobs(jobs().filter(job => !(job.state === 'failed' && dismissedJobs().has(job.id))), new Set([...displayedSources().map(row => row.page.id), ...sourceTitles().keys()])));
+  // Failed jobs belong to the Inbox backlog; active jobs still show during ingestion.
+  const shownJobs = createMemo(() => tab() === 'highlights' || tab() === 'collections' || error() ? [] : visibleJobs(jobs().filter(job => job.state !== 'failed'), new Set([...displayedSources().map(row => row.page.id), ...sourceTitles().keys()])));
+  const failedJobs = createMemo(() => tab() === 'inbox' && !error() ? jobs().filter(job => job.state === 'failed' && !dismissedJobs().has(job.id)) : []);
   const browseEntries = createMemo<BrowseEntry[]>(() => {
     const facets = library()?.facets;
     if (!facets) return [];
@@ -609,6 +610,19 @@ export function LibraryPane(props: LibraryPaneProps) {
     try { recordJob(await props.notebook.api.retryJob(job.id)); }
     catch (reason) { if (!disposed) setCommandError(reason instanceof Error ? reason.message : String(reason)); }
     finally { if (!disposed) setRetrying(previous => previous.filter(id => id !== job.id)); }
+  }
+  function JobRows(rows: { jobs: IngestJob[] }) {
+    return <div class="library-jobs" aria-label="Ingestion jobs"><For each={rows.jobs}>{job => {
+      const label = () => jobLabel(job, sourceTitles());
+      return <div class="library-row library-job">
+        <span class="library-leading"><Icon name={job.state === 'failed' ? 'warning' : job.state === 'done' ? 'book' : 'saving'} /></span>
+        <span class="library-job-name" role="group" title={label().name} aria-label={label().name}>{importJobName(label().name)}</span><span class="library-message">{label().state}</span>
+        <Show when={job.state !== 'done' && label().attempt}><span class="library-message">{label().attempt}</span></Show>
+        <Show when={job.state !== 'done' && job.next_attempt_at !== null && props.notebook.settings()}><span class="library-message">retries at {retryTime(job.next_attempt_at!, props.notebook.settings()!.time_zone)}</span></Show>
+        <Show when={job.state === 'failed'}><div class="library-job-actions"><Button disabled={retrying().includes(job.id)} onClick={() => { void retryJob(job); }}>Retry</Button><Button onClick={() => dismissJob(job.id)}>Dismiss</Button></div></Show>
+        <Show when={job.error}><span class="library-job-error">{job.error}</span></Show>
+      </div>;
+    }}</For></div>;
   }
   async function changeState(row: LibraryRow, state: ReadingState) {
     if (saving()) return;
@@ -1075,16 +1089,12 @@ export function LibraryPane(props: LibraryPaneProps) {
         </section></Show>
       </Show>
       <section class="library-rows" classList={{ 'library-has-selection': selected().size > 0, 'library-rows-shelf': layout() === 'shelf' && tab() !== 'highlights', 'library-rows-grouped': !!groups() }} aria-label={tab() === 'highlights' ? 'Highlights' : 'Sources'} aria-busy={loading()}>
-        <Show when={shownJobs().length}><div class="library-jobs" aria-label="Ingestion jobs"><For each={shownJobs()}>{job => {
-          const label = () => jobLabel(job, sourceTitles());
-          return <div class="library-row library-job">
-            <span class="library-leading"><Icon name={job.state === 'failed' ? 'warning' : job.state === 'done' ? 'book' : 'saving'} /></span>
-            <span class="library-job-name">{label().name}</span><span class="library-message">{label().state}</span>
-            <Show when={job.state !== 'done' && label().attempt}><span class="library-message">{label().attempt}</span></Show>
-            <Show when={job.state !== 'done' && job.next_attempt_at !== null && props.notebook.settings()}><span class="library-message">retries at {retryTime(job.next_attempt_at!, props.notebook.settings()!.time_zone)}</span></Show>
-            <Show when={job.state === 'failed'}><div class="library-job-actions"><Button disabled={retrying().includes(job.id)} onClick={() => { void retryJob(job); }}>Retry</Button><Button onClick={() => dismissJob(job.id)}>Dismiss</Button></div></Show>
-            <Show when={job.error}><span class="library-job-error" role={job.state === 'failed' ? 'alert' : undefined}>{job.error}</span></Show>
-          </div>; }}</For></div></Show>
+        <Show when={shownJobs().length}><JobRows jobs={shownJobs()} /></Show>
+        <Show when={failedJobs().length}><details class="library-failures">
+          <summary>{failedJobs().length} imports failed</summary>
+          <Button class="library-dismiss-all" onClick={() => { for (const job of failedJobs()) dismissJob(job.id); }}>Dismiss all</Button>
+          <JobRows jobs={failedJobs()} />
+        </details></Show>
         <Show when={slowLoad()}><p class="library-message" role="status">Loading…</p></Show>
         <Show when={hasResult() && !error()}>
           <Show when={tab() !== 'highlights'} fallback={

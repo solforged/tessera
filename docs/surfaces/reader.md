@@ -88,7 +88,7 @@ Reader settings are a device preference shared by every reader pane. Saved choic
 
 ## Contents, highlights and find
 
-Contents opens on the current section, marked with a check. The Highlights picker lists each highlight's color, quote and section. Find marks matches and counts passages.
+Contents opens on the current section, marked with a check, when no persistent margin is visible. With the margin visible, Contents focuses its current entry (or the first entry before reading begins) instead of opening a duplicate floating list. The Highlights picker lists each highlight's color, quote and section. Find marks matches and counts passages.
 
 Contents falls back to the EPUB guide and fills in lazily when the navigation document is empty. A passage's tooltip names its number and section: `Passage 37 · Chapter 1`.
 

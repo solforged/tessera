@@ -123,6 +123,21 @@ export function visibleJobs(jobs: readonly IngestJob[], sourceIds: ReadonlySet<s
   return jobs.filter(job => job.state !== 'done' || !job.source_id || !sourceIds.has(job.source_id));
 }
 
+/** Keep a failed URL's host and final identifier, not just its shared prefix. */
+export function importJobName(name: string): string {
+  try {
+    const url = new URL(name);
+    if (!['http:', 'https:'].includes(url.protocol)) return name;
+    const path = url.pathname.replace(/\/$/, '');
+    const tail = path.slice(path.lastIndexOf('/') + 1);
+    const identifier = url.hostname === 'doi.org' || url.hostname === 'dx.doi.org' ? path.slice(1) : tail;
+    const label = `${url.host}/${identifier !== path.slice(1) ? '…/' : ''}${identifier || url.search}`;
+    return label.length > 60 ? `${url.host}/…${(identifier || url.search).slice(-36)}` : label;
+  } catch {
+    return name;
+  }
+}
+
 export function jobLabel(job: IngestJob, titles: ReadonlyMap<string, string>): { name: string; state: string; attempt: string | null } {
   return {
     name: (job.state === 'done' ? titles.get(job.source_id ?? '') ?? job.name : job.name).replace(/\.epub$/i, ''),

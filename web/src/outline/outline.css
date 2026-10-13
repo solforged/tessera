@@ -390,6 +390,9 @@
 @container outline-pane (max-width: 599px) {
   .outline-heading:has(.outline-source-header) { grid-template-columns: calc(var(--space-48) + var(--space-24) + var(--space-12)) minmax(0, 1fr); column-gap: var(--space-16); }
   .outline-heading:has(.outline-source-header) :is(h1, .outline-title, .title-input) { font-size: var(--text-h1); line-height: var(--line-h1); }
+  .outline-heading:has(.outline-source-coverless-article) { grid-template-columns: minmax(0, 1fr); }
+  .outline-heading:has(.outline-source-coverless-article) > .outline-title-row, .outline-source-coverless-article > .outline-source-info { grid-column: 1; }
+  .outline-source-coverless-article > .outline-source-cover { display: none; }
 }
 /* The cover keeps reading and status under the thumb, clear of the app's bottom navigation. */
 @media (max-width: 599px) and (pointer: coarse) {

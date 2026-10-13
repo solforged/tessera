@@ -1359,7 +1359,15 @@ export function ReaderPane(props: ReaderPaneProps) {
       <h2>{title() || 'Reader'}</h2>
     </div>
     <div ref={header} class="reader-header" style={{ 'max-width': spreadWidth() }} onFocusIn={event => { keyboardFocus = (event.target as Element).matches(':focus-visible'); showChrome(true); }}>
-      <Button class="reader-contents" icon="contents" label="Contents" aria-haspopup="dialog" disabled={!contents().length} onClick={event => { setQuery(''); setPopup({ kind: 'contents', anchor: event.currentTarget }); }}><span><Show when={!loading() && currentSection()} fallback="Contents">{entry => <SectionLabel title={entry().title} />}</Show></span><Icon name="down" /></Button>
+      <Button class="reader-contents" icon="contents" label="Contents" aria-haspopup={textWidth() === null ? 'dialog' : undefined} disabled={!contents().length} onClick={event => {
+        if (textWidth() !== null && margin?.isConnected) {
+          setPopup(null);
+          const entry = margin.querySelector<HTMLElement>('[aria-current]') ?? margin.querySelector<HTMLElement>('button');
+          entry?.focus();
+        } else {
+          setQuery(''); setPopup({ kind: 'contents', anchor: event.currentTarget });
+        }
+      }}><span><Show when={!loading() && currentSection()} fallback="Contents">{entry => <SectionLabel title={entry().title} />}</Show></span><Icon name="down" /></Button>
       <Button icon="highlight" label="Highlights" aria-haspopup="dialog" disabled={!snapshot()} onClick={event => { setQuery(''); setPopup({ kind: 'highlights', anchor: event.currentTarget }); }}><Show when={sourceHighlights().length}><span>{sourceHighlights().length}</span></Show></Button>
       <Button icon="search" label="Find in source" aria-haspopup="dialog" disabled={!snapshot()} onClick={event => { setQuery(''); setPopup({ kind: 'find', anchor: event.currentTarget }); }} />
       <Button class="reader-settings-toggle" label="Reader settings" aria-haspopup="dialog" onClick={event => setPopup({ kind: 'settings', anchor: event.currentTarget })}>Aa</Button>

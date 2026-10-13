@@ -22,17 +22,18 @@ export function ReadingCard(props: { row: LibraryRow; notebook: NotebookClient; 
     }, reason => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : String(reason)); });
     onCleanup(() => controller.abort());
   });
-  const length = createMemo(() => source()?.snapshots.find(snapshot => snapshot.id === source()?.source.current_snapshot_id)?.text_length ?? 0);
+  const snapshot = createMemo(() => source()?.snapshots.find(snapshot => snapshot.id === source()?.source.current_snapshot_id));
+  const length = createMemo(() => snapshot()?.text_length ?? 0);
   const progress = createMemo(() => source()?.progress ?? props.row.progress);
   const at = createMemo(() => progress() * length());
   const chapters = createMemo(() => bookChapters(source()?.toc ?? [], length()));
   const current = createMemo(() => chapterAt(chapters(), at()));
   return <Button class="library-reading-card" classList={{ 'library-reading-current': props.selected }} aria-current={props.selected ? 'page' : undefined} onClick={event => props.onOpen(event.shiftKey)}>
     <span class="library-reading-head">
-      <SourceCover row={props.row} siglum={props.row.source.siglum} />
+      <Show when={props.row.cover || (snapshot()?.format ?? props.row.source.format) !== 'article'}><SourceCover row={props.row} siglum={props.row.source.siglum} /></Show>
       <span class="library-reading-text">
-        <span class="library-reading-title">{props.row.page.text}</span>
-        <span class="library-reading-author">{sourceByline(props.row)}</span>
+        <span class="library-reading-title" title={props.row.page.text}>{props.row.page.text}</span>
+        <span class="library-reading-author" title={sourceByline(props.row)}>{sourceByline(props.row)}</span>
         <span class="library-reading-chapter">{current()?.chapter.title ? sectionLabel(current()!.chapter.title) : !source() && props.row.section && !isFrontMatter(props.row.section) ? sectionLabel(props.row.section) : progress() ? 'Reading position' : 'Not started'}</span>
       </span>
     </span>

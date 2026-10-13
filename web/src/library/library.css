@@ -82,8 +82,15 @@
 .library-empty p { margin: 0 0 var(--space-8); }
 .library-jobs { display: flex; flex-direction: column; }
 .library-job { flex-wrap: wrap; font-size: var(--text-control); line-height: var(--line-control); }
-/* The name gives way first, so state and actions stay on the job's first line in a narrow pane. */
+.library-failures { width: 100%; border-bottom: var(--rule-width) solid var(--line); }
+.library-failures > summary { padding: var(--space-8); color: var(--muted); font: var(--apparatus); cursor: pointer; }
+.library-dismiss-all.button { margin: 0 var(--space-8) var(--space-8); }
 .library-job-name { flex: 1 1 0; min-width: var(--space-48); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-inline: var(--space-8); }
+@container library-pane (max-width: 599px) {
+  .library-job-name { flex-basis: calc(100% - var(--space-48)); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; }
+  .library-job > .library-message { margin-left: var(--space-8); }
+  .library-job-actions { margin-left: auto; }
+}
 .library-job > .library-message, .library-job-actions { flex: none; }
 .library-job-actions { display: flex; }
 .library-job-error { flex-basis: 100%; padding-left: calc(var(--row-height) + var(--space-4) + var(--space-8)); padding-bottom: var(--space-8); }
@@ -275,7 +282,7 @@
 /* Reading now is a real card for every Reading source; the cover and a narrow split pane stack them without dropping books. */
 .library-reading { padding-block: 0 var(--section-gap); }
 .library-reading-heading { margin: 0 0 var(--section-item-gap); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
-.library-reading-books { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--shelf-cover-width) * 2)), 1fr)); gap: var(--card-gap); }
+.library-reading-books { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--shelf-cover-width) * 3)), 1fr)); gap: var(--card-gap); }
 .library-reading-card.button { display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: var(--space-8); width: 100%; height: 100%; padding: var(--card-padding); border: var(--rule-width) solid var(--line); border-radius: var(--space-8); background: var(--raised); white-space: normal; font-weight: var(--weight-body); text-align: left; }
 /* Cover and text read top-down; the map and its figures sit at the card's foot, level across a row of cards. */
 .library-reading-head { display: flex; flex: 1; align-items: flex-start; gap: var(--space-12); min-width: 0; }
@@ -285,8 +292,8 @@
 .library-reading-card .library-spine { align-items: flex-start; justify-content: center; padding: var(--space-8); }
 .library-reading-card .library-spine-title { display: none; }
 .library-reading-text { display: flex; flex: 1; flex-direction: column; gap: var(--space-4); min-width: 0; }
-.library-reading-title { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; color: var(--text); font: var(--weight-source-title) var(--text-gloss)/var(--line-source-title) var(--font-display); font-variation-settings: var(--optical-quote); }
-.library-reading-author, .library-reading-chapter { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
+.library-reading-title { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; color: var(--text); font: var(--weight-source-title) var(--text-gloss)/var(--line-source-title) var(--font-display); font-variation-settings: var(--optical-quote); }
+.library-reading-author, .library-reading-chapter { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
 .library-reading-chapter { padding-top: var(--space-8); }
 .library-reading-card > .book-map { margin-top: var(--space-4); }
 .library-reading-position { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-8); color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); white-space: nowrap; }

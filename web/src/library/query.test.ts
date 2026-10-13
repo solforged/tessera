@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { Citation, HighlightRow, IngestJob, LibraryFilters, LibraryRow } from '../api/types';
-import { groupSources, highlightChapterHeading, highlightChapters, highlightEmptyMessage, highlightLocation, highlightMeta, jobLabel, libraryQuery, nextUnprocessedHighlight, recentJobs, retryTime, selectSources, sourceByline, sourceStateOperation, visibleJobs } from './query';
+import { groupSources, highlightChapterHeading, highlightChapters, highlightEmptyMessage, highlightLocation, highlightMeta, importJobName, jobLabel, libraryQuery, nextUnprocessedHighlight, recentJobs, retryTime, selectSources, sourceByline, sourceStateOperation, visibleJobs } from './query';
 
 const filters: LibraryFilters = { people: [], decades: [], publishers: [], languages: [] };
 
@@ -80,6 +80,16 @@ test('jobs retain unfinished work at any age and completed work for one day', ()
   ] as IngestJob[];
   expect(recentJobs(jobs, now).map(job => job.id)).toEqual(['queued', 'running', 'failed', 'done', 'boundary']);
   expect(jobs).toHaveLength(6);
+});
+
+test('import URL labels preserve the host and distinguishing PMID or DOI', () => {
+  expect(importJobName('https://pubmed.ncbi.nlm.nih.gov/12345678/')).toBe('pubmed.ncbi.nlm.nih.gov/12345678');
+  expect(importJobName('https://doi.org/10.1000/example.123')).toBe('doi.org/10.1000/example.123');
+  expect(importJobName('https://example.org/articles/2026/identifying-slug')).toBe('example.org/…/identifying-slug');
+  const longUrl = `https://example.org/articles/${'long-'.repeat(20)}final-id`;
+  expect(importJobName(longUrl)).toStartWith('example.org/…');
+  expect(importJobName(longUrl)).toEndWith('final-id');
+  expect(importJobName('A book.epub')).toBe('A book.epub');
 });
 
 test('completed jobs disappear once their source is known', () => {

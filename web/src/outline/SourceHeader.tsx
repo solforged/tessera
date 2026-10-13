@@ -147,7 +147,7 @@ export function SourceHeader(props: {
   </div>;
   return <>
     <Show when={props.compact} fallback={<>
-    <div ref={header} class="outline-source-header">
+    <div ref={header} class="outline-source-header" classList={{ 'outline-source-coverless-article': (snapshot()?.format ?? props.doc.root()?.source?.format) === 'article' && !cover() }}>
       <Show when={snapshot()} fallback={<div class="outline-source-cover library-cover" style={{ visibility: coverVisibility() }}>
         <Show when={cover()} fallback={<span class="library-spine"><span class="library-spine-siglum">{source()?.source.siglum}</span></span>}>{href => <ResourceImage snapshotId="" href={href()} loading="eager" alt="" onLoad={() => setLoadedCover(href())} onError={() => setLoadedCover(href())} />}</Show>
       </div>}>

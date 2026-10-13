@@ -99,8 +99,10 @@ The Works heading and shelf share the page title's left edge. Works and its coun
 
 Reading now leads the unsearched, unfiltered Reading and All tabs with one card for every Reading source, including books not yet started, in the toolbar's sort order. Other tabs list only their own state. On the Reading tab the cards are the list: they replace the rows in the ungrouped List layout, while Shelf shows the covers and a grouping shows grouped rows instead; a search, filter or saved view brings the rows back. Each card reads top-down:
 
-- Its real cover or spine tile, 56 px wide, beside the title on up to three lines, the author and the current chapter (`4 · Deus Vult!`; `Not started` before any reading, `Reading position` in front matter). Three cards across the measure leave room for a title such as *A Social History of Western Political Thought* in full.
+- Its real cover or spine tile, 56 px wide, beside the title on up to two lines, the author and the current chapter (`4 · Deus Vult!`; `Not started` before any reading, `Reading position` in front matter). Cards use a wider two-column measure so short articles retain their identities; authors and chapter labels also wrap to two lines instead of clipping to one.
 - Under the cover, spanning the card, the segmented chapter map, then `N min left` inside a named chapter (the full `N min left in chapter` on hover) and the book's percentage on one line. The maps sit at the cards' feet, level across a row.
+
+Coverless articles omit the spine tile on Reading cards, leaving that width to their title and creators rather than an empty cover.
 
 On the Reading tab a card's top corner selects it, like a shelf cover.
 
@@ -132,9 +134,11 @@ Edit details opens the details form seeded from the lookup, keeping its cover. E
 
 ### Import jobs
 
-Each file or article submission becomes a job row above the sources while queued, running or failed: a state icon, the name without its extension, the state, and the error sentence on a second line aligned with the name. Failures offer Retry and Dismiss.
+Queued and running file or article submissions show a job row above the sources: a state icon, name, state, and any error sentence on a second line aligned with the name. Completed jobs leave once their source exists.
 
-The name truncates first, so state and actions stay on the first line in a narrow pane. Dismissal is a device preference per notebook. Finished jobs leave the list once their source exists, whichever tab lists it, so a large import never stacks rows above another tab's sources. The Highlights tab shows no jobs.
+Failed jobs appear only in Inbox, collapsed behind one mono disclosure such as `41 imports failed`. Expanding lists each failure with Retry and Dismiss and a Dismiss all action. Dismissal uses the existing device preference per notebook, including the batch action; it does not delete the service's jobs. Other registers show no failed backlog.
+
+URL names retain the host and final path identifier (the complete DOI for doi.org), with middle ellipsis for long identifiers, and expose the full URL as their title and accessible name. In narrow panes the identifying name wraps to two lines above the state and actions.
 
 An EPUB creator entry that holds several people (`A; B`, `A & B`, or inverted pairs such as `Bowen, William G., Guthrie, Kevin M.`) becomes one creator each. Calibre's unknown date, `0101-01-01`, is no date. Earlier EPUB imports carrying that sentinel in their extracted metadata read as undated in Library rows, Decades, year sorting, exports, the source header and the catalog card; other ancient dates and authored dates are kept, and stored fields are not rewritten. Browse facets skip blank values.
 
@@ -255,6 +259,8 @@ When processing empties the scoped queue, Undo stays in the Highlights toolbar s
 ### Header and reading progress
 
 A source page puts the current snapshot's cover beside its title, with author chips followed by one mono imprint line: siglum, format, publisher and year, omitting absent values. The cover opens the reader.
+
+In panes below 600 px, coverless articles omit the empty spine tile and give the title and imprint the whole width. Books and articles with real covers keep the cover rail; Read remains available in the reading controls.
 
 Below it, the current chapter (`Not started` before any reading, `Reading position` in front matter), chapter map, time left in a named chapter and `book % · time left` share the [reader's](reader.md) character-based progress.
 
