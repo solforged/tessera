@@ -221,8 +221,8 @@ export function createFieldSheet(context: Pick<OutlineContext,
   }
   function Popups() {
     return <>
-      <Show when={picker()}>{value => <FieldPicker anchor={value().anchor} label="Add field" fields={doc.block(value().owner)?.source ? definitions().filter(field => !isCatalogueField(field.name)) : definitions()} template={(states().get(value().owner) ?? stateFor(value().owner)).template} exclude={(states().get(value().owner) ?? stateFor(value().owner)).present}
-        onPick={field => { const state = value(); setPicker(null); choose(state.owner, state.anchor, field); }} onCreate={(name, kind) => { const owner = value().owner; setPicker(null); void create(owner, name, kind); }} onDismiss={() => setPicker(null)} />}</Show>
+      <Show keyed when={picker()}>{value => <FieldPicker anchor={value.anchor} label="Add field" fields={doc.block(value.owner)?.source ? definitions().filter(field => !isCatalogueField(field.name)) : definitions()} template={(states().get(value.owner) ?? stateFor(value.owner)).template} exclude={(states().get(value.owner) ?? stateFor(value.owner)).present}
+        onPick={field => { setPicker(null); choose(value.owner, value.anchor, field); }} onCreate={(name, kind) => { setPicker(null); void create(value.owner, name, kind); }} onDismiss={() => setPicker(null)} />}</Show>
       <Show when={instance()}>{value => <InstancePicker anchor={value().anchor} field={value().field} notebook={props.notebook} onDismiss={() => setInstance(null)} onError={setMessage} onPick={page => { add(value().owner, value().field, `[[${page.id}]]`); setInstance(null); }} />}</Show>
     </>;
   }

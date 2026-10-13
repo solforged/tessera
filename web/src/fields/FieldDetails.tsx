@@ -52,14 +52,15 @@ export function FieldDetails(props: FieldDetailsProps) {
   const [targetsDraft, setTargetsDraft] = createSignal<string[]>([]);
   const [convert, setConvert] = createSignal(true);
   const [lastChange, setLastChange] = createSignal<DocumentChange>();
-  createEffect(on(() => [props.fieldId, props.previewKind], () => setConvert(true)));
+  const previewKey = createMemo(() => `${props.fieldId}:${props.previewKind ?? ''}`);
+  createEffect(on(previewKey, () => setConvert(true)));
   const [types] = createResource(() => props.notebook.changeSequence(), () => props.notebook.api.types());
   createEffect(on(() => props.notebook.changeSequence(), () => {
     const timer = setTimeout(() => setVersion(value => value + 1), 150);
     onCleanup(() => clearTimeout(timer));
   }, { defer: true }));
-  createEffect(() => {
-    const id = props.fieldId; const kind = props.previewKind; version();
+  createEffect(on([previewKey, version], () => {
+    const id = props.fieldId; const kind = props.previewKind;
     const controller = new AbortController();
     setLoading(true);
     void props.notebook.api.fieldDetail(id, kind, 12, controller.signal).then(value => {
@@ -69,7 +70,7 @@ export function FieldDetails(props: FieldDetailsProps) {
       if (!controller.signal.aborted) { setError(reason instanceof Error ? reason.message : String(reason)); setLoading(false); }
     });
     onCleanup(() => controller.abort());
-  });
+  }));
   const rawData = createMemo(() => {
     const value = result();
     return value?.field.id === props.fieldId && value.kind === (props.previewKind ?? value.field.kind) ? value : undefined;
@@ -136,10 +137,11 @@ export function FieldDetails(props: FieldDetailsProps) {
   const applyKind = async () => {
     const value = rawData(); const doc = props.document;
     if (!value || !doc || !ready()) return;
+    const convertValues = convert();
     article.focus({ preventScroll: true });
     setApplying(true);
     try {
-      setLastChange(doc.rememberChange(await changeFieldKind(props.notebook, value, convert())));
+      setLastChange(doc.rememberChange(await changeFieldKind(props.notebook, value, convertValues)));
       props.onPreview();
     } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setApplying(false); }
