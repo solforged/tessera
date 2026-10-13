@@ -14,8 +14,15 @@ export const kindLabels: Record<FieldKind, string> = {
   identifier: 'Identifier',
 };
 
-/** Why a new field name is refused, or null; the characters `Name::` shorthand refuses are refused here too. */
-export const fieldNameProblem = (name: string) => !name.trim() ? 'A field needs a name.' : name.trim().length > 60 ? 'Field names must be 60 characters or fewer.' : /[\\`[\]#:]/.test(name) ? 'Field names cannot contain [ ] # : ` or \\.' : null;
+/** Why a field name is refused; creation and rename share syntax and notebook-wide uniqueness. */
+export function fieldNameProblem(name: string, fields: readonly { id: string; name: string }[] = [], exceptId?: string): string | null {
+  const text = name.trim();
+  if (!text) return 'A field needs a name.';
+  if (text.length > 60) return 'Field names must be 60 characters or fewer.';
+  if (/[\\`[\]#:]/.test(text)) return 'Field names cannot contain [ ] # : ` or \\.';
+  if (fields.some(field => field.id !== exceptId && field.name.trim().toLocaleLowerCase() === text.toLocaleLowerCase())) return `A field named ${text} already exists.`;
+  return null;
+}
 
 /** The checkbox spellings `fields::reading` accepts (crates/tessera-core/src/fields.rs); null for any other text. */
 export function checkboxValue(text: string): boolean | null {

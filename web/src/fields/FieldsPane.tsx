@@ -107,9 +107,8 @@ function DefinitionsPane(props: FieldsPaneProps) {
     const document = doc();
     if (!document || !ready()) { setCreateError(document?.statusMessage() || document?.saveMessage() || 'Wait for field definitions to finish loading or saving.'); return; }
     const name = newName().trim();
-    const problem = fieldNameProblem(name);
+    const problem = fieldNameProblem(name, fields());
     if (problem) { setCreateError(problem); return; }
-    if (fields().some(field => field.name.toLocaleLowerCase() === name.toLocaleLowerCase())) { setCreateError(`A field named ${name} already exists.`); return; }
     const result = document.edit({ kind: 'addField', name, value: newKind() });
     if (!result.ok) { setCreateError(result.reason); return; }
     closeCreation(); setNewName(''); setCreateError(''); setSearch('');

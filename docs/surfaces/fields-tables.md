@@ -32,6 +32,8 @@ Filtering the index does not change definitions; an empty result offers Clear fi
 
 A field page is a specimen sheet on the outline measure, crumbed `Fields / Name`. Under the Piazzolla name sit a mono summary (`Choice · 7 owners · 9 values`) and Rename. Kind, Links to for instance fields, and Hide follow as rows. Hide offers Never, When empty and Always, with one muted line saying what the current choice does; changing it is one undoable edit on the field. The [field menu](../design.md#field-entries) in any note opens this page, at the kind preview, Options or Links to.
 
+Rename refuses another field's name under the same case-insensitive rule as New field.
+
 Numbered sections follow with rubric numerals and hairlines:
 
 | Section | Contents and actions |

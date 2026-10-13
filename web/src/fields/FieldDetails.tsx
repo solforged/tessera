@@ -97,15 +97,24 @@ export function FieldDetails(props: FieldDetailsProps) {
   };
   const ownerLink = (owner: FieldOwner, beside: boolean) => props.onOpen({ kind: 'page', pageId: owner.page_id, ...(owner.id !== owner.page_id ? { blockId: owner.id } : {}) }, beside);
   const optionUses = createMemo(() => new Map(data()?.option_uses.map(option => [option.option_id, option.uses])));
-  const editText = () => {
+  const editText = async () => {
     const edit = editing(); const doc = props.document;
     if (!edit || !doc || !ready()) return;
     const text = edit.text.trim();
     const problem = edit.id === props.fieldId ? fieldNameProblem(text) : !text ? 'An option needs a name.' : null;
     if (problem) { setError(problem); return; }
-    const result = doc.edit({ kind: 'text', id: edit.id, text });
-    if (!result.ok) { setError(result.reason); return; }
-    setEditing(null); setError('');
+    setApplying(true);
+    try {
+      if (edit.id === props.fieldId) {
+        const fields = await props.notebook.api.fields();
+        const problem = fieldNameProblem(text, fields.fields, edit.id);
+        if (problem) { setError(problem); return; }
+      }
+      const result = doc.edit({ kind: 'text', id: edit.id, text });
+      if (!result.ok) { setError(result.reason); return; }
+      setEditing(null); setError('');
+    } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
+    finally { setApplying(false); }
   };
   const addOption = () => {
     const doc = props.document; const text = option().trim();
