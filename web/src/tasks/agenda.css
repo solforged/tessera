@@ -1,5 +1,7 @@
+/* Agenda rows also render in Today's ledger, so both hosts carry their height. */
+.agenda-pane, .today-ledger { --agenda-row-height: var(--row-height); }
 /* The date, tabs and day list share the outline measure and one left edge. */
-.agenda-pane { --agenda-row-height: var(--row-height); flex: 1; min-height: 0; min-width: 0; overflow: auto; padding: var(--page-top-space) var(--pane-inset) var(--page-bottom-space); container: agenda-pane / inline-size; }
+.agenda-pane { flex: 1; min-height: 0; min-width: 0; overflow: auto; padding: var(--page-top-space) var(--pane-inset) var(--page-bottom-space); container: agenda-pane / inline-size; }
 .agenda-content { max-width: var(--measure); margin-inline: auto; display: flex; flex-direction: column; gap: var(--page-head-gap); }
 .agenda-content-week { max-width: var(--week-measure); }
 /* Date navigation accompanies the heading; modes get their own shared ruled baseline below. */
@@ -283,7 +285,7 @@ div.journal-agenda-toggle { display: flex; align-items: center; gap: var(--space
   .agenda-toolbar { gap: var(--space-8) var(--space-16); }
 }
 @media (pointer: coarse) {
-  .agenda-pane { --agenda-row-height: calc(var(--space-32) + var(--space-12)); }
+  .agenda-pane, .today-ledger { --agenda-row-height: calc(var(--space-32) + var(--space-12)); }
   .agenda-pane .agenda-row { min-height: var(--agenda-row-height); }
   .agenda-pane .agenda-row .agenda-status.task-status-button, .agenda-pane .agenda-source, .agenda-pane .agenda-date > .button, .agenda-pane .agenda-modes > .button { min-height: var(--agenda-row-height); }
 }
