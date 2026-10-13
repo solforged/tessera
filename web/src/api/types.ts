@@ -286,6 +286,11 @@ export interface Fields { page_id: string; fields: FieldSummary[] }
 export interface FieldOwner { id: string; text: string; page_id: string; page_title: string }
 export interface FieldOwnerValues { owner: FieldOwner; entry_id: string; values: FieldValue[] }
 export interface FieldValueUse { owner: FieldOwner; entry_id: string; value: FieldValue }
+export interface FieldChoiceCandidate {
+  text: string;
+  option_id: string | null;
+  values: { id: string; text: string; revision: number; page_id: string }[];
+}
 export interface FieldDetail {
   field: FieldSummary;
   kind: FieldKind;
@@ -298,6 +303,7 @@ export interface FieldDetail {
   owners: FieldOwnerValues[];
   problems: FieldValueUse[];
   readable: FieldValueUse[];
+  choice_candidates: FieldChoiceCandidate[];
 }
 export interface Type { page: Block; fields: string[]; members: number; card_templates: number; plural: string | null; icon: string | null }
 export interface View { id: string; name: string; query: Query; revision: number; created_at: number; updated_at: number }

@@ -41,15 +41,19 @@ Numbered sections follow with rubric numerals and hairlines:
 | Options | Options with their uses and inline rename, then Add option; choice fields only. Option names may wrap; Uses and Edit retain their intrinsic one-line width, including on phones. |
 | In templates | Each type's pill, the field's place in its template and the member count. |
 | Used by | Up to twelve owners in three columns with their values in mono. View owner (one owner) or View all N owners opens the field-only table. |
-| Problem values | The written text in rubric beside its owner and the problem. |
+| Problem values | The written text in rubric beside its owner and the problem. Choice rows offer Make option: create or reuse the matching option and link every matching value in one undoable change. The help reads “Make it an option, or open its owner to edit it.” |
 
 Blocks in the pane header opens the definition in the Fields page, where names and options remain ordinary blocks. Edit definitions opens the Fields page.
 
+Choice and instance value pickers check the current value, expose it as selected and start the keyboard cursor there. An unmatched choice query offers `Add option “Y”`; adding the option and selecting it are one undoable change, including in tables. A note's Add field picker offers `Create text field “X”` and `Create field “X” as…`; the latter opens Text, Number, Date, Checkbox, Choice, Instance, URL and Identifier. The definition, chosen kind and entry are created together. A new Choice field opens its value picker so its first option can be added there.
+
+Creating a definition always uses a new block ID. Blank outline rows under Fields are not definitions and are never adopted or offered by field pickers.
+
 ## Kind changes
 
-Changing kind never applies at once. Choosing a kind on the page, in the inspector or from a register row shows a preview first: `4 of 6 values won't read as Number`, with the counts in rubric mono and a rubric rule at its left. The preview then shows the values that will become problems and those that will read, each with its owner and its reading after the change.
+Changing kind never applies at once. Choosing a kind on the page, in the inspector or from a register row shows a preview first: `4 of 6 values won't read as Number`, with the counts in rubric mono and a rubric rule at its left. The preview then shows the values that will become problems and those that will read, each with its owner and its reading after the change. A note's field menu keeps a compact preview inside the popup, with Apply and Open field page, without leaving the note.
 
-Apply kind change is one undoable edit that keeps every value's text. Cancel returns to the page.
+When the proposed kind is Choice, unreadable values offer a checked-by-default `Add N values as options` checkbox and the distinct trimmed names. Names deduplicate case-insensitively, preserving the first spelling and first-appearance order. The preview lists update when the checkbox changes. Apply creates missing options, reuses matching existing options, and rewrites each matching value to `[[optionId]]` together with the kind change in one undoable change. Choice readings still require option links; plain text never silently reads as an option. Without conversion, changing kind preserves every value's text. Owners and child notes stay in place. Cancel returns to the page.
 
 ## Links to
 

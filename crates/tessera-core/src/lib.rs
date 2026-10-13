@@ -82,12 +82,12 @@ pub use error::{Error, Result};
 pub use migrate::SCHEMA_VERSION;
 pub use model::{
     Actor, Backlink, Batch, Block, BlockInPage, BlockKind, ChangeEvent, ChangeStamp, Committed,
-    Direction, FieldDefinition, FieldDetail, FieldHide, FieldKind, FieldOption, FieldOptionUse,
-    FieldOwner, FieldOwnerValues, FieldSummary, FieldTemplate, FieldType, FieldValue,
-    FieldValueUse, FieldsView, Filter, FilterOp, KeptCopy, NoteGroup, NoteLayout, NoteView,
-    Operation, PageView, Query, QueryResult, QueryRow, QuoteState, QuoteStatus, QuotedRow, Reading,
-    ReadingValue, Revision, Row, Setting, SettingRevision, SettingsView, SortBy, SortKey, Subtree,
-    TextRewrite, TypeInfo, View,
+    Direction, FieldChoiceCandidate, FieldChoiceValue, FieldDefinition, FieldDetail, FieldHide,
+    FieldKind, FieldOption, FieldOptionUse, FieldOwner, FieldOwnerValues, FieldSummary,
+    FieldTemplate, FieldType, FieldValue, FieldValueUse, FieldsView, Filter, FilterOp, KeptCopy,
+    NoteGroup, NoteLayout, NoteView, Operation, PageView, Query, QueryResult, QueryRow, QuoteState,
+    QuoteStatus, QuotedRow, Reading, ReadingValue, Revision, Row, Setting, SettingRevision,
+    SettingsView, SortBy, SortKey, Subtree, TextRewrite, TypeInfo, View,
 };
 pub use notebook::{DATABASE_FILE, Notebook, NotebookInfo, now_ms};
 pub use notes::{CrossReference, IndexKind, KindIndex, NoteEntry, NoteIndex, NoteKind, SeeTarget};

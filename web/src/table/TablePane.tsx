@@ -17,6 +17,7 @@ import { TypeModeTabs } from '../ui/TypeModeTabs';
 import { checkboxValue, kindLabels, partialDatePlaceholder } from '../fields/kinds';
 import { ValueEditor, writeFieldValue } from '../fields/value-editor';
 import { hasValueEditor } from '../fields/value-options';
+import { createOptionValue } from '../fields/commands';
 import { noteKindIcon } from '../notes/kinds';
 import { NoteFind } from '../notes/NoteFind';
 import { autoPlural } from '../fields/presentation';
@@ -270,19 +271,14 @@ export function TablePane(props: TablePaneProps) {
   const createField = async (name: string, addColumn: boolean) => {
     const all = await api.fields(); let fieldId = all.fields.find(field => field.name.toLocaleLowerCase() === name.trim().toLocaleLowerCase())?.id;
     if (!fieldId) await withDocument(all.page_id, async doc => {
-      // An empty page is seeded with one blank block on load; name it instead of adding a sibling.
-      const blank = doc.outline.children(all.page_id).find(id => { const block = doc.block(id); return block && !block.archived && !block.text.trim(); });
-      const baseRevision = blank ? doc.block(blank)?.revision ?? 0 : 0;
-      const written = blank
-        ? doc.edit({ kind: 'text', id: blank, text: name.trim() })
-        : doc.edit({ kind: 'insert', parentId: all.page_id, after: doc.outline.children(all.page_id).at(-1) ?? null, text: name.trim() });
+      const written = doc.edit({ kind: 'addField', name: name.trim(), value: 'text' });
       if (!written.ok) throw new Error(written.reason);
-      fieldId = blank ?? written.created[0]!;
+      fieldId = written.created[0]!;
       // A query or template can only refer to the definition after its document commits.
       const committed = Promise.withResolvers<void>();
       createRoot(dispose => {
         createEffect(() => {
-          if ((doc.block(fieldId!)?.revision ?? 0) > baseRevision) { dispose(); committed.resolve(); }
+          if ((doc.block(fieldId!)?.revision ?? 0) > 0) { dispose(); committed.resolve(); }
           else if (doc.saveState() === 'error' || doc.saveState() === 'conflict') { dispose(); committed.reject(new Error(doc.saveMessage())); }
         });
       });
@@ -368,10 +364,12 @@ export function TablePane(props: TablePaneProps) {
     const target = props.notebook.lookup(id)() ?? await props.notebook.api.block(id);
     props.onOpen({ kind: 'page', pageId: target.page_id, ...(target.kind === 'block' ? { blockId: target.id } : {}) }, beside || window.matchMedia('(pointer: coarse) and (min-width: 900px)').matches);
   };
-  const writeCell = async (row: QueryRow, field: FieldDefinition, text: string, value = row.values[field.id]?.[0]) => {
+  const writeCell = async (row: QueryRow, field: FieldDefinition, text: string, value = row.values[field.id]?.[0], option?: string) => {
     await withDocument(row.block.page.id, async doc => {
-      if ((value?.text ?? '') === text) return;
-      writeFieldValue(doc, { field, ownerId: row.block.block.id, valueId: value?.id }, text);
+      if (!option && (value?.text ?? '') === text) return;
+      const target = { field, ownerId: row.block.block.id, valueId: value?.id };
+      if (option) await createOptionValue(props.notebook, doc, target, option);
+      else writeFieldValue(doc, target, text);
       history.push({ kind: 'cell', doc, rowId: row.block.block.id, fieldId: field.id }); undone.length = 0; setViewUndo(false);
       await doc.flush();
       await refreshCells();
@@ -548,6 +546,7 @@ export function TablePane(props: TablePaneProps) {
     <Show keyed when={popup()}>{state => <>
       {state.kind === 'menu' && <Menu anchor={state.anchor} label={state.label} header={state.header} items={state.items} onDismiss={() => setPopup(null)} />}
       {state.kind === 'value' && <ValueEditor anchor={state.anchor} field={fieldById(state.field.id) ?? state.field} text={(state.value ?? state.row.values[state.field.id]?.[0])?.text ?? ''} notebook={props.notebook} contextDate={props.notebook.todayDate()}
+        onCreateOption={text => writeCell(state.row, state.field, '', state.value, text)}
         onWrite={text => writeCell(state.row, state.field, text, state.value)} onError={message} onDismiss={() => { setPopup(null); requestAnimationFrame(() => focusCell(state.row.block.block.id, state.field.id)); }} />}
       {state.kind === 'filter' && <FilterPopup anchor={state.anchor} fields={fields()} notebook={props.notebook} initialField={state.field} sheet={window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches} onDismiss={() => setPopup(null)} onNewField={async name => createField(name, false)} onAdd={filter => { updateQuery(addFilter(query(), filter)); setPopup(null); }} />}
       {state.kind === 'name' && <NamePopup anchor={state.anchor} action={state.action} name={state.action === 'rename' ? saved()?.name ?? '' : ''} onDismiss={() => setPopup(null)} onSave={async name => { if (state.action === 'field') await createField(name, !!state.addColumn); else await saveView(name, state.action === 'rename'); }} />}

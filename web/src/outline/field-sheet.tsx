@@ -1,6 +1,6 @@
 import { For, Show, createEffect, createMemo, createResource, createSignal, mapArray, on, untrack } from 'solid-js';
 import type { Accessor, JSX } from 'solid-js';
-import type { ChangeEvent, FieldDefinition, SubjectCriteria } from '../api/types';
+import type { ChangeEvent, FieldDefinition, FieldKind, SubjectCriteria } from '../api/types';
 import { FieldPicker } from '../fields/FieldPicker';
 import { InstancePicker } from '../fields/InstancePicker';
 import { fieldHide } from '../fields/hide';
@@ -9,7 +9,7 @@ import { isCatalogueField } from '../library/details';
 import { fieldEntryId } from '../table/query';
 import { Icon } from '../ui/Icon';
 import type { OutlineContext } from './context';
-import { ensureField } from './source-fields';
+import { createFieldEntry } from '../fields/commands';
 
 interface SheetState {
   owner: string;
@@ -177,12 +177,14 @@ export function createFieldSheet(context: Pick<OutlineContext,
     else add(owner, field);
   }
   // A source's catalogue fields belong to its header and card, so its own Add field never offers or creates them.
-  async function create(owner: string, name: string) {
+  async function create(owner: string, name: string, kind: FieldKind) {
     if (doc.block(owner)?.source && isCatalogueField(name)) { context.showNotice(`Edit ${name.trim()} in the source's details.`); return; }
     try {
-      const field = await ensureField(props.notebook, name);
+      const { field, value, change } = await createFieldEntry(props.notebook, doc, owner, name, kind);
       options.onField(field);
-      add(owner, field);
+      context.setSelected(value);
+      context.showNotice(`${field.name} created.`, change.undo);
+      if (kind !== 'checkbox') queueMicrotask(() => options.offerValue(value, field));
     } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); }
   }
   function fill(entry: string) {
@@ -220,7 +222,7 @@ export function createFieldSheet(context: Pick<OutlineContext,
   function Popups() {
     return <>
       <Show when={picker()}>{value => <FieldPicker anchor={value().anchor} label="Add field" fields={doc.block(value().owner)?.source ? definitions().filter(field => !isCatalogueField(field.name)) : definitions()} template={(states().get(value().owner) ?? stateFor(value().owner)).template} exclude={(states().get(value().owner) ?? stateFor(value().owner)).present}
-        onPick={field => { const state = value(); setPicker(null); choose(state.owner, state.anchor, field); }} onCreate={name => { const owner = value().owner; setPicker(null); void create(owner, name); }} onDismiss={() => setPicker(null)} />}</Show>
+        onPick={field => { const state = value(); setPicker(null); choose(state.owner, state.anchor, field); }} onCreate={(name, kind) => { const owner = value().owner; setPicker(null); void create(owner, name, kind); }} onDismiss={() => setPicker(null)} />}</Show>
       <Show when={instance()}>{value => <InstancePicker anchor={value().anchor} field={value().field} notebook={props.notebook} onDismiss={() => setInstance(null)} onError={setMessage} onPick={page => { add(value().owner, value().field, `[[${page.id}]]`); setInstance(null); }} />}</Show>
     </>;
   }

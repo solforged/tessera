@@ -3,8 +3,8 @@ use std::collections::{HashMap, HashSet};
 use rusqlite::{Connection, OptionalExtension, params};
 
 use crate::model::{
-    FieldDetail, FieldOptionUse, FieldOwner, FieldOwnerValues, FieldSummary, FieldTemplate,
-    FieldType, FieldValue, FieldValueUse,
+    FieldChoiceCandidate, FieldChoiceValue, FieldDetail, FieldOptionUse, FieldOwner,
+    FieldOwnerValues, FieldSummary, FieldTemplate, FieldType, FieldValue, FieldValueUse,
 };
 use crate::reads::hidden_blocks;
 use crate::storage::{block_at, block_columns, not_found, validate_date, validate_id, validation};
@@ -507,6 +507,7 @@ impl Notebook {
             owners: Vec::new(),
             problems: Vec::new(),
             readable: Vec::new(),
+            choice_candidates: Vec::new(),
         };
         let option_indices: HashMap<_, _> = detail
             .option_uses
@@ -514,11 +515,12 @@ impl Notebook {
             .enumerate()
             .map(|(index, option)| (option.option_id.clone(), index))
             .collect();
+        let mut choice_values = Vec::<(i64, FieldChoiceValue)>::new();
         // Entries, including empty ones, follow the register's whole-reference
         // and hidden-ancestor rules. Values and targets join once, not per row.
         let mut statement = self.conn.prepare_cached(concat!(
             hidden_blocks!(),
-            "SELECT o.id, o.text, o.page_id, p.text, e.id, e.text, v.id, v.text, ",
+            "SELECT o.id, o.text, o.page_id, p.text, e.id, e.text, v.id, v.text, v.revision, v.rowid, ",
             block_columns!("t"),
             " FROM links l JOIN blocks e ON e.id = l.source_id
               JOIN blocks o ON o.id = e.parent_id JOIN blocks p ON p.id = o.page_id
@@ -571,10 +573,10 @@ impl Notebook {
             };
             entry_empty = false;
             detail.values_total += 1;
-            let target = if matches!(row.get_ref(8)?, rusqlite::types::ValueRef::Null) {
+            let target = if matches!(row.get_ref(10)?, rusqlite::types::ValueRef::Null) {
                 None
             } else {
-                Some(block_at(row, 8)?)
+                Some(block_at(row, 10)?)
             };
             let reading = constrained_reading(
                 &self.conn,
@@ -583,6 +585,17 @@ impl Notebook {
                 &text,
                 target.as_ref(),
             )?;
+            if kind == FieldKind::Choice && matches!(reading, Reading::Problem { .. }) {
+                choice_values.push((
+                    row.get(9)?,
+                    FieldChoiceValue {
+                        id: row.get(6)?,
+                        text: text.clone(),
+                        revision: row.get(8)?,
+                        page_id: owner.page_id.clone(),
+                    },
+                ));
+            }
             if let Reading::Value {
                 target: Some(target),
                 ..
@@ -615,6 +628,38 @@ impl Notebook {
                     entry_id: entry,
                     value,
                 });
+            }
+        }
+        // Row identity preserves insertion order even within one timestamp/batch.
+        // Samples stay in owner order; conversion names use first appearance.
+        choice_values.sort_unstable_by_key(|(order, _)| *order);
+        if !choice_values.is_empty() {
+            let mut candidate_indices = HashMap::<String, usize>::new();
+            let option_names: HashMap<_, _> = detail
+                .field
+                .definition
+                .options
+                .iter()
+                .rev()
+                .map(|option| (option.text.trim().to_lowercase(), &option.id))
+                .collect();
+            for (_, value) in choice_values {
+                let name = value.text.trim();
+                let key = name.to_lowercase();
+                let index = match candidate_indices.entry(key) {
+                    std::collections::hash_map::Entry::Occupied(entry) => *entry.get(),
+                    std::collections::hash_map::Entry::Vacant(entry) => {
+                        let index = detail.choice_candidates.len();
+                        detail.choice_candidates.push(FieldChoiceCandidate {
+                            text: name.to_owned(),
+                            option_id: option_names.get(entry.key()).map(|id| (*id).clone()),
+                            values: Vec::new(),
+                        });
+                        entry.insert(index);
+                        index
+                    }
+                };
+                detail.choice_candidates[index].values.push(value);
             }
         }
         detail.empty_total += usize::from(entry_empty);

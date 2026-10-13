@@ -38,25 +38,15 @@ export function ensureField(notebook: NotebookClient, name: string, kind: FieldK
     const fieldsDoc = notebook.open(result.page_id);
     try {
       await documentReady(fieldsDoc);
-      if (kind !== 'text') {
-        const written = fieldsDoc.edit({ kind: 'addField', name, value: kind });
-        if (!written.ok) throw new Error(written.reason);
-        await fieldsDoc.flush();
-        return { id: written.created[0]!, name, kind, revision: fieldsDoc.block(written.created[0]!)!.revision, options: [], targets: [] };
-      }
-      // An empty page is seeded with one blank block on load; name it instead of adding a sibling.
-      let blank: string | undefined;
       for (const id of fieldsDoc.outline.children(result.page_id)) {
         const block = fieldsDoc.block(id);
-        if (!block || block.archived) continue;
-        if (block.text.toLowerCase() === key) return { id, name: block.text, kind: 'text' as const, revision: block.revision, options: [], targets: [] };
-        if (!block.text.trim() && !blank) blank = id;
+        if (block && !block.archived && block.text.trim() && block.text.toLowerCase() === key) return { id, name: block.text, kind: 'text' as const, revision: block.revision, options: [], targets: [] };
       }
-      const written = blank
-        ? fieldsDoc.edit({ kind: 'text', id: blank, text: name })
-        : fieldsDoc.edit({ kind: 'insert', parentId: result.page_id, after: fieldsDoc.outline.children(result.page_id).at(-1) ?? null, text: name });
+      // Blank outline rows may have references or history: never adopt their identity.
+      const written = fieldsDoc.edit({ kind: 'addField', name, value: kind });
       if (!written.ok) throw new Error(written.reason);
-      return { id: blank ?? written.created[0]!, name, kind: 'text' as const, revision: 0, options: [], targets: [] };
+      await fieldsDoc.flush();
+      return { id: written.created[0]!, name, kind, revision: fieldsDoc.block(written.created[0]!)!.revision, options: [], targets: [] };
     } finally { fieldsDoc.release(); }
   })();
   pending.set(key, creation);

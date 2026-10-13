@@ -5,7 +5,7 @@ import type { SetStoreFunction } from 'solid-js/store';
 import { ulid } from 'ulid';
 import { ApiError } from '../api/client';
 import type { Batch, Block, BlockCapabilities, Committed, PageView, TextRewrite, WorkSession } from '../api/types';
-import type { BlockClipboard, BlockState, Caret, Edit, EditResult, HistoryCaret, PageDocument, SaveState, SourceDetailsEdit, TextRange } from './contract';
+import type { BlockClipboard, BlockState, Caret, DocumentChange, Edit, EditResult, HistoryCaret, PageDocument, SaveState, SourceDetailsEdit, TextRange } from './contract';
 import { OutlineIndex } from './outline-index';
 import type { Action, Command, HistoryEntry, PageCommand, Snapshot } from './types';
 import { emptyCapabilities, isCapabilityAction, questionStatus, sameState, sourceState } from './types';
@@ -65,6 +65,7 @@ export class Document implements PageDocument {
   private guardHistories = new Map<string, Set<HistoryEntry>>();
   private historyVersion = createSignal(0);
   private historyNotice = createSignal('');
+  private historyPending: Promise<void> | null = null;
   historyMessage = this.historyNotice[0];
   private resolving = new Set<string>();
   private conflicts = new Set<string>();
@@ -100,9 +101,9 @@ export class Document implements PageDocument {
   }
   saveState() { return this.host.state(this.pageId); }
   saveMessage() { return this.host.message(this.pageId); }
-  flush() { return this.host.flushPage(this.pageId); }
-  canUndo() { this.historyVersion[0](); return this.undoStack.length > 0; }
-  canRedo() { this.historyVersion[0](); return this.redoStack.length > 0; }
+  async flush() { await this.historyPending; await this.host.flushPage(this.pageId); }
+  canUndo() { this.historyVersion[0](); return !this.historyPending && this.undoStack.length > 0; }
+  canRedo() { this.historyVersion[0](); return !this.historyPending && this.redoStack.length > 0; }
   release() { this.host.release(this); }
   async reload(conflicts = true) {
     try {
@@ -1684,11 +1685,47 @@ export class Document implements PageDocument {
   removeType(blockId: string, title: string): EditResult {
     return this.edit({ kind: 'removeType', id: blockId, title });
   }
+  rememberChange(change: DocumentChange): DocumentChange {
+    const entry: HistoryEntry = { forward: [], inverse: [], before: null, after: null, commandId: '', commands: new Set(), applied: true, retained: true };
+    const travel = (undo: boolean): Promise<void> => {
+      if (this.historyPending) return this.historyPending.then(() => travel(undo));
+      const from = undo ? this.undoStack : this.redoStack;
+      const to = undo ? this.redoStack : this.undoStack;
+      if (!from.includes(entry)) return Promise.resolve();
+      const pending = (undo ? change.undo() : change.redo()).then(() => {
+        from.splice(from.indexOf(entry), 1);
+        entry.applied = !undo;
+        to.push(entry);
+      }).catch(error => {
+        this.historyNotice[1](error instanceof Error ? error.message : String(error));
+        throw error;
+      }).finally(() => {
+        this.historyPending = null;
+        this.historyVersion[1](value => value + 1);
+      });
+      this.historyPending = pending;
+      this.historyVersion[1](value => value + 1);
+      return pending;
+    };
+    entry.external = { undo: () => travel(true), redo: () => travel(false) };
+    for (const discarded of this.redoStack) { discarded.retained = false; this.pruneHistory(discarded); }
+    this.redoStack = [];
+    this.undoStack.push(entry);
+    this.lastTextEditAt = 0;
+    this.historyVersion[1](value => value + 1);
+    return entry.external;
+  }
   private travel(undo: boolean): HistoryCaret | null {
+    if (this.historyPending) return null;
     this.lastTextEditAt = 0;
     const from = undo ? this.undoStack : this.redoStack;
     const to = undo ? this.redoStack : this.undoStack;
     this.historyNotice[1]('');
+    const external = from.at(-1)?.external;
+    if (external) {
+      void (undo ? external.undo() : external.redo()).catch(() => {});
+      return null;
+    }
     const entry = from.pop();
     if (!entry) return null;
     const actions = (undo ? entry.inverse : entry.forward).map<Action>(action => {

@@ -296,6 +296,8 @@ export interface PageDocument {
 
   /** `caretBefore` is restored by undo. */
   edit(edit: Edit, caretBefore?: HistoryCaret | null): EditResult;
+  /** Attach an acknowledged cross-page change to this pane's undo/redo history. */
+  rememberChange(change: DocumentChange): DocumentChange;
   /** Renames a page. Journal titles cannot change. */
   rename(title: string): EditResult;
   addType(blockId: string, title: string): EditResult;

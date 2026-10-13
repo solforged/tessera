@@ -8,6 +8,7 @@ import { kindLabels } from '../fields/kinds';
 import { typeKeys } from '../fields/templates';
 import { ValueEditor, writeFieldValue } from '../fields/value-editor';
 import { hasValueEditor } from '../fields/value-options';
+import { createOptionValue } from '../fields/commands';
 import { DatePicker } from '../tasks/DatePicker';
 import { dateQueryError, dateSuggestions, dateTokenAt, flipDateToken, newTask, planDateToken, removeToken } from '../tasks/quick-date';
 import type { DateSuggestion, DateToken } from '../tasks/quick-date';
@@ -50,6 +51,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
   | 'replaceSelection' | 'fields' | 'definitionsById' | 'definitions' | 'activeRange'
   | 'fieldConversion' | 'commandDefinitions' | 'openPlanning' | 'priorityMenu' | 'openProject'
   | 'investigationItems' | 'markRelation' | 'relationMenu' | 'apply' | 'zoomTo' | 'copy' | 'templateFor' | 'rowFocus' | 'openRelation' | 'placeReason' | 'usePlace'
+  | 'showNotice'
 >) {
   const {
     contextDate, editing, textRange, composition, caret, doc,
@@ -583,6 +585,7 @@ function CompletionPopups(){ return <>
     </Popup></Show>
     <Show keyed when={valueEditor()}>{state => <ValueEditor notebook={props.notebook} anchor={state.anchor} field={definitionsById().get(state.field.id) ?? state.field} text={doc.block(state.id)?.text ?? ''} contextDate={contextDate()}
       onDismiss={() => dismissValueEditor(state.id)} onError={setMessage}
+      onCreateOption={async text => { const change = await createOptionValue(props.notebook, doc, { field: state.field, ownerId: doc.outline.parentOf(doc.outline.parentOf(state.id)), valueId: state.id }, text); context.showNotice('Option added.', change.undo); }}
       onWrite={async text => { writeFieldValue(doc, { field: state.field, ownerId: doc.outline.parentOf(doc.outline.parentOf(state.id)), valueId: state.id }, text); await doc.flush(); }} />}</Show>
     <Show when={dateCompletion()}><Popup anchor={() => caretRect(dateCompletion()?.from ?? 0)} width={320} class="picker" label={dateCompletion()?.field === 'deadline' ? 'Deadline' : 'Scheduled'} role="listbox" onDismiss={dismissDate}>
       <div class="picker-list" onMouseDown={event => event.preventDefault()}>

@@ -30,6 +30,8 @@ export interface PickerProps<T> {
   items: T[];
   initial?: number;
   key(item: T): string;
+  /** Persisted selection, distinct from the keyboard cursor. */
+  isCurrent?(item: T): boolean;
   row(item: T, selected: boolean): JSX.Element;
   /** Headings for contiguous item groups; item order and keyboard indices stay unchanged. */
   section?(item: T): string | undefined;
@@ -58,7 +60,8 @@ export function Picker<T>(props: PickerProps<T>) {
       setSelected(opening ? Math.max(0, Math.min(props.initial ?? 0, items.length - 1)) : 0);
       setRevealRevision(value => value + 1);
     }
-    previousItems = items; previousQuery = query; opening = false;
+    opening = opening && !items.length && query === previousQuery;
+    previousItems = items; previousQuery = query;
   });
   createEffect(() => {
     selected(); revealRevision();
@@ -90,7 +93,7 @@ export function Picker<T>(props: PickerProps<T>) {
   });
   const row = (item: T, index: () => number) => {
     const reason = () => props.disabledReason?.(item);
-    return <div role="option" aria-selected={index() === selected()} aria-disabled={!!reason()} aria-description={reason()} title={reason()} class={`picker-row ${index() === selected() ? 'selected' : ''}`} onPointerMove={() => setSelected(index())} onClick={event => pick(item, event)}>
+    return <div role="option" aria-selected={props.isCurrent ? props.isCurrent(item) : index() === selected()} aria-disabled={!!reason()} aria-description={reason()} title={reason()} class={`picker-row ${index() === selected() ? 'selected' : ''}`} onPointerMove={() => setSelected(index())} onClick={event => pick(item, event)}>
       {props.row(item, index() === selected())}
     </div>;
   };

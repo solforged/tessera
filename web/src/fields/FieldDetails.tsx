@@ -1,6 +1,6 @@
 import { For, Show, createEffect, createMemo, createResource, createSignal, on, onCleanup } from 'solid-js';
 import type { FieldDetail, FieldKind, FieldOwner, FieldValueUse } from '../api/types';
-import type { NotebookClient, PageDocument } from '../document/contract';
+import type { DocumentChange, NotebookClient, PageDocument } from '../document/contract';
 import type { OpenTarget } from '../shell/contract';
 import { plainText } from '../outline/names';
 import { plural } from '../sync/state';
@@ -12,6 +12,8 @@ import { fieldKinds, fieldNameProblem, kindLabels } from './kinds';
 import { fieldHide, fieldHides, hideLabels } from './hide';
 import type { FieldHide } from './hide';
 import './field-page.css';
+import { ChoiceConversion } from './ChoiceConversion';
+import { changeFieldKind, choicePreview, makeFieldOption } from './commands';
 
 interface FieldDetailsProps {
   fieldId: string;
@@ -48,6 +50,9 @@ export function FieldDetails(props: FieldDetailsProps) {
   const [option, setOption] = createSignal('');
   const [targetsMenu, setTargetsMenu] = createSignal<HTMLElement | null>(null);
   const [targetsDraft, setTargetsDraft] = createSignal<string[]>([]);
+  const [convert, setConvert] = createSignal(true);
+  const [lastChange, setLastChange] = createSignal<DocumentChange>();
+  createEffect(on(() => [props.fieldId, props.previewKind], () => setConvert(true)));
   const [types] = createResource(() => props.notebook.changeSequence(), () => props.notebook.api.types());
   createEffect(on(() => props.notebook.changeSequence(), () => {
     const timer = setTimeout(() => setVersion(value => value + 1), 150);
@@ -65,9 +70,13 @@ export function FieldDetails(props: FieldDetailsProps) {
     });
     onCleanup(() => controller.abort());
   });
-  const data = createMemo(() => {
+  const rawData = createMemo(() => {
     const value = result();
     return value?.field.id === props.fieldId && value.kind === (props.previewKind ?? value.field.kind) ? value : undefined;
+  });
+  const data = createMemo(() => {
+    const detail = rawData();
+    return detail && props.previewKind ? choicePreview(detail, convert()) : detail;
   });
   const targetTypes = createMemo(() => {
     const pages = new Map((types() ?? []).map(type => [type.page.id, type.page]));
@@ -125,14 +134,21 @@ export function FieldDetails(props: FieldDetailsProps) {
     setOption(''); setAdding(false); setError('');
   };
   const applyKind = async () => {
-    const value = data(); const doc = props.document;
+    const value = rawData(); const doc = props.document;
     if (!value || !doc || !ready()) return;
-    const result = doc.edit({ kind: 'fieldKind', definition: value.field, value: value.kind });
-    if (!result.ok) { setError(result.reason); return; }
-    // Keep keyboard history in the pane when Apply is disabled or removed.
     article.focus({ preventScroll: true });
     setApplying(true);
-    try { await doc.flush(); if (doc.saveState() === 'saved') props.onPreview(); }
+    try {
+      setLastChange(doc.rememberChange(await changeFieldKind(props.notebook, value, convert())));
+      props.onPreview();
+    } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
+    finally { setApplying(false); }
+  };
+  const makeOption = async (text: string) => {
+    const value = rawData(); const doc = props.document;
+    if (!value || !doc || !ready()) return;
+    setApplying(true);
+    try { setLastChange(doc.rememberChange(await makeFieldOption(props.notebook, value, text))); setVersion(value => value + 1); }
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setApplying(false); }
   };
@@ -163,7 +179,7 @@ export function FieldDetails(props: FieldDetailsProps) {
     <Button type="submit" disabled={!ready()}>Save</Button><Button onClick={() => setEditing(null)}>Cancel</Button>
   </form></Show>;
   const ledger = (items: FieldValueUse[], after: boolean) => <table class="field-ledger"><thead><tr><th scope="col">Written value</th><th scope="col">Owner</th><th scope="col">{after ? 'After applying' : 'Problem'}</th></tr></thead><tbody>
-    <For each={items}>{item => <tr><td classList={{ 'field-rubric': !item.value.reading.ok }}>{plainText(item.value.text, id => props.notebook.lookup(id))}</td><td><Button onClick={event => ownerLink(item.owner, event.shiftKey)}>{plainText(item.owner.text, id => props.notebook.lookup(id))}</Button></td><td class="field-apparatus">{item.value.reading.ok ? String(item.value.reading.value) : item.value.reading.problem}</td></tr>}</For>
+    <For each={items}>{item => <tr><td classList={{ 'field-rubric': !item.value.reading.ok }}>{plainText(item.value.text, id => props.notebook.lookup(id))}</td><td><Button onClick={event => ownerLink(item.owner, event.shiftKey)}>{plainText(item.owner.text, id => props.notebook.lookup(id))}</Button></td><td class="field-apparatus">{item.value.reading.ok ? String(item.value.reading.value) : item.value.reading.problem}<Show when={!after && data()?.kind === 'choice'}><Button disabled={!ready()} onClick={() => void makeOption(item.value.text)}>Make option</Button></Show></td></tr>}</For>
   </tbody></table>;
   const templates = (value: FieldDetail, title: string) => <section class="field-section">
     <SectionHead number={!props.inspector && !preview() ? '02' : undefined} title={title} count={plural(value.templates.length, 'template')} />
@@ -180,6 +196,7 @@ export function FieldDetails(props: FieldDetailsProps) {
   return <article ref={article} tabIndex={-1} classList={{ 'field-sheet': true, 'field-inspector': props.inspector }} aria-label={props.inspector ? 'Selected definition' : 'Field definition'}>
     <Show when={error()}><p class="error" role="alert">{error()} <Button onClick={() => setVersion(value => value + 1)}>Retry</Button></p></Show>
     <Show when={documentError()}><p class="error" role="alert">{documentError()}</p></Show>
+    <Show when={lastChange()}>{change => <p class="field-note">Field changed. <Button disabled={applying()} onClick={async () => { setApplying(true); try { await change().undo(); setLastChange(undefined); setVersion(value => value + 1); } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); } finally { setApplying(false); } }}>Undo</Button></p>}</Show>
     <Show when={data()} fallback={<Show when={loading()}><p role="status">Loading field…</p></Show>}>{value => <>
       <div class="field-eyebrow"><Show when={props.inspector} fallback={<><Button onClick={event => props.onOpen({ kind: 'fields' }, event.shiftKey)}>Fields</Button> / Definition</>}>Selected definition</Show></div>
       <header class="field-heading"><h1>{value().field.name}</h1><Show when={props.inspector} fallback={<Show when={!preview()}><Button disabled={!ready()} onClick={() => setEditing({ id: props.fieldId, text: value().field.name })}>Rename…</Button></Show>}><Button onClick={event => props.onOpen({ kind: 'field', fieldId: props.fieldId }, event.shiftKey)}>Open page ↗</Button></Show></header>
@@ -200,14 +217,15 @@ export function FieldDetails(props: FieldDetailsProps) {
           <Show when={value().owners_total}><Button class="field-view-all" onClick={event => props.onOpen({ kind: 'table', typeId: null, viewId: null, query: { type: null, text: null, filters: [{ field: props.fieldId, op: 'present', value: null }], sort: [], limit: null } }, event.shiftKey)}>{value().owners_total === 1 ? 'View owner' : `View all ${plural(value().owners_total, 'owner')}`} →</Button></Show>
         </section>
         <Show when={props.inspector}>{templates(value(), 'In templates')}</Show>
-        <Show when={!props.inspector}><section class="field-section"><SectionHead number="04" title="Problem values" count={plural(value().problems_total, 'value')} problem={!!value().problems_total} /><Show when={value().problems_total} fallback={<p class="field-note">No problem values.</p>}>{ledger(value().problems, false)}<Show when={value().problems_total > value().problems.length}><p class="field-apparatus">Showing the first {plural(value().problems.length, 'problem')}.</p></Show><p class="field-note">The value stays as written. Open its owner to edit it{value().kind === 'choice' ? ', or add it to the options.' : '.'}</p></Show></section></Show>
+        <Show when={!props.inspector}><section class="field-section"><SectionHead number="04" title="Problem values" count={plural(value().problems_total, 'value')} problem={!!value().problems_total} /><Show when={value().problems_total} fallback={<p class="field-note">No problem values.</p>}>{ledger(value().problems, false)}<Show when={value().problems_total > value().problems.length}><p class="field-apparatus">Showing the first {plural(value().problems.length, 'problem')}.</p></Show><p class="field-note">{value().kind === 'choice' ? 'Make it an option, or open its owner to edit it.' : 'The value stays as written. Open its owner to edit it.'}</p></Show></section></Show>
       </>}>
-        <section class="field-preview-summary"><h2><Show when={value().problems_total} fallback={<span>{value().values_total === 1 ? 'The' : 'All'} {plural(value().values_total, 'value')} will read as {kindLabels[value().kind]}.</span>}><span class="field-rubric">{value().problems_total} of {value().values_total}</span>{` ${value().problems_total === 1 ? 'value' : 'values'} won't read as ${kindLabels[value().kind]}`}</Show></h2><Show when={!props.inspector}><p class="field-note">Value text is never rewritten. Owners and child notes stay in place.</p></Show></section>
+        <ChoiceConversion detail={rawData()!} checked={convert()} disabled={applying()} onChange={setConvert} />
+        <section class="field-preview-summary"><h2><Show when={value().problems_total} fallback={<span>{value().values_total === 1 ? 'The' : 'All'} {plural(value().values_total, 'value')} will read as {kindLabels[value().kind]}.</span>}><span class="field-rubric">{value().problems_total} of {value().values_total}</span>{` ${value().problems_total === 1 ? 'value' : 'values'} won't read as ${kindLabels[value().kind]}`}</Show></h2><Show when={!props.inspector}><p class="field-note">{convert() && value().kind === 'choice' ? 'Matching values link to their options. Owners and child notes stay in place.' : 'Value text stays as written. Owners and child notes stay in place.'}</p></Show></section>
         <Show when={!props.inspector} fallback={<div class="field-preview-actions"><Button onClick={() => props.onPreview()}>Cancel</Button><Button onClick={event => props.onOpen({ kind: 'field', fieldId: props.fieldId, previewKind: value().kind }, event.shiftKey)}>Open preview</Button></div>}>
           <Show when={value().problems_total}><section class="field-section"><SectionHead title="Will become problems" count={plural(value().problems_total, 'value')} />{ledger(value().problems, true)}<Show when={value().problems_total > value().problems.length}><p class="field-apparatus">Showing the first {plural(value().problems.length, 'problem')}.</p></Show></section></Show>
           <section class="field-section"><SectionHead title={`Will read as ${kindLabels[value().kind]}`} count={plural(value().values_total - value().problems_total, 'value')} />{ledger(value().readable, true)}<Show when={value().values_total - value().problems_total > value().readable.length}><p class="field-apparatus">Showing the first {plural(value().readable.length, 'readable value')}.</p></Show></section>
           {templates(value(), 'Also used in')}
-          <footer class="field-preview-actions"><span class="field-apparatus">One undoable change · text preserved</span><Button disabled={applying()} onClick={() => props.onPreview()}>Cancel</Button><Button class="bordered" disabled={!ready()} onClick={() => void applyKind()}>Apply kind change</Button></footer>
+          <footer class="field-preview-actions"><span class="field-apparatus">One undoable change</span><Button disabled={applying()} onClick={() => props.onPreview()}>Cancel</Button><Button class="bordered" disabled={!ready()} onClick={() => void applyKind()}>Apply kind change</Button></footer>
         </Show>
       </Show>
       <Show when={menu()}>{anchor => <Menu anchor={anchor()} label={`Kind for ${value().field.name}`} onDismiss={() => setMenu(null)} items={fieldKinds.map(kind => ({ label: kindLabels[kind], icon: kind === value().kind ? 'check' : undefined, action: () => { setEditing(null); props.onPreview(kind === value().field.kind ? undefined : kind); } }))} />}</Show>

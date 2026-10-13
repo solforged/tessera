@@ -925,6 +925,21 @@ pub struct FieldOptionUse {
     pub uses: usize,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FieldChoiceValue {
+    pub id: String,
+    pub text: String,
+    pub revision: i64,
+    pub page_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FieldChoiceCandidate {
+    pub text: String,
+    pub option_id: Option<String>,
+    pub values: Vec<FieldChoiceValue>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FieldDetail {
     pub field: FieldSummary,
@@ -938,6 +953,8 @@ pub struct FieldDetail {
     pub owners: Vec<FieldOwnerValues>,
     pub problems: Vec<FieldValueUse>,
     pub readable: Vec<FieldValueUse>,
+    /// Complete conversion candidates, not limited by the displayed samples.
+    pub choice_candidates: Vec<FieldChoiceCandidate>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

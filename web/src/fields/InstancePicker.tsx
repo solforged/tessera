@@ -36,6 +36,8 @@ export function InstancePicker(props: {
   }
   return <Picker<InstanceRow> anchor={props.anchor} label={props.field.name} query={query()} onQuery={setQuery} placeholder="Page name"
     items={busy() ? [] : rows()} key={row => row.kind === 'page' ? row.page.id : `create:${row.type?.id ?? ''}`}
+    initial={Math.max(0, rows().findIndex(row => row.kind === 'page' && row.page.id === props.current))}
+    isCurrent={row => row.kind === 'page' && row.page.id === props.current}
     onPick={row => void pick(row)} onDismiss={props.onDismiss}
     row={row => row.kind === 'page' ? <><Icon name={row.page.id === props.current ? 'check' : 'page'} /><span class="picker-text">{row.page.text}</span>{row.alias && <span class="reference-via">via {row.alias}</span>}</>
       : <><Icon name="plus" /><span class="picker-text">Create {row.type?.text.toLowerCase() ?? 'page'} “{row.title}”</span></>}

@@ -1,7 +1,7 @@
 import type { Block, BlockCapabilities, Batch, Citation, FieldKind, Operation, ProjectState, RelationKind, SourceState, TaskState, WorkSession } from '../api/types';
 import type { AssessmentState, QuestionState, QuestionStatus, QuoteState } from '../api/types';
 import type { CardTemplateState } from '../api/types';
-import type { CaptureIntent, Caret, HistoryCaret } from './contract';
+import type { CaptureIntent, Caret, DocumentChange, HistoryCaret } from './contract';
 import type { OutlineRow } from './outline-index';
 import type { FieldHide } from '../fields/hide';
 
@@ -103,6 +103,7 @@ export interface HistoryEntry {
   commands: Set<string>;
   applied: boolean;
   retained: boolean;
+  external?: DocumentChange;
   rewrites?: Map<string, { before: Extract<Action, { kind: 'text' }>; after: Extract<Action, { kind: 'text' }> }>;
 }
 export interface Compiled { batch: Batch; deleted: string[] }

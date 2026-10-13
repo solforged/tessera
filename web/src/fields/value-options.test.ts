@@ -12,6 +12,7 @@ describe('choice rows', () => {
   test('does not offer a duplicate or blank option', () => {
     expect(choiceRows(options, 'EVERGREEN')).toEqual([{ kind: 'option', option: options[1]! }, { kind: 'clear' }]);
     expect(choiceRows(options, '  ').filter(row => row.kind === 'create')).toEqual([]);
+    expect(choiceRows([{ id: 'padded', text: '  Evergreen  ' }], ' evergreen ').some(row => row.kind === 'create')).toBe(false);
   });
   test('creates an unmatched option without changing its spelling', () => {
     expect(choiceRows(options, ' Dormant ')).toEqual([{ kind: 'create', text: 'Dormant' }, { kind: 'clear' }]);

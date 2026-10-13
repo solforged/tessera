@@ -8,7 +8,7 @@ export function choiceRows(options: FieldDefinition['options'], query: string): 
   const matches = options.filter(option => option.text.toLowerCase().includes(needle));
   return [
     ...matches.map(option => ({ kind: 'option' as const, option })),
-    ...(text && !options.some(option => option.text.toLowerCase() === needle) ? [{ kind: 'create' as const, text }] : []),
+    ...(text && !options.some(option => option.text.trim().toLowerCase() === needle) ? [{ kind: 'create' as const, text }] : []),
     { kind: 'clear' },
   ];
 }

@@ -1,5 +1,5 @@
-import { createEffect, createResource, createSignal, onCleanup } from 'solid-js';
-import type { FieldDefinition, Type } from '../api/types';
+import { Show, createEffect, createResource, createSignal, onCleanup } from 'solid-js';
+import type { FieldDefinition, FieldDetail, FieldKind, Type } from '../api/types';
 import type { PageDocument } from '../document/contract';
 import type { OutlineContext } from '../outline/context';
 import { fieldEntryId } from '../table/query';
@@ -8,6 +8,9 @@ import { fieldHide, fieldHides, hideLabels } from './hide';
 import type { FieldHide } from './hide';
 import { fieldKinds, kindLabels } from './kinds';
 import { typeKeys } from './templates';
+import { ChoiceConversion } from './ChoiceConversion';
+import { changeFieldKind, choicePreview } from './commands';
+import { Button } from '../ui/Button';
 
 export function createFieldMenu(context: Pick<OutlineContext,
   'doc' | 'props' | 'fields' | 'definitionsById' | 'setMenu' | 'setMessage' | 'showNotice' | 'apply'
@@ -15,6 +18,9 @@ export function createFieldMenu(context: Pick<OutlineContext,
   const { doc, props, fields, definitionsById, setMenu, setMessage, apply } = context;
   const [definitionDocument, setDefinitionDocument] = createSignal<PageDocument>();
   const [types] = createResource(() => props.notebook.changeSequence(), () => props.notebook.api.types());
+  const [preview, setPreview] = createSignal<FieldDetail>();
+  const [convert, setConvert] = createSignal(true);
+  const [applyingKind, setApplyingKind] = createSignal(false);
   createEffect(() => {
     const id = fields()?.page_id;
     if (!id) return;
@@ -63,6 +69,30 @@ export function createFieldMenu(context: Pick<OutlineContext,
       });
     } catch (error) { failure(error); }
   }
+  async function previewKind(field: FieldDefinition, kind: FieldKind, anchor: HTMLElement) {
+    try {
+      await doc.flush();
+      const detail = await props.notebook.api.fieldDetail(field.id, kind);
+      setPreview(detail); setConvert(true);
+      const applyKind = async () => {
+        if (applyingKind()) return;
+        setApplyingKind(true);
+        try {
+          const change = doc.rememberChange(await changeFieldKind(props.notebook, detail, convert()));
+          setMenu(null);
+          context.showNotice('Field kind changed.', change.undo);
+        } catch (error) { failure(error); }
+        finally { setApplyingKind(false); }
+      };
+      setMenu({ anchor, label: `Kind for ${field.name}`, items: [], header: <Show when={preview()}>{value => <>
+        <div class="menu-section">{field.name} · {kindLabels[kind]}</div>
+        <p class="field-note">{value().problems_total} of {value().values_total} values won't read as {kindLabels[kind]}</p>
+        <ChoiceConversion detail={value()} checked={convert()} disabled={applyingKind()} onChange={setConvert} />
+        <Show when={convert() && value().choice_candidates.length}><p class="field-note">{value().values_total - choicePreview(value(), true).problems_total} of {value().values_total} values will read after applying.</p></Show>
+        <div class="popup-actions"><Button disabled={applyingKind()} onClick={() => void applyKind()}>Apply</Button><Button onClick={event => { setMenu(null); props.onOpen({ kind: 'field', fieldId: field.id, previewKind: kind }, event.shiftKey); }}>Open field page</Button></div>
+      </>}</Show> });
+    } catch (error) { failure(error); }
+  }
   function fieldMenu(id: string, anchor: HTMLElement) {
     const entry = fieldEntry(id);
     if (!entry) return;
@@ -79,7 +109,7 @@ export function createFieldMenu(context: Pick<OutlineContext,
     const unavailable = document?.status() !== 'ready' ? 'Field definitions are loading.' : document.saveState() !== 'saved' ? 'Wait for field changes to save.' : undefined;
     setMenu({ anchor, label, header: <div class="menu-section">{label}</div>, items: [
       { label: 'Open field page', icon: 'field', action: event => open(event?.shiftKey) },
-      { label: 'Kind', section: 'Definition', action: () => submenu('Kind', fieldKinds.map(kind => ({ label: kindLabels[kind], checked: kind === field.kind, action: event => { if (kind !== field.kind) open(event?.shiftKey, { previewKind: kind }); } }))) },
+      { label: 'Kind', section: 'Definition', action: () => submenu('Kind', fieldKinds.map(kind => ({ label: kindLabels[kind], checked: kind === field.kind, action: () => { if (kind !== field.kind) void previewKind(field, kind, anchor); } }))) },
       ...(field.kind === 'choice' ? [{ label: 'Options…', action: (event?: MouseEvent | KeyboardEvent) => open(event?.shiftKey, { section: 'options' }) }] : []),
       ...(field.kind === 'instance' ? [{ label: 'Links to…', action: (event?: MouseEvent | KeyboardEvent) => open(event?.shiftKey, { section: 'targets' }) }] : []),
       { label: 'Hide', action: () => submenu('Hide', fieldHides.map(value => ({ label: hideLabels[value], checked: value === fieldHide(field), disabledReason: unavailable, action: () => { void changeHide(field, value); } }))) },
