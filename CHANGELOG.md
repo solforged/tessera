@@ -13,6 +13,12 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Integrate for journal blocks: move a thought to its page and keep a live reference in the journal.
 - Account is kept apart from Work: it shows under its own label and never becomes a Compare criterion.
 - `GET /api/relations`, `GET /api/questions?parent=`, and the MCP tools `tessera_relations` and `tessera_set_relation`.
+- Note views: find a kind's notes by title or gloss with `links:`, `from:` and `cites:` chips, group them by source, linked note, month or field, and save the result under the kind.
+- Saved spreads: select two to five notes and compare their fields, sources, links and opening prose side by side, with a commentary outline below.
+- Passage locators in citations, written `[[Source|label|3.12]]`. Citations read as quiet ink with the locator in mono, a siglum in the gutter and a source preview header; source pages list Cited in apart from Backlinks.
+- Bulk filing on Unfiled: select notes, file them under one type in a single change, and undo it in one step.
+- Changing a Text field to Choice can add its existing values as options in the same undoable change, and Make option repairs a value that is not an option.
+- Add field can create a field of any kind.
 
 ### Fixed
 
@@ -28,6 +34,13 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Gloss keeps its standfirst styling when a page is revisited through Find.
 - Source metadata visibility survives reloads without following an unrelated field's caret.
 - Field rename refuses duplicate names under the same rule as New field.
+- Filing picker rows no longer collapse to a few pixels; picking a type files the note at once.
+- Table columns stay put while searching and filtering, and an empty cell for a non-template field can be filled from the table.
+- Choice filters offer is, is not, has a value and is empty; choice columns sort by option order; pickers mark the current value.
+- Saved views show Modified with Save changes and Revert, and the Views menu no longer checks a view that has been changed.
+- Changing a field's kind from a note stays on the note.
+- Aliases show once, on the ALSO line, and Merge into has its own icon.
+- Creating a field never reuses a blank row on the Fields page.
 
 ## 0.3.0, 2026-10-12
 
