@@ -105,7 +105,9 @@ export function Popup(props: PopupProps) {
     if (disposed || props.ready === false) return;
     const viewport = popupBounds(visualViewportBounds(), props.placement === undefined || props.placement === 'anchor' ? props.bounds?.() : null);
     if (props.placement === 'sheet') {
-      const height = Math.min(panel.scrollHeight + panel.offsetHeight - panel.clientHeight, Math.round(viewport.height * 0.85));
+      // A menu sheet may rise to just under the top bar so a full page menu needs no inner scroll; forms keep 85%.
+      const cap = props.role === 'menu' ? viewport.height - 32 : Math.round(viewport.height * 0.85);
+      const height = Math.min(panel.scrollHeight + panel.offsetHeight - panel.clientHeight, cap);
       setPosition({ left: viewport.left, top: viewport.bottom - height, height, visible: true, clipped: panel.scrollHeight > height });
       return;
     }
