@@ -19,6 +19,13 @@ test('plain block clipboard text carries relative indentation, task markers and 
   expect(clipboardText(content)).toBe('[ ] Parent\n  Front >> Back\n    Nested\n  Other child\nNext');
 });
 
+test('view references export like page links and retain their remembered name', () => {
+  const text = '[[view:01ARZ3NDEKTSV4RRFFQ69G5FAV|Open questions]]';
+  const content: BlockClipboard = { version: 1, scope: 'notebook', cut: false, blocks: [block('heading', 'Questions'), block('embed', text, 1)] };
+  expect(clipboardText(content)).toBe(`Questions\n  ${text}`);
+  expect(parseBlockClipboard(JSON.stringify(content))).toEqual(content);
+});
+
 test('plain copy expands a frozen quote into quoted lines without absorbing its annotations', () => {
   const id = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
   const quoted = block('quote', `((${id}))`);

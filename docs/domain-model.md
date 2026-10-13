@@ -157,6 +157,10 @@ A page opts into a stream with the manual `Stream` type or a project capability.
 
 A whole-row `[[ID]]` reference to a live non-root block renders its current text and read-only descendants, with provenance opening the source. It initially shows 12 descendants and expands in place. Page links and missing targets keep inline-reference rendering. Batch subtree reads accept at most 256 IDs, return preorder rows capped at 200 per ID and 4096 in total, and flag each truncated subtree; these live reads do not change frozen quote semantics.
 
+A saved-view reference uses `[[view:ID|remembered name]]`. The target is a canonical ID from the view store. Its authored text travels through ordinary block edits and sync; it creates no block link, backlink or field entry. A whole-row reference renders the saved query live, with its current name, purpose and recipe. Inline references and search snippets remain named links. The block keeps its remembered name when the view is missing, and offers relinking or removal. Restoring the view restores the live result. A desk recipe renders a compact name, purpose and Open desk link.
+
+The plain-text clipboard export keeps the authored view reference, just as it keeps page references. It exports the view's remembered name and target, not a snapshot of the result rows. Full-text search can find the remembered name in the authored text.
+
 ### Quotes
 
 A quote is frozen; a reference is live. A block whose whole text is `((ID))` is a quote row. It holds a snapshot of the target and its subtree (text, heading, revision and depth of each row), captured when the quote was made, and records one link to the target so the target's backlinks include it.

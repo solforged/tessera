@@ -1592,6 +1592,9 @@ impl Notebook {
                 || title.contains(['[', ']', '\n', '\r'])
                 || alias.is_some_and(|alias| alias.contains(']'))
                 || validate_id(target).is_ok()
+                || target
+                    .strip_prefix("view:")
+                    .is_some_and(|id| validate_id(id).is_ok())
             {
                 None
             } else {

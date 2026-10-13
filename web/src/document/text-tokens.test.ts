@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { quoteTarget, referenceBeside, textTokens } from './text-tokens';
+import { isStableReference, isViewReference, quoteTarget, referenceBeside, textTokens } from './text-tokens';
 
 describe('reference locators', () => {
   test('uses the first and last pipes, preserving pipes within labels', () => {
@@ -16,6 +16,17 @@ describe('reference locators', () => {
       expect(token.value).toBe(text);
     }
   });
+});
+
+test('saved view targets keep their name and never become block targets', () => {
+  const id = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
+  const text = `[[view:${id}|Open questions]]`;
+  const token = textTokens(text)[0]!;
+  expect(token).toEqual({ start: 0, end: text.length, kind: 'reference', value: text, id, targetKind: 'view', alias: 'Open questions' });
+  expect(isViewReference(token)).toBe(true);
+  expect(isStableReference(token)).toBe(false);
+  expect(textTokens(`[[view:8${id.slice(1)}|Invalid]]`)[0]?.targetKind).toBeUndefined();
+  expect(referenceBeside(text, text.length, 'backward')?.value).toBe(text);
 });
 
 describe('whole-row quote targets', () => {

@@ -98,6 +98,16 @@ File links rather than moves. It adds a whole-row `[[note]]` line at the end of 
 
 A whole-row link to a block, other than a field entry or value, shows that block live: its text, up to 12 nested lines and then `Show N more`, and a faint mono provenance (`Mon 12`, or the page title) that opens the source, Shift beside. Editing the note in its journal updates every stream that shows it.
 
+### Embedded views
+
+`/Embed view` and Embed view in Commands offer saved views by name. Choosing one fills an empty block or inserts a sibling after the selected block, then selects it. A view's Embed on page… menu action appends the reference to the chosen page and opens its block.
+
+The embed names the view, with its purpose beneath, then shows up to twelve live rows using the saved layout and recipe. Its name and Show all N open the saved view; Shift opens beside. Edits use the same field cells and page history as the view. Committed notebook changes refresh its query without a manual refresh, and reload keeps the reference. Read shows the same quiet result under its heading.
+
+A desk recipe stays compact: its name, purpose and Open desk. Opening it shows the linked columns in a pane; Shift opens beside.
+
+A missing view keeps the remembered name with Relink… and Remove embed. Undoing the view's deletion makes its rows return. Inline references and Find show named links; plain-text block export keeps the authored reference, as for page links. Phone embeds use the recipe's card fields without lateral scrolling.
+
 ## Sources
 
 Sources is a bibliography, not a second reading shelf. It shows siglum, source title, author byline, format, publisher, publication year when stored, citation key, highlight count and ordinary page-backlink count. Open source notes is the default; Read appears only for sources with a current snapshot and hands off to the [reader](reader.md), and Open Library sits in the ruled strip. Reading progress and invented metadata are absent.

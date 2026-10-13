@@ -1,0 +1,11 @@
+.view-embed { min-width: 0; max-width: 100%; margin-block: var(--space-8); border-block: 1px solid var(--line); padding-block: var(--space-12); }
+.view-embed-header { margin-bottom: var(--space-8); }
+.view-embed-title.button { font: var(--weight-control) var(--text-h3)/var(--line-h3) var(--font-display); color: var(--text); text-align: left; white-space: normal; overflow-wrap: anywhere; }
+.view-embed-title:hover { color: var(--accent); }
+.view-embed-header p { color: var(--muted); font-size: var(--text-control); margin: var(--space-4) 0 0; }
+.view-embed-all { margin-top: var(--space-8); font: var(--apparatus); color: var(--accent); }
+.view-embed-missing { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); color: var(--muted); font-size: var(--text-control); }
+.view-embed-missing > span { overflow-wrap: anywhere; }
+.view-embed .table-grid { font-family: var(--font-body); }
+.view-embed .view-body { min-width: 0; max-width: 100%; }
+@media (max-width: 599px) { .view-embed { overflow-x: clip; } }

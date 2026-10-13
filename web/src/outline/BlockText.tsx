@@ -10,7 +10,7 @@ import type { NameMatch } from '../api/types';
 import { cardMarks } from '../review/card-text';
 import type { CardMark } from '../review/card-text';
 
-import { isStableReference, quoteTarget, textTokens } from '../document/text-tokens';
+import { isStableReference, isViewReference, quoteTarget, textTokens } from '../document/text-tokens';
 import type { Token } from '../document/text-tokens';
 
 interface Props {
@@ -45,9 +45,10 @@ function TokenText(props: Props) {
   const [menu, setMenu] = createSignal<{ token: DisplayToken; anchor: HTMLElement }>();
   const [error, setError] = createSignal('');
   const citationSources = createCitationSources(props.notebook, () => [props.text], () => !!props.citationApparatus);
-  const names = createMemo(() => [...new Set(textTokens(props.text).flatMap(token => token.kind === 'reference' && !isStableReference(token) && token.id?.trim() ? [token.id.trim()] : []))]);
+  const names = createMemo(() => [...new Set(textTokens(props.text).flatMap(token => token.kind === 'reference' && !isStableReference(token) && !isViewReference(token) && token.id?.trim() ? [token.id.trim()] : []))]);
   const [matches] = createResource(() => names().length ? [names().join('\u0000'), props.notebook.changeSequence()] as const : false, async ([value]) =>
     new Map(await Promise.all(value.split('\u0000').map(async name => [foldName(name), await resolveName(props.notebook, name)] as const))));
+  const [views] = createResource(() => textTokens(props.text).some(isViewReference) ? props.notebook.changeSequence() : false, () => props.notebook.api.views());
   const groups = createMemo(() => {
     const marks = props.cards ? cardMarks(props.text) : [];
     const result: TokenGroup[] = [];
@@ -68,12 +69,12 @@ function TokenText(props: Props) {
   const displayed = createMemo(() => {
     let visibleStart = 0;
     return groups().map(group => ({ ...group, tokens: group.tokens.map(token => {
-      const resolved = token.kind === 'reference' && !isStableReference(token) && !matches.error ? matches()?.get(foldName(token.id!)) : undefined;
+      const resolved = token.kind === 'reference' && !isStableReference(token) && !isViewReference(token) && !matches.error ? matches()?.get(foldName(token.id!)) : undefined;
       const ambiguous = !!resolved && resolved.length > 1;
-      const literal = group.mark?.kind !== 'operator' && (token.kind === 'text' || token.kind === 'reference' && !isStableReference(token) && !ambiguous);
+      const literal = group.mark?.kind !== 'operator' && (token.kind === 'text' || token.kind === 'reference' && !isStableReference(token) && !isViewReference(token) && !ambiguous);
       const target = isStableReference(token) ? props.notebook.lookup(token.id!)() : undefined;
       const field = props.field?.id === token.id ? props.field : undefined;
-      const baseLabel = ambiguous ? token.alias || token.id! : group.mark?.kind === 'operator' || literal || token.kind === 'url' ? token.value : token.kind === 'tag' ? `#${token.value}` : field ? token.alias || field.name : referenceLabel(token, target, id => props.notebook.lookup(id));
+      const baseLabel = isViewReference(token) ? views()?.find(view => view.id === token.id)?.name || token.alias || 'Saved view' : ambiguous ? token.alias || token.id! : group.mark?.kind === 'operator' || literal || token.kind === 'url' ? token.value : token.kind === 'tag' ? `#${token.value}` : field ? token.alias || field.name : referenceLabel(token, target, id => props.notebook.lookup(id));
       const source = props.citationApparatus ? citationSources()?.get(token.id!) : undefined;
       const label = (source?.siglum ?? baseLabel) + (!literal && token.locator ? `${source ? ' · ' : '\u2009'}${token.locator}` : '');
       const result: DisplayToken = { ...token, label, target, literal, visibleStart, matches: ambiguous ? resolved : undefined };
@@ -123,8 +124,8 @@ function TokenText(props: Props) {
             aria-label={token.matches ? `“${token.id}” names ${token.matches.length} pages` : undefined} aria-haspopup={token.matches ? 'menu' : undefined}
             onMouseDown={event => event.stopPropagation()}
             onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); if (!event.repeat) event.currentTarget.click(); } }}
-            onClick={event => { event.stopPropagation(); if (props.onReferenceClick?.(token, event.currentTarget)) return; if (token.matches && props.blockId) { setMenu({ token, anchor: event.currentTarget }); return; } const block = token.target; if (block) props.onOpen?.({ kind: 'page', pageId: block.page_id, blockId: block.kind === 'block' ? block.id : undefined }, true); }}
-            onContextMenu={event => { event.preventDefault(); event.stopPropagation(); if (token.matches && props.blockId) setMenu({ token, anchor: event.currentTarget }); else props.onReferenceMenu?.(token.id!, event.currentTarget); }}>
+            onClick={event => { event.stopPropagation(); if (isViewReference(token)) { const view = views()?.find(view => view.id === token.id); if (view) props.onOpen?.({ kind: 'table', typeId: view.query.type, viewId: view.id, query: view.query }, event.shiftKey); return; } if (props.onReferenceClick?.(token, event.currentTarget)) return; if (token.matches && props.blockId) { setMenu({ token, anchor: event.currentTarget }); return; } const block = token.target; if (block) props.onOpen?.({ kind: 'page', pageId: block.page_id, blockId: block.kind === 'block' ? block.id : undefined }, true); }}
+            onContextMenu={event => { event.preventDefault(); event.stopPropagation(); if (isViewReference(token)) return; if (token.matches && props.blockId) setMenu({ token, anchor: event.currentTarget }); else props.onReferenceMenu?.(token.id!, event.currentTarget); }}>
             <Show when={props.field?.id === token.id}><Icon name="field" /></Show><Show when={token.target === null}><Icon name="brokenLink" /></Show>{text(token)}<Show when={token.matches}><sup>?</sup></Show>
           </span>
         </Show>

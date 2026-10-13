@@ -3,6 +3,7 @@ import type { Block, NameMatch } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import { textTokens } from '../document/text-tokens';
 import { chooseName, completeNames, foldName, plainText, referenceValue, resolveName, resolvedReferenceText } from './names';
+import { typedTitles, withLinkedTitles } from './link-titles';
 
 const page = (id: string, text: string): Block => ({ id, text, kind: 'page', parent_id: null, page_id: id, heading: null, archived: false, kept_copy: null, revision: 1, created_at: 0, updated_at: 0 });
 const match: NameMatch = { page: page('target', 'Cicero'), alias: 'Tully' };
@@ -15,6 +16,14 @@ test('plain-text exports and ambiguous-name choices preserve locators', () => {
   const token = textTokens(text)[0]!;
   expect(resolvedReferenceText(text, token, id)).toBe(`[[${id}|the elder|3.12]]`);
   expect(resolvedReferenceText('[[Pliny|the elder|4.12]]', token, id)).toBeNull();
+});
+
+test('saved view labels remain readable without querying the block cache', () => {
+  const text = '[[view:01ARZ3NDEKTSV4RRFFQ69G5FAV|Open questions]]';
+  expect(plainText(text, () => { throw new Error('A view is not a block'); })).toBe('Open questions');
+  expect(referenceValue(text)).toEqual({ id: null, name: 'Open questions' });
+  expect(typedTitles(text)).toEqual([]);
+  expect(withLinkedTitles(text, new Map([['01arz3ndektsv4rrffq69g5fav', 'page']]))).toBe(text);
 });
 
 describe('page names', () => {

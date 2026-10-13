@@ -7,6 +7,7 @@ import type { NotebookClient, PageDocument } from '../document/contract';
 import { textTokens } from '../document/text-tokens';
 import { BlockText } from '../outline/BlockText';
 import { plainText } from '../outline/names';
+import { EmbedOnPagePicker } from '../outline/ViewPicker';
 import type { OpenTarget, PaneId, TableViewState } from '../shell/contract';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
@@ -46,6 +47,7 @@ type PopupState = { kind: 'menu'; anchor: HTMLElement; items: MenuItem[]; label:
   | { kind: 'columns'; anchor: HTMLElement }
   | { kind: 'sources'; anchor: HTMLElement; label: string; sources: TableSource[] }
   | { kind: 'delete'; anchor: HTMLElement; view: View }
+  | { kind: 'embed-page'; anchor: HTMLElement; view: View }
   | { kind: 'value'; anchor: HTMLElement; row: QueryRow; field: FieldDefinition; value?: FieldValue }
   | null;
 const valuePlaceholders: Partial<Record<FieldKind, string>> = { date: partialDatePlaceholder, url: 'https://', identifier: 'ISBN, DOI or arXiv ID' };
@@ -431,6 +433,7 @@ function TableContent(props: TablePaneProps) {
       ...(props.target.viewId ? [
         ...(changed() ? [{ label: 'Save changes', disabledReason: savingView() ? 'Saving…' : undefined, action: () => { void saveChanges().catch(message); } }, { label: 'Revert changes', action: () => { const value = saved(); if (value) switchView(value); } }] : []),
         { label: 'Rename view…', disabledReason: !saved() ? 'Loading…' : undefined, action: () => setPopup({ kind: 'name', anchor, action: 'rename' }) },
+        { label: 'Embed on page…', disabledReason: !saved() ? 'Loading…' : undefined, action: () => { const view = saved(); if (view) setPopup({ kind: 'embed-page', anchor, view }); } },
         { label: props.notebook.confirmViewDelete() ? 'Delete view…' : 'Delete view', icon: 'trash' as const, danger: true, disabledReason: !saved() ? 'Loading…' : undefined, action: () => { const view = saved(); if (view) { setError(''); if (props.notebook.confirmViewDelete()) setPopup({ kind: 'delete', anchor, view }); else void deleteView(view); } } },
       ] : []),
     ],
@@ -679,6 +682,7 @@ function TableContent(props: TablePaneProps) {
         onWrite={text => writeCell(state.row, state.field, text, state.value)} onError={message} onDismiss={() => { setPopup(null); requestAnimationFrame(() => focusCell(state.row.block.block.id, state.field.id)); }} />}
       {state.kind === 'filter' && <FilterPopup anchor={state.anchor} fields={pickerFields()} notebook={props.notebook} initialField={state.field} sheet={window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches} onDismiss={() => setPopup(null)} onNewField={async name => createField(name, false)} onAdd={filter => { updateQuery(addFilter(query(), filter)); setPopup(null); }} />}
       {state.kind === 'name' && <NamePopup anchor={state.anchor} action={state.action} name={state.action === 'rename' ? saved()?.name ?? '' : ''} onDismiss={() => setPopup(null)} onSave={async name => { if (state.action === 'field') await createField(name, !!state.addColumn); else await saveView(name, state.action === 'rename'); }} />}
+      {state.kind === 'embed-page' && <EmbedOnPagePicker anchor={state.anchor} view={state.view} notebook={props.notebook} onOpen={props.onOpen} onDismiss={() => setPopup(null)} />}
       {state.kind === 'delete' && <Popup anchor={state.anchor} label="Delete table view?" onDismiss={() => { if (!deleting()) setPopup(null); }}>
         <p>Delete “{state.view.name}”? Rows are not deleted.</p>
         <Show when={error()}><p class="error" role="alert">{error()}</p></Show>

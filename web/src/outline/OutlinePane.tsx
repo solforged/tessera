@@ -29,7 +29,7 @@ import { Menu } from '../ui/Menu';
 import { createVisualViewport } from '../ui/visual-viewport';
 import { BlockText } from './BlockText';
 import { plainText } from './names';
-import { isStableReference, textTokens } from '../document/text-tokens';
+import { isStableReference, isViewReference, textTokens } from '../document/text-tokens';
 import { PaneEditor } from './editor';
 import { createOutlineCapabilities } from './capabilities';
 import { editingDepth, hiddenFieldEntries, inlineFieldValues, selectionIds, selectionRoots, survivingZoomPath, visibleIds } from './visibility';
@@ -54,6 +54,7 @@ import { createFieldSheet } from './field-sheet';
 import { fieldBedRows, fieldRole } from '../fields/roles';
 import { createCapabilityPopups } from './CapabilityPopups';
 import { createRelationActions } from './RelationActions';
+import { createViewEmbedActions } from './ViewPicker';
 import type { MenuState, OutlineContext, RowRange } from './context';
 import { PageMergeConfirmation, pageMergeDisabledReason } from './PageMerge';
 import { foldName, nameMenuItems, resolveName } from './names';
@@ -215,7 +216,7 @@ function Pane(props: OutlinePaneProps) {
   );
   const [editingNames] = createResource(() => {
     const id = editing();
-    const names = id ? [...new Set(textTokens(doc.block(id)?.text ?? '').flatMap(token => token.kind === 'reference' && !isStableReference(token) ? [token.id!] : []))] : [];
+    const names = id ? [...new Set(textTokens(doc.block(id)?.text ?? '').flatMap(token => token.kind === 'reference' && !isStableReference(token) && !isViewReference(token) ? [token.id!] : []))] : [];
     return names.length ? [names.join('\u0000'), props.notebook.changeSequence()] as const : false;
   }, async ([names]) => new Map(await Promise.all(names.split('\u0000').map(async name => [foldName(name), await resolveName(props.notebook, name)] as const))));
   const sourceResets = createSourceFieldResets({ doc, notebook: props.notebook, definitions: definitionsById, caret, onError: setMessage });
@@ -1115,6 +1116,7 @@ function Pane(props: OutlinePaneProps) {
     get commandDefinitions() { return commandDefinitions; },
     fieldMenu: (id, anchor) => fieldMenu(id, anchor),
     pickField: (owner, anchor) => fieldSheet.pick(owner, anchor),
+    openViewEmbed: id => openViewEmbed(id),
     openPlanning: (id, kind) => openPlanning(id, kind),
     priorityMenu: (id) => priorityMenu(id),
     openProject: (id) => openProject(id),
@@ -1206,6 +1208,7 @@ function Pane(props: OutlinePaneProps) {
     await doc.flush();
     if (result.caret) requestAnimationFrame(() => editAt(result.caret!.id, 0, true));
   });
+  const { openViewEmbed, ViewEmbedPopups } = createViewEmbedActions(context);
   const { setCompletion, setCompletionIndex, offerValue, openValueEditor, closeValueEditor, valueEditorId, updateCompletion, updateTriggers, taskPrefix, rewriteEditing, referenceInput, forgetReferenceSpace, slashKey, dateKey, popupKey, CompletionPopups } = createOutlineCompletions(context, id => { fieldSheet.start(id); });
   const { openTable, investigationItems, markRelation, relationMenu, commandDefinitions, unregister, blockMenu, fieldMenu, statusMenu, priorityMenu, openPlanning, openProject, leaderMenu, makeCloze, referenceMenu, copy } = createOutlineCommands(context);
   const { horizontal, adjacent, split, editorKey, structuralKey, pruneEmptyValue, resetRowKey, resetVerticalGoal } = createOutlineKeyboard(context, (event, id) => fieldSheet.key(event, id));
@@ -1597,6 +1600,7 @@ function Pane(props: OutlinePaneProps) {
     <CompletionPopups />
     <fieldSheet.Popups />
     <RelationPopups />
+    <ViewEmbedPopups />
   </div>
     <Show when={props.projection === 'compare'}><div class="embedded-comparison"><ComparePane subjectId={props.pageId} view={props.view.compare ?? { scroll: 0 }} notebook={props.notebook} onActivate={props.onActivate} onOpen={props.onOpen} onViewChange={compare => props.onViewChange({ ...props.view, compare })} /></div></Show>
     <div class="outline-notices">

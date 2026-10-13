@@ -238,6 +238,20 @@ fn add_note_resolves_titles_without_losing_labels_or_locators() {
 }
 
 #[test]
+fn saved_view_references_survive_authoring_without_creating_pages_or_links() {
+    let (_dir, mut nb) = fixture();
+    dune(&mut nb);
+    let text = format!("[[view:{}|Open questions]]", id(1));
+    let receipt = run(&mut nb, &note(page("Project"), vec![block(&text, vec![])]));
+    assert_eq!(nb.block(&receipt.blocks[0].id).unwrap().text, text);
+    assert_eq!(receipt.created_pages.len(), 1);
+    assert!(nb.backlinks(&id(1), 10).unwrap().is_empty());
+    assert_eq!(nb.search("Open questions", 10).unwrap().len(), 1);
+    undo(&mut nb, receipt.seq).unwrap();
+    assert!(nb.block(&receipt.blocks[0].id).is_err());
+}
+
+#[test]
 fn a_journal_note_creates_the_day_once_and_undo_removes_an_emptied_day() {
     let (_dir, mut nb) = fixture();
     let today = NoteTarget::Journal { date: None };

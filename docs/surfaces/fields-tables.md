@@ -107,6 +107,12 @@ A type shares `Index N`, `Table N` and `Fields N` tabs with its [index](notes.md
 
 Delete view confirms that rows are not deleted unless Ask before deleting views is off in [Settings](settings.md#preferences). Library, task and table views all offer Undo for ten seconds after deletion; restoring a view keeps its name and query.
 
+### Embedded views
+
+A saved view's menu offers Embed on page…. Its page picker inserts an ordinary reference block and opens it on that page. `/Embed view` and Commands offer the same saved views while writing.
+
+An embed follows the saved query, columns, sorts, groups and layout, with twelve visible rows and Show all N to open the full view. Editing an ordinary field uses its canonical value block and one undo; derived attributes remain read-only. Committed notebook changes update the result. Phone cards use the saved card fields.
+
 ### Toolbar
 
 The source chip, Search rows, Filters, Sort, Group and Columns align to the register. Applied filter and numbered sort chips sit beneath the controls and remove with their own ×. Chips wrap on narrow panes. A new sort follows the existing keys rather than replacing the primary key. Its left arrow raises its priority.

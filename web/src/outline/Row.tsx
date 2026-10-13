@@ -29,6 +29,7 @@ import { relationLabels } from './relations';
 import { AssessmentJournal, QuestionParent, questionLabels } from './Questions';
 import { Embed } from './Embed';
 import { embedTarget } from './streams';
+import { ViewEmbed, viewEmbedTarget } from './ViewEmbed';
 
 export function createOutlineRows(context: Pick<OutlineContext,
   | 'doc' | 'capabilities' | 'setMenu' | 'investigationItems' | 'definitionsById' | 'contextDate'
@@ -120,6 +121,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
     const inline = () => inlineFields().has(parent());
     // Field entries are whole-row links to their definition, and values belong to their field; neither is an embed.
     const embed = createMemo(() => field() || inline() ? undefined : embedTarget(block()?.text ?? ''));
+    const viewEmbed = createMemo(() => field() || inline() ? undefined : viewEmbedTarget(block()?.text ?? ''));
     // Values of one entry line up in one column; only the first carries the field's name.
     const labelled = () => { const index = indices().get(id()) ?? 0; return !index || doc.outline.parentOf(ids()[index - 1]!) !== parent(); };
     // A known entry with no live values reads as its label and an empty slot until it is edited.
@@ -222,6 +224,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
               <Show when={block()?.text}><BlockText text={displayText()} notebook={props.notebook} citationApparatus={fieldRole(valueField()) === 'citation'} interactive={false} /></Show>
             </button></div>
           </Match>
+          <Match when={viewEmbed()}><ViewEmbed reference={viewEmbed()!} notebook={props.notebook} onOpen={props.onOpen} onReplace={text => apply({ kind: 'text', id: id(), text }, false)} onRemove={() => apply({ kind: 'delete', ids: [id()] }, false)} /></Match>
           <Match when={embed()}><Show keyed when={embed()}>{target => <Embed target={target} notebook={props.notebook} onOpen={props.onOpen} fallback={<StaticText />} />}</Show></Match>
           <Match when><StaticText /></Match>
         </Switch></Show>

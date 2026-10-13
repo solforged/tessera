@@ -52,7 +52,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
   | 'setMessage' | 'disposed' | 'rowAnchor' | 'editAt' | 'restoreFocus' | 'props'
   | 'replaceSelection' | 'fields' | 'definitionsById' | 'definitions' | 'activeRange'
   | 'fieldConversion' | 'commandDefinitions' | 'openPlanning' | 'priorityMenu' | 'openProject'
-  | 'investigationItems' | 'markRelation' | 'relationMenu' | 'apply' | 'zoomTo' | 'copy' | 'templateFor' | 'rowFocus' | 'openRelation' | 'placeReason' | 'usePlace'
+  | 'investigationItems' | 'markRelation' | 'relationMenu' | 'apply' | 'zoomTo' | 'copy' | 'templateFor' | 'rowFocus' | 'openRelation' | 'openViewEmbed' | 'placeReason' | 'usePlace'
   | 'showNotice'
 >, startFilling: (id: string) => void = () => {}) {
   const {
@@ -548,6 +548,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
       ...([1, 2, 3] as const).map((level): SlashItem => ({ id: `heading-${level}`, title: `Heading ${level}`, aliases: [`h${level}`], section: 'Text', icon: 'heading', keys: '#'.repeat(level), run: id => apply({ kind: 'heading', id, level }) })),
       { id: 'heading-normal', title: 'Normal text', aliases: ['paragraph'], section: 'Text', icon: 'edit', when: block => !!block?.heading, run: id => apply({ kind: 'heading', id, level: null }) },
       { id: 'reference', title: 'Reference', aliases: ['link', 'page', 'mention'], section: 'Text', icon: 'link', keys: '[[', insert: () => ({ text: '[[', caret: 2 }) },
+      { id: 'embed-view', title: 'Embed view', aliases: ['saved view', 'live table'], section: 'Text', icon: 'table', run: id => context.openViewEmbed(id) },
       { id: 'quote', title: 'Quote block', aliases: ['quote', 'frozen'], section: 'Text', icon: 'link', keys: '((', when: block => { const state = slashCompletion(); return !!state && !removeToken(block?.text ?? '', state).text.trim(); }, insert: () => ({ text: '(())', caret: 2 }) },
       { id: 'type', title: 'Type', aliases: ['tag', 'supertag'], section: 'Text', icon: 'tag', keys: '#', insert: () => ({ text: '#', caret: 1 }) },
       { id: 'card', title: 'Card', aliases: ['flashcard'], section: 'Cards', icon: 'right', keys: '>>', cardKind: 'forward' },
