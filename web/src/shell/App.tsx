@@ -25,6 +25,7 @@ import { createCommandRegistry } from './commands';
 import { deskCounts, shortDay } from './desk-counts';
 import { depthLabels, depthStops } from './contract';
 import type { AgendaViewState, Command, CommandRegistry, CompareViewState, Depth, FieldsViewState, FieldViewState, IndexViewState, LibraryViewState, OpenTarget, PaneId, ReaderViewState, ReviewViewState, SettingsViewState, TableViewState, ViewState } from './contract';
+import type { PagePresentation, PageProjection } from './contract';
 import { Palette } from './Palette';
 import { installOpenedFiles } from '../library/opened-files';
 import { blankCapture, installQuickCapture } from './quick-capture';
@@ -69,8 +70,7 @@ const SpreadPane = lazy(() => paneModules.spread().then(module => ({ default: mo
 type PaneView = ViewState | TableViewState | FieldsViewState | FieldViewState | SettingsViewState | AgendaViewState | ReviewViewState | LibraryViewState | ReaderViewState | CompareViewState | IndexViewState;
 type HistoryEntry = { target: OpenTarget; view: PaneView };
 type PaneSession = { entries: HistoryEntry[]; index: number; generation: number };
-type PageStyle = 'bullets' | 'prose';
-type SavedNavigation = { pinned?: string[]; pinnedViews?: string[]; pageStyles?: Record<string, PageStyle>; recent?: string[]; vim?: boolean; panes?: Partial<Record<PaneId, HistoryEntry>>; active?: PaneId };
+type SavedNavigation = { pinned?: string[]; pinnedViews?: string[]; pagePresentations?: Record<string, PagePresentation>; pageStyles?: Record<string, 'bullets' | 'prose'>; recent?: string[]; vim?: boolean; panes?: Partial<Record<PaneId, HistoryEntry>>; active?: PaneId };
 type VimMode = 'insert' | 'normal' | 'visual' | 'outline' | null;
 const vimLabels: Record<Exclude<VimMode, null>, string> = { insert: 'Insert', normal: 'Normal', visual: 'Visual', outline: 'Blocks' };
 type PopupState = { kind: 'search' | 'commands' | 'calendar' | 'new' | 'delete' | 'layout'; anchor: HTMLElement; pane: PaneId; date?: string; source?: boolean } | null;
@@ -83,7 +83,7 @@ const compactHeader = window.matchMedia('(max-width: 479px)');
 
 /** Views are snapshots: fold arrays and caret/scroll objects never alias history. */
 function copyView(view: ViewState): ViewState {
-  return { ...view, folds: view.folds ? [...view.folds] : null, caret: view.caret ? { ...view.caret } : null, scroll: view.scroll ? { ...view.scroll } : null };
+  return { ...view, folds: view.folds ? [...view.folds] : null, caret: view.caret ? { ...view.caret } : null, scroll: view.scroll ? { ...view.scroll } : null, readDisclosures: view.readDisclosures ? [...view.readDisclosures] : undefined, compare: view.compare ? { ...view.compare, chosen: view.compare.chosen ? [...view.compare.chosen] : view.compare.chosen } : undefined };
 }
 
 function pageIdOf(current: HistoryEntry | undefined): string | undefined {
@@ -167,8 +167,8 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   const [popup, setPopup] = createSignal<PopupState>(null);
   const [pinned, setPinned] = createSignal<string[]>([]);
   const [pinnedViews, setPinnedViews] = createSignal<string[]>([]);
-  // Pages whose display differs from their kind's default: journal days show bullets, titled pages prose.
-  const [pageStyles, setPageStyles] = createSignal<Record<string, PageStyle>>({});
+  // Projection and the Outline's bullet option are device-local page presentation.
+  const [pagePresentations, setPagePresentations] = createSignal<Record<string, PagePresentation>>({});
   const [recent, setRecent] = createSignal<string[]>([]);
   const [navigationId, setNavigationId] = createSignal<string | null>(null);
   const [error, setError] = createSignal('');
@@ -436,7 +436,8 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
       batch(() => {
         if (Array.isArray(stored.pinned)) setPinned(stored.pinned.filter(value => typeof value === 'string'));
         if (Array.isArray(stored.pinnedViews)) setPinnedViews(stored.pinnedViews.filter(value => typeof value === 'string'));
-        if (stored.pageStyles && typeof stored.pageStyles === 'object') setPageStyles(Object.fromEntries(Object.entries(stored.pageStyles).filter(([, style]) => style === 'bullets' || style === 'prose')));
+        if (stored.pagePresentations && typeof stored.pagePresentations === 'object') setPagePresentations(Object.fromEntries(Object.entries(stored.pagePresentations).filter(([, value]) => value && ['read', 'outline', 'compare', undefined].includes(value.projection)).map(([id, value]) => [id, { projection: value.projection, bullets: typeof value.bullets === 'boolean' ? value.bullets : undefined }])));
+        else if (stored.pageStyles && typeof stored.pageStyles === 'object') setPagePresentations(Object.fromEntries(Object.entries(stored.pageStyles).filter(([, style]) => style === 'bullets' || style === 'prose').map(([id, style]) => [id, { bullets: style === 'bullets' }])));
         if (Array.isArray(stored.recent)) setRecent([...new Set(stored.recent)].filter(value => typeof value === 'string').slice(0, 10));
       });
       const restored: Record<PaneId, PaneSession> = { main: { entries: [], index: -1, generation: 0 }, side: { entries: [], index: -1, generation: 0 } };
@@ -485,7 +486,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     const id = navigationId(); if (!id) return;
     const panes: Partial<Record<PaneId, HistoryEntry>> = {};
     for (const pane of paneIds) { const current = entry(pane); if (current) panes[pane] = current; }
-    navigationWrite = { key: `tessera.navigation.${id}`, value: { pinned: pinned(), pinnedViews: pinnedViews(), pageStyles: pageStyles(), recent: recent(), vim: vim(), panes, active: active() } };
+    navigationWrite = { key: `tessera.navigation.${id}`, value: { pinned: pinned(), pinnedViews: pinnedViews(), pagePresentations: pagePresentations(), recent: recent(), vim: vim(), panes, active: active() } };
     clearTimeout(navigationTimer);
     navigationTimer = window.setTimeout(writeNavigation, 500);
   });
@@ -657,9 +658,9 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
       <Show when={error()}><div class="shell-error" role="alert"><Icon name="warning" /><span>{error()}</span><Button onClick={() => { if (offlineUnavailable()) { location.reload(); return; } setError(''); void today(); }}>Retry</Button></div></Show>
       <GlobalBanner notebook={notebook} onReview={reviewConflict} />
       <div class="panes"><For each={paneIds}>{pane => <Show when={entry(pane)}>
-        <Pane pane={pane} session={() => sessions()[pane]} active={active() === pane} split={split()} immersive={immersive() === pane} onImmersive={on => immerse(pane, on)} notebook={notebook} commands={commands} vim={vim()} vimMode={vimModes()[pane]} onVimMode={mode => setVimModes(values => ({ ...values, [pane]: mode }))} pinned={pinned().includes(pageIdOf(entry(pane)) ?? '')} pageStyles={pageStyles()} title={paneTitle(pane)} noteKind={indexKind(pane)}
+        <Pane pane={pane} session={() => sessions()[pane]} active={active() === pane} split={split()} immersive={immersive() === pane} onImmersive={on => immerse(pane, on)} notebook={notebook} commands={commands} vim={vim()} vimMode={vimModes()[pane]} onVimMode={mode => setVimModes(values => ({ ...values, [pane]: mode }))} pinned={pinned().includes(pageIdOf(entry(pane)) ?? '')} pagePresentations={pagePresentations()} title={paneTitle(pane)} noteKind={indexKind(pane)}
           sidebarOpen={sidebarVisible()} onSidebar={toggleSidebar}
-          onPageStyle={(id, style, fallback) => setPageStyles(({ [id]: _, ...rest }) => style === fallback ? rest : { ...rest, [id]: style })}
+          onPagePresentation={(id, value) => setPagePresentations(previous => ({ ...previous, [id]: value }))}
           onActivate={() => setActive(pane)}
           onOpen={(target, beside) => open(target, beside, pane)}
           onPageBeside={() => openPageBeside(pane)}
@@ -785,7 +786,7 @@ function GlobalBanner(props: { notebook: NotebookClient; onReview(): void }) {
   </div></Show>;
 }
 
-function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boolean; split: boolean; immersive: boolean; onImmersive(immersive: boolean): void; sidebarOpen: boolean; onSidebar(): void; notebook: NotebookClient; commands: CommandRegistry; vim: boolean; vimMode: VimMode; onVimMode(mode: VimMode): void; pinned: boolean; pageStyles: Record<string, PageStyle>; title?: string; noteKind?: NoteKind; onPageStyle(id: string, style: PageStyle, fallback: PageStyle): void; onActivate(): void; onOpen(target: OpenTarget, beside: boolean): void; onTargetChange(target: OpenTarget): void; onPageBeside(): void; onViewChange(view: PaneView): void; onTravel(delta: number): void; onClose(): void; onChooseDate(anchor: HTMLElement): void; onShiftDate(delta: number): void; onPin(): void; onRename(): void; onDelete(anchor: HTMLElement, source?: boolean): void; onDeleteSources(sources: { id: string; title: string }[]): Promise<void>; onArchived(): void; onRestoreView(view: ViewState): void }) {
+function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boolean; split: boolean; immersive: boolean; onImmersive(immersive: boolean): void; sidebarOpen: boolean; onSidebar(): void; notebook: NotebookClient; commands: CommandRegistry; vim: boolean; vimMode: VimMode; onVimMode(mode: VimMode): void; pinned: boolean; pagePresentations: Record<string, PagePresentation>; title?: string; noteKind?: NoteKind; onPagePresentation(id: string, value: PagePresentation): void; onActivate(): void; onOpen(target: OpenTarget, beside: boolean): void; onTargetChange(target: OpenTarget): void; onPageBeside(): void; onViewChange(view: PaneView): void; onTravel(delta: number): void; onClose(): void; onChooseDate(anchor: HTMLElement): void; onShiftDate(delta: number): void; onPin(): void; onRename(): void; onDelete(anchor: HTMLElement, source?: boolean): void; onDeleteSources(sources: { id: string; title: string }[]): Promise<void>; onArchived(): void; onRestoreView(view: ViewState): void }) {
   const current = () => props.session().entries[props.session().index]!;
   const pageId = createMemo(() => pageIdOf(current()));
   const outlineView = () => current().view as ViewState;
@@ -806,8 +807,24 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
     onCleanup(() => document.release());
   });
   const root = () => doc()?.root();
-  const defaultStyle = (): PageStyle => root()?.kind === 'journal' ? 'bullets' : 'prose';
-  const pageStyle = (): PageStyle | undefined => { const id = pageId(); return id && root() ? props.pageStyles[id] ?? defaultStyle() : undefined; };
+  const presentation = () => props.pagePresentations[pageId() ?? ''] ?? {};
+  const defaultProjection = createMemo<PageProjection>(() => {
+    const page = doc();
+    if (!page || root()?.kind !== 'page') return 'outline';
+    page.outline.version(); page.archivedVersion();
+    if (root()?.question) return 'read';
+    for (let at = 0; at < page.outline.size(); at++) {
+      const id = page.outline.idAt(at), position = page.block(id)?.position;
+      if (position && !page.isArchived(id) && (position.subject_id === page.pageId || page.block(position.subject_id)?.question)) return 'read';
+    }
+    return 'outline';
+  });
+  const projection = createMemo<PageProjection>(() => outlineView().zoom ? 'outline' : presentation().projection ?? defaultProjection());
+  const setProjection = (value: PageProjection) => {
+    props.onPagePresentation(pageId()!, { ...presentation(), projection: value });
+  };
+  const pageStyle = () => (presentation().bullets ?? root()?.kind === 'journal') ? 'bullets' : 'prose';
+  const compareReason = () => outlineCommand('compare')?.disabledReason?.()?.replace(/\.$/, '');
   const breadcrumbs = createMemo(() => {
     const page = doc(); const zoom = 'zoom' in current().view ? outlineView().zoom : null; if (!page || !zoom) return [];
     const result = []; let block = page.block(zoom);
@@ -836,7 +853,7 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
   const outlineCommand = (id: string) => props.commands.list().find(command => command.id === `outline.${props.pane}.${id}`);
   const depth = (): Depth => outlineView().depth ?? 'full';
   // The dial shows on titled pages at their top level; a zoomed page always shows in full.
-  const showDial = () => root()?.kind === 'page' && !outlineView().zoom;
+  const showDial = () => root()?.kind === 'page' && !outlineView().zoom && projection() === 'outline';
   // Journal days leave out what only titled pages can do (rename, gloss, compare, question) rather than listing it disabled.
   const titled = () => root()?.kind !== 'journal';
   const items = (): MenuItem[] => [
@@ -844,12 +861,12 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
     ...(titled() ? [{ label: 'Merge into…', icon: 'merge', disabledReason: pageMergeDisabledReason(root()), action: () => { const page = root(); if (page) setMergeFrom({ id: page.id, text: page.text }); } } satisfies MenuItem] : []),
     { label: props.pinned ? 'Unpin' : 'Pin', icon: 'pin', action: props.onPin },
     { label: 'Open page beside', icon: 'panes', action: props.onPageBeside },
-    { label: pageStyle() === 'prose' ? 'Show bullets' : 'Hide bullets', icon: 'bullet', disabledReason: root() ? undefined : 'Page is still loading', action: () => props.onPageStyle(pageId()!, pageStyle() === 'prose' ? 'bullets' : 'prose', defaultStyle()) },
+    ...(projection() === 'outline' ? [{ label: pageStyle() === 'prose' ? 'Show bullets' : 'Hide bullets', icon: 'bullet', disabledReason: root() ? undefined : 'Page is still loading', action: () => props.onPagePresentation(pageId()!, { ...presentation(), bullets: pageStyle() === 'prose' }) } satisfies MenuItem] : []),
     { label: 'Add field…', icon: 'field', disabledReason: outlineCommand('add-field-root')?.disabledReason?.(), action: () => outlineCommand('add-field-root')?.run() },
     ...(titled() ? [
       { label: 'Gloss', icon: 'edit', disabledReason: root() ? undefined : 'Page is still loading', action: () => outlineCommand('gloss')?.run() },
       { label: 'Add alias', icon: 'edit', disabledReason: root() ? undefined : 'Page is still loading', action: () => outlineCommand('alias')?.run() },
-      { label: 'Compare perspectives', icon: 'compare', disabledReason: outlineCommand('compare')?.disabledReason?.()?.replace(/\.$/, ''), action: () => outlineCommand('compare')?.run() },
+      { label: 'Compare readings', icon: 'compare', disabledReason: compareReason(), action: () => setProjection('compare') },
     ] satisfies MenuItem[] : []),
     { label: root()?.task ? 'Task' : 'Make task', icon: 'check', disabledReason: root() ? undefined : 'Page is still loading', action: () => rootCapability('task') },
     { label: root()?.project ? 'Project' : 'Make project', icon: 'flag', disabledReason: root() ? undefined : 'Page is still loading', action: () => rootCapability('project') },
@@ -883,6 +900,7 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
           <Button class="journal-date" icon="calendar" label="Choose journal date" aria-haspopup="dialog" onClick={event => props.onChooseDate(event.currentTarget)} />
           <Button icon="right" label="Next journal day" onClick={() => props.onShiftDate(1)} />
         </nav></Show>
+        <Show when={root()?.kind === 'page'}><div class="mode-tabs tab-strip page-projection-tabs" role="tablist" aria-label="Page projection"><For each={['read', 'outline', 'compare'] as const}>{value => <Button role="tab" aria-selected={projection() === value} disabled={value === 'compare' && !!compareReason()} onClick={() => setProjection(value)}>{value === 'read' ? 'Read' : value === 'outline' ? 'Outline' : 'Compare'}</Button>}</For></div></Show>
         <Show when={showDial()}><div class="depth-dial" role="group" aria-label="Depth">
           <For each={depthStops}>{stop => <button type="button" class="depth-stop" aria-pressed={depth() === stop} title={`${depthLabels[stop]} (${stop === 'gloss' ? '[' : stop === 'full' ? ']' : '[ ]'})`}
             onClick={event => { if (depth() === stop && compactHeader.matches) setDepthMenu(event.currentTarget); else outlineCommand(`depth-${stop}`)?.run(); }}><Icon name={`depth-${stop}`} /><span class="visually-hidden">{depthLabels[stop]}</span></button>}</For>
@@ -909,7 +927,7 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
       <Show when={props.split}><Button class="pane-secondary" icon="close" label="Close pane" shortcut="⌃⇧X" onClick={props.onClose} /></Show>
     </header>
     <Show when={doc()?.saveState() === 'error' || doc()?.saveState() === 'conflict'}><div class="pane-error" role="alert">{doc()?.saveMessage()}</div></Show>
-    <div ref={content} class="pane-content"><Show keyed when={props.session().generation}>{generation => <Switch fallback={<OutlinePane pane={props.pane} pageId={pageId()!} journalPeriod={current().target.kind === 'page' ? (current().target as Extract<OpenTarget, { kind: 'page' }>).journalPeriod : undefined} view={copyView(outlineView())} onDelete={anchor => props.onDelete(anchor, true)} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} active={props.active} onActivate={() => { if (generation === props.session().generation && document.activeElement?.closest('.pane')?.getAttribute('data-pane') === props.pane) props.onActivate(); }} vim={props.vim} onVimMode={props.onVimMode} commands={props.commands} notebook={props.notebook} />}>
+    <div ref={content} class="pane-content"><Show keyed when={props.session().generation}>{generation => <Switch fallback={<OutlinePane pane={props.pane} pageId={pageId()!} projection={projection()} onProjection={setProjection} journalPeriod={current().target.kind === 'page' ? (current().target as Extract<OpenTarget, { kind: 'page' }>).journalPeriod : undefined} view={copyView(outlineView())} onDelete={anchor => props.onDelete(anchor, true)} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} active={props.active} onActivate={() => { if (generation === props.session().generation && document.activeElement?.closest('.pane')?.getAttribute('data-pane') === props.pane) props.onActivate(); }} vim={props.vim} onVimMode={props.onVimMode} commands={props.commands} notebook={props.notebook} />}>
       <Match when={current().target.kind === 'table'}><TablePane pane={props.pane} target={current().target as Extract<OpenTarget, { kind: 'table' }>} view={snapshotView(current().view) as TableViewState} notebook={props.notebook} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onTargetChange={target => { if (generation === props.session().generation) props.onTargetChange(target); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
       <Match when={current().target.kind === 'fields'}><FieldsPane typeId={(current().target as Extract<OpenTarget, { kind: 'fields' }>).typeId} view={snapshotView(current().view) as FieldsViewState} notebook={props.notebook} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
       <Match when={current().target.kind === 'field'}><FieldPane target={current().target as Extract<OpenTarget, { kind: 'field' }>} view={snapshotView(current().view) as FieldViewState} notebook={props.notebook} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onTargetChange={target => { if (generation === props.session().generation) props.onTargetChange(target); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>

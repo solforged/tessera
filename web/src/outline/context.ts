@@ -51,7 +51,7 @@ export interface OutlineContext {
   scheduleReport: () => void;
   setMessage: Setter<string>;
   showNotice: (label: string, undo?: () => Promise<void>) => void;
-  openRelation: (id: string, kind: 'holder' | 'subject' | 'integrate', anchor?: HTMLElement | null) => void;
+  openRelation: (id: string, kind: 'holder' | 'subject' | 'integrate' | 'reading', anchor?: HTMLElement | null) => void;
   positionReason: (id: string) => string | undefined;
   placeReason: (id: string) => string | undefined;
   usePlace: (id: string) => void;

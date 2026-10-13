@@ -109,7 +109,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
     </Button>}</Show>;
   }
 
-  function Row(propsRow: { id: string; item: Accessor<VirtualItem> }) {
+  function Row(propsRow: { id: string; item?: Accessor<VirtualItem>; natural?: boolean }) {
     const id = () => propsRow.id;
     const block = () => doc.block(id());
     const children = () => doc.outline.children(id()).length > 0;
@@ -175,19 +175,19 @@ export function createOutlineRows(context: Pick<OutlineContext,
       onCleanup(() => window.clearTimeout(timer));
     }));
     let row!: HTMLDivElement;
-    onMount(() => virtualizer.measureElement(row));
+    onMount(() => { if (!propsRow.natural) virtualizer.measureElement(row); });
     onCleanup(() => { const host = hosts.get(id()); if (host && row.contains(host)) hosts.delete(id()); });
     function StaticText() {
       return <div class="static-text"><span classList={{ 'outline-value-pill': pill() && !!block()?.text, 'outline-reading-problem': !!valueProblem() }} title={valueProblem()}><BlockText text={displayText()} blockId={id()} onError={setMessage} cards field={field()} notebook={props.notebook} onOpen={props.onOpen} onReferenceClick={(token, anchor) => { if (!block()?.position || token.id !== block()?.position?.holder_id || token.start !== textTokens(block()?.text ?? '').find(value => value.kind === 'reference')?.start) return false; context.openRelation(id(), 'holder', anchor); return true; }} onReferenceMenu={referenceMenu} selection={selectedOffsets(id())} /></span><Show when={!block()?.text && inline()}><button type="button" class="field-empty-value" aria-label={`Add ${valueField()?.name} value`} onMouseDown={event => event.stopPropagation()} onClick={() => editAt(id(), 0, true)} /></Show><Show when={!block()?.text && !inline() && ids().length === 1}><span class="empty-block">Start writing</span></Show></div>;
     }
-    return <div ref={row} id={`outline-${props.pane}-${id()}`} data-index={propsRow.item().index} data-block-id={id()} role="treeitem" aria-level={depth() + 1}
+    return <div ref={row} id={`outline-${props.pane}-${id()}`} data-index={propsRow.natural ? undefined : propsRow.item!().index} data-block-id={id()} role="treeitem" aria-level={propsRow.natural ? 1 : depth() + 1}
       aria-expanded={children() ? !folds().has(id()) : undefined} aria-selected={selectedSet().has(id())}
       class="outline-row" classList={{ 'row-position': !!block()?.position, 'row-gist': gist(), 'row-question': !!block()?.question, 'row-assessment': !!block()?.assessment, 'row-selected': selectedSet().has(id()) && editing() !== id(), 'row-covered': coveredSet().has(id()), 'row-editing': editing() === id(), 'row-archived': block()?.archived ?? false, 'field-entry': !!field(), 'inline-field-value': inline(), 'row-gloss': inline() && parent() === glossId(), 'choice-value': pill(), 'source-highlight': !!localCitation(), 'source-highlights-start': sourceDetails().chapters.has(id()), 'outline-row-linked': block()?.citations.some(citation => citation.id === linkedCitation()) ?? false }}
       data-task-status={block()?.task?.status}
       data-holder={block()?.position?.holder_id ?? undefined}
       data-question-status={block()?.question?.status} data-accepted={block()?.assessment ? String(block()!.assessment!.accepted) : undefined} data-aporia={block()?.assessment?.state.aporia ? 'true' : undefined}
-      onPointerEnter={() => { setLinkedCitation(block()?.citations[0]?.id ?? null); sheet.hover(id()); }} onPointerLeave={() => { setLinkedCitation(null); sheet.hover(null); }}
-      style={{ transform: `translateY(${propsRow.item().start - margin()}px)`, '--depth': depth(), '--quote-color': localCitation()?.color ? `var(--highlight-${localCitation()!.color})` : 'var(--faint)' }}>
+      onPointerEnter={() => { setLinkedCitation(block()?.citations[0]?.id ?? null); if (!propsRow.natural) sheet.hover(id()); }} onPointerLeave={() => { setLinkedCitation(null); sheet.hover(null); }}
+      style={{ transform: propsRow.natural ? undefined : `translateY(${propsRow.item!().start - margin()}px)`, '--depth': propsRow.natural ? 0 : depth(), '--quote-color': localCitation()?.color ? `var(--highlight-${localCitation()!.color})` : 'var(--faint)' }}>
       <RowPrelude id={id()} />
       <Show when={sourceDetails().chapters.get(id())}>{title => <div class="outline-chapter-label">{title()}</div>}</Show>
       <Show when={rowSources().length}><span class="row-sigla"><For each={rowSources()}>{source => <span class="row-siglum" title={props.notebook.lookup(source)()?.text}>{sigla().get(source)}</span>}</For></span></Show>

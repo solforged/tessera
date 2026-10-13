@@ -2,6 +2,33 @@
 
 A concept page holds several attributed readings. Questions and answers mark authored blocks, and a titled page can be a question. Tokens, shell and shared popup patterns are in [design](../design.md).
 
+## Page projections
+
+Titled pages share one document across Read, Outline and Compare. The pane header switches them in place; Commands offers Read, Outline and Compare readings. The choice is remembered for each page on this device. Switching does not create blocks or a navigation entry.
+
+Question pages and pages holding active readings about themselves or their inline questions open in Read. Other pages keep their ordinary outline. Outline keeps its Plex editor, depth dial and Show bullets option; `[` and `]` change depth only there.
+
+### Reading register
+
+Read puts the title, Gloss and opening on one text edge. Piazzolla remains the prose voice while editing, so entering the editor never changes the measure or the rows below it. Links, completion and undo use the same editor as Outline. Structural edits return to Outline with the caret at the edited block.
+
+Perspectives begins with the reading and holder counts, Compare and Add reading. Each slip shows the source siglum, holder, Gist and Work. Account has its own quiet label, followed by authored argument relations. Prose opens in place; the other fields open under Facts. Neither disclosure writes to the notebook.
+
+Where they disagree appears only when stored questions name criteria. Each criterion groups its questions and named holders; an unscoped question says All holders. Questions without a criterion stay in their authored place. No differences between field values are turned into questions.
+
+Compare switches the same pane to the existing reading sheet and criteria matrix. Fewer than two readings leave Compare unavailable, with the reason visible in the register.
+
+### Adding a reading
+
+Add reading is in the register, the Outline header and Commands. Who holds this? lists People and Groups first, then other pages, then Create for a new name. Choosing appends an attributed reading after the last reading in its section, or at the page's end when there are none.
+
+The holder link, position capability and empty Gist slot are one undoable edit. The caret starts in the Gist value. Creating a holder makes an ordinary page; undoing the reading keeps that page.
+
+### Section navigator
+
+Long Read and Outline pages keep a quiet section line at the top of the scroller. Within a reading it names the section and holder, such as Perspectives · Polybius. Its menu jumps to the opening, a section or a reading. It has a reserved line, so appearing does not shift the text.
+
+
 ## Positions and holder rows
 
 Make perspective, in the block menu, the palette and `/perspective`, turns a block such as `[[Plato]]` into a position; Remove perspective undoes it.

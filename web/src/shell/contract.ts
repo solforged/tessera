@@ -17,6 +17,8 @@ export type PaneId = 'main' | 'side';
 export type Depth = 'gloss' | 'opening' | 'perspectives' | 'full';
 export const depthStops: readonly Depth[] = ['gloss', 'opening', 'perspectives', 'full'];
 export const depthLabels: Record<Depth, string> = { gloss: 'Gloss', opening: 'Opening', perspectives: 'Perspectives', full: 'Full' };
+export type PageProjection = 'read' | 'outline' | 'compare';
+export interface PagePresentation { projection?: PageProjection; bullets?: boolean }
 
 /**
  * One action. Every action appears in the command palette with its shortcut,
@@ -61,6 +63,9 @@ export interface ViewState {
   depth?: Depth;
   /** Catalogue metadata visibility in a source outline; absent means hidden. */
   sourceFieldsVisible?: boolean;
+  /** Page-only disclosures and comparison choices never change the document. */
+  readDisclosures?: string[];
+  compare?: CompareViewState;
   /** Set only by an open that names `caretId`: the pane starts editing at the caret instead of selecting its row. Never reported back, so history does not re-enter editing. */
   edit?: boolean;
 }
@@ -112,6 +117,8 @@ export interface OutlinePaneProps {
   journalPeriod?: Extract<OpenTarget, { kind: 'page' }>['journalPeriod'];
   /** Initial view; the pane reports changes through `onViewChange`. */
   view: ViewState;
+  projection?: PageProjection;
+  onProjection?(projection: PageProjection): void;
   onViewChange(view: ViewState): void;
   onDelete?(anchor: HTMLElement): void;
   /** Open a page or block, here or in the other pane. */

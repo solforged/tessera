@@ -141,6 +141,8 @@ export type Edit =
   /** Replace or remove a task's explicit Project field in one undo step. */
   | { kind: 'taskProject'; id: string; fieldId: string; projectId: string | null }
   | { kind: 'position'; id: string; value: boolean }
+  /** Insert an attributed reading and its Gist slot together, as one undo step. */
+  | { kind: 'addReading'; parentId: string; after: string | null; holderId: string; gistFieldId: string }
   /** Set the authored kind and optional text together (including a slash command's removal). */
   | { kind: 'relation'; id: string; value: RelationKind | null; text?: string }
   /** Insert a last child with its kind and target in one authored change. */

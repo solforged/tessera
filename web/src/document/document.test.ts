@@ -20,6 +20,7 @@ import { clipboardText, parseBlockClipboard } from './clipboard';
 import { linkMentionEdit } from './link-mention';
 import { positionRelations, readingPassages } from '../outline/perspectives';
 import { embedTarget, fileArrival } from '../outline/streams';
+import { readingRegister } from '../outline/read-register';
 
 const port = Bun.env.TESSERA_TEST_PORT ?? '4330';
 const baseUrl = `http://127.0.0.1:${port}`;
@@ -563,6 +564,65 @@ describe('real notebook operations and recovery', () => {
     expect((await api.fields()).fields.find(field => field.id === id)).toMatchObject({ id, name, kind: 'number' });
     expect((await api.page(fields.page_id)).rows.find(row => row.block.id === id)?.block.text).toBe(name);
     doc.release();
+  });
+
+  test('adding a reading keeps attribution and its Gist together through undo and reload', async () => {
+    const instance = await client();
+    const fields = await api.fields();
+    const gist = fields.fields.find(field => field.name === 'Gist')?.id;
+    const register = instance.open(fields.page_id);
+    await eventually(() => register.status() === 'ready', register.statusMessage());
+    const gistId = gist ?? success(register.edit({ kind: 'addField', name: 'Gist', value: 'text' })).created[0]!;
+    await instance.flush();
+    const holder = await instance.createPage(`Reading holder ${++serial}`);
+    const { id, doc, first } = await page(instance, 'Opening');
+    const result = success(doc.edit({ kind: 'addReading', parentId: id, after: first, holderId: holder, gistFieldId: gistId }));
+    const reading = result.created[0]!, entry = result.created[1]!, value = result.created[2]!;
+    expect(result.caret).toEqual({ id: value, offset: 0 });
+    expect(doc.outline.children(reading)).toEqual([entry]);
+    expect(doc.outline.children(entry)).toEqual([value]);
+    await instance.flush();
+    expect((await api.positions({ subject: id })).rows.map(row => [row.block.block.id, row.holder_id])).toEqual([[reading, holder]]);
+    const reopened = (await client()).open(id);
+    await eventually(() => reopened.status() === 'ready', reopened.statusMessage());
+    expect(reopened.block(reading)?.position?.holder_id).toBe(holder);
+    expect(reopened.block(value)?.text).toBe('');
+    doc.undo(); await instance.flush();
+    expect((await api.positions({ subject: id })).rows).toEqual([]);
+    expect((await api.page(id)).rows.map(row => row.block.id)).toEqual([first]);
+    doc.redo(); await instance.flush();
+    expect((await api.positions({ subject: id })).rows[0]?.holder_id).toBe(holder);
+    reopened.release(); register.release(); doc.release();
+  });
+
+  test('Read groups only criterion questions and keeps unscoped questions in their authored place', async () => {
+    const instance = await client();
+    const fields = await api.fields();
+    const definitions = instance.open(fields.page_id);
+    await eventually(() => definitions.status() === 'ready', definitions.statusMessage());
+    const criterion = success(definitions.edit({ kind: 'addField', name: `Reading criterion ${++serial}`, value: 'text' })).created[0]!;
+    await instance.flush();
+    const holder = await instance.createPage(`Projection holder ${++serial}`);
+    const { id, doc, first } = await page(instance, 'An authored opening');
+    const reading = success(doc.edit({ kind: 'insert', parentId: id, after: first, text: `[[${holder}]]` })).created[0]!;
+    success(doc.edit({ kind: 'position', id: reading, value: true }));
+    success(doc.edit({ kind: 'addFieldEntries', parentId: reading, after: null, entries: [{ fieldId: criterion, value: 'A fact' }] }));
+    const heading = success(doc.edit({ kind: 'insert', parentId: id, after: reading, text: 'Authored questions' })).created[0]!;
+    success(doc.edit({ kind: 'heading', id: heading, level: 2 }));
+    const scoped = success(doc.edit({ kind: 'insert', parentId: heading, after: null, text: `What divides them? [[${criterion}]] [[${holder}]]` })).created[0]!;
+    const unscoped = success(doc.edit({ kind: 'insert', parentId: heading, after: scoped, text: 'Shape and holder names are only words here.' })).created[0]!;
+    for (const question of [scoped, unscoped]) success(doc.edit({ kind: 'question', id: question, value: { unsettled: false, parked: false, accepted: null, review_on: null } }));
+    await instance.flush();
+    const result = await api.positions({ subject: id });
+    const project = () => readingRegister(doc, fieldId => fieldId === criterion ? 'Reading criterion' : undefined, result.questions);
+    const projected = project();
+    expect(projected.disagreements).toEqual([{ criterion, questions: [{ id: scoped, holders: [holder] }] }]);
+    expect(projected.remaining).toContain(unscoped);
+    expect(projected.remaining).toContain(heading);
+    success(doc.edit({ kind: 'delete', ids: [unscoped] }));
+    expect(project().remaining).not.toContain(heading);
+    expect(projected.slips[0]?.facts.map(field => field.entryId)).toEqual([...doc.outline.children(reading)]);
+    definitions.release(); doc.release();
   });
 
   test('adding field entries with their values is one undo step and persists', async () => {

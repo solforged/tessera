@@ -8,12 +8,12 @@ import type { OutlineContext } from './context';
 import { completeNames, plainText, resolveName } from './names';
 import { changeHolderText, fileUnderText, positionLinks, usePlaceReason, usePlaceText } from './position-links';
 
-type RelationAction = 'holder' | 'subject' | 'integrate';
-interface Choice { block: Block; section: string; alias?: string | null }
-const labels: Record<RelationAction, string> = { holder: 'Change holder', subject: 'File under', integrate: 'Integrate' };
+type RelationAction = 'holder' | 'subject' | 'integrate' | 'reading';
+interface Choice { block: Block; section: string; alias?: string | null; create?: boolean }
+const labels: Record<RelationAction, string> = { holder: 'Change holder', subject: 'File under', integrate: 'Integrate', reading: 'Who holds this?' };
 
 /** The existing picker serves authored links and journal destinations; none are inferred from prose. */
-export function createRelationActions(context: Pick<OutlineContext, 'doc' | 'props' | 'rowAnchor' | 'setMessage' | 'restoreFocus' | 'editor' | 'showNotice' | 'scheduleReport'>) {
+export function createRelationActions(context: Pick<OutlineContext, 'doc' | 'props' | 'rowAnchor' | 'setMessage' | 'restoreFocus' | 'editor' | 'showNotice' | 'scheduleReport'>, onAddReading?: (holderId: string) => Promise<void>) {
   const { doc, props, rowAnchor, setMessage, restoreFocus, showNotice, scheduleReport } = context;
   const [state, setState] = createSignal<{ kind: RelationAction; id: string; anchor: PopupAnchor }>();
   function openRelation(id: string, kind: RelationAction, anchor = rowAnchor(id)) {
@@ -38,7 +38,7 @@ export function createRelationActions(context: Pick<OutlineContext, 'doc' | 'pro
       const [error, setError] = createSignal('');
       const [preferred] = createResource(async () => {
         if (current.kind === 'integrate') return { ids: new Set<string>(), questions: [] as Block[] };
-        const kinds = current.kind === 'holder' ? ['person', 'group'] : ['concept'];
+        const kinds = current.kind === 'holder' || current.kind === 'reading' ? ['person', 'group'] : ['concept'];
         const [indices, questions, directory, types] = await Promise.all([
           Promise.all(kinds.map(key => props.notebook.api.kindNotes(key))),
           current.kind === 'subject' ? props.notebook.api.questions({}) : Promise.resolve([]),
@@ -64,7 +64,7 @@ export function createRelationActions(context: Pick<OutlineContext, 'doc' | 'pro
       const [choices] = createResource(() => [query(), preferred(), props.notebook.roots()] as const, async ([text, preferred, roots]): Promise<Choice[]> => {
         if (!preferred) return [];
         const names = await completeNames(props.notebook, text, roots);
-        const result: Choice[] = names.rows.map(({ page, alias }) => ({ block: page, alias, section: current.kind === 'integrate' ? 'Pages' : preferred.ids.has(page.id) ? current.kind === 'holder' ? 'People and groups' : 'Questions and concepts' : 'Pages' }));
+        const result: Choice[] = names.rows.map(({ page, alias }) => ({ block: page, alias, section: current.kind === 'integrate' ? 'Pages' : preferred.ids.has(page.id) ? current.kind === 'holder' || current.kind === 'reading' ? 'People and groups' : 'Questions and concepts' : 'Pages' }));
         if (current.kind === 'subject') {
           // Question pages use the shared name resolver; inline questions use reference search below.
           const questions = new Set(preferred.questions.map(block => block.id));
@@ -76,13 +76,21 @@ export function createRelationActions(context: Pick<OutlineContext, 'doc' | 'pro
           const found = await props.notebook.api.search(text, 100);
           for (const row of found) if (row.block.kind === 'block' && !row.block.archived) result.push({ block: row.block, section: 'Blocks' });
         }
-        return result.sort((a, b) => Number(a.section === 'Pages' || a.section === 'Blocks') - Number(b.section === 'Pages' || b.section === 'Blocks') || Number(a.section === 'Blocks') - Number(b.section === 'Blocks'));
+        const sorted = result.sort((a, b) => Number(a.section === 'Pages' || a.section === 'Blocks') - Number(b.section === 'Pages' || b.section === 'Blocks') || Number(a.section === 'Blocks') - Number(b.section === 'Blocks'));
+        if (current.kind === 'reading' && names.canCreate && text.trim()) sorted.push({ create: true, section: 'Create', block: { id: 'create', kind: 'page', parent_id: null, page_id: 'create', text: text.trim(), heading: null, archived: false, revision: 0, created_at: 0, updated_at: 0, kept_copy: null } });
+        return sorted;
       });
       const dismiss = () => { if (!busy()) { setState(undefined); restoreFocus(); } };
       const pick = async (choice: Choice) => {
         if (busy() || choices.loading || preferred.loading) return;
         setBusy(true); setError('');
         try {
+          if (current.kind === 'reading') {
+            const holderId = choice.create ? await props.notebook.createPage(choice.block.text) : choice.block.id;
+            await onAddReading?.(holderId);
+            setState(undefined);
+            return;
+          }
           if (current.kind === 'integrate') {
             const change = await props.notebook.integrateBlock(current.id, choice.block.id);
             setState(undefined);
@@ -102,8 +110,8 @@ export function createRelationActions(context: Pick<OutlineContext, 'doc' | 'pro
         } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
         finally { setBusy(false); }
       };
-      return <Picker<Choice> anchor={current.anchor} placement={window.matchMedia('(max-width: 600px)').matches ? 'sheet' : 'anchor'} label={labels[current.kind]} query={query()} onQuery={setQuery} placeholder={current.kind === 'holder' ? 'Find a person, group or page' : current.kind === 'subject' ? 'Find a question, concept or page' : 'Find a page or block'} items={choices() ?? []} key={choice => choice.block.id} section={choice => choice.section} onDismiss={dismiss} onPick={choice => { void pick(choice); }} busy={choices.loading || preferred.loading || busy()} error={error() || (choices.error || preferred.error ? String(choices.error || preferred.error) : undefined)} empty="No matching destinations." disabledReason={choice => busy() ? 'Saving…' : choices.loading || preferred.loading ? 'Loading destinations…' : current.kind === 'integrate' && choice.block.id === current.id ? 'A block cannot move into itself.' : undefined}
-        row={choice => <><Icon name={choice.block.kind === 'block' ? 'bullet' : 'note'} /><span class="picker-text"><BlockText text={choice.block.text} notebook={props.notebook} interactive={false} /></span><Show when={choice.alias}><span class="reference-via">via {choice.alias}</span></Show><Show when={choice.block.kind === 'block'}><span class="picker-meta"><BlockBreadcrumb block={choice.block} notebook={props.notebook} /></span></Show></>} />;
+      return <Picker<Choice> anchor={current.anchor} placement={window.matchMedia('(max-width: 600px)').matches ? 'sheet' : 'anchor'} label={labels[current.kind]} query={query()} onQuery={setQuery} placeholder={current.kind === 'holder' || current.kind === 'reading' ? 'Find a person, group or page' : current.kind === 'subject' ? 'Find a question, concept or page' : 'Find a page or block'} items={choices() ?? []} key={choice => choice.block.id} section={choice => choice.section} onDismiss={dismiss} onPick={choice => { void pick(choice); }} busy={choices.loading || preferred.loading || busy()} error={error() || (choices.error || preferred.error ? String(choices.error || preferred.error) : undefined)} empty="No matching destinations." disabledReason={choice => busy() ? 'Saving…' : choices.loading || preferred.loading ? 'Loading destinations…' : current.kind === 'integrate' && choice.block.id === current.id ? 'A block cannot move into itself.' : undefined}
+        row={choice => <><Icon name={choice.create ? 'plus' : choice.block.kind === 'block' ? 'bullet' : 'note'} /><span class="picker-text"><Show when={choice.create}>Create </Show><BlockText text={choice.block.text} notebook={props.notebook} interactive={false} /></span><Show when={choice.alias}><span class="reference-via">via {choice.alias}</span></Show><Show when={choice.block.kind === 'block'}><span class="picker-meta"><BlockBreadcrumb block={choice.block} notebook={props.notebook} /></span></Show></>} />;
     }}</Show>;
   }
   return { openRelation, positionReason, placeReason, usePlace, RelationPopups };

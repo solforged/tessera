@@ -457,6 +457,8 @@ A project capability gives a block an outcome, an optional deadline and active, 
 
 A note is a titled page: a root block of kind page. Journal days and the Fields page are not notes. Blocks beneath the title are its content; there is no separate note record or copy. They keep their own behavior, so a note can hold tasks, cards, questions and positions.
 
+Read, Outline and Compare are projections of that same document. Opening a projection creates nothing. Projection choices, folds and reading disclosures are device-local view state, not note content.
+
 ### Kinds
 
 A kind says what a note is about. These are built in:

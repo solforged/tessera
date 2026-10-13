@@ -1455,6 +1455,14 @@ export class Document implements PageDocument {
           caret = { id, offset: Math.max(0, Math.min(value.length, offset)) };
           break;
         }
+        case 'addReading': {
+          if (edit.after && this.outline.parentOf(edit.after) !== edit.parentId) throw new Error('The destination sibling no longer exists.');
+          const id = insert(edit.parentId, edit.after, `[[${edit.holderId}]]`);
+          actions.push({ kind: 'position', id, value: true, previous: false, baseRevision: 0 });
+          const entry = insert(id, null, `[[${edit.gistFieldId}]]`);
+          caret = { id: insert(entry, null, ''), offset: 0 };
+          break;
+        }
         case 'addFieldEntries': {
           if (!edit.entries.length) throw new Error('Choose a field.');
           if (edit.after && this.outline.parentOf(edit.after) !== edit.parentId) throw new Error('The destination sibling no longer exists.');
