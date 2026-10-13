@@ -37,6 +37,11 @@
 .index-queue-group:last-child { margin-bottom: 0; }
 .index-queue-row { display: flex; align-items: center; gap: var(--space-8); padding: var(--space-8) 0 var(--space-8) var(--space-12); border-bottom: var(--rule-width) solid var(--line); border-left: calc(2 * var(--rule-width)) solid transparent; }
 .index-queue-row.selected { border-left-color: var(--accent); background: var(--selection); }
+.index-queue-row.filing-selected { background: var(--selection); }
+.index-queue-check { flex: none; width: var(--space-16); height: var(--space-16); margin: 0; opacity: 0; accent-color: var(--accent); cursor: pointer; }
+.index-queue-row:hover .index-queue-check, .index-queue-row:focus-within .index-queue-check, .index-queue-check:checked { opacity: 1; }
+.index-filing-selection, .index-filing-status { display: flex; align-items: center; gap: var(--space-8); margin-bottom: var(--space-16); font: var(--apparatus); color: var(--muted); }
+.index-filing-selection > span { margin-right: auto; }
 .index-queue-note { flex: 1; min-width: 0; padding: 0; border: 0; background: none; color: var(--text); text-align: left; cursor: pointer; }
 .index-queue-actions { display: flex; align-items: center; flex: none; gap: var(--space-4); }
 .index-file.button { color: var(--accent); }
@@ -50,10 +55,11 @@
 .index-incoming { margin-top: var(--space-24); padding-top: var(--space-8); border-top: var(--rule-width) solid var(--line); }
 .index-incoming > .button { display: block; max-width: 100%; text-align: left; white-space: normal; }
 .index-action-header { padding: var(--space-8); border-bottom: var(--rule-width) solid var(--line); }
-.index-filing-popup { display: flex; flex-direction: column; }
-.index-filing-head { order: -1; padding: 0 var(--space-8) var(--space-8); }
-.index-filing-popup .picker-list { min-height: 0; }
-.index-filing-popup .popup-actions { padding: var(--space-8); border-top: var(--rule-width) solid var(--line); }
+.index-filing-popup { display: flex; flex-direction: column; --filing-row-height: var(--row-height); }
+.index-filing-head { order: -1; flex: none; padding: 0 var(--space-8) var(--space-8); }
+.index-filing-head h2 { max-height: calc(3 * var(--line-h1)); overflow: auto; overflow-wrap: anywhere; }
+.index-filing-popup .picker-query { flex: none; }
+.index-filing-popup .picker-list { min-height: calc(var(--filing-visible-rows) * var(--filing-row-height) + 2 * var(--space-4)); }
 /* A bibliography, with no shelf or reading-progress apparatus. */
 .index-source-row { display: grid; grid-template-columns: var(--siglum-width) minmax(0, 1fr); gap: var(--space-16); padding: var(--space-24) 0; border-bottom: var(--rule-width) solid var(--line); }
 .index-source-siglum { padding-top: var(--space-4); color: var(--accent); font: var(--apparatus); }
@@ -94,6 +100,7 @@
   .index-letters > .button, .index-queue-note { min-height: calc(var(--space-32) + var(--space-12)); }
   .index-letters > .button { min-width: var(--target-size); }
   .index-queue-actions .button, .index-inspector-actions .button { min-height: calc(var(--space-32) + var(--space-12)); }
+  .index-queue-check { opacity: 1; }
 }
 /* New note: a rubric, the title in the page-title voice on a hairline, an optional gist in the gloss voice, then similar pages to file instead. */
 .new-kind-popup { padding: var(--space-16); }
@@ -136,6 +143,7 @@
   .index-source-title { font-size: var(--text-h2); line-height: var(--line-h2); }
   .index-note-popup, .menu:has(.index-action-header) { top: auto !important; left: var(--space-4) !important; right: var(--space-4); bottom: calc(var(--bottom-nav-height, 56px) + var(--bottom-inset)); width: auto !important; max-width: none; max-height: calc(85dvh - var(--bottom-nav-height, 56px) - var(--bottom-inset)) !important; padding: var(--space-16); }
   .index-note-popup .input { width: 100%; }
+  .index-filing-popup { --filing-row-height: calc(var(--space-32) + var(--space-12)); }
   .menu:has(.index-action-header) .menu-item, .index-filing-popup .picker-row { min-height: calc(var(--space-32) + var(--space-12)); }
   body:has(.app.keyboard-open) .index-note-popup { bottom: var(--bottom-inset); }
 }

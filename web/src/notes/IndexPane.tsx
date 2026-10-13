@@ -33,7 +33,8 @@ interface IndexPaneProps {
   onSpread?: (noteIds: string[], beside: boolean) => void;
 }
 
-type NotePopup = { kind: 'menu' | 'file' | 'rename' | 'merge' | 'delete'; note: NoteEntry; anchor: HTMLElement };
+type NotePopup = { kind: 'menu' | 'file' | 'rename' | 'merge' | 'delete'; note: NoteEntry; notes?: NoteEntry[]; anchor: HTMLElement };
+interface FiledNotes { count: number; undo(): Promise<void> }
 const cover = () => window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches;
 const beside = (event: MouseEvent) => event.shiftKey || window.matchMedia('(pointer: coarse) and (min-width: 900px)').matches;
 const tally = (count: number, noun: string) => `${count} ${noun}${count === 1 ? '' : 's'}`;
@@ -86,10 +87,14 @@ function KindIndexPane(props: IndexPaneProps) {
   const [letter, setLetter] = createSignal('');
   const [filter, setFilter] = createSignal<'all' | 'text' | 'blank'>('all');
   const [selected, setSelected] = createSignal<string>();
+  const [filingSelection, setFilingSelection] = createSignal<ReadonlySet<string>>(new Set());
+  let selectionAnchor: string | undefined;
+  const [filed, setFiled] = createSignal<FiledNotes>();
+  const [focusAfterFiling, setFocusAfterFiling] = createSignal<string>();
   const [popup, setPopup] = createSignal<NotePopup>();
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal('');
-  createEffect(() => { props.kindKey; setFilter('all'); setSelected(undefined); setLetter(''); setPopup(undefined); });
+  createEffect(() => { props.kindKey; setFilter('all'); setSelected(undefined); setLetter(''); setPopup(undefined); setFilingSelection(new Set<string>()); selectionAnchor = undefined; setFiled(undefined); });
   const reads = kindReads.get(props.notebook) ?? new Map<string, KindIndex>();
   kindReads.set(props.notebook, reads);
   const cached = reads.get(props.kindKey);
@@ -173,10 +178,51 @@ function KindIndexPane(props: IndexPaneProps) {
   const lookup = (id: string) => props.notebook.lookup(id);
   const preview = (note: NoteEntry) => plainText(summary(note)?.preview ?? '', lookup);
   const queue = createMemo(() => filingGroups(index.latest?.notes ?? [], index.latest?.summaries ?? {}));
+  const visibleQueue = createMemo(() => queue().filter(group => filter() === 'all' || group.key === filter()).flatMap(group => group.notes));
+  const selectedForFiling = createMemo(() => visibleQueue().filter(note => filingSelection().has(note.id)));
+  const clearFilingSelection = () => { setFilingSelection(new Set<string>()); selectionAnchor = undefined; };
+  const changeFilter = (value: 'all' | 'text' | 'blank') => { setFilter(value); setSelected(undefined); clearFilingSelection(); };
+  const selectForFiling = (note: NoteEntry, range: boolean) => {
+    const notes = visibleQueue();
+    const start = notes.findIndex(row => row.id === selectionAnchor);
+    const end = notes.findIndex(row => row.id === note.id);
+    setFilingSelection(previous => {
+      const next = new Set(previous);
+      if (range && start >= 0) for (const row of notes.slice(Math.min(start, end), Math.max(start, end) + 1)) next.add(row.id);
+      else if (next.has(note.id)) next.delete(note.id);
+      else next.add(note.id);
+      return next;
+    });
+    if (!range || start < 0) selectionAnchor = note.id;
+  };
   const selectedNote = createMemo(() => index.latest?.notes.find(note => note.id === selected()) ?? queue().find(group => filter() === 'all' || group.key === filter())?.notes[0]);
   const openNote = (note: NoteEntry, event: MouseEvent) => props.onOpen({ kind: 'page', pageId: note.id }, beside(event));
   const showPopup = (kind: NotePopup['kind'], note: NoteEntry, anchor: HTMLElement) => { setSelected(note.id); setError(''); setPopup({ kind, note, anchor }); };
   let scroll!: HTMLDivElement;
+  createEffect(() => {
+    const id = focusAfterFiling();
+    if (!id || index.loading) return;
+    const button = scroll?.querySelector<HTMLButtonElement>(`[data-note-id="${id}"] .index-file`);
+    if (button) { button.focus(); setFocusAfterFiling(undefined); }
+  });
+  const didFile = (notes: NoteEntry[], change: FiledNotes) => {
+    const ids = new Set(notes.map(note => note.id));
+    const rows = visibleQueue();
+    const at = rows.findIndex(note => ids.has(note.id));
+    const next = rows.slice(at + 1).find(note => !ids.has(note.id)) ?? rows.slice(0, at).reverse().find(note => !ids.has(note.id));
+    setPopup(undefined); clearFilingSelection(); setFiled(change);
+    setSelected(next?.id); setVersion(value => value + 1);
+    if (next) setFocusAfterFiling(next.id);
+    else scroll.focus();
+  };
+  const undoFiling = async () => {
+    const change = filed();
+    if (!change || busy()) return;
+    setBusy(true); setError('');
+    try { await change.undo(); setFiled(undefined); setVersion(value => value + 1); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
+    finally { setBusy(false); }
+  };
   onMount(() => { scroll.scrollTop = props.view.scroll; });
   const jump = (value: string) => { setLetter(value); scroll.querySelector(`[data-letter="${value}"]`)?.scrollIntoView({ block: 'start' }); };
   const scrollChanged = () => {
@@ -222,15 +268,26 @@ function KindIndexPane(props: IndexPaneProps) {
         <Switch>
           <Match when={props.kindKey === 'unfiled'}>
             <div class="index-queue-tabs mode-tabs tab-strip" data-mode-panel=".index-queue-layout" role="group" aria-label="Filing queue">
-              <Button aria-pressed={filter() === 'all'} onClick={() => { setFilter('all'); setSelected(undefined); }}>All <span class="faint">{index.latest!.notes.length}</span></Button>
-              <For each={queue()}>{group => <Button aria-pressed={filter() === group.key} onClick={() => { setFilter(group.key); setSelected(undefined); }}>{group.label} <span class="faint">{group.notes.length}</span></Button>}</For>
+              <Button aria-pressed={filter() === 'all'} onClick={() => changeFilter('all')}>All <span class="faint">{index.latest!.notes.length}</span></Button>
+              <For each={queue()}>{group => <Button aria-pressed={filter() === group.key} onClick={() => changeFilter(group.key)}>{group.label} <span class="faint">{group.notes.length}</span></Button>}</For>
             </div>
+            <Show when={filed()}>{change => <div class="index-filing-status" role="status"><span>Filed {tally(change().count, 'note')}.</span><Button disabled={busy()} onClick={() => void undoFiling()}>Undo</Button></div>}</Show>
+            <Show when={error()}><p class="error" role="alert">{error()}</p></Show>
             <Show when={index.latest!.notes.length} fallback={<p class="empty-state">No unfiled notes.</p>}>
               <div class="index-queue-layout"><div class="index-queue-list">
+                <Show when={selectedForFiling().length}><div class="index-filing-selection" role="group" aria-label="Selected notes">
+                  <span>{selectedForFiling().length} selected</span>
+                  <Button class="bordered" onClick={event => { const notes = selectedForFiling(); setError(''); setPopup({ kind: 'file', note: notes[0]!, notes, anchor: event.currentTarget }); }}>File…</Button>
+                  <Button onClick={clearFilingSelection}>Clear</Button>
+                </div></Show>
                 <For each={queue().filter(group => group.notes.length && (filter() === 'all' || group.key === filter()))}>{group => <section class="index-queue-group" aria-label={group.label}>
                   <h2>{group.label}<span class="section-rule" /><span class="faint">{group.notes.length}</span></h2>
-                  <For each={group.notes}>{note => <div class="index-queue-row" classList={{ selected: selectedNote()?.id === note.id }}>
-                    <button class="index-queue-note" type="button" aria-pressed={selectedNote()?.id === note.id} onClick={event => { setSelected(note.id); if (cover()) openNote(note, event); }}>
+                  <For each={group.notes}>{note => <div class="index-queue-row" data-note-id={note.id} classList={{ selected: selectedNote()?.id === note.id, 'filing-selected': filingSelection().has(note.id) }} onClick={event => {
+                    if (!(event.metaKey || event.ctrlKey || event.shiftKey) || (event.target instanceof Element && event.target.closest('.index-queue-actions, .index-queue-check'))) return;
+                    event.preventDefault(); selectForFiling(note, event.shiftKey);
+                  }}>
+                    <input class="index-queue-check" type="checkbox" aria-label={`Select ${note.title}`} checked={filingSelection().has(note.id)} onClick={event => { event.stopPropagation(); selectForFiling(note, event.shiftKey); event.currentTarget.checked = filingSelection().has(note.id); }} />
+                    <button class="index-queue-note" type="button" aria-pressed={selectedNote()?.id === note.id} onClick={event => { if (event.metaKey || event.ctrlKey || event.shiftKey) return; setSelected(note.id); if (cover()) openNote(note, event); }}>
                       <span class="index-entry-title">{note.title}</span>
                       <Show when={preview(note)} fallback={<span class="index-preview index-blank-preview">{summary(note)?.referenced_from.length ? `Referenced by ${summary(note)!.referenced_from.map(page => page.title).join(' · ')}` : 'No text yet'}</span>}><span class="index-preview">{preview(note)}</span></Show>
                       <span class="index-apparatus">{apparatus(summary(note))}</span>
@@ -299,7 +356,7 @@ function KindIndexPane(props: IndexPaneProps) {
         { label: 'Delete…', danger: true, action: () => showPopup('delete', state.note, state.anchor) },
         { label: 'Cancel', action: () => setPopup(undefined) },
       ]} /></Match>
-      <Match when={state.kind === 'file'}><FilingPicker notebook={props.notebook} note={state.note} anchor={state.anchor} onDismiss={() => setPopup(undefined)} onFiled={() => { setPopup(undefined); setVersion(value => value + 1); }} /></Match>
+      <Match when={state.kind === 'file'}><FilingPicker notebook={props.notebook} notes={state.notes ?? [state.note]} anchor={state.anchor} onDismiss={() => setPopup(undefined)} onFiled={change => didFile(state.notes ?? [state.note], change)} /></Match>
       <Match when={state.kind === 'rename'}><RenameNote notebook={props.notebook} note={state.note} anchor={state.anchor} onDismiss={() => setPopup(undefined)} /></Match>
       <Match when={state.kind === 'merge'}><PageMergePicker notebook={props.notebook} from={{ id: state.note.id, text: state.note.title }} anchor={state.anchor} onDismiss={() => setPopup(undefined)} onMerged={() => { setPopup(undefined); setVersion(value => value + 1); }} /></Match>
       <Match when={state.kind === 'delete'}><Popup anchor={state.anchor} placement={cover() ? 'sheet' : 'anchor'} class="index-note-popup" label="Delete page" onDismiss={() => { if (!busy()) setPopup(undefined); }}>
@@ -427,40 +484,46 @@ function NewKindNote(props: { kind: NoteKind; mode: 'type' | 'question' | 'proje
 }
 
 interface FilingChoice { id: string; title: string; create: boolean }
-function FilingPicker(props: { notebook: NotebookClient; note: NoteEntry; anchor: HTMLElement; onDismiss(): void; onFiled(): void }) {
+function FilingPicker(props: { notebook: NotebookClient; notes: NoteEntry[]; anchor: HTMLElement; onDismiss(): void; onFiled(change: FiledNotes): void }) {
   const [query, setQuery] = createSignal('');
-  const [chosen, setChosen] = createSignal<FilingChoice>();
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal('');
   const [types] = createResource(() => props.notebook.api.types());
+  const noteIds = new Set(props.notes.map(note => note.id));
+  const heading = () => `${props.notes.slice(0, 3).map(note => note.title).join(', ')}${props.notes.length > 3 ? ` and ${props.notes.length - 3} more` : ''}`;
   const choices = createMemo(() => {
     const text = query().trim();
     const key = text.toLocaleLowerCase();
-    const result: FilingChoice[] = (types() ?? []).filter(type => type.page.id !== props.note.id && type.page.text.toLocaleLowerCase().includes(key)).map(type => ({ id: type.page.id, title: type.page.text, create: false }));
+    const result: FilingChoice[] = (types() ?? []).filter(type => !noteIds.has(type.page.id) && type.page.text.toLocaleLowerCase().includes(key)).map(type => ({ id: type.page.id, title: type.page.text, create: false }));
     if (text && !result.some(type => type.title.toLocaleLowerCase() === key)) {
       const existing = props.notebook.roots().find(page => page.kind === 'page' && page.text.toLocaleLowerCase() === key);
-      if ((!existing || existing.id !== props.note.id) && key !== 'fields') result.push({ id: existing?.id ?? 'create', title: existing?.text ?? text, create: !existing });
+      if ((!existing || !noteIds.has(existing.id)) && key !== 'fields') result.push({ id: existing?.id ?? 'create', title: existing?.text ?? text, create: !existing });
     }
     return result;
   });
-  const file = async () => {
-    const choice = chosen(); if (!choice || busy()) return;
+  const file = async (choice: FilingChoice) => {
+    if (busy() || types.error) return;
     setBusy(true); setError('');
-    const doc = props.notebook.open(props.note.id);
+    const docs = props.notes.map(note => props.notebook.open(note.id));
     try {
-      await documentReady(doc); await doc.flush();
-      const block = await props.notebook.api.block(props.note.id);
-      await props.notebook.commit(filingOperations(props.note.id, block.revision, choice.title, choice.create ? ulid() : undefined), 'File note under a type');
-      props.onFiled();
+      await Promise.all(docs.map(async doc => { await documentReady(doc); await doc.flush(); }));
+      const pages = await Promise.all(props.notes.map(note => props.notebook.api.page(note.id)));
+      const titleKey = choice.title.toLocaleLowerCase();
+      const targets = pages.filter(page => !page.root_manual_types?.some(title => title.toLocaleLowerCase() === titleKey));
+      const operations = targets.flatMap((page, index) => filingOperations(page.root.id, page.root.revision, choice.title, choice.create && index === 0 ? ulid() : undefined));
+      if (!operations.length) { props.onDismiss(); return; }
+      const receipt = await props.notebook.commit(operations, targets.length === 1 ? 'File note under a type' : 'File notes under a type');
+      const revisions = new Map(receipt.revisions.map(block => [block.id, block.revision]));
+      const inverse: Operation[] = targets.map(page => ({ op: 'remove_type', id: page.root.id, base_revision: revisions.get(page.root.id)!, title: choice.title }));
+      props.onFiled({ count: targets.length, undo: async () => { await props.notebook.commit(inverse, 'Undo filing notes'); } });
     } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
-    finally { doc.release(); setBusy(false); }
+    finally { for (const doc of docs) doc.release(); setBusy(false); }
   };
-  return <Picker<FilingChoice> anchor={props.anchor} placement={cover() ? 'sheet' : 'anchor'} class="index-note-popup index-filing-popup" label={`File ${props.note.title}`} onDismiss={() => { if (!busy()) props.onDismiss(); }}
-    query={query()} onQuery={value => { setQuery(value); setChosen(undefined); }} placeholder="Find or create a type" items={choices()} key={choice => choice.id}
-    onPick={choice => { if (!busy()) setChosen(choice); }} disabledReason={() => busy() ? 'Filing…' : undefined} busy={types.loading} error={error() || (types.error ? String(types.error) : undefined)} empty="No matching types."
-    status={<div class="index-filing-head"><p class="index-eyebrow">File a note</p><h2>{props.note.title}</h2></div>}
-    row={choice => <><Icon name={choice.create ? 'plus' : 'tag'} /><span class="picker-text">{choice.create ? `Create type “${choice.title}” and file` : choice.title}</span><Show when={chosen()?.id === choice.id}><Icon name="check" /></Show></>}
-    preview={<div class="popup-actions"><Button disabled={busy()} onClick={props.onDismiss}>Cancel</Button><Button class="bordered" disabled={!chosen() || busy() || !!types.error} onClick={() => void file()}>{busy() ? 'Filing…' : chosen()?.create ? 'Create and file' : 'File note'}</Button></div>} />;
+  return <Picker<FilingChoice> anchor={props.anchor} placement={cover() ? 'sheet' : 'anchor'} fitContent autofocus={!cover()} class="index-note-popup index-filing-popup" style={{ '--filing-visible-rows': Math.min(3, choices().length) }} label={`File ${heading()}`} onDismiss={() => { if (!busy()) props.onDismiss(); }}
+    query={query()} onQuery={setQuery} placeholder="Find or create a type" items={choices()} key={choice => choice.id}
+    onPick={choice => void file(choice)} disabledReason={() => busy() ? 'Filing…' : undefined} busy={types.loading} error={error() || (types.error ? String(types.error) : undefined)} empty="No matching types."
+    status={<div class="index-filing-head"><p class="index-eyebrow">{props.notes.length === 1 ? 'File a note' : `File ${props.notes.length} notes`}</p><h2>{heading()}</h2></div>}
+    row={choice => <><Icon name={choice.create ? 'plus' : 'tag'} /><span class="picker-text">{choice.create ? `Create type “${choice.title}” and file` : choice.title}</span></>} />;
 }
 
 function RenameNote(props: { notebook: NotebookClient; note: NoteEntry; anchor: HTMLElement; onDismiss(): void }) {

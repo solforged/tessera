@@ -6,6 +6,8 @@ import type { PopupAnchor, PopupPlacement } from './Popup';
 export interface PickerProps<T> {
   anchor: PopupAnchor;
   placement?: PopupPlacement;
+  /** Measure the natural height before placing a flex picker with an internally scrolling list. */
+  fitContent?: boolean;
   /** False leaves the query field unfocused, so a touch screen opens the list without the keyboard. */
   autofocus?: boolean;
   label: string;
@@ -107,7 +109,7 @@ export function Picker<T>(props: PickerProps<T>) {
       queueMicrotask(() => { if (input.isConnected) input.focus({ preventScroll: true }); });
     }
   };
-  return <Popup anchor={props.anchor} placement={props.placement} autofocus={props.autofocus} onDismiss={props.onDismiss} label={props.label} width={props.width ?? 560} class={`picker ${props.class ?? ''}`} style={props.style}>
+  return <Popup anchor={props.anchor} placement={props.placement} fitContent={props.fitContent} autofocus={props.autofocus} onDismiss={props.onDismiss} label={props.label} width={props.width ?? 560} class={`picker ${props.class ?? ''}`} style={props.style}>
     <div class="picker-query" onKeyDown={keydown}>
       {props.prefix}
       <input ref={input} class="picker-input" aria-label={props.label} placeholder={props.placeholder} value={props.query} onInput={event => props.onQuery(event.currentTarget.value)} />

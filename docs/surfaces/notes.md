@@ -73,7 +73,9 @@ Opening a blank note does not add stored blocks. Add a block starts writing only
 
 Each row has File and a menu containing Open, File under a type…, Rename…, Merge into… and Delete…. Desktop and unfolded layouts pair the list with a selected-note inspector and links to its referring pages. The touch cover uses a filing sheet above navigation.
 
-The shared type picker lists existing types and explicitly offers Create type “X” and file. Creation and membership are one acknowledged batch of existing operations. Rename uses the canonical page document; merge and delete retain their existing confirmations and undo rules.
+The shared one-step type picker serves row File, the inspector and bulk filing. Clicking a type or pressing Enter files immediately; Create type “X” and file creates and files in the same acknowledged batch. Escape or clicking away cancels. The list reserves at least three full rows (or all choices when fewer), scrolls internally and flips above the trigger when there is more room there. After filing, focus moves to the next remaining row's File button, or the previous row when the queue ends.
+
+Checkboxes appear at each row's left on hover or keyboard focus and stay visible when selected or on touch screens. Cmd/Ctrl-click toggles selection; Shift-click extends it in visible queue order. The selection bar shows `N selected`, `File…` and `Clear`; changing All, With text or Blank clears it. Bulk File uses `FILE N NOTES`, names up to three titles followed by `and N more`, and files every selected note in one attributed batch. The filing status offers one Undo for the whole batch, using revision checks so later edits are not overwritten; a newly created type remains available. Rename uses the canonical page document; merge and delete retain their existing confirmations and undo rules.
 
 ## Streams
 
