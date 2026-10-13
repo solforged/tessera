@@ -355,7 +355,7 @@ If another pane deletes the zoom target, the pane resolves to its nearest surviv
 
 ### Text and type pills
 
-Text is the block body. References render inline in the accent without an underline, which appears on hover; wrapped references align left. While a block is edited a reference stays one label: clicking or tapping it puts the caret at its nearer end, so the row keeps its shape and the ID never shows.
+Text is the block body. References render inline in the accent without an underline, which appears in the accent on hover; wrapped references align left. A page named by a perspective's holder or an attribute value is a name rather than a prose link: it keeps the text's colour with a `--line` hairline underline and turns gilt on hover or focus. While a block is edited a reference stays one label: clicking or tapping it puts the caret at its nearer end, so the row keeps its shape and the ID never shows.
 
 References to blocks that contain references use the same live display pipeline: the outer label reads the inner labels, not stored IDs. Quote summaries, breadcrumbs and field-kind previews use that pipeline too.
 

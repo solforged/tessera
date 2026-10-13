@@ -41,8 +41,9 @@ export function NoteRevisit(props: { id: string; notebook: NotebookClient }) {
     catch (reason) { setError(String(reason)); }
     finally { setBusy(false); }
   }
-  return <div class="note-revisit">
-    <Button disabled={busy()} aria-haspopup="menu" onClick={event => setMenu(event.currentTarget)}>{note().resolved_at ? 'Resolved' : date() ? `Revisit ${date()}` : 'Revisit'}</Button>
+  const due = () => !note().resolved_at && !!date() && date()! <= props.notebook.todayDate();
+  return <span class="note-revisit">
+    <Button disabled={busy()} aria-haspopup="menu" data-due={due() ? '' : undefined} onClick={event => setMenu(event.currentTarget)}>{note().resolved_at ? 'Resolved' : date() ? `Revisit ${date()}` : 'Revisit'}</Button>
     <Show when={changed()}><span>Changed after resolution</span></Show>
     <Show when={history()}><Button disabled={busy()} onClick={() => { void travel(); }}>{undone() ? 'Redo revisit' : 'Undo revisit'}</Button></Show>
     <Show when={error()}><span class="error" role="alert">{error()}</span></Show>
@@ -51,5 +52,5 @@ export function NoteRevisit(props: { id: string; notebook: NotebookClient }) {
       { label: note().resolved_at ? 'Reopen' : 'Resolve', action: () => { void change(note().resolved_at ? 'reopen' : 'resolve', null).catch(() => {}); } },
     ]} />}</Show>
     <Show keyed when={picker()}>{anchor => <DatePicker notebook={props.notebook} anchor={anchor} label="Set revisit date" presets="revisit" value={date()} contextDate={props.notebook.todayDate()} onDismiss={() => setPicker(undefined)} onSelect={value => change('later', value.date)} />}</Show>
-  </div>;
+  </span>;
 }

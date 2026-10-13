@@ -21,8 +21,6 @@ interface Props {
   field?: Pick<FieldDefinition, 'id' | 'name'>;
   onOpen?(target: OpenTarget, beside: boolean): void;
   onReferenceMenu?(id: string, anchor: HTMLElement): void;
-  /** An attribution may handle its holder link without changing ordinary reference navigation. */
-  onReferenceClick?(token: Token, anchor: HTMLElement): boolean;
   selection?: [number, number] | null;
   interactive?: boolean;
   highlight?: string;
@@ -124,7 +122,7 @@ function TokenText(props: Props) {
             aria-label={token.matches ? `“${token.id}” names ${token.matches.length} pages` : undefined} aria-haspopup={token.matches ? 'menu' : undefined}
             onMouseDown={event => event.stopPropagation()}
             onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); if (!event.repeat) event.currentTarget.click(); } }}
-            onClick={event => { event.stopPropagation(); if (isViewReference(token)) { const view = views()?.find(view => view.id === token.id); if (view) props.onOpen?.({ kind: 'table', typeId: view.query.type, viewId: view.id, query: view.query }, event.shiftKey); return; } if (props.onReferenceClick?.(token, event.currentTarget)) return; if (token.matches && props.blockId) { setMenu({ token, anchor: event.currentTarget }); return; } const block = token.target; if (block) props.onOpen?.({ kind: 'page', pageId: block.page_id, blockId: block.kind === 'block' ? block.id : undefined }, true); }}
+            onClick={event => { event.stopPropagation(); if (isViewReference(token)) { const view = views()?.find(view => view.id === token.id); if (view) props.onOpen?.({ kind: 'table', typeId: view.query.type, viewId: view.id, query: view.query }, event.shiftKey); return; } if (token.matches && props.blockId) { setMenu({ token, anchor: event.currentTarget }); return; } const block = token.target; if (block) props.onOpen?.({ kind: 'page', pageId: block.page_id, blockId: block.kind === 'block' ? block.id : undefined }, true); }}
             onContextMenu={event => { event.preventDefault(); event.stopPropagation(); if (isViewReference(token)) return; if (token.matches && props.blockId) setMenu({ token, anchor: event.currentTarget }); else props.onReferenceMenu?.(token.id!, event.currentTarget); }}>
             <Show when={props.field?.id === token.id}><Icon name="field" /></Show><Show when={token.target === null}><Icon name="brokenLink" /></Show>{text(token)}<Show when={token.matches}><sup>?</sup></Show>
           </span>

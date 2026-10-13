@@ -2,12 +2,13 @@ import { For, Show, createMemo, createResource } from 'solid-js';
 import type { PositionRow } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import type { OpenTarget } from '../shell/contract';
-import { pageSigla } from '../library/sigla';
+import { citedSigla } from '../library/sigla';
 import { fieldEntryId } from '../table/query';
 import { Button } from '../ui/Button';
 import { BlockText } from './BlockText';
 import { fieldRole } from '../fields/roles';
 import { IncomingRelations } from './RelationLines';
+import { citedSource } from './references';
 import './held-readings.css';
 
 interface HeldReading { row: PositionRow; gist: string | undefined; work: string; source: string | null }
@@ -36,8 +37,8 @@ export function HeldReadings(props: {
     subjects => Promise.all(subjects.map(async subject => [subject, (await props.notebook.api.positions({ subject })).rows.length] as const)));
   const countBySubject = createMemo(() => new Map(counts() ?? []));
   const [sources] = createResource(() => [...new Set(readings().map(reading => reading.source).filter(id => id !== null))],
-    ids => Promise.all(ids.map(id => props.notebook.api.source(id).then(view => view.source, () => null))));
-  const sigla = createMemo(() => pageSigla((sources() ?? []).filter(row => row !== null)));
+    ids => Promise.all(ids.map(async id => ({ id, source: await citedSource(props.notebook, id).catch(() => null) }))));
+  const sigla = createMemo(() => citedSigla(sources() ?? []));
   return <section class="held-readings" aria-label="Perspectives held">
     <Show when={fields.error}><p class="pane-error" role="alert">Couldn’t load perspective fields.</p></Show>
     <For each={groups()}>{group => <section class="held-subject">

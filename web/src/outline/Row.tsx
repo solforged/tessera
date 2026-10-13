@@ -35,7 +35,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
   | 'doc' | 'capabilities' | 'setMenu' | 'investigationItems' | 'definitionsById' | 'contextDate'
   | 'inlineFields' | 'baseDepth' | 'positionSource' | 'sourceDetails' | 'virtualizer'
   | 'hosts' | 'props' | 'folds' | 'selectedSet' | 'editing'
-  | 'coveredSet' | 'glossId' | 'margin' | 'sigla' | 'blockMenu' | 'fieldMenu' | 'openRelation'
+  | 'coveredSet' | 'glossId' | 'margin' | 'sigla' | 'blockMenu' | 'fieldMenu'
   | 'fold' | 'zoomTo' | 'editAt' | 'restoreFocus' | 'pointerStart' | 'attach'
   | 'referenceMenu' | 'selectedOffsets' | 'ids' | 'indices' | 'setMessage' | 'apply'
   | 'setConflicts' | 'conflicts' | 'editedConflicts' | 'setEditedConflicts'
@@ -140,11 +140,21 @@ export function createOutlineRows(context: Pick<OutlineContext,
         props.onOpen({ kind: 'page', pageId: target.page_id, ...(target.kind === 'block' ? { blockId: target.id } : {}) }, beside);
       } catch (reason) { setMessage(reason instanceof Error ? reason.message : String(reason)); }
     };
-    const rowSources = createMemo(() => [...new Set([
-      ...textTokens(block()?.text ?? '').filter(token => hasCitationDetail(token) && sigla().has(token.id!)).map(token => token.id!),
-      ...(block()?.citations.map(citation => citation.source_id) ?? []),
-      ...(block()?.position && positionSource(id()) ? [positionSource(id())!] : []),
-    ])].filter(source => sigla().has(source)));
+    const rowSources = createMemo(() => {
+      // A row inside a reading leaves the source mark to the reading's holder line, and no row repeats a mark.
+      const marks = new Set<string>();
+      if (!block()?.position) for (let at = parent(); at && at !== doc.pageId; at = doc.outline.parentOf(at)) {
+        if (!doc.block(at)?.position) continue;
+        const held = positionSource(at);
+        if (held && sigla().has(held)) marks.add(sigla().get(held)!);
+        break;
+      }
+      return [...new Set([
+        ...textTokens(block()?.text ?? '').filter(token => hasCitationDetail(token) && sigla().has(token.id!)).map(token => token.id!),
+        ...(block()?.citations.map(citation => citation.source_id) ?? []),
+        ...(block()?.position && positionSource(id()) ? [positionSource(id())!] : []),
+      ])].filter(source => { const mark = sigla().get(source); if (!mark || marks.has(mark)) return false; marks.add(mark); return true; });
+    });
     const localCitation = createMemo(() => doc.root()?.source ? block()?.citations.find(citation => citation.source_id === props.pageId) : undefined);
     const gist = () => inline() && fieldRole(valueField()) === 'standfirst';
     const sourceField = createMemo(() => sourceDetails().fields.get(id()) ?? sourceDetails().fields.get(parent()));
@@ -180,7 +190,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
     onMount(() => { if (!propsRow.natural) virtualizer.measureElement(row); });
     onCleanup(() => { const host = hosts.get(id()); if (host && row.contains(host)) hosts.delete(id()); });
     function StaticText() {
-      return <div class="static-text"><span classList={{ 'outline-value-pill': pill() && !!block()?.text, 'outline-reading-problem': !!valueProblem() }} title={valueProblem()}><BlockText text={displayText()} blockId={id()} onError={setMessage} cards field={field()} citationApparatus={fieldRole(valueField()) === 'citation'} notebook={props.notebook} onOpen={props.onOpen} onReferenceClick={(token, anchor) => { if (!block()?.position || token.id !== block()?.position?.holder_id || token.start !== textTokens(block()?.text ?? '').find(value => value.kind === 'reference')?.start) return false; context.openRelation(id(), 'holder', anchor); return true; }} onReferenceMenu={referenceMenu} selection={selectedOffsets(id())} /></span><Show when={!block()?.text && inline()}><button type="button" class="field-empty-value" aria-label={`Add ${valueField()?.name} value`} onMouseDown={event => event.stopPropagation()} onClick={() => editAt(id(), 0, true)} /></Show><Show when={!block()?.text && !inline() && ids().length === 1}><span class="empty-block">Start writing</span></Show></div>;
+      return <div class="static-text"><span classList={{ 'outline-value-pill': pill() && !!block()?.text, 'outline-reading-problem': !!valueProblem() }} title={valueProblem()}><BlockText text={displayText()} blockId={id()} onError={setMessage} cards field={field()} citationApparatus={fieldRole(valueField()) === 'citation'} notebook={props.notebook} onOpen={props.onOpen} onReferenceMenu={referenceMenu} selection={selectedOffsets(id())} /></span><Show when={!block()?.text && inline()}><button type="button" class="field-empty-value" aria-label={`Add ${valueField()?.name} value`} onMouseDown={event => event.stopPropagation()} onClick={() => editAt(id(), 0, true)} /></Show><Show when={!block()?.text && !inline() && ids().length === 1}><span class="empty-block">Start writing</span></Show></div>;
     }
     return <div ref={row} id={`outline-${props.pane}-${id()}`} data-index={propsRow.natural ? undefined : propsRow.item!().index} data-block-id={id()} role="treeitem" aria-level={propsRow.natural ? 1 : depth() + 1}
       aria-expanded={children() ? !folds().has(id()) : undefined} aria-selected={selectedSet().has(id())}

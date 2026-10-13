@@ -11,51 +11,79 @@
 .reading-register .outline-source { font: inherit; }
 .reading-register .row-gist .static-text, .reading-register .row-gist .editor-host { font: inherit; }
 .reading-opening { margin-bottom: var(--space-8); }
-.reading-register .field-slots { display: none; }
+/* Read edits values in place; adding fields and filling template slots stay in Outline. */
+.reading-register :is(.field-slots, .field-area-controls) { display: none; }
 .reading-opening > .outline-row { margin-bottom: var(--space-4); }
-.reading-register-actions, .reading-disclosures { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); font: var(--apparatus); color: var(--muted); }
-.reading-register-actions { margin-block: var(--space-4) var(--space-8); }
-.reading-register-actions .button, .reading-disclosures .button { font: inherit; padding: 0; min-height: var(--line-control); }
-.reading-slips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-8) var(--space-24); }
-.reading-slip { min-width: 0; border-top: var(--rule-width) solid var(--line); padding-top: var(--space-4); }
+
+/* Counts and actions are apparatus: the count faint, the actions muted until hovered. On the register they share
+   the section heading's line and wrap below it when the pane is narrow. */
+.reading-register-actions, .reading-disclosures { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-12); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); color: var(--muted); }
+.outline-heading .reading-register-actions { margin-block: var(--space-4) var(--space-8); }
+.reading-counts { color: var(--faint); }
+.reading-register-actions .button, .reading-disclosures .button { font: inherit; padding: 0; min-height: var(--line-control); color: var(--muted); }
+.reading-register-actions .button:hover:not(:disabled), .reading-disclosures .button:hover { color: var(--accent); }
+.reading-section-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-16); }
+.reading-section-head > .outline-row { flex: 0 1 auto; }
+.reading-section-head > .reading-register-actions { margin-left: auto; }
+
+/* Each reading is a slip: siglum and holder in mono, the gist as its serif headline, Work as one faint line,
+   then its disclosures with Open reading at the end. */
+.reading-slips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-24); margin-top: var(--space-8); }
+.reading-slip { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; border-top: var(--rule-width) solid var(--line); padding-top: var(--space-8); }
 .outline-pane .reading-reveal, .related-block.reading-reveal { outline: var(--rule-width) solid var(--accent); }
 .related-block.reading-reveal { outline-offset: calc(-1 * var(--rule-width)); }
-.reading-holder .outline-row { padding: 0; min-height: var(--line-control); }
-.reading-holder .outline-source { font-size: var(--text-control); line-height: var(--line-control); color: var(--muted); }
-.reading-register .reading-holder .outline-row > .row-sigla { position: static; flex-direction: row; margin-right: var(--space-8); }
+.reading-holder .outline-row { padding: 0; min-height: var(--line-control); align-items: baseline; }
+.reading-holder .outline-source { font: var(--weight-control) var(--text-control)/var(--line-control) var(--font-mono); letter-spacing: var(--tracking-apparatus); color: var(--text); }
+.reading-register .reading-holder .outline-row > .row-sigla { position: static; flex-direction: row; margin: 0 var(--space-8) 0 0; }
+.reading-register .reading-holder .row-siglum { min-width: 0; padding: 0; border: 0; background: none; color: var(--faint); font: var(--weight-control) var(--text-control)/var(--line-control) var(--font-mono); }
 .reading-holder .static-text { min-height: var(--line-control); }
 .reading-gist .outline-row { padding-block: 0; }
-.reading-gist { font-size: var(--text-quote); line-height: var(--line-quote); }
-.reading-work .outline-row { min-height: var(--line-control); padding: 0; }
-.reading-work, .reading-work .outline-source { font: var(--apparatus); color: var(--faint); }
-/* The holder line already carries the siglum, and a Work citation stays one quiet apparatus line rather than quoted prose. */
+.reading-register .reading-gist .outline-body { margin-left: 0; color: var(--text); font: var(--weight-body) var(--text-gloss)/var(--line-gloss) var(--font-display); font-variation-settings: var(--optical-reader); }
+.reading-work .outline-row { min-height: var(--line-apparatus); padding: 0; }
+.reading-register .reading-work .outline-body { margin-left: 0; }
+.reading-work, .reading-work .outline-source { font: var(--apparatus); letter-spacing: var(--tracking-apparatus); color: var(--faint); }
+/* The holder line already carries the siglum, and Work stays one quiet line rather than quoted prose. */
 .reading-register .reading-work .row-sigla { display: none; }
-.reading-register .reading-slip .reading-work .outline-row:has(.outline-citation) .outline-source .static-text { min-height: var(--line-control); font: var(--apparatus); color: var(--faint); }
-.reading-work .static-text { min-height: var(--line-control); }
+.reading-register .reading-slip .reading-work .outline-source .static-text { min-height: var(--line-apparatus); overflow: hidden; font: var(--apparatus); color: var(--faint); white-space: nowrap; text-overflow: ellipsis; }
 .reading-account { color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
-.reading-prose, .reading-facts { margin-top: var(--space-8); }
+.reading-prose, .reading-facts { margin-top: var(--space-4); }
 .reading-relations:empty { display: none; }
-.reading-disclosures { gap: var(--space-12); }
+.reading-disclosures { margin-top: auto; padding-top: var(--space-4); }
+.reading-disclosures .reading-open { margin-left: auto; }
 .reading-disclosures button[aria-expanded="true"] { color: var(--accent); }
-.reading-disagreements { margin-top: var(--space-16); }
-.reading-disagreements h2 { font: var(--weight-display-heading) var(--text-h2)/var(--line-h2) var(--font-display); margin: 0 0 var(--space-4); }
-.reading-criterion { display: flow-root; margin-top: var(--space-4); }
-.reading-criterion h3 { float: left; width: var(--space-48); color: var(--muted); font: var(--apparatus); margin: var(--space-4) 0 0; }
-.reading-disagreement { margin-left: calc(var(--space-48) + var(--space-12)); margin-bottom: var(--space-4); }
+
+/* Each criterion leads with its question, which links the criterion; the readings answer beneath in the slips' columns. */
+.reading-disagreements { margin-top: var(--section-gap); }
+.reading-disagreements h2 { font: var(--weight-display-heading) var(--text-h2)/var(--line-h2) var(--font-display); margin: 0 0 var(--space-8); }
+.reading-criterion { padding-block: var(--space-8) var(--space-12); border-top: var(--rule-width) solid var(--line); }
 .reading-disagreement .outline-row { min-height: 0; padding: 0; }
-.reading-disagreement .outline-source { font-size: var(--text-control); line-height: var(--line-control); }
 .reading-disagreement .outline-capability-metadata { display: none; }
-.reading-disagreement .static-text { min-height: var(--line-control); }
-.reading-question-holders { display: flex; flex-wrap: wrap; gap: var(--space-8); color: var(--faint); font: var(--apparatus); }
+.reading-disagreement .static-text { min-height: var(--line-body); }
+.reading-answers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4) var(--space-24); margin-top: var(--space-4); }
+.reading-answer { display: flex; align-items: baseline; gap: var(--space-8); min-width: 0; }
+.reading-answer-holder { flex: none; max-width: 40%; overflow: hidden; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); white-space: nowrap; text-overflow: ellipsis; }
+.reading-answer-value { flex: 1; min-width: 0; font: var(--weight-body) var(--text-control)/var(--line-control) var(--font-body); }
+.reading-answer-value .outline-row { min-height: 0; padding: 0; }
+.reading-register .reading-answer-value .outline-body { margin-left: 0; color: var(--text); font: inherit; }
+.reading-answer-value .static-text { min-height: var(--line-control); }
+.reading-answer-empty { color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+/* Slips and answers follow the pane's width, so a split unfolded Fold stacks them as a phone does. */
+@container outline-pane (max-width: 619px) {
+  .reading-slips, .reading-answers { grid-template-columns: minmax(0, 1fr); }
+}
+/* Where the counts and actions cannot share the heading's line they start their own, on the text edge. */
+@container outline-pane (max-width: 479px) {
+  .reading-section-head > .reading-register-actions { flex-basis: 100%; margin-left: 0; }
+}
+
 .page-projection-tabs { flex: none; margin: 0; }
 .page-projection-tabs button { padding-inline: var(--space-4); }
 .page-projection-reason { flex: none; margin: 0; padding: var(--space-4) var(--pane-inset); color: var(--muted); font: var(--apparatus); }
 .projection-compare { display: none; }
 .embedded-comparison { display: flex; flex: 1; min-height: 0; }
 .section-navigator { flex: none; height: var(--row-height); width: calc(100% - var(--pane-inset) * 2); max-width: var(--measure); margin-inline: auto; background: var(--canvas); }
-.section-navigator > button { font: var(--apparatus); color: var(--muted); padding: 0; min-height: var(--row-height); }
+.section-navigator > .button { font: var(--apparatus); color: var(--muted); padding: 0; min-height: var(--row-height); }
 @media (max-width: 599px) {
-  .reading-slips { grid-template-columns: minmax(0, 1fr); }
   .page-projection-tabs button { font-size: var(--text-meta); padding-inline: var(--space-2); }
   .pane-header:has(.page-projection-tabs) .pane-breadcrumbs { flex: 1; min-width: 0; }
   .pane-header:has(.page-projection-tabs) .pane-navigation, .pane-header:has(.page-projection-tabs) .pane-kind { display: none; }
@@ -67,7 +95,10 @@
 .reading-register .inline-field-value[data-field-role="standfirst"] .outline-body { margin-left: 0; }
 .reading-register .inline-field-value[data-field-role="prose"] .outline-body { margin-left: 0; flex-basis: 100%; }
 .reading-field-prose:empty { display: none; }
-.reading-facts .outline-row > .outline-field-label { display: none !important; }
+:is(.reading-facts, .reading-answer-value) .outline-row > .outline-field-label { display: none !important; }
 @media (pointer: coarse) {
   .reading-register-actions .button, .reading-disclosures .button { min-height: var(--target-size); }
+  .reading-disclosures { padding-top: 0; }
+  /* The holder name sits on an 18 px line; padding widens its touch target without moving the text. */
+  .reading-holder .outline-reference { padding-block: var(--space-8); }
 }

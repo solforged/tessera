@@ -49,3 +49,10 @@ export function pageSigla(sources: readonly SiglumSource[]): Map<string, string>
   }
   return result;
 }
+
+/** Page sigla also keyed by each cited reference, so a highlight named as a Work carries its source's mark. */
+export function citedSigla(cited: readonly { id: string; source: SiglumSource | null }[]): Map<string, string> {
+  const marks = pageSigla(cited.flatMap(row => row.source ? [row.source] : []));
+  for (const row of cited) if (row.source && row.id !== row.source.block_id) marks.set(row.id, marks.get(row.source.block_id)!);
+  return marks;
+}

@@ -5,7 +5,8 @@ import { ShapeGlyph } from '../compare/ShapeGlyph';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import type { OpenTarget, PaneId } from '../shell/contract';
 import { isStableReference, textTokens } from '../document/text-tokens';
-import { pageSigla } from '../library/sigla';
+import { citedSigla } from '../library/sigla';
+import { citedSource } from './references';
 import { loadWorks } from '../library/PersonWorks';
 import { fieldEntryId, matchFieldEntry } from '../table/query';
 import { Button } from '../ui/Button';
@@ -495,11 +496,8 @@ function PinnedReadings(props: {
   const [siglumRecords] = createResource(() => {
     const ids = [...new Set(readings().map(reading => reading.source).filter(id => id !== null))];
     return ids.length ? ids : false;
-  }, ids => Promise.all(ids.map(id => props.notebook.api.source(id).then(
-    view => view.source,
-    () => null,
-  ))));
-  const sigla = createMemo(() => pageSigla((siglumRecords.error ? [] : siglumRecords() ?? []).filter(record => record !== null)));
+  }, ids => Promise.all(ids.map(async id => ({ id, source: await citedSource(props.notebook, id).catch(() => null) }))));
+  const sigla = createMemo(() => citedSigla(siglumRecords.error ? [] : siglumRecords() ?? []));
 
   return <section class="reference-preview-readings" aria-label="Perspectives">
     <div class="reference-preview-section-heading"><span>Perspectives</span><span class="reference-preview-rule" /><span>{props.rows.length}</span></div>

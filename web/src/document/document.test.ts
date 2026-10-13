@@ -721,12 +721,13 @@ describe('real notebook operations and recovery', () => {
     const result = await api.positions({ subject: id });
     const project = () => readingRegister(doc, fieldId => fieldId === criterion ? { id: criterion, name: 'Reading criterion', kind: 'text', revision: 1, options: [], targets: [] } : undefined, result.questions);
     const projected = project();
-    expect(projected.disagreements).toEqual([{ criterion, questions: [{ id: scoped, holders: [holder] }] }]);
+    const [criterionEntry] = doc.outline.children(reading);
+    expect(projected.disagreements).toEqual([{ criterion, questions: [{ id: scoped, holders: [holder] }], answers: [{ slipId: reading, entryId: criterionEntry! }] }]);
     expect(projected.remaining).toContain(unscoped);
     expect(projected.remaining).toContain(heading);
     success(doc.edit({ kind: 'delete', ids: [unscoped] }));
     expect(project().remaining).not.toContain(heading);
-    expect(projected.slips[0]?.facts.map(field => field.entryId)).toEqual([...doc.outline.children(reading)]);
+    expect(projected.slips[0]?.facts).toEqual([]);
     definitions.release(); doc.release();
   });
 

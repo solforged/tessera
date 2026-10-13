@@ -13,6 +13,16 @@
 .revisit-action-bar { padding: var(--space-12) var(--pane-inset); border-bottom: var(--rule-width) solid var(--line); }
 .revisit-outline { flex: 1; min-height: calc(var(--space-48) * 6); }
 .revisit-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-12); }
+/* In a note's apparatus line Revisit is one more mono item: muted, gilt on hover and once its date is due. */
+.note-line .note-revisit { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-8); }
+/* The line's `·` separator is this flex row's first item, so the row's gap already spaces it. */
+.note-line .note-revisit::before { margin-right: 0; }
+.note-line .note-revisit > .button { min-height: 0; padding: 0; border: 0; background: none; color: var(--muted); font: inherit; letter-spacing: inherit; }
+.note-line .note-revisit > .button:is(:hover, [data-due]) { color: var(--accent); background: none; }
+@media (pointer: coarse) {
+  .note-line { align-items: center; }
+  .note-line .note-revisit > .button { min-height: var(--target-size); }
+}
 .research-revisits { margin-bottom: var(--section-gap); }
 .research-revisits > header { display: flex; align-items: baseline; gap: var(--space-12); color: var(--muted); font: var(--apparatus); }
 .research-revisits h2 { font: inherit; }

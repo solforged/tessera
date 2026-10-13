@@ -127,7 +127,7 @@ A note at its top level shows its kinds above the title in rubric mono capitals,
 
 The title wraps within its available header width, including unbroken names and URLs, without overlapping the header actions.
 
-A note with aliases shows them under the title: `ALSO` in faint mono, then the aliases in italic Piazzolla at the quote size, separated by faint dots. Then one mono line reads the last ten characters of the note's ID, lower-cased, with the full ID as its tooltip, then `Created 2026-10-06` in the notebook's time zone. The gloss follows as the first row.
+A note with aliases shows them under the title: `ALSO` in faint mono, then the aliases in italic Piazzolla at the quote size, separated by faint dots. Then one mono line reads the last ten characters of the note's ID, lower-cased, with the full ID as its tooltip, then `Created 2026-10-06` in the notebook's time zone, then Revisit. Revisit is muted, reads `Revisit 2026-11-12` once a date is set and turns gilt when that date is due; a resolved note reads Resolved. The gloss follows as the first row.
 
 Unfiled notes show no kinds. Sources keep their own header; journal days and the Fields page have none.
 

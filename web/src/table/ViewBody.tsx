@@ -5,7 +5,8 @@ import type { NotebookClient, PageDocument } from '../document/contract';
 import type { OpenTarget } from '../shell/contract';
 import { CriteriaMatrix } from '../compare/CriteriaMatrix';
 import { fieldRole } from '../fields/roles';
-import { pageSigla } from '../library/sigla';
+import { citedSigla } from '../library/sigla';
+import { citedSource } from '../outline/references';
 import { BlockText } from '../outline/BlockText';
 import { positionRelations, positionSource } from '../outline/perspectives';
 import { OutgoingRelations } from '../outline/RelationLines';
@@ -78,8 +79,8 @@ export function ViewBody(props: ViewBodyProps) {
     return { id: row.block.block.id, source: doc?.status() === 'ready' ? positionSource(doc, row.block.block.id, id => definition(id)?.name) : fieldEntryId(row.fields.find(field => definition(field.field_id)?.name.trim().toLowerCase() === 'work')?.values[0]?.text ?? '') };
   }));
   const [sourceRecords] = createResource(() => [...new Set(sources().flatMap(row => row.source ? [row.source] : []))].sort().join(',') || false,
-    ids => Promise.all(ids.split(',').map(id => props.notebook.api.source(id).then(view => view.source, () => null))));
-  const sigla = createMemo(() => pageSigla((sourceRecords() ?? []).filter(record => record !== null)));
+    ids => Promise.all(ids.split(',').map(async id => ({ id, source: await citedSource(props.notebook, id).catch(() => null) }))));
+  const sigla = createMemo(() => citedSigla(sourceRecords() ?? []));
   function edited(doc: PageDocument) {
     history.push(doc); undone.length = 0;
     props.onEdited?.(doc);

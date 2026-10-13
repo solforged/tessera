@@ -2,7 +2,8 @@ import { For, Show, createEffect, createMemo, createResource, createSignal, onCl
 import { api } from '../api/client';
 import type { PositionRow } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
-import { pageSigla } from '../library/sigla';
+import { citedSigla } from '../library/sigla';
+import { citedSource } from '../outline/references';
 import { BlockText } from '../outline/BlockText';
 import { fieldRole } from '../fields/roles';
 import { positionFields, positionRelations, positionSource, readingPassages } from '../outline/perspectives';
@@ -106,8 +107,8 @@ export function ComparePane(props: ComparePaneProps) {
   }
   const questions = createMemo(() => (result()?.questions ?? []).filter(question => tab() === 'readings' || !question.criterion));
   const [siglumRecords] = createResource(() => { const ids = [...new Set(perspectives().map(item => item.source).filter(id => id !== null))]; return ids.length ? ids : false; },
-    ids => Promise.all(ids.map(id => api.source(id).then(view => view.source, () => null))));
-  const sigla = createMemo(() => pageSigla((siglumRecords.error ? [] : siglumRecords() ?? []).filter(record => record !== null)));
+    ids => Promise.all(ids.map(async id => ({ id, source: await citedSource(props.notebook, id).catch(() => null) }))));
+  const sigla = createMemo(() => citedSigla(siglumRecords.error ? [] : siglumRecords() ?? []));
   const subject = () => props.notebook.lookup(props.subjectId)();
   const holder = (perspective: Perspective) => perspective.row.holder_id ? props.notebook.lookup(perspective.row.holder_id)()?.text ?? 'Loading holder…' : 'Unattributed';
   const open = (pageId: string, blockId: string | null, beside: boolean) => props.onOpen({ kind: 'page', pageId, ...(blockId ? { blockId } : {}) }, beside);

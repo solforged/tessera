@@ -6,9 +6,11 @@
 .held-compare.button { flex: none; font: var(--apparatus); color: var(--accent); padding: 0; }
 .held-reading { padding-block: var(--space-12); border-bottom: var(--rule-width) solid var(--line); }
 .held-reading-open.button { display: grid; grid-template-columns: var(--siglum-width) minmax(0, 1fr); gap: var(--space-4) var(--space-12); width: 100%; padding: 0; text-align: left; white-space: normal; align-items: baseline; }
-.held-reading-title { grid-column: 2; font: var(--weight-body) var(--text-gloss)/var(--line-gloss) var(--font-body); color: var(--text); }
+.held-reading-title { grid-column: 2; font: var(--weight-body) var(--text-gloss)/var(--line-gloss) var(--font-display); font-variation-settings: var(--optical-reader); color: var(--text); }
 .held-siglum { grid-column: 1; grid-row: 1; color: var(--faint); font: var(--apparatus); }
-.held-work { grid-column: 2; color: var(--muted); font: var(--apparatus); }
+/* As on a reading slip, Work is one faint line under the gist rather than a gilt link. */
+.held-work { grid-column: 2; color: var(--faint); font: var(--apparatus); }
+.held-work .outline-reference { color: inherit; }
 .held-reading .incoming-relations { margin-left: calc(var(--siglum-width) + var(--space-12)); }
 .outline-row:has(> .held-readings) { flex-wrap: wrap; }
 .outline-row > .held-readings { flex-basis: 100%; max-width: none; margin-top: 0; padding-left: calc(var(--gutter) + var(--target-size)); }

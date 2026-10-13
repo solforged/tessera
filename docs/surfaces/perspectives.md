@@ -14,17 +14,19 @@ Question pages and pages holding active perspectives about themselves or their i
 
 Read puts the title, Gloss and opening on one text edge. Piazzolla remains the prose voice while editing, so entering the editor never changes the measure or the rows below it. Links, completion and undo use the same editor as Outline. Structural edits return to Outline with the caret at the edited block.
 
-Perspectives begins with the perspective and holder counts, Compare and Add perspective. Each slip shows the source siglum, holder, standfirst fields and Work. Account has its own quiet label, followed by authored argument relations. Prose-role fields take the full measure; authored non-field prose opens in place. Attributes and citation fields open under Facts. Neither disclosure writes to the notebook.
+Perspectives puts the perspective and holder counts, Compare and Add perspective on the section heading's line, in mono: the counts faint, the actions muted until hovered. A pane narrower than 480 px moves them to their own line at the text edge. Each slip leads with the source siglum and holder in mono, then its standfirst as a Piazzolla headline at the gloss size and Work as one faint mono line that truncates. Account has its own quiet label, followed by authored argument relations. Prose-role fields take the full measure; authored non-field prose opens in place. Attributes and citation fields open under Facts, except criteria asked about under Where they disagree. Neither disclosure writes to the notebook. Open perspective ends the slip's last line.
+
+Slips sit in two columns when the pane is at least 620 px wide and stack otherwise, so a split unfolded Fold reads like a phone. A stored Work that points at a highlight takes its source's siglum.
 
 The counts line appears on question pages and pages with active perspectives about themselves or their inline questions. Other notes keep Add perspective in Commands. A person's perspectives held elsewhere have their own list; they do not make the page a reading subject.
 
 Outside perspective slips, fields use the same presentation roles as Outline: standfirst sentences, an aligned attribute and citation bed, then full-width prose. A source's catalog fields stay in its source card, so Read never repeats them as loose values.
 
-Open perspective on each slip zooms into that perspective's dossier. Shift opens the perspective beside the page. The Gist stays editable in place.
+Open perspective on each slip zooms into that perspective's dossier. Shift opens the perspective beside the page. The Gist and criterion answers stay editable in place; adding fields and filling template slots stay in Outline.
 
-On coarse pointers, Compare, Add perspective, Prose, Facts and Open perspective have the shared pointer-target height.
+On coarse pointers, Compare, Add perspective, Prose, Facts and Open perspective have the shared pointer-target height, and the holder link's touch target extends above and below its line.
 
-Where they disagree appears only when stored questions name criteria. Each criterion groups its questions and named holders; an unscoped question says All holders. Questions without a criterion stay in their authored place. No differences between field values are turned into questions.
+Where they disagree appears only when stored questions name criteria. Each criterion leads with its questions, which link the criterion, then each perspective's answer: its siglum (or holder name when it has none) and its value for that criterion, in the slips' columns. Questions that all name holders show only those holders' answers; otherwise every perspective answers. A perspective without a value reads Not stated. Questions without a criterion stay in their authored place. No differences between field values are turned into questions.
 
 Compare switches the same pane to the existing perspective sheet and criteria matrix. Fewer than two perspectives leave Compare unavailable, with the reason visible in the register.
 
@@ -45,15 +47,15 @@ Long Read and Outline pages keep a quiet section line at the top of the scroller
 
 Make perspective, in the block menu, the palette and `/perspective`, turns a block such as `[[Plato]]` into a perspective; Remove perspective undoes it. Internally the capability is still called a position.
 
-Its row names the holder at control weight. The holder link is in `--text` with no underline; hover turns it gilt and underlines it. Its source's siglum hangs in the margin. A standfirst field drops its label and reads as the sentence under the holder, so the pair reads "Plato / A line of decline". At the Perspectives depth each perspective closes to its holder and standfirst.
+Its row names the holder at control weight. The holder link keeps the text colour with a `--line` hairline underline; hover or focus turns both gilt. Attribute values that name pages, such as Work, read the same way, while links in prose stay gilt. Its source's siglum hangs in the margin; rows inside the perspective do not repeat it. A standfirst field drops its label and reads as the sentence under the holder, so the pair reads "Plato / A line of decline". At the Perspectives depth each perspective closes to its holder and standfirst.
 
-Change holder and File under are in the block menu, palette and slash menu. Clicking the holder link in its outline attribution opens Change holder. Its picker lists People and Groups, including their refined types, before other pages. File under lists page and inline questions and concepts first. The pickers write ordinary link tokens and preserve the prose.
+Clicking the holder link opens the holder's page beside, like any reference, in Read and Outline. Change holder and File under are in the block menu, palette and slash menu. Its picker lists People and Groups, including their refined types, before other pages. File under lists page and inline questions and concepts first. The pickers write ordinary link tokens and preserve the prose.
 
 Use place, in the same menus, returns to the nearest ancestor question or the page. It removes the subject only when that link is a standalone token immediately after the holder. Otherwise the action shows why the author must edit the prose. Each change has one undo step; the palette names the selected perspective.
 
 ### Holder and subject pages
 
-A holder's page opens into its perspectives grouped by subject, with a Compare action when that subject has two or more perspectives. Each row leads with the Gist, then Work and the source siglum; the holder's own name does not repeat. The register follows the opening, before the first heading, or leads when the holder has no rows. It replaces Perspectives held.
+A holder's page opens into its perspectives grouped by subject, with a Compare action when that subject has two or more perspectives. Each row leads with the source siglum and the Gist in Piazzolla, then Work as a faint mono line; the holder's own name does not repeat. The register follows the opening, before the first heading, or leads when the holder has no rows. It replaces Perspectives held.
 
 Clicking a perspective opens it zoomed on its source page. Shift-click opens it beside. A subject's page still lists Perspectives filed elsewhere above its backlinks; neither list repeats under Backlinks.
 

@@ -7,6 +7,9 @@ import { isCatalogueField } from '../library/details';
 import { fieldBedRows, fieldRole } from '../fields/roles';
 export interface ReadingField { name: string; entryId: string }
 export interface ReadingQuestion { id: string; holders: string[] }
+/** One reading's value for a criterion; `entryId` is null when the reading leaves it unstated. */
+export interface ReadingAnswer { slipId: string; entryId: string | null }
+export interface ReadingDisagreement { criterion: string; questions: ReadingQuestion[]; answers: ReadingAnswer[] }
 
 export interface ReadingSlip {
   id: string;
@@ -19,7 +22,7 @@ export interface ReadingSlip {
   passages: string[];
   relations: string[];
 }
-export interface ReadingRegister { opening: string[]; remaining: string[]; sectionId: string | null; slips: ReadingSlip[]; disagreements: { criterion: string; questions: ReadingQuestion[] }[] }
+export interface ReadingRegister { opening: string[]; remaining: string[]; sectionId: string | null; slips: ReadingSlip[]; disagreements: ReadingDisagreement[] }
 
 /** Project identities only; authored text and capabilities remain in the shared document. */
 export function readingRegister(doc: PageDocument, definition: (id: string) => FieldDefinition | undefined, questions: readonly PositionQuestion[]): ReadingRegister {
@@ -28,6 +31,7 @@ export function readingRegister(doc: PageDocument, definition: (id: string) => F
   const slips: ReadingSlip[] = [];
   const omitted = new Set<string>();
   const disagreements = new Map<string, ReadingQuestion[]>();
+  const criterionEntries = new Map<string, Map<string, string>>();
   const omitSubtree = (id: string) => {
     const start = doc.outline.indexOf(id);
     if (start < 0) return;
@@ -45,7 +49,9 @@ export function readingRegister(doc: PageDocument, definition: (id: string) => F
     const named = (name: string) => fields.filter(field => field.name.trim().toLowerCase() === name).map(({ name, entryId }) => ({ name, entryId }));
     const gist = fields.filter(field => fieldRole(definition(field.fieldId)) === 'standfirst');
     const prose = fields.filter(field => fieldRole(definition(field.fieldId)) === 'prose');
-    const facts = fields.filter(field => !['standfirst', 'prose'].includes(fieldRole(definition(field.fieldId))) && !['work', 'account'].includes(field.name.trim().toLowerCase()));
+    // A criterion asked about under Where they disagree shows there, beside the other readings' answers, not under Facts.
+    const facts = fields.filter(field => !['standfirst', 'prose'].includes(fieldRole(definition(field.fieldId))) && !['work', 'account'].includes(field.name.trim().toLowerCase()) && !disagreements.has(field.fieldId));
+    criterionEntries.set(id, new Map(fields.filter(field => disagreements.has(field.fieldId)).reverse().map(field => [field.fieldId, field.entryId])));
     slips.push({
       id, holderId: block.position.holder_id,
       gist: gist.map(({ name, entryId }) => ({ name, entryId })),
@@ -86,12 +92,23 @@ export function readingRegister(doc: PageDocument, definition: (id: string) => F
   }
   const ordered = fieldBedRows(doc, ordinary, { get: definition }, doc.pageId);
   const boundary = sectionId ? ordered.indexOf(sectionId) : slips.length ? ordered.findIndex(id => doc.outline.indexOf(id) > doc.outline.indexOf(slips[0]!.id)) : -1;
-  return { opening: boundary < 0 ? ordered : ordered.slice(0, boundary), remaining: boundary < 0 ? [] : ordered.slice(boundary).filter(id => id !== sectionId), sectionId, slips, disagreements: [...disagreements].map(([criterion, questions]) => ({ criterion, questions })) };
+  const groups = [...disagreements].map(([criterion, questions]): ReadingDisagreement => {
+    // Questions naming holders scope the answers to them; any unscoped question asks every holder.
+    const scope = questions.every(question => question.holders.length) ? new Set(questions.flatMap(question => question.holders)) : null;
+    const answers = slips.filter(slip => !scope || slip.holderId !== null && scope.has(slip.holderId)).map(slip => ({ slipId: slip.id, entryId: criterionEntries.get(slip.id)?.get(criterion) ?? null }));
+    return { criterion, questions, answers };
+  });
+  return { opening: boundary < 0 ? ordered : ordered.slice(0, boundary), remaining: boundary < 0 ? [] : ordered.slice(boundary).filter(id => id !== sectionId), sectionId, slips, disagreements: groups };
 }
 
 export function readingSlipRows(doc: PageDocument, slip: ReadingSlip, disclosures: ReadonlySet<string>): string[] {
   const values = (fields: ReadingField[]) => fields.flatMap(field => doc.outline.children(field.entryId).filter(id => !doc.isArchived(id)));
   return [slip.id, ...values(slip.gist), ...values(slip.work), ...values(slip.account), ...values(slip.prose), ...slip.relations, ...(disclosures.has(`${slip.id}:prose`) ? slip.passages : []), ...(disclosures.has(`${slip.id}:facts`) ? values(slip.facts) : [])];
+}
+
+/** Rows of a disagreement in reading order: its questions, then each answer's values. */
+export function readingDisagreementRows(doc: PageDocument, group: ReadingDisagreement): string[] {
+  return [...group.questions.map(question => question.id), ...group.answers.flatMap(answer => answer.entryId ? doc.outline.children(answer.entryId).filter(id => !doc.isArchived(id)) : [])];
 }
 
 export function readingCounts(slips: readonly ReadingSlip[]): string {

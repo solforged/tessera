@@ -99,7 +99,7 @@
 /* Internal links read by colour alone; the underline appears only on hover. */
 .outline-reference { display: inline; font: inherit; color: var(--accent); border: 0; padding: 0; background: transparent; text-align: left; text-decoration: underline; text-decoration-thickness: var(--rule-width); text-underline-offset: var(--space-4); text-decoration-color: transparent; transition: text-decoration-color var(--motion-fast) var(--motion-ease); cursor: pointer; }
 .outline-reference[role="button"] { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
-.outline-reference:hover { text-decoration-color: var(--danger); }
+.outline-reference:is(:hover, :focus-visible) { text-decoration-color: currentColor; }
 .outline-reference.outline-citation { color: var(--text); text-decoration-style: dotted; text-decoration-color: var(--line); }
 .outline-reference.outline-citation:hover { color: var(--accent); text-decoration-color: var(--accent); }
 .reference-locator { color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
@@ -137,10 +137,12 @@
   [data-page-style="prose"] .outline-pane[data-projection="outline"] .outline-row::before { left: 0; }
   [data-page-style="prose"] .outline-pane[data-projection="outline"] :is(.row-gloss, .row-gist, .inline-field-value[data-field-role="standfirst"]) > .outline-body { flex-basis: 100%; margin-left: 0; }
 }
-/* A perspective names its holder at control weight; the holder link reads as ink until hovered. */
+/* A perspective names its holder at control weight. */
 .row-position > .outline-body .static-text { font-weight: var(--weight-control); }
-.row-position > .outline-body .outline-reference { color: var(--text); }
-.row-position > .outline-body .outline-reference:hover { color: var(--accent); text-decoration-color: var(--accent); }
+/* A page named by an attribution or an attribute value is a name, not a prose link: it keeps the text's colour
+   with a hairline underline and turns gilt on hover or focus. */
+:is(.row-position, .inline-field-value[data-field-role="attribute"]) > .outline-body .outline-reference:not(.outline-reference-ambiguous, .outline-citation) { color: inherit; text-decoration-color: var(--line); }
+:is(.row-position, .inline-field-value[data-field-role="attribute"]) > .outline-body .outline-reference:not(.outline-reference-ambiguous, .outline-citation):is(:hover, :focus-visible) { color: var(--accent); text-decoration-color: var(--accent); }
 /* Its gist follows on its own line, unlabelled, so the pair reads "Plato / A line of decline". */
 .row-gist .outline-field-label { display: none; }
 .row-gist .outline-body { margin-left: var(--target-size); }

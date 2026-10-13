@@ -3,7 +3,7 @@ import type { JSX } from 'solid-js';
 import { Menu } from '../ui/Menu';
 import type { NotebookClient } from '../document/contract';
 import type { OpenTarget } from '../shell/contract';
-import type { SourceRecord } from '../api/types';
+import type { BlockCapabilities, SourceRecord } from '../api/types';
 import { ApiError } from '../api/client';
 import { isStableReference, textTokens } from '../document/text-tokens';
 import type { Token } from '../document/text-tokens';
@@ -13,24 +13,36 @@ export function hasCitationDetail(token: Token): boolean {
   return isStableReference(token) && !!(token.alias || token.locator);
 }
 
-const sourceRecords = new WeakMap<NotebookClient, { sequence: number; records: Map<string, Promise<SourceRecord | null>> }>();
-export function referenceSource(notebook: NotebookClient, id: string): Promise<SourceRecord | null> {
+const capabilityReads = new WeakMap<NotebookClient, { sequence: number; reads: Map<string, Promise<BlockCapabilities | null>> }>();
+function capabilityRead(notebook: NotebookClient, id: string): Promise<BlockCapabilities | null> {
   const sequence = notebook.changeSequence();
-  let cache = sourceRecords.get(notebook);
+  let cache = capabilityReads.get(notebook);
   if (!cache || cache.sequence !== sequence) {
-    cache = { sequence, records: new Map() };
-    sourceRecords.set(notebook, cache);
+    cache = { sequence, reads: new Map() };
+    capabilityReads.set(notebook, cache);
   }
-  const existing = cache.records.get(id);
+  const existing = cache.reads.get(id);
   if (existing) return existing;
-  const request = notebook.api.capabilities(id).then(value => value.source ?? null).catch(error => {
+  const request = notebook.api.capabilities(id).catch(error => {
     if (error instanceof ApiError && error.status === 404) return null;
     throw error;
   });
-  cache.records.set(id, request);
-  const records = cache.records;
-  void request.catch(() => { if (records.get(id) === request) records.delete(id); });
+  cache.reads.set(id, request);
+  const reads = cache.reads;
+  void request.catch(() => { if (reads.get(id) === request) reads.delete(id); });
   return request;
+}
+
+export function referenceSource(notebook: NotebookClient, id: string): Promise<SourceRecord | null> {
+  return capabilityRead(notebook, id).then(value => value?.source ?? null);
+}
+
+/** The source a Work or citation names: the source page itself, or the source its referenced highlight quotes. */
+export async function citedSource(notebook: NotebookClient, id: string): Promise<SourceRecord | null> {
+  const value = await capabilityRead(notebook, id);
+  if (value?.source) return value.source;
+  const quoted = value?.citations?.[0]?.source_id;
+  return quoted ? referenceSource(notebook, quoted) : null;
 }
 
 /** Shared capability reads keep static text, the editor and gutter in agreement. */

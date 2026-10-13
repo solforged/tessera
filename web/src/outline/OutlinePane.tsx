@@ -10,7 +10,7 @@ import { fieldEntryId } from '../table/query';
 import { setLinkedCitation } from '../library/highlights';
 import { createTemplateCache, startingTemplateFor } from '../fields/templates';
 import { TemplateEditor } from '../fields/TemplateEditor';
-import { pageSigla } from '../library/sigla';
+import { citedSigla } from '../library/sigla';
 import { sourceReadingOrder } from '../library/source-order';
 import { isCatalogueField } from '../library/details';
 import { fieldHide } from '../fields/hide';
@@ -59,11 +59,11 @@ import type { MenuState, OutlineContext, RowRange } from './context';
 import { PageMergeConfirmation, pageMergeDisabledReason } from './PageMerge';
 import { foldName, nameMenuItems, resolveName } from './names';
 import { titleTargets, typedTitles, withLinkedTitles } from './link-titles';
-import { createCitationSources, hasCitationDetail, referenceSource } from './references';
+import { citedSource, createCitationSources, hasCitationDetail } from './references';
 import { HeldReadings } from './HeldReadings';
 import { AssessmentJournal, QuestionBranches, QuestionParent } from './Questions';
 import { ReadRegister } from './ReadRegister';
-import { isReadingSubject, localPositionCount, readingCounts, readingRegister, readingSlipRows } from './read-register';
+import { isReadingSubject, localPositionCount, readingCounts, readingDisagreementRows, readingRegister, readingSlipRows } from './read-register';
 import './outline.css';
 import './read-register.css';
 const ComparePane = lazy(() => import('../compare/ComparePane').then(module => ({ default: module.ComparePane })));
@@ -385,7 +385,7 @@ function Pane(props: OutlinePaneProps) {
   const ids = createMemo(() => {
     if (reading()) {
       const view = register();
-      return [...view.opening, ...(view.sectionId ? [view.sectionId] : []), ...view.slips.flatMap(slip => readingSlipRows(doc, slip, readDisclosures())), ...view.disagreements.flatMap(group => group.questions.map(question => question.id)), ...view.remaining];
+      return [...view.opening, ...(view.sectionId ? [view.sectionId] : []), ...view.slips.flatMap(slip => readingSlipRows(doc, slip, readDisclosures())), ...view.disagreements.flatMap(group => readingDisagreementRows(doc, group)), ...view.remaining];
     }
     const inline = inlineFields(), visible = unfoldedIds();
     return fieldBedRows(doc, inline.size ? visible.filter(id => !inline.has(id)) : visible, definitionsById(), zoom() ?? props.pageId);
@@ -416,9 +416,11 @@ function Pane(props: OutlinePaneProps) {
     });
     return seen;
   }, undefined, { equals: (a, b) => a.length === b.length && a.every((id, index) => id === b[index]) });
-  const [siglumRecords] = createResource(() => [citedSources(), props.notebook.changeSequence()] as const, ([ids]) => Promise.all(ids.map(id =>
-    referenceSource(props.notebook, id).catch(() => null))));
-  const sigla = createMemo(() => pageSigla((siglumRecords.error ? [] : siglumRecords() ?? []).filter(record => record !== null)));
+  const [siglumRecords] = createResource(() => [citedSources(), props.notebook.changeSequence()] as const, ([ids]) => Promise.all(ids.map(async id =>
+    ({ id, source: await citedSource(props.notebook, id).catch(() => null) }))));
+  const sigla = createMemo(() => citedSigla(siglumRecords.error ? [] : siglumRecords() ?? []));
+  /** Each distinct source on the page once, for the apparatus key. */
+  const siglumSources = createMemo(() => [...new Set((siglumRecords.error ? [] : siglumRecords() ?? []).flatMap(row => row.source ? [row.source.block_id] : []))]);
   const [sourceHighlights] = createResource(() => doc.root()?.source && !zoom() ? [props.pageId, props.notebook.changeSequence(), live()] as const : false,
     ([source_id]) => props.notebook.api.highlights({ source_id, limit: 100000 }));
   const [sourceHeaderReady, setSourceHeaderReady] = createSignal(false);
@@ -1516,7 +1518,7 @@ function Pane(props: OutlinePaneProps) {
       } }))] });
     }}>{sectionName() || 'Opening'}</Button></div></Show>
     <div ref={scroll} class="outline-pane" classList={{ 'has-apparatus': apparatus(), 'has-sigla': sigla().size > 0, 'source-page': !!doc.root()?.source && !zoom(), 'outline-dragging': drag.dragging(), 'projection-compare': props.projection === 'compare' }} style={{ visibility: sourceReady() ? undefined : 'hidden' }} aria-busy={!sourceReady()} data-pane={props.pane} data-projection={reading() ? 'read' : 'outline'} tabIndex={0} role="tree" aria-label={reading() ? 'Page reading register' : 'Page outline'} aria-owns={ids().map(id => `outline-${props.pane}-${id}`).join(' ')} onFocusIn={props.onActivate} onFocusOut={report} onKeyDown={event => { finishFoldMotion(); structuralKey(event); }} onWheel={() => { finishFoldMotion(); cancelScroll(); }} onScroll={scrolled}>
-    <Show when={apparatus()}><Apparatus notebook={props.notebook} holders={holders()} linked={linkedPages()} sources={citedSources().flatMap(id => sigla().has(id) ? [{ id, siglum: sigla().get(id)! }] : [])} onOpen={props.onOpen} /></Show>
+    <Show when={apparatus()}><Apparatus notebook={props.notebook} holders={holders()} linked={linkedPages()} sources={siglumSources().map(id => ({ id, siglum: sigla().get(id)! }))} onOpen={props.onOpen} /></Show>
     <Show when={sourceDetailsOpen() && doc.root()?.source}><SourceDetails notebook={props.notebook} pageId={props.pageId} onOpen={props.onOpen} onClose={() => setSourceDetailsOpen(false)} /></Show>
     <div ref={heading} class="outline-heading">
       <Show when={zoom()}><nav class="outline-breadcrumbs" aria-label="Zoom breadcrumbs"><button type="button" onClick={() => zoomTo(null)}>{doc.root()?.text}</button><For each={breadcrumbs()}>{id => <><Icon name="right" /><button type="button" onClick={() => zoomTo(id)}>{plainText(doc.block(id)?.text ?? '', reference => props.notebook.lookup(reference)) || 'Empty block'}</button></>}</For></nav></Show>
@@ -1547,9 +1549,8 @@ function Pane(props: OutlinePaneProps) {
         if (depth() !== 'full') setStop('full');
         const value = doc.outline.children(entry).find(id => !doc.isArchived(id));
         if (value) editAt(value, doc.block(value)?.text.length ?? 0, true);
-      }} /><NoteLine pageId={props.pageId} notebook={props.notebook} /></Show>
-      <Show when={isNote() && doc.status() === 'ready' && !doc.root()?.question}><NoteRevisit id={props.pageId} notebook={props.notebook} /></Show>
-      <Show when={isReadingSubject(doc) && !reading() && !zoom()}><div class="reading-register-actions"><span>{readingCounts(register().slips)}</span><Button disabled={localPositions() < 2} onClick={() => props.onProjection?.('compare')}>Compare</Button><Button onClick={event => openRelation(props.pageId, 'reading', event.currentTarget)}>Add perspective</Button><Show when={localPositions() < 2}><span>Compare needs two perspectives.</span></Show></div></Show>
+      }} /><NoteLine pageId={props.pageId} notebook={props.notebook}><Show when={doc.status() === 'ready' && !doc.root()?.question}><NoteRevisit id={props.pageId} notebook={props.notebook} /></Show></NoteLine></Show>
+      <Show when={isReadingSubject(doc) && !reading() && !zoom()}><div class="reading-register-actions"><span class="reading-counts">{readingCounts(register().slips)}</span><Button disabled={localPositions() < 2} onClick={() => props.onProjection?.('compare')}>Compare</Button><Button onClick={event => openRelation(props.pageId, 'reading', event.currentTarget)}>Add perspective</Button><Show when={localPositions() < 2}><span class="reading-counts">Compare needs two perspectives.</span></Show></div></Show>
       <RowRelations id={zoom() ?? props.pageId} />
       <Show when={!zoom() && doc.root()?.kind === 'page' && !doc.root()?.source && doc.root()?.text.toLowerCase() !== 'fields' && !type.error && type()}>{value => <Show when={value().members || value().fields.length || startingTemplateFor(value().page.text, value().fields)}>
         <TemplateEditor type={value()} fields={definitions()} notebook={props.notebook} onError={setMessage} />
@@ -1611,7 +1612,8 @@ function Pane(props: OutlinePaneProps) {
           setReadDisclosures(previous => { const next = new Set(previous); next.has(key) ? next.delete(key) : next.add(key); return next; });
           scheduleReport(); requestAnimationFrame(scrolled);
         }} row={id => <Row id={id} natural />} onCompare={() => props.onProjection?.('compare')} onAddReading={anchor => openRelation(props.pageId, 'reading', anchor)}
-          onOpenReading={(id, beside) => beside ? props.onOpen({ kind: 'page', pageId: props.pageId, blockId: id }, true) : zoomTo(id)} />
+          onOpenReading={(id, beside) => beside ? props.onOpen({ kind: 'page', pageId: props.pageId, blockId: id }, true) : zoomTo(id)}
+          siglum={id => { const source = positionSource(id); return source ? sigla().get(source) : undefined; }} />
       </Show>
     </div>
     <Show when={!zoom() && ids().length && !holderBoundary() && related()?.heldReadings.length}><HeldReadings rows={related()?.heldReadings ?? []} notebook={props.notebook} onOpen={props.onOpen} /></Show>
