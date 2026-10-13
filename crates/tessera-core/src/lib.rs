@@ -96,7 +96,9 @@ pub use model::{
     View, YearSpan,
 };
 pub use notebook::{DATABASE_FILE, Notebook, NotebookInfo, now_ms};
-pub use notes::{CrossReference, IndexKind, KindIndex, NoteEntry, NoteIndex, NoteKind, SeeTarget};
+pub use notes::{
+    CrossReference, IndexKind, KindIndex, NoteEntry, NoteIndex, NoteKind, SeeTarget, Shelf,
+};
 pub use notes_summary::{NoteSummary, SourceSummary, SummaryField};
 pub use ownership::NotebookOwnership;
 pub use references::{

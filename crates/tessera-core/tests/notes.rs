@@ -1,4 +1,5 @@
-use tessera_core::{Actor, Batch, Error, Notebook, Operation, ProjectState, QuestionState};
+use tessera_core::library::{ReadingState, SourceFormat, SourceState};
+use tessera_core::{Actor, Batch, Error, Notebook, Operation, ProjectState, QuestionState, Shelf};
 
 fn id(value: u128) -> String {
     ulid::Ulid::from(value).to_string()
@@ -283,6 +284,79 @@ fn index_lists_tag_only_types_without_changing_note_counts() {
     let book = nb.page_by_title("Book").unwrap().unwrap().id;
     assert_eq!(titles(&nb, &format!("type:{book}")), ["Member note"]);
     assert_eq!(titles(&nb, "unfiled"), ["Source note"]);
+}
+
+#[test]
+fn index_shelves_types_you_made_by_what_most_of_their_notes_are() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut nb = Notebook::open(dir.path()).unwrap();
+    apply(
+        &mut nb,
+        vec![
+            page(1, "To Lucilius on travel"),
+            page(2, "To Lucilius on old age"),
+            page(3, "A letter without a source record"),
+            page(4, "Ship the index"),
+            page(5, "Rome"),
+            page(6, "Ostia"),
+            page(7, "Loose thoughts"),
+            page(8, "Stoic shelf"),
+        ],
+    );
+    for value in [1, 2, 3] {
+        tag(&mut nb, value, "Letter");
+    }
+    tag(&mut nb, 4, "Sprint");
+    tag(&mut nb, 5, "Place");
+    tag(&mut nb, 6, "Place");
+    // A library type shelves with sources even though no member carries a source record.
+    tag(&mut nb, 8, "Collection");
+    let source = |nb: &Notebook, value| Operation::SetSource {
+        id: id(value),
+        base_revision: revision(nb, value),
+        source: Some(SourceState {
+            format: SourceFormat::Record,
+            state: ReadingState::Inbox,
+            origin: None,
+            match_key: None,
+            citation_key: None,
+        }),
+    };
+    let operations = vec![
+        source(&nb, 1),
+        source(&nb, 2),
+        // Half of the places are sources, which is not most of them.
+        source(&nb, 6),
+        Operation::SetProject {
+            id: id(4),
+            base_revision: revision(&nb, 4),
+            project: Some(ProjectState::default()),
+        },
+    ];
+    apply(&mut nb, operations);
+
+    assert_eq!(
+        nb.note_index()
+            .unwrap()
+            .kinds
+            .iter()
+            .map(|kind| (kind.kind.plural.as_str(), kind.shelf))
+            .collect::<Vec<_>>(),
+        [
+            ("People", Shelf::Notes),
+            ("Groups", Shelf::Notes),
+            ("Concepts", Shelf::Notes),
+            ("Theses", Shelf::Notes),
+            ("Questions", Shelf::Notes),
+            ("Sources", Shelf::Sources),
+            ("Projects", Shelf::Work),
+            ("Collections", Shelf::Sources),
+            ("Letters", Shelf::Sources),
+            ("Places", Shelf::Tags),
+            ("Sprints", Shelf::Work),
+            ("Unfiled", Shelf::Loose),
+        ]
+    );
 }
 
 #[test]

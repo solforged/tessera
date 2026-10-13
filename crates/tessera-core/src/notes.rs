@@ -89,6 +89,22 @@ pub struct NoteKind {
     pub type_id: Option<String>,
 }
 
+/// The finding-aid group a kind is listed under in the sidebar.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Shelf {
+    /// People, groups, concepts, theses and questions.
+    Notes,
+    /// Sources, and types most of whose notes are sources.
+    Sources,
+    /// Projects, and types most of whose notes are projects.
+    Work,
+    /// Other types you made, including ones that only tag blocks.
+    Tags,
+    /// Unfiled.
+    Loose,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IndexKind {
     #[serde(flatten)]
@@ -96,6 +112,7 @@ pub struct IndexKind {
     /// Distinct titled notes, independent of tagged non-page blocks.
     pub count: usize,
     pub tagged_block_count: usize,
+    pub shelf: Shelf,
 }
 
 /// The sidebar index: every built-in kind, then other kinds with notes or tagged blocks, in index
@@ -172,15 +189,24 @@ impl Notebook {
     /// Kinds with independent note and tagged-block counts, for the sidebar.
     pub fn note_index(&self) -> Result<NoteIndex> {
         let filing = self.filing()?;
+        let (question, source, project) =
+            (TYPE_KINDS.len(), TYPE_KINDS.len() + 1, TYPE_KINDS.len() + 2);
         let mut counts = vec![0; filing.kinds.len()];
+        // Per kind, how many of its notes are also sources or projects; a type you made is shelved by its majority.
+        let mut sources = vec![0; filing.kinds.len()];
+        let mut projects = vec![0; filing.kinds.len()];
         let mut listed = 0;
         for note in &filing.notes {
+            let is_source = note.kinds.contains(&source);
+            let is_project = note.kinds.contains(&project);
             for &kind in &note.kinds {
                 counts[kind] += 1;
+                sources[kind] += usize::from(is_source);
+                projects[kind] += usize::from(is_project);
             }
             listed += usize::from(!note.kinds.is_empty());
         }
-        counts[TYPE_KINDS.len()] = self
+        counts[question] = self
             .conn
             .prepare_cached(concat!(
                 hidden_blocks!(),
@@ -190,6 +216,23 @@ impl Notebook {
              AND b.rowid NOT IN (SELECT rowid FROM hidden)"
             ))?
             .query_row([], |row| row.get::<_, i64>(0))? as usize;
+        let unfiled = filing.kinds.len() - 1;
+        // Library types (books, articles, collections) shelve with sources even before their notes carry a source record.
+        let shelf = |index: usize, kind: &NoteKind, count: usize| match index {
+            _ if index <= question => Shelf::Notes,
+            _ if index == source => Shelf::Sources,
+            _ if index == project => Shelf::Work,
+            _ if index == unfiled => Shelf::Loose,
+            _ if 2 * sources[index] > count
+                || TYPE_ICONS
+                    .iter()
+                    .any(|(name, _)| *name == kind.name.to_lowercase()) =>
+            {
+                Shelf::Sources
+            }
+            _ if 2 * projects[index] > count => Shelf::Work,
+            _ => Shelf::Tags,
+        };
         Ok(NoteIndex {
             kinds: filing
                 .kinds
@@ -203,7 +246,8 @@ impl Notebook {
                         || *count > 0
                         || *tagged_block_count > 0
                 })
-                .map(|(_, ((kind, count), tagged_block_count))| IndexKind {
+                .map(|(index, ((kind, count), tagged_block_count))| IndexKind {
+                    shelf: shelf(index, &kind, count),
                     kind,
                     count,
                     tagged_block_count,

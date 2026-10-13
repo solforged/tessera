@@ -6,25 +6,30 @@ Tokens, shell and shared popup patterns are in [design](../design.md).
 
 ## Index
 
-Index is a sidebar section after Pinned. Its count is the distinct notes filed, left out at zero. It always lists the built-in kinds in this order:
+Index is a sidebar section after Pinned. Its count is the distinct notes filed, left out at zero. It reads as a finding aid: kinds sit on shelves under small mono capital heads, in this order:
 
-1. People, Groups, Concepts and Theses: types with those titles.
-2. Questions, Sources and Projects: capabilities on the page.
+| Shelf | Kinds |
+| --- | --- |
+| Notes | People, Groups, Concepts and Theses (types with those titles), then Questions (a capability on the page). |
+| Sources | Sources (a capability), Book, Article and Collection, and any other type most of whose notes are sources. |
+| Work | Projects (a capability), and any other type most of whose notes are projects. |
+| Tags | Every other type you made, including types that only tag blocks. |
+| Loose | Unfiled. |
 
-This keeps the notebook's vocabulary visible before anything is filed; the rows never move as kinds fill. Each other type by title and Unfiled follow, listed only while they have titled notes or tagged non-page blocks.
+The service assigns each kind its shelf, so a type moves shelf only when most of its notes change capability. Saved spreads follow under their own Spreads head. A shelf with no listed kinds leaves out its head.
 
-Rows stay on one line, with the name left and a bare mono count right:
+Rows stay on one line: the plural in Piazzolla at body size, without a glyph, and a bare mono count right.
 
 | Kind | Count and appearance |
 | --- | --- |
 | Note kind | Titled notes. |
 | Questions | Visible question blocks, including inline questions. |
-| Tag-only type | Tagged blocks, with a tag glyph. |
-| Empty built-in kind | `--faint`, with no count. |
+| Tag-only type | Tagged blocks. |
+| Empty built-in kind | Folded into one faint mono line after the shelves, `Empty: Groups · Theses · Questions`. Each name opens its finding aid, so the vocabulary stays visible without a row each. |
 
-Note counts and the distinct-note total never include tagged blocks.
+An empty built-in kind that has a saved view keeps its row, named in `--faint` without a count. Each other type and Unfiled are listed only while they have titled notes or tagged non-page blocks. Note counts and the distinct-note total never include tagged blocks.
 
-The Index heading opens a bounded directory in the same order, with explicit note, source or `N tagged` counts. Tag-only rows open their [member table](fields-tables.md#tables-and-views) directly; other kinds open their finding aid. A saved view sits under the kind whose type it lists, on a hairline elbow and without its table glyph. The section refreshes with the desk counts and disappears rather than go stale when its request fails.
+The Index heading opens a bounded directory in the same order, with explicit note, source or `N tagged` counts. Tag-only rows open their [member table](fields-tables.md#tables-and-views) directly; other kinds open their finding aid. A saved view sits under the kind whose type it lists, in Piazzolla italic on a hairline elbow and without its table glyph. The section refreshes with the desk counts and disappears rather than go stale when its request fails.
 
 ## Finding aid
 

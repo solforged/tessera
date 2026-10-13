@@ -325,7 +325,9 @@ export interface Type { page: Block; fields: string[]; members: number; card_tem
 export interface View { id: string; name: string; query: Query; revision: number; created_at: number; updated_at: number }
 /** A kind notes are filed under: `person`, `group`, `concept`, `thesis`, `question`, `source`, `project`, `type:<id>` or `unfiled`. */
 export interface NoteKind { key: string; name: string; plural: string; icon: string | null; type_id: string | null }
-export interface IndexKind extends NoteKind { count: number; tagged_block_count: number }
+/** `shelf` is the sidebar group: built-in note kinds, sources (and types mostly of sources), work, other types, Unfiled. */
+export type Shelf = 'notes' | 'sources' | 'work' | 'tags' | 'loose';
+export interface IndexKind extends NoteKind { count: number; tagged_block_count: number; shelf: Shelf }
 export interface NoteIndex { kinds: IndexKind[]; notes: number; spreads: SeeTarget[] }
 export interface NoteEntry { id: string; title: string; sort_as: string | null; created_at: number }
 export interface SeeTarget { id: string; title: string }

@@ -130,8 +130,8 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
 .sidebar .button > .desk-count.late { color: var(--danger); }
 /* A notebook other than the default is named at the foot in the warning colour; long names shorten. */
 .sidebar .button > .notebook-marker { flex: 1; overflow: hidden; text-overflow: ellipsis; color: var(--warning); }
-/* A built-in kind with nothing filed yet stays in its place, named faintly and without a count. */
-.sidebar .index-kind.empty:not(.selected), .sidebar .index-kind.empty:not(.selected) > .icon { color: var(--faint); }
+/* A built-in kind with nothing filed but a saved view keeps its row, named faintly and without a count. */
+.sidebar .index-kind.empty:not(.selected) { color: var(--faint); }
 .sidebar .index-kind.empty:not(.selected):hover { color: var(--muted); }
 .journal-navigation { display: flex; align-items: center; flex-shrink: 0; gap: var(--space-2); margin-inline: var(--space-4); }
 /* Sections: a rubric numeral, the name, a hairline rule and a count. */
@@ -165,6 +165,19 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
 .index-views .sidebar-view { position: relative; padding-left: calc(var(--space-24) + var(--space-4)); }
 .index-views .sidebar-view::before { content: ""; position: absolute; left: calc(var(--space-12) + var(--space-2)); top: 0; bottom: 50%; width: var(--space-8); border-left: var(--rule-width) solid var(--line); border-bottom: var(--rule-width) solid var(--line); }
 .index-views .view-link > .icon { display: none; }
+/* The Index is a finding aid: kinds sit under small mono shelf heads and are named in the reading serif, without glyphs;
+   saved views under them are italic, like a question tree. Heads and the Empty line align with the names. */
+.index-shelf { margin: var(--space-12) 0 var(--space-2); padding-left: calc(var(--space-8) + 2 * var(--rule-width)); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-notebook); text-transform: uppercase; }
+.index-list > h2 + .index-shelf { margin-top: var(--space-4); }
+.sidebar .index-list .index-kind > span:not(.desk-count) { font: var(--weight-body) var(--text-body)/var(--line-control) var(--font-display); font-variation-settings: var(--optical-quote); }
+.index-views .view-link > span { font-family: var(--font-display); font-style: italic; }
+.index-empties { margin: var(--space-12) 0 0; padding-left: calc(var(--space-8) + 2 * var(--rule-width)); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.index-empties button { padding: 0; border: 0; background: none; color: inherit; font: inherit; letter-spacing: inherit; cursor: pointer; }
+.index-empties button:hover, .index-empties button[aria-current="page"] { color: var(--text); }
+.index-empties button:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-offset); }
+/* The cover screen hides the rail, so the overlay opens on its masthead: oculus and wordmark, Close sidebar, and the
+   notebook with its note count in mono beneath, over a hairline. Elsewhere the rail carries all three. */
+.sidebar-masthead { display: none; }
 .workspace { grid-column: 2; grid-row: 2; display: flex; flex-direction: column; min-width: 0; min-height: 0; margin: 0 var(--space-12) var(--space-12) 0; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-workspace); background: var(--canvas); transition: margin-left var(--motion-ui) var(--motion-ease); }
 .sidebar-collapsed { grid-template-columns: 0 minmax(0, 1fr); }
 .sidebar-collapsed .sidebar { visibility: hidden; pointer-events: none; opacity: 0; transform: translateX(-100%); transition-delay: 0s, 0s, var(--motion-ui); }
@@ -394,6 +407,11 @@ mark { background: var(--selection); color: var(--accent); font-weight: var(--we
   .app.is-reading .pane.active > .pane-header { display: none; }
   .app.is-reading .workspace { margin: 0; border: 0; border-radius: 0; background: var(--canvas); }
   .undo-toast { bottom: calc(var(--bottom-nav-height) + 12px + var(--bottom-inset)); }
+  .sidebar-masthead { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--space-2) var(--space-8); margin-bottom: var(--space-8); padding: var(--space-4) 0 var(--space-12) calc(var(--space-8) + 2 * var(--rule-width)); border-bottom: var(--rule-width) solid var(--line); }
+  .sidebar-masthead-notebook { grid-column: 1 / -1; overflow: hidden; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); text-overflow: ellipsis; white-space: nowrap; }
+  .sidebar-masthead-other { color: var(--warning); }
+  /* The masthead names the notebook, so the foot does not repeat it. */
+  .sidebar-foot .notebook-marker { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .mode-tabs > .button::after, .sidebar .button::before { transition: none; }

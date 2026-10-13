@@ -1,7 +1,7 @@
 import { batch, createEffect, createMemo, createResource, createSignal, For, Index, lazy, Match, onCleanup, onMount, Show, Switch } from 'solid-js';
 import type { Accessor } from 'solid-js';
 import { api } from '../api/client';
-import type { Block, NoteKind, NotebookInfo, Type, View } from '../api/types';
+import type { Block, IndexKind, NoteKind, NotebookInfo, Shelf, Type, View } from '../api/types';
 import { createNotebookClient, type Notebook } from '../document';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import { OutlinePane } from '../outline/OutlinePane';
@@ -36,7 +36,7 @@ import { blankCapture, installQuickCapture } from './quick-capture';
 import type { CaptureRequest } from './quick-capture';
 import { CaptureSheet } from '../capture/CaptureSheet';
 import { SyncCover, SyncLifecycle, SyncMark, currentHealth } from '../sync/SyncStatus';
-import { NotebookMarker, NotebookOpening, registerNotebookCommands } from '../settings/notebooks';
+import { NotebookMarker, NotebookOpening, knownNotebooks, registerNotebookCommands } from '../settings/notebooks';
 import { indexKindTarget, noteIndex, noteKindIcon, tagOnly } from '../notes/kinds';
 import { DEMO } from '../demo/mode';
 
@@ -84,6 +84,8 @@ const mac = /Mac|iPhone|iPad/.test(navigator.platform);
 const SAVE_NOTICE_DELAY = 1000;
 /** Matches the narrow pane header in styles.css, where the depth dial shows only its current iris. */
 const compactHeader = window.matchMedia('(max-width: 479px)');
+/** The Index's finding-aid heads, in order; spreads follow under their own head. */
+const shelves: readonly (readonly [Shelf, string])[] = [['notes', 'Notes'], ['sources', 'Sources'], ['work', 'Work'], ['tags', 'Tags'], ['loose', 'Loose']];
 
 /** Views are snapshots: fold arrays and caret/scroll objects never alias history. */
 function copyView(view: ViewState): ViewState {
@@ -597,6 +599,14 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   // Saved views sit under the kind whose type they list; views of any other type keep their own section.
   const viewInKind = (view: View, kind: NoteKind) => view.query.note_kind ? view.query.note_kind === kind.key : kind.type_id !== null && kind.type_id === view.query.type;
   const looseViews = createMemo(() => otherViews().filter(view => !index()?.kinds.some(kind => viewInKind(view, kind))));
+  // A kind with notes, tagged blocks or saved views keeps its row on its shelf; an empty one folds into the Empty line.
+  const listedKind = (kind: IndexKind) => !!(kind.count || kind.tagged_block_count) || otherViews().some(view => viewInKind(view, kind));
+  const shelfKinds = createMemo(() => {
+    const shelved: Partial<Record<Shelf, IndexKind[]>> = {};
+    for (const kind of index()?.kinds ?? []) if (listedKind(kind)) (shelved[kind.shelf] ??= []).push(kind);
+    return shelved;
+  });
+  const emptyKinds = createMemo(() => (index()?.kinds ?? []).filter(kind => !listedKind(kind)));
   const activeViewId = () => { const target = entry(active())?.target; return target?.kind === 'table' || target?.kind === 'index' ? target.viewId ?? undefined : undefined; };
   const activeTypeId = () => { const target = entry(active())?.target; return target?.kind === 'table' && !target.viewId ? target.typeId : null; };
   const activeKindKey = () => { const target = entry(active())?.target; return target?.kind === 'index' ? target.key : (target?.kind === 'fields' || target?.kind === 'cards') && target.typeId ? index()?.kinds.find(kind => kind.type_id === target.typeId)?.key : undefined; };
@@ -633,6 +643,13 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
       </div>
     </header>
     <aside class="sidebar" aria-label="Notebook navigation" aria-hidden={!sidebarVisible()} inert={!sidebarVisible()}>
+      {/* On the cover screen the rail is hidden, so the overlay carries the oculus, wordmark and notebook. */}
+      <header class="sidebar-masthead">
+        <span class="wordmark" title={info()?.path}>Tessera</span>
+        <Button class="icon-only" icon="sidebar" label="Close sidebar" onClick={toggleSidebar} />
+        {/* A notebook other than the default is named in the warning colour, as at the desktop foot. */}
+        <span class="sidebar-masthead-notebook"><Show when={knownNotebooks()?.notebooks.find(entry => entry.current)}>{current => <><span classList={{ 'sidebar-masthead-other': !current().default }}>{current().name}</span><Show when={index()}> · </Show></>}</Show><Show when={index()}>{value => `${value().notes.toLocaleString()} ${value().notes === 1 ? 'note' : 'notes'}`}</Show></span>
+      </header>
       <nav class="primary-navigation" aria-label="Notebook">
         <Button icon="today" title="Today (⌃⇧J)" class={activeRoot()?.kind === 'journal' && activeRoot()?.text === todayDate() ? 'selected' : ''} onClick={event => { void today(active(), event.shiftKey); }}><span>Today</span><span class="desk-count">{shortDay(todayDate())}</span></Button>
         <Button icon="agenda" class={entry(active())?.target.kind === 'agenda' ? 'selected' : ''} onClick={event => open({ kind: 'agenda', date: journalDate(active()) }, event.shiftKey)}><span>Agenda</span><Show when={counts()?.planned}>{planned => <span class={`desk-count ${counts()!.overdue ? 'late' : ''}`} title={counts()!.overdue ? `${planned()} to do today · ${counts()!.overdue} overdue` : `${planned()} to do today`}>{planned()}</span>}</Show></Button>
@@ -646,16 +663,23 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
       </section></Show>
       <Show when={index()?.kinds.length}><section class="page-list index-list" aria-label="Index">
         <h2><span class="section-number">{sectionNumber('index')}</span><button type="button" class="index-directory-link" aria-current={activeKindKey() === 'all' ? 'page' : undefined} title="Open Index" onClick={event => open({ kind: 'index', key: 'all' }, event.shiftKey)}>Index</button><span class="section-rule" /><Show when={index()!.notes}>{notes => <span class="section-count" title={`${notes().toLocaleString()} ${notes() === 1 ? 'note' : 'notes'} filed`}>{notes().toLocaleString()}</span>}</Show></h2>
-        {/* Kinds re-arrive as fresh objects after each change; Index keeps rows mounted by position. */}
-        <Index each={index()!.kinds}>{kind => <>
-          {/* Built-in kinds stay listed while empty: a faint name and no count. */}
-          <div classList={{ 'index-question-heading': kind().key === 'question' }}>
-          <Button class={`index-kind ${activeKindKey() === kind().key || tagOnly(kind()) && activeTypeId() === kind().type_id ? 'selected' : ''} ${kind().count || kind().tagged_block_count ? '' : 'empty'}`} icon={noteKindIcon(kind())} title={kind().plural} onClick={event => open(indexKindTarget(kind()), event.shiftKey)}><span>{kind().plural}</span><Show when={kind().count || kind().tagged_block_count}>{count => <span class="desk-count">{count().toLocaleString()}</span>}</Show></Button>
-          <Show when={kind().key === 'question'}><Button icon="more" label="Questions menu" aria-haspopup="menu" onClick={event => setQuestionsMenu(event.currentTarget)} /></Show>
-          </div>
-          <Show when={otherViews().some(view => viewInKind(view, kind()))}><div class="index-views"><ViewLinks views={otherViews().filter(view => viewInKind(view, kind()))} pinned={false} activeId={activeViewId()} onOpen={openView} onPin={pinView} /></div></Show>
-        </>}</Index>
-        <For each={index()?.spreads}>{spread => <Button class={`index-kind ${pageIdOf(entry(active())) === spread.id ? 'selected' : ''}`} icon="panes" title={spread.title} onClick={event => open({ kind: 'page', pageId: spread.id }, event.shiftKey)}><span>{spread.title}</span></Button>}</For>
+        {/* Kinds sit on shelves, as a finding aid's heads; kinds re-arrive as fresh objects after each change, so Index keeps rows mounted by position. */}
+        <For each={shelves}>{([shelf, label]) => <Show when={shelfKinds()[shelf]?.length}>
+          <h3 class="index-shelf">{label}</h3>
+          <Index each={shelfKinds()[shelf] ?? []}>{kind => <>
+            <div classList={{ 'index-question-heading': kind().key === 'question' }}>
+            <Button class={`index-kind ${activeKindKey() === kind().key || tagOnly(kind()) && activeTypeId() === kind().type_id ? 'selected' : ''} ${kind().count || kind().tagged_block_count ? '' : 'empty'}`} title={kind().plural} onClick={event => open(indexKindTarget(kind()), event.shiftKey)}><span>{kind().plural}</span><Show when={kind().count || kind().tagged_block_count}>{count => <span class="desk-count">{count().toLocaleString()}</span>}</Show></Button>
+            <Show when={kind().key === 'question'}><Button icon="more" label="Questions menu" aria-haspopup="menu" onClick={event => setQuestionsMenu(event.currentTarget)} /></Show>
+            </div>
+            <Show when={otherViews().some(view => viewInKind(view, kind()))}><div class="index-views"><ViewLinks views={otherViews().filter(view => viewInKind(view, kind()))} pinned={false} activeId={activeViewId()} onOpen={openView} onPin={pinView} /></div></Show>
+          </>}</Index>
+        </Show>}</For>
+        <Show when={index()?.spreads.length}>
+          <h3 class="index-shelf">Spreads</h3>
+          <For each={index()?.spreads}>{spread => <Button class={`index-kind ${pageIdOf(entry(active())) === spread.id ? 'selected' : ''}`} title={spread.title} onClick={event => open({ kind: 'page', pageId: spread.id }, event.shiftKey)}><span>{spread.title}</span></Button>}</For>
+        </Show>
+        {/* Built-in kinds with nothing filed fold into one faint line, so they stay discoverable without a row each. */}
+        <Show when={emptyKinds().length}><p class="index-empties">Empty: <For each={emptyKinds()}>{(kind, position) => <>{position() ? ' · ' : ''}<button type="button" aria-current={activeKindKey() === kind.key ? 'page' : undefined} onClick={event => open(indexKindTarget(kind), event.shiftKey)}>{kind.plural}</button></>}</For></p></Show>
       </section></Show>
       <section class="page-list" aria-label="Saved views">
         <h2><span class="section-number">{sectionNumber('views')}</span>Views<span class="section-rule" /><span class="section-count">{looseViews().length || ''}</span></h2>
