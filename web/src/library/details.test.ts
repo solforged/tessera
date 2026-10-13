@@ -67,7 +67,7 @@ describe('source field validation', () => {
       { id: '01ARZ3NDEKTSV4RRFFQ69G5FAV', name: 'Linked person', role: 'author' }, { id: null, name: 'Unlinked author', role: 'author' }, { id: null, name: 'Arnold J. Toynbee', role: 'author' },
     ]);
     expect(sourceMetadata(doc, notebook, definitions).creators).toEqual([
-      { name: 'Linked person', role: 'author', create_page: true }, { name: 'Unlinked author', role: 'author', create_page: false },
+      { name: 'Linked person', role: 'author', create_page: true }, { name: 'Unlinked author', role: 'author', create_page: false }, { name: 'Arnold J. Toynbee', role: 'author', create_page: false },
     ]);
   });
 });
