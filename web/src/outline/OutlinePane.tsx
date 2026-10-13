@@ -295,9 +295,14 @@ function Pane(props: OutlinePaneProps) {
     for (let index = start + 1, end = doc.outline.subtreeEnd(start); index < end; index++) descendants.push(doc.outline.idAt(index));
     return { id, hide, values: values.map(id => ({ id, blank: hide === 'when_empty' ? !doc.block(id)?.text.trim() : false })), descendants };
   }, undefined, { equals: (a, b) => a.hide === b.hide && a.values.length === b.values.length && a.values.every((value, index) => value.id === b.values[index]!.id && value.blank === b.values[index]!.blank) && a.descendants.length === b.descendants.length && a.descendants.every((id, index) => id === b.descendants[index]) }));
+  // Aliases moved into the header's ALSO line are shown there, not hidden.
+  const inHeader = (entry: HiddenFieldEntry) => {
+    const definition = definitionsById().get(fieldEntryId(doc.block(entry.id)?.text ?? '') ?? '');
+    return entry.hide === 'always' && fieldHide(definition) !== 'always' && foldName(definition?.name ?? '') === 'aliases';
+  };
   const hiddenCounts = createMemo(() => {
     const counts = new Map<string, number>();
-    const hidden = hiddenFieldEntries(hideCandidates().map(value => value()), new Set(), false);
+    const hidden = hiddenFieldEntries(hideCandidates().map(value => value()).filter(entry => !inHeader(entry)), new Set(), false);
     for (const id of hidden) {
       const owner = doc.outline.parentOf(id);
       counts.set(owner, (counts.get(owner) ?? 0) + 1);

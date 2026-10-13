@@ -257,6 +257,8 @@ impl Notebook {
             let mut hidden = HashSet::new();
             let mut field_blocks = HashSet::new();
             let mut entries = HashMap::new();
+            // Gloss heads each column, so it never repeats as a field row.
+            let mut gloss_entries = HashSet::new();
             for row in &page.rows {
                 let block = &row.block;
                 let parent = block.parent_id.as_deref().unwrap_or("");
@@ -271,22 +273,25 @@ impl Notebook {
                 if row.depth == 0
                     && let Some(field_id) = field
                 {
-                    let next = fields.len();
-                    let index = *field_indices.entry(field_id.to_owned()).or_insert_with(|| {
-                        fields.push(SpreadField {
-                            id: field_id.to_owned(),
-                            name: definitions[field_id].to_owned(),
-                            cells: vec![Vec::new(); ids.len()],
-                        });
-                        next
-                    });
-                    entries.insert(block.id.as_str(), index);
-                } else if let Some(&index) = entries.get(parent) {
-                    let value = SpreadValue::text(&block.text, ids);
-                    if fields[index].name.trim().eq_ignore_ascii_case("gloss") {
-                        column.gloss.push(value.clone());
+                    if definitions[field_id].trim().eq_ignore_ascii_case("gloss") {
+                        gloss_entries.insert(block.id.as_str());
+                    } else {
+                        let next = fields.len();
+                        let index =
+                            *field_indices.entry(field_id.to_owned()).or_insert_with(|| {
+                                fields.push(SpreadField {
+                                    id: field_id.to_owned(),
+                                    name: definitions[field_id].to_owned(),
+                                    cells: vec![Vec::new(); ids.len()],
+                                });
+                                next
+                            });
+                        entries.insert(block.id.as_str(), index);
                     }
-                    fields[index].cells[column_index].push(value);
+                } else if gloss_entries.contains(parent) {
+                    column.gloss.push(SpreadValue::text(&block.text, ids));
+                } else if let Some(&index) = entries.get(parent) {
+                    fields[index].cells[column_index].push(SpreadValue::text(&block.text, ids));
                 }
                 if column.opening.is_empty()
                     && !field_blocks.contains(block.id.as_str())

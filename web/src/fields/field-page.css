@@ -40,6 +40,10 @@
 .field-owner-values { display: flex; flex-wrap: wrap; gap: var(--space-4) var(--space-8); margin-top: var(--space-4); overflow-wrap: anywhere; }
 .field-view-all.button { padding-inline: 0; margin-top: var(--space-8); color: var(--muted); font-weight: var(--weight-body); }
 .field-note { margin: var(--space-8) 0 0; color: var(--muted); }
+.field-conversion-toggle { display: flex; align-items: center; gap: var(--space-8); cursor: pointer; }
+.field-conversion-toggle input { flex: none; margin: 0; accent-color: var(--accent); }
+.field-conversion-list { list-style: none; padding-left: calc(var(--space-16) + var(--space-8)); }
+.field-conversion-list li { padding-block: var(--space-2); }
 .field-preview-summary { margin-block: var(--section-gap); padding-left: var(--space-16); border-left: var(--space-2) solid var(--danger); }
 .field-preview-summary h2 { margin: 0; font-family: var(--font-display); font-size: var(--text-h1); font-weight: var(--weight-display-heading); line-height: var(--line-h1); }
 .field-preview-summary h2 .field-rubric { font-family: var(--font-mono); }

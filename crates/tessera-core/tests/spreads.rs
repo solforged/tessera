@@ -99,7 +99,8 @@ fn fields_union_in_column_outline_order_with_blank_cells_and_exact_shared_values
             .iter()
             .map(|field| field.name.as_str())
             .collect::<Vec<_>>(),
-        ["Stage", "Gloss", "Related", "Repeated", "Empty"]
+        ["Stage", "Related", "Repeated", "Empty"],
+        "gloss heads each column instead of repeating as a row"
     );
     assert_eq!(spread.fields[0].cells.len(), 3);
     assert!(spread.fields[0].cells[0][0].shared);
@@ -108,17 +109,17 @@ fn fields_union_in_column_outline_order_with_blank_cells_and_exact_shared_values
         !spread.fields[0].cells[2][0].shared,
         "case differences imply nothing"
     );
-    assert!(spread.fields[1].cells[1].is_empty());
+    assert!(spread.columns[1].gloss.is_empty());
     assert!(
-        spread.fields[4].cells.iter().all(Vec::is_empty),
+        spread.fields[3].cells.iter().all(Vec::is_empty),
         "empty fields still have an aligned row"
     );
     assert!(
-        spread.fields[2].cells[0][0].shared && spread.fields[2].cells[1][0].shared,
+        spread.fields[1].cells[0][0].shared && spread.fields[1].cells[1][0].shared,
         "link aliases compare by target"
     );
     assert!(
-        spread.fields[3].cells[0].iter().all(|value| !value.shared),
+        spread.fields[2].cells[0].iter().all(|value| !value.shared),
         "repeating inside one column is not sharing"
     );
     assert_eq!(spread.columns[0].kinds[0].key, "concept");
