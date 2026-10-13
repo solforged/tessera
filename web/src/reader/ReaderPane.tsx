@@ -674,7 +674,7 @@ export function ReaderPane(props: ReaderPaneProps) {
   }
 
   /** Resolves true once the passage is on screen, false when disposed or overtaken by another jump. */
-  async function jump(ordinal: number, offset = 0): Promise<boolean> {
+  async function jump(ordinal: number, offset = 0, titlePage = false): Promise<boolean> {
     const token = ++jumpVersion, epoch = generation;
     restoring = true; userScroll = false; clearTimeout(positionTimer); setSelection(null);
     keyboardVersion++; setCursor(null);
@@ -696,7 +696,10 @@ export function ReaderPane(props: ReaderPaneProps) {
       if (disposed || epoch !== generation || token !== jumpVersion) return false;
       virtualizer.scrollToIndex(index, { align: 'start' });
     }
-    if (offset) scroll.scrollTop -= offset;
+    // The title's height changes as metadata and fonts settle. Opening it means the scroll origin,
+    // not subtracting a height sampled before loadPage and the virtualizer's measurements.
+    if (titlePage) scroll.scrollTop = 0;
+    else if (offset) scroll.scrollTop -= offset;
     jumpOrigin = scroll.scrollTop;
     restoring = false;
     report();
@@ -1209,7 +1212,8 @@ export function ReaderPane(props: ReaderPaneProps) {
         ordinal = located;
       }
       if (disposed) return;
-      await jump(ordinal, ordinal === 0 && initialView.ordinal < 0 && !target.at && !citation ? titleHeight() : target.at || citation || initialView.ordinal < 0 ? 0 : initialView.offset);
+      await jump(ordinal, target.at || citation || initialView.ordinal < 0 ? 0 : initialView.offset,
+        ordinal === 0 && initialView.ordinal < 0 && !target.at && !citation);
       if (citation) flashTimer = window.setTimeout(() => setFlash(null), 1500);
       setLoading(false);
     })().catch(reason => { if (!disposed) { restoring = false; setLoading(false); setError(reason instanceof Error ? reason.message : String(reason)); } });
