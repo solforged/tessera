@@ -373,6 +373,9 @@
 }
 /* A journal's checkbox takes its bullet slot, so tasks and prose keep the same text edge. */
 .outline-pane:has(.journal-header) .outline-row[data-task-status] > .row-bullet { display: none; }
+/* Journal fields annotate the line above: the name shrinks to its own width in quiet mono, so the value sits beside it. */
+.outline-pane:has(.journal-header) .outline-field-label { flex: 0 1 auto; width: auto; max-width: 40%; align-items: center; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.outline-pane:has(.journal-header) .outline-field-label:hover { color: var(--muted); }
 .outline-reference.outline-reference-ambiguous,
 :is(.outline-body, .outline-value-pill, .table-value-pill) .outline-reference.outline-reference-ambiguous { color: var(--warning); text-decoration-line: underline; text-decoration-style: dotted; text-decoration-color: var(--warning); }
 .outline-reference-ambiguous sup { font: var(--apparatus); margin-inline-start: var(--space-2); }
