@@ -9,12 +9,12 @@ export const isGlossName = (name: string | undefined) => name?.trim().toLowerCas
 export const isGistName = (name: string | undefined) => name?.trim().toLowerCase() === 'gist';
 
 /**
- * The page's gloss entry: its first top-level block that is an entry for the Gloss field. Text is read
- * untracked, so callers rerun on structure; converting shorthand inserts the value, a structural change.
+ * The page's gloss entry: its first top-level block that is an entry for the Gloss field.
+ * Text follows structural changes; the field predicate stays reactive as definitions load or change.
  */
 export function glossEntry(doc: PageDocument, isGloss: (fieldId: string) => boolean): string | null {
   const children = doc.outline.children(doc.pageId);
-  return untrack(() => children.find(id => { const field = fieldEntryId(doc.block(id)?.text ?? ''); return !!field && isGloss(field); })) ?? null;
+  return children.find(id => { const field = fieldEntryId(untrack(() => doc.block(id)?.text ?? '')); return !!field && isGloss(field); }) ?? null;
 }
 
 /** The gloss text: the entry's first value. */
