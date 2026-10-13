@@ -4,6 +4,12 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 <!-- releases -->
 
+## Unreleased
+
+### Fixed
+
+- New typed notes use the submitted title, even when an earlier title matched an existing note.
+
 ## 0.3.0, 2026-10-12
 
 ### Added

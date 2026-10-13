@@ -253,24 +253,23 @@ function NewKindNote(props: { kind: NoteKind; mode: 'type' | 'question' | 'proje
   const noun = props.kind.name.toLocaleLowerCase();
   const query = () => title().trim();
   // Titles are unique without case, as the notebook keys them; the cached roots can miss pages made by other commands.
-  const [existing] = createResource(() => query() || false, text => props.notebook.pageByTitle(text, false).catch(() => null));
+  const [existing] = createResource(() => query() || false, async text => ({ title: text, id: await props.notebook.pageByTitle(text, false).catch(() => null) }));
   const [similar] = createResource(() => query() || false, text => props.notebook.api.complete(text, 8).then(rows => rows.filter(row => row.kind === 'page')).catch(() => []));
   const [type] = createResource(() => props.kind.type_id || false, id => props.notebook.api.type(id).catch(() => null));
   const template = () => (type.latest?.fields ?? []).map(id => props.notebook.lookup(id)()?.text).filter((name): name is string => !!name);
   const typePage = () => props.mode === 'type' && query().toLocaleLowerCase() === props.kind.name.toLocaleLowerCase();
-  // A cleared title keeps the last read in the resources; only a current title has a match.
-  const found = () => query() && existing.latest || undefined;
+  // A resource retains its last result while resolving; only the current title may use it.
+  const found = () => existing.latest?.title === query() ? existing.latest.id ?? undefined : undefined;
   const member = () => !!found() && props.members.has(found()!);
   const matches = createMemo(() => query() ? (similar.latest ?? []).filter(row => row.id !== found()).slice(0, 4) : []);
   const submit = async (beside: boolean, chosen?: { id: string; text: string }) => {
     const text = chosen?.text ?? query();
     if (!text || busy() || (!chosen && typePage())) return;
-    const known = chosen?.id ?? (text === query() ? found() : undefined);
-    if (known && props.members.has(known)) { props.onOpen(known, beside); return; }
     setBusy(true); setError('');
     let doc: PageDocument | undefined;
     try {
       const pageId = chosen?.id ?? await props.notebook.pageByTitle(text, false);
+      if (pageId && props.members.has(pageId)) { props.onOpen(pageId, beside); return; }
       const id = pageId ?? ulid();
       let revision = 1;
       if (pageId) { doc = props.notebook.open(pageId); await documentReady(doc); await doc.flush(); revision = (await props.notebook.api.block(id)).revision; }
