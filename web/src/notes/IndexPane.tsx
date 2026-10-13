@@ -90,6 +90,8 @@ function KindIndexPane(props: IndexPaneProps) {
   kindReads.set(props.notebook, reads);
   const cached = reads.get(props.kindKey);
   const [index] = createResource(() => [props.kindKey, changes(), version()] as const, ([key]) => props.notebook.api.kindNotes(key).then(result => { reads.set(key, result); return result; }), cached ? { initialValue: cached } : {});
+  const [questions] = createResource(() => props.kindKey === 'question' ? [changes(), version()] as const : false, () => props.notebook.api.questions({}));
+  const questionParents = createMemo(() => new Map((questions.error ? [] : questions() ?? []).flatMap(row => row.info.parent_id ? [[row.block.block.id, row.info.parent_id] as const] : [])));
   const slow = createSlowFlag(() => !index.latest && !index.error);
   const typeId = () => props.kind?.type_id ?? (props.kindKey.startsWith('type:') ? props.kindKey.slice(5) : undefined);
   const [type] = createResource(() => typeId() ? [typeId()!, changes(), version()] as const : false, ([id]) => props.notebook.api.type(id));
@@ -143,6 +145,7 @@ function KindIndexPane(props: IndexPaneProps) {
         onFields={event => props.onOpen({ kind: 'fields', typeId: id() }, event.shiftKey)} />}</Show>
       <Show when={index.error}><p class="error" role="alert">Couldn’t load this index · {String(index.error)}</p></Show>
       <Show when={readableSources.error || collectionCounts.error}><p class="error" role="alert">Couldn’t load source details · {String(readableSources.error || collectionCounts.error)}</p></Show>
+      <Show when={questions.error}><p class="error" role="alert">Couldn’t load question context · {String(questions.error)}</p></Show>
       <Show when={index.latest} fallback={<Show when={slow()}><p class="empty-state" role="status">Loading notes…</p></Show>}>
         <Switch>
           <Match when={props.kindKey === 'unfiled'}>
@@ -190,6 +193,7 @@ function KindIndexPane(props: IndexPaneProps) {
                 <h2><span>{group.letter}</span><span class="section-rule" /><span class="index-group-count">{group.noteCount || ''}</span></h2>
                 <For each={group.entries}>{entry => entry.kind === 'note' ? <button type="button" class="index-entry" onClick={event => openNote(entry.note, event)}>
                   <span class="index-entry-title">{entry.note.title}</span><Show when={preview(entry.note)}><span class="index-preview">{preview(entry.note)}</span></Show>
+                  <Show when={questionParents().get(entry.note.id)}>{parent => <span class="index-apparatus">Part of {plainText(props.notebook.lookup(parent())()?.text ?? '', lookup)}</span>}</Show>
                   <Show when={isCollection()} fallback={<Show when={summary(entry.note)}>{value => <span class="index-apparatus"><Show when={value().field}>{field => <span title={field().name}>{plainText(field().value, lookup)} · </span>}</Show>{tally(value().block_count, 'block')}</span>}</Show>}>
                     <Show when={collectionCounts.latest?.get(entry.note.id) != null}><span class="index-apparatus">{tally(collectionCounts.latest!.get(entry.note.id)!, 'source')}</span></Show>
                   </Show>

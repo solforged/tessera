@@ -356,12 +356,12 @@ export interface RelationQuery { kind?: RelationKind; source?: string; target?: 
 export interface RelationEndpoint { block: BlockInPage; holder_id: string | null }
 export interface RelationRow { block: BlockInPage; kind: RelationKind; source: RelationEndpoint; target: RelationEndpoint | null; problem: string | null }
 export type QuestionStatus = 'open' | 'answered' | 'parked' | 'unsettled';
-export interface QuestionState { unsettled: boolean; parked: boolean; review_on: string | null; accepted: string | null }
+export interface QuestionState { unsettled: boolean; parked: boolean; review_on: string | null; accepted: string | null; parent?: string | null }
 export interface AssessmentState { assessed_on: string; aporia: boolean }
-export interface QuestionInfo { state: QuestionState; status: QuestionStatus }
+export interface QuestionInfo { state: QuestionState; status: QuestionStatus; parent_id: string | null; parent_explicit: boolean }
 export interface AssessmentInfo { state: AssessmentState; question_id: string | null; accepted: boolean }
-export interface QuestionQuery { status?: QuestionStatus; review_by?: string; limit?: number }
-export interface QuestionRow { block: BlockInPage; info: QuestionInfo }
+export interface QuestionQuery { status?: QuestionStatus; review_by?: string; parent?: string; limit?: number }
+export interface QuestionRow { block: BlockInPage; info: QuestionInfo; position_count: number }
 export interface QuotedRow { id: string; depth: number; text: string; heading: number | null; revision: number }
 export interface QuoteState { target_id: string; captured_at: number; rows: QuotedRow[]; truncated: boolean }
 export interface Subtree { rows: Row[]; truncated: boolean }

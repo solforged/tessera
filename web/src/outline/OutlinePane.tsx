@@ -53,6 +53,7 @@ import type { MenuState, OutlineContext, RowRange } from './context';
 import { PageMergeConfirmation, pageMergeDisabledReason } from './PageMerge';
 import { foldName, nameMenuItems, resolveName } from './names';
 import { titleTargets, typedTitles, withLinkedTitles } from './link-titles';
+import { QuestionBranches, QuestionParent } from './Questions';
 import './outline.css';
 
 const storedFolds = new Map<string, Set<string>>();
@@ -337,6 +338,10 @@ function Pane(props: OutlinePaneProps) {
   const positionSource = (id: string) => sharedPositionSource(doc, id, fieldId => definitionsById().get(fieldId)?.name);
   /** Perspectives on this page filed under it, as opposed to under a question or another subject. */
   const localPositions = createMemo(() => { let count = 0; (doc.outline as OutlineIndex).each(0, doc.outline.size(), row => { if (doc.block(row.id)?.position?.subject_id === props.pageId) count++; }); return count; });
+  const [branches] = createResource(() => doc.root()?.question ? [props.pageId, props.notebook.changeSequence()] as const : false,
+    ([parent]) => props.notebook.api.questions({ parent }));
+  const branchBoundary = createMemo(() => !zoom() && doc.root()?.question
+    ? ids().find(id => doc.outline.parentOf(id) === props.pageId && (doc.block(id)?.heading || doc.block(id)?.position)) : undefined);
   // Sources cited or named by positions on this page, in order of first appearance, give the sigla shown in
   // the margin. A source page's own highlights need no mark.
   const citedSources = createMemo(() => {
@@ -1120,7 +1125,8 @@ function Pane(props: OutlinePaneProps) {
   });
   const drag = createOutlineDrag(context);
   const { related, relatedError, apparatus, holders, linkedPages, Related, Backlinks, UnlinkedMentions, mentionsAvailable, ReferenceCount, RowRelations } = createOutlineRelated(context);
-  const { Row, TaskSummary, QuestionSummary } = createOutlineRows(context, fieldSheet, drag, ReferenceCount, RowRelations, openValueEditor);
+  const { Row, TaskSummary, QuestionSummary } = createOutlineRows(context, fieldSheet, drag, ReferenceCount, RowRelations, openValueEditor,
+    row => <Show when={branchBoundary() === row.id && !branches.error}><QuestionBranches rows={branches() ?? []} notebook={props.notebook} onOpen={props.onOpen} /></Show>);
   const { CapabilityPopups } = createCapabilityPopups(context);
 
   onMount(() => {
@@ -1370,6 +1376,8 @@ function Pane(props: OutlinePaneProps) {
         <QuestionSummary id={props.pageId} />
         <For each={doc.root()?.citations}>{citation => <CitationChip citation={citation} pageId={props.pageId} notebook={props.notebook} onOpen={props.onOpen} />}</For>
       </div></Show>
+      <Show when={!zoom()}><QuestionParent info={doc.root()?.question} notebook={props.notebook} onOpen={props.onOpen} disabled={capabilities.busy(props.pageId)}
+        onChange={anchor => capabilities.open(props.pageId, 'question-parent', anchor)} onRemove={() => { const question = doc.root()?.question; if (question) { const { parent: _, ...value } = question.state; capabilities.invoke(capabilities.edit(props.pageId, { kind: 'question', id: props.pageId, value })); } }} /></Show>
       <For each={doc.root()?.citations}>{citation => <Show when={doc.root()?.text.trim() !== citation.quote.trim()}>
         <p class="outline-citation-quote" title={citation.quote}>{citation.quote}</p>
       </Show>}</For>
@@ -1398,6 +1406,10 @@ function Pane(props: OutlinePaneProps) {
         <Show keyed when={editing() && virtualItems().has(editing()!) ? editing() : null}>{id => <Row id={id} item={() => virtualItems().get(id)!} />}</Show>
       </div>
     </div>
+    <Show when={!zoom() && doc.root()?.question}>
+      <Show when={branches.error}><p class="error" role="alert">Couldn’t load branches · {String(branches.error)}</p></Show>
+      <Show when={!branchBoundary() && !branches.error}><QuestionBranches rows={branches() ?? []} notebook={props.notebook} onOpen={props.onOpen} /></Show>
+    </Show>
     <Show when={doc.root()?.source && !zoom() && filedElsewhere().length}><section class="related-sections source-elsewhere" aria-label="Filed elsewhere">
       <h3 class="outline-highlights-label">Filed elsewhere <span>{filedElsewhere().length}</span></h3>
       <For each={filedElsewhere()}>{row => <Button class="library-highlight" onClick={event => props.onOpen({ kind: 'page', pageId: row.block.page.id, blockId: row.block.block.id }, event.shiftKey)}>

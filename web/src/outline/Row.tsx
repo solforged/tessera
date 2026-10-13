@@ -1,7 +1,6 @@
 import { For, Match, Show, Switch, createEffect, createMemo, createSignal, on, onCleanup, onMount } from 'solid-js';
 import type { Accessor, Component } from 'solid-js';
 import type { VirtualItem } from '@tanstack/solid-virtual';
-import type { QuestionStatus } from '../api/types';
 import { fieldEntryId, matchFieldEntry } from '../table/query';
 import { linkedCitation, setLinkedCitation } from '../library/highlights';
 import { cardSubject, parseCardText } from '../review/card-text';
@@ -26,8 +25,8 @@ import { KeptCopyActions, KeptCopyLabel } from './KeptCopy';
 import { quoteTarget, textTokens } from '../document/text-tokens';
 import { Quote, createQuoteStatus } from './Quote';
 import { relationLabels } from './relations';
+import { QuestionParent, questionLabels } from './Questions';
 
-const questionLabels: Record<QuestionStatus, string> = { open: 'Open', answered: 'Answered', parked: 'Parked', unsettled: 'Unsettled' };
 export function createOutlineRows(context: Pick<OutlineContext,
   | 'doc' | 'capabilities' | 'setMenu' | 'investigationItems' | 'definitionsById' | 'contextDate'
   | 'inlineFields' | 'baseDepth' | 'positionSource' | 'sourceDetails' | 'virtualizer'
@@ -36,7 +35,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
   | 'fold' | 'zoomTo' | 'editAt' | 'restoreFocus' | 'pointerStart' | 'attach'
   | 'referenceMenu' | 'selectedOffsets' | 'ids' | 'indices' | 'setMessage' | 'apply'
   | 'setConflicts' | 'conflicts' | 'editedConflicts' | 'setEditedConflicts'
->, sheet: FieldSheet, drag: OutlineDrag, ReferenceCount: Component<{ id: string }>, RowRelations: Component<{ id: string }>, openValueEditor: (id: string, anchor?: HTMLElement) => boolean) {
+>, sheet: FieldSheet, drag: OutlineDrag, ReferenceCount: Component<{ id: string }>, RowRelations: Component<{ id: string }>, openValueEditor: (id: string, anchor?: HTMLElement) => boolean, RowPrelude: Component<{ id: string }>) {
   const {
     doc, capabilities, setMenu, investigationItems, definitionsById, contextDate, inlineFields,
     baseDepth, positionSource, sourceDetails, virtualizer, hosts, props,
@@ -175,6 +174,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
       data-question-status={block()?.question?.status} data-accepted={block()?.assessment ? String(block()!.assessment!.accepted) : undefined} data-aporia={block()?.assessment?.state.aporia ? 'true' : undefined}
       onPointerEnter={() => { setLinkedCitation(block()?.citations[0]?.id ?? null); sheet.hover(id()); }} onPointerLeave={() => { setLinkedCitation(null); sheet.hover(null); }}
       style={{ transform: `translateY(${propsRow.item().start - margin()}px)`, '--depth': depth(), '--quote-color': localCitation()?.color ? `var(--highlight-${localCitation()!.color})` : 'var(--faint)' }}>
+      <RowPrelude id={id()} />
       <Show when={sourceDetails().chapters.get(id())}>{title => <div class="outline-chapter-label">{title()}</div>}</Show>
       <Show when={rowSource() && sigla().get(rowSource()!)}>{mark => <span class="row-siglum" title={props.notebook.lookup(rowSource()!)()?.text}>{mark()}</span>}</Show>
       <button type="button" class="row-menu icon-button" aria-label="Block actions" onPointerDown={event => drag.start(event, id())} onClick={event => blockMenu(id(), event.currentTarget)}><Icon name="more" /></button>
@@ -222,6 +222,8 @@ export function createOutlineRows(context: Pick<OutlineContext,
           <For each={block()?.citations}>{citation => <CitationChip citation={citation} pageId={props.pageId} notebook={props.notebook} onOpen={props.onOpen} />}</For>
         </span></Show>
         </div>
+        <QuestionParent info={block()?.question} notebook={props.notebook} onOpen={props.onOpen} disabled={capabilities.busy(id())} onChange={anchor => capabilities.open(id(), 'question-parent', anchor)}
+          onRemove={() => { const question = block()?.question; if (question) { const { parent: _, ...value } = question.state; capabilities.invoke(capabilities.edit(id(), { kind: 'question', id: id(), value })); } }} />
         <RowRelations id={id()} />
         <Show when={block()?.keptCopy}><KeptCopyActions id={id()} apply={edit => apply(edit, false)} /></Show>
         <For each={block()?.citations}>{citation => <Show when={block()?.text.trim() !== citation.quote.trim()}>

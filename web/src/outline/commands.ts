@@ -104,6 +104,8 @@ export function createOutlineCommands(context: Pick<OutlineContext,
         { label: question.parked ? 'Resume question' : 'Park question', action: () => edit({ kind: 'question', id, value: { ...question, parked: !question.parked } }) },
         { label: question.unsettled ? 'Let it settle' : 'Keep open', action: () => edit({ kind: 'question', id, value: { ...question, unsettled: !question.unsettled } }) },
         { label: 'Set review date', action: () => capabilities.open(id, 'review-date') },
+        { label: 'Set parent question…', action: () => capabilities.open(id, 'question-parent') },
+        ...(question.parent ? [{ label: 'Remove parent', action: () => { const { parent: _, ...value } = question; edit({ kind: 'question', id, value }); } }] : []),
         { label: 'Remove question', disabledReason: question.parked && question.accepted ? 'Resume the question before accepting an answer.' : undefined, action: () => edit({ kind: 'question', id, value: null }) },
       ] : [{ label: 'Make question', disabledReason: block.relation ? 'Remove the relation first.' : assessment ? 'Remove the answer first.' : block.kind === 'journal' ? 'Make an ordinary block or page a question.' : undefined,
         action: () => edit({ kind: 'question', id, value: { unsettled: false, parked: false, accepted: null, review_on: null } }) }]),
@@ -141,6 +143,10 @@ export function createOutlineCommands(context: Pick<OutlineContext,
       else if (context.heading) setMenu({ anchor: context.heading, label: 'Question', items: investigationItems(props.pageId) });
     } },
     { id: 'add-relation-root', title: 'Add relation…', section: 'Page', disabledReason: () => addRelationReason(doc.root()), run: () => relationMenu(props.pageId, true) },
+    { id: 'question-parent', title: 'Set parent question…', section: 'Page', disabledReason: () => doc.block(selected() ?? '')?.question || doc.root()?.question ? undefined : 'Select a question.', run: () => {
+      const id = selected() && doc.block(selected()!)?.question ? selected()! : props.pageId;
+      capabilities.open(id, 'question-parent', id === props.pageId ? context.heading : undefined);
+    } },
     { id: 'previous-row', title: 'Select previous block', section: 'Navigation', keys: ['↑', 'k'], run: () => adjacent(-1) },
     { id: 'next-row', title: 'Select next block', section: 'Navigation', keys: ['↓', 'j'], run: () => adjacent(1) },
     { id: 'parent', title: 'Fold children / select parent', section: 'Navigation', keys: ['←', 'h'], run: () => horizontal('left') },

@@ -1489,14 +1489,14 @@ impl Engine<'_, '_> {
             _ => affected,
         };
         if let Some(id) = affected {
-            crate::question_store::affected(self.tx, id, &mut self.capability_sources)?;
+            crate::question_store::affected(self.tx, id, &mut self.capability_sources, false)?;
         }
         if let Some(id) = relation_affected {
             crate::relation_store::affected(self.tx, id, &mut self.capability_sources)?;
         }
         self.apply_operation(operation, index)?;
         if let Some(id) = affected {
-            crate::question_store::affected(self.tx, id, &mut self.capability_sources)?;
+            crate::question_store::affected(self.tx, id, &mut self.capability_sources, true)?;
         }
         if let Some(id) = relation_affected {
             crate::relation_store::affected(self.tx, id, &mut self.capability_sources)?;
@@ -1504,8 +1504,13 @@ impl Engine<'_, '_> {
         if let Operation::Merge { destination_id, .. }
         | Operation::MergePage { destination_id, .. } = operation
         {
-            crate::question_store::affected(self.tx, destination_id, &mut self.capability_sources)?;
             crate::relation_store::affected(self.tx, destination_id, &mut self.capability_sources)?;
+            crate::question_store::affected(
+                self.tx,
+                destination_id,
+                &mut self.capability_sources,
+                true,
+            )?;
         }
         Ok(())
     }

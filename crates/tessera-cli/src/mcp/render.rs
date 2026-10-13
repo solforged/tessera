@@ -244,6 +244,16 @@ fn capability_details(caps: &BlockCapabilities) -> Vec<String> {
     }
     if let Some(question) = &caps.question {
         let mut part = format!("question {}", name(question.status));
+        if let Some(parent) = &question.parent_id {
+            part.push_str(&format!(
+                " parent {parent} ({})",
+                if question.parent_explicit {
+                    "explicit"
+                } else {
+                    "structural"
+                }
+            ));
+        }
         if let Some(day) = &question.state.review_on {
             part.push_str(&format!(" review {day}"));
         }

@@ -64,6 +64,8 @@ struct Relation {
     assessment: Option<AssessmentState>,
     question_id: Option<String>,
     owner_accepted: Option<String>,
+    parent_id: Option<String>,
+    parent_explicit: bool,
     visible: bool,
 }
 
@@ -91,13 +93,19 @@ fn relations(conn: &Connection, ids: &[String]) -> Result<Vec<Relation>> {
          ) SELECT b.id, CASE WHEN q.active = 1 THEN q.state END,
             CASE WHEN a.active = 1 THEN a.state END, o.question_id,
             json_extract(owner.state, '$.accepted'),
+            COALESCE(parent.id, o.question_id), parent.id IS NOT NULL,
             b.deletion_id IS NULL AND root.deletion_id IS NULL
               AND b.rowid NOT IN (SELECT rowid FROM hidden)
          FROM seeds s JOIN blocks b ON b.id = s.id JOIN blocks root ON root.id = b.page_id
          LEFT JOIN questions q ON q.block_id = b.id
          LEFT JOIN assessments a ON a.block_id = b.id
          LEFT JOIN owners o ON o.id = b.id
-         LEFT JOIN questions owner ON owner.block_id = o.question_id"
+         LEFT JOIN questions owner ON owner.block_id = o.question_id
+         LEFT JOIN questions explicit ON explicit.block_id = json_extract(q.state, '$.parent')
+           AND explicit.active = 1
+         LEFT JOIN blocks parent ON parent.id = explicit.block_id AND parent.deletion_id IS NULL
+           AND EXISTS (SELECT 1 FROM blocks pr WHERE pr.id = parent.page_id
+             AND pr.deletion_id IS NULL)"
         ))?
         .query_map(
             [serde_json::to_string(ids).expect("IDs serialize")],
@@ -108,7 +116,9 @@ fn relations(conn: &Connection, ids: &[String]) -> Result<Vec<Relation>> {
                     assessment: json_at(row, 2)?,
                     question_id: row.get(3)?,
                     owner_accepted: row.get(4)?,
-                    visible: row.get(5)?,
+                    parent_id: row.get(5)?,
+                    parent_explicit: row.get(6)?,
+                    visible: row.get(7)?,
                 })
             },
         )?
@@ -142,6 +152,8 @@ pub(crate) fn hydrate(
             QuestionInfo {
                 state: state.clone(),
                 status: question_status(state, accepted_live),
+                parent_id: relation.parent_id.clone(),
+                parent_explicit: relation.parent_explicit,
             }
         });
         let assessment = relation.assessment.as_ref().map(|state| AssessmentInfo {
@@ -162,27 +174,55 @@ pub(crate) fn hydrate(
     Ok(capabilities)
 }
 
-pub(crate) fn affected(conn: &Connection, id: &str, into: &mut HashSet<String>) -> Result<()> {
+pub(crate) fn affected(
+    conn: &Connection,
+    id: &str,
+    into: &mut HashSet<String>,
+    check_parent_cycles: bool,
+) -> Result<()> {
     let ids = conn
         .prepare_cached(
             "WITH RECURSIVE subtree(id) AS (
             SELECT id FROM blocks WHERE id = ?1
             UNION ALL SELECT b.id FROM blocks b JOIN subtree s ON b.parent_id = s.id
          ) SELECT id FROM subtree WHERE id IN (SELECT block_id FROM questions)
-            OR id IN (SELECT block_id FROM assessments)",
+            OR id IN (SELECT block_id FROM assessments)
+            OR id IN (SELECT block_id FROM positions)
+            UNION SELECT block_id FROM questions
+              WHERE active = 1 AND json_extract(state, '$.parent') IN (SELECT id FROM subtree)",
         )?
         .query_map([id], |row| row.get(0))?
         .collect::<rusqlite::Result<Vec<String>>>()?;
     for relation in relations(conn, &ids)? {
         if let Some(question) = relation.question {
+            if check_parent_cycles {
+                validate_parent_chain(conn, &relation.id)?;
+            }
             into.extend(question.accepted);
         }
+        into.extend(relation.parent_id);
         if relation.assessment.is_some() {
             into.extend(relation.question_id);
         }
         into.insert(relation.id);
     }
     Ok(())
+}
+
+fn validate_parent_chain(conn: &Connection, id: &str) -> Result<()> {
+    let mut seen = HashSet::from([id.to_owned()]);
+    let mut current = id.to_owned();
+    loop {
+        let parent = relations(conn, std::slice::from_ref(&current))?
+            .into_iter()
+            .find(|r| r.id == current)
+            .and_then(|r| r.parent_id);
+        let Some(parent) = parent else { return Ok(()) };
+        if !seen.insert(parent.clone()) {
+            return Err(validation("A question cannot be part of its own branch."));
+        }
+        current = parent;
+    }
 }
 
 pub(crate) fn withdraw_acceptance(conn: &Connection, answer: &str) -> Result<Vec<String>> {
@@ -240,6 +280,27 @@ pub(crate) fn apply(conn: &Connection, operation: &Operation) -> Result<bool> {
             }
             if let Some(date) = question.as_ref().and_then(|state| state.review_on.as_ref()) {
                 validate_civil_date(date)?;
+            }
+            if let Some(parent) = question.as_ref().and_then(|state| state.parent.as_ref())
+                && previous.and_then(|state| state.parent.as_ref()) != Some(parent)
+            {
+                validate_id(parent)?;
+                if parent == id {
+                    return Err(validation("A question cannot be its own parent."));
+                }
+                // Undo may reactivate a question with its existing dangling pointer.
+                let valid: bool = conn
+                    .prepare_cached(
+                        "SELECT EXISTS(SELECT 1 FROM questions q JOIN blocks b ON b.id = q.block_id
+                     JOIN blocks root ON root.id = b.page_id WHERE q.block_id = ?1
+                     AND q.active = 1 AND b.deletion_id IS NULL AND root.deletion_id IS NULL)
+                     OR EXISTS(SELECT 1 FROM questions WHERE block_id = ?2 AND active = 0
+                     AND json_extract(state, '$.parent') = ?1)",
+                    )?
+                    .query_row(params![parent, id], |row| row.get(0))?;
+                if !valid {
+                    return Err(validation("Choose a live question as the parent."));
+                }
             }
             // Activate first so ancestry is also correct when undo restores a
             // removed question. Validation failure rolls back the entire batch.
@@ -343,6 +404,9 @@ impl Notebook {
         if let Some(date) = &query.review_by {
             validate_civil_date(date)?;
         }
+        if let Some(parent) = &query.parent {
+            validate_id(parent)?;
+        }
         let blocks = self
             .conn
             .prepare_cached(concat!(hidden_blocks!(),
@@ -366,6 +430,7 @@ impl Notebook {
             .into_iter()
             .filter_map(|c| c.question.map(|info| (c.block_id, info)))
             .collect();
+        let counts = crate::position_store::subject_counts(&self.conn)?;
         Ok(blocks
             .into_iter()
             .filter_map(|block| {
@@ -373,7 +438,19 @@ impl Notebook {
                 if query.status.is_some_and(|status| status != info.status) {
                     return None;
                 }
-                Some(QuestionRow { block, info })
+                if query
+                    .parent
+                    .as_deref()
+                    .is_some_and(|parent| info.parent_id.as_deref() != Some(parent))
+                {
+                    return None;
+                }
+                let position_count = counts.get(&block.block.id).copied().unwrap_or_default();
+                Some(QuestionRow {
+                    block,
+                    info,
+                    position_count,
+                })
             })
             .take(query.limit.map_or(usize::MAX, |limit| limit as usize))
             .collect())

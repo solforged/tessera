@@ -531,6 +531,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
           if (item && !item.disabledReason) item.action();
         },
       })),
+      { id: 'question-parent', title: 'Set parent question…', aliases: ['parent', 'part of', 'branch'], section: 'Question', icon: 'question-open', when: block => !!block?.question, run: id => capabilities.open(id, 'question-parent') },
       ...([1, 2, 3] as const).map((level): SlashItem => ({ id: `heading-${level}`, title: `Heading ${level}`, aliases: [`h${level}`], section: 'Text', icon: 'heading', keys: '#'.repeat(level), run: id => apply({ kind: 'heading', id, level }) })),
       { id: 'heading-normal', title: 'Normal text', aliases: ['paragraph'], section: 'Text', icon: 'edit', when: block => !!block?.heading, run: id => apply({ kind: 'heading', id, level: null }) },
       { id: 'reference', title: 'Reference', aliases: ['link', 'page', 'mention'], section: 'Text', icon: 'link', keys: '[[', insert: () => ({ text: '[[', caret: 2 }) },

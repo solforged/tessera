@@ -108,6 +108,7 @@ fn question_status_precedence_covers_every_combination() {
                     unsettled,
                     accepted: Some(id(11)),
                     review_on: None,
+                    parent: None,
                 };
                 let expected = if parked {
                     "parked"
@@ -588,4 +589,191 @@ fn removing_an_accepted_assessment_clears_acceptance_and_both_states_restore() {
             .unwrap()
             .accepted
     );
+}
+
+#[test]
+fn parent_questions_validate_cycles_and_restore_dangling_relations() {
+    let (_dir, mut nb) = fixture();
+    set_question(&mut nb, 1, QuestionState::default());
+    set_question(&mut nb, 11, QuestionState::default());
+    set_question(&mut nb, 20, QuestionState::default());
+    let structural = nb.capabilities(&id(11)).unwrap().question.unwrap();
+    assert_eq!(structural.parent_id, Some(id(10)));
+    assert!(!structural.parent_explicit);
+    for (parent, expected) in [
+        (10, "own parent"),
+        (11, "own branch"),
+        (12, "live question"),
+    ] {
+        let op = question(
+            &nb,
+            10,
+            Some(QuestionState {
+                parent: Some(id(parent)),
+                ..state(&nb, 10)
+            }),
+        );
+        reject(&mut nb, op, expected);
+    }
+    let next = QuestionState {
+        parent: Some(id(20)),
+        ..state(&nb, 10)
+    };
+    set_question(&mut nb, 10, next.clone());
+    let op = question(
+        &nb,
+        20,
+        Some(QuestionState {
+            parent: Some(id(11)),
+            ..state(&nb, 20)
+        }),
+    );
+    reject(&mut nb, op, "own branch");
+    let op = Operation::Move {
+        id: id(20),
+        base_revision: nb.block(&id(20)).unwrap().revision,
+        parent_id: id(11),
+        after: None,
+    };
+    reject(&mut nb, op, "own branch");
+    let parent_state = state(&nb, 20);
+    let child_revision = nb.block(&id(10)).unwrap().revision;
+    let op = question(&nb, 20, None);
+    let receipt = apply(&mut nb, vec![op]);
+    let child = nb.capabilities(&id(10)).unwrap().question.unwrap();
+    assert_eq!(child.state, next);
+    assert_eq!(child.parent_id, Some(id(1)));
+    assert!(!child.parent_explicit);
+    assert_eq!(nb.block(&id(10)).unwrap().revision, child_revision);
+    assert!(receipt.capabilities.iter().any(|c| c.block_id == id(10)));
+    let remove_child = question(&nb, 10, None);
+    apply(&mut nb, vec![remove_child]);
+    set_question(&mut nb, 10, next.clone());
+    assert_eq!(state(&nb, 10), next);
+    assert_eq!(
+        nb.capabilities(&id(10))
+            .unwrap()
+            .question
+            .unwrap()
+            .parent_id,
+        Some(id(1))
+    );
+    set_question(&mut nb, 20, parent_state);
+    assert!(
+        nb.capabilities(&id(10))
+            .unwrap()
+            .question
+            .unwrap()
+            .parent_explicit
+    );
+    let base_revision = nb.block(&id(20)).unwrap().revision;
+    let deleted = apply(
+        &mut nb,
+        vec![Operation::Delete {
+            id: id(20),
+            base_revision,
+        }],
+    );
+    assert_eq!(
+        nb.capabilities(&id(10))
+            .unwrap()
+            .question
+            .unwrap()
+            .parent_id,
+        Some(id(1))
+    );
+    let revision = base_revision + 1;
+    apply(
+        &mut nb,
+        vec![Operation::Restore {
+            id: id(20),
+            deletion_id: deleted.deletions[0].clone(),
+            revision,
+        }],
+    );
+    assert_eq!(
+        nb.capabilities(&id(10))
+            .unwrap()
+            .question
+            .unwrap()
+            .parent_id,
+        Some(id(20))
+    );
+}
+
+#[test]
+fn branches_include_inline_questions_and_count_their_positions() {
+    let (_dir, mut nb) = fixture();
+    set_question(&mut nb, 11, QuestionState::default());
+    set_question(
+        &mut nb,
+        20,
+        QuestionState {
+            parent: Some(id(10)),
+            ..QuestionState::default()
+        },
+    );
+    apply(
+        &mut nb,
+        vec![
+            Operation::CreatePage {
+                id: id(30),
+                title: "Holder".into(),
+            },
+            Operation::Insert {
+                id: id(31),
+                parent_id: id(11),
+                after: None,
+                text: format!("[[{}]]", id(30)),
+                heading: None,
+            },
+            Operation::SetPosition {
+                id: id(31),
+                base_revision: 1,
+                position: true,
+            },
+        ],
+    );
+    let branches = nb
+        .questions(&QuestionQuery {
+            parent: Some(id(10)),
+            ..QuestionQuery::default()
+        })
+        .unwrap();
+    assert_eq!(
+        branches
+            .iter()
+            .map(|row| (row.block.block.id.clone(), row.position_count))
+            .collect::<Vec<_>>(),
+        vec![(id(11), 1), (id(20), 0)]
+    );
+    assert_eq!(
+        nb.capabilities(&id(31))
+            .unwrap()
+            .position
+            .unwrap()
+            .subject_id,
+        id(11)
+    );
+    let op = question(&nb, 11, None);
+    let receipt = apply(&mut nb, vec![op]);
+    assert_eq!(
+        nb.capabilities(&id(31))
+            .unwrap()
+            .position
+            .unwrap()
+            .subject_id,
+        id(10)
+    );
+    assert!(receipt.capabilities.iter().any(|c| c.block_id == id(31)));
+}
+
+#[test]
+fn older_question_states_read_without_parent() {
+    let state: QuestionState = serde_json::from_str(
+        r#"{"unsettled":false,"parked":false,"review_on":null,"accepted":null}"#,
+    )
+    .unwrap();
+    assert_eq!(state.parent, None);
+    assert!(serde_json::to_value(state).unwrap().get("parent").is_none());
 }

@@ -92,6 +92,8 @@ pub struct QuestionState {
     pub parked: bool,
     pub review_on: Option<String>,
     pub accepted: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -104,6 +106,10 @@ pub struct AssessmentState {
 pub struct QuestionInfo {
     pub state: QuestionState,
     pub status: QuestionStatus,
+    #[serde(default)]
+    pub parent_id: Option<String>,
+    #[serde(default)]
+    pub parent_explicit: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -117,6 +123,7 @@ pub struct AssessmentInfo {
 pub struct QuestionQuery {
     pub status: Option<QuestionStatus>,
     pub review_by: Option<String>,
+    pub parent: Option<String>,
     pub limit: Option<u32>,
 }
 
@@ -124,6 +131,8 @@ pub struct QuestionQuery {
 pub struct QuestionRow {
     pub block: BlockInPage,
     pub info: QuestionInfo,
+    #[serde(default)]
+    pub position_count: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

@@ -350,3 +350,71 @@ fn local_changes_record_this_device_as_origin() {
         device
     );
 }
+
+#[test]
+fn question_parent_state_replicates_and_changes_without_rewriting_text() {
+    let (first, second) = two_devices();
+    let mut devices = [
+        Notebook::open(first.path()).unwrap(),
+        Notebook::open(second.path()).unwrap(),
+    ];
+    apply_both(
+        &mut devices,
+        1,
+        10_000,
+        vec![
+            Operation::CreatePage {
+                id: id(1),
+                title: "Research program".into(),
+            },
+            Operation::CreatePage {
+                id: id(2),
+                title: "Branch".into(),
+            },
+            Operation::SetQuestion {
+                id: id(1),
+                base_revision: 1,
+                question: Some(tessera_core::QuestionState::default()),
+            },
+            Operation::SetQuestion {
+                id: id(2),
+                base_revision: 1,
+                question: Some(tessera_core::QuestionState {
+                    parent: Some(id(1)),
+                    ..Default::default()
+                }),
+            },
+        ],
+    );
+    for device in &devices {
+        let question = device.capabilities(&id(2)).unwrap().question.unwrap();
+        assert_eq!(question.parent_id, Some(id(1)));
+        assert!(question.parent_explicit);
+    }
+    apply_both(
+        &mut devices,
+        2,
+        11_000,
+        vec![Operation::SetQuestion {
+            id: id(2),
+            base_revision: 2,
+            question: Some(tessera_core::QuestionState::default()),
+        }],
+    );
+    assert_eq!(
+        replicated_state(first.path()),
+        replicated_state(second.path())
+    );
+    for device in &devices {
+        assert_eq!(device.block(&id(2)).unwrap().text, "Branch");
+        assert_eq!(
+            device
+                .capabilities(&id(2))
+                .unwrap()
+                .question
+                .unwrap()
+                .parent_id,
+            None
+        );
+    }
+}

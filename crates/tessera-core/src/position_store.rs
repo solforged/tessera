@@ -39,14 +39,6 @@ pub(crate) fn set(conn: &Connection, id: &str, active: bool) -> Result<bool> {
         != 0)
 }
 
-/// Integration seam: the question capability lane supplies ancestor lookup.
-pub(crate) fn nearest_question_ancestor(
-    _conn: &Connection,
-    _block_id: &str,
-) -> Result<Option<String>> {
-    Ok(None)
-}
-
 /// Resolve both links together, without skipping an invalid first or second link.
 /// An optional ID set keeps page loads and receipts set-based.
 pub(crate) fn derive(
@@ -87,7 +79,7 @@ pub(crate) fn derive(
         let (id, page, holder_id, subject) = row?;
         let subject_id = match subject {
             Some(subject) => subject,
-            None => nearest_question_ancestor(conn, &id)?.unwrap_or(page),
+            None => crate::question_store::nearest_question_ancestor(conn, &id)?.unwrap_or(page),
         };
         result.insert(
             id,
@@ -98,6 +90,24 @@ pub(crate) fn derive(
         );
     }
     Ok(result)
+}
+
+pub(crate) fn subject_counts(conn: &Connection) -> Result<HashMap<String, usize>> {
+    let ids = conn
+        .prepare_cached(concat!(
+            hidden_blocks!(),
+            "SELECT b.id FROM positions pos JOIN blocks b ON b.id = pos.block_id
+             JOIN blocks root ON root.id = b.page_id
+             WHERE pos.active = 1 AND b.deletion_id IS NULL AND root.deletion_id IS NULL
+             AND b.rowid NOT IN (SELECT rowid FROM hidden)"
+        ))?
+        .query_map([], |row| row.get(0))?
+        .collect::<rusqlite::Result<Vec<String>>>()?;
+    let mut counts = HashMap::new();
+    for info in derive(conn, Some(&ids))?.into_values() {
+        *counts.entry(info.subject_id).or_default() += 1;
+    }
+    Ok(counts)
 }
 
 pub(crate) fn hydrate(

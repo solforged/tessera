@@ -8,7 +8,7 @@ import { newTask } from '../tasks/quick-date';
 import { isFinished } from '../tasks/task-labels';
 
 
-export type CapabilityKind = 'task' | 'schedule' | 'deadline' | 'repeat' | 'project' | 'work' | 'review-date';
+export type CapabilityKind = 'task' | 'schedule' | 'deadline' | 'repeat' | 'project' | 'work' | 'review-date' | 'question-parent';
 export type CapabilityPopup = { id: string; anchor: PopupAnchor } & (
   | { kind: CapabilityKind }
   | { kind: 'complete'; session: WorkSession; completedOn: string }

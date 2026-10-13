@@ -666,7 +666,7 @@ export class Notebook implements NotebookClient, DocumentHost {
             if (!sameState(value.question?.state ?? null, action.previous)) throw new Error('Question changed. Rejected command kept.');
             operations.push({ op: 'set_question', id: action.id, base_revision: block.revision, question: action.value });
             changed = !sameState(value.question?.state ?? null, action.value);
-            value.question = action.value ? { state: action.value, status: questionStatus(action.value, false) } : null;
+            value.question = action.value ? { state: action.value, status: questionStatus(action.value, false), parent_id: value.question?.parent_id ?? null, parent_explicit: value.question?.parent_explicit ?? false } : null;
           } else if (action.kind === 'quote') {
             if (!sameState(value.quote ?? null, action.previous)) throw new Error('Quote changed. Rejected command kept.');
             operations.push({ op: 'set_quote', id: action.id, base_revision: block.revision, quote: action.value });

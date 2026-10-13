@@ -10,6 +10,7 @@ import { Popup } from '../ui/Popup';
 import { BlockText } from './BlockText';
 import type { CapabilityPopup } from './capabilities';
 import type { OutlineContext } from './context';
+import { QuestionParentPicker } from './Questions';
 
 interface WorkHistory { sessions: WorkSession[]; active: WorkSession | null; source: Block | null }
 export function createCapabilityPopups(context: Pick<OutlineContext, 'doc' | 'props' | 'capabilities' | 'contextDate'>) {
@@ -71,6 +72,8 @@ function CapabilityPopups(){ return <>
       </Popup>}
       {state.kind === 'review-date' && <Show when={doc.block(state.id)?.question}>{question => <DatePicker notebook={props.notebook} anchor={state.anchor} label="Set review date" value={question().state.review_on} contextDate={props.notebook.todayDate()} onDismiss={() => capabilities.dismiss(state)}
         onSelect={value => capabilities.edit(state.id, { kind: 'question', id: state.id, value: { ...question().state, review_on: value.date } })} />}</Show>}
+      {state.kind === 'question-parent' && <QuestionParentPicker id={state.id} notebook={props.notebook} anchor={state.anchor} onDismiss={() => capabilities.dismiss(state)}
+        onPick={parent => { const question = doc.block(state.id)?.question; if (!question) return Promise.reject(new Error('The question is no longer available.')); return capabilities.edit(state.id, { kind: 'question', id: state.id, value: { ...question.state, parent } }); }} />}
       {state.kind === 'schedule' && <Show when={doc.block(state.id)?.task}>{task => <DatePicker notebook={props.notebook} anchor={state.anchor} label="Schedule task" value={task().scheduled} time={task().scheduled_time} contextDate={contextDate()} marks={task().deadline ? { [task().deadline!]: 'Deadline' } : undefined} onDismiss={() => capabilities.dismiss(state)}
         onSelect={value => capabilities.edit(state.id, { kind: 'task', id: state.id, value: planTask(task(), { scheduled: value.date, scheduled_time: value.date ? value.time : null }, contextDate()) })} />}</Show>}
       {state.kind === 'deadline' && <Show when={doc.block(state.id)?.task}>{task => <DatePicker notebook={props.notebook} anchor={state.anchor} label="Deadline" value={task().deadline} time={task().deadline_time} contextDate={contextDate()} marks={task().scheduled ? { [task().scheduled!]: 'Scheduled' } : undefined} onDismiss={() => capabilities.dismiss(state)}

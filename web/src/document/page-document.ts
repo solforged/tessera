@@ -290,6 +290,17 @@ export class Document implements PageDocument {
       if (value.question) {
         const answer = value.question.state.accepted ? byId.get(value.question.state.accepted)?.assessment : null;
         value.question.status = questionStatus(value.question.state, Boolean(answer?.accepted && answer.question_id === value.block_id));
+        const explicit = value.question.state.parent;
+        const local = explicit ? byId.get(explicit)?.question : null;
+        // A remote parent is authoritative in server hydration; local parents
+        // can be recomputed immediately for undo and capability removal.
+        const remote = explicit && !this.cells.has(explicit) && !this.baseBlocks.has(explicit)
+          && value.question.parent_explicit && value.question.parent_id === explicit;
+        value.question.parent_explicit = Boolean(local || remote);
+        value.question.parent_id = local || remote ? explicit! : null;
+        if (!value.question.parent_id) for (let id = parent(value.block_id); id; id = parent(id)) {
+          if (byId.get(id)?.question) { value.question.parent_id = id; break; }
+        }
       }
       const current = this.cells.get(value.block_id)?.state;
       if (base || !sameState(current?.question, value.question) || !sameState(current?.assessment, value.assessment)) this.updateCapabilities(value, base);
@@ -345,7 +356,7 @@ export class Document implements PageDocument {
       case 'question': {
         const value = this.capabilities(action.id, base);
         const previous = value.question?.state ?? null;
-        value.question = action.value ? { state: action.value, status: questionStatus(action.value, false) } : null;
+        value.question = action.value ? { state: action.value, status: questionStatus(action.value, false), parent_id: value.question?.parent_id ?? null, parent_explicit: value.question?.parent_explicit ?? false } : null;
         this.updateCapabilities(value, base);
         return [{ ...action, value: previous, previous: action.value }];
       }

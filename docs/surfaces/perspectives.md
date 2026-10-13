@@ -104,6 +104,12 @@ A target shows one quiet line beneath its row: Supported by, Disputed by, Qualif
 
 Make question and Make answer, in the block menu, the palette and `/question` or `/answer`, mark a block as a question or as an answer beneath one. A titled page can be a question from its page menu. A question reads in Piazzolla.
 
+Set parent question… is available for a question block in its menu, the palette and slash commands, including a question page's root. The picker offers only questions, with their containing page as context, and leaves out the question and its branches. Choosing one is one undoable change.
+
+A question's title area or inline row shows a quiet Part of line that opens its effective parent. An explicit parent offers Change parent… and Remove parent; a structural parent has no Remove action. Both the line and its actions wrap on a phone.
+
+A question page lists its direct Branches after its gloss and opening, before Perspectives. Each opens the original question and shows its question-state styling and position count, without progress percentages. Inline branches appear alongside question pages. The list wraps on a phone.
+
 ### Question states
 
 The state control sits in the capability metadata with the question glyph and its state, then any review date.

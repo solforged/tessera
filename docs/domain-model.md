@@ -281,6 +281,12 @@ A question is in one of four states:
 Stored with the question are whether it is unsettled, whether it is parked, its review date and which assessment it accepts. The state is derived in this order: parked, then unsettled, then answered when an accepted assessment exists, otherwise open. Answered is never stored, so it cannot disagree with the assessments. Accepting an assessment on an unsettled question records the current reading without settling it. Resuming a parked question returns it to whatever the rest of the rule gives. Export writes the derived state as the site's `state`.
 Removing an assessment clears any question's acceptance of it in the same change. Undo restores the assessment before restoring its acceptance, so removing and restoring the question never carries a pointer to an absent answer. A parked question may withdraw its current acceptance but cannot accept a new answer until resumed.
 
+A question may name another question as its parent through a pointer in its question state. Set parent question changes it as one undoable edit. Plain “Part of” prose stays ordinary text and never sets a relation.
+
+The effective parent is the explicit parent while that block is live and still a question, otherwise the nearest ancestor question. This includes inline questions. Removing or deleting the parent leaves the stored pointer untouched; the relation returns when the parent returns. A new parent must be a live question, not the question itself, and must not create a cycle through explicit or structural parents. Undo preserves a restored question's existing pointer while its parent is absent.
+
+Branches are questions whose effective parent is this question, including question pages and inline questions. The questions read filters by parent ID without searching text, and reports each branch's state and the number of active positions filed under it.
+
 ## Sources, passages and positions
 
 ### Snapshots and passages

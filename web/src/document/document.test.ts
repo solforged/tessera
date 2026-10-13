@@ -2545,6 +2545,37 @@ describe('durable Action and Learning document commands', () => {
     }
   });
 
+  test('parent question edits undo and redo and survive parent removal', async () => {
+    const instance = await client();
+    const { id, doc, first } = await page(instance, 'Branch question');
+    const value = { unsettled: false, parked: false, review_on: null, accepted: null };
+    success(doc.edit({ kind: 'question', id, value }));
+    success(doc.edit({ kind: 'question', id: first, value }));
+    await doc.flush();
+    expect(doc.block(first)?.question?.parent_id).toBe(id);
+    expect(doc.block(first)?.question?.parent_explicit).toBe(false);
+    const other = await page(instance, 'Parent question');
+    success(other.doc.edit({ kind: 'question', id: other.id, value }));
+    await other.doc.flush();
+    success(doc.edit({ kind: 'question', id: first, value: { ...value, parent: other.id } }));
+    await doc.flush();
+    expect(doc.block(first)?.question?.parent_id).toBe(other.id);
+    expect(doc.block(first)?.question?.parent_explicit).toBe(true);
+    doc.undo(); await doc.flush();
+    expect(doc.block(first)?.question?.parent_id).toBe(id);
+    doc.redo(); await doc.flush();
+    expect((await api.questions({ parent: other.id })).map(row => row.block.block.id)).toEqual([first]);
+    const revision = doc.block(first)!.revision;
+    success(other.doc.edit({ kind: 'question', id: other.id, value: null }));
+    await other.doc.flush();
+    expect(doc.block(first)?.question?.parent_id).toBe(id);
+    expect(doc.block(first)?.question?.state.parent).toBe(other.id);
+    expect(doc.block(first)?.revision).toBe(revision);
+    other.doc.undo(); await other.doc.flush();
+    expect(doc.block(first)?.question?.parent_id).toBe(other.id);
+    doc.release(); other.doc.release();
+  });
+
   test('assessment supersession, moving and deletion refresh the question optimistically', async () => {
     const instance = await client();
     const { doc, first, id } = await page(instance, 'Question');

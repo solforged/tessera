@@ -377,6 +377,7 @@ export function createApi(base = ''): ApiClient {
       const params = new URLSearchParams();
       if (query.status !== undefined) params.set('status', query.status);
       if (query.review_by !== undefined) params.set('review_by', query.review_by);
+      if (query.parent !== undefined) params.set('parent', query.parent);
       if (query.limit !== undefined) params.set('limit', String(query.limit));
       return get<QuestionRow[]>(`/questions?${params}`, signal);
     },
