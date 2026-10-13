@@ -6,12 +6,12 @@ Tokens, shell and shared popup patterns are in [design](../design.md).
 
 ## Fields register
 
-Fields opens a searchable register with Name, Kind, Used by and Templates columns. The heading, toolbar, table and footer share one centred `--measure` column; rows stay 28 px high.
+Fields opens a searchable register with Name, Kind, Used by and Templates columns. The heading, toolbar, table and footer share one centered `--measure` column; rows stay 28 px high.
 
-| Action or width | Behaviour |
+| Action or width | Behavior |
 | --- | --- |
 | Click | Selects a row. |
-| Available pane content at least 1096 px wide | Selection adds an `--apparatus-width` inspector with a `--space-48` gap. Table and inspector centre together; heading and footer retain the table's left edge. |
+| Available pane content at least 1096 px wide | Selection adds an `--apparatus-width` inspector with a `--space-48` gap. Table and inspector center together; heading and footer retain the table's left edge. |
 | Narrower pane | A click opens the field page. |
 | Enter or double-click | Always opens the field page. |
 | Arrow keys | Move the selection. |
@@ -71,7 +71,7 @@ Under the list sits a count of the members that lack template fields and Fill mi
 
 The type's Fields tab opens its template as a third in-pane view, with the same Index, Table and Fields strip and live counts. Its bounded register lists Name, Kind and Used by in template order. Usage counts are notebook-wide distinct owners, including empty entries. Names open their field pages.
 
-Move up, Move down and Remove appear on hover or focus and remain visible on coarse pointers. Add field and Fill missing fields keep the type page's editing behaviour. The underlined type crumb opens the ordinary type page; the global Fields register remains separate.
+Move up, Move down and Remove appear on hover or focus and remain visible on coarse pointers. Add field and Fill missing fields keep the type page's editing behavior. The underlined type crumb opens the ordinary type page; the global Fields register remains separate.
 
 ## Tables and views
 
@@ -79,7 +79,7 @@ A table is a query shown as rows: a type's members or a saved view.
 
 ### Register and header
 
-The heading, mode strip, toolbar, grid and footer share a centred 984 px register (`--measure + --apparatus-width - --space-16`). It widens only when the visible fields need more room and never exceeds the pane's inset width. They keep one left edge rather than centring a narrower heading inside a wider grid. A many-column grid scrolls horizontally inside that register with the title held at the left.
+The heading, mode strip, toolbar, grid and footer share a centered 984 px register (`--measure + --apparatus-width - --space-16`). It widens only when the visible fields need more room and never exceeds the pane's inset width. They keep one left edge rather than centering a narrower heading inside a wider grid. A many-column grid scrolls horizontally inside that register with the title held at the left.
 
 The type and Register sit in quiet apparatus above a Piazzolla view name. Its menu lists All members of the type and its saved views, then Save as, Rename and Delete separately. Named views store the query only. Query changes show Unsaved changes with Save and Discard; switching views keeps pane-local presentation.
 
@@ -142,9 +142,9 @@ Empty states distinguish an empty note section from the separate tagged-block se
 
 ### Opening and selection
 
-| Input or layout | Behaviour |
+| Input or layout | Behavior |
 | --- | --- |
-| Desktop title click or Enter | Keeps the current-pane behaviour; Shift opens beside. |
+| Desktop title click or Enter | Keeps the current-pane behavior; Shift opens beside. |
 | Selected row | Gilt left bar and an explicit open-beside affordance. |
 | Coarse pointer at least 900 px wide | A row tap opens the canonical note beside by default. |
 | Narrow table pane on that unfolded screen | Becomes a touch-sized row list while keeping its query controls. |

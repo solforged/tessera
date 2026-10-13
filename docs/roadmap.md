@@ -47,7 +47,7 @@ Status: done. Fields, templates, type tables with sorting and filtering, saved q
 
 Exit: plan a small project, work it over several days with clocked time, and find the result from the agenda.
 
-Status: done. Browser proof planned a language-model project, recorded clocked work and notes, completed work in historical journals, advanced a recurring task across adjacent days, reopened and undid a completion without duplicating history, and saved and restored a project task query. Agenda rows open the canonical source beside the historical day. A parity pass added ⌘Enter and `[] ` task creation, the `@` date popup on any block, quick capture in Agenda, and a journal agenda that summarises the day when collapsed. A keyboard pass added the `/` command menu, `@due` deadlines, the ⌘⇧Enter status menu and a Space leader for planning, clocking and cards.
+Status: done. Browser proof planned a language-model project, recorded clocked work and notes, completed work in historical journals, advanced a recurring task across adjacent days, reopened and undid a completion without duplicating history, and saved and restored a project task query. Agenda rows open the canonical source beside the historical day. A parity pass added ⌘Enter and `[] ` task creation, the `@` date popup on any block, quick capture in Agenda, and a journal agenda that summarizes the day when collapsed. A keyboard pass added the `/` command menu, `@due` deadlines, the ⌘⇧Enter status menu and a Space leader for planning, clocking and cards.
 
 ## 4. Learning
 
@@ -84,7 +84,7 @@ Status: done. Browser proof ingested The Tudors (EPUB) and Karpathy's RNN articl
 - A save-to-Tessera browser extension that sends the current page, or a selection as a highlight, to the loopback service.
 - RSS and Atom feeds polled by the service, with new items arriving in the Library inbox.
 - Newsletters arriving in the same inbox.
-- Book search and download providers, such as OPDS catalogues, written fresh.
+- Book search and download providers, such as OPDS catalogs, written fresh.
 
 Exit: subscribe to two feeds and a newsletter, save an article and a highlighted selection from the browser, find and ingest a book through a provider, and triage a week of arrivals from the inbox.
 

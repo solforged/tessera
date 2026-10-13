@@ -6,7 +6,7 @@ Tokens, shell and shared popup patterns are in [design](../design.md).
 
 ## Add to today
 
-Add to today is Tana-style quick capture: one line becomes one block at the end of today's journal, reusing a trailing empty block, without leaving what is open. ⌘E (the palette's Add to today) opens it as a slip centred near the top, 560 px. On the cover it rises from the bottom edge above the keyboard.
+Add to today is Tana-style quick capture: one line becomes one block at the end of today's journal, reusing a trailing empty block, without leaving what is open. ⌘E (the palette's Add to today) opens it as a slip centered near the top, 560 px. On the cover it rises from the bottom edge above the keyboard.
 
 A mono rubric line reads `Add to today` in gilt and `Sun 11 · end of journal` in `--faint`. The line itself is in the writing voice, its kind glyph in the bullet slot.
 
@@ -20,7 +20,7 @@ A mono rubric line reads `Add to today` in gilt and `Sun 11 · end of journal` i
 
 ### Adding and saving
 
-| Input | Behaviour |
+| Input | Behavior |
 |---|---|
 | Enter | Adds and closes |
 | Shift+Enter | Adds and keeps the line for the next item, with `N added to today` in place of the key hints |
@@ -54,11 +54,11 @@ The period trail keeps even visible gaps around its separators. Touch hit areas 
 | Period | Ledger |
 |---|---|
 | Week | Monday through Sunday |
-| Month | ISO week numbers at the left open the corresponding week, including the neighbouring ISO week-year at New Year |
+| Month | ISO week numbers at the left open the corresponding week, including the neighboring ISO week-year at New Year |
 | Quarter | Its three months; a narrow quarter stacks its months |
 | Year | Twelve months in four columns, two on the cover |
 
-On touch, mini months are whole-month buttons with non-interactive day overviews. Choosing one opens the full month with day targets at least 40 px square. Touch mini-month overviews reserve six calendar rows and align at the top so neighbouring months share their title and weekday baselines. Fine-pointer mini months retain direct day buttons.
+On touch, mini months are whole-month buttons with non-interactive day overviews. Choosing one opens the full month with day targets at least 40 px square. Touch mini-month overviews reserve six calendar rows and align at the top so neighboring months share their title and weekday baselines. Fine-pointer mini months retain direct day buttons.
 
 ### Written-day marks
 
@@ -90,7 +90,7 @@ Reading continues the most recently read EPUB still in Reading, with:
 
 - Its cover.
 - A short title using the [citation-chip rule](library.md#citation-chips).
-- Resolved chapter time left and the chapter's numeral and title on one ellipsised line.
+- Resolved chapter time left and the chapter's numeral and title on one ellipsized line.
 - Segmented [BookMap](reader.md#book-map) with real highlight marks.
 
 Front matter and unresolved contents use whole-book time left instead of inventing a chapter. A coarse pointer at 900 px or wider opens the book beside the journal.

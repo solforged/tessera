@@ -37,7 +37,7 @@ The workflow refuses a tag whose version does not match `Cargo.toml`, or whose c
 
 | Asset | What it is |
 |---|---|
-| `Tessera_<version>_aarch64.dmg` | macOS app. Ad-hoc signed, not notarised. |
+| `Tessera_<version>_aarch64.dmg` | macOS app. Ad-hoc signed, not notarized. |
 | `Tessera_<version>_aarch64.app.tar.gz` and `.sig` | Signed updater archive. Installed apps poll `latest.json`. |
 | `tessera-v<version>-aarch64-apple-darwin.tar.gz` | macOS command line. |
 | `tessera-v<version>-x86_64-unknown-linux-gnu.tar.gz` | Linux command line. |

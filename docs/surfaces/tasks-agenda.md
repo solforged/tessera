@@ -1,6 +1,6 @@
 # Tasks and agenda
 
-Tasks retain their canonical source blocks while planning controls and Agenda organise their work. Agenda has Day, Week and Tasks views.
+Tasks retain their canonical source blocks while planning controls and Agenda organize their work. Agenda has Day, Week and Tasks views.
 
 Tokens, shell and shared popup patterns are in [design](../design.md).
 
@@ -21,11 +21,11 @@ The block menu's Task section reads, in order:
 4. Work sessions.
 5. Remove task.
 
-Statuses are Todo, Doing, Waiting (an hourglass), Done and Cancelled. Task state, dates, optional times, deadline warning, priority and repeat are anchored controls, not text prefixes.
+Statuses are Todo, Doing, Waiting (an hourglass), Done and Canceled. Task state, dates, optional times, deadline warning, priority and repeat are anchored controls, not text prefixes.
 
 ### Planning slip
 
-Plan task opens a compact slip headed by Planning and the task's authored text, or `Planning · done 2026-10-10` once done. Scheduled, Deadline, Priority and Repeat are labelled rows with their current values in mono or a faint None. Warning appears only with a deadline.
+Plan task opens a compact slip headed by Planning and the task's authored text, or `Planning · done 2026-10-10` once done. Scheduled, Deadline, Priority and Repeat are labeled rows with their current values in mono or a faint None. Warning appears only with a deadline.
 
 ## Dates and times
 
@@ -48,7 +48,7 @@ Typing `@` after a space or at block start opens date suggestions under the `@`:
 
 The picker's first, non-selectable row reads Scheduled or Deadline, with a mono Tab hint. Tab flips the field by inserting `by ` or removing `by `/`due ` while retaining the query. Other pickers keep Tab to pick.
 
-Enter picks a date: a plain block becomes a todo, the task is scheduled or due, and the token and its leading space leave the text. Pick a date… opens the full picker with the typed query, without changing the block until a date is chosen. Cancelling either picker keeps the token and the existing task unchanged.
+Enter picks a date: a plain block becomes a todo, the task is scheduled or due, and the token and its leading space leave the text. Pick a date… opens the full picker with the typed query, without changing the block until a date is chosen. Canceling either picker keeps the token and the existing task unchanged.
 
 A multi-word query that matches no date is prose (`@sam about the report`). The picker closes so Enter splits the block as usual, and reopens if the words become a date again. A recognized but impossible date such as `feb 30` instead keeps the picker open with an error and preserves the token.
 
@@ -194,7 +194,7 @@ Week shows the displayed date's Monday-start week in seven day columns. Previous
 
 The heading, shared tabs, drag hint and drop feedback keep the same 760 px measure and alignment across Day, Week and Tasks even when the week grid is wider.
 
-The all-day strip holds untimed scheduled tasks and deadlines labelled Due. Each card leads with its status glyph in the status colour, then the time or Due in mono. Timed scheduled tasks sit in an hourly grid, initially scrolled to 08:00 or the earliest earlier task. Overlapping times use separate lanes.
+The all-day strip holds untimed scheduled tasks and deadlines labeled Due. Each card leads with its status glyph in the status color, then the time or Due in mono. Timed scheduled tasks sit in an hourly grid, initially scrolled to 08:00 or the earliest earlier task. Overlapping times use separate lanes.
 
 Narrow panes scroll horizontally rather than compressing tasks into overlapping columns. They open with the displayed day first after the hours, which reads as a three-day view on the cover.
 

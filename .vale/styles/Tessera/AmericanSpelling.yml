@@ -1,0 +1,76 @@
+# British spellings and their American forms. Code spans and code blocks
+# are skipped, so identifiers and API values keep their spelling. A proper
+# noun that keeps a British spelling gets an exception or a negative
+# lookahead on its pattern.
+extends: substitution
+message: "Use American spelling: '%s', not '%s'."
+level: error
+ignorecase: true
+action:
+  name: replace
+exceptions:
+  # -ise words that are also American.
+  - "(?i)(?:un|dis|re|pre|super|over|under|mis|non|out|counter|ill-|self-)?(?:adv|dev|rev|superv|telev|improv|advert|desp|surpr|compr|appr|exerc|cru|bru|repr|v|pr|ra|pra|appra|bra|fra|cha|lia|ar|r|ir|sunr|moonr|upr|no|po|turquo|torto|porpo|mort|an|val|chem|cer|gu|disgu|expert|franch|merchand|enterpr|treat|prem|comprom|prom|dem|surm|chast|conc|prec|exc|inc|circumc|m|cr|mala|parad|ambo|l|el|den|lou|fundra)is(?:e|es|ed|ing|er|ers|able|ement|ements)"
+  - "(?i)[a-z]*wis(?:e|er|est)"
+  - "(?i)disable"
+  # The e-book manager Calibre.
+  - "(?-i:Calibre)"
+swap:
+  # -our
+  "([a-z]*(?:colo|behavio|favo|hono|neighbo|labo|harbo|rumo|humo|flavo|vigo|rigo|armo|endeavo|savo|odo|splendo|valo|clamo|parlo|fervo|cando|ardo|savio|tumo|vapo))ur([a-z]*)": $1r$2
+  # -re
+  "((?:epi)?cent|theat|(?:kilo|centi|milli)?met|lit|fib|calib|somb|spect|lust|meag|sab|mit)re(s)?(?!\\s+[Ii]nternational)": $1er$2
+  "cent(red|ring)": cente$1
+  centrepiece: centerpiece
+  # -ogue
+  "(catal|anal)ogue(s)?": $1og$2
+  "catalogu(ed|ing)": catalog$1
+  # -yse; "analyses" stays, since it is also the plural of "analysis".
+  "(ana|para|cata|dia|electro)lys(e|ed|ing|er|ers)": $1lyz$2
+  # -ise
+  "([a-z]+)is(e|es|ed|ing|ation|ations|er|ers|able)": $1iz$2
+  # doubled l
+  "(travel|model|label|cancel|signal|level|fuel|channel|funnel|total|marshal|counsel|quarrel|tunnel|dial|equal|rival|unravel|initial|libel|shovel|jewel|grovel|pummel|swivel|snorkel)l(ed|ing|er|ers|or|ors)": $1$2
+  marvellous: marvelous
+  jewellery: jewelry
+  woollen: woolen
+  "fulfil(s|ment)?": fulfill$1
+  enrolment: enrollment
+  skilful: skillful
+  wilful: willful
+  "instalment(s)?": installment$1
+  # single words
+  "grey(s|ish|er|est)?": gray$1
+  "licence(s)?": license$1
+  "(def|off|pret)ence(s)?": $1ense$2
+  "programme(s)?": program$1
+  "(judg|acknowledg)ement(s)?": ${1}ment$2
+  ageing: aging
+  whilst: while
+  amongst: among
+  learnt: learned
+  spelt: spelled
+  "practis(e|es|ed|ing)": practic$1
+  aluminium: aluminum
+  "cheque(s)?": check$1
+  "tyre(s)?": tire$1
+  "plough(s|ed|ing)?": plow$1
+  "scept(ic|ics|ical|icism)(?!\\s+Chymist)": skept$1
+  "mould(s|ed|ing|y)?": mold$1
+  "smoulder(s|ed|ing)?": smolder$1
+  "manoeuvr(e|es|ed|ing)": maneuver$1
+  "encyclopaedi(a|as|c)(?!\\s+(?:Judaica|Logic|Iranica|Britannica))": encyclopedi$1
+  mediaeval: medieval
+  "foet(us|al)": fet$1
+  "anaesthe(sia|tic|tics)": anesthe$1
+  "artefact(s)?": artifact$1
+  cosy: cozy
+  "storey(s)": stories
+  storey: story
+  pyjamas: pajamas
+  "enquir(y|ies|e|es|ed|ing)": inquir$1
+  "focuss(ed|es|ing)": focus$1
+  "benefitt(ed|ing)": benefit$1
+  orientated: oriented
+  "connexion(s)?": connection$1
+  per cent: percent

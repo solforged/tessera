@@ -2,7 +2,7 @@
 
 ## macOS app
 
-Download `Tessera_<version>_aarch64.dmg` from the [latest release](https://github.com/solforged/tessera/releases/latest), check `SHA256SUMS` on that release, and drag Tessera into Applications. The app is ad-hoc signed, not notarised, so macOS blocks its first launch. Open it once, then choose Open Anyway under System Settings → Privacy & Security, or run:
+Download `Tessera_<version>_aarch64.dmg` from the [latest release](https://github.com/solforged/tessera/releases/latest), check `SHA256SUMS` on that release, and drag Tessera into Applications. The app is ad-hoc signed, not notarized, so macOS blocks its first launch. Open it once, then choose Open Anyway under System Settings → Privacy & Security, or run:
 
 ```sh
 xattr -dr com.apple.quarantine /Applications/Tessera.app
@@ -180,7 +180,7 @@ tessera --notebook /path/to/replica sync pin <source-id>
 tessera --notebook /path/to/replica sync reclone
 ```
 
-| Command | Behaviour |
+| Command | Behavior |
 |---|---|
 | `sync clone` | Copies the hub's notebook, without original book files, into an empty directory and registers a new device. On another machine, pass `--code` from the hub's Settings › Devices. |
 | `sync` | Pushes the replica's changes, files and reading positions and pulls the hub's. |

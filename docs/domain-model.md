@@ -1,6 +1,6 @@
 # Domain model
 
-Everything a person writes is a block. Behaviour is added as capabilities, each with its own table, rules and history. Indexes such as links and full-text search are derived and can be rebuilt.
+Everything a person writes is a block. Behavior is added as capabilities, each with its own table, rules and history. Indexes such as links and full-text search are derived and can be rebuilt.
 
 The main tables, with identity and reference columns only. Capabilities attach to block IDs; passages belong to immutable snapshots, not to the outline. Dashed lines are joins left out of the picture (`source_snapshots`, `change_revisions`) and the link target, which has no foreign key.
 
@@ -180,7 +180,7 @@ Values are plain blocks read through the field's kind. A value that does not fit
 | Date | Links to a journal day or spells out the date. A bare year or year-month is valid for sources dated no more precisely. |
 | Choice | Links to its option. |
 | URL | An absolute `http` or `https` address. |
-| Identifier | Reads an ISBN, DOI or arXiv ID in its usual spellings. Normalises to `isbn:` with 13 digits, lowercase `doi:` or `arxiv:`, so the same work matches however it was written. |
+| Identifier | Reads an ISBN, DOI or arXiv ID in its usual spellings. Normalizes to `isbn:` with 13 digits, lowercase `doi:` or `arxiv:`, so the same work matches however it was written. |
 
 Changing a field's kind changes only how values are read. Owner counts include entries with no values and count each owning block once. Archived or deleted entries and owners do not count.
 
@@ -218,7 +218,7 @@ A view is a saved query with a name and a revision. Views are not blocks; saving
 
 ## Tasks
 
-A task capability adds status (todo, doing, waiting, done, cancelled), scheduled and deadline dates with optional times, warning lead, repeater and priority. Dates are local civil dates; times are `HH:MM` labels, not timestamps. Scheduling after a deadline is valid. Removing the capability deactivates it without erasing its history.
+A task capability adds status (todo, doing, waiting, done, canceled), scheduled and deadline dates with optional times, warning lead, repeater and priority. Dates are local civil dates; times are `HH:MM` labels, not timestamps. Scheduling after a deadline is valid. Removing the capability deactivates it without erasing its history.
 
 Completion records the exact planning snapshot and explicit completion date. A nonrecurring task becomes done; a recurring task stays on its original block and advances its dates. Fixed repeats advance one interval, catch-up repeats skip to the first interval after completion, and after-completion repeats count from the completion date. The scheduled date is the anchor when present, otherwise the deadline. Month/year repeats clamp to the last valid day; the signed separation between scheduled and deadline dates stays intact. Completion never archives. Undo reverses the exact latest occurrence only while its resulting task state still matches.
 
@@ -263,7 +263,7 @@ Clocked work sessions retain their start, end, note and revision. Only one unrev
 
 Task queries compose source type/text/field constraints with task status, priority, project ancestry and independent date ranges. Unfinished-or-recent selection includes unfinished tasks or an unreversed completion in the inclusive context-date range. Filtering precedes the outer result limit. The client query line resolves type and project titles to canonical IDs and relative dates to civil dates; field predicates remain separate from its text syntax. Named task views retain the full query, including its date context, rather than a textual query.
 
-An agenda takes the displayed civil date, never an implicit device date. It merges schedule, deadline, warning, overdue, unplanned and completion reasons into one row per canonical source. A completion on that date uses the latest occurrence's planning snapshot and a done projection, not the next recurring plan. Cancelled tasks are excluded. Opening a row edits the original block; the journal contains no copied tasks.
+An agenda takes the displayed civil date, never an implicit device date. It merges schedule, deadline, warning, overdue, unplanned and completion reasons into one row per canonical source. A completion on that date uses the latest occurrence's planning snapshot and a done projection, not the next recurring plan. Canceled tasks are excluded. Opening a row edits the original block; the journal contains no copied tasks.
 
 ## Investigations
 
@@ -344,7 +344,7 @@ Both formats classify EPUBs and ISBN records as books, other DOI sources as jour
 
 Partial original dates retain their precision independently of Published. CSL's `number-of-pages` is a count, never its `page` range. When both exist, BibTeX uses Page range for `pages`; Issue takes precedence over series Number for `number`. Record plans accept `volume`, `issue` and `page_range` (also `page` or `pages`); lookup and snapshot ingestion keep these values in ordinary fields.
 
-Markdown retains the source title, author/date/citation-key heading, URL, highlights and notes, and adds metadata as labelled values. Started and Finished export only as Markdown labels. They are reading history, not publication or access dates, so neither standard format receives a misleading date or custom key.
+Markdown retains the source title, author/date/citation-key heading, URL, highlights and notes, and adds metadata as labeled values. Started and Finished export only as Markdown labels. They are reading history, not publication or access dates, so neither standard format receives a misleading date or custom key.
 
 ### Reading state and position
 
@@ -412,11 +412,11 @@ These map the three kinds of knowledge in the [vision](vision.md): a fact is an 
 
 ## Projects
 
-A project capability gives a block an outcome, an optional deadline and active, done or cancelled status. Tasks anywhere beneath it are its canonical actions; nested tasks report their nearest active project capability. A completed project's capability remains active until explicitly removed. Completing a project does not complete its tasks or reassess questions beneath it. Removing the capability retains its history and block identity.
+A project capability gives a block an outcome, an optional deadline and active, done or canceled status. Tasks anywhere beneath it are its canonical actions; nested tasks report their nearest active project capability. A completed project's capability remains active until explicitly removed. Completing a project does not complete its tasks or reassess questions beneath it. Removing the capability retains its history and block identity.
 
 ## Notes
 
-A note is a titled page: a root block of kind page. Journal days and the Fields page are not notes. Blocks beneath the title are its content; there is no separate note record or copy. They keep their own behaviour, so a note can hold tasks, cards, questions and positions.
+A note is a titled page: a root block of kind page. Journal days and the Fields page are not notes. Blocks beneath the title are its content; there is no separate note record or copy. They keep their own behavior, so a note can hold tasks, cards, questions and positions.
 
 ### Kinds
 
@@ -425,7 +425,7 @@ A kind says what a note is about. These are built in:
 | Kind | Marked by | Meaning |
 |---|---|---|
 | Person | `#person` | An individual, such as an author or a thinker |
-| Group | `#group` | A collective: an organisation, a school, a dynasty, a people |
+| Group | `#group` | A collective: an organization, a school, a dynasty, a people |
 | Concept | `#concept` | An idea, term or phenomenon, explained and compared |
 | Thesis | `#thesis` | A claim you hold, stated as the title and argued beneath it |
 | Question | A question capability on the page | An enduring question; see Investigations |
@@ -477,7 +477,7 @@ Hand-typed `[[Name]]` left as text resolves by title or alias:
 | One | Links as `[[id\|Name]]`, preserving the wording. |
 | Two or more | Stays unlinked and marked. Choosing one links it; nothing is created. |
 
-Imported source creators match people by title or alias after turning around catalogue forms such as `Cicero, Marcus Tullius`:
+Imported source creators match people by title or alias after turning around catalog forms such as `Cicero, Marcus Tullius`:
 
 - One match links.
 - Two or more leave an unlinked `[[Name]]`, marked like a hand-typed reference, rather than guessing or creating a duplicate.
@@ -531,7 +531,7 @@ A note view queries notes with a layout and grouping. It selects by kind and sup
 | Links from a note | `from:Postone` |
 | Cited source, by siglum, citation key or title | `cites:MAR` |
 
-Other Find words match title or gloss; each recognised term appears as a chip. Field predicates stay in the filter picker, as on tables.
+Other Find words match title or gloss; each recognized term appears as a chip. Field predicates stay in the filter picker, as on tables.
 
 One query has two layouts:
 
@@ -657,7 +657,7 @@ Undo last grade appends an immutable correction linked to the original review ev
 
 - Only the latest effective grade for the card and its session may be undone, with revision checks against intervening changes.
 - Undoing a finished session's final grade reopens it; an earlier reset in the same command stays effective.
-- Exhausting a confirmed session finishes it automatically after acknowledgement.
+- Exhausting a confirmed session finishes it automatically after acknowledgment.
 
 ## Settings
 
@@ -676,7 +676,7 @@ Links, full-text search, type membership from text, card definitions and field r
 - How much change history to keep, and whether old assessments become immutable.
 - Configurable task keywords beyond the five fixed states.
 - Whether blank blocks persist or exist only in drafts.
-- How concept and taxonomy comparison is modelled: types, positions about a concept, or a capability of its own.
+- How concept and taxonomy comparison is modeled: types, positions about a concept, or a capability of its own.
 - Whether vocabulary cards need anything beyond ordinary cards, such as language, part of speech or inflection fields.
 - How newsletters arrive: a polled mail folder, a forwarding address or feeds only.
 - How a thesis page answers a question. An assessment must sit beneath its question, and a thesis page is a root.

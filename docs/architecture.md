@@ -77,7 +77,7 @@ Review corrections live in append-only `review_undos`; the effective-events view
 
 Editor receipts and change streams use the local `editor_events` cursor, not replicated `changes.seq`. `GET /api/changes/head` reads it without loading payloads. A cold window reads the head before settings, roots or pages, then catches up and subscribes from that floor.
 
-Page snapshots store their replay floor with the cached page in one IndexedDB record. An acknowledgement cannot advance it past unseen changes from other writers:
+Page snapshots store their replay floor with the cached page in one IndexedDB record. An acknowledgment cannot advance it past unseen changes from other writers:
 
 - Normal page opens fetch fresh snapshots.
 - Offline restores refresh cached pages and resume from the oldest restored floor.
@@ -159,15 +159,15 @@ The editor is split into layers that the prototype mixed together:
 
 Undo is a stack of operations and their inverses, shared by both panes on the same page. Cross-block selection uses block ID plus offset at each end, so it works when rows are off screen.
 
-Reader highlights that overlap or touch form one union. The earliest source-page highlight keeps its block and citation identities, colour, notes and review state; unreferenced duplicates contribute their children before removal. Referenced highlights and citations on other pages remain intact. Range edits, child moves and removals share one document undo step. A reader-level action applies the same merge to existing clusters.
+Reader highlights that overlap or touch form one union. The earliest source-page highlight keeps its block and citation identities, color, notes and review state; unreferenced duplicates contribute their children before removal. Referenced highlights and citations on other pages remain intact. Range edits, child moves and removals share one document undo step. A reader-level action applies the same merge to existing clusters.
 
 EPUB 2 extraction checks the package guide's HTML contents when NCX contains only sparse navigation. Existing sparse imports lazily backfill navigation from the preserved linked contents passage without replacing source, snapshot or passage IDs. Citation reads return the chapter title rather than exposing an EPUB href as the location label.
 
 Page commands include task/project edits and work-session operations, with capability snapshots and inverses alongside text. Review sessions, decks, grades and saved task views use notebook-level commands in the same ordered outbox; they are not assigned fake page IDs. Commands are persisted before sending, and the first compiled request body is frozen for byte-identical replay after uncertain delivery or reload. Rejected commands stay recoverable until explicitly dismissed.
 
-Structural notebook commands identify pages whose snapshots and outlines must refresh before acknowledgement is exposed to their caller. A card composer navigates only after that refresh. If the write succeeds but a subsequent read fails, the command remains pending and replays its frozen idempotent request; the form cannot submit a second insertion while delivery is unresolved.
+Structural notebook commands identify pages whose snapshots and outlines must refresh before acknowledgment is exposed to their caller. A card composer navigates only after that refresh. If the write succeeds but a subsequent read fails, the command remains pending and replays its frozen idempotent request; the form cannot submit a second insertion while delivery is unresolved.
 
-Review keeps the shown card snapshot until acknowledgement and revalidates it against committed changes. A stale grade cannot advance the queue or silently adopt a new definition. Command-state equality isolates review refreshes from unrelated local page bookkeeping. Recovery feedback is notebook-wide and does not change location when focus moves between panes.
+Review keeps the shown card snapshot until acknowledgment and revalidates it against committed changes. A stale grade cannot advance the queue or silently adopt a new definition. Command-state equality isolates review refreshes from unrelated local page bookkeeping. Recovery feedback is notebook-wide and does not change location when focus moves between panes.
 
 Two panes, back and forward history, and per-pane fold, zoom and caret state are part of the shell from the start.
 

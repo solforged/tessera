@@ -6,7 +6,7 @@ Cards are authored in ordinary blocks and reviewed in a pane on the outline meas
 
 The syntax rules are also defined in [Cards in the domain model](../domain-model.md#cards). Author `front >> back`, `front << back`, `front <> back`, or numbered clozes such as `{{c1::answer::hint}}` in ordinary blocks. `::` remains field shorthand. Explicit malformed syntax shows diagnostics instead of guessed cards. Each numbered cloze and each direction has its own stable progress.
 
-| Syntax | Card behaviour | Editor marker |
+| Syntax | Card behavior | Editor marker |
 | --- | --- | --- |
 | Trailing `>>>` | A multi-line card whose answer is the block's child outline | `↓` in `--faint` |
 | Trailing `>>1.` | A list card whose children are revealed one at a time | `↓1.` in `--faint` |
@@ -52,9 +52,9 @@ Both sides of a card share one size. When both are 40 characters or fewer on one
 
 Once revealed, a cited card shows the following sentence from its snapshot's real passages.
 
-### Responsive behaviour
+### Responsive behavior
 
-| Layout | Behaviour |
+| Layout | Behavior |
 | --- | --- |
 | Unfolded touch screen at least 900 px wide | The card sits left and its passage sits right with the citation highlighted. The passage waits for reveal so it cannot give the answer away. |
 | Cover | The bottom nav steps aside during a live session. Tapping non-control card space reveals. Interval-bearing grades form a two-by-two block at the bottom. |
@@ -75,7 +75,7 @@ Space reveals the answer. The grading keys are:
 | 3 | Good |
 | 4 | Easy |
 
-Scheduling is FSRS-6 at 90% retention in whole days. Buttons show the next interval in days, then months and years. When two neighbouring grades have different intervals that round to the same label, both show one decimal (`1.4 mo`), then whole days if they still match. Equal intervals, such as Again and Hard on a new card, read the same.
+Scheduling is FSRS-6 at 90% retention in whole days. Buttons show the next interval in days, then months and years. When two neighboring grades have different intervals that round to the same label, both show one decimal (`1.4 mo`), then whole days if they still match. Equal intervals, such as Again and Hard on a new card, read the same.
 
 ### Changed cards and reset
 

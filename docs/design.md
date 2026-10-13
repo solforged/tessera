@@ -8,7 +8,7 @@ Status: applied to the shell, the outline and the table. The permanent global ra
 
 1. **The text is the interface.** Controls stay quiet until hover, focus or selection, and every action is also reachable from a visible control.
 2. **Act where you are looking.** Controls attach to the block they affect. Popups open at the caret or at their trigger, never at a pane edge.
-3. **One meaning, one form.** Structure is a neutral bullet. A type is a tinted pill with its name. Task state is a glyph. Colour never carries meaning alone, and type hues never reuse status hues.
+3. **One meaning, one form.** Structure is a neutral bullet. A type is a tinted pill with its name. Task state is a glyph. Color never carries meaning alone, and type hues never reuse status hues.
 4. **Work happens in panes.** Tables, views, fields, settings, search results and references open in a pane. Dialogs are for short controls and confirmations only.
 5. **Summaries in the row, details on selection.** A block shows its state as compact trailing metadata; field rows appear as children under it.
 6. **Calm by night and day.** A midnight shell frames the ink-blue canvas, or a vellum one by day. Gilt marks focus and primary actions. Only floating layers cast shadows.
@@ -75,11 +75,11 @@ Every screen composes its page spacing from shared tokens, so moving between scr
 
 Page titles are Piazzolla at 32/38 px, 24/30 px below 600 px. The [reader](surfaces/reader.md), a [live review session](surfaces/cards-review.md) and Find keep their own spacing.
 
-### Colour
+### Color
 
-Orrery uses midnight `--shell` (#0a0d13), ink-blue `--canvas` (#0e121a), parchment `--text` (#e6e1d6) and gilt `--accent` (#d8aa55). Muted text is cool grey. Rubric red `--danger` (#d97a6b) marks danger and short insertion rules; `--warning` is warm orange. Doing and scheduled work are blue; done is sage. Type and highlight hues stay separate from these roles.
+Orrery uses midnight `--shell` (#0a0d13), ink-blue `--canvas` (#0e121a), parchment `--text` (#e6e1d6) and gilt `--accent` (#d8aa55). Muted text is cool gray. Rubric red `--danger` (#d97a6b) marks danger and short insertion rules; `--warning` is warm orange. Doing and scheduled work are blue; done is sage. Type and highlight hues stay separate from these roles.
 
-Orrery by day is the light theme: the same roles on vellum, a `--canvas` of #f8f5ee inside a #ebe5d8 shell, ink `--text` (#1f1b15), antique gold `--accent` (#93650f), oxblood `--danger` (#ad3a2b) and a deeper steel blue. It overrides colour tokens only, under `:root[data-theme="light"]`; type, space and shape never change, and reader figures are not dimmed.
+Orrery by day is the light theme: the same roles on vellum, a `--canvas` of #f8f5ee inside a #ebe5d8 shell, ink `--text` (#1f1b15), antique gold `--accent` (#93650f), oxblood `--danger` (#ad3a2b) and a deeper steel blue. It overrides color tokens only, under `:root[data-theme="light"]`; type, space and shape never change, and reader figures are not dimmed.
 
 [Settings › Appearance](surfaces/settings.md) chooses System (the default, following the operating system), Light or Dark per device, stored in local storage rather than the notebook. The entry imports `shell/theme.ts` first so the page paints in the right theme, and `index.html` paints the system theme before any script runs.
 
@@ -96,7 +96,7 @@ Orrery by day is the light theme: the same roles on vellum, a `--canvas` of #f8f
 | Warning, danger | `--warning` `--danger` |
 | Type hues, pills only | `--type-1` to `--type-6` |
 | Task states, stage 3 | `--status-*` |
-| Highlight colours: reader bands at 42%, dots at full strength | `--highlight-yellow` `-green` `-blue` `-red` `-purple` |
+| Highlight colors: reader bands at 42%, dots at full strength | `--highlight-yellow` `-green` `-blue` `-red` `-purple` |
 
 Pills take a 12% tint of their hue with a 30% border. A selected row adds a 2 px gilt bar at its left edge; keyboard focus inside a menu looks the same, never a ring.
 
@@ -124,7 +124,7 @@ Radius 2 px for controls, 3 px for popups, zero for the workspace and resurfaced
 
 Each pane has 9 px registration corners 4 px inside its content, clear of toolbars, gilt when active and `--line` otherwise. Popups carry a 24 × 2 px rubric mark at the top. The rail notebook name has an oculus mark in gilt.
 
-A [resurfaced slip](surfaces/journal.md) sits on `--raised`, marked by its highlight colour as a 2 px bar at the left. The mono source line carries the short source title, chapter or passage and date, with Open, Keep and Mute beside it.
+A [resurfaced slip](surfaces/journal.md) sits on `--raised`, marked by its highlight color as a 2 px bar at the left. The mono source line carries the short source title, chapter or passage and date, with Open, Keep and Mute beside it.
 
 ### Motion
 
@@ -163,12 +163,12 @@ Permanent across one or two panes. A three-column grid:
 | Position | Controls |
 |---|---|
 | Left | Sidebar toggle, Tessera wordmark with its oculus and notebook-path tooltip, then the bare sync mark |
-| Centre of the window | Find or create with the Commands icon in one 400 px search-shaped control |
+| Center of the window | Find or create with the Commands icon in one 400 px search-shaped control |
 | Right | Icon-only Layout button |
 
 Find or create shows the eye glyph and opens its picker beneath the search trigger; Commands opens the command palette. Layout opens the active view beside, switches panes, closes the active pane or toggles the sidebar. Global controls are never duplicated inside pane headers.
 
-In the macOS app the rail is the window's title bar. The window buttons sit centred in its height over its left end, so its start moves in by `--window-controls-width` (84 px) except in full screen. Dragging any part of it that is not a control moves the window, and double-clicking zooms it.
+In the macOS app the rail is the window's title bar. The window buttons sit centered in its height over its left end, so its start moves in by `--window-controls-width` (84 px) except in full screen. Dragging any part of it that is not a control moves the window, and double-clicking zooms it.
 
 ### Sidebar
 
@@ -181,7 +181,7 @@ Width 208 px. The desk has no heading: Today, Agenda, Review and Library, in `--
 | Review | Cards due |
 | Library | Unprocessed highlights |
 
-Zero counts are left out. Counts refresh after each committed change, cancelling a refresh still in flight, and disappear rather than go stale when a request fails.
+Zero counts are left out. Counts refresh after each committed change, canceling a refresh still in flight, and disappear rather than go stale when a request fails.
 
 After the desk, sections appear in this order:
 
@@ -231,13 +231,13 @@ Non-page panes (table, fields, settings, agenda, review, library, reader, index)
 
 ### Narrow layouts
 
-| Width | Behaviour |
+| Width | Behavior |
 |---|---|
 | Below 1048 px | Sidebar becomes a toggleable overlay |
 | Below 840 px | Working-pane tabs show one pane at a time |
 | Below 600 px | Find or create, Commands and Layout retain accessible labels on icon controls; workspace gutter shrinks to 4 px |
 
-While the sidebar is open, a shade in the shell colour dims the workspace beside it. Tapping or clicking the shade closes the sidebar. On the cover screen the open sidebar covers its own toggle, so the shade is the way back. Hidden navigation is inert immediately, including during its exit.
+While the sidebar is open, a shade in the shell color dims the workspace beside it. Tapping or clicking the shade closes the sidebar. On the cover screen the open sidebar covers its own toggle, so the shade is the way back. Hidden navigation is inert immediately, including during its exit.
 
 Below 600 px:
 
@@ -253,7 +253,7 @@ Settings opens from the Tessera menu. File offers New Page, Open Today, Import B
 
 ### Measure
 
-Outline content is at most 760 px, centred, so a note's title sits where every other screen's title does. A gutter of two pointer targets (48 px, 64 px on touch) hangs left of it for row controls. Two panes split the width; text never shrinks to fit.
+Outline content is at most 760 px, centered, so a note's title sits where every other screen's title does. A gutter of two pointer targets (48 px, 64 px on touch) hangs left of it for row controls. Two panes split the width; text never shrinks to fit.
 
 ### Find or create
 
@@ -273,7 +273,7 @@ A block already shown as a highlight is not repeated among the note results. Oth
 | Books | Actual percentage and highlight count |
 | Pages | Case-insensitive exact title comes first, including a locally created page not yet in server search, and suppresses Create page |
 
-At wide widths the finder has equal index and preview halves: page titles with their first lines, or a passage between its neighbours with highlight ranges and every search term marked.
+At wide widths the finder has equal index and preview halves: page titles with their first lines, or a passage between its neighbors with highlight ranges and every search term marked.
 
 On the touch cover Find and Commands occupy the keyboard-resized visual viewport, with results growing upward from the bottom field, the best match nearest the thumb and Cancel at the right. Find puts scope chips immediately above the field. The writing pane also fits this viewport and reveals the active caret; Agenda capture stays above the keyboard, and date pickers keep their actions visible while their body scrolls.
 
@@ -318,7 +318,7 @@ Dragging starts after a small movement and shows an indented horizontal drop lin
 
 Edit, Insert below, Copy reference, Open beside and Zoom stay in the first menu. Move, Add or change, Select, and source/citation actions open short secondary menus with Back to block actions. Archive and Delete remain last. Closing or completing an action returns keyboard ownership to the editor or outline.
 
-Clicking the edited row's fold chevron or task checkbox keeps the editor owning the keyboard. Saving or cancelling a page title returns ownership to the outline.
+Clicking the edited row's fold chevron or task checkbox keeps the editor owning the keyboard. Saving or canceling a page title returns ownership to the outline.
 Structural edits finish any pending fold animation before unfolding and editing their caret target.
 
 ### Bullets and prose
@@ -382,7 +382,7 @@ Each kind has its own value editor, the same in outlines and tables:
 | Checkbox | A control that writes `yes` or `no`; other spellings stay text | |
 | Text, number, URL, identifier | Edits the text | |
 
-Choice and instance values never show their reference text. Their pills sit centred on the label's line. Insert below (`o`, or the block menu) on a choice or instance value adds a blank value and opens its picker. Leaving a blank value that is not the entry's first removes it. A value its kind cannot read keeps its text with the tables' dotted `--warning` underline and the problem in its tooltip; identifiers and target constraints are checked only in tables and on field pages.
+Choice and instance values never show their reference text. Their pills sit centered on the label's line. Insert below (`o`, or the block menu) on a choice or instance value adds a blank value and opens its picker. Leaving a blank value that is not the entry's first removes it. A value its kind cannot read keeps its text with the tables' dotted `--warning` underline and the problem in its tooltip; identifiers and target constraints are checked only in tables and on field pages.
 
 ### Field area
 
@@ -406,7 +406,7 @@ Below 600 px the slots use the same label column as filled entries, and the sele
 
 ### Capability metadata
 
-Capability metadata follows the source text without replacing it. Clicking a task glyph completes the task, or reopens a done or cancelled one. Right-click or ⌘⇧Enter opens the status menu, which marks the current status. Open hover previews the done colour.
+Capability metadata follows the source text without replacing it. Clicking a task glyph completes the task, or reopens a done or canceled one. Right-click or ⌘⇧Enter opens the status menu, which marks the current status. Open hover previews the done color.
 
 [Planning facts](surfaces/tasks-agenda.md) read in mono relative to today (`today`, `tomorrow`, `Fri 16`, `17 Oct`, `due Fri 16`, `every week`, `!high`). A missed date reads `since Tue 6` or `was due Thu 8` in `--danger`.
 
@@ -414,8 +414,8 @@ Capability metadata follows the source text without replacing it. Clicking a tas
 |---|---|
 | Open without facts | Faint Plan only under hover, focus or selection; a page's own task always shows it |
 | Done | `done today` and muted text; no Plan |
-| Cancelled | Only muted, struck-through text; no Plan |
-| Parent | `1/2` for its done subtasks, cancelled ones left out |
+| Canceled | Only muted, struck-through text; no Plan |
+| Parent | `1/2` for its done subtasks, canceled ones left out |
 | Running work session | Clock in `--status-doing`, opening Work sessions |
 
 Project and review controls open the attached capability. Source text keeps its natural width; controls wrap beneath it when they cannot fit beside it. Wrapped planning values stay left-aligned.
@@ -514,7 +514,7 @@ Headings likewise drop their style first. Backspace straight after a reference, 
 **Delete, arrows and tree commands**
 
 - Delete at the end joins the next sibling, appending its children in order. At a zoomed root it does nothing, so it never merges a sibling outside the zoomed subtree.
-- Arrows at a row boundary cross to the neighbouring row keeping the screen column, including across field gutters. The pane retains the preferred column through shorter rows and editor remounts until another key, a pointer action or a text edit resets it. Escape keeps the caret offset so the next Enter or `i` resumes there.
+- Arrows at a row boundary cross to the neighboring row keeping the screen column, including across field gutters. The pane retains the preferred column through shorter rows and editor remounts until another key, a pointer action or a text edit resets it. Escape keeps the caret offset so the next Enter or `i` resumes there.
 - Indent, outdent and move act on the selection's roots with their subtrees, never leave the zoomed subtree, and are silent no-ops without a history entry at a boundary (no previous sibling, top level, first or last sibling). Outdent leaves the following siblings under their original parent. A multi-row selection survives the command and its undo or redo.
 - Delete of a subtree selects the previous visible survivor; folding a descendant selects the folded parent; zooming out selects the block being left. A hidden or remotely deleted edited or selected row selects the previous visible survivor, or the next when none precedes it, and keeps outline keyboard ownership.
 
@@ -547,7 +547,7 @@ Typed triggers act in block text. Each character means one thing, opens a picker
 
 The open `[[query]]` is tinted in the accent until a choice replaces it with a reference. The picker searches the whole bracketed query, including any text after the caret, and a choice replaces all of it. Unmodified Enter or Tab picks, including when pressed before results arrive; modified chords keep their editing actions. Shift+Enter closes the picker and inserts its newline after a paired reference, never inside the query. The block being edited is never offered.
 
-Enter accepts a selected Quote before its snapshot lookup finishes. An immediate Escape leaves editing without cancelling that choice; a later edit to the same row instead keeps the authored text and reports why the quote could not be saved.
+Enter accepts a selected Quote before its snapshot lookup finishes. An immediate Escape leaves editing without canceling that choice; a later edit to the same row instead keeps the authored text and reports why the quote could not be saved.
 
 The caret lands after the reference, with a space when a word or the end of the block follows; punctuation or a space typed next takes that space's place, on phone keyboards too. Backspace in an empty `[[]]` removes both pairs. A query that names no page or field exactly offers Create page after the matches, except an ISO date, which only offers its existing journal.
 
@@ -634,23 +634,23 @@ Space c c makes a forward card.
 
 Floating layers open below the element or caret that opened them, with a 4 px gap. They are start-aligned unless the anchor is in the viewport's right half, flip above when below is too short, are clamped to the viewport and never cover the anchor. A menu flips whenever only the space above holds all of its items.
 
-Fixed forms opt into intrinsic-height fitting and choose the larger space when they cannot fit below; growing result lists keep the stable-placement policy. Find or create opens beneath the global search trigger; the dedicated command palette centres near the top of the viewport.
+Fixed forms opt into intrinsic-height fitting and choose the larger space when they cannot fit below; growing result lists keep the stable-placement policy. Find or create opens beneath the global search trigger; the dedicated command palette centers near the top of the viewport.
 
 Escape closes the topmost one and returns focus to the editor or outline that owned the keyboard before a mouse-opened menu, not its trigger. Closing retires input handlers immediately; only an inert, accessibility-hidden visual remains for the brief exit animation. It has no IDs and cannot steal focus from a successor popup. Reduced motion removes it immediately.
 
 ### Shared popup patterns
 
-- **Menu:** 28 px rows with an icon slot, label and shortcut at the right; sections as 12 px labels; danger last. The icon column is reserved whenever any item has one, so labels align. A header may sit above the rows, as the highlight menu's quote and colour dots; its buttons join the arrow-key order.
+- **Menu:** 28 px rows with an icon slot, label and shortcut at the right; sections as 12 px labels; danger last. The icon column is reserved whenever any item has one, so labels align. A header may sit above the rows, as the highlight menu's quote and color dots; its buttons join the arrow-key order.
 - **Picker:** an input on top and 28 px rows below. Arrows move, Enter picks, typing filters, the mouse hovers to highlight. Chips before the input show steps already chosen. Optional mono section headings group results without entering the keyboard selection order. Used by the palette, reference completion, Add type, Add condition and the time zone.
-- **Form:** compact labelled controls with an optional 18 px Piazzolla title and an action row. Fixed forms fit their content; a date picker's footer remains visible when its body must scroll.
+- **Form:** compact labeled controls with an optional 18 px Piazzolla title and an action row. Fixed forms fit their content; a date picker's footer remains visible when its body must scroll.
 - **Confirm:** 13 px body text and two buttons.
 - **Preview:** a read-only card for a reference's target; see [Reference previews](#reference-previews).
 
 | Surface | Shape | Placement |
 |---|---|---|
 | Find or create: pages, blocks and explicit page creation; `>` finds commands | Picker, one line per hit with the page path in meta size; Tab drills into children | Below the global search trigger, 560 px |
-| Dedicated command palette | Picker, grouped by action section, with shortcuts; disabled reasons appear on the selected row and remain available to assistive technology | Top centre, 560 px |
-| [Add to today](surfaces/journal.md) (⌘E) | One capture line under a mono rubric, its completions in a picker beneath, key hints and Add on a hairline | Top centre, 560 px; a bottom sheet on the cover |
+| Dedicated command palette | Picker, grouped by action section, with shortcuts; disabled reasons appear on the selected row and remain available to assistive technology | Top center, 560 px |
+| [Add to today](surfaces/journal.md) (⌘E) | One capture line under a mono rubric, its completions in a picker beneath, key hints and Add on a hairline | Top center, 560 px; a bottom sheet on the cover |
 | `[[`, `((`, `#`, `Name::` completion and Add type | Picker | Below the opening brackets, the caret or the block |
 | `@` dates and `/` commands | Picker without an input; the block text is the query, sections label `/` rows, faster keys at the right | Below the token |
 | Leader, status and priority menus | Menu; leader letters at the right and pressed directly | Below the row |
@@ -660,10 +660,10 @@ Escape closes the topmost one and returns focus to the editor or outline that ow
 | New page, Delete page | Confirm | Below their trigger |
 | Reference preview | Preview, 380 px | Below the line of the reference under the pointer, or the reference at the caret |
 | Block backlinks | Each referring block with its page breadcrumb, parent and children, Open beside; `--measure` wide | Below the row's reference count |
-| Undo toast | One at a time | Bottom centre |
-| Sync status | An icon-only button after the Tessera wordmark wherever a hub has paired devices or a copy has a Mac. Shape and colour together: an 8 px filled circle in `--status-done` for synced or sending (`ok`); an 8 px hollow ring with a 1.5 px `--warning` stroke for unreachable or review (`wait`); a 7 px square rotated 45° in `--danger` for version mismatch, forgotten or retired (`act`). No animation. On pointer devices, hover after 350 ms or keyboard focus shows a slip: the state in mono, coloured `--text`, `--warning` or `--danger`, then a short hint in muted sans. The slip has no controls and hides on leave, blur, Escape or an open summary. Click or tap opens the summary; coarse pointers never show the slip. On the cover screen a row above the bottom nav shows only `wait` or `act`, with the same glyph, label and detail | Global rail's left, immediately after the wordmark; above the bottom nav on the cover screen |
+| Undo toast | One at a time | Bottom center |
+| Sync status | An icon-only button after the Tessera wordmark wherever a hub has paired devices or a copy has a Mac. Shape and color together: an 8 px filled circle in `--status-done` for synced or sending (`ok`); an 8 px hollow ring with a 1.5 px `--warning` stroke for unreachable or review (`wait`); a 7 px square rotated 45° in `--danger` for version mismatch, forgotten or retired (`act`). No animation. On pointer devices, hover after 350 ms or keyboard focus shows a slip: the state in mono, colored `--text`, `--warning` or `--danger`, then a short hint in muted sans. The slip has no controls and hides on leave, blur, Escape or an open summary. Click or tap opens the summary; coarse pointers never show the slip. On the cover screen a row above the bottom nav shows only `wait` or `act`, with the same glyph, label and detail | Global rail's left, immediately after the wordmark; above the bottom nav on the cover screen |
 | Sync summary | Device → Mac register over the state's title, one or two sentences naming the side that is behind or what to check, the one fixing action (Download page on the Mac and GitHub releases, Try again or Sync now, Pair again, Download the notebook again) and `Settings › Devices`, which opens Settings with that device expanded. The top bar uses `--danger` for `act`, `--warning` for `wait`, and no bar for `ok`, clear of the pointer | Under the mark, left-aligned, 380 px with its pointer under the glyph; a bottom sheet on touch |
-| Phone setup | Where is your notebook? with two numbered choices: Use my Mac's notebook (Scan code or Type code, then the Mac's address and code) and Start a notebook on this phone. Pair again shows only the first, with the address filled in | Top centre, 560 px; a bottom sheet on touch; on first run |
+| Phone setup | Where is your notebook? with two numbered choices: Use my Mac's notebook (Scan code or Type code, then the Mac's address and code) and Start a notebook on this phone. Pair again shows only the first, with the address filled in | Top center, 560 px; a bottom sheet on touch; on first run |
 | Save state | Says Saving… only when a save takes longer than a second | Pane header, never a toolbar or a row |
 | Loading notices | Only after 300 ms, so fast reads show nothing until the content arrives | In place of the content they precede, in the pane or section that is loading |
 
@@ -689,7 +689,7 @@ Pin or ⌘ keeps the slip open; Unpin restores its compact form. A pinned page l
 
 Open reading and source links preserve access to the original outline; [Compare readings](surfaces/perspectives.md) opens the subject's sheet. Pages without readings keep their prose preview. Bodies scroll within `--preview-body-height`; unpinned block previews fade only when clipped. References inside a slip open stacked slips.
 
-⌥Space opens the reference at the caret or the focused reference; Enter opens it, Shift+Enter opens it beside, and Escape closes the topmost slip. Opening does not steal focus; focused slip controls retain native keyboard behaviour. Deleted targets and failed requests have explicit notices.
+⌥Space opens the reference at the caret or the focused reference; Enter opens it, Shift+Enter opens it beside, and Escape closes the topmost slip. Opening does not steal focus; focused slip controls retain native keyboard behavior. Deleted targets and failed requests have explicit notices.
 
 ## Quotes and backlinks
 

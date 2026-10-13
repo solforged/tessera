@@ -63,7 +63,7 @@ It writes a click-through testing notebook to `~/.local/share/tessera/notebooks/
 - People and concepts with typed fields.
 - Cards with a week of review history.
 - The bundled *Meditations* with highlights.
-- Catalogue records, collections and saved views.
+- Catalog records, collections and saved views.
 
 Everything is written through a temporary service's API. Pass `--replace` to start again on the current week; it refuses while a service has that notebook open.
 
@@ -134,5 +134,6 @@ Settings shows the build's commit. A release newer than the shipped version repl
 - Put surface rules in the matching `docs/surfaces/*.md` file; see the [surface list](design.md#surfaces).
 - Put tokens and shared patterns in [`docs/design.md`](design.md).
 - Keep paragraphs under 150 words; Vale enforces the limit on paragraphs, list items and table cells.
+- Use American spelling (color, behavior, catalog, canceled, organize). Vale flags British forms in prose and names the fix; code spans keep identifiers such as the `cancelled` task status as written.
 - Prefer lists and tables for parallel rules.
-- Update the document in the same commit as the behaviour.
+- Update the document in the same commit as the behavior.

@@ -31,7 +31,7 @@ Shape is not its own cell. Other fields stay in the source outline, reached thro
 
 Actual question blocks on the subject page appear below the sheet and open their original blocks. Columns have a readable minimum width and scroll horizontally on narrow panes.
 
-The reading sheet's heading uses the shared centred page measure and page-title tokens. Its holder choices use the mono tab strip, with gilt rules and no pressed fill.
+The reading sheet's heading uses the shared centered page measure and page-title tokens. Its holder choices use the mono tab strip, with gilt rules and no pressed fill.
 
 ### Compare tabs
 
@@ -63,7 +63,7 @@ Edit criteria lists the criteria with Move up, Move down and Remove and adds fie
 
 A titled page with three or more perspectives filed under it gains an apparatus margin whenever its pane fits both the measure and margin. The margin is `--apparatus-width` (240 px) wide, 48 px right of the measure. Both fit at a 1096 px content width, so a single pane on a laptop but not a split.
 
-The column then shifts left so the pair stays centred, and the margin scrolls with the page. Zoomed views and narrower panes have no margin.
+The column then shifts left so the pair stays centered, and the margin scrolls with the page. Zoomed views and narrower panes have no margin.
 
 ### Constellation and sources key
 
@@ -87,7 +87,7 @@ Make question and Make answer, in the block menu, the palette and `/question` or
 
 The state control sits in the capability metadata with the question glyph and its state, then any review date.
 
-| State | Colour or token | Glyph |
+| State | Color or token | Glyph |
 | --- | --- | --- |
 | Open | Gilt | Question glyph |
 | Unsettled | `--agree` | Question glyph |

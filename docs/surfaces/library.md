@@ -1,6 +1,6 @@
 # Library and sources
 
-Library is a pane for sources, reading and highlight processing. Source pages retain catalogue details, reading progress and passage evidence.
+Library is a pane for sources, reading and highlight processing. Source pages retain catalog details, reading progress and passage evidence.
 
 Tokens, shell and shared popup patterns are in [design](../design.md).
 
@@ -14,7 +14,7 @@ Under the tabs sit a 28 px search field, a sort menu (Added, Title, Author, Year
 
 Searching, filtering and sorting keep the current rows on screen until the new ones arrive and swap them in one step. Loading… appears only when nothing of that kind is loaded and the load takes over 300 ms.
 
-| Context | Header behaviour |
+| Context | Header behavior |
 | --- | --- |
 | State and saved-view tabs | Names stay on one line. |
 | Narrow desktop pane | The strip scrolls horizontally instead of making the toolbar taller. |
@@ -34,7 +34,7 @@ Progress pairs a short gilt bar with its percentage. A Reading source at zero re
 
 In a pane narrower than 560 px on a wide screen, the state and year columns step aside and progress keeps only its number, so the title keeps its room.
 
-The leading slot shows a selection checkbox on hover, focus, or while any row is selected. A selected row takes `--selection` and the accent bar. While rows are selected, a bar of the same height replaces the search line: the count, Details (while the catalogue card is closed), Browse, Mark as (one batch for all of them), Export, Add to collection…, Delete and Clear selection. Beside an open card, a ledger narrower than 840 px (1000 px inside a collection, which adds Remove from collection) shows Browse, Export, Add to collection, Delete and Clear selection as glyphs named in tooltips, and Remove without its object, so the bar stays one line. Escape clears.
+The leading slot shows a selection checkbox on hover, focus, or while any row is selected. A selected row takes `--selection` and the accent bar. While rows are selected, a bar of the same height replaces the search line: the count, Details (while the catalog card is closed), Browse, Mark as (one batch for all of them), Export, Add to collection…, Delete and Clear selection. Beside an open card, a ledger narrower than 840 px (1000 px inside a collection, which adds Remove from collection) shows Browse, Export, Add to collection, Delete and Clear selection as glyphs named in tooltips, and Remove without its object, so the bar stays one line. Escape clears.
 
 Clicking a row opens the source page; Shift opens it beside. On a wide touch screen, opening a book uses the other pane so the list and detail stay across the hinge. The opened book keeps a quiet current-page marker.
 
@@ -53,7 +53,7 @@ The shelf is a grid of 2:3 covers at least `--shelf-cover-width` wide, sharing a
 - The byline in `--muted`.
 - One mono apparatus line in `--faint`: siglum (gilt on hover), state in views spanning states, year, progress (none once finished) and the unprocessed highlight count.
 
-A source without a cover gets a typeset spine on `--surface`: the gilt siglum over a short rule and the title, centred clear of the corners.
+A source without a cover gets a typeset spine on `--surface`: the gilt siglum over a short rule and the title, centered clear of the corners.
 
 The selection checkbox and the actions button sit on the cover's top corners and appear as in the list. A selected cover takes a 2 px accent ring.
 
@@ -78,11 +78,11 @@ Rows keep the chosen sort within each group, and Shift-click ranges follow the g
 
 Browse narrows the sources by People, Decades, Publishers and Languages. The service counts each value over the current tab and search, ignoring the Browse filters themselves, so every value the tab offers stays visible.
 
-Values combine with OR inside a field and AND across fields. People match as author, editor or translator, by page, so a renamed person keeps their filter. Languages count by primary code, so `en`, `en-US`, `eng` and case-insensitive English language names such as `English` are one English. Imports resolve ISO language names to codes; existing catalogue fields are normalized when read, without rewriting their authored text.
+Values combine with OR inside a field and AND across fields. People match as author, editor or translator, by page, so a renamed person keeps their filter. Languages count by primary code, so `en`, `en-US`, `eng` and case-insensitive English language names such as `English` are one English. Imports resolve ISO language names to codes; existing catalog fields are normalized when read, without rewriting their authored text.
 
 | Pane width | Browse presentation |
 | --- | --- |
-| At least 1096 px | A 240 px rail left of the measure, the two centred together. It shows each field's six commonest values with their counts, chosen values pressed, and `All N` opening the rest in a picker. |
+| At least 1096 px | A 240 px rail left of the measure, the two centered together. It shows each field's six commonest values with their counts, chosen values pressed, and `All N` opening the rest in a picker. |
 | Narrower | A Browse glyph beside the layout toggles, pressed while any filter applies. It opens one sectioned picker. |
 
 Chosen values also show as removable chips under the controls with Clear filters. Continue reading steps aside while Browse filters apply. Filters travel with the query, so saved views and Export of the listed sources keep them.
@@ -104,7 +104,7 @@ Reading now leads the unsearched, unfiltered Reading and All tabs with one card 
 
 On the Reading tab a card's top corner selects it, like a shelf cover.
 
-Cards load the source's contents and text length and cancel their requests when removed. If chapter boundaries are unavailable, the map stays one book-length span and the time is labelled for the book, never a guessed chapter.
+Cards load the source's contents and text length and cancel their requests when removed. If chapter boundaries are unavailable, the map stays one book-length span and the time is labeled for the book, never a guessed chapter.
 
 Clicking a card opens its source page; Shift, or a wide touch screen, opens it beside. Cards wrap into a vertical stack in narrow panes without dropping books.
 
@@ -120,7 +120,7 @@ A Library with no sources offers Add your first source and a direct Add a source
 
 Add opens Add to library anchored under its button: one field for a URL, ISBN, DOI or arXiv ID, then Choose file… at the leading edge and Enter details by hand at the trailing edge, each with its glyph. Enter submits; Looking up… shows while it works.
 
-An identifier lookup previews a catalogue card before anything is written:
+An identifier lookup previews a catalog card before anything is written:
 
 - The cover and the title in Piazzolla with its subtitle.
 - The creators with `(ed.)` and `(trans.)` marks.
@@ -136,17 +136,17 @@ Each file or article submission becomes a job row above the sources while queued
 
 The name truncates first, so state and actions stay on the first line in a narrow pane. Dismissal is a device preference per notebook. Finished jobs leave the list once their source exists, whichever tab lists it, so a large import never stacks rows above another tab's sources. The Highlights tab shows no jobs.
 
-An EPUB creator entry that holds several people (`A; B`, `A & B`, or inverted pairs such as `Bowen, William G., Guthrie, Kevin M.`) becomes one creator each. Calibre's unknown date, `0101-01-01`, is no date. Earlier EPUB imports carrying that sentinel in their extracted metadata read as undated in Library rows, Decades, year sorting, exports, the source header and the catalogue card; other ancient dates and authored dates are kept, and stored fields are not rewritten. Browse facets skip blank values.
+An EPUB creator entry that holds several people (`A; B`, `A & B`, or inverted pairs such as `Bowen, William G., Guthrie, Kevin M.`) becomes one creator each. Calibre's unknown date, `0101-01-01`, is no date. Earlier EPUB imports carrying that sentinel in their extracted metadata read as undated in Library rows, Decades, year sorting, exports, the source header and the catalog card; other ancient dates and authored dates are kept, and stored fields are not rewritten. Browse facets skip blank values.
 
 ### Manual details
 
-The manual details form remains in Add only: labelled rows, Creator name fields with Author, Editor and Translator tabs, Add creator, and the existing “Same as X?” reuse suggestion. Published accepts `YYYY`, `YYYY-MM` or `YYYY-MM-DD`; adding a record saves its fields together.
+The manual details form remains in Add only: labeled rows, Creator name fields with Author, Editor and Translator tabs, Add creator, and the existing “Same as X?” reuse suggestion. Published accepts `YYYY`, `YYYY-MM` or `YYYY-MM-DD`; adding a record saves its fields together.
 
 ## Inspector
 
 ### Opening and layout
 
-Selecting a source through its leading slot or checkbox opens a 460 px catalogue-card inspector to the right of the Library ledger or shelf. The title still opens the source page. Details is also available in each source's actions and the batch bar. Edit details… on a source page opens the same card beside the page, without leaving it.
+Selecting a source through its leading slot or checkbox opens a 460 px catalog-card inspector to the right of the Library ledger or shelf. The title still opens the source page. Details is also available in each source's actions and the batch bar. Edit details… on a source page opens the same card beside the page, without leaving it.
 
 Browse steps aside while inspecting and its named button brings it back. Closing details clears selection. An edit that moves a source outside the current Library filter leaves its card open. A selected shelf cover has a 2 px gilt ring.
 
@@ -155,7 +155,7 @@ Browse steps aside while inspecting and its named button brings it back. Closing
 | Below 1000 px, the width needed for the list, its one-line selection bar and the card | Details replaces the list with Back to N sources; returning keeps the query, selection and scroll. |
 | Touch cover screen under 600 px | Source actions or a long press opens a 70% bottom sheet with an 85% expanded stop, independent group folds and 44 px targets. The sheet resizes above the keyboard. |
 
-### Catalogue groups
+### Catalog groups
 
 The card's groups stay in this order:
 
@@ -198,7 +198,7 @@ Each committed field across the selection is one revision-checked notebook batch
 
 ### Transactions
 
-An inspector transaction is not adopted into document state before acknowledgement. A definitive validation rejection writes nothing and is retired from the shared recovery journal. The attempted value stays in its inline editor until corrected or cancelled. An uncertain transport outcome remains durable and retries through the existing idempotent notebook command path.
+An inspector transaction is not adopted into document state before acknowledgment. A definitive validation rejection writes nothing and is retired from the shared recovery journal. The attempted value stays in its inline editor until corrected or canceled. An uncertain transport outcome remains durable and retries through the existing idempotent notebook command path.
 
 ## Highlights desk
 
@@ -206,13 +206,13 @@ An inspector transaction is not adopted into document state before acknowledgeme
 
 Highlights is a processing desk: a reading-order queue and selected passage share the desktop and unfolded pane, with source and chapter pickers in the toolbar rather than a permanent navigator. The tab strip keeps its place from the other tabs; the desk's controls span the desk below it.
 
-Sources retain newest-highlight order. Each source's passages retain ordinal and selection-offset order, including distinct overlapping selections. Queue previews clamp to three lines, marked by a 2 px colour bar, with the actual paragraph, date, note count and filing page in mono. A quotation that supplies its own chapter title does not repeat that title above it.
+Sources retain newest-highlight order. Each source's passages retain ordinal and selection-offset order, including distinct overlapping selections. Queue previews clamp to three lines, marked by a 2 px color bar, with the actual paragraph, date, note count and filing page in mono. A quotation that supplies its own chapter title does not repeat that title above it.
 
 The detail shows the full frozen quotation, preserves rewritten block text, and fetches the following passage from the citation's snapshot without moving the reading position.
 
 On the cover, tapping a queue row opens a dedicated passage state with Back to highlights, Previous and Next. The scrollable passage sits above an always-visible action dock, clear of the bottom nav.
 
-Colour and tag filters open a labelled sheet; No colour matches unassigned citations. Colour counts appear only for the loaded, unfiltered rows, never as whole-notebook facets, and a truncated queue names its loaded count.
+Color and tag filters open a labeled sheet; No color matches unassigned citations. Color counts appear only for the loaded, unfiltered rows, never as whole-notebook facets, and a truncated queue names its loaded count.
 
 ### Dock and keys
 
@@ -224,17 +224,17 @@ The selected passage keeps these actions visible in its dock. On a fine pointer 
 | Add note or Open note | N |
 | Make card | C |
 | Tag | T |
-| Colour | 1–5 |
+| Color | 1–5 |
 | Undo | ⌘Z |
 | Open in reader | O |
 
-The pager labels show ↑ K and J ↓. The active Highlights pane owns these unmodified keys only outside editable targets and open popups, preserving shell chords and the other pane's keys. J/K and arrows select and focus the neighbouring queue row. Home and End retain first and last passage navigation. Digits apply yellow, green, blue, red and purple in [Reader](reader.md) order.
+The pager labels show ↑ K and J ↓. The active Highlights pane owns these unmodified keys only outside editable targets and open popups, preserving shell chords and the other pane's keys. J/K and arrows select and focus the neighboring queue row. Home and End retain first and last passage navigation. Digits apply yellow, green, blue, red and purple in [Reader](reader.md) order.
 
 Mark processed advances to the next unprocessed passage in the scoped queue, wrapping when necessary. In All, processed passages offer Mark unprocessed. Undo uses the retained source document's existing history, from the dock or ⌘Z, not a separate triage history or toast.
 
-A non-empty child note, an active card or an incoming reference processes a highlight unless its explicit triage overrides that state. Tags and colour only organise it. Add note opens the first written child or reuses a blank note.
+A non-empty child note, an active card or an incoming reference processes a highlight unless its explicit triage overrides that state. Tags and color only organize it. Add note opens the first written child or reuses a blank note.
 
-The shared highlight menu keeps the quotation, colour choices, note and card actions, Copy with citation, triage, tags and removal. Library adds Open in reader. Hovering a highlight still links it to the reader and source outline in the other pane without scrolling or taking focus.
+The shared highlight menu keeps the quotation, color choices, note and card actions, Copy with citation, triage, tags and removal. Library adds Open in reader. Hovering a highlight still links it to the reader and source outline in the other pane without scrolling or taking focus.
 
 ### Make card
 
@@ -257,7 +257,7 @@ A source page puts the current snapshot's cover beside its title, with author ch
 
 Below it, the current chapter (`Not started` before any reading, `Reading position` in front matter), chapter map, time left in a named chapter and `book % · time left` share the [reader's](reader.md) character-based progress.
 
-Each highlight in the current snapshot is a dot in its colour at its exact position. The server gives every citation its start as a character offset in the snapshot's text, the same unit as the contents starts, so the source page, the Library card, Today and the reader place dots identically.
+Each highlight in the current snapshot is a dot in its color at its exact position. The server gives every citation its start as a character offset in the snapshot's text, the same unit as the contents starts, so the source page, the Library card, Today and the reader place dots identically.
 
 The primary gilt Read button becomes Continue reading once a saved position exists, with the state menu and source actions beside it. On the cover those controls are pinned above the bottom nav, within thumb reach. A record source has no snapshot and no Read.
 
@@ -274,20 +274,20 @@ Source actions groups its items:
 
 Fill missing details is a fresh lookup that writes only empty fields; without an identifier it stays in the menu, disabled with No identifier.
 
-Edit details… keeps the source page open and shows the Library's 460 px catalogue card beside it. While the card is open the page column takes the remaining width, down to 540 px; a narrower pane shows the card as a bottom sheet. × or Escape closes it, and edits update the header at once.
+Edit details… keeps the source page open and shows the Library's 460 px catalog card beside it. While the card is open the page column takes the remaining width, down to 540 px; a narrower pane shows the card as a bottom sheet. × or Escape closes it, and edits update the header at once.
 
 The remaining page column keeps field labels, block controls and highlight chapter headings inside its inset, rather than hanging their gutter outside the pane.
 
-The header and catalogue card own the catalogue fields: Subtitle, creators, dates, publisher, edition, series, number, volume, issue, page range, pages, languages, identifiers, URL, site, description, cover, siglum, reading dates and Collections. Their entries stay out of the outline until Show metadata fields, and the page offers no slots for them; Add field neither lists nor creates them there. Every other field is the note's own and shows in the [field area](../design.md#field-area) under the header, with its slots and Add field, like any page. The snapshot's description is clamped to three lines with More. The page has no Table button; ⌘⇧T and the palette still open the table.
+The header and catalog card own the catalog fields: Subtitle, creators, dates, publisher, edition, series, number, volume, issue, page range, pages, languages, identifiers, URL, site, description, cover, siglum, reading dates and Collections. Their entries stay out of the outline until Show metadata fields, and the page offers no slots for them; Add field neither lists nor creates them there. Every other field is the note's own and shows in the [field area](../design.md#field-area) under the header, with its slots and Add field, like any page. The snapshot's description is clamped to three lines with More. The page has no Table button; ⌘⇧T and the palette still open the table.
 
-Show and Hide metadata fields are saved with the pane's view across reloads and history. A remembered caret in the note's own fields does not reveal catalogue fields.
+Show and Hide metadata fields are saved with the pane's view across reloads and history. A remembered caret in the note's own fields does not reveal catalog fields.
 
 Author, Editor and Translator values may be plain names or linked people. Plain names supply the same Library bylines, creator facets, exports and derived sigla without creating a person page.
-Imports can keep any creator as a plain name with `create_page: false`; the default still creates or links an entity. Organisation creators become Groups, and combined bylines stay plain rather than becoming one Person. Edit details preserves plain names when other metadata changes.
+Imports can keep any creator as a plain name with `create_page: false`; the default still creates or links an entity. Organization creators become Groups, and combined bylines stay plain rather than becoming one Person. Edit details preserves plain names when other metadata changes.
 
-Creator kinds use an explicit `kind` first, then the source's structured signals, otherwise Person. Crossref's `name` without `given` or `family` denotes an organisation; split personal names denote a person. Schema.org `Organization` and `Person` types in JSON-LD or HTML microdata supply the kind, and `givenName` or `familyName` supplies Person when no type is present. A structured kind also takes precedence over a duplicate plain byline. No name-pattern guessing is used.
+Creator kinds use an explicit `kind` first, then the source's structured signals, otherwise Person. Crossref's `name` without `given` or `family` denotes an organization; split personal names denote a person. Schema.org `Organization` and `Person` types in JSON-LD or HTML microdata supply the kind, and `givenName` or `familyName` supplies Person when no type is present. A structured kind also takes precedence over a duplicate plain byline. No name-pattern guessing is used.
 
-Open Library's ISBN author names, arXiv author names, ordinary web bylines, `author` and `citation_author` meta values, and EPUB `dc:creator` strings provide no person-or-organisation signal, so they retain the Person default. A native record-plan creator with only `name` and `role` does too; use `kind: organisation` for a known collective or `create_page: false` to keep it as a plain name.
+Open Library's ISBN author names, arXiv author names, ordinary web bylines, `author` and `citation_author` meta values, and EPUB `dc:creator` strings provide no person-or-organization signal, so they retain the Person default. A native record-plan creator with only `name` and `role` does too; use `kind: organisation` for a known collective or `create_page: false` to keep it as a plain name.
 
 An unresolved title-form creator reference reads as its written name, not as an ID or a guessed link to a same-titled source. Only canonical references enable creator navigation. A title-form reference keeps its link intent when its role or other metadata changes, while a bare plain name stays plain. Saving creator names matches eligible people and groups by title or alias; shared names remain unlinked.
 
@@ -297,11 +297,11 @@ Shown metadata fields use the ordinary field rows. Languages show their English 
 
 ### Source highlights
 
-Highlights has its live total, individually spaced colour filters using the highlight tokens, then a separated By chapter control which can switch to Reading order.
+Highlights has its live total, individually spaced color filters using the highlight tokens, then a separated By chapter control which can switch to Reading order.
 
-Highlights follow reading order with their notes beneath. Each chapter heading carries its title and matching count. A 2 px colour bar marks the left edge of each full-width quote, with its paragraph number at the right in mono and no trailing colour dot.
+Highlights follow reading order with their notes beneath. Each chapter heading carries its title and matching count. A 2 px color bar marks the left edge of each full-width quote, with its paragraph number at the right in mono and no trailing color dot.
 
-Highlights filed on other pages remain under Filed elsewhere and respect the same colour filters. Recent shows a book or article icon for source pages.
+Highlights filed on other pages remain under Filed elsewhere and respect the same color filters. Recent shows a book or article icon for source pages.
 
 ### Citation masthead
 
@@ -331,7 +331,7 @@ Margin, header, apparatus and Compare marks stay on one line, with boxes sized f
 
 A block with a citation shows a citation chip in its capability metadata:
 
-- The highlight's colour dot, a hollow ring without colour, as in the Library and the reader.
+- The highlight's color dot, a hollow ring without color, as in the Library and the reader.
 - The source's short title, before any subtitle colon, cut at a word within 40 characters.
 - The passage number, `¶231`.
 

@@ -10,7 +10,7 @@ The pane header reads Library / source title. The title opens the source page.
 
 One toolbar line sits at the reading measure and spans the spread in [Pages](#pages). Its controls appear in this order:
 
-1. Contents, labelled with the current section as a running head: its numeral in mono `--faint`, its title in Piazzolla italic.
+1. Contents, labeled with the current section as a running head: its numeral in mono `--faint`, its title in Piazzolla italic.
 2. Highlights, with its count.
 3. Find in source.
 4. `Aa`, for reader settings.
@@ -56,7 +56,7 @@ Chapter openings come from the contents, not the file's heading markup, so every
 
 The first line of text takes small capitals. A chapter that starts at the same passage as its part has the part above it in `--faint` mono capitals, as `PART ONE · AN EXCESS OF GOOD FORTUNE`.
 
-Numerals are recognised as `Chapter 3`, `Book One`, `Part II`, or a bare upper-case Roman numeral or number before `.` or `:`. A title such as `I Remember` stays a title. Decorations around a title, such as `~Book One~`, are dropped.
+Numerals are recognized as `Chapter 3`, `Book One`, `Part II`, or a bare upper-case Roman numeral or number before `.` or `:`. A title such as `I Remember` stays a title. Decorations around a title, such as `~Book One~`, are dropped.
 
 ### Heading suppression
 
@@ -88,7 +88,7 @@ Reader settings are a device preference shared by every reader pane. Saved choic
 
 ## Contents, highlights and find
 
-Contents opens on the current section, marked with a check. The Highlights picker lists each highlight's colour, quote and section. Find marks matches and counts passages.
+Contents opens on the current section, marked with a check. The Highlights picker lists each highlight's color, quote and section. Find marks matches and counts passages.
 
 Contents falls back to the EPUB guide and fills in lazily when the navigation document is empty. A passage's tooltip names its number and section: `Passage 37 · Chapter 1`.
 
@@ -120,7 +120,7 @@ The book map is the same as on the source page and the [Library's reading cards]
 
 - Chapters are segments sized by length.
 - The map is gilt to the reading point, with a `--text` tick there.
-- Highlights are dots in their colours above it.
+- Highlights are dots in their colors above it.
 - A book whose contents have no placed entries keeps a 2 px rule that fills to the reading position.
 
 ### Progress card
@@ -142,7 +142,7 @@ Pages lays the text out in columns the height of the pane and turns them a page 
 
 ### Running heads and openings
 
-A running head in centred mono `--faint` capitals sits over each column:
+A running head in centered mono `--faint` capitals sits over each column:
 
 | Page | Running head |
 | --- | --- |
@@ -157,7 +157,7 @@ The foot line adds `p. N of M` within the chapter after the chapter's time left.
 
 ### Turning pages
 
-| Input | Behaviour |
+| Input | Behavior |
 | --- | --- |
 | Mouse | Previous and next arrows in `--faint` sit at the page edges, 8 px outside the text and gilt on hover, hidden at the first and last page of the book. The mouse wheel turns pages. |
 | Keyboard | Arrow keys, Page Up and Down, Space and Shift+Space back turn pages. |
@@ -197,21 +197,21 @@ The same button, `F`, `Esc` after any selection is cleared, Back on Android and 
 
 ## Selection and highlights
 
-Selecting text shows a small toolbar beside the selection, centred on it and below it when there is no room above. [Touch selection](#touch-selection) docks it in thumb reach instead.
+Selecting text shows a small toolbar beside the selection, centered on it and below it when there is no room above. [Touch selection](#touch-selection) docks it in thumb reach instead.
 
 | Action | Key | Result |
 | --- | --- | --- |
 | Highlight | `H` | Appends a block quoting the selection to the source page |
 | Highlight and note | `N` | Appends the quoting block, starts an empty child and opens the highlight beside the reader with the caret there |
-| Five colours | `1`–`5` | The five colour choices |
+| Five colors | `1`–`5` | The five color choices |
 
 An empty note does not mark the highlight processed. On touch, Highlight and note opens the [note sheet](#highlight-and-note-sheet) instead.
 
 ### Highlight ink and interaction
 
-Highlights are ink, not boxes. A band of their colour at 42%, or a neutral 26% `--text` without one, sits under the lower half of each line, from 55% to 92% of the line box. Capitals and ascenders keep the canvas and neighbouring lines stay apart.
+Highlights are ink, not boxes. A band of their color at 42%, or a neutral 26% `--text` without one, sits under the lower half of each line, from 55% to 92% of the line box. Capitals and ascenders keep the canvas and neighboring lines stay apart.
 
-Hovering a highlight deepens the band of every range it covers to 62%, or 40% without a colour. One with notes ends in a small note icon in `--faint` that opens them. Clicking a highlight opens its menu; Shift-click opens its block beside the reader.
+Hovering a highlight deepens the band of every range it covers to 62%, or 40% without a color. One with notes ends in a small note icon in `--faint` that opens them. Clicking a highlight opens its menu; Shift-click opens its block beside the reader.
 
 ### Overlapping highlights
 

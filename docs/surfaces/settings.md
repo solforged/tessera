@@ -24,7 +24,7 @@ Under 600 px (a split pane or the Fold cover), the header tightens. Controls sta
 
 Preferences contains Theme, Vim keys, Ask before deleting views, Journal day and Reader display. Each row has its name, a mono scope (This device or Notebook) and one muted sentence on the left, with its control flush right. Rows divide with hairlines.
 
-| Control | Presentation and behaviour |
+| Control | Presentation and behavior |
 | --- | --- |
 | Theme | Uses the mode tabs. |
 | Notebook switches | Hairline track with a muted knob. On, the track fills gilt and the knob slides across in canvas. |

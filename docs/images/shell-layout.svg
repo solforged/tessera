@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 708" role="img" aria-labelledby="title desc">
   <title id="title">Desktop shell layout</title>
-  <desc id="desc">A dimension-labelled desktop shell with a 48 px global rail, a centred 400 px Find or create control, a 208 px sidebar, two equal panes with 36 px headers and a 12 px outside gutter. An enlarged pane detail shows a 28 px block row, its 48 px left gutter and at most 760 px measure. The separate wide-pane apparatus is 240 px wide with a 48 px gap to the right, only where the pane fits it. The drawing is not to scale.</desc>
+  <desc id="desc">A dimension-labeled desktop shell with a 48 px global rail, a centered 400 px Find or create control, a 208 px sidebar, two equal panes with 36 px headers and a 12 px outside gutter. An enlarged pane detail shows a 28 px block row, its 48 px left gutter and at most 760 px measure. The separate wide-pane apparatus is 240 px wide with a 48 px gap to the right, only where the pane fits it. The drawing is not to scale.</desc>
   <style>
     :root { color: #253246; --line: #536477; --muted: #536477; --accent: #805915; --wash: #5364770a; }
     @media (prefers-color-scheme: dark) {
@@ -23,7 +23,7 @@
   <text x="30" y="27" class="heading">Desktop shell</text>
   <text x="930" y="27" text-anchor="end" class="small muted">Schematic; not to scale</text>
   <text x="54" y="51" class="small muted">Global rail · 48 px</text>
-  <text x="480" y="51" text-anchor="middle" class="small muted">400 px · centred on the window</text>
+  <text x="480" y="51" text-anchor="middle" class="small muted">400 px · centered on the window</text>
   <text x="887" y="51" text-anchor="middle" class="small muted">Layout</text>
 
   <rect x="30" y="62" width="900" height="258" class="box"/>
