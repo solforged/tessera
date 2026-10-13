@@ -12,6 +12,8 @@ Its row names the holder in Piazzolla at control weight. The holder link is in `
 
 A holder's page lists Perspectives held above its backlinks. A subject's page lists Perspectives filed elsewhere: positions about it that live on other pages, such as under a highlight. Neither repeats under Backlinks.
 
+Clicking a listed perspective, including its holder name, opens the original position on its source page. Shift-click or Open beside opens that reading in another pane.
+
 ## Compare perspectives
 
 ### Reading sheet

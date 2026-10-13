@@ -166,7 +166,7 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
         const live = props.notebook.lookup(result.block.id);
         return <div class="related-block"><div class="related-open" role="link" tabIndex={0} onKeyDown={event => { if (event.key === 'Enter') props.onOpen({ kind: 'page', pageId: result.page.id, blockId: result.block.id }, event.shiftKey); }} onClick={event => props.onOpen({ kind: 'page', pageId: result.page.id, blockId: result.block.id }, event.shiftKey)}>
           <span class="related-breadcrumb"><BlockBreadcrumb block={result.block} notebook={props.notebook} /></span>
-          <BlockText text={live()?.text ?? result.block.text} blockId={result.block.id} notebook={props.notebook} onOpen={props.onOpen} />
+          <BlockText text={live()?.text ?? result.block.text} notebook={props.notebook} interactive={false} />
         </div><button type="button" class="text-button" onClick={() => props.onOpen({ kind: 'page', pageId: result.page.id, blockId: result.block.id }, true)}>Open beside</button></div>;
       }}</For>
       </Show>
