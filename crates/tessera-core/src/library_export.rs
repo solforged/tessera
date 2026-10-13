@@ -370,25 +370,25 @@ impl Notebook {
                     }
                 }
             }
-            item.insert(
-                "type".into(),
-                json!(if book {
-                    "book"
-                } else if has_doi {
-                    "article-journal"
-                } else {
-                    "webpage"
-                }),
-            );
+            let (bib_type, csl_type) = if book {
+                ("book", "book")
+            } else if has_doi {
+                for (name, _) in &mut fields {
+                    if *name == "organization" {
+                        *name = "journal";
+                    }
+                }
+                ("article", "article-journal")
+            } else {
+                ("online", "webpage")
+            };
+            item.insert("type".into(), json!(csl_type));
             match format {
                 ExportFormat::Bibtex => {
                     if !bib.is_empty() {
                         bib.push('\n');
                     }
-                    bib.push_str(&format!(
-                        "@{}{{{key},\n",
-                        if book { "book" } else { "online" }
-                    ));
+                    bib.push_str(&format!("@{bib_type}{{{key},\n"));
                     for (name, value) in fields {
                         bib.push_str(&format!("  {name} = {{{}}},\n", escape(&value)));
                     }

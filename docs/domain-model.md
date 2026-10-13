@@ -319,6 +319,7 @@ A snapshot's extracted value fills its field until an authored value replaces it
 ### Metadata exports
 
 Exports read current field values, including authored overrides, and omit absent optional fields. BibTeX retains its BibLaTeX-compatible conventions:
+Both formats classify EPUBs and ISBN records as books, other DOI sources as journal articles, and remaining sources as web pages. BibTeX uses `book`, `article` and `online`; CSL uses `book`, `article-journal` and `webpage`.
 
 | Field | BibTeX | CSL JSON |
 |---|---|---|
@@ -333,7 +334,7 @@ Exports read current field values, including authored overrides, and omit absent
 | Page range | `pages` | `page` |
 | Pages | `pages` | `number-of-pages` |
 | URL | `url` | `URL` |
-| Site | `organization` | `container-title` |
+| Site | `journal` for journal articles, otherwise `organization` | `container-title` |
 | Description | `abstract` | `abstract` |
 
 Partial original dates retain their precision independently of Published. CSL's `number-of-pages` is a count, never its `page` range. When both exist, BibTeX uses Page range for `pages`; Issue takes precedence over series Number for `number`. Record plans accept `volume`, `issue` and `page_range` (also `page` or `pages`); lookup and snapshot ingestion keep these values in ordinary fields.

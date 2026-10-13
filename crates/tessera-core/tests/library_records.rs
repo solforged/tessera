@@ -160,3 +160,36 @@ fn journal_locators_survive_record_plans_and_citation_exports() {
         }
     }
 }
+
+#[test]
+fn bibtex_and_csl_agree_on_source_kind_and_journal_container() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut notebook = Notebook::open(dir.path()).unwrap();
+    for (title, identifiers, bib_type, csl_type, container) in [
+        ("Book", vec!["isbn:9780141439518".into()], "book", "book", "organization"),
+        ("Paper", vec!["doi:10.1038/nature14539".into()], "article", "article-journal", "journal"),
+        ("Web page", vec![], "online", "webpage", "organization"),
+    ] {
+        let metadata = ExtractedMetadata {
+            title: Some(title.into()), identifiers, site: Some("Publication".into()),
+            ..Default::default()
+        };
+        let plan = notebook.plan_source_record(&metadata).unwrap();
+        let id = plan.source_id;
+        notebook.apply(&Batch {
+            actor: Actor::Person, reason: None, idempotency_key: None,
+            operations: plan.operations,
+        }).unwrap();
+        let bib = notebook.export(std::slice::from_ref(&id), ExportFormat::Bibtex).unwrap();
+        assert!(bib.starts_with(&format!("@{bib_type}{{")), "{bib}");
+        assert!(bib.contains(&format!("{container} = {{Publication}}")), "{bib}");
+        if container == "journal" {
+            assert!(!bib.contains("organization ="));
+        }
+        let csl: serde_json::Value = serde_json::from_str(
+            &notebook.export(std::slice::from_ref(&id), ExportFormat::CslJson).unwrap()
+        ).unwrap();
+        assert_eq!(csl[0]["type"], csl_type);
+        assert_eq!(csl[0]["container-title"], "Publication");
+    }
+}
