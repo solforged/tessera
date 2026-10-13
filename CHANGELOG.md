@@ -19,6 +19,16 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Bulk filing on Unfiled: select notes, file them under one type in a single change, and undo it in one step.
 - Changing a Text field to Choice can add its existing values as options in the same undoable change, and Make option repairs a value that is not an option.
 - Add field can create a field of any kind.
+- Read, Outline and Compare projections on titled pages. Concept and question pages open in Read: the opening on one text edge, then one slip per reading with its Gist, Work and Account, facts folded, and disagreements filed under the criterion they name. Prose stays editable in place.
+- Add reading: pick who holds it, and the reading opens with its Gist ready to write.
+- A section line at the top of long pages names the section and reading you are in, and jumps to any other.
+- Compare focuses a disagreement on the readings it names, and criterion cells use the outline's editor, with references, quotes and one undo history.
+- Zooming into a reading opens its dossier: holder, Gist, Work and what links to that reading, without the page's backlinks.
+- Holder pages open into the readings they hold, grouped by subject.
+- Questions as research programs: branches show their state, readings, current reading and revisit date; Write assessment, Accept current reading and Withdraw current reading keep every dated assessment; verbs say which state they lead to.
+- The Questions index groups questions by program, includes inline questions, and has Active, Recurrent, Due, Answered and Parked tabs.
+- Revisits: notes and questions with a revisit date come back in Review's Questions and notes queue and in Today, with Revisited, Later, Resolve and Keep recurrent.
+- `GET /api/revisits`, `GET /api/questions` state and inline filters, and the MCP tools `tessera_revisits` and `tessera_revisit`.
 
 ### Fixed
 
