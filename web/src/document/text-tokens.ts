@@ -1,4 +1,4 @@
-export interface Token { start: number; end: number; kind: 'text' | 'reference' | 'tag' | 'url'; value: string; id?: string; alias?: string }
+export interface Token { start: number; end: number; kind: 'text' | 'reference' | 'tag' | 'url'; value: string; id?: string; alias?: string; locator?: string }
 
 export function isStableReference(token: Token): boolean {
   return token.kind === 'reference' && /^[0-9A-HJKMNP-TV-Z]{26}$/i.test(token.id ?? '');
@@ -26,8 +26,10 @@ export function textTokens(text: string): Token[] {
       }
     }
     const end = start + value.length;
+    const tail = match[2];
+    const separator = tail?.lastIndexOf('|') ?? -1;
     result.push(match[1] !== undefined
-      ? { start, end, kind: 'reference', value, id: match[1], alias: match[2] }
+      ? { start, end, kind: 'reference', value, id: match[1], alias: separator < 0 ? tail : tail!.slice(0, separator), ...(separator < 0 ? {} : { locator: tail!.slice(separator + 1) }) }
       : match[5] !== undefined ? { start, end, kind: 'url', value }
       : { start, end, kind: 'tag', value: match[3] ?? match[4] ?? '' });
     offset = end;

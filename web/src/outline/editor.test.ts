@@ -46,6 +46,21 @@ function decorations(text: string, head: number, titles: Record<string, string> 
 }
 
 describe('editor reference decorations', () => {
+  test('citation widgets retain locators and distinguish source citations from plain links', () => {
+    const text = '[[source|span|3.12]] [[source]] [[ordinary|span|4]] [[source||5]]';
+    const widgets: { label: string; locator?: string; citation: boolean }[] = [];
+    referenceDecorations(text, text.length, id => id === 'source' ? 'Source title' : 'Ordinary', () => false, undefined, undefined, id => id === 'source')
+      .between(0, text.length, (_from, _to, decoration) => {
+        const widget = decoration.spec.widget;
+        widgets.push({ label: widget.label, locator: widget.token.locator, citation: widget.citation });
+      });
+    expect(widgets).toEqual([
+      { label: 'span', locator: '3.12', citation: true },
+      { label: 'Source title', locator: undefined, citation: false },
+      { label: 'span', locator: '4', citation: false },
+      { label: 'Source title', locator: '5', citation: true },
+    ]);
+  });
   test('uses aliases then looked-up titles then IDs without changing the raw ranges', () => {
     const text = '[[author|Ada]] [[title]] [[missing]]';
     expect(decorations(text, text.length, { author: 'Ignored', title: 'Readable title' })).toEqual([

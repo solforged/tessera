@@ -247,6 +247,7 @@ Nine tools write:
 Written text follows the editor's syntax:
 
 - `[[Title]]` links the page with that title, creating it when missing.
+- `[[id|label]]` keeps an authored label. `[[id|label|locator]]` adds a locator, for example `[[Muqaddimah|have a natural life span like individuals|3.12]]`; title resolution keeps both parts. `[[id||3.12]]` uses the target's current title. The first pipe ends the target and the last pipe starts the locator when there are two or more pipes; intervening pipes belong to the label. Markdown and text exports retain the locator.
 - Card operators (`>>`, `<<`, `<>`, `>>>`, `>>1.`) and clozes (`{{c1::answer}}`) make cards. `A << B` shows B and asks for A.
 - Beneath a `Mitochondria` block, a child `Function ;; makes ATP` makes a descriptor card asking `Mitochondria › Function`.
 - `Name:: value` is always its own block: a field entry on the page at the top level, or on the item it is indented under. It creates the field when missing.

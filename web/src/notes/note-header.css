@@ -6,6 +6,8 @@
 .note-eyebrow button:hover { color: var(--accent); }
 .note-eyebrow-separator { color: var(--faint); }
 .note-aliases { margin: var(--page-title-gap) 0 0; color: var(--muted); font: italic var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); font-variation-settings: var(--optical-quote); overflow-wrap: anywhere; }
+.note-aliases button { min-height: var(--target-size); padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.note-aliases button:hover { color: var(--accent); }
 .note-aliases-label { margin-right: var(--space-8); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); text-transform: uppercase; }
 .note-aliases-separator { color: var(--faint); font-style: normal; }
 .note-line { display: flex; flex-wrap: wrap; gap: 0 var(--space-8); margin: var(--page-title-gap) 0 0; color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }

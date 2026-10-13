@@ -118,7 +118,7 @@ erDiagram
 | Note | A titled page, with the blocks beneath it as its content |
 | Kind | What a note is about: a built-in kind such as Person or Concept, or a type you define |
 | Journal day | A root block for one calendar date in the notebook's time zone |
-| Reference | `[[id]]` or `[[id\|alias]]` in a block's text, pointing at another block |
+| Reference | `[[id]]`, `[[id\|label]]` or `[[id\|label\|locator]]` in a block's text, pointing at another block |
 | Link | The indexed occurrence of a reference; derived |
 | Type | Reusable membership, such as `#book`, with an optional field template |
 | Field | A typed reading of value blocks, such as Author or Read on |
@@ -144,6 +144,10 @@ Parentage gives a block its reading context. A question beneath a source is abou
 ## References and links
 
 A reference renders the target's current text. Editing the target updates every reference. A link row records source, target, alias and occurrence order; repeated references stay distinct. Backlinks come from links. A reference to a deleted block renders as unresolved and keeps its raw ID.
+
+A reference can carry an authored label and locator. The target ends at the first `|`; with a second pipe, the locator follows the last `|` and any intervening pipes belong to the label. An empty label uses the target's current text (`[[id||3.12]]`). Locators stay in authored text through resolution, editing, merge rewriting and export; they do not create passage citations or require a snapshot.
+
+A reference to a source-capable page with a nonempty label or locator is a citation reference. It reads in ink with a dotted underline, with its locator after a thin space in faint apparatus mono; hover turns the text and underline to the accent. Plain title links to sources and references to ordinary pages keep the accent-link treatment. Source pages separate citing rows, including passage citations, into Cited in and all remaining referring rows into Backlinks, without counting a row twice.
 
 Full-text search includes the current labels of canonical references. This index is derived from authored text and live targets, and refreshes when either changes; an explicit alias keeps its authored wording.
 

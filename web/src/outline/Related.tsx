@@ -1,5 +1,5 @@
 import { For, Show, createMemo, createResource, createSignal, onCleanup } from 'solid-js';
-import type { Block, Mention } from '../api/types';
+import type { Block, Mention, ReferenceGroup } from '../api/types';
 import { api } from '../api/client';
 import { loadWorks } from '../library/PersonWorks';
 import type { OutlineIndex } from '../document/outline-index';
@@ -15,6 +15,7 @@ import { Button } from '../ui/Button';
 import { createSettledChanges } from '../ui/loading';
 import { isVirtualJournal, readJournalRelated } from './related-reads';
 import { IncomingRelations } from './RelationLines';
+import { hasCitationDetail } from './references';
 
 export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'doc' | 'zoom' | 'zoomTo' | 'localPositions'>) {
   const { props, doc, zoom, zoomTo, localPositions } = context;
@@ -30,26 +31,54 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
     return readJournalRelated(api.referenceCounts(props.pageId, countRequest.signal), doc.root(), []);
   });
   const countById = createMemo(() => new Map((counts.error ? [] : counts() ?? []).map(row => [row.block_id, row.count])));
-  const [relatedResource] = createResource(() => `${version()}:${limit()}`, async () => {
+  const [relatedResource] = createResource(() => `${version()}:${limit()}:${!!doc.root()?.source}`, async () => {
     relatedRequests?.abort();
     const requests = relatedRequests = new AbortController();
-    const [references, tagged, held, about] = await Promise.all([readJournalRelated(api.pageReferences(props.pageId, limit(), requests.signal), doc.root(), { total: 0, groups: [] }), api.members(props.pageId, undefined, requests.signal), api.positions({ holder: props.pageId }, requests.signal), api.positions({ subject: props.pageId }, requests.signal)]);
+    const sourcePage = !!doc.root()?.source;
+    const [references, tagged, held, about, passages] = await Promise.all([
+      readJournalRelated(api.pageReferences(props.pageId, sourcePage ? Number.MAX_SAFE_INTEGER : limit(), requests.signal), doc.root(), { total: 0, groups: [] }),
+      api.members(props.pageId, undefined, requests.signal),
+      api.positions({ holder: props.pageId }, requests.signal),
+      api.positions({ subject: props.pageId }, requests.signal),
+      sourcePage ? api.highlights({ source_id: props.pageId, limit: Number.MAX_SAFE_INTEGER }, requests.signal) : undefined,
+    ]);
     // A position links its holder and often its subject, so it shows once, as a perspective, not again as a backlink.
     const positions = new Set([...held.rows, ...about.rows].map(row => row.block.block.id));
     const rootLinks = references.groups.flatMap(group => group.sources.filter(row => row.targets.includes(props.pageId)).map(row => ({ source: row.source, page: group.page })));
     const works = await loadWorks(api, props.pageId, rootLinks, requests.signal);
     let filtered = 0;
-    const backlinks = references.groups.map(group => ({ ...group, sources: group.sources.filter(row => {
-      if (!positions.has(row.source.id) && !works.creatorLinks.has(row.source.id)) return true;
+    let backlinks = references.groups.map(group => ({ ...group, sources: group.sources.filter(row => {
+      if (sourcePage || !positions.has(row.source.id) && !works.creatorLinks.has(row.source.id)) return true;
       filtered++;
       return false;
     }) })).filter(group => group.sources.length);
     const loaded = references.groups.reduce((count, group) => count + group.sources.length, 0);
+    const cited: ReferenceGroup[] = [];
+    if (sourcePage) {
+      const byPage = new Map<string, ReferenceGroup>();
+      const passageIds = new Set(passages?.rows.map(row => row.block.block.id));
+      const add = (page: Block, source: Block, targets: string[]) => {
+        if (page.id === props.pageId) return;
+        let group = byPage.get(page.id);
+        if (!group) { group = { page, sources: [] }; byPage.set(page.id, group); }
+        if (!group.sources.some(row => row.source.id === source.id)) group.sources.push({ source, targets });
+      };
+      backlinks = backlinks.map(group => ({ ...group, sources: group.sources.filter(row => {
+        const citation = passageIds.has(row.source.id) || textTokens(row.source.text).some(token => hasCitationDetail(token) && token.id === props.pageId);
+        if (citation) add(group.page, row.source, row.targets);
+        return !citation;
+      }) })).filter(group => group.sources.length);
+      for (const row of passages?.rows ?? []) add(row.block.page, row.block.block, [props.pageId]);
+      cited.push(...byPage.values());
+    }
+    const citationTotal = cited.reduce((count, group) => count + group.sources.length, 0);
     return {
       works: works.rows,
       backlinks,
-      total: references.total - filtered,
-      remaining: references.total - loaded,
+      cited,
+      citationTotal,
+      total: sourcePage ? backlinks.reduce((count, group) => count + group.sources.length, 0) : references.total - filtered,
+      remaining: sourcePage ? 0 : references.total - loaded,
       tagged,
       held: held.rows.map(row => row.block),
       // Perspectives on this page filed elsewhere, such as under a highlight on a source page.
@@ -86,12 +115,23 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
     const aliased = new Set(textTokens(text).flatMap(token => isStableReference(token) && token.alias ? [token.id!] : []));
     return targets.filter(target => target !== props.pageId && aliased.has(target));
   };
-  function Backlinks() {
+  function Backlinks(section: { cited?: boolean }) {
     const [open, setOpen] = createSignal(true);
-    const groups = createMemo(() => new Map((related()?.backlinks ?? []).map(group => [group.page.id, group])));
+    const [shown, setShown] = createSignal(100);
+    const all = () => (section.cited ? related()?.cited : related()?.backlinks) ?? [];
+    const groups = createMemo(() => {
+      let remaining = shown();
+      return new Map(all().flatMap(group => {
+        const sources = group.sources.slice(0, remaining);
+        remaining = Math.max(0, remaining - sources.length);
+        return sources.length ? [[group.page.id, { ...group, sources }] as const] : [];
+      }));
+    });
     const pages = createMemo(() => [...groups().keys()]);
+    const total = () => section.cited ? related()?.citationTotal ?? 0 : related()?.total ?? 0;
+    const remaining = () => Math.max(0, total() - shown());
     return <details class="related-section backlinks-section" open onToggle={event => setOpen(event.currentTarget.open)}>
-      <summary>Backlinks <span>{relatedError() ? 'Unavailable' : relatedResource.loading && !related() ? 'Loading…' : related()?.total ?? 0}</span></summary>
+      <summary>{section.cited ? 'Cited in' : 'Backlinks'} <span>{relatedError() ? 'Unavailable' : relatedResource.loading && !related() ? 'Loading…' : total()}</span></summary>
       <Show when={open()}>
         <Show when={relatedError()}><p role="alert">Couldn't load backlinks.</p></Show>
         <For each={pages()}>{pageId => {
@@ -107,7 +147,7 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
             </div>}</For>
           </section>;
         }}</For>
-        <Show when={(related()?.remaining ?? 0) > 0}><Button class="text-button" disabled={relatedResource.loading} onClick={() => setLimit(value => value + 100)}>Load more backlinks ({related()?.remaining} remaining)</Button></Show>
+        <Show when={remaining() > 0}><Button class="text-button" disabled={relatedResource.loading} onClick={() => { setShown(value => value + 100); if (!section.cited && (related()?.remaining ?? 0) > 0) setLimit(value => value + 100); }}>Load more ({remaining()} remaining)</Button></Show>
       </Show>
     </details>;
   }

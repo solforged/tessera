@@ -836,7 +836,7 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
   const titled = () => root()?.kind !== 'journal';
   const items = (): MenuItem[] => [
     ...(titled() ? [{ label: 'Rename', icon: 'edit', action: props.onRename } satisfies MenuItem] : []),
-    ...(titled() ? [{ label: 'Merge into…', disabledReason: pageMergeDisabledReason(root()), action: () => { const page = root(); if (page) setMergeFrom({ id: page.id, text: page.text }); } } satisfies MenuItem] : []),
+    ...(titled() ? [{ label: 'Merge into…', icon: 'merge', disabledReason: pageMergeDisabledReason(root()), action: () => { const page = root(); if (page) setMergeFrom({ id: page.id, text: page.text }); } } satisfies MenuItem] : []),
     { label: props.pinned ? 'Unpin' : 'Pin', icon: 'pin', action: props.onPin },
     { label: 'Open page beside', icon: 'panes', action: props.onPageBeside },
     { label: pageStyle() === 'prose' ? 'Show bullets' : 'Hide bullets', icon: 'bullet', disabledReason: root() ? undefined : 'Page is still loading', action: () => props.onPageStyle(pageId()!, pageStyle() === 'prose' ? 'bullets' : 'prose', defaultStyle()) },

@@ -319,7 +319,7 @@ The source header includes it as a bare mono mark in its one-line imprint, never
 
 ### Placement and collisions
 
-On any other page, a row that cites a passage hangs its source's siglum right-aligned in the left gutter, boxed in `--control-border`, gilt when the row is selected or its highlight is hovered in the reader.
+On any other page, a row that cites a passage or references a source page with an authored label or locator hangs that source's siglum right-aligned in the left gutter, boxed in `--control-border`, gilt when the row is selected or its highlight is hovered in the reader. Citation references share passage citations' first-appearance and collision rules. Their hover preview is headed by the source's siglum and, when present, ` · locator`, above the source title.
 
 Sigla are assigned per page in order of first appearance. The later derived mark in a collision takes further letters of its basis name (`THO`, then `THOM`, `THOMA`), or adds `2`, `3`, … after the basis runs out. Authored sigla never change.
 

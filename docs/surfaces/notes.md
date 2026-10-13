@@ -105,6 +105,8 @@ The Backlinks section appears and its count refreshes when incoming links change
 
 Add alias, in the page menu after Gloss and in the palette, adds the Aliases field after the gloss and starts a new value with keyboard focus, ready for the first typed character. `[[` completion and Find name the alias a result was found through as `via Tully`, in faint mono at the row's end.
 
+At a note's top level, populated Aliases entries stay out of the outline while the header's ALSO line presents them. Clicking or tapping that line, or activating it with the keyboard, reveals the field and edits its first value. Add alias also reveals it before starting the new value. Zoomed outlines and sources keep ordinary field presentation.
+
 A hand-typed `[[Name]]` that two or more pages answer to stays unlinked and reads in `--warning` with a dotted underline and a small `?`. Clicking it lists the pages and Create page; the choice links it with the typed wording kept. Imported creators with a shared name read the same way.
 
 Merging leaves the merged page's title as an alias, which the confirmation states in one sentence.

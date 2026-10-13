@@ -76,7 +76,7 @@ pub(crate) fn reference(text: &str) -> Option<&str> {
     if inner.contains("[[") || inner.contains("]]") {
         return None;
     }
-    let id = inner.split_once('|').map_or(inner, |(id, _)| id);
+    let (id, _, _) = crate::storage::reference_parts(inner);
     validate_id(id).ok()?;
     Some(id)
 }

@@ -7,6 +7,16 @@ import { chooseName, completeNames, foldName, plainText, referenceValue, resolve
 const page = (id: string, text: string): Block => ({ id, text, kind: 'page', parent_id: null, page_id: id, heading: null, archived: false, kept_copy: null, revision: 1, created_at: 0, updated_at: 0 });
 const match: NameMatch = { page: page('target', 'Cicero'), alias: 'Tully' };
 
+test('plain-text exports and ambiguous-name choices preserve locators', () => {
+  const id = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
+  const lookup = () => () => page(id, 'Source title');
+  expect(plainText(`[[${id}|span|3.12]] [[${id}||4]]`, lookup)).toBe('span\u20093.12 Source title\u20094');
+  const text = '[[Pliny|the elder|3.12]]';
+  const token = textTokens(text)[0]!;
+  expect(resolvedReferenceText(text, token, id)).toBe(`[[${id}|the elder|3.12]]`);
+  expect(resolvedReferenceText('[[Pliny|the elder|4.12]]', token, id)).toBeNull();
+});
+
 describe('page names', () => {
   test('folds diacritics, case, apostrophes, punctuation and whitespace without transliterating scripts', () => {
     expect(foldName('  CÍCERO\t Marcus  ')).toBe('cicero marcus');

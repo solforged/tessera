@@ -116,12 +116,20 @@ export function fieldEntryExtension(resolve: FieldResolver, kindOf: FieldKindRes
 const refreshLabels = StateEffect.define<null>();
 
 class ReferenceWidget extends WidgetType {
-  constructor(readonly label: string, readonly length: number, readonly token: Token, readonly ambiguous: boolean, readonly choose?: EditorHooks['referenceMenu']) { super(); }
-  eq(other: ReferenceWidget): boolean { return this.label === other.label && this.length === other.length && this.token.start === other.token.start && this.token.id === other.token.id && this.ambiguous === other.ambiguous; }
+  constructor(readonly label: string, readonly length: number, readonly token: Token, readonly ambiguous: boolean, readonly choose?: EditorHooks['referenceMenu'], readonly citation = false) { super(); }
+  eq(other: ReferenceWidget): boolean { return this.label === other.label && this.length === other.length && this.token.start === other.token.start && this.token.id === other.token.id && this.token.locator === other.token.locator && this.ambiguous === other.ambiguous && this.citation === other.citation; }
   toDOM(view: EditorView): HTMLElement {
     const dom = document.createElement('span');
-    dom.className = `outline-reference${this.ambiguous ? ' outline-reference-ambiguous' : ''}`;
+    dom.className = `outline-reference${this.ambiguous ? ' outline-reference-ambiguous' : ''}${this.citation ? ' outline-citation' : ''}`;
     dom.textContent = this.label;
+    if (this.citation) dom.dataset.citation = '';
+    if (this.token.locator !== undefined) dom.dataset.locator = this.token.locator;
+    if (this.token.locator) {
+      const locator = document.createElement('span');
+      locator.className = 'reference-locator';
+      locator.textContent = `\u2009${this.token.locator}`;
+      dom.append(locator);
+    }
     if (this.ambiguous) {
       const mark = document.createElement('sup');
       mark.textContent = '?';
@@ -153,24 +161,24 @@ class ReferenceWidget extends WidgetType {
  * Endpoints remain atomic; placing the caret inside a token exposes its source. A whole field entry is the
  * field widget's job; a whole-text reference to anything else, such as a choice value, still gets a label.
  */
-export function referenceDecorations(text: string, head: number, label: EditorHooks['label'], isField: (id: string) => boolean = () => true, names?: EditorHooks['nameMatches'], choose?: EditorHooks['referenceMenu']): DecorationSet {
+export function referenceDecorations(text: string, head: number, label: EditorHooks['label'], isField: (id: string) => boolean = () => true, names?: EditorHooks['nameMatches'], choose?: EditorHooks['referenceMenu'], isSource?: EditorHooks['isSource']): DecorationSet {
   const whole = fieldEntryId(text);
   if (whole !== null && isField(whole)) return Decoration.none;
   return Decoration.set(textTokens(text).flatMap(token => {
     if (token.kind !== 'reference' || /[\r\n]/.test(token.value) || head > token.start && head < token.end) return [];
     const stable = /^[0-9A-HJKMNP-TV-Z]{26}$/i.test(token.id!);
     const ambiguous = !stable && (names?.(token.id!)?.length ?? 0) > 1;
-    return [Decoration.replace({ inclusive: false, widget: new ReferenceWidget(token.alias || label(token.id!) || token.id!, token.end - token.start, token, ambiguous, choose) }).range(token.start, token.end)];
+    return [Decoration.replace({ inclusive: false, widget: new ReferenceWidget(token.alias || label(token.id!) || token.id!, token.end - token.start, token, ambiguous, choose, !!(token.alias || token.locator) && !!isSource?.(token.id!)) }).range(token.start, token.end)];
   }));
 }
 
 function references(hooks: EditorHooks) {
   return ViewPlugin.fromClass(class {
     decorations: DecorationSet;
-    constructor(view: EditorView) { this.decorations = referenceDecorations(view.state.doc.toString(), view.state.selection.main.head, hooks.label, id => view.state.facet(fieldName)(id) !== undefined, hooks.nameMatches, hooks.referenceMenu); }
+    constructor(view: EditorView) { this.decorations = referenceDecorations(view.state.doc.toString(), view.state.selection.main.head, hooks.label, id => view.state.facet(fieldName)(id) !== undefined, hooks.nameMatches, hooks.referenceMenu, hooks.isSource); }
     update(update: ViewUpdate) {
       if (update.docChanged || update.selectionSet || update.startState.facet(fieldName) !== update.state.facet(fieldName) || update.transactions.some(transaction => transaction.effects.some(effect => effect.is(refreshLabels)))) {
-        this.decorations = referenceDecorations(update.state.doc.toString(), update.state.selection.main.head, hooks.label, id => update.state.facet(fieldName)(id) !== undefined, hooks.nameMatches, hooks.referenceMenu);
+        this.decorations = referenceDecorations(update.state.doc.toString(), update.state.selection.main.head, hooks.label, id => update.state.facet(fieldName)(id) !== undefined, hooks.nameMatches, hooks.referenceMenu, hooks.isSource);
       }
     }
   }, {
@@ -229,6 +237,7 @@ export interface EditorHooks {
   /** Typed or composed text before the editor inserts it; true when the hook applied it itself. */
   input(view: EditorView, from: number, to: number, text: string): boolean;
   label(id: string): string | undefined;
+  isSource?(id: string): boolean;
   nameMatches?(name: string): NameMatch[] | undefined;
   referenceMenu?(token: Token, anchor: HTMLElement): void;
   selection(caret: Caret): void;

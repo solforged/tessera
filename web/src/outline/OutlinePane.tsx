@@ -56,6 +56,7 @@ import { PageMergeConfirmation, pageMergeDisabledReason } from './PageMerge';
 import { foldName, nameMenuItems, resolveName } from './names';
 import { titleTargets, typedTitles, withLinkedTitles } from './link-titles';
 import { QuestionBranches, QuestionParent } from './Questions';
+import { createCitationSources, hasCitationDetail, referenceSource } from './references';
 import './outline.css';
 
 const storedFolds = new Map<string, Set<string>>();
@@ -275,13 +276,18 @@ function Pane(props: OutlinePaneProps) {
     let index = 0;
     return [...groups].flatMap(([root, group]) => ordinary.has(root) ? group : groups.get(remaining[index++]!)!);
   });
+  const [aliasesVisible, setAliasesVisible] = createSignal(false);
   const hideCandidates = mapArray(createMemo(() => {
     const visible = sourceVisibleIds(), known = definitionsById();
     return untrack(() => visible.filter(id => known.has(fieldEntryId(doc.block(id)?.text ?? '') ?? '')));
   }), id => createMemo((): HiddenFieldEntry => {
-    const hide = fieldHide(definitionsById().get(fieldEntryId(doc.block(id)?.text ?? '') ?? ''));
+    const definition = definitionsById().get(fieldEntryId(doc.block(id)?.text ?? '') ?? '');
+    let hide = fieldHide(definition);
     doc.archivedVersion();
     const values = doc.outline.children(id).filter(value => !doc.isArchived(value));
+    if (!zoom() && !aliasesVisible() && doc.root()?.kind === 'page' && !doc.root()?.source && doc.root()?.text.toLowerCase() !== 'fields'
+      && doc.outline.parentOf(id) === props.pageId && foldName(definition?.name ?? '') === 'aliases'
+      && values.some(value => doc.block(value)?.text.trim())) hide = 'always';
     const descendants: string[] = [];
     const start = doc.outline.indexOf(id);
     for (let index = start + 1, end = doc.outline.subtreeEnd(start); index < end; index++) descendants.push(doc.outline.idAt(index));
@@ -346,6 +352,11 @@ function Pane(props: OutlinePaneProps) {
     ? ids().find(id => doc.outline.parentOf(id) === props.pageId && (doc.block(id)?.heading || doc.block(id)?.position)) : undefined);
   // Sources cited or named by positions on this page, in order of first appearance, give the sigla shown in
   // the margin. A source page's own highlights need no mark.
+  const referenceSources = createCitationSources(props.notebook, () => {
+    const texts: string[] = [];
+    (doc.outline as OutlineIndex).each(0, doc.outline.size(), row => { const text = doc.block(row.id)?.text; if (text) texts.push(text); });
+    return texts;
+  });
   const citedSources = createMemo(() => {
     const seen: string[] = [];
     const add = (id: string | null | undefined) => { if (id && id !== props.pageId && !seen.includes(id)) seen.push(id); };
@@ -353,11 +364,12 @@ function Pane(props: OutlinePaneProps) {
       const block = doc.block(row.id);
       if (block?.position) add(positionSource(row.id));
       for (const citation of block?.citations ?? []) add(citation.source_id);
+      for (const token of textTokens(block?.text ?? '')) if (hasCitationDetail(token) && referenceSources()?.has(token.id!)) add(token.id!);
     });
     return seen;
   }, undefined, { equals: (a, b) => a.length === b.length && a.every((id, index) => id === b[index]) });
-  const [siglumRecords] = createResource(() => citedSources().length ? citedSources() : false, ids => Promise.all(ids.map(id =>
-    api.source(id).then(view => ({ id, siglum: view.source.siglum, basis: view.source.siglum_basis, authored: view.source.siglum_authored }), () => null))));
+  const [siglumRecords] = createResource(() => [citedSources(), props.notebook.changeSequence()] as const, ([ids]) => Promise.all(ids.map(id =>
+    referenceSource(props.notebook, id).then(source => source ? { id, siglum: source.siglum, basis: source.siglum_basis, authored: source.siglum_authored } : null, () => null))));
   const sigla = createMemo(() => pageSigla((siglumRecords.error ? [] : siglumRecords() ?? []).filter(record => record !== null)));
   const [sourceHighlights] = createResource(() => doc.root()?.source && !zoom() ? [props.pageId, props.notebook.changeSequence(), live()] as const : false,
     ([source_id]) => props.notebook.api.highlights({ source_id, limit: 100000 }));
@@ -926,6 +938,7 @@ function Pane(props: OutlinePaneProps) {
         if (disposed) return;
         if (zoom()) zoomTo(null);
         if (depth() !== 'full') setStop('full');
+        setAliasesVisible(true);
         const entry = doc.outline.children(props.pageId).find(id => !doc.isArchived(id) && fieldEntryId(doc.block(id)?.text ?? '') === field.id);
         if (entry) setFolds(previous => { const next = new Set(previous); next.delete(entry); return next; });
         const result = entry
@@ -1169,6 +1182,7 @@ function Pane(props: OutlinePaneProps) {
       key: editorKey,
       input: referenceInput,
       label: id => { const target = /^[0-9A-HJKMNP-TV-Z]{26}$/i.test(id) ? props.notebook.lookup(id)() : undefined; return target ? plainText(target.text, reference => props.notebook.lookup(reference)) : undefined; },
+      isSource: id => !!referenceSources()?.has(id),
       nameMatches: name => editingNames.error ? undefined : editingNames()?.get(foldName(name)),
       referenceMenu: (token, anchor) => {
         const matches = editingNames.error ? undefined : editingNames()?.get(foldName(token.id!));
@@ -1295,6 +1309,7 @@ function Pane(props: OutlinePaneProps) {
     const text = id ? doc.block(id)?.text : undefined;
     if (text === undefined) return;
     if (!editingNames.error) editingNames();
+    referenceSources();
     for (const token of textTokens(text)) if (isStableReference(token)) props.notebook.lookup(token.id!)();
     queueMicrotask(() => { if (!disposed && editor?.id === id) editor.refreshLabels(); });
   });
@@ -1360,7 +1375,12 @@ function Pane(props: OutlinePaneProps) {
       <Show when={doc.root()?.kind === 'page' && !doc.root()?.source}><div class="outline-header-actions"><Button icon="table" label="Table" shortcut="⌘⇧T" onClick={event => openTable(event.metaKey)}>Table<Show when={!type.error && (type()?.members ?? 0) > 0}><span class="table-member-count">{type()?.members}</span></Show></Button></div></Show>
       </div>
       </Show>
-      <Show when={isNote()}><NoteAliases doc={doc} notebook={props.notebook} /><NoteLine pageId={props.pageId} notebook={props.notebook} /></Show>
+      <Show when={isNote()}><NoteAliases doc={doc} notebook={props.notebook} onEdit={entry => {
+        setAliasesVisible(true);
+        if (depth() !== 'full') setStop('full');
+        const value = doc.outline.children(entry).find(id => !doc.isArchived(id));
+        if (value) editAt(value, doc.block(value)?.text.length ?? 0, true);
+      }} /><NoteLine pageId={props.pageId} notebook={props.notebook} /></Show>
       <RowRelations id={zoom() ?? props.pageId} />
       <Show when={!zoom() && doc.root()?.kind === 'page' && !doc.root()?.source && doc.root()?.text.toLowerCase() !== 'fields' && !type.error && type()}>{value => <Show when={value().members || value().fields.length || startingTemplateFor(value().page.text, value().fields)}>
         <TemplateEditor type={value()} fields={definitions()} notebook={props.notebook} onError={setMessage} />
@@ -1430,7 +1450,8 @@ function Pane(props: OutlinePaneProps) {
     <Show when={doc.status() === 'ready' && (mentionsAvailable() || relatedError() || (related()?.total ?? 0) + (related()?.tagged.length ?? 0) + (related()?.held.length ?? 0) + (related()?.about.length ?? 0) > 0)}><div class="related-sections">
       <Show when={related()?.held.length}><Related title="Perspectives held" rows={related()?.held ?? []} relations /></Show>
       <Show when={related()?.about.length}><Related title="Perspectives filed elsewhere" rows={related()?.about ?? []} relations /></Show>
-      <Show when={relatedError() || related()?.total}><Backlinks /></Show>
+      <Show when={doc.root()?.source}><Backlinks cited /></Show>
+      <Show when={doc.root()?.source || relatedError() || related()?.total}><Backlinks /></Show>
       <Show when={mentionsAvailable()}><UnlinkedMentions /></Show>
       <Show when={relatedError() || related()?.tagged.length}><Related title="Tagged blocks" rows={relatedError() ? [] : related()?.tagged ?? []} /></Show>
     </div></Show>

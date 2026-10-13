@@ -17,6 +17,7 @@ import { glossEntry, glossText, isGistName, isGlossName } from './gloss';
 import { positionFields, positionRelations, positionSource, readingPassages } from './perspectives';
 import { OutgoingRelations } from './RelationLines';
 import './reference-preview.css';
+import { hasCitationDetail, referenceSource } from './references';
 
 /** Resting on a reference this long opens its card; moving to another reference while one is open takes a third of it. */
 const OPEN_DELAY = 350;
@@ -40,6 +41,8 @@ interface Entry {
   pane: PaneId | null;
   keyboard: boolean;
   touch?: boolean;
+  citation?: boolean;
+  locator?: string;
   panel?: HTMLElement;
 }
 
@@ -85,7 +88,7 @@ export function ReferencePreviews(props: ReferencePreviewsProps) {
   const truncate = (depth: number) => { if (stack().length > depth) setStack(entries => entries.slice(0, depth)); };
   const open = (entry: Omit<Entry, 'key'>, depth: number) => {
     clearTimeout(closing);
-    setStack(entries => [...entries.slice(0, depth), { ...entry, key: ++serial }]);
+    setStack(entries => [...entries.slice(0, depth), { ...entry, citation: entry.citation ?? entry.link?.hasAttribute('data-citation'), locator: entry.locator ?? entry.link?.dataset.locator, key: ++serial }]);
   };
   const scheduleClose = () => {
     clearTimeout(closing);
@@ -205,7 +208,7 @@ export function ReferencePreviews(props: ReferencePreviewsProps) {
       const start = view.coordsAtPos(token.start, 1);
       return start ? new DOMRect(start.left, start.top, 1, start.bottom - start.top) : null;
     };
-    return { id: token.id!, link: null, anchor, pane, keyboard: true };
+    return { id: token.id!, link: null, anchor, pane, keyboard: true, citation: hasCitationDetail(token), locator: token.locator };
   };
   const keydown = (event: KeyboardEvent) => {
     if (event.isComposing) return;
@@ -263,7 +266,7 @@ export function ReferencePreviews(props: ReferencePreviewsProps) {
     <Popup anchor={entry.anchor} label="Reference preview" class={`reference-preview${pinned().has(entry.key) ? ' pinned' : ''}`} width={WIDTH} autofocus={false} onDismiss={() => truncate(index())}>
       <div class="reference-preview-card" ref={element => { entry.panel = element; }}
         onPointerEnter={() => clearTimeout(closing)} onPointerLeave={scheduleClose}>
-        <ReferenceCard id={entry.id} notebook={props.notebook} pinned={pinned().has(entry.key)} keyboard={entry.keyboard}
+        <ReferenceCard id={entry.id} citation={entry.citation} locator={entry.locator} notebook={props.notebook} pinned={pinned().has(entry.key)} keyboard={entry.keyboard}
           onTogglePin={() => togglePin(entry)} onOpen={beside => go(entry, beside)}
           onNested={(target, beside) => { setStack([]); props.onOpen(target, beside, entry.pane); }} />
       </div>
@@ -309,6 +312,8 @@ function proseRows(doc: PageDocument, parent: string, excluded: string | null, f
 
 function ReferenceCard(props: {
   id: string;
+  citation?: boolean;
+  locator?: string;
   notebook: NotebookClient;
   pinned: boolean;
   keyboard: boolean;
@@ -327,6 +332,7 @@ function ReferenceCard(props: {
   });
   const isPage = () => target()?.kind !== 'block';
   const state = () => doc()?.block(props.id);
+  const [citationSource] = createResource(() => props.citation && state()?.source ? [props.id, props.notebook.changeSequence()] as const : false, ([id]) => referenceSource(props.notebook, id));
   // A gloss entry references a Gloss field definition, an ordinary block on the Fields page.
   const gloss = createMemo(() => { const value = doc(); return value?.status() === 'ready' && isPage() ? glossEntry(value, id => { const field = props.notebook.lookup(id)(); return field?.kind === 'block' && isGlossName(field.text); }) : null; });
   const summary = createMemo(() => { const value = doc(); return value && gloss() ? glossText(value, gloss()) : ''; });
@@ -369,7 +375,7 @@ function ReferenceCard(props: {
     <Show when={target()} fallback={<p class="reference-preview-message">This reference points to a block that was deleted or never synced here.</p>}>{block => <>
       <header class="reference-preview-header">
         <div class="reference-preview-topline">
-          <div class="reference-preview-crumbs"><BlockBreadcrumb block={block()} notebook={props.notebook} /></div>
+          <div class="reference-preview-crumbs"><Show when={!citationSource.error && citationSource()} fallback={<BlockBreadcrumb block={block()} notebook={props.notebook} />}>{source => <>{source().siglum}<Show when={props.locator}>{' · '}{props.locator}</Show></>}</Show></div>
           <Button class="reference-preview-pin" aria-pressed={props.pinned} title={props.pinned ? 'Unpin reference preview' : 'Pin reference preview · ⌘'} onClick={props.onTogglePin}>
             {props.pinned ? 'Unpin' : 'Pin'}<Show when={!props.pinned}><kbd>⌘</kbd></Show>
           </Button>

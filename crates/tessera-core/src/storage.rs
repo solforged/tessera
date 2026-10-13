@@ -158,6 +158,18 @@ pub(crate) fn derive_links(conn: &Connection, id: &str, text: &str) -> Result<()
     Ok(())
 }
 
+/// Target before the first pipe; an optional locator follows the last pipe.
+/// Any intervening pipes belong to the label.
+pub(crate) fn reference_parts(reference: &str) -> (&str, Option<&str>, Option<&str>) {
+    let Some((target, tail)) = reference.split_once('|') else {
+        return (reference, None, None);
+    };
+    let (alias, locator) = tail
+        .rsplit_once('|')
+        .map_or((tail, None), |(alias, locator)| (alias, Some(locator)));
+    (target, Some(alias), locator)
+}
+
 struct LinkToken<'a> {
     target: &'a str,
     alias: Option<&'a str>,
@@ -203,9 +215,7 @@ fn link_tokens(text: &str) -> impl Iterator<Item = LinkToken<'_>> {
             };
             cursor = target_start + end + 2;
             let reference = &rest[..end];
-            let (target, alias) = reference
-                .split_once('|')
-                .map_or((reference, None), |(target, alias)| (target, Some(alias)));
+            let (target, alias, _) = reference_parts(reference);
             if !is_tag && validate_id(target).is_ok() {
                 return Some(LinkToken {
                     target,
@@ -423,4 +433,50 @@ pub(crate) fn resolve_type(
         revision: 1,
     });
     Ok(Some(id))
+}
+
+#[cfg(test)]
+mod reference_tests {
+    use super::{link_tokens, reference_parts, rewrite_links};
+
+    #[test]
+    fn labels_and_locators_split_at_the_first_and_last_pipe() {
+        assert_eq!(reference_parts("target"), ("target", None, None));
+        assert_eq!(
+            reference_parts("target|label"),
+            ("target", Some("label"), None)
+        );
+        assert_eq!(
+            reference_parts("target|label|3.12"),
+            ("target", Some("label"), Some("3.12"))
+        );
+        assert_eq!(
+            reference_parts("target||3.12"),
+            ("target", Some(""), Some("3.12"))
+        );
+        assert_eq!(
+            reference_parts("target|a|b|3.12"),
+            ("target", Some("a|b"), Some("3.12"))
+        );
+    }
+
+    #[test]
+    fn indexing_and_merge_keep_locator_references_intact() {
+        let from = "00000000000000000000000001";
+        let into = "00000000000000000000000002";
+        let text = format!("[[{from}|a|b|3.12]] [[{from}||4]]");
+        let tokens: Vec<_> = link_tokens(&text).collect();
+        assert_eq!(tokens.len(), 2);
+        assert_eq!(tokens[0].target, from);
+        assert_eq!(tokens[0].alias, Some("a|b"));
+        assert_eq!(tokens[1].alias, Some(""));
+        assert_eq!(
+            crate::fields::reference(&format!("[[{from}||3.12]]")),
+            Some(from)
+        );
+        assert_eq!(
+            rewrite_links(&text, from, into).unwrap(),
+            format!("[[{into}|a|b|3.12]] [[{into}||4]]")
+        );
+    }
 }

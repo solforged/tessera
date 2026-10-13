@@ -214,6 +214,30 @@ fn title_references_link_existing_and_new_pages_like_the_editor() {
 }
 
 #[test]
+fn add_note_resolves_titles_without_losing_labels_or_locators() {
+    let (_dir, mut nb) = fixture();
+    dune(&mut nb);
+    let text = format!(
+        "[[Dune|span|3.12]] [[Dune||4]] [[Dune|a|b|5]] [[Dune|label]] [[{}||6]] [[New work|new|7]]",
+        id(1)
+    );
+    let receipt = run(
+        &mut nb,
+        &note(page("Citations"), vec![block(&text, vec![])]),
+    );
+    let new = nb.page_by_title("New work").unwrap().unwrap().id;
+    assert_eq!(
+        nb.block(&receipt.blocks[0].id).unwrap().text,
+        format!(
+            "[[{src}|span|3.12]] [[{src}||4]] [[{src}|a|b|5]] [[{src}|label]] [[{src}||6]] [[{new}|new|7]]",
+            src = id(1)
+        )
+    );
+    assert_eq!(nb.backlinks(&id(1), 10).unwrap().len(), 1);
+    assert_eq!(nb.backlinks(&new, 10).unwrap().len(), 1);
+}
+
+#[test]
 fn a_journal_note_creates_the_day_once_and_undo_removes_an_emptied_day() {
     let (_dir, mut nb) = fixture();
     let today = NoteTarget::Journal { date: None };

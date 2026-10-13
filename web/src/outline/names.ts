@@ -70,13 +70,13 @@ export function referenceLabel(token: Token, target: Block | null | undefined, l
 export function plainText(text: string, lookup: NotebookClient['lookup'], seen: ReadonlySet<string> = new Set()): string {
   const quoted = quoteTarget(text);
   if (quoted) return `“${referenceLabel({ kind: 'reference', id: quoted, value: '', start: 0, end: 0 }, lookup(quoted)(), lookup, seen)}”`;
-  return textTokens(text).map(token => isStableReference(token) ? referenceLabel(token, lookup(token.id!)(), lookup, seen) : token.kind === 'tag' ? `#${token.value}` : token.value).join('');
+  return textTokens(text).map(token => isStableReference(token) ? referenceLabel(token, lookup(token.id!)(), lookup, seen) + (token.locator ? `\u2009${token.locator}` : '') : token.kind === 'tag' ? `#${token.value}` : token.value).join('');
 }
 /** Only the selected occurrence changes; a concurrently edited token is never overwritten. */
 export function resolvedReferenceText(text: string, token: Token, target: string): string | null {
-  const current = textTokens(text).find(value => value.start === token.start && value.end === token.end && value.kind === 'reference' && value.id === token.id && value.alias === token.alias);
+  const current = textTokens(text).find(value => value.start === token.start && value.end === token.end && value.kind === 'reference' && value.id === token.id && value.alias === token.alias && value.locator === token.locator);
   if (!current) return null;
-  return `${text.slice(0, token.start)}[[${target}|${token.alias ?? token.id!.trim()}]]${text.slice(token.end)}`;
+  return `${text.slice(0, token.start)}[[${target}|${token.alias ?? token.id!.trim()}${token.locator === undefined ? '' : `|${token.locator}`}]]${text.slice(token.end)}`;
 }
 
 export async function chooseName(notebook: NotebookClient, blockId: string, token: Token, target?: string): Promise<void> {

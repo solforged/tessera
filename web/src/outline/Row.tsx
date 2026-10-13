@@ -11,7 +11,7 @@ import { isFinished, taskFacts } from '../tasks/task-labels';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { BlockText } from './BlockText';
-import { TypePill } from './references';
+import { hasCitationDetail, TypePill } from './references';
 import { CitationChip } from './SourceHeader';
 import { isGistName } from './gloss';
 import { CardSummary } from './CardSummary';
@@ -138,7 +138,11 @@ export function createOutlineRows(context: Pick<OutlineContext,
         props.onOpen({ kind: 'page', pageId: target.page_id, ...(target.kind === 'block' ? { blockId: target.id } : {}) }, beside);
       } catch (reason) { setMessage(reason instanceof Error ? reason.message : String(reason)); }
     };
-    const rowSource = createMemo(() => block()?.citations[0]?.source_id ?? (block()?.position ? positionSource(id()) : null));
+    const rowSources = createMemo(() => [...new Set([
+      ...textTokens(block()?.text ?? '').filter(token => hasCitationDetail(token) && sigla().has(token.id!)).map(token => token.id!),
+      ...(block()?.citations.map(citation => citation.source_id) ?? []),
+      ...(block()?.position && positionSource(id()) ? [positionSource(id())!] : []),
+    ])].filter(source => sigla().has(source)));
     const localCitation = createMemo(() => doc.root()?.source ? block()?.citations.find(citation => citation.source_id === props.pageId) : undefined);
     const gist = () => inline() && isGistName(valueField()?.name) && !!doc.block(doc.outline.parentOf(parent()))?.position;
     const sourceField = createMemo(() => sourceDetails().fields.get(id()) ?? sourceDetails().fields.get(parent()));
@@ -186,7 +190,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
       style={{ transform: `translateY(${propsRow.item().start - margin()}px)`, '--depth': depth(), '--quote-color': localCitation()?.color ? `var(--highlight-${localCitation()!.color})` : 'var(--faint)' }}>
       <RowPrelude id={id()} />
       <Show when={sourceDetails().chapters.get(id())}>{title => <div class="outline-chapter-label">{title()}</div>}</Show>
-      <Show when={rowSource() && sigla().get(rowSource()!)}>{mark => <span class="row-siglum" title={props.notebook.lookup(rowSource()!)()?.text}>{mark()}</span>}</Show>
+      <Show when={rowSources().length}><span class="row-sigla"><For each={rowSources()}>{source => <span class="row-siglum" title={props.notebook.lookup(source)()?.text}>{sigla().get(source)}</span>}</For></span></Show>
       <button type="button" class="row-menu icon-button" aria-label="Block actions" onPointerDown={event => drag.start(event, id())} onClick={event => blockMenu(id(), event.currentTarget)}><Icon name="more" /></button>
       <button type="button" class="row-fold icon-button" classList={{ 'fold-empty': !children(), folded: folds().has(id()) }} aria-label={folds().has(id()) ? 'Unfold children' : 'Fold children'} disabled={!children()} onClick={() => fold(id())}><Icon name="down" /></button>
       <Show when={!inline() && !emptyEntry()}><button type="button" class="row-bullet icon-button" classList={{ 'bullet-collapsed': children() && folds().has(id()), 'row-card-mark': cardMark() }} aria-label={cardMark() ? `Cards: ${cardCount()}` : 'Zoom into block'} aria-haspopup={cardMark() ? 'dialog' : undefined} onPointerDown={event => drag.start(event, id())} onMouseDown={event => { if (cardMark()) event.preventDefault(); }} onClick={event => cardMark() ? cardControl?.open(event.currentTarget) : zoomTo(id())}><Icon name={cardMark() ? 'card' : 'bullet'} /></button></Show>

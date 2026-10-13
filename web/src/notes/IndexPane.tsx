@@ -295,7 +295,7 @@ function KindIndexPane(props: IndexPaneProps) {
         { label: 'Open', action: () => props.onOpen({ kind: 'page', pageId: state.note.id }, window.matchMedia('(pointer: coarse) and (min-width: 900px)').matches) },
         { label: 'File under a type…', action: () => showPopup('file', state.note, state.anchor) },
         { label: 'Rename…', action: () => showPopup('rename', state.note, state.anchor) },
-        { label: 'Merge into…', action: () => showPopup('merge', state.note, state.anchor) },
+        { label: 'Merge into…', icon: 'merge', action: () => showPopup('merge', state.note, state.anchor) },
         { label: 'Delete…', danger: true, action: () => showPopup('delete', state.note, state.anchor) },
         { label: 'Cancel', action: () => setPopup(undefined) },
       ]} /></Match>

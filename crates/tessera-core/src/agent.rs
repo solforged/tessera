@@ -1224,15 +1224,22 @@ impl Notebook {
                 break;
             };
             let reference = &rest[start + 2..start + 2 + end];
-            let label = match reference.split_once('|') {
-                Some((_, alias)) => Some(alias.to_owned()),
-                None if validate_id(reference).is_ok() => {
-                    self.live_block(reference)?.map(|block| block.text)
+            let (target, alias, locator) = crate::storage::reference_parts(reference);
+            let label = match alias.filter(|alias| !alias.is_empty()) {
+                Some(alias) => Some(alias.to_owned()),
+                None if validate_id(target).is_ok() => {
+                    self.live_block(target)?.map(|block| block.text)
                 }
                 None => None,
             };
             shown.push_str(&rest[..start]);
             shown.push_str(label.as_deref().unwrap_or(&rest[start..start + 4 + end]));
+            if label.is_some()
+                && let Some(locator) = locator.filter(|locator| !locator.is_empty())
+            {
+                shown.push('\u{2009}');
+                shown.push_str(locator);
+            }
             rest = &rest[start + 4 + end..];
         }
         shown.push_str(rest);
@@ -1487,7 +1494,7 @@ impl Notebook {
     }
 
     /// Rewrite `[[Title]]` to `[[id]]` for the live page with that title,
-    /// creating it when missing, and keep any `|alias`. A date names a
+    /// creating it when missing, and keep any `|alias|locator`. A date names a
     /// journal day and stays as written when that day does not exist. ID
     /// references and `#[[Tag]]` tags are left alone.
     fn link_titles(&self, plan: &mut Plan, text: &str) -> Result<String> {
@@ -1505,10 +1512,7 @@ impl Notebook {
                     .next_back()
                     .is_none_or(|ch| !ch.is_alphanumeric() && ch != '_')
             });
-            let (target, alias) = match reference.split_once('|') {
-                Some((target, alias)) => (target, Some(alias)),
-                None => (reference, None),
-            };
+            let (target, alias, locator) = crate::storage::reference_parts(reference);
             let title = target.trim();
             let resolved = if tag
                 || title.is_empty()
@@ -1528,6 +1532,10 @@ impl Notebook {
                     if let Some(alias) = alias {
                         linked.push('|');
                         linked.push_str(alias);
+                    }
+                    if let Some(locator) = locator {
+                        linked.push('|');
+                        linked.push_str(locator);
                     }
                     linked.push_str("]]");
                 }

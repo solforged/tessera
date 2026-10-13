@@ -19,7 +19,7 @@ export function NoteEyebrow(props: { pageId: string; notebook: NotebookClient; o
 }
 
 /** Alternate names read from the open document, including unsaved value edits. */
-export function NoteAliases(props: { doc: PageDocument; notebook: NotebookClient }) {
+export function NoteAliases(props: { doc: PageDocument; notebook: NotebookClient; onEdit(entry: string): void }) {
   const [fields] = createResource(() => props.notebook.changeSequence(), () => props.notebook.api.fields());
   const fieldId = createMemo(() => {
     if (fields.error) return undefined;
@@ -54,12 +54,12 @@ export function NoteAliases(props: { doc: PageDocument; notebook: NotebookClient
     return result;
   });
   return <Show when={aliases().length}>
-    <p class="note-aliases"><span class="note-aliases-label">Also</span>{' '}
+    <p class="note-aliases"><button type="button" aria-label="Edit aliases" onClick={() => props.onEdit(entry()!)}><span class="note-aliases-label">Also</span>{' '}
       <For each={aliases()}>{(alias, index) => <>
         <Show when={index()}><span class="note-aliases-separator" aria-hidden="true"> · </span></Show>
         <span>{alias}</span>
       </>}</For>
-    </p>
+    </button></p>
   </Show>;
 }
 

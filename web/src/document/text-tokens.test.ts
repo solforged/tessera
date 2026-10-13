@@ -1,6 +1,23 @@
 import { describe, expect, test } from 'bun:test';
 import { quoteTarget, referenceBeside, textTokens } from './text-tokens';
 
+describe('reference locators', () => {
+  test('uses the first and last pipes, preserving pipes within labels', () => {
+    for (const [text, alias, locator] of [
+      ['[[id|label]]', 'label', undefined],
+      ['[[id|label|3.12]]', 'label', '3.12'],
+      ['[[id||3.12]]', '', '3.12'],
+      ['[[id|a|b|3.12]]', 'a|b', '3.12'],
+    ] as const) {
+      const token = textTokens(text)[0]!;
+      expect(token.id).toBe('id');
+      expect(token.alias).toBe(alias);
+      expect(token.locator).toBe(locator);
+      expect(token.value).toBe(text);
+    }
+  });
+});
+
 describe('whole-row quote targets', () => {
   const id = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
   test('accepts only stable targets with optional surrounding whitespace', () => {

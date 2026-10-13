@@ -1,9 +1,20 @@
 import { describe, expect, test } from 'bun:test';
 import type { Block } from '../api/types';
 import type { NotebookClient } from '../document/contract';
-import { completionPickKey, headingPrefix, isJournalReference, isQuoteCompletion, openReferenceRange, referenceCompletionAt, referenceNewlineAt } from './completion';
+import { completedReference, completionPickKey, headingPrefix, isJournalReference, isQuoteCompletion, openReferenceRange, referenceCompletionAt, referenceNewlineAt } from './completion';
 import { titleTargets, typedTitles, withLinkedTitles } from './link-titles';
 import { foldName } from './names';
+
+test('resolution and completion retain citation labels and locators', () => {
+  const id = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
+  for (const suffix of ['|span|3.12', '||3.12', '|a|b|3.12', '|label']) {
+    const text = `[[Source${suffix}]]`;
+    const range = openReferenceRange(text, 0, 5, false);
+    expect(range.query).toBe('Source');
+    expect(completedReference(text, range.from, range.to, id)).toBe(`[[${id}${suffix}]]`);
+    expect(withLinkedTitles(text, new Map([[foldName('Source'), id]]))).toBe(`[[${id}${suffix}]]`);
+  }
+});
 
 describe('an open reference completion', () => {
   test('captures only a whole-row block query, including paired closers beyond the caret', () => {

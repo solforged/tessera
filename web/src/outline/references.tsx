@@ -1,8 +1,50 @@
-import { Show, createSignal } from 'solid-js';
+import { Show, createResource, createSignal } from 'solid-js';
 import type { JSX } from 'solid-js';
 import { Menu } from '../ui/Menu';
 import type { NotebookClient } from '../document/contract';
 import type { OpenTarget } from '../shell/contract';
+import type { SourceRecord } from '../api/types';
+import { ApiError } from '../api/client';
+import { isStableReference, textTokens } from '../document/text-tokens';
+import type { Token } from '../document/text-tokens';
+
+/** A citation reference carries authored wording or a locator, not just a title. */
+export function hasCitationDetail(token: Token): boolean {
+  return isStableReference(token) && !!(token.alias || token.locator);
+}
+
+const sourceRecords = new WeakMap<NotebookClient, { sequence: number; records: Map<string, Promise<SourceRecord | null>> }>();
+export function referenceSource(notebook: NotebookClient, id: string): Promise<SourceRecord | null> {
+  const sequence = notebook.changeSequence();
+  let cache = sourceRecords.get(notebook);
+  if (!cache || cache.sequence !== sequence) {
+    cache = { sequence, records: new Map() };
+    sourceRecords.set(notebook, cache);
+  }
+  const existing = cache.records.get(id);
+  if (existing) return existing;
+  const request = notebook.api.capabilities(id).then(value => value.source ?? null).catch(error => {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
+  });
+  cache.records.set(id, request);
+  const records = cache.records;
+  void request.catch(() => { if (records.get(id) === request) records.delete(id); });
+  return request;
+}
+
+/** Shared capability reads keep static text, the editor and gutter in agreement. */
+export function createCitationSources(notebook: NotebookClient, texts: () => readonly string[]) {
+  const [records] = createResource(() => {
+    const ids = [...new Set(texts().flatMap(text => textTokens(text).filter(hasCitationDetail).map(token => token.id!)))];
+    return [ids, notebook.changeSequence()] as const;
+  }, async ([ids]) => new Map((await Promise.all(ids.map(async id => {
+    const target = notebook.lookup(id)();
+    const source = target === null || target?.kind === 'block' ? null : await referenceSource(notebook, id);
+    return [id, source] as const;
+  }))).filter((entry): entry is readonly [string, SourceRecord] => entry[1] !== null)));
+  return () => records.error ? undefined : records();
+}
 
 
 export function TypePill(props: {

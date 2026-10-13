@@ -38,7 +38,15 @@ export function openReferenceRange(text: string, from: number, caret: number, bl
   let end = caret;
   while (end < text.length && !stops.includes(text[end]!)) end++;
   const closed = text.startsWith(blocks ? '))' : ']]', end);
-  return { from, to: closed ? end + 2 : caret, query: text.slice(from + 2, closed ? end : caret) };
+  const query = text.slice(from + 2, closed ? end : caret);
+  return { from, to: closed ? end + 2 : caret, query: blocks ? query : query.split('|', 1)[0]! };
+}
+
+/** Completing the target never discards an authored label or locator. */
+export function completedReference(text: string, from: number, to: number, id: string): string {
+  const inner = text.slice(from + 2, to).replace(/\]\]$/, '');
+  const separator = inner.indexOf('|');
+  return `[[${id}${separator < 0 ? '' : inner.slice(separator)}]]`;
 }
 
 /** A block picker captures only when its query occupies the entire row. */

@@ -16,7 +16,7 @@ import { Icon } from '../ui/Icon';
 import type { IconName } from '../ui/Icon';
 import { Popup } from '../ui/Popup';
 import { BlockBreadcrumb, BlockText } from './BlockText';
-import { completionPickKey, isJournalReference, isQuoteCompletion, openReferenceRange, referenceCompletionAt, referenceNewlineAt } from './completion';
+import { completedReference, completionPickKey, isJournalReference, isQuoteCompletion, openReferenceRange, referenceCompletionAt, referenceNewlineAt } from './completion';
 import { rankSlash, slashTokenAt } from './slash';
 import { insertCard } from './card-insert';
 import type { InsertCardKind } from './card-insert';
@@ -424,7 +424,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     const next = context.editor.view.state.doc.sliceString(range.to, range.to + 1);
     // A word after the reference, or the end of the block, gets a separating space so typing continues as prose.
     const space = !next || /[\p{L}\p{N}]/u.test(next) ? ' ' : '';
-    const inserted = `[[${id}]]${space}`;
+    const inserted = `${completedReference(text, range.from, range.to, id)}${space}`;
     const selectionBefore = activeRange() ?? undefined;
     setCompletion(null);
     replaceSelection(inserted, 'text', { anchor: { id: source, offset: range.from }, head: { id: source, offset: range.to } }, selectionBefore);
