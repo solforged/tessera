@@ -240,6 +240,32 @@ describe('ordered week scheduling history', () => {
     expect(values.at(-1)).toMatchObject({ pending: false, committedSequence: 2 });
   });
 
+  test('planning continues on the same task after it leaves either end of the displayed week', async () => {
+    for (const [date, key, destination] of [['2026-10-11', 'ArrowRight', '2026-10-12'], ['2026-10-12', 'ArrowLeft', '2026-10-11']] as const) {
+      const first = Promise.withResolvers<Committed>();
+      const calls: Operation[][] = [];
+      const history = new WeekScheduleHistory({ commit: async operations => {
+        calls.push([...operations]);
+        if (calls.length === 1) return first.promise;
+        return { seq: calls.length, revisions: [{ id: 'task', revision: calls.length + 1 }] } as Committed;
+      } }, () => {});
+      const original = row('task', { scheduled: date, scheduled_time: '14:00' });
+      const day = history.schedule(original, keyboardWeekSchedule(original.task, date, key)!);
+      const outside = history.latest(original);
+      expect(weekTaskEntries([outside], calendarWeekDates(date)).filter(entry => entry.kind === 'scheduled')).toEqual([]);
+      const time = history.schedule(outside, keyboardWeekSchedule(outside.task, destination, 'ArrowDown')!);
+      first.resolve({ seq: 1, revisions: [{ id: 'task', revision: 2 }] } as Committed);
+      await Promise.all([day, time]);
+      expect(calls[1]![0]).toMatchObject({ base_revision: 2, task: { scheduled: destination, scheduled_time: '14:15' } });
+      const settled = history.latest(original);
+      expect(settled.task).toMatchObject({ scheduled: destination, scheduled_time: '14:15' });
+      await history.schedule(original, keyboardWeekSchedule(settled.task, destination, 'ArrowDown')!);
+      expect(calls[2]![0]).toMatchObject({ base_revision: 3, task: { scheduled: destination, scheduled_time: '14:30' } });
+      const remote = row('task', { scheduled: destination, scheduled_time: '15:00' }, 5);
+      expect(history.latest(remote)).toBe(remote);
+    }
+  });
+
   test('a drop can be undone before its commit returns and redone with the new revision', async () => {
     const first = Promise.withResolvers<Committed>();
     const calls: Operation[][] = [];

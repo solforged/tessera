@@ -18,7 +18,12 @@ export class WeekScheduleHistory {
 
   constructor(private notebook: Pick<NotebookClient, 'commit'>, private changed: (id: string, value: ScheduledWeekTask) => void) {}
 
-  latest(row: TaskRow): TaskRow { return this.pending.get(row.source.block.id)?.row ?? row; }
+  latest(row: TaskRow): TaskRow {
+    const pending = this.pending.get(row.source.block.id);
+    if (pending) return pending.row;
+    const confirmed = this.confirmed.get(row.source.block.id);
+    return confirmed && confirmed.source.block.revision >= row.source.block.revision ? confirmed : row;
+  }
 
   schedule(row: TaskRow, task: TaskState): Promise<void> {
     row = this.latest(row);

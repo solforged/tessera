@@ -62,10 +62,13 @@ export function WeekCalendar(props: WeekCalendarProps) {
   let initializedStart: string | null = null;
   let acknowledgedSequence = 0;
   let disposed = false;
+  // A moved card can leave the grid; the calendar then keeps keyboard ownership of the same task.
+  let keyboardTarget: WeekEntry | null = null;
   const history = new WeekScheduleHistory(props.notebook, (id, value) => {
     if (disposed) return;
     if (value.committedSequence !== null) acknowledgedSequence = Math.max(acknowledgedSequence, value.committedSequence);
     setOptimistic(values => new Map(values).set(id, value));
+    if (keyboardTarget?.row.source.block.id === id) keyboardTarget = { ...keyboardTarget, row: value.row };
     if (value.pending) focusTask(id, 'scheduled');
     else {
       const task = value.row.task;
@@ -112,6 +115,7 @@ export function WeekCalendar(props: WeekCalendarProps) {
     let current = true;
     setLoading(true); setError('');
     if (requestedStart !== from) {
+      keyboardTarget = null;
       cancelDrag();
       setFetchedRows([]); setIncomplete([]);
       requestedStart = from;
@@ -184,6 +188,7 @@ export function WeekCalendar(props: WeekCalendarProps) {
   }
 
   function historyKeyDown(event: KeyboardEvent) {
+    if (event.target === root && keyboardTarget && taskKeyDown(event, keyboardTarget)) return;
     if (!(event.metaKey || event.ctrlKey) || event.altKey || event.key.toLowerCase() !== 'z') return;
     event.preventDefault(); event.stopPropagation();
     setCommandError('');
@@ -192,14 +197,16 @@ export function WeekCalendar(props: WeekCalendarProps) {
     });
   }
 
-  function taskKeyDown(event: KeyboardEvent, entry: WeekEntry) {
-    if (!event.altKey || event.ctrlKey || event.metaKey || !scheduleKeys[event.key]) return;
+  function taskKeyDown(event: KeyboardEvent, entry: WeekEntry): boolean {
+    if (!event.altKey || event.ctrlKey || event.metaKey || !scheduleKeys[event.key]) return false;
     event.preventDefault(); event.stopPropagation();
-    if (drag) return;
+    if (drag) return true;
     const row = history.latest(entry.row);
+    keyboardTarget = { ...entry, row };
     const task = keyboardWeekSchedule(row.task, row.task.scheduled ?? entry.date, event.key);
-    if (!task) { setCommandError('The scheduled date must stay between 0001-01-01 and 9999-12-31.'); return; }
+    if (!task) { setCommandError('The scheduled date must stay between 0001-01-01 and 9999-12-31.'); return true; }
     void reschedule(row, task, entry.kind);
+    return true;
   }
 
   function updateDrop() {

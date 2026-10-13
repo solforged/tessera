@@ -200,7 +200,7 @@ Narrow panes scroll horizontally rather than compressing tasks into overlapping 
 
 ### Dragging and keyboard moves
 
-Dragging a task into the grid sets its scheduled date and time, snapped to 15 minutes. Dropping in the all-day strip sets its date and clears the time. Each drop or keyboard move is one undoable notebook command. Rapid moves compose from the latest pending plan and save in order. The position changes immediately and rolls back if the commit fails. After a drop, keyboard focus follows the card; ⌘Z or Ctrl+Z restores the previous plan even while it is saving, and Shift repeats the chord to redo.
+Dragging a task into the grid sets its scheduled date and time, snapped to 15 minutes. Dropping in the all-day strip sets its date and clears the time. Each drop or keyboard move is one undoable notebook command. Rapid moves compose from the latest pending plan and save in order. When a keyboard move takes a card outside the displayed week, the calendar keeps keyboard ownership of that task so the next planning key still applies. The position changes immediately and rolls back if the commit fails. After a drop, keyboard focus follows the card; ⌘Z or Ctrl+Z restores the previous plan even while it is saving, and Shift repeats the chord to redo.
 
 | Focused-task key | Action |
 |---|---|
