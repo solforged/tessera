@@ -63,8 +63,12 @@ pub(crate) fn validate_query(conn: &Connection, query: &Query) -> Result<Vec<Fie
             crate::entity_query::relative_date(conn, value)?;
         }
         if kind == FieldKind::Span
-            && !matches!(filter.op, FilterOp::Present | FilterOp::Set | FilterOp::Empty)
-            && crate::fields::span(filter.value.as_deref().expect("validated filter value")).is_none()
+            && !matches!(
+                filter.op,
+                FilterOp::Present | FilterOp::Set | FilterOp::Empty
+            )
+            && crate::fields::span(filter.value.as_deref().expect("validated filter value"))
+                .is_none()
         {
             return Err(validation("span filter value must be a historical span"));
         }
@@ -842,9 +846,17 @@ impl<'a> PreparedFilter<'a> {
             return target.as_deref() == self.filter.value.as_deref();
         }
         if let ReadingValue::Span(left) = value {
-            let Some(right) = &self.span else { return false };
-            let (from, through) = (left.from.unwrap_or(i32::MIN), left.through.unwrap_or(i32::MAX));
-            let (start, end) = (right.from.unwrap_or(i32::MIN), right.through.unwrap_or(i32::MAX));
+            let Some(right) = &self.span else {
+                return false;
+            };
+            let (from, through) = (
+                left.from.unwrap_or(i32::MIN),
+                left.through.unwrap_or(i32::MAX),
+            );
+            let (start, end) = (
+                right.from.unwrap_or(i32::MIN),
+                right.through.unwrap_or(i32::MAX),
+            );
             return match op {
                 FilterOp::Is => left == right,
                 FilterOp::Overlaps => from <= end && through >= start,

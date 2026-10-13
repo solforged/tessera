@@ -307,6 +307,7 @@ fn span_readings_sort_and_filter_inclusive_ranges() {
             field: id(10),
             op: FilterOp::Present,
             value: None,
+            or_empty: false,
         }],
         sort: vec![SortKey {
             by: SortBy::Field,
@@ -345,6 +346,7 @@ fn span_readings_sort_and_filter_inclusive_ranges() {
             field: id(10),
             op,
             value: Some(value.into()),
+            or_empty: false,
         }];
         assert_eq!(
             nb.query(&query)

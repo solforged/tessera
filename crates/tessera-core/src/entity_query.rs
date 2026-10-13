@@ -100,8 +100,10 @@ fn push(attrs: &mut Attributes, key: &str, value: ReadingValue, target: Option<S
         ReadingValue::Checkbox(checked) => checked.to_string(),
         ReadingValue::Span(span) => format!(
             "{}–{}",
-            span.from.map_or_else(|| "?".into(), |year| year.to_string()),
-            span.through.map_or_else(|| "?".into(), |year| year.to_string()),
+            span.from
+                .map_or_else(|| "?".into(), |year| year.to_string()),
+            span.through
+                .map_or_else(|| "?".into(), |year| year.to_string()),
         ),
     };
     let value = QueryAttributeValue {
