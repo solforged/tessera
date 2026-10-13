@@ -3,7 +3,7 @@ import { ulid } from 'ulid';
 import type { FieldDefinition, Filter, Operation, Query, QueryResult, QueryRow, View } from '../api/types';
 import type { TablePaneProps } from '../table/TablePane';
 import { attributeDefinitions } from '../table/attributes';
-import { copyQuery, filterLabel, queriesEqual, removeQueryField } from '../table/query';
+import { copyQuery, queriesEqual, removeQueryField } from '../table/query';
 import { FilterPopup } from '../table/FilterPopup';
 import { MissingFields } from '../table/MissingFields';
 import { missingQueryFields } from '../table/query';
@@ -12,7 +12,7 @@ import { plainText } from '../outline/names';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Popup } from '../ui/Popup';
-import { columnNames, columnQuery, initialSelection, linkedQuery, positionLocators, rowTarget, updateColumn } from './query';
+import { columnNames, columnQuery, deskConditionLabel, initialSelection, linkedQuery, positionLocators, rowTarget, updateColumn } from './query';
 import type { DeskColumn } from './query';
 import './desk.css';
 
@@ -118,13 +118,7 @@ export function DeskPane(props: TablePaneProps) {
     return definition ? (row.values[definition.id] ?? []).map(value => value.text).join('\n') : '';
   };
   const title = (row: QueryRow, column: DeskColumn) => column === 1 ? attribute(row, '@holder') || row.block.block.text : row.block.block.text;
-  const conditionLabel = (column: DeskColumn, condition: Filter) => {
-    if (condition.field === '@cited_in' && condition.op === 'is') {
-      const position = result(1).rows.find(row => row.block.block.id === condition.value);
-      if (position) return `Cited in is ${attribute(position, '@holder') || plainText(position.block.block.text, props.notebook.lookup)}`;
-    }
-    return plainText(filterLabel(condition, pickerFields(column), props.notebook), props.notebook.lookup);
-  };
+  const conditionLabel = (column: DeskColumn, condition: Filter) => deskConditionLabel(condition, pickerFields(column), props.notebook, result(1).rows);
   const label = (column: DeskColumn) => {
     const value = columnQueries[column]!();
     const words = value.filters.map(condition => conditionLabel(column, condition));
@@ -215,7 +209,7 @@ export function DeskPane(props: TablePaneProps) {
               <div class="desk-row-title"><BlockText text={title(row, column)} notebook={props.notebook} interactive={false} /></div>
               <Show when={column === 0}><p class="desk-meta">{attribute(row, '@state')} · {attribute(row, '@readings')} readings</p><p class="desk-meta">Last assessed {attribute(row, '@last_assessed') || 'never'} · Revisit {attribute(row, '@revisit') || 'not set'}</p></Show>
               <Show when={column === 1}><Show when={fieldValue(row, 'Gist')}><p class="desk-gist"><BlockText text={fieldValue(row, 'Gist')} notebook={props.notebook} interactive={false} /></p></Show><Show when={fieldValue(row, 'Work')}><p class="desk-meta">Work · <BlockText text={fieldValue(row, 'Work')} notebook={props.notebook} interactive={false} /></p></Show></Show>
-              <Show when={column === 2}><p class="desk-meta">{attribute(row, '@creator') || 'Creator not recorded'}<Show when={fieldValue(row, 'Published')}> · {plainText(fieldValue(row, 'Published'), props.notebook.lookup)}</Show></p><Show when={positionPage()?.get(row.block.block.id)?.length}><p class="desk-locators">{positionPage()!.get(row.block.block.id)!.join(' · ')}</p></Show></Show>
+              <Show when={column === 2}><p class="desk-meta">{attribute(row, '@creator') || 'Creator not recorded'}<Show when={fieldValue(row, 'Published')}> · {plainText(fieldValue(row, 'Published'), id => props.notebook.lookup(id))}</Show></p><Show when={positionPage()?.get(row.block.block.id)?.length}><p class="desk-locators">{positionPage()!.get(row.block.block.id)!.join(' · ')}</p></Show></Show>
               <div class="desk-row-actions"><Button label={`Open ${column === 0 ? 'question' : column === 1 ? 'position' : 'source'}`} onClick={event => { event.stopPropagation(); openRow(row, event.shiftKey); }}>Open<Icon name="right" /></Button><Button icon="panes" label="Open beside" onClick={event => { event.stopPropagation(); openRow(row, true); }} /></div>
             </div>
           </>}</For>

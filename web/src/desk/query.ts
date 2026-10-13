@@ -1,7 +1,9 @@
-import type { PageView, Query, QueryRow } from '../api/types';
+import type { FieldDefinition, Filter, PageView, Query, QueryRow } from '../api/types';
 import type { OpenTarget, TableViewState } from '../shell/contract';
+import type { NotebookClient } from '../document/contract';
 import { textTokens } from '../document/text-tokens';
-import { copyQuery, typeQuery } from '../table/query';
+import { plainText } from '../outline/names';
+import { copyQuery, filterLabel, typeQuery } from '../table/query';
 
 export type DeskSelection = NonNullable<TableViewState['desk']>;
 export type DeskColumn = DeskSelection['column'];
@@ -43,6 +45,17 @@ export function initialSelection(query: Query, stored?: DeskSelection): DeskSele
 export function rowTarget(row: QueryRow): OpenTarget {
   const block = row.block.block;
   return { kind: 'page', pageId: block.page_id, ...(block.kind === 'block' ? { blockId: block.id } : {}) };
+}
+/** Restored filters render before query rows arrive; resolve their live references with the notebook receiver intact. */
+export function deskConditionLabel(condition: Filter, fields: FieldDefinition[], notebook: NotebookClient, positions: readonly QueryRow[]): string {
+  if (condition.field === '@cited_in' && condition.op === 'is') {
+    const position = positions.find(row => row.block.block.id === condition.value);
+    if (position) {
+      const holder = position.attributes?.['@holder']?.map(value => value.text).join(' · ');
+      return `Cited in is ${holder || plainText(position.block.block.text, id => notebook.lookup(id))}`;
+    }
+  }
+  return plainText(filterLabel(condition, fields, notebook), id => notebook.lookup(id));
 }
 /** Authored locators and passage locations, restricted to this position's live subtree. */
 export function positionLocators(page: PageView, position: string): Map<string, string[]> {

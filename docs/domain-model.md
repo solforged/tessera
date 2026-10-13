@@ -644,7 +644,7 @@ When detaching or deleting a field leaves a saved recipe naming a missing defini
 
 A research desk is one saved view with `layout: "desk"`. The top-level query selects questions; `desk: {positions: Query, sources: Query}` carries the other two columns. All three use the existing query language. Selecting a question sets the positions query's `@question` condition. Selecting a position sets the sources query's `@cited_in` condition. Other conditions remain specific to their column.
 
-The default questions query excludes parked and answered questions and groups by `@program`. Saving and reopening keep the three queries together, including their linked conditions. The focused column and selected row IDs belong to pane navigation state, so reload restores them without changing notebook content. Save and update use the ordinary attributed, revision-checked view operations and offer undo.
+The default questions query excludes parked and answered questions and groups by `@program`. Saving and reopening keep the three queries together, including their linked conditions. The focused column and selected row IDs belong to pane navigation state, so Back, Forward and reload restore them without changing notebook content. Linked filter labels resolve live reference titles while the column results load. Save and update use the ordinary attributed, revision-checked view operations and offer undo.
 
 ### Spreads
 
