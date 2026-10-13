@@ -1,4 +1,4 @@
-import { For, Show, createMemo, createResource, createSignal, onCleanup, onMount } from 'solid-js';
+import { For, Show, createEffect, createMemo, createResource, createSignal, onCleanup, onMount } from 'solid-js';
 import { EditorView } from '@codemirror/view';
 import type { PositionRow } from '../api/types';
 import { ShapeGlyph } from '../compare/ShapeGlyph';
@@ -38,6 +38,7 @@ interface Entry {
   id: string;
   /** The reference element, or null when the card was opened from an editor caret. */
   link: HTMLElement | null;
+  currentLink?: () => HTMLElement | null;
   anchor: () => DOMRect | null;
   pane: PaneId | null;
   keyboard: boolean;
@@ -49,6 +50,8 @@ interface Entry {
 
 export interface ReferencePreviewsProps {
   notebook: NotebookClient;
+  /** Pane navigation retires slips whose source view has gone away. */
+  navigationKey: string;
   onOpen(target: OpenTarget, beside: boolean, pane: PaneId | null): void;
 }
 
@@ -63,11 +66,24 @@ function referenceId(element: HTMLElement): string | null {
   return token && isStableReference(token) ? token.id! : null;
 }
 
-/** The line box under the pointer, so a wrapped reference anchors its card to the line being read. */
-function lineAnchor(element: HTMLElement, y: number): () => DOMRect | null {
+/** Keep the same occurrence and line box when loading its target replaces the rendered label. */
+function lineAnchor(element: HTMLElement, y: number): Pick<Entry, 'link' | 'currentLink' | 'anchor'> {
+  const host = element.parentElement;
+  const id = referenceId(element);
+  const sourceStart = element.dataset.sourceStart;
+  const occurrence = host ? [...host.querySelectorAll('.outline-reference')].indexOf(element) : -1;
   const rects = [...element.getClientRects()];
   const index = Math.max(0, rects.findIndex(rect => rect.top <= y && y <= rect.bottom));
-  return () => element.isConnected ? element.getClientRects()[index] ?? element.getBoundingClientRect() : null;
+  const currentLink = () => {
+    if (element.isConnected) return element;
+    const candidates = host ? [...host.querySelectorAll<HTMLElement>('.outline-reference')] : [];
+    if (sourceStart !== undefined) return candidates.find(candidate => referenceId(candidate) === id && candidate.dataset.sourceStart === sourceStart) ?? null;
+    return candidates[occurrence] && referenceId(candidates[occurrence]) === id ? candidates[occurrence] : null;
+  };
+  return { link: element, currentLink, anchor: () => {
+    const current = currentLink();
+    return current ? current.getClientRects()[index] ?? current.getBoundingClientRect() : null;
+  } };
 }
 
 /**
@@ -78,6 +94,12 @@ function lineAnchor(element: HTMLElement, y: number): () => DOMRect | null {
 export function ReferencePreviews(props: ReferencePreviewsProps) {
   const [stack, setStack] = createSignal<Entry[]>([]);
   const [pinned, setPinned] = createSignal<ReadonlySet<number>>(new Set());
+  const [fontsReady, setFontsReady] = createSignal(false);
+  createEffect<string | undefined>(previous => {
+    const key = props.navigationKey;
+    if (previous !== undefined && key !== previous) setStack([]);
+    return key;
+  });
   let serial = 0;
   let pending = 0;
   let closing = 0;
@@ -96,7 +118,7 @@ export function ReferencePreviews(props: ReferencePreviewsProps) {
     closing = window.setTimeout(() => {
       // Keep every card up to the deepest one under the pointer or pinned.
       let keep = 0;
-      stack().forEach((entry, index) => { if (pinned().has(entry.key) || entry.keyboard || entry.touch || entry.panel?.matches(':hover') || entry.link?.matches(':hover')) keep = index + 1; });
+      stack().forEach((entry, index) => { if (pinned().has(entry.key) || entry.keyboard || entry.touch || entry.panel?.matches(':hover') || (entry.currentLink?.() ?? entry.link)?.matches(':hover')) keep = index + 1; });
       truncate(keep);
     }, CLOSE_DELAY);
   };
@@ -121,7 +143,7 @@ export function ReferencePreviews(props: ReferencePreviewsProps) {
     const link = (event.target as Element).closest?.<HTMLElement>('.outline-reference');
     if (!link) return;
     clearTimeout(closing);
-    if (stack().some(entry => entry.link === link)) return;
+    if (stack().some(entry => (entry.currentLink?.() ?? entry.link) === link)) return;
     const id = referenceId(link);
     if (!id) return;
     clearTimeout(pending);
@@ -129,7 +151,7 @@ export function ReferencePreviews(props: ReferencePreviewsProps) {
       if (!link.isConnected || !link.matches(':hover')) return;
       const depth = stack().findIndex(entry => entry.panel?.contains(link)) + 1;
       const pane = (link.closest<HTMLElement>('[data-pane]')?.dataset.pane as PaneId | undefined) ?? stack()[depth - 1]?.pane ?? null;
-      open({ id, link, anchor: lineAnchor(link, pointer.y), pane, keyboard: false }, depth);
+      open({ id, ...lineAnchor(link, pointer.y), pane, keyboard: false }, depth);
     }, stack().length ? OPEN_DELAY / 3 : OPEN_DELAY);
   };
   const out = (event: PointerEvent) => {
@@ -146,16 +168,9 @@ export function ReferencePreviews(props: ReferencePreviewsProps) {
     if (!id || !link.isConnected || heldLink?.dataset.reference === id) return;
     clearTimeout(pending);
     heldLink = link;
-    // Preview loading refreshes labels, which can replace the rendered reference.
-    const host = link.parentElement;
-    const sourceStart = link.dataset.sourceStart;
-    const anchor = () => {
-      const current = link.isConnected ? link : host?.querySelector<HTMLElement>(`.outline-reference[role="button"][data-reference="${id}"][data-source-start="${sourceStart}"]`);
-      return current ? lineAnchor(current, y)() : null;
-    };
     const depth = stack().findIndex(entry => entry.panel?.contains(link)) + 1;
     const pane = (link.closest<HTMLElement>('[data-pane]')?.dataset.pane as PaneId | undefined) ?? stack()[depth - 1]?.pane ?? null;
-    open({ id, link, anchor, pane, keyboard: false, touch: true }, depth);
+    open({ id, ...lineAnchor(link, y), pane, keyboard: false, touch: true }, depth);
   };
   const touchStart = (event: PointerEvent) => {
     cancelHold();
@@ -194,7 +209,7 @@ export function ReferencePreviews(props: ReferencePreviewsProps) {
     const pane = (active.closest<HTMLElement>('[data-pane]')?.dataset.pane as PaneId | undefined) ?? null;
     if (active.matches('.outline-reference')) {
       const id = referenceId(active);
-      return id ? { id, link: active, anchor: () => active.isConnected ? active.getBoundingClientRect() : null, pane, keyboard: true } : null;
+      return id ? { id, ...lineAnchor(active, active.getBoundingClientRect().top), pane, keyboard: true } : null;
     }
     const editor = active.closest<HTMLElement>('.cm-editor');
     const view = editor && EditorView.findFromDOM(editor);
@@ -204,7 +219,7 @@ export function ReferencePreviews(props: ReferencePreviewsProps) {
     if (!token || !isStableReference(token)) return null;
     // A collapsed reference is a widget; anchor to it. A reference showing its source anchors to the text.
     const widget = [...view.contentDOM.querySelectorAll<HTMLElement>('.outline-reference')].find(element => view.posAtDOM(element) === token.start);
-    if (widget) return { id: token.id!, link: widget, anchor: () => widget.isConnected ? widget.getBoundingClientRect() : null, pane, keyboard: true };
+    if (widget) return { id: token.id!, ...lineAnchor(widget, widget.getBoundingClientRect().top), pane, keyboard: true };
     const anchor = () => {
       const start = view.coordsAtPos(token.start, 1);
       return start ? new DOMRect(start.left, start.top, 1, start.bottom - start.top) : null;
@@ -237,6 +252,7 @@ export function ReferencePreviews(props: ReferencePreviewsProps) {
   };
 
   onMount(() => {
+    void document.fonts.ready.then(() => setFontsReady(true));
     document.addEventListener('pointerover', over);
     document.addEventListener('pointerout', out);
     document.addEventListener('pointermove', move, { passive: true });
@@ -263,16 +279,19 @@ export function ReferencePreviews(props: ReferencePreviewsProps) {
     document.removeEventListener('click', touchClick, true);
   });
 
-  return <For each={stack()}>{(entry, index) =>
-    <Popup anchor={entry.anchor} label="Reference preview" class={`reference-preview${pinned().has(entry.key) ? ' pinned' : ''}`} width={WIDTH} autofocus={false} onDismiss={() => truncate(index())}>
+  return <For each={stack()}>{(entry, index) => {
+    const [ready, setReady] = createSignal(false);
+    const pane = entry.link?.closest<HTMLElement>('.pane[data-pane]') ?? (entry.pane ? document.querySelector<HTMLElement>(`.pane[data-pane="${entry.pane}"]`) : null);
+    return <Popup anchor={entry.anchor} bounds={() => pane?.isConnected ? pane.getBoundingClientRect() : null} ready={ready() && fontsReady()} fixedSize={!pinned().has(entry.key)}
+      label="Reference preview" class={`reference-preview${pinned().has(entry.key) ? ' pinned' : ''}`} width={WIDTH} autofocus={false} onDismiss={() => truncate(index())}>
       <div class="reference-preview-card" ref={element => { entry.panel = element; }}
         onPointerEnter={() => clearTimeout(closing)} onPointerLeave={scheduleClose}>
         <ReferenceCard id={entry.id} citation={entry.citation} locator={entry.locator} notebook={props.notebook} pinned={pinned().has(entry.key)} keyboard={entry.keyboard}
-          onTogglePin={() => togglePin(entry)} onOpen={beside => go(entry, beside)}
+          onReady={() => setReady(true)} onTogglePin={() => togglePin(entry)} onOpen={beside => go(entry, beside)}
           onNested={(target, beside) => { setStack([]); props.onOpen(target, beside, entry.pane); }} />
       </div>
-    </Popup>
-  }</For>;
+    </Popup>;
+  }}</For>;
 }
 
 /** Read authored prose, not field labels; only a field-only page falls back to its actual values. */
@@ -318,6 +337,7 @@ function ReferenceCard(props: {
   notebook: NotebookClient;
   pinned: boolean;
   keyboard: boolean;
+  onReady(): void;
   onTogglePin(): void;
   onOpen(beside: boolean): void;
   onNested(target: OpenTarget, beside: boolean): void;
@@ -371,6 +391,14 @@ function ReferenceCard(props: {
     positions.error ? 'Readings unavailable' : positionRows().length ? `${positionRows().length} ${positionRows().length === 1 ? 'reading' : 'readings'}` : '',
     referenceCount(),
   ].filter(Boolean).join(' · '));
+  // Loading placeholders and late field/count requests must never size a painted slip.
+  createEffect(() => {
+    const block = target();
+    const status = doc()?.status();
+    if (block === undefined || block && (!status || status === 'loading')) return;
+    if (fieldList.loading || positions.loading || references.loading || citationSource.loading) return;
+    props.onReady();
+  });
   const [clipped, setClipped] = createSignal(false);
   let body: HTMLDivElement | undefined;
   // The body's max-height pins its own box, so growth shows up only on its rows.

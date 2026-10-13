@@ -116,7 +116,7 @@ function TokenText(props: Props) {
         <Show when={props.cards} fallback={text(token)}><span data-source-start={token.start} data-source-end={token.end} data-source-literal>{text(token)}</span></Show>
       </Show>
       <Show when={!token.literal && token.kind === 'reference'}>
-        <Show when={props.interactive !== false || token.matches && props.blockId} fallback={<span class="outline-reference" classList={{ 'outline-reference-ambiguous': !!token.matches, 'outline-citation': !!citationSources()?.has(token.id!) && !!(token.alias || token.locator) }} data-source-start={token.start} data-source-end={token.end}>
+        <Show when={props.interactive !== false || token.matches && props.blockId} fallback={<span class="outline-reference" classList={{ 'outline-reference-ambiguous': !!token.matches, 'outline-citation': !!citationSources()?.has(token.id!) && !!(token.alias || token.locator) }} data-source-start={token.start} data-source-end={token.end} data-reference={isStableReference(token) ? token.id : undefined}>
           <Show when={props.field?.id === token.id}><Icon name="field" /></Show><Show when={token.target === null}><Icon name="brokenLink" /></Show>{text(token)}<Show when={token.matches}><sup>?</sup></Show>
         </span>}>
           <span class="outline-reference" classList={{ 'outline-reference-ambiguous': !!token.matches, 'outline-citation': !!citationSources()?.has(token.id!) && !!(token.alias || token.locator) }} role="button" tabIndex={0} data-source-start={token.start} data-source-end={token.end} data-reference={isStableReference(token) ? token.id : undefined}

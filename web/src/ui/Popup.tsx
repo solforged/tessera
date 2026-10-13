@@ -1,7 +1,8 @@
-import { createSignal, onCleanup, onMount } from 'solid-js';
+import { createEffect, createSignal, onCleanup, onMount } from 'solid-js';
 import type { JSX } from 'solid-js';
 import { Portal } from 'solid-js/web';
 import { visualViewportBounds } from './visual-viewport';
+import { anchoredPopupPosition, popupBounds } from './popup-position';
 
 export type PopupAnchor = HTMLElement | DOMRect | (() => DOMRect | null);
 /** `anchor` hangs the panel off its trigger; `top` centres it near the top of the viewport, for palettes; `sheet` rises
@@ -19,6 +20,12 @@ export interface PopupProps {
   placement?: PopupPlacement;
   /** Measure an internally scrolling form at its natural height before placing it. */
   fitContent?: boolean;
+  /** Keep asynchronous content hidden until its caller has finished loading. */
+  ready?: boolean;
+  /** Constrain an anchored popup to its originating pane as well as the viewport. */
+  bounds?: () => DOMRect | null;
+  /** Retain the first measured box while its read-only contents finish resolving. */
+  fixedSize?: boolean;
   /** Defaults to the first input or enabled button. false retains editor focus. */
   autofocus?: boolean;
 }
@@ -85,15 +92,18 @@ export function Popup(props: PopupProps) {
   const anchorRect = () => typeof props.anchor === 'function' ? props.anchor() : props.anchor instanceof HTMLElement ? props.anchor.getBoundingClientRect() : props.anchor;
   let frame = 0;
   let disposed = false;
+  let size: { width: number; height: number } | undefined;
   const place = () => {
-    if (disposed) return;
-    const viewport = visualViewportBounds();
+    if (disposed || props.ready === false) return;
+    const viewport = popupBounds(visualViewportBounds(), props.placement === undefined || props.placement === 'anchor' ? props.bounds?.() : null);
     if (props.placement === 'sheet') {
       const height = Math.min(panel.scrollHeight + panel.offsetHeight - panel.clientHeight, Math.round(viewport.height * 0.85));
       setPosition({ left: viewport.left, top: viewport.bottom - height, height, visible: true, clipped: panel.scrollHeight > height });
       return;
     }
-    const width = Math.min(props.width ?? panel.offsetWidth, viewport.width - 16);
+    const width = Math.max(0, Math.min(props.width ?? panel.offsetWidth, viewport.width - 16));
+    // Set the pane-limited measure before asking for its wrapped content height.
+    if (props.width) panel.style.width = `${width}px`;
     if (props.placement === 'top') {
       const top = viewport.top + Math.min(64, Math.round(viewport.height * 0.08));
       const height = Math.min(panel.scrollHeight + panel.offsetHeight - panel.clientHeight, viewport.bottom - top - 16, 560);
@@ -102,12 +112,10 @@ export function Popup(props: PopupProps) {
     }
     const rect = anchorRect();
     if (!rect) return;
-    const belowTop = Math.max(viewport.top + 8, Math.min(viewport.bottom - 8, rect.bottom + 4));
-    const aboveBottom = Math.max(viewport.top + 8, Math.min(viewport.bottom - 8, rect.top - 4));
-    const below = Math.max(0, viewport.bottom - belowTop - 8);
-    const above = Math.max(0, aboveBottom - viewport.top - 8);
+    if (!props.fixedSize) size = undefined;
     let contentHeight: number;
-    if (props.fitContent) {
+    if (props.fixedSize && size?.width === width) contentHeight = size.height;
+    else if (props.fitContent) {
       // Measure the full body without losing scroll positions when it temporarily expands.
       const scrolled: [Element, number, number][] = [[panel, panel.scrollTop, panel.scrollLeft]];
       for (const element of panel.querySelectorAll('*')) {
@@ -120,15 +128,11 @@ export function Popup(props: PopupProps) {
       for (const [element, top, left] of scrolled) { element.scrollTop = top; element.scrollLeft = left; }
     // scrollHeight leaves out the border that max-height includes; without it a short menu scrolls by 2 px and WebKit shows a scrollbar.
     } else contentHeight = panel.scrollHeight + panel.offsetHeight - panel.clientHeight;
-    const needed = Math.min(contentHeight, 560);
-    const start = rect.left > viewport.left + viewport.width / 2 ? rect.right - width : rect.left;
-    const left = Math.max(viewport.left + 8, Math.min(start, viewport.right - width - 8));
-    // Keep the trigger visible. Prefer below, then the larger side with internal scrolling.
-    const flip = below < needed && above > below;
-    const height = Math.min(needed, flip ? above : below);
-    setPosition({ left, top: flip ? aboveBottom - height : belowTop, height, visible: true, clipped: contentHeight > height });
+    if (props.fixedSize && size?.width !== width) size = { width, height: contentHeight };
+    setPosition(anchoredPopupPosition(rect, viewport, width, contentHeight, props.role === 'menu' ? Infinity : 560));
   };
   const reposition = () => { if (!disposed) { cancelAnimationFrame(frame); frame = requestAnimationFrame(place); } };
+  createEffect(() => { if (props.ready === true) reposition(); });
   // Internal scrolling does not move the anchor and must not trigger another fit measurement.
   const scroll = (event: Event) => { if (!props.fitContent || !(event.target instanceof Node) || !panel.contains(event.target)) reposition(); };
   const topmost = () => !disposed && stack.at(-1) === token;
@@ -194,6 +198,6 @@ export function Popup(props: PopupProps) {
     document.removeEventListener('selectionchange', reposition);
     if (panel && position().visible) retirePanel(panel);
   });
-  const width = () => props.placement === 'sheet' ? '100vw' : props.width ? `${Math.min(props.width, window.innerWidth - 16)}px` : undefined;
-  return <Portal><div ref={panel} class={`popup${props.placement === 'sheet' ? ' popup-sheet' : ''}${position().visible ? ' popup-enter' : ''} ${props.class ?? ''}`} role={props.role ?? 'dialog'} aria-label={props.label} style={{ ...props.style, left: `${position().left}px`, top: `${position().top}px`, width: width(), 'max-height': `${position().height}px`, overflow: position().clipped ? 'auto' : undefined, visibility: position().visible ? 'visible' : 'hidden' }}>{props.children}</div></Portal>;
+  const width = () => props.placement === 'sheet' ? '100vw' : props.width ? `${Math.max(0, Math.min(props.width, popupBounds(visualViewportBounds(), props.bounds?.()).width - 16))}px` : undefined;
+  return <Portal><div ref={panel} class={`popup${props.placement === 'sheet' ? ' popup-sheet' : ''}${position().visible ? ' popup-enter' : ''} ${props.class ?? ''}`} role={props.role ?? 'dialog'} aria-label={props.label} style={{ ...props.style, left: `${position().left}px`, top: `${position().top}px`, width: width(), height: props.fixedSize && position().visible ? `${position().height}px` : undefined, 'max-height': `${position().height}px`, overflow: position().clipped ? 'auto' : undefined, visibility: position().visible ? 'visible' : 'hidden' }}>{props.children}</div></Portal>;
 }

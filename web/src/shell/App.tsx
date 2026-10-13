@@ -407,7 +407,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     narrowQuery.addEventListener('change', onNarrow);
     onCleanup(() => narrowQuery.removeEventListener('change', onNarrow));
     const onKey = (event: KeyboardEvent) => {
-      if (event.isComposing || document.querySelector('.popup')) return;
+      if (event.isComposing || document.querySelector('.popup:not(.reference-preview), .popup.reference-preview:focus-within')) return;
       if ((mac ? event.metaKey : event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLocaleLowerCase() === 'e') {
         event.preventDefault(); event.stopPropagation();
         openCapture(blankCapture());
@@ -772,7 +772,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
       </Show>
     </>}</Show>
     <Show keyed when={capture()}>{request => <CaptureSheet notebook={notebook} request={request} onDismiss={closeCapture} />}</Show>
-    <ReferencePreviews notebook={notebook} onOpen={(target, beside, pane) => open(target, beside, pane ?? active())} />
+    <ReferencePreviews notebook={notebook} navigationKey={`${active()}:${sessions().main.generation}:${sessions().side.generation}`} onOpen={(target, beside, pane) => open(target, beside, pane ?? active())} />
     <Show when={toastShown() && deleted()}>{value => <div class="undo-toast" role="status" onPointerEnter={() => setToastHeld(true)} onPointerLeave={() => setToastHeld(false)} onFocusIn={() => setToastHeld(true)} onFocusOut={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setToastHeld(false); }}><Icon name="trash" /><span>{value().label} deleted</span><Button icon="undo" onClick={() => { void restorePage(); }}>Undo</Button><Button icon="close" label="Dismiss deletion notification" onClick={() => setToastShown(false)} /></div>}</Show>
     <NotebookOpening />
   </div>;
