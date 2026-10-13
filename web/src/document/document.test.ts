@@ -2944,7 +2944,7 @@ describe('durable Action and Learning document commands', () => {
     doc.release();
   });
 
-  test('current reading copies stored history into a durable authored state', () => {
+  test('current answer copies stored history into a durable authored state', () => {
     const decision = new Proxy({ assessment_id: 'first', status: 'current' as const, on: '2026-10-12' }, {});
     const next = currentReading({ unsettled: true, parked: false, accepted: 'first', review_on: null, reading_history: [decision] }, 'second', '2026-10-19');
     const stored = structuredClone(next);
@@ -3003,7 +3003,7 @@ describe('durable Action and Learning document commands', () => {
     doc.redo();
     expect(doc.block(first)?.question?.status).toBe('open');
     await doc.flush();
-    const answer = success(doc.edit({ kind: 'insert', parentId: first, after: null, text: 'Current reading' })).created[0]!;
+    const answer = success(doc.edit({ kind: 'insert', parentId: first, after: null, text: 'Current answer' })).created[0]!;
     await doc.flush();
     success(doc.edit({ kind: 'assessment', id: answer, value: { assessed_on: instance.todayDate(), aporia: false } }));
     expect(doc.block(answer)?.assessment?.question_id).toBe(first);

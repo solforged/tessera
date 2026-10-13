@@ -64,7 +64,7 @@ export function QuestionLedger(props: { notebook: NotebookClient; newQuestion?(m
         <Button class="question-ledger-title" onClick={event => open(row, event)}><BlockText text={row.block.block.text} notebook={props.notebook} interactive={false} /></Button>
         <Show when={row.block.block.kind === 'block'}><p class="question-ledger-context">In <BlockText text={row.block.page.text} notebook={props.notebook} interactive={false} /> · Inline question</p></Show>
         <p class="index-apparatus">{questionLabels[row.info.status]} · {row.position_count} {row.position_count === 1 ? 'perspective' : 'perspectives'} · Revisit {row.review_on ?? 'not set'}</p>
-        <p class="question-ledger-reading"><Show when={row.current} fallback="No current reading">{current => <><BlockText text={current().text} notebook={props.notebook} interactive={false} /><span class="index-apparatus"> · {current().assessed_on}</span></>}</Show></p>
+        <p class="question-ledger-reading"><Show when={row.current} fallback="No current answer">{current => <><BlockText text={current().text} notebook={props.notebook} interactive={false} /><span class="index-apparatus"> · {current().assessed_on}</span></>}</Show></p>
       </article>}</For>
     </section>}</For>
   </div></div>;

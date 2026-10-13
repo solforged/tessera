@@ -12,6 +12,7 @@ import { isFinished, taskFacts } from '../tasks/task-labels';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { BlockText } from './BlockText';
+import { plainText } from './names';
 import { hasCitationDetail, TypePill } from './references';
 import { CitationChip } from './SourceHeader';
 import { fieldRole } from '../fields/roles';
@@ -97,7 +98,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
   /** A question's state as one control: its glyph, its state and any review date. Clicking opens the question menu. */
   function QuestionSummary(propsQuestion: { id: string }) {
     return <Show when={doc.block(propsQuestion.id)?.question}>{question => <Button class="outline-planning outline-question" data-question-status={question().status} label="Question" aria-haspopup="menu" disabled={capabilities.busy(propsQuestion.id)}
-      onClick={event => setMenu({ anchor: event.currentTarget, label: 'Question', items: investigationItems(propsQuestion.id) })}>
+      onClick={event => setMenu({ anchor: event.currentTarget, label: 'Question', title: 'Question', context: plainText(doc.block(propsQuestion.id)?.text ?? '', target => props.notebook.lookup(target)), items: investigationItems(propsQuestion.id, true) })}>
       <Icon name={question().status === 'answered' ? 'question-settled' : 'question-open'} />{questionLabels[question().status]}
       <Show when={question().state.review_on}>{date => <span>Revisit {date()}</span>}</Show>
     </Button>}</Show>;
@@ -106,8 +107,8 @@ export function createOutlineRows(context: Pick<OutlineContext,
   /** An assessment's date, whether it is current, and any authored aporia. */
   function AnswerSummary(propsAnswer: { id: string }) {
     return <Show when={doc.block(propsAnswer.id)?.assessment}>{answer => <Button class="outline-planning outline-answer" data-accepted={String(answer().accepted)} label="Assessment" aria-haspopup="menu" disabled={capabilities.busy(propsAnswer.id)}
-      onClick={event => setMenu({ anchor: event.currentTarget, label: 'Assessment', items: investigationItems(propsAnswer.id) })}>
-      {answer().accepted ? 'Current reading' : 'Assessment'} {answer().state.assessed_on}<Show when={answer().state.aporia}><span>Aporia</span></Show>
+      onClick={event => setMenu({ anchor: event.currentTarget, label: 'Assessment', title: 'Assessment', context: plainText(doc.block(propsAnswer.id)?.text ?? '', target => props.notebook.lookup(target)), items: investigationItems(propsAnswer.id, true) })}>
+      {answer().accepted ? 'Current answer' : 'Assessment'} {answer().state.assessed_on}<Show when={answer().state.aporia}><span>Aporia</span></Show>
     </Button>}</Show>;
   }
 

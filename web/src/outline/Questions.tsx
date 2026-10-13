@@ -59,7 +59,7 @@ export function QuestionBranches(props: { rows: QuestionRow[]; notebook: Noteboo
       <span class="question-branch-title"><BlockText text={row.block.block.text} notebook={props.notebook} interactive={false} /></span>
       <span class="outline-question" data-question-status={row.info.status}><Icon name={row.info.status === 'answered' ? 'question-settled' : 'question-open'} />{questionLabels[row.info.status]}</span>
       <span class="question-branch-count">{row.position_count} {row.position_count === 1 ? 'perspective' : 'perspectives'}</span>
-      <span class="question-branch-reading"><Show when={row.current} fallback="No current reading">{current => <><BlockText text={current().text} notebook={props.notebook} interactive={false} /><span class="question-branch-count"> · {current().assessed_on}</span></>}</Show></span>
+      <span class="question-branch-reading"><Show when={row.current} fallback="No current answer">{current => <><BlockText text={current().text} notebook={props.notebook} interactive={false} /><span class="question-branch-count"> · {current().assessed_on}</span></>}</Show></span>
       <span class="question-branch-count">Revisit {row.review_on ?? 'not set'}</span>
     </Button>}</For>
   </section></Show>;
@@ -76,7 +76,7 @@ export function AssessmentJournal(props: { questionId: string; doc: PageDocument
     return result.sort((a, b) => b.assessment!.state.assessed_on.localeCompare(a.assessment!.state.assessed_on) || b.id.localeCompare(a.id));
   });
   const status = (id: string, accepted: boolean) => {
-    if (accepted) return 'Current reading';
+    if (accepted) return 'Current answer';
     const history = props.doc.block(props.questionId)?.question?.state.reading_history ?? [];
     let decision;
     for (let index = history.length - 1; index >= 0; index--) if (history[index]!.assessment_id === id) { decision = history[index]; break; }

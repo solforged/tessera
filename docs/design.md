@@ -324,7 +324,7 @@ Handle and fold live in the gutter and show on hover, focus and selection. The h
 
 Dragging starts after a small movement and shows an indented horizontal drop line: the upper or lower half of a row chooses before or after its subtree, moving right of its text edge makes it the first child, and moving left chooses an ancestor depth. A selected row moves the whole selection with its subtrees in one undo step; the pane scrolls at its edges, Escape cancels, and drops cannot cross the zoom boundary or enter a moved subtree.
 
-Edit, Insert below, Copy reference, Open beside and Zoom stay in the first menu. Move, Add or change, Select, and source/citation actions open short secondary menus with Back to block actions. Archive and Delete remain last. Closing or completing an action returns keyboard ownership to the editor or outline.
+The titled Block actions menu names its block in at most two mono lines. Edit, Insert below, Move…, Copy reference and Open beside come first. Move contains Indent, Outdent, Move up, Move down and, on journal days, Integrate. Named Field, Task, Project, Perspective, Question, Assessment, Relation, Cards and Citation managers appear only when present, retaining each when features coexist. Add field… and Make… follow; Make adds only absent features and keeps the note's text. Archive or Unarchive and Delete… remain last and preserve selection and subtree scope. Zoom and Select stay in Commands, with their bullet, gestures and keys intact. Drill-ins replace the rows in place under a title and Back control. Closing or completing an action returns keyboard ownership to the editor or outline.
 
 Clicking the edited row's fold chevron or task checkbox keeps the editor owning the keyboard. Saving or canceling a page title returns ownership to the outline.
 Structural edits finish any pending fold animation before unfolding and editing their caret target.
@@ -652,7 +652,7 @@ Escape closes the topmost one and returns focus to the editor or outline that ow
 
 ### Shared popup patterns
 
-- **Menu:** 28 px rows with an icon slot, label and shortcut at the right; sections as 12 px labels; danger last. The icon column is reserved whenever any item has one, so labels align. A header may sit above the rows, as the highlight menu's quote and color dots; its buttons join the arrow-key order.
+- **Menu:** 28 px desktop rows with a label and shortcut at the right; an icon column is reserved whenever any item has one. Cleaned action menus use hairline dividers and keep danger last. Piazzolla titles have Close; a drill-in replaces the rows with its title and Back, including ArrowRight to enter and ArrowLeft or Backspace to return. Context is at most two mono lines. Titled menus become bottom sheets with 44 px rows on coarse phones below 600 px. Dedicated selectors may retain section labels. Existing information headers remain above root rows, with their buttons in the arrow-key order.
 - **Picker:** an input on top and 28 px rows below. Arrows move, Enter picks, typing filters, the mouse hovers to highlight. Chips before the input show steps already chosen. Optional mono section headings group results without entering the keyboard selection order. Used by the palette, reference completion, Add type, Add condition and the time zone.
 - **Form:** compact labeled controls with an optional 18 px Piazzolla title and an action row. Fixed forms fit their content; a date picker's footer remains visible when its body must scroll.
 - **Confirm:** 13 px body text and two buttons.
@@ -667,7 +667,7 @@ Escape closes the topmost one and returns focus to the editor or outline that ow
 | `@` dates and `/` commands | Picker without an input; the block text is the query, sections label `/` rows, faster keys at the right | Below the token |
 | Leader, status and priority menus | Menu; leader letters at the right and pressed directly | Below the row |
 | Add filter | Picker in three steps: field, condition, value; Backspace on an empty query steps back | Below its trigger |
-| Block menu | Common actions first; Move, Add or change, Select and source/citation submenus | Below the handle |
+| Block menu | Routine actions, Move drill-in, present-feature managers, Add field and Make chooser | Below the handle; bottom sheet on coarse phones |
 | Page, notebook, layout, pill, column, view, sort and field kind menus | Menu | Below their trigger |
 | New page, Delete page | Confirm | Below their trigger |
 | Reference preview | Preview, 380 px | Below the line of the reference under the pointer, or the reference at the caret |

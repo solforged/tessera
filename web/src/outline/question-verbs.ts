@@ -1,11 +1,11 @@
 export const questionVerbs: Record<string, string> = {
-  'Make recurrent': 'Keeps a current reading without resolving the question.',
-  'Allow resolution': 'An accepted reading answers the question.',
+  'Make recurrent': 'Keeps a current answer without resolving the question.',
+  'Allow resolution': 'An accepted answer resolves the question.',
   Park: 'Stops coming back until resumed.',
   Resume: 'Returns to its previous active state.',
   'Write assessment': 'Adds a dated assessment; nothing is accepted yet.',
-  'Accept current reading': 'Makes this assessment current; keeps earlier readings.',
-  'Withdraw current reading': 'Leaves no current reading; keeps every assessment.',
+  'Accept current answer': 'Makes this assessment current; keeps earlier answers.',
+  'Withdraw current answer': 'Leaves no current answer; keeps every assessment.',
   'Add branch question': 'Adds a question whose parent comes from its place.',
 };
 

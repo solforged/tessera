@@ -176,13 +176,13 @@ A target shows one quiet line beneath its row: Supported by, Disputed by, Qualif
 
 ### Authoring
 
-Make question and Make assessment, in the block menu, palette and slash menu, mark a block as a question or a dated assessment beneath one. A titled page can be a question from its page menu. Write assessment on a question adds a dated child and places the caret in it as one undoable change. Add branch question adds a child question, whose parent comes from its place.
+Question and Assessment in the block menu's Make… chooser, or Make question and Make assessment in Commands and slash completion, mark a block as a question or a dated assessment beneath one. They add to the note and keep its text; existing features move to their named managers. A titled page can be a question from its page menu. Write assessment on a question adds a dated child and places the caret in it as one undoable change. Add branch question adds a child question, whose parent comes from its place.
 
 Set parent question… is available for a question block in its menu, the palette and slash commands, including a question page's root. The picker offers only questions, with their containing page as context, and leaves out the question and its branches. Choosing one is one undoable change.
 
 A question's title area or inline row shows a quiet Part of line that opens its effective parent. An explicit parent offers Change parent… and Remove parent; a structural parent has no Remove action. Both the line and its actions wrap on a phone.
 
-A question page opens with its direct Branches before its body in Read and Outline. Each opens the original question and shows state, perspective count, current assessment's first line and date, or No current reading, and its revisit date. Inline branches appear alongside question pages. Branches do not repeat in backlinks. The list wraps on a phone.
+A question page opens with its direct Branches before its body in Read and Outline. Each opens the original question and shows state, perspective count, current assessment's first line and date, or No current answer, and its revisit date. Inline branches appear alongside question pages. Branches do not repeat in backlinks. The list wraps on a phone.
 
 ### Question states
 
@@ -195,14 +195,14 @@ The state control sits in the capability metadata with the question glyph and it
 | Answered | `--status-done` | Settled glyph |
 | Parked | `--faint` | Question glyph |
 
-The question menu uses Park or Resume, Make recurrent or Allow resolution, Write assessment, Withdraw current reading and Add branch question. Menu, palette and slash show the resulting state beneath each verb. Descriptions wrap on their own line. Parent changes describe the resulting relation, and removal explains what stays. Disabled actions show their reason without hover. The revisit-date picker remains alongside them.
+The Question… manager keeps Open in desk, Write assessment, Add branch question, Set revisit date… and Add relation… together, with Remove question last and separated. Question settings… contains Park or Resume, Make recurrent or Allow resolution, Withdraw current answer, Set parent question… and Remove parent when present. Drill-ins have a title and Back; coarse phones use one bottom sheet. Routine rows stay concise, while Commands and slash retain descriptions. Disabled choices explain prerequisites without hover.
 
 ### Decision journal
 
-The question's Decision journal lists its assessments newest first. Each shows its assessment date, status, first line, linked perspectives and cited passages. Current reading is explicit; earlier entries say Superseded on or Withdrawn on with the decision date. An unaccepted assessment reads Not accepted alongside its date. Aporia stays a separate mark.
+The question's Decision journal lists its assessments newest first. Each shows its assessment date, status, first line, linked perspectives and cited passages. Current answer is explicit; earlier entries say Superseded on or Withdrawn on with the decision date. An unaccepted assessment reads Not accepted alongside its date. Aporia stays a separate mark.
 
 The journal appears only when the question has an assessment, including inline criterion questions. Empty questions keep Write assessment in their menu, Commands and slash completion. The journal's label stays on one line; its writing action wraps below it when space is short.
 
-Accept current reading chooses one assessment. Accepting another keeps both and records the supersession date. Withdraw current reading keeps the assessment, text and citations. Each transition is one undoable change and survives a reload. Two assessments a month apart show what each cites, without an automatic diff.
+Accept current answer chooses one assessment. Accepting another keeps both and records the supersession date. Withdraw current answer keeps the assessment, text and citations. Each transition is one undoable change and survives a reload. Two assessments a month apart show what each cites, without an automatic diff.
 
-Remove assessment is a separate destructive menu item. Its visible explanation says that it removes the date and assessment state, not the text, and clears acceptance. Undo restores both. A parked question's unavailable Write assessment and acceptance actions say to resume it first.
+The Assessment… manager offers Accept current answer and Record aporia or Clear aporia, with Add relation… when available. Remove assessment is last and separated; it removes the date and assessment state, not the text, and clears acceptance. Undo restores both. A parked question's unavailable Write assessment and acceptance actions say to resume it first.

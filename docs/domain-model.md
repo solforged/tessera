@@ -323,22 +323,22 @@ A question is in one of four states:
 
 | State | Meaning |
 |---|---|
-| Active | The default: no current reading yet |
-| Answered | A current reading exists and resolution is allowed |
+| Active | The default: no current answer yet |
+| Answered | A current answer exists and resolution is allowed |
 | Parked | Paused; it accepts nothing new until resumed |
 | Recurrent | Open by design, with dated assessments and a revisit date |
 
-Stored with the question are whether it is recurrent (`unsettled`), whether it is parked, its review date, its current assessment and its reading history. State is derived in this order: parked, recurrent, answered when a live accepted assessment exists, otherwise active. Accept current reading on a recurrent question records a reading without resolving it. Make recurrent keeps it open. Allow resolution lets a current reading answer it. Park stops it coming back. Resume returns it to its derived state.
+Stored with the question are whether it is recurrent (`unsettled`), whether it is parked, its review date, its current assessment and its answer history. State is derived in this order: parked, recurrent, answered when a live accepted assessment exists, otherwise active. Accept current answer on a recurrent question records an answer without resolving it. Make recurrent keeps it open. Allow resolution lets a current answer resolve it. Park stops it coming back. Resume returns it to its derived state.
 
-Accept current reading records a dated decision. Accepting another assessment records that the earlier reading was superseded on that date. Withdraw current reading clears the pointer and records its withdrawal date. The block, text and citations stay. Decisions live in the question's existing JSON state, with defaults for older notebooks. Each change uses the ordinary revision-checked, undoable capability operation; undo restores the previous pointer and history together. Sync uses the same later-change-wins rule as other capabilities.
+Accept current answer records a dated decision. Accepting another assessment records that the earlier answer was superseded on that date. Withdraw current answer clears the pointer and records its withdrawal date. The block, text and citations stay. Decisions live in the question's existing JSON state, with defaults for older notebooks. Each change uses the ordinary revision-checked, undoable capability operation; undo restores the previous pointer and history together. Sync uses the same later-change-wins rule as other capabilities.
 
-Remove assessment remains a separate destructive action: it removes the assessment capability, not its text, and clears acceptance in the same change. Undo restores the assessment before restoring acceptance. Removing and restoring a question with a current reading, including a parked question, restores its state and history. A parked question may withdraw its current reading but cannot accept a new one until resumed.
+Remove assessment remains a separate destructive action: it removes the assessment capability, not its text, and clears acceptance in the same change. Undo restores the assessment before restoring acceptance. Removing and restoring a question with a current answer, including a parked question, restores its state and history. A parked question may withdraw its current answer but cannot accept a new one until resumed.
 
 A question may name another question as its parent through a pointer in its question state. Set parent question changes it as one undoable edit. Plain “Part of” prose stays ordinary text and never sets a relation.
 
 The effective parent is the explicit parent while that block is live and still a question, otherwise the nearest ancestor question. This includes inline questions. Removing or deleting the parent leaves the stored pointer untouched; the relation returns when the parent returns. A new parent must be a live question, not the question itself, and must not create a cycle through explicit or structural parents. Undo preserves a restored question's existing pointer while its parent is absent.
 
-Branches are questions whose effective parent is this question, including question pages and inline questions. Add branch question creates a child question; its parent comes from its place. A question opens with branches before its body, showing state, reading count, current reading and revisit date. Branches do not repeat in ordinary backlinks.
+Branches are questions whose effective parent is this question, including question pages and inline questions. Add branch question creates a child question; its parent comes from its place. A question opens with branches before its body, showing state, perspective count, current answer and revisit date. Branches do not repeat in ordinary backlinks.
 
 The Questions ledger groups questions by their top-level program, includes inline questions with their containing page, and counts both. Active includes active and recurrent questions. Recurrent, Due, Answered and Parked select their corresponding states; Due means a non-parked question whose revisit date has arrived. All includes every visible question. Rows report their current assessment's date and first line, derived from the live assessment rather than copied text.
 

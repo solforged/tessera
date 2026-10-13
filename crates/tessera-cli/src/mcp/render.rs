@@ -180,7 +180,7 @@ pub(super) fn render(
                 .rev()
                 .find(|decision| decision.assessment_id == row.block.id);
             let status = if assessment.accepted {
-                "current reading".to_owned()
+                "current answer".to_owned()
             } else if let Some(decision) =
                 decision.filter(|decision| decision.status != tessera_core::ReadingStatus::Current)
             {
@@ -309,7 +309,7 @@ fn capability_details(caps: &BlockCapabilities) -> Vec<String> {
             part.push_str(&format!(" review {day}"));
         }
         part.push_str(&format!(
-            " current reading {}",
+            " current answer {}",
             question.state.accepted.as_deref().unwrap_or("none")
         ));
         for decision in &question.state.reading_history {
