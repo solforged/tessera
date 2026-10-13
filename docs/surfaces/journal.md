@@ -27,7 +27,7 @@ A mono rubric line reads `Add to today` in gilt and `Sun 11 · end of journal` i
 | Escape | Closes an open completion first and then the slip |
 | Touch screens | Replace keyboard hints with Cancel and Add; the empty line reads `Add a note or task` |
 
-The line clears as soon as it is entered and saves in order, so a fast second line is never dropped. A failed save puts the text back.
+The line clears once the whole capture is in the local outbox and saves in order, so a fast second line is never dropped. Reload resumes every accepted capture, including its task plan and chosen references. If local storage fails, the line keeps its text.
 
 ### macOS capture
 

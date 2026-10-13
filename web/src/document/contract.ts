@@ -307,11 +307,21 @@ export interface PageDocument {
   release(): void;
 }
 
+/** A cleared capture, kept before any title or journal lookup starts. */
+export interface CaptureIntent {
+  date: string;
+  text: string;
+  task: TaskState | null;
+  picked: [string, string][];
+}
+
 /** The notebook-wide client. One per window. */
 export interface NotebookClient {
   readonly api: ApiClient;
   /** Durable notebook command; structural writes name pages whose outlines must refresh before acknowledgement is exposed. */
   commit(operations: readonly Operation[], reason?: string, refreshPages?: readonly string[]): Promise<Committed>;
+  /** Resolves once the capture is in the outbox, not when the service acknowledges it. */
+  appendCapture(text: string, task: TaskState | null, picked?: readonly [string, string][]): Promise<void>;
   /** One acknowledged transaction across pages, with exact field-level undo/redo. */
   editSourceDetails(edits: readonly { pageId: string; edit: SourceDetailsEdit }[]): Promise<DocumentChange>;
   commandState(): SaveState;

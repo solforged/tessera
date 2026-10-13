@@ -11,7 +11,6 @@ import { captureDateToken, dateSuggestions, insideProtectedSyntax, newTask, plan
 import { relativeDate } from '../tasks/task-labels';
 import { Icon } from '../ui/Icon';
 import { Popup } from '../ui/Popup';
-import { appendToToday } from './append';
 import './capture.css';
 
 /** An open `[[page` or `#type` query in the draft, and the text a choice replaces. */
@@ -128,33 +127,35 @@ export function CaptureField(props: CaptureFieldProps) {
     replace(current.from, current.to, `[[${choice.title}]]`);
   };
 
-  // Lines save one after another, in the order they were entered, so a quick second Enter is never dropped.
-  let saving = Promise.resolve();
-  const submit = (again: boolean) => {
+  // A submission owns its draft until IndexedDB accepts it; delivery then uses the notebook's durable queue.
+  let accepting = false;
+  const submit = async (again: boolean) => {
     const text = bodyText();
-    if (!text) return;
+    if (!text || accepting) return;
+    const submittedDraft = draft();
     const state = plan();
     let body = text, value: TaskState | null = null;
     if (state?.choice) ({ text: body, value } = planDateToken(text, state.token, state.choice, null));
     else if (isTask()) value = { ...newTask(), scheduled: props.schedule ? props.contextDate() : null };
-    // The line clears at once so the next one can be typed while this one saves; a failure puts it back.
-    const links = new Map(picked), wasTask = isTask();
-    picked.clear();
-    setDraft(''); setCaret(0); input.value = '';
-    if (!props.taskOnly && !again) setTask(false);
+    const links = new Map(picked);
+    accepting = true;
     setPending(count => count + 1); setError('');
-    saving = saving.then(async () => {
-      try {
-        await appendToToday(props.notebook, body.trim(), value, links);
-        props.onSaved?.(again);
-      } catch (reason) {
-        setError(reason instanceof Error ? reason.message : String(reason));
-        if (!draft()) {
-          setDraft(text); input.value = text; setCaret(text.length); setTask(wasTask);
-          for (const [key, target] of links) picked.set(key, target);
-        }
-      } finally { setPending(count => count - 1); }
-    });
+    try {
+      await props.notebook.appendCapture(body.trim(), value, [...links]);
+      // Typing while the storage transaction finishes stays in the next line.
+      const next = draft() === submittedDraft ? '' : draft().startsWith(submittedDraft) ? draft().slice(submittedDraft.length) : draft();
+      if (next !== draft()) {
+        picked.clear();
+        setDraft(next); setCaret(next.length); input.value = next; input.setSelectionRange(next.length, next.length);
+      }
+      if (!props.taskOnly && !again && !next) setTask(false);
+      props.onSaved?.(again);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      accepting = false;
+      setPending(count => count - 1);
+    }
   };
 
   const keydown = (event: KeyboardEvent) => {

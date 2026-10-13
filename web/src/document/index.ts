@@ -2,9 +2,10 @@ import { createSignal } from 'solid-js';
 import type { Accessor } from 'solid-js';
 import { ulid } from 'ulid';
 import { ApiError, CHANGE_CONNECTING, CHANGE_OPEN, bindNotebook, createApi } from '../api/client';
-import type { Batch, Block, BlockCapabilities, ChangeEvent, Committed, Operation, PageView, SettingsView, WorkSession } from '../api/types';
+import type { Batch, Block, BlockCapabilities, ChangeEvent, Committed, Operation, PageView, SettingsView, TaskState, WorkSession } from '../api/types';
 import type { ApiClient, ChangeSocket } from '../api/client';
 import { startingTemplateFor } from '../fields/templates';
+import { captureOperations } from '../capture/append';
 import type { BlockClipboard, Caret, DocumentChange, NotebookClient, PageDocument, SaveState, SourceDetailsEdit } from './contract';
 import { Document } from './page-document';
 import type { DocumentHost } from './page-document';
@@ -355,6 +356,27 @@ export class Notebook implements NotebookClient, DocumentHost {
     if (!this.firstQueuedAt) this.firstQueuedAt = Date.now();
     this.schedule(coalesce ? Math.min(Math.max(150, Math.min(300, this.options.coalesceMs ?? 200)), Math.max(0, 1000 - (Date.now() - this.firstQueuedAt))) : 0);
     return command;
+  }
+  async appendCapture(text: string, task: TaskState | null, picked: readonly [string, string][] = []): Promise<void> {
+    await this.ready;
+    if (this.closed) throw new Error('The notebook is closed.');
+    if (!this.outbox) throw new Error('Recovery storage has not opened.');
+    const command: NotebookCommand = {
+      kind: 'notebook', id: ulid(), order: ++this.order, pageId: null,
+      capture: structuredClone({ date: this.todayDate(), text, task, picked: [...picked] }),
+      operations: [], reason: 'Add to today', actions: [], inverse: [], before: null, after: null,
+    };
+    this.queue.push(command);
+    try {
+      await this.outbox.accept(command);
+      this.persisted.add(command.id);
+      this.touch();
+      this.schedule(0);
+    } catch (reason) {
+      this.queue = this.queue.filter(value => value !== command);
+      this.touch();
+      throw reason;
+    }
   }
   async commit(operations: readonly Operation[], reason?: string, refreshPages?: readonly string[]): Promise<Committed> {
     return this.commitOperations(operations, reason, refreshPages);
@@ -774,6 +796,7 @@ export class Notebook implements NotebookClient, DocumentHost {
   }
   private async reject(command: Command, doc: Document | undefined, message: string) {
     const texts = new Map<string, string>();
+    if (command.kind === 'notebook' && command.capture) texts.set(command.id, command.capture.text);
     for (const action of command.actions) {
       if (action.kind === 'text') texts.set(action.id, doc?.block(action.id)?.text ?? action.text);
       if (action.kind === 'insert' || action.kind === 'split') texts.set(action.block.id, doc?.block(action.block.id)?.text ?? action.block.text);
@@ -796,6 +819,23 @@ export class Notebook implements NotebookClient, DocumentHost {
   private async sendNotebook(command: NotebookCommand): Promise<boolean> {
     let acknowledged = false;
     try {
+      if (command.capture) {
+        if (!command.frozen) {
+          const prepared = await captureOperations(this, command.capture);
+          command.operations = prepared.operations;
+          command.refreshPages = [prepared.pageId];
+          command.frozen = JSON.stringify({ actor: { kind: 'client', name: this.actorName }, idempotency_key: command.id, reason: command.reason, operations: command.operations });
+        }
+        const frozen = await this.outbox!.freezeCapture(command);
+        if (!frozen) {
+          // Another window already delivered this intake while its lookups were in flight.
+          this.queue.shift(); this.persisted.delete(command.id); this.touch();
+          return true;
+        }
+        command.frozen = frozen.frozen;
+        command.operations = frozen.operations;
+        command.refreshPages = frozen.refreshPages;
+      }
       await this.persist(command);
       if (!this.persisted.has(command.id)) return false;
       this.activeCommand = command.id; this.touch();
@@ -1112,10 +1152,10 @@ export class Notebook implements NotebookClient, DocumentHost {
     return state === 'saved' ? 'Saved' : 'Saving…';
   }
   saveMessage() { return this.message(); }
-  queuedChanges() { this.revision[0](); return this.queue.filter(command => this.persisted.has(command.id)).reduce((count, command) => count + (command.kind === 'notebook' ? command.operations.length : command.actions.length), 0); }
+  queuedChanges() { this.revision[0](); return this.queue.filter(command => this.persisted.has(command.id)).reduce((count, command) => count + (command.kind === 'notebook' ? command.operations.length || (command.capture ? 1 : 0) : command.actions.length), 0); }
   unsavedText() {
     // A notebook command shows its words; one without words, like a capability change, keeps its payload as the record.
-    const operations = this.queue.flatMap(command => command.kind === 'notebook' ? [authoredText(command.operations).join('\n') || (command.frozen ?? JSON.stringify(command.operations))] : command.actions.some(isCapabilityAction) ? [command.frozen ?? JSON.stringify(command.actions)] : []);
+    const operations = this.queue.flatMap(command => command.kind === 'notebook' ? [command.capture?.text || authoredText(command.operations).join('\n') || (command.frozen ?? JSON.stringify(command.operations))] : command.actions.some(isCapabilityAction) ? [command.frozen ?? JSON.stringify(command.actions)] : []);
     return [...this.docs.values()].map(doc => doc.localText()).concat(operations, this.rejectedText()).filter(Boolean).join('\n\n');
   }
   rejectedText() { this.revision[0](); return [...this.rejected.values()].map(command => rejectionText(command) || command.rejection?.message || '').filter(Boolean).join('\n\n'); }

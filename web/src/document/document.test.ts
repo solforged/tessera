@@ -96,6 +96,88 @@ describe('real notebook operations and recovery', () => {
     doc.release();
   });
 
+  test('all accepted quick captures survive reload before delivery and keep their plans', async () => {
+    const session = `capture-recovery-${++serial}`;
+    const instance = await client(session);
+    const marker = `Capture recovery ${++serial}`;
+    const task: TaskState = { status: 'todo', scheduled: instance.todayDate(), scheduled_time: '10:00', deadline: null, deadline_time: null, warning_days: null, repeater: null, priority: null, completed_on: null };
+    globalThis.fetch = Object.assign(async (): Promise<Response> => { throw new TypeError('Browser offline'); }, { preconnect: actualFetch.preconnect });
+    try {
+      await Promise.all(Array.from({ length: 10 }, (_, index) => instance.appendCapture(`${marker} ${index + 1}`, task)));
+      expect(instance.queuedChanges()).toBe(10);
+      expect(instance.unsavedText()).toContain(`${marker} 10`);
+      await instance.dispose();
+      globalThis.fetch = actualFetch;
+      const recovered = await client(session);
+      await recovered.flush();
+      const journal = await api.journal(task.scheduled!);
+      const view = await api.page(journal.id);
+      const captures = view.rows.filter(row => row.block.text.startsWith(marker));
+      expect(captures.map(row => row.block.text)).toEqual(Array.from({ length: 10 }, (_, index) => `${marker} ${index + 1}`));
+      expect(captures.every(row => view.capabilities?.find(value => value.block_id === row.block.id)?.task?.scheduled_time === '10:00')).toBe(true);
+      expect(recovered.queuedChanges()).toBe(0);
+    } finally { globalThis.fetch = actualFetch; }
+  });
+
+  test('capture retry keeps its frozen identity after a lost acknowledgement without duplicating text', async () => {
+    const session = `capture-ack-${++serial}`;
+    const instance = await client(session);
+    const title = `Capture target ${++serial}`;
+    const text = `Capture once [[${title}]]`;
+    let lost = false;
+    globalThis.fetch = Object.assign(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) !== `${baseUrl}/api/batches` || init?.method !== 'POST' || !String(init.body).includes('Add to today')) return actualFetch(input, init);
+      if (!lost) { lost = true; await actualFetch(input, init); }
+      throw new TypeError('Lost capture acknowledgement');
+    }, { preconnect: actualFetch.preconnect });
+    try {
+      await instance.appendCapture(text, null);
+      await instance.flush();
+      expect(lost).toBe(true);
+      await instance.dispose();
+      globalThis.fetch = actualFetch;
+      const recovered = await client(session);
+      await recovered.flush();
+      const target = await api.pageByTitle(title);
+      const view = await api.page((await api.journal(recovered.todayDate())).id);
+      expect(view.rows.filter(row => row.block.text === `Capture once [[${target.id}|${title}]]`)).toHaveLength(1);
+      expect(recovered.queuedChanges()).toBe(0);
+    } finally { globalThis.fetch = actualFetch; }
+  });
+
+  test('two windows deliver one shared capture with an identical idempotent request', async () => {
+    const first = await client();
+    const text = `Two-window capture ${++serial}`;
+    const gate = Promise.withResolvers<void>();
+    const bodies: string[] = [];
+    const receipts: boolean[] = [];
+    globalThis.fetch = Object.assign(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) !== `${baseUrl}/api/batches` || init?.method !== 'POST' || !String(init.body).includes('Add to today')) return actualFetch(input, init);
+      bodies.push(String(init.body));
+      if (bodies.length === 1) await gate.promise;
+      const response = await actualFetch(input, init);
+      receipts.push((await response.clone().json()).replayed);
+      return response;
+    }, { preconnect: actualFetch.preconnect });
+    let delivery: Promise<void> | undefined;
+    try {
+      await first.appendCapture(text, null);
+      delivery = first.flush();
+      await eventually(() => bodies.length === 1, 'First capture did not reach delivery');
+      const second = await client();
+      await second.flush();
+      gate.resolve();
+      await delivery;
+      expect(bodies).toHaveLength(2);
+      expect(bodies[0]).toBe(bodies[1]);
+      expect(receipts.sort()).toEqual([false, true]);
+      const view = await api.page((await api.journal(first.todayDate())).id);
+      expect(view.rows.filter(row => row.block.text === text)).toHaveLength(1);
+      expect(first.queuedChanges()).toBe(0);
+      expect(second.queuedChanges()).toBe(0);
+    } finally { gate.resolve(); await delivery; globalThis.fetch = actualFetch; }
+  });
+
   test('linking a mention uses source-page undo and redo after release', async () => {
     const instance = await client();
     const target = await instance.createPage(`Mention target ${++serial}`);

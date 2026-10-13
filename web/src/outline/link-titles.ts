@@ -16,7 +16,7 @@ export function typedTitles(text: string): string[] {
  * A hand-typed name links only when one page owns it; ambiguous names wait for a choice. An unknown name creates
  * its page, except a date, which names a journal and stays as typed when that day has none.
  */
-export async function titleTargets(notebook: NotebookClient, titles: readonly string[]): Promise<TitleTargets> {
+export async function titleTargets(notebook: NotebookClient, titles: readonly string[], createPage = (title: string) => notebook.createPage(title)): Promise<TitleTargets> {
   const targets: TitleTargets = new Map();
   for (const title of titles) {
     const key = foldName(title);
@@ -28,7 +28,7 @@ export async function titleTargets(notebook: NotebookClient, titles: readonly st
     const matches = await resolveName(notebook, title);
     if (matches.length > 1) continue;
     if (matches.length === 1) { targets.set(key, matches[0]!.page.id); continue; }
-    targets.set(key, await notebook.createPage(title));
+    targets.set(key, await createPage(title));
   }
   return targets;
 }

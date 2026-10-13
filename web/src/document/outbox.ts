@@ -1,7 +1,7 @@
 import { openDB } from 'idb';
 import type { DBSchema, IDBPDatabase } from 'idb';
 import type { PageView, Block, BlockCapabilities } from '../api/types';
-import type { Action, Command, Ticket } from './types';
+import type { Action, Command, NotebookCommand, Ticket } from './types';
 import { OutlineIndex } from './outline-index';
 
 interface NotebookRecord { key: string; roots: Block[] }
@@ -24,7 +24,7 @@ interface OutboxSchema extends DBSchema {
 export class Outbox {
   private db: Promise<IDBPDatabase<OutboxSchema>>;
   private writes: Promise<void> = Promise.resolve();
-  constructor(private notebookId: string, private sessionId: string, private failed: (error: unknown) => void, database = 'tessera-outbox-v1') {
+  constructor(private notebookId: string, private sessionId: string, private failed: (error: unknown) => void, database = 'tessera-outbox-v1', private intake: Pick<Storage, 'length' | 'key' | 'getItem' | 'setItem' | 'removeItem'> | undefined = typeof localStorage === 'undefined' ? undefined : localStorage) {
     this.db = Promise.resolve().then(() => openDB<OutboxSchema>(database, 3, {
       upgrade(db, oldVersion) {
         if (oldVersion < 1) {
@@ -48,7 +48,34 @@ export class Outbox {
   put(command: Command) {
     // Snapshot now, before a later keystroke can mutate the queued command.
     const value = structuredClone(command);
-    return this.enqueue(db => db.put('commands', { key: `${this.notebookId}:${this.sessionId}:${command.id}`, command: value }));
+    return this.enqueue(async db => {
+      await db.put('commands', { key: this.commandKey(value), command: value });
+      if (value.kind === 'notebook' && value.capture) this.intake?.removeItem(`tessera-outbox:${this.notebookId}:capture:${value.id}`);
+    });
+  }
+  /** A tiny synchronous intake lets a submitted line clear without waiting for an IndexedDB transaction. */
+  accept(command: NotebookCommand): Promise<void> {
+    if (!this.intake) return this.put(command);
+    this.intake.setItem(`tessera-outbox:${this.notebookId}:capture:${command.id}`, JSON.stringify(command));
+    return Promise.resolve();
+  }
+  private commandKey(command: Command) {
+    return `${this.notebookId}:${command.kind === 'notebook' && command.capture ? 'capture' : this.sessionId}:${command.id}`;
+  }
+  /** Two windows must use the first frozen capture request, including its generated block IDs. */
+  freezeCapture(command: NotebookCommand): Promise<NotebookCommand | undefined> {
+    const value = structuredClone(command);
+    let chosen: NotebookCommand | undefined = value;
+    return this.enqueue(async db => {
+      const tx = db.transaction('commands', 'readwrite');
+      const key = this.commandKey(value);
+      const stored = await tx.store.get(key);
+      if (stored?.command.kind === 'notebook' && stored.command.frozen) chosen = stored.command;
+      else if (!stored && !this.intake?.getItem(`tessera-outbox:${this.notebookId}:capture:${value.id}`)) chosen = undefined;
+      else await tx.store.put({ key, command: value });
+      await tx.done;
+      this.intake?.removeItem(`tessera-outbox:${this.notebookId}:capture:${value.id}`);
+    }).then(() => chosen);
   }
   create(command: Command, view: PageView, roots: readonly Block[]) {
     const value = structuredClone(command);
@@ -60,7 +87,15 @@ export class Outbox {
       await tx.done;
     });
   }
-  remove(id: string) { return this.enqueue(db => db.delete('commands', `${this.notebookId}:${this.sessionId}:${id}`)); }
+  remove(id: string) {
+    return this.enqueue(async db => {
+      const tx = db.transaction('commands', 'readwrite');
+      void tx.store.delete(`${this.notebookId}:${this.sessionId}:${id}`);
+      void tx.store.delete(`${this.notebookId}:capture:${id}`);
+      await tx.done;
+      this.intake?.removeItem(`tessera-outbox:${this.notebookId}:capture:${id}`);
+    });
+  }
   private pagePrefix(id: string) { return `${this.notebookId}:${id}:`; }
   private patchRange(id: string, sequence?: number) {
     const prefix = this.pagePrefix(id);
@@ -113,7 +148,7 @@ export class Outbox {
         void pages.delete(`${this.notebookId}:${id}`);
         for (const key of await pages.getAllKeys(this.patchRange(id))) void pages.delete(key);
       }
-      void tx.objectStore('commands').delete(`${this.notebookId}:${this.sessionId}:${command.id}`);
+      void tx.objectStore('commands').delete(this.commandKey(command));
       await tx.done;
     });
   }
@@ -121,10 +156,17 @@ export class Outbox {
     try {
       const db = await this.db;
       const prefix = `${this.notebookId}:${this.sessionId}:`;
-      const commands = (await db.getAll('commands')).filter(row => row.key.startsWith(prefix)).map(row => row.command).sort((a, b) => a.order - b.order);
+      const commands = new Map((await db.getAll('commands')).filter(row => row.key.startsWith(prefix) || row.key.startsWith(`${this.notebookId}:capture:`)).map(row => [row.command.id, row.command]));
+      const intakePrefix = `tessera-outbox:${this.notebookId}:capture:`;
+      if (this.intake) for (let index = 0; index < this.intake.length; index++) {
+        const key = this.intake.key(index);
+        if (!key?.startsWith(intakePrefix)) continue;
+        const command: NotebookCommand = JSON.parse(this.intake.getItem(key)!);
+        if (!commands.has(command.id)) commands.set(command.id, command);
+      }
       const tickets = (await db.getAll('tickets')).filter(row => row.key.startsWith(`${this.notebookId}:`));
       const roots = (await db.get('notebooks', this.notebookId))?.roots ?? [];
-      return { commands, roots, tickets };
+      return { commands: [...commands.values()].sort((a, b) => a.order - b.order), roots, tickets };
     } catch (error) { this.failed(error); return { commands: [], roots: [], tickets: [] }; }
   }
   async cachedPage(id: string) {

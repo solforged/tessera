@@ -159,3 +159,48 @@ test('root manual memberships survive cached snapshots and acknowledged page pat
     expect((await outbox.cachedPage(id))?.view.root_manual_types).toEqual(['History', 'To read']);
   } finally { await outbox.close(); await deleteDB(database); }
 });
+
+test('capture intake survives immediate reload and two windows share one frozen request', async () => {
+  const database = `outbox-capture-${ulid()}`;
+  const entries = new Map<string, string>();
+  const intake = {
+    get length() { return entries.size; },
+    key: (index: number) => [...entries.keys()][index] ?? null,
+    getItem: (key: string) => entries.get(key) ?? null,
+    setItem: (key: string, value: string) => { entries.set(key, value); },
+    removeItem: (key: string) => { entries.delete(key); },
+  };
+  const errors: unknown[] = [];
+  const first = new Outbox('notebook', 'first-window', error => errors.push(error), database, intake);
+  const second = new Outbox('notebook', 'second-window', error => errors.push(error), database, intake);
+  const commands: NotebookCommand[] = Array.from({ length: 10 }, (_, index) => ({
+    kind: 'notebook', id: ulid(), order: index, pageId: null, operations: [], actions: [], inverse: [], before: null, after: null,
+    capture: { date: '2026-10-12', text: `Accepted ${index + 1}`, task, picked: [] },
+  }));
+  try {
+    for (const command of commands) void first.accept(command);
+    expect(entries.size).toBe(10);
+    expect((await second.load()).commands.map(value => value.id)).toEqual(commands.map(value => value.id));
+    const command = commands[0]!;
+    const candidates = [{ ...command, frozen: '{"first":"generated IDs"}' }, { ...command, frozen: '{"second":"different IDs"}' }];
+    const frozen = await Promise.all([first.freezeCapture(candidates[0]!), second.freezeCapture(candidates[1]!)]);
+    expect(frozen[0]?.frozen).toBe(frozen[1]?.frozen);
+    expect(entries.size).toBe(9);
+    expect((await second.load()).commands.filter(value => value.id === command.id)).toHaveLength(1);
+    await first.acknowledge(frozen[0]!, [], 1, new Map());
+    expect(await second.freezeCapture(candidates[1]!)).toBeUndefined();
+    expect((await second.load()).commands.some(value => value.id === command.id)).toBe(false);
+    expect(errors).toEqual([]);
+  } finally { await first.close(); await second.close(); await deleteDB(database); }
+});
+
+test('a failed synchronous capture intake is not accepted or cleared', async () => {
+  const database = `outbox-capture-failed-${ulid()}`;
+  const intake = { length: 0, key: () => null, getItem: () => null, removeItem: () => {}, setItem: () => { throw new Error('Storage full'); } };
+  const outbox = new Outbox('notebook', 'window', () => {}, database, intake);
+  const command: NotebookCommand = { kind: 'notebook', id: ulid(), order: 1, pageId: null, operations: [], actions: [], inverse: [], before: null, after: null, capture: { date: '2026-10-12', text: 'Keep these words', task: null, picked: [] } };
+  try {
+    expect(() => outbox.accept(command)).toThrow('Storage full');
+    expect((await outbox.load()).commands).toEqual([]);
+  } finally { await outbox.close(); await deleteDB(database); }
+});

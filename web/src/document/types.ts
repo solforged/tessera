@@ -1,7 +1,7 @@
 import type { Block, BlockCapabilities, Batch, Citation, FieldKind, Operation, ProjectState, SourceState, TaskState, WorkSession } from '../api/types';
 import type { AssessmentState, QuestionState, QuestionStatus, QuoteState } from '../api/types';
 import type { CardTemplateState } from '../api/types';
-import type { Caret, HistoryCaret } from './contract';
+import type { CaptureIntent, Caret, HistoryCaret } from './contract';
 import type { OutlineRow } from './outline-index';
 import type { FieldHide } from '../fields/hide';
 
@@ -85,6 +85,8 @@ export interface NotebookCommand extends CommandRecord {
   kind: 'notebook';
   pageId: null;
   operations: Operation[];
+  /** Prepared into one frozen batch only after earlier commands have committed. */
+  capture?: CaptureIntent;
   reason?: string;
   /** Pages whose structure or explicit memberships must be refreshed after acknowledgement/replay. */
   refreshPages?: string[];
