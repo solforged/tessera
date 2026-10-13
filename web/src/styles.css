@@ -130,7 +130,7 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
 .sidebar .button > .desk-count { flex: none; color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .sidebar .button > .desk-count.late { color: var(--danger); }
 /* A notebook other than the default is named at the foot in the warning colour; long names shorten. */
-.sidebar .button > .notebook-marker { flex: 0 1 auto; max-width: 60%; overflow: hidden; text-overflow: ellipsis; color: var(--warning); }
+.sidebar .button > .notebook-marker { flex: 1; overflow: hidden; text-overflow: ellipsis; color: var(--warning); }
 /* A built-in kind with nothing filed yet stays in its place, named faintly and without a count. */
 .sidebar .index-kind.empty:not(.selected), .sidebar .index-kind.empty:not(.selected) > .icon { color: var(--faint); }
 .sidebar .index-kind.empty:not(.selected):hover { color: var(--muted); }
@@ -152,6 +152,7 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
 /* Notebook settings sit at the foot, apart from the places you work in. */
 .sidebar-foot { display: flex; align-items: center; gap: var(--space-2); margin-top: auto; padding-top: var(--space-8); border-top: var(--rule-width) solid var(--line); }
 .sidebar-foot > .button:first-child { flex: 1; width: auto; min-width: 0; }
+.sidebar-foot .button > .settings-label { flex: none; }
 .sidebar-foot > .button.icon-only { flex: none; border-left: 0; }
 /* The pin floats over the row's end, so a selected view spans the full row like pages do. */
 .sidebar-view { position: relative; display: flex; align-items: center; }

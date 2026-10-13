@@ -637,7 +637,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
         <Show when={recentRoots().length} fallback={<p class="sidebar-empty">Pages you open appear here</p>}><PageLinks roots={recentRoots()} sourceIcons notebook={notebook} activeId={pageIdOf(entry(active()))} onOpen={open} /></Show>
       </details>
       <div class="sidebar-foot">
-        <Button icon="settings" class={entry(active())?.target.kind === 'settings' ? 'selected' : ''} onClick={event => open({ kind: 'settings' }, event.shiftKey)}><span>Settings</span><NotebookMarker /></Button>
+        <Button icon="settings" class={entry(active())?.target.kind === 'settings' ? 'selected' : ''} onClick={event => open({ kind: 'settings' }, event.shiftKey)}><span class="settings-label">Settings</span><NotebookMarker /></Button>
         <Button icon="field" label="Fields" class={`icon-only ${entry(active())?.target.kind === 'fields' && !(entry(active())?.target as Extract<OpenTarget, { kind: 'fields' }>).typeId ? 'selected' : ''}`} onClick={event => open({ kind: 'fields' }, event.shiftKey)} />
       </div>
     </aside>
@@ -677,7 +677,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
       <Button icon="agenda" class={entry(active())?.target.kind === 'agenda' ? 'selected' : ''} onClick={() => open({ kind: 'agenda', date: journalDate(active()) })}><span>Agenda</span></Button>
       <Button icon="find" class={popup()?.kind === 'search' ? 'selected' : ''} aria-haspopup="dialog" aria-expanded={popup()?.kind === 'search'} onClick={event => setPopup({ kind: 'search', anchor: event.currentTarget, pane: active() })}><span>Find</span></Button>
       <Button icon="review" class={entry(active())?.target.kind === 'review' ? 'selected' : ''} onClick={() => open({ kind: 'review' })}><span>Review</span></Button>
-      <Button icon="library" class={entry(active())?.target.kind === 'library' || entry(active())?.target.kind === 'table' ? 'selected' : ''} aria-haspopup="menu" aria-expanded={!!typesMenu()}
+      <Button icon="library" class={entry(active())?.target.kind === 'library' || entry(active())?.target.kind === 'reader' ? 'selected' : ''} aria-haspopup="menu" aria-expanded={!!typesMenu()}
         onClick={() => open({ kind: 'library' })} onContextMenu={event => { event.preventDefault(); void showTypes(event.currentTarget); }}><span>Library</span></Button>
     </nav>
     <Show when={typesMenu()}>{state => <Menu anchor={state().anchor} label="Types" onDismiss={() => setTypesMenu(null)} items={[

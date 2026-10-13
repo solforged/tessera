@@ -192,7 +192,7 @@ After the desk, sections appear in this order:
 
 Section headings are mono: a rubric numeral counted over the sections shown, the name, a hairline rule and a count. Saved table views have a pin control on hover or keyboard focus, always shown on a screen without hover. Pinning is stored per notebook alongside page pins. Task views and decks are selected in their own destinations.
 
-Settings sits at the foot above a hairline, with an icon-only Fields button beside it. The foot carries no notebook name or build. Rows are 28 px with one left edge at 8 px. The row for the active pane's target gets the 2 px gilt bar, the selection fill and a gilt glyph. Destinations open in the active pane; Shift-click opens beside.
+Settings sits at the foot above a hairline, with an icon-only Fields button beside it. A non-default notebook's name appears beside Settings in the warning color and truncates before the Settings label, which never shortens; the foot carries no build. Rows are 28 px with one left edge at 8 px. The row for the active pane's target gets the 2 px gilt bar, the selection fill and a gilt glyph. Destinations open in the active pane; Shift-click opens beside.
 
 ### Workspace frame
 
@@ -245,7 +245,7 @@ Below 600 px:
 - Field names take a narrower column.
 - The [library search](surfaces/library.md) takes its own line above sort, export and add.
 
-The global rail stays visible in every layout except the cover screen (a touch screen under 600 px), where a bottom nav replaces it: Today, Agenda, Find, Review and Library. The rail's sync status moves to a row above the nav, shown only while sync is not Synced. Library's long press lists the note types in use. The sidebar opens from a button at the start of the pane header, a book's breadcrumb is its title alone, and the nav steps aside while the keyboard is up. Unfolding brings the usual shell back around the same page.
+The global rail stays visible in every layout except the cover screen (a touch screen under 600 px), where a bottom nav replaces it: Today, Agenda, Find, Review and Library. Today selects only today's journal, Agenda and Review select their own panes, and Find selects while its picker is open. Library selects only the Library pane or a reader; source pages, type indexes, tables, Fields and Settings select no primary place. The rail's sync status moves to a row above the nav, shown only while sync is not Synced. Library's long press lists the note types in use. The sidebar opens from a button at the start of the pane header, a book's breadcrumb is its title alone, and the nav steps aside while the keyboard is up. Unfolding brings the usual shell back around the same page.
 
 ### Mac menus
 
