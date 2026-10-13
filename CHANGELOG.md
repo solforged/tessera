@@ -11,7 +11,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Parent questions: a question can be filed under another question, and question pages list their branches with status.
 - Change holder, File under and Use place for perspectives, without editing link text by hand.
 - Integrate for journal blocks: move a thought to its page and keep a live reference in the journal.
-- Account is kept apart from Work: it shows as "as discussed by" and never becomes a Compare criterion.
+- Account is kept apart from Work: it shows under its own label and never becomes a Compare criterion.
 - `GET /api/relations`, `GET /api/questions?parent=`, and the MCP tools `tessera_relations` and `tessera_set_relation`.
 
 ### Fixed

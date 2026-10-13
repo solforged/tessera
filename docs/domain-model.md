@@ -404,7 +404,7 @@ A position can therefore sit beneath a source-page highlight and still be filed 
 
 - **Gist:** its one-line summary.
 - **Work:** the primary work it names, which gives its siglum; otherwise the first passage cited beneath it.
-- **Account:** the secondary account, shown as "as discussed by", separate from Work and cited evidence.
+- **Account:** the secondary account, such as a position as another writer presents it. It shows under its own label, separate from Work and cited evidence.
 - Whatever criteria positions on one subject share.
 
 Positions on the same subject are compared side by side, never merged. Assessments cite positions and passages, tracing a conclusion to its evidence.

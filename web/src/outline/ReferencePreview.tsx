@@ -483,7 +483,7 @@ function PinnedReadings(props: {
           </Button>
         </div>
         <Show when={reading.work?.value}>{work => <p class="reference-preview-reading-source"><BlockText text={work()} blockId={reading.work?.valueId ?? undefined} notebook={props.notebook} onOpen={props.onOpen} /></p>}</Show>
-        <Show when={reading.account?.value}>{account => <p class="reference-preview-reading-source">as discussed by <BlockText text={account()} blockId={reading.account?.valueId ?? undefined} notebook={props.notebook} onOpen={props.onOpen} /></p>}</Show>
+        <Show when={reading.account?.value}>{account => <p class="reference-preview-reading-source"><span class="relation-label">Account</span> <BlockText text={account()} blockId={reading.account?.valueId ?? undefined} notebook={props.notebook} onOpen={props.onOpen} /></p>}</Show>
         <Show when={reading.doc.status() === 'ready'} fallback={
           <p class="reference-preview-reading-message" role={reading.doc.status() === 'loading' ? 'status' : 'alert'}>{reading.doc.status() === 'loading' ? 'Loading reading…' : reading.doc.statusMessage()}</p>
         }>

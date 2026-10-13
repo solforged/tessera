@@ -49,7 +49,7 @@ export function QuestionParentPicker(props: { id: string; notebook: NotebookClie
   return <Picker<QuestionRow> anchor={props.anchor} label="Set parent question" query={query()} onQuery={setQuery} placeholder="Find a question" onDismiss={props.onDismiss}
     items={matches()} key={row => row.block.block.id} busy={questions.loading || busy()} error={error() || (questions.error ? String(questions.error) : undefined)}
     disabledReason={() => busy() ? 'Saving the parent.' : undefined} empty="No matching questions." onPick={row => { void pick(row); }}
-    row={row => <><Icon name="question-open" /><span class="picker-text find-result"><BlockText text={row.block.block.text} notebook={props.notebook} interactive={false} /><small>{row.block.page.text}{row.block.block.kind === 'block' ? ' · Inline question' : ''}</small></span></>} />;
+    row={row => <><Icon name="question-open" /><span class="picker-text find-result"><BlockText text={row.block.block.text} notebook={props.notebook} interactive={false} /><Show when={row.block.block.kind === 'block'}><small><BlockText text={row.block.page.text} notebook={props.notebook} interactive={false} /> · Inline question</small></Show></span></>} />;
 }
 
 export function QuestionBranches(props: { rows: QuestionRow[]; notebook: NotebookClient; onOpen(target: OpenTarget, beside: boolean): void }) {

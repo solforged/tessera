@@ -31,7 +31,7 @@ Each column shows, in order:
 - An unboxed source siglum.
 - An 18 px holder name, with its authored Shape glyph alongside.
 - The Work reference.
-- A quiet "as discussed by" line for Account, when present.
+- A quiet Account line, under its small-caps label, when present.
 - A 17 px gist and 16 px authored prose.
 
 Shape is not its own cell. Other fields stay in the source outline, reached through the holder or Open reading (Shift beside), rather than becoming a universal questionnaire. No prose is generated from field values and differing strings are not treated as evidence of disagreement.
