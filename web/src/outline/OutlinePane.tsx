@@ -61,7 +61,7 @@ import { createCitationSources, hasCitationDetail, referenceSource } from './ref
 import { HeldReadings } from './HeldReadings';
 import { AssessmentJournal, QuestionBranches, QuestionParent } from './Questions';
 import { ReadRegister } from './ReadRegister';
-import { readingCounts, readingRegister, readingSlipRows } from './read-register';
+import { isReadingSubject, readingCounts, readingRegister, readingSlipRows } from './read-register';
 import './outline.css';
 import './read-register.css';
 const ComparePane = lazy(() => import('../compare/ComparePane').then(module => ({ default: module.ComparePane })));
@@ -1500,7 +1500,7 @@ function Pane(props: OutlinePaneProps) {
         if (value) editAt(value, doc.block(value)?.text.length ?? 0, true);
       }} /><NoteLine pageId={props.pageId} notebook={props.notebook} /></Show>
       <Show when={isNote() && doc.status() === 'ready' && !doc.root()?.question}><NoteRevisit id={props.pageId} notebook={props.notebook} /></Show>
-      <Show when={doc.root()?.kind === 'page' && !reading() && !zoom()}><div class="reading-register-actions"><span>{readingCounts(register().slips)}</span><Button disabled={localPositions() < 2} onClick={() => props.onProjection?.('compare')}>Compare</Button><Button onClick={event => openRelation(props.pageId, 'reading', event.currentTarget)}>Add reading</Button><Show when={localPositions() < 2}><span>Compare needs two readings.</span></Show></div></Show>
+      <Show when={isReadingSubject(doc) && !reading() && !zoom()}><div class="reading-register-actions"><span>{readingCounts(register().slips)}</span><Button disabled={localPositions() < 2} onClick={() => props.onProjection?.('compare')}>Compare</Button><Button onClick={event => openRelation(props.pageId, 'reading', event.currentTarget)}>Add reading</Button><Show when={localPositions() < 2}><span>Compare needs two readings.</span></Show></div></Show>
       <RowRelations id={zoom() ?? props.pageId} />
       <Show when={!zoom() && doc.root()?.kind === 'page' && !doc.root()?.source && doc.root()?.text.toLowerCase() !== 'fields' && !type.error && type()}>{value => <Show when={value().members || value().fields.length || startingTemplateFor(value().page.text, value().fields)}>
         <TemplateEditor type={value()} fields={definitions()} notebook={props.notebook} onError={setMessage} />
@@ -1561,7 +1561,8 @@ function Pane(props: OutlinePaneProps) {
         <ReadRegister register={register()} doc={doc} notebook={props.notebook} disclosures={readDisclosures()} onDisclosure={key => {
           setReadDisclosures(previous => { const next = new Set(previous); next.has(key) ? next.delete(key) : next.add(key); return next; });
           scheduleReport(); requestAnimationFrame(scrolled);
-        }} row={id => <Row id={id} natural />} onCompare={() => props.onProjection?.('compare')} onAddReading={anchor => openRelation(props.pageId, 'reading', anchor)} />
+        }} row={id => <Row id={id} natural />} onCompare={() => props.onProjection?.('compare')} onAddReading={anchor => openRelation(props.pageId, 'reading', anchor)}
+          onOpenReading={(id, beside) => beside ? props.onOpen({ kind: 'page', pageId: props.pageId, blockId: id }, true) : zoomTo(id)} />
       </Show>
     </div>
     <Show when={!zoom() && ids().length && !holderBoundary() && related()?.heldReadings.length}><HeldReadings rows={related()?.heldReadings ?? []} notebook={props.notebook} onOpen={props.onOpen} /></Show>

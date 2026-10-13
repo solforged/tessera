@@ -5,6 +5,8 @@
 .reading-register .outline-row { position: relative; inset: auto; transform: none; padding-left: 0; border-left: 0; min-width: 0; }
 .reading-register .outline-row::before { display: none; }
 .reading-register .outline-row > :is(.row-menu, .row-fold, .row-bullet, .outline-field-label, .row-siglum) { display: none; }
+.reading-register .field-entry > .outline-field-label { display: inline-flex; }
+.outline-pane[data-projection="read"] .reading-register .outline-row { left: auto; }
 .reading-register .outline-body { padding-right: 0; margin-left: 0; }
 .reading-register .outline-source { font: inherit; }
 .reading-register .row-gist .static-text, .reading-register .row-gist .editor-host { font: inherit; }

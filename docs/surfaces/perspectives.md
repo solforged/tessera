@@ -14,6 +14,12 @@ Read puts the title, Gloss and opening on one text edge. Piazzolla remains the p
 
 Perspectives begins with the reading and holder counts, Compare and Add reading. Each slip shows the source siglum, holder, Gist and Work. Account has its own quiet label, followed by authored argument relations. Prose opens in place; the other fields open under Facts. Neither disclosure writes to the notebook.
 
+The readings line appears on question pages and pages with active readings about themselves or their inline questions. Other notes keep Add reading in Commands. A person's readings held elsewhere have their own list; they do not make the page a reading subject.
+
+Outside reading slips, ordinary field entries keep their names above their values. Gloss remains the unlabeled opening summary. A source's catalog fields stay in its source card, so Read never repeats them as loose values.
+
+Open reading on each slip zooms into that position's dossier. Shift opens the reading beside the page. The Gist stays editable in place.
+
 Where they disagree appears only when stored questions name criteria. Each criterion groups its questions and named holders; an unscoped question says All holders. Questions without a criterion stay in their authored place. No differences between field values are turned into questions.
 
 Compare switches the same pane to the existing reading sheet and criteria matrix. Fewer than two readings leave Compare unavailable, with the reason visible in the register.

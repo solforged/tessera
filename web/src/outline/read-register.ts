@@ -1,7 +1,9 @@
 import type { PositionQuestion } from '../api/types';
 import type { PageDocument } from '../document/contract';
-import { fieldEntryId } from '../table/query';
+import { fieldEntryId, matchFieldEntry } from '../table/query';
 import { positionFields, positionRelations, readingPassages } from './perspectives';
+import { isCatalogueField } from '../library/details';
+import { isGlossName } from './gloss';
 export interface ReadingField { name: string; entryId: string }
 export interface ReadingQuestion { id: string; holders: string[] }
 
@@ -54,7 +56,12 @@ export function readingRegister(doc: PageDocument, fieldName: (id: string) => st
   for (let at = 0; at < doc.outline.size(); at++) {
     const id = doc.outline.idAt(at), block = doc.block(id);
     if (omitted.has(id) || doc.isArchived(id)) continue;
-    if (fieldName(fieldEntryId(block?.text ?? '') ?? '')) continue;
+    const name = fieldName(fieldEntryId(block?.text ?? '') ?? '');
+    if (doc.root()?.source && doc.outline.parentOf(id) === doc.pageId && isCatalogueField(name ?? matchFieldEntry(block?.text ?? '')?.name ?? '')) {
+      omitSubtree(id);
+      continue;
+    }
+    if (isGlossName(name)) continue;
     if (block?.heading && doc.outline.children(id).length) {
       const end = doc.outline.subtreeEnd(at);
       let content = false;
@@ -75,4 +82,16 @@ export function readingSlipRows(doc: PageDocument, slip: ReadingSlip, disclosure
 export function readingCounts(slips: readonly ReadingSlip[]): string {
   const holders = new Set(slips.flatMap(slip => slip.holderId ? [slip.holderId] : [])).size;
   return `${slips.length} ${slips.length === 1 ? 'reading' : 'readings'} · ${holders} ${holders === 1 ? 'holder' : 'holders'}`;
+}
+
+/** The same authored subjects decide the default projection and whether its reading controls apply. */
+export function isReadingSubject(doc: PageDocument): boolean {
+  if (doc.root()?.kind !== 'page') return false;
+  doc.outline.version(); doc.archivedVersion();
+  if (doc.root()?.question) return true;
+  for (let at = 0; at < doc.outline.size(); at++) {
+    const id = doc.outline.idAt(at), position = doc.block(id)?.position;
+    if (position && !doc.isArchived(id) && (position.subject_id === doc.pageId || doc.block(position.subject_id)?.question)) return true;
+  }
+  return false;
 }

@@ -282,6 +282,8 @@ The header and catalog card own the catalog fields: Subtitle, creators, dates, p
 
 Show and Hide metadata fields are saved with the pane's view across reloads and history. A remembered caret in the note's own fields does not reveal catalog fields.
 
+The Read projection keeps those catalog fields in the source card, even when Outline's metadata fields are shown. The note's own fields retain their labels and text edge.
+
 Author, Editor and Translator values may be plain names or linked people. Plain names supply the same Library bylines, creator facets, exports and derived sigla without creating a person page.
 Imports can keep any creator as a plain name with `create_page: false`; the default still creates or links an entity. Organization creators become Groups, and combined bylines stay plain rather than becoming one Person. Edit details preserves plain names when other metadata changes.
 

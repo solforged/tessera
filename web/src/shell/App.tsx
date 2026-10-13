@@ -6,6 +6,7 @@ import { createNotebookClient, type Notebook } from '../document';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import { OutlinePane } from '../outline/OutlinePane';
 import { plainText } from '../outline/names';
+import { isReadingSubject } from '../outline/read-register';
 import { ReferencePreviews } from '../outline/ReferencePreview';
 import { createPageIcon } from '../outline/source';
 import { PageMergePicker, pageMergeDisabledReason } from '../outline/PageMerge';
@@ -810,14 +811,7 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
   const presentation = () => props.pagePresentations[pageId() ?? ''] ?? {};
   const defaultProjection = createMemo<PageProjection>(() => {
     const page = doc();
-    if (!page || root()?.kind !== 'page') return 'outline';
-    page.outline.version(); page.archivedVersion();
-    if (root()?.question) return 'read';
-    for (let at = 0; at < page.outline.size(); at++) {
-      const id = page.outline.idAt(at), position = page.block(id)?.position;
-      if (position && !page.isArchived(id) && (position.subject_id === page.pageId || page.block(position.subject_id)?.question)) return 'read';
-    }
-    return 'outline';
+    return page && isReadingSubject(page) ? 'read' : 'outline';
   });
   const projection = createMemo<PageProjection>(() => outlineView().zoom ? 'outline' : presentation().projection ?? defaultProjection());
   const setProjection = (value: PageProjection) => {

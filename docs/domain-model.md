@@ -461,6 +461,8 @@ A note is a titled page: a root block of kind page. Journal days and the Fields 
 
 Read, Outline and Compare are projections of that same document. Opening a projection creates nothing. Projection choices, folds and reading disclosures are device-local view state, not note content.
 
+A reading subject is a question page or a page holding active positions about itself or its inline questions. Positions held on other pages do not make a holder's page a reading subject. The projections preserve field identities; a source's catalog card owns its bibliographic fields.
+
 ### Kinds
 
 A kind says what a note is about. These are built in:

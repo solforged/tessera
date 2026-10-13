@@ -20,7 +20,7 @@ import { clipboardText, parseBlockClipboard } from './clipboard';
 import { linkMentionEdit } from './link-mention';
 import { positionRelations, readingPassages } from '../outline/perspectives';
 import { embedTarget, fileArrival } from '../outline/streams';
-import { readingRegister } from '../outline/read-register';
+import { isReadingSubject, readingRegister } from '../outline/read-register';
 import { changeRevisit } from '../review/revisits';
 
 const port = Bun.env.TESSERA_TEST_PORT ?? '4330';
@@ -687,6 +687,60 @@ describe('real notebook operations and recovery', () => {
     expect(project().remaining).not.toContain(heading);
     expect(projected.slips[0]?.facts.map(field => field.entryId)).toEqual([...doc.outline.children(reading)]);
     definitions.release(); doc.release();
+  });
+
+  test('source Read omits catalog fields while retaining ordinary field labels and values', async () => {
+    const instance = await client();
+    const { doc, id, first, fieldsDoc } = await metadataSource(instance);
+    await saveSourceField([doc], instance, 'publisher', 'A catalog publisher');
+    await saveSourceField([doc], instance, 'published', '1992');
+    const annotation = success(fieldsDoc.edit({ kind: 'addField', name: `Reading annotation ${++serial}`, value: 'text' })).created[0]!;
+    await instance.flush();
+    const added = success(doc.edit({ kind: 'addFieldEntries', parentId: id, after: first, entries: [{ fieldId: annotation, value: 'An authored annotation' }] }));
+    const empty = success(doc.edit({ kind: 'insert', parentId: id, after: added.created[0]!, text: `[[${annotation}]]` })).created[0]!;
+    const fields = (await api.fields()).fields;
+    const publisher = fields.find(field => field.name === 'Publisher')!.id;
+    const nested = success(doc.edit({ kind: 'addFieldEntries', parentId: first, after: null, entries: [{ fieldId: publisher, value: 'A nested note, not catalog data' }] }));
+    const shorthand = success(doc.edit({ kind: 'insert', parentId: id, after: empty, text: 'Publisher:: An explicit catalog shorthand' })).created[0]!;
+    await instance.flush();
+    const projected = readingRegister(doc, fieldId => fields.find(field => field.id === fieldId)?.name, []);
+    const rows = [...projected.opening, ...projected.remaining];
+    expect(rows).toContain(first);
+    for (const fieldId of [publisher, fields.find(field => field.name === 'Published')!.id]) {
+      const entry = doc.outline.children(id).find(block => doc.block(block)?.text === `[[${fieldId}]]`)!;
+      expect(rows).not.toContain(entry);
+      for (const value of doc.outline.children(entry)) expect(rows).not.toContain(value);
+    }
+    expect(rows).not.toContain(shorthand);
+    expect(rows).toContain(empty);
+    for (const block of [...added.created, ...nested.created]) expect(rows).toContain(block);
+    expect(isReadingSubject(doc)).toBe(false);
+    fieldsDoc.release(); doc.release();
+  });
+
+  test('reading controls follow authored subjects instead of holders or ordinary links', async () => {
+    const instance = await client();
+    const holder = await page(instance, 'A holder page');
+    const subject = await page(instance, `An ordinary link to [[${holder.id}]]`);
+    expect(isReadingSubject(holder.doc)).toBe(false);
+    expect(isReadingSubject(subject.doc)).toBe(false);
+    const position = success(subject.doc.edit({ kind: 'insert', parentId: subject.id, after: subject.first, text: `[[${holder.id}]]` })).created[0]!;
+    success(subject.doc.edit({ kind: 'position', id: position, value: true }));
+    expect(isReadingSubject(subject.doc)).toBe(true);
+    expect(isReadingSubject(holder.doc)).toBe(false);
+    success(subject.doc.edit({ kind: 'archive', id: position, archived: true }));
+    expect(isReadingSubject(subject.doc)).toBe(false);
+    subject.doc.undo();
+    expect(isReadingSubject(subject.doc)).toBe(true);
+    const question = success(holder.doc.edit({ kind: 'insert', parentId: holder.id, after: holder.first, text: 'An inline question' })).created[0]!;
+    success(holder.doc.edit({ kind: 'question', id: question, value: { unsettled: false, parked: false, accepted: null, review_on: null } }));
+    const nested = success(holder.doc.edit({ kind: 'insert', parentId: question, after: null, text: `[[${subject.id}]]` })).created[0]!;
+    success(holder.doc.edit({ kind: 'position', id: nested, value: true }));
+    expect(isReadingSubject(holder.doc)).toBe(true);
+    const emptyQuestion = await page(instance, 'A question with no readings');
+    success(emptyQuestion.doc.edit({ kind: 'question', id: emptyQuestion.id, value: { unsettled: false, parked: false, accepted: null, review_on: null } }));
+    expect(isReadingSubject(emptyQuestion.doc)).toBe(true);
+    holder.doc.release(); subject.doc.release(); emptyQuestion.doc.release();
   });
 
   test('adding field entries with their values is one undo step and persists', async () => {
