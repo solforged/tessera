@@ -4,7 +4,7 @@ import { ProjectControls } from '../projects/ProjectControls';
 import { DatePicker } from '../tasks/DatePicker';
 import { RepeatPopup, TaskControls } from '../tasks/TaskControls';
 import { planTask } from '../tasks/task-labels';
-import { WorkSessions } from '../tasks/WorkSessions';
+import { WorkSessions, clockTime } from '../tasks/WorkSessions';
 import { Button } from '../ui/Button';
 import { Popup } from '../ui/Popup';
 import { BlockText } from './BlockText';
@@ -45,16 +45,20 @@ export function createCapabilityPopups(context: Pick<OutlineContext, 'doc' | 'pr
         : { kind, id: state.id, session, note });
       await refetch();
     }
-    return <Popup anchor={state.anchor} label="Work sessions" class="outline-capability-popup" onDismiss={() => capabilities.dismiss(state)}>
-      <Show when={history.loading}><p class="outline-capability-notice" role="status">Loading work sessions…</p></Show>
+    return <Popup anchor={state.anchor} label="Work sessions" class="outline-capability-popup work-sessions-popup" onDismiss={() => capabilities.dismiss(state)}>
+      <header class="task-planning-header">
+        <p class="task-planning-kicker">Work</p>
+        <h2 class="popup-title task-planning-title"><BlockText text={doc.block(state.id)?.text ?? ''} notebook={props.notebook} interactive={false} /></h2>
+      </header>
+      <Show when={history.loading && !shown()}><p class="outline-capability-notice" role="status">Loading work sessions…</p></Show>
       <Show when={history.error}><p class="error" role="alert">{String(history.error)} <Button onClick={() => { void refetch(); }}>Retry</Button></p></Show>
       <Show when={another() && shown()?.source}>{source => <div class="outline-running-task">
         <span>Work is running on</span>
         <BlockText text={source().text} blockId={source().id} notebook={props.notebook} onOpen={props.onOpen} />
         <Button onClick={event => props.onOpen({ kind: 'page', pageId: source().page_id, blockId: source().id }, event.shiftKey)}>Open running task</Button>
       </div>}</Show>
-      <Show when={shown()}>{value => <WorkSessions sessions={value().sessions} active={value().active?.block_id === state.id ? value().active : null}
-        disabled={history.loading || !!history.error || capabilities.busy(state.id)}
+      <Show when={shown()}>{value => <WorkSessions sessions={value().sessions} active={value().active?.block_id === state.id ? value().active : null} today={props.notebook.todayDate()}
+        disabled={!!history.error || capabilities.busy(state.id)}
         onStart={start} onStop={(id, note) => change('stopWork', id, note)} onEdit={(id, note) => change('workNote', id, note)} />}</Show>
       <Show when={capabilities.error(state.id)}><p class="error" role="alert">{capabilities.error(state.id)}</p></Show>
     </Popup>;
@@ -66,7 +70,8 @@ function CapabilityPopups(){ return <>
           <p class="task-planning-kicker">{doc.block(state.id)?.task?.status === 'done' ? `Planning · done ${doc.block(state.id)?.task?.completed_on ?? ''}` : 'Planning'}</p>
           <h2 class="popup-title task-planning-title"><BlockText text={doc.block(state.id)?.text ?? ''} notebook={props.notebook} interactive={false} /></h2>
         </header>
-        <Show when={doc.block(state.id)?.task} fallback={<p class="outline-capability-notice">Task removed.</p>}>{task => <TaskControls notebook={props.notebook} doc={doc} id={state.id} task={task()} contextDate={contextDate()} disabled={capabilities.busy(state.id)} onChange={value => capabilities.edit(state.id, { kind: 'task', id: state.id, value })} />}</Show>
+        <Show when={doc.block(state.id)?.task} fallback={<p class="outline-capability-notice">Task removed.</p>}>{task => <TaskControls notebook={props.notebook} doc={doc} id={state.id} task={task()} contextDate={contextDate()} disabled={capabilities.busy(state.id)} onChange={value => capabilities.edit(state.id, { kind: 'task', id: state.id, value })}
+          work={{ get since() { const work = props.notebook.runningWork(); return work?.block_id === state.id ? clockTime(work.started_at) : null; }, open: () => capabilities.open(state.id, 'work', state.anchor) }} />}</Show>
         <Show when={capabilities.busy(state.id)}><p class="outline-capability-notice" role="status">Saving…</p></Show>
         <Show when={capabilities.error(state.id)}><p class="error" role="alert">{capabilities.error(state.id)}</p></Show>
       </Popup>}

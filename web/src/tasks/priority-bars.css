@@ -1,0 +1,6 @@
+/* Priority bars sit with the planning facts, at their x-height; unlit bars keep the glyph's shape on the hairline. */
+.priority-bars { flex: none; width: 12px; height: 12px; align-self: center; color: var(--muted); }
+.priority-bars rect { fill: var(--line); }
+.priority-bars rect.priority-bar-on { fill: currentColor; }
+.priority-bars[data-priority="high"] { color: var(--danger); }
+.priority-bars[data-priority="medium"] { color: var(--warning); }

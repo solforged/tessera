@@ -32,6 +32,8 @@ export interface TaskFact {
   /** Full wording for tooltips and assistive technology. */
   label: string;
   late?: boolean;
+  /** A priority fact is drawn as bars rather than its text. */
+  priority?: NonNullable<TaskState['priority']>;
 }
 
 export interface FactContext {
@@ -64,7 +66,7 @@ export function taskFacts(task: TaskState, context: FactContext): TaskFact[] {
     const time = listedDay && context.timeShown ? '' : clock(task.deadline_time);
     facts.push({ text: listedDay ? `due${time}` : `${late ? 'was due' : 'due'} ${relativeDate(task.deadline, context.today)}${time}`, label: `Deadline ${task.deadline}${clock(task.deadline_time)}`, late });
   }
-  if (task.priority) facts.push({ text: `!${task.priority}`, label: `${priorityNames[task.priority]} priority` });
+  if (task.priority) facts.push({ text: priorityNames[task.priority], label: `${priorityNames[task.priority]} priority`, priority: task.priority });
   if (task.repeater) {
     const { every, unit, mode } = task.repeater;
     const span = every === 1 ? unit : `${every} ${unit}s`;

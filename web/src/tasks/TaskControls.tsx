@@ -10,6 +10,7 @@ import type { MenuItem } from '../ui/Menu';
 import { Popup } from '../ui/Popup';
 import type { PopupAnchor } from '../ui/Popup';
 import { DatePicker } from './DatePicker';
+import { PriorityBars } from './PriorityBars';
 import { planTask } from './task-labels';
 import './task-controls.css';
 
@@ -73,7 +74,8 @@ export function TaskStatusButton(props: { task: TaskState | null; disabled?: boo
 
 type TaskPopup = { kind: 'scheduled' | 'deadline' | 'warning' | 'priority' | 'repeat'; anchor: HTMLElement };
 
-export function TaskControls(props: { notebook: NotebookClient; doc: PageDocument; id: string; task: TaskState; contextDate: string; disabled?: boolean; onChange(value: TaskState): void | Promise<void> }) {
+/** `work` adds a Work row that opens the task's work sessions, saying whether its clock is running. */
+export function TaskControls(props: { notebook: NotebookClient; doc: PageDocument; id: string; task: TaskState; contextDate: string; disabled?: boolean; work?: { since: string | null; open(anchor: HTMLElement): void }; onChange(value: TaskState): void | Promise<void> }) {
   const [popup, setPopup] = createSignal<TaskPopup | null>(null);
   const [busy, setBusy] = createSignal(false);
   const [failure, setFailure] = createSignal<{ priority: Priority; message: string } | null>(null);
@@ -105,7 +107,7 @@ export function TaskControls(props: { notebook: NotebookClient; doc: PageDocumen
       <span class="task-planning-label">Deadline</span><span class="task-metadata-value task-planning-value" classList={{ 'task-planning-empty': !props.task.deadline }}>{dateLabel(props.task.deadline, props.task.deadline_time)}</span>
     </Button>
     <Button class="task-metadata task-planning-row" label={`Priority: ${priorityLabel(props.task.priority)}`} disabled={blocked()} aria-haspopup="menu" aria-expanded={popup()?.kind === 'priority'} onClick={event => open('priority', event.currentTarget)}>
-      <span class="task-planning-label">Priority</span><span class="task-metadata-value task-planning-value" classList={{ 'task-planning-empty': !props.task.priority }}>{priorityLabel(props.task.priority)}</span>
+      <span class="task-planning-label">Priority</span><span class="task-metadata-value task-planning-value task-planning-priority" classList={{ 'task-planning-empty': !props.task.priority }}><Show when={props.task.priority}>{priority => <PriorityBars priority={priority()} label={`${priorityLabel(priority())} priority`} />}</Show>{priorityLabel(props.task.priority)}</span>
     </Button>
     <TaskProjectControl notebook={props.notebook} doc={props.doc} id={props.id} disabled={blocked()} />
     <Button class="task-metadata task-planning-row" label={`Repeat: ${repeatDescription()}`} disabled={blocked()} aria-haspopup="dialog" aria-expanded={popup()?.kind === 'repeat'} onClick={event => open('repeat', event.currentTarget)}>
@@ -116,6 +118,9 @@ export function TaskControls(props: { notebook: NotebookClient; doc: PageDocumen
         <span class="task-planning-label">Warning</span><span class="task-metadata-value task-planning-value" classList={{ 'task-planning-empty': props.task.warning_days === null }}>{warningLabel()}</span>
       </Button>
     </Show>
+    <Show when={props.work}>{work => <Button class="task-metadata task-planning-row" label={work().since ? `Work: running since ${work().since}` : 'Work: not running'} aria-haspopup="dialog" onClick={event => work().open(event.currentTarget)}>
+      <span class="task-planning-label">Work</span><span class="task-metadata-value task-planning-value" classList={{ 'task-planning-empty': !work().since, 'task-planning-running': !!work().since }}>{work().since ? `Running since ${work().since}` : 'Not running'}</span>
+    </Button>}</Show>
     <Show keyed when={failure()}>{state => <span class="task-control-error" role="alert">
       <span>Priority: {priorityLabel(state.priority)} · {state.message}</span>
       <Button disabled={blocked()} label={`Retry priority: ${priorityLabel(state.priority)}`} onClick={() => { void changePriority(state.priority); }}>Retry</Button>

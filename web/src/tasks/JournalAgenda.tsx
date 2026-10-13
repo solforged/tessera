@@ -11,6 +11,7 @@ import { DatePicker } from './DatePicker';
 import { movableTo, rescheduleTasks } from './reschedule';
 import { statusIcons, statusLabels } from './TaskControls';
 import { agendaTaskTime, isFinished, relativeDate, taskFacts } from './task-labels';
+import { PriorityBars } from './PriorityBars';
 import { shiftCalendarDate } from './week-calendar';
 import './agenda.css';
 
@@ -189,7 +190,7 @@ function TaskSourceRow(props: {
     </Show>
     <span class="agenda-row-meta">
       <Show when={!props.timetable && time()}><span class="agenda-time">{time()}</span></Show>
-      <For each={facts()}>{fact => <span classList={{ 'agenda-late': !!fact.late }} title={fact.label}>{fact.text}</span>}</For>
+      <For each={facts()}>{fact => <Show when={fact.priority} fallback={<span classList={{ 'agenda-late': !!fact.late }} title={fact.label}>{fact.text}</span>}>{priority => <PriorityBars priority={priority()} label={fact.label} />}</Show>}</For>
       <Show when={props.row.project_id !== props.pageId ? props.row.project_id : null}>{id => <span><BlockText text={props.notebook.lookup(id())()?.text ?? ''} notebook={props.notebook} interactive={false} /></span>}</Show>
     </span>
     <Show when={props.plan && unfinished()}>

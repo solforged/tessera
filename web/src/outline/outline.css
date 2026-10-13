@@ -239,8 +239,11 @@
 .outline-capability-metadata .outline-task-facts { display: inline-flex; align-items: center; gap: var(--space-8); padding: 0 var(--space-4); color: var(--muted); }
 .outline-capability-metadata .outline-task-progress { display: inline-flex; align-items: center; padding: 0 var(--space-4); color: var(--faint); }
 .outline-task-late { color: var(--danger); }
-/* An unplanned open task offers Plan only where the pointer or selection is, so a list of todos does not repeat it. */
-.outline-capability-metadata .outline-plan-empty { display: none; color: var(--faint); }
+/* An unplanned open task offers Plan only where the pointer or selection is, so a list of todos does not repeat it.
+   It reads as a control, a hairline chip with the calendar glyph, not as faint prose. */
+.outline-capability-metadata .outline-plan-empty { display: none; gap: var(--space-4); align-items: center; padding: 0 var(--space-8); border: var(--rule-width) solid var(--line); border-radius: var(--radius-control); color: var(--muted); }
+.outline-capability-metadata .outline-plan-empty > .icon { width: var(--icon-size-small); height: var(--icon-size-small); }
+.outline-capability-metadata .outline-plan-empty:hover:not(:disabled) { border-color: var(--control-border); color: var(--text); }
 .outline-row:is(:hover, :focus-within, .row-selected) .outline-plan-empty, .outline-root-capabilities .outline-plan-empty { display: inline-flex; }
 .outline-task-advanced { animation: task-advanced 1600ms var(--motion-ease); }
 @keyframes task-advanced { from, 40% { color: var(--accent); } }
@@ -378,8 +381,9 @@
 .outline-cards-actions { grid-column: 2 / -1; display: flex; gap: var(--space-8); }
 .outline-cards-confirm { display: flex; flex-direction: column; gap: var(--space-8); padding-block: var(--space-8); border-block: 1px solid var(--line); }
 .outline-row-linked > .outline-body { border-radius: var(--radius-control); background: var(--hover); box-shadow: 0 0 0 var(--space-4) var(--hover); }
-/* A source page stays hidden until its header, fields and highlights are known, then fades in whole, as the reader does. */
-.outline-pane.source-page[aria-busy="false"] { animation: fade-in var(--motion-ui) var(--motion-ease) both; }
+/* A source page stays hidden until its header, fields and highlights are known, then fades in whole, as the reader does.
+   A pane navigation that held the previous page until this one was ready already turned the leaf; it needs no second fade. */
+.pane-content:not([data-entered]) .outline-pane.source-page[aria-busy="false"] { animation: fade-in var(--motion-ui) var(--motion-ease) both; }
 /* Source highlights read at full measure with a 2 px colour bar, not an editor gutter or a trailing colour dot. Controls return on selection. */
 .source-page > .outline-list { width: 100%; max-width: var(--measure); margin-inline: auto; }
 /* Notes and fields on a wide source page hang their controls in the gutter as on any page, so field labels share the header's edge. */

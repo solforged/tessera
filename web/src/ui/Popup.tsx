@@ -89,7 +89,15 @@ export function Popup(props: PopupProps) {
   const selection = window.getSelection();
   const ranges = selection ? Array.from({ length: selection.rangeCount }, (_, i) => selection.getRangeAt(i).cloneRange()).filter(range => prior?.contains(range.commonAncestorContainer)) : [];
   const inputSelection: [number | null, number | null] | null = prior instanceof HTMLInputElement || prior instanceof HTMLTextAreaElement ? [prior.selectionStart, prior.selectionEnd] : null;
-  const anchorRect = () => typeof props.anchor === 'function' ? props.anchor() : props.anchor instanceof HTMLElement ? props.anchor.getBoundingClientRect() : props.anchor;
+  // A trigger can unmount while its popup stays open (Stop removes the running clock that opened Work sessions); the
+  // popup then keeps its last place instead of jumping to the viewport's corner with a detached element's empty box.
+  let lastRect: DOMRect | null = null;
+  const anchorRect = () => {
+    if (props.anchor instanceof HTMLElement && !props.anchor.isConnected) return lastRect;
+    const rect = typeof props.anchor === 'function' ? props.anchor() : props.anchor instanceof HTMLElement ? props.anchor.getBoundingClientRect() : props.anchor;
+    if (rect) lastRect = rect;
+    return rect;
+  };
   let frame = 0;
   let disposed = false;
   let size: { width: number; height: number } | undefined;

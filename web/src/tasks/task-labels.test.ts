@@ -38,8 +38,8 @@ describe('taskFacts', () => {
 
   test('omits the plan a listing already implies and a time shown in its own column', () => {
     const task = { ...todo, scheduled: '2026-10-10', scheduled_time: '09:00', deadline: '2026-10-10', deadline_time: '17:00', priority: 'high' as const };
-    expect(taskFacts(task, { ...day, listed: true, timeShown: true }).map(fact => fact.text)).toEqual(['due', '!high']);
-    expect(taskFacts(task, day).map(fact => fact.text)).toEqual(['today 09:00', 'due today 17:00', '!high']);
+    expect(taskFacts(task, { ...day, listed: true, timeShown: true }).map(fact => fact.text)).toEqual(['due', 'High']);
+    expect(taskFacts(task, day).map(fact => fact.text)).toEqual(['today 09:00', 'due today 17:00', 'High']);
   });
 
   test('finished tasks report only completion, never their plan', () => {

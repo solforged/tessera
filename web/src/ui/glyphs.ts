@@ -48,7 +48,7 @@ export const paths = {
   repeat: 'M2 8V6.5A2.5 2.5 0 0 1 4.5 4H13 M11 2l2 2-2 2 M14 8v1.5a2.5 2.5 0 0 1-2.5 2.5H3 M5 14l-2-2 2-2',
   heading: 'M4 3v10 M12 3v10 M4 8h8',
   flag: 'M3 15V2 M3 2.5h9l-2 3 2 3H3',
-  play: 'm5 3 8 5-8 5z',
+  play: 'm5 3 8 5-8 5z', stop: 'M4 4h8v8H4z',
   // An hourglass: the task is held up on something else.
   waiting: 'M4 2h8 M4 14h8 M5 2v1.5L8 8l3-4.5V2 M5 14v-1.5L8 8l3 4.5V14',
   // Places on the desk, drawn from circles and rules like the oculus.

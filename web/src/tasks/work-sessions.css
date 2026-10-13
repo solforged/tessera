@@ -1,14 +1,26 @@
-.work-sessions { display: flex; flex-direction: column; gap: var(--space-12); min-width: 0; font-size: var(--text-control); line-height: var(--line-control); }
-.work-session-active, .work-session-row { display: flex; flex-direction: column; gap: var(--space-8); min-width: 0; }
-.work-session-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-8); min-height: var(--row-height); }
-.work-session-times { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-4) var(--space-8); color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); }
-.work-session-times time, .work-session-duration { font: var(--apparatus); letter-spacing: var(--tracking-apparatus); overflow-wrap: anywhere; }
-.work-session-duration { color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.work-session-note { display: flex; flex-direction: column; gap: var(--space-4); color: var(--muted); }
-.work-session-note textarea { min-width: 0; color: var(--text); resize: vertical; }
-.work-session-history { display: flex; flex-direction: column; gap: var(--space-16); list-style: none; padding: 0; margin: 0; }
-.work-session-row { padding-top: var(--space-12); border-top: var(--space-2) solid var(--line); }
+:is(.popup, .popup-exit).work-sessions-popup { width: var(--search-width); padding: var(--space-12); }
+.work-sessions { display: flex; flex-direction: column; gap: var(--space-8); min-width: 0; font-size: var(--text-control); line-height: var(--line-control); }
+/* The clock leads: a large tabular h:mm:ss, what it counts, then the one action, Start or Stop. */
+.work-session-clock { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; column-gap: var(--space-12); align-items: center; }
+.work-session-elapsed { grid-column: 1; color: var(--text); font: var(--weight-body) var(--text-h1)/var(--line-h1) var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.work-session-running .work-session-elapsed { color: var(--status-doing); }
+.work-session-summary { grid-column: 1; grid-row: 2; color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.work-session-toggle.button { grid-column: 2; grid-row: 1 / span 2; gap: var(--space-4); }
+.work-session-toggle.button > .icon { width: var(--icon-size-small); height: var(--icon-size-small); }
+.work-session-running .work-session-toggle.button > .icon { color: var(--status-doing); }
+/* Notes are one line of the session itself, typed in place; the hairline shows only on hover and focus. */
+.work-session-note { width: calc(100% + 2 * var(--space-4)); min-width: 0; padding: var(--space-2) var(--space-4); margin-inline: calc(-1 * var(--space-4)); border: var(--rule-width) solid transparent; border-radius: var(--radius-control); background: transparent; color: var(--text); font: inherit; }
+.work-session-note::placeholder { color: var(--faint); }
+.work-session-note:hover:not(:disabled) { border-color: var(--line); }
+.work-session-note:focus { outline: none; border-color: var(--control-border); }
+.work-session-history { display: flex; flex-direction: column; list-style: none; padding: 0; margin: var(--space-4) 0 0; border-top: var(--rule-width) solid var(--line); }
+.work-session-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--space-12); padding-block: var(--space-8) var(--space-4); border-bottom: var(--rule-width) solid var(--line); }
+.work-session-row .work-session-note { grid-column: 1 / -1; }
+.work-session-times, .work-session-duration { color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
+.work-session-duration { color: var(--text); text-align: right; }
 .work-session-error { margin: 0; overflow-wrap: anywhere; }
 /* A running session shows on its row as a ticking clock in the Doing hue. */
 .outline-capability-metadata .running-clock.button { gap: var(--space-4); align-items: center; color: var(--status-doing); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
-.running-clock-dot { width: calc(3 * var(--space-2)); height: calc(3 * var(--space-2)); border-radius: 50%; background: currentColor; }
+.running-clock-dot { width: calc(3 * var(--space-2)); height: calc(3 * var(--space-2)); border-radius: 50%; background: currentColor; animation: running-clock-pulse 2s var(--motion-ease) infinite; }
+@keyframes running-clock-pulse { 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .running-clock-dot { animation: none; } }

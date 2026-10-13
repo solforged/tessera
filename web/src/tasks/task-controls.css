@@ -17,6 +17,8 @@
 .task-metadata-value { color: var(--text); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); overflow-wrap: anywhere; }
 .task-planning-value.task-planning-empty { color: var(--faint); }
 .task-planning-value { min-width: 0; text-align: left; }
+.task-planning-value.task-planning-priority { display: inline-flex; align-items: center; gap: var(--space-4); }
+.task-planning-value.task-planning-running { color: var(--status-doing); }
 .task-control-error { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--space-4); flex-basis: 100%; color: var(--danger); font-size: var(--text-meta); line-height: var(--line-meta); overflow-wrap: anywhere; }
 .task-control-popup { width: var(--search-width); }
 .task-control-form { display: flex; flex-direction: column; gap: var(--space-8); }

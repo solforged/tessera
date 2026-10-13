@@ -7,6 +7,7 @@ import { cardSubject, parseCardText } from '../review/card-text';
 import { TaskStatusButton } from '../tasks/TaskControls';
 import { createTaskProjects } from '../projects/task-project';
 import { RunningClock } from '../tasks/WorkSessions';
+import { PriorityBars } from '../tasks/PriorityBars';
 import { isFinished, taskFacts } from '../tasks/task-labels';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
@@ -83,8 +84,8 @@ export function createOutlineRows(context: Pick<OutlineContext,
       <Show when={running()}>{work => <RunningClock session={work()} onOpen={anchor => capabilities.open(propsTask.id, 'work', anchor)} />}</Show>
       <Show when={!isFinished(value())} fallback={<For each={facts()}>{fact => <span class="outline-task-facts" title={fact.label}>{fact.text}</span>}</For>}>
         <Button class={`outline-planning outline-task-facts${facts().length ? '' : ' outline-plan-empty'}${advanced() ? ' outline-task-advanced' : ''}`} label={facts().length ? `Plan task: ${facts().map(fact => fact.label).join(', ')}` : 'Plan task'} disabled={capabilities.busy(propsTask.id)} aria-haspopup="dialog" onClick={event => capabilities.open(propsTask.id, 'task', event.currentTarget)}>
-          <Show when={facts().length} fallback="Plan">
-            <For each={facts()}>{fact => <span classList={{ 'outline-task-late': !!fact.late }} title={fact.label}>{fact.text}</span>}</For>
+          <Show when={facts().length} fallback={<><Icon name="calendar" />Plan</>}>
+            <For each={facts()}>{fact => <Show when={fact.priority} fallback={<span classList={{ 'outline-task-late': !!fact.late }} title={fact.label}>{fact.text}</span>}>{priority => <PriorityBars priority={priority()} label={fact.label} />}</Show>}</For>
           </Show>
         </Button>
       </Show>
