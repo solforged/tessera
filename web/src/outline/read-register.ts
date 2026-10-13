@@ -1,5 +1,6 @@
 import type { FieldDefinition, PositionQuestion } from '../api/types';
 import type { PageDocument } from '../document/contract';
+import type { OutlineIndex } from '../document/outline-index';
 import { fieldEntryId, matchFieldEntry } from '../table/query';
 import { positionFields, positionRelations, readingPassages } from './perspectives';
 import { isCatalogueField } from '../library/details';
@@ -96,6 +97,14 @@ export function readingSlipRows(doc: PageDocument, slip: ReadingSlip, disclosure
 export function readingCounts(slips: readonly ReadingSlip[]): string {
   const holders = new Set(slips.flatMap(slip => slip.holderId ? [slip.holderId] : [])).size;
   return `${slips.length} ${slips.length === 1 ? 'reading' : 'readings'} · ${holders} ${holders === 1 ? 'holder' : 'holders'}`;
+}
+
+/** Perspectives on this page filed under it, as opposed to under a question or another subject. */
+export function localPositionCount(doc: PageDocument): number {
+  doc.archivedVersion();
+  let count = 0;
+  (doc.outline as OutlineIndex).each(0, doc.outline.size(), row => { if (!doc.isArchived(row.id) && doc.block(row.id)?.position?.subject_id === doc.pageId) count++; });
+  return count;
 }
 
 /** The same authored subjects decide the default projection and whether its reading controls apply. */

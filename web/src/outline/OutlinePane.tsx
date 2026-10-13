@@ -63,7 +63,7 @@ import { createCitationSources, hasCitationDetail, referenceSource } from './ref
 import { HeldReadings } from './HeldReadings';
 import { AssessmentJournal, QuestionBranches, QuestionParent } from './Questions';
 import { ReadRegister } from './ReadRegister';
-import { isReadingSubject, readingCounts, readingRegister, readingSlipRows } from './read-register';
+import { isReadingSubject, localPositionCount, readingCounts, readingRegister, readingSlipRows } from './read-register';
 import './outline.css';
 import './read-register.css';
 const ComparePane = lazy(() => import('../compare/ComparePane').then(module => ({ default: module.ComparePane })));
@@ -393,8 +393,7 @@ function Pane(props: OutlinePaneProps) {
   const indices = createMemo(() => new Map(ids().map((id, index) => [id, index])));
   const baseDepth = createMemo(() => zoom() ? doc.outline.depth(zoom()!) : 0);
   const positionSource = (id: string) => sharedPositionSource(doc, id, fieldId => definitionsById().get(fieldId)?.name);
-  /** Perspectives on this page filed under it, as opposed to under a question or another subject. */
-  const localPositions = createMemo(() => { doc.archivedVersion(); let count = 0; (doc.outline as OutlineIndex).each(0, doc.outline.size(), row => { if (!doc.isArchived(row.id) && doc.block(row.id)?.position?.subject_id === props.pageId) count++; }); return count; });
+  const localPositions = createMemo(() => localPositionCount(doc));
   const positionZoom = createMemo(() => { const id = zoom(); return id && doc.block(id)?.position ? id : null; });
   const dossierFields = createMemo(() => positionZoom() ? positionFields(doc, positionZoom()!, id => definitionsById().get(id)?.name) : []);
   const [branches] = createResource(() => doc.root()?.question ? [props.pageId, props.notebook.changeSequence()] as const : false,

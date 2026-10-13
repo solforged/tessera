@@ -266,7 +266,7 @@ Below it, the current chapter (`Not started` before any reading, `Reading positi
 
 Each highlight in the current snapshot is a dot in its color at its exact position. The server gives every citation its start as a character offset in the snapshot's text, the same unit as the contents starts, so the source page, the Library card, Today and the reader place dots identically.
 
-The primary gilt Read button becomes Continue reading once a saved position exists, with the state menu and source actions beside it. On the cover those controls are pinned above the bottom nav, within thumb reach. A record source has no snapshot and no Read.
+The primary gilt Read button becomes Continue reading once a saved position exists, with the state menu and source actions beside it. The pane header's Read tab opens the book the same way. On the cover those controls are pinned above the bottom nav, within thumb reach. A record source has no snapshot, and its Read tab shows the Read projection instead.
 
 ### Source actions and fields
 
@@ -289,7 +289,7 @@ The header and catalog card own the catalog fields: Subtitle, creators, dates, p
 
 Show and Hide metadata fields are saved with the pane's view across reloads and history. A remembered caret in the note's own fields does not reveal catalog fields.
 
-The Read projection keeps those catalog fields in the source card, even when Outline's metadata fields are shown. The note's own fields retain their labels and text edge.
+A record source's Read projection keeps those catalog fields in the source card, even when Outline's metadata fields are shown. The note's own fields retain their labels and text edge.
 
 Author, Editor and Translator values may be plain names or linked people. Plain names supply the same Library bylines, creator facets, exports and derived sigla without creating a person page.
 Imports can keep any creator as a plain name with `create_page: false`; the default still creates or links an entity. Organization creators become Groups, and combined bylines stay plain rather than becoming one Person. Edit details preserves plain names when other metadata changes.

@@ -6,7 +6,7 @@ import { createNotebookClient, type Notebook } from '../document';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import { OutlinePane } from '../outline/OutlinePane';
 import { plainText } from '../outline/names';
-import { isReadingSubject } from '../outline/read-register';
+import { isReadingSubject, localPositionCount } from '../outline/read-register';
 import { ReferencePreviews } from '../outline/ReferencePreview';
 import { createPageIcon } from '../outline/source';
 import { PageMergePicker, pageMergeDisabledReason } from '../outline/PageMerge';
@@ -837,6 +837,9 @@ function GlobalBanner(props: { notebook: NotebookClient; onReview(): void }) {
 function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boolean; split: boolean; immersive: boolean; onImmersive(immersive: boolean): void; sidebarOpen: boolean; onSidebar(): void; notebook: NotebookClient; commands: CommandRegistry; vim: boolean; vimMode: VimMode; onVimMode(mode: VimMode): void; pinned: boolean; pagePresentations: Record<string, PagePresentation>; title?: string; noteKind?: NoteKind; onPagePresentation(id: string, value: PagePresentation): void; onActivate(): void; onOpen(target: OpenTarget, beside: boolean): void; onTargetChange(target: OpenTarget): void; onPageBeside(): void; onViewChange(view: PaneView): void; onTravel(delta: number): void; onClose(): void; onChooseDate(anchor: HTMLElement): void; onShiftDate(delta: number): void; onPin(): void; onRename(): void; onDelete(anchor: HTMLElement, source?: boolean): void; onDeleteSources(sources: { id: string; title: string }[]): Promise<void>; onArchived(): void; onRestoreView(view: ViewState): void }) {
   const current = () => props.session().entries[props.session().index]!;
   const pageId = createMemo(() => pageIdOf(current()));
+  const readerTarget = () => current().target.kind === 'reader' ? current().target as Extract<OpenTarget, { kind: 'reader' }> : undefined;
+  // A reader keeps its source page open so the header's projection tabs can describe it.
+  const docId = createMemo(() => pageId() ?? readerTarget()?.sourceId);
   const outlineView = () => current().view as ViewState;
   const [doc, setDoc] = createSignal<PageDocument>();
   const [librarySave, setLibrarySave] = createSignal<{ state: 'saved' | 'saving' | 'error'; message: string }>({ state: 'saved', message: '' });
@@ -850,24 +853,31 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
   const motionIdentity = createMemo(() => paneTargetIdentity(current().target));
   createPaneMotion(() => content, motionIdentity);
   createEffect(() => {
-    const id = pageId(); setDoc(undefined); if (!id) return;
+    const id = docId(); setDoc(undefined); if (!id) return;
     const document = props.notebook.open(id); setDoc(document);
     onCleanup(() => document.release());
   });
   const root = () => doc()?.root();
   const presentation = () => props.pagePresentations[pageId() ?? ''] ?? {};
+  // A source with a snapshot reads as its book: Read opens the reader, so its page itself always shows the outline.
+  const readableSource = () => !!root()?.source?.current_snapshot_id;
   const defaultProjection = createMemo<PageProjection>(() => {
     const page = doc();
     return page && isReadingSubject(page) ? 'read' : 'outline';
   });
-  const projection = createMemo<PageProjection>(() => outlineView().zoom ? 'outline' : presentation().projection ?? defaultProjection());
+  const projection = createMemo<PageProjection>(() => {
+    if (readerTarget()) return 'read';
+    if (outlineView().zoom) return 'outline';
+    const value = presentation().projection ?? defaultProjection();
+    return value === 'read' && readableSource() ? 'outline' : value;
+  });
   const readSubject = () => {
     const zoom = outlineView().zoom;
     const subject = zoom && doc()?.block(zoom)?.position?.subject_id;
     return subject ? props.notebook.lookup(subject)() : undefined;
   };
   const projectionReason = (value: PageProjection) => {
-    if (value !== 'read') return undefined;
+    if (value !== 'read' || readerTarget()) return undefined;
     if (doc()?.status() !== 'ready') return doc()?.status() === 'missing' || doc()?.status() === 'error' ? 'The page is unavailable.' : 'Read is unavailable while the page is loading.';
     const zoom = outlineView().zoom;
     if (!zoom) return root()?.kind === 'page' ? undefined : 'Only titled pages have projections.';
@@ -883,9 +893,23 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
     if (page.kind !== 'page') return 'Read needs a titled subject. File this reading under a concept or question.';
     return undefined;
   };
-  const setProjection = (value: PageProjection) => {
+  const setProjection = (value: PageProjection, beside = false) => {
+    const reader = readerTarget();
+    if (reader) {
+      if (value === 'read') return;
+      const id = reader.sourceId, previous = props.session().entries[props.session().index - 1];
+      props.onPagePresentation(id, { ...props.pagePresentations[id], projection: value });
+      // The page the book was opened from is the way back to its outline.
+      if (!beside && pageIdOf(previous) === id && !(previous!.view as ViewState).zoom) props.onTravel(-1);
+      else props.onOpen({ kind: 'page', pageId: id }, beside);
+      return;
+    }
     if (projectionReason(value)) return;
     const zoom = outlineView().zoom;
+    if (value === 'read' && !zoom && readableSource()) {
+      props.onOpen({ kind: 'reader', sourceId: pageId()! }, beside);
+      return;
+    }
     if (value === 'read' && zoom) {
       const subject = readSubject()!;
       if (subject.page_id !== pageId()) {
@@ -901,7 +925,12 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
     props.onPagePresentation(pageId()!, { ...presentation(), projection: value });
   };
   const pageStyle = () => (presentation().bullets ?? root()?.kind === 'journal') ? 'bullets' : 'prose';
-  const compareReason = () => outlineCommand('compare')?.disabledReason?.()?.replace(/\.$/, '');
+  const compareReason = () => {
+    const page = doc();
+    if (!readerTarget()) return outlineCommand('compare')?.disabledReason?.()?.replace(/\.$/, '');
+    return page?.status() !== 'ready' ? 'Page is unavailable' : localPositionCount(page) < 2 ? 'Compare needs two readings on this page' : undefined;
+  };
+  const ProjectionTabs = () => <div class="mode-tabs tab-strip page-projection-tabs" role="tablist" aria-label="Page projection"><For each={['read', 'outline', 'compare'] as const}>{value => <Button role="tab" aria-selected={projection() === value} disabled={value === 'read' ? !!projectionReason(value) : value === 'compare' && !!compareReason()} aria-describedby={value === 'read' && projectionReason(value) ? `read-reason-${props.pane}` : undefined} onClick={event => setProjection(value, event.shiftKey)}>{value === 'read' ? 'Read' : value === 'outline' ? 'Outline' : 'Compare'}</Button>}</For></div>;
   const breadcrumbs = createMemo(() => {
     const page = doc(); const zoom = 'zoom' in current().view ? outlineView().zoom : null; if (!page || !zoom) return [];
     const result = []; let block = page.block(zoom);
@@ -977,7 +1006,7 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
           <Button class="journal-date" icon="calendar" label="Choose journal date" aria-haspopup="dialog" onClick={event => props.onChooseDate(event.currentTarget)} />
           <Button icon="right" label="Next journal day" onClick={() => props.onShiftDate(1)} />
         </nav></Show>
-        <Show when={root()?.kind === 'page' || outlineView().zoom && doc()?.block(outlineView().zoom!)?.position}><div class="mode-tabs tab-strip page-projection-tabs" role="tablist" aria-label="Page projection"><For each={['read', 'outline', 'compare'] as const}>{value => <Button role="tab" aria-selected={projection() === value} disabled={value === 'read' ? !!projectionReason(value) : value === 'compare' && !!compareReason()} aria-describedby={value === 'read' && projectionReason(value) ? `read-reason-${props.pane}` : undefined} onClick={() => setProjection(value)}>{value === 'read' ? 'Read' : value === 'outline' ? 'Outline' : 'Compare'}</Button>}</For></div></Show>
+        <Show when={root()?.kind === 'page' || outlineView().zoom && doc()?.block(outlineView().zoom!)?.position}><ProjectionTabs /></Show>
         <Show when={showDial()}><div class="depth-dial" role="group" aria-label="Depth">
           <For each={depthStops}>{stop => <button type="button" class="depth-stop" aria-pressed={depth() === stop} title={`${depthLabels[stop]} (${stop === 'gloss' ? '[' : stop === 'full' ? ']' : '[ ]'})`}
             onClick={event => { if (depth() === stop && getComputedStyle(event.currentTarget.parentElement!.querySelector('.depth-label')!).display === 'none') setDepthMenu(event.currentTarget); else outlineCommand(`depth-${stop}`)?.run(); }}><Icon name={`depth-${stop}`} /><span class="visually-hidden">{depthLabels[stop]}</span></button>}</For>
@@ -988,7 +1017,7 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
       </Show>
       <Show when={!pageId() && current().target.kind !== 'field'}><Show when={current().target.kind === 'reader' ? current().target as Extract<OpenTarget, { kind: 'reader' }> : undefined} fallback={<span class="pane-breadcrumbs">{props.title ?? paneLabel(current().target)}</span>}>{target =>
         <nav class="pane-breadcrumbs" aria-label="Source breadcrumbs"><Button class="breadcrumb-library" onClick={event => props.onOpen({ kind: 'library' }, event.shiftKey)}>Library</Button><span class="breadcrumb-separator">/</span><Button onClick={event => props.onOpen({ kind: 'page', pageId: target().sourceId }, event.shiftKey)}>{props.notebook.lookup(target().sourceId)()?.text ?? 'Reader'}</Button></nav>
-      }</Show></Show>
+      }</Show><Show when={readerTarget() && root()?.kind === 'page'}><ProjectionTabs /></Show></Show>
       <Show when={current().target.kind === 'library'}>
         <span class="pane-save-state" data-state={librarySave().state} title={librarySave().message}>
           <Show when={librarySave().state !== 'saved'} fallback={<><span class="save-dot" /><span class="visually-hidden">Saved</span></>}>

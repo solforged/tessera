@@ -6,7 +6,7 @@ Tokens, shell and shared popup patterns are in [design](../design.md).
 
 ## Layout
 
-The pane header reads Library / source title. The title opens the source page.
+The pane header reads Library / source title, followed by the source page's Read, Outline and Compare tabs with Read selected. The title opens the source page. Outline and Compare return to it, through the pane's history when the book was opened from that page.
 
 One toolbar line sits at the reading measure and spans the spread in [Pages](#pages). Its controls appear in this order:
 

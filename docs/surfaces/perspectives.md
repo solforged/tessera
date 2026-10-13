@@ -6,6 +6,8 @@ A concept page holds several attributed readings. Questions and answers mark aut
 
 Titled pages share one document across Read, Outline and Compare. The pane header switches them in place; Commands offers Read, Outline and Compare readings. The choice is remembered for each page on this device. At the page level, switching creates no blocks or navigation entry.
 
+A source with a snapshot reads as its book: Read opens the [reader](reader.md) in the same pane at the saved position, and ⇧ opens it beside. Back returns to the source page, which stays in Outline. A record source keeps the Read projection.
+
 Question pages and pages holding active readings about themselves or their inline questions open in Read. Other pages keep their ordinary outline. Outline keeps its Plex editor, depth dial and Show bullets option; `[` and `]` change depth only there.
 
 ### Reading register
