@@ -285,7 +285,7 @@ Show and Hide metadata fields are saved with the pane's view across reloads and 
 Author, Editor and Translator values may be plain names or linked people. Plain names supply the same Library bylines, creator facets, exports and derived sigla without creating a person page.
 Imports can keep any creator as a plain name with `create_page: false`; the default still creates or links an entity. Organisation creators become Groups, and combined bylines stay plain rather than becoming one Person. Edit details preserves plain names when other metadata changes.
 
-An unresolved title-form creator reference reads as its written name, not as an ID or a guessed link to a same-titled source. Only canonical references enable creator navigation. Saving creator names matches eligible people and groups by title or alias; shared names remain unlinked.
+An unresolved title-form creator reference reads as its written name, not as an ID or a guessed link to a same-titled source. Only canonical references enable creator navigation. A title-form reference keeps its link intent when its role or other metadata changes, while a bare plain name stays plain. Saving creator names matches eligible people and groups by title or alias; shared names remain unlinked.
 
 The pane header reads Library / title, and Library opens the Library pane (Shift beside). Zoomed into a block, Library gives way to the zoom path.
 

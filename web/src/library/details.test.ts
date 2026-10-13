@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import type { Block, FieldDefinition } from '../api/types';
 import type { NotebookClient, PageDocument, SourceDetailsEdit } from '../document/contract';
 import { derivedSourceSiglum, saveSourceField, similarPages, sourceFieldValue, sourceMetadata, validateSourceValue } from './details';
-import type { SourceField, SourceFieldValue } from './details';
+import type { SourceCreator, SourceField, SourceFieldValue } from './details';
 
 const page = (text: string, kind: Block['kind'] = 'page', archived = false): Block => ({ id: text, kind, parent_id: null, page_id: text, text, archived } as Block);
 const titles = (name: string, pages: Block[]) => similarPages(name, pages).map(block => block.text);
@@ -64,10 +64,10 @@ describe('source field validation', () => {
     const notebook = { lookup: () => () => ({ text: 'Linked person' }) } as unknown as NotebookClient;
     expect(sourceFieldValue(doc, notebook, definitions, 'identifiers')).toEqual(['isbn:9780262033848', 'doi:10.1000/example']);
     expect(sourceFieldValue(doc, notebook, definitions, 'creators')).toEqual([
-      { id: '01ARZ3NDEKTSV4RRFFQ69G5FAV', name: 'Linked person', role: 'author' }, { id: null, name: 'Unlinked author', role: 'author' }, { id: null, name: 'Arnold J. Toynbee', role: 'author' },
+      { id: '01ARZ3NDEKTSV4RRFFQ69G5FAV', name: 'Linked person', role: 'author' }, { id: null, name: 'Unlinked author', role: 'author' }, { id: null, name: 'Arnold J. Toynbee', role: 'author', create_page: true },
     ]);
     expect(sourceMetadata(doc, notebook, definitions).creators).toEqual([
-      { name: 'Linked person', role: 'author', create_page: true }, { name: 'Unlinked author', role: 'author', create_page: false }, { name: 'Arnold J. Toynbee', role: 'author', create_page: false },
+      { name: 'Linked person', role: 'author', create_page: true }, { name: 'Unlinked author', role: 'author', create_page: false }, { name: 'Arnold J. Toynbee', role: 'author', create_page: true },
     ]);
   });
 });
@@ -85,6 +85,38 @@ test('saving a title-form creator uses an eligible alias, not a source title or 
   } as unknown as NotebookClient;
   await saveSourceField([doc], notebook, 'creators', [{ id: null, name: '[[Arnold J. Toynbee]]', role: 'author' }]);
   expect(written?.fields[0]?.values).toEqual([`[[${person.id}]]`]);
+});
+
+test('role changes resolve a title-form creator while preserving the same bare plain name', async () => {
+  const person = { ...page('Arnold Toynbee'), id: '01ARZ3NDEKTSV4RRFFQ69G5FAV' };
+  const fields: FieldDefinition[] = [
+    { id: 'author', name: 'Author', kind: 'instance', revision: 1, options: [], targets: [] },
+    { id: 'editor', name: 'Editor', kind: 'instance', revision: 1, options: [], targets: [] },
+  ];
+  const children: Record<string, string[]> = { book: ['authors', 'editors'], authors: ['reference', 'plain'], editors: [] };
+  const texts: Record<string, string> = { authors: '[[author]]', editors: '[[editor]]', reference: '[[Arnold J. Toynbee]]', plain: 'Arnold J. Toynbee' };
+  const doc = { pageId: 'book', status: () => 'ready', flush: async () => {}, root: () => ({ text: 'A source' }),
+    outline: { children: (id: string) => children[id] ?? [] }, block: (id: string) => ({ text: texts[id], archived: false }),
+  } as unknown as PageDocument;
+  const resolved: string[] = [];
+  const notebook = { changeSequence: () => 0, lookup: () => () => person, api: {
+    fields: async () => ({ page_id: 'fields', fields }),
+    resolveName: async (name: string) => { resolved.push(name); return [{ page: person, alias: 'Arnold J. Toynbee' }]; },
+    noteKinds: async () => [{ key: 'person' }],
+  }, editSourceDetails: async (edits: { edit: SourceDetailsEdit }[]) => {
+    for (const field of edits[0]!.edit.fields) {
+      const entry = field.id === 'author' ? 'authors' : 'editors';
+      children[entry] = field.values.map((text, index) => { const id = `${entry}-${index}`; texts[id] = text; return id; });
+    }
+    return { undo: async () => {}, redo: async () => {} };
+  } } as unknown as NotebookClient;
+  const creators = sourceFieldValue(doc, notebook, fields, 'creators') as SourceCreator[];
+  await saveSourceField([doc], notebook, 'creators', creators.map(creator => ({ ...creator, role: 'editor' as const })));
+  expect(children.editors!.map(id => texts[id])).toEqual([`[[${person.id}]]`, 'Arnold J. Toynbee']);
+  const edited = sourceFieldValue(doc, notebook, fields, 'creators') as SourceCreator[];
+  await saveSourceField([doc], notebook, 'creators', edited.map(creator => ({ ...creator, role: 'author' as const })));
+  expect(children.authors!.map(id => texts[id])).toEqual([`[[${person.id}]]`, 'Arnold J. Toynbee']);
+  expect(resolved).toEqual(['Arnold J. Toynbee']);
 });
 
 test('derived siglum keeps its real basis independent of an authored override', () => {

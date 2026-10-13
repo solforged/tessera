@@ -7,7 +7,7 @@ import { createInstance } from '../fields/instances';
 import { referenceValue, resolveName } from '../outline/names';
 
 export type SourceField = 'title' | 'subtitle' | 'creators' | 'firstPublished' | 'originalLanguage' | 'published' | 'publisher' | 'edition' | 'series' | 'number' | 'pages' | 'volume' | 'issue' | 'pageRange' | 'language' | 'identifiers' | 'url' | 'site' | 'description' | 'cover' | 'siglum' | 'citationKey' | 'state' | 'started' | 'finished' | 'tags';
-export interface SourceCreator { id: string | null; name: string; role: 'author' | 'editor' | 'translator' }
+export interface SourceCreator extends ExtractedCreator { id: string | null }
 export type SourceFieldValue = string | string[] | SourceCreator[];
 export interface SourceFieldChange extends DocumentChange {}
 export interface DerivedSourceSiglum { mark: string; basis: string }
@@ -72,7 +72,8 @@ export function sourceFieldValue(doc: PageDocument, notebook: NotebookClient, de
   });
   if (field === 'creators') return roles.flatMap(role => values(role).map(text => {
     const reference = referenceValue(text);
-    return { id: reference.id, name: reference.id ? valueLabel(text, id => notebook.lookup(id)) : reference.name, role };
+    return { id: reference.id, name: reference.id ? valueLabel(text, id => notebook.lookup(id)) : reference.name, role,
+      ...!reference.id && reference.name !== text.trim() ? { create_page: true } : {} };
   }));
   const found = values(fields[field][0]).map(text => valueLabel(text, id => notebook.lookup(id)));
   return field === 'identifiers' ? found : found[0] ?? '';
@@ -81,7 +82,7 @@ export function sourceFieldValue(doc: PageDocument, notebook: NotebookClient, de
 export function sourceMetadata(doc: PageDocument, notebook: NotebookClient, definitions: readonly FieldDefinition[]): ExtractedMetadata {
   const text = (field: SourceField) => sourceFieldValue(doc, notebook, definitions, field) as string;
   return { ...emptyMetadata(), title: text('title'), subtitle: text('subtitle') || null,
-    creators: (sourceFieldValue(doc, notebook, definitions, 'creators') as SourceCreator[]).map(({ id, name, role }) => ({ name, role, create_page: id !== null })),
+    creators: (sourceFieldValue(doc, notebook, definitions, 'creators') as SourceCreator[]).map(({ id, name, role, create_page }) => ({ name, role, create_page: create_page ?? id !== null })),
     published: text('published') || null, publisher: text('publisher') || null, language: text('language') || null,
     identifiers: sourceFieldValue(doc, notebook, definitions, 'identifiers') as string[], cover: text('cover') || null,
     volume: text('volume') || null, issue: text('issue') || null, page_range: text('pageRange') || null,
@@ -214,7 +215,7 @@ async function prepareSourceField(doc: PageDocument, notebook: NotebookClient, c
     edit.source = { ...source, ...(field === 'state' ? { state: value as ReadingState } : { citation_key: (value as string) || null }) };
   } else {
     const entries = sourceEntries(doc, context.definitions);
-    const plain = (sourceFieldValue(doc, notebook, context.definitions, 'creators') as SourceCreator[]).filter(creator => !creator.id);
+    const plain = (sourceFieldValue(doc, notebook, context.definitions, 'creators') as SourceCreator[]).filter(creator => !creator.id && !creator.create_page);
     const pending = field === 'creators'
       ? roles.map(role => ({ label: role[0]!.toUpperCase() + role.slice(1), kind: 'instance' as const,
         values: (value as SourceCreator[]).filter(creator => creator.role === role).map(creator => creator.id ? `[[${creator.id}]]` : creator.name) }))
@@ -222,7 +223,7 @@ async function prepareSourceField(doc: PageDocument, notebook: NotebookClient, c
     for (const { label, kind, values } of pending) {
       const creators = field === 'creators' ? (value as SourceCreator[])
         .filter(creator => creator.role.toLowerCase() === label.toLowerCase())
-        .map(creator => ({ name: creator.name, role: creator.role, create_page: !!creator.id || !plain.some(old => old.name === creator.name) })) : undefined;
+        .map(creator => ({ name: creator.name, role: creator.role, create_page: creator.create_page ?? (!!creator.id || !plain.some(old => old.name === creator.name)) })) : undefined;
       const prepared = await prepareField(notebook, context, label, kind, values, creators);
       if (prepared) edit.fields.push({ ...prepared, entries: entries.get(label.toLowerCase()) ?? [] });
     }
