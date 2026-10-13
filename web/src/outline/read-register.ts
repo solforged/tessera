@@ -1,4 +1,3 @@
-import { untrack } from 'solid-js';
 import type { FieldDefinition, PositionQuestion } from '../api/types';
 import type { PageDocument } from '../document/contract';
 import type { OutlineIndex } from '../document/outline-index';
@@ -6,7 +5,6 @@ import { fieldEntryId, matchFieldEntry } from '../table/query';
 import { positionFields, positionRelations, readingPassages } from './perspectives';
 import { isCatalogueField } from '../library/details';
 import { fieldBedRows, fieldRole } from '../fields/roles';
-import { glossEntry } from './gloss';
 export interface ReadingField { name: string; entryId: string }
 export interface ReadingQuestion { id: string; holders: string[] }
 /** One reading's value for a criterion; `entryId` is null when the reading leaves it unstated. */
@@ -16,9 +14,7 @@ export interface ReadingDisagreement { criterion: string; questions: ReadingQues
 export interface ReadingSlip {
   id: string;
   holderId: string | null;
-  /** Empty when the gist repeats the page's gloss word for word; `restatesGloss` then says why. */
   gist: ReadingField[];
-  restatesGloss: boolean;
   work: ReadingField[];
   account: ReadingField[];
   facts: ReadingField[];
@@ -46,10 +42,6 @@ export function readingRegister(doc: PageDocument, definition: (id: string) => F
     group.push({ id: question.block.block.id, holders: question.holders }); disagreements.set(question.criterion, group);
     omitSubtree(question.block.block.id);
   }
-  // The gist that restates the page's gloss would print the same sentence twice; text reads stay untracked so typing never reshapes the register.
-  const valueText = (entryId: string) => untrack(() => doc.outline.children(entryId).filter(id => !doc.isArchived(id)).map(id => doc.block(id)?.text.trim() ?? '').join('\n'));
-  const glossId = glossEntry(doc, id => fieldRole(definition(id)) === 'standfirst');
-  const glossText = glossId ? valueText(glossId) : '';
   for (let at = 0; at < doc.outline.size(); at++) {
     const id = doc.outline.idAt(at), block = doc.block(id);
     if (!block?.position || doc.isArchived(id)) continue;
@@ -60,10 +52,9 @@ export function readingRegister(doc: PageDocument, definition: (id: string) => F
     // A criterion asked about under Where they disagree shows there, beside the other readings' answers, not under Facts.
     const facts = fields.filter(field => !['standfirst', 'prose'].includes(fieldRole(definition(field.fieldId))) && !['work', 'account'].includes(field.name.trim().toLowerCase()) && !disagreements.has(field.fieldId));
     criterionEntries.set(id, new Map(fields.filter(field => disagreements.has(field.fieldId)).reverse().map(field => [field.fieldId, field.entryId])));
-    const restatesGloss = !!glossText && gist.length > 0 && gist.map(field => valueText(field.entryId)).join('\n') === glossText;
     slips.push({
       id, holderId: block.position.holder_id,
-      gist: restatesGloss ? [] : gist.map(({ name, entryId }) => ({ name, entryId })), restatesGloss,
+      gist: gist.map(({ name, entryId }) => ({ name, entryId })),
       work: named('work').filter(field => !gist.some(gist => gist.entryId === field.entryId) && !prose.some(prose => prose.entryId === field.entryId)),
       account: named('account').filter(field => !gist.some(gist => gist.entryId === field.entryId) && !prose.some(prose => prose.entryId === field.entryId)),
       prose: prose.map(({ name, entryId }) => ({ name, entryId })),

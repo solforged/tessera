@@ -64,7 +64,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Review says how many cards come due later today and when the next one is due, instead of a bare "0 cards to review".
 - In a split pane or on a phone, page titles stay readable, depth collapses to its current stop, sigla sit on a short line above their paragraph, and the research desk and field owners use fewer columns.
 - Perspective slips lead with siglum and holder in mono, then the Gist as a serif headline and Work as one faint line. Where they disagree sets each perspective's answer under the question it settles, instead of hiding it under Facts. Slips stack whenever the pane is narrow, including a split unfolded Fold.
-- Read titles a page's perspectives Perspectives even without an authored heading, gives a lone perspective the full measure, and skips a Gist that repeats the page's Gloss. Compare stays out of the register until there are two perspectives.
+- Read titles a page's perspectives Perspectives even without an authored heading and gives a lone perspective the full measure. Compare stays out of the register until there are two perspectives.
 - Holders and pages named in attribute values read as ink with a hairline underline, gilt on hover; prose links keep the gilt and their hover underline is gilt too. Revisit moved into the note's mono Created line.
 - Priority reads as three rising bars filled to its level, red for high and amber for medium, instead of `!high`.
 - Plan on an unplanned task is a hairline chip with a calendar glyph, so it reads as a control.

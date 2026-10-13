@@ -24,7 +24,7 @@ export function ReadRegister(props: { register: Register; doc: PageDocument; not
         const slip = () => slips().get(id)!;
         return <article class="reading-slip" data-reading-id={id}>
         <div class="reading-holder">{props.row(id)}</div>
-        <div class="reading-gist"><For each={values(slip().gist)}>{props.row}</For><Show when={!slip().gist.length && !slip().restatesGloss}><span class="empty-state">No gist yet</span></Show></div>
+        <div class="reading-gist"><For each={values(slip().gist)}>{props.row}</For><Show when={!slip().gist.length}><span class="empty-state">No gist yet</span></Show></div>
         <div class="reading-work"><For each={values(slip().work)}>{props.row}</For></div>
         <Show when={slip().account.length}><div class="reading-account"><span class="relation-label">Account</span><For each={values(slip().account)}>{props.row}</For></div></Show>
         <div class="reading-field-prose"><For each={values(slip().prose)}>{props.row}</For></div>
