@@ -1895,6 +1895,52 @@ describe('real notebook operations and recovery', () => {
     } finally { gate.resolve(); globalThis.fetch = actualFetch; }
   });
 
+  test('first field value undo remains ordered before submit and before acknowledgement', async () => {
+    const instance = await client();
+    const fields = await api.fields();
+    const definitions = instance.open(fields.page_id);
+    await eventually(() => definitions.status() === 'ready', definitions.statusMessage());
+    const fieldId = success(definitions.edit({ kind: 'addField', name: `Embedded value race ${++serial}`, value: 'text' })).created[0]!;
+    await instance.flush();
+    const field = (await api.fields()).fields.find(field => field.id === fieldId)!;
+    for (const timing of ['before submit', 'before acknowledgement'] as const) {
+      const { id, doc, first } = await page(instance, 'The unchanged page opening');
+      const text = `First embedded value ${++serial}`;
+      const reached = Promise.withResolvers<void>(), gate = Promise.withResolvers<void>();
+      let intercept = true;
+      globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (intercept && String(input) === `${baseUrl}/api/batches` && init?.method === 'POST' && String(init.body).includes(text)) {
+          intercept = false;
+          if (timing === 'before submit') { reached.resolve(); await gate.promise; }
+          const response = await actualFetch(input, init);
+          if (timing === 'before acknowledgement') { reached.resolve(); await gate.promise; }
+          return response;
+        }
+        return actualFetch(input, init);
+      }) as typeof fetch;
+      try {
+        const written = success(doc.edit({ kind: 'addFieldEntries', parentId: id, after: doc.outline.children(id).at(-1) ?? null, entries: [{ fieldId: field.id, value: text }] }));
+        const saving = doc.flush();
+        await reached.promise;
+        doc.undo();
+        expect(ids(doc)).toEqual([first]);
+        gate.resolve();
+        await saving;
+        await doc.flush();
+        expect((await api.page(id)).rows.map(row => row.block.id)).toEqual([first]);
+        expect(doc.saveState()).toBe('saved');
+        doc.redo(); await doc.flush();
+        const restored = await api.page(id);
+        expect(restored.rows.map(row => row.block.id)).toEqual([first, ...written.created]);
+        expect(restored.rows.at(-1)?.block.text).toBe(text);
+        doc.undo(); await doc.flush();
+        await (doc as Document).reload(false);
+        expect(ids(doc)).toEqual([first]);
+      } finally { gate.resolve(); globalThis.fetch = actualFetch; doc.release(); }
+    }
+    definitions.release();
+  });
+
   test('coalesced text undo and redo preserve another window’s non-overlapping words', async () => {
     const instance = await client();
     const { doc, first, id } = await page(instance, 'Alpha / Omega');

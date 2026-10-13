@@ -161,6 +161,8 @@ A saved-view reference uses `[[view:ID|remembered name]]`. The target is a canon
 
 The plain-text clipboard export keeps the authored view reference, just as it keeps page references. It exports the view's remembered name and target, not a snapshot of the result rows. Full-text search can find the remembered name in the authored text.
 
+Committing a live view cell returns keyboard undo to its page history before the save finishes. An immediate undo follows the committed write in the notebook's queue, including when that write creates the field entry and value.
+
 ### Quotes
 
 A quote is frozen; a reference is live. A block whose whole text is `((ID))` is a quote row. It holds a snapshot of the target and its subtree (text, heading, revision and depth of each row), captured when the quote was made, and records one link to the target so the target's backlinks include it.

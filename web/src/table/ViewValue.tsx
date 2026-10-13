@@ -40,8 +40,10 @@ export function ViewValue(props: {
     setBusy(true);
     try {
       const original = values().find(value => value.id === valueId())?.text ?? '';
-      const text = withLinkedTitles(draft, await titleTargets(props.notebook, typedTitles(draft)));
-      if (text !== original || quote || option) {
+      const titles = typedTitles(draft);
+      const text = titles.length ? withLinkedTitles(draft, await titleTargets(props.notebook, titles)) : draft;
+      const changed = text !== original || !!quote || !!option;
+      if (changed) {
         const target = { field: props.field, ownerId: props.row.block.block.id, valueId: valueId() };
         if (option) await createOptionValue(props.notebook, doc, target, option);
         else if (quote) {
@@ -52,10 +54,11 @@ export function ViewValue(props: {
           if (!result.ok) throw new Error(result.reason);
         } else writeFieldValue(doc, target, text);
         props.onEdited(doc);
-        await doc.flush();
       }
+      // A committed cell gives undo back to the page before its save can settle.
       finish(focus && !direction);
       if (direction) props.onFill?.(props.field.id, direction);
+      if (changed) await doc.flush();
     } catch (reason) { props.onError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setBusy(false); }
   }

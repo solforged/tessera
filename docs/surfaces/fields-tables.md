@@ -107,11 +107,15 @@ A type shares `Index N`, `Table N` and `Fields N` tabs with its [index](notes.md
 
 Delete view confirms that rows are not deleted unless Ask before deleting views is off in [Settings](settings.md#preferences). Library, task and table views all offer Undo for ten seconds after deletion; restoring a view keeps its name and query.
 
+After deleting a table view, its confirmation closes and the table keeps the query with View deleted and Undo. The pane stops reading the deleted view until it is restored.
+
 ### Embedded views
 
 A saved view's menu offers Embed on page…. Its page picker inserts an ordinary reference block and opens it on that page. `/Embed view` and Commands offer the same saved views while writing.
 
 An embed follows the saved query, columns, sorts, groups and layout, with twelve visible rows and Show all N to open the full view. Editing an ordinary field uses its canonical value block and one undo; derived attributes remain read-only. Committed notebook changes update the result. Phone cards use the saved card fields.
+
+Enter returns focus to the committed cell before its save finishes. ⌘Z then undoes that commit, even when it created the field's first entry and value.
 
 ### Toolbar
 

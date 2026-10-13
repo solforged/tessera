@@ -134,16 +134,21 @@ function TableContent(props: TablePaneProps) {
   let restoredScroll = false;
   const message = (reason: unknown) => setError(reason instanceof Error ? reason.message : String(reason));
   const viewId = createMemo(() => props.target.viewId);
+  let savedController: AbortController | undefined;
+  onCleanup(() => savedController?.abort());
   createEffect(() => {
     const change = props.notebook.lastChange();
     if (change?.views?.length) setSavedRevision(change.seq);
   });
   const [saved, { refetch: refetchSaved, mutate: setSaved }] = createResource(
-    () => ({ id: viewId(), revision: savedRevision() }),
+    () => ({ id: deleting() || deleted()?.id === viewId() ? undefined : viewId(), revision: savedRevision() }),
     async ({ id }) => {
+      savedController?.abort();
       if (!id) return undefined;
-      try { return await api.view(id); }
-      catch (reason) { message(reason); return undefined; }
+      const controller = new AbortController();
+      savedController = controller;
+      try { return await api.view(id, controller.signal); }
+      catch (reason) { if (!controller.signal.aborted) message(reason); return undefined; }
     },
   );
   const [views, { refetch: refetchViews }] = createResource(savedRevision, async () => {
@@ -377,11 +382,10 @@ function TableContent(props: TablePaneProps) {
     setDeleting(true); setError('');
     try {
       await submit({ op: 'delete_view', id: value.id, base_revision: value.revision });
-      setDeleted(value); setSaved(undefined);
-      await refetchViews();
+      setDeleted(value); setSaved(undefined); setPopup(null);
       props.onTargetChange({ kind: 'table', typeId: query().type, viewId: null, query: copyQuery(query()) });
       clearTimeout(deletedTimer); deletedTimer = setTimeout(() => setDeleted(null), 10000);
-      setPopup(null);
+      await refetchViews();
     } catch (reason) { message(reason); }
     finally { setDeleting(false); }
   };
