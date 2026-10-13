@@ -38,6 +38,6 @@ export function withLinkedTitles(text: string, targets: TitleTargets): string {
   return textTokens(text).map(token => {
     const target = token.kind === 'reference' && !isStableReference(token) && !/[\r\n]/.test(token.value) && !insideProtectedSyntax(text, token.start) ? targets.get(foldName(token.id!)) : undefined;
     const label = token.alias ?? token.id?.trim();
-    return target ? `[[${target}|${label}]]` : text.slice(token.start, token.end);
+    return target ? `[[${target}|${label}${token.locator === undefined ? '' : `|${token.locator}`}]]` : text.slice(token.start, token.end);
   }).join('');
 }
