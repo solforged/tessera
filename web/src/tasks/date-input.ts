@@ -94,13 +94,19 @@ export function parseTaskDate(input: string, contextDate: string): DateResult {
   else if (text === 'tomorrow') offset = 1;
   else if (text === 'yesterday') offset = -1;
   else {
-    const relative = /^\+(\d+)([dw])$/.exec(text) ?? /^in (\d+) (days?|weeks?)$/.exec(text);
+    const relative = /^\+(\d+)([dwm])$/.exec(text) ?? /^in (\d+) (days?|weeks?|months?)$/.exec(text);
+    if (relative?.[2]?.startsWith('m')) {
+      const target = context.year * 12 + context.month - 1 + Number(relative[1]);
+      const year = Math.floor(target / 12), month = target % 12 + 1;
+      if (!Number.isSafeInteger(target) || year > 9999) return { ok: false, error: 'Choose a date from 0001-01-01 to 9999-12-31.' };
+      return { ok: true, date: dateAt(ordinal({ year, month, day: Math.min(context.day, monthDays(year, month)) })), time };
+    }
     if (relative) offset = Number(relative[1]) * (relative[2]!.startsWith('w') ? 7 : 1);
     else {
       const next = text.startsWith('next ');
       const name = next ? text.slice(5) : text;
       const weekday = weekdays.findIndex(day => day === name || day.slice(0, 3) === name);
-      if (weekday === -1) return { ok: false, error: 'Use YYYY-MM-DD, a month and day, today, tomorrow, yesterday, a weekday, +Nd/+Nw, or in N days/weeks.', unrecognized: true };
+      if (weekday === -1) return { ok: false, error: 'Use YYYY-MM-DD, a month and day, today, tomorrow, yesterday, a weekday, +Nd/+Nw/+Nm, or in N days/weeks/months.', unrecognized: true };
       offset = next
         ? 7 - (base % 7 + 6) % 7 + (weekday + 6) % 7
         : (weekday - base % 7 + 7) % 7;

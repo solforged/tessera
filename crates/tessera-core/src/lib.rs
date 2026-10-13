@@ -37,6 +37,7 @@ mod relation_store;
 pub mod replication;
 mod resurface;
 mod review_store;
+mod revisit_store;
 pub mod scheduler;
 mod settings;
 mod spreads;
@@ -100,3 +101,4 @@ pub use references::{
 pub use review_store::{ReviewForecastDay, ReviewStats};
 pub use spreads::{Spread, SpreadColumn, SpreadField, SpreadReference, SpreadValue};
 pub use streams::{BatchSubtree, BatchSubtrees, StreamArrival};
+pub use revisit_store::{NoteState, RevisitAction, RevisitEvent, RevisitRow, RevisitSnapshot};

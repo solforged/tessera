@@ -33,6 +33,16 @@ describe('task date input', () => {
     expect(parseTaskDate(' IN   2   WEEKS ', context)).toEqual({ ok: true, date: '2026-10-17', time: null });
   });
 
+  test('revisit month presets clamp the day and cross years', () => {
+    for (const [input, from, date] of [
+      ['+1m', '2026-01-31', '2026-02-28'],
+      ['+1m', '2028-01-31', '2028-02-29'],
+      ['+3m', '2026-10-12', '2027-01-12'],
+      ['in 3 months', '2026-11-30', '2027-02-28'],
+    ] as const) expect(parseTaskDate(input, from)).toEqual({ ok: true, date, time: null });
+    expect(parseTaskDate('+1m', '9999-12-01').ok).toBe(false);
+  });
+
   test('bare weekdays include the context day and next weekdays use the following Monday-start week', () => {
     const cases = [
       ['Saturday', '2026-10-03', '2026-10-10'],
@@ -155,7 +165,7 @@ describe('task date input', () => {
       '0000-01-01', '10000-01-01', '2026-00-01', '2026-13-01', '2026-01-00',
       '2026-01-32', '2026-04-31', '2026-02-29', '1900-02-29', '2100-02-29',
       '2026-1-01', '26-01-01', '10/03/2026', 'next someday', 'Friday after next',
-      '+1.5d', '-1d', '+1m', 'in -2 days', 'in 1.5 weeks', 'today extra',
+      '+1.5d', '-1d', '+1.5m', 'in -2 days', 'in 1.5 weeks', 'today extra',
       '+999999999999999999999999w', '+3652059d',
     ]) expect(parseTaskDate(input, context).ok).toBe(false);
     expect(parseTaskDate('yesterday', '0001-01-01').ok).toBe(false);

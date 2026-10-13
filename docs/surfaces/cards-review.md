@@ -16,6 +16,14 @@ Descriptor card is under `/` and under Space c as `d`. Its review source line le
 
 ## Review pane
 
+### Questions and notes
+
+The queue tabs switch between Cards and Questions and notes. The latter shows its due count and lists notes and page or inline questions whose revisit date is today or earlier, earliest first.
+
+Each item opens its ordinary outline inside Review; inline questions open zoomed. Sources, links and backlinks remain available. Revisited shows the proposed next date before confirmation, with the shared revisit picker to change or clear it. Later moves the date without an event. Resolve clears the date and resolves a note, or allows a question to resolve without accepting an assessment. Keep recurrent marks a question recurrent and records a revisit.
+
+After an action the next item opens. Undo revisit restores the prior date and state and removes the event from effective history. There are no grades or streaks for this queue.
+
 ### Landing and decks
 
 Review is a pane on the outline measure, like [Library](library.md). Its mono register sits over the deck's Piazzolla title and picker; Open reviews and Deck actions stay at its right.

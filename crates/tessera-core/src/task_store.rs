@@ -336,7 +336,8 @@ pub(crate) fn apply(conn: &Connection, operation: &Operation, now: i64, seq: i64
 macro_rules! capability_history {
     () => {
         "EXISTS(SELECT 1 FROM task_occurrences o WHERE o.block_id = b.id AND o.reversed = 0)
-         OR EXISTS(SELECT 1 FROM work_sessions w WHERE w.block_id = b.id AND w.reversed = 0)"
+         OR EXISTS(SELECT 1 FROM work_sessions w WHERE w.block_id = b.id AND w.reversed = 0)
+         OR EXISTS(SELECT 1 FROM revisit_events e WHERE e.block_id = b.id AND e.undone = 0)"
     };
 }
 
@@ -355,6 +356,7 @@ macro_rules! capability_rows {
               OR EXISTS(SELECT 1 FROM relations r WHERE r.block_id=b.id)
               OR EXISTS(SELECT 1 FROM questions q WHERE q.block_id=b.id)
               OR EXISTS(SELECT 1 FROM spreads sp WHERE sp.block_id=b.id)
+              OR EXISTS(SELECT 1 FROM note_states n WHERE n.block_id=b.id)
               OR EXISTS(SELECT 1 FROM assessments a WHERE a.block_id=b.id)
               OR q.block_id IS NOT NULL
               OR EXISTS(SELECT 1 FROM citations c WHERE c.block_id=b.id)) AS retained,
@@ -403,6 +405,8 @@ fn capability_at(row: &rusqlite::Row<'_>) -> rusqlite::Result<BlockCapabilities>
             || row.get::<_, bool>(9)?,
         task,
         project,
+        note: None,
+        note_changed: false,
         position: None,
         spread: row.get(9)?,
         question: None,
@@ -439,7 +443,7 @@ pub(crate) fn capabilities_for(
             )?,
         )?,
     )?;
-    crate::relation_store::hydrate(conn, capabilities)
+    crate::revisit_store::hydrate(conn, crate::relation_store::hydrate(conn, capabilities)?)
 }
 
 pub(crate) fn page_capabilities(
@@ -463,7 +467,7 @@ pub(crate) fn page_capabilities(
             )?,
         )?,
     )?;
-    crate::relation_store::hydrate(conn, capabilities)
+    crate::revisit_store::hydrate(conn, crate::relation_store::hydrate(conn, capabilities)?)
 }
 
 pub(crate) fn guard_merge(conn: &Connection, source_id: &str) -> Result<()> {

@@ -356,6 +356,11 @@ fn notebook_routes() -> Router<AppState> {
         .route("/api/positions", get(capabilities::positions))
         .route("/api/relations", get(capabilities::relations))
         .route("/api/questions", get(capabilities::questions))
+        .route("/api/revisits", get(capabilities::revisits))
+        .route(
+            "/api/blocks/{id}/revisits",
+            get(capabilities::revisit_events),
+        )
         .route("/api/tasks/query", post(capabilities::task_query))
         .route("/api/agenda/{date}", get(capabilities::agenda))
         .route("/api/task-views", get(capabilities::task_views))

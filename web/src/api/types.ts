@@ -77,6 +77,8 @@ export type Operation =
   | { op: 'set_position'; id: string; base_revision: number; position: boolean }
   | { op: 'set_relation'; id: string; base_revision: number; relation: RelationKind | null }
   | { op: 'set_spread'; id: string; base_revision: number; spread: boolean }
+  | { op: 'revisit'; id: string; base_revision: number; action: RevisitAction; next_on: string | null; event_id: string | null }
+  | { op: 'restore_revisit'; id: string; base_revision: number; state: RevisitSnapshot; event_id: string | null }
   | { op: 'set_quote'; id: string; base_revision: number; quote: QuoteState | null }
   | { op: 'set_question'; id: string; base_revision: number; question: QuestionState | null }
   | { op: 'set_assessment'; id: string; base_revision: number; assessment: AssessmentState | null }
@@ -384,7 +386,12 @@ export interface QuotedRow { id: string; depth: number; text: string; heading: n
 export interface QuoteState { target_id: string; captured_at: number; rows: QuotedRow[]; truncated: boolean }
 export interface Subtree { rows: Row[]; truncated: boolean }
 export interface QuoteStatus { block_id: string; source_live: boolean; changed: boolean }
-export interface BlockCapabilities { block_id: string; task: TaskState | null; project: ProjectState | null; position: PositionInfo | null; relation: RelationInfo | null; question: QuestionInfo | null; assessment: AssessmentInfo | null; quote?: QuoteState | null; history: boolean; merge_protected: boolean; reviewed_cards: boolean; template_cards?: number }
+export interface NoteState { resolved_at: number | null; revisit_on: string | null; date_set_at: number | null }
+export type RevisitAction = 'revisited' | 'later' | 'resolve' | 'reopen' | 'keep_recurrent';
+export interface RevisitSnapshot { note: NoteState; question: QuestionState | null }
+export interface RevisitRow { block: BlockInPage; note: NoteState; question_status: QuestionStatus | null; revisit_on: string; last_revisited_on: string | null; proposed_on: string }
+export interface RevisitEvent { id: string; block_id: string; revisited_on: string; next_on: string | null; created_at: number; change_seq: number; actor: Actor }
+export interface BlockCapabilities { block_id: string; task: TaskState | null; project: ProjectState | null; note?: NoteState | null; note_changed?: boolean; position: PositionInfo | null; relation: RelationInfo | null; question: QuestionInfo | null; assessment: AssessmentInfo | null; quote?: QuoteState | null; history: boolean; merge_protected: boolean; reviewed_cards: boolean; template_cards?: number }
 export interface BlockCapabilities { spread?: boolean }
 
 export interface WorkSession {

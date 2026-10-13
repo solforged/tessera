@@ -103,7 +103,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
       ...(question ? [
         { label: question.parked ? 'Resume question' : 'Park question', action: () => edit({ kind: 'question', id, value: { ...question, parked: !question.parked } }) },
         { label: question.unsettled ? 'Let it settle' : 'Keep open', action: () => edit({ kind: 'question', id, value: { ...question, unsettled: !question.unsettled } }) },
-        { label: 'Set review date', action: () => capabilities.open(id, 'review-date') },
+        { label: 'Set revisit date…', action: () => capabilities.open(id, 'review-date') },
         { label: 'Set parent question…', action: () => capabilities.open(id, 'question-parent') },
         ...(question.parent ? [{ label: 'Remove parent', action: () => { const { parent: _, ...value } = question; edit({ kind: 'question', id, value }); } }] : []),
         { label: 'Remove question', disabledReason: question.parked && question.accepted ? 'Resume the question before accepting an answer.' : undefined, action: () => edit({ kind: 'question', id, value: null }) },
@@ -206,7 +206,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     { id: 'relation-kind', title: 'Change kind', section: 'Block', disabledReason: () => doc.block(selected() ?? '')?.relation ? undefined : 'Select a relation.', run: () => { const id = selected(); if (id) relationMenu(id); } },
     { id: 'remove-relation', title: 'Remove relation', section: 'Block', disabledReason: () => doc.block(selected() ?? '')?.relation ? undefined : 'Select a relation.', run: () => { const id = selected(); if (id) markRelation(id, null); } },
     { id: 'add-relation', title: 'Add relation…', section: 'Block', disabledReason: () => addRelationReason(doc.block(selected() ?? '')), run: () => { const id = selected(); if (id) relationMenu(id, true); } },
-    ...['Make question', 'Make answer', 'Accept answer', 'Record aporia', 'Clear aporia', 'Park question', 'Resume question', 'Keep open', 'Let it settle', 'Set review date', 'Remove question', 'Remove answer'].map((title): Command => ({
+    ...['Make question', 'Make answer', 'Accept answer', 'Record aporia', 'Clear aporia', 'Park question', 'Resume question', 'Keep open', 'Let it settle', 'Set revisit date…', 'Remove question', 'Remove answer'].map((title): Command => ({
       id: title.toLowerCase().replaceAll(' ', '-'), title, section: 'Outline', keys: title === 'Make question' || title === 'Make answer' ? ['Space q'] : undefined,
       disabledReason: () => {
         const item = selected() && investigationItems(selected()!).find(item => item.label === title);

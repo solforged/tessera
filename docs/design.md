@@ -178,7 +178,7 @@ Width 208 px. The desk has no heading: Today, Agenda, Review and Library, in `--
 |---|---|
 | Today | Weekday and day |
 | Agenda | Tasks planned for today, in `--danger` when any is overdue |
-| Review | Cards due |
+| Review | Cards, questions and notes due |
 | Library | Unprocessed highlights |
 
 Zero counts are left out. Counts refresh after each committed change, canceling a refresh still in flight, and disappear rather than go stale when a request fails.

@@ -2060,6 +2060,19 @@ impl Engine<'_, '_> {
                 }
                 Ok(())
             }
+            Operation::Revisit {
+                id, base_revision, ..
+            }
+            | Operation::RestoreRevisit {
+                id, base_revision, ..
+            } => {
+                let current = self.checked(id, *base_revision, index, false)?;
+                if crate::revisit_store::apply(self.tx, operation, self.now, self.seq)? {
+                    self.bump(&current, false)?;
+                    self.capability_sources.insert(id.clone());
+                }
+                Ok(())
+            }
             Operation::SetQuote {
                 id,
                 base_revision,
@@ -2099,7 +2112,15 @@ impl Engine<'_, '_> {
                 {
                     return Err(validation("Make an ordinary block an answer."));
                 }
+                let revisit_before = if matches!(operation, Operation::SetQuestion { .. }) {
+                    Some(crate::revisit_store::snapshot(self.tx, id)?)
+                } else {
+                    None
+                };
                 if crate::question_store::apply(self.tx, operation)? {
+                    if let Some(before) = revisit_before {
+                        crate::revisit_store::question_changed(self.tx, id, &before, self.now)?;
+                    }
                     self.bump(&current, false)?;
                     self.capability_sources.insert(id.clone());
                     if matches!(

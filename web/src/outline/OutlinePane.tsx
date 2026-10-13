@@ -19,6 +19,8 @@ import { NoteAliases, NoteEyebrow, NoteLine } from '../notes/NoteHeader';
 import type { OutlineIndex } from '../document/outline-index';
 import { JournalHeader } from '../tasks/JournalHeader';
 import { JournalResurface } from '../tasks/JournalResurface';
+import { NoteRevisit } from '../review/NoteRevisit';
+import { ResearchToRevisit } from '../review/ResearchToRevisit';
 import { TaskStatusButton } from '../tasks/TaskControls';
 import { createProjectSummary } from '../projects/ProjectSummary';
 import { Button } from '../ui/Button';
@@ -1404,6 +1406,7 @@ function Pane(props: OutlinePaneProps) {
         const value = doc.outline.children(entry).find(id => !doc.isArchived(id));
         if (value) editAt(value, doc.block(value)?.text.length ?? 0, true);
       }} /><NoteLine pageId={props.pageId} notebook={props.notebook} /></Show>
+      <Show when={isNote() && doc.status() === 'ready' && !doc.root()?.question}><NoteRevisit id={props.pageId} notebook={props.notebook} /></Show>
       <RowRelations id={zoom() ?? props.pageId} />
       <Show when={!zoom() && doc.root()?.kind === 'page' && !doc.root()?.source && doc.root()?.text.toLowerCase() !== 'fields' && !type.error && type()}>{value => <Show when={value().members || value().fields.length || startingTemplateFor(value().page.text, value().fields)}>
         <TemplateEditor type={value()} fields={definitions()} notebook={props.notebook} onError={setMessage} />
@@ -1469,7 +1472,7 @@ function Pane(props: OutlinePaneProps) {
     <Show when={!zoom() && sourceHighlights.error}><p class="library-error" role="alert">{String(sourceHighlights.error)}</p></Show>
     <Show when={doc.root()?.source && fields.error}><p class="library-error" role="alert">{String(fields.error)}</p></Show>
     <Show when={doc.status() === 'ready' && ids().length === 0 && depthFilter() === undefined}><button type="button" class="add-first-block" onClick={() => apply({ kind: 'insert', parentId: zoom() ?? props.pageId, after: null }, true)}><Icon name="plus" />Add a block</button></Show>
-    <Show when={!zoom() && doc.root()?.kind === 'journal'}><div class="related-sections journal-highlights"><JournalResurface date={doc.root()!.text} notebook={props.notebook} onOpen={props.onOpen} /></div></Show>
+    <Show when={!zoom() && doc.root()?.kind === 'journal'}><div class="related-sections journal-highlights"><Show when={doc.root()!.text === props.notebook.todayDate()}><ResearchToRevisit notebook={props.notebook} onOpen={props.onOpen} /></Show><JournalResurface date={doc.root()!.text} notebook={props.notebook} onOpen={props.onOpen} /></div></Show>
     <Show when={doc.status() === 'ready' && !zoom() && related()?.works.length}><PersonWorks pageId={props.pageId} rows={related()!.works} onOpen={props.onOpen} /></Show>
     <Show when={!zoom()}><projectSummary.LinkedTasks /></Show>
     <Show when={doc.status() === 'ready' && !zoom() && (doc.root()?.project || doc.root()?.manual_types.some(title => title.toLocaleLowerCase() === 'stream'))}><Arrivals doc={doc} notebook={props.notebook} onOpen={props.onOpen} onFiled={restoreFocus} /></Show>

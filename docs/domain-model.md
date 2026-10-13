@@ -531,25 +531,28 @@ Events are a likely future built-in kind; the notebook's own types cover them un
 
 ### State
 
-A note is working or settled. Working is the default and is not stored. Settle records that you stand behind the note as written; Reopen returns it to working. Editing a settled note does not reopen it; the note's apparatus shows that it changed after settling.
+A note is working or resolved. Working is the default and is not stored. Resolve records that you stand behind the note as written. Reopen returns it to working. Editing a resolved note does not reopen it; its apparatus shows when it changed after resolution.
 
 ### Revisits
 
 A note comes back only when it has a revisit date. On a page that is also a question, the revisit date is the question's review date; there is one date, not two. A question block within a page that has a review date comes back as itself.
 
-From its revisit date onward a note waits in the notes queue in Review, earliest date first. It is reviewed in the ordinary outline, with its sources and backlinks at hand. A revisit ends in one of three ways:
+From its revisit date onward a note waits in Review's Questions and notes queue, earliest date first. Inline questions join the same queue. Each opens in the ordinary outline, with its sources and backlinks at hand.
 
 | Action | Effect |
 |---|---|
 | Revisited | Records the revisit and sets the next date, or none |
 | Later | Moves the date without recording a revisit |
-| Settle | Settles the note and clears its date |
+| Resolve | Resolves a note and clears its date; clears a question's date and allows resolution without accepting an assessment |
+| Keep recurrent | Marks a question recurrent and records a revisit with its next date |
 
 Revisits have no grade or scheduler: they judge the note, not your memory of it. Revisited proposes the next date at the interval just ended, measured from the previous revisit or, for the first, from when the date was set. The date can be changed or cleared before confirming.
 
-Each action is an attributed, undoable operation and writes a revisit event. The note's last revisit is its latest Revisited event. Revisit events are authoritative history, kept like review events.
+Each action is attributed and undoable. Only Revisited and Keep recurrent write a revisit event. Later, Resolve and Reopen leave revisit history unchanged. The last revisit is the latest event not undone. Events remain authoritative history; undo marks the event undone and restores the prior date and state.
 
-A note capability on the page holds the stored state, the revisit date and when that date was set. A page without one is working and has no revisit date.
+A note capability on the page holds the resolved timestamp, revisit date and when that date was set. Working with no date needs no row. Questions keep their sole date in `review_on`; their note capability holds only the date-set timestamp. Today lists due items under Research to revisit, and Review's sidebar count includes them.
+
+`GET /api/revisits?due=today` reads the queue. `GET /api/blocks/{id}/revisits` reads effective events and their actors. The agent API's `revisit` edit and MCP's `tessera_revisit` expose the same actions; `tessera_revisits` reads the queue.
 
 ### Index and views
 
@@ -559,8 +562,8 @@ A note view queries notes with a layout and grouping. It selects by kind and sup
 
 | Constraint | Find-line example |
 |---|---|
-| State (planned; awaits the note capability) | `is:settled` |
-| Revisit: due, set or none (planned; awaits the note capability) | `revisit:due` |
+| State (planned) | `is:resolved` |
+| Revisit: due, set or none (planned) | `revisit:due` |
 | Links to a note | `links:Polybius` |
 | Links from a note | `from:Postone` |
 | Cited source, by siglum, citation key, title or alias | `cites:MAR` |
@@ -571,7 +574,7 @@ One query has two layouts:
 
 | Layout | Presentation |
 |---|---|
-| Index | Titles in columns under headings; settled marks and revisit dates await the note capability |
+| Index | Titles in columns under headings; resolved marks and revisit dates are planned |
 | Table | One note per row, fields as columns, as in type tables |
 
 Index groups by first letter unless source cited, note linked, created month or a field's values is chosen. State grouping awaits the note capability. A note appears under every applicable heading, as in a book index. Source, link and field-value headings sort by descending distinct-note count, ties by name, with None last. Source headings show siglum then title; link headings open the note. Created months sort newest first. Only Letter grouping shows the jump strip.

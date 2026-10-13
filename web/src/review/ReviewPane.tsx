@@ -4,7 +4,7 @@ import { ApiError } from '../api/client';
 import type { CardKind, CardPreviews, CardQuery, CardRow, CardSelection, Deck, Grade, ReviewEvent, ReviewSession, ReviewStats } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { BlockText } from '../outline/BlockText';
-import type { OpenTarget, PaneId, ReviewViewState } from '../shell/contract';
+import type { CommandRegistry, OpenTarget, PaneId, ReviewViewState } from '../shell/contract';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
@@ -21,11 +21,15 @@ import { copyCardQuery, formatInterval, gradeLabels, gradeOperation, loadReviewC
 import { ReviewSourcePassage, reviewSource } from './ReviewSource';
 import type { ReviewSource } from './ReviewSource';
 import './review.css';
+import { NotesReview } from './NotesReview';
+import { createRevisits } from './revisits';
+import './revisits.css';
 
 export interface ReviewPaneProps {
   pane: PaneId;
   view: ReviewViewState;
   notebook: NotebookClient;
+  commands: CommandRegistry;
   active: boolean;
   onActivate(): void;
   onOpen(target: OpenTarget, beside: boolean): void;
@@ -43,6 +47,17 @@ const selections = Object.keys(selectionLabels) as CardSelection[];
 const touchOnly = window.matchMedia('(hover: none) and (pointer: coarse)');
 
 export function ReviewPane(props: ReviewPaneProps) {
+  const queue = createRevisits(props.notebook);
+  return <div class="review-queues">
+    <div class="review-kind-tabs review-queue-controls mode-tabs tab-strip" role="group" aria-label="Review kind">
+      <Button aria-pressed={props.view.queue !== 'notes'} onClick={() => props.onViewChange({ ...props.view, queue: 'cards' })}>Cards</Button>
+      <Button aria-pressed={props.view.queue === 'notes'} onClick={() => props.onViewChange({ ...props.view, queue: 'notes' })}>Questions and notes<span class="review-count">{queue.rows().length}</span></Button>
+    </div>
+    <Show when={props.view.queue === 'notes'} fallback={<CardReviewPane {...props} />}><NotesReview {...props} rows={queue.rows()} error={queue.error()} /></Show>
+  </div>;
+}
+
+function CardReviewPane(props: ReviewPaneProps) {
   const [deckId, setDeckId] = createSignal(props.view.deckId);
   const [sessionId, setSessionId] = createSignal(props.view.sessionId);
   const [decks, setDecks] = createSignal<Deck[]>([]);
@@ -127,7 +142,7 @@ export function ReviewPane(props: ReviewPaneProps) {
   }
 
   function publish() {
-    if (!disposed) props.onViewChange({ deckId: deckId(), sessionId: sessionId(), selection: selection(), scroll: scroll?.scrollTop ?? props.view.scroll });
+    if (!disposed) props.onViewChange({ ...props.view, deckId: deckId(), sessionId: sessionId(), selection: selection(), scroll: scroll?.scrollTop ?? props.view.scroll });
   }
 
   function moveTo(target: Destination) {

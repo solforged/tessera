@@ -34,7 +34,8 @@ pub fn restore_authored_search(conn: &Connection) {
 
 /// Before schema 40, authored argument edges had no capability table.
 pub fn restore_pre_relations(conn: &Connection) {
-    conn.execute_batch("DROP TABLE relations;").unwrap();
+    conn.execute_batch("DROP TABLE revisit_events; DROP TABLE note_states; DROP TABLE relations;")
+        .unwrap();
 }
 
 /// Before schema 41, saved spreads had no capability table.

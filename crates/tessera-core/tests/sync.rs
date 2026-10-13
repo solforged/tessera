@@ -1984,6 +1984,55 @@ fn frozen_quote_replays_after_hub_source_deletion_and_rebases_its_revision() {
 }
 
 #[test]
+fn revisit_dates_and_history_replicate_with_later_changes_winning() {
+    use tessera_core::RevisitAction;
+    let mut p = pair();
+    apply(
+        &mut p.replica,
+        vec![Operation::Revisit {
+            id: id(1),
+            base_revision: 1,
+            action: RevisitAction::Revisited,
+            next_on: Some("2026-12-01".into()),
+            event_id: Some(id(990)),
+        }],
+    );
+    apply(
+        &mut p.hub,
+        vec![Operation::Revisit {
+            id: id(1),
+            base_revision: 1,
+            action: RevisitAction::Later,
+            next_on: Some("2026-11-01".into()),
+            event_id: None,
+        }],
+    );
+    let report = p.sync();
+    assert!(
+        report
+            .pushed
+            .iter()
+            .all(|receipt| matches!(receipt.outcome, PushOutcome::Accepted { .. }))
+    );
+    p.assert_converged();
+    assert_eq!(
+        p.hub
+            .capabilities(&id(1))
+            .unwrap()
+            .note
+            .unwrap()
+            .revisit_on
+            .as_deref(),
+        Some("2026-12-01")
+    );
+    assert_eq!(p.hub.revisit_events(&id(1)).unwrap().len(), 1);
+    assert_eq!(
+        p.hub.revisit_events(&id(1)).unwrap(),
+        p.replica.revisit_events(&id(1)).unwrap()
+    );
+}
+
+#[test]
 fn relation_kinds_rebase_and_replicate_with_later_changes_winning() {
     use tessera_core::{RelationKind, RelationQuery};
     let mut p = pair_with(|hub| {

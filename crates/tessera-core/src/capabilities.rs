@@ -243,6 +243,10 @@ pub struct BlockCapabilities {
     pub task: Option<TaskState>,
     pub project: Option<ProjectState>,
     #[serde(default)]
+    pub note: Option<crate::NoteState>,
+    #[serde(default)]
+    pub note_changed: bool,
+    #[serde(default)]
     pub position: Option<PositionInfo>,
     #[serde(default)]
     pub spread: bool,

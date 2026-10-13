@@ -323,6 +323,19 @@ pub enum Operation {
         base_revision: i64,
         spread: bool,
     },
+    Revisit {
+        id: String,
+        base_revision: i64,
+        action: crate::RevisitAction,
+        next_on: Option<String>,
+        event_id: Option<String>,
+    },
+    RestoreRevisit {
+        id: String,
+        base_revision: i64,
+        state: crate::RevisitSnapshot,
+        event_id: Option<String>,
+    },
     SetQuote {
         id: String,
         base_revision: i64,

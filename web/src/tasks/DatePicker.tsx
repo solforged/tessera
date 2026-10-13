@@ -19,6 +19,7 @@ export interface DatePickerProps {
   initialQuery?: string;
   /** Field dates may retain year or month precision; task dates always name a day. */
   partialDates?: boolean;
+  presets?: 'revisit';
   /** Omit for date-only values; null enables an optional time. */
   time?: string | null;
   contextDate: string;
@@ -99,7 +100,7 @@ export function DatePicker(props: DatePickerProps) {
     const parsed = parseTaskDate(date(), props.contextDate);
     return parsed.ok ? parsed.date : null;
   });
-  const planning = createMonthPlanningMarks(() => props.notebook, preview() ?? props.contextDate);
+  const planning = props.presets === 'revisit' ? undefined : createMonthPlanningMarks(() => props.notebook, preview() ?? props.contextDate);
 
   return <Popup anchor={props.anchor} label={props.label} onDismiss={props.onDismiss} class="date-picker" fitContent>
     <form class="date-picker-form" aria-busy={busy()} onKeyDown={keydown} onCompositionStart={() => { composing = true; }} onCompositionEnd={() => { composing = false; }} onSubmit={event => { event.preventDefault(); if (!composing) apply(); }}>
@@ -116,11 +117,17 @@ export function DatePicker(props: DatePickerProps) {
           }} />
         </div>
         <div class="date-picker-quick-picks">
-          <Button disabled={busy()} onClick={() => quickPick('today')}>Today</Button>
-          <Button disabled={busy()} onClick={() => quickPick('tomorrow')}>Tomorrow</Button>
-          <Button disabled={busy()} onClick={() => quickPick('+1w')}>Next week</Button>
+          <Show when={props.presets === 'revisit'} fallback={<>
+            <Button disabled={busy()} onClick={() => quickPick('today')}>Today</Button>
+            <Button disabled={busy()} onClick={() => quickPick('tomorrow')}>Tomorrow</Button>
+            <Button disabled={busy()} onClick={() => quickPick('+1w')}>Next week</Button>
+          </>}>
+            <Button disabled={busy()} onClick={() => quickPick('+1w')}>Revisit in a week</Button>
+            <Button disabled={busy()} onClick={() => quickPick('+1m')}>Revisit in a month</Button>
+            <Button disabled={busy()} onClick={() => quickPick('+3m')}>Revisit in three months</Button>
+          </Show>
         </div>
-        <MonthGrid value={preview()} today={props.contextDate} marks={props.marks} planningMarks={planning.marks()} planningLoading={planning.loading()} planningError={planning.error()} onMonthChange={planning.setMonth} disabled={busy()} onPick={day => { setDate(day); apply(day); }} />
+        <MonthGrid value={preview()} today={props.contextDate} marks={props.marks} planningMarks={planning?.marks()} planningLoading={planning?.loading()} planningError={planning?.error()} onMonthChange={planning?.setMonth} disabled={busy()} onPick={day => { setDate(day); apply(day); }} />
       </div>
       <div class="date-picker-footer">
         <Show when={props.time !== undefined}>
@@ -135,7 +142,7 @@ export function DatePicker(props: DatePickerProps) {
         </Show>
         <Show when={error()}><p id={`${id}-error`} class="error date-picker-error" role="alert">{error()}</p></Show>
         <div class="date-picker-actions">
-          <Button disabled={busy()} onClick={() => { void select({ date: null, time: null }); }}>Clear</Button>
+          <Button disabled={busy()} onClick={() => { void select({ date: null, time: null }); }}>{props.presets === 'revisit' ? 'No revisit date' : 'Clear'}</Button>
           <Button type="submit" class="bordered" disabled={busy()}>Apply</Button>
         </div>
       </div>

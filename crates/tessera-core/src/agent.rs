@@ -121,6 +121,14 @@ pub enum AgentEdit {
         revision: Option<i64>,
         relation: Option<RelationKind>,
     },
+    /// Revisit a note or question, move its date, resolve it, or reopen it.
+    Revisit {
+        id: String,
+        #[serde(default)]
+        revision: Option<i64>,
+        action: crate::RevisitAction,
+        next_on: Option<String>,
+    },
     /// Hold a card out of review, or release it, using its own revision.
     SetCardHeld {
         card_id: String,
@@ -247,6 +255,11 @@ enum Step {
         id: String,
         relation: Option<RelationKind>,
     },
+    Revisit {
+        id: String,
+        state: crate::RevisitSnapshot,
+        event_id: Option<String>,
+    },
     Uncomplete {
         id: String,
         occurrence_id: String,
@@ -283,6 +296,7 @@ impl Step {
             | Step::Restore { id }
             | Step::Task { id, .. }
             | Step::Relation { id, .. }
+            | Step::Revisit { id, .. }
             | Step::Uncomplete { id, .. }
             | Step::CardHeld { id, .. }
             | Step::DeckCreated { id }
@@ -422,6 +436,58 @@ impl Notebook {
                     None => "Removed relation".into(),
                 };
                 (Some(block.page_id), summary)
+            }
+            AgentEdit::Revisit {
+                id,
+                revision,
+                action,
+                next_on,
+            } => {
+                let block = self.block(id)?;
+                touch(&mut plan, &block, *revision);
+                let state = crate::revisit_store::snapshot(&self.conn, id)?;
+                let event_id = matches!(
+                    action,
+                    crate::RevisitAction::Revisited | crate::RevisitAction::KeepRecurrent
+                )
+                .then(|| new_ulid().to_string());
+                plan.operations.push(Operation::Revisit {
+                    id: id.clone(),
+                    base_revision: next_revision(&mut plan.revisions, id),
+                    action: *action,
+                    next_on: next_on.clone(),
+                    event_id: event_id.clone(),
+                });
+                let changes = match action {
+                    crate::RevisitAction::Revisited | crate::RevisitAction::KeepRecurrent => true,
+                    crate::RevisitAction::Reopen => state.note.resolved_at.is_some(),
+                    crate::RevisitAction::Later => {
+                        next_on.is_some()
+                            || state.note.revisit_on.is_some()
+                            || state.note.date_set_at.is_some()
+                            || state
+                                .question
+                                .as_ref()
+                                .is_some_and(|q| q.review_on.is_some())
+                    }
+                    crate::RevisitAction::Resolve => {
+                        state
+                            .question
+                            .as_ref()
+                            .is_none_or(|q| q.unsettled || q.review_on.is_some())
+                            || state.note.revisit_on.is_some()
+                            || state.note.date_set_at.is_some()
+                    }
+                };
+                if changes {
+                    plan.steps.push(Step::Revisit {
+                        id: id.clone(),
+                        state,
+                        event_id,
+                    });
+                    plan.changed.push(id.clone());
+                }
+                (Some(block.page_id), "Changed revisit".into())
             }
             AgentEdit::SetCardHeld {
                 card_id,
@@ -1669,6 +1735,14 @@ fn inverse(steps: &[Step], committed: &Committed) -> Result<Vec<Operation>> {
                 base_revision,
                 relation: *relation,
             },
+            Step::Revisit {
+                state, event_id, ..
+            } => Operation::RestoreRevisit {
+                id,
+                base_revision,
+                state: state.clone(),
+                event_id: event_id.clone(),
+            },
             Step::Uncomplete { occurrence_id, .. } => Operation::ReverseTaskCompletion {
                 id,
                 base_revision,
@@ -1715,6 +1789,9 @@ fn base_revision(operation: &mut Operation) -> Option<(String, &mut i64)> {
             id, base_revision, ..
         }
         | Operation::SetRelation {
+            id, base_revision, ..
+        }
+        | Operation::RestoreRevisit {
             id, base_revision, ..
         }
         | Operation::RestoreTaskState {

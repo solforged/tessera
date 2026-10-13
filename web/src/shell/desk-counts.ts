@@ -2,7 +2,7 @@ import { createEffect, createSignal, onCleanup, type Accessor } from 'solid-js';
 import type { NotebookClient } from '../document/contract';
 
 /** What the sidebar's landmarks report: planned tasks for the day, cards due and highlights not yet worked. */
-export interface DeskCounts { planned: number; overdue: number; cards: number; highlights: number }
+export interface DeskCounts { planned: number; overdue: number; cards: number; revisits: number; highlights: number }
 
 export function deskCounts(notebook: NotebookClient, date: Accessor<string>): Accessor<DeskCounts | undefined> {
   const [counts, setCounts] = createSignal<DeskCounts>();
@@ -14,7 +14,8 @@ export function deskCounts(notebook: NotebookClient, date: Accessor<string>): Ac
         notebook.api.agenda(day, controller.signal),
         notebook.api.cardQuery({ source: null, selection: 'due', limit: 1 }, controller.signal),
         notebook.api.highlights({ unprocessed: true, limit: 0 }, controller.signal),
-      ]).then(([agenda, cards, highlights]) => {
+        notebook.api.revisits(day, controller.signal),
+      ]).then(([agenda, cards, highlights, revisits]) => {
         if (controller.signal.aborted) return;
         let planned = 0, overdue = 0;
         for (const item of agenda.items) {
@@ -22,7 +23,7 @@ export function deskCounts(notebook: NotebookClient, date: Accessor<string>): Ac
           planned++;
           if (item.reasons.includes('overdue') || !!item.task.scheduled && item.task.scheduled < day) overdue++;
         }
-        setCounts({ planned, overdue, cards: cards.total, highlights: highlights.total });
+        setCounts({ planned, overdue, cards: cards.total, revisits: revisits.length, highlights: highlights.total });
       }, () => {
         // A stale count would mislead; each destination reports its own loading errors.
         if (!controller.signal.aborted) setCounts(undefined);

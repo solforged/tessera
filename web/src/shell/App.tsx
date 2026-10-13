@@ -111,7 +111,7 @@ function targetFromView(entry: HistoryEntry): OpenTarget {
   if (target.kind === 'index' && 'noteQuery' in view) return { ...target, query: view.noteQuery ? copyQuery(view.noteQuery) : undefined, viewId: view.viewId };
   if (target.kind === 'table' && 'query' in view && !('mode' in view)) return { ...target, query: copyQuery(view.query), typeId: view.query.type };
   if (target.kind === 'agenda' && 'mode' in view) return { kind: 'agenda', date: view.date, mode: view.mode, viewId: view.viewId ?? undefined, query: copyTaskQuery(view.query) };
-  if (target.kind === 'review' && 'deckId' in view) return { kind: 'review', deckId: view.deckId ?? undefined };
+  if (target.kind === 'review' && 'deckId' in view) return { kind: 'review', deckId: view.deckId ?? undefined, queue: view.queue, revisitId: view.revisitId };
   if (target.kind === 'library' && 'tab' in view) return { kind: 'library', tab: view.tab };
   // A jump not yet performed (no position reported) survives a reload.
   if (target.kind === 'reader' && 'ordinal' in view) return view.ordinal < 0 ? { ...target, snapshotId: view.snapshotId ?? target.snapshotId } : { kind: 'reader', sourceId: target.sourceId, snapshotId: view.snapshotId ?? undefined };
@@ -228,8 +228,8 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     const current = entry(pane);
     if (target.kind === 'review' && current?.target.kind === 'review' && 'deckId' in current.view) {
       // A block request keeps the open review in place so the pane can ask before leaving it.
-      const next = restore && 'deckId' in restore ? { ...restore } : target.blockId ? { ...current.view, blockId: target.blockId } : { deckId: target.deckId ?? null, sessionId: null, selection: null, scroll: 0 };
-      if (restore || target.blockId || next.deckId !== current.view.deckId) changeView(pane, next);
+      const next = restore && 'deckId' in restore ? { ...restore } : target.blockId ? { ...current.view, queue: 'cards' as const, blockId: target.blockId } : { deckId: target.deckId ?? null, sessionId: null, selection: null, scroll: 0, queue: target.queue ?? 'cards', revisitId: target.revisitId };
+      if (restore || target.blockId || target.queue || next.deckId !== current.view.deckId) changeView(pane, next);
       setActive(pane); setSidebar(false); focusPane(pane);
       return;
     }
@@ -240,7 +240,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
       const view: PaneView = restore ? snapshotView(restore) : target.kind === 'table'
         ? { query: copyQuery(target.query), scroll: 0 }
         : target.kind === 'agenda' ? { date, mode: target.mode ?? (target.query || target.viewId ? 'tasks' : 'agenda'), query: { ...(target.query ? copyTaskQuery(target.query) : createTaskQuery(date)), context_date: date }, viewId: target.viewId ?? null, scroll: 0 }
-          : target.kind === 'review' ? { deckId: target.deckId ?? null, sessionId: null, selection: null, scroll: 0, ...(target.blockId ? { blockId: target.blockId } : {}) }
+          : target.kind === 'review' ? { deckId: target.deckId ?? null, sessionId: null, selection: null, scroll: 0, queue: target.queue ?? 'cards', revisitId: target.revisitId, ...(target.blockId ? { blockId: target.blockId } : {}) }
             : target.kind === 'index' ? { scroll: 0, noteQuery: target.query ? copyQuery(target.query) : undefined, viewId: target.viewId }
               : target.kind === 'fields' || target.kind === 'field' || target.kind === 'cards' || target.kind === 'settings' || target.kind === 'compare' || target.kind === 'spread' ? { scroll: 0 }
               : target.kind === 'library' ? { view: null, tab: target.tab ?? 'inbox', text: '', sort: 'added', filters: { people: [], decades: [], publishers: [], languages: [] }, group: 'none', unprocessedOnly: true, colors: [], tags: [], scroll: 0 }
@@ -619,7 +619,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
       <nav class="primary-navigation" aria-label="Notebook">
         <Button icon="today" title="Today (⌃⇧J)" class={activeRoot()?.kind === 'journal' && activeRoot()?.text === todayDate() ? 'selected' : ''} onClick={event => { void today(active(), event.shiftKey); }}><span>Today</span><span class="desk-count">{shortDay(todayDate())}</span></Button>
         <Button icon="agenda" class={entry(active())?.target.kind === 'agenda' ? 'selected' : ''} onClick={event => open({ kind: 'agenda', date: journalDate(active()) }, event.shiftKey)}><span>Agenda</span><Show when={counts()?.planned}>{planned => <span class={`desk-count ${counts()!.overdue ? 'late' : ''}`} title={counts()!.overdue ? `${planned()} to do today · ${counts()!.overdue} overdue` : `${planned()} to do today`}>{planned()}</span>}</Show></Button>
-        <Button icon="review" class={entry(active())?.target.kind === 'review' ? 'selected' : ''} onClick={event => open({ kind: 'review' }, event.shiftKey)}><span>Review</span><Show when={counts()?.cards}>{cards => <span class="desk-count" title={`${cards()} ${cards() === 1 ? 'card' : 'cards'} due`}>{cards()}</span>}</Show></Button>
+        <Button icon="review" class={entry(active())?.target.kind === 'review' ? 'selected' : ''} onClick={event => open({ kind: 'review' }, event.shiftKey)}><span>Review</span><Show when={(counts()?.cards ?? 0) + (counts()?.revisits ?? 0)}>{due => <span class="desk-count" title={`${counts()?.cards ?? 0} cards · ${counts()?.revisits ?? 0} questions and notes due`}>{due()}</span>}</Show></Button>
         <Button icon="library" class={entry(active())?.target.kind === 'library' ? 'selected' : ''} onClick={event => open({ kind: 'library' }, event.shiftKey)}><span>Library</span><Show when={counts()?.highlights}>{highlights => <span class="desk-count" title={`${highlights()} unprocessed ${highlights() === 1 ? 'highlight' : 'highlights'}`}>{highlights()}</span>}</Show></Button>
       </nav>
       <Show when={pinnedRoots().length || pinnedViewList().length}><section class="page-list" aria-label="Pinned">
@@ -919,7 +919,7 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
       <Match when={current().target.kind === 'spread' ? current().target as Extract<OpenTarget, { kind: 'spread' }> : undefined}>{target => <SpreadPane noteIds={target().noteIds} notebook={props.notebook} onActivate={props.onActivate} onChange={noteIds => props.onTargetChange({ kind: 'spread', noteIds })} onOpen={(next, beside) => { if (generation === props.session().generation) props.onOpen(next, beside); }} />}</Match>
       <Match when={current().target.kind === 'index' ? current().target as Extract<OpenTarget, { kind: 'index' }> : undefined}>{target => <IndexPane kindKey={target().key} kind={props.noteKind} view={snapshotView(current().view) as IndexViewState} notebook={props.notebook} onActivate={props.onActivate} onOpen={(next, beside) => { if (generation === props.session().generation) props.onOpen(next, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} onDeletePages={props.onDeleteSources} onSpread={(noteIds, beside) => { if (generation === props.session().generation) props.onOpen({ kind: 'spread', noteIds }, beside); }} />}</Match>
       <Match when={current().target.kind === 'agenda'}><AgendaPane pane={props.pane} view={snapshotView(current().view) as AgendaViewState} notebook={props.notebook} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
-      <Match when={current().target.kind === 'review'}><ReviewPane pane={props.pane} view={snapshotView(current().view) as ReviewViewState} notebook={props.notebook} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
+      <Match when={current().target.kind === 'review'}><ReviewPane pane={props.pane} view={snapshotView(current().view) as ReviewViewState} notebook={props.notebook} commands={props.commands} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
       <Match when={current().target.kind === 'library'}><LibraryPane pane={props.pane} view={snapshotView(current().view) as LibraryViewState} notebook={props.notebook} active={props.active}
         add={(current().target as Extract<OpenTarget, { kind: 'library' }>).add}
         details={(current().target as Extract<OpenTarget, { kind: 'library' }>).details}

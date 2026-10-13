@@ -90,6 +90,33 @@ pub(crate) async fn questions(
         .map(Json)
 }
 
+#[derive(serde::Deserialize)]
+pub(crate) struct RevisitQuery {
+    due: Option<String>,
+}
+
+pub(crate) async fn revisits(
+    State(state): State<AppState>,
+    query: Result<Query<RevisitQuery>, QueryRejection>,
+) -> Result<Json<Vec<tessera_core::RevisitRow>>, ApiError> {
+    let Query(query) = query.map_err(ApiError::from)?;
+    run(&state, move |notebook| {
+        notebook.revisits(query.due.as_deref().unwrap_or("today"), now_ms())
+    })
+    .await
+    .map(Json)
+}
+
+pub(crate) async fn revisit_events(
+    State(state): State<AppState>,
+    path: Result<Path<String>, PathRejection>,
+) -> Result<Json<Vec<tessera_core::RevisitEvent>>, ApiError> {
+    let Path(id) = path.map_err(ApiError::from)?;
+    run(&state, move |notebook| notebook.revisit_events(&id))
+        .await
+        .map(Json)
+}
+
 pub(crate) async fn task_query(
     State(state): State<AppState>,
     body: Result<Json<TaskQuery>, JsonRejection>,

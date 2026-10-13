@@ -219,6 +219,8 @@ impl FieldChanges {
             | Operation::SetPosition { .. }
             | Operation::SetRelation { .. }
             | Operation::SetSpread { .. }
+            | Operation::Revisit { .. }
+            | Operation::RestoreRevisit { .. }
             | Operation::SetQuestion { .. }
             | Operation::SetQuote { .. }
             | Operation::SetAssessment { .. }

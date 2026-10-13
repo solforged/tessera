@@ -69,6 +69,8 @@ import type {
   RelationQuery,
   RelationRow,
   ReviewEvent,
+  RevisitRow,
+  RevisitEvent,
   ReviewSession,
   ReviewStats,
   ServiceInfo,
@@ -252,6 +254,8 @@ export interface ApiClient {
   positions(query: { holder?: string; subject?: string; limit?: number }, signal?: AbortSignal): Promise<PositionQueryResult>;
   relations(query: RelationQuery, signal?: AbortSignal): Promise<RelationRow[]>;
   questions(query: QuestionQuery, signal?: AbortSignal): Promise<QuestionRow[]>;
+  revisits(due?: string, signal?: AbortSignal): Promise<RevisitRow[]>;
+  revisitEvents(id: string, signal?: AbortSignal): Promise<RevisitEvent[]>;
   taskQuery(value: TaskQuery, signal?: AbortSignal): Promise<TaskQueryResult>;
   agenda(date: string, signal?: AbortSignal): Promise<Agenda>;
   taskViews(signal?: AbortSignal): Promise<TaskView[]>;
@@ -382,6 +386,8 @@ export function createApi(base = ''): ApiClient {
       return get<PositionQueryResult>(`/positions?${params}`, signal);
     },
     relations: (value: RelationQuery, signal?: AbortSignal) => get<RelationRow[]>(`/relations${query({ ...value })}`, signal),
+    revisits: (due = 'today', signal?: AbortSignal) => get<RevisitRow[]>(`/revisits${query({ due })}`, signal),
+    revisitEvents: (id: string, signal?: AbortSignal) => get<RevisitEvent[]>(`/blocks/${segment(id)}/revisits`, signal),
     questions: (query: QuestionQuery, signal?: AbortSignal) => {
       const params = new URLSearchParams();
       if (query.status !== undefined) params.set('status', query.status);

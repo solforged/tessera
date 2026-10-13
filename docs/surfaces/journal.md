@@ -110,3 +110,7 @@ Touch journals keep only the bullet left of the text, with the heading and the r
 ## From your highlights
 
 Below the outline, From your highlights shows one resurfaced highlight at a time with an `N of M` counter and previous/next controls, preserving Open, Keep, Mute and the device's collapse preference. No reading-session duration, pace or finish estimate is shown.
+
+## Research to revisit
+
+Today lists due notes and questions beside From your highlights, earliest first, with their title, kind or question state and revisit date. Open in Review selects that item in the Questions and notes queue. The section stays hidden when nothing is due.

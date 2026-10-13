@@ -10,6 +10,7 @@ mod outline;
 mod query;
 mod relations;
 mod render;
+mod revisits;
 mod sync;
 mod tasks;
 mod tools;
@@ -122,6 +123,8 @@ impl Session<'_> {
                     "tessera_set_task" => self.set_task(&arguments).await,
                     "tessera_set_relation" => self.set_relation(&arguments).await,
                     "tessera_relations" => self.relations(&arguments).await,
+                    "tessera_revisits" => self.revisits(&arguments).await,
+                    "tessera_revisit" => self.revisit(&arguments).await,
                     "tessera_tasks" => self.tasks(&arguments).await,
                     "tessera_cards" => self.cards(&arguments).await,
                     "tessera_hold_card" => self.hold_card(&arguments).await,

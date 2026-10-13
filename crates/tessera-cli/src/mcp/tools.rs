@@ -173,6 +173,28 @@ pub(super) fn tools() -> Value {
             "annotations": writes(false)
         },
         {
+            "name": "tessera_revisits",
+            "title": "Read revisits",
+            "description": "Read due questions and notes, earliest first, with proposed next dates.",
+            "inputSchema": { "type": "object", "properties": {
+                "due": { "type": "string", "description": "today or YYYY-MM-DD; defaults to today." }
+            }},
+            "annotations": read_only()
+        },
+        {
+            "name": "tessera_revisit",
+            "title": "Change a revisit",
+            "description": "Revisited and keep_recurrent record a revisit; later moves its date without an event. Resolve clears its date and never accepts an assessment. Reopen returns a resolved note to working. Undo with tessera_undo.",
+            "inputSchema": { "type": "object", "properties": {
+                "id": { "type": "string" },
+                "action": { "type": "string", "enum": ["revisited", "later", "resolve", "reopen", "keep_recurrent"] },
+                "next_on": { "type": ["string", "null"], "description": "Next revisit date, YYYY-MM-DD, or null to clear it." },
+                "revision": { "type": "integer", "description": REVISION },
+                "reason": { "type": "string" }
+            }, "required": ["id", "action", "next_on"] },
+            "annotations": writes(false)
+        },
+        {
             "name": "tessera_set_relation",
             "title": "Set a relation",
             "description": "Set an ordinary block's explicit relation kind, or remove it with null. Its first link is the target; its source comes from its ancestors. Does not change the block's text. Undo with tessera_undo.",

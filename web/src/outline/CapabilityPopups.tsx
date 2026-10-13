@@ -70,7 +70,7 @@ function CapabilityPopups(){ return <>
         <Show when={capabilities.busy(state.id)}><p class="outline-capability-notice" role="status">Saving…</p></Show>
         <Show when={capabilities.error(state.id)}><p class="error" role="alert">{capabilities.error(state.id)}</p></Show>
       </Popup>}
-      {state.kind === 'review-date' && <Show when={doc.block(state.id)?.question}>{question => <DatePicker notebook={props.notebook} anchor={state.anchor} label="Set review date" value={question().state.review_on} contextDate={props.notebook.todayDate()} onDismiss={() => capabilities.dismiss(state)}
+      {state.kind === 'review-date' && <Show when={doc.block(state.id)?.question}>{question => <DatePicker notebook={props.notebook} anchor={state.anchor} label="Set revisit date" presets="revisit" value={question().state.review_on} contextDate={props.notebook.todayDate()} onDismiss={() => capabilities.dismiss(state)}
         onSelect={value => capabilities.edit(state.id, { kind: 'question', id: state.id, value: { ...question().state, review_on: value.date } })} />}</Show>}
       {state.kind === 'question-parent' && <QuestionParentPicker id={state.id} notebook={props.notebook} anchor={state.anchor} onDismiss={() => capabilities.dismiss(state)}
         onPick={parent => { const question = doc.block(state.id)?.question; if (!question) return Promise.reject(new Error('The question is no longer available.')); return capabilities.edit(state.id, { kind: 'question', id: state.id, value: { ...question.state, parent } }); }} />}
