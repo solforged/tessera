@@ -185,6 +185,30 @@ pub(crate) fn affected(conn: &Connection, id: &str, into: &mut HashSet<String>) 
     Ok(())
 }
 
+pub(crate) fn withdraw_acceptance(conn: &Connection, answer: &str) -> Result<Vec<String>> {
+    let owners = conn
+        .prepare_cached(
+            "SELECT q.block_id, q.state FROM questions q JOIN blocks b ON b.id = q.block_id
+         WHERE q.active = 1 AND b.deletion_id IS NULL
+         AND json_extract(q.state, '$.accepted') = ?1 ORDER BY q.block_id",
+        )?
+        .query_map([answer], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                json_at::<QuestionState>(row, 1)?.expect("question state is non-null"),
+            ))
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    let mut changed = Vec::with_capacity(owners.len());
+    for (id, mut next) in owners {
+        next.accepted = None;
+        if set_state::<QuestionState>(conn, "questions", &id, None, Some(&next))? {
+            changed.push(id);
+        }
+    }
+    Ok(changed)
+}
+
 pub(crate) fn apply(conn: &Connection, operation: &Operation) -> Result<bool> {
     match operation {
         Operation::SetQuestion { id, question, .. } => {
@@ -201,6 +225,9 @@ pub(crate) fn apply(conn: &Connection, operation: &Operation) -> Result<bool> {
             let accepted_changed = previous.and_then(|state| state.accepted.as_ref())
                 != question.as_ref().and_then(|state| state.accepted.as_ref());
             if accepted_changed
+                && question
+                    .as_ref()
+                    .is_none_or(|state| state.accepted.is_some())
                 && (previous.is_some_and(|state| state.parked)
                     || question.as_ref().is_some_and(|state| state.parked))
             {

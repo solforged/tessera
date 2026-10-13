@@ -275,6 +275,7 @@ A question is in one of four states:
 | Unsettled | Open by design: it recurs or may end in aporia, collects dated assessments and returns on its review date |
 
 Stored with the question are whether it is unsettled, whether it is parked, its review date and which assessment it accepts. The state is derived in this order: parked, then unsettled, then answered when an accepted assessment exists, otherwise open. Answered is never stored, so it cannot disagree with the assessments. Accepting an assessment on an unsettled question records the current reading without settling it. Resuming a parked question returns it to whatever the rest of the rule gives. Export writes the derived state as the site's `state`.
+Removing an assessment clears any question's acceptance of it in the same change. Undo restores the assessment before restoring its acceptance, so removing and restoring the question never carries a pointer to an absent answer. A parked question may withdraw its current acceptance but cannot accept a new answer until resumed.
 
 ## Sources, passages and positions
 
@@ -477,6 +478,8 @@ Imported source creators match people by title or alias after turning around cat
 - One match links.
 - Two or more leave an unlinked `[[Name]]`, marked like a hand-typed reference, rather than guessing or creating a duplicate.
 - Choosing a person links it and adds the import's spelling as that person's alias.
+
+Record and snapshot imports file creators of kind `organisation` as Group, not Person, and keep their names in the given order. A combined byline (`A and B`, `A/B`, `A & B` or `A; B`) stays a plain name rather than becoming one Person. Existing callers still create individual creator pages by default. Each creator can set `create_page: false` to keep an ordered plain name instead, even when a matching page exists; this choice creates no entity and preserves the byline in details and exports.
 
 Other alias rules:
 

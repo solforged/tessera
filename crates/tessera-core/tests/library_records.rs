@@ -155,6 +155,12 @@ fn journal_locators_survive_record_plans_and_citation_exports() {
         let bib = notebook
             .export(std::slice::from_ref(&id), ExportFormat::Bibtex)
             .unwrap();
+        let markdown = notebook
+            .export(std::slice::from_ref(&id), ExportFormat::Markdown)
+            .unwrap();
+        assert!(markdown.contains(&format!("Volume: {volume}")));
+        assert!(markdown.contains(&format!("Issue: {issue}")));
+        assert!(markdown.contains(&format!("Page range: {locator}")));
         for field in [
             format!("volume = {{{volume}}}"),
             format!("number = {{{issue}}}"),

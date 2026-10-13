@@ -1259,7 +1259,7 @@ export class Document implements PageDocument {
         case 'question': {
           const previous = this.capabilities(edit.id).question?.state ?? null;
           if (edit.value && this.block(edit.id)?.assessment) throw new Error('A block cannot be both a question and an answer.');
-          if ((previous?.parked || edit.value?.parked) && (previous?.accepted ?? null) !== (edit.value?.accepted ?? null)) throw new Error('Resume the question before accepting an answer.');
+          if ((previous?.parked || edit.value?.parked) && (previous?.accepted ?? null) !== (edit.value?.accepted ?? null) && (!edit.value || edit.value.accepted)) throw new Error('Resume the question before accepting an answer.');
           if (!sameState(previous, edit.value)) actions.push({ ...edit, value: structuredClone(edit.value), previous, baseRevision: this.snapshot(edit.id).revision });
           break;
         }
@@ -1281,6 +1281,12 @@ export class Document implements PageDocument {
             while (owner && !this.block(owner)?.question) owner = this.block(owner)?.parentId;
             if (!owner) throw new Error('Put the answer under a question first.');
             if (!previous && this.block(owner)?.question?.state.parked) throw new Error('Resume the question before answering it.');
+          }
+          if (!edit.value && previous) {
+            for (const ownerId of this.investigationIds) {
+              const question = this.capabilities(ownerId).question?.state;
+              if (question?.accepted === edit.id) actions.push({ kind: 'question', id: ownerId, value: { ...question, accepted: null }, previous: question, baseRevision: this.snapshot(ownerId).revision });
+            }
           }
           if (!sameState(previous, edit.value)) actions.push({ ...edit, value: structuredClone(edit.value), previous, baseRevision: this.snapshot(edit.id).revision });
           break;

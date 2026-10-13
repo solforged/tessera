@@ -97,5 +97,6 @@ Clicking the state control opens the question menu: Park or Resume, Keep open or
 ### Answer labels and unavailable commands
 
 An answer shows `Answer 2026-10-06`, or `Accepted` in gilt once its question accepts it, and `Aporia` when it records that no answer holds.
+Remove answer removes the answer capability, not its text, and clears acceptance in the same undoable change. Undo restores both the dated answer and its acceptance.
 
 Commands that cannot apply stay listed with their reason, such as "Resume the question before accepting an answer."

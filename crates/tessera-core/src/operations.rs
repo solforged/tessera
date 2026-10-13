@@ -2054,6 +2054,19 @@ impl Engine<'_, '_> {
                 if crate::question_store::apply(self.tx, operation)? {
                     self.bump(&current, false)?;
                     self.capability_sources.insert(id.clone());
+                    if matches!(
+                        operation,
+                        Operation::SetAssessment {
+                            assessment: None,
+                            ..
+                        }
+                    ) {
+                        for owner in crate::question_store::withdraw_acceptance(self.tx, id)? {
+                            let question = self.live(&owner)?;
+                            self.bump(&question, false)?;
+                            self.capability_sources.insert(owner);
+                        }
+                    }
                 }
                 Ok(())
             }

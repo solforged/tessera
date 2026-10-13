@@ -225,7 +225,7 @@ fn accepted_answer_hidden_moved_deleted_or_removed_reopens_question() {
             QuestionStatus::Open,
             "{mode}"
         );
-        assert_eq!(state(&nb, 10).accepted, Some(id(11)));
+        assert_eq!(state(&nb, 10).accepted, (mode != "remove").then(|| id(11)));
         assert!(
             !nb.capabilities(&id(11))
                 .unwrap()
@@ -251,7 +251,7 @@ fn parked_rejects_acceptance_and_new_answers_then_resume_restores_status() {
             10,
             Some(QuestionState {
                 parked,
-                accepted: None,
+                accepted: Some(id(12)),
                 ..state(&nb, 10)
             }),
         );
@@ -547,4 +547,45 @@ fn merging_answer_container_refreshes_old_and_new_questions() {
         Some(id(20))
     );
     assert_eq!(status(&nb, 10), QuestionStatus::Open);
+}
+
+#[test]
+fn removing_an_accepted_assessment_clears_acceptance_and_both_states_restore() {
+    let (_dir, mut nb) = fixture();
+    let op = assessment(&nb, 11);
+    apply(&mut nb, vec![op]);
+    accept(&mut nb, 11);
+    let accepted = state(&nb, 10);
+    let revision = nb.block(&id(10)).unwrap().revision;
+    let remove = Operation::SetAssessment {
+        id: id(11),
+        base_revision: nb.block(&id(11)).unwrap().revision,
+        assessment: None,
+    };
+    let removed = apply(&mut nb, vec![remove]);
+    assert_eq!(state(&nb, 10).accepted, None);
+    assert_eq!(status(&nb, 10), QuestionStatus::Open);
+    assert_eq!(nb.block(&id(10)).unwrap().revision, revision + 1);
+    assert!(
+        removed
+            .capabilities
+            .iter()
+            .any(|row| row.block_id == id(10))
+    );
+    let preceding = state(&nb, 10);
+    let op = question(&nb, 10, None);
+    apply(&mut nb, vec![op]);
+    let op = question(&nb, 10, Some(preceding));
+    apply(&mut nb, vec![op]);
+    assert_eq!(status(&nb, 10), QuestionStatus::Open);
+    let ops = vec![assessment(&nb, 11), question(&nb, 10, Some(accepted))];
+    apply(&mut nb, ops);
+    assert_eq!(status(&nb, 10), QuestionStatus::Answered);
+    assert!(
+        nb.capabilities(&id(11))
+            .unwrap()
+            .assessment
+            .unwrap()
+            .accepted
+    );
 }

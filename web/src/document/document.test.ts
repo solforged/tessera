@@ -2954,3 +2954,54 @@ test('an acknowledged draft insert refreshes its outline before resolving, inclu
     expect(new Set(bodies).size).toBe(1);
   } finally { globalThis.fetch = actualFetch; }
 });
+
+test('plain imported creator names stay plain when editing catalogue metadata', async () => {
+  const instance = await client();
+  const metadata = { ...emptyMetadata(), title: `Long byline ${++serial}`,
+    creators: Array.from({ length: 38 }, (_, index) => ({ name: `Author Family${index}`, role: 'author' as const, create_page: false })) };
+  const plan = await api.planRecord(metadata);
+  await instance.commit(plan.operations, 'Import long byline');
+  const doc = instance.open(plan.source_id);
+  await eventually(() => doc.status() === 'ready', doc.statusMessage());
+  let fields = (await api.fields()).fields;
+  expect(sourceFieldValue(doc, instance, fields, 'creators')).toEqual(metadata.creators.map(creator => ({ id: null, name: creator.name, role: creator.role })));
+  await saveDetails(doc, instance, { ...sourceMetadata(doc, instance, fields), publisher: 'New publisher' });
+  fields = (await api.fields()).fields;
+  const creators = sourceFieldValue(doc, instance, fields, 'creators') as SourceCreator[];
+  await saveSourceField([doc], instance, 'creators', creators.map((creator, index) => index === 0 ? { ...creator, role: 'editor' as const } : creator));
+  expect((await api.kindNotes('person')).notes.some(note => note.title.startsWith('Author Family'))).toBe(false);
+  expect((sourceFieldValue(doc, instance, fields, 'creators') as SourceCreator[]).every(creator => creator.id === null)).toBe(true);
+  doc.release();
+});
+
+test('removing an accepted answer and question undo restores both invariants', async () => {
+  const instance = await client();
+  const { doc, first } = await page(instance, 'Question');
+  const question = { unsettled: false, parked: false, review_on: null, accepted: null };
+  success(doc.edit({ kind: 'question', id: first, value: question }));
+  await doc.flush();
+  const answer = success(doc.edit({ kind: 'insert', parentId: first, after: null, text: 'Dated answer' })).created[0]!;
+  await doc.flush();
+  success(doc.edit({ kind: 'assessment', id: answer, value: { assessed_on: instance.todayDate(), aporia: false } }));
+  await doc.flush();
+  success(doc.edit({ kind: 'question', id: first, value: { ...question, accepted: answer } }));
+  await doc.flush();
+  success(doc.edit({ kind: 'assessment', id: answer, value: null }));
+  expect(doc.block(first)?.question?.state.accepted).toBeNull();
+  await doc.flush();
+  expect((await api.capabilities(first)).question?.state.accepted).toBeNull();
+  success(doc.edit({ kind: 'question', id: first, value: null }));
+  await doc.flush();
+  doc.undo();
+  await doc.flush();
+  expect((await api.capabilities(first)).question?.status).toBe('open');
+  doc.undo();
+  await doc.flush();
+  expect((await api.capabilities(first)).question?.state.accepted).toBe(answer);
+  expect((await api.capabilities(answer)).assessment?.accepted).toBe(true);
+  doc.redo();
+  await doc.flush();
+  expect((await api.capabilities(first)).question?.state.accepted).toBeNull();
+  expect((await api.capabilities(answer)).assessment).toBeNull();
+  doc.release();
+});
