@@ -648,7 +648,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
         <span class="wordmark" title={info()?.path}>Tessera</span>
         <Button class="icon-only" icon="sidebar" label="Close sidebar" onClick={toggleSidebar} />
         {/* A notebook other than the default is named in the warning colour, as at the desktop foot. */}
-        <span class="sidebar-masthead-notebook"><Show when={knownNotebooks()?.notebooks.find(entry => entry.current)}>{current => <><span classList={{ 'sidebar-masthead-other': !current().default }}>{current().name}</span><Show when={index()}> · </Show></>}</Show><Show when={index()}>{value => `${value().notes.toLocaleString()} ${value().notes === 1 ? 'note' : 'notes'}`}</Show></span>
+        <span class="sidebar-masthead-notebook"><Show when={knownNotebooks()?.notebooks.find(entry => entry.current)}>{current => <><span class="sidebar-masthead-name" classList={{ 'sidebar-masthead-other': !current().default }}>{current().name}</span><Show when={index()}><span aria-hidden="true"> · </span></Show></>}</Show><Show when={index()}>{value => <span class="sidebar-masthead-count">{`${value().notes.toLocaleString()} ${value().notes === 1 ? 'note' : 'notes'}`}</span>}</Show></span>
       </header>
       <nav class="primary-navigation" aria-label="Notebook">
         <Button icon="today" title="Today (⌃⇧J)" class={activeRoot()?.kind === 'journal' && activeRoot()?.text === todayDate() ? 'selected' : ''} onClick={event => { void today(active(), event.shiftKey); }}><span>Today</span><span class="desk-count">{shortDay(todayDate())}</span></Button>

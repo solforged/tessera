@@ -173,6 +173,8 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
 .index-empties button { padding: 0; border: 0; background: none; color: inherit; font: inherit; letter-spacing: inherit; cursor: pointer; }
 .index-empties button:hover, .index-empties button[aria-current="page"] { color: var(--text); }
 .index-empties button:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-offset); }
+/* Each Empty name is a full-height target, so the line grows to the pointer target on touch. */
+.index-empties button { min-height: var(--target-size); }
 /* The cover screen hides the rail, so the overlay opens on its masthead: oculus and wordmark, Close sidebar, and the
    notebook with its note count in mono beneath, over a hairline. Elsewhere the rail carries all three. */
 .sidebar-masthead { display: none; }
@@ -408,7 +410,10 @@ mark { background: var(--selection); color: var(--accent); font-weight: var(--we
   .app.is-reading .workspace { margin: 0; border: 0; border-radius: 0; background: var(--canvas); }
   .undo-toast { bottom: calc(var(--bottom-nav-height) + 12px + var(--bottom-inset)); }
   .sidebar-masthead { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--space-2) var(--space-8); margin-bottom: var(--space-8); padding: var(--space-4) 0 var(--space-12) calc(var(--space-8) + 2 * var(--rule-width)); border-bottom: var(--rule-width) solid var(--line); }
-  .sidebar-masthead-notebook { grid-column: 1 / -1; overflow: hidden; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); text-overflow: ellipsis; white-space: nowrap; }
+  /* A long notebook name shortens; the count after it stays whole. */
+  .sidebar-masthead-notebook { grid-column: 1 / -1; display: flex; min-width: 0; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); white-space: pre; }
+  .sidebar-masthead-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .sidebar-masthead-count { flex: none; }
   .sidebar-masthead-other { color: var(--warning); }
   /* The masthead names the notebook, so the foot does not repeat it. */
   .sidebar-foot .notebook-marker { display: none; }
