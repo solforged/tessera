@@ -1,3 +1,4 @@
+import { besideHint, opensBeside } from '../shell/beside';
 import { For, Show, createEffect, createMemo, createResource, createSignal, onCleanup } from 'solid-js';
 import type { Block, Mention, ReferenceGroup } from '../api/types';
 import { api } from '../api/client';
@@ -166,7 +167,7 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
           const sources = createMemo(() => new Map(group().sources.map(row => [row.source.id, row])));
           const ids = createMemo(() => [...sources().keys()]);
           return <section class="backlink-group">
-            <h3 class="backlink-group-heading"><Button role="link" onClick={event => props.onOpen({ kind: 'page', pageId }, event.shiftKey)}>{page().kind === 'journal' ? journalDayLabel(page().text) : page().text}</Button><span>{ids().length}</span></h3>
+            <h3 class="backlink-group-heading"><Button role="link" onClick={event => props.onOpen({ kind: 'page', pageId }, opensBeside(event))}>{page().kind === 'journal' ? journalDayLabel(page().text) : page().text}</Button><span>{ids().length}</span></h3>
             <For each={ids()}>{id => <div class="backlink-entry">
               <BacklinkSource block={sources().get(id)!.source} page={group().page} notebook={props.notebook} onOpen={props.onOpen} />
               <For each={hiddenTargets(sources().get(id)!.source.text, sources().get(id)!.targets)}>{target => <Button class="backlink-target" onClick={() => zoomTo(target)}>→ {plainText(doc.block(target)?.text ?? props.notebook.lookup(target)()?.text ?? '', reference => props.notebook.lookup(reference)) || 'Empty block'}</Button>}</For>
@@ -221,7 +222,7 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
           const row = () => rows().get(id)!;
           const live = props.notebook.lookup(id);
           return <div class="related-block mention-entry">
-            <div class="mention-body"><Button class="mention-breadcrumb" onClick={event => props.onOpen({ kind: 'page', pageId: row().page.id, blockId: id }, event.shiftKey)}><BlockBreadcrumb block={live() ?? row().block} notebook={props.notebook} /></Button>
+            <div class="mention-body"><Button class="mention-breadcrumb" onClick={event => props.onOpen({ kind: 'page', pageId: row().page.id, blockId: id }, opensBeside(event))}><BlockBreadcrumb block={live() ?? row().block} notebook={props.notebook} /></Button>
               <BlockText text={live()?.text ?? row().block.text} blockId={id} notebook={props.notebook} onOpen={props.onOpen} highlight={row().term} />
             </div>
             <Button class="text-button mention-link" disabled={!!busy()} onClick={() => void link(row())}>{busy() === id ? 'Linking…' : 'Link'}</Button>
@@ -244,10 +245,10 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
       <Show when={!relatedError()} fallback={<p role="alert">Couldn't load related blocks.</p>}>
       <For each={propsRelated.rows}>{result => {
         const live = props.notebook.lookup(result.block.id);
-        return <div class="related-block" data-reading-id={propsRelated.relations ? result.block.id : undefined}><div class="related-open" role="link" tabIndex={0} onKeyDown={event => { if (event.key === 'Enter') props.onOpen({ kind: 'page', pageId: result.page.id, blockId: result.block.id }, event.shiftKey); }} onClick={event => props.onOpen({ kind: 'page', pageId: result.page.id, blockId: result.block.id }, event.shiftKey)}>
+        return <div class="related-block" data-reading-id={propsRelated.relations ? result.block.id : undefined} data-open-page={result.page.id} data-open-block={result.block.id} data-open-label={result.page.text}><div class="related-open" role="link" tabIndex={0} title={`Open · ${besideHint}`} onKeyDown={event => { if (event.key === 'Enter') props.onOpen({ kind: 'page', pageId: result.page.id, blockId: result.block.id }, opensBeside(event)); }} onClick={event => props.onOpen({ kind: 'page', pageId: result.page.id, blockId: result.block.id }, opensBeside(event))}>
           <span class="related-breadcrumb"><BlockBreadcrumb block={result.block} notebook={props.notebook} /></span>
           <BlockText text={live()?.text ?? result.block.text} notebook={props.notebook} interactive={false} />
-        </div><button type="button" class="text-button" onClick={() => props.onOpen({ kind: 'page', pageId: result.page.id, blockId: result.block.id }, true)}>Open beside</button><Show when={propsRelated.relations}><IncomingRelations target={result.block.id} version={relatedVersion()} notebook={props.notebook} onOpen={props.onOpen} /></Show></div>;
+        </div><Button class="backlink-beside" icon="panes" label="Open beside" title={`Open beside · ${besideHint}`} onClick={() => props.onOpen({ kind: 'page', pageId: result.page.id, blockId: result.block.id }, true)} /><Show when={propsRelated.relations}><IncomingRelations target={result.block.id} version={relatedVersion()} notebook={props.notebook} onOpen={props.onOpen} /></Show></div>;
       }}</For>
       </Show>
       </Show>

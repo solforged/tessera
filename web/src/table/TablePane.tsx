@@ -1,3 +1,4 @@
+import { opensBeside, listOpensBeside } from '../shell/beside';
 import { For, Show, createEffect, createMemo, createResource, createRoot, createSignal, onCleanup, onMount, untrack } from 'solid-js';
 import type { JSX } from 'solid-js';
 import { ulid } from 'ulid';
@@ -37,7 +38,7 @@ import './table.css';
 
 type TableTarget = Extract<OpenTarget, { kind: 'table' }>;
 export interface TablePaneProps {
-  pane: PaneId; target: TableTarget; view: TableViewState; notebook: NotebookClient; active: boolean;
+  pane: PaneId; target: TableTarget; view: TableViewState; notebook: NotebookClient; active: boolean; neighbour?: boolean;
   onActivate(): void; onOpen(target: OpenTarget, beside: boolean): void;
   onTargetChange(target: TableTarget): void; onViewChange(view: TableViewState): void;
 }
@@ -507,7 +508,7 @@ function TableContent(props: TablePaneProps) {
   })) });
   const openRow = (row: QueryRow, beside: boolean) => {
     setSelectedRow(row.block.block.id);
-    const alongside = beside || window.matchMedia('(pointer: coarse) and (min-width: 900px)').matches;
+    const alongside = beside || listOpensBeside(null, !!props.neighbour);
     if (query().source === 'highlights') {
       void props.notebook.api.capabilities(row.block.block.id).then(capabilities => {
         const citation = capabilities.citations?.[0];
@@ -531,7 +532,7 @@ function TableContent(props: TablePaneProps) {
     const id = fieldEntryId(value.text);
     if (!id) return;
     const target = props.notebook.lookup(id)() ?? await props.notebook.api.block(id);
-    props.onOpen({ kind: 'page', pageId: target.page_id, ...(target.kind === 'block' ? { blockId: target.id } : {}) }, beside || window.matchMedia('(pointer: coarse) and (min-width: 900px)').matches);
+    props.onOpen({ kind: 'page', pageId: target.page_id, ...(target.kind === 'block' ? { blockId: target.id } : {}) }, beside || listOpensBeside(null, !!props.neighbour));
   };
   const writeCell = async (row: QueryRow, field: FieldDefinition, text: string, value = row.values[field.id]?.[0], option?: string) => {
     await withDocument(row.block.page.id, async doc => {
@@ -611,7 +612,7 @@ function TableContent(props: TablePaneProps) {
     if (event.key === 'Escape') { region.focus(); event.preventDefault(); return; }
     const field = current.fieldId ? fieldById(current.fieldId) : undefined;
     if ((event.key === 'Enter' || event.key === ' ' && field?.kind === 'checkbox') && row) {
-      if (!current.fieldId) openRow(row, event.shiftKey);
+      if (!current.fieldId) openRow(row, listOpensBeside(event, !!props.neighbour));
       else if (field && event.target instanceof HTMLElement) startEdit(row, field, event.target);
       event.preventDefault(); return;
     }
@@ -686,7 +687,7 @@ function TableContent(props: TablePaneProps) {
     <div ref={register} class="table-register" onScroll={() => { if (narrow()) { cancelAnimationFrame(scrollReport); scrollReport = requestAnimationFrame(() => reportView()); } }}>
       <header class="table-header">
         <div class="table-heading">
-          <div class="table-register-label"><Show when={query().type}><Button class="table-type-label" onClick={event => props.onOpen({ kind: 'page', pageId: query().type! }, event.shiftKey)}>{title()}</Button><span aria-hidden="true"> / </span></Show><span>Register</span></div>
+          <div class="table-register-label"><Show when={query().type}><Button class="table-type-label" onClick={event => props.onOpen({ kind: 'page', pageId: query().type! }, opensBeside(event))}>{title()}</Button><span aria-hidden="true"> / </span></Show><span>Register</span></div>
           <h1><Button class="table-title" label="Views" aria-haspopup="menu" onClick={event => viewMenu(event.currentTarget)}><Show when={typeKind()}>{kind => <Icon name={noteKindIcon(kind())} />}</Show><span>{saved()?.name ?? (title() || 'All blocks')}</span><Icon name="down" /></Button></h1>
           <input class="table-purpose" aria-label="View purpose" placeholder="Add a one-line purpose…" value={query().purpose ?? ''} maxlength={240} onChange={event => updateQuery({ ...query(), purpose: event.currentTarget.value.trim() })} />
           <Show when={narrow()}><p class="table-summary">{summary()}<Show when={changed()}> · <span class="table-modified">Modified</span></Show></p></Show>
@@ -696,11 +697,11 @@ function TableContent(props: TablePaneProps) {
         </Show></div>
       </header>
       <Show when={query().type}>{typeId => <TypeModeTabs active="table" indexCount={missingFields().length ? undefined : result()?.total} tableCount={missingFields().length ? undefined : result()?.total} fieldsCount={type()?.fields.length}
-        cardsCount={type()?.card_templates} onCards={event => props.onOpen({ kind: 'cards', typeId: typeId() }, event.shiftKey)}
-        onIndex={event => props.onOpen({ kind: 'index', key: typeKind()?.key ?? `type:${typeId()}`, viewId: props.target.viewId, query: { ...copyQuery(query()), note_kind: typeKind()?.key ?? `type:${typeId()}`, note_view: { layout: 'index', grouping: query().note_view?.grouping ?? 'letter' } } }, event.shiftKey)}
-        onTable={event => props.onOpen({ kind: 'table', typeId: typeId(), viewId: props.target.viewId, query: copyQuery(query()) }, event.shiftKey)}
-        onFields={event => props.onOpen({ kind: 'fields', typeId: typeId() }, event.shiftKey)} />}</Show>
-      <Show when={query().note_kind && !query().type}><div class="type-mode-tabs mode-tabs tab-strip" role="group" aria-label="Note view"><Button onClick={event => props.onOpen({ kind: 'index', key: query().note_kind!, viewId: props.target.viewId, query: { ...copyQuery(query()), note_view: { layout: 'index', grouping: query().note_view?.grouping ?? 'letter' } } }, event.shiftKey)}>Index <span class="faint">{missingFields().length ? undefined : result()?.total}</span></Button><Button aria-pressed="true">Table <span class="faint">{missingFields().length ? undefined : result()?.total}</span></Button></div></Show>
+        cardsCount={type()?.card_templates} onCards={event => props.onOpen({ kind: 'cards', typeId: typeId() }, opensBeside(event))}
+        onIndex={event => props.onOpen({ kind: 'index', key: typeKind()?.key ?? `type:${typeId()}`, viewId: props.target.viewId, query: { ...copyQuery(query()), note_kind: typeKind()?.key ?? `type:${typeId()}`, note_view: { layout: 'index', grouping: query().note_view?.grouping ?? 'letter' } } }, opensBeside(event))}
+        onTable={event => props.onOpen({ kind: 'table', typeId: typeId(), viewId: props.target.viewId, query: copyQuery(query()) }, opensBeside(event))}
+        onFields={event => props.onOpen({ kind: 'fields', typeId: typeId() }, opensBeside(event))} />}</Show>
+      <Show when={query().note_kind && !query().type}><div class="type-mode-tabs mode-tabs tab-strip" role="group" aria-label="Note view"><Button onClick={event => props.onOpen({ kind: 'index', key: query().note_kind!, viewId: props.target.viewId, query: { ...copyQuery(query()), note_view: { layout: 'index', grouping: query().note_view?.grouping ?? 'letter' } } }, opensBeside(event))}>Index <span class="faint">{missingFields().length ? undefined : result()?.total}</span></Button><Button aria-pressed="true">Table <span class="faint">{missingFields().length ? undefined : result()?.total}</span></Button></div></Show>
       <Show when={!narrow()}>{queryToolbar()}</Show>
       <Show when={narrow()}><div class="table-query-bar" style={{ left: `${dockBounds().left}px`, width: `${dockBounds().width}px` }}>
         <label class="table-query-find"><Icon name="search" /><input class="input" aria-label={`Find in ${title() || 'blocks'}`} placeholder={`Find in ${title() || 'blocks'}…`} value={query().text ?? ''} onInput={event => { setSearch(event.currentTarget.value); updateQuery({ ...query(), text: event.currentTarget.value.trim() || null, offset: 0 }); }} /></label>
@@ -709,9 +710,9 @@ function TableContent(props: TablePaneProps) {
       <Show when={definitions() && missingFields().length}><MissingFields fields={missingFields()} busy={savingView()} onRemove={id => { void removeMissingField(id).catch(message); }} /></Show>
       <div class="table-scroll-frame">
       <div ref={scroll} class="table-scroll" onScroll={() => { cancelAnimationFrame(scrollReport); scrollReport = requestAnimationFrame(() => { reportView(); measureEdge(); }); }}>
-        <ViewBody query={query()} result={result() ?? { fields: fields(), columns: [], rows: [], total: 0 }} notebook={props.notebook} onOpen={props.onOpen} onQueryChange={updateQuery} onEdited={doc => { history.push({ kind: 'cell', doc, rowId: null, fieldId: null }); undone.length = 0; setViewUndo(false); }}
+        <ViewBody neighbour={props.neighbour} query={query()} result={result() ?? { fields: fields(), columns: [], rows: [], total: 0 }} notebook={props.notebook} onOpen={props.onOpen} onQueryChange={updateQuery} onEdited={doc => { history.push({ kind: 'cell', doc, rowId: null, fieldId: null }); undone.length = 0; setViewUndo(false); }}
           onUndo={redo => { void replayCell(redo).catch(message); }}
-          table={() => <TableGrid gridRef={element => { grid = element; }} rows={groupedRows()} columns={visibleColumns()} notebook={props.notebook} field={fieldById} fieldName={fieldName} columnWidth={columnWidth} selected={selectedRow()} focused={focused()} tagged={members().taggedGroup} grouped={!!query().group} onFocus={(row, fieldId) => { setFocused({ rowId: row.block.block.id, fieldId }); setSelectedRow(row.block.block.id); }} onOpen={openRow} onGroup={toggleGroup} onHeader={columnMenu} onResize={resizeColumn} onMove={(from, to) => moveColumn(from, 1, to)} onClickCell={(row, field, anchor) => { if (field.kind === 'checkbox') startEdit(row, field, anchor); }} onEdit={(row, field, anchor) => { if (field.kind !== 'checkbox') startEdit(row, field, anchor); }} title={row => <TableCellText>{expanded => <BlockText text={preview(props.notebook.lookup(row.block.block.id)()?.text ?? row.block.block.text, expanded)} notebook={props.notebook} interactive={false} cards />}</TableCellText>} cell={renderCell} cardFields={phoneFields} cardCell={renderCardCell} refs={showRefs()} refsHeading={`Derived from ${sourceField()?.name ?? 'Source'}`} reference={renderRefs} />} />
+          table={() => <TableGrid neighbour={props.neighbour} gridRef={element => { grid = element; }} rows={groupedRows()} columns={visibleColumns()} notebook={props.notebook} field={fieldById} fieldName={fieldName} columnWidth={columnWidth} selected={selectedRow()} focused={focused()} tagged={members().taggedGroup} grouped={!!query().group} onFocus={(row, fieldId) => { setFocused({ rowId: row.block.block.id, fieldId }); setSelectedRow(row.block.block.id); }} onOpen={openRow} onGroup={toggleGroup} onHeader={columnMenu} onResize={resizeColumn} onMove={(from, to) => moveColumn(from, 1, to)} onClickCell={(row, field, anchor) => { if (field.kind === 'checkbox') startEdit(row, field, anchor); }} onEdit={(row, field, anchor) => { if (field.kind !== 'checkbox') startEdit(row, field, anchor); }} title={row => <TableCellText>{expanded => <BlockText text={preview(props.notebook.lookup(row.block.block.id)()?.text ?? row.block.block.text, expanded)} notebook={props.notebook} interactive={false} cards />}</TableCellText>} cell={renderCell} cardFields={phoneFields} cardCell={renderCardCell} refs={showRefs()} refsHeading={`Derived from ${sourceField()?.name ?? 'Source'}`} reference={renderRefs} />} />
         <Show when={!loading() && !error() && !missingFields().length && !members().rows.length}><div class="table-empty"><p>{query().filters.length || query().text || query().links?.length || query().from?.length || query().cites?.length ? `No ${sourceName(query().source).toLocaleLowerCase()} match ${[...query().filters.map(filter => filterLabel(filter, pickerFields(), props.notebook, query().field_names)), ...(query().text ? [`“${query().text}”`] : []), ...(['links', 'from', 'cites'] as const).flatMap(key => query()[key]?.length ? [key] : [])].join(', ')}.` : `No ${sourceName(query().source).toLocaleLowerCase()} yet.`}</p><Show when={query().filters.length || query().text || query().links?.length || query().from?.length || query().cites?.length}><Button class="bordered" onClick={() => { setSearch(''); updateQuery({ ...query(), filters: [], text: null, links: [], from: [], cites: [] }); }}>Clear filters</Button></Show></div></Show>
       </div>
       <Show when={edge().hidden}><div class="table-more-right" style={{ height: `${edge().height}px` }}><Button class="table-more-columns" label={`Scroll to ${edge().hidden} more ${edge().hidden === 1 ? 'column' : 'columns'}`} onClick={showMoreColumns}>+{edge().hidden} <Icon name="right" /></Button></div></Show>
@@ -760,7 +761,7 @@ function TableContent(props: TablePaneProps) {
         </Show>
         <div class="table-popup-heading">Phone card fields</div><p class="table-popup-note">Sort fields are always shown.</p>
         <For each={columnChoices()}>{field => <label class="table-column-choice"><input type="checkbox" checked={query().card?.includes(field.id) ?? false} onChange={event => updateQuery({ ...query(), card: event.currentTarget.checked ? [...query().card ?? [], field.id] : (query().card ?? []).filter(id => id !== field.id) })} />{field.name}</label>}</For>
-        <Show when={query().type}><div class="table-template-actions"><Button onClick={() => addColumnMenu(state.anchor)}>Add field to type template…</Button><Button onClick={event => props.onOpen({ kind: 'page', pageId: query().type! }, event.shiftKey)}>Open type template</Button></div></Show>
+        <Show when={query().type}><div class="table-template-actions"><Button onClick={() => addColumnMenu(state.anchor)}>Add field to type template…</Button><Button onClick={event => props.onOpen({ kind: 'page', pageId: query().type! }, opensBeside(event))}>Open type template</Button></div></Show>
       </Popup>}
       {state.kind === 'sources' && <SourcesPopup anchor={state.anchor} label={state.label} sources={state.sources} notebook={props.notebook} onDismiss={() => setPopup(null)} />}
     </>}</Show>
@@ -770,7 +771,7 @@ function TableContent(props: TablePaneProps) {
 function TableAttributeValue(props: { values: QueryAttributeValue[]; notebook: NotebookClient; onOpen(target: OpenTarget, beside: boolean): void }) {
   return <TableCellText>{expanded => <For each={props.values}>{(value, index) => <>
     {index() > 0 ? ', ' : ''}<Show when={value.reading.ok && value.reading.target} fallback={<span classList={{ 'table-reading-problem': !value.reading.ok }}><BlockText text={preview(value.text, expanded)} notebook={props.notebook} interactive={false} /></span>}>
-      <Button class="table-value-pill" onClick={async event => { const beside = event.shiftKey; const id = value.reading.ok ? value.reading.target! : ''; const target = props.notebook.lookup(id)() ?? await props.notebook.api.block(id); props.onOpen({ kind: 'page', pageId: target.page_id, ...(target.kind === 'block' ? { blockId: target.id } : {}) }, beside); }}>{value.text}</Button>
+      <Button class="table-value-pill" onClick={async event => { const beside = opensBeside(event); const id = value.reading.ok ? value.reading.target! : ''; const target = props.notebook.lookup(id)() ?? await props.notebook.api.block(id); props.onOpen({ kind: 'page', pageId: target.page_id, ...(target.kind === 'block' ? { blockId: target.id } : {}) }, beside); }}>{value.text}</Button>
     </Show>
   </>}</For>}</TableCellText>;
 }
@@ -782,7 +783,7 @@ function TableFieldValue(props: { field: FieldDefinition | undefined; values: Fi
   return <Show when={sources().length} fallback={<TableCellText>{expanded => <For each={props.values}>{(value, index) => <>
     {index() > 0 ? ', ' : ''}<Show when={value.reading.ok} fallback={<span class="table-reading-problem" title={!value.reading.ok ? value.reading.problem : undefined}><BlockText text={props.field?.kind === 'instance' ? value.text : preview(value.text, expanded)} blockId={value.id} notebook={props.notebook} interactive={false} /></span>}>
       <Show when={(props.field?.kind === 'choice' || props.field?.kind === 'instance') && fieldEntryId(value.text)} fallback={<span><BlockText text={value.reading.ok ? props.field?.kind === 'text' || typeof value.reading.value === 'object' ? preview(value.text, expanded) : props.field?.kind === 'checkbox' ? value.reading.value ? '☑' : '☐' : String(value.reading.value) : ''} blockId={value.id} notebook={props.notebook} interactive={false} /></span>}>
-        <Button class="table-value-pill" onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') event.stopPropagation(); }} onDblClick={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); props.onPill(value, event.currentTarget, event.shiftKey); }}><BlockText text={props.field?.kind === 'instance' ? value.text : value.reading.ok ? String(value.reading.value) : value.text} blockId={value.id} notebook={props.notebook} interactive={false} /></Button>
+        <Button class="table-value-pill" onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') event.stopPropagation(); }} onDblClick={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); props.onPill(value, event.currentTarget, opensBeside(event)); }}><BlockText text={props.field?.kind === 'instance' ? value.text : value.reading.ok ? String(value.reading.value) : value.text} blockId={value.id} notebook={props.notebook} interactive={false} /></Button>
       </Show>
     </Show>
   </>}</For>}</TableCellText>}>

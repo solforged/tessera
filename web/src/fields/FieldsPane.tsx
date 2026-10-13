@@ -3,6 +3,7 @@ import { api } from '../api/client';
 import type { FieldKind, FieldSummary, Fields } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import type { FieldsViewState, OpenTarget } from '../shell/contract';
+import { besideHint, opensBeside } from '../shell/beside';
 import { typeQuery } from '../table/query';
 import { fieldNameProblem, kindLabels } from './kinds';
 import { Button } from '../ui/Button';
@@ -126,7 +127,7 @@ function DefinitionsPane(props: FieldsPaneProps) {
     <div class="fields-toolbar">
       <input class="input fields-search" type="search" aria-label="Filter fields" placeholder="Filter fields…" value={search()} onInput={event => setSearch(event.currentTarget.value)} />
       <Button icon="plus" disabled={!ready()} aria-haspopup="dialog" aria-expanded={!!creating()} onClick={event => { setNewName(search().trim()); setNewKind('text'); setNewKindMenu(null); setCreateError(''); setCreating(event.currentTarget); }}>New field</Button>
-      <Button icon="edit" disabled={!pageId()} onClick={event => props.onOpen({ kind: 'page', pageId: pageId()! }, event.shiftKey)}>Edit definitions</Button>
+      <Button icon="edit" disabled={!pageId()} onClick={event => props.onOpen({ kind: 'page', pageId: pageId()! }, opensBeside(event))}>Edit definitions</Button>
       <div class="fields-actions"><Button icon="undo" label="Undo field changes" disabled={!doc()?.canUndo()} onClick={() => { pane.focus({ preventScroll: true }); doc()?.undo(); }} /><Button icon="redo" label="Redo field changes" disabled={!doc()?.canRedo()} onClick={() => { pane.focus({ preventScroll: true }); doc()?.redo(); }} /></div>
     </div>
     <Show when={error()}><div class="pane-error" role="alert">{error()} <Button onClick={() => setRetry(value => value + 1)}>Retry</Button></div></Show>
@@ -138,19 +139,19 @@ function DefinitionsPane(props: FieldsPaneProps) {
         <Show when={fields().length} fallback={<p class="empty-state">No fields yet. Use New field, or type <code>Name::</code> in a block.</p>}>
           <Show when={visibleFields().length} fallback={<p class="empty-state">No matching fields. <Button onClick={() => setSearch('')}>Clear filter</Button></p>}>
             <table class="fields-index"><thead><tr><th scope="col">Name</th><th scope="col" class="fields-kind">Kind</th><th scope="col" class="fields-count">Used by</th><th scope="col">Templates</th></tr></thead><tbody>
-              <For each={pageFields()}>{field => <tr tabIndex={0} aria-selected={selected() === field.id} onClick={event => { if (!(event.target as HTMLElement).closest('button')) selectDefinition(field, event.shiftKey); }} onDblClick={event => openDefinition(field, event.shiftKey)} onKeyDown={event => {
+              <For each={pageFields()}>{field => <tr tabIndex={0} aria-selected={selected() === field.id} onClick={event => { if (!(event.target as HTMLElement).closest('button')) selectDefinition(field, opensBeside(event)); }} onDblClick={event => openDefinition(field, opensBeside(event))} onKeyDown={event => {
                 if (event.target !== event.currentTarget) return;
-                if (event.key === 'Enter') { event.preventDefault(); openDefinition(field, event.shiftKey); }
+                if (event.key === 'Enter') { event.preventDefault(); openDefinition(field, opensBeside(event)); }
                 if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
                   event.preventDefault();
                   const next = event.key === 'ArrowDown' ? event.currentTarget.nextElementSibling : event.currentTarget.previousElementSibling;
                   if (next instanceof HTMLElement) { next.focus(); const index = pageFields().indexOf(field) + (event.key === 'ArrowDown' ? 1 : -1); const item = pageFields()[index]; if (item && wide()) { setSelected(item.id); setPreviewKind(undefined); } }
                 }
               }}>
-                <td data-label="Name"><Button class="field-name" title={`Open ${field.name} · Shift to open beside`} onClick={event => selectDefinition(field, event.shiftKey, event.detail === 0)}>{field.name}</Button></td>
+                <td data-label="Name"><Button class="field-name" title={`Open ${field.name} · ${besideHint}`} onClick={event => selectDefinition(field, opensBeside(event), event.detail === 0)}>{field.name}</Button></td>
                 <td data-label="Kind"><Button class="fields-kind-button" aria-label={`Kind for ${field.name}: ${kindLabels[field.kind]}`} aria-haspopup="menu" aria-expanded={kindMenu()?.field.id === field.id} disabled={!ready()} onClick={event => setKindMenu({ field, anchor: event.currentTarget })}>{kindLabels[field.kind]} <Icon name="down" /></Button></td>
-                <td data-label="Used by" class="fields-count"><Show when={field.owners} fallback={<span class="fields-unused" title="No block uses this field yet">Unused</span>}><Button label={`Show blocks with ${field.name}`} title={`Blocks using ${field.name}: ${field.owners} · Shift to open beside`} onClick={event => props.onOpen({ kind: 'table', typeId: null, viewId: null, query: { type: null, text: null, filters: [{ field: field.id, op: 'present', value: null }], sort: [], limit: null } }, event.shiftKey)}>{field.owners}</Button></Show></td>
-                <td data-label="Templates"><div class="fields-types"><For each={field.types} fallback={<span class="fields-unused">None</span>}>{type => <button type="button" class="outline-tag" title={`Open ${type.name} table · Shift to open beside`} onClick={event => props.onOpen({ kind: 'table', typeId: type.id, viewId: null, query: typeQuery(type.id) }, event.shiftKey)}>#{type.name}</button>}</For></div></td>
+                <td data-label="Used by" class="fields-count"><Show when={field.owners} fallback={<span class="fields-unused" title="No block uses this field yet">Unused</span>}><Button label={`Show blocks with ${field.name}`} title={`Blocks using ${field.name}: ${field.owners} · ${besideHint}`} onClick={event => props.onOpen({ kind: 'table', typeId: null, viewId: null, query: { type: null, text: null, filters: [{ field: field.id, op: 'present', value: null }], sort: [], limit: null } }, opensBeside(event))}>{field.owners}</Button></Show></td>
+                <td data-label="Templates"><div class="fields-types"><For each={field.types} fallback={<span class="fields-unused">None</span>}>{type => <button type="button" class="outline-tag" title={`Open ${type.name} table · ${besideHint}`} onClick={event => props.onOpen({ kind: 'table', typeId: type.id, viewId: null, query: typeQuery(type.id) }, opensBeside(event))}>#{type.name}</button>}</For></div></td>
               </tr>}</For>
             </tbody></table>
           </Show>

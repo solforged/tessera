@@ -1,3 +1,4 @@
+import { opensBeside } from '../shell/beside';
 import { createMemo, createResource, createSignal, For, Show } from 'solid-js';
 import type { JSX } from 'solid-js';
 import type { Query, QuestionFilter, QuestionRow } from '../api/types';
@@ -49,7 +50,7 @@ export function QuestionLedger(props: { notebook: NotebookClient; newQuestion?(m
       return group;
     }).sort((a, b) => a.program.block.block.text.localeCompare(b.program.block.block.text));
   });
-  const open = (row: QuestionRow, event: MouseEvent) => props.onOpen({ kind: 'page', pageId: row.block.page.id, blockId: row.block.block.kind === 'block' ? row.block.block.id : undefined }, event.shiftKey);
+  const open = (row: QuestionRow, event: MouseEvent) => props.onOpen({ kind: 'page', pageId: row.block.page.id, blockId: row.block.block.kind === 'block' ? row.block.block.id : undefined }, opensBeside(event));
   return <div class="index-pane question-ledger" role="region" tabIndex={0} aria-label="Questions index" onFocusIn={props.onActivate}><div class="index-sheet">
     <p class="index-eyebrow">Inquiry ledger</p><div class="index-head"><h1>Questions</h1><Show when={visible() && all()}><span class="index-tally">{visible()!.length} of {all()!.length} questions</span></Show></div>
     <Show when={all()}>{rows => props.newQuestion?.(rows().filter(row => row.block.block.kind === 'page').map(row => ({ id: row.block.block.id })))}</Show>

@@ -2,6 +2,7 @@ import { For, Show, createEffect, createMemo, createSignal, createUniqueId, on, 
 import type { CardRow, Grade } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { BlockBreadcrumb, BlockText } from '../outline/BlockText';
+import { besideHint, opensBeside } from '../shell/beside';
 import { Button } from '../ui/Button';
 import { Menu } from '../ui/Menu';
 import { Popup } from '../ui/Popup';
@@ -141,7 +142,7 @@ export function ReviewCard(props: ReviewCardProps) {
     reveal();
   }}>
     <div class="review-card-meta">
-      <Button class="review-card-source" title={`${props.context ? 'Open in the book' : 'Open source'} · Shift opens beside`} disabled={locked()} onClick={event => props.onSource(event.shiftKey)}>
+      <Button class="review-card-source" title={`${props.context ? 'Open in the book' : 'Open source'} · ${besideHint}`} disabled={locked()} onClick={event => props.onSource(opensBeside(event))}>
         <Show when={props.context} fallback={<BlockBreadcrumb block={props.item.source.block} notebook={props.notebook} omitParent={props.item.card.kind === 'descriptor'} />}>{context => <span>{context().source.source.siglum} · {context().source.page.text}<Show when={context().chapter}> · {context().chapter}</Show> · ¶{context().citation.ordinal + 1}</span>}</Show>
       </Button>
       <span class="review-card-kind">{kindLabel()}</span>

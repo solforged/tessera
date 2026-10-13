@@ -21,7 +21,7 @@ The inspector shows the name, Open page, the kind, Hide, a Reading line for date
 - Template pills open their type table.
 - Kind reads as muted text and shows its menu chevron on row hover or focus.
 - Used by opens the distinct owning blocks, including entries with no values. A field no block uses says Unused in `--faint`.
-- Shift opens any of these beside the index.
+- ⌘-click opens any of these beside the index (Ctrl-click off Mac).
 - Narrow panes scroll the table horizontally with Name held in place.
 
 New field asks for Name and Kind together, defaults to Text, and refuses duplicates and the characters `Name::` shorthand refuses. Creating the definition and its chosen kind is one undoable edit; redo restores the same definition.
@@ -171,7 +171,7 @@ Columns past the right edge fade under the rows. `+N ›` at the header's end co
 
 ### Editing
 
-Enter or double-click edits a single plain text, number, URL or identifier value inline. A cell with one value or none of kind choice, instance or date opens that kind's [value editor](../design.md#field-entries) on the cell, and a checkbox cell toggles on click or Space, keeping focus. Editing a missing field creates its entry on that owner, including a position, question or highlight block. Choosing an option writes a reference to that option, as in `Field:: [[option]]`. This works for non-template columns too. Pills follow the outline: a choice pill opens its options, an instance pill opens its page, and Shift opens either beside. Cells with several values open the field's source outline beside the table. Attribute cells are read-only.
+Enter or double-click edits a single plain text, number, URL or identifier value inline. A cell with one value or none of kind choice, instance or date opens that kind's [value editor](../design.md#field-entries) on the cell, and a checkbox cell toggles on click or Space, keeping focus. Editing a missing field creates its entry on that owner, including a position, question or highlight block. Choosing an option writes a reference to that option, as in `Field:: [[option]]`. This works for non-template columns too. Pills follow the outline: a choice pill opens its options and an instance pill opens its page. ⌘-click opens either beside (Ctrl-click off Mac). Cells with several values open the field's source outline beside the table. Attribute cells are read-only.
 
 Inline text editors keep authored line breaks. Shift-Enter adds a newline; Enter commits the value.
 
@@ -209,7 +209,7 @@ An empty result names the source and the conditions that excluded its rows. Clea
 
 | Input or layout | Behavior |
 | --- | --- |
-| Desktop title click or Enter | Opens the entity in its original place; a perspective opens its dossier, a question its block and a highlight its passage. Shift opens beside. |
+| Desktop title click or Enter | Opens the entity in its original place. Tables fill the pane to the right when one exists; otherwise they use their own pane. A perspective opens its dossier, a question its block and a highlight its passage. ⌘-click or ⌘Enter opens beside (Ctrl-click or Ctrl+Enter off Mac). |
 | Selected row | Gilt left bar and an explicit open-beside affordance. |
 | Coarse pointer at least 900 px wide | A row tap opens the canonical note or block beside by default. |
 | Coarse pointer below 600 px of pane width | Becomes the cover ledger with a query sheet. |

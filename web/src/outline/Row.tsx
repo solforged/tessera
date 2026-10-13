@@ -1,3 +1,4 @@
+import { opensBeside } from '../shell/beside';
 import { For, Match, Show, Switch, createEffect, createMemo, createSignal, on, onCleanup, onMount } from 'solid-js';
 import type { Accessor, Component } from 'solid-js';
 import type { VirtualItem } from '@tanstack/solid-virtual';
@@ -232,7 +233,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
           <Match when={controlledValue()}>
             <div class="static-text"><button type="button" class={!block()?.text ? 'field-empty-value' : pill() ? 'outline-value-pill text-button' : 'outline-value-text'} classList={{ 'outline-reading-problem': !!valueProblem() }} title={valueProblem()} aria-label={`Edit ${valueField()?.name} value`} aria-haspopup={valueField()?.kind !== 'instance' ? 'dialog' : undefined}
               onMouseDown={event => { event.preventDefault(); event.stopPropagation(); }}
-              onClick={event => { event.stopPropagation(); if (valueTarget() && (valueField()?.kind === 'instance' || event.shiftKey)) void openValueTarget(event.shiftKey); else openValueEditor(id(), event.currentTarget); }}>
+              onClick={event => { event.stopPropagation(); if (valueTarget() && (valueField()?.kind === 'instance' || opensBeside(event))) void openValueTarget(opensBeside(event)); else openValueEditor(id(), event.currentTarget); }}>
               <Show when={block()?.text}><BlockText text={displayText()} notebook={props.notebook} citationApparatus={fieldRole(valueField()) === 'citation'} interactive={false} /></Show>
             </button></div>
           </Match>

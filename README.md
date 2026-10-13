@@ -4,7 +4,7 @@ Tessera is a local-first outline workstation for notes, questions, evidence, tas
 
 ## Status
 
-- Daily outline, structure, action, learning, library and reading workflows work. Pages, journals, references, search, fields, saved tables and two panes share operation-based autosave, undo and conflict handling.
+- Daily outline, structure, action, learning, library and reading workflows work. Pages, journals, references, search, fields, saved tables and a row of up to four panes share operation-based autosave, undo and conflict handling.
 - Tasks support planning, recurrence, projects, clocked work and historical agendas.
 - Cards derive from authored notes and vocabulary, with query-backed decks, review sessions and retained scheduling history.
 - EPUB books and web articles become immutable snapshots, read beside the outline, highlighted into cited blocks and exported as BibTeX or CSL JSON.

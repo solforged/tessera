@@ -4,6 +4,7 @@ import type { AgendaItem, TaskRow, WorkSession } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import { BlockText } from '../outline/BlockText';
 import type { OpenTarget } from '../shell/contract';
+import { besideHint, opensBeside } from '../shell/beside';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Popup } from '../ui/Popup';
@@ -193,12 +194,12 @@ function TaskSourceRow(props: {
       <Button class="agenda-status task-status-button" data-status={props.row.task.status} label={`${unfinished() ? 'Complete' : 'Reopen'} task (${statusLabels[props.row.task.status]}): ${props.row.source.block.text}`} title={unfinished() ? `Complete on ${props.date}` : 'Reopen task'} disabled={busy() || props.disabled}
         onClick={event => { void (unfinished() ? complete(event.currentTarget, props.date) : reopen()); }}><Icon name={statusIcons[props.row.task.status]} /></Button>
     </Show>
-    <button type="button" class="agenda-source" onClick={event => props.onOpen({ kind: 'page', pageId: props.row.source.page.id, blockId: props.row.source.block.id }, event.shiftKey)} title="Open source · Shift to open beside">
+    <button type="button" class="agenda-source" onClick={event => props.onOpen({ kind: 'page', pageId: props.row.source.page.id, blockId: props.row.source.block.id }, opensBeside(event))} title={`Open source · ${besideHint}`}>
       <span class="agenda-source-text"><BlockText text={props.row.source.block.text || 'Empty task'} notebook={props.notebook} interactive={false} /></span>
       <Show when={!props.timetable && props.row.source.page.id !== props.pageId}><span class="agenda-source-page">{props.row.source.page.text}</span></Show>
     </button>
     <Show when={props.timetable && props.row.source.page.id !== props.pageId}>
-      <button type="button" class="agenda-provenance" aria-label={`Open source page, ${props.row.source.page.text}`} title={props.row.source.page.text} onClick={event => props.onOpen({ kind: 'page', pageId: props.row.source.page.id, blockId: props.row.source.block.id }, event.shiftKey)}>{props.row.source.page.kind === 'journal' ? 'Journal' : props.row.source.page.text}</button>
+      <button type="button" class="agenda-provenance" aria-label={`Open source page, ${props.row.source.page.text}`} title={props.row.source.page.text} onClick={event => props.onOpen({ kind: 'page', pageId: props.row.source.page.id, blockId: props.row.source.block.id }, opensBeside(event))}>{props.row.source.page.kind === 'journal' ? 'Journal' : props.row.source.page.text}</button>
     </Show>
     <span class="agenda-row-meta">
       <Show when={!props.timetable && time()}><span class="agenda-time">{time()}</span></Show>

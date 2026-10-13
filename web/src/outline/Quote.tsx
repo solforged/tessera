@@ -1,3 +1,4 @@
+import { opensBeside } from '../shell/beside';
 import { Show, createMemo, createResource, createSignal, onCleanup } from 'solid-js';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import type { QuoteStatus } from '../api/types';
@@ -88,7 +89,7 @@ export function Quote(props: {
       <div class="outline-quote-rubric">
         <span>QUOTE</span><span aria-hidden="true">·</span>
         <Show when={source() && !deleted()} fallback={<span>{page()?.text ?? 'Source deleted'}</span>}>
-          <Button class="outline-quote-source" onClick={event => open(event.shiftKey)}>{page()?.text ?? source()?.text}</Button>
+          <Button class="outline-quote-source" onClick={event => open(opensBeside(event))}>{page()?.text ?? source()?.text}</Button>
         </Show>
         <span aria-hidden="true">·</span><time dateTime={new Date(captured().captured_at).toISOString()}>{date().format(captured().captured_at)}</time>
         <Show when={deleted() && page()?.text}><span aria-hidden="true">·</span><span>Source deleted</span></Show>

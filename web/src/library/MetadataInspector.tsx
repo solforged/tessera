@@ -3,6 +3,7 @@ import type { JSX } from 'solid-js';
 import type { ExtractedMetadata, FieldDefinition, SourceView } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import type { OpenTarget } from '../shell/contract';
+import { opensBeside } from '../shell/beside';
 import { textTokens } from '../document/text-tokens';
 import { documentReady } from '../outline/source-fields';
 import { valueLabel } from '../outline/source';
@@ -307,7 +308,7 @@ export function MetadataInspector(props: {
       <Show when={props.backLabel}><Button class="metadata-back" icon="left" onClick={() => (props.onBack ?? props.onClose)()}>{props.backLabel}</Button></Show>
       <div class="metadata-inspector-heading">
         <span>{batch() ? `${docs().length} sources selected` : `${docs()[0]?.root()?.source?.siglum ?? ''} Catalogue card`}</span>
-        <div><Show when={docs().length === 1}><Button class="metadata-open" onClick={event => props.onOpen({ kind: 'page', pageId: docs()[0]!.pageId }, event.shiftKey)}>Open page<Icon name="right" /></Button></Show><Button icon="close" label="Close source details" onClick={props.onClose} /></div>
+        <div><Show when={docs().length === 1}><Button class="metadata-open" onClick={event => props.onOpen({ kind: 'page', pageId: docs()[0]!.pageId }, opensBeside(event))}>Open page<Icon name="right" /></Button></Show><Button icon="close" label="Close source details" onClick={props.onClose} /></div>
       </div>
       <Show when={batch()}><p class="metadata-hint">An entered value replaces the field on all {docs().length} sources, unless a source is named.</p></Show>
       <Button aria-haspopup="dialog" aria-expanded={!!visibilityMenu()} onClick={event => setVisibilityMenu(event.currentTarget)}>Visible fields…</Button>

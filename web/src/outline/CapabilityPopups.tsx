@@ -1,3 +1,4 @@
+import { opensBeside } from '../shell/beside';
 import { Show, createEffect, createResource, createSignal } from 'solid-js';
 import type { Block, WorkSession } from '../api/types';
 import { ProjectControls } from '../projects/ProjectControls';
@@ -55,7 +56,7 @@ export function createCapabilityPopups(context: Pick<OutlineContext, 'doc' | 'pr
       <Show when={another() && shown()?.source}>{source => <div class="outline-running-task">
         <span>Work is running on</span>
         <BlockText text={source().text} blockId={source().id} notebook={props.notebook} onOpen={props.onOpen} />
-        <Button onClick={event => props.onOpen({ kind: 'page', pageId: source().page_id, blockId: source().id }, event.shiftKey)}>Open running task</Button>
+        <Button onClick={event => props.onOpen({ kind: 'page', pageId: source().page_id, blockId: source().id }, opensBeside(event))}>Open running task</Button>
       </div>}</Show>
       <Show when={shown()}>{value => <WorkSessions sessions={value().sessions} active={value().active?.block_id === state.id ? value().active : null} today={props.notebook.todayDate()}
         disabled={!!history.error || capabilities.busy(state.id)}
@@ -87,7 +88,7 @@ function CapabilityPopups(){ return <>
         onSave={repeater => capabilities.edit(state.id, { kind: 'task', id: state.id, value: planTask(task(), { repeater }, contextDate()) })} />}</Show>}
       {state.kind === 'project' && <Popup anchor={state.anchor} label="Project" class="outline-capability-popup" onDismiss={() => capabilities.dismiss(state)}>
         <ProjectControls notebook={props.notebook} project={doc.block(state.id)?.project ?? null} contextDate={contextDate()} disabled={capabilities.busy(state.id)} onChange={value => capabilities.edit(state.id, { kind: 'project', id: state.id, value })} />
-        <Show when={doc.block(state.id)?.project}><Button onClick={event => capabilities.showActions(state.id, event.shiftKey)}>Show actions</Button></Show>
+        <Show when={doc.block(state.id)?.project}><Button onClick={event => capabilities.showActions(state.id, opensBeside(event))}>Show actions</Button></Show>
         <Show when={capabilities.busy(state.id)}><p class="outline-capability-notice" role="status">Saving…</p></Show>
         <Show when={capabilities.error(state.id)}><p class="error" role="alert">{capabilities.error(state.id)}</p></Show>
       </Popup>}

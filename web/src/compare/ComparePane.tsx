@@ -10,6 +10,7 @@ import { positionFields, positionRelations, positionSource, readingPassages } fr
 import type { PositionField, ReadingPassage } from '../outline/perspectives';
 import { OutgoingRelations } from '../outline/RelationLines';
 import type { CompareViewState, OpenTarget } from '../shell/contract';
+import { besideHint, opensBeside } from '../shell/beside';
 import { fieldEntryId } from '../table/query';
 import { Button } from '../ui/Button';
 import { ShapeGlyph } from './ShapeGlyph';
@@ -138,7 +139,7 @@ export function ComparePane(props: ComparePaneProps) {
     }
   }}>
     <Show when={!props.embedded}><header class="compare-toolbar">
-      <div><span class="compare-eyebrow">Perspective sheet</span><h2><Button class="compare-subject" title="Open the subject · Shift to open beside" onClick={event => { const target = subject(); if (target) open(target.page_id, target.kind === 'block' ? target.id : null, event.shiftKey); }}><span><BlockText text={subject()?.text ?? 'Loading…'} notebook={props.notebook} interactive={false} /></span></Button></h2></div>
+      <div><span class="compare-eyebrow">Perspective sheet</span><h2><Button class="compare-subject" title={`Open the subject · ${besideHint}`} onClick={event => { const target = subject(); if (target) open(target.page_id, target.kind === 'block' ? target.id : null, opensBeside(event)); }}><span><BlockText text={subject()?.text ?? 'Loading…'} notebook={props.notebook} interactive={false} /></span></Button></h2></div>
       <span class="compare-count">{count()}</span>
     </header></Show>
     <div class="compare-tabs mode-tabs tab-strip" data-mode-panel=".compare-scroll" role="tablist" aria-label="Compare mode">
@@ -147,7 +148,7 @@ export function ComparePane(props: ComparePaneProps) {
     <Show when={focusedQuestion()}>{question => <section class="compare-focus" aria-label="Focused question">
       <Button class="compare-focus-question" onClick={() => focusQuestion(null)}><BlockText text={question().block.block.text} notebook={props.notebook} interactive={false} /></Button>
       <div><Button onClick={() => { setChosen(null); focusQuestion(null); }}>Show all {perspectives().length} perspectives</Button>
-        <Button onClick={event => open(question().block.page.id, question().block.block.id, event.shiftKey)}>Open original question</Button></div>
+        <Button onClick={event => open(question().block.page.id, question().block.block.id, opensBeside(event))}>Open original question</Button></div>
     </section>}</Show>
     <Show when={result.error || fieldList.error}><div class="pane-error" role="alert">Couldn’t load perspectives.</div></Show>
     <Show when={!focusedQuestion() && perspectives().length >= 2 && (tab() === 'readings' || chooseHolders())}>
@@ -180,7 +181,7 @@ export function ComparePane(props: ComparePaneProps) {
             return <article class="compare-reading" aria-label={holder(perspective)}>
               <header>
                 <Show when={perspective.source && sigla().get(perspective.source)}>{mark => <span class="compare-siglum" title={props.notebook.lookup(perspective.source!)()?.text}>{mark()}</span>}</Show>
-                <h3><Button class="compare-holder-name" title="Open this perspective · Shift to open beside" onClick={event => open(page, id, event.shiftKey)}>{holder(perspective)}</Button>
+                <h3><Button class="compare-holder-name" title={`Open this perspective · ${besideHint}`} onClick={event => open(page, id, opensBeside(event))}>{holder(perspective)}</Button>
                   <Show when={perspective.shape?.value}>{shape => <span class="compare-shape" title={shape()} role="img" aria-label={shape()}><ShapeGlyph value={shape()} /></span>}</Show>
                 </h3>
                 <Show when={perspective.work?.value}>{work => <div class="compare-work"><BlockText text={perspective.work?.valueId ? docs().get(page)?.block(perspective.work.valueId)?.text ?? work() : work()} blockId={perspective.work?.valueId ?? undefined} notebook={props.notebook} onOpen={props.onOpen} /></div>}</Show>
@@ -189,12 +190,12 @@ export function ComparePane(props: ComparePaneProps) {
               <Show when={perspective.gist?.value}>{gist => <p class="compare-gist"><BlockText text={perspective.gist?.valueId ? docs().get(page)?.block(perspective.gist.valueId)?.text ?? gist() : gist()} blockId={perspective.gist?.valueId ?? undefined} notebook={props.notebook} onOpen={props.onOpen} /></p>}</Show>
               <For each={perspective.passages}>{passage => <div class="compare-passage" classList={{ 'compare-passage-heading': passage.heading }}><BlockText text={passage.text} blockId={passage.id} notebook={props.notebook} onOpen={props.onOpen} /></div>}</For>
               <OutgoingRelations rows={docs().get(page)?.status() === 'ready' ? positionRelations(docs().get(page)!, id) : []} notebook={props.notebook} onOpen={props.onOpen} />
-              <Button class="compare-open" onClick={event => open(page, id, event.shiftKey)}>Open perspective</Button>
+              <Button class="compare-open" onClick={event => open(page, id, opensBeside(event))}>Open perspective</Button>
             </article>;
           }}</For></div>
         </Show></Show>
           <Show when={questions().length}><section class="compare-questions" aria-label="Questions on this page">
-            <h3>Questions on this page</h3><For each={questions()}>{question => <div class="compare-question"><Button onClick={() => focusQuestion(question.block.block.id)}><BlockText text={question.block.block.text} notebook={props.notebook} interactive={false} /></Button><Button onClick={event => open(question.block.page.id, question.block.block.id, event.shiftKey)}>Open original</Button></div>}</For>
+            <h3>Questions on this page</h3><For each={questions()}>{question => <div class="compare-question"><Button onClick={() => focusQuestion(question.block.block.id)}><BlockText text={question.block.block.text} notebook={props.notebook} interactive={false} /></Button><Button onClick={event => open(question.block.page.id, question.block.block.id, opensBeside(event))}>Open original</Button></div>}</For>
           </section></Show>
       </Show>
     </div>

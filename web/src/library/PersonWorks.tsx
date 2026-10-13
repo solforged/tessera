@@ -2,6 +2,7 @@ import { For, Show } from 'solid-js';
 import type { ApiClient } from '../api/client';
 import type { Backlink, LibraryPerson, LibraryRow, ReadingState } from '../api/types';
 import type { OpenTarget } from '../shell/contract';
+import { opensBeside } from '../shell/beside';
 import { Button } from '../ui/Button';
 import { formatProgress } from './query';
 import { SourceCover } from './SourceCover';
@@ -32,7 +33,7 @@ export function PersonWorks(props: { pageId: string; rows: LibraryRow[]; onOpen(
       // A person can hold several roles on one source; the strongest one names it.
       const role = () => roleLabels[row.people.find(person => person.id === props.pageId)?.role ?? 'author'];
       const apparatus = () => [row.published?.slice(0, 4), role(), row.progress > 0 && row.source.state === 'reading' ? formatProgress(row.progress) : stateLabels[row.source.state]].filter(Boolean).join(' · ');
-      return <div role="listitem"><Button class="person-work" onClick={event => props.onOpen({ kind: 'page', pageId: row.page.id }, event.shiftKey)}>
+      return <div role="listitem"><Button class="person-work" onClick={event => props.onOpen({ kind: 'page', pageId: row.page.id }, opensBeside(event))}>
         <SourceCover row={row} siglum={row.source.siglum} />
         <span class="person-work-title">{row.page.text}</span>
         <Show when={apparatus()}><span class="person-work-apparatus">{apparatus()}</span></Show>

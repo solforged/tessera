@@ -2,6 +2,7 @@ import { For, Show, createMemo, createResource, createSignal, onCleanup } from '
 import type { Block } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import type { OpenTarget } from '../shell/contract';
+import { besideHint, opensBeside } from '../shell/beside';
 import { Button } from '../ui/Button';
 import { Popup } from '../ui/Popup';
 import { BlockBreadcrumb, BlockText } from './BlockText';
@@ -34,12 +35,12 @@ export function BacklinkSource(props: SourceProps & { context?: boolean; breadcr
   const target = (): OpenTarget => ({ kind: 'page', pageId: props.page.id, blockId: props.block.id });
   return <div class="backlink-source">
     <Show when={props.breadcrumb}><div class="related-breadcrumb"><BlockBreadcrumb block={live() ?? props.block} notebook={props.notebook} omitParent={props.context} /></div></Show>
-    <div class="backlink-source-line">
+    <div class="backlink-source-line" data-open-page={props.page.id} data-open-block={props.block.id} data-open-label={props.page.text}>
       <Show when={!props.context}><Button class="backlink-disclosure" icon={expanded() ? 'down' : 'right'} label={expanded() ? 'Hide context' : 'Show context'} aria-expanded={expanded()} onClick={() => setExpanded(value => !value)} /></Show>
-      <div class="backlink-source-body" role="link" tabIndex={0} title="Open · Shift opens beside" onClick={event => props.onOpen(target(), event.shiftKey)} onKeyDown={event => { if (event.key === 'Enter' && event.target === event.currentTarget) props.onOpen(target(), event.shiftKey); }}>
+      <div class="backlink-source-body" role="link" tabIndex={0} title={`Open · ${besideHint}`} onClick={event => props.onOpen(target(), opensBeside(event))} onKeyDown={event => { if (event.key === 'Enter' && event.target === event.currentTarget) props.onOpen(target(), opensBeside(event)); }}>
         <Show when={props.context || expanded()} fallback={<BlockText text={live()?.text ?? props.block.text} blockId={props.block.id} notebook={props.notebook} onOpen={props.onOpen} />}><SourceContext {...props} /></Show>
       </div>
-      <Button class="text-button backlink-beside" onClick={() => props.onOpen(target(), true)}>Open beside</Button>
+      <Button class="backlink-beside" icon="panes" label="Open beside" title={`Open beside · ${besideHint}`} onClick={() => props.onOpen(target(), true)} />
     </div>
   </div>;
 }

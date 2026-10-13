@@ -1,3 +1,4 @@
+import { opensBeside } from '../shell/beside';
 import { cursorCharLeft, cursorCharRight, selectCharLeft, selectCharRight, standardKeymap } from '@codemirror/commands';
 import { Compartment, EditorSelection, EditorState, Facet, Prec, StateEffect, StateField } from '@codemirror/state';
 import type { Extension } from '@codemirror/state';
@@ -116,7 +117,7 @@ export function fieldEntryExtension(resolve: FieldResolver, kindOf: FieldKindRes
 const refreshLabels = StateEffect.define<null>();
 
 class ReferenceWidget extends WidgetType {
-  constructor(readonly label: string, readonly length: number, readonly token: Token, readonly ambiguous: boolean, readonly choose?: EditorHooks['referenceMenu'], readonly citation = false) { super(); }
+  constructor(readonly label: string, readonly length: number, readonly token: Token, readonly ambiguous: boolean, readonly choose?: EditorHooks['referenceMenu'], readonly citation = false, readonly open?: EditorHooks['openReference']) { super(); }
   eq(other: ReferenceWidget): boolean { return this.label === other.label && this.length === other.length && this.token.start === other.token.start && this.token.id === other.token.id && this.token.locator === other.token.locator && this.ambiguous === other.ambiguous && this.citation === other.citation; }
   toDOM(view: EditorView): HTMLElement {
     const dom = document.createElement('span');
@@ -146,6 +147,7 @@ class ReferenceWidget extends WidgetType {
     dom.addEventListener('click', event => {
       event.preventDefault(); event.stopPropagation();
       if (this.ambiguous && this.choose) { this.choose(this.token, dom); return; }
+      if (opensBeside(event) && this.open) { this.open(this.token, true); return; }
       const lines = [...dom.getClientRects()];
       const line = Math.max(0, lines.findIndex(rect => event.clientY <= rect.bottom));
       const box = lines[line] ?? dom.getBoundingClientRect();
@@ -161,24 +163,24 @@ class ReferenceWidget extends WidgetType {
  * Endpoints remain atomic; placing the caret inside a token exposes its source. A whole field entry is the
  * field widget's job; a whole-text reference to anything else, such as a choice value, still gets a label.
  */
-export function referenceDecorations(text: string, head: number, label: EditorHooks['label'], isField: (id: string) => boolean = () => true, names?: EditorHooks['nameMatches'], choose?: EditorHooks['referenceMenu'], isSource?: EditorHooks['isSource']): DecorationSet {
+export function referenceDecorations(text: string, head: number, label: EditorHooks['label'], isField: (id: string) => boolean = () => true, names?: EditorHooks['nameMatches'], choose?: EditorHooks['referenceMenu'], isSource?: EditorHooks['isSource'], open?: EditorHooks['openReference']): DecorationSet {
   const whole = fieldEntryId(text);
   if (whole !== null && isField(whole)) return Decoration.none;
   return Decoration.set(textTokens(text).flatMap(token => {
     if (token.kind !== 'reference' || /[\r\n]/.test(token.value) || head > token.start && head < token.end) return [];
     const stable = /^[0-9A-HJKMNP-TV-Z]{26}$/i.test(token.id!);
     const ambiguous = !stable && (names?.(token.id!)?.length ?? 0) > 1;
-    return [Decoration.replace({ inclusive: false, widget: new ReferenceWidget(token.alias || label(token.id!) || token.id!, token.end - token.start, token, ambiguous, choose, !!(token.alias || token.locator) && !!isSource?.(token.id!)) }).range(token.start, token.end)];
+    return [Decoration.replace({ inclusive: false, widget: new ReferenceWidget(token.alias || label(token.id!) || token.id!, token.end - token.start, token, ambiguous, choose, !!(token.alias || token.locator) && !!isSource?.(token.id!), open) }).range(token.start, token.end)];
   }));
 }
 
 function references(hooks: EditorHooks) {
   return ViewPlugin.fromClass(class {
     decorations: DecorationSet;
-    constructor(view: EditorView) { this.decorations = referenceDecorations(view.state.doc.toString(), view.state.selection.main.head, hooks.label, id => view.state.facet(fieldName)(id) !== undefined, hooks.nameMatches, hooks.referenceMenu, hooks.isSource); }
+    constructor(view: EditorView) { this.decorations = referenceDecorations(view.state.doc.toString(), view.state.selection.main.head, hooks.label, id => view.state.facet(fieldName)(id) !== undefined, hooks.nameMatches, hooks.referenceMenu, hooks.isSource, hooks.openReference); }
     update(update: ViewUpdate) {
       if (update.docChanged || update.selectionSet || update.startState.facet(fieldName) !== update.state.facet(fieldName) || update.transactions.some(transaction => transaction.effects.some(effect => effect.is(refreshLabels)))) {
-        this.decorations = referenceDecorations(update.state.doc.toString(), update.state.selection.main.head, hooks.label, id => update.state.facet(fieldName)(id) !== undefined, hooks.nameMatches, hooks.referenceMenu, hooks.isSource);
+        this.decorations = referenceDecorations(update.state.doc.toString(), update.state.selection.main.head, hooks.label, id => update.state.facet(fieldName)(id) !== undefined, hooks.nameMatches, hooks.referenceMenu, hooks.isSource, hooks.openReference);
       }
     }
   }, {
@@ -240,6 +242,7 @@ export interface EditorHooks {
   isSource?(id: string): boolean;
   nameMatches?(name: string): NameMatch[] | undefined;
   referenceMenu?(token: Token, anchor: HTMLElement): void;
+  openReference?(token: Token, beside: boolean): void;
   selection(caret: Caret): void;
   key(event: KeyboardEvent, view: EditorView): boolean;
   blur(): void;

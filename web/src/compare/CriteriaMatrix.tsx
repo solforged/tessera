@@ -2,6 +2,7 @@ import { For, Match, Show, Switch, createMemo, createSignal } from 'solid-js';
 import type { FieldDefinition, PositionQuestion, PositionRow, QuoteState } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import type { OpenTarget } from '../shell/contract';
+import { besideHint, opensBeside } from '../shell/beside';
 import { BlockText } from '../outline/BlockText';
 import { fieldEntryId } from '../table/query';
 import { Button } from '../ui/Button';
@@ -99,7 +100,7 @@ export function CriteriaMatrix(props: {
   }
   function HolderHeader(headerProps: { id: string }) {
     return <><span class="compare-siglum">{props.siglum(rowById().get(headerProps.id)!)}</span>
-      <Button class="compare-holder-name" title="Open this perspective · Shift to open beside" onClick={event => props.onOpen({ kind: 'page', pageId: rowById().get(headerProps.id)!.block.page.id, blockId: headerProps.id }, event.shiftKey)}>{props.holder(rowById().get(headerProps.id)!)}</Button>
+      <Button class="compare-holder-name" title={`Open this perspective · ${besideHint}`} onClick={event => props.onOpen({ kind: 'page', pageId: rowById().get(headerProps.id)!.block.page.id, blockId: headerProps.id }, opensBeside(event))}>{props.holder(rowById().get(headerProps.id)!)}</Button>
       <div class="compare-work"><BlockText text={props.work(rowById().get(headerProps.id)!)} notebook={props.notebook} onOpen={props.onOpen} /></div></>;
   }
   function MatrixCell(cellProps: { id: string; field: string }) {
@@ -133,7 +134,7 @@ export function CriteriaMatrix(props: {
           <For each={props.questions.filter(question => question.criterion === field)}>{question => <tr class="criteria-question"><td colSpan={props.rows.length + 1}><div>
             <span class="criteria-question-mark">?</span><Button class="criteria-question-text" onClick={() => props.onFocusQuestion?.(question.block.block.id)}><BlockText text={question.block.block.text} notebook={props.notebook} interactive={false} /></Button>
             <span class="criteria-scope">{fieldName(field)} · {question.holders.length ? `${question.holders.map(id => { const row = props.allRows.find(row => row.holder_id === id); return row ? props.siglum(row) : props.notebook.lookup(id)()?.text ?? id; }).join(' ↔ ')} only` : `all ${props.allRows.length}`}</span>
-            <Button onClick={event => props.onOpen({ kind: 'page', pageId: question.block.page.id, blockId: question.block.block.id }, event.shiftKey)}>Open original</Button>
+            <Button onClick={event => props.onOpen({ kind: 'page', pageId: question.block.page.id, blockId: question.block.block.id }, opensBeside(event))}>Open original</Button>
           </div></td></tr>}</For>
         </>}</For></tbody>
       </>}>
@@ -142,6 +143,6 @@ export function CriteriaMatrix(props: {
         <tbody><For each={rowIds()}>{id => <tr class="criteria-values" data-position-id={id}><th scope="row"><HolderHeader id={id} /></th><For each={props.criteria}>{field => <MatrixCell id={id} field={field} />}</For></tr>}</For></tbody>
       </Show>
     </table></div></Show>
-    <footer class="criteria-footnotes"><div><For each={repeats()}>{repeat => <p>≡ {repeat.number}　Identical authored value: "<BlockText text={repeat.text} notebook={props.notebook} interactive={false} />" · {repeat.positions.map(id => props.siglum(props.rows.find(row => row.block.block.id === id)!)).join(', ')}</p>}</For></div><span class="criteria-hint">Enter to edit · Shift-open source</span></footer>
+    <footer class="criteria-footnotes"><div><For each={repeats()}>{repeat => <p>≡ {repeat.number}　Identical authored value: "<BlockText text={repeat.text} notebook={props.notebook} interactive={false} />" · {repeat.positions.map(id => props.siglum(props.rows.find(row => row.block.block.id === id)!)).join(', ')}</p>}</For></div><span class="criteria-hint">Enter to edit · {besideHint}</span></footer>
   </>;
 }

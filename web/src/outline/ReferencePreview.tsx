@@ -1,3 +1,4 @@
+import { opensBeside, besideHint, besideKey } from '../shell/beside';
 import { For, Show, createEffect, createMemo, createResource, createSignal, onCleanup, onMount } from 'solid-js';
 import { EditorView } from '@codemirror/view';
 import type { PositionRow } from '../api/types';
@@ -243,9 +244,9 @@ export function ReferencePreviews(props: ReferencePreviewsProps) {
     // Controls in a keyboard-opened card keep their native Enter, Space and Tab behaviour.
     if (top.panel?.contains(document.activeElement)) return;
     if (!top.keyboard || event.key === 'Escape' || ['Shift', 'Alt', 'Control'].includes(event.key)) return;
-    if (event.key === 'Enter' && !event.altKey && !event.metaKey && !event.ctrlKey) {
+    if (event.key === 'Enter' && !event.altKey && (!event.metaKey && !event.ctrlKey || opensBeside(event) && !document.activeElement?.closest('.cm-editor'))) {
       event.preventDefault(); event.stopPropagation();
-      go(top, event.shiftKey);
+      go(top, opensBeside(event));
       return;
     }
     // Typing carries on; the card made from the caret steps aside.
@@ -448,14 +449,14 @@ function ReferenceCard(props: {
           <Show when={fieldList.error}><p class="reference-preview-message" role="alert">Couldn’t load perspective fields.</p></Show>
           <PinnedReadings rows={positionRows()} notebook={props.notebook} fieldName={fieldName} standfirst={id => fieldRole(fieldList()?.fields.find(field => field.id === id)) === 'standfirst'} onOpen={props.onNested} />
           <Show when={positionRows().length >= 2}>
-            <Button class="reference-preview-compare" onClick={event => props.onNested({ kind: 'compare', subjectId: props.id }, event.shiftKey)}>Compare perspectives →</Button>
+            <Button class="reference-preview-compare" onClick={event => props.onNested({ kind: 'compare', subjectId: props.id }, opensBeside(event))}>Compare perspectives →</Button>
           </Show>
         </Show>
       </Show>
       <footer class="reference-preview-footer">
         <span class="reference-preview-counts">{counts()}</span>
         <span class="reference-preview-spacer" />
-        <Button onClick={() => props.onOpen(true)}>Beside<Show when={props.keyboard}><kbd>⇧↵</kbd></Show></Button>
+        <Button onClick={() => props.onOpen(true)}>Beside<Show when={props.keyboard}><kbd>{besideKey}↵</kbd></Show></Button>
         <Button class="primary" onClick={() => props.onOpen(false)}>{isPage() ? 'Open' : 'Go to block'}<Show when={props.keyboard}><kbd>↵</kbd></Show></Button>
       </footer>
     </>}</Show>
@@ -516,8 +517,8 @@ function PinnedReadings(props: {
         <div class="reference-preview-reading-heading">
           <Show when={reading.source && sigla().get(reading.source)}>{mark => <span class="reference-preview-siglum" title={props.notebook.lookup(reading.source!)()?.text}>{mark()}</span>}</Show>
           <Button class="reference-preview-holder" aria-expanded={reading.prose.length ? selected() === id : undefined}
-            title={reading.prose.length ? 'Expand this perspective · Shift to open beside' : 'Open this perspective · Shift to open beside'}
-            onClick={event => event.shiftKey || !reading.prose.length ? open(event.shiftKey) : setSelected(value => value === id ? null : id)}>
+            title={reading.prose.length ? `Expand this perspective · ${besideHint}` : `Open this perspective · ${besideHint}`}
+            onClick={event => opensBeside(event) || !reading.prose.length ? open(opensBeside(event)) : setSelected(value => value === id ? null : id)}>
             <span>{holderName()}</span>
             <Show when={reading.shape}>{shape => <ShapeGlyph value={shape()} />}</Show>
             <Show when={reading.prose.length}><span class="reference-preview-expand" aria-hidden="true">{selected() === id ? '−' : '+'}</span></Show>
@@ -535,10 +536,10 @@ function PinnedReadings(props: {
           <div class="reference-preview-reading-detail">
             <Show when={reading.doc.status() === 'ready'}>
               <Show when={reading.source}>{source =>
-                <Button class="reference-preview-reading-source" title="Open source · Shift to open beside" disabled={!props.notebook.lookup(source())()}
+                <Button class="reference-preview-reading-source" title={`Open source · ${besideHint}`} disabled={!props.notebook.lookup(source())()}
                   onClick={event => {
                     const block = props.notebook.lookup(source())();
-                    if (block) props.onOpen({ kind: 'page', pageId: block.page_id, blockId: block.kind === 'block' ? block.id : undefined }, event.shiftKey);
+                    if (block) props.onOpen({ kind: 'page', pageId: block.page_id, blockId: block.kind === 'block' ? block.id : undefined }, opensBeside(event));
                   }}>
                   <Show when={props.notebook.lookup(source())() !== undefined} fallback="Loading source…">{props.notebook.lookup(source())()?.text || 'Unavailable source'}</Show>
                 </Button>
@@ -546,7 +547,7 @@ function PinnedReadings(props: {
               <For each={reading.prose}>{row => <p class="reference-preview-reading-prose"><BlockText text={reading.doc.block(row.id)?.text ?? ''} blockId={row.id} notebook={props.notebook} onOpen={props.onOpen} /></p>}</For>
               <Show when={!reading.prose.length}><p class="reference-preview-reading-message">No further text in this perspective.</p></Show>
             </Show>
-            <Button class="reference-preview-open-reading" onClick={event => open(event.shiftKey)}>Open perspective →</Button>
+            <Button class="reference-preview-open-reading" onClick={event => open(opensBeside(event))}>Open perspective →</Button>
           </div>
         </Show>
       </article>;

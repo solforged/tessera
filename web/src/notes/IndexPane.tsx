@@ -1,3 +1,4 @@
+import { opensBeside, listOpensBeside } from '../shell/beside';
 import { createEffect, createMemo, createResource, createSignal, For, onMount, Show, Switch, Match, untrack } from 'solid-js';
 import { ulid } from 'ulid';
 import type { KindIndex, NoteEntry, NoteIndex, NoteKind, NoteSummary, Operation, Query, View } from '../api/types';
@@ -28,7 +29,7 @@ interface IndexPaneProps {
   kindKey: string;
   kind: NoteKind | undefined;
   view: IndexViewState;
-  notebook: NotebookClient;
+  notebook: NotebookClient; neighbour?: boolean;
   onActivate(): void;
   onOpen(target: OpenTarget, beside: boolean): void;
   onViewChange(view: IndexViewState): void;
@@ -39,7 +40,7 @@ interface IndexPaneProps {
 type NotePopup = { kind: 'menu' | 'file' | 'rename' | 'merge' | 'delete'; note: NoteEntry; notes?: NoteEntry[]; anchor: HTMLElement };
 interface FiledNotes { count: number; undo(): Promise<void> }
 const cover = () => window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches;
-const beside = (event: MouseEvent) => event.shiftKey || window.matchMedia('(pointer: coarse) and (min-width: 900px)').matches;
+
 const tally = (count: number, noun: string) => `${count} ${noun}${count === 1 ? '' : 's'}`;
 const apparatus = (summary: NoteSummary | undefined) => summary ? [summary.block_count ? tally(summary.block_count, 'prose block') : '', summary.backlinks ? tally(summary.backlinks, 'backlink') : ''].filter(Boolean).join(' · ') : '';
 // The last read of each index shows at once when the pane opens again, while a fresh read replaces it.
@@ -73,16 +74,16 @@ export function IndexDirectory(props: IndexPaneProps) {
           <div class="index-directory-list"><For each={list().kinds}>{kind =>
             <div class="index-directory-row">
               <Icon name={noteKindIcon(kind)} />
-              <Button class="index-directory-name" onClick={event => props.onOpen(indexKindTarget(kind), event.shiftKey)}>{kind.plural}</Button>
+              <Button class="index-directory-name" onClick={event => props.onOpen(indexKindTarget(kind), opensBeside(event))}>{kind.plural}</Button>
               <span class="index-directory-count">{tagOnly(kind) ? `${kind.tagged_block_count.toLocaleString()} tagged` : tally(kind.count, kind.key === 'source' ? 'source' : kind.key === 'question' ? 'question' : 'note')}</span>
-              <Button class="index-directory-open" label={`Open ${kind.plural} ${tagOnly(kind) ? 'table' : 'index'}`} onClick={event => props.onOpen(indexKindTarget(kind), event.shiftKey)}>Open {tagOnly(kind) ? 'table' : 'index'}<Icon name="right" /></Button>
+              <Button class="index-directory-open" label={`Open ${kind.plural} ${tagOnly(kind) ? 'table' : 'index'}`} onClick={event => props.onOpen(indexKindTarget(kind), opensBeside(event))}>Open {tagOnly(kind) ? 'table' : 'index'}<Icon name="right" /></Button>
             </div>
           }</For><For each={list().spreads}>{spread =>
             <div class="index-directory-row">
               <Icon name="panes" />
-              <Button class="index-directory-name" onClick={event => props.onOpen({ kind: 'page', pageId: spread.id }, event.shiftKey)}>{spread.title}</Button>
+              <Button class="index-directory-name" onClick={event => props.onOpen({ kind: 'page', pageId: spread.id }, opensBeside(event))}>{spread.title}</Button>
               <span class="index-directory-count">Spread</span>
-              <Button class="index-directory-open" onClick={event => props.onOpen({ kind: 'page', pageId: spread.id }, event.shiftKey)}>Open spread<Icon name="right" /></Button>
+              <Button class="index-directory-open" onClick={event => props.onOpen({ kind: 'page', pageId: spread.id }, opensBeside(event))}>Open spread<Icon name="right" /></Button>
             </div>
           }</For></div>
         </Show>
@@ -198,7 +199,7 @@ function KindIndexPane(props: IndexPaneProps) {
     if (event.metaKey || event.ctrlKey || event.shiftKey) toggleSelection(note.id, event.shiftKey);
     else openNote(note, event);
   };
-  const openTable = (event: MouseEvent) => props.onOpen({ kind: 'table', typeId: query().type, viewId: props.view.viewId ?? null, query: noteTableQuery(query()) }, event.shiftKey);
+  const openTable = (event: MouseEvent) => props.onOpen({ kind: 'table', typeId: query().type, viewId: props.view.viewId ?? null, query: noteTableQuery(query()) }, opensBeside(event));
   const saveView = async () => {
     if (!viewName().trim() || busy()) return;
     setBusy(true); setError('');
@@ -233,7 +234,7 @@ function KindIndexPane(props: IndexPaneProps) {
     if (!range || start < 0) selectionAnchor = note.id;
   };
   const selectedNote = createMemo(() => index.latest?.notes.find(note => note.id === selected()) ?? queue().find(group => filter() === 'all' || group.key === filter())?.notes[0]);
-  const openNote = (note: NoteEntry, event: MouseEvent) => props.onOpen({ kind: 'page', pageId: note.id }, beside(event));
+  const openNote = (note: NoteEntry, event: MouseEvent) => props.onOpen({ kind: 'page', pageId: note.id }, listOpensBeside(event, !!props.neighbour));
   const showPopup = (kind: NotePopup['kind'], note: NoteEntry, anchor: HTMLElement) => { setSelected(note.id); setError(''); setPopup({ kind, note, anchor }); };
   let scroll!: HTMLDivElement;
   createEffect(() => {
@@ -284,9 +285,9 @@ function KindIndexPane(props: IndexPaneProps) {
         <Show when={groups().length}><NewKindAction kindKey={props.kindKey} kind={props.kind} notebook={props.notebook} onOpen={props.onOpen} members={index.latest?.notes} /></Show>
       </div>
       <Show when={typeId()}>{id => <TypeModeTabs active="index" indexCount={missingFields().length ? undefined : count()} tableCount={missingFields().length ? undefined : count()} fieldsCount={type()?.fields.length}
-        cardsCount={type()?.card_templates} onCards={event => props.onOpen({ kind: 'cards', typeId: id() }, event.shiftKey)}
+        cardsCount={type()?.card_templates} onCards={event => props.onOpen({ kind: 'cards', typeId: id() }, opensBeside(event))}
         onIndex={() => { scroll.scrollTop = 0; }} onTable={openTable}
-        onFields={event => props.onOpen({ kind: 'fields', typeId: id() }, event.shiftKey)} />}</Show>
+        onFields={event => props.onOpen({ kind: 'fields', typeId: id() }, opensBeside(event))} />}</Show>
       <Show when={noteMode()}>
         <Show when={!typeId()}><div class="type-mode-tabs mode-tabs tab-strip" role="group" aria-label="Note view"><Button aria-pressed="true">Index <span class="faint">{missingFields().length ? undefined : count()}</span></Button><Button onClick={openTable}>Table <span class="faint">{missingFields().length ? undefined : count()}</span></Button></div></Show>
         <NoteFind query={query()} plural={title()} notebook={props.notebook} onChange={updateQuery}>
@@ -297,7 +298,7 @@ function KindIndexPane(props: IndexPaneProps) {
         <Show when={definitions() && query().filters.length}><div class="table-query-chips"><For each={query().filters}>{(filter, at) => <span class="table-chip">{filterLabel(filter, [...noteAttributes, ...definitions()?.fields ?? []], props.notebook, query().field_names)}<Button label="Remove filter" onClick={() => updateQuery(removeFilter(query(), at()))}>×</Button></span>}</For></div></Show>
         <Show when={missingFields().length}><MissingFields fields={missingFields()} busy={busy()} onRemove={id => { void removeMissingField(id); }} /><p class="faint">Results paused; remove the missing field or undo its deletion.</p></Show>
         <Show when={error() || definitions.error}><p class="error" role="alert">{error() || String(definitions.error)}</p></Show>
-        <Show when={picked().length}><div class="index-selection" role="status"><span>{picked().length} selected</span><Show when={props.onSpread}><Button disabled={picked().length < 2 || picked().length > 5} title={picked().length < 2 || picked().length > 5 ? 'Select two to five notes' : undefined} onClick={event => props.onSpread?.(picked(), event.shiftKey)}>Spread</Button></Show><Button onClick={() => setPicked([])}>Clear</Button></div></Show>
+        <Show when={picked().length}><div class="index-selection" role="status"><span>{picked().length} selected</span><Show when={props.onSpread}><Button disabled={picked().length < 2 || picked().length > 5} title={picked().length < 2 || picked().length > 5 ? 'Select two to five notes' : undefined} onClick={event => props.onSpread?.(picked(), opensBeside(event))}>Spread</Button></Show><Button onClick={() => setPicked([])}>Clear</Button></div></Show>
         <Show when={matches.error}><p class="error" role="alert">{String(matches.error)}</p></Show>
       </Show>
       <Show when={index.error}><p class="error" role="alert">Couldn’t load this index · {String(index.error)}</p></Show>
@@ -325,7 +326,7 @@ function KindIndexPane(props: IndexPaneProps) {
                     event.preventDefault(); selectForFiling(note, event.shiftKey);
                   }}>
                     <input class="index-queue-check" type="checkbox" aria-label={`Select ${note.title}`} checked={filingSelection().has(note.id)} onClick={event => { event.stopPropagation(); selectForFiling(note, event.shiftKey); event.currentTarget.checked = filingSelection().has(note.id); }} />
-                    <button class="index-queue-note" type="button" aria-pressed={selectedNote()?.id === note.id} onClick={event => { if (event.metaKey || event.ctrlKey || event.shiftKey) return; setSelected(note.id); if (cover()) openNote(note, event); }}>
+                    <button class="index-queue-note" type="button" data-open-page={note.id} data-open-label={note.title} aria-pressed={selectedNote()?.id === note.id} onClick={event => { if (event.metaKey || event.ctrlKey || event.shiftKey) return; setSelected(note.id); if (cover()) openNote(note, event); }}>
                       <span class="index-entry-title">{note.title}</span>
                       <Show when={preview(note)} fallback={<span class="index-preview index-blank-preview">{summary(note)?.referenced_from.length ? `Referenced by ${summary(note)!.referenced_from.map(page => page.title).join(' · ')}` : 'No text yet'}</span>}><span class="index-preview">{preview(note)}</span></Show>
                       <span class="index-apparatus">{apparatus(summary(note))}</span>
@@ -339,21 +340,21 @@ function KindIndexPane(props: IndexPaneProps) {
                 <Show when={summary(note())?.prose_excerpt.length}><div class="index-inspector-excerpt" aria-label="Opening prose"><For each={summary(note())?.prose_excerpt}>{text => <p>{plainText(text, lookup)}</p>}</For></div></Show>
                 <div class="index-inspector-actions"><Button class="bordered" onClick={event => showPopup('file', note(), event.currentTarget)}>File under a type…</Button><Button onClick={event => openNote(note(), event)}>Open note</Button>
                   <Button onClick={event => showPopup('merge', note(), event.currentTarget)}>Merge into…</Button><Button class="danger" onClick={event => showPopup('delete', note(), event.currentTarget)}>Delete…</Button></div>
-                <Show when={summary(note())?.referenced_from.length}><div class="index-incoming"><p class="index-apparatus">Referenced from</p><For each={summary(note())?.referenced_from}>{page => <Button onClick={event => props.onOpen({ kind: 'page', pageId: page.id }, beside(event))}>{page.title}</Button>}</For></div></Show>
+                <Show when={summary(note())?.referenced_from.length}><div class="index-incoming"><p class="index-apparatus">Referenced from</p><For each={summary(note())?.referenced_from}>{page => <Button onClick={event => props.onOpen({ kind: 'page', pageId: page.id }, listOpensBeside(event, !!props.neighbour))}>{page.title}</Button>}</For></div></Show>
               </aside>}</Show></div>
             </Show>
           </Match>
           <Match when={props.kindKey === 'source' && grouping() === 'letter'}>
-            <div class="index-source-tabs mode-tabs tab-strip" role="group" aria-label="Sources view"><Button aria-pressed="true">Bibliography <span class="faint">{index.latest!.notes.length}</span></Button><Button onClick={event => props.onOpen({ kind: 'library', tab: 'all' }, beside(event))}>Open Library <Icon name="right" /></Button></div>
+            <div class="index-source-tabs mode-tabs tab-strip" role="group" aria-label="Sources view"><Button aria-pressed="true">Bibliography <span class="faint">{index.latest!.notes.length}</span></Button><Button onClick={event => props.onOpen({ kind: 'library', tab: 'all' }, opensBeside(event))}>Open Library <Icon name="right" /></Button></div>
             <Show when={shown()?.notes.length} fallback={<div class="index-empty"><p class="index-empty-title">No sources found.</p><p class="index-empty-hint">Books and articles you add in the Library are listed here with their sigla and citation keys.</p></div>}><For each={shown()?.notes}>{note => <article class="index-source-row index-selectable" classList={{ selected: picked().includes(note.id) }}>
               <label class="index-select-target"><input type="checkbox" class="index-select" aria-label={`Select ${note.title}`} checked={picked().includes(note.id)} onClick={event => toggleSelection(note.id, event.shiftKey)} /></label>
               <span class="index-source-siglum">{summary(note)?.source?.siglum}</span><div class="index-source-main"><button type="button" class="index-source-title" onClick={event => selectOrOpen(note, event)}>{note.title}</button>
                 <Show when={summary(note)?.source}>{source => <><Show when={source().authors.length}><p class="index-source-byline"><For each={source().authors}>{(text, at) => {
                   const author = referenceValue(text);
-                  return <>{at() ? ' · ' : ''}<Show when={author.id} fallback={author.name}>{id => <Button onClick={event => props.onOpen({ kind: 'page', pageId: id() }, beside(event))}>{plainText(text, lookup)}</Button>}</Show></>;
+                  return <>{at() ? ' · ' : ''}<Show when={author.id} fallback={author.name}>{id => <Button onClick={event => props.onOpen({ kind: 'page', pageId: id() }, listOpensBeside(event, !!props.neighbour))}>{plainText(text, lookup)}</Button>}</Show></>;
                 }}</For></p></Show>
                   <div class="index-source-footer"><p class="index-apparatus">{[source().format.toUpperCase(), source().publisher, source().published?.match(/^\d{4}/)?.[0], source().citation_key, source().highlights ? tally(source().highlights, 'highlight') : '', summary(note)!.backlinks ? tally(summary(note)!.backlinks, 'page backlink') : ''].filter(Boolean).join(' · ')}</p>
-                    <div class="index-source-actions"><Button onClick={event => openNote(note, event)}>Open source notes</Button><Show when={readableSources.latest?.has(note.id)}><Button onClick={event => props.onOpen({ kind: 'reader', sourceId: note.id }, beside(event))}>Read <Icon name="right" /></Button></Show></div>
+                    <div class="index-source-actions"><Button onClick={event => openNote(note, event)}>Open source notes</Button><Show when={readableSources.latest?.has(note.id)}><Button onClick={event => props.onOpen({ kind: 'reader', sourceId: note.id }, listOpensBeside(event, !!props.neighbour))}>Read <Icon name="right" /></Button></Show></div>
                   </div></>}</Show>
               </div></article>}</For></Show>
           </Match>
@@ -361,16 +362,16 @@ function KindIndexPane(props: IndexPaneProps) {
             <Show when={groups().length} fallback={<Show when={index.latest?.notes.length} fallback={<EmptyKind kindKey={props.kindKey} kind={props.kind} notebook={props.notebook} onOpen={props.onOpen} />}><p class="empty-state">No notes found.</p></Show>}>
               <Show when={grouping() === 'letter'}><nav class="index-letters mode-tabs tab-strip" aria-label="Jump to letter"><span class="index-jump-label">Jump</span><For each={groups()}>{group => <Button aria-pressed={(letter() || groups()[0]?.letter) === group.letter} onClick={() => jump(group.letter)}>{group.letter}</Button>}</For></nav></Show>
               <div class="index-columns" classList={{ 'index-by-heading': grouping() !== 'letter' }}><For each={groups()}>{group => <section class="index-group" data-letter={grouping() === 'letter' ? group.letter : undefined} aria-label={group.letter}>
-                <h2><Show when={group.siglum}><span>{group.siglum}</span></Show><Show when={group.target} fallback={<span>{group.letter}</span>}>{target => <Button onClick={event => props.onOpen({ kind: 'page', pageId: target() }, beside(event))}>{group.letter}</Button>}</Show><span class="section-rule" /><span class="index-group-count">{group.noteCount || ''}</span></h2>
+                <h2><Show when={group.siglum}><span>{group.siglum}</span></Show><Show when={group.target} fallback={<span>{group.letter}</span>}>{target => <Button onClick={event => props.onOpen({ kind: 'page', pageId: target() }, listOpensBeside(event, !!props.neighbour))}>{group.letter}</Button>}</Show><span class="section-rule" /><span class="index-group-count">{group.noteCount || ''}</span></h2>
                 <For each={group.entries}>{entry => entry.kind === 'note' ? <div class="index-selectable" classList={{ selected: picked().includes(entry.note.id) }}>
                   <label class="index-select-target"><input type="checkbox" class="index-select" aria-label={`Select ${entry.note.title}`} checked={picked().includes(entry.note.id)} onClick={event => toggleSelection(entry.note.id, event.shiftKey)} /></label>
-                  <button type="button" class="index-entry" onClick={event => selectOrOpen(entry.note, event)}>
+                  <button type="button" class="index-entry" data-open-page={entry.note.id} data-open-label={entry.note.title} onClick={event => selectOrOpen(entry.note, event)}>
                     <span class="index-entry-title">{entry.note.title}</span><Show when={preview(entry.note)}><span class="index-preview">{preview(entry.note)}</span></Show>
                     <Show when={isCollection()} fallback={<Show when={summary(entry.note)}>{value => <Show when={value().field || value().block_count || value().backlinks}><span class="index-apparatus">{[value().field ? plainText(value().field!.value, lookup) : '', value().block_count ? tally(value().block_count, 'prose block') : value().backlinks ? tally(value().backlinks, 'backlink') : ''].filter(Boolean).join(' · ')}</span></Show>}</Show>}>
                       <Show when={collectionCounts.latest?.get(entry.note.id) != null}><span class="index-apparatus">{tally(collectionCounts.latest!.get(entry.note.id)!, 'source')}</span></Show>
                     </Show>
                   </button>
-                </div> : <div class="index-entry index-cross-reference"><span class="index-alias">{entry.reference.alias}</span>{', '}<span class="index-see">see</span>{' '}<For each={entry.reference.targets}>{(target, at) => <>{at() ? '; ' : ''}<button type="button" class="index-see-target" onClick={event => props.onOpen({ kind: 'page', pageId: target.id }, beside(event))}>{target.title}</button></>}</For></div>}</For>
+                </div> : <div class="index-entry index-cross-reference"><span class="index-alias">{entry.reference.alias}</span>{', '}<span class="index-see">see</span>{' '}<For each={entry.reference.targets}>{(target, at) => <>{at() ? '; ' : ''}<button type="button" class="index-see-target" onClick={event => props.onOpen({ kind: 'page', pageId: target.id }, listOpensBeside(event, !!props.neighbour))}>{target.title}</button></>}</For></div>}</For>
               </section>}</For></div>
             </Show>
           </Match>
@@ -494,7 +495,7 @@ function NewKindNote(props: { kind: NoteKind; mode: 'type' | 'question' | 'proje
   const keyDown = (event: KeyboardEvent) => {
     if (event.key !== 'Enter' || event.isComposing) return;
     event.preventDefault();
-    void submit(event.shiftKey);
+    void submit(opensBeside(event));
   };
   const action = () => busy() ? 'Saving…' : member() ? `Open ${noun}` : found() ? `File as ${noun}` : `Create ${noun}`;
   return <Popup anchor={props.anchor} placement={cover() ? 'sheet' : 'anchor'} class="index-note-popup new-kind-popup" label={`New ${noun}`} width={400} onDismiss={() => { if (!busy()) props.onDismiss(); }}>
@@ -511,7 +512,7 @@ function NewKindNote(props: { kind: NoteKind; mode: 'type' | 'question' | 'proje
       <Show when={matches().length}>
         <div class="new-kind-matches" role="group" aria-label="Similar pages">
           <p class="new-kind-matches-label">Similar pages</p>
-          <For each={matches()}>{row => <button type="button" class="new-kind-match" disabled={busy()} onClick={event => void submit(event.shiftKey, row)}>
+          <For each={matches()}>{row => <button type="button" class="new-kind-match" disabled={busy()} onClick={event => void submit(opensBeside(event), row)}>
             <span class="new-kind-match-title">{row.text}<Show when={row.alias}>{alias => <span class="reference-via"> via {alias()}</span>}</Show></span>
             <span class="new-kind-match-action">{props.members.has(row.id) ? 'Open' : props.mode === 'type' ? `File as ${noun}` : `Make ${noun}`}</span>
           </button>}</For>

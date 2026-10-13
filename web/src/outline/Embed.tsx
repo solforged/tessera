@@ -1,3 +1,4 @@
+import { opensBeside } from '../shell/beside';
 import { Show, createMemo, createSignal, onCleanup } from 'solid-js';
 import type { JSX } from 'solid-js';
 import type { NotebookClient } from '../document/contract';
@@ -26,7 +27,7 @@ export function Embed(props: {
     <div class="outline-embed" data-embed-target={props.target}>
       <div class="stream-embed-line">
         <div class="static-text"><BlockText text={source()?.text ?? ''} blockId={props.target} notebook={props.notebook} onOpen={props.onOpen} /></div>
-        <Button class="stream-provenance" onMouseDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); props.onOpen({ kind: 'page', pageId: source()!.page_id, blockId: props.target }, event.shiftKey); }}>{page()?.kind === 'journal' ? streamDay(page()!.text) : page()?.text}</Button>
+        <Button class="stream-provenance" onMouseDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); props.onOpen({ kind: 'page', pageId: source()!.page_id, blockId: props.target }, opensBeside(event)); }}>{page()?.kind === 'journal' ? streamDay(page()!.text) : page()?.text}</Button>
       </div>
       <Show when={rows().length}><div class="stream-embed-children" onMouseDown={event => event.stopPropagation()}>
         <BlockTree rows={rows()} block={id => props.notebook.lookup(id)() ?? undefined} notebook={props.notebook} onOpen={props.onOpen} />

@@ -1,3 +1,4 @@
+import { opensBeside } from '../shell/beside';
 import { For, Show } from 'solid-js';
 import type { NotebookClient } from '../document/contract';
 import type { OpenTarget } from '../shell/contract';
@@ -35,7 +36,7 @@ export function Apparatus(props: {
   const title = (id: string) => props.notebook.lookup(id)()?.text.trim() || 'Untitled';
   const inner = () => ring(props.holders, INNER, 0);
   const outer = () => ring(props.linked, OUTER, Math.PI / Math.max(props.linked.length, 1));
-  const open = (id: string, event: MouseEvent) => props.onOpen({ kind: 'page', pageId: id }, event.shiftKey);
+  const open = (id: string, event: MouseEvent) => props.onOpen({ kind: 'page', pageId: id }, opensBeside(event));
   return <aside class="outline-apparatus" aria-label="Apparatus">
     <h6>Constellation</h6>
     <svg class="constellation" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="group" aria-label="Perspectives and linked pages">

@@ -201,7 +201,7 @@ In an Agenda pane narrower than 560 px the two moves sit on their own line benea
 
 Next 7 days groups compact rows by their earliest future schedule or deadline, and excludes tasks already listed as overdue or planned. A task appears only once across these sections, even when both planning dates contribute to the strip. Collapsed Unplanned and Done groups retain undated work and completion history.
 
-Opening a row still opens its source, and Shift opens it beside. Completion and planning never insert copies into the journal.
+Opening a row still opens its source. ⌘-click opens it beside (Ctrl-click off Mac). Completion and planning never insert copies into the journal.
 
 ## Week
 
@@ -227,4 +227,4 @@ Dragging a task into the grid sets its scheduled date and time, snapped to 15 mi
 | Alt+Up, Alt+Down | Move 15 minutes |
 | Alt+Home | Clear the time |
 
-Clicking opens the source. Shift-click opens it beside.
+Clicking opens the source. ⌘-click opens it beside (Ctrl-click off Mac).

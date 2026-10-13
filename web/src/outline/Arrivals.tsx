@@ -1,3 +1,4 @@
+import { opensBeside } from '../shell/beside';
 import { For, Show, createMemo, createResource, createSignal, onCleanup, untrack } from 'solid-js';
 import type { StreamArrival } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
@@ -55,7 +56,7 @@ export function Arrivals(props: {
     <Show when={arrivals().length}><section class="related-sections stream-arrivals" aria-label="Arrivals">
       <h2 class="stream-section-heading"><span>Arrivals</span><span class="section-rule" /><span>{arrivals().length}</span></h2>
       <For each={groups()}>{([day, rows]) => <div class="stream-day">
-        <h3 class="stream-day-heading"><Button onClick={event => props.onOpen({ kind: 'page', pageId: rows[0]!.page.id }, event.shiftKey)}><time dateTime={day}>{streamDay(day)}</time></Button></h3>
+        <h3 class="stream-day-heading"><Button onClick={event => props.onOpen({ kind: 'page', pageId: rows[0]!.page.id }, opensBeside(event))}><time dateTime={day}>{streamDay(day)}</time></Button></h3>
         <For each={rows}>{row => <Arrival row={row} />}</For>
       </div>}</For>
     </section></Show>

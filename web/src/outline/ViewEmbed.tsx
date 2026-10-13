@@ -1,3 +1,4 @@
+import { opensBeside } from '../shell/beside';
 import { Show, createEffect, createMemo, createResource, createSignal, on } from 'solid-js';
 import type { Query } from '../api/types';
 import type { NotebookClient } from '../document/contract';
@@ -38,13 +39,13 @@ export function ViewEmbed(props: { reference: Token; notebook: NotebookClient; o
       <Button onClick={event => setRelink(event.currentTarget)}>Relink…</Button><Button onClick={props.onRemove}>Remove embed</Button>
       <Show when={views.error}><span class="error" role="alert">{String(views.error)}</span></Show>
     </div>}>
-      <header class="view-embed-header"><Button class="view-embed-title" onClick={event => open(event.shiftKey)}>{view()?.name}</Button><Show when={view()?.query.purpose}><p>{view()?.query.purpose}</p></Show></header>
-      <Show when={view()?.query.layout === 'desk'}><Button class="view-embed-all" onClick={event => open(event.shiftKey)}>Open desk</Button></Show>
+      <header class="view-embed-header"><Button class="view-embed-title" onClick={event => open(opensBeside(event))}>{view()?.name}</Button><Show when={view()?.query.purpose}><p>{view()?.query.purpose}</p></Show></header>
+      <Show when={view()?.query.layout === 'desk'}><Button class="view-embed-all" onClick={event => open(opensBeside(event))}>Open desk</Button></Show>
       <Show when={view()?.query.layout !== 'desk'}>
       <Show when={result()}>{rows => <ViewBody query={query()!} result={rows()} notebook={props.notebook} onOpen={props.onOpen} onQueryChange={setLocalQuery} />}</Show>
       <Show when={result.loading && !result()}><p class="empty-state">Loading rows…</p></Show>
       <Show when={result.error}><p class="error" role="alert">{String(result.error)} <Button onClick={() => open(false)}>Open view</Button></p></Show>
-      <Show when={result() && result()!.total > result()!.rows.length}><Button class="view-embed-all" onClick={event => open(event.shiftKey)}>Show all {result()!.total}</Button></Show>
+      <Show when={result() && result()!.total > result()!.rows.length}><Button class="view-embed-all" onClick={event => open(opensBeside(event))}>Show all {result()!.total}</Button></Show>
       <Show when={result() && !result()!.rows.length}><p class="empty-state">No matching rows. <Button onClick={() => open(false)}>Open view to change its filters</Button></p></Show>
       </Show>
     </Show>

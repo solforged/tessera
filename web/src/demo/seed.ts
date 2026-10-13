@@ -1,5 +1,6 @@
 import { ulid } from 'ulid';
 import type { Batch, Citation, Operation, Passage, PassagePoint, TaskState } from '../api/types';
+import { besideHint } from '../shell/beside';
 
 export function localToday(now = new Date()): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
@@ -54,7 +55,7 @@ export function seedBatch(fieldsPage: string, today = localToday(), book?: SeedB
   insert(welcome, 'Your notebook stays in this browser on this device, and clearing site data removes it. Keep one Tessera tab open at a time. Settings › Backups downloads a copy, restores one or starts over.');
   const outline = insert(welcome, 'Make room for a thought', 2);
   insert(outline, 'Click a block to edit it. Enter makes another block; Tab nests it and Shift+Tab brings it back out.');
-  insert(outline, 'Try undo and redo, fold a branch, or open a linked page beside this one with Shift+click.');
+  insert(outline, `Try undo and redo, fold a branch, or open a linked page beside this one: ${besideHint}.`);
   insert(welcome, `Follow ${link(ideas, 'Small ideas')} for an outline with typed fields and a saved table, or ${link(learning, 'Learning by doing')} for a few flashcards.`);
   insert(welcome, 'Today opens your daily journal. Agenda collects tasks and their dates. Review lets you study cards. Find or create searches your pages; the command palette lists the rest.');
   insert(welcome, book

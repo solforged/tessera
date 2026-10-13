@@ -46,13 +46,19 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - A page's own fields read as a specimen block under its imprint, with mono names, dotted rules and `Add…` on empty slots.
 - Make project on a journal block makes it a project page: the block's text names the page (or an existing page of that name becomes the project), its children move there, and the block becomes the link, with one Undo.
 - The planning slip's Project picker can start a new project by name, and its Work row shows whether the clock runs and opens Work sessions.
+- The workspace is a row of up to four panes. Opening beside lands right of the pane it came from and never replaces that pane; panes the window cannot fit fold into numbered spines.
+- Dividers between panes drag, snap at a third, a half and two thirds, move with arrow keys and reset on double click. Widths persist with the row.
+- Holding ⌘ over a link shows where a click will open it: the pane it replaces, or a ghost of the new pane. Links, backlinks, sidebar pages, index entries and Library rows can be dragged onto a pane to replace it, or onto its edge to open a new pane there.
 
 ### Changed
 
 - The notebook's own sentences are set in Plex everywhere in the outline, including rows that cite a source, glosses, perspectives and questions, and their previews in Find and on hover. Piazzolla stays for titles, headings, quotes and the reader.
 - Sources by the same author keep a three-letter siglum and add a year, a title initial or a number to tell them apart, as `MAT`, `MAT19` and `MAT2`, instead of lengthening the surname.
 - Read, Compare, the research desk and tables all call a holder's stance a perspective, with the same counts, tabs and actions.
-- On a source with a snapshot, Read in the page header opens the book at your saved position (Shift opens it beside). The reader keeps the source's Read, Outline and Compare tabs, so Outline returns to the page.
+- On a source with a snapshot, Read in the page header opens the book at your saved position (⌘ opens it beside). The reader keeps the source's Read, Outline and Compare tabs, so Outline returns to the page.
+- ⌘-click opens beside everywhere (Ctrl-click off Apple keyboards), and ⌘Enter from the keyboard; Shift-click now only selects. A list with a pane to its right opens rows there on a plain click and keeps focus.
+- The active pane carries a gilt rule along its header, and inactive panes mute their title and tabs.
+- Backlinks and related blocks show Open beside as a glyph on the row under the pointer instead of a text button on every row.
 - Failed imports sit only in the Library Inbox, folded behind one `N imports failed` line with Retry, Dismiss and Dismiss all, and name the page they tried (`pubmed.ncbi.nlm.nih.gov/16507066`).
 - Finding aids count a note's prose blocks, not its field entries, and leave out zero counts; people without prose show their backlinks instead. Sources reads as a denser bibliography with plain author names.
 - Review says how many cards come due later today and when the next one is due, instead of a bare "0 cards to review".
@@ -70,7 +76,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Agenda Week in a pane narrower than 600 px, such as a phone or a narrow split, lists the seven days as one scroll of Day's rows: past days fold to one line, empty days take one line, and a mono line sums the week. The unfolded Fold fits all seven calendar columns.
 - Tables and saved views on phones show six or seven compact rows instead of one or two cards. The header scrolls away, a bar at the bottom holds Find and Query, and Query opens a sheet with the full query, Save and Revert; group headings stay in view.
 - The note header no longer shows a shortened ID. The page menu opens with the full ID, the creation date and Copy ID, and Copy reference copies a `[[id]]` link.
-- With two panes open, clicking a source in the Library opens it in the other pane, so the list stays put; Shift opens it in the Library's pane.
+- With a pane to the Library's right, clicking a source opens it there, so the list stays put.
 - Block, page, note, source and field menus are short: routine actions first, one Make… chooser that only lists what a note doesn't have yet, and a named menu (Task…, Question…, Perspective…) for each thing it has. Rarer choices drill in under Move…, Description…, Appearance…, Collections…, Export… or Definition… with a Back in the menu's head. A paragraph's menu went from 12 rows to 9, a question block's Add or change list from 20 rows to 6 under Make…, and a concept page's menu from 17 to 10.
 - On a phone those menus open as a bottom sheet with 44 px rows and Close or Back at the top.
 - Zoom and Select left the block menu, and Undo, Redo and Compare left the page menu; their keys, gestures, tabs and palette commands stay. With nothing typed, the palette's Page section lists only what applies to the page.

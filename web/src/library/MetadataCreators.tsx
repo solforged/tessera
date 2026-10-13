@@ -2,6 +2,7 @@ import { For, Index, Show, createMemo, createResource, createSignal, onCleanup }
 import type { Block } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import type { OpenTarget } from '../shell/contract';
+import { opensBeside } from '../shell/beside';
 import { documentReady } from '../outline/source-fields';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
@@ -114,7 +115,7 @@ export function MetadataCreators(props: {
   return <div class="metadata-creators">
     <Index each={props.value}>{(creator, index) => <div class="metadata-creator">
       <Show when={renaming() === creator().id && !!creator().id} fallback={<div class="metadata-creator-line">
-        <Show when={creator().id} fallback={<span>{creator().name}</span>}><Button class="metadata-person-link" onClick={event => props.onOpen({ kind: 'page', pageId: creator().id! }, event.shiftKey)}>{creator().name}</Button></Show>
+        <Show when={creator().id} fallback={<span>{creator().name}</span>}><Button class="metadata-person-link" onClick={event => props.onOpen({ kind: 'page', pageId: creator().id! }, opensBeside(event))}>{creator().name}</Button></Show>
         <Button class="metadata-role" disabled={busy() || props.disabled} aria-haspopup="menu" aria-label={`Role for ${creator().name}`} onClick={event => setMenu({ anchor: event.currentTarget, label: `Role for ${creator().name}`, items: roles.map(item => ({ label: item.label, checked: creator().role === item.role, action: () => { void save(props.value.map((value, i) => i === index ? { ...value, role: item.role } : value)).catch(() => {}); } })) })}>{roles.find(item => item.role === creator().role)?.label}<Icon name="down" /></Button>
         <Button icon="more" label={`Actions for ${creator().name}`} disabled={busy() || props.disabled} onClick={event => actions(creator(), index, event.currentTarget)} />
       </div>}>

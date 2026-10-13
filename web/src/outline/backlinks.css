@@ -7,8 +7,12 @@
 .backlink-source-line { display: flex; align-items: flex-start; gap: var(--space-4); }
 .backlink-source-body { flex: 1; min-width: 0; overflow-wrap: anywhere; white-space: pre-wrap; cursor: pointer; }
 .backlink-source-body:focus-visible { outline-offset: -2px; }
-.backlink-beside.button { flex: none; font-size: var(--text-meta); color: var(--faint); }
+/* Beside is a quiet glyph that shows on the row under the pointer or in focus; touch keeps it shown. */
+.backlink-beside.button { flex: none; width: var(--target-size); min-height: var(--target-size); padding: var(--space-4); border: 0; background: transparent; color: var(--faint); opacity: 0; transition: opacity var(--motion-fast) var(--motion-ease); }
+.backlink-beside > .icon { width: var(--icon-size-small); height: var(--icon-size-small); }
+:is(.backlink-source-line, .related-block):is(:hover, :focus-within) > .backlink-beside, .backlink-beside:focus-visible { opacity: 1; }
 .backlink-beside.button:hover { color: var(--accent); }
+@media (hover: none) { .backlink-beside.button { opacity: 1; } }
 .backlink-disclosure.button { flex: none; width: var(--target-size); min-height: var(--target-size); padding: var(--space-4); border: 0; background: transparent; color: var(--faint); }
 .backlink-disclosure > .icon { width: var(--icon-size-small); height: var(--icon-size-small); }
 .backlink-target.button { display: block; max-width: 100%; padding: 0; margin-left: var(--target-size); border: 0; background: transparent; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); text-align: left; overflow-wrap: anywhere; }

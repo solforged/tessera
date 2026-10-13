@@ -465,7 +465,7 @@ Reader selections snap partial words outwards across Unicode letters, digits and
 
 - Overlapping tints retain every citation and open a choice menu.
 - Clicking a single tint or pressing Enter offers Open note/Add note, Make card, Copy with citation, explicit triage and Remove highlight.
-- Shift-click opens the highlight beside the reader.
+- ⌘-click opens the highlight beside the reader (Ctrl-click off Mac).
 - Note, card, triage and removal edits use document undo.
 
 In the active reader:

@@ -1,6 +1,7 @@
 import { Show, createEffect, createMemo, createResource, createSignal, on, onCleanup } from 'solid-js';
 import type { NotebookClient } from '../document/contract';
 import type { FieldsViewState, OpenTarget } from '../shell/contract';
+import { opensBeside } from '../shell/beside';
 import { typeQuery } from '../table/query';
 import { Button } from '../ui/Button';
 import { TypeModeTabs } from '../ui/TypeModeTabs';
@@ -45,13 +46,13 @@ export function TypeFieldsPane(props: TypeFieldsPaneProps) {
   return <div ref={scroll} class="type-fields-pane" role="region" tabIndex={0} aria-label={`${title()} fields`} onFocusIn={props.onActivate} onScroll={() => props.onViewChange({ scroll: scroll.scrollTop })}>
     <div class="type-fields-register">
       <header class="type-fields-heading">
-        <div class="fields-register"><Button class="type-fields-crumb" onClick={event => props.onOpen({ kind: 'page', pageId: props.typeId }, event.shiftKey)}>{title()}</Button><span> / Template</span></div>
+        <div class="fields-register"><Button class="type-fields-crumb" onClick={event => props.onOpen({ kind: 'page', pageId: props.typeId }, opensBeside(event))}>{title()}</Button><span> / Template</span></div>
         <div class="type-fields-title"><h1>{title()}</h1><span>{data.latest?.type.fields.length ?? 0} fields</span></div>
       </header>
       <TypeModeTabs active="fields" indexCount={data.latest?.kind?.count} tableCount={data.latest?.type.members} fieldsCount={data.latest?.type.fields.length}
-        cardsCount={data.latest?.type.card_templates} onCards={event => props.onOpen({ kind: 'cards', typeId: props.typeId }, event.shiftKey)}
-        onIndex={event => props.onOpen({ kind: 'index', key: data.latest?.kind?.key ?? `type:${props.typeId}` }, event.shiftKey)}
-        onTable={event => props.onOpen({ kind: 'table', typeId: props.typeId, viewId: null, query: typeQuery(props.typeId) }, event.shiftKey)}
+        cardsCount={data.latest?.type.card_templates} onCards={event => props.onOpen({ kind: 'cards', typeId: props.typeId }, opensBeside(event))}
+        onIndex={event => props.onOpen({ kind: 'index', key: data.latest?.kind?.key ?? `type:${props.typeId}` }, opensBeside(event))}
+        onTable={event => props.onOpen({ kind: 'table', typeId: props.typeId, viewId: null, query: typeQuery(props.typeId) }, opensBeside(event))}
         onFields={() => { scroll.scrollTop = 0; }} />
       <Show when={error()}><p class="error" role="alert">{error()} <Button onClick={() => setVersion(value => value + 1)}>Retry</Button></p></Show>
       <Show when={data.latest} fallback={<Show when={!error()}><p class="empty-state" role="status">Loading fields…</p></Show>}>{value =>

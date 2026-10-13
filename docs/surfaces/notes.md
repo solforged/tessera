@@ -45,7 +45,7 @@ Titles sit under rubric letters with a hairline and a distinct-note count:
 
 Each note shows two lines of its first populated standfirst field, else its first non-field prose block, then one populated template field and its nonempty visible prose-block count in mono. Field entries and their descendants, headings, blank blocks and archived subtrees do not count as prose. Zero prose counts are omitted; a note without prose shows a nonzero ordinary backlink count instead, or no apparatus if neither exists. The Collections finding aid instead shows its member-source count in mono, using the same Library collection query as the collection cards. A title without prose has no empty preview. The batched index read derives this apparatus without a page read per row. A whole-kind alphabetical visit uses that read directly; filtered and grouped queries still use the query engine, and populated field choices load when Group or Filters opens.
 
-Only populated jump letters appear, and only with Letter grouping. The strip stays on one line, using compact targets on desktop. On the touch cover it scrolls above bottom navigation with a fading continuation edge, the selected letter on the shared gilt tab rule and compact inline initials in the list. Sort as, diacritic folding, `#` last and alias cross-references retain their filing rules. A title opens its note; a coarse pointer at least 900 px wide opens it beside.
+Only populated jump letters appear, and only with Letter grouping. The strip stays on one line, using compact targets on desktop. On the touch cover it scrolls above bottom navigation with a fading continuation edge, the selected letter on the shared gilt tab rule and compact inline initials in the list. Sort as, diacritic folding, `#` last and alias cross-references retain their filing rules. A title opens its note. Index fills the pane to the right when one exists; otherwise it uses its own pane. ⌘-click or ⌘Enter opens beside (Ctrl-click or Ctrl+Enter off Mac). A coarse pointer at least 900 px wide opens beside by default.
 
 Below the mode tabs, `Find in Concepts…` (using the kind's plural) matches plain words against title or Gloss. `links:`, `from:` and `cites:` resolve titles and aliases; `cites:` also resolves source sigla and citation keys. Quote a multiword value, for example `links:"Three generations of a dynasty"`. Names complete after the colon. Enter, a closing quote or leaving the input resolves each term to a removable table-style chip; unresolved names show `No note named “X”`. All terms and field filters intersect. `cites:` includes passage citations of any of the source's snapshots and any reference to its source page.
 
@@ -59,7 +59,7 @@ If a saved finding aid names a detached or deleted field, it shows the remembere
 
 Counts, empty states and field-filter chips wait for the relevant reads; a pending request never claims there are zero notes or a missing field. Previously loaded finding aids can remain visible during a refresh.
 
-Index rows reveal a checkbox on hover or focus and keep it visible on touch. Its label supplies the shared pointer target without enlarging the glyph. Cmd/Ctrl-click toggles a note; Shift-click extends from the selection anchor. The bar shows `N selected` and Clear, plus Spread when the shell provides it. Spread accepts two to five notes and Shift opens it beside. Selection counts distinct notes even when a note occurs under several headings.
+Index rows reveal a checkbox on hover or focus and keep it visible on touch. Its label supplies the shared pointer target without enlarging the glyph. Cmd/Ctrl-click on the checkbox toggles a note; Shift-click extends from the selection anchor. The bar shows `N selected` and Clear, plus Spread when the shell provides it. Spread accepts two to five notes. ⌘-click opens it beside (Ctrl-click off Mac). Selection counts distinct notes even when a note occurs under several headings.
 
 `is:resolved` filters `@resolved` to true. `revisit:due` filters `@revisit` through today in the notebook's time zone; `revisit:set` and `revisit:none` select set and empty dates. Question notes use their question's revisit date. These predicates share the query's field filters and remain live when saved. State grouping in the finding aid's Group menu is not implemented.
 
@@ -81,7 +81,7 @@ An empty finding aid says `No people yet.` in muted Piazzolla under a hairline, 
 - Questions and Projects use Make… → Question or Project in the page menu.
 - Sources arrive through the [Library](library.md).
 
-Every built-in kind except Sources offers New person…, New question… and so on, in the empty state or beside the populated finding aid's tally. Creation files the page as one acknowledged batch, creating the kind's type page too when it is missing, then opens the page; Shift-Enter opens it beside. A title that an existing page already has files that page instead, or opens it when it is already of the kind, and the form says so before you submit. The type's own title is refused.
+Every built-in kind except Sources offers New person…, New question… and so on, in the empty state or beside the populated finding aid's tally. Creation files the page as one acknowledged batch, creating the kind's type page too when it is missing, then opens the page. ⌘Enter opens it beside (Ctrl+Enter off Mac). A title that an existing page already has files that page instead, or opens it when it is already of the kind, and the form says so before you submit. The type's own title is refused.
 
 The form opens under a `NEW PERSON` rubric with the title in the page-title face on a hairline and an optional gist line beneath it in the gloss face. The gist becomes the page's first block, which the finding aid shows under the title. A type with template fields lists them in mono. Up to four similar pages, matched by title or alias, follow under Similar pages: one already of the kind opens, any other is filed as the kind.
 
@@ -105,15 +105,15 @@ Notes are written in the journal, under a line that links the stream. On a strea
 
 Add links rather than moves. It adds a whole-row `[[note]]` line at the end of the page, filling a trailing empty line first, in one undo step, and the note stays in its journal. The page outline is the stream's order, so the usual drag and ⌥⇧↑/↓ reorder it.
 
-A whole-row link to a block, other than a field entry or value, shows that block live: its text, up to 12 nested lines and then `Show N more`, and a faint mono provenance (`Mon 12`, or the page title) that opens the source, Shift beside. Editing the note in its journal updates every stream that shows it.
+A whole-row link to a block, other than a field entry or value, shows that block live: its text, up to 12 nested lines and then `Show N more`, and a faint mono provenance (`Mon 12`, or the page title) that opens the source. ⌘-click opens the source beside (Ctrl-click off Mac). Editing the note in its journal updates every stream that shows it.
 
 ### Embedded views
 
 `/Embed view` and Embed view in Commands offer saved views by name. Choosing one fills an empty block or inserts a sibling after the selected block, then selects it. A view's Embed on page… menu action appends the reference to the chosen page and opens its block.
 
-The embed names the view, with its purpose beneath, then shows up to twelve live rows using the saved layout and recipe. Its name and Show all N open the saved view; Shift opens beside. Edits use the same field cells and page history as the view. Committed notebook changes refresh its query without a manual refresh, and reload keeps the reference. Read shows the same quiet result under its heading.
+The embed names the view, with its purpose beneath, then shows up to twelve live rows using the saved layout and recipe. Its name and Show all N open the saved view. ⌘-click opens beside (Ctrl-click off Mac). Edits use the same field cells and page history as the view. Committed notebook changes refresh its query without a manual refresh, and reload keeps the reference. Read shows the same quiet result under its heading.
 
-A desk recipe stays compact: its name, purpose and Open desk. Opening it shows the linked columns in a pane; Shift opens beside.
+A desk recipe stays compact: its name, purpose and Open desk. Opening it shows the linked columns in a pane. ⌘-click opens beside (Ctrl-click off Mac).
 
 A missing view keeps the remembered name with Relink… and Remove embed. Undoing the view's deletion makes its rows return. Inline references and Find show named links; plain-text block export keeps the authored reference, as for page links. Phone embeds use the recipe's card fields without lateral scrolling.
 
@@ -181,6 +181,6 @@ A faint mono legend beneath the sheet explains `= Shared value · ↔ Links to a
 
 Each column offers Move left, Move right and Remove column. Save spread asks for a title, initially the column titles joined with ` / `. Saving creates a page with the spread capability and one top-level `[[id]]` block per column in order. Saved spreads appear after kinds in the Index directory and sidebar.
 
-On a saved page, the sheet sits above the ordinary outline. Children of a reference are commentary on that column; other top-level blocks are notes on the whole spread. Column controls insert, move or delete these reference subtrees through the page document, preserving attributed history and Undo/Redo. They retain keyboard focus in the spread so Undo works immediately after a column disappears. Undo restores the removed column's captured position and commentary even after other columns have moved. Shift opens notes, saved spreads and the newly saved page beside.
+On a saved page, the sheet sits above the ordinary outline. Children of a reference are commentary on that column; other top-level blocks are notes on the whole spread. Column controls insert, move or delete these reference subtrees through the page document, preserving attributed history and Undo/Redo. They retain keyboard focus in the spread so Undo works immediately after a column disappears. Undo restores the removed column's captured position and commentary even after other columns have moved. ⌘-click opens notes, saved spreads and the newly saved page beside (Ctrl-click off Mac).
 
 With fewer than two notes the sheet says `Select two to five notes to compare them.` The selected column remains available to remove or accompany with another note.

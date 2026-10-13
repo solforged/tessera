@@ -1,3 +1,4 @@
+import { opensBeside } from '../shell/beside';
 import { For, Show, createEffect, createMemo, createResource, createSignal, onCleanup, onMount } from 'solid-js';
 import type { JSX } from 'solid-js';
 import { Portal } from 'solid-js/web';
@@ -148,7 +149,7 @@ export function SourceHeader(props: {
     ] });
   }
   const ReadingActions = () => <div class="outline-source-actions" classList={{ 'source-cover-actions': coverLayout() && !!actionsHost() }} style={{ visibility: props.ready ? undefined : 'hidden' }}>
-    <Show when={snapshot()}><Button class="outline-source-read" onClick={event => props.onOpen({ kind: 'reader', sourceId: props.doc.pageId }, event.shiftKey)}>{source()?.position ? 'Continue reading' : 'Read'}</Button></Show>
+    <Show when={snapshot()}><Button class="outline-source-read" onClick={event => props.onOpen({ kind: 'reader', sourceId: props.doc.pageId }, opensBeside(event))}>{source()?.position ? 'Continue reading' : 'Read'}</Button></Show>
     <Button class="bordered" aria-haspopup="menu" onClick={event => stateMenu(event.currentTarget)}>{stateLabels[props.doc.root()!.source!.state]}<Icon name="down" /></Button>
     <Button class="bordered" icon="more" label="Source actions" aria-haspopup="menu" onClick={event => { void sourceMenu(event.currentTarget); }} />
   </div>;
@@ -158,14 +159,14 @@ export function SourceHeader(props: {
       <Show when={snapshot()} fallback={<div class="outline-source-cover library-cover" data-source-cover={props.doc.pageId} data-pane-pending={coverVisibility() ? '' : undefined} style={{ visibility: coverVisibility() }}>
         <Show when={cover()} fallback={<span class="library-spine"><span class="library-spine-siglum">{source()?.source.siglum}</span></span>}>{href => <ResourceImage snapshotId="" href={href()} loading="eager" alt="" onLoad={() => setLoadedCover(href())} onError={() => setLoadedCover(href())} />}</Show>
       </div>}>
-        <Button class="outline-source-cover library-cover" data-source-cover={props.doc.pageId} data-pane-pending={coverVisibility() ? '' : undefined} style={{ visibility: coverVisibility() }} label={source()?.position ? 'Continue reading' : 'Read'} onClick={event => props.onOpen({ kind: 'reader', sourceId: props.doc.pageId }, event.shiftKey)}>
+        <Button class="outline-source-cover library-cover" data-source-cover={props.doc.pageId} data-pane-pending={coverVisibility() ? '' : undefined} style={{ visibility: coverVisibility() }} label={source()?.position ? 'Continue reading' : 'Read'} onClick={event => props.onOpen({ kind: 'reader', sourceId: props.doc.pageId }, opensBeside(event))}>
           <Show when={cover()} fallback={<span class="library-spine"><span class="library-spine-siglum">{source()?.source.siglum}</span></span>}>{href => <ResourceImage snapshotId={snapshot()!.id} href={href()} loading="eager" alt="" onLoad={() => setLoadedCover(href())} onError={() => setLoadedCover(href())} />}</Show>
         </Button>
       </Show>
       <div class="outline-source-info">
         <Show when={metadata().subtitle && !props.doc.root()?.text.includes(metadata().subtitle!)}><p class="outline-source-subtitle">{metadata().subtitle}</p></Show>
         <div class="outline-source-summary">
-          <For each={creators()}>{creator => <Show when={creator.id} fallback={<span class="outline-source-creator">{creator.name}{creator.role === 'editor' ? ' (ed.)' : creator.role === 'translator' ? ' (trans.)' : ''}</span>}>{id => <Button class="outline-source-creator" onClick={event => props.onOpen({ kind: 'page', pageId: id() }, event.shiftKey)}>{creator.name}{creator.role === 'editor' ? ' (ed.)' : creator.role === 'translator' ? ' (trans.)' : ''}</Button>}</Show>}</For>
+          <For each={creators()}>{creator => <Show when={creator.id} fallback={<span class="outline-source-creator">{creator.name}{creator.role === 'editor' ? ' (ed.)' : creator.role === 'translator' ? ' (trans.)' : ''}</span>}>{id => <Button class="outline-source-creator" onClick={event => props.onOpen({ kind: 'page', pageId: id() }, opensBeside(event))}>{creator.name}{creator.role === 'editor' ? ' (ed.)' : creator.role === 'translator' ? ' (trans.)' : ''}</Button>}</Show>}</For>
           <span>{imprint()}</span>
         </div>
       </div>
@@ -186,7 +187,7 @@ export function SourceHeader(props: {
           <p class="outline-source-citation-imprint">{imprint()}</p>
           <Show when={metadata().creators.length}><p class="outline-source-citation-byline">{metadata().creators.map(creator => creator.name).join(' · ')}</p></Show>
         </div>
-        <Button icon="book" onClick={event => props.onOpen({ kind: 'page', pageId: props.doc.pageId }, event.shiftKey)}>Open source</Button>
+        <Button icon="book" onClick={event => props.onOpen({ kind: 'page', pageId: props.doc.pageId }, opensBeside(event))}>Open source</Button>
       </div>
     </Show>
     <Show when={props.highlights}><div class="outline-source-highlight-toolbar">
@@ -217,5 +218,5 @@ export function CitationChip(props: { citation: Citation; pageId: string; notebo
   return <Button class={`outline-planning outline-citation${props.citation.source_id === props.pageId ? ' outline-citation-local' : ''}`} title={`Passage ${props.citation.ordinal + 1}${props.citation.chapter_title ? ` · ${props.citation.chapter_title}` : ''}`} onClick={event => props.onOpen({
     kind: 'reader', sourceId: props.citation.source_id, snapshotId: props.citation.snapshot_id,
     at: props.citation.start.passage_id, citationId: props.citation.id,
-  }, event.shiftKey)}><Show when={props.citation.source_id !== props.pageId}><span class={`highlight-color-dot highlight-color-${props.citation.color ?? 'none'}`} aria-hidden="true" /></Show><span><Show when={props.citation.source_id !== props.pageId}>{title()} · </Show>¶{props.citation.ordinal + 1}</span></Button>;
+  }, opensBeside(event))}><Show when={props.citation.source_id !== props.pageId}><span class={`highlight-color-dot highlight-color-${props.citation.color ?? 'none'}`} aria-hidden="true" /></Show><span><Show when={props.citation.source_id !== props.pageId}>{title()} · </Show>¶{props.citation.ordinal + 1}</span></Button>;
 }

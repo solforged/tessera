@@ -11,6 +11,7 @@ import { Picker } from '../ui/Picker';
 import { Button } from '../ui/Button';
 import { createVisualViewport } from '../ui/visual-viewport';
 import type { Command, CommandRegistry, OpenTarget, PaneId } from './contract';
+import { besideKey, opensBeside } from './beside';
 import { findMatchSegments, paletteRows, type SearchEntry, type SearchHit } from './palette-rows';
 import { citationRange, passageSegments } from '../reader/passages';
 
@@ -215,11 +216,11 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
     section={sectionsWithCounts}
     disabledReason={entry => creating() ? 'Creating page…' : entry.kind === 'command' ? entry.command.disabledReason?.() : undefined}
     onPick={(entry, event) => {
-      if (entry.kind === 'hit') open(entry.hit, event.shiftKey);
-      else if (entry.kind === 'highlight' || entry.kind === 'passage') openBook(entry, event.shiftKey);
+      if (entry.kind === 'hit') open(entry.hit, opensBeside(event));
+      else if (entry.kind === 'highlight' || entry.kind === 'passage') openBook(entry, opensBeside(event));
       else if (entry.kind === 'more') more(entry.page);
-      else if (entry.kind === 'command') run(entry.command, event.shiftKey);
-      else void create(entry.title, event.shiftKey);
+      else if (entry.kind === 'command') run(entry.command, opensBeside(event));
+      else void create(entry.title, opensBeside(event));
     }}
     onKey={(event, entry) => {
       if (event.key !== 'Tab' || mode() !== 'search' || event.ctrlKey || event.metaKey || event.altKey) return false;
@@ -235,7 +236,7 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
       : entry.kind === 'highlight' ? <><span class={`find-color highlight-color-${entry.row.color ?? 'none'}`} style={{ background: entry.row.color ? `var(--highlight-${entry.row.color})` : 'transparent', 'box-shadow': entry.row.color ? undefined : 'inset 0 0 0 1px var(--faint)' }} /><span class="find-result"><span class="find-quote"><MatchText text={entry.row.citation.quote} query={text()} /></span><small>Highlight · {location(entry.row.citation.source_id, entry.row.citation.ordinal, entry.row.citation.chapter_title)}</small></span></>
       : entry.kind === 'passage' ? <><span class="find-paragraph" aria-hidden="true">¶</span><span class="find-result"><span class="find-quote"><MatchText text={entry.hit.snippet} query={text()} snippet /></span><small>{location(entry.hit.source_id, entry.hit.passage.ordinal)}</small></span></>
       : entry.kind === 'command' ? <CommandRow command={entry.command} selected={selected} />
-        : <><Icon name="plus" /><span class="picker-text">Create page “{entry.title}”</span><Show when={selected}><kbd class="picker-hint">⇧↵ beside</kbd></Show></>} />;
+        : <><Icon name="plus" /><span class="picker-text">Create page “{entry.title}”</span><Show when={selected}><kbd class="picker-hint">{besideKey}↵ beside</kbd></Show></>} />;
 }
 
 function HitRow(props: { hit: SearchHit; query: string; notebook: NotebookClient; selected: boolean; book?: LibraryRow }) {
@@ -245,7 +246,7 @@ function HitRow(props: { hit: SearchHit; query: string; notebook: NotebookClient
     <Icon name={icon()} />
     <span class="picker-text find-result"><span classList={{ 'find-snippet': !isPage() }}><BlockText text={props.notebook.lookup(props.hit.block.id)()?.text ?? props.hit.block.text} notebook={props.notebook} interactive={false} highlight={props.query} /></span><Show when={!isPage()}><small>{props.notebook.lookup(props.hit.page.id)()?.text ?? props.hit.page.text}</small></Show><Show when={isPage() && props.book}>{book => <small>Book · {Math.round(book().progress * 100)}% · {book().highlights} highlights</small>}</Show></span>
     <Show when={isPage() && props.hit.alias}>{alias => <span class="reference-via">via {alias()}</span>}</Show>
-    <Show when={props.selected}><kbd class="picker-hint">⇧↵ beside</kbd></Show>
+    <Show when={props.selected}><kbd class="picker-hint">{besideKey}↵ beside</kbd></Show>
   </>;
 }
 
@@ -352,7 +353,7 @@ function FindPreview(props: { entry?: Entry; query: string; notebook: NotebookCl
           }}</For>;
         }}</Show>
       </div>
-      <footer class="find-preview-keys"><kbd>↵ {value().passages ? 'Open in the book' : 'Open page'}</kbd><kbd>⇧↵ Beside</kbd></footer>
+      <footer class="find-preview-keys"><kbd>↵ {value().passages ? 'Open in the book' : 'Open page'}</kbd><kbd>{besideKey}↵ Beside</kbd></footer>
     </>}</Show>
     <Show when={!content() && !loading() && !error()}><p class="empty-state">{props.entry?.kind === 'create' ? `Create page “${props.entry.title}”` : 'Select a result to preview it.'}</p></Show>
   </aside>;

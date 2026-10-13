@@ -167,7 +167,7 @@ Glyphs mark places (Today, Agenda, Review, Library) and kinds of page; one glyph
 
 ### Global rail
 
-Permanent across one or two panes. A three-column grid:
+Permanent across every pane. A three-column grid:
 
 | Position | Controls |
 |---|---|
@@ -175,7 +175,7 @@ Permanent across one or two panes. A three-column grid:
 | Center of the window | Find or create with the Commands icon in one 400 px search-shaped control |
 | Right | Icon-only Layout button |
 
-Find or create shows the eye glyph and opens its picker beneath the search trigger; Commands opens the command palette. Layout opens the active view beside, switches panes, closes the active pane or toggles the sidebar. Global controls are never duplicated inside pane headers.
+Find or create shows the eye glyph and opens its picker beneath the search trigger; Commands opens the command palette. Layout opens the active view beside, moves to the next pane, evens pane widths, closes the active pane or toggles the sidebar. Global controls are never duplicated inside pane headers.
 
 In the macOS app the rail is the window's title bar. The window buttons sit centered in its height over its left end, so its start moves in by `--window-controls-width` (84 px) except in full screen. Dragging any part of it that is not a control moves the window, and double-clicking zooms it.
 
@@ -201,7 +201,7 @@ After the desk, sections appear in this order:
 
 Section headings are mono: a rubric numeral counted over the sections shown, the name, a hairline rule and a count. Saved table views have a pin control on hover or keyboard focus, always shown on a screen without hover. Pinning is stored per notebook alongside page pins. Task views and decks are selected in their own destinations.
 
-Settings sits at the foot above a hairline, with an icon-only Fields button beside it. A non-default notebook's name appears beside Settings in the warning color and truncates before the Settings label, which never shortens; the foot carries no build. Rows are 28 px with one left edge at 8 px. The row for the active pane's target gets the 2 px gilt bar, the selection fill and a gilt glyph. Destinations open in the active pane; Shift-click opens beside.
+Settings sits at the foot above a hairline, with an icon-only Fields button beside it. A non-default notebook's name appears beside Settings in the warning color and truncates before the Settings label, which never shortens; the foot carries no build. Rows are 28 px with one left edge at 8 px. The row for the active pane's target gets the 2 px gilt bar, the selection fill and a gilt glyph. Destinations open in the active pane; ⌘-click opens beside.
 
 ### Workspace frame
 
@@ -209,15 +209,26 @@ The panes share one square inset canvas, with a 12 px outside gutter at the righ
 
 ### Panes
 
-Up to two, split equally. Each has a header, in this order:
+The workspace is a row of up to four panes. Each has a header, in this order:
 
 1. Back and forward.
 2. The glyph of the place or page kind, gilt in the active pane.
-3. Breadcrumbs or the pane title in mono.
-4. Save state.
-5. The Vim mode when on.
-6. The page menu.
-7. Close while split.
+3. The pane's number while split, in faint mono.
+4. Breadcrumbs or the pane title in mono.
+5. Save state.
+6. The Vim mode when on.
+7. The page menu.
+8. Close while split.
+
+Opening beside lands in the pane right of the one it came from, replacing what is there or adding a pane at that position, so the pane you started from never changes. A fifth pane closes the pane farthest from it. A list (Library, an index, a table or the research desk) with a pane to its right opens its rows there on a plain click and keeps focus, so it stays the list; its divider carries a small arrow toward that pane.
+
+Panes share the width equally until a divider is dragged. Dragging snaps at a third, a half and two thirds of the pair and shows the snap in a mono slip; arrow keys move a focused divider by 5%, a double click evens the row, and widths persist with the row. No pane is narrower than 420 px: panes the window cannot fit fold into 32 px spines at the row's ends, showing the pane's number in rubric red over its title set vertically. Clicking a spine shows that pane, and the row slides to keep the active pane in view.
+
+While split, the active pane's header carries a 2 px gilt rule along its top. Inactive panes mute their title and hand their tab rules the control border, keeping the gilt for the active pane.
+
+Holding ⌘ (Ctrl elsewhere) over anything that opens shows where a click will land before it happens: a gilt frame over the pane it would replace, or a hatched ghost of the new pane labeled `New pane N`, adding when a pane will close. Dragging a page link, a sidebar page, a backlink, a related block, an index entry or a Library row onto a pane shows the same guide: dropping on the pane replaces it, and dropping on its left or right edge inserts a new pane there. Escape cancels a drag.
+
+Below 840 px of window width the row becomes pane tabs, numbered, over the active pane; spines, dividers and header numbers step aside.
 
 A table pane is titled with its saved view's name, else its type's, and an index pane with its kind's plural. Breadcrumbs reserve at least twelve mono characters for the current title and ellipsize its ending; ancestors may shrink. Below 840 px of pane width, the depth dial collapses to its current iris and unavailable projection tabs and the Vim tag step aside. Below 600 px of pane width, ancestors, the kind glyph and unavailable history buttons step aside too. If the remaining controls cannot share a line with the title's minimum, they wrap instead of erasing the title.
 
@@ -262,7 +273,7 @@ Settings opens from the Tessera menu. File offers New Page, Open Today, Import B
 
 ### Measure
 
-Outline content is at most 760 px, centered, so a note's title sits where every other screen's title does. A gutter of two pointer targets (48 px, 64 px on touch) hangs left of it for row controls. Two panes split the width; text never shrinks to fit.
+Outline content is at most 760 px, centered, so a note's title sits where every other screen's title does. A gutter of two pointer targets (48 px, 64 px on touch) hangs left of it for row controls. Panes share the width; text never shrinks to fit.
 
 ### Find or create
 
@@ -286,12 +297,12 @@ At wide widths the finder has equal index and preview halves: page titles with t
 
 On the touch cover Find and Commands occupy the keyboard-resized visual viewport, with results growing upward from the bottom field, the best match nearest the thumb and Cancel at the right. Find puts scope chips immediately above the field. The writing pane also fits this viewport and reveals the active caret; Agenda capture stays above the keyboard, and date pickers keep their actions visible while their body scrolls.
 
-- Enter opens or creates in the invoking pane; passages and highlights open at their place in the [reader](surfaces/reader.md), and Shift-Enter opens beside.
+- Enter opens or creates in the invoking pane; passages and highlights open at their place in the [reader](surfaces/reader.md), and ⌘Enter opens beside.
 - Arrows select and Escape closes. Creation errors keep the entered title intact.
 - Tab drills into page-result children and Shift-Tab returns; a drilled search never offers root-page creation.
 - New page remains a command with a direct title form anchored below search, not a separate rail button.
 
-Command mode starts with Go to: [Highlights, Unfiled, Sources](surfaces/library.md), [Agenda week, Agenda tasks](surfaces/tasks-agenda.md), [This week, This month, This quarter and This year](surfaces/journal.md), followed by each notebook type's index and table. The period commands open today's journal with its corresponding inline ledger, not an agenda period. Shift opens these destinations beside. The query stays visible while the longer command list scrolls. Navigation, Page, View and Editing retain their existing commands and shortcut hints below.
+Command mode starts with Go to: [Highlights, Unfiled, Sources](surfaces/library.md), [Agenda week, Agenda tasks](surfaces/tasks-agenda.md), [This week, This month, This quarter and This year](surfaces/journal.md), followed by each notebook type's index and table. The period commands open today's journal with its corresponding inline ledger, not an agenda period. ⌘ opens these destinations beside. The query stays visible while the longer command list scrolls. Navigation, Page, View and Editing retain their existing commands and shortcut hints below.
 
 With no command query, Page lists only applicable actions; searching retains the full catalog, including unavailable actions with their reasons. Copy page reference copies the active page's notebook link. Undo and Redo remain in Commands with ⌘Z and ⌘⇧Z, and Compare perspectives remains searchable alongside the visible Compare projection tab.
 
@@ -388,7 +399,7 @@ A page's own fields read as a specimen block under the imprint, as the site sets
 
 Each kind has its own value editor, the same in outlines and tables:
 
-| Kind | Click | Shift-click |
+| Kind | Click | ⌘-click |
 |---|---|---|
 | Choice | The pill opens its options: type to filter, Create option for a new name, Clear | Opens the option beside |
 | Instance | The pill opens its page; the blank space after it, or Enter on the selected value, opens a picker of the target types | Opens the page beside |
@@ -451,7 +462,7 @@ Each card there shows its kind, front and, beneath it in `--muted`, the answer: 
 
 Start all appears when several cards include held ones, then Review.
 
-Held cards leave Review, its counts and forecasts and keep their schedule; holding is undoable. Malformed syntax is reported beneath the row once the block is left or its text has rested for 1.5 seconds, politely rather than as an alert. Shift on Review opens it beside.
+Held cards leave Review, its counts and forecasts and keep their schedule; holding is undoable. Malformed syntax is reported beneath the row once the block is left or its text has rested for 1.5 seconds, politely rather than as an alert. ⌘ on Review opens it beside.
 
 ### Conflicts and recovery
 
@@ -681,7 +692,7 @@ Escape closes the topmost one and returns focus to the editor or outline that ow
 | Notebook, layout, pill, column, view, sort and field kind menus | Menu | Below their trigger |
 | New page, Delete page | Confirm | Below their trigger |
 | Reference preview | Preview, 380 px | Below the line of the reference under the pointer, or the reference at the caret |
-| Block backlinks | Each referring block with its page breadcrumb, parent and children, Open beside; `--measure` wide | Below the row's reference count |
+| Block backlinks | Each referring block with its page breadcrumb, parent and children, and an Open beside glyph on hover; `--measure` wide | Below the row's reference count |
 | Undo toast | One at a time | Bottom center |
 | Sync status | An icon-only button after the Tessera wordmark wherever a hub has paired devices or a copy has a Mac. Shape and color together: an 8 px filled circle in `--status-done` for synced or sending (`ok`); an 8 px hollow ring with a 1.5 px `--warning` stroke for unreachable or review (`wait`); a 7 px square rotated 45° in `--danger` for version mismatch, forgotten or retired (`act`). No animation. On pointer devices, hover after 350 ms or keyboard focus shows a slip: the state in mono, colored `--text`, `--warning` or `--danger`, then a short hint in muted sans. The slip has no controls and hides on leave, blur, Escape or an open summary. Click or tap opens the summary; coarse pointers never show the slip. On the cover screen a row above the bottom nav shows only `wait` or `act`, with the same glyph, label and detail | Global rail's left, immediately after the wordmark; above the bottom nav on the cover screen |
 | Sync summary | Device → Mac register over the state's title, one or two sentences naming the side that is behind or what to check, the one fixing action (Download page on the Mac and GitHub releases, Try again or Sync now, Pair again, Download the notebook again) and `Settings › Devices`, which opens Settings with that device expanded. The top bar uses `--danger` for `act`, `--warning` for `wait`, and no bar for `ok`, clear of the pointer | Under the mark, left-aligned, 380 px with its pointer under the glyph; a bottom sheet on touch |
@@ -711,7 +722,7 @@ Pin or ⌘ keeps the slip open; Unpin restores its compact form. A pinned page l
 
 Open perspective and source links preserve access to the original outline; [Compare perspectives](surfaces/perspectives.md) opens the subject's sheet. Pages without perspectives keep their prose preview. Bodies scroll within `--preview-body-height`; unpinned block previews fade only when clipped. References inside a slip open stacked slips.
 
-⌥Space opens the reference at the caret or the focused reference; Enter opens it, Shift+Enter opens it beside, and Escape closes the topmost slip. Opening does not steal focus; focused slip controls retain native keyboard behavior. Deleted targets and failed requests have explicit notices.
+⌥Space opens the reference at the caret or the focused reference; Enter opens it, and Escape closes the topmost slip. On a focused reference outside the editor, ⌘Enter opens it beside; inside the editor ⌘Enter stays the capability toggle. Opening does not steal focus; focused slip controls retain native keyboard behavior. Deleted targets and failed requests have explicit notices.
 
 ## Quotes and backlinks
 
@@ -719,13 +730,13 @@ Open perspective and source links preserve access to the original outline; [Comp
 
 A quote row reads as cited text, not as a link. The frozen rows sit behind a hairline left rule in Piazzolla at the quote size, muted, indented by depth without bullets, like the outline at rest. A final faint mono line `… truncated at capture` marks a snapshot cut at its limit.
 
-One mono rubric line follows: `QUOTE` · the source's page as an accent link (Shift opens it beside) · the capture date in the notebook's time zone. When the source has moved on it adds `Source changed` and `Update`; when the source is gone it reads `Source deleted` and offers no update. Clicking the frame edits the row, which exposes the raw `((ID))`. Children of a quote row are ordinary blocks, for annotating the quote.
+One mono rubric line follows: `QUOTE` · the source's page as an accent link (⌘ opens it beside) · the capture date in the notebook's time zone. When the source has moved on it adds `Source changed` and `Update`; when the source is gone it reads `Source deleted` and offers no update. Clicking the frame edits the row, which exposes the raw `((ID))`. Children of a quote row are ordinary blocks, for annotating the quote.
 
 A `((ID))` row without a snapshot shows the target's live text in the same frame with `Capture quote`, or `Unresolved quote <ID>` when the target is gone. Elsewhere, in backlinks, breadcrumbs and search, a quote row reads as a mono `QUOTE` rubric followed by its target in the quote face. Copying a captured quote as text writes its frozen rows as `> ` lines.
 
 ### Backlinks
 
-Below the outline, Backlinks is open by default and counts every distinct referring block, including references to the page's own blocks. Groups follow the referring page, newest first, under a mono capital heading that opens the page, with the group's count at the right. Each source shows its live text, opens at the block on click (Shift opens beside), and has a disclosure that shows its parent and up to six descendants from the live page, plus Open beside at the right. A source that names one of this page's blocks only through an alias adds a faint mono `→` line naming that block, which zooms to it. Load more fetches the next hundred.
+Below the outline, Backlinks is open by default and counts every distinct referring block, including references to the page's own blocks. Groups follow the referring page, newest first, under a mono capital heading that opens the page, with the group's count at the right. Each source shows its live text, opens at the block on click (⌘ opens beside), and has a disclosure that shows its parent and up to six descendants from the live page. An Open beside glyph appears at the right of the row under the pointer or in focus, and always on touch screens; related blocks follow the same pattern. A source that names one of this page's blocks only through an alias adds a faint mono `→` line naming that block, which zooms to it. Load more fetches the next hundred.
 
 Blocks on the page with incoming references carry their count as a faint mono numeral in the outside right rail, where it cannot shift text or the editor. It opens the Block backlinks popup.
 
@@ -780,7 +791,7 @@ Rounds live in `~/Documents/tessera-design/icon-2026-10-10/`.
 
 1. Three voices: Plex for writing, Piazzolla for publication, Berkeley Mono for apparatus. Orrery palette. Density: 28 px rows.
 2. Handle and fold in a gutter outside the measure; bullets inside it, filled.
-3. Shift is the one "open beside" modifier.
+3. ⌘ (Ctrl off Apple keyboards) is the one "open beside" modifier; Shift selects.
 4. Fields, Settings, tables and views are panes, not dialogs.
 5. Pills are hue-tinted at meta size; bullets stay neutral.
 6. [Tables](surfaces/fields-tables.md) divide rows, not columns; the title column is sticky.

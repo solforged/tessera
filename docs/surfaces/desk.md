@@ -18,11 +18,11 @@ At a pane width of at least 840 px, three ruled columns share the pane:
 
 Each header describes its query in words. Edit exposes search and the table's field and attribute filter picker. Conditions can be changed or removed; they affect only their column. Choosing another question or perspective updates the next column's linked condition while retaining its other filters.
 
-A selected row has the shared gilt rule and selection fill. Click selects; Open or a double-click opens the original question, perspective dossier or source page. Shift opens beside. Sources without a stored publication date do not invent a year; plain references without locators show no location.
+A selected row has the shared gilt rule and selection fill. Click selects. Open or a double-click opens the original question, perspective dossier or source page. The research desk fills the pane to the right when one exists; otherwise it uses its own pane. ⌘-click opens beside (Ctrl-click off Mac). Sources without a stored publication date do not invent a year; plain references without locators show no location.
 
 ## Keyboard
 
-Up and Down move within a column. Right moves to the selected row in the next column, or its first result. Left returns to the previous column. Enter opens the selected row in the main pane; Shift-Enter opens beside. A column without a selection says what to choose and offers a button back to that column.
+Up and Down move within a column. Right moves to the selected row in the next column, or its first result. Left returns to the previous column. Enter opens the selected row in the pane to the right when one exists; otherwise it uses the desk's pane. ⌘Enter opens beside (Ctrl+Enter off Mac). A column without a selection says what to choose and offers a button back to that column.
 
 ## Saving
 

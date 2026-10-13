@@ -2,6 +2,7 @@ import { Show, createResource } from 'solid-js';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import { BlockText } from '../outline/BlockText';
 import type { OpenTarget } from '../shell/contract';
+import { opensBeside } from '../shell/beside';
 import { TaskSourceRows } from '../tasks/JournalAgenda';
 import { createTaskQuery } from '../tasks/query';
 import { relativeDate } from '../tasks/task-labels';
@@ -30,7 +31,7 @@ export function createProjectSummary(props: { doc: PageDocument; notebook: Noteb
       <Show when={project().outcome}><Button class="project-summary-outcome" onClick={event => props.onEdit(event.currentTarget)}>{project().outcome}</Button></Show>
       <Show when={!tasks.error && tasks()}>{value => <>
         <div class="project-summary-progress"><span>{value().done} of {value().total}</span><span class="project-progress-rule" role="progressbar" aria-label="Project progress" aria-valuemin={0} aria-valuemax={value().total} aria-valuenow={value().done} style={{ '--progress': `${value().total ? value().done / value().total * 100 : 0}%` }} /></div>
-        <Show when={value().next}>{row => <Button class="project-summary-next" onClick={event => props.onOpen({ kind: 'page', pageId: row().source.page.id, blockId: row().source.block.id }, event.shiftKey)}>Next: <BlockText text={row().source.block.text} notebook={props.notebook} interactive={false} /></Button>}</Show>
+        <Show when={value().next}>{row => <Button class="project-summary-next" onClick={event => props.onOpen({ kind: 'page', pageId: row().source.page.id, blockId: row().source.block.id }, opensBeside(event))}>Next: <BlockText text={row().source.block.text} notebook={props.notebook} interactive={false} /></Button>}</Show>
       </>}</Show>
       <Show when={tasks.error}><p class="error" role="alert">{String(tasks.error)}</p></Show>
     </section>}</Show>;

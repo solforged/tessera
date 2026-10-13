@@ -1,3 +1,4 @@
+import { opensBeside } from '../shell/beside';
 import { createEffect, onCleanup } from 'solid-js';
 import { plainText } from './names';
 import type { Edit } from '../document/contract';
@@ -59,7 +60,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     const block = props.notebook.lookup(id)();
     const open = (beside: boolean) => block && props.onOpen({ kind: 'page', pageId: block.page_id, blockId: block.kind === 'block' ? id : undefined }, beside);
     setMenu({ anchor, label: 'Reference actions', items: [
-      { label: 'Open here', icon: 'link', disabledReason: block ? undefined : 'The reference is unresolved.', action: () => open(false) },
+      { label: 'Open', icon: 'link', disabledReason: block ? undefined : 'The reference is unresolved.', action: event => open(opensBeside(event)) },
       { label: 'Open beside', icon: 'panes', disabledReason: block ? undefined : 'The reference is unresolved.', action: () => open(true) },
       { label: 'Copy reference', icon: 'copy', action: () => copy(`[[${id}]]`) },
     ] });

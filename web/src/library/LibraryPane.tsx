@@ -1,3 +1,4 @@
+import { opensBeside, listOpensBeside } from '../shell/beside';
 import { For, Show, batch, createEffect, createMemo, createResource, createSignal, on, onCleanup, onMount, untrack } from 'solid-js';
 import { Portal } from 'solid-js/web';
 import { ulid } from 'ulid';
@@ -35,8 +36,8 @@ export interface LibraryPaneProps {
   view: LibraryViewState;
   notebook: NotebookClient;
   active: boolean;
-  /** Another pane is open beside this one. */
-  split: boolean;
+  /** A pane is open to the right of this list. */
+  neighbour?: boolean;
   /** One-time request to open the existing Add sheet on arrival. */
   add?: boolean;
   onAddOpened?(): void;
@@ -309,10 +310,10 @@ export function LibraryPane(props: LibraryPaneProps) {
   // On Reading the cards are the list, so they give way to the Shelf and to grouped rows; the phone always keeps them.
   const readingCards = createMemo(() => showReading() && tab() === 'reading' && (coverLayout() || layout() === 'list' && group() === 'none'));
   const [openedSource, setOpenedSource] = createSignal<string>();
-  function openSource(target: OpenTarget, shift: boolean) {
+  function openSource(target: OpenTarget, beside: boolean) {
     if (target.kind === 'page') setOpenedSource(target.pageId);
-    // In a split the Library stays the list and the other pane shows the source; Shift opens it here instead.
-    props.onOpen(target, props.split ? !shift : shift || window.matchMedia('(pointer: coarse) and (min-width: 900px)').matches);
+    // Keep this pane as the list when a pane is open to its right.
+    props.onOpen(target, beside || listOpensBeside(null, !!props.neighbour));
   }
   function openAdd(anchor: HTMLElement) {
     if (EMBEDDED) { fileInput.click(); return; }
@@ -847,9 +848,9 @@ export function LibraryPane(props: LibraryPaneProps) {
     ] });
   }
   function rowKey(event: KeyboardEvent, target: OpenTarget) {
-    if (event.isComposing || event.altKey || event.ctrlKey || event.metaKey) return;
+    if (event.isComposing || event.altKey || (event.metaKey || event.ctrlKey) && (event.key !== 'Enter' || !opensBeside(event))) return;
     if (event.key === 'Enter') {
-      event.preventDefault(); event.stopPropagation(); tab() !== 'highlights' ? openSource(target, event.shiftKey) : props.onOpen(target, event.shiftKey);
+      event.preventDefault(); event.stopPropagation(); tab() !== 'highlights' ? openSource(target, opensBeside(event)) : props.onOpen(target, listOpensBeside(event, !!props.neighbour));
       return;
     }
     const current = event.currentTarget as HTMLButtonElement;
@@ -916,7 +917,7 @@ export function LibraryPane(props: LibraryPaneProps) {
             <span class="library-checkbox-square"><Show when={selected().has(row.page.id)}><Icon name="check" /></Show></span>
           </Button>
         </div>
-        <Button class="library-row-open" data-library-row={row.page.id} onClick={event => openSource(target, event.shiftKey)} onKeyDown={event => rowKey(event, target)}>
+        <Button class="library-row-open" data-library-row={row.page.id} data-open-page={row.page.id} data-open-label={row.page.text} onClick={event => openSource(target, opensBeside(event))} onKeyDown={event => rowKey(event, target)}>
           <span class="library-siglum" aria-hidden="true">{row.source.siglum}</span><span class="library-title">{row.page.text}</span><span class="library-byline">{sourceByline(row)}</span>
           <Show when={mixedStates()}><span class="library-count library-state">{stateLabels[row.source.state]}</span></Show>
           <span class="library-count library-year" aria-label="Published year">{row.published?.slice(0, 4)}</span>
@@ -932,7 +933,7 @@ export function LibraryPane(props: LibraryPaneProps) {
       <div class="library-shelf" role="list"><For each={rowsProps.rows}>{row => {
         const target: OpenTarget = { kind: 'page', pageId: row.page.id };
         return <div class="library-book library-source-row" classList={{ 'library-row-selected': selected().has(row.page.id), 'library-source-current': openedSource() === row.page.id }} role="listitem" {...sourceLongPress(row)}>
-          <Button class="library-book-open" data-library-row={row.page.id} onClick={event => openSource(target, event.shiftKey)} onKeyDown={event => rowKey(event, target)}>
+          <Button class="library-book-open" data-library-row={row.page.id} data-open-page={row.page.id} data-open-label={row.page.text} onClick={event => openSource(target, opensBeside(event))} onKeyDown={event => rowKey(event, target)}>
             <SourceCover row={row} siglum={row.source.siglum} />
             <span class="library-reading-rule" classList={{ 'library-reading-started': row.progress > 0 }} style={{ '--progress': `${row.progress * 100}%` }} aria-hidden="true" />
             <span class="library-book-title">{row.page.text}</span>
@@ -972,7 +973,7 @@ export function LibraryPane(props: LibraryPaneProps) {
           <Show when={row().block.block.text.trim() !== row().citation.quote.trim()}><div class="library-highlight-authored"><BlockText text={row().block.block.text} notebook={props.notebook} interactive={false} /></div></Show>
           <blockquote class="library-passage-quote" style={colorStyle()}>{row().citation.quote}</blockquote>
           <p class="library-highlight-meta">{highlightMeta(row(), props.notebook.settings()?.time_zone ?? 'UTC')} · {row().notes ? `${row().notes} ${row().notes === 1 ? 'note' : 'notes'}` : 'No notes'}</p>
-          <Show when={row().block.page.id !== row().citation.source_id}><Button class="library-highlight-filed" onClick={event => openSource({ kind: 'page', pageId: row().block.page.id, blockId: row().block.block.id }, event.shiftKey)}>In {row().block.page.text}</Button></Show>
+          <Show when={row().block.page.id !== row().citation.source_id}><Button class="library-highlight-filed" onClick={event => openSource({ kind: 'page', pageId: row().block.page.id, blockId: row().block.block.id }, opensBeside(event))}>In {row().block.page.text}</Button></Show>
           <Show when={row().tags.length}><div class="library-highlight-tags"><For each={row().tags}>{tag => <span class="outline-tag">#{tag}</span>}</For></div></Show>
           <Show when={followingPassage()}><div class="library-passage-context"><h3>Passage continues</h3><p>{followingPassage()}</p></div></Show>
           <Show when={followingLoading()}><p class="library-highlight-meta" role="status">Loading passage…</p></Show>
@@ -985,7 +986,7 @@ export function LibraryPane(props: LibraryPaneProps) {
             <Button icon="tag" shortcut="T" disabled={highlightBusy()} onClick={() => { void runHighlight(row(), 'tag'); }}>Tag <kbd>T</kbd></Button>
             <Button shortcut="1–5" aria-haspopup="dialog" disabled={highlightBusy()} onClick={event => setPopup({ kind: 'highlight-colors', anchor: event.currentTarget, row: row() })}><span class="library-highlight-color-bar" style={colorStyle()} aria-hidden="true" />Colour <kbd>1–5</kbd></Button>
             <Button class="library-highlight-undo" icon="undo" shortcut="⌘Z" disabled={!highlightActions.canUndo() || highlightBusy()} onClick={() => { void undoHighlight(); }}>Undo <kbd>⌘Z</kbd></Button>
-            <Button class="library-highlight-open-reader" shortcut="O" onClick={event => openSource({ kind: 'reader', sourceId: row().citation.source_id, snapshotId: row().citation.snapshot_id, citationId: row().citation.id }, event.shiftKey)}>Open in reader <kbd>O</kbd><Icon name="right" /></Button>
+            <Button class="library-highlight-open-reader" shortcut="O" onClick={event => openSource({ kind: 'reader', sourceId: row().citation.source_id, snapshotId: row().citation.snapshot_id, citationId: row().citation.id }, opensBeside(event))}>Open in reader <kbd>O</kbd><Icon name="right" /></Button>
             <Button icon="more" label="More highlight actions" aria-haspopup="menu" onClick={event => { void highlightMenu(row(), event.currentTarget); }} />
           </div>
         </footer>
@@ -1042,7 +1043,7 @@ export function LibraryPane(props: LibraryPaneProps) {
       <Show when={view().collection}><div class="library-collection-heading">
         <Button icon="left" onClick={() => update({ view: null, tab: 'collections', collection: null, text: '', scroll: 0 })}>Collections</Button>
         <h2>{collection()?.text ?? 'Collection'}</h2><span class="library-count">{library()?.total ?? 0}</span>
-        <Button disabled={!collection()} onClick={event => props.onOpen({ kind: 'page', pageId: view().collection! }, event.shiftKey)}>Open page</Button>
+        <Button disabled={!collection()} onClick={event => props.onOpen({ kind: 'page', pageId: view().collection! }, opensBeside(event))}>Open page</Button>
         <Button disabled={!collection()} onClick={event => setPopup({ kind: 'collection-name', anchor: event.currentTarget, collection: collection() })}>Rename</Button>
         <Button disabled={!collection() || collectionActions.busy()} onClick={event => setPopup({ kind: 'delete-collection', anchor: event.currentTarget, collection: collection()! })}>Delete</Button>
       </div></Show>
@@ -1150,7 +1151,7 @@ export function LibraryPane(props: LibraryPaneProps) {
         </section></Show>
         <Show when={coverLayout() && tab() === 'reading' && upNext().length}><section class="library-up-next" aria-label="Up next">
           <h2 class="library-reading-heading">Up next · Inbox</h2>
-          <For each={upNext()}>{row => <Button class="library-up-next-book" onClick={event => openSource({ kind: 'page', pageId: row.page.id }, event.shiftKey)} {...sourceLongPress(row)}>
+          <For each={upNext()}>{row => <Button class="library-up-next-book" onClick={event => openSource({ kind: 'page', pageId: row.page.id }, opensBeside(event))} {...sourceLongPress(row)}>
             <span class="library-siglum">{row.source.siglum}</span><span><span class="library-title">{row.page.text}</span><span class="library-book-byline">{sourceByline(row)}</span></span>
           </Button>}</For>
         </section></Show>
@@ -1203,7 +1204,7 @@ export function LibraryPane(props: LibraryPaneProps) {
             </div>}>
               <Show when={groups()} fallback={<SourceRows rows={displayedSources()} />}>{list => <For each={list()}>{value => <section class="library-group" aria-label={value.label}>
                 <h3 class="library-group-heading">
-                  <Show when={value.personId} fallback={<span class="library-group-label">{value.label}</span>}>{id => <Button class="library-group-label" onClick={event => props.onOpen({ kind: 'page', pageId: id() }, event.shiftKey)}>{value.label}</Button>}</Show>
+                  <Show when={value.personId} fallback={<span class="library-group-label">{value.label}</span>}>{id => <Button class="library-group-label" onClick={event => props.onOpen({ kind: 'page', pageId: id() }, opensBeside(event))}>{value.label}</Button>}</Show>
                   <span class="library-group-count">{value.rows.length}</span>
                 </h3>
                 <SourceRows rows={value.rows} />

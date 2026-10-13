@@ -7,6 +7,7 @@ import { shortSourceTitle } from '../outline/source';
 import { sectionLabel } from '../reader/openings';
 import { timeLeft } from '../reader/paged';
 import type { OpenTarget } from '../shell/contract';
+import { opensBeside } from '../shell/beside';
 import { BookMap } from '../ui/BookMap';
 import { bookChapters, chapterAt } from '../ui/book-map';
 import { Button } from '../ui/Button';
@@ -131,7 +132,7 @@ export function JournalHeader(props: { date: string; journalPeriod?: Extract<Ope
         </Button>
         <Button class="journal-tile journal-reading-tile" aria-busy={reading() === undefined && !readingError()} onClick={event => {
           const book = reading();
-          if (book) props.onOpen({ kind: 'reader', sourceId: book.row.page.id, snapshotId: book.source.source.current_snapshot_id ?? undefined }, event.shiftKey || matchMedia('(pointer: coarse) and (min-width: 900px)').matches);
+          if (book) props.onOpen({ kind: 'reader', sourceId: book.row.page.id, snapshotId: book.source.source.current_snapshot_id ?? undefined }, opensBeside(event) || matchMedia('(pointer: coarse) and (min-width: 900px)').matches);
           else props.onOpen({ kind: 'library', tab: 'reading' }, false);
         }}>
           <span class="journal-tile-heading"><span>Reading</span><span class="journal-tile-action" aria-hidden="true">›</span></span>
@@ -158,7 +159,7 @@ export function JournalHeader(props: { date: string; journalPeriod?: Extract<Ope
           <TaskSourceRows rows={ledgerRows().elsewhere} date={props.date} notebook={props.notebook} timetable plan now={clock()} onOpen={props.onOpen} onChanged={() => {}} />
           <Show when={ledgerRows().below}><p class="agenda-message agenda-day-empty">{ledgerRows().below} more in the journal below</p></Show>
         </Show>
-        <Button class="today-ledger-open" onClick={event => props.onOpen({ kind: 'agenda', date: props.date }, event.shiftKey)}>Open agenda<span aria-hidden="true">›</span></Button>
+        <Button class="today-ledger-open" onClick={event => props.onOpen({ kind: 'agenda', date: props.date }, opensBeside(event))}>Open agenda<span aria-hidden="true">›</span></Button>
       </section>}</Show>
     </Show>
     <h2 class="journal-writing-heading"><span>Journal</span><span class="section-rule" /></h2>

@@ -1,3 +1,4 @@
+import { opensBeside } from '../shell/beside';
 import { createMemo, createResource, createSignal, For, Show } from 'solid-js';
 import { ulid } from 'ulid';
 import type { Operation, SpreadReference, SpreadValue } from '../api/types';
@@ -97,7 +98,7 @@ export function SpreadPane(props: SpreadPaneProps) {
   };
   const values = (items: SpreadValue[]) => <For each={items}>{value => <div class="spread-value">
     <Show when={value.target_id && !value.text.trim().startsWith('[[')} fallback={<BlockText text={value.text} notebook={props.notebook} onOpen={props.onOpen} />}>
-      <Button class="spread-link" onClick={event => props.onOpen({ kind: 'page', pageId: value.target_id! }, event.shiftKey)}>{value.text}</Button>
+      <Button class="spread-link" onClick={event => props.onOpen({ kind: 'page', pageId: value.target_id! }, opensBeside(event))}>{value.text}</Button>
     </Show>
     <Show when={value.shared}><span class="spread-mark" title="Shared" aria-label="Shared">=</span></Show>
     <Show when={value.between_columns}><span class="spread-mark" title="Links to a column" aria-label="Links to a column">↔</span></Show>
@@ -118,7 +119,7 @@ export function SpreadPane(props: SpreadPaneProps) {
     <Show when={result.latest?.columns.length}>{count => <><div class="spread-scroll"><table class="spread-table" style={{ '--spread-count': count() }}>
       <thead><tr><th scope="col"><span class="visually-hidden">Notes</span></th><For each={result.latest!.columns}>{(column, index) => <th scope="col" data-note-id={column.id}>
         <div class="spread-kind">{column.kinds.map(kind => kind.name).join(' / ')}</div>
-        <h2><Button class="spread-title" onClick={event => props.onOpen({ kind: 'page', pageId: column.id }, event.shiftKey)}>{column.title}</Button></h2>
+        <h2><Button class="spread-title" onClick={event => props.onOpen({ kind: 'page', pageId: column.id }, opensBeside(event))}>{column.title}</Button></h2>
         <div class="spread-gloss">{values(column.gloss)}</div>
         <div class="spread-column-controls">
           <Button icon="left" label="Move left" disabled={busy() || result.loading || index() === 0} onClick={() => move(index(), -1)} />
@@ -134,7 +135,7 @@ export function SpreadPane(props: SpreadPaneProps) {
     <Show when={picker()}>{anchor => <Picker anchor={anchor()} label="Add note" query={query()} onQuery={setQuery} placeholder="Find a note…" items={choices()} key={row => row.id} row={row => <span>{row.text}</span>} onPick={row => add(row.id)} onDismiss={() => setPicker(undefined)} busy={matches.loading} error={matches.error ? String(matches.error) : undefined} empty="No matching notes." />}</Show>
     <Show when={save()}>{anchor => <Popup anchor={anchor()} label="Save spread" onDismiss={() => { if (!busy()) setSave(undefined); }}>
       <form class="spread-save" onSubmit={event => { event.preventDefault(); void saveSpread(false); }}>
-        <label>Title<input autofocus value={title()} disabled={busy()} onInput={event => setTitle(event.currentTarget.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.isComposing) { event.preventDefault(); void saveSpread(event.shiftKey); } }} /></label>
+        <label>Title<input autofocus value={title()} disabled={busy()} onInput={event => setTitle(event.currentTarget.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.isComposing) { event.preventDefault(); void saveSpread(opensBeside(event)); } }} /></label>
         <Show when={error()}><p class="error" role="alert">{error()}</p></Show>
         <div class="popup-actions"><Button disabled={busy()} onClick={() => setSave(undefined)}>Cancel</Button><Button type="submit" class="bordered" disabled={busy() || !title().trim()}>Save spread</Button></div>
       </form>

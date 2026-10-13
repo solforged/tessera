@@ -7,7 +7,8 @@
 import type { Caret, NotebookClient } from '../document/contract';
 import type { CardSelection, FieldKind, LibraryFilters, Query, ReadingState, TaskQuery } from '../api/types';
 
-export type PaneId = 'main' | 'side';
+/** A pane in the workspace row; ids are stable while the pane stays open and persist across reloads. */
+export type PaneId = string;
 
 /**
  * How much of a page shows, from its gloss alone to everything: the depth dial's four stops. The opening is

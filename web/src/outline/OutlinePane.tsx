@@ -1,3 +1,4 @@
+import { opensBeside } from '../shell/beside';
 import { CardSummary } from './CardSummary';
 import { For, Show, batch, createEffect, createMemo, createResource, createSignal, lazy, mapArray, on, onCleanup, onMount, untrack } from 'solid-js';
 import { createVirtualizer, defaultRangeExtractor } from '@tanstack/solid-virtual';
@@ -1309,6 +1310,20 @@ function Pane(props: OutlinePaneProps) {
         const matches = editingNames.error ? undefined : editingNames()?.get(foldName(token.id!));
         if (editor?.id && matches && matches.length > 1) setMenu({ anchor, label: 'Choose a page', header: <div class="menu-section">“{token.id}” names {matches.length} pages</div>, items: nameMenuItems(props.notebook, editor.id, token, matches, setMessage) });
       },
+      openReference: (token, beside) => {
+        void (async () => {
+          if (isViewReference(token)) {
+            const view = (await props.notebook.api.views()).find(view => view.id === token.id);
+            if (view && !disposed) props.onOpen({ kind: 'table', typeId: view.query.type, viewId: view.id, query: view.query }, beside);
+            return;
+          }
+          const matches = isStableReference(token) ? null : await resolveName(props.notebook, token.id!);
+          const block = isStableReference(token)
+            ? props.notebook.lookup(token.id!)() ?? await props.notebook.api.block(token.id!)
+            : matches?.length === 1 ? matches[0]!.page : undefined;
+          if (block && !disposed) props.onOpen({ kind: 'page', pageId: block.page_id, blockId: block.kind === 'block' ? block.id : undefined }, beside);
+        })().catch(reason => setMessage(String(reason)));
+      },
       blur: () => {
         const id = editor?.id;
         if (!id) return;
@@ -1535,7 +1550,7 @@ function Pane(props: OutlinePaneProps) {
         <Show when={dossierFields().find(field => field.name.trim().toLowerCase() === 'work')?.value}>{work => <div class="dossier-work"><BlockText text={work()} notebook={props.notebook} onOpen={props.onOpen} /></div>}</Show>
         <Show when={doc.block(id())?.position?.subject_id}>{subject => <div class="dossier-subject">on <Button onClick={event => {
           const block = props.notebook.lookup(subject())();
-          if (block) props.onOpen({ kind: 'page', pageId: block.page_id, ...(block.kind === 'block' ? { blockId: block.id } : {}) }, event.shiftKey);
+          if (block) props.onOpen({ kind: 'page', pageId: block.page_id, ...(block.kind === 'block' ? { blockId: block.id } : {}) }, opensBeside(event));
         }}><span><BlockText text={props.notebook.lookup(subject())()?.text ?? 'Loading subject…'} notebook={props.notebook} interactive={false} /></span></Button></div>}</Show>
       </div>}</Show>
       <Show when={!positionZoom() && (!zoom() || !doc.root()?.source || renaming())}>
@@ -1546,7 +1561,7 @@ function Pane(props: OutlinePaneProps) {
           <Button class="bordered" disabled={!!pageMergeDisabledReason(doc.root())} title={pageMergeDisabledReason(doc.root())} onClick={event => { setMessage(''); setMergeTarget({ page: page(), from: { id: props.pageId, text: doc.root()!.text }, anchor: event.currentTarget }); }}>Merge into “{page().text}”</Button>
         }</Show><Button onClick={closeTitle}>Cancel</Button>
       </Show>
-      <Show when={doc.root()?.kind === 'page' && !doc.root()?.source}><div class="outline-header-actions"><Button icon="table" label="Table" shortcut="⌘⇧T" onClick={event => openTable(event.metaKey)}>Table<Show when={!type.error && (type()?.members ?? 0) > 0}><span class="table-member-count">{type()?.members}</span></Show></Button></div></Show>
+      <Show when={doc.root()?.kind === 'page' && !doc.root()?.source}><div class="outline-header-actions"><Button icon="table" label="Table" shortcut="⌘⇧T" onClick={event => openTable(opensBeside(event))}>Table<Show when={!type.error && (type()?.members ?? 0) > 0}><span class="table-member-count">{type()?.members}</span></Show></Button></div></Show>
       </div>
       </Show>
       <Show when={isNote()}><NoteAliases doc={doc} notebook={props.notebook} onEdit={entry => {
@@ -1624,7 +1639,7 @@ function Pane(props: OutlinePaneProps) {
     <Show when={!zoom() && ids().length && !holderBoundary() && related()?.heldReadings.length}><HeldReadings rows={related()?.heldReadings ?? []} notebook={props.notebook} onOpen={props.onOpen} /></Show>
     <Show when={doc.root()?.source && !zoom() && filedElsewhere().length}><section class="related-sections source-elsewhere" aria-label="Filed elsewhere">
       <h3 class="outline-highlights-label">Filed elsewhere <span>{filedElsewhere().length}</span></h3>
-      <For each={filedElsewhere()}>{row => <Button class="library-highlight" onClick={event => props.onOpen({ kind: 'page', pageId: row.block.page.id, blockId: row.block.block.id }, event.shiftKey)}>
+      <For each={filedElsewhere()}>{row => <Button class="library-highlight" onClick={event => props.onOpen({ kind: 'page', pageId: row.block.page.id, blockId: row.block.block.id }, opensBeside(event))}>
         <BlockText text={row.block.block.text} notebook={props.notebook} interactive={false} />
         <span class="library-highlight-meta">¶{row.citation.ordinal + 1} · {row.block.page.text}</span>
       </Button>}</For>

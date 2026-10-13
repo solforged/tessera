@@ -1,3 +1,4 @@
+import { opensBeside } from '../shell/beside';
 import { createMemo, createResource, createSignal, For, Show } from 'solid-js';
 import type { QuestionInfo, QuestionRow, QuestionStatus } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
@@ -15,7 +16,7 @@ export const questionLabels: Record<QuestionStatus, string> = { open: 'Active', 
 export function QuestionParent(props: { info: QuestionInfo | null | undefined; notebook: NotebookClient; onOpen(target: OpenTarget, beside: boolean): void; onChange(anchor: HTMLElement): void; onRemove(): void; disabled: boolean }) {
   const parent = createMemo(() => props.info?.parent_id ? props.notebook.lookup(props.info.parent_id)() : null);
   return <Show when={parent()}>{block => <div class="question-parent" onMouseDown={event => event.stopPropagation()}>
-    <span>Part of</span><Button class="question-parent-name" onClick={event => props.onOpen({ kind: 'page', pageId: block().page_id, blockId: block().kind === 'block' ? block().id : undefined }, event.shiftKey)}><BlockText text={block().text} notebook={props.notebook} interactive={false} /></Button>
+    <span>Part of</span><Button class="question-parent-name" onClick={event => props.onOpen({ kind: 'page', pageId: block().page_id, blockId: block().kind === 'block' ? block().id : undefined }, opensBeside(event))}><BlockText text={block().text} notebook={props.notebook} interactive={false} /></Button>
     <Show when={props.info?.parent_explicit}><Button disabled={props.disabled} onClick={event => props.onChange(event.currentTarget)}>Change parent…</Button><Button disabled={props.disabled} onClick={props.onRemove}>Remove parent</Button></Show>
   </div>}</Show>;
 }
@@ -55,7 +56,7 @@ export function QuestionParentPicker(props: { id: string; notebook: NotebookClie
 
 export function QuestionBranches(props: { rows: QuestionRow[]; notebook: NotebookClient; onOpen(target: OpenTarget, beside: boolean): void }) {
   return <Show when={props.rows.length}><section class="question-branches" aria-label="Branches" onMouseDown={event => event.stopPropagation()}>
-    <h3>Branches</h3><For each={props.rows}>{row => <Button class="question-branch" onClick={event => props.onOpen({ kind: 'page', pageId: row.block.page.id, blockId: row.block.block.kind === 'block' ? row.block.block.id : undefined }, event.shiftKey)}>
+    <h3>Branches</h3><For each={props.rows}>{row => <Button class="question-branch" onClick={event => props.onOpen({ kind: 'page', pageId: row.block.page.id, blockId: row.block.block.kind === 'block' ? row.block.block.id : undefined }, opensBeside(event))}>
       <span class="question-branch-title"><BlockText text={row.block.block.text} notebook={props.notebook} interactive={false} /></span>
       <span class="outline-question" data-question-status={row.info.status}><Icon name={row.info.status === 'answered' ? 'question-settled' : 'question-open'} />{questionLabels[row.info.status]}</span>
       <span class="question-branch-count">{row.position_count} {row.position_count === 1 ? 'perspective' : 'perspectives'}</span>
@@ -99,8 +100,8 @@ export function AssessmentJournal(props: { questionId: string; doc: PageDocument
     <Show when={props.doc.block(props.questionId)?.question?.state.parked}><p class="question-branch-count">Resume the question before writing an assessment.</p></Show>
       <For each={rows()}>{block => <article class="assessment-journal-entry" data-assessment-id={block.id}>
         <p class="question-branch-count">{block.assessment!.state.assessed_on} · {status(block.id, block.assessment!.accepted)}<Show when={block.assessment!.state.aporia}> · Aporia</Show></p>
-        <Button class="assessment-journal-title" onClick={event => props.onOpen({ kind: 'page', pageId: props.doc.pageId, blockId: block.id }, event.shiftKey)}><BlockText text={block.text.split('\n')[0] ?? ''} notebook={props.notebook} interactive={false} /></Button>
-        <div class="assessment-journal-citations"><For each={citations(block.id)}>{link => <Button onClick={event => { const target = props.notebook.lookup(link.id)(); if (target) props.onOpen({ kind: 'page', pageId: target.page_id, blockId: target.kind === 'block' ? target.id : undefined }, event.shiftKey); }}><BlockText text={link.text} notebook={props.notebook} interactive={false} /></Button>}</For></div>
+        <Button class="assessment-journal-title" onClick={event => props.onOpen({ kind: 'page', pageId: props.doc.pageId, blockId: block.id }, opensBeside(event))}><BlockText text={block.text.split('\n')[0] ?? ''} notebook={props.notebook} interactive={false} /></Button>
+        <div class="assessment-journal-citations"><For each={citations(block.id)}>{link => <Button onClick={event => { const target = props.notebook.lookup(link.id)(); if (target) props.onOpen({ kind: 'page', pageId: target.page_id, blockId: target.kind === 'block' ? target.id : undefined }, opensBeside(event)); }}><BlockText text={link.text} notebook={props.notebook} interactive={false} /></Button>}</For></div>
       </article>}</For>
   </section></Show>;
 }

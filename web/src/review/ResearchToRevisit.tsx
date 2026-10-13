@@ -2,6 +2,7 @@ import { For, Show } from 'solid-js';
 import type { NotebookClient } from '../document/contract';
 import { BlockText } from '../outline/BlockText';
 import type { OpenTarget } from '../shell/contract';
+import { opensBeside } from '../shell/beside';
 import { Button } from '../ui/Button';
 import { createRevisits, revisitKind } from './revisits';
 import './revisits.css';
@@ -13,7 +14,7 @@ export function ResearchToRevisit(props: { notebook: NotebookClient; onOpen(targ
     <Show when={queue.error()}><p class="error" role="alert">{queue.error()}</p></Show>
     <For each={queue.rows()}>{row => <div class="research-revisit-row">
       <div><BlockText text={row.block.block.text} notebook={props.notebook} interactive={false} /><span class="revisit-meta">{revisitKind(row)} · {row.revisit_on}</span></div>
-      <Button onClick={event => props.onOpen({ kind: 'review', queue: 'notes', revisitId: row.block.block.id }, event.shiftKey)}>Open in Review</Button>
+      <Button onClick={event => props.onOpen({ kind: 'review', queue: 'notes', revisitId: row.block.block.id }, opensBeside(event))}>Open in Review</Button>
     </div>}</For>
   </section></Show>;
 }

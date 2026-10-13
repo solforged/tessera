@@ -4,6 +4,7 @@ import { api } from '../api/client';
 import { ANDROID, DEMO, EMBEDDED } from '../demo/mode';
 import type { NotebookClient } from '../document/contract';
 import type { OpenTarget, PaneId, SettingsViewState } from '../shell/contract';
+import { besideHint, opensBeside } from '../shell/beside';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Picker } from '../ui/Picker';
@@ -279,7 +280,7 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
                 <div class="settings-label">
                   <span class="settings-name">{change.summary}</span>
                   <p><span class="settings-mono">{change.actor.kind === 'person' ? 'Person' : change.actor.name} · <time dateTime={new Date(change.created_at).toISOString()}>{when(change.created_at)}</time></span>
-                    <Show when={change.page}>{page => <><span class="settings-mono"> · </span><button type="button" class="settings-page-link" title="Open page · Shift to open beside" onClick={event => props.onOpen({ kind: 'page', pageId: page().id }, event.shiftKey)}>{page().text}</button></>}</Show>
+                    <Show when={change.page}>{page => <><span class="settings-mono"> · </span><button type="button" class="settings-page-link" title={`Open page · ${besideHint}`} onClick={event => props.onOpen({ kind: 'page', pageId: page().id }, opensBeside(event))}>{page().text}</button></>}</Show>
                   </p>
                 </div>
                 <Show when={change.undone_by === null} fallback={<span class="settings-aside">Undone</span>}>

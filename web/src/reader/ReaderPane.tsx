@@ -1,3 +1,4 @@
+import { opensBeside, besideKey } from '../shell/beside';
 import { For, Show, batch, createComputed, createEffect, createMemo, createResource, createSignal, on, onCleanup, onMount } from 'solid-js';
 import { Dynamic, Portal } from 'solid-js/web';
 import { createVirtualizer, defaultRangeExtractor } from '@tanstack/solid-virtual';
@@ -155,7 +156,7 @@ export function ReaderPane(props: ReaderPaneProps) {
   let suppressed = !!(props.target.at || props.target.citationId), jumpOrigin = 0, userScroll = false;
   let reportTimer = 0, positionTimer = 0, flashTimer = 0;
   let keyboardQueue = Promise.resolve(), keyboardPending = 0, keyboardVersion = 0, rewritingSelection = false;
-  let shiftPressed = false;
+  let besidePressed = false;
   /** The tap that closes a popup or clears a selection does only that: no page turn, no chrome. */
   let dismissingTap = false;
   let settingsViewport: { ordinal: number; offset: number } | null = null, settingsAtStart = false, settingsFromPages = false, settingsVersion = 0;
@@ -1090,7 +1091,7 @@ export function ReaderPane(props: ReaderPaneProps) {
   const readerActions = createMemo<MenuItem[]>(() => {
     const needsSelection = selection() ? undefined : 'Select text first';
     return [
-      { label: 'Open source page', icon: 'page', shortcut: 'Shift beside', action: () => props.onOpen({ kind: 'page', pageId: props.target.sourceId }, shiftPressed) },
+      { label: 'Open source page', icon: 'page', shortcut: `${besideKey} beside`, action: () => props.onOpen({ kind: 'page', pageId: props.target.sourceId }, besidePressed) },
       { label: 'Merge overlapping highlights', icon: 'highlight', disabledReason: editing() ? 'Saving…' : undefined, action: () => { void mergeOverlapping(); } },
       { label: 'Next passage', section: 'Keyboard', shortcut: 'J', action: () => { void moveCursor(1); } },
       { label: 'Previous passage', shortcut: 'K', action: () => { void moveCursor(-1); } },
@@ -1104,9 +1105,9 @@ export function ReaderPane(props: ReaderPaneProps) {
       { label: props.immersive ? 'Exit full screen' : 'Full screen', shortcut: 'F', action: () => props.onImmersive(!props.immersive) },
     ];
   });
-  const trackShift = (event: KeyboardEvent) => { shiftPressed = event.shiftKey; };
+  const trackBeside = (event: KeyboardEvent) => { besidePressed = opensBeside(event); };
   // Registered before any popup opens, so it sees the popup and selection a tap is about to dismiss.
-  const pointerDown = (event: PointerEvent) => { shiftPressed = event.shiftKey; dismissingTap = !!popup() || window.getSelection()?.isCollapsed === false; };
+  const pointerDown = (event: PointerEvent) => { besidePressed = opensBeside(event); dismissingTap = !!popup() || window.getSelection()?.isCollapsed === false; };
 
   const readerKey = (event: KeyboardEvent) => {
     if (props.active && (event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === 'z' && !(event.target instanceof HTMLElement && event.target.closest('input, textarea, [contenteditable="true"]'))) {
@@ -1161,8 +1162,8 @@ export function ReaderPane(props: ReaderPaneProps) {
     document.addEventListener('selectionchange', selected);
     document.addEventListener('keydown', selectionKey, true);
     document.addEventListener('keydown', readerKey, true);
-    document.addEventListener('keydown', trackShift, true);
-    document.addEventListener('keyup', trackShift, true);
+    document.addEventListener('keydown', trackBeside, true);
+    document.addEventListener('keyup', trackBeside, true);
     document.addEventListener('pointerdown', pointerDown, true);
     // Folding, unfolding and the sidebar change the page; keep the passage being read in view.
     let pageSize = '', resizeFrame = 0;
@@ -1226,8 +1227,8 @@ export function ReaderPane(props: ReaderPaneProps) {
     document.removeEventListener('selectionchange', selected);
     document.removeEventListener('keydown', selectionKey, true);
     document.removeEventListener('keydown', readerKey, true);
-    document.removeEventListener('keydown', trackShift, true);
-    document.removeEventListener('keyup', trackShift, true);
+    document.removeEventListener('keydown', trackBeside, true);
+    document.removeEventListener('keyup', trackBeside, true);
     document.removeEventListener('pointerdown', pointerDown, true);
   });
 

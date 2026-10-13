@@ -6,7 +6,7 @@ A concept page holds several attributed perspectives. Questions and answers mark
 
 Titled pages share one document across Read, Outline and Compare. The pane header switches them in place; Commands offers Read, Outline and Compare perspectives. The choice is remembered for each page on this device. At the page level, switching creates no blocks or navigation entry.
 
-A source with a snapshot reads as its book: Read opens the [reader](reader.md) in the same pane at the saved position, and ⇧ opens it beside. Back returns to the source page, which stays in Outline. A record source keeps the Read projection.
+A source with a snapshot reads as its book. Read opens the [reader](reader.md) in the same pane at the saved position. ⌘-click opens it beside (Ctrl-click off Mac). Back returns to the source page, which stays in Outline. A record source keeps the Read projection.
 
 Question pages and pages holding active perspectives about themselves or their inline questions open in Read. Other pages keep their ordinary outline. Outline keeps its Plex editor, depth dial and Show bullets option; `[` and `]` change depth only there.
 
@@ -24,7 +24,7 @@ The counts line appears on question pages and pages with active perspectives abo
 
 Outside perspective slips, fields use the same presentation roles as Outline: standfirst sentences, an aligned attribute and citation bed, then full-width prose. A field whose values line up beside its label shows once, as in Outline. A source's catalog fields stay in its source card, so Read never repeats them as loose values.
 
-Open perspective on each slip zooms into that perspective's dossier. Shift opens the perspective beside the page. The Gist and criterion answers stay editable in place; adding fields and filling template slots stay in Outline.
+Open perspective on each slip zooms into that perspective's dossier. ⌘-click opens the perspective beside the page (Ctrl-click off Mac). The Gist and criterion answers stay editable in place; adding fields and filling template slots stay in Outline.
 
 On coarse pointers, Compare, Add perspective, Prose, Facts and Open perspective have the shared pointer-target height, and the holder link's touch target extends above and below its line.
 
@@ -59,7 +59,7 @@ Use place, in the same menus, returns to the nearest ancestor question or the pa
 
 A holder's page opens into its perspectives grouped by subject, with a Compare action when that subject has two or more perspectives. Each row leads with the source siglum and the Gist in Piazzolla, then Work as a faint mono line; the holder's own name does not repeat. The register follows the opening, before the first heading, or leads when the holder has no rows. It replaces Perspectives held.
 
-Clicking a perspective opens it zoomed on its source page. Shift-click opens it beside. A subject's page still lists Perspectives filed elsewhere above its backlinks; neither list repeats under Backlinks.
+Clicking a perspective opens it zoomed on its source page. ⌘-click opens it beside (Ctrl-click off Mac). A subject's page still lists Perspectives filed elsewhere above its backlinks; neither list repeats under Backlinks.
 
 Incoming relations appear beneath each listed perspective, naming the source's holder when it is a perspective. A holder's page can therefore show which perspectives dispute, support, qualify or answer that holder's perspectives without a text search.
 
@@ -84,7 +84,7 @@ Each column shows, in order:
 - A quiet Account line, under its small-caps label, when present.
 - A 17 px gist and 16 px authored prose.
 
-Shape is not its own cell. Other fields stay in the source outline, reached through the holder or Open perspective (Shift beside), rather than becoming a universal questionnaire. No prose is generated from field values and differing strings are not treated as evidence of disagreement.
+Shape is not its own cell. Other fields stay in the source outline, reached through the holder or Open perspective, rather than becoming a universal questionnaire. ⌘-click opens beside (Ctrl-click off Mac). No prose is generated from field values and differing strings are not treated as evidence of disagreement.
 
 Relation blocks and their reasoning stay out of perspective prose. Each perspective card shows its outgoing relations on a quiet line, with the kind and linked target, so the argument remains visible without turning its apparatus into another paragraph.
 
@@ -162,7 +162,7 @@ The margin holds the constellation, then a Sources key pairing each siglum used 
 | Its holders | On the inner ring, with blued-steel spokes and holder names in `--muted` |
 | Up to twelve pages that link to it | Faint dots on an outer ring, with their titles on hover |
 
-Every node and source opens its page; Shift opens it beside.
+Every node and source opens its page. ⌘-click opens it beside (Ctrl-click off Mac).
 
 ## Argument relations
 

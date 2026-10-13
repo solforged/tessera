@@ -3,6 +3,7 @@ import { ulid } from 'ulid';
 import type { CardTemplateInfo, CardTemplateState, FieldDefinition } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import type { FieldsViewState, OpenTarget } from '../shell/contract';
+import { opensBeside } from '../shell/beside';
 import { typeQuery } from '../table/query';
 import { Button } from '../ui/Button';
 import { TypeModeTabs } from '../ui/TypeModeTabs';
@@ -98,13 +99,13 @@ export function CardTemplatesPane(props: Props) {
     }}>
     <div class="ct-sheet">
       <header class="ct-heading">
-        <div class="ct-apparatus ct-crumb"><Button onClick={event => props.onOpen({ kind: 'page', pageId: props.typeId }, event.shiftKey)}>{title()}</Button><span> / {props.applyId ? `${applyTemplate()?.name ?? 'Cards'} / Apply` : 'Card templates'}</span></div>
+        <div class="ct-apparatus ct-crumb"><Button onClick={event => props.onOpen({ kind: 'page', pageId: props.typeId }, opensBeside(event))}>{title()}</Button><span> / {props.applyId ? `${applyTemplate()?.name ?? 'Cards'} / Apply` : 'Card templates'}</span></div>
         <div class="ct-title-row"><h1>{title()}</h1><span class="ct-apparatus">{templates().length} {templates().length === 1 ? 'template' : 'templates'} · {templates().filter(template => template.applied).length} enabled</span></div>
       </header>
       <TypeModeTabs active="cards" indexCount={data.latest?.kind?.count} tableCount={data.latest?.type.members} fieldsCount={data.latest?.type.fields.length} cardsCount={data.latest?.templates.length}
-        onIndex={event => props.onOpen({ kind: 'index', key: data.latest?.kind?.key ?? `type:${props.typeId}` }, event.shiftKey)}
-        onTable={event => props.onOpen({ kind: 'table', typeId: props.typeId, viewId: null, query: typeQuery(props.typeId) }, event.shiftKey)}
-        onFields={event => props.onOpen({ kind: 'fields', typeId: props.typeId }, event.shiftKey)} onCards={toCards} />
+        onIndex={event => props.onOpen({ kind: 'index', key: data.latest?.kind?.key ?? `type:${props.typeId}` }, opensBeside(event))}
+        onTable={event => props.onOpen({ kind: 'table', typeId: props.typeId, viewId: null, query: typeQuery(props.typeId) }, opensBeside(event))}
+        onFields={event => props.onOpen({ kind: 'fields', typeId: props.typeId }, opensBeside(event))} onCards={toCards} />
       <Show when={error() || data.error || forecast.error}><p role="alert" class="error">{error() || String(data.error || forecast.error)} <Button onClick={() => { setError(''); setVersion(value => value + 1); }}>Retry</Button></p></Show>
       <Show when={data.latest} fallback={<p class="empty-state" role="status">Loading templates…</p>}>
         <Show when={props.applyId} fallback={<>
@@ -136,7 +137,7 @@ export function CardTemplatesPane(props: Props) {
             const id = await save(null, { type_id: props.typeId, name: `Template ${templates().length + 1}`, front: '', back: '', applied: false, new_per_day: 10 });
             if (id) setEditing(id);
           }}>+ Add template</Button><span class="ct-inline-rule" /><span class="ct-apparatus">{templates().length && templates().every(template => template.ready === first()?.ready) ? `${first()!.ready} ready × ${templates().length} templates = ` : ''}{total()} cards</span></div>
-          <section class="ct-foot"><div class="ct-section-head"><h3>Fields available to patterns</h3><Button onClick={event => props.onOpen({ kind: 'fields', typeId: props.typeId }, event.shiftKey)}>Open Fields →</Button></div><div class="ct-field-order"><For each={fields()}>{field => <span class="ct-chip">{field.name}</span>}</For></div><p>A member waits until every field used by the pattern has a value.</p></section>
+          <section class="ct-foot"><div class="ct-section-head"><h3>Fields available to patterns</h3><Button onClick={event => props.onOpen({ kind: 'fields', typeId: props.typeId }, opensBeside(event))}>Open Fields →</Button></div><div class="ct-field-order"><For each={fields()}>{field => <span class="ct-chip">{field.name}</span>}</For></div><p>A member waits until every field used by the pattern has a value.</p></section>
           <p class="ct-footnote">Existing review progress is kept when a field value changes.</p>
         </>}>
           <Show when={applyTemplate()} fallback={<p class="empty-state">Template not found. <Button onClick={toCards}>Open Cards</Button></p>}>{template => <>
@@ -153,7 +154,7 @@ export function CardTemplatesPane(props: Props) {
                 <section class="ct-section"><div class="ct-section-head"><h3>Effect on daily review load</h3><span class="ct-apparatus">Next 14 days</span></div><LoadChart load={value().load} /><div class="ct-chart-key"><span>Existing reviews</span><span>Added new cards</span><span class="ct-apparatus">Not an FSRS prediction</span></div></section>
                 <Show when={value().waiting_total > 0}>
                 <section class="ct-section"><div class="ct-section-head"><h3>Waiting list</h3><span class="ct-apparatus">{value().waiting_total} members · no empty cards created</span></div><div class="ct-waiting-list"><For each={value().waiting.slice(0, 5)}>{member => <Button title={member.missing.join(', ')} onClick={async event => {
-                  const beside = event.shiftKey;
+                  const beside = opensBeside(event);
                   try { const block = await props.notebook.api.block(member.id); props.onOpen({ kind: 'page', pageId: block.page_id, ...(block.parent_id ? { blockId: member.id } : {}) }, beside); }
                   catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
                 }}>{memberTitle(member.text, id => props.notebook.lookup(id))}</Button>}</For>
@@ -161,7 +162,7 @@ export function CardTemplatesPane(props: Props) {
                     const field = data.latest?.fields.find(field => field.name === template().missing[0]);
                     const query = typeQuery(props.typeId);
                     if (field) query.filters = [{ field: field.id, op: 'empty', value: null }];
-                    props.onOpen({ kind: 'table', typeId: props.typeId, viewId: null, query }, event.shiftKey);
+                    props.onOpen({ kind: 'table', typeId: props.typeId, viewId: null, query }, opensBeside(event));
                   }}>Show all {value().waiting_total} →</Button></div></section>
                 </Show>
                 <footer class="ct-apply-footer"><div><p class="ct-apparatus">from #{title()} · {template().name}</p><p>Apply keeps existing review progress.</p></div><Button disabled={busy()} onClick={toCards}>Cancel</Button><Button class="bordered ct-apply" disabled={busy() || template().applied || forecast.loading} onClick={async () => {

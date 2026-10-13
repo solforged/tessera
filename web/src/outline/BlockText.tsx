@@ -1,3 +1,4 @@
+import { opensBeside } from '../shell/beside';
 import { For, Show, createMemo, createResource, createSignal } from 'solid-js';
 import type { NotebookClient } from '../document/contract';
 import type { Block, FieldDefinition } from '../api/types';
@@ -108,6 +109,16 @@ function TokenText(props: Props) {
       return start >= locatorStart ? <span class="reference-locator">{rendered}</span> : rendered;
     }}</For>;
   }
+  function activateReference(token: DisplayToken, anchor: HTMLElement, event: MouseEvent | KeyboardEvent) {
+    if (isViewReference(token)) {
+      const view = views()?.find(view => view.id === token.id);
+      if (view) props.onOpen?.({ kind: 'table', typeId: view.query.type, viewId: view.id, query: view.query }, opensBeside(event));
+      return;
+    }
+    if (token.matches && props.blockId) { setMenu({ token, anchor }); return; }
+    const block = token.target;
+    if (block) props.onOpen?.({ kind: 'page', pageId: block.page_id, blockId: block.kind === 'block' ? block.id : undefined }, true);
+  }
   function renderTokens(tokens: DisplayToken[]) {
     return <For each={tokens}>{token => <>
       <Show when={token.literal}>
@@ -121,8 +132,8 @@ function TokenText(props: Props) {
             data-citation={!!citationSources()?.has(token.id!) && !!(token.alias || token.locator) ? '' : undefined} data-locator={token.locator}
             aria-label={token.matches ? `“${token.id}” names ${token.matches.length} pages` : undefined} aria-haspopup={token.matches ? 'menu' : undefined}
             onMouseDown={event => event.stopPropagation()}
-            onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); if (!event.repeat) event.currentTarget.click(); } }}
-            onClick={event => { event.stopPropagation(); if (isViewReference(token)) { const view = views()?.find(view => view.id === token.id); if (view) props.onOpen?.({ kind: 'table', typeId: view.query.type, viewId: view.id, query: view.query }, event.shiftKey); return; } if (token.matches && props.blockId) { setMenu({ token, anchor: event.currentTarget }); return; } const block = token.target; if (block) props.onOpen?.({ kind: 'page', pageId: block.page_id, blockId: block.kind === 'block' ? block.id : undefined }, true); }}
+            onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); if (!event.repeat) activateReference(token, event.currentTarget, event); } }}
+            onClick={event => { event.stopPropagation(); activateReference(token, event.currentTarget, event); }}
             onContextMenu={event => { event.preventDefault(); event.stopPropagation(); if (isViewReference(token)) return; if (token.matches && props.blockId) setMenu({ token, anchor: event.currentTarget }); else props.onReferenceMenu?.(token.id!, event.currentTarget); }}>
             <Show when={props.field?.id === token.id}><Icon name="field" /></Show><Show when={token.target === null}><Icon name="brokenLink" /></Show>{text(token)}<Show when={token.matches}><sup>?</sup></Show>
           </span>

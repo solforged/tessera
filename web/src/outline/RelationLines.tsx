@@ -1,3 +1,4 @@
+import { opensBeside } from '../shell/beside';
 import { For, Show, createMemo, createResource, onCleanup } from 'solid-js';
 import type { RelationRow } from '../api/types';
 import type { BlockState, NotebookClient } from '../document/contract';
@@ -23,7 +24,7 @@ export function IncomingRelationLine(props: RelationProps & { rows: readonly Rel
         const text = holder ? props.notebook.lookup(holder)()?.text : props.notebook.lookup(source.id)()?.text ?? source.text;
         return plainText(text ?? '', id => props.notebook.lookup(id)) || (holder ? 'Loading holder…' : 'Empty block');
       });
-      return <><Show when={index() > 0}><span aria-hidden="true"> · </span></Show><span>{incomingRelationLabels[row.kind]} <Button onClick={event => { event.stopPropagation(); props.onOpen({ kind: 'page', pageId: row.source.block.page.id, blockId: source.kind === 'block' ? source.id : undefined }, event.shiftKey); }}>{label()}</Button></span></>;
+      return <><Show when={index() > 0}><span aria-hidden="true"> · </span></Show><span>{incomingRelationLabels[row.kind]} <Button onClick={event => { event.stopPropagation(); props.onOpen({ kind: 'page', pageId: row.source.block.page.id, blockId: source.kind === 'block' ? source.id : undefined }, opensBeside(event)); }}>{label()}</Button></span></>;
     }}</For>
   </div></Show>;
 }
@@ -53,7 +54,7 @@ export function OutgoingRelations(props: RelationProps & { rows: readonly BlockS
       };
       return <><Show when={index() > 0}><span aria-hidden="true"> · </span></Show><span>{relationLabels[relation().kind]} <Button onClick={event => {
         const block = target();
-        props.onOpen({ kind: 'page', pageId: block?.page_id ?? row.pageId, blockId: block ? block.kind === 'block' ? block.id : undefined : row.id }, event.shiftKey);
+        props.onOpen({ kind: 'page', pageId: block?.page_id ?? row.pageId, blockId: block ? block.kind === 'block' ? block.id : undefined : row.id }, opensBeside(event));
       }}>{label()}</Button><Show when={relation().problem}>{problem => <span class="relation-problem" role="img" aria-label={problem()} title={problem()}><Icon name="warning" /></span>}</Show></span></>;
     }}</Show>}</For>
   </div></Show>;

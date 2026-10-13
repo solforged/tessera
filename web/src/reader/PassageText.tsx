@@ -1,3 +1,4 @@
+import { opensBeside } from '../shell/beside';
 import { For, createMemo } from 'solid-js';
 import type { JSX } from 'solid-js';
 import type { Citation, HighlightRow, Mark, Passage } from '../api/types';
@@ -36,8 +37,8 @@ export function PassageText(props: {
   return <For each={segments()}>{segment => segment.citations.length ? <>
     <span class={`reader-highlight${segment.citations[0]!.color ? ` reader-highlight-${segment.citations[0]!.color}` : ''}`} classList={{ 'reader-flash': segment.flash, 'reader-highlight-ink': segment.citations.some(citation => citation.id === props.inkId), 'reader-highlight-overlap': segment.citations.length > 1, 'reader-highlight-linked': segment.citations.some(citation => citation.id === linkedCitation()) }} data-citation-id={segment.citations[0]!.id} role="button" aria-haspopup="menu" tabIndex={0}
       onPointerEnter={() => setLinkedCitation(segment.citations[0]!.id)} onPointerLeave={() => setLinkedCitation(null)}
-      onClick={event => { if (!window.getSelection()?.isCollapsed) return; event.preventDefault(); event.stopPropagation(); props.onCitation(segment.citations, event.currentTarget, event.shiftKey); }}
-      onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); props.onCitation(segment.citations, event.currentTarget, event.shiftKey); } }}
+      onClick={event => { if (!window.getSelection()?.isCollapsed) return; event.preventDefault(); event.stopPropagation(); props.onCitation(segment.citations, event.currentTarget, opensBeside(event)); }}
+      onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); props.onCitation(segment.citations, event.currentTarget, opensBeside(event)); } }}
     >{marked(segment.text, segment.marks, false)}</span>
     <For each={segment.citations.flatMap(citation => {
       const row = props.notes.get(citation.id);

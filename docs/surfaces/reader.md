@@ -211,7 +211,7 @@ An empty note does not mark the highlight processed. On touch, Highlight and not
 
 Highlights are ink, not boxes. A band of their color at 42%, or a neutral 26% `--text` without one, sits under the lower half of each line, from 55% to 92% of the line box. Capitals and ascenders keep the canvas and neighboring lines stay apart.
 
-Hovering a highlight deepens the band of every range it covers to 62%, or 40% without a color. One with notes ends in a small note icon in `--faint` that opens them. Clicking a highlight opens its menu; Shift-click opens its block beside the reader.
+Hovering a highlight deepens the band of every range it covers to 62%, or 40% without a color. One with notes ends in a small note icon in `--faint` that opens them. Clicking a highlight opens its menu. ⌘-click opens its block beside the reader (Ctrl-click off Mac).
 
 ### Overlapping highlights
 

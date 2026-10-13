@@ -4,6 +4,7 @@ import type { TaskRow, TaskState } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { BlockText } from '../outline/BlockText';
 import type { OpenTarget } from '../shell/contract';
+import { besideHint, besideKey, opensBeside } from '../shell/beside';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { statusIcons, statusLabels } from './TaskControls';
@@ -312,7 +313,7 @@ export function WeekCalendar(props: WeekCalendarProps) {
         event.preventDefault(); event.stopPropagation();
       }
     } }}>
-    <p id={instructionsId} class="week-calendar-instructions">Drag a task to reschedule it. <span class="visually-hidden">Alt+←/→ changes day. Alt+↑/↓ changes time by 15 min. Alt+Home makes all-day. Enter opens; Shift opens beside. Esc cancels a drag. Due cards change the schedule, not the deadline.</span></p>
+    <p id={instructionsId} class="week-calendar-instructions">Drag a task to reschedule it. <span class="visually-hidden">Alt+←/→ changes day. Alt+↑/↓ changes time by 15 min. Alt+Home makes all-day. Enter opens; {besideKey}+Enter opens beside. Esc cancels a drag. Due cards change the schedule, not the deadline.</span></p>
     <Show when={error()}><div class="agenda-error" role="alert"><span>Could not load this week: {error()}</span><Button onClick={() => setRefresh(value => value + 1)}>Retry</Button></div></Show>
     <Show when={commandError()}><div class="agenda-error" role="alert"><span>{commandError()}</span><Button onClick={() => { setCommandError(''); setRefresh(value => value + 1); }}>Refresh</Button></div></Show>
     <Show when={!loading() && !error() && !entries().length}><p class="agenda-message">No scheduled tasks or deadlines this week. Schedule a task from its source to see it here.</p></Show>
@@ -378,9 +379,9 @@ function WeekTaskCard(props: {
     };
   });
   return <button type="button" class="week-calendar-task" classList={{ 'week-calendar-task-timed': !!props.position, 'week-calendar-task-done': completed(), 'week-calendar-task-late': late(), 'week-calendar-task-dragging': props.dragging }}
-    style={position()} data-week-task={props.entry.row.source.block.id} data-week-kind={props.entry.kind} data-week-status={props.entry.row.task.status} aria-label={label()} aria-describedby={props.instructionsId} aria-busy={props.busy} title={`${label()} · Shift to open beside`}
+    style={position()} data-week-task={props.entry.row.source.block.id} data-week-kind={props.entry.kind} data-week-status={props.entry.row.task.status} aria-label={label()} aria-describedby={props.instructionsId} aria-busy={props.busy} title={`${label()} · ${besideHint}`}
     onPointerDown={event => props.onPointerDown(event, props.entry)} onKeyDown={event => props.onKeyDown(event, props.entry)}
-    onClick={event => props.onOpen({ kind: 'page', pageId: props.entry.row.source.page.id, blockId: props.entry.row.source.block.id }, event.shiftKey)}>
+    onClick={event => props.onOpen({ kind: 'page', pageId: props.entry.row.source.page.id, blockId: props.entry.row.source.block.id }, opensBeside(event))}>
     <span class="week-calendar-task-meta"><Icon name={statusIcons[props.entry.row.task.status]} /><Show when={props.entry.due}>Due{props.entry.row.task.deadline_time ? ` ${props.entry.row.task.deadline_time}` : ''}</Show><Show when={!props.entry.due && props.entry.time}>{props.entry.time}</Show></span>
     <span class="week-calendar-task-text"><BlockText text={props.entry.row.source.block.text || 'Empty task'} notebook={props.notebook} interactive={false} /></span>
   </button>;

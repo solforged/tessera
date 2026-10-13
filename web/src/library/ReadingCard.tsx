@@ -3,6 +3,7 @@ import type { LibraryRow, SourceView } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { isFrontMatter, sectionLabel } from '../reader/openings';
 import { timeLeft } from '../reader/paged';
+import { opensBeside } from '../shell/beside';
 import { BookMap } from '../ui/BookMap';
 import { bookChapters, chapterAt } from '../ui/book-map';
 import { Button } from '../ui/Button';
@@ -32,7 +33,7 @@ export function ReadingCard(props: { row: LibraryRow; notebook: NotebookClient; 
   const at = createMemo(() => progress() * length());
   const chapters = createMemo(() => bookChapters(source()?.toc ?? [], length()));
   const current = createMemo(() => chapterAt(chapters(), at()));
-  return <Button class="library-reading-card" classList={{ 'library-reading-current': props.selected }} aria-current={props.selected ? 'page' : undefined} onClick={event => props.onOpen(event.shiftKey)}>
+  return <Button class="library-reading-card" classList={{ 'library-reading-current': props.selected }} aria-current={props.selected ? 'page' : undefined} onClick={event => props.onOpen(opensBeside(event))}>
     <span class="library-reading-head">
       <Show when={props.row.cover || (snapshot()?.format ?? props.row.snapshot_format ?? props.row.source.format) !== 'article'}><SourceCover row={props.row} siglum={props.row.source.siglum} /></Show>
       <span class="library-reading-text">
