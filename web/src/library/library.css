@@ -293,6 +293,7 @@
 .library-up-next-book.button { display: flex; justify-content: flex-start; gap: var(--space-12); width: 100%; padding: var(--space-8) 0; border-bottom: var(--rule-width) solid var(--line); border-radius: 0; font-weight: var(--weight-body); }
 .library-up-next-book > span:last-child { display: flex; flex: 1; flex-direction: column; align-items: flex-start; min-width: 0; }
 .library-up-next-book .library-title { max-width: 100%; }
+.library-up-next-book .library-book-byline { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Groups: a sticky heading in the reading face over each run of rows or covers, its count in the apparatus. */
 .library-rows-grouped { border-top: 0; }
 .library-group + .library-group { margin-top: var(--space-16); }

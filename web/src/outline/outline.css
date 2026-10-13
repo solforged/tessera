@@ -296,7 +296,7 @@
 /* Backlinks and tagged blocks below the outline. */
 .related-sections { margin-top: var(--section-gap); }
 .related-section { border-top: 1px solid var(--line); margin-top: var(--section-gap); padding-top: var(--section-item-gap); }
-.related-section summary { cursor: pointer; font-weight: var(--weight-control); font-size: var(--text-control); line-height: var(--line-control); color: var(--muted); }
+.related-section summary { cursor: pointer; min-height: var(--target-size); padding-block: max(0px, calc((var(--target-size) - var(--line-control)) / 2)); font-weight: var(--weight-control); font-size: var(--text-control); line-height: var(--line-control); color: var(--muted); }
 .related-section summary span { color: var(--faint); font-size: var(--text-meta); margin-left: var(--space-8); }
 /* Backlink lists can run to hundreds of blocks; offscreen ones skip layout and paint. */
 .related-block { display: flex; align-items: flex-start; gap: var(--section-item-gap); margin-top: var(--section-item-gap); content-visibility: auto; contain-intrinsic-size: auto calc(var(--line-body) + var(--line-meta)); }
@@ -353,6 +353,11 @@
 .source-page .source-highlight > .row-menu { right: 0; bottom: var(--space-4); }
 .source-page .source-highlight > .row-fold { right: var(--target-size); bottom: var(--space-4); }
 .source-page .source-highlight > .row-bullet { right: calc(var(--target-size) * 2); bottom: var(--space-4); }
+@media (max-width: 599px) and (pointer: coarse) {
+  .source-page .source-highlight { padding-right: calc(var(--target-size) + var(--space-4)); }
+  .source-page .source-highlight .block-reference-count.button { inset-inline-start: auto; inset-inline-end: 0; min-width: var(--target-size); }
+  .outline-source-highlight-controls { margin-right: 0; }
+}
 .source-page .outline-chapter-label { flex-basis: 100%; margin: 0 0 var(--space-12); }
 /* A split pane and the Fold cover use the compact cover and title without shrinking the reading text. */
 @container outline-pane (max-width: 599px) {
