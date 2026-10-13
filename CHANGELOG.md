@@ -49,11 +49,19 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 - The notebook's own sentences are set in Plex everywhere in the outline, including rows that cite a source, glosses, positions and questions, and their previews in Find and on hover. Piazzolla stays for titles, headings, quotes and the reader.
 - Sources by the same author keep a three-letter siglum and add a year, a title initial or a number to tell them apart, as `MAT`, `MAT19` and `MAT2`, instead of lengthening the surname.
+- Failed imports sit only in the Library Inbox, folded behind one `N imports failed` line with Retry, Dismiss and Dismiss all, and name the page they tried (`pubmed.ncbi.nlm.nih.gov/16507066`).
+- Finding aids count a note's prose blocks, not its field entries, and leave out zero counts; people without prose show their backlinks instead. Sources reads as a denser bibliography with plain author names.
+- Review says how many cards come due later today and when the next one is due, instead of a bare "0 cards to review".
+- In a split pane or on a phone, page titles stay readable, depth collapses to its current stop, sigla sit on a short line above their paragraph, and the research desk and field owners use fewer columns.
 
 ### Fixed
 
 - Typing `|` in link completion picks the highlighted page and starts the alias, so `[[gen|memory boost]]` links Generation effect and reads "memory boost".
 - Link previews open at full size beside their link without jumping, stay inside their pane, and no longer block shortcuts such as Today. Page menus use the screen's height on phones, so Delete is no longer cut off.
+- Questions has a Find filter like other kinds, its tabs stay on one line on phones, and index checkboxes, read-register actions and the sidebar's Empty names have touch-sized targets.
+- Switching a grouped saved view between Index and Table keeps its grouping, and indexes no longer flash "0 sources" or "Missing field" while loading.
+- Reading cards keep two lines of title and creator, coverless articles drop their empty cover, and Contents in the reader focuses the margin list instead of opening a second one.
+- Compare's criteria questions stay in view on phones and its holder chooser takes one line; Today's Agenda tile says "Nothing planned" once; spreads explain `=` and `↔`; merge refusals name the reason.
 - Kept cover-screen writing, capture, date pickers and commands above the browser keyboard.
 - Contained long library bylines and pane titles, and enlarged related-section and highlight backlink touch targets.
 - Preserved prose font metrics when selecting text across outline paragraphs.
