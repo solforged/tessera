@@ -211,6 +211,11 @@
 .library-creators { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-4); min-width: 0; }
 .library-creator { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: var(--space-8); width: 100%; }
 .library-creator .mode-tabs { gap: 0; }
+/* A phone keeps the creator's name across the field; role tabs and Remove follow beneath it. */
+@media (max-width: 599px) {
+  .library-add .library-creator { grid-template-columns: minmax(0, 1fr) auto; }
+  .library-add .library-creator > .input { grid-column: 1 / -1; }
+}
 /* A near match to a page already in the notebook: one tap takes its exact title, so saving links to that page. */
 .library-creator-same { grid-column: 1 / -1; margin: 0; color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
 .library-creator-page.button { display: inline; min-height: 0; padding: 0; color: var(--accent); font-weight: var(--weight-body); text-decoration: underline; text-decoration-thickness: var(--rule-width); text-underline-offset: var(--space-4); }
@@ -338,6 +343,12 @@
 }
 /* The phone ledger uses the same boxed rhythm as Reading; its cover rail is separate from the readable title and metadata stack. */
 @media (max-width: 599px) {
+  .library-pane:not(.library-all-tab) .library-row-open.button { display: grid; grid-template-columns: minmax(0, 1fr) auto; height: auto; gap: var(--space-4) var(--space-8); padding-block: var(--space-8); }
+  .library-pane:not(.library-all-tab) .library-row-open :is(.library-title, .library-byline) { grid-column: 1 / -1; max-width: none; margin: 0; }
+  .library-pane:not(.library-all-tab) .library-row-open .library-siglum { display: none; }
+  .library-pane:not(.library-all-tab) .library-row-open :is(.library-state, .library-progress, .library-highlight-count) { width: auto; min-width: 0; }
+  .library-pane:not(.library-all-tab) .library-progress > .library-reading-rule { display: none; }
+  .library-row-open :is(.library-progress, .library-highlight-count, .library-year):empty { display: none; }
   .library-all-tab .library-rows:not(.library-rows-shelf) { border-top: 0; }
   .library-all-tab .library-rows [role="list"]:has(> .library-row.library-source-row) { display: flex; flex-direction: column; gap: var(--card-gap); }
   .library-all-tab .library-row.library-source-row { align-items: flex-start; gap: var(--section-item-gap); padding: var(--card-padding); border: var(--rule-width) solid var(--line); border-radius: var(--space-8); background: var(--raised); contain-intrinsic-size: auto calc(var(--space-48) * 3); }

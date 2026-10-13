@@ -32,7 +32,7 @@ Rows read as a ledger on one 28 px line:
 
 Progress pairs a short gilt bar with its percentage. A Reading source at zero reads `Not started`; Inbox and Abandoned sources leave the column blank rather than repeat it on every row. A finished source shows only its state-change date (`Oct 11`, named `Finished Oct 11` on hover), never a percentage, since the tab or the state column already says Finished. All and saved views spanning several states add a state column (`Inbox`, `Reading`, `Finished`, `Abandoned`) in `--faint` before the year.
 
-In a pane narrower than 560 px on a wide screen, the state and year columns step aside and progress keeps only its number, so the title keeps its room.
+In a pane narrower than 560 px on a wide screen, the state and year columns step aside and progress keeps only its number, so the title keeps its room. Below 600 px, state and saved-view ledger rows stack the title and byline across the available width, omit the siglum, and put compact metadata beneath; empty progress, highlight and year cells reserve no space. All and collection ledgers retain their taller card layout.
 
 The leading slot shows a selection checkbox on hover, focus, or while any row is selected. A selected row takes `--selection` and the accent bar. While rows are selected, a bar of the same height replaces the search line: the count, Details (while the catalog card is closed), Browse, Mark as (one batch for all of them), Export, Add to collection…, Delete and Clear selection. Beside an open card, a ledger narrower than 840 px (1000 px inside a collection, which adds Remove from collection) shows Browse, Export, Add to collection, Delete and Clear selection as glyphs named in tooltips, and Remove without its object, so the bar stays one line. Escape clears.
 
@@ -140,7 +140,7 @@ An EPUB creator entry that holds several people (`A; B`, `A & B`, or inverted pa
 
 ### Manual details
 
-The manual details form remains in Add only: labeled rows, Creator name fields with Author, Editor and Translator tabs, Add creator, and the existing “Same as X?” reuse suggestion. Published accepts `YYYY`, `YYYY-MM` or `YYYY-MM-DD`; adding a record saves its fields together.
+The manual details form remains in Add only: labeled rows, Creator name fields with Author, Editor and Translator tabs, Add creator, and the existing “Same as X?” reuse suggestion. Below 600 px, each creator's name spans the field width, with role tabs and Remove on the next row. Published accepts `YYYY`, `YYYY-MM` or `YYYY-MM-DD`; adding a record saves its fields together.
 
 ## Inspector
 
