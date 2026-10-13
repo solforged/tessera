@@ -1,7 +1,12 @@
 import { expect, test } from 'bun:test';
 import { pageSigla } from './sigla';
 
-const source = (id: string, siglum: string, basis: string, authored = false) => ({ id, siglum, basis, authored });
+const source = (id: string, siglum: string, basis: string, authored = false) => ({
+  block_id: id, siglum, siglum_basis: basis, siglum_authored: authored, siglum_disambiguation: null,
+});
+const matuschak = (id: string, year: string | null, initial: string | null) => ({
+  ...source(id, 'MAT', 'MATUSCHAK'), siglum_disambiguation: { year, title_initial: initial },
+});
 
 test('page sigla preserve noncolliding marks and first appearance order', () => {
   expect([...pageSigla([source('thomas', 'THO', 'THOMAS'), source('garcia', 'GAR', 'GARCÍA')])])
@@ -51,4 +56,47 @@ test('page sigla skip nonletters in extension bases', () => {
 
 test('page sigla handle an empty page', () => {
   expect(pageSigla([]).size).toBe(0);
+});
+
+test('author collisions prefer a unique two-digit publication year', () => {
+  expect([...pageSigla([matuschak('first', null, 'e'), matuschak('second', '19', 'e'), matuschak('third', '20', 'e')])])
+    .toEqual([['first', 'MAT'], ['second', 'MAT19'], ['third', 'MAT20']]);
+});
+
+test('author collisions use a unique lowercase title initial when the year is absent or shared', () => {
+  expect([...pageSigla([matuschak('first', '19', 'a'), matuschak('second', '19', 'e'), matuschak('third', null, 'h')])])
+    .toEqual([['first', 'MAT'], ['second', 'MATe'], ['third', 'MATh']]);
+});
+
+test('author collisions use stem ordinals when both distinguishers are shared or missing', () => {
+  expect([...pageSigla([matuschak('first', '19', 'e'), matuschak('second', '19', 'e'), matuschak('third', null, 'e'), matuschak('fourth', null, null)])])
+    .toEqual([['first', 'MAT'], ['second', 'MAT2'], ['third', 'MAT3'], ['fourth', 'MAT4']]);
+});
+
+test('adding later colliders never renames previously assigned years, initials or ordinals', () => {
+  const sources = [matuschak('first', null, 'a'), matuschak('year', '19', 'e'), matuschak('initial', '19', 'h'), matuschak('ordinal', '19', 'h')];
+  const before = pageSigla(sources);
+  expect([...before]).toEqual([['first', 'MAT'], ['year', 'MAT19'], ['initial', 'MATh'], ['ordinal', 'MAT2']]);
+  const after = pageSigla([...sources, matuschak('new', '19', 'h')]);
+  for (const [id, mark] of before) expect(after.get(id)).toBe(mark);
+  expect(after.get('new')).toBe('MAT3');
+});
+
+test('author distinguishers avoid marks assigned by another stem', () => {
+  expect([...pageSigla([source('other', 'MAT19', 'MAT19'), matuschak('first', null, 'a'), matuschak('second', '19', 'e')])])
+    .toEqual([['other', 'MAT19'], ['first', 'MAT'], ['second', 'MATe']]);
+});
+
+test('author marks preserve Unicode stems and title initials', () => {
+  const first = { ...matuschak('first', null, 'e'), siglum: 'GÓM', siglum_basis: 'GÓMEZ' };
+  const second = { ...matuschak('second', null, 'é'), siglum: 'GÓM', siglum_basis: 'GÓMEZ' };
+  expect([...pageSigla([first, second, second])]).toEqual([['first', 'GÓM'], ['second', 'GÓMé']]);
+});
+
+test('author ordinals do not reuse a numeric year distinguisher', () => {
+  const sources = [matuschak('first', null, 'e'), matuschak('year', '10', 'e')];
+  for (let i = 2; i <= 10; i++) sources.push(matuschak(`ordinal${i}`, null, 'e'));
+  const sigla = pageSigla(sources);
+  expect(sigla.get('year')).toBe('MAT10');
+  expect(sigla.get('ordinal10')).toBe('MAT11');
 });

@@ -243,6 +243,7 @@ pub(crate) fn source_siglum(
             .filter(|value| !value.is_empty())
     };
     source.siglum_authored = false;
+    source.siglum_disambiguation = None;
     if let Some(authored) = first("siglum")
         && authored.chars().count() <= 4
         && authored.chars().all(char::is_alphabetic)
@@ -252,7 +253,7 @@ pub(crate) fn source_siglum(
         source.siglum_authored = true;
         return;
     }
-    for candidate in first("author")
+    for (index, candidate) in first("author")
         .map(crate::library_ingest::family_name)
         .into_iter()
         .chain(first("editor").map(crate::library_ingest::family_name))
@@ -263,6 +264,7 @@ pub(crate) fn source_siglum(
                 .filter(|word| word.chars().any(char::is_alphabetic))
                 .take(1),
         )
+        .enumerate()
     {
         let mut basis = String::new();
         let mut siglum_end = 0;
@@ -279,6 +281,27 @@ pub(crate) fn source_siglum(
         if !basis.is_empty() {
             source.siglum = basis[..siglum_end].to_owned();
             source.siglum_basis = basis;
+            if index == 0 && first("author").is_some() {
+                let year = first("published")
+                    .and_then(|date| date.get(..4))
+                    .filter(|year| year.bytes().all(|digit| digit.is_ascii_digit()))
+                    .filter(|year| *year != "0000")
+                    .map(|year| year[2..].to_owned());
+                let title_initial = title
+                    .split_whitespace()
+                    .map(|word| word.trim_matches(|letter: char| !letter.is_alphabetic()))
+                    .find(|word| {
+                        !word.is_empty()
+                            && !crate::library_ingest::TITLE_STOP_WORDS
+                                .contains(&word.to_lowercase().as_str())
+                    })
+                    .and_then(|word| word.chars().find(|letter| letter.is_alphabetic()))
+                    .map(|letter| letter.to_lowercase().collect());
+                source.siglum_disambiguation = Some(SiglumDisambiguation {
+                    year,
+                    title_initial,
+                });
+            }
             return;
         }
     }
@@ -300,6 +323,7 @@ pub(crate) fn source_at(row: &rusqlite::Row<'_>) -> rusqlite::Result<SourceRecor
         siglum: String::new(),
         siglum_basis: String::new(),
         siglum_authored: false,
+        siglum_disambiguation: None,
     })
 }
 pub(crate) fn source(conn: &Connection, id: &str) -> Result<Option<SourceRecord>> {

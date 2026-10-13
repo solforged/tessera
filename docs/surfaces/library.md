@@ -316,7 +316,7 @@ Zooming into a source annotation uses a compact citation masthead: imprint, crea
 
 Every source has a siglum, a short mark as in a critical edition. An authored `Siglum::` field wins when its trimmed value is one to four letters, upper-cased. Empty, longer or non-letter values are ignored.
 
-Otherwise it is the first three letters of the first author's family name (else editor, site, then the title's first word containing letters), upper-cased with Unicode letters kept and non-letters skipped. Shorter names use what they have. It is read from the current fields so editing the author changes it.
+Otherwise it is the first three letters of the first author's family name (else editor, site, then the title's first word containing letters), upper-cased with Unicode letters kept and non-letters skipped. Shorter names use what they have. Sigla and collision hints are computed from the current fields, not stored assignments, so editing the author changes the stem and existing notebooks need no migration.
 
 The source header includes it as a bare mono mark in its one-line imprint, never boxed, and CSL JSON exports it as `citation-label`.
 
@@ -324,11 +324,11 @@ The source header includes it as a bare mono mark in its one-line imprint, never
 
 On any other page, a row that cites a passage or references a source page with an authored label or locator hangs that source's siglum right-aligned in the left gutter, boxed in `--control-border`, gilt when the row is selected or its highlight is hovered in the reader. Citation references share passage citations' first-appearance and collision rules. Their hover preview is headed by the source's siglum and, when present, ` · locator`, above the source title.
 
-Sigla are assigned per page in order of first appearance. The later derived mark in a collision takes further letters of its basis name (`THO`, then `THOM`, `THOMA`), or adds `2`, `3`, … after the basis runs out. Authored sigla never change.
+Sigla are assigned per page in order of first appearance. The first source keeps its bare stem. A later author-derived collision keeps that stem and appends the publication year's last two digits when no earlier collider shares them, else the lowercase initial of the first significant title word when no earlier collider shares it, else the first unused ordinal starting at 2 (`MAT`, `MAT19`, `MATe`, `MAT2`). Significant title words use the citation key's stop-word list, skipping articles and short connecting words. Each candidate also avoids marks already assigned on the page. Only earlier sources affect the choice, so adding a later source never renames existing marks. Sources without an author retain the editor/site/title basis-extension rule, then numbered suffixes when that basis runs out. Authored sigla never change.
 
 The Library list, shelf and source sheet show each source's own siglum without that disambiguation, because the title beside it already tells the books apart; four Rowling books all read `ROW`.
 
-Margin, header, apparatus and Compare marks stay on one line, with boxes sized for four mono letters and room to grow. A page that shows sigla widens its outline body's left edge by `--siglum-width` plus 8 px, so a four-letter mark is never clipped in a narrow pane. The title keeps the shared inset.
+Margin, header, apparatus and Compare marks stay on one line, with boxes sized for five mono letters and room to grow for longer ordinals. A page that shows sigla widens its outline body's left edge by `--siglum-width` plus 8 px, so a five-character mark is never clipped in a narrow pane. The title keeps the shared inset.
 
 ## Citation chips
 

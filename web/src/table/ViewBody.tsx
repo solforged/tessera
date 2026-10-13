@@ -78,7 +78,7 @@ export function ViewBody(props: ViewBodyProps) {
     return { id: row.block.block.id, source: doc?.status() === 'ready' ? positionSource(doc, row.block.block.id, id => definition(id)?.name) : fieldEntryId(row.fields.find(field => definition(field.field_id)?.name.trim().toLowerCase() === 'work')?.values[0]?.text ?? '') };
   }));
   const [sourceRecords] = createResource(() => [...new Set(sources().flatMap(row => row.source ? [row.source] : []))].sort().join(',') || false,
-    ids => Promise.all(ids.split(',').map(id => props.notebook.api.source(id).then(view => ({ id, siglum: view.source.siglum, basis: view.source.siglum_basis, authored: view.source.siglum_authored }), () => null))));
+    ids => Promise.all(ids.split(',').map(id => props.notebook.api.source(id).then(view => view.source, () => null))));
   const sigla = createMemo(() => pageSigla((sourceRecords() ?? []).filter(record => record !== null)));
   function edited(doc: PageDocument) {
     history.push(doc); undone.length = 0;

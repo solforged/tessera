@@ -5,6 +5,10 @@ use crate::{FieldKind, Notebook, Operation, Result};
 use rusqlite::{OptionalExtension, params};
 use std::collections::{HashMap, HashSet};
 
+pub(crate) const TITLE_STOP_WORDS: &[&str] = &[
+    "a", "an", "the", "on", "of", "in", "and", "to", "for", "de", "la", "le", "der", "die", "das",
+];
+
 fn person_title(name: &str) -> String {
     name.split_once(',').map_or_else(
         || name.trim().to_owned(),
@@ -157,14 +161,10 @@ fn citation_key(notebook: &Notebook, metadata: &ExtractedMetadata, title: &str) 
         .as_deref()
         .and_then(|s| s.get(..4))
         .unwrap_or("nd");
-    let stop = [
-        "a", "an", "the", "on", "of", "in", "and", "to", "for", "de", "la", "le", "der", "die",
-        "das",
-    ];
     let word = title
         .split_whitespace()
         .map(fold)
-        .find(|w| !w.is_empty() && !stop.contains(&w.as_str()))
+        .find(|w| !w.is_empty() && !TITLE_STOP_WORDS.contains(&w.as_str()))
         .unwrap_or_default();
     let mut base = format!("{family}{}{word}", fold(year));
     base.truncate(base.len().min(56));

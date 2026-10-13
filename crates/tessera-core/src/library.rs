@@ -241,6 +241,15 @@ pub struct SourceRecord {
     pub siglum_basis: String,
     #[serde(default)]
     pub siglum_authored: bool,
+    /// Current author-derived collision hints; never a persisted siglum assignment.
+    #[serde(default)]
+    pub siglum_disambiguation: Option<SiglumDisambiguation>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SiglumDisambiguation {
+    pub year: Option<String>,
+    pub title_initial: Option<String>,
 }
 
 impl SourceRecord {

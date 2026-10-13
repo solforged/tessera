@@ -106,7 +106,7 @@ export function ComparePane(props: ComparePaneProps) {
   }
   const questions = createMemo(() => (result()?.questions ?? []).filter(question => tab() === 'readings' || !question.criterion));
   const [siglumRecords] = createResource(() => { const ids = [...new Set(perspectives().map(item => item.source).filter(id => id !== null))]; return ids.length ? ids : false; },
-    ids => Promise.all(ids.map(id => api.source(id).then(view => ({ id, siglum: view.source.siglum, basis: view.source.siglum_basis, authored: view.source.siglum_authored }), () => null))));
+    ids => Promise.all(ids.map(id => api.source(id).then(view => view.source, () => null))));
   const sigla = createMemo(() => pageSigla((siglumRecords.error ? [] : siglumRecords() ?? []).filter(record => record !== null)));
   const subject = () => props.notebook.lookup(props.subjectId)();
   const holder = (perspective: Perspective) => perspective.row.holder_id ? props.notebook.lookup(perspective.row.holder_id)()?.text ?? 'Loading holder…' : 'Unattributed';

@@ -36,7 +36,7 @@ export function HeldReadings(props: {
     subjects => Promise.all(subjects.map(async subject => [subject, (await props.notebook.api.positions({ subject })).rows.length] as const)));
   const countBySubject = createMemo(() => new Map(counts() ?? []));
   const [sources] = createResource(() => [...new Set(readings().map(reading => reading.source).filter(id => id !== null))],
-    ids => Promise.all(ids.map(id => props.notebook.api.source(id).then(view => ({ id, siglum: view.source.siglum, basis: view.source.siglum_basis, authored: view.source.siglum_authored }), () => null))));
+    ids => Promise.all(ids.map(id => props.notebook.api.source(id).then(view => view.source, () => null))));
   const sigla = createMemo(() => pageSigla((sources() ?? []).filter(row => row !== null)));
   return <section class="held-readings" aria-label="Readings held">
     <Show when={fields.error}><p class="pane-error" role="alert">Couldn’t load reading fields.</p></Show>

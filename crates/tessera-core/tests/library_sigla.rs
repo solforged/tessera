@@ -252,4 +252,94 @@ fn source_records_stored_before_sigla_still_read() {
         ("", "")
     );
     assert!(!record.siglum_authored);
+    assert!(record.siglum_disambiguation.is_none());
+}
+
+#[test]
+fn author_sigla_supply_current_year_and_first_significant_title_initial() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut n = Notebook::open(dir.path()).unwrap();
+    let source = source(&mut n, "123 — The Evergreen notes");
+    field(&mut n, &source, "Author", &["Andy Matuschak"]);
+    let published = field(&mut n, &source, "Published", &["2019-10"]);
+    assert_siglum(&n, &source, "MAT", "MATUSCHAK");
+    assert_eq!(
+        n.source(&source).unwrap().source.siglum_disambiguation,
+        Some(SiglumDisambiguation {
+            year: Some("19".into()),
+            title_initial: Some("e".into()),
+        })
+    );
+    edit(&mut n, &published[0], "2020");
+    edit(&mut n, &source, "On Évidence and meaning");
+    assert_siglum(&n, &source, "MAT", "MATUSCHAK");
+    assert_eq!(
+        n.source(&source).unwrap().source.siglum_disambiguation,
+        Some(SiglumDisambiguation {
+            year: Some("20".into()),
+            title_initial: Some("é".into()),
+        })
+    );
+}
+
+#[test]
+fn author_sigla_omit_unusable_years_and_title_initials() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut n = Notebook::open(dir.path()).unwrap();
+    let source = source(&mut n, "123 !!! the and of");
+    field(&mut n, &source, "Author", &["Andy Matuschak"]);
+    let published = field(&mut n, &source, "Published", &["unknown"]);
+    for value in ["unknown", "20", "0000", "é2020"] {
+        edit(&mut n, &published[0], value);
+        assert_eq!(
+            n.source(&source).unwrap().source.siglum_disambiguation,
+            Some(SiglumDisambiguation {
+                year: None,
+                title_initial: None,
+            })
+        );
+    }
+}
+
+#[test]
+fn authorless_and_authored_sigla_keep_the_original_collision_basis() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut n = Notebook::open(dir.path()).unwrap();
+    let source = source(&mut n, "Evergreen notes");
+    field(&mut n, &source, "Editor", &["Andy Matuschak"]);
+    field(&mut n, &source, "Published", &["2019-10"]);
+    assert_siglum(&n, &source, "MAT", "MATUSCHAK");
+    assert!(
+        n.source(&source)
+            .unwrap()
+            .source
+            .siglum_disambiguation
+            .is_none()
+    );
+    let author = field(&mut n, &source, "Author", &["123 !!!"]);
+    assert!(
+        n.source(&source)
+            .unwrap()
+            .source
+            .siglum_disambiguation
+            .is_none()
+    );
+    edit(&mut n, &author[0], "Andy Matuschak");
+    let siglum = field(&mut n, &source, "Siglum", &["CUSTOM"]);
+    assert!(
+        n.source(&source)
+            .unwrap()
+            .source
+            .siglum_disambiguation
+            .is_some()
+    );
+    edit(&mut n, &siglum[0], "AM");
+    assert_siglum(&n, &source, "AM", "AM");
+    assert!(
+        n.source(&source)
+            .unwrap()
+            .source
+            .siglum_disambiguation
+            .is_none()
+    );
 }

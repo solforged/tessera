@@ -418,7 +418,7 @@ function Pane(props: OutlinePaneProps) {
     return seen;
   }, undefined, { equals: (a, b) => a.length === b.length && a.every((id, index) => id === b[index]) });
   const [siglumRecords] = createResource(() => [citedSources(), props.notebook.changeSequence()] as const, ([ids]) => Promise.all(ids.map(id =>
-    referenceSource(props.notebook, id).then(source => source ? { id, siglum: source.siglum, basis: source.siglum_basis, authored: source.siglum_authored } : null, () => null))));
+    referenceSource(props.notebook, id).catch(() => null))));
   const sigla = createMemo(() => pageSigla((siglumRecords.error ? [] : siglumRecords() ?? []).filter(record => record !== null)));
   const [sourceHighlights] = createResource(() => doc.root()?.source && !zoom() ? [props.pageId, props.notebook.changeSequence(), live()] as const : false,
     ([source_id]) => props.notebook.api.highlights({ source_id, limit: 100000 }));

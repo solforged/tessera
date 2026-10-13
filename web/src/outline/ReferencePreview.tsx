@@ -468,7 +468,7 @@ function PinnedReadings(props: {
     const ids = [...new Set(readings().map(reading => reading.source).filter(id => id !== null))];
     return ids.length ? ids : false;
   }, ids => Promise.all(ids.map(id => props.notebook.api.source(id).then(
-    view => ({ id, siglum: view.source.siglum, basis: view.source.siglum_basis, authored: view.source.siglum_authored }),
+    view => view.source,
     () => null,
   ))));
   const sigla = createMemo(() => pageSigla((siglumRecords.error ? [] : siglumRecords() ?? []).filter(record => record !== null)));
