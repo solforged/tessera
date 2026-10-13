@@ -486,20 +486,21 @@ impl Notebook {
             }
         }
 
-        // A type page is listed as its kind, not as an unfiled note.
-        let types: HashSet<String> = self
+        // A type page is listed as its kind and a saved spread under Spreads, not as an unfiled note.
+        let listed: HashSet<String> = self
             .conn
             .prepare_cached(
                 "SELECT DISTINCT m.type_id FROM memberships m JOIN blocks b ON b.id = m.block_id
                  WHERE m.type_id IS NOT NULL AND b.deletion_id IS NULL
-                 UNION SELECT type_id FROM field_targets",
+                 UNION SELECT type_id FROM field_targets
+                 UNION SELECT block_id FROM spreads WHERE active = 1",
             )?
             .query_map([], |row| row.get::<_, String>(0))?
             .collect::<rusqlite::Result<_>>()?;
         for note in &mut notes {
             note.kinds.sort_unstable();
             note.kinds.dedup();
-            if note.kinds.is_empty() && !types.contains(&note.entry.id) {
+            if note.kinds.is_empty() && !listed.contains(&note.entry.id) {
                 note.kinds.push(unfiled);
             }
         }

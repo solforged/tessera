@@ -238,6 +238,14 @@ fn columns_are_attributed_outline_subtrees_and_move_delete_restore_preserve_comm
             .any(|cap| cap.block_id == id(5) && cap.spread)
     );
     assert!(
+        !nb.kind_notes("unfiled")
+            .unwrap()
+            .notes
+            .iter()
+            .any(|note| note.id == id(5)),
+        "a saved spread is listed under Spreads, not filed as an unfiled note"
+    );
+    assert!(
         nb.page(&id(5))
             .unwrap()
             .capabilities
