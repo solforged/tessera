@@ -79,6 +79,23 @@ afterAll(async () => {
 });
 
 describe('real notebook operations and recovery', () => {
+  test('acknowledged notebook creation publishes canonical roots before opening', async () => {
+    const instance = await client();
+    const id = ulid(), typeId = ulid(), title = `Cache type ${++serial}`;
+    await instance.commit([
+      { op: 'create_page', id: typeId, title },
+      { op: 'create_page', id, title: `Cache member ${++serial}` },
+      { op: 'add_type', id, base_revision: 1, title },
+    ], 'Create typed page');
+    const canonical = await api.block(id);
+    expect(instance.roots().find(root => root.id === id)).toEqual(canonical);
+    expect(instance.roots().find(root => root.id === typeId)).toEqual(await api.block(typeId));
+    const doc = instance.open(id);
+    await eventually(() => doc.status() === 'ready', 'typed page did not open');
+    expect(instance.roots().find(root => root.id === id)?.id).toBe(doc.root()?.id);
+    doc.release();
+  });
+
   test('linking a mention uses source-page undo and redo after release', async () => {
     const instance = await client();
     const target = await instance.createPage(`Mention target ${++serial}`);

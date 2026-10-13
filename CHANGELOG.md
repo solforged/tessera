@@ -9,6 +9,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 ### Fixed
 
 - New typed notes use the submitted title, even when an earlier title matched an existing note.
+- New typed notes appear in Merge into and show their ID and creation date without a reload.
 
 ## 0.3.0, 2026-10-12
 

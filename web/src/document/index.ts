@@ -834,6 +834,7 @@ export class Notebook implements NotebookClient, DocumentHost {
       }));
       for (const block of blocks) if (block) {
         this.publish(block);
+        if (block.kind !== 'block') this.updateRoot(block);
         if (!merges.length) this.docs.get(block.page_id)?.receive(block);
       }
       if (merges.length) {
