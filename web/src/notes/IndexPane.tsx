@@ -93,6 +93,17 @@ function KindIndexPane(props: IndexPaneProps) {
   const slow = createSlowFlag(() => !index.latest && !index.error);
   const typeId = () => props.kind?.type_id ?? (props.kindKey.startsWith('type:') ? props.kindKey.slice(5) : undefined);
   const [type] = createResource(() => typeId() ? [typeId()!, changes(), version()] as const : false, ([id]) => props.notebook.api.type(id));
+  const isCollection = createMemo(() => (props.kind?.name ?? type()?.page.text)?.toLocaleLowerCase() === 'collection');
+  // The bibliography uses the same current-snapshot predicate as Library source menus.
+  const [readableSources] = createResource(() => props.kindKey === 'source' ? [changes(), version()] as const : false, async () => {
+    const result = await props.notebook.api.library({ limit: null });
+    return new Set(result.rows.filter(row => row.source.current_snapshot_id).map(row => row.page.id));
+  });
+  const [collectionCounts] = createResource(() => isCollection() && index.latest ? [index.latest.notes, changes(), version()] as const : false, async ([notes]) =>
+    new Map(await Promise.all(notes.map(async note => {
+      const result = await props.notebook.api.library({ collection_id: note.id, limit: 0 });
+      return [note.id, result.total] as const;
+    }))));
   const title = createMemo(() => props.kind?.plural ?? type()?.page.text ?? (props.kindKey === 'unfiled' ? 'Unfiled' : props.kindKey === 'source' ? 'Sources' : 'Index'));
   const groups = createMemo(() => groupKindIndex(index.latest));
   const summary = (note: NoteEntry) => index.latest?.summaries[note.id];
@@ -131,6 +142,7 @@ function KindIndexPane(props: IndexPaneProps) {
         onIndex={() => { scroll.scrollTop = 0; }} onTable={event => props.onOpen({ kind: 'table', typeId: id(), viewId: null, query: typeQuery(id()) }, event.shiftKey)}
         onFields={event => props.onOpen({ kind: 'fields', typeId: id() }, event.shiftKey)} />}</Show>
       <Show when={index.error}><p class="error" role="alert">Couldn’t load this index · {String(index.error)}</p></Show>
+      <Show when={readableSources.error || collectionCounts.error}><p class="error" role="alert">Couldn’t load source details · {String(readableSources.error || collectionCounts.error)}</p></Show>
       <Show when={index.latest} fallback={<Show when={slow()}><p class="empty-state" role="status">Loading notes…</p></Show>}>
         <Switch>
           <Match when={props.kindKey === 'unfiled'}>
@@ -168,7 +180,7 @@ function KindIndexPane(props: IndexPaneProps) {
                   <p class="index-apparatus">{[source().format.toUpperCase(), source().publisher, source().published?.match(/^\d{4}/)?.[0]].filter(Boolean).join(' · ')}</p>
                   <Show when={source().citation_key}><p class="index-apparatus">Citation key {source().citation_key}</p></Show>
                   <p class="index-apparatus">{tally(source().highlights, 'highlight')} · {tally(summary(note)!.backlinks, 'page backlink')}</p></>}</Show>
-                <div class="index-source-actions"><Button class="bordered" onClick={event => openNote(note, event)}>Open source notes</Button><Button onClick={event => props.onOpen({ kind: 'reader', sourceId: note.id }, beside(event))}>Read <Icon name="right" /></Button></div>
+                <div class="index-source-actions"><Button class="bordered" onClick={event => openNote(note, event)}>Open source notes</Button><Show when={readableSources.latest?.has(note.id)}><Button onClick={event => props.onOpen({ kind: 'reader', sourceId: note.id }, beside(event))}>Read <Icon name="right" /></Button></Show></div>
               </div></article>}</For></Show>
           </Match>
           <Match when={true}>
@@ -178,7 +190,9 @@ function KindIndexPane(props: IndexPaneProps) {
                 <h2><span>{group.letter}</span><span class="section-rule" /><span class="index-group-count">{group.noteCount || ''}</span></h2>
                 <For each={group.entries}>{entry => entry.kind === 'note' ? <button type="button" class="index-entry" onClick={event => openNote(entry.note, event)}>
                   <span class="index-entry-title">{entry.note.title}</span><Show when={preview(entry.note)}><span class="index-preview">{preview(entry.note)}</span></Show>
-                  <Show when={summary(entry.note)}>{value => <span class="index-apparatus"><Show when={value().field}>{field => <span title={field().name}>{plainText(field().value, lookup)} · </span>}</Show>{tally(value().block_count, 'block')}</span>}</Show>
+                  <Show when={isCollection()} fallback={<Show when={summary(entry.note)}>{value => <span class="index-apparatus"><Show when={value().field}>{field => <span title={field().name}>{plainText(field().value, lookup)} · </span>}</Show>{tally(value().block_count, 'block')}</span>}</Show>}>
+                    <Show when={collectionCounts.latest?.get(entry.note.id) != null}><span class="index-apparatus">{tally(collectionCounts.latest!.get(entry.note.id)!, 'source')}</span></Show>
+                  </Show>
                 </button> : <div class="index-entry index-cross-reference"><span class="index-alias">{entry.reference.alias}</span>{', '}<span class="index-see">see</span>{' '}<For each={entry.reference.targets}>{(target, at) => <>{at() ? '; ' : ''}<button type="button" class="index-see-target" onClick={event => props.onOpen({ kind: 'page', pageId: target.id }, beside(event))}>{target.title}</button></>}</For></div>}</For>
               </section>}</For></div>
             </Show>

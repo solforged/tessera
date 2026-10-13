@@ -37,7 +37,7 @@ Titles sit under rubric letters with a hairline and a distinct-note count:
 | Below 840 px | Two. |
 | Below 600 px | One. |
 
-Each note shows two lines of its existing Gloss, else its first non-field prose block, then one populated template field and the live descendant-block count in mono. A title without prose has no empty preview. The batched index read derives this apparatus from existing data, including field entries, values and headings in block counts.
+Each note shows two lines of its existing Gloss, else its first non-field prose block, then one populated template field and the live descendant-block count in mono. The Collections finding aid instead shows its member-source count in mono, using the same Library collection query as the collection cards. A title without prose has no empty preview. The batched index read derives ordinary note apparatus from existing data, including field entries, values and headings in block counts.
 
 Only populated jump letters appear. On the touch cover they sit above bottom navigation, with the selected letter on the shared gilt tab rule and compact inline initials in the list. Sort as, diacritic folding, `#` last and alias cross-references retain their filing rules. A title opens its note; Shift or a coarse pointer at least 900 px wide opens it beside.
 
@@ -65,7 +65,7 @@ The shared type picker lists existing types and explicitly offers Create type â€
 
 ## Sources
 
-Sources is a bibliography, not a second reading shelf. It shows siglum, source title, author byline, format, publisher, publication year when stored, citation key, highlight count and ordinary page-backlink count. Open source notes is the default; Read hands off to the [reader](reader.md), and Open Library sits in the ruled strip. Reading progress and invented metadata are absent.
+Sources is a bibliography, not a second reading shelf. It shows siglum, source title, author byline, format, publisher, publication year when stored, citation key, highlight count and ordinary page-backlink count. Open source notes is the default; Read appears only for sources with a current snapshot and hands off to the [reader](reader.md), and Open Library sits in the ruled strip. Reading progress and invented metadata are absent.
 
 ## Note header
 
