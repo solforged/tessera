@@ -2117,7 +2117,8 @@ impl Engine<'_, '_> {
                 } else {
                     None
                 };
-                if crate::question_store::apply(self.tx, operation)? {
+                let today = crate::settings::today_in_connection(self.tx, self.now)?;
+                if crate::question_store::apply(self.tx, operation, &today)? {
                     if let Some(before) = revisit_before {
                         crate::revisit_store::question_changed(self.tx, id, &before, self.now)?;
                     }

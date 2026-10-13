@@ -8,8 +8,9 @@ use crate::calendar::validate_civil_date;
 use crate::reads::hidden_blocks;
 use crate::storage::{block_at, block_columns, validate_id, validation};
 use crate::{
-    AssessmentInfo, AssessmentState, BlockCapabilities, BlockInPage, Notebook, Operation,
-    QuestionInfo, QuestionQuery, QuestionRow, QuestionState, QuestionStatus, Result,
+    AssessmentInfo, AssessmentState, BlockCapabilities, BlockInPage, CurrentReading, Notebook,
+    Operation, QuestionFilter, QuestionInfo, QuestionQuery, QuestionRow, QuestionState,
+    QuestionStatus, Result,
 };
 
 pub fn question_status(state: &QuestionState, accepted_live: bool) -> QuestionStatus {
@@ -249,7 +250,7 @@ pub(crate) fn withdraw_acceptance(conn: &Connection, answer: &str) -> Result<Vec
     Ok(changed)
 }
 
-pub(crate) fn apply(conn: &Connection, operation: &Operation) -> Result<bool> {
+pub(crate) fn apply(conn: &Connection, operation: &Operation, today: &str) -> Result<bool> {
     match operation {
         Operation::SetQuestion { id, question, .. } => {
             if question.is_some() {
@@ -267,16 +268,44 @@ pub(crate) fn apply(conn: &Connection, operation: &Operation) -> Result<bool> {
             let previous = current.question.as_ref();
             let accepted_changed = previous.and_then(|state| state.accepted.as_ref())
                 != question.as_ref().and_then(|state| state.accepted.as_ref());
+            let restoring = if previous.is_none()
+                && let Some(accepted) = question.as_ref().and_then(|state| state.accepted.as_ref())
+            {
+                conn.prepare_cached("SELECT EXISTS(SELECT 1 FROM questions WHERE block_id = ?1 AND active = 0 AND json_extract(state, '$.accepted') = ?2)")?
+                    .query_row(params![id, accepted], |row| row.get::<_, bool>(0))?
+            } else {
+                false
+            };
             if accepted_changed
+                && !restoring
                 && question
                     .as_ref()
-                    .is_none_or(|state| state.accepted.is_some())
+                    .is_some_and(|state| state.accepted.is_some())
                 && (previous.is_some_and(|state| state.parked)
                     || question.as_ref().is_some_and(|state| state.parked))
             {
                 return Err(validation(
                     "Resume the question before accepting an answer.",
                 ));
+            }
+            let normalized = question.as_ref().map(|next| {
+                if accepted_changed
+                    && next.reading_history
+                        == previous
+                            .map(|state| state.reading_history.as_slice())
+                            .unwrap_or_default()
+                {
+                    let mut state = next.clone();
+                    state.accepted = previous.and_then(|state| state.accepted.clone());
+                    state.with_current_reading(next.accepted.clone(), today.to_owned())
+                } else {
+                    next.clone()
+                }
+            });
+            let question = &normalized;
+            for decision in question.iter().flat_map(|state| &state.reading_history) {
+                validate_id(&decision.assessment_id)?;
+                validate_civil_date(&decision.on)?;
             }
             if let Some(date) = question.as_ref().and_then(|state| state.review_on.as_ref()) {
                 validate_civil_date(date)?;
@@ -431,11 +460,76 @@ impl Notebook {
             .filter_map(|c| c.question.map(|info| (c.block_id, info)))
             .collect();
         let counts = crate::position_store::subject_counts(&self.conn)?;
+        let today = self.today(jiff::Timestamp::now().as_millisecond())?;
+        let accepted_ids: Vec<_> = infos
+            .values()
+            .filter_map(|info| info.state.accepted.as_ref())
+            .collect();
+        let valid_readings: HashSet<_> = crate::task_store::capabilities_for(
+            &self.conn,
+            &accepted_ids
+                .iter()
+                .map(|id| (*id).clone())
+                .collect::<Vec<_>>(),
+        )?
+        .into_iter()
+        .filter(|caps| {
+            caps.assessment
+                .as_ref()
+                .is_some_and(|assessment| assessment.accepted)
+        })
+        .map(|caps| caps.block_id)
+        .collect();
+        let mut current_readings = HashMap::new();
+        let mut statement = self.conn.prepare_cached(
+            "SELECT a.block_id, a.state, b.text FROM assessments a JOIN blocks b ON b.id = a.block_id
+             WHERE a.active = 1 AND b.deletion_id IS NULL
+             AND a.block_id IN (SELECT value FROM json_each(?1))",
+        )?;
+        let readings = statement.query_map(
+            [serde_json::to_string(&accepted_ids).expect("IDs serialize")],
+            |row| {
+                let state =
+                    json_at::<AssessmentState>(row, 1)?.expect("assessment state is non-null");
+                let text: String = row.get(2)?;
+                Ok(CurrentReading {
+                    id: row.get(0)?,
+                    assessed_on: state.assessed_on,
+                    text: text.lines().next().unwrap_or_default().to_owned(),
+                })
+            },
+        )?;
+        for reading in readings {
+            let reading = reading?;
+            current_readings.insert(reading.id.clone(), reading);
+        }
         Ok(blocks
             .into_iter()
             .filter_map(|block| {
                 let info = infos.remove(&block.block.id)?;
                 if query.status.is_some_and(|status| status != info.status) {
+                    return None;
+                }
+                if query.include_inline == Some(false) && block.block.id != block.page.id {
+                    return None;
+                }
+                if query.state.is_some_and(|filter| match filter {
+                    QuestionFilter::Active => !matches!(
+                        info.status,
+                        QuestionStatus::Open | QuestionStatus::Unsettled
+                    ),
+                    QuestionFilter::Recurrent => info.status != QuestionStatus::Unsettled,
+                    QuestionFilter::Due => {
+                        info.state.parked
+                            || info
+                                .state
+                                .review_on
+                                .as_deref()
+                                .is_none_or(|date| date > today.as_str())
+                    }
+                    QuestionFilter::Answered => info.status != QuestionStatus::Answered,
+                    QuestionFilter::Parked => info.status != QuestionStatus::Parked,
+                }) {
                     return None;
                 }
                 if query
@@ -446,10 +540,20 @@ impl Notebook {
                     return None;
                 }
                 let position_count = counts.get(&block.block.id).copied().unwrap_or_default();
+                let current = info
+                    .state
+                    .accepted
+                    .as_ref()
+                    .and_then(|id| current_readings.get(id))
+                    .filter(|reading| valid_readings.contains(&reading.id))
+                    .cloned();
+                let review_on = info.state.review_on.clone();
                 Some(QuestionRow {
                     block,
                     info,
                     position_count,
+                    current,
+                    review_on,
                 })
             })
             .take(query.limit.map_or(usize::MAX, |limit| limit as usize))

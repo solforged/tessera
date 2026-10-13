@@ -20,6 +20,7 @@ import { indexKindTarget, noteKindIcon, tagOnly } from './kinds';
 import { filingGroups, filingOperations, groupKindIndex } from './finding-aid';
 import type { FindingAidGroup } from './finding-aid';
 import './notes.css';
+import { QuestionLedger } from './QuestionLedger';
 
 interface IndexPaneProps {
   kindKey: string;
@@ -46,6 +47,7 @@ const kindReads = new WeakMap<NotebookClient, Map<string, KindIndex>>();
 export function IndexPane(props: IndexPaneProps) {
   return <Switch>
     <Match when={props.kindKey === 'all'}><IndexDirectory {...props} /></Match>
+    <Match when={props.kindKey === 'question'}><QuestionLedger notebook={props.notebook} onActivate={props.onActivate} onOpen={props.onOpen} newQuestion={members => <NewKindAction {...props} members={members} />} /></Match>
     <Match when={true}><KindIndexPane {...props} /></Match>
   </Switch>;
 }
@@ -69,7 +71,7 @@ export function IndexDirectory(props: IndexPaneProps) {
             <div class="index-directory-row">
               <Icon name={noteKindIcon(kind)} />
               <Button class="index-directory-name" onClick={event => props.onOpen(indexKindTarget(kind), event.shiftKey)}>{kind.plural}</Button>
-              <span class="index-directory-count">{tagOnly(kind) ? `${kind.tagged_block_count.toLocaleString()} tagged` : tally(kind.count, kind.key === 'source' ? 'source' : 'note')}</span>
+              <span class="index-directory-count">{tagOnly(kind) ? `${kind.tagged_block_count.toLocaleString()} tagged` : tally(kind.count, kind.key === 'source' ? 'source' : kind.key === 'question' ? 'question' : 'note')}</span>
               <Button class="index-directory-open" label={`Open ${kind.plural} ${tagOnly(kind) ? 'table' : 'index'}`} onClick={event => props.onOpen(indexKindTarget(kind), event.shiftKey)}>Open {tagOnly(kind) ? 'table' : 'index'}<Icon name="right" /></Button>
             </div>
           }</For><For each={list().spreads}>{spread =>
@@ -106,8 +108,6 @@ function KindIndexPane(props: IndexPaneProps) {
   kindReads.set(props.notebook, reads);
   const cached = reads.get(props.kindKey);
   const [index] = createResource(() => [props.kindKey, changes(), version()] as const, ([key]) => props.notebook.api.kindNotes(key).then(result => { reads.set(key, result); return result; }), cached ? { initialValue: cached } : {});
-  const [questions] = createResource(() => props.kindKey === 'question' ? [changes(), version()] as const : false, () => props.notebook.api.questions({}));
-  const questionParents = createMemo(() => new Map((questions.error ? [] : questions() ?? []).flatMap(row => row.info.parent_id ? [[row.block.block.id, row.info.parent_id] as const] : [])));
   const slow = createSlowFlag(() => !index.latest && !index.error);
   const typeId = () => props.kind?.type_id ?? (props.kindKey.startsWith('type:') ? props.kindKey.slice(5) : undefined);
   const [type] = createResource(() => typeId() ? [typeId()!, changes(), version()] as const : false, ([id]) => props.notebook.api.type(id));
@@ -270,7 +270,6 @@ function KindIndexPane(props: IndexPaneProps) {
       </Show>
       <Show when={index.error}><p class="error" role="alert">Couldn’t load this index · {String(index.error)}</p></Show>
       <Show when={readableSources.error || collectionCounts.error}><p class="error" role="alert">Couldn’t load source details · {String(readableSources.error || collectionCounts.error)}</p></Show>
-      <Show when={questions.error}><p class="error" role="alert">Couldn’t load question context · {String(questions.error)}</p></Show>
       <Show when={index.latest} fallback={<Show when={slow()}><p class="empty-state" role="status">Loading notes…</p></Show>}>
         <Switch>
           <Match when={props.kindKey === 'unfiled'}>
@@ -332,7 +331,6 @@ function KindIndexPane(props: IndexPaneProps) {
                   <input type="checkbox" class="index-select" aria-label={`Select ${entry.note.title}`} checked={picked().includes(entry.note.id)} onClick={event => toggleSelection(entry.note.id, event.shiftKey)} />
                   <button type="button" class="index-entry" onClick={event => selectOrOpen(entry.note, event)}>
                     <span class="index-entry-title">{entry.note.title}</span><Show when={preview(entry.note)}><span class="index-preview">{preview(entry.note)}</span></Show>
-                     <Show when={questionParents().get(entry.note.id)}>{parent => <span class="index-apparatus">Part of {plainText(props.notebook.lookup(parent())()?.text ?? '', lookup)}</span>}</Show>
                     <Show when={isCollection()} fallback={<Show when={summary(entry.note)}>{value => <span class="index-apparatus"><Show when={value().field}>{field => <span title={field().name}>{plainText(field().value, lookup)} · </span>}</Show>{tally(value().block_count, 'block')}</span>}</Show>}>
                       <Show when={collectionCounts.latest?.get(entry.note.id) != null}><span class="index-apparatus">{tally(collectionCounts.latest!.get(entry.note.id)!, 'source')}</span></Show>
                     </Show>
@@ -395,7 +393,7 @@ function EmptyKind(props: { kindKey: string; kind: NoteKind | undefined; noteboo
   </div>;
 }
 
-function NewKindAction(props: Pick<IndexPaneProps, 'kindKey' | 'kind' | 'notebook' | 'onOpen'> & { members?: NoteEntry[] }) {
+function NewKindAction(props: Pick<IndexPaneProps, 'kindKey' | 'kind' | 'notebook' | 'onOpen'> & { members?: { id: string }[] }) {
   const [anchor, setAnchor] = createSignal<HTMLElement>();
   const mode = () => props.kind ? startable[props.kindKey] : undefined;
   const members = createMemo(() => new Set(props.members?.map(note => note.id)));

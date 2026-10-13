@@ -11,7 +11,7 @@ import { Document } from './page-document';
 import type { DocumentHost } from './page-document';
 import { Outbox } from './outbox';
 import type { Action, Command, Compiled, NotebookCommand, PageCommand, Ticket } from './types';
-import { emptyCapabilities, isCapabilityAction, questionStatus, sameState, sourceState } from './types';
+import { emptyCapabilities, isCapabilityAction, questionState, questionStatus, sameState, sourceState } from './types';
 import { SubtreeCache } from './subtrees';
 export type { NotebookClient, PageDocument, BlockState, Caret, Edit, EditResult, SaveState } from './contract';
 
@@ -680,7 +680,7 @@ export class Notebook implements NotebookClient, DocumentHost {
             changed = !!value.spread !== action.value;
             value.spread = action.value;
           } else if (action.kind === 'question') {
-            if (!sameState(value.question?.state ?? null, action.previous)) throw new Error('Question changed. Rejected command kept.');
+            if (!sameState(questionState(value.question?.state), questionState(action.previous))) throw new Error('Question changed. Rejected command kept.');
             operations.push({ op: 'set_question', id: action.id, base_revision: block.revision, question: action.value });
             changed = !sameState(value.question?.state ?? null, action.value);
             value.question = action.value ? { state: action.value, status: questionStatus(action.value, false), parent_id: value.question?.parent_id ?? null, parent_explicit: value.question?.parent_explicit ?? false } : null;

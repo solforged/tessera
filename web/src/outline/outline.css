@@ -154,6 +154,15 @@
 .question-branch-title { flex: 1 1 var(--apparatus-width); min-width: 0; overflow-wrap: anywhere; font-family: var(--font-display); font-size: var(--text-body); }
 .question-branch .outline-question { display: inline-flex; align-items: center; gap: var(--space-4); font-size: var(--text-meta); }
 .question-branch-count { color: var(--faint); font: var(--apparatus); }
+.question-branch-reading { flex: 1 0 100%; color: var(--muted); font-family: var(--font-display); overflow-wrap: anywhere; }
+.assessment-journal-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-8); }
+.assessment-journal-entry { padding: var(--space-8) 0; border-top: var(--rule-width) solid var(--line); }
+.assessment-journal-entry p { margin: 0 0 var(--space-4); }
+.assessment-journal .assessment-journal-title { display: block; width: 100%; padding: 0; white-space: normal; text-align: left; font-family: var(--font-display); font-size: var(--text-body); overflow-wrap: anywhere; }
+.assessment-journal-citations { display: flex; flex-wrap: wrap; gap: var(--space-4) var(--space-12); margin-top: var(--space-4); }
+.assessment-journal-citations .button { padding: 0; white-space: normal; text-align: left; color: var(--muted); font-size: var(--text-meta); }
+.outline-row:has(> .assessment-journal) { flex-wrap: wrap; }
+.outline-row > .assessment-journal { flex-basis: 100%; max-width: 100%; margin: var(--space-8) 0; padding-left: var(--target-size); }
 .outline-row:has(> .question-branches) { flex-wrap: wrap; }
 .outline-row > .question-branches { flex-basis: 100%; max-width: none; margin-top: 0; padding-left: calc(var(--gutter) + var(--target-size)); }
 @container outline-pane (max-width: 856px) { .outline-row > .question-branches { padding-left: calc(3 * var(--target-size)); } }

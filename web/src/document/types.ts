@@ -34,6 +34,17 @@ export const emptyCapabilities = (id: string): BlockCapabilities => ({ block_id:
 export function questionStatus(state: QuestionState, acceptedLive: boolean): QuestionStatus {
   return state.parked ? 'parked' : state.unsettled ? 'unsettled' : acceptedLive ? 'answered' : 'open';
 }
+export function currentReading(state: QuestionState, accepted: string | null, on: string): QuestionState {
+  state = questionState(state)!;
+  if (state.accepted === accepted) return state;
+  const reading_history = [...(state.reading_history ?? [])];
+  if (state.accepted) reading_history.push({ assessment_id: state.accepted, status: accepted ? 'superseded' : 'withdrawn', on });
+  if (accepted) reading_history.push({ assessment_id: accepted, status: 'current', on });
+  return { ...state, accepted, reading_history };
+}
+export function questionState(state: QuestionState | null | undefined): QuestionState | null {
+  return state ? { ...state, reading_history: (state.reading_history ?? []).map(decision => ({ assessment_id: decision.assessment_id, status: decision.status, on: decision.on })) } : null;
+}
 export function sourceState(source: SourceState | null | undefined): SourceState | null {
   return source ? { format: source.format, state: source.state, origin: source.origin, match_key: source.match_key, citation_key: source.citation_key } : null;
 }

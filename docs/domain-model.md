@@ -275,25 +275,30 @@ An agenda takes the displayed civil date, never an implicit device date. It merg
 
 ## Investigations
 
-A question capability makes a block an enduring question with an optional review date. Criteria are blocks beneath it. An assessment capability turns any block into a dated answer to a question. At most one assessment per question is accepted. Accepting a new one supersedes the old one, which stays readable. An assessment may also record aporia, that no answer holds yet; it is dated and cites its evidence like any other.
+A question capability makes a block an enduring question with an optional revisit date. Criteria are blocks beneath it. An assessment capability turns any block into a dated reading of a question. At most one assessment per question is current. Write assessment adds a dated child block without accepting it. Assessments cite positions and passages through ordinary links and citations.
 
 A question is in one of four states:
 
 | State | Meaning |
 |---|---|
-| Open | The default: no accepted assessment yet |
-| Answered | An accepted assessment exists |
+| Active | The default: no current reading yet |
+| Answered | A current reading exists and resolution is allowed |
 | Parked | Paused; it accepts nothing new until resumed |
-| Unsettled | Open by design: it recurs or may end in aporia, collects dated assessments and returns on its review date |
+| Recurrent | Open by design, with dated assessments and a revisit date |
 
-Stored with the question are whether it is unsettled, whether it is parked, its review date and which assessment it accepts. The state is derived in this order: parked, then unsettled, then answered when an accepted assessment exists, otherwise open. Answered is never stored, so it cannot disagree with the assessments. Accepting an assessment on an unsettled question records the current reading without settling it. Resuming a parked question returns it to whatever the rest of the rule gives. Export writes the derived state as the site's `state`.
-Removing an assessment clears any question's acceptance of it in the same change. Undo restores the assessment before restoring its acceptance, so removing and restoring the question never carries a pointer to an absent answer. A parked question may withdraw its current acceptance but cannot accept a new answer until resumed.
+Stored with the question are whether it is recurrent (`unsettled`), whether it is parked, its review date, its current assessment and its reading history. State is derived in this order: parked, recurrent, answered when a live accepted assessment exists, otherwise active. Accept current reading on a recurrent question records a reading without resolving it. Make recurrent keeps it open. Allow resolution lets a current reading answer it. Park stops it coming back. Resume returns it to its derived state.
+
+Accept current reading records a dated decision. Accepting another assessment records that the earlier reading was superseded on that date. Withdraw current reading clears the pointer and records its withdrawal date. The block, text and citations stay. Decisions live in the question's existing JSON state, with defaults for older notebooks. Each change uses the ordinary revision-checked, undoable capability operation; undo restores the previous pointer and history together. Sync uses the same later-change-wins rule as other capabilities.
+
+Remove assessment remains a separate destructive action: it removes the assessment capability, not its text, and clears acceptance in the same change. Undo restores the assessment before restoring acceptance. Removing and restoring a question with a current reading, including a parked question, restores its state and history. A parked question may withdraw its current reading but cannot accept a new one until resumed.
 
 A question may name another question as its parent through a pointer in its question state. Set parent question changes it as one undoable edit. Plain “Part of” prose stays ordinary text and never sets a relation.
 
 The effective parent is the explicit parent while that block is live and still a question, otherwise the nearest ancestor question. This includes inline questions. Removing or deleting the parent leaves the stored pointer untouched; the relation returns when the parent returns. A new parent must be a live question, not the question itself, and must not create a cycle through explicit or structural parents. Undo preserves a restored question's existing pointer while its parent is absent.
 
-Branches are questions whose effective parent is this question, including question pages and inline questions. The questions read filters by parent ID without searching text, and reports each branch's state and the number of active positions filed under it.
+Branches are questions whose effective parent is this question, including question pages and inline questions. Add branch question creates a child question; its parent comes from its place. A question opens with branches before its body, showing state, reading count, current reading and revisit date. Branches do not repeat in ordinary backlinks.
+
+The Questions ledger groups questions by their top-level program, includes inline questions with their containing page, and counts both. Active includes active and recurrent questions. Recurrent, Due, Answered and Parked select their corresponding states; Due means a non-parked question whose revisit date has arrived. All includes every visible question. Rows report their current assessment's date and first line, derived from the live assessment rather than copied text.
 
 ## Sources, passages and positions
 
@@ -531,7 +536,7 @@ Events are a likely future built-in kind; the notebook's own types cover them un
 
 ### State
 
-A note is working or resolved. Working is the default and is not stored. Resolve records that you stand behind the note as written. Reopen returns it to working. Editing a resolved note does not reopen it; its apparatus shows when it changed after resolution.
+A note is working or resolved. Working is the default and is not stored. Resolve records that you stand behind the note as written; Reopen returns it to working. Editing a resolved note does not reopen it. The note's apparatus shows that it changed after resolution.
 
 ### Revisits
 

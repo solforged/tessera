@@ -38,15 +38,7 @@ impl Notebook {
     /// An unset notebook uses the service host's local zone, discovered by
     /// Jiff from the operating system. Jiff falls back to UTC if unavailable.
     fn time_zone(&self) -> Result<TimeZone> {
-        let name: Option<String> = self
-            .conn
-            .prepare_cached("SELECT value FROM settings WHERE key = 'time_zone'")?
-            .query_row([], |row| row.get(0))
-            .optional()?;
-        match name {
-            Some(name) => TimeZone::get(&name).map_err(|error| validation(error.to_string())),
-            None => Ok(TimeZone::system()),
-        }
+        time_zone(&self.conn)
     }
 
     /// Calendar date in the notebook zone at a Unix millisecond timestamp.
@@ -62,6 +54,21 @@ impl Notebook {
             today: date_in_zone(now_ms, zone)?,
         })
     }
+}
+
+fn time_zone(conn: &rusqlite::Connection) -> Result<TimeZone> {
+    let name: Option<String> = conn
+        .prepare_cached("SELECT value FROM settings WHERE key = 'time_zone'")?
+        .query_row([], |row| row.get(0))
+        .optional()?;
+    match name {
+        Some(name) => TimeZone::get(&name).map_err(|error| validation(error.to_string())),
+        None => Ok(TimeZone::system()),
+    }
+}
+
+pub(crate) fn today_in_connection(conn: &rusqlite::Connection, now_ms: i64) -> Result<String> {
+    date_in_zone(now_ms, time_zone(conn)?)
 }
 
 fn date_in_zone(now_ms: i64, zone: TimeZone) -> Result<String> {

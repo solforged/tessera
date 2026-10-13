@@ -18,6 +18,7 @@ Rows stay on one line, with the name left and a bare mono count right:
 | Kind | Count and appearance |
 | --- | --- |
 | Note kind | Titled notes. |
+| Questions | Visible question blocks, including inline questions. |
 | Tag-only type | Tagged blocks, with a tag glyph. |
 | Empty built-in kind | `--faint`, with no count. |
 
@@ -39,8 +40,6 @@ Titles sit under rubric letters with a hairline and a distinct-note count:
 
 Each note shows two lines of its existing Gloss, else its first non-field prose block, then one populated template field and the live descendant-block count in mono. The Collections finding aid instead shows its member-source count in mono, using the same Library collection query as the collection cards. A title without prose has no empty preview. The batched index read derives ordinary note apparatus from existing data, including field entries, values and headings in block counts.
 
-The Questions finding aid shows a branch's effective parent as a quiet Part of line beneath its preview. This context comes from the question relation, never from the prose.
-
 Only populated jump letters appear, and only with Letter grouping. On the touch cover they sit above bottom navigation, with the selected letter on the shared gilt tab rule and compact inline initials in the list. Sort as, diacritic folding, `#` last and alias cross-references retain their filing rules. A title opens its note; a coarse pointer at least 900 px wide opens it beside.
 
 Below the mode tabs, `Find in Concepts…` (using the kind's plural) matches plain words against title or Gloss. `links:`, `from:` and `cites:` resolve titles and aliases; `cites:` also resolves source sigla and citation keys. Quote a multiword value, for example `links:"Three generations of a dynasty"`. Names complete after the colon. Enter, a closing quote or leaving the input resolves each term to a removable table-style chip; unresolved names show `No note named “X”`. All terms and field filters intersect. `cites:` includes passage citations of any of the source's snapshots and any reference to its source page.
@@ -51,7 +50,13 @@ Save as view… keeps the query, layout and grouping in the existing view store.
 
 Index rows reveal a checkbox on hover or focus. Cmd/Ctrl-click toggles a note; Shift-click extends from the selection anchor. The bar shows `N selected` and Clear, plus Spread when the shell provides it. Spread accepts two to five notes and Shift opens it beside. Selection counts distinct notes even when a note occurs under several headings.
 
-`is:`, `revisit:` and State grouping are not implemented: they await the note capability.
+`is:`, `revisit:` and State grouping are not implemented yet.
+
+### Questions ledger
+
+Questions opens a ledger rather than the alphabetical finding aid. Its ruled tabs are Active, Recurrent, Due, Answered, Parked and All. Active includes questions that are active or recurrent; Due selects non-parked questions whose revisit date has arrived. Each tab reads the same state filter from `/api/questions`.
+
+Questions are grouped by their top-level program, with branches below it. Inline questions show their containing page and open their original block. The tally and sidebar count include inline questions. Each row shows state, reading count, current assessment's first line and date, or No current reading, then the next revisit date. No progress percentage is shown.
 
 ## Empty kinds
 

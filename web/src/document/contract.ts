@@ -150,6 +150,9 @@ export type Edit =
   /** Capture or update frozen rows; optional text replaces the picker query in the same undo step. */
   | { kind: 'quote'; id: string; value: QuoteState | null; text?: string }
   | { kind: 'assessment'; id: string; value: AssessmentState | null }
+  /** Insert a dated assessment or a structurally parented branch in one undo step. */
+  | { kind: 'writeAssessment'; parentId: string; assessedOn: string }
+  | { kind: 'addBranchQuestion'; parentId: string }
   | { kind: 'startWork'; id: string; startedAt: number }
   | { kind: 'stopWork'; id: string; session: WorkSession; endedAt: number; note: string }
   | { kind: 'workNote'; id: string; session: WorkSession; note: string }

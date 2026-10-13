@@ -23,7 +23,7 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
   let relatedRequests: AbortController | undefined;
   let countRequest: AbortController | undefined;
   const relatedVersion = createSettledChanges(props.notebook);
-  const version = () => `${props.pageId}:${relatedVersion()}:${props.notebook.connection() === 'live'}:${isVirtualJournal(doc.root())}`;
+  const version = () => `${props.pageId}:${relatedVersion()}:${props.notebook.connection() === 'live'}:${isVirtualJournal(doc.root())}:${!!doc.root()?.question}`;
   onCleanup(() => { relatedRequests?.abort(); countRequest?.abort(); });
   const [counts] = createResource(version, async () => {
     countRequest?.abort();
@@ -35,20 +35,22 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
     relatedRequests?.abort();
     const requests = relatedRequests = new AbortController();
     const sourcePage = !!doc.root()?.source;
-    const [references, tagged, held, about, passages] = await Promise.all([
+    const [references, tagged, held, about, passages, branches] = await Promise.all([
       readJournalRelated(api.pageReferences(props.pageId, sourcePage ? Number.MAX_SAFE_INTEGER : limit(), requests.signal), doc.root(), { total: 0, groups: [] }),
       api.members(props.pageId, undefined, requests.signal),
       api.positions({ holder: props.pageId }, requests.signal),
       api.positions({ subject: props.pageId }, requests.signal),
       sourcePage ? api.highlights({ source_id: props.pageId, limit: Number.MAX_SAFE_INTEGER }, requests.signal) : undefined,
+      doc.root()?.question ? api.questions({ parent: props.pageId }, requests.signal) : Promise.resolve([]),
     ]);
     // A position links its holder and often its subject, so it shows once, as a perspective, not again as a backlink.
     const positions = new Set([...held.rows, ...about.rows].map(row => row.block.block.id));
+    const branchIds = new Set(branches.map(row => row.block.block.id));
     const rootLinks = references.groups.flatMap(group => group.sources.filter(row => row.targets.includes(props.pageId)).map(row => ({ source: row.source, page: group.page })));
     const works = await loadWorks(api, props.pageId, rootLinks, requests.signal);
     let filtered = 0;
     let backlinks = references.groups.map(group => ({ ...group, sources: group.sources.filter(row => {
-      if (sourcePage || !positions.has(row.source.id) && !works.creatorLinks.has(row.source.id)) return true;
+      if (sourcePage || !positions.has(row.source.id) && !works.creatorLinks.has(row.source.id) && !branchIds.has(row.source.id) && !branchIds.has(group.page.id)) return true;
       filtered++;
       return false;
     }) })).filter(group => group.sources.length);

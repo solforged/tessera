@@ -72,8 +72,8 @@ pub use capabilities::{
     TaskSelection, TaskSort, TaskState, TaskStatus, TaskView, WorkSession,
 };
 pub use capabilities::{
-    AssessmentInfo, AssessmentState, QuestionInfo, QuestionQuery, QuestionRow, QuestionState,
-    QuestionStatus,
+    AssessmentInfo, AssessmentState, CurrentReading, QuestionFilter, QuestionInfo, QuestionQuery,
+    QuestionRow, QuestionState, QuestionStatus, ReadingDecision, ReadingStatus,
 };
 pub use capabilities::{RelationEndpoint, RelationInfo, RelationKind, RelationQuery, RelationRow};
 pub use card_templates::{

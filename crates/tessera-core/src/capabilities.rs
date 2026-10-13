@@ -94,12 +94,74 @@ pub struct QuestionState {
     pub accepted: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parent: Option<String>,
+    #[serde(default)]
+    pub reading_history: Vec<ReadingDecision>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AssessmentState {
     pub assessed_on: String,
     pub aporia: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReadingStatus {
+    Current,
+    Superseded,
+    Withdrawn,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReadingDecision {
+    pub assessment_id: String,
+    pub status: ReadingStatus,
+    pub on: String,
+}
+
+impl QuestionState {
+    pub fn with_current_reading(mut self, assessment_id: Option<String>, on: String) -> Self {
+        if self.accepted == assessment_id {
+            return self;
+        }
+        if let Some(previous) = &self.accepted {
+            self.reading_history.push(ReadingDecision {
+                assessment_id: previous.clone(),
+                status: if assessment_id.is_some() {
+                    ReadingStatus::Superseded
+                } else {
+                    ReadingStatus::Withdrawn
+                },
+                on: on.clone(),
+            });
+        }
+        if let Some(current) = &assessment_id {
+            self.reading_history.push(ReadingDecision {
+                assessment_id: current.clone(),
+                status: ReadingStatus::Current,
+                on,
+            });
+        }
+        self.accepted = assessment_id;
+        self
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum QuestionFilter {
+    Active,
+    Recurrent,
+    Due,
+    Answered,
+    Parked,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CurrentReading {
+    pub id: String,
+    pub assessed_on: String,
+    pub text: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -124,6 +186,8 @@ pub struct QuestionQuery {
     pub status: Option<QuestionStatus>,
     pub review_by: Option<String>,
     pub parent: Option<String>,
+    pub state: Option<QuestionFilter>,
+    pub include_inline: Option<bool>,
     pub limit: Option<u32>,
 }
 
@@ -133,6 +197,8 @@ pub struct QuestionRow {
     pub info: QuestionInfo,
     #[serde(default)]
     pub position_count: usize,
+    pub current: Option<CurrentReading>,
+    pub review_on: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

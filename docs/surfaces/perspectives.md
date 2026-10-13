@@ -116,13 +116,13 @@ A target shows one quiet line beneath its row: Supported by, Disputed by, Qualif
 
 ### Authoring
 
-Make question and Make answer, in the block menu, the palette and `/question` or `/answer`, mark a block as a question or as an answer beneath one. A titled page can be a question from its page menu. A question reads in Piazzolla.
+Make question and Make assessment, in the block menu, palette and slash menu, mark a block as a question or a dated assessment beneath one. A titled page can be a question from its page menu. Write assessment on a question adds a dated child and places the caret in it as one undoable change. Add branch question adds a child question, whose parent comes from its place.
 
 Set parent question… is available for a question block in its menu, the palette and slash commands, including a question page's root. The picker offers only questions, with their containing page as context, and leaves out the question and its branches. Choosing one is one undoable change.
 
 A question's title area or inline row shows a quiet Part of line that opens its effective parent. An explicit parent offers Change parent… and Remove parent; a structural parent has no Remove action. Both the line and its actions wrap on a phone.
 
-A question page lists its direct Branches after its gloss and opening, before Perspectives. Each opens the original question and shows its question-state styling and position count, without progress percentages. Inline branches appear alongside question pages. The list wraps on a phone.
+A question page opens with its direct Branches before its body in Read and Outline. Each opens the original question and shows state, reading count, current assessment's first line and date, or No current reading, and its revisit date. Inline branches appear alongside question pages. Branches do not repeat in backlinks. The list wraps on a phone.
 
 ### Question states
 
@@ -130,16 +130,17 @@ The state control sits in the capability metadata with the question glyph and it
 
 | State | Color or token | Glyph |
 | --- | --- | --- |
-| Open | Gilt | Question glyph |
-| Unsettled | `--agree` | Question glyph |
+| Active | Gilt | Question glyph |
+| Recurrent | `--agree` | Question glyph |
 | Answered | `--status-done` | Settled glyph |
 | Parked | `--faint` | Question glyph |
 
-Clicking the state control opens the question menu: Park or Resume, Keep open or Let it settle, Set review date and Remove question.
+The question menu uses Park or Resume, Make recurrent or Allow resolution, Write assessment, Withdraw current reading and Add branch question. Menu, palette and slash show the resulting state beneath each verb. Disabled actions show their reason without hover. The revisit-date picker remains alongside them.
 
-### Answer labels and unavailable commands
+### Decision journal
 
-An answer shows `Answer 2026-10-06`, or `Accepted` in gilt once its question accepts it, and `Aporia` when it records that no answer holds.
-Remove answer removes the answer capability, not its text, and clears acceptance in the same undoable change. Undo restores both the dated answer and its acceptance.
+The question's Decision journal lists its assessments newest first. Each shows its assessment date, status, first line, linked positions and cited passages. Current reading is explicit; earlier entries say Superseded on or Withdrawn on with the decision date. An unaccepted assessment reads Not accepted alongside its date. Aporia stays a separate mark.
 
-Commands that cannot apply stay listed with their reason, such as "Resume the question before accepting an answer."
+Accept current reading chooses one assessment. Accepting another keeps both and records the supersession date. Withdraw current reading keeps the assessment, text and citations. Each transition is one undoable change and survives a reload. Two assessments a month apart show what each cites, without an automatic diff.
+
+Remove assessment is a separate destructive menu item. Its visible explanation says that it removes the date and assessment state, not the text, and clears acceptance. Undo restores both. A parked question's unavailable Write assessment and acceptance actions say to resume it first.

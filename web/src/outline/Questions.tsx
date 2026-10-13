@@ -1,6 +1,6 @@
 import { createMemo, createResource, createSignal, For, Show } from 'solid-js';
 import type { QuestionInfo, QuestionRow, QuestionStatus } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { NotebookClient, PageDocument } from '../document/contract';
 import type { OpenTarget } from '../shell/contract';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
@@ -8,8 +8,9 @@ import { Picker } from '../ui/Picker';
 import type { PopupAnchor } from '../ui/Popup';
 import { BlockText } from './BlockText';
 import { foldName, plainText } from './names';
+import { isStableReference, textTokens } from '../document/text-tokens';
 
-export const questionLabels: Record<QuestionStatus, string> = { open: 'Open', answered: 'Answered', parked: 'Parked', unsettled: 'Unsettled' };
+export const questionLabels: Record<QuestionStatus, string> = { open: 'Active', answered: 'Answered', parked: 'Parked', unsettled: 'Recurrent' };
 
 export function QuestionParent(props: { info: QuestionInfo | null | undefined; notebook: NotebookClient; onOpen(target: OpenTarget, beside: boolean): void; onChange(anchor: HTMLElement): void; onRemove(): void; disabled: boolean }) {
   const parent = createMemo(() => props.info?.parent_id ? props.notebook.lookup(props.info.parent_id)() : null);
@@ -57,7 +58,51 @@ export function QuestionBranches(props: { rows: QuestionRow[]; notebook: Noteboo
     <h3>Branches</h3><For each={props.rows}>{row => <Button class="question-branch" onClick={event => props.onOpen({ kind: 'page', pageId: row.block.page.id, blockId: row.block.block.kind === 'block' ? row.block.block.id : undefined }, event.shiftKey)}>
       <span class="question-branch-title"><BlockText text={row.block.block.text} notebook={props.notebook} interactive={false} /></span>
       <span class="outline-question" data-question-status={row.info.status}><Icon name={row.info.status === 'answered' ? 'question-settled' : 'question-open'} />{questionLabels[row.info.status]}</span>
-      <span class="question-branch-count">{row.position_count} {row.position_count === 1 ? 'position' : 'positions'}</span>
+      <span class="question-branch-count">{row.position_count} {row.position_count === 1 ? 'reading' : 'readings'}</span>
+      <span class="question-branch-reading"><Show when={row.current} fallback="No current reading">{current => <><BlockText text={current().text} notebook={props.notebook} interactive={false} /><span class="question-branch-count"> · {current().assessed_on}</span></>}</Show></span>
+      <span class="question-branch-count">Revisit {row.review_on ?? 'not set'}</span>
     </Button>}</For>
   </section></Show>;
+}
+
+export function AssessmentJournal(props: { questionId: string; doc: PageDocument; notebook: NotebookClient; onOpen(target: OpenTarget, beside: boolean): void; onWrite(): void }) {
+  const rows = createMemo(() => {
+    props.doc.outline.version();
+    const result = [];
+    for (let index = 0; index < props.doc.outline.size(); index++) {
+      const block = props.doc.block(props.doc.outline.idAt(index));
+      if (block?.assessment?.question_id === props.questionId) result.push(block);
+    }
+    return result.sort((a, b) => b.assessment!.state.assessed_on.localeCompare(a.assessment!.state.assessed_on) || b.id.localeCompare(a.id));
+  });
+  const status = (id: string, accepted: boolean) => {
+    if (accepted) return 'Current reading';
+    const history = props.doc.block(props.questionId)?.question?.state.reading_history ?? [];
+    let decision;
+    for (let index = history.length - 1; index >= 0; index--) if (history[index]!.assessment_id === id) { decision = history[index]; break; }
+    return decision?.status === 'superseded' ? `Superseded on ${decision.on}` : decision?.status === 'withdrawn' ? `Withdrawn on ${decision.on}` : 'Not accepted';
+  };
+  const citations = (id: string) => {
+    const links: { id: string; text: string }[] = [];
+    const visit = (blockId: string) => {
+      const block = props.doc.block(blockId);
+      if (!block || (blockId !== id && (block.question || block.assessment))) return;
+      for (const token of textTokens(block.text)) if (isStableReference(token) && !links.some(link => link.id === token.id)) links.push({ id: token.id!, text: token.value });
+      for (const citation of block.citations) links.push({ id: blockId, text: `${props.notebook.lookup(citation.source_id)()?.text ?? 'Passage'} · ${citation.locator || `¶${citation.ordinal + 1}`}` });
+      for (const child of props.doc.outline.children(blockId)) visit(child);
+    };
+    visit(id);
+    return links;
+  };
+  return <section class="assessment-journal question-branches" aria-label="Decision journal" onMouseDown={event => event.stopPropagation()}>
+    <div class="assessment-journal-head"><h3>Decision journal</h3><Button disabled={props.doc.block(props.questionId)?.question?.state.parked} onClick={props.onWrite}>Write assessment</Button></div>
+    <Show when={props.doc.block(props.questionId)?.question?.state.parked}><p class="question-branch-count">Resume the question before writing an assessment.</p></Show>
+    <Show when={rows().length} fallback={<p class="question-branch-count">No assessments yet.</p>}>
+      <For each={rows()}>{block => <article class="assessment-journal-entry" data-assessment-id={block.id}>
+        <p class="question-branch-count">{block.assessment!.state.assessed_on} · {status(block.id, block.assessment!.accepted)}<Show when={block.assessment!.state.aporia}> · Aporia</Show></p>
+        <Button class="assessment-journal-title" onClick={event => props.onOpen({ kind: 'page', pageId: props.doc.pageId, blockId: block.id }, event.shiftKey)}><BlockText text={block.text.split('\n')[0] ?? ''} notebook={props.notebook} interactive={false} /></Button>
+        <div class="assessment-journal-citations"><For each={citations(block.id)}>{link => <Button onClick={event => { const target = props.notebook.lookup(link.id)(); if (target) props.onOpen({ kind: 'page', pageId: target.page_id, blockId: target.kind === 'block' ? target.id : undefined }, event.shiftKey); }}><BlockText text={link.text} notebook={props.notebook} interactive={false} /></Button>}</For></div>
+      </article>}</For>
+    </Show>
+  </section>;
 }

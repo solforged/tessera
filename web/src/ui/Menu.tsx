@@ -14,6 +14,7 @@ export interface MenuItem {
   /** A single key that runs the item while the menu has focus, as in a leader menu. */
   key?: string;
   disabledReason?: string;
+  secondary?: string;
   danger?: boolean;
   /** The current choice in a set; drawn as a trailing check so the leading icon can name the choice. */
   checked?: boolean;
@@ -38,7 +39,7 @@ export function Menu(props: { anchor: PopupAnchor; label: string; items: MenuIte
     }}>
       {props.header}
       <For each={props.items}>{(item, index) => <>{item.section && item.section !== props.items[index() - 1]?.section && <div class="menu-section">{item.section}</div>}<button type="button" role={item.checked === undefined ? 'menuitem' : 'menuitemradio'} aria-checked={item.checked} class={`menu-item ${item.danger ? 'danger' : ''}`} aria-disabled={!!item.disabledReason} aria-describedby={item.disabledReason ? `${reasonId}-${index()}` : undefined} title={item.disabledReason} onClick={event => { if (item.disabledReason) return; props.onDismiss(); item.action(event); }}>
-        {item.icon ? <Icon name={item.icon} /> : iconed() ? <span class="icon" /> : null}<span class="menu-label">{item.label}{item.disabledReason && <span class="menu-disabled-reason" id={`${reasonId}-${index()}`}>{item.disabledReason}</span>}</span>{item.shortcut && <kbd>{item.shortcut}</kbd>}{item.checked && <Icon name="check" class="menu-check" />}
+        {item.icon ? <Icon name={item.icon} /> : iconed() ? <span class="icon" /> : null}<span class="menu-label">{item.label}{(item.disabledReason || item.secondary) && <span class="menu-disabled-reason" id={`${reasonId}-${index()}`}>{item.disabledReason || item.secondary}</span>}</span>{item.shortcut && <kbd>{item.shortcut}</kbd>}{item.checked && <Icon name="check" class="menu-check" />}
       </button></>}</For>
     </div>
   </Popup>;

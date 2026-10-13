@@ -8,7 +8,7 @@ import type { Batch, Block, BlockCapabilities, Committed, PageView, TextRewrite,
 import type { BlockClipboard, BlockState, Caret, DocumentChange, Edit, EditResult, HistoryCaret, PageDocument, SaveState, SourceDetailsEdit, TextRange } from './contract';
 import { OutlineIndex } from './outline-index';
 import type { Action, Command, HistoryEntry, PageCommand, Snapshot } from './types';
-import { emptyCapabilities, isCapabilityAction, questionStatus, sameState, sourceState } from './types';
+import { currentReading, emptyCapabilities, isCapabilityAction, questionState, questionStatus, sameState, sourceState } from './types';
 import { parseCardText } from '../review/card-text';
 import { isStableReference, quoteTarget, textTokens } from './text-tokens';
 import { newTask } from '../tasks/quick-date';
@@ -18,6 +18,7 @@ import { fieldEntryId } from '../table/query';
 
 export interface DocumentHost {
   ready: Promise<void>;
+  todayDate(): string;
   commands(pageId: string): PageCommand[];
   loadPage(id: string): Promise<PageView>;
   cachePage(view: PageView): void;
@@ -1321,12 +1322,27 @@ export class Document implements PageDocument {
           if (previous !== edit.value) actions.push({ ...edit, previous, baseRevision: block.revision });
           break;
         }
+        case 'writeAssessment':
+        case 'addBranchQuestion': {
+          const question = this.block(edit.parentId)?.question;
+          if (!question) throw new Error('Select a question.');
+          if (edit.kind === 'writeAssessment' && question.state.parked) throw new Error('Resume the question before writing an assessment.');
+          const id = insert(edit.parentId, this.outline.children(edit.parentId).at(-1) ?? null, '');
+          if (edit.kind === 'writeAssessment') actions.push({ kind: 'assessment', id, value: { assessed_on: edit.assessedOn, aporia: false }, previous: null, baseRevision: 0 });
+          else actions.push({ kind: 'question', id, value: { unsettled: false, parked: false, accepted: null, review_on: null, reading_history: [] }, previous: null, baseRevision: 0 });
+          caret = { id, offset: 0 };
+          break;
+        }
         case 'question': {
-          const previous = this.capabilities(edit.id).question?.state ?? null;
+          const previous = questionState(this.capabilities(edit.id).question?.state);
+          let value = questionState(edit.value);
+          if (previous && value && previous.accepted !== value.accepted && sameState(previous.reading_history, value.reading_history)) {
+            value = currentReading({ ...value, accepted: previous.accepted }, value.accepted, this.host.todayDate());
+          }
           if (edit.value && this.block(edit.id)?.relation) throw new Error('Remove the relation first.');
           if (edit.value && this.block(edit.id)?.assessment) throw new Error('A block cannot be both a question and an answer.');
-          if ((previous?.parked || edit.value?.parked) && (previous?.accepted ?? null) !== (edit.value?.accepted ?? null) && (!edit.value || edit.value.accepted)) throw new Error('Resume the question before accepting an answer.');
-          if (!sameState(previous, edit.value)) actions.push({ ...edit, value: structuredClone(edit.value), previous, baseRevision: this.snapshot(edit.id).revision });
+          if ((previous?.parked || edit.value?.parked) && (previous?.accepted ?? null) !== (edit.value?.accepted ?? null) && edit.value?.accepted) throw new Error('Resume the question before accepting a reading.');
+          if (!sameState(previous, value)) actions.push({ ...edit, value: structuredClone(value), previous, baseRevision: this.snapshot(edit.id).revision });
           break;
         }
         case 'quote': {
@@ -1352,7 +1368,7 @@ export class Document implements PageDocument {
           if (!edit.value && previous) {
             for (const ownerId of this.investigationIds) {
               const question = this.capabilities(ownerId).question?.state;
-              if (question?.accepted === edit.id) actions.push({ kind: 'question', id: ownerId, value: { ...question, accepted: null }, previous: question, baseRevision: this.snapshot(ownerId).revision });
+              if (question?.accepted === edit.id) actions.push({ kind: 'question', id: ownerId, value: currentReading(question, null, this.host.todayDate()), previous: questionState(question), baseRevision: this.snapshot(ownerId).revision });
             }
           }
           if (!sameState(previous, edit.value)) actions.push({ ...edit, value: structuredClone(edit.value), previous, baseRevision: this.snapshot(edit.id).revision });

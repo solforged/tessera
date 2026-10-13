@@ -376,12 +376,16 @@ export interface RelationQuery { kind?: RelationKind; source?: string; target?: 
 export interface RelationEndpoint { block: BlockInPage; holder_id: string | null }
 export interface RelationRow { block: BlockInPage; kind: RelationKind; source: RelationEndpoint; target: RelationEndpoint | null; problem: string | null }
 export type QuestionStatus = 'open' | 'answered' | 'parked' | 'unsettled';
-export interface QuestionState { unsettled: boolean; parked: boolean; review_on: string | null; accepted: string | null; parent?: string | null }
+export type ReadingStatus = 'current' | 'superseded' | 'withdrawn';
+export interface ReadingDecision { assessment_id: string; status: ReadingStatus; on: string }
+export interface QuestionState { unsettled: boolean; parked: boolean; review_on: string | null; accepted: string | null; parent?: string | null; reading_history?: ReadingDecision[] }
 export interface AssessmentState { assessed_on: string; aporia: boolean }
 export interface QuestionInfo { state: QuestionState; status: QuestionStatus; parent_id: string | null; parent_explicit: boolean }
 export interface AssessmentInfo { state: AssessmentState; question_id: string | null; accepted: boolean }
-export interface QuestionQuery { status?: QuestionStatus; review_by?: string; parent?: string; limit?: number }
-export interface QuestionRow { block: BlockInPage; info: QuestionInfo; position_count: number }
+export type QuestionFilter = 'active' | 'recurrent' | 'due' | 'answered' | 'parked';
+export interface QuestionQuery { status?: QuestionStatus; review_by?: string; parent?: string; limit?: number; state?: QuestionFilter; include_inline?: boolean }
+export interface CurrentReading { id: string; assessed_on: string; text: string }
+export interface QuestionRow { block: BlockInPage; info: QuestionInfo; position_count: number; current: CurrentReading | null; review_on: string | null }
 export interface QuotedRow { id: string; depth: number; text: string; heading: number | null; revision: number }
 export interface QuoteState { target_id: string; captured_at: number; rows: QuotedRow[]; truncated: boolean }
 export interface Subtree { rows: Row[]; truncated: boolean }

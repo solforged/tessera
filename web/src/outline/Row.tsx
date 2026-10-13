@@ -26,7 +26,7 @@ import { KeptCopyActions, KeptCopyLabel } from './KeptCopy';
 import { quoteTarget, textTokens } from '../document/text-tokens';
 import { Quote, createQuoteStatus } from './Quote';
 import { relationLabels } from './relations';
-import { QuestionParent, questionLabels } from './Questions';
+import { AssessmentJournal, QuestionParent, questionLabels } from './Questions';
 import { Embed } from './Embed';
 import { embedTarget } from './streams';
 
@@ -97,15 +97,15 @@ export function createOutlineRows(context: Pick<OutlineContext,
     return <Show when={doc.block(propsQuestion.id)?.question}>{question => <Button class="outline-planning outline-question" data-question-status={question().status} label="Question" aria-haspopup="menu" disabled={capabilities.busy(propsQuestion.id)}
       onClick={event => setMenu({ anchor: event.currentTarget, label: 'Question', items: investigationItems(propsQuestion.id) })}>
       <Icon name={question().status === 'answered' ? 'question-settled' : 'question-open'} />{questionLabels[question().status]}
-      <Show when={question().state.review_on}>{date => <span>Review {date()}</span>}</Show>
+      <Show when={question().state.review_on}>{date => <span>Revisit {date()}</span>}</Show>
     </Button>}</Show>;
   }
 
-  /** An answer's date, whether its question accepted it, and aporia when it records that no answer holds. */
+  /** An assessment's date, whether it is current, and any authored aporia. */
   function AnswerSummary(propsAnswer: { id: string }) {
-    return <Show when={doc.block(propsAnswer.id)?.assessment}>{answer => <Button class="outline-planning outline-answer" data-accepted={String(answer().accepted)} label="Answer" aria-haspopup="menu" disabled={capabilities.busy(propsAnswer.id)}
-      onClick={event => setMenu({ anchor: event.currentTarget, label: 'Answer', items: investigationItems(propsAnswer.id) })}>
-      {answer().accepted ? 'Accepted' : 'Answer'} {answer().state.assessed_on}<Show when={answer().state.aporia}><span>Aporia</span></Show>
+    return <Show when={doc.block(propsAnswer.id)?.assessment}>{answer => <Button class="outline-planning outline-answer" data-accepted={String(answer().accepted)} label="Assessment" aria-haspopup="menu" disabled={capabilities.busy(propsAnswer.id)}
+      onClick={event => setMenu({ anchor: event.currentTarget, label: 'Assessment', items: investigationItems(propsAnswer.id) })}>
+      {answer().accepted ? 'Current reading' : 'Assessment'} {answer().state.assessed_on}<Show when={answer().state.aporia}><span>Aporia</span></Show>
     </Button>}</Show>;
   }
 
@@ -237,6 +237,8 @@ export function createOutlineRows(context: Pick<OutlineContext,
         </div>
         <QuestionParent info={block()?.question} notebook={props.notebook} onOpen={props.onOpen} disabled={capabilities.busy(id())} onChange={anchor => capabilities.open(id(), 'question-parent', anchor)}
           onRemove={() => { const question = block()?.question; if (question) { const { parent: _, ...value } = question.state; capabilities.invoke(capabilities.edit(id(), { kind: 'question', id: id(), value })); } }} />
+        <Show when={block()?.question}><AssessmentJournal questionId={id()} doc={doc} notebook={props.notebook} onOpen={props.onOpen}
+          onWrite={() => apply({ kind: 'writeAssessment', parentId: id(), assessedOn: props.notebook.todayDate() }, true)} /></Show>
         <RowRelations id={id()} />
         <Show when={block()?.keptCopy}><KeptCopyActions id={id()} apply={edit => apply(edit, false)} /></Show>
         <For each={block()?.citations}>{citation => <Show when={block()?.text.trim() !== citation.quote.trim()}>

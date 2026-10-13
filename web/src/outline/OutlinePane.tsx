@@ -57,9 +57,9 @@ import type { MenuState, OutlineContext, RowRange } from './context';
 import { PageMergeConfirmation, pageMergeDisabledReason } from './PageMerge';
 import { foldName, nameMenuItems, resolveName } from './names';
 import { titleTargets, typedTitles, withLinkedTitles } from './link-titles';
-import { QuestionBranches, QuestionParent } from './Questions';
 import { createCitationSources, hasCitationDetail, referenceSource } from './references';
 import { HeldReadings } from './HeldReadings';
+import { AssessmentJournal, QuestionBranches, QuestionParent } from './Questions';
 import './outline.css';
 
 const SpreadPane = lazy(() => import('../notes/SpreadPane').then(module => ({ default: module.SpreadPane })));
@@ -360,8 +360,6 @@ function Pane(props: OutlinePaneProps) {
   const dossierFields = createMemo(() => positionZoom() ? positionFields(doc, positionZoom()!, id => definitionsById().get(id)?.name) : []);
   const [branches] = createResource(() => doc.root()?.question ? [props.pageId, props.notebook.changeSequence()] as const : false,
     ([parent]) => props.notebook.api.questions({ parent }));
-  const branchBoundary = createMemo(() => !zoom() && doc.root()?.question
-    ? ids().find(id => doc.outline.parentOf(id) === props.pageId && (doc.block(id)?.heading || doc.block(id)?.position)) : undefined);
   // Sources cited or named by positions on this page, in order of first appearance, give the sigla shown in
   // the margin. A source page's own highlights need no mark.
   const referenceSources = createCitationSources(props.notebook, () => {
@@ -1155,8 +1153,7 @@ function Pane(props: OutlinePaneProps) {
   const holderBoundary = createMemo(() => !zoom() && related()?.heldReadings.length
     ? ids().find(id => doc.outline.parentOf(id) === props.pageId && !!doc.block(id)?.heading) : undefined);
   const { Row, TaskSummary, QuestionSummary } = createOutlineRows(context, fieldSheet, drag, ReferenceCount, RowRelations, openValueEditor,
-    row => <><Show when={branchBoundary() === row.id && !branches.error}><QuestionBranches rows={branches() ?? []} notebook={props.notebook} onOpen={props.onOpen} /></Show>
-      <Show when={holderBoundary() === row.id}><HeldReadings rows={related()?.heldReadings ?? []} notebook={props.notebook} onOpen={props.onOpen} /></Show></>);
+    row => <Show when={holderBoundary() === row.id}><HeldReadings rows={related()?.heldReadings ?? []} notebook={props.notebook} onOpen={props.onOpen} /></Show>);
   const { CapabilityPopups } = createCapabilityPopups(context);
   const projectSummary = createProjectSummary({ doc, notebook: props.notebook, date: contextDate, onOpen: props.onOpen, onEdit: anchor => capabilities.open(props.pageId, 'project', anchor) });
 
@@ -1444,6 +1441,12 @@ function Pane(props: OutlinePaneProps) {
       <Show when={!zoom() && doc.root()?.spread}><SpreadPane doc={doc} notebook={props.notebook} onActivate={props.onActivate} onOpen={props.onOpen} /></Show>
     </div>
     <Show when={!zoom() && !ids().length && related()?.heldReadings.length}><HeldReadings rows={related()?.heldReadings ?? []} notebook={props.notebook} onOpen={props.onOpen} /></Show>
+    <Show when={!zoom() && doc.root()?.question}>
+      <Show when={branches.error}><p class="error" role="alert">Couldn't load branches · {String(branches.error)}</p></Show>
+      <Show when={!branches.error}><QuestionBranches rows={branches() ?? []} notebook={props.notebook} onOpen={props.onOpen} /></Show>
+      <AssessmentJournal questionId={props.pageId} doc={doc} notebook={props.notebook} onOpen={props.onOpen}
+        onWrite={() => apply({ kind: 'writeAssessment', parentId: props.pageId, assessedOn: props.notebook.todayDate() }, true)} />
+    </Show>
     <div ref={list} class="outline-list" style={{ height: `${listHeight()}px` }}>
       <Show when={drag.indicator()}>{drop => <div class="outline-drop-indicator" aria-hidden="true" data-drop-depth={drop().depth - baseDepth()} data-drop-edge={drop().edge} style={{ top: `${drop().top}px`, left: `${drop().left}px` }} />}</Show>
       <For each={foldGroups().before}>{id => <Row id={id} item={() => virtualItems().get(id)!} />}</For>
@@ -1458,10 +1461,6 @@ function Pane(props: OutlinePaneProps) {
       </div>
     </div>
     <Show when={!zoom() && ids().length && !holderBoundary() && related()?.heldReadings.length}><HeldReadings rows={related()?.heldReadings ?? []} notebook={props.notebook} onOpen={props.onOpen} /></Show>
-    <Show when={!zoom() && doc.root()?.question}>
-      <Show when={branches.error}><p class="error" role="alert">Couldn’t load branches · {String(branches.error)}</p></Show>
-      <Show when={!branchBoundary() && !branches.error}><QuestionBranches rows={branches() ?? []} notebook={props.notebook} onOpen={props.onOpen} /></Show>
-    </Show>
     <Show when={doc.root()?.source && !zoom() && filedElsewhere().length}><section class="related-sections source-elsewhere" aria-label="Filed elsewhere">
       <h3 class="outline-highlights-label">Filed elsewhere <span>{filedElsewhere().length}</span></h3>
       <For each={filedElsewhere()}>{row => <Button class="library-highlight" onClick={event => props.onOpen({ kind: 'page', pageId: row.block.page.id, blockId: row.block.block.id }, event.shiftKey)}>

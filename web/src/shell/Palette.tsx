@@ -250,7 +250,7 @@ function HitRow(props: { hit: SearchHit; query: string; notebook: NotebookClient
 
 function CommandRow(props: { command: Command; selected: boolean }) {
   return <>
-    <span class="picker-text">{props.command.title}<Show when={props.selected && props.command.disabledReason?.()}>{reason => <small class="picker-disabled-reason"> · {reason()}</small>}</Show></span>
+    <span class="picker-text">{props.command.title}<Show when={props.command.disabledReason?.() || props.command.description}>{text => <small class="picker-disabled-reason">{text()}</small>}</Show></span>
     <Show when={props.command.keys?.length}><kbd>{props.command.keys!.join(' / ')}</kbd></Show>
   </>;
 }

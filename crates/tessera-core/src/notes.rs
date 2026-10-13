@@ -163,6 +163,16 @@ impl Notebook {
             }
             listed += usize::from(!note.kinds.is_empty());
         }
+        counts[TYPE_KINDS.len()] = self
+            .conn
+            .prepare_cached(concat!(
+                hidden_blocks!(),
+                "SELECT COUNT(*) FROM questions q JOIN blocks b ON b.id = q.block_id
+             JOIN blocks p ON p.id = b.page_id WHERE q.active = 1
+             AND b.deletion_id IS NULL AND p.deletion_id IS NULL
+             AND b.rowid NOT IN (SELECT rowid FROM hidden)"
+            ))?
+            .query_row([], |row| row.get::<_, i64>(0))? as usize;
         Ok(NoteIndex {
             kinds: filing
                 .kinds

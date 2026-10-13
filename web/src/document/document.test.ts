@@ -12,7 +12,7 @@ import type { Notebook } from './index';
 import type { EditResult, NewCitation, PageDocument } from './contract';
 import type { Document } from './page-document';
 import { boundaryDeletion } from './outline-mechanics';
-import { questionStatus } from './types';
+import { currentReading, questionStatus } from './types';
 import { emptyMetadata, fillMissingSourceDetails, saveDetails, saveSourceField, sourceEntries, sourceFieldValue, sourceMetadata } from '../library/details';
 import type { SourceCreator, SourceField } from '../library/details';
 import { sourceReadingOrder } from '../library/source-order';
@@ -2539,6 +2539,52 @@ describe('durable Action and Learning document commands', () => {
     expect((await api.positions({ subject: id })).criteria).toEqual({ explicit: true, fields });
     expect(doc.root()!.revision).toBe(revision + 3);
     expect(doc.edit({ kind: 'subjectCriteria', id, fields: [], previous: fields, revision }).ok).toBe(false);
+    doc.release();
+  });
+
+  test('current reading copies stored history into a durable authored state', () => {
+    const decision = new Proxy({ assessment_id: 'first', status: 'current' as const, on: '2026-10-12' }, {});
+    const next = currentReading({ unsettled: true, parked: false, accepted: 'first', review_on: null, reading_history: [decision] }, 'second', '2026-10-19');
+    const stored = structuredClone(next);
+    expect(stored.reading_history?.map(event => event.status)).toEqual(['current', 'superseded', 'current']);
+    expect(stored.reading_history?.[1]?.on).toBe('2026-10-19');
+    expect(decision.status).toBe('current');
+  });
+
+  test('assessment capture and branch capture each undo as one authored change', async () => {
+    const instance = await client();
+    const { doc, first } = await page(instance, 'Research program');
+    success(doc.edit({ kind: 'question', id: first, value: { unsettled: false, parked: false, review_on: null, accepted: null } }));
+    await doc.flush();
+    const assessment = success(doc.edit({ kind: 'writeAssessment', parentId: first, assessedOn: '2026-10-12' })).created[0]!;
+    await doc.flush();
+    expect(doc.block(assessment)?.assessment?.state.assessed_on).toBe('2026-10-12');
+    doc.undo(); await doc.flush();
+    expect(doc.block(assessment)).toBeUndefined();
+    doc.redo(); await doc.flush();
+    expect(doc.block(assessment)?.assessment?.question_id).toBe(first);
+    const branch = success(doc.edit({ kind: 'addBranchQuestion', parentId: first })).created[0]!;
+    await doc.flush();
+    expect(doc.block(branch)?.question?.parent_id).toBe(first);
+    doc.undo(); await doc.flush();
+    expect(doc.block(branch)).toBeUndefined();
+    doc.redo(); await doc.flush();
+    expect(doc.block(branch)?.question?.parent_id).toBe(first);
+    const question = doc.block(first)!.question!.state;
+    success(doc.edit({ kind: 'question', id: first, value: currentReading(question, assessment, '2026-10-12') }));
+    await doc.flush();
+    success(doc.edit({ kind: 'assessment', id: assessment, value: null }));
+    await doc.flush();
+    expect(doc.block(first)?.question?.state.accepted).toBeNull();
+    doc.undo(); await doc.flush();
+    expect(doc.block(first)?.question?.state.accepted).toBe(assessment);
+    success(doc.edit({ kind: 'question', id: first, value: null }));
+    await doc.flush();
+    doc.undo(); await doc.flush();
+    expect(doc.block(first)?.question?.state.accepted).toBe(assessment);
+    expect((await api.questions({ state: 'answered', include_inline: true })).some(row => row.block.block.id === first)).toBe(true);
+    expect((await api.questions({ state: 'active' })).some(row => row.block.block.id === first)).toBe(false);
+    expect((await api.questions({ include_inline: false })).some(row => row.block.block.id === first)).toBe(false);
     doc.release();
   });
 

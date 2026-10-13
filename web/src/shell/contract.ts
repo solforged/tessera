@@ -27,6 +27,7 @@ export const depthLabels: Record<Depth, string> = { gloss: 'Gloss', opening: 'Op
 export interface Command {
   id: string;
   title: string;
+  description?: string;
   section: 'Go to' | 'Navigation' | 'Outline' | 'Block' | 'Editing' | 'Vim' | 'Page' | 'View';
   keys?: string[];
   /** Why it cannot run now; shown in the palette. Undefined when enabled. */

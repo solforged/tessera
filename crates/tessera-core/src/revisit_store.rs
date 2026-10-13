@@ -189,6 +189,7 @@ pub(crate) fn apply(conn: &Connection, operation: &Operation, now: i64, seq: i64
                         base_revision: 0,
                         question: Some(question.clone()),
                     },
+                    &crate::settings::today_in_connection(conn, now)?,
                 )?;
             }
             if let Some(event_id) = event_id {
@@ -226,6 +227,7 @@ pub(crate) fn apply(conn: &Connection, operation: &Operation, now: i64, seq: i64
                     base_revision: 0,
                     question: state.question.clone(),
                 },
+                &crate::settings::today_in_connection(conn, now)?,
             )?;
             if let Some(event_id) = event_id {
                 let changed = conn.execute("UPDATE revisit_events SET undone = 1 WHERE id = ?1 AND block_id = ?2 AND undone = 0", params![event_id, id])?;

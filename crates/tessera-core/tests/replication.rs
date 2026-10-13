@@ -417,4 +417,59 @@ fn question_parent_state_replicates_and_changes_without_rewriting_text() {
             None
         );
     }
+    apply_both(
+        &mut devices,
+        3,
+        12_000,
+        vec![
+            Operation::Insert {
+                id: id(3),
+                parent_id: id(2),
+                after: None,
+                text: "A dated reading".into(),
+                heading: None,
+            },
+            Operation::SetAssessment {
+                id: id(3),
+                base_revision: 1,
+                assessment: Some(tessera_core::AssessmentState {
+                    assessed_on: "2026-10-12".into(),
+                    aporia: false,
+                }),
+            },
+        ],
+    );
+    let current = tessera_core::QuestionState::default()
+        .with_current_reading(Some(id(3)), "2026-10-12".into());
+    apply_both(
+        &mut devices,
+        4,
+        13_000,
+        vec![Operation::SetQuestion {
+            id: id(2),
+            base_revision: 3,
+            question: Some(current.clone()),
+        }],
+    );
+    let withdrawn = current.with_current_reading(None, "2026-10-19".into());
+    apply_both(
+        &mut devices,
+        5,
+        14_000,
+        vec![Operation::SetQuestion {
+            id: id(2),
+            base_revision: 4,
+            question: Some(withdrawn.clone()),
+        }],
+    );
+    for device in &devices {
+        assert_eq!(
+            device.capabilities(&id(2)).unwrap().question.unwrap().state,
+            withdrawn
+        );
+    }
+    assert_eq!(
+        replicated_state(first.path()),
+        replicated_state(second.path())
+    );
 }

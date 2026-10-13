@@ -109,6 +109,7 @@ fn question_status_precedence_covers_every_combination() {
                     accepted: Some(id(11)),
                     review_on: None,
                     parent: None,
+                    reading_history: Vec::new(),
                 };
                 let expected = if parked {
                     "parked"
@@ -776,4 +777,119 @@ fn older_question_states_read_without_parent() {
     .unwrap();
     assert_eq!(state.parent, None);
     assert!(serde_json::to_value(state).unwrap().get("parent").is_none());
+}
+
+#[test]
+fn decision_journal_keeps_superseded_and_withdrawn_readings_and_restores_exactly() {
+    let (_dir, mut nb) = fixture();
+    let ops = vec![assessment(&nb, 11), assessment(&nb, 12)];
+    apply(&mut nb, ops);
+    let first = state(&nb, 10).with_current_reading(Some(id(11)), "2026-10-06".into());
+    set_question(&mut nb, 10, first.clone());
+    let second = first
+        .clone()
+        .with_current_reading(Some(id(12)), "2026-10-13".into());
+    set_question(&mut nb, 10, second.clone());
+    assert_eq!(state(&nb, 10).reading_history.len(), 3);
+    assert_eq!(
+        state(&nb, 10).reading_history[1].status,
+        tessera_core::ReadingStatus::Superseded
+    );
+    assert_eq!(state(&nb, 10).reading_history[1].on, "2026-10-13");
+    let withdrawn = second
+        .clone()
+        .with_current_reading(None, "2026-10-14".into());
+    set_question(&mut nb, 10, withdrawn.clone());
+    assert_eq!(
+        state(&nb, 10).reading_history[3].status,
+        tessera_core::ReadingStatus::Withdrawn
+    );
+    assert_eq!(state(&nb, 10).accepted, None);
+    assert!(nb.capabilities(&id(12)).unwrap().assessment.is_some());
+    set_question(&mut nb, 10, second.clone());
+    assert_eq!(state(&nb, 10), second);
+    set_question(&mut nb, 10, first.clone());
+    assert_eq!(state(&nb, 10), first);
+    let raw = QuestionState {
+        accepted: None,
+        ..state(&nb, 10)
+    };
+    set_question(&mut nb, 10, raw);
+    assert_eq!(
+        state(&nb, 10).reading_history.last().unwrap().status,
+        tessera_core::ReadingStatus::Withdrawn
+    );
+}
+
+#[test]
+fn removing_a_parked_question_with_current_reading_restores_its_journal() {
+    let (_dir, mut nb) = fixture();
+    let op = assessment(&nb, 11);
+    apply(&mut nb, vec![op]);
+    accept(&mut nb, 11);
+    park(&mut nb, true);
+    let original = state(&nb, 10);
+    let remove = question(&nb, 10, None);
+    apply(&mut nb, vec![remove]);
+    let restore = question(&nb, 10, Some(original.clone()));
+    apply(&mut nb, vec![restore]);
+    assert_eq!(state(&nb, 10), original);
+    assert!(
+        nb.capabilities(&id(11))
+            .unwrap()
+            .assessment
+            .unwrap()
+            .accepted
+    );
+}
+
+#[test]
+fn ledger_filters_inline_counts_and_current_readings() {
+    let (_dir, mut nb) = fixture();
+    let op = assessment(&nb, 11);
+    apply(&mut nb, vec![op]);
+    accept(&mut nb, 11);
+    let rows = nb
+        .questions(&QuestionQuery {
+            state: Some(tessera_core::QuestionFilter::Answered),
+            ..Default::default()
+        })
+        .unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].current.as_ref().unwrap().id, id(11));
+    assert!(
+        nb.questions(&QuestionQuery {
+            include_inline: Some(false),
+            ..Default::default()
+        })
+        .unwrap()
+        .is_empty()
+    );
+    let count = nb
+        .note_index()
+        .unwrap()
+        .kinds
+        .into_iter()
+        .find(|kind| kind.kind.key == "question")
+        .unwrap()
+        .count;
+    assert_eq!(count, 1);
+    park(&mut nb, true);
+    assert!(
+        nb.questions(&QuestionQuery {
+            state: Some(tessera_core::QuestionFilter::Active),
+            ..Default::default()
+        })
+        .unwrap()
+        .is_empty()
+    );
+    assert_eq!(
+        nb.questions(&QuestionQuery {
+            state: Some(tessera_core::QuestionFilter::Parked),
+            ..Default::default()
+        })
+        .unwrap()
+        .len(),
+        1
+    );
 }

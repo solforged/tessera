@@ -147,6 +147,57 @@ pub(super) fn render(
             render_quote(&mut text, quote, row.depth - base + 1);
         }
     }
+    for caps in page.capabilities.iter().filter(|caps| {
+        caps.question.is_some()
+            && (subtree.is_none_or(|id| id == page.root.id || id == caps.block_id)
+                || rows.iter().any(|row| row.block.id == caps.block_id))
+    }) {
+        let question = caps.question.as_ref().expect("filtered question");
+        writeln!(text, "\nDecision journal for {}:", caps.block_id)?;
+        let mut assessments: Vec<_> = page
+            .rows
+            .iter()
+            .filter_map(|row| {
+                let assessment = capabilities
+                    .get(row.block.id.as_str())?
+                    .assessment
+                    .as_ref()?;
+                (assessment.question_id.as_deref() == Some(caps.block_id.as_str()))
+                    .then_some((row, assessment))
+            })
+            .collect();
+        assessments.sort_by(|(a, ai), (b, bi)| {
+            bi.state
+                .assessed_on
+                .cmp(&ai.state.assessed_on)
+                .then_with(|| b.block.id.cmp(&a.block.id))
+        });
+        for (row, assessment) in assessments {
+            let decision = question
+                .state
+                .reading_history
+                .iter()
+                .rev()
+                .find(|decision| decision.assessment_id == row.block.id);
+            let status = if assessment.accepted {
+                "current reading".to_owned()
+            } else if let Some(decision) =
+                decision.filter(|decision| decision.status != tessera_core::ReadingStatus::Current)
+            {
+                format!("{} on {}", name(decision.status), decision.on)
+            } else {
+                "not accepted".to_owned()
+            };
+            writeln!(
+                text,
+                "- {} · {} · {} [{}]",
+                assessment.state.assessed_on,
+                status,
+                titled(row.block.text.lines().next().unwrap_or_default(), &titles),
+                row.block.id
+            )?;
+        }
+    }
     Ok(text)
 }
 
@@ -256,6 +307,18 @@ fn capability_details(caps: &BlockCapabilities) -> Vec<String> {
         }
         if let Some(day) = &question.state.review_on {
             part.push_str(&format!(" review {day}"));
+        }
+        part.push_str(&format!(
+            " current reading {}",
+            question.state.accepted.as_deref().unwrap_or("none")
+        ));
+        for decision in &question.state.reading_history {
+            part.push_str(&format!(
+                "; reading {} {} on {}",
+                decision.assessment_id,
+                name(decision.status),
+                decision.on
+            ));
         }
         parts.push(part);
     }
