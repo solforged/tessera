@@ -75,7 +75,7 @@
 .reader-scroll:not(.reader-paged) { mask-image: linear-gradient(to bottom, transparent, #000 var(--space-24), #000 calc(100% - var(--space-48)), transparent); }
 /* Contents margin: where the pane has room left of the text, the contents stay beside it, 48 px off, the current section in gilt. */
 .reader-body { position: relative; display: flex; flex-direction: column; flex: 1; min-height: 0; }
-.reader-margin { position: absolute; top: 0; bottom: 0; left: calc(50% - var(--reader-text-width) / 2 - var(--space-48) - var(--apparatus-width)); width: var(--apparatus-width); display: flex; flex-direction: column; overflow-y: auto; padding-bottom: var(--space-48); scrollbar-width: thin; }
+.reader-margin { position: absolute; z-index: 1; top: 0; bottom: 0; left: calc(50% - var(--reader-text-width) / 2 - var(--space-48) - var(--apparatus-width)); width: var(--apparatus-width); display: flex; flex-direction: column; overflow-y: auto; padding-bottom: var(--space-48); scrollbar-width: thin; }
 .reader-margin-entry.button { flex: none; justify-content: flex-start; height: auto; min-height: var(--row-height); padding: var(--space-4) var(--space-8) var(--space-4) calc(var(--space-8) + var(--level) * var(--space-12)); border-radius: 0; box-shadow: inset var(--space-2) 0 transparent; color: var(--muted); font-weight: var(--weight-body); text-align: left; white-space: normal; }
 .reader-margin-entry[aria-current].button { box-shadow: inset var(--space-2) 0 var(--accent); color: var(--accent); }
 .reader-list { position: relative; max-width: var(--reader-measure); margin-inline: auto; font-size: var(--reader-size); }

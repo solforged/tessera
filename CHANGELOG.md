@@ -12,6 +12,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Preserved prose font metrics when selecting text across outline paragraphs.
 - Made unavailable menu actions focusable, with a visible and accessible prerequisite.
 - Opened unread sources at the title-page origin.
+- Kept contents-margin entries above the reader scroller.
 
 
 ## Unreleased
