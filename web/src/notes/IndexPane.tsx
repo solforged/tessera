@@ -3,7 +3,7 @@ import { ulid } from 'ulid';
 import type { KindIndex, NoteEntry, NoteIndex, NoteKind, NoteSummary, Operation, Query, View } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import type { IndexViewState, OpenTarget } from '../shell/contract';
-import { plainText } from '../outline/names';
+import { plainText, referenceValue } from '../outline/names';
 import { PageMergePicker } from '../outline/PageMerge';
 import { documentReady } from '../outline/source-fields';
 import { addFilter, copyQuery, filterLabel, missingQueryFields, noteTableQuery, queriesEqual, removeFilter, removeQueryField, retainFieldNames, typeQuery } from '../table/query';
@@ -19,7 +19,7 @@ import { Popup } from '../ui/Popup';
 import { createSettledChanges, createSlowFlag } from '../ui/loading';
 import { TypeModeTabs } from '../ui/TypeModeTabs';
 import { indexKindTarget, noteKindIcon, tagOnly } from './kinds';
-import { filingGroups, filingOperations, groupKindIndex } from './finding-aid';
+import { filingGroups, filingOperations, groupKindIndex, wholeKindIndex } from './finding-aid';
 import type { FindingAidGroup } from './finding-aid';
 import './notes.css';
 import { QuestionLedger } from './QuestionLedger';
@@ -41,7 +41,7 @@ interface FiledNotes { count: number; undo(): Promise<void> }
 const cover = () => window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches;
 const beside = (event: MouseEvent) => event.shiftKey || window.matchMedia('(pointer: coarse) and (min-width: 900px)').matches;
 const tally = (count: number, noun: string) => `${count} ${noun}${count === 1 ? '' : 's'}`;
-const apparatus = (summary: NoteSummary | undefined) => summary ? `${tally(summary.block_count, 'block')} · ${tally(summary.backlinks, 'backlink')}` : '';
+const apparatus = (summary: NoteSummary | undefined) => summary ? [summary.block_count ? tally(summary.block_count, 'prose block') : '', summary.backlinks ? tally(summary.backlinks, 'backlink') : ''].filter(Boolean).join(' · ') : '';
 // The last read of each index shows at once when the pane opens again, while a fresh read replaces it.
 const directoryReads = new WeakMap<NotebookClient, NoteIndex>();
 const kindReads = new WeakMap<NotebookClient, Map<string, KindIndex>>();
@@ -134,11 +134,12 @@ function KindIndexPane(props: IndexPaneProps) {
   let pickAnchor: string | undefined;
   const noteMode = () => props.kindKey !== 'unfiled';
   const grouping = () => query().note_view?.grouping ?? 'letter';
+  const wholeKind = createMemo(() => wholeKindIndex(query(), props.kindKey, typeId() ?? null));
   const report = (next = query()) => props.onViewChange({ scroll: scroll?.scrollTop ?? 0, noteQuery: copyQuery(next), viewId: props.view.viewId });
   const updateQuery = (next: Query) => { const value = copyQuery(retainFieldNames(next)); setQuery(value); setPicked([]); report(value); };
   const [definitions] = createResource(() => noteMode() ? [changes()] : false, () => props.notebook.api.fields());
   const missingFields = createMemo(() => definitions() ? missingQueryFields(query(), definitions()!.fields) : []);
-  const [matches] = createResource(() => noteMode() && definitions() && !definitions.loading && !missingFields().length ? [query(), changes(), version()] as const : false, async ([value]) => {
+  const [matches] = createResource(() => noteMode() && !wholeKind() && definitions() && !definitions.loading && !missingFields().length ? [query(), changes(), version()] as const : false, async ([value]) => {
     const result = await props.notebook.api.query({ ...value, offset: 0, limit: 2000 });
     while (result.rows.length < result.total) {
       const next = await props.notebook.api.query({ ...value, offset: result.rows.length, limit: 2000 });
@@ -147,7 +148,7 @@ function KindIndexPane(props: IndexPaneProps) {
     }
     return result;
   });
-  const [kindFields] = createResource(() => noteMode() ? [props.kindKey, changes()] as const : false, async ([key]) => (await props.notebook.api.query({ ...typeQuery(typeId() ?? null), note_kind: key, limit: 0 })).fields);
+  const [kindFields] = createResource(() => noteMode() && (groupMenu() || filterMenu()) ? [props.kindKey, changes()] as const : false, async ([key]) => (await props.notebook.api.query({ ...typeQuery(typeId() ?? null), note_kind: key, limit: 0 })).fields);
   const savedViewId = createMemo(() => props.view.viewId);
   const [saved, { mutate: setSaved }] = createResource(() => savedViewId() ? [savedViewId()!, changes()] as const : false, ([id]) => props.notebook.api.view(id));
   let observedSaved: View | undefined;
@@ -173,7 +174,8 @@ function KindIndexPane(props: IndexPaneProps) {
     finally { setBusy(false); }
   };
   const shown = createMemo(() => {
-    if (!noteMode()) return index.latest;
+    if (!noteMode() || wholeKind()) return index.latest;
+    if (!matches()) return undefined;
     const ids = new Set(matches()?.rows.map(row => row.block.block.id) ?? []);
     const value = index.latest;
     return value ? { ...value, notes: value.notes.filter(note => ids.has(note.id)), see: value.see.map(reference => ({ ...reference, targets: reference.targets.filter(target => ids.has(target.id)) })).filter(reference => reference.targets.length) } : undefined;
@@ -208,7 +210,7 @@ function KindIndexPane(props: IndexPaneProps) {
     } catch (reason) { setError(String(reason)); } finally { setBusy(false); }
   };
   const title = createMemo(() => props.kind?.plural ?? type()?.page.text ?? (props.kindKey === 'unfiled' ? 'Unfiled' : props.kindKey === 'source' ? 'Sources' : 'Index'));
-  const count = () => noteMode() ? matches()?.total ?? 0 : index.latest?.notes.length ?? 0;
+  const count = () => wholeKind() || !noteMode() ? index.latest?.notes.length : matches()?.total;
   const summary = (note: NoteEntry) => index.latest?.summaries[note.id];
   const lookup = (id: string) => props.notebook.lookup(id);
   const preview = (note: NoteEntry) => plainText(summary(note)?.preview ?? '', lookup);
@@ -258,7 +260,7 @@ function KindIndexPane(props: IndexPaneProps) {
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setBusy(false); }
   };
-  onMount(() => { scroll.scrollTop = props.view.scroll; });
+  onMount(() => { if (props.view.scroll) scroll.scrollTop = props.view.scroll; });
   const jump = (value: string) => { setLetter(value); scroll.querySelector(`[data-letter="${value}"]`)?.scrollIntoView({ block: 'start' }); };
   const scrollChanged = () => {
     report();
@@ -278,11 +280,11 @@ function KindIndexPane(props: IndexPaneProps) {
     <div class="index-sheet">
       <p class="index-eyebrow">{props.kindKey === 'unfiled' ? 'Filing queue' : props.kindKey === 'source' ? 'Index · Bibliography' : 'Index'}</p>
       <div class="index-head"><h1><Icon name={noteKindIcon(props.kind ?? props.kindKey)} />{saved()?.name ?? title()}</h1>
-        <Show when={index.latest && !missingFields().length}><span class="index-tally">{tally(count(), props.kindKey === 'source' ? 'source' : 'note')}</span></Show>
+        <Show when={count() != null && !missingFields().length}><span class="index-tally">{tally(count()!, props.kindKey === 'source' ? 'source' : 'note')}</span></Show>
         <Show when={groups().length}><NewKindAction kindKey={props.kindKey} kind={props.kind} notebook={props.notebook} onOpen={props.onOpen} members={index.latest?.notes} /></Show>
       </div>
-      <Show when={typeId()}>{id => <TypeModeTabs active="index" indexCount={missingFields().length ? undefined : count()} tableCount={missingFields().length ? undefined : count()} fieldsCount={type()?.fields.length ?? 0}
-        cardsCount={type()?.card_templates ?? 0} onCards={event => props.onOpen({ kind: 'cards', typeId: id() }, event.shiftKey)}
+      <Show when={typeId()}>{id => <TypeModeTabs active="index" indexCount={missingFields().length ? undefined : count()} tableCount={missingFields().length ? undefined : count()} fieldsCount={type()?.fields.length}
+        cardsCount={type()?.card_templates} onCards={event => props.onOpen({ kind: 'cards', typeId: id() }, event.shiftKey)}
         onIndex={() => { scroll.scrollTop = 0; }} onTable={openTable}
         onFields={event => props.onOpen({ kind: 'fields', typeId: id() }, event.shiftKey)} />}</Show>
       <Show when={noteMode()}>
@@ -292,7 +294,7 @@ function KindIndexPane(props: IndexPaneProps) {
           <Button class="bordered" onClick={event => setFilterMenu(event.currentTarget)}>Filters</Button>
           <Button onClick={event => { setViewName(''); setSaveAnchor(event.currentTarget); }}>Save as view…</Button>
         </NoteFind>
-        <Show when={query().filters.length}><div class="table-query-chips"><For each={query().filters}>{(filter, at) => <span class="table-chip">{filterLabel(filter, [...noteAttributes, ...definitions()?.fields ?? []], props.notebook, query().field_names)}<Button label="Remove filter" onClick={() => updateQuery(removeFilter(query(), at()))}>×</Button></span>}</For></div></Show>
+        <Show when={definitions() && query().filters.length}><div class="table-query-chips"><For each={query().filters}>{(filter, at) => <span class="table-chip">{filterLabel(filter, [...noteAttributes, ...definitions()?.fields ?? []], props.notebook, query().field_names)}<Button label="Remove filter" onClick={() => updateQuery(removeFilter(query(), at()))}>×</Button></span>}</For></div></Show>
         <Show when={missingFields().length}><MissingFields fields={missingFields()} busy={busy()} onRemove={id => { void removeMissingField(id); }} /><p class="faint">Results paused; remove the missing field or undo its deletion.</p></Show>
         <Show when={error() || definitions.error}><p class="error" role="alert">{error() || String(definitions.error)}</p></Show>
         <Show when={picked().length}><div class="index-selection" role="status"><span>{picked().length} selected</span><Show when={props.onSpread}><Button disabled={picked().length < 2 || picked().length > 5} title={picked().length < 2 || picked().length > 5 ? 'Select two to five notes' : undefined} onClick={event => props.onSpread?.(picked(), event.shiftKey)}>Spread</Button></Show><Button onClick={() => setPicked([])}>Clear</Button></div></Show>
@@ -300,7 +302,7 @@ function KindIndexPane(props: IndexPaneProps) {
       </Show>
       <Show when={index.error}><p class="error" role="alert">Couldn’t load this index · {String(index.error)}</p></Show>
       <Show when={readableSources.error || collectionCounts.error}><p class="error" role="alert">Couldn’t load source details · {String(readableSources.error || collectionCounts.error)}</p></Show>
-      <Show when={!missingFields().length}><Show when={index.latest} fallback={<Show when={slow()}><p class="empty-state" role="status">Loading notes…</p></Show>}>
+      <Show when={!missingFields().length}><Show when={shown()} fallback={<Show when={slow() || index.latest && matches.loading}><p class="empty-state" role="status">Loading notes…</p></Show>}>
         <Switch>
           <Match when={props.kindKey === 'unfiled'}>
             <div class="index-queue-tabs mode-tabs tab-strip" data-mode-panel=".index-queue-layout" role="group" aria-label="Filing queue">
@@ -334,6 +336,7 @@ function KindIndexPane(props: IndexPaneProps) {
               </div><Show when={selectedNote()}>{note => <aside class="index-inspector" aria-label="Selected note">
                 <p class="index-eyebrow">Selected note</p><h2>{note().title}</h2><p class="index-apparatus">{apparatus(summary(note()))}</p>
                 <Show when={preview(note())}><p class="index-inspector-preview">{preview(note())}</p></Show>
+                <Show when={summary(note())?.prose_excerpt.length}><div class="index-inspector-excerpt" aria-label="Opening prose"><For each={summary(note())?.prose_excerpt}>{text => <p>{plainText(text, lookup)}</p>}</For></div></Show>
                 <div class="index-inspector-actions"><Button class="bordered" onClick={event => showPopup('file', note(), event.currentTarget)}>File under a type…</Button><Button onClick={event => openNote(note(), event)}>Open note</Button>
                   <Button onClick={event => showPopup('merge', note(), event.currentTarget)}>Merge into…</Button><Button class="danger" onClick={event => showPopup('delete', note(), event.currentTarget)}>Delete…</Button></div>
                 <Show when={summary(note())?.referenced_from.length}><div class="index-incoming"><p class="index-apparatus">Referenced from</p><For each={summary(note())?.referenced_from}>{page => <Button onClick={event => props.onOpen({ kind: 'page', pageId: page.id }, beside(event))}>{page.title}</Button>}</For></div></Show>
@@ -343,13 +346,15 @@ function KindIndexPane(props: IndexPaneProps) {
           <Match when={props.kindKey === 'source' && grouping() === 'letter'}>
             <div class="index-source-tabs mode-tabs tab-strip" role="group" aria-label="Sources view"><Button aria-pressed="true">Bibliography <span class="faint">{index.latest!.notes.length}</span></Button><Button onClick={event => props.onOpen({ kind: 'library', tab: 'all' }, beside(event))}>Open Library <Icon name="right" /></Button></div>
             <Show when={shown()?.notes.length} fallback={<div class="index-empty"><p class="index-empty-title">No sources found.</p><p class="index-empty-hint">Books and articles you add in the Library are listed here with their sigla and citation keys.</p></div>}><For each={shown()?.notes}>{note => <article class="index-source-row index-selectable" classList={{ selected: picked().includes(note.id) }}>
-              <input type="checkbox" class="index-select" aria-label={`Select ${note.title}`} checked={picked().includes(note.id)} onClick={event => toggleSelection(note.id, event.shiftKey)} />
+              <label class="index-select-target"><input type="checkbox" class="index-select" aria-label={`Select ${note.title}`} checked={picked().includes(note.id)} onClick={event => toggleSelection(note.id, event.shiftKey)} /></label>
               <span class="index-source-siglum">{summary(note)?.source?.siglum}</span><div class="index-source-main"><button type="button" class="index-source-title" onClick={event => selectOrOpen(note, event)}>{note.title}</button>
-                <Show when={summary(note)?.source}>{source => <><Show when={source().authors.length}><p class="index-source-byline">{source().authors.join(' · ')}</p></Show>
-                  <p class="index-apparatus">{[source().format.toUpperCase(), source().publisher, source().published?.match(/^\d{4}/)?.[0]].filter(Boolean).join(' · ')}</p>
-                  <Show when={source().citation_key}><p class="index-apparatus">Citation key {source().citation_key}</p></Show>
-                  <p class="index-apparatus">{tally(source().highlights, 'highlight')} · {tally(summary(note)!.backlinks, 'page backlink')}</p></>}</Show>
-                <div class="index-source-actions"><Button class="bordered" onClick={event => openNote(note, event)}>Open source notes</Button><Show when={readableSources.latest?.has(note.id)}><Button onClick={event => props.onOpen({ kind: 'reader', sourceId: note.id }, beside(event))}>Read <Icon name="right" /></Button></Show></div>
+                <Show when={summary(note)?.source}>{source => <><Show when={source().authors.length}><p class="index-source-byline"><For each={source().authors}>{(text, at) => {
+                  const author = referenceValue(text);
+                  return <>{at() ? ' · ' : ''}<Show when={author.id} fallback={author.name}>{id => <Button onClick={event => props.onOpen({ kind: 'page', pageId: id() }, beside(event))}>{plainText(text, lookup)}</Button>}</Show></>;
+                }}</For></p></Show>
+                  <div class="index-source-footer"><p class="index-apparatus">{[source().format.toUpperCase(), source().publisher, source().published?.match(/^\d{4}/)?.[0], source().citation_key, source().highlights ? tally(source().highlights, 'highlight') : '', summary(note)!.backlinks ? tally(summary(note)!.backlinks, 'page backlink') : ''].filter(Boolean).join(' · ')}</p>
+                    <div class="index-source-actions"><Button onClick={event => openNote(note, event)}>Open source notes</Button><Show when={readableSources.latest?.has(note.id)}><Button onClick={event => props.onOpen({ kind: 'reader', sourceId: note.id }, beside(event))}>Read <Icon name="right" /></Button></Show></div>
+                  </div></>}</Show>
               </div></article>}</For></Show>
           </Match>
           <Match when={true}>
@@ -358,10 +363,10 @@ function KindIndexPane(props: IndexPaneProps) {
               <div class="index-columns" classList={{ 'index-by-heading': grouping() !== 'letter' }}><For each={groups()}>{group => <section class="index-group" data-letter={grouping() === 'letter' ? group.letter : undefined} aria-label={group.letter}>
                 <h2><Show when={group.siglum}><span>{group.siglum}</span></Show><Show when={group.target} fallback={<span>{group.letter}</span>}>{target => <Button onClick={event => props.onOpen({ kind: 'page', pageId: target() }, beside(event))}>{group.letter}</Button>}</Show><span class="section-rule" /><span class="index-group-count">{group.noteCount || ''}</span></h2>
                 <For each={group.entries}>{entry => entry.kind === 'note' ? <div class="index-selectable" classList={{ selected: picked().includes(entry.note.id) }}>
-                  <input type="checkbox" class="index-select" aria-label={`Select ${entry.note.title}`} checked={picked().includes(entry.note.id)} onClick={event => toggleSelection(entry.note.id, event.shiftKey)} />
+                  <label class="index-select-target"><input type="checkbox" class="index-select" aria-label={`Select ${entry.note.title}`} checked={picked().includes(entry.note.id)} onClick={event => toggleSelection(entry.note.id, event.shiftKey)} /></label>
                   <button type="button" class="index-entry" onClick={event => selectOrOpen(entry.note, event)}>
                     <span class="index-entry-title">{entry.note.title}</span><Show when={preview(entry.note)}><span class="index-preview">{preview(entry.note)}</span></Show>
-                    <Show when={isCollection()} fallback={<Show when={summary(entry.note)}>{value => <span class="index-apparatus"><Show when={value().field}>{field => <span title={field().name}>{plainText(field().value, lookup)} · </span>}</Show>{tally(value().block_count, 'block')}</span>}</Show>}>
+                    <Show when={isCollection()} fallback={<Show when={summary(entry.note)}>{value => <Show when={value().field || value().block_count || value().backlinks}><span class="index-apparatus">{[value().field ? plainText(value().field!.value, lookup) : '', value().block_count ? tally(value().block_count, 'prose block') : value().backlinks ? tally(value().backlinks, 'backlink') : ''].filter(Boolean).join(' · ')}</span></Show>}</Show>}>
                       <Show when={collectionCounts.latest?.get(entry.note.id) != null}><span class="index-apparatus">{tally(collectionCounts.latest!.get(entry.note.id)!, 'source')}</span></Show>
                     </Show>
                   </button>

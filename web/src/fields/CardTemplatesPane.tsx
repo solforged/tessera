@@ -101,7 +101,7 @@ export function CardTemplatesPane(props: Props) {
         <div class="ct-apparatus ct-crumb"><Button onClick={event => props.onOpen({ kind: 'page', pageId: props.typeId }, event.shiftKey)}>{title()}</Button><span> / {props.applyId ? `${applyTemplate()?.name ?? 'Cards'} / Apply` : 'Card templates'}</span></div>
         <div class="ct-title-row"><h1>{title()}</h1><span class="ct-apparatus">{templates().length} {templates().length === 1 ? 'template' : 'templates'} · {templates().filter(template => template.applied).length} enabled</span></div>
       </header>
-      <TypeModeTabs active="cards" indexCount={data.latest?.kind?.count ?? 0} tableCount={data.latest?.type.members ?? 0} fieldsCount={fields().length} cardsCount={templates().length}
+      <TypeModeTabs active="cards" indexCount={data.latest?.kind?.count} tableCount={data.latest?.type.members} fieldsCount={data.latest?.type.fields.length} cardsCount={data.latest?.templates.length}
         onIndex={event => props.onOpen({ kind: 'index', key: data.latest?.kind?.key ?? `type:${props.typeId}` }, event.shiftKey)}
         onTable={event => props.onOpen({ kind: 'table', typeId: props.typeId, viewId: null, query: typeQuery(props.typeId) }, event.shiftKey)}
         onFields={event => props.onOpen({ kind: 'fields', typeId: props.typeId }, event.shiftKey)} onCards={toCards} />

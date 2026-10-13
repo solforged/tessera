@@ -339,7 +339,7 @@ export interface Spread { note_ids: string[]; columns: SpreadColumn[]; fields: S
 export interface CrossReference { alias: string; targets: SeeTarget[] }
 export interface SummaryField { name: string; value: string }
 export interface SourceSummary { siglum: string; citation_key: string | null; format: SourceFormat; authors: string[]; publisher: string | null; published: string | null; highlights: number }
-export interface NoteSummary { preview: string | null; field: SummaryField | null; block_count: number; text_blocks: number; backlinks: number; referenced_from: SeeTarget[]; source: SourceSummary | null }
+export interface NoteSummary { preview: string | null; field: SummaryField | null; block_count: number; text_blocks: number; prose_excerpt: string[]; backlinks: number; referenced_from: SeeTarget[]; source: SourceSummary | null }
 export interface KindIndex { notes: NoteEntry[]; see: CrossReference[]; summaries: Record<string, NoteSummary> }
 export interface SettingRevision { key: string; revision: number }
 export interface Setting { key: string; value: string; revision: number; updated_at: number }

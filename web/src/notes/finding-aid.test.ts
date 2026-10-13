@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import type { NoteEntry, NoteSummary } from '../api/types';
-import { filingGroups, filingOperations, groupKindIndex, parseNoteFind } from './finding-aid';
+import type { NoteEntry, NoteSummary, Query } from '../api/types';
+import { filingGroups, filingOperations, groupKindIndex, parseNoteFind, wholeKindIndex } from './finding-aid';
 
 const note = (id: string, title: string, sort_as: string | null = null): NoteEntry => ({ id, title, sort_as, created_at: 0 });
 
@@ -44,8 +44,8 @@ describe('finding aid groups', () => {
 
 test('blank filing rows can have blocks and backlinks without having text', () => {
   const summaries: Record<string, NoteSummary> = {
-    a: { preview: null, field: null, block_count: 1, text_blocks: 0, backlinks: 3, referenced_from: [], source: null },
-    b: { preview: 'Prose', field: null, block_count: 2, text_blocks: 1, backlinks: 0, referenced_from: [], source: null },
+    a: { preview: null, field: null, block_count: 0, text_blocks: 0, prose_excerpt: [], backlinks: 3, referenced_from: [], source: null },
+    b: { preview: 'Prose', field: null, block_count: 1, text_blocks: 1, prose_excerpt: ['Prose'], backlinks: 0, referenced_from: [], source: null },
   };
   const groups = filingGroups([note('a', 'Referenced blank'), note('b', 'With prose'), note('c', 'Empty')], summaries);
   expect(groups.map(group => [group.key, group.notes.map(note => note.id)])).toEqual([['text', ['b']], ['blank', ['a', 'c']]]);
@@ -69,4 +69,16 @@ test('note Find preserves quoted names, repeated predicates and plain words', ()
     { field: '@resolved', op: 'is', value: 'true' }, { field: '@revisit', op: 'lte', value: 'today' },
     { field: '@revisit', op: 'set', value: null }, { field: '@revisit', op: 'empty', value: null },
   ]);
+});
+
+test('whole-kind reads never bypass a query restriction or another grouping', () => {
+  const query: Query = { type: 'person-type', note_kind: 'person', text: null, filters: [], sort: [], limit: null };
+  expect(wholeKindIndex(query, 'person', 'person-type')).toBe(true);
+  const restrictions: Partial<Query>[] = [
+    { source: 'sources' }, { note_kind: 'concept' }, { type: 'other-type' },
+    { text: 'Ada' }, { filters: [{ field: '@resolved', op: 'is', value: 'true' }] },
+    { sort: [{ by: 'title', field: null, direction: 'desc' }] }, { links: ['ada'] }, { from: ['ada'] }, { cites: ['work'] },
+    { note_view: { layout: 'index', grouping: 'created' } },
+  ];
+  for (const restriction of restrictions) expect(wholeKindIndex({ ...query, ...restriction }, 'person', 'person-type')).toBe(false);
 });

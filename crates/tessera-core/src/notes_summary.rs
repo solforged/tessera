@@ -28,10 +28,12 @@ pub struct SourceSummary {
 pub struct NoteSummary {
     pub preview: Option<String>,
     pub field: Option<SummaryField>,
-    /// All live descendants, including field entries, values and archived blocks.
+    /// Nonempty visible prose descendants, excluding headings and field subtrees.
     pub block_count: usize,
     /// Nonempty visible descendants; an archived subtree cannot make a queue row With text.
     pub text_blocks: usize,
+    /// The first three prose blocks, kept separate from a standfirst preview.
+    pub prose_excerpt: Vec<String>,
     /// Distinct visible referring blocks, matching the ordinary backlinks read, not citations.
     pub backlinks: usize,
     pub referenced_from: Vec<SeeTarget>,
@@ -124,12 +126,18 @@ impl Notebook {
                 field_blocks.insert(id);
             }
             let summary = summaries.get_mut(&page).expect("selected subtree");
-            summary.block_count += 1;
+            let prose = visible && !field && heading.is_none() && !text.trim().is_empty();
+            if prose {
+                summary.block_count += 1;
+            }
             if visible && !text.trim().is_empty() {
                 summary.text_blocks += 1;
                 if summary.preview.is_none() && !field && heading.is_none() {
-                    summary.preview = Some(text);
+                    summary.preview = Some(text.clone());
                 }
+            }
+            if prose && summary.prose_excerpt.len() < 3 {
+                summary.prose_excerpt.push(text);
             }
         }
         let mut statement = self.conn.prepare_cached(concat!(

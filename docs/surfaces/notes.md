@@ -33,7 +33,7 @@ The Index heading opens a bounded directory in the same order, with explicit not
 
 ## Finding aid
 
-A kind opens with rubric `INDEX`, its plural in Piazzolla and a mono note tally. A type's Index, Table and Fields modes share the ruled tab strip with live counts. Fields opens [that type's template](fields-tables.md#type-fields-tab), not the global register.
+A kind opens with rubric `INDEX`, its plural in Piazzolla and a mono note tally. A type's Index, Table, Template and Cards modes share the ruled tab strip. Index and Table count matching members; Template counts field slots, and Cards counts card templates, not existing values or member cards. Template opens [that type's template](fields-tables.md#type-fields-tab), not the global register.
 
 Titles sit under rubric letters with a hairline and a distinct-note count:
 
@@ -43,9 +43,9 @@ Titles sit under rubric letters with a hairline and a distinct-note count:
 | Below 840 px | Two. |
 | Below 600 px | One. |
 
-Each note shows two lines of its first populated standfirst field, else its first non-field prose block, then one populated template field and the live descendant-block count in mono. The Collections finding aid instead shows its member-source count in mono, using the same Library collection query as the collection cards. A title without prose has no empty preview. The batched index read derives ordinary note apparatus from existing data, including field entries, values and headings in block counts.
+Each note shows two lines of its first populated standfirst field, else its first non-field prose block, then one populated template field and its nonempty visible prose-block count in mono. Field entries and their descendants, headings, blank blocks and archived subtrees do not count as prose. Zero prose counts are omitted; a note without prose shows a nonzero ordinary backlink count instead, or no apparatus if neither exists. The Collections finding aid instead shows its member-source count in mono, using the same Library collection query as the collection cards. A title without prose has no empty preview. The batched index read derives this apparatus without a page read per row. A whole-kind alphabetical visit uses that read directly; filtered and grouped queries still use the query engine, and populated field choices load when Group or Filters opens.
 
-Only populated jump letters appear, and only with Letter grouping. On the touch cover they sit above bottom navigation, with the selected letter on the shared gilt tab rule and compact inline initials in the list. Sort as, diacritic folding, `#` last and alias cross-references retain their filing rules. A title opens its note; a coarse pointer at least 900 px wide opens it beside.
+Only populated jump letters appear, and only with Letter grouping. The strip stays on one line, using compact targets on desktop. On the touch cover it scrolls above bottom navigation with a fading continuation edge, the selected letter on the shared gilt tab rule and compact inline initials in the list. Sort as, diacritic folding, `#` last and alias cross-references retain their filing rules. A title opens its note; a coarse pointer at least 900 px wide opens it beside.
 
 Below the mode tabs, `Find in Concepts…` (using the kind's plural) matches plain words against title or Gloss. `links:`, `from:` and `cites:` resolve titles and aliases; `cites:` also resolves source sigla and citation keys. Quote a multiword value, for example `links:"Three generations of a dynasty"`. Names complete after the colon. Enter, a closing quote or leaving the input resolves each term to a removable table-style chip; unresolved names show `No note named “X”`. All terms and field filters intersect. `cites:` includes passage citations of any of the source's snapshots and any reference to its source page.
 
@@ -57,7 +57,9 @@ Field grouping travels between Index and Table: Table translates the finding aid
 
 If a saved finding aid names a detached or deleted field, it shows the remembered name and offers Remove from view. Results pause until that reference is removed or the field change is undone. The action saves the repaired query, without discarding other filters or presentation choices.
 
-Index rows reveal a checkbox on hover or focus. Cmd/Ctrl-click toggles a note; Shift-click extends from the selection anchor. The bar shows `N selected` and Clear, plus Spread when the shell provides it. Spread accepts two to five notes and Shift opens it beside. Selection counts distinct notes even when a note occurs under several headings.
+Counts, empty states and field-filter chips wait for the relevant reads; a pending request never claims there are zero notes or a missing field. Previously loaded finding aids can remain visible during a refresh.
+
+Index rows reveal a checkbox on hover or focus and keep it visible on touch. Its label supplies the shared pointer target without enlarging the glyph. Cmd/Ctrl-click toggles a note; Shift-click extends from the selection anchor. The bar shows `N selected` and Clear, plus Spread when the shell provides it. Spread accepts two to five notes and Shift opens it beside. Selection counts distinct notes even when a note occurs under several headings.
 
 `is:resolved` filters `@resolved` to true. `revisit:due` filters `@revisit` through today in the notebook's time zone; `revisit:set` and `revisit:none` select set and empty dates. Question notes use their question's revisit date. These predicates share the query's field filters and remain live when saved. State grouping in the finding aid's Group menu is not implemented.
 
@@ -65,7 +67,7 @@ Their chips use the same attribute labels as entity views: Resolved and Revisit 
 
 ### Questions ledger
 
-Questions opens a ledger rather than the alphabetical finding aid. Its ruled tabs are Active, Recurrent, Due, Answered, Parked and All. Active includes questions that are active or recurrent; Due selects non-parked questions whose revisit date has arrived. Each tab reads the same state filter from `/api/questions`.
+Questions opens a ledger rather than the alphabetical finding aid. Its ruled tabs are Active, Recurrent, Due, Answered, Parked and All, kept on one horizontally scrolling line in narrow panes. Active includes questions that are active or recurrent; Due selects non-parked questions whose revisit date has arrived. Each tab reads the same state filter from `/api/questions`. Find in Questions uses the finding aid's words, link/source predicates and Revisit/Resolved chips, intersected with the selected state; it includes inline questions and preserves program grouping.
 
 Questions are grouped by their top-level program, with branches below it. Inline questions show their containing page and open their original block. The tally and sidebar count include inline questions. Each row shows state, reading count, current assessment's first line and date, or No current reading, then the next revisit date. No progress percentage is shown.
 
@@ -89,7 +91,7 @@ Unfiled is a filing queue grouped into With text and Blank, with All, With text 
 
 Opening a blank note does not add stored blocks. Add a block starts writing only when chosen.
 
-Each row has File and a menu containing Open, File under a type…, Rename…, Merge into… and Delete…. Desktop and unfolded layouts pair the list with a selected-note inspector and links to its referring pages. The touch cover uses a filing sheet above navigation.
+Each row has File and a menu containing Open, File under a type…, Rename…, Merge into… and Delete…. Desktop and unfolded layouts pair the list with a selected-note inspector, a short excerpt from its first three visible prose blocks (separate from the gloss), and links to its referring pages. The excerpt is bounded to eight display lines. The touch cover uses a filing sheet above navigation.
 
 The shared one-step type picker serves row File, the inspector and bulk filing. Clicking a type or pressing Enter files immediately; Create type “X” and file creates and files in the same acknowledged batch. Escape or clicking away cancels. The list reserves at least three full rows (or all choices when fewer), scrolls internally and flips above the trigger when there is more room there. After filing, focus moves to the next remaining row's File button, or the previous row when the queue ends.
 
@@ -117,7 +119,7 @@ A missing view keeps the remembered name with Relink… and Remove embed. Undoin
 
 ## Sources
 
-Sources is a bibliography, not a second reading shelf. It shows siglum, source title, author byline, format, publisher, publication year when stored, citation key, highlight count and ordinary page-backlink count. Open source notes is the default; Read appears only for sources with a current snapshot and hands off to the [reader](reader.md), and Open Library sits in the ruled strip. Reading progress and invented metadata are absent.
+Sources is a bibliography, not a second reading shelf. It shows siglum, source title and author byline; stable person references open that page, while unlinked or bracketed names read as plain names without wiki syntax. One mono apparatus line combines format, publisher, publication year when stored, citation key and nonzero highlight/page-backlink counts. Entries use 12 px vertical padding. Open source notes is the default; actions sit inline with the apparatus, revealed on hover or focus and always visible on touch. Read appears only for sources with a current snapshot and hands off to the [reader](reader.md), and Open Library sits in the ruled strip. Reading progress and invented metadata are absent.
 
 ## Note header
 

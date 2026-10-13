@@ -48,8 +48,8 @@ export function TypeFieldsPane(props: TypeFieldsPaneProps) {
         <div class="fields-register"><Button class="type-fields-crumb" onClick={event => props.onOpen({ kind: 'page', pageId: props.typeId }, event.shiftKey)}>{title()}</Button><span> / Template</span></div>
         <div class="type-fields-title"><h1>{title()}</h1><span>{data.latest?.type.fields.length ?? 0} fields</span></div>
       </header>
-      <TypeModeTabs active="fields" indexCount={data.latest?.kind?.count ?? 0} tableCount={data.latest?.type.members ?? 0} fieldsCount={data.latest?.type.fields.length ?? 0}
-        cardsCount={data.latest?.type.card_templates ?? 0} onCards={event => props.onOpen({ kind: 'cards', typeId: props.typeId }, event.shiftKey)}
+      <TypeModeTabs active="fields" indexCount={data.latest?.kind?.count} tableCount={data.latest?.type.members} fieldsCount={data.latest?.type.fields.length}
+        cardsCount={data.latest?.type.card_templates} onCards={event => props.onOpen({ kind: 'cards', typeId: props.typeId }, event.shiftKey)}
         onIndex={event => props.onOpen({ kind: 'index', key: data.latest?.kind?.key ?? `type:${props.typeId}` }, event.shiftKey)}
         onTable={event => props.onOpen({ kind: 'table', typeId: props.typeId, viewId: null, query: typeQuery(props.typeId) }, event.shiftKey)}
         onFields={() => { scroll.scrollTop = 0; }} />

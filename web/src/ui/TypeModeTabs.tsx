@@ -17,7 +17,7 @@ export function TypeModeTabs(props: TypeModeTabsProps) {
   return <div class="type-mode-tabs mode-tabs tab-strip" data-mode-panel=":scope > :first-child" role="group" aria-label="Type view">
     <Button aria-pressed={props.active === 'index'} onClick={props.onIndex}>Index <span class="faint">{props.indexCount}</span></Button>
     <Button aria-pressed={props.active === 'table'} onClick={props.onTable}>Table <span class="faint">{props.tableCount}</span></Button>
-    <Button aria-pressed={props.active === 'fields'} onClick={props.onFields}>Fields <span class="faint">{props.fieldsCount}</span></Button>
+    <Button aria-pressed={props.active === 'fields'} onClick={props.onFields} title="Field template slots">Template <span class="faint">{props.fieldsCount}</span></Button>
     <Button aria-pressed={props.active === 'cards'} onClick={props.onCards}>Cards <span class="faint">{props.cardsCount}</span></Button>
   </div>;
 }

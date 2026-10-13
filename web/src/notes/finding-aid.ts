@@ -1,4 +1,4 @@
-import type { CrossReference, Filter, KindIndex, NoteEntry, NoteSummary, Operation } from '../api/types';
+import type { CrossReference, Filter, KindIndex, NoteEntry, NoteSummary, Operation, Query } from '../api/types';
 import { foldName } from '../outline/names';
 
 export type FindingAidEntry =
@@ -9,6 +9,13 @@ export interface FindingAidGroup {
   letter: string;
   entries: FindingAidEntry[];
   noteCount: number;
+}
+
+/** The alphabetical whole-kind read already contains every row this query would select. */
+export function wholeKindIndex(query: Query, kind: string, type: string | null): boolean {
+  return (!query.source || query.source === 'notes') && query.note_kind === kind && query.type === type
+    && (query.note_view?.grouping ?? 'letter') === 'letter' && !query.text?.trim()
+    && !query.filters.length && !query.sort.length && !query.links?.length && !query.from?.length && !query.cites?.length;
 }
 
 /** File notes and cross-references together; apparatus counts only actual notes. */

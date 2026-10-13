@@ -413,6 +413,7 @@ fn kind_index_summaries_derive_prose_fields_live_counts_and_distinct_backlinks()
             insert(600, id(6), None, "Later prose".into(), None),
             insert(601, id(6), None, "Earlier prose".into(), None),
             insert(602, id(6), None, "Earliest prose".into(), None),
+            insert(603, id(6), Some(id(600)), "Latest prose".into(), None),
         ],
     );
     tag(&mut nb, 1, "Topics");
@@ -451,26 +452,37 @@ fn kind_index_summaries_derive_prose_fields_live_counts_and_distinct_backlinks()
     assert_eq!(alpha.preview.as_deref(), Some("Preferred gloss"));
     assert_eq!(alpha.field.as_ref().unwrap().name, "Area");
     assert_eq!(alpha.field.as_ref().unwrap().value, "Architecture");
-    assert_eq!(alpha.block_count, 5);
+    assert_eq!(
+        alpha.block_count, 1,
+        "field entries and values are not prose"
+    );
+    assert_eq!(alpha.prose_excerpt, ["Earlier prose"]);
     let beta = &index.summaries[&id(2)];
     assert_eq!(beta.preview.as_deref(), Some("Nested first prose"));
     assert_eq!(
-        beta.block_count, 6,
-        "live archived descendants count, deleted descendants do not"
+        beta.block_count, 1,
+        "headings, fields, archived subtrees and deleted descendants are not prose"
     );
     assert_eq!(
         beta.text_blocks, 4,
         "archived ancestry hides nonempty descendants"
     );
+    assert_eq!(beta.prose_excerpt, ["Nested first prose"]);
     let unfiled = nb.kind_notes("unfiled").unwrap();
     assert_eq!(
         unfiled.summaries[&id(6)].preview.as_deref(),
         Some("Earliest prose"),
         "negative sibling ordinals retain outline order"
     );
+    assert_eq!(
+        unfiled.summaries[&id(6)].prose_excerpt,
+        ["Earliest prose", "Earlier prose", "Later prose"],
+        "the inspector excerpt keeps the first three prose blocks in outline order"
+    );
     let blank = &unfiled.summaries[&id(3)];
     assert_eq!(blank.preview, None);
-    assert_eq!(blank.block_count, 1);
+    assert_eq!(blank.block_count, 0);
+    assert!(blank.prose_excerpt.is_empty());
     assert_eq!(blank.text_blocks, 0);
     assert_eq!(
         blank.backlinks, 2,
