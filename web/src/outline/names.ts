@@ -72,7 +72,6 @@ export function plainText(text: string, lookup: NotebookClient['lookup'], seen: 
   if (quoted) return `“${referenceLabel({ kind: 'reference', id: quoted, value: '', start: 0, end: 0 }, lookup(quoted)(), lookup, seen)}”`;
   return textTokens(text).map(token => isStableReference(token) ? referenceLabel(token, lookup(token.id!)(), lookup, seen) : token.kind === 'tag' ? `#${token.value}` : token.value).join('');
 }
-
 /** Only the selected occurrence changes; a concurrently edited token is never overwritten. */
 export function resolvedReferenceText(text: string, token: Token, target: string): string | null {
   const current = textTokens(text).find(value => value.start === token.start && value.end === token.end && value.kind === 'reference' && value.id === token.id && value.alias === token.alias);

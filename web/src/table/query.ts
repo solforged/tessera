@@ -1,4 +1,5 @@
 import type { FieldDefinition, Filter, FilterOp, Query, SortKey } from '../api/types';
+import type { NotebookClient } from '../document/contract';
 import { parseCardText } from '../review/card-text';
 
 export const filterLabels: Record<FilterOp, string> = {
@@ -27,9 +28,12 @@ export function sortLabel(key: SortKey, fields: readonly FieldDefinition[]): str
     : { title: 'Title', created: 'Created', updated: 'Updated' }[key.by];
   return `${name} ${key.direction === 'asc' ? '↑' : '↓'}`;
 }
-export function filterLabel(filter: Filter, fields: readonly FieldDefinition[]): string {
-  const name = fields.find(field => field.id === filter.field)?.name ?? filter.field;
-  return `${name} ${filterLabels[filter.op]}${filter.op === 'present' || filter.op === 'set' || filter.op === 'empty' ? '' : ` ${filter.value ?? ''}`}`;
+export function filterLabel(filter: Filter, fields: readonly FieldDefinition[], notebook: NotebookClient): string {
+  const definition = fields.find(field => field.id === filter.field);
+  const name = definition?.name ?? filter.field;
+  const value = definition?.kind === 'instance' && (filter.op === 'is' || filter.op === 'is_not') && filter.value
+    ? notebook.lookup(filter.value)()?.text ?? filter.value : filter.value;
+  return `${name} ${filterLabels[filter.op]}${filter.op === 'present' || filter.op === 'set' || filter.op === 'empty' ? '' : ` ${value ?? ''}`}`;
 }
 /** Move this key to the front, flipping its direction when chosen again. */
 export function chooseSort(query: Query, key: Pick<SortKey, 'by' | 'field'>, direction?: SortKey['direction']): Query {

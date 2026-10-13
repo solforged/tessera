@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'bun:test';
-import { addFilter, chooseSort, copyQuery, fieldEntryId, fieldEntryText, matchFieldEntry, queriesEqual, removeFilter, removeSort, typeQuery } from './query';
+import { addFilter, chooseSort, copyQuery, fieldEntryId, fieldEntryText, filterLabel, matchFieldEntry, queriesEqual, removeFilter, removeSort, typeQuery } from './query';
+import type { FieldDefinition } from '../api/types';
+import type { NotebookClient } from '../document/contract';
 
 describe('query edits', () => {
   test('sort choice adds first, replaces without duplicates, and flips direction', () => {
@@ -19,6 +21,17 @@ describe('query edits', () => {
     expect(two.filters).toEqual([filter, { field: 'read', op: 'set', value: null }]);
     expect(removeFilter(two, 0).filters).toEqual([{ field: 'read', op: 'set', value: null }]);
     expect(one.filters).toEqual([filter]);
+  });
+  test('instance filter chips resolve the current entity title, not the stored ID', () => {
+    const fields: FieldDefinition[] = [{ id: 'author', name: 'Author', kind: 'instance', revision: 1, options: [], targets: [] }];
+    let title = 'Aristotle';
+    const notebook = { lookup: () => () => ({ text: title }) } as unknown as NotebookClient;
+    const filter = { field: 'author', op: 'is' as const, value: 'person-id' };
+    expect(filterLabel(filter, fields, notebook)).toBe('Author is Aristotle');
+    title = 'Aristotle QA';
+    expect(filterLabel(filter, fields, notebook)).toBe('Author is Aristotle QA');
+    expect(filter.value).toBe('person-id');
+    expect(filterLabel({ ...filter, op: 'contains', value: 'Aristotle' }, fields, notebook)).toBe('Author contains Aristotle');
   });
   test('saved equality compares all fields and preserves ordered filters and sort precedence', () => {
     const query = chooseSort(addFilter(addFilter(typeQuery('books'), { field: 'year', op: 'gte', value: '2000' }), { field: 'author', op: 'contains', value: 'Herbert' }), { by: 'title', field: null });

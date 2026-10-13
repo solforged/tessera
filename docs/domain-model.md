@@ -212,6 +212,8 @@ A query selects blocks by type, text search or field ownership, filters by field
 
 Missing and unreadable values sort last. Fields used by filters remain table columns even when all their values are empty.
 
+Instance equality and inequality compare the selected page's ID, not its label. A saved filter keeps its members when that page is renamed. Older label-only filters migrate when the title identifies one page; an unresolved value matches nothing and must be selected again.
+
 A view is a saved query with a name and a revision. Views are not blocks; saving and deleting them are operations like any other, so they are attributed and undoable. A type table is the unsaved query for that type's members.
 
 ## Tasks

@@ -454,7 +454,7 @@ export function TablePane(props: TablePaneProps) {
       </div>
       <Show when={query().sort.length || query().filters.length}><div class="table-query-chips">
         <For each={query().sort}>{(key, index) => <span class="table-chip">{sortLabel(key, fields())}<Button label={`Remove ${sortLabel(key, fields())}`} onClick={() => updateQuery(removeSort(query(), index()))}>×</Button></span>}</For>
-        <For each={query().filters}>{(filter, index) => <span class="table-chip">{filterLabel(filter, fields())}<Button label={`Remove ${filterLabel(filter, fields())}`} onClick={() => updateQuery(removeFilter(query(), index()))}>×</Button></span>}</For>
+        <For each={query().filters}>{(filter, index) => <span class="table-chip">{filterLabel(filter, fields(), props.notebook)}<Button label={`Remove ${filterLabel(filter, fields(), props.notebook)}`} onClick={() => updateQuery(removeFilter(query(), index()))}>×</Button></span>}</For>
       </div></Show>
       <div class="table-scroll-frame">
       <div ref={scroll} class="table-scroll" onScroll={() => { cancelAnimationFrame(scrollReport); scrollReport = requestAnimationFrame(() => { reportView(); measureEdge(); }); }}>
@@ -510,7 +510,7 @@ export function TablePane(props: TablePaneProps) {
       {state.kind === 'menu' && <Menu anchor={state.anchor} label={state.label} header={state.header} items={state.items} onDismiss={() => setPopup(null)} />}
       {state.kind === 'value' && <ValueEditor anchor={state.anchor} field={fieldById(state.field.id) ?? state.field} text={(state.value ?? state.row.values[state.field.id]?.[0])?.text ?? ''} notebook={props.notebook} contextDate={props.notebook.todayDate()}
         onWrite={text => writeCell(state.row, state.field, text, state.value)} onError={message} onDismiss={() => { setPopup(null); requestAnimationFrame(() => focusCell(state.row.block.block.id, state.field.id)); }} />}
-      {state.kind === 'filter' && <FilterPopup anchor={state.anchor} fields={fields()} initialField={state.field} sheet={window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches} onDismiss={() => setPopup(null)} onNewField={async name => createField(name, false)} onAdd={filter => { updateQuery(addFilter(query(), filter)); setPopup(null); }} />}
+      {state.kind === 'filter' && <FilterPopup anchor={state.anchor} fields={fields()} notebook={props.notebook} initialField={state.field} sheet={window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches} onDismiss={() => setPopup(null)} onNewField={async name => createField(name, false)} onAdd={filter => { updateQuery(addFilter(query(), filter)); setPopup(null); }} />}
       {state.kind === 'name' && <NamePopup anchor={state.anchor} action={state.action} name={state.action === 'rename' ? saved()?.name ?? '' : ''} onDismiss={() => setPopup(null)} onSave={async name => { if (state.action === 'field') await createField(name, !!state.addColumn); else await saveView(name, state.action === 'rename'); }} />}
       {state.kind === 'delete' && <Popup anchor={state.anchor} label="Delete table view?" onDismiss={() => { if (!deleting()) setPopup(null); }}>
         <p>Delete “{state.view.name}”? Rows are not deleted.</p>

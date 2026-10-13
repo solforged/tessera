@@ -110,6 +110,90 @@ pub(crate) fn presentation(
         .unwrap_or_default())
 }
 
+/// Preserve existing query structure while replacing uniquely resolved instance
+/// equality labels. Missing or ambiguous entities are never guessed.
+pub(crate) fn migrate_instance_filters(conn: &Connection) -> Result<()> {
+    let instances: HashSet<_> = definitions(conn)?
+        .into_iter()
+        .filter(|field| field.kind == FieldKind::Instance)
+        .map(|field| field.id)
+        .collect();
+    let mut names = HashMap::<String, Vec<String>>::new();
+    let mut statement =
+        conn.prepare("SELECT id, text FROM blocks WHERE kind = 'page' AND deletion_id IS NULL")?;
+    let mut rows = statement.query([])?;
+    while let Some(row) = rows.next()? {
+        let id: String = row.get(0)?;
+        let title: String = row.get(1)?;
+        names.entry(title.to_lowercase()).or_default().push(id);
+    }
+    fn canonicalize(
+        value: &mut serde_json::Value,
+        instances: &HashSet<String>,
+        names: &HashMap<String, Vec<String>>,
+    ) -> bool {
+        let mut changed = false;
+        match value {
+            serde_json::Value::Object(object) => {
+                if object
+                    .get("field")
+                    .and_then(|value| value.as_str())
+                    .is_some_and(|field| instances.contains(field))
+                    && object
+                        .get("op")
+                        .and_then(|value| value.as_str())
+                        .is_some_and(|op| matches!(op, "is" | "is_not"))
+                    && let Some(value) = object.get_mut("value")
+                    && let Some(label) = value.as_str().filter(|label| validate_id(label).is_err())
+                    && let Some(ids) = names
+                        .get(&label.to_lowercase())
+                        .filter(|ids| ids.len() == 1)
+                {
+                    *value = serde_json::Value::String(ids[0].clone());
+                    changed = true;
+                }
+                for value in object.values_mut() {
+                    changed |= canonicalize(value, instances, names);
+                }
+            }
+            serde_json::Value::Array(values) => {
+                for value in values {
+                    changed |= canonicalize(value, instances, names);
+                }
+            }
+            _ => {}
+        }
+        changed
+    }
+    for table in ["views", "decks", "task_views", "library_views"] {
+        let mut statement = conn.prepare(&format!("SELECT id, query FROM {table}"))?;
+        let stored = statement
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        for (id, json) in stored {
+            let mut query: serde_json::Value = serde_json::from_str(&json).map_err(|error| {
+                rusqlite::Error::FromSqlConversionFailure(
+                    1,
+                    rusqlite::types::Type::Text,
+                    Box::new(error),
+                )
+            })?;
+            if canonicalize(&mut query, &instances, &names) {
+                conn.execute(
+                    &format!("UPDATE {table} SET query = ?1 WHERE id = ?2"),
+                    params![
+                        serde_json::to_string(&query).expect("query values serialize"),
+                        id
+                    ],
+                )?;
+            }
+        }
+    }
+    Ok(())
+}
+
 fn stored_view(row: &rusqlite::Row<'_>) -> rusqlite::Result<View> {
     let json: String = row.get(2)?;
     let query = serde_json::from_str(&json).map_err(|error| {
@@ -424,6 +508,7 @@ struct PreparedFilter<'a> {
     filter: &'a Filter,
     value: String,
     number: Option<f64>,
+    instance: bool,
     owners: Option<HashSet<String>>,
 }
 impl<'a> PreparedFilter<'a> {
@@ -468,6 +553,7 @@ impl<'a> PreparedFilter<'a> {
         Ok(Self {
             filter,
             owners,
+            instance: kind == FieldKind::Instance,
             value: filter.value.as_deref().unwrap_or_default().to_lowercase(),
             number: if kind == FieldKind::Number && ordered(filter.op) {
                 Some(filter_number(
@@ -496,9 +582,12 @@ impl<'a> PreparedFilter<'a> {
         }
     }
     fn compare(&self, field: &FieldValue, op: FilterOp) -> bool {
-        let Reading::Value { value, .. } = &field.reading else {
+        let Reading::Value { value, target, .. } = &field.reading else {
             return false;
         };
+        if self.instance && op == FilterOp::Is {
+            return target.as_deref() == self.filter.value.as_deref();
+        }
         let order = if let Some(right) = self.number {
             let ReadingValue::Number(left) = value else {
                 return false;
@@ -573,4 +662,86 @@ fn sort_value(
             }
         }
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{Actor, Batch, Operation};
+
+    #[test]
+    fn migrated_instance_filters_keep_other_predicates_and_query_metadata() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut notebook = Notebook::open(directory.path()).unwrap();
+        let field = ulid::Ulid::from(10_u128).to_string();
+        let person = ulid::Ulid::from(20_u128).to_string();
+        notebook
+            .apply(&Batch {
+                actor: Actor::Person,
+                reason: None,
+                idempotency_key: None,
+                operations: vec![
+                    Operation::CreatePage {
+                        id: person.clone(),
+                        title: "Aristotle".into(),
+                    },
+                    Operation::Insert {
+                        id: field.clone(),
+                        parent_id: notebook.fields().unwrap().page_id,
+                        after: None,
+                        text: "Author".into(),
+                        heading: None,
+                    },
+                    Operation::SetFieldKind {
+                        id: field.clone(),
+                        base_revision: 1,
+                        kind: FieldKind::Instance,
+                    },
+                ],
+            })
+            .unwrap();
+        let source = serde_json::json!({
+            "filters": [
+                {"field": field, "op": "is", "value": "ARISTOTLE"},
+                {"field": field, "op": "is_not", "value": "Aristotle"},
+                {"field": field, "op": "contains", "value": "Aristotle"},
+                {"field": field, "op": "is", "value": "Missing person"},
+                {"field": field, "op": "is", "value": person},
+            ],
+            "sort": [{"by": "title", "direction": "desc", "field": null}], "limit": 123
+        });
+        for table in ["views", "decks", "task_views", "library_views"] {
+            let json = if table == "views" {
+                source.clone()
+            } else {
+                serde_json::json!({"source": source, "other": true})
+            };
+            notebook.conn.execute(&format!("INSERT INTO {table}(id, name, query, revision, created_at, updated_at) VALUES ('test', 'test', ?1, 4, 1, 2)"), [json.to_string()]).unwrap();
+        }
+        migrate_instance_filters(&notebook.conn).unwrap();
+        for table in ["views", "decks", "task_views", "library_views"] {
+            let (json, revision, updated): (String, i64, i64) = notebook
+                .conn
+                .query_row(
+                    &format!("SELECT query, revision, updated_at FROM {table} WHERE id = 'test'"),
+                    [],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                )
+                .unwrap();
+            let json: serde_json::Value = serde_json::from_str(&json).unwrap();
+            let query = if table == "views" {
+                &json
+            } else {
+                &json["source"]
+            };
+            assert_eq!(query["filters"][0]["value"], person);
+            assert_eq!(query["filters"][1]["value"], person);
+            assert_eq!(query["filters"][2]["value"], "Aristotle");
+            assert_eq!(query["filters"][3]["value"], "Missing person");
+            assert_eq!(query["filters"][4]["value"], person);
+            assert_eq!(query["sort"], source["sort"]);
+            assert_eq!(query["limit"], 123);
+            assert_eq!((revision, updated), (4, 2));
+        }
+    }
 }

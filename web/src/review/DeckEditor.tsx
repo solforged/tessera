@@ -90,7 +90,7 @@ export function DeckEditor(props: DeckEditorProps) {
   return <Popup anchor={props.anchor} label={props.deck ? 'Edit deck' : 'New deck'} class="deck-editor" onDismiss={() => { if (!pending()) props.onDismiss(); }}>
     <form onSubmit={event => { event.preventDefault(); void save(); }}>
       <label class="deck-editor-name">Name<input class="input" value={name()} maxLength={120} disabled={locked()} onInput={event => setName(event.currentTarget.value)} /></label>
-      <SourceQueryControls query={query().source} types={props.notebook.roots()} fields={fields()} disabled={locked() || loading()} onChange={source => setQuery(value => ({ ...value, source }))} />
+      <SourceQueryControls query={query().source} types={props.notebook.roots()} fields={fields()} notebook={props.notebook} disabled={locked() || loading()} onChange={source => setQuery(value => ({ ...value, source }))} />
       <div class="deck-editor-queue"><span>Queue</span><Button class="bordered" disabled={locked()} aria-haspopup="menu" onClick={event => setSelectionAnchor(event.currentTarget)}>{selectionLabels[query().selection]}<Icon name="down" /></Button>
         <Show when={matching() !== null}><span class="deck-editor-match" role="status">{matching()} {matching() === 1 ? 'card matches' : 'cards match'}</span></Show>
       </div>

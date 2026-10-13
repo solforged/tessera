@@ -93,6 +93,8 @@ Delete view confirms that rows are not deleted unless Ask before deleting views 
 
 Search rows, Filters, Sort and Columns align to the register. Applied filter and sort chips sit beneath the controls and remove with their own ×. Chips wrap on narrow panes.
 
+For an instance field, **is** and **is not** choose a page from the field's target types. The filter stores that page's ID and its chip follows the current title. A legacy unresolved value is marked in the picker and needs a page selection.
+
 ### Grid
 
 Apparatus headers are sticky on `--canvas`, with the title sticky at the left. Cells are 13 px; rows are at least 28 px, divided by horizontal rules and one edge beside the title.

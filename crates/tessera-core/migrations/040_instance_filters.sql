@@ -1,0 +1,2 @@
+-- migrate_instance_filters resolves legacy instance equality labels to IDs.
+-- Unresolved labels remain authored but no longer compare as entity identities.

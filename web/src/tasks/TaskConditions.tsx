@@ -89,15 +89,15 @@ export function TaskConditions(props: TaskConditionsProps) {
 
   return <div class="task-condition-bar" role="group" aria-label="Task conditions">
     <For each={source().filters}>{(filter, index) => <span class="table-chip task-condition-chip">
-      <Button disabled={props.disabled} label={`Edit ${filterLabel(filter, props.fields)}`} aria-haspopup="dialog" onClick={event => open({ kind: 'field', anchor: event.currentTarget, field: filter.field, edit: { index: index(), filter: { ...filter } } })}>{filterLabel(filter, props.fields)}</Button>
-      <Button disabled={props.disabled} label={`Remove ${filterLabel(filter, props.fields)}`} onClick={() => updateSource(removeFilter(source(), index()))}>×</Button>
+      <Button disabled={props.disabled} label={`Edit ${filterLabel(filter, props.fields, props.notebook)}`} aria-haspopup="dialog" onClick={event => open({ kind: 'field', anchor: event.currentTarget, field: filter.field, edit: { index: index(), filter: { ...filter } } })}>{filterLabel(filter, props.fields, props.notebook)}</Button>
+      <Button disabled={props.disabled} label={`Remove ${filterLabel(filter, props.fields, props.notebook)}`} onClick={() => updateSource(removeFilter(source(), index()))}>×</Button>
     </span>}</For>
     <Button ref={addButton} class="bordered" disabled={props.disabled} aria-haspopup="dialog" aria-expanded={popup()?.anchor === addButton} onClick={event => popup()?.anchor === addButton ? setPopup(null) : open({ kind: 'conditions', anchor: event.currentTarget })}>Add condition<Icon name="down" /></Button>
     {props.children}
     <Show keyed when={popup()}>{state => {
       const dismiss = () => { if (popup() === state) setPopup(null); };
       if (state.kind === 'conditions') return <Picker<ConditionChoice> class="task-condition-popup" anchor={state.anchor} width={320} label="Add condition" query={search()} onQuery={setSearch} placeholder="Find a condition" items={choices()} section={item => item.section} key={item => item.kind === 'field' ? `field:${item.field}` : item.kind} busy={props.metadataLoading} error={props.metadataError} onDismiss={dismiss} onPick={item => open(item.kind === 'field' ? { kind: 'field', anchor: state.anchor, field: item.field } : { kind: item.kind, anchor: state.anchor })} row={item => <span class="picker-text">{item.label}</span>} empty="No matching conditions." />;
-      if (state.kind === 'field') return <FilterPopup anchor={state.anchor} fields={props.fields} initialField={state.field} initialFilter={state.edit?.filter} label={state.edit ? 'Edit condition' : 'Add condition'} onDismiss={dismiss} onAdd={filter => {
+      if (state.kind === 'field') return <FilterPopup anchor={state.anchor} fields={props.fields} notebook={props.notebook} initialField={state.field} initialFilter={state.edit?.filter} label={state.edit ? 'Edit condition' : 'Add condition'} onDismiss={dismiss} onAdd={filter => {
         if (props.disabled) return;
         const current = source();
         const edited = state.edit;

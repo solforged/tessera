@@ -1577,6 +1577,47 @@ fn date_text_and_boolean_filters_use_readings_and_numeric_zero_is_equal() {
 }
 
 #[test]
+fn saved_instance_equality_uses_identity_across_renames_and_aliases() {
+    let (_dir, mut nb) = fixture();
+    kind(&mut nb, 10, FieldKind::Instance);
+    apply(
+        &mut nb,
+        vec![page(20, "Aristotle"), page(21, "Other person")],
+    );
+    edit(&mut nb, 300, &format!("[[{}|The philosopher]]", id(20)));
+    let mut q = query();
+    q.filters.push(Filter {
+        field: id(10),
+        op: FilterOp::Is,
+        value: Some(id(20)),
+    });
+    apply(
+        &mut nb,
+        vec![Operation::SaveView {
+            id: id(500),
+            base_revision: None,
+            name: "By Aristotle".into(),
+            query: q.clone(),
+        }],
+    );
+    assert_eq!(ids(nb.query(&q).unwrap()), [id(100)]);
+    edit(&mut nb, 20, "Aristotle QA");
+    let saved = nb.view(&id(500)).unwrap();
+    assert_eq!(saved.query.filters[0].value, Some(id(20)));
+    let mut unresolved = saved.query.clone();
+    unresolved.filters[0].value = Some("Aristotle QA".into());
+    assert!(nb.query(&unresolved).unwrap().rows.is_empty());
+    assert_eq!(ids(nb.query(&saved.query).unwrap()), [id(100)]);
+    q.filters[0].value = Some(id(21));
+    assert!(nb.query(&q).unwrap().rows.is_empty());
+    q.filters[0].value = Some(id(20));
+    q.filters[0].op = FilterOp::IsNot;
+    assert!(nb.query(&q).unwrap().rows.is_empty());
+    edit(&mut nb, 300, &format!("[[{}]]", id(21)));
+    assert_eq!(ids(nb.query(&q).unwrap()), [id(100)]);
+}
+
+#[test]
 fn columns_count_owners_not_values_and_use_names_for_frequency_ties() {
     let (_dir, mut nb) = fixture();
     let fields = nb.fields().unwrap().page_id;
