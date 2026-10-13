@@ -367,6 +367,8 @@ Type pills follow the text at meta size. Clicking a pill opens a menu: open the 
 
 A field whose values are all leaves reads through its definition's role. Standfirst values sit as sentences under their owner, without labels. Attributes and citations form one aligned bed: the field icon takes the bullet slot, the name sits in a 168 px muted column beside the first value, and later values follow with the name left blank. Citation references read as siglum · locator. Prose fields follow the bed at full measure, with their label above. A name that does not fit wraps. Fields whose values have children, and an entry being edited, retain two levels. Phone labels stack above values.
 
+A page's own fields read as a specimen block under the imprint, as the site sets title, standfirst, imprint, then text. Names are mono apparatus in `--faint` without the field icon, starting on the title edge. Attribute values are `--text-control` in `--muted`, and a dotted hairline separates rows. On phones each name sits over its value, both on the title edge. Nested fields sit inside prose and keep the bed above; journal days and the reading register set fields their own way.
+
 - Clicking a name opens its field menu: Open field page, Kind (which opens the change preview on the field page), Options… or Links to…, Hide, Role, Add to or Remove from each of the owner's type templates, and Remove from this note. The block menu's Field section and the leader key `f` open the same menu.
 - An entry with no value shows its name and a blank value; clicking the blank adds a value and edits it. Blank values show no text.
 - Backspace at the start of the first inline value does nothing; at the start of a later one it joins the value above.
@@ -389,11 +391,11 @@ Choice and instance values never show their reference text. Their pills sit cent
 
 Every block or page with field entries or template fields has a field bed at rest. Populated fields stay visible; missing template and recipe slots appear only while their owner or one of its fields is focused. Slots never add content until used.
 
-- On a page, an Add field line closes the area at label size, followed by a small gap before the notes.
+- On a page, an Add field line in mono apparatus closes the area, followed by a small gap before the notes.
 - On a nested block, `+ Field` appears at the end of its last field row while the block or one of its fields is hovered, selected or edited, without changing any row's height.
 - A page or block without fields adds one from Add field… in its page or block menu, or with `Name::`.
 
-Slots read as suggestions: the name in `--faint` and no value text. Slots share the field labels' edge and sit on the canvas outside the row's hover and selection. A slot adds the entry with a blank value and opens its kind's editor; a checkbox slot adds a ticked value.
+Slots read as suggestions: the name in `--faint` and no value text. On a page, slot names take the specimen block's mono apparatus without the icon, the value reads `Add…` in `--faint`, and a dotted hairline follows each slot. Slots share the field labels' edge and sit on the canvas outside the row's hover and selection. A slot adds the entry with a blank value and opens its kind's editor; a checkbox slot adds a ticked value.
 
 Add field opens a picker with missing template fields under Template, then the rest, and Create field for a new name. A position instead begins with From this recipe: Gist, Work, then its subject's explicit or derived criteria. A suggested field takes its recipe or template place among the entries; another follows the last entry. Each addition is one undo step.
 

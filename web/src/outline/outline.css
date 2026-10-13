@@ -423,3 +423,23 @@
   .inline-field-value:is([data-field-role="attribute"], [data-field-role="citation"], [data-field-role="prose"]) > .outline-field-label { flex-basis: 100%; width: 100%; font: var(--apparatus); }
   .inline-field-value:is([data-field-role="attribute"], [data-field-role="citation"], [data-field-role="prose"]) > .outline-body { flex-basis: calc(100% - var(--target-size)); margin-left: var(--target-size); min-width: 0; }
 }
+/* A page's own fields read as a specimen block under the imprint: names in faint mono apparatus without the field glyph,
+   values at control size, a dotted hairline between rows. Nested fields sit inside prose and keep the outline's voice;
+   journal days and the reading register set fields their own way. */
+.outline-pane:not(:has(.journal-header, .reading-register)) .inline-field-value[aria-level="1"]:is([data-field-role="attribute"], [data-field-role="citation"])::after { content: ""; position: absolute; left: var(--gutter); right: 0; bottom: 0; border-bottom: var(--rule-width) dotted var(--line); pointer-events: none; }
+.outline-pane:not(:has(.journal-header, .reading-register)) .inline-field-value[aria-level="1"]:is([data-field-role="attribute"], [data-field-role="citation"], [data-field-role="prose"]) > .outline-field-label,
+.outline-pane:not(:has(.journal-header, .reading-register)) .field-slots-root .field-slot-label { color: var(--faint); font: var(--apparatus); line-height: var(--line-control); letter-spacing: var(--tracking-apparatus); }
+.outline-pane:not(:has(.journal-header, .reading-register)) .inline-field-value[aria-level="1"] > .outline-field-label { align-self: baseline; padding-top: var(--rule-width); }
+.outline-pane:not(:has(.journal-header, .reading-register)) .inline-field-value[aria-level="1"] > .outline-field-label:hover { color: var(--muted); }
+.outline-pane:not(:has(.journal-header, .reading-register)) .inline-field-value[aria-level="1"] > .outline-field-label > .icon,
+.outline-pane:not(:has(.journal-header, .reading-register)) .field-slots-root .field-slot-label > .icon { display: none; }
+.outline-pane:not(:has(.journal-header, .reading-register)) .inline-field-value[aria-level="1"][data-field-role="attribute"] > .outline-body { color: var(--muted); font-size: var(--text-control); }
+.field-slots-root .field-slot { border-bottom: var(--rule-width) dotted var(--line); }
+.field-slot-add { color: var(--faint); font-size: var(--text-control); }
+.field-slots-root .field-area-add { font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+/* On phones the name stacks over its value; both start on the title edge and the hairline spans the row. */
+@media (max-width: 599px) {
+  .outline-pane:not(:has(.journal-header, .reading-register)) .inline-field-value[aria-level="1"]:is([data-field-role="attribute"], [data-field-role="citation"])::after { left: 0; }
+  .outline-pane:not(:has(.journal-header, .reading-register)) .inline-field-value[aria-level="1"]:is([data-field-role="attribute"], [data-field-role="citation"]) > .outline-field-label { min-height: 0; padding-top: var(--space-8); }
+  .outline-pane:not(:has(.journal-header, .reading-register)) .inline-field-value[aria-level="1"]:is([data-field-role="attribute"], [data-field-role="citation"]) > .outline-body { margin-left: 0; }
+}

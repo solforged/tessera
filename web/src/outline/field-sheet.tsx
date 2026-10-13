@@ -276,10 +276,11 @@ export function createFieldSheet(context: Pick<OutlineContext,
       <button type="button" class="field-area-add" aria-haspopup="dialog" aria-expanded={picker()?.owner === area.state.owner} onClick={event => pick(area.state.owner, event.currentTarget)}><Icon name="plus" />{root() ? 'Add field' : 'Field'}</button>
       <Show when={hidden()}><button type="button" class="field-area-hidden" aria-expanded={options.revealed().has(area.state.owner)} onClick={() => options.reveal(area.state.owner)}>{hidden()} hidden</button></Show>
     </div>;
-    return <Show when={root() || missing().length} fallback={<Controls />}><div class="field-slots" data-field-owner={area.state.owner} style={{ '--slot-depth': area.state.depth }} onPointerEnter={() => setHovered(area.state.owner)} onPointerLeave={() => setHovered(null)}>
+    return <Show when={root() || missing().length} fallback={<Controls />}><div class="field-slots" classList={{ 'field-slots-root': root() }} data-field-owner={area.state.owner} style={{ '--slot-depth': area.state.depth }} onPointerEnter={() => setHovered(area.state.owner)} onPointerLeave={() => setHovered(null)}>
       <For each={missing()}>{id => <Show when={definitionsById().get(id)}>{field => <button type="button" class="field-slot" aria-label={`Add ${field().name} value`} onClick={event => choose(area.state.owner, event.currentTarget, field())}>
         <span class="field-slot-label"><Icon name="field" /><span>{field().name}</span></span>
-        <span class="field-slot-value"><Show when={field().kind === 'checkbox'}><span class="field-checkbox" aria-hidden="true" /></Show></span>
+        {/* A page's empty slot says it can be filled rather than reading as missing metadata. */}
+        <span class="field-slot-value"><Show when={field().kind === 'checkbox'} fallback={<Show when={root()}><span class="field-slot-add" aria-hidden="true">Add…</span></Show>}><span class="field-checkbox" aria-hidden="true" /></Show></span>
       </button>}</Show>}</For>
       <Controls />
     </div></Show>;
