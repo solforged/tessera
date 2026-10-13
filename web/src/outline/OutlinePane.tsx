@@ -48,6 +48,7 @@ import { createOutlineDrag } from './drag';
 import { createOutlineRelated } from './Related';
 import { createFieldSheet } from './field-sheet';
 import { createCapabilityPopups } from './CapabilityPopups';
+import { createRelationActions } from './RelationActions';
 import type { MenuState, OutlineContext, RowRange } from './context';
 import { PageMergeConfirmation, pageMergeDisabledReason } from './PageMerge';
 import { foldName, nameMenuItems, resolveName } from './names';
@@ -1007,6 +1008,10 @@ function Pane(props: OutlinePaneProps) {
     scheduleReport,
     setMessage,
     showNotice,
+    openRelation: (id, kind, anchor) => openRelation(id, kind, anchor),
+    positionReason: id => positionReason(id),
+    placeReason: id => placeReason(id),
+    usePlace: id => usePlace(id),
     get disposed() { return disposed; },
     rowAnchor,
     editAt,
@@ -1101,6 +1106,7 @@ function Pane(props: OutlinePaneProps) {
     editedConflicts,
     setEditedConflicts,
   };
+  const { openRelation, positionReason, placeReason, usePlace, RelationPopups } = createRelationActions(context);
   const { setCompletion, setCompletionIndex, offerValue, openValueEditor, valueEditorId, updateCompletion, updateTriggers, taskPrefix, rewriteEditing, referenceInput, forgetReferenceSpace, slashKey, dateKey, popupKey, CompletionPopups } = createOutlineCompletions(context);
   const { openTable, investigationItems, commandDefinitions, unregister, blockMenu, fieldMenu, statusMenu, priorityMenu, openPlanning, openProject, leaderMenu, makeCloze, referenceMenu, copy } = createOutlineCommands(context);
   const { horizontal, adjacent, split, editorKey, structuralKey, pruneEmptyValue, resetRowKey, resetVerticalGoal } = createOutlineKeyboard(context);
@@ -1413,6 +1419,7 @@ function Pane(props: OutlinePaneProps) {
     <CapabilityPopups />
     <CompletionPopups />
     <fieldSheet.Popups />
+    <RelationPopups />
   </div>
     <div class="outline-notices">
       <Show when={notice()}>{value => <div class="undo-toast" role="status" onPointerEnter={() => setNoticeHeld(true)} onPointerLeave={() => setNoticeHeld(false)} onFocusIn={() => setNoticeHeld(true)} onFocusOut={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setNoticeHeld(false); }}>

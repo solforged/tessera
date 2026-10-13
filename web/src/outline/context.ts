@@ -51,6 +51,10 @@ export interface OutlineContext {
   scheduleReport: () => void;
   setMessage: Setter<string>;
   showNotice: (label: string, undo?: () => Promise<void>) => void;
+  openRelation: (id: string, kind: 'holder' | 'subject' | 'integrate', anchor?: HTMLElement | null) => void;
+  positionReason: (id: string) => string | undefined;
+  placeReason: (id: string) => string | undefined;
+  usePlace: (id: string) => void;
   readonly disposed: boolean;
   rowAnchor: (id: string) => HTMLElement | null;
   editAt: (id: string, offset?: number, insert?: boolean, reveal?: boolean, activate?: boolean) => void;

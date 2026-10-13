@@ -66,6 +66,12 @@ Only journals with non-empty visible text get muted filled day marks, independen
 
 Day buttons speak the full civil date and open through the existing journal path. The root text remains ISO and other pages retain their own titles.
 
+## Integrating a thought
+
+Integrate, in a journal block's menu, palette and slash menu, opens the destination picker. Pages come first; typing also searches blocks. Choosing a destination moves the block with all its children to the end of that page or block. The journal keeps a live reference in its old place, so the moved text stays readable there.
+
+The move and reference are one transaction. Undo restores the original place and removes the reference. The change notice offers Undo, and the outline's Undo command uses it while the notice is present. Outside journal days, Integrate is not offered.
+
 ## Today tiles
 
 Today alone leads with Agenda, Review and Reading tiles above the Journal rule and writable outline.

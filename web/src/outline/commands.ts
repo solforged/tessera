@@ -1,3 +1,5 @@
+import { createEffect, onCleanup } from 'solid-js';
+import { plainText } from './names';
 import type { Edit } from '../document/contract';
 import { depthStops } from '../shell/contract';
 import type { Command } from '../shell/contract';
@@ -24,7 +26,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
   | 'scheduleReport' | 'undo' | 'setConflicts' | 'indices' | 'setFolds'
   | 'setZoom' | 'selectedSet' | 'sourceResets' | 'setCompletionIndex' | 'setCompletion'
   | 'rowAnchor' | 'rewriteEditing' | 'activeRange'
-  | 'fields' | 'definitionsById' | 'pickField' | 'showNotice'
+  | 'fields' | 'definitionsById' | 'pickField' | 'showNotice' | 'openRelation' | 'positionReason' | 'placeReason' | 'usePlace'
 >) {
   const {
     doc, editing, commitFieldEntry, props, selected, setMessage,
@@ -148,6 +150,10 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     { id: 'make-project', title: 'Make project', section: 'Outline', keys: ['Space o'], disabledReason: () => selected() && doc.block(selected()!)?.project ? 'Already a project.' : undefined, run: () => selected() && capabilities.invoke(capabilities.edit(selected()!, { kind: 'project', id: selected()!, value: { status: 'active', outcome: '', deadline: null } })) },
     { id: 'make-perspective', title: 'Make perspective', section: 'Block', keys: ['Space v'], disabledReason: () => doc.block(selected() ?? '')?.kind !== 'block' ? 'Select an ordinary block.' : doc.block(selected()!)?.position ? 'Already a perspective.' : undefined, run: () => selected() && capabilities.invoke(capabilities.edit(selected()!, { kind: 'position', id: selected()!, value: true })) },
     { id: 'remove-perspective', title: 'Remove perspective', section: 'Block', keys: ['Space v'], disabledReason: () => doc.block(selected() ?? '')?.kind !== 'block' ? 'Select an ordinary block.' : !doc.block(selected()!)?.position ? 'Select a perspective.' : undefined, run: () => selected() && capabilities.invoke(capabilities.edit(selected()!, { kind: 'position', id: selected()!, value: false })) },
+    { id: 'change-holder', title: 'Change holder…', section: 'Block', disabledReason: () => context.positionReason(selected() ?? ''), run: () => selected() && context.openRelation(selected()!, 'holder') },
+    { id: 'file-under', title: 'File under…', section: 'Block', disabledReason: () => context.positionReason(selected() ?? '') ?? (!textTokens(doc.block(selected() ?? '')?.text ?? '').some(token => token.kind === 'reference') ? 'Choose a holder before filing this perspective.' : undefined), run: () => selected() && context.openRelation(selected()!, 'subject') },
+    { id: 'use-place', title: 'Use place', section: 'Block', disabledReason: () => context.placeReason(selected() ?? ''), run: () => selected() && context.usePlace(selected()!) },
+    ...(doc.root()?.kind === 'journal' ? [{ id: 'integrate', title: 'Integrate…', section: 'Block' as const, disabledReason: () => doc.block(selected() ?? '')?.kind !== 'block' ? 'Select a journal block.' : undefined, run: () => selected() && context.openRelation(selected()!, 'integrate') }] : []),
     ...['Make question', 'Make answer', 'Accept answer', 'Record aporia', 'Clear aporia', 'Park question', 'Resume question', 'Keep open', 'Let it settle', 'Set review date', 'Remove question', 'Remove answer'].map((title): Command => ({
       id: title.toLowerCase().replaceAll(' ', '-'), title, section: 'Outline', keys: title === 'Make question' || title === 'Make answer' ? ['Space q'] : undefined,
       disabledReason: () => {
@@ -185,8 +191,24 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     ...([null, 1, 2, 3] as const).map(level => ({ id: `heading-${level ?? 'normal'}`, title: level ? `Heading ${level}` : 'Normal text', section: 'Editing' as const, run: () => selected() && apply({ kind: 'heading', id: selected()!, level }) })),
   ];
   const commandDefinitions = commandsFor();
-  const commands = commandDefinitions.map(command => ({ ...command, id: `outline.${props.pane}.${command.id}`, disabledReason: () => !props.active ? 'This pane is not active.' : command.disabledReason?.() ?? (command.section !== 'Page' && !['first-row', 'zoom-out', 'show-archived', 'undo', 'redo'].includes(command.id) && !selected() ? 'Select a block first.' : undefined) }));
-  const unregister = props.commands.register(commands);
+  let unregister = () => {};
+  createEffect(() => {
+    const commands = commandsFor().map(command => ({
+      ...command,
+      id: `outline.${props.pane}.${command.id}`,
+      disabledReason: () => !props.active ? 'This pane is not active.' : command.disabledReason?.() ?? (command.section !== 'Page' && !['first-row', 'zoom-out', 'show-archived', 'undo', 'redo'].includes(command.id) && !selected() ? 'Select a block first.' : undefined),
+      ...(['change-holder', 'file-under', 'use-place', 'integrate'].includes(command.id) ? { capture: (): Command => {
+        const id = selected();
+        const bound = commandsFor(() => id).find(candidate => candidate.id === command.id)!;
+        const label = id ? plainText(doc.block(id)?.text ?? '', target => props.notebook.lookup(target)) : '';
+        const reason = !props.active ? 'This pane is not active.' : bound.disabledReason?.();
+        return { ...bound, id: `outline.${props.pane}.${command.id}`, title: `${bound.title}${label ? ` · ${label}` : ''}`, disabledReason: () => reason };
+      } } : {}),
+    }));
+    unregister();
+    unregister = props.commands.register(commands);
+    onCleanup(unregister);
+  });
   /** Keep routine work in one short menu; transformations and capabilities stay one step away. */
   function blockMenu(id: string, anchor: HTMLElement) {
     if (!selectedSet().has(id)) rowFocus(id);
@@ -218,6 +240,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
         { label: 'Show actions', action: () => capabilities.showActions(id) },
       ] : [{ label: 'Make project', section: 'Project', action: () => capabilities.invoke(capabilities.edit(id, { kind: 'project', id, value: { status: 'active', outcome: '', deadline: null } })) }]),
       item(entry?.position ? 'remove-perspective' : 'make-perspective', { section: 'Perspective' }),
+      ...(entry?.position ? [item('change-holder'), item('file-under'), item('use-place')] : []),
       ...investigationItems(id).map((item, index) => ({ ...item, section: index === 0 ? 'Question and answer' : undefined })),
       ...(parseCardText(entry?.text ?? '').cards.length ? [
         { label: 'Review cards', section: 'Cards', action: () => props.onOpen({ kind: 'review', blockId: id }, false) },
@@ -231,6 +254,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
         item('indent', { icon: 'right' }), item('outdent', { icon: 'left' }),
         item('move-up', { icon: 'up' }), item('move-down', { icon: 'down' }),
       ]) },
+      ...(doc.root()?.kind === 'journal' ? [item('integrate')] : []),
       item('copy-reference', { icon: 'copy' }),
       item('open-beside', { icon: 'panes' }),
       item('zoom', { icon: 'bullet' }),

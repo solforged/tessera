@@ -79,6 +79,73 @@ afterAll(async () => {
 });
 
 describe('real notebook operations and recovery', () => {
+  test('explicit position link choices are separate undo steps from typing and each other', async () => {
+    const instance = await client();
+    const { doc, first } = await page(instance, 'Original prose');
+    success(doc.edit({ kind: 'text', id: first, text: 'Authored prose' }));
+    success(doc.edit({ kind: 'positionLinks', id: first, text: '[[holder]] Authored prose' }));
+    success(doc.edit({ kind: 'positionLinks', id: first, text: '[[holder]] [[subject]] Authored prose' }));
+    doc.undo();
+    expect(doc.block(first)?.text).toBe('[[holder]] Authored prose');
+    doc.undo();
+    expect(doc.block(first)?.text).toBe('Authored prose');
+    await instance.flush();
+    doc.release();
+  });
+
+  test('integrating a journal subtree keeps identity, a live return reference and atomic undo/redo', async () => {
+    const instance = await client();
+    const journalId = await instance.journal('2026-10-12');
+    const journal = instance.open(journalId);
+    await eventually(() => journal.status() === 'ready', 'Journal did not load.');
+    const moved = success(journal.edit({ kind: 'insert', parentId: journalId, after: journal.outline.children(journalId).at(-1) ?? null, text: 'A journal thought' })).created[0]!;
+    const child = success(journal.edit({ kind: 'insert', parentId: moved, after: null, text: 'Its evidence' })).created[0]!;
+    await instance.flush();
+    const destination = await page(instance, 'Existing concept text');
+    const change = await instance.integrateBlock(moved, destination.id);
+    expect(journal.block(moved)).toBeUndefined();
+    expect(destination.doc.block(moved)?.parentId).toBe(destination.id);
+    expect(destination.doc.block(child)?.parentId).toBe(moved);
+    const reference = journal.outline.children(journalId).find(id => journal.block(id)?.text === `[[${moved}]]`)!;
+    expect(reference).toBeDefined();
+    const edit = destination.doc.edit({ kind: 'text', id: moved, text: 'Revised integrated thought' });
+    expect(edit.ok).toBe(true);
+    await instance.flush();
+    expect(instance.lookup(moved)()?.text).toBe('Revised integrated thought');
+    await change.undo();
+    expect(journal.block(moved)?.text).toBe('Revised integrated thought');
+    expect(journal.block(child)?.parentId).toBe(moved);
+    expect(journal.block(reference)).toBeUndefined();
+    await change.redo();
+    expect(destination.doc.block(moved)?.parentId).toBe(destination.id);
+    expect(journal.block(reference)?.text).toBe(`[[${moved}]]`);
+    await (journal as Document).reload(false); await (destination.doc as Document).reload(false);
+    expect(destination.doc.block(child)?.parentId).toBe(moved);
+    expect(journal.block(reference)?.text).toBe(`[[${moved}]]`);
+    await change.undo();
+    journal.release(); destination.doc.release();
+  });
+
+  test('integration rejects descendants and never overwrites an edited return reference', async () => {
+    const instance = await client();
+    const journalId = await instance.journal('2026-10-13');
+    const doc = instance.open(journalId);
+    await eventually(() => doc.status() === 'ready', 'Journal did not load.');
+    const moved = success(doc.edit({ kind: 'insert', parentId: journalId, after: null, text: 'Thought' })).created[0]!;
+    const child = success(doc.edit({ kind: 'insert', parentId: moved, after: null, text: 'Child' })).created[0]!;
+    await instance.flush();
+    await expect(instance.integrateBlock(moved, child)).rejects.toThrow('own subtree');
+    const destination = await page(instance);
+    const change = await instance.integrateBlock(moved, destination.id);
+    const reference = doc.outline.children(journalId).find(id => doc.block(id)?.text === `[[${moved}]]`)!;
+    success(doc.edit({ kind: 'text', id: reference, text: 'An authored replacement' }));
+    await instance.flush();
+    await expect(change.undo()).rejects.toThrow('reference changed');
+    expect(doc.block(reference)?.text).toBe('An authored replacement');
+    expect(destination.doc.block(child)?.parentId).toBe(moved);
+    doc.release(); destination.doc.release();
+  });
+
   test('acknowledged notebook creation publishes canonical roots before opening', async () => {
     const instance = await client();
     const id = ulid(), typeId = ulid(), title = `Cache type ${++serial}`;

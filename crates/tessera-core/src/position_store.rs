@@ -230,6 +230,7 @@ impl Notebook {
                     let name = definitions[&field.field_id].trim();
                     if !name.eq_ignore_ascii_case("gist")
                         && !name.eq_ignore_ascii_case("work")
+                        && !name.eq_ignore_ascii_case("account")
                         && seen.insert(field.field_id.clone())
                     {
                         criteria.fields.push(field.field_id.clone());

@@ -8,6 +8,10 @@ Make perspective, in the block menu, the palette and `/perspective`, turns a blo
 
 Its row names the holder in Piazzolla at control weight. The holder link is in `--text` with no underline; hover turns it gilt and underlines it. Its source's siglum hangs in the margin. A `Gist::` child drops its label and reads as the line under the holder, so the pair reads "Plato / A line of decline". At the Perspectives depth each position closes to its holder and gist.
 
+Change holder and File under are in the block menu, palette and slash menu. Clicking the holder link in its outline attribution opens Change holder. Its picker lists People and Groups, including their refined types, before other pages. File under lists page and inline questions and concepts first. The pickers write ordinary link tokens and preserve the prose.
+
+Use place, in the same menus, returns to the nearest ancestor question or the page. It removes the subject only when that link is a standalone token immediately after the holder. Otherwise the action shows why the author must edit the prose. Each change has one undo step; the palette names the selected reading.
+
 ### Holder and subject pages
 
 A holder's page lists Perspectives held above its backlinks. A subject's page lists Perspectives filed elsewhere: positions about it that live on other pages, such as under a highlight. Neither repeats under Backlinks.
@@ -25,6 +29,7 @@ Each column shows, in order:
 - An unboxed source siglum.
 - An 18 px holder name, with its authored Shape glyph alongside.
 - The Work reference.
+- A quiet "as discussed by" line for Account, when present.
 - A 17 px gist and 16 px authored prose.
 
 Shape is not its own cell. Other fields stay in the source outline, reached through the holder or Open reading (Shift beside), rather than becoming a universal questionnaire. No prose is generated from field values and differing strings are not treated as evidence of disagreement.
@@ -56,6 +61,8 @@ Two or more cells in a row with exactly the same text get a numbered `≡ 1 · e
 A question that names a criterion follows that row with a `?`, its text in Piazzolla and a mono scope, `Shape · all 6` or `Shape · POL ↔ MAC only`. Other questions stay below.
 
 Edit criteria lists the criteria with Move up, Move down and Remove and adds fields through the field picker. While the set is derived it says so, and saving stores it.
+
+Derived criteria exclude Gist, Work and Account. Work attributes the primary work. Account names a secondary account. Neither is a comparison criterion. Evidence remains the passages cited beneath each position. Pinned perspective slips show Work and Account as separate lines too.
 
 ## Apparatus margin
 

@@ -392,15 +392,18 @@ A position is an attributed claim: who holds it, about which question or subject
 - **Holder:** the page its first link points to.
 - **Subject:** the block or page its second link points to, else its nearest ancestor question, else its page.
 
+Change holder and File under write the first and second link tokens through pickers. They keep the rest of the text. Change holder keeps an alias only when it also names the new holder. Use place removes a standalone subject token directly after the holder; a subject woven into prose stays for the author to edit. Each action is one undo step.
+
 A position can therefore sit beneath a source-page highlight and still be filed under its concept. Its fields are ordinary children, by convention:
 
 - **Gist:** its one-line summary.
-- **Work:** the source it names, which gives its siglum; otherwise the first passage cited beneath it.
+- **Work:** the primary work it names, which gives its siglum; otherwise the first passage cited beneath it.
+- **Account:** the secondary account, shown as "as discussed by", separate from Work and cited evidence.
 - Whatever criteria positions on one subject share.
 
 Positions on the same subject are compared side by side, never merged. Assessments cite positions and passages, tracing a conclusion to its evidence.
 
-A subject may own an explicit ordered set of criterion fields. Without rows in that set, Compare derives criteria from active positions' field entries in outline order, excluding Gist and Work. Position values remain ordinary entry/value blocks; explicit criteria offer missing fields as empty slots.
+A subject may own an explicit ordered set of criterion fields. Without rows in that set, Compare derives criteria from active positions' field entries in outline order, excluding Gist, Work and Account. Position values remain ordinary entry/value blocks; explicit criteria offer missing fields as empty slots.
 
 Questions beneath the subject attach to the first criterion linked in their text. They are scoped to the linked holder pages of its positions, or to all holders when none are named. These attachments are derived.
 

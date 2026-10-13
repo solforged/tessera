@@ -286,6 +286,7 @@ fn subject_criteria_derive_in_outline_order_and_attach_scoped_questions() {
         (102, "Exit"),
         (103, " gIsT "),
         (104, "WORK"),
+        (105, " aCcOuNt "),
     ] {
         apply(
             &mut nb,
@@ -306,6 +307,8 @@ fn subject_criteria_derive_in_outline_order_and_attach_scoped_questions() {
         insert(202, 10, Some(201), &format!("[[{}]]", id(101))),
         insert(203, 10, Some(202), &format!("[[{}]]", id(104))),
         insert(204, 13, None, &format!("[[{}]]", id(102))),
+        insert(205, 10, Some(203), &format!("[[{}]]", id(105))),
+        insert(212, 205, None, "A secondary account"),
         insert(210, 201, None, "circle"),
         insert(211, 201, Some(210), "second value"),
         insert(

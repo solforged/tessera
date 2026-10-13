@@ -127,6 +127,8 @@ export type Edit =
    * heading in the same undo step (the `# ` input rule).
    */
   | { kind: 'text'; id: string; text: string; heading?: 1 | 2 | 3 | null; caret?: number }
+  /** An explicit holder/subject change never coalesces with typing or another picker choice. */
+  | { kind: 'positionLinks'; id: string; text: string }
   /** Resolve a version kept beside its original, in one batch and undo step. */
   | { kind: 'keptCopy'; id: string; choice: 'use' | 'discard' | 'both' }
   | { kind: 'task'; id: string; value: TaskState | null }
@@ -324,6 +326,8 @@ export interface NotebookClient {
   appendCapture(text: string, task: TaskState | null, picked?: readonly [string, string][]): Promise<void>;
   /** One acknowledged transaction across pages, with exact field-level undo/redo. */
   editSourceDetails(edits: readonly { pageId: string; edit: SourceDetailsEdit }[]): Promise<DocumentChange>;
+  /** Move a journal subtree and leave a live reference, in one transaction with undo/redo. */
+  integrateBlock(id: string, destinationId: string): Promise<DocumentChange>;
   commandState(): SaveState;
   commandMessage(): string;
   /** Open (or share) a page's document. Call `release()` when done. */

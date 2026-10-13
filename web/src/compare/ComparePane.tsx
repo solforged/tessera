@@ -29,6 +29,7 @@ interface Perspective {
   row: PositionRow;
   gist: PositionField | undefined;
   work: PositionField | undefined;
+  account: PositionField | undefined;
   shape: PositionField | undefined;
   source: string | null;
   passages: Passage[];
@@ -100,6 +101,7 @@ export function ComparePane(props: ComparePaneProps) {
     const gist = fields.find(field => isGistName(field.name));
     const work = fields.find(field => field.name.trim().toLowerCase() === 'work');
     return { row, gist, work,
+      account: fields.find(field => field.name.trim().toLowerCase() === 'account'),
       shape: fields.find(field => field.name.trim().toLowerCase() === 'shape'),
       source: ready ? positionSource(doc!, row.block.block.id, fieldName) : fieldEntryId(work?.value ?? ''),
       passages: ready ? readingPassages(doc!, row.block.block.id, gist?.value, fieldName) : [],
@@ -176,6 +178,7 @@ export function ComparePane(props: ComparePaneProps) {
                   <Show when={perspective.shape?.value}>{shape => <span class="compare-shape" title={shape()} role="img" aria-label={shape()}><ShapeGlyph value={shape()} /></span>}</Show>
                 </h3>
                 <Show when={perspective.work?.value}>{work => <div class="compare-work"><BlockText text={perspective.work?.valueId ? docs().get(page)?.block(perspective.work.valueId)?.text ?? work() : work()} blockId={perspective.work?.valueId ?? undefined} notebook={props.notebook} onOpen={props.onOpen} /></div>}</Show>
+                <Show when={perspective.account?.value}>{account => <div class="compare-work">as discussed by <BlockText text={perspective.account?.valueId ? docs().get(page)?.block(perspective.account.valueId)?.text ?? account() : account()} blockId={perspective.account?.valueId ?? undefined} notebook={props.notebook} onOpen={props.onOpen} /></div>}</Show>
               </header>
               <Show when={perspective.gist?.value}>{gist => <p class="compare-gist"><BlockText text={perspective.gist?.valueId ? docs().get(page)?.block(perspective.gist.valueId)?.text ?? gist() : gist()} blockId={perspective.gist?.valueId ?? undefined} notebook={props.notebook} onOpen={props.onOpen} /></p>}</Show>
               <For each={perspective.passages}>{passage => <div class="compare-passage" classList={{ 'compare-passage-heading': passage.heading }}><BlockText text={passage.text} blockId={passage.id} notebook={props.notebook} onOpen={props.onOpen} /></div>}</For>

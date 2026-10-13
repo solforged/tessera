@@ -440,6 +440,8 @@ function PinnedReadings(props: {
       row, doc,
       gist: fields.find(field => isGistName(field.name))?.value,
       gistId: fields.find(field => isGistName(field.name))?.valueId,
+      work: fields.find(field => field.name.trim().toLowerCase() === 'work'),
+      account: fields.find(field => field.name.trim().toLowerCase() === 'account'),
       source: ready ? positionSource(doc, row.block.block.id, props.fieldName) : null,
       shape: fields.find(field => field.name.trim().toLowerCase() === 'shape')?.value,
       prose: ready ? proseRows(doc, row.block.block.id, null, props.fieldName, BLOCK_ROWS) : [],
@@ -478,6 +480,8 @@ function PinnedReadings(props: {
             <Show when={reading.prose.length}><span class="reference-preview-expand" aria-hidden="true">{selected() === id ? '−' : '+'}</span></Show>
           </Button>
         </div>
+        <Show when={reading.work?.value}>{work => <p class="reference-preview-reading-source"><BlockText text={work()} blockId={reading.work?.valueId ?? undefined} notebook={props.notebook} onOpen={props.onOpen} /></p>}</Show>
+        <Show when={reading.account?.value}>{account => <p class="reference-preview-reading-source">as discussed by <BlockText text={account()} blockId={reading.account?.valueId ?? undefined} notebook={props.notebook} onOpen={props.onOpen} /></p>}</Show>
         <Show when={reading.doc.status() === 'ready'} fallback={
           <p class="reference-preview-reading-message" role={reading.doc.status() === 'loading' ? 'status' : 'alert'}>{reading.doc.status() === 'loading' ? 'Loading reading…' : reading.doc.statusMessage()}</p>
         }>

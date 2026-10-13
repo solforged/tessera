@@ -435,6 +435,67 @@ export class Notebook implements NotebookClient, DocumentHost {
     });
     return { undo: () => travel(true), redo: () => travel(false) };
   }
+  async integrateBlock(id: string, destinationId: string): Promise<DocumentChange> {
+    return this.serializeSourceChange(async () => {
+      const source = await this.api.block(id), destination = await this.api.block(destinationId);
+      const pages = [...new Set([source.page_id, destination.page_id])];
+      const docs = pages.map(pageId => this.open(pageId) as Document);
+      try {
+        await Promise.all(docs.map(async doc => {
+          if (doc.status() === 'loading') await doc.reload(false);
+          await doc.flush();
+        }));
+        const sourceDoc = docs[pages.indexOf(source.page_id)]!;
+        const destinationDoc = docs[pages.indexOf(destination.page_id)]!;
+        if (sourceDoc.root()?.kind !== 'journal' || source.kind !== 'block') throw new Error('Integrate a block from a journal day.');
+        const block = await this.api.block(id);
+        if (!block.parent_id || block.page_id !== source.page_id) throw new Error('The block moved while choosing its destination.');
+        const parentId = block.parent_id;
+        const siblings = sourceDoc.outline.children(parentId);
+        const after = siblings[siblings.indexOf(id) - 1] ?? null;
+        let ancestor: string | null = destinationId;
+        while (ancestor) {
+          if (ancestor === id) throw new Error('A block cannot move into its own subtree.');
+          ancestor = destinationDoc.block(ancestor)?.parentId ?? null;
+        }
+        const referenceId = ulid();
+        const referenceText = `[[${id}]]`;
+        let applied = false, deletionId: string | undefined, referenceRevision = 0;
+        const travel = async (forward: boolean) => {
+          if (applied === forward) return;
+          const opened = pages.map(pageId => this.open(pageId) as Document);
+          try {
+            await Promise.all(opened.map(async doc => { if (doc.status() === 'loading') await doc.reload(false); await doc.flush(); }));
+            const current = await this.api.block(id);
+            if (current.parent_id !== (forward ? parentId : destinationId)) throw new Error('The block moved since this change. Its current place was kept.');
+            const operations: Operation[] = [];
+            if (forward) {
+              const dest = opened[pages.indexOf(destination.page_id)]!;
+              const last = dest.outline.children(destinationId).filter(child => child !== id).at(-1) ?? null;
+              operations.push({ op: 'move', id, base_revision: current.revision, parent_id: destinationId, after: last });
+              operations.push(deletionId
+                ? { op: 'restore', id: referenceId, deletion_id: deletionId, revision: referenceRevision }
+                : { op: 'insert', id: referenceId, parent_id: parentId, after, text: referenceText, heading: null });
+            } else {
+              const reference = await this.api.block(referenceId);
+              if (reference.revision !== referenceRevision || reference.text !== referenceText || reference.parent_id !== parentId) throw new Error('The journal reference changed. Its current text was kept.');
+              operations.push({ op: 'delete', id: referenceId, base_revision: reference.revision });
+              operations.push({ op: 'move', id, base_revision: current.revision, parent_id: parentId, after });
+            }
+            const receipt = await this.commitOperations(operations, forward ? 'Integrate journal block' : 'Undo integration', pages, false);
+            referenceRevision = receipt.revisions.find(value => value.id === referenceId)!.revision;
+            if (!forward) deletionId = receipt.deletions[0];
+            applied = forward;
+          } finally { for (const doc of opened) doc.release(); }
+        };
+        await travel(true);
+        return {
+          undo: () => this.serializeSourceChange(() => travel(false)),
+          redo: () => this.serializeSourceChange(() => travel(true)),
+        };
+      } finally { for (const doc of docs) doc.release(); }
+    });
+  }
   private async commitSourceActions(parts: readonly SourceCommandPart[]): Promise<SourceCommandPart[]> {
     const docs = parts.map(part => this.open(part.pageId) as Document);
     try {

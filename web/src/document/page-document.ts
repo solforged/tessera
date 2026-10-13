@@ -1339,6 +1339,9 @@ export class Document implements PageDocument {
           }
           break;
         }
+        case 'positionLinks':
+          setText(this.snapshot(edit.id), edit.text);
+          break;
         case 'text':
           if (this.snapshot(edit.id).text !== edit.text) actions.push({ kind: 'text', id: edit.id, text: edit.text });
           if (edit.heading !== undefined && this.snapshot(edit.id).heading !== edit.heading) actions.push({ kind: 'heading', id: edit.id, heading: edit.heading });

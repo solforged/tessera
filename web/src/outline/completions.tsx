@@ -46,7 +46,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
   | 'setMessage' | 'disposed' | 'rowAnchor' | 'editAt' | 'restoreFocus' | 'props'
   | 'replaceSelection' | 'fields' | 'definitionsById' | 'definitions' | 'activeRange'
   | 'fieldConversion' | 'commandDefinitions' | 'openPlanning' | 'priorityMenu' | 'openProject'
-  | 'investigationItems' | 'apply' | 'zoomTo' | 'copy' | 'templateFor' | 'rowFocus'
+  | 'investigationItems' | 'apply' | 'zoomTo' | 'copy' | 'templateFor' | 'rowFocus' | 'openRelation' | 'placeReason' | 'usePlace'
 >) {
   const {
     contextDate, editing, textRange, composition, caret, doc,
@@ -492,6 +492,10 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
       { id: 'project', title: 'Project', aliases: ['outcome'], section: 'Project', icon: 'flag', keys: 'Space o', run: openProject },
       { id: 'perspective', title: 'Make perspective', aliases: ['position', 'view'], section: 'Block', icon: 'link', keys: 'Space v', when: block => block?.kind === 'block' && !block.position, run: id => capabilities.invoke(capabilities.edit(id, { kind: 'position', id, value: true })) },
       { id: 'remove-perspective', title: 'Remove perspective', aliases: ['remove position', 'remove view'], section: 'Block', icon: 'close', keys: 'Space v', when: block => block?.kind === 'block' && !!block.position, run: id => capabilities.invoke(capabilities.edit(id, { kind: 'position', id, value: false })) },
+      { id: 'change-holder', title: 'Change holder…', aliases: ['holder', 'attribution'], section: 'Block', icon: 'link', when: block => !!block?.position, run: id => context.openRelation(id, 'holder') },
+      { id: 'file-under', title: 'File under…', aliases: ['subject', 'file'], section: 'Block', icon: 'link', when: block => !!block?.position, disabledReason: id => !doc.block(id)?.position?.holder_id ? 'Choose a holder before filing this perspective.' : undefined, run: id => context.openRelation(id, 'subject') },
+      { id: 'use-place', title: 'Use place', aliases: ['implicit subject'], section: 'Block', icon: 'close', when: block => !!block?.position, disabledReason: context.placeReason, run: context.usePlace },
+      ...(doc.root()?.kind === 'journal' ? [{ id: 'integrate', title: 'Integrate…', aliases: ['move', 'file thought'], section: 'Block', icon: 'link' as const, run: (id: string) => context.openRelation(id, 'integrate') }] : []),
       ...(['question', 'answer'] as const).map((kind): SlashItem => ({
         id: kind, title: `Make ${kind}`, aliases: [kind], section: 'Question', icon: kind === 'question' ? 'question-open' : 'question-settled', keys: 'Space q',
         disabledReason: id => investigationItems(id).find(item => item.label === `Make ${kind}`)?.disabledReason ?? (doc.block(id)?.[kind === 'question' ? 'question' : 'assessment'] ? `Already a ${kind}.` : undefined),

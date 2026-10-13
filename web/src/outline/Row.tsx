@@ -23,7 +23,7 @@ import { checkboxValue } from '../fields/kinds';
 import { hasValueEditor } from '../fields/value-options';
 import { fieldValueProblem } from '../fields/value-reading';
 import { KeptCopyActions, KeptCopyLabel } from './KeptCopy';
-import { quoteTarget } from '../document/text-tokens';
+import { quoteTarget, textTokens } from '../document/text-tokens';
 import { Quote, createQuoteStatus } from './Quote';
 
 const questionLabels: Record<QuestionStatus, string> = { open: 'Open', answered: 'Answered', parked: 'Parked', unsettled: 'Unsettled' };
@@ -31,7 +31,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
   | 'doc' | 'capabilities' | 'setMenu' | 'investigationItems' | 'definitionsById' | 'contextDate'
   | 'inlineFields' | 'baseDepth' | 'positionSource' | 'sourceDetails' | 'virtualizer'
   | 'hosts' | 'props' | 'folds' | 'selectedSet' | 'editing'
-  | 'coveredSet' | 'glossId' | 'margin' | 'sigla' | 'blockMenu' | 'fieldMenu'
+  | 'coveredSet' | 'glossId' | 'margin' | 'sigla' | 'blockMenu' | 'fieldMenu' | 'openRelation'
   | 'fold' | 'zoomTo' | 'editAt' | 'restoreFocus' | 'pointerStart' | 'attach'
   | 'referenceMenu' | 'selectedOffsets' | 'ids' | 'indices' | 'setMessage' | 'apply'
   | 'setConflicts' | 'conflicts' | 'editedConflicts' | 'setEditedConflicts'
@@ -205,7 +205,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
             </button></div>
           </Match>
           <Match when>
-            <div class="static-text"><span classList={{ 'outline-value-pill': pill() && !!block()?.text, 'outline-reading-problem': !!valueProblem() }} title={valueProblem()}><BlockText text={displayText()} blockId={id()} onError={setMessage} cards field={field()} notebook={props.notebook} onOpen={props.onOpen} onReferenceMenu={referenceMenu} selection={selectedOffsets(id())} /></span><Show when={!block()?.text && inline()}><button type="button" class="field-empty-value" aria-label={`Add ${valueField()?.name} value`} onMouseDown={event => event.stopPropagation()} onClick={() => editAt(id(), 0, true)} /></Show><Show when={!block()?.text && !inline() && ids().length === 1}><span class="empty-block">Start writing</span></Show></div>
+            <div class="static-text"><span classList={{ 'outline-value-pill': pill() && !!block()?.text, 'outline-reading-problem': !!valueProblem() }} title={valueProblem()}><BlockText text={displayText()} blockId={id()} onError={setMessage} cards field={field()} notebook={props.notebook} onOpen={props.onOpen} onReferenceClick={(token, anchor) => { if (!block()?.position || token.id !== block()?.position?.holder_id || token.start !== textTokens(block()?.text ?? '').find(value => value.kind === 'reference')?.start) return false; context.openRelation(id(), 'holder', anchor); return true; }} onReferenceMenu={referenceMenu} selection={selectedOffsets(id())} /></span><Show when={!block()?.text && inline()}><button type="button" class="field-empty-value" aria-label={`Add ${valueField()?.name} value`} onMouseDown={event => event.stopPropagation()} onClick={() => editAt(id(), 0, true)} /></Show><Show when={!block()?.text && !inline() && ids().length === 1}><span class="empty-block">Start writing</span></Show></div>
           </Match>
         </Switch></Show>
         <For each={block()?.manual_types ?? []}>{title => <TypePill title={title} notebook={props.notebook} onOpen={props.onOpen} onRestoreFocus={restoreFocus} onRemove={() => { const result = doc.removeType(id(), title); if (!result.ok) setMessage(result.reason); }} />}</For>
