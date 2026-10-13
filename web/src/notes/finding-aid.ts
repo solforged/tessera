@@ -51,3 +51,12 @@ export function filingOperations(pageId: string, revision: number, title: string
     { op: 'add_type', id: pageId, base_revision: revision, title },
   ];
 }
+export const notePredicates = ['links', 'from', 'cites'] as const;
+export type NotePredicate = typeof notePredicates[number];
+export function parseNoteFind(text: string) {
+  const terms: { key: NotePredicate; value: string; raw: string }[] = [];
+  const plain = text.replace(/\b(links|from|cites):(?:"([^"]*)"|([^\s"]+))/g, (raw, key: NotePredicate, quoted: string | undefined, bare: string | undefined) => {
+    terms.push({ key, value: quoted ?? bare ?? '', raw }); return '';
+  }).trim();
+  return { terms, text: plain };
+}

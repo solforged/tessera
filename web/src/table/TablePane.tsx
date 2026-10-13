@@ -18,6 +18,7 @@ import { checkboxValue, kindLabels, partialDatePlaceholder } from '../fields/kin
 import { ValueEditor, writeFieldValue } from '../fields/value-editor';
 import { hasValueEditor } from '../fields/value-options';
 import { noteKindIcon } from '../notes/kinds';
+import { NoteFind } from '../notes/NoteFind';
 import { autoPlural } from '../fields/presentation';
 import { FilterPopup } from './FilterPopup';
 import { addFilter, chooseSort, copyQuery, fieldEntryId, fieldEntryText, filterLabel, queriesEqual, removeFilter, removeSort, sortLabel, typeQuery } from './query';
@@ -135,7 +136,7 @@ export function TablePane(props: TablePaneProps) {
   const sourceField = createMemo(() => sourceDefinition(result()?.columns ?? [], fields()));
   const showRefs = () => !!sourceField() && !hiddenFields().includes(refsColumn);
   const sourcesByRow = createMemo(() => new Map((result()?.rows ?? []).map(row => [row.block.block.id, rowSources(row, sourceField())])));
-  const typeKind = () => noteIndex()?.kinds.find(kind => kind.type_id === query().type);
+  const typeKind = () => noteIndex()?.kinds.find(kind => query().note_kind ? kind.key === query().note_kind : kind.type_id === query().type);
   const columnWidth = (id: string) => {
     const kind = fieldById(id)?.kind;
     return kind === 'text' || kind === 'url' ? 'var(--table-source-width)' : kind === 'number' || kind === 'checkbox' || kind === 'date' ? 'var(--table-compact-width)' : 'var(--table-field-width)';
@@ -162,7 +163,7 @@ export function TablePane(props: TablePaneProps) {
     const controller = new AbortController();
     appendController?.abort(); setAppending(false); setLoading(true);
     const timer = setTimeout(() => {
-      void Promise.all([api.query({ ...value, offset: 0 }, controller.signal), api.fields(controller.signal), value.type ? api.type(value.type, controller.signal) : Promise.resolve(undefined), value.type ? api.noteIndex(controller.signal) : Promise.resolve(undefined)])
+      void Promise.all([api.query({ ...value, offset: 0 }, controller.signal), api.fields(controller.signal), value.type ? api.type(value.type, controller.signal) : Promise.resolve(undefined), value.type || value.note_kind ? api.noteIndex(controller.signal) : Promise.resolve(undefined)])
         .then(([rows, allFields, pageType, index]) => {
           if (controller.signal.aborted) return;
           showResult(rows); setDefinitions(allFields); setType(pageType); setNoteIndex(index); setError(''); setLoading(false);
@@ -292,7 +293,8 @@ export function TablePane(props: TablePaneProps) {
     return fieldId!;
   };
   const switchView = (view: View | null) => {
-    const next = view?.query ?? typeQuery(query().type);
+    const next = view?.query ?? { ...typeQuery(query().type), ...(query().note_kind ? { note_kind: query().note_kind, note_view: { layout: 'table' as const, grouping: 'letter' } } : {}) };
+    if (next.note_kind && next.note_view?.layout === 'index') { props.onOpen({ kind: 'index', key: next.note_kind, viewId: view?.id, query: copyQuery(next) }, false); setPopup(null); return; }
     clearTimeout(searchTimer); setSearch(next.text ?? ''); updateQuery(next); setSaved(view ?? undefined);
     setSelectedRow(null); setFocused({ rowId: null, fieldId: null }); setPopup(null);
     props.onTargetChange({ kind: 'table', typeId: next.type, viewId: view?.id ?? null, query: copyQuery(next) });
@@ -471,16 +473,18 @@ export function TablePane(props: TablePaneProps) {
           <span>{changed() ? 'Modified' : 'Saved view'}</span><Show when={changed()}><Button disabled={savingView()} onClick={() => { void saveChanges().catch(message); }}>Save changes</Button><Button onClick={() => { const value = saved(); if (value) switchView(value); }}>Revert changes</Button></Show>
         </Show></div>
       </header>
-      <Show when={query().type}>{typeId => <TypeModeTabs active="table" indexCount={typeKind()?.count ?? 0} tableCount={type()?.members ?? 0} fieldsCount={type()?.fields.length ?? 0}
+      <Show when={query().type}>{typeId => <TypeModeTabs active="table" indexCount={result()?.total ?? 0} tableCount={result()?.total ?? 0} fieldsCount={type()?.fields.length ?? 0}
         cardsCount={type()?.card_templates ?? 0} onCards={event => props.onOpen({ kind: 'cards', typeId: typeId() }, event.shiftKey)}
-        onIndex={event => props.onOpen({ kind: 'index', key: typeKind()?.key ?? `type:${typeId()}` }, event.shiftKey)}
+        onIndex={event => props.onOpen({ kind: 'index', key: typeKind()?.key ?? `type:${typeId()}`, viewId: props.target.viewId, query: { ...copyQuery(query()), note_kind: typeKind()?.key ?? `type:${typeId()}`, note_view: { layout: 'index', grouping: query().note_view?.grouping ?? 'letter' } } }, event.shiftKey)}
         onTable={event => props.onOpen({ kind: 'table', typeId: typeId(), viewId: props.target.viewId, query: copyQuery(query()) }, event.shiftKey)}
         onFields={event => props.onOpen({ kind: 'fields', typeId: typeId() }, event.shiftKey)} />}</Show>
+      <Show when={query().note_kind && !query().type}><div class="type-mode-tabs mode-tabs tab-strip" role="group" aria-label="Note view"><Button onClick={event => props.onOpen({ kind: 'index', key: query().note_kind!, viewId: props.target.viewId, query: { ...copyQuery(query()), note_view: { layout: 'index', grouping: query().note_view?.grouping ?? 'letter' } } }, event.shiftKey)}>Index <span class="faint">{result()?.total ?? 0}</span></Button><Button aria-pressed="true">Table <span class="faint">{result()?.total ?? 0}</span></Button></div></Show>
+      <Show when={query().note_kind}><NoteFind query={query()} plural={title()} notebook={props.notebook} onChange={updateQuery} /></Show>
       <div class="table-toolbar">
-        <input class="input table-search" placeholder="Search rows…" aria-label="Search rows" value={search()} onInput={event => {
+        <Show when={!query().note_kind}><input class="input table-search" placeholder="Search rows…" aria-label="Search rows" value={search()} onInput={event => {
           const text = event.currentTarget.value; setSearch(text); clearTimeout(searchTimer);
           searchTimer = setTimeout(() => updateQuery({ ...query(), text: text.trim() ? text : null }), 150);
-        }} />
+        }} /></Show>
         <div class="table-query-controls">
           <Button class="bordered table-filter-button" aria-haspopup="dialog" onClick={event => showFilter(event.currentTarget)}>Filters<Show when={query().filters.length}><span class="table-control-count">{query().filters.length}</span></Show></Button>
           <Button class="bordered" aria-haspopup="menu" onClick={event => sortMenu(event.currentTarget)}>Sort <Icon name="down" /></Button>

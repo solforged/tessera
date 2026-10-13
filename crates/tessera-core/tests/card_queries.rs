@@ -136,6 +136,7 @@ fn source_query(text: &str) -> Query {
         sort: vec![],
         limit: None,
         offset: 0,
+        ..Default::default()
     }
 }
 
@@ -531,6 +532,7 @@ fn saved_decks_round_trip_full_source_filters_revisions_and_executable_selection
             }],
             limit: Some(1),
             offset: 0,
+            ..Default::default()
         }),
         selection: CardSelection::All,
         limit: Some(1),

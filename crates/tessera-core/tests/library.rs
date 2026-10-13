@@ -121,6 +121,7 @@ fn query(n: &Notebook) -> tessera_core::QueryResult {
         sort: vec![],
         limit: Some(2000),
         offset: 0,
+        ..Default::default()
     })
     .unwrap()
 }

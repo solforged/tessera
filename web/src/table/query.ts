@@ -17,11 +17,14 @@ export function typeQuery(type: string | null): Query {
   return { type, text: null, filters: [], sort: [], limit: null };
 }
 export function copyQuery(query: Query): Query {
-  return { ...query, filters: query.filters.map(filter => ({ ...filter })), sort: query.sort.map(key => ({ ...key })) };
+  return { ...query, filters: query.filters.map(filter => ({ ...filter })), sort: query.sort.map(key => ({ ...key })), ...(query.note_view ? { note_view: { ...query.note_view } } : {}), ...Object.fromEntries((['links', 'from', 'cites'] as const).filter(key => query[key]).map(key => [key, [...query[key]!]])) };
 }
 export function queriesEqual(left: Query, right: Query): boolean {
   return left.type === right.type && left.text === right.text && left.limit === right.limit
     && (left.offset ?? 0) === (right.offset ?? 0)
+    && left.note_kind === right.note_kind
+    && left.note_view?.layout === right.note_view?.layout && left.note_view?.grouping === right.note_view?.grouping
+    && (['links', 'from', 'cites'] as const).every(key => (left[key] ?? []).length === (right[key] ?? []).length && (left[key] ?? []).every((value, index) => value === right[key]?.[index]))
     && left.filters.length === right.filters.length && left.filters.every((filter, index) => {
       const other = right.filters[index]!;
       return filter.field === other.field && filter.op === other.op && filter.value === other.value;

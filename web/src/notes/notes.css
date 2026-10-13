@@ -139,3 +139,23 @@
   .menu:has(.index-action-header) .menu-item, .index-filing-popup .picker-row { min-height: calc(var(--space-32) + var(--space-12)); }
   body:has(.app.keyboard-open) .index-note-popup { bottom: var(--bottom-inset); }
 }
+
+.note-find { margin-block: var(--space-12); }
+.note-find-line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); }
+.note-find-input { position: relative; flex: 1; min-width: var(--apparatus-width); }
+.note-find-input > .input { width: 100%; }
+.note-find-completion { position: absolute; z-index: 20; top: 100%; left: 0; right: 0; display: flex; flex-direction: column; padding: var(--space-4); border: var(--rule-width) solid var(--line); background: var(--canvas); box-shadow: var(--popup-shadow); }
+.note-find-completion > .button { justify-content: flex-start; text-align: left; }
+.note-find .table-query-chips { padding-block: var(--space-8) 0; }
+.note-find-problem { margin: var(--space-8) 0; color: var(--faint); font: var(--apparatus); }
+.index-selectable { position: relative; display: flex; align-items: flex-start; gap: var(--space-8); break-inside: avoid; }
+.index-selectable.selected { background: var(--selection); }
+.index-select { flex: none; margin-top: var(--space-8); opacity: 0; accent-color: var(--accent); }
+.index-selectable:hover > .index-select, .index-selectable:focus-within > .index-select, .index-select:checked { opacity: 1; }
+.index-selection { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: var(--space-16); margin-block: var(--space-12); padding: var(--space-8) var(--space-12); border-block: var(--rule-width) solid var(--line); background: var(--canvas); font: var(--apparatus); }
+.index-selection > span { flex: 1; }
+.index-by-heading .index-group { padding-left: 0; }
+.index-by-heading .index-group h2 { position: static; }
+.index-by-heading .index-group h2 .button { padding: 0; text-align: left; font: inherit; color: inherit; }
+.index-by-heading .index-group-count { display: inline; }
+@media (pointer: coarse) { .index-select { opacity: 1; } }

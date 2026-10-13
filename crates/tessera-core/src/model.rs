@@ -737,7 +737,7 @@ pub struct SortKey {
     pub direction: Direction,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Query {
     pub r#type: Option<String>,
     pub text: Option<String>,
@@ -747,6 +747,41 @@ pub struct Query {
     /// Rows skipped after sorting; total and column metadata cover all matches.
     #[serde(default)]
     pub offset: usize,
+    /// Restrict to titled notes of this finding-aid kind, including capability kinds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note_kind: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub links: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub from: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub cites: Vec<String>,
+    /// Presentation travels in the existing saved query JSON, not a second view store.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note_view: Option<NoteView>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NoteView {
+    pub layout: NoteLayout,
+    /// letter, source, link, created, or field:<definition id>.
+    pub grouping: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum NoteLayout {
+    Index,
+    Table,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NoteGroup {
+    pub key: String,
+    pub title: String,
+    pub target: Option<String>,
+    pub siglum: Option<String>,
+    pub note_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -809,6 +844,8 @@ pub struct QueryResult {
     pub columns: Vec<String>,
     pub rows: Vec<QueryRow>,
     pub total: usize,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub note_groups: Vec<NoteGroup>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

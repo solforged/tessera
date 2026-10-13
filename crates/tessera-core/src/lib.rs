@@ -21,6 +21,7 @@ mod library_store;
 mod library_views;
 mod migrate;
 mod model;
+mod note_query;
 mod notebook;
 mod notes;
 mod notes_summary;
@@ -83,9 +84,10 @@ pub use model::{
     Actor, Backlink, Batch, Block, BlockInPage, BlockKind, ChangeEvent, ChangeStamp, Committed,
     Direction, FieldDefinition, FieldDetail, FieldHide, FieldKind, FieldOption, FieldOptionUse,
     FieldOwner, FieldOwnerValues, FieldSummary, FieldTemplate, FieldType, FieldValue,
-    FieldValueUse, FieldsView, Filter, FilterOp, KeptCopy, Operation, PageView, Query, QueryResult,
-    QueryRow, QuoteState, QuoteStatus, QuotedRow, Reading, ReadingValue, Revision, Row, Setting,
-    SettingRevision, SettingsView, SortBy, SortKey, Subtree, TextRewrite, TypeInfo, View,
+    FieldValueUse, FieldsView, Filter, FilterOp, KeptCopy, NoteGroup, NoteLayout, NoteView,
+    Operation, PageView, Query, QueryResult, QueryRow, QuoteState, QuoteStatus, QuotedRow, Reading,
+    ReadingValue, Revision, Row, Setting, SettingRevision, SettingsView, SortBy, SortKey, Subtree,
+    TextRewrite, TypeInfo, View,
 };
 pub use notebook::{DATABASE_FILE, Notebook, NotebookInfo, now_ms};
 pub use notes::{CrossReference, IndexKind, KindIndex, NoteEntry, NoteIndex, NoteKind, SeeTarget};

@@ -12,7 +12,11 @@ use crate::{
 };
 
 pub(crate) fn validate_query(conn: &Connection, query: &Query) -> Result<Vec<FieldDefinition>> {
-    if query.r#type.is_none() && query.text.is_none() && query.filters.is_empty() {
+    if query.r#type.is_none()
+        && query.text.is_none()
+        && query.filters.is_empty()
+        && !query.selects_notes()
+    {
         return Err(validation("query needs a type, text or filter"));
     }
     if let Some(id) = &query.r#type {
@@ -372,14 +376,23 @@ impl Notebook {
             validate_source_type(&self.conn, query)?;
         }
         let defs = definition_map(&definitions);
-        let matched = query.text.as_deref().map(fts_query);
+        let note_candidates = self.note_candidates(query)?;
+        let matched = if query.selects_notes() {
+            None
+        } else {
+            query.text.as_deref().map(fts_query)
+        };
         let filters = query
             .filters
             .iter()
             .map(|filter| PreparedFilter::new(&self.conn, filter, defs[filter.field.as_str()].kind))
             .collect::<Result<Vec<_>>>()?;
         let present_owners = filters.iter().find_map(|filter| filter.owners.as_ref());
-        let owners = if present_owners.is_none() && query.r#type.is_none() && query.text.is_none() {
+        let owners = if present_owners.is_none()
+            && query.r#type.is_none()
+            && query.text.is_none()
+            && !query.selects_notes()
+        {
             let mut owners = HashSet::new();
             let mut entries = self.conn.prepare_cached(concat!(
                 hidden_blocks!(),
@@ -432,7 +445,11 @@ impl Notebook {
                         Box::new(error),
                     )
                 })?;
-                if candidates.is_some_and(|owners| !owners.contains(id)) {
+                if candidates.is_some_and(|owners| !owners.contains(id))
+                    || note_candidates
+                        .as_ref()
+                        .is_some_and(|notes| !notes.contains(id))
+                {
                     continue;
                 }
                 if rows.last().is_none_or(|r| r.block.block.id != id) {
@@ -570,6 +587,7 @@ impl Notebook {
             .into_iter()
             .filter(|d| needed.contains(d.id.as_str()))
             .collect();
+        let note_groups = self.note_groups(query, &rows)?;
         if truncate {
             rows.drain(..query.offset.min(rows.len()));
             rows.truncate(query.limit.unwrap_or(500));
@@ -579,6 +597,7 @@ impl Notebook {
             columns,
             rows,
             total,
+            note_groups,
         })
     }
 }

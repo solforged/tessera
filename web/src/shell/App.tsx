@@ -100,10 +100,12 @@ function snapshotView(view: PaneView): PaneView {
   // Library views saved before Browse lack filters and grouping.
   if ('tab' in view) return { ...view, view: view.view ?? null, colors: [...view.colors ?? []], tags: [...view.tags ?? []], group: view.group ?? 'none', filters: { people: [...view.filters?.people ?? []], decades: [...view.filters?.decades ?? []], publishers: [...view.filters?.publishers ?? []], languages: [...view.filters?.languages ?? []] } };
   if ('ordinal' in view) return { ...view };
+  if ('noteQuery' in view) return { ...view, noteQuery: view.noteQuery ? copyQuery(view.noteQuery) : undefined };
   return 'query' in view ? { ...view, query: copyQuery(view.query), hiddenFields: view.hiddenFields ? [...view.hiddenFields] : undefined } : 'zoom' in view ? copyView(view) : { scroll: view.scroll };
 }
 function targetFromView(entry: HistoryEntry): OpenTarget {
   const { target, view } = entry;
+  if (target.kind === 'index' && 'noteQuery' in view) return { ...target, query: view.noteQuery ? copyQuery(view.noteQuery) : undefined, viewId: view.viewId };
   if (target.kind === 'table' && 'query' in view && !('mode' in view)) return { ...target, query: copyQuery(view.query), typeId: view.query.type };
   if (target.kind === 'agenda' && 'mode' in view) return { kind: 'agenda', date: view.date, mode: view.mode, viewId: view.viewId ?? undefined, query: copyTaskQuery(view.query) };
   if (target.kind === 'review' && 'deckId' in view) return { kind: 'review', deckId: view.deckId ?? undefined };
@@ -236,7 +238,8 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
         ? { query: copyQuery(target.query), scroll: 0 }
         : target.kind === 'agenda' ? { date, mode: target.mode ?? (target.query || target.viewId ? 'tasks' : 'agenda'), query: { ...(target.query ? copyTaskQuery(target.query) : createTaskQuery(date)), context_date: date }, viewId: target.viewId ?? null, scroll: 0 }
           : target.kind === 'review' ? { deckId: target.deckId ?? null, sessionId: null, selection: null, scroll: 0, ...(target.blockId ? { blockId: target.blockId } : {}) }
-            : target.kind === 'fields' || target.kind === 'field' || target.kind === 'cards' || target.kind === 'settings' || target.kind === 'compare' || target.kind === 'index' ? { scroll: 0 }
+            : target.kind === 'index' ? { scroll: 0, noteQuery: target.query ? copyQuery(target.query) : undefined, viewId: target.viewId }
+              : target.kind === 'fields' || target.kind === 'field' || target.kind === 'cards' || target.kind === 'settings' || target.kind === 'compare' ? { scroll: 0 }
               : target.kind === 'library' ? { view: null, tab: target.tab ?? 'inbox', text: '', sort: 'added', filters: { people: [], decades: [], publishers: [], languages: [] }, group: 'none', unprocessedOnly: true, colors: [], tags: [], scroll: 0 }
                 : target.kind === 'reader' ? { snapshotId: target.snapshotId ?? null, ordinal: -1, offset: 0 }
                   : { zoom: target.blockId ?? null, caret: target.blockId ? { id: target.caretId ?? target.blockId, offset: target.caretOffset ?? 0 } : null, scroll: null, folds: null, showArchived: false, ...(target.blockId && target.caretId ? { edit: true } : {}) };
@@ -325,7 +328,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   onCleanup(() => window.removeEventListener('popstate', historyMoved));
   const pin = (id: string) => setPinned(values => values.includes(id) ? values.filter(value => value !== id) : [...values, id]);
   const pinView = (id: string) => setPinnedViews(values => values.includes(id) ? values.filter(value => value !== id) : [...values, id]);
-  const openView = (view: View, beside = false) => open({ kind: 'table', typeId: view.query.type, viewId: view.id, query: copyQuery(view.query) }, beside);
+  const openView = (view: View, beside = false) => open(view.query.note_kind && view.query.note_view?.layout === 'index' ? { kind: 'index', key: view.query.note_kind, viewId: view.id, query: copyQuery(view.query) } : { kind: 'table', typeId: view.query.type, viewId: view.id, query: copyQuery(view.query) }, beside);
   const showPalette = (kind: 'search' | 'commands') => setPopup({ kind, anchor: kind === 'search' ? searchButton : document.body, pane: active() });
   const chooseDate = (pane = active(), anchor: HTMLElement = document.querySelector<HTMLButtonElement>(`[data-pane="${pane}"] .journal-date`) ?? searchButton) => {
     setPopup({ kind: 'calendar', anchor, pane, date: journalDate(pane) });
@@ -445,7 +448,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
         } else if (saved.target.kind === 'review' && 'deckId' in saved.view) {
           current = { target: targetFromView(saved), view: snapshotView(saved.view) };
         } else if ((saved.target.kind === 'fields' || saved.target.kind === 'field' || saved.target.kind === 'cards' || saved.target.kind === 'settings' || saved.target.kind === 'compare' || saved.target.kind === 'index') && 'scroll' in saved.view && typeof saved.view.scroll === 'number') {
-          current = { target: saved.target, view: saved.target.kind === 'compare' ? snapshotView(saved.view) : { scroll: saved.view.scroll } };
+          current = { target: targetFromView(saved), view: saved.target.kind === 'compare' || saved.target.kind === 'index' ? snapshotView(saved.view) : { scroll: saved.view.scroll } };
         } else if ((saved.target.kind === 'library' && 'tab' in saved.view) || (saved.target.kind === 'reader' && 'ordinal' in saved.view)) {
           current = { target: targetFromView(saved), view: snapshotView(saved.view) };
         } else if (saved.target.kind === 'page' && 'zoom' in saved.view) {
@@ -530,7 +533,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   createEffect(() => {
     const unregisterViews = commands.register((views() ?? []).map(view => ({
       id: `shell.view.${view.id}`, title: `Open view: ${view.name}`, section: 'Navigation' as const,
-      run: () => open({ kind: 'table', typeId: view.query.type, viewId: view.id, query: copyQuery(view.query) }),
+      run: () => openView(view),
     })));
     onCleanup(unregisterViews);
   });
@@ -571,8 +574,9 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     onCleanup(commands.register(destinations));
   });
   // Saved views sit under the kind whose type they list; views of any other type keep their own section.
-  const looseViews = createMemo(() => otherViews().filter(view => !index()?.kinds.some(kind => kind.type_id !== null && kind.type_id === view.query.type)));
-  const activeViewId = () => { const target = entry(active())?.target; return target?.kind === 'table' ? target.viewId ?? undefined : undefined; };
+  const viewInKind = (view: View, kind: NoteKind) => view.query.note_kind ? view.query.note_kind === kind.key : kind.type_id !== null && kind.type_id === view.query.type;
+  const looseViews = createMemo(() => otherViews().filter(view => !index()?.kinds.some(kind => viewInKind(view, kind))));
+  const activeViewId = () => { const target = entry(active())?.target; return target?.kind === 'table' || target?.kind === 'index' ? target.viewId ?? undefined : undefined; };
   const activeTypeId = () => { const target = entry(active())?.target; return target?.kind === 'table' && !target.viewId ? target.typeId : null; };
   const activeKindKey = () => { const target = entry(active())?.target; return target?.kind === 'index' ? target.key : (target?.kind === 'fields' || target?.kind === 'cards') && target.typeId ? index()?.kinds.find(kind => kind.type_id === target.typeId)?.key : undefined; };
   /** The note kind a pane shows: its index, or the type behind its fields or cards. */
@@ -581,7 +585,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   const paneTitle = (pane: PaneId) => {
     const target = entry(pane)?.target;
     if (target?.kind === 'field') return `Fields / ${notebook.lookup(target.fieldId)()?.text ?? 'Definition'}`;
-    if (target?.kind === 'index') return indexKind(pane)?.plural;
+    if (target?.kind === 'index') return views()?.find(view => view.id === target.viewId)?.name ?? indexKind(pane)?.plural;
     if (target?.kind === 'fields' && target.typeId) return rootById().get(target.typeId)?.text;
     if (target?.kind === 'cards') return `${rootById().get(target.typeId)?.text ?? 'Type'} / Cards${target.applyId ? ' / Apply' : ''}`;
     if (target?.kind !== 'table') return undefined;
@@ -625,7 +629,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
         <Index each={index()!.kinds}>{kind => <>
           {/* Built-in kinds stay listed while empty: a faint name and no count. */}
           <Button class={`index-kind ${activeKindKey() === kind().key || tagOnly(kind()) && activeTypeId() === kind().type_id ? 'selected' : ''} ${kind().count || kind().tagged_block_count ? '' : 'empty'}`} icon={noteKindIcon(kind())} title={kind().plural} onClick={event => open(indexKindTarget(kind()), event.shiftKey)}><span>{kind().plural}</span><Show when={kind().count || kind().tagged_block_count}>{count => <span class="desk-count">{count().toLocaleString()}</span>}</Show></Button>
-          <Show when={kind().type_id !== null && otherViews().some(view => view.query.type === kind().type_id)}><div class="index-views"><ViewLinks views={otherViews().filter(view => view.query.type === kind().type_id)} pinned={false} activeId={activeViewId()} onOpen={openView} onPin={pinView} /></div></Show>
+          <Show when={otherViews().some(view => viewInKind(view, kind()))}><div class="index-views"><ViewLinks views={otherViews().filter(view => viewInKind(view, kind()))} pinned={false} activeId={activeViewId()} onOpen={openView} onPin={pinView} /></div></Show>
         </>}</Index>
       </section></Show>
       <Show when={looseViews().length}><section class="page-list" aria-label="Saved views">

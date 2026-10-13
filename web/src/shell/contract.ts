@@ -81,7 +81,7 @@ export type OpenTarget =
   /** The perspectives filed under a subject, side by side. */
   | { kind: 'compare'; subjectId: string }
   /** One kind's notes by title. `key` is a `NoteKind.key`, or `all` for the kinds directory. */
-  | { kind: 'index'; key: string };
+  | { kind: 'index'; key: string; query?: Query; viewId?: string | null };
 
 export type LibraryTab = ReadingState | 'all' | 'collections' | 'highlights';
 
@@ -94,7 +94,7 @@ export interface FieldsViewState { scroll: number }
 export interface FieldViewState { scroll: number }
 export interface SettingsViewState { scroll: number }
 export interface CompareViewState { scroll: number; comparison?: 'readings' | 'criteria'; chosen?: string[] | null }
-export interface IndexViewState { scroll: number }
+export interface IndexViewState { scroll: number; noteQuery?: Query; viewId?: string | null }
 export interface AgendaViewState { date: string; mode: 'agenda' | 'week' | 'tasks'; query: TaskQuery; viewId: string | null; scroll: number }
 /** `blockId` is a one-shot request to review that block's cards; the pane drops it once handled. */
 export interface ReviewViewState { deckId: string | null; sessionId: string | null; selection: CardSelection | null; scroll: number; blockId?: string }

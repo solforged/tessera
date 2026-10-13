@@ -41,7 +41,17 @@ Each note shows two lines of its existing Gloss, else its first non-field prose 
 
 The Questions finding aid shows a branch's effective parent as a quiet Part of line beneath its preview. This context comes from the question relation, never from the prose.
 
-Only populated jump letters appear. On the touch cover they sit above bottom navigation, with the selected letter on the shared gilt tab rule and compact inline initials in the list. Sort as, diacritic folding, `#` last and alias cross-references retain their filing rules. A title opens its note; Shift or a coarse pointer at least 900 px wide opens it beside.
+Only populated jump letters appear, and only with Letter grouping. On the touch cover they sit above bottom navigation, with the selected letter on the shared gilt tab rule and compact inline initials in the list. Sort as, diacritic folding, `#` last and alias cross-references retain their filing rules. A title opens its note; a coarse pointer at least 900 px wide opens it beside.
+
+Below the mode tabs, `Find in Concepts…` (using the kind's plural) matches plain words against title or Gloss. `links:`, `from:` and `cites:` resolve titles and aliases; `cites:` also resolves source sigla and citation keys. Quote a multiword value, for example `links:"Three generations of a dynasty"`. Names complete after the colon. Enter, a closing quote or leaving the input resolves each term to a removable table-style chip; unresolved names show `No note named “X”`. All terms and field filters intersect. `cites:` includes passage citations of any of the source's snapshots and any reference to its source page.
+
+Group offers Letter, Source cited, Note linked, Created month, then the kind's populated fields. A note appears under every applicable heading. Source, link and field-value headings sort by descending distinct-note count, then name; None is last. Source headings show siglum then title, and link headings open their note. Created month is newest first. Both layout tabs count the current query, including a saved view's members, rather than all members of the kind.
+
+Save as view… keeps the query, layout and grouping in the existing view store. Saved views sit under their kind, including capability kinds, and reopening restores chips and grouping. Older table views remain Table with Letter grouping when opened as an index. Index and Table retain the same query on switching.
+
+Index rows reveal a checkbox on hover or focus. Cmd/Ctrl-click toggles a note; Shift-click extends from the selection anchor. The bar shows `N selected` and Clear, plus Spread when the shell provides it. Spread accepts two to five notes and Shift opens it beside. Selection counts distinct notes even when a note occurs under several headings.
+
+`is:`, `revisit:` and State grouping are not implemented: they await the note capability.
 
 ## Empty kinds
 

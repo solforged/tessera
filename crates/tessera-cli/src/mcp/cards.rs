@@ -126,6 +126,7 @@ impl Session<'_> {
                 sort: Vec::new(),
                 limit: None,
                 offset: 0,
+                ..Default::default()
             })
         } else {
             existing.and_then(|deck| deck.query.source.clone())
@@ -203,6 +204,7 @@ async fn queue(api: &Api, arguments: &Value, clock: &Clock) -> anyhow::Result<St
             sort: Vec::new(),
             limit: None,
             offset: 0,
+            ..Default::default()
         }),
         (None, None) => None,
     };

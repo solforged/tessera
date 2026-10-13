@@ -636,6 +636,7 @@ fn scoped_pacing_uses_civil_days_global_introductions_and_visible_nonheld_invent
             sort: vec![],
             limit: Some(1),
             offset: 0,
+            ..Default::default()
         }),
         selection: CardSelection::New,
         limit: Some(0),

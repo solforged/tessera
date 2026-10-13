@@ -551,24 +551,24 @@ A note view queries notes with a layout and grouping. It selects by kind and sup
 
 | Constraint | Find-line example |
 |---|---|
-| State | `is:settled` |
-| Revisit: due, set or none | `revisit:due` |
+| State (planned; awaits the note capability) | `is:settled` |
+| Revisit: due, set or none (planned; awaits the note capability) | `revisit:due` |
 | Links to a note | `links:Polybius` |
 | Links from a note | `from:Postone` |
-| Cited source, by siglum, citation key or title | `cites:MAR` |
+| Cited source, by siglum, citation key, title or alias | `cites:MAR` |
 
-Other Find words match title or gloss; each recognized term appears as a chip. Field predicates stay in the filter picker, as on tables.
+Other Find words match title or gloss; all terms AND together. Titles and aliases resolve the link predicates, quoted values preserve spaces, and resolved terms become removable chips keyed by stable page identity. Ambiguous names require explicit completion selection. Field predicates stay in the filter picker, as on tables. `cites:` means notes with passage citations of any snapshot attached to the source, or any reference to its source page; it is independent of whether that reference carries a citation label or locator.
 
 One query has two layouts:
 
 | Layout | Presentation |
 |---|---|
-| Index | Titles in columns under headings, with settled marks and revisit dates |
+| Index | Titles in columns under headings; settled marks and revisit dates await the note capability |
 | Table | One note per row, fields as columns, as in type tables |
 
-Index groups by first letter unless source cited, note linked, state, created month or a field's values is chosen. A note appears under every applicable heading, as in a book index. Source, link and field-value headings are ordered by how many notes they hold.
+Index groups by first letter unless source cited, note linked, created month or a field's values is chosen. State grouping awaits the note capability. A note appears under every applicable heading, as in a book index. Source, link and field-value headings sort by descending distinct-note count, ties by name, with None last. Source headings show siglum then title; link headings open the note. Created months sort newest first. Only Letter grouping shows the jump strip.
 
-Saving a note view stores its query, layout and grouping as a view, filed in the sidebar under the kind it lists.
+One query selects titled notes by type kind or capability kind; Index and Table show and count the same matches. Saving a note view stores its query, layout and grouping in the existing view's query JSON, filed in the sidebar under the kind it lists. Older stored queries without note presentation remain table views and default to Letter when opened in Index. No second store or database migration is needed.
 
 ### Spreads
 

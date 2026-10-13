@@ -90,6 +90,7 @@ fn query() -> Query {
         sort: vec![],
         limit: None,
         offset: 0,
+        ..Default::default()
     }
 }
 fn ids(result: QueryResult) -> Vec<String> {

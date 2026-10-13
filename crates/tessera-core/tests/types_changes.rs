@@ -1127,6 +1127,7 @@ fn manual_and_text_memberships_count_once_and_either_keeps_the_block() {
         sort: vec![],
         limit: None,
         offset: 0,
+        ..Default::default()
     };
     assert_eq!(nb.query(&query).unwrap().total, 1);
     apply(&mut nb, vec![edit(10, 2, "No tag")]);
@@ -1565,6 +1566,7 @@ fn provisional_pages_named_by_saved_queries_survive() {
         sort: vec![],
         limit: None,
         offset: 0,
+        ..Default::default()
     };
     let view = query("view");
     let deck = query("deck");
@@ -1609,6 +1611,7 @@ fn provisional_pages_named_by_saved_queries_survive() {
                     sort: vec![],
                     limit: None,
                     offset: 0,
+                    ..Default::default()
                 },
             },
             Operation::SaveLibraryView {

@@ -35,6 +35,7 @@ impl Session<'_> {
                 sort: Vec::new(),
                 limit: None,
                 offset: 0,
+                ..Default::default()
             },
             (None, Some(wanted)) => {
                 let views: Vec<View> = api.get("/api/views").await?;

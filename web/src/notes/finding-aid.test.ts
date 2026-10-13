@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { NoteEntry, NoteSummary } from '../api/types';
-import { filingGroups, filingOperations, groupKindIndex } from './finding-aid';
+import { filingGroups, filingOperations, groupKindIndex, parseNoteFind } from './finding-aid';
 
 const note = (id: string, title: string, sort_as: string | null = null): NoteEntry => ({ id, title, sort_as, created_at: 0 });
 
@@ -57,4 +57,12 @@ test('create type and file is one ordered batch while an existing type only adds
     { op: 'add_type', id: 'note', base_revision: 7, title: 'Concept' },
   ]);
   expect(filingOperations('note', 7, 'Concept')).toEqual([{ op: 'add_type', id: 'note', base_revision: 7, title: 'Concept' }]);
+});
+
+test('note Find preserves quoted names, repeated predicates and plain words', () => {
+  const parsed = parseNoteFind('dynasty links:"Three generations of a dynasty" from:Asabiyya cites:IK links:Mulk');
+  expect(parsed.text).toBe('dynasty');
+  expect(parsed.terms.map(({ key, value }) => [key, value])).toEqual([['links', 'Three generations of a dynasty'], ['from', 'Asabiyya'], ['cites', 'IK'], ['links', 'Mulk']]);
+  expect(parseNoteFind('links:"unfinished name').terms).toEqual([]);
+  expect(parseNoteFind('is:settled revisit:due').text).toBe('is:settled revisit:due');
 });
