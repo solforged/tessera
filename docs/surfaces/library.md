@@ -36,7 +36,7 @@ In a pane narrower than 560 px on a wide screen, the state and year columns step
 
 The leading slot shows a selection checkbox on hover, focus, or while any row is selected. A selected row takes `--selection` and the accent bar. While rows are selected, a bar of the same height replaces the search line: the count, Details (while the catalog card is closed), Browse, Mark as (one batch for all of them), Export, Add to collection…, Delete and Clear selection. Beside an open card, a ledger narrower than 840 px (1000 px inside a collection, which adds Remove from collection) shows Browse, Export, Add to collection, Delete and Clear selection as glyphs named in tooltips, and Remove without its object, so the bar stays one line. Escape clears.
 
-Clicking a row opens the source page; Shift opens it beside. On a wide touch screen, opening a book uses the other pane so the list and detail stay across the hinge. The opened book keeps a quiet current-page marker.
+Clicking a row opens the source page; Shift opens it beside. In a split the Library stays the list: a click opens the source in the other pane, and Shift opens it in the Library's pane instead. On a wide touch screen, opening a book uses the other pane so the list and detail stay across the hinge. The opened book keeps a quiet current-page marker.
 
 A row menu offers Read or Continue reading, Mark as reading, finished or abandoned, Return to inbox, Export and Delete….
 
@@ -108,7 +108,7 @@ On the Reading tab a card's top corner selects it, like a shelf cover.
 
 Cards load the source's contents and text length and cancel their requests when removed. If chapter boundaries are unavailable, the map stays one book-length span and the time is labeled for the book, never a guessed chapter.
 
-Clicking a card opens its source page; Shift, or a wide touch screen, opens it beside. Cards wrap into a vertical stack in narrow panes without dropping books.
+Clicking a card opens its source page; Shift, or a wide touch screen, opens it beside. In a split a click opens it in the other pane and Shift in this one, as with rows. Cards wrap into a vertical stack in narrow panes without dropping books.
 
 On the cover, Reading is the first and initial state tab, the cards replace duplicate Reading rows, and the Inbox follows as `Up next · Inbox`. Search and Add sit beside the Library title. Search reveals the search field and the other library controls. No reading-session totals, pace or finish estimates are shown.
 

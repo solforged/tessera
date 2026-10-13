@@ -69,6 +69,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Agenda Week in a pane narrower than 600 px, such as a phone or a narrow split, lists the seven days as one scroll of Day's rows: past days fold to one line, empty days take one line, and a mono line sums the week. The unfolded Fold fits all seven calendar columns.
 - Tables and saved views on phones show six or seven compact rows instead of one or two cards. The header scrolls away, a bar at the bottom holds Find and Query, and Query opens a sheet with the full query, Save and Revert; group headings stay in view.
 - The note header no longer shows a shortened ID. The page menu opens with the full ID, the creation date and Copy ID, and Copy reference copies a `[[id]]` link.
+- With two panes open, clicking a source in the Library opens it in the other pane, so the list stays put; Shift opens it in the Library's pane.
 
 ### Fixed
 

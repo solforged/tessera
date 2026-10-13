@@ -35,6 +35,8 @@ export interface LibraryPaneProps {
   view: LibraryViewState;
   notebook: NotebookClient;
   active: boolean;
+  /** Another pane is open beside this one. */
+  split: boolean;
   /** One-time request to open the existing Add sheet on arrival. */
   add?: boolean;
   onAddOpened?(): void;
@@ -307,9 +309,10 @@ export function LibraryPane(props: LibraryPaneProps) {
   // On Reading the cards are the list, so they give way to the Shelf and to grouped rows; the phone always keeps them.
   const readingCards = createMemo(() => showReading() && tab() === 'reading' && (coverLayout() || layout() === 'list' && group() === 'none'));
   const [openedSource, setOpenedSource] = createSignal<string>();
-  function openSource(target: OpenTarget, beside: boolean) {
+  function openSource(target: OpenTarget, shift: boolean) {
     if (target.kind === 'page') setOpenedSource(target.pageId);
-    props.onOpen(target, beside || window.matchMedia('(pointer: coarse) and (min-width: 900px)').matches);
+    // In a split the Library stays the list and the other pane shows the source; Shift opens it here instead.
+    props.onOpen(target, props.split ? !shift : shift || window.matchMedia('(pointer: coarse) and (min-width: 900px)').matches);
   }
   function openAdd(anchor: HTMLElement) {
     if (EMBEDDED) { fileInput.click(); return; }
