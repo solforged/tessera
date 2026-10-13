@@ -234,7 +234,7 @@ Non-page panes (table, fields, settings, agenda, review, library, reader, index)
 | Width | Behavior |
 |---|---|
 | Below 1048 px | Sidebar becomes a toggleable overlay |
-| Below 840 px | Working-pane tabs show one pane at a time |
+| Below 840 px | Working-pane tabs show one pane at a time, in the mode-tab style: rubric pane number, mono title, gilt rule under the current pane, and Close pane at the strip's end |
 | Below 600 px | Find or create, Commands and Layout retain accessible labels on icon controls; workspace gutter shrinks to 4 px |
 
 While the sidebar is open, a shade in the shell color dims the workspace beside it. Tapping or clicking the shade closes the sidebar. On the cover screen the open sidebar covers its own toggle, so the shade is the way back. Hidden navigation is inert immediately, including during its exit.
