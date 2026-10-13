@@ -128,7 +128,7 @@ Derived criteria exclude Gist, Work and Account. Work attributes the primary wor
 
 Zooming into a position replaces the concept's title with holder · Gist, then Work and an `on Subject` link. Only backlinks to that block and its incoming relations appear; page-level backlinks, unlinked mentions and the apparatus stay out of the dossier.
 
-Read in a position dossier opens its titled subject page without the zoom, brings the reading into view and briefly marks its slip. A reading filed elsewhere opens its subject's Perspectives filed elsewhere section instead. The resulting Read projection and location survive reload. Header and Commands use the same action.
+Read in a position dossier opens its titled subject page without the zoom, brings the reading into view and briefly marks its slip. A reading filed elsewhere opens its subject's Perspectives filed elsewhere section instead. The mark leaves the row's size and location unchanged. The resulting Read projection and location survive reload. Header and Commands use the same action.
 
 Other block zooms show Read unavailable with a visible reason and a way back to the full page. A reading whose subject is a journal explains that Read needs a titled subject, with File under as the way to choose one.
 

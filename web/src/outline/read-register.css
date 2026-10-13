@@ -19,6 +19,7 @@
 .reading-slips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-8) var(--space-24); }
 .reading-slip { min-width: 0; border-top: var(--rule-width) solid var(--line); padding-top: var(--space-4); }
 .outline-pane .reading-reveal, .related-block.reading-reveal { outline: var(--rule-width) solid var(--accent); }
+.related-block.reading-reveal { outline-offset: calc(-1 * var(--rule-width)); }
 .reading-holder .outline-row { padding: 0; min-height: var(--line-control); }
 .reading-holder .outline-source { font-size: var(--text-control); line-height: var(--line-control); color: var(--muted); }
 .reading-register .reading-holder .outline-row > .row-sigla { position: static; flex-direction: row; margin-right: var(--space-8); }
