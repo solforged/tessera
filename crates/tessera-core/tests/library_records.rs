@@ -8,14 +8,8 @@ fn metadata_records_use_fields_without_reading_content_and_export() {
         title: Some("A physical book".into()),
         subtitle: Some("An authored subtitle".into()),
         creators: vec![
-            ExtractedCreator {
-                name: "Jane Austen".into(),
-                role: CreatorRole::Author,
-            },
-            ExtractedCreator {
-                name: "Pat Editor".into(),
-                role: CreatorRole::Editor,
-            },
+            ExtractedCreator::new("Jane Austen".into(), CreatorRole::Author),
+            ExtractedCreator::new("Pat Editor".into(), CreatorRole::Editor),
         ],
         published: Some("1813".into()),
         publisher: Some("A press".into()),
@@ -136,21 +130,31 @@ fn journal_locators_survive_record_plans_and_citation_exports() {
         let metadata: ExtractedMetadata = serde_json::from_value(serde_json::json!({
             "title": title, "creators": [], "identifiers": ["doi:10.1038/nature14539"],
             "site": "Journal", "volume": volume, "issue": issue, "pages": locator
-        })).unwrap();
+        }))
+        .unwrap();
         let plan = notebook.plan_source_record(&metadata).unwrap();
         let id = plan.source_id;
-        notebook.apply(&Batch {
-            actor: Actor::Person, reason: None, idempotency_key: None,
-            operations: plan.operations,
-        }).unwrap();
+        notebook
+            .apply(&Batch {
+                actor: Actor::Person,
+                reason: None,
+                idempotency_key: None,
+                operations: plan.operations,
+            })
+            .unwrap();
         let csl: serde_json::Value = serde_json::from_str(
-            &notebook.export(std::slice::from_ref(&id), ExportFormat::CslJson).unwrap()
-        ).unwrap();
+            &notebook
+                .export(std::slice::from_ref(&id), ExportFormat::CslJson)
+                .unwrap(),
+        )
+        .unwrap();
         assert_eq!(csl[0]["volume"], volume);
         assert_eq!(csl[0]["issue"], issue);
         assert_eq!(csl[0]["page"], locator);
         assert!(csl[0].get("number-of-pages").is_none());
-        let bib = notebook.export(std::slice::from_ref(&id), ExportFormat::Bibtex).unwrap();
+        let bib = notebook
+            .export(std::slice::from_ref(&id), ExportFormat::Bibtex)
+            .unwrap();
         for field in [
             format!("volume = {{{volume}}}"),
             format!("number = {{{issue}}}"),
@@ -166,30 +170,151 @@ fn bibtex_and_csl_agree_on_source_kind_and_journal_container() {
     let dir = tempfile::tempdir().unwrap();
     let mut notebook = Notebook::open(dir.path()).unwrap();
     for (title, identifiers, bib_type, csl_type, container) in [
-        ("Book", vec!["isbn:9780141439518".into()], "book", "book", "organization"),
-        ("Paper", vec!["doi:10.1038/nature14539".into()], "article", "article-journal", "journal"),
+        (
+            "Book",
+            vec!["isbn:9780141439518".into()],
+            "book",
+            "book",
+            "organization",
+        ),
+        (
+            "Paper",
+            vec!["doi:10.1038/nature14539".into()],
+            "article",
+            "article-journal",
+            "journal",
+        ),
         ("Web page", vec![], "online", "webpage", "organization"),
     ] {
         let metadata = ExtractedMetadata {
-            title: Some(title.into()), identifiers, site: Some("Publication".into()),
+            title: Some(title.into()),
+            identifiers,
+            site: Some("Publication".into()),
             ..Default::default()
         };
         let plan = notebook.plan_source_record(&metadata).unwrap();
         let id = plan.source_id;
-        notebook.apply(&Batch {
-            actor: Actor::Person, reason: None, idempotency_key: None,
-            operations: plan.operations,
-        }).unwrap();
-        let bib = notebook.export(std::slice::from_ref(&id), ExportFormat::Bibtex).unwrap();
+        notebook
+            .apply(&Batch {
+                actor: Actor::Person,
+                reason: None,
+                idempotency_key: None,
+                operations: plan.operations,
+            })
+            .unwrap();
+        let bib = notebook
+            .export(std::slice::from_ref(&id), ExportFormat::Bibtex)
+            .unwrap();
         assert!(bib.starts_with(&format!("@{bib_type}{{")), "{bib}");
-        assert!(bib.contains(&format!("{container} = {{Publication}}")), "{bib}");
+        assert!(
+            bib.contains(&format!("{container} = {{Publication}}")),
+            "{bib}"
+        );
         if container == "journal" {
             assert!(!bib.contains("organization ="));
         }
         let csl: serde_json::Value = serde_json::from_str(
-            &notebook.export(std::slice::from_ref(&id), ExportFormat::CslJson).unwrap()
-        ).unwrap();
+            &notebook
+                .export(std::slice::from_ref(&id), ExportFormat::CslJson)
+                .unwrap(),
+        )
+        .unwrap();
         assert_eq!(csl[0]["type"], csl_type);
         assert_eq!(csl[0]["container-title"], "Publication");
     }
+}
+
+#[test]
+fn organisation_and_combined_creators_never_become_individual_people() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut notebook = Notebook::open(dir.path()).unwrap();
+    let metadata: ExtractedMetadata = serde_json::from_value(serde_json::json!({
+        "title": "Creator kinds", "identifiers": [], "creators": [
+            {"name": "Stanford Encyclopedia of Philosophy", "role": "author", "kind": "organisation"},
+            {"name": "The Editors of Encyclopaedia Britannica", "role": "editor", "kind": "organisation"},
+            {"name": "Berlin and Kay", "role": "author"},
+            {"name": "Russel Gray/Laura Weißert", "role": "author"}
+        ]
+    })).unwrap();
+    let plan = notebook.plan_source_record(&metadata).unwrap();
+    notebook
+        .apply(&Batch {
+            actor: Actor::Person,
+            reason: None,
+            idempotency_key: None,
+            operations: plan.operations,
+        })
+        .unwrap();
+    assert!(notebook.kind_notes("person").unwrap().notes.is_empty());
+    let groups = notebook.kind_notes("group").unwrap();
+    assert_eq!(groups.notes.len(), 2);
+    assert!(
+        groups
+            .notes
+            .iter()
+            .any(|note| note.title == "Stanford Encyclopedia of Philosophy")
+    );
+    for title in ["Berlin and Kay", "Russel Gray/Laura Weißert"] {
+        assert!(notebook.page_by_title(title).unwrap().is_none());
+    }
+}
+
+#[test]
+fn plain_creator_opt_in_preserves_long_ordered_bylines_without_entity_pages() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut notebook = Notebook::open(dir.path()).unwrap();
+    let metadata = ExtractedMetadata {
+        title: Some("Long author list".into()),
+        creators: (0..38)
+            .map(|index| ExtractedCreator {
+                create_page: false,
+                ..ExtractedCreator::new(format!("Author Family{index}"), CreatorRole::Author)
+            })
+            .collect(),
+        ..Default::default()
+    };
+    let plan = notebook.plan_source_record(&metadata).unwrap();
+    let id = plan.source_id;
+    notebook
+        .apply(&Batch {
+            actor: Actor::Person,
+            reason: None,
+            idempotency_key: None,
+            operations: plan.operations,
+        })
+        .unwrap();
+    assert!(notebook.kind_notes("person").unwrap().notes.is_empty());
+    let row = notebook
+        .library(&LibraryQuery::default())
+        .unwrap()
+        .rows
+        .remove(0);
+    assert_eq!(
+        row.creators,
+        metadata
+            .creators
+            .iter()
+            .map(|creator| creator.name.clone())
+            .collect::<Vec<_>>()
+    );
+    assert!(row.people.iter().all(|creator| creator.id.is_none()));
+    let csl: serde_json::Value = serde_json::from_str(
+        &notebook
+            .export(std::slice::from_ref(&id), ExportFormat::CslJson)
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(csl[0]["author"].as_array().unwrap().len(), 38);
+    for index in 0..38 {
+        assert_eq!(csl[0]["author"][index]["family"], format!("Family{index}"));
+        assert_eq!(csl[0]["author"][index]["given"], "Author");
+    }
+    let bib = notebook
+        .export(std::slice::from_ref(&id), ExportFormat::Bibtex)
+        .unwrap();
+    let authors = (0..38)
+        .map(|index| format!("Family{index}, Author"))
+        .collect::<Vec<_>>()
+        .join(" and ");
+    assert!(bib.contains(&format!("author = {{{authors}}}")), "{bib}");
 }

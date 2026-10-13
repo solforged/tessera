@@ -207,10 +207,7 @@ fn add_author(creators: &mut Vec<ExtractedCreator>, name: &str) {
     if name.is_empty() || Url::parse(name).is_ok() {
         return;
     }
-    let creator = ExtractedCreator {
-        name: name.to_owned(),
-        role: CreatorRole::Author,
-    };
+    let creator = ExtractedCreator::new(name.to_owned(), CreatorRole::Author);
     if !creators.contains(&creator) {
         creators.push(creator);
     }

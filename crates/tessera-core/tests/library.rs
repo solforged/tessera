@@ -42,18 +42,9 @@ fn document() -> ExtractedDocument {
         metadata: ExtractedMetadata {
             title: Some("The Evidence & Meaning".into()),
             creators: vec![
-                ExtractedCreator {
-                    name: "García, Ana".into(),
-                    role: CreatorRole::Author,
-                },
-                ExtractedCreator {
-                    name: "John Smith".into(),
-                    role: CreatorRole::Author,
-                },
-                ExtractedCreator {
-                    name: "Lee, Pat".into(),
-                    role: CreatorRole::Translator,
-                },
+                ExtractedCreator::new("García, Ana".into(), CreatorRole::Author),
+                ExtractedCreator::new("John Smith".into(), CreatorRole::Author),
+                ExtractedCreator::new("Lee, Pat".into(), CreatorRole::Translator),
             ],
             published: Some("2020-04".into()),
             publisher: Some("Original Press".into()),
@@ -830,10 +821,10 @@ fn reingest_shorter_list_archives_extracted_surplus() {
     let mut doc = document();
     let (source, _) = ingest(&mut n, &doc, b"short-before");
     let before = field(&n, &source, "Author");
-    doc.metadata.creators = vec![ExtractedCreator {
-        name: "New Author".into(),
-        role: CreatorRole::Author,
-    }];
+    doc.metadata.creators = vec![ExtractedCreator::new(
+        "New Author".into(),
+        CreatorRole::Author,
+    )];
     ingest(&mut n, &doc, b"short-after");
     let after = field(&n, &source, "Author");
     assert_eq!(after.len(), 1);
@@ -851,14 +842,14 @@ fn reingest_longer_list_inserts_missing_positions() {
     doc.metadata.creators.truncate(1);
     let (source, _) = ingest(&mut n, &doc, b"long-before");
     let before = field(&n, &source, "Author");
-    doc.metadata.creators.push(ExtractedCreator {
-        name: "Second Author".into(),
-        role: CreatorRole::Author,
-    });
-    doc.metadata.creators.push(ExtractedCreator {
-        name: "Third Author".into(),
-        role: CreatorRole::Author,
-    });
+    doc.metadata.creators.push(ExtractedCreator::new(
+        "Second Author".into(),
+        CreatorRole::Author,
+    ));
+    doc.metadata.creators.push(ExtractedCreator::new(
+        "Third Author".into(),
+        CreatorRole::Author,
+    ));
     ingest(&mut n, &doc, b"long-after");
     let after = field(&n, &source, "Author");
     assert_eq!(after.len(), 3);
@@ -880,10 +871,10 @@ fn reingest_longer_list_inserts_missing_positions() {
     // Archived surplus does not occupy a position on the next growth.
     doc.metadata.creators.truncate(1);
     ingest(&mut n, &doc, b"long-shrink");
-    doc.metadata.creators.push(ExtractedCreator {
-        name: "Fourth Author".into(),
-        role: CreatorRole::Author,
-    });
+    doc.metadata.creators.push(ExtractedCreator::new(
+        "Fourth Author".into(),
+        CreatorRole::Author,
+    ));
     ingest(&mut n, &doc, b"long-regrow");
     let regrown = field(&n, &source, "Author");
     assert_eq!(regrown.len(), 2);
@@ -1663,7 +1654,7 @@ fn export_reads_authored_fields_and_article_doi_and_search_filters() {
     assert!(
         n.export(&[], ExportFormat::Bibtex)
             .unwrap()
-            .contains("@online")
+            .contains("@article")
     );
     let hits = n.search_passages("evidence", None, 10, 0).unwrap();
     assert_eq!(hits.len(), 4);
@@ -2638,10 +2629,7 @@ fn facet_source(n: &mut Notebook, title: &str, metadata: ExtractedMetadata) -> (
 }
 
 fn facet_creator(name: &str, role: CreatorRole) -> ExtractedCreator {
-    ExtractedCreator {
-        name: name.into(),
-        role,
-    }
+    ExtractedCreator::new(name.into(), role)
 }
 
 fn facet_library() -> (tempfile::TempDir, Notebook, Vec<String>) {

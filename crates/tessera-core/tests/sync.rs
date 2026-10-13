@@ -1052,10 +1052,10 @@ fn document() -> ExtractedDocument {
         media_type: "application/epub+zip".into(),
         metadata: ExtractedMetadata {
             title: Some("Pocket Book".into()),
-            creators: vec![ExtractedCreator {
-                name: "Okafor, Ada".into(),
-                role: CreatorRole::Author,
-            }],
+            creators: vec![ExtractedCreator::new(
+                "Okafor, Ada".into(),
+                CreatorRole::Author,
+            )],
             ..Default::default()
         },
         toc: vec![],

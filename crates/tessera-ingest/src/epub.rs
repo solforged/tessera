@@ -450,10 +450,7 @@ fn metadata(root: Node<'_, '_>) -> ExtractedMetadata {
                 _ => continue,
             };
             for name in &names {
-                let creator = ExtractedCreator {
-                    name: name.clone(),
-                    role,
-                };
+                let creator = ExtractedCreator::new(name.clone(), role);
                 if !creators.contains(&creator) {
                     creators.push(creator);
                 }

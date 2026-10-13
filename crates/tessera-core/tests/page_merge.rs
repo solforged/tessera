@@ -474,10 +474,7 @@ fn field_rows_with_archive_heading_or_capability_state_are_not_discarded() {
 fn record(nb: &mut Notebook, title: &str, author: &str) -> String {
     let metadata = ExtractedMetadata {
         title: Some(title.into()),
-        creators: vec![ExtractedCreator {
-            name: author.into(),
-            role: CreatorRole::Author,
-        }],
+        creators: vec![ExtractedCreator::new(author.into(), CreatorRole::Author)],
         ..Default::default()
     };
     let plan = nb.plan_source_record(&metadata).unwrap();

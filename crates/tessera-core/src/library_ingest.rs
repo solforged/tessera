@@ -15,6 +15,23 @@ fn person_title(name: &str) -> String {
         },
     )
 }
+fn combined_creator(name: &str) -> bool {
+    name.contains(['/', ';', '&'])
+        || name
+            .split_whitespace()
+            .any(|word| word.eq_ignore_ascii_case("and"))
+}
+
+fn creator_title(creator: &ExtractedCreator) -> String {
+    if creator.kind == CreatorKind::Person
+        && creator.create_page
+        && !combined_creator(&creator.name)
+    {
+        person_title(&creator.name)
+    } else {
+        creator.name.trim().to_owned()
+    }
+}
 fn metadata_values(metadata: &ExtractedMetadata) -> Vec<(&'static str, FieldKind, Vec<String>)> {
     let mut values = vec![];
     for (role, label) in [
@@ -29,7 +46,7 @@ fn metadata_values(metadata: &ExtractedMetadata) -> Vec<(&'static str, FieldKind
                 .creators
                 .iter()
                 .filter(|c| c.role == role)
-                .map(|c| person_title(&c.name))
+                .map(creator_title)
                 .filter(|s| !s.is_empty())
                 .collect(),
         ));
@@ -282,7 +299,7 @@ impl<'a> Planner<'a> {
         Ok(())
     }
 
-    fn file_creator(&mut self, id: &str, revision: i64) -> Result<()> {
+    fn file_creator(&mut self, id: &str, revision: i64, kind: CreatorKind) -> Result<()> {
         if self.filed_creators.contains(id) {
             return Ok(());
         }
@@ -296,7 +313,11 @@ impl<'a> Planner<'a> {
             self.operations.push(Operation::AddType {
                 id: id.into(),
                 base_revision: revision,
-                title: "Person".into(),
+                title: match kind {
+                    CreatorKind::Person => "Person",
+                    CreatorKind::Organisation => "Group",
+                }
+                .into(),
             });
             self.filed_creators.insert(id.into());
             for page in self.pages.values_mut().filter(|page| page.0 == id) {
@@ -344,7 +365,24 @@ impl<'a> Planner<'a> {
             if *kind != FieldKind::Instance {
                 continue;
             }
+            let role = match *label {
+                "Author" => Some(CreatorRole::Author),
+                "Editor" => Some(CreatorRole::Editor),
+                "Translator" => Some(CreatorRole::Translator),
+                _ => None,
+            };
+            let mut creators = metadata
+                .creators
+                .iter()
+                .filter(|creator| Some(creator.role) == role && !creator.name.trim().is_empty());
             for value in values {
+                let creator = creators.next();
+                if creator.is_some_and(|creator| {
+                    !creator.create_page
+                        || creator.kind == CreatorKind::Person && combined_creator(&creator.name)
+                }) {
+                    continue;
+                }
                 let matches = self.notebook.resolve_name(value)?;
                 let page = match matches.as_slice() {
                     [matched] => {
@@ -381,7 +419,11 @@ impl<'a> Planner<'a> {
                             .find(|page| page.0 == id)
                             .expect("resolved creator cached")
                             .1;
-                        self.file_creator(&id, revision)?;
+                        self.file_creator(
+                            &id,
+                            revision,
+                            creator.map_or(CreatorKind::Person, |creator| creator.kind),
+                        )?;
                     }
                     *value = format!("[[{id}]]");
                 }
@@ -520,7 +562,7 @@ impl Notebook {
                 })?
                 .collect::<rusqlite::Result<Vec<_>>>()?;
             for (id, revision) in creators {
-                planner.file_creator(&id, revision)?;
+                planner.file_creator(&id, revision, CreatorKind::Person)?;
             }
         }
         planner.operations.push(Operation::SetSetting {

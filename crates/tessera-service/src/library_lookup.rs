@@ -253,10 +253,10 @@ mod mapping {
                     .into_iter()
                     .flatten()
                     .filter_map(|a| {
-                        Some(ExtractedCreator {
-                            name: text(&a["name"])?,
-                            role: CreatorRole::Author,
-                        })
+                        Some(ExtractedCreator::new(
+                            text(&a["name"])?,
+                            CreatorRole::Author,
+                        ))
                     })
                     .collect(),
                 published: book["publish_date"].as_str().and_then(date),
@@ -305,7 +305,11 @@ mod mapping {
                     .to_owned()
                 });
                 if !name.is_empty() {
-                    creators.push(ExtractedCreator { name, role });
+                    let mut creator = ExtractedCreator::new(name, role);
+                    if person["name"].as_str().is_some() {
+                        creator.kind = CreatorKind::Organisation;
+                    }
+                    creators.push(creator);
                 }
             }
         }
@@ -368,15 +372,15 @@ mod mapping {
                     .children()
                     .filter(|n| n.has_tag_name("author"))
                     .filter_map(|author| {
-                        Some(ExtractedCreator {
-                            name: author
+                        Some(ExtractedCreator::new(
+                            author
                                 .children()
                                 .find(|n| n.has_tag_name("name"))?
                                 .text()?
                                 .trim()
                                 .into(),
-                            role: CreatorRole::Author,
-                        })
+                            CreatorRole::Author,
+                        ))
                     })
                     .collect(),
                 published: value("published").as_deref().and_then(date),
@@ -606,5 +610,24 @@ mod tests {
         assert_eq!(preview.metadata.published.as_deref(), Some("2017-06-12"));
         assert_eq!(preview.metadata.creators[0].name, "Ashish Vaswani");
         assert_eq!(preview.metadata.identifiers, ["arxiv:1706.03762v7"]);
+    }
+}
+
+#[cfg(test)]
+mod creator_tests {
+    use super::*;
+
+    #[test]
+    fn crossref_named_collectives_have_organisation_kind() {
+        let preview = crossref(&serde_json::json!({"message": {
+            "title": ["A collaborative paper"],
+            "author": [
+                {"name": "Research Collaboration"},
+                {"given": "Ada", "family": "Researcher"}
+            ]
+        }}))
+        .unwrap_or_else(|_| panic!("valid Crossref record"));
+        assert_eq!(preview.metadata.creators[0].kind, CreatorKind::Organisation);
+        assert_eq!(preview.metadata.creators[1].kind, CreatorKind::Person);
     }
 }

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import type { Block, FieldDefinition } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
-import { derivedSourceSiglum, similarPages, sourceFieldValue, validateSourceValue } from './details';
+import { derivedSourceSiglum, similarPages, sourceFieldValue, sourceMetadata, validateSourceValue } from './details';
 import type { SourceField, SourceFieldValue } from './details';
 
 const page = (text: string, kind: Block['kind'] = 'page', archived = false): Block => ({ id: text, kind, parent_id: null, page_id: text, text, archived } as Block);
@@ -65,6 +65,9 @@ describe('source field validation', () => {
     expect(sourceFieldValue(doc, notebook, definitions, 'identifiers')).toEqual(['isbn:9780262033848', 'doi:10.1000/example']);
     expect(sourceFieldValue(doc, notebook, definitions, 'creators')).toEqual([
       { id: 'person-id', name: 'Linked person', role: 'author' }, { id: null, name: 'Unlinked author', role: 'author' },
+    ]);
+    expect(sourceMetadata(doc, notebook, definitions).creators).toEqual([
+      { name: 'Linked person', role: 'author', create_page: true }, { name: 'Unlinked author', role: 'author', create_page: false },
     ]);
   });
 });

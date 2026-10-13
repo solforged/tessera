@@ -564,10 +564,7 @@ fn ingest_resolves_aliases_preserves_ambiguity_and_turns_creator_names_around() 
             "Jane Austen",
         ]
         .into_iter()
-        .map(|name| ExtractedCreator {
-            name: name.into(),
-            role: CreatorRole::Author,
-        })
+        .map(|name| ExtractedCreator::new(name.into(), CreatorRole::Author))
         .collect(),
         ..Default::default()
     };

@@ -41,10 +41,10 @@ fn document() -> ExtractedDocument {
         media_type: "application/epub+zip".into(),
         metadata: ExtractedMetadata {
             title: Some("Shared Evidence".into()),
-            creators: vec![ExtractedCreator {
-                name: "García, Ana".into(),
-                role: CreatorRole::Author,
-            }],
+            creators: vec![ExtractedCreator::new(
+                "García, Ana".into(),
+                CreatorRole::Author,
+            )],
             ..Default::default()
         },
         toc: vec![],

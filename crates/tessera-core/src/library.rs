@@ -87,6 +87,35 @@ pub struct ExtractedCreator {
     /// `Le Guin, Ursula K.`.
     pub name: String,
     pub role: CreatorRole,
+    #[serde(default)]
+    pub kind: CreatorKind,
+    /// False keeps this creator as an ordered plain name, without an entity page.
+    #[serde(default = "create_creator_page")]
+    pub create_page: bool,
+}
+
+fn create_creator_page() -> bool {
+    true
+}
+
+impl ExtractedCreator {
+    pub fn new(name: String, role: CreatorRole) -> Self {
+        Self {
+            name,
+            role,
+            kind: CreatorKind::Person,
+            create_page: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CreatorKind {
+    #[default]
+    Person,
+    #[serde(alias = "organization")]
+    Organisation,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

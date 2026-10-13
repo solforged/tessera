@@ -43,7 +43,7 @@ export function DetailsForm(props: { metadata: ExtractedMetadata; notebook: Note
   async function submit() {
     if (busy()) return;
     setBusy(true); setError('');
-    try { await props.onSave({ ...value(), creators: creators().filter(creator => creator.name.trim()).map(({ name, role }) => ({ name: name.trim(), role })) }); }
+    try { await props.onSave({ ...value(), creators: creators().filter(creator => creator.name.trim()).map(creator => ({ ...creator, name: creator.name.trim() })) }); }
     catch (error) { setError(error instanceof Error ? error.message : String(error)); }
     finally { setBusy(false); }
   }

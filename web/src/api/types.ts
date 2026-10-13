@@ -517,7 +517,7 @@ export interface Citation {
   color: 'yellow' | 'green' | 'blue' | 'red' | 'purple' | null;
 }
 export interface BlockCapabilities { source?: SourceRecord | null; citations?: Citation[] }
-export interface ExtractedCreator { name: string; role: 'author' | 'editor' | 'translator' }
+export interface ExtractedCreator { name: string; role: 'author' | 'editor' | 'translator'; kind?: 'person' | 'organisation'; create_page?: boolean }
 export interface ExtractedMetadata {
   title: string | null; subtitle: string | null; creators: ExtractedCreator[];
   published: string | null; publisher: string | null; language: string | null;

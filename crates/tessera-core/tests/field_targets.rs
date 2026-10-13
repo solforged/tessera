@@ -203,18 +203,9 @@ fn import_files_new_and_matched_untyped_creators_but_keeps_groups() {
     let metadata = ExtractedMetadata {
         title: Some("A book".into()),
         creators: vec![
-            ExtractedCreator {
-                name: "New person".into(),
-                role: CreatorRole::Author,
-            },
-            ExtractedCreator {
-                name: "Existing person".into(),
-                role: CreatorRole::Editor,
-            },
-            ExtractedCreator {
-                name: "Existing group".into(),
-                role: CreatorRole::Translator,
-            },
+            ExtractedCreator::new("New person".into(), CreatorRole::Author),
+            ExtractedCreator::new("Existing person".into(), CreatorRole::Editor),
+            ExtractedCreator::new("Existing group".into(), CreatorRole::Translator),
         ],
         ..Default::default()
     };

@@ -1,4 +1,4 @@
-import type { Block, ExtractedMetadata, FieldDefinition, FieldKind, ReadingState } from '../api/types';
+import type { Block, ExtractedCreator, ExtractedMetadata, FieldDefinition, FieldKind, ReadingState } from '../api/types';
 import type { DocumentChange, NotebookClient, PageDocument, SourceDetailsEdit } from '../document/contract';
 import { sourceState } from '../document/types';
 import { addFieldOption, documentReady } from '../outline/source-fields';
@@ -80,7 +80,7 @@ export function sourceFieldValue(doc: PageDocument, notebook: NotebookClient, de
 export function sourceMetadata(doc: PageDocument, notebook: NotebookClient, definitions: readonly FieldDefinition[]): ExtractedMetadata {
   const text = (field: SourceField) => sourceFieldValue(doc, notebook, definitions, field) as string;
   return { ...emptyMetadata(), title: text('title'), subtitle: text('subtitle') || null,
-    creators: (sourceFieldValue(doc, notebook, definitions, 'creators') as SourceCreator[]).map(({ name, role }) => ({ name, role })),
+    creators: (sourceFieldValue(doc, notebook, definitions, 'creators') as SourceCreator[]).map(({ id, name, role }) => ({ name, role, create_page: id !== null })),
     published: text('published') || null, publisher: text('publisher') || null, language: text('language') || null,
     identifiers: sourceFieldValue(doc, notebook, definitions, 'identifiers') as string[], cover: text('cover') || null,
     volume: text('volume') || null, issue: text('issue') || null, page_range: text('pageRange') || null,
@@ -149,7 +149,7 @@ export function validateSourceValue(field: SourceField, value: SourceFieldValue)
   return text;
 }
 
-async function prepareField(notebook: NotebookClient, context: FieldPreparation, label: string, kind: FieldKind, values: string[]): Promise<{ id: string; values: string[] } | undefined> {
+async function prepareField(notebook: NotebookClient, context: FieldPreparation, label: string, kind: FieldKind, values: string[], creators?: readonly ExtractedCreator[]): Promise<{ id: string; values: string[] } | undefined> {
   let definition = context.definitions.find(field => field.name.toLowerCase() === label.toLowerCase());
   if (!definition && !values.length) return undefined;
   if (!definition) {
@@ -171,16 +171,18 @@ async function prepareField(notebook: NotebookClient, context: FieldPreparation,
     } finally { doc.release(); }
   }
   if (kind === 'instance' || definition.kind === 'instance') {
-    values = await Promise.all(values.map(async value => {
+    values = await Promise.all(values.map(async (value, index) => {
+      if (creators?.[index]?.create_page === false) return value;
+      const entityType = creators?.[index]?.kind === 'organisation' ? 'Group' : 'Person';
       const reference = /^\[\[[^\]|]+\]\]$/.test(value) ? value.slice(2, -2) : undefined;
       const name = value.includes(',') ? value.split(',').reverse().map(part => part.trim()).join(' ') : value;
       let id = reference ?? await notebook.pageByTitle(value, false) ?? await notebook.pageByTitle(name, false);
-      if (!id) id = (await createInstance(notebook, name, 'Person')).id;
+      if (!id) id = (await createInstance(notebook, name, entityType)).id;
       else {
         const kinds = await notebook.api.noteKinds(id);
         if (!kinds.some(kind => kind.key !== 'unfiled')) {
           const page = await notebook.api.block(id);
-          await notebook.commit([{ op: 'add_type', id, base_revision: page.revision, title: 'Person' }], 'File creator');
+          await notebook.commit([{ op: 'add_type', id, base_revision: page.revision, title: entityType }], 'File creator');
         }
       }
       return `[[${id}]]`;
@@ -202,12 +204,16 @@ async function prepareSourceField(doc: PageDocument, notebook: NotebookClient, c
     edit.source = { ...source, ...(field === 'state' ? { state: value as ReadingState } : { citation_key: (value as string) || null }) };
   } else {
     const entries = sourceEntries(doc, context.definitions);
+    const plain = (sourceFieldValue(doc, notebook, context.definitions, 'creators') as SourceCreator[]).filter(creator => !creator.id);
     const pending = field === 'creators'
       ? roles.map(role => ({ label: role[0]!.toUpperCase() + role.slice(1), kind: 'instance' as const,
         values: (value as SourceCreator[]).filter(creator => creator.role === role).map(creator => creator.id ? `[[${creator.id}]]` : creator.name) }))
       : [{ label: fields[field][0], kind: fields[field][1], values: field === 'identifiers' ? value as string[] : value || ['url', 'site', 'description', 'cover'].includes(field) ? [value as string] : [] }];
     for (const { label, kind, values } of pending) {
-      const prepared = await prepareField(notebook, context, label, kind, values);
+      const creators = field === 'creators' ? (value as SourceCreator[])
+        .filter(creator => creator.role.toLowerCase() === label.toLowerCase())
+        .map(creator => ({ name: creator.name, role: creator.role, create_page: !!creator.id || !plain.some(old => old.name === creator.name) })) : undefined;
+      const prepared = await prepareField(notebook, context, label, kind, values, creators);
       if (prepared) edit.fields.push({ ...prepared, entries: entries.get(label.toLowerCase()) ?? [] });
     }
   }
@@ -243,11 +249,12 @@ async function prepareMetadata(doc: PageDocument, notebook: NotebookClient, cont
     edit.fields.push(...prepared.fields);
   }
   if (!coverOnly) for (const role of roles) {
-    const names = metadata.creators.filter(creator => creator.role === role).map(creator => creator.name.trim()).filter(Boolean);
+    const creators = metadata.creators.filter(creator => creator.role === role && creator.name.trim());
+    const names = creators.map(creator => creator.name.trim());
     const old = previous.creators.filter(creator => creator.role === role).map(creator => creator.name);
     if (onlyMissing && old.length || JSON.stringify(old) === JSON.stringify(names)) continue;
     const label = role[0]!.toUpperCase() + role.slice(1);
-    const prepared = await prepareField(notebook, context, label, 'instance', names);
+    const prepared = await prepareField(notebook, context, label, 'instance', names, creators);
     if (prepared) edit.fields.push({ ...prepared, entries: entries.get(role) ?? [] });
   }
   if (!onlyMissing && !coverOnly) edit.title = validateSourceValue('title', metadata.title ?? '') as string;
