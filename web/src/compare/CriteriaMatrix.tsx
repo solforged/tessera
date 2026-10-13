@@ -1,5 +1,5 @@
 import { For, Show, createMemo, createSignal } from 'solid-js';
-import type { PositionQuestion, PositionRow } from '../api/types';
+import type { PositionQuestion, PositionRow, QuoteState } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import type { OpenTarget } from '../shell/contract';
 import { BlockText } from '../outline/BlockText';
@@ -8,6 +8,10 @@ import { Button } from '../ui/Button';
 import { exactRepeats } from './criteria';
 import { titleTargets, typedTitles, withLinkedTitles } from '../outline/link-titles';
 import { CriteriaCellEditor } from './CriteriaCellEditor';
+import { quoteTarget } from '../document/text-tokens';
+import { Quote, createQuoteStatus } from '../outline/Quote';
+
+interface CriterionValue { id: string; text: string }
 
 export function CriteriaMatrix(props: {
   rows: PositionRow[]; allRows: PositionRow[]; criteria: string[]; questions: PositionQuestion[]; notebook: NotebookClient;
@@ -21,6 +25,7 @@ export function CriteriaMatrix(props: {
   const [saving, setSaving] = createSignal(false);
   const rowById = createMemo(() => new Map(props.rows.map(row => [row.block.block.id, row])));
   const rowIds = createMemo(() => [...rowById().keys()]);
+  const quoteStatuses = createMemo(() => new Map([...props.docs].map(([id, doc]) => [id, createQuoteStatus(doc, props.notebook)])));
   const cells = createMemo(() => new Map(props.rows.map(row => {
     const doc = props.docs.get(row.block.page.id);
     doc?.outline.version(); doc?.archivedVersion();
@@ -36,7 +41,7 @@ export function CriteriaMatrix(props: {
     setEditing(null);
     if (cell) queueMicrotask(() => { if (cell.isConnected) cell.focus({ preventScroll: true }); });
   }
-  async function commit(textDraft: string, cell?: HTMLElement) {
+  async function commit(textDraft: string, cell?: HTMLElement, quote?: QuoteState) {
     const current = editing();
     if (!current || saving()) return;
     const row = props.rows.find(row => row.block.block.id === current.position);
@@ -48,17 +53,34 @@ export function CriteriaMatrix(props: {
     try { text = withLinkedTitles(textDraft, await titleTargets(props.notebook, typedTitles(textDraft))); }
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); setSaving(false); return; }
     if (editing() !== current) { setSaving(false); return; }
-    if (current.value && doc.block(current.value)?.text === text) { finishEditing(cell); setSaving(false); return; }
+    if (current.value && doc.block(current.value)?.text === text && !quote) { finishEditing(cell); setSaving(false); return; }
     const entry = doc.outline.children(current.position).find(id => !doc.isArchived(id) && fieldEntryId(doc.block(id)?.text ?? '') === current.field);
-    const result = doc.edit(current.value ? { kind: 'text', id: current.value, text }
-      : entry ? { kind: 'insert', parentId: entry, after: doc.outline.children(entry).at(-1) ?? null, text }
-      : { kind: 'addFieldEntries', parentId: current.position, after: doc.outline.children(current.position).at(-1) ?? null, entries: [{ fieldId: current.field, value: text }] });
+    const result = doc.edit(current.value ? quote ? { kind: 'quote', id: current.value, text, value: quote } : { kind: 'text', id: current.value, text }
+      : entry ? { kind: 'insert', parentId: entry, after: doc.outline.children(entry).at(-1) ?? null, text, quote }
+      : { kind: 'addFieldEntries', parentId: current.position, after: doc.outline.children(current.position).at(-1) ?? null, entries: [{ fieldId: current.field, value: text, quote }] });
     if (!result.ok) { setError(result.reason); setSaving(false); return; }
     finishEditing(cell); setError(''); props.onEdited(doc);
     try { await doc.flush(); } catch (error) { setError(error instanceof Error ? error.message : String(error)); } finally { setSaving(false); }
   }
   function start(row: PositionRow, field: string, value: { id: string; text: string } | undefined) {
     setEditing({ position: row.block.block.id, field, value: value?.id ?? null, text: value?.text ?? '' });
+  }
+  function CellValue(valueProps: { value: CriterionValue; position: string; field: string; editable?: boolean }) {
+    let valueHost!: HTMLDivElement;
+    const row = () => rowById().get(valueProps.position)!;
+    const doc = () => props.docs.get(row().block.page.id);
+    const target = createMemo(() => quoteTarget(valueProps.value.text));
+    return <Show when={target() && doc()?.status() === 'ready'} fallback={<Show when={valueProps.editable}
+      fallback={<div class="criteria-value"><BlockText text={valueProps.value.text} notebook={props.notebook} interactive={false} /></div>}>
+      <button type="button" class="criteria-value" onClick={() => start(row(), valueProps.field, valueProps.value)}><BlockText text={valueProps.value.text} notebook={props.notebook} interactive={false} /></button>
+    </Show>}>
+      <div ref={valueHost} class="criteria-value" onClick={event => {
+        if (valueProps.editable && !(event.target as HTMLElement).closest('button,.outline-reference')) { event.stopPropagation(); start(row(), valueProps.field, valueProps.value); }
+      }}><Quote id={valueProps.value.id} target={target()!} doc={doc()!} notebook={props.notebook} status={quoteStatuses().get(row().block.page.id)?.().get(valueProps.value.id)} onOpen={props.onOpen} onEdited={doc => {
+        props.onEdited(doc);
+        queueMicrotask(() => valueHost.closest<HTMLElement>('.criteria-cell')?.focus({ preventScroll: true }));
+      }} /></div>
+    </Show>;
   }
   return <>
     <Show when={error()}><p class="pane-error" role="alert">{error()}</p></Show>
@@ -77,10 +99,10 @@ export function CriteriaMatrix(props: {
           const repeat = () => repeats().find(repeat => repeat.criterion === field && repeat.positions.includes(id));
           return <td><div ref={cell} class="criteria-cell" tabIndex={0} role="group" aria-label={`${props.fieldName(field)} · ${props.holder(rowById().get(id)!)}`} onClick={event => { if (!(event.target as HTMLElement).closest('.cm-editor,button')) start(rowById().get(id)!, field, values()[0]); }} onKeyDown={event => { if (event.key === 'Enter' && !current()) { event.preventDefault(); start(rowById().get(id)!, field, values()[0]); } }}>
             <Show when={current()} fallback={<Show when={values().some(value => value.text.trim())} fallback={<Button class="criteria-add" onClick={() => start(rowById().get(id)!, field, values()[0])}>Add</Button>}>
-              <For each={values()}>{value => <button type="button" class="criteria-value" onClick={() => start(rowById().get(id)!, field, value)}><BlockText text={value.text} notebook={props.notebook} interactive={false} /></button>}</For>
+              <For each={values()}>{value => <CellValue value={value} position={id} field={field} editable />}</For>
             </Show>}>{edit => <>
-              <For each={values().filter(value => value.id !== edit().value)}>{value => <div class="criteria-value"><BlockText text={value.text} notebook={props.notebook} interactive={false} /></div>}</For>
-              <CriteriaCellEditor id={edit().value ?? edit().position} text={edit().text} label={`Edit ${props.fieldName(field)} · ${props.holder(rowById().get(id)!)}`} notebook={props.notebook} onCommit={(text, restoreFocus) => void commit(text, restoreFocus ? cell : undefined)} onCancel={() => finishEditing(cell)} />
+              <For each={values().filter(value => value.id !== edit().value)}>{value => <CellValue value={value} position={id} field={field} />}</For>
+              <CriteriaCellEditor id={edit().value ?? edit().position} text={edit().text} label={`Edit ${props.fieldName(field)} · ${props.holder(rowById().get(id)!)}`} notebook={props.notebook} onCommit={(text, restoreFocus, quote) => void commit(text, restoreFocus ? cell : undefined, quote)} onCancel={() => finishEditing(cell)} />
             </>}</Show>
           </div><Show when={repeat()}>{mark => <span class="criteria-exact">≡ {mark().number} · exact repeat</span>}</Show></td>;
         }}</For></tr>

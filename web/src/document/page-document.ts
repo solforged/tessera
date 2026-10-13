@@ -4,7 +4,7 @@ import { createStore } from 'solid-js/store';
 import type { SetStoreFunction } from 'solid-js/store';
 import { ulid } from 'ulid';
 import { ApiError } from '../api/client';
-import type { Batch, Block, BlockCapabilities, Committed, PageView, TextRewrite, WorkSession } from '../api/types';
+import type { Batch, Block, BlockCapabilities, Committed, PageView, QuoteState, TextRewrite, WorkSession } from '../api/types';
 import type { BlockClipboard, BlockState, Caret, DocumentChange, Edit, EditResult, HistoryCaret, PageDocument, SaveState, SourceDetailsEdit, TextRange } from './contract';
 import { OutlineIndex } from './outline-index';
 import type { Action, Command, HistoryEntry, PageCommand, Snapshot } from './types';
@@ -1005,11 +1005,15 @@ export class Document implements PageDocument {
     const actions: Action[] = [];
     let caret: Caret | null = caretBefore ? { id: caretBefore.id, offset: caretBefore.offset } : null;
     const created: string[] = [];
-    const insert = (parentId: string, after: string | null, text: string, heading: 1 | 2 | 3 | null = null) => {
+    const insert = (parentId: string, after: string | null, text: string, heading: 1 | 2 | 3 | null = null, quote?: QuoteState) => {
       if (!this.block(parentId) && !created.includes(parentId)) throw new Error('The parent no longer exists.');
       const id = ulid();
       created.push(id);
       actions.push({ kind: 'insert', after, block: { id, kind: 'block', parent_id: parentId, page_id: this.pageId, text, heading, archived: false, kept_copy: null, revision: 0, created_at: Date.now(), updated_at: Date.now() } });
+      if (quote) {
+        if (quoteTarget(text) !== quote.target_id || quote.target_id === id) throw new Error('Quote target must match a different block.');
+        actions.push({ kind: 'quote', id, value: structuredClone(quote), previous: null, baseRevision: 0 });
+      }
       return id;
     };
     const selected = (ids: string[], zoomRoot?: string | null) => {
@@ -1470,7 +1474,7 @@ export class Document implements PageDocument {
           let first: Caret | undefined;
           for (const entry of edit.entries) {
             after = insert(edit.parentId, after, `[[${entry.fieldId}]]`);
-            const value = insert(after, null, entry.value);
+            const value = insert(after, null, entry.value, null, entry.quote);
             first ??= { id: value, offset: entry.value.length };
           }
           caret = first!;
@@ -1531,7 +1535,7 @@ export class Document implements PageDocument {
           actions.push({ kind: edit.kind, id: edit.id, title: edit.title });
           break;
         }
-        case 'insert': caret = { id: insert(edit.parentId, edit.after, edit.text ?? ''), offset: 0 }; break;
+        case 'insert': caret = { id: insert(edit.parentId, edit.after, edit.text ?? '', null, edit.quote), offset: 0 }; break;
         case 'split': {
           const old = this.snapshot(edit.id);
           if (old.kind !== 'block') throw new Error('Only outline blocks can split.');

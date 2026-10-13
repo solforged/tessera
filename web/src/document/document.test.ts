@@ -774,6 +774,46 @@ describe('real notebook operations and recovery', () => {
     doc.release();
   });
 
+  test('quoted criterion values create their snapshot and missing structure in one undo step', async () => {
+    const instance = await client();
+    const source = await page(instance, 'Frozen criterion evidence');
+    const snapshot = await api.quoteSnapshot(source.first);
+    const text = `((${source.first}))`;
+    const fields = await api.fields();
+    const register = instance.open(fields.page_id);
+    await eventually(() => register.status() === 'ready', register.statusMessage());
+    const field = success(register.edit({ kind: 'addField', name: `Quoted criterion ${++serial}`, value: 'text' })).created[0]!;
+    await instance.flush();
+    const target = await page(instance, 'A reading');
+    const added = success(target.doc.edit({ kind: 'addFieldEntries', parentId: target.first, after: null, entries: [{ fieldId: field, value: text, quote: snapshot }] }));
+    const [entry, value] = added.created;
+    expect(target.doc.block(value!)?.text).toBe(text);
+    expect(target.doc.block(value!)?.quote).toEqual(snapshot);
+    await instance.flush();
+    expect((await api.capabilities(value!)).quote).toEqual(snapshot);
+    target.doc.undo();
+    expect(target.doc.outline.children(target.first)).toEqual([]);
+    await instance.flush();
+    target.doc.redo();
+    await instance.flush();
+    expect((await api.capabilities(value!)).quote).toEqual(snapshot);
+    const second = success(target.doc.edit({ kind: 'insert', parentId: entry!, after: value!, text, quote: snapshot })).created[0]!;
+    await instance.flush();
+    expect((await api.capabilities(second)).quote).toEqual(snapshot);
+    target.doc.undo();
+    expect(target.doc.outline.children(entry!)).toEqual([value!]);
+    await instance.flush();
+    target.doc.redo();
+    await instance.flush();
+    const otherWindow = await client();
+    const shared = otherWindow.open(target.id);
+    await eventually(() => shared.status() === 'ready', shared.statusMessage());
+    expect(shared.block(second)?.quote).toEqual(snapshot);
+    expect(target.doc.edit({ kind: 'insert', parentId: entry!, after: second, text: 'A different token', quote: snapshot }).ok).toBe(false);
+    expect(target.doc.outline.children(entry!)).toEqual([value!, second]);
+    source.doc.release(); register.release(); target.doc.release(); shared.release();
+  });
+
   test('field kind edits persist, undo and redo through the document outbox', async () => {
     const instance = await client();
     const fields = await api.fields();

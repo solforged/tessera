@@ -83,6 +83,8 @@ Compare has Readings and Criteria tabs under the subject title, in the same mono
 
 A focused question stays pinned above either sheet. Only readings held by the holders linked in that question remain; a question without named holders keeps all readings. Criteria marks the question's linked criterion. Clicking the pinned question, Show all readings or Escape restores the sheet. The focus survives reload and switching tabs without changing the reading selection. Open original question remains a separate action.
 
+Escape clears question focus anywhere in the active Compare projection, including immediately after reload. An open editor or popup keeps its own Escape action first.
+
 At phone width the focused reading sheet stacks its readings and the focused matrix fits its columns within the pane. Question text and scope wrap.
 
 ## Criteria matrix
@@ -96,6 +98,8 @@ Each column heads with the siglum in mono, the holder in 18 px Piazzolla and the
 Cells are the positions' own values. Enter or a click edits one in place, an empty cell offers Add on hover or focus, and both are undoable edits of the position's page.
 
 Cells use the outline's CodeMirror block editor, including paired references, completion, Unicode and composition. Enter commits, Shift-Enter adds a newline and Escape cancels. Saving resolves hand-typed `[[Title]]` references by title or alias, retaining the authored spelling, as in the outline. Shared names stay unlinked rather than choosing a page.
+
+A whole-cell `((` choice captures the same frozen quote as the outline, with `((ID))` text and dated Quote attribution. Inline `((` inserts a live reference. Quote text, snapshot and any missing field structure commit together; undo and redo preserve the snapshot.
 
 Draft undo and redo remain inside the open cell until commit. A committed edit belongs to the position's shared page history, so sheet undo and page undo operate on the same change. The sheet routes undo to the last edited page, not a private edit stack.
 

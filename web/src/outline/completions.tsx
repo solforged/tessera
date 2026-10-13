@@ -17,7 +17,7 @@ import { Icon } from '../ui/Icon';
 import type { IconName } from '../ui/Icon';
 import { Popup } from '../ui/Popup';
 import { BlockBreadcrumb, BlockText } from './BlockText';
-import { completedReference, completionPickKey, isJournalReference, isQuoteCompletion, openReferenceRange, referenceCompletionAt, referenceNewlineAt } from './completion';
+import { captureQuoteCompletion, completedReference, completionPickKey, isJournalReference, isQuoteCompletion, openReferenceRange, referenceCompletionAt, referenceNewlineAt } from './completion';
 import { rankSlash, slashTokenAt } from './slash';
 import { insertCard } from './card-insert';
 import type { InsertCardKind } from './card-insert';
@@ -407,10 +407,10 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
       setCompletion(null);
       const held = props.notebook.open(doc.pageId);
       try {
-        const value = await api.quoteSnapshot(id);
+        const captured = await captureQuoteCompletion(props.notebook, id);
         if (doc.block(source)?.text !== text) throw new Error('The quote row changed before its snapshot arrived.');
-        const next = `((${id}))`;
-        const result = doc.edit({ kind: 'quote', id: source, value, text: next }, before);
+        const next = captured.text;
+        const result = doc.edit({ kind: 'quote', id: source, value: captured.quote, text: next }, before);
         if (!result.ok) throw new Error(result.reason);
         if (!context.disposed && editing() === source && context.editor?.id === source) {
           context.editor.sync(next);

@@ -1,6 +1,14 @@
-import type { Block } from '../api/types';
+import type { Block, QuoteState } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { insideProtectedSyntax } from '../tasks/quick-date';
+
+export interface CapturedQuoteCompletion { text: string; quote: QuoteState }
+
+/** Whole-block quote choices share their frozen payload and authored token across projections. */
+export async function captureQuoteCompletion(notebook: NotebookClient, target: string): Promise<CapturedQuoteCompletion> {
+  const quote = await notebook.api.quoteSnapshot(target);
+  return { text: `((${target}))`, quote };
+}
 
 /** A heading trigger belongs to the space just typed, not to a prefix found later in the text. */
 export function headingPrefix(text: string, caret: number): { text: string; heading: 1 | 2 | 3 } | null {

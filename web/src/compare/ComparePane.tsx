@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createMemo, createResource, createSignal, onCleanup } from 'solid-js';
+import { For, Show, createEffect, createMemo, createResource, createSignal, onCleanup, onMount } from 'solid-js';
 import { api } from '../api/client';
 import type { PositionRow } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
@@ -116,13 +116,20 @@ export function ComparePane(props: ComparePaneProps) {
     return item?.source && sigla().get(item.source) || (row.holder_id ? props.notebook.lookup(row.holder_id)()?.text ?? '' : '').replace(/[^\p{L}]/gu, '').slice(0, 3).toUpperCase();
   };
   let scroll!: HTMLDivElement;
+  let pane!: HTMLDivElement;
+  onMount(() => {
+    const clearQuestion = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented || event.isComposing || !focusedQuestion()) return;
+      if (!pane.closest('.pane.active') || !pane.getClientRects().length || pane.querySelector('.cm-editor') || document.querySelector('.popup:not(.popup-exit)')) return;
+      event.preventDefault(); event.stopPropagation(); focusQuestion(null);
+    };
+    document.addEventListener('keydown', clearQuestion);
+    onCleanup(() => document.removeEventListener('keydown', clearQuestion));
+  });
   requestAnimationFrame(() => { if (scroll) scroll.scrollTop = props.view.scroll; });
 
   const count = createMemo(() => `${perspectives().length} readings by ${new Set(rows().flatMap(row => row.holder_id ? [row.holder_id] : [])).size} holders`);
-  return <div class="compare-pane" classList={{ 'compare-embedded': props.embedded ?? false, 'compare-focused': !!focusedQuestion() }} role="region" tabIndex={0} aria-label="Compare perspectives" onFocusIn={props.onActivate} onKeyDown={event => {
-    if (event.key === 'Escape' && focusedQuestion() && !(event.target as HTMLElement).closest('.cm-editor')) {
-      event.preventDefault(); event.stopPropagation(); focusQuestion(null);
-    }
+  return <div ref={pane} class="compare-pane" classList={{ 'compare-embedded': props.embedded ?? false, 'compare-focused': !!focusedQuestion() }} role="region" tabIndex={0} aria-label="Compare perspectives" onFocusIn={props.onActivate} onKeyDown={event => {
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z' && !(event.target as HTMLElement).closest('.cm-editor')) {
       event.preventDefault(); event.stopPropagation();
       const doc = historyDoc() ?? docs().values().next().value;

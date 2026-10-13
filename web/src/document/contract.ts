@@ -181,8 +181,8 @@ export type Edit =
    * `fieldEntry` identifies a known parent field; an empty leaf value exits it.
    */
   | { kind: 'split'; id: string; offset: number; zoomRoot?: string | null; fieldEntry?: string | null }
-  /** A new empty block. */
-  | { kind: 'insert'; parentId: string; after: string | null; text?: string }
+  /** A new block, optionally with a frozen quote captured in the same undo step. */
+  | { kind: 'insert'; parentId: string; after: string | null; text?: string; quote?: QuoteState }
   /** Backspace at the start: append `sourceId` to `destinationId`, which keeps its ID. */
   | { kind: 'merge'; sourceId: string; destinationId: string }
   /**
@@ -242,7 +242,7 @@ export type Edit =
   /** Hold or release the supplied current card snapshots as one undo step. */
   | { kind: 'cardHeld'; cards: { id: string; source_block_id: string; revision: number; held: boolean; active: boolean }[]; held: boolean }
   /** An entry per field under `parentId` after `after`, each with one value block holding `value`; one undo step, caret at the end of the first value. */
-  | { kind: 'addFieldEntries'; parentId: string; after: string | null; entries: { fieldId: string; value: string }[] }
+  | { kind: 'addFieldEntries'; parentId: string; after: string | null; entries: { fieldId: string; value: string; quote?: QuoteState }[] }
   /** Convert a block to a field entry, keeping the text after `from` in its first value; one undo step. */
   | { kind: 'fieldEntry'; id: string; fieldId: string; from: number }
   | { kind: 'archive'; id: string; archived: boolean }

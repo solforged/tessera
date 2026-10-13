@@ -35,6 +35,7 @@ export function Quote(props: {
   notebook: NotebookClient;
   status?: QuoteStatus;
   onOpen(target: OpenTarget, beside: boolean): void;
+  onEdited?(doc: PageDocument): void;
 }) {
   const block = () => props.doc.block(props.id);
   const quote = () => block()?.quote?.target_id === props.target ? block()!.quote : null;
@@ -63,6 +64,7 @@ export function Quote(props: {
       if (block()?.text !== text || block()?.revision !== revision || quoteTarget(text) !== target) throw new Error('The quote row changed. Capture again.');
       const result = props.doc.edit({ kind: 'quote', id: props.id, value });
       if (!result.ok) throw new Error(result.reason);
+      props.onEdited?.(props.doc);
       await props.doc.flush();
     } catch (reason) {
       if (!disposed) setError(reason instanceof Error ? reason.message : String(reason));
