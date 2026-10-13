@@ -57,15 +57,17 @@ jobs:
           mise run demo:wasm
           bunx vercel@62.5.0 pull --yes --environment=production --token="$VERCEL_TOKEN"
           bunx vercel@62.5.0 build --prod --token="$VERCEL_TOKEN"
-          bunx vercel@62.5.0 deploy --prebuilt --prod --token="$VERCEL_TOKEN" | tee "$RUNNER_TEMP/vercel.txt"
-          url=$(grep -Eo 'https://[^ ]+' "$RUNNER_TEMP/vercel.txt" | tail -n 1)
-          test -n "$url"
-          curl -fsS "$url" | grep -q Tessera
+          bunx vercel@62.5.0 deploy --prebuilt --prod --token="$VERCEL_TOKEN"
+          # The deployment's own *.vercel.app URL sits behind Vercel
+          # Authentication and redirects to a login page, so the check runs
+          # against the public alias and waits for this build's entry script.
+          entry=$(grep -Eo '/assets/demo-[A-Za-z0-9_-]+\.js' web/dist-demo/demo.html)
+          test -n "$entry"
           for _ in 1 2 3 4 5 6; do
-            if curl -fsS https://tessera.solforged.io | grep -q Tessera; then
+            if curl -fsS https://tessera.solforged.io | grep -qF "$entry"; then
               exit 0
             fi
             sleep 10
           done
-          echo "tessera.solforged.io did not serve the demo" >&2
+          echo "tessera.solforged.io did not serve $entry" >&2
           exit 1
