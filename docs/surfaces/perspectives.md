@@ -28,7 +28,7 @@ Compare switches the same pane to the existing reading sheet and criteria matrix
 
 Add reading is in the register, the Outline header and Commands. Who holds this? lists People and Groups first, then other pages, then Create for a new name. Choosing appends an attributed reading after the last reading in its section, or at the page's end when there are none.
 
-The holder link, position capability and empty Gist slot are one undoable edit. The caret starts in the Gist value. Creating a holder makes an ordinary page; undoing the reading keeps that page.
+The holder link, position capability and empty Gist slot are one undoable edit. The caret starts in the Gist value in filling mode, in Read and Outline. Typing keeps the same editor mounted while the blank value becomes a sentence; Tab moves to Work, then the subject's criteria. Creating a holder makes an ordinary page; undoing the reading keeps that page.
 
 ### Section navigator
 

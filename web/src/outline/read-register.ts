@@ -45,7 +45,16 @@ export function readingRegister(doc: PageDocument, definition: (id: string) => F
     const gist = fields.filter(field => fieldRole(definition(field.fieldId)) === 'standfirst');
     const prose = fields.filter(field => fieldRole(definition(field.fieldId)) === 'prose');
     const facts = fields.filter(field => !['standfirst', 'prose'].includes(fieldRole(definition(field.fieldId))) && !['work', 'account'].includes(field.name.trim().toLowerCase()));
-    slips.push({ id, holderId: block.position.holder_id, gist, work: named('work').filter(field => !gist.some(gist => gist.entryId === field.entryId) && !prose.some(prose => prose.entryId === field.entryId)), account: named('account').filter(field => !gist.some(gist => gist.entryId === field.entryId) && !prose.some(prose => prose.entryId === field.entryId)), prose, facts, passages: readingPassages(doc, id, gist[0]?.value, fieldName).map(row => row.id), relations: positionRelations(doc, id).map(row => row.id) });
+    slips.push({
+      id, holderId: block.position.holder_id,
+      gist: gist.map(({ name, entryId }) => ({ name, entryId })),
+      work: named('work').filter(field => !gist.some(gist => gist.entryId === field.entryId) && !prose.some(prose => prose.entryId === field.entryId)),
+      account: named('account').filter(field => !gist.some(gist => gist.entryId === field.entryId) && !prose.some(prose => prose.entryId === field.entryId)),
+      prose: prose.map(({ name, entryId }) => ({ name, entryId })),
+      facts: facts.map(({ name, entryId }) => ({ name, entryId })),
+      passages: readingPassages(doc, id, gist[0]?.value, fieldName).map(row => row.id),
+      relations: positionRelations(doc, id).map(row => row.id),
+    });
     omitSubtree(id);
   }
   let sectionId: string | null = null;

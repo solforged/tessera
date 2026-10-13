@@ -183,6 +183,8 @@ Each definition has a `hide` setting for outlines. `never` is the default and sh
 
 A definition also has a presentation role: `standfirst`, `attribute` (the default), `prose` or `citation`. Standfirst values read as sentences under their owner, attributes form an aligned field bed, prose follows it at full width, and citation values show references as siglum and locator. The role changes no value or kind. Changing it is revision-checked, attributed and undoable; sync keeps the later change. Migration gives existing Gist and Gloss definitions the standfirst role. A later rename never changes a role.
 
+The reading register projects field entry identities and reads each value from the shared document. Editing a blank standfirst does not replace its reading slip or editor. Add reading enters filling mode at the new Gist value; its recipe order continues with Work and the subject's criteria.
+
 Values are plain blocks read through the field's kind. A value that does not fit shows a problem but is never rejected or rewritten.
 
 | Kind | Value rule |

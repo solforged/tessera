@@ -659,6 +659,47 @@ describe('real notebook operations and recovery', () => {
     reopened.release(); register.release(); doc.release();
   });
 
+  test('Read projects stable field identities while a new reading is filled character by character', async () => {
+    const instance = await client();
+    const fields = await api.fields();
+    const definitions = instance.open(fields.page_id);
+    await eventually(() => definitions.status() === 'ready', definitions.statusMessage());
+    const summary = success(definitions.edit({ kind: 'addField', name: `Auto-entry summary ${++serial}`, value: 'text', role: 'standfirst' })).created[0]!;
+    const prose = success(definitions.edit({ kind: 'addField', name: `Auto-entry prose ${++serial}`, value: 'text', role: 'prose' })).created[0]!;
+    const fact = success(definitions.edit({ kind: 'addField', name: `Auto-entry fact ${++serial}`, value: 'text' })).created[0]!;
+    await instance.flush();
+    const byId = new Map((await api.fields()).fields.map(field => [field.id, field]));
+    const holder = await instance.createPage(`Auto-entry holder ${++serial}`);
+    const { id, doc, first } = await page(instance, 'Opening');
+    const added = success(doc.edit({ kind: 'addReading', parentId: id, after: first, holderId: holder, gistFieldId: summary }));
+    const reading = added.created[0]!, entry = added.created[1]!, value = added.created[2]!;
+    const extra = success(doc.edit({ kind: 'addFieldEntries', parentId: reading, after: entry, entries: [{ fieldId: prose, value: '' }, { fieldId: fact, value: '' }] }));
+    const proseValue = extra.created[1]!, factValue = extra.created[3]!;
+    await instance.flush();
+    const project = () => readingRegister(doc, fieldId => byId.get(fieldId), []);
+    const initial = project();
+    expect(initial.slips[0]?.gist).toEqual([{ name: byId.get(summary)!.name, entryId: entry }]);
+    for (const [valueId, text] of [[value, 'Rq auto-entry gist'], [proseValue, 'Authored prose'], [factValue, 'A fact']] as const) {
+      for (let offset = 0; offset < text.length; offset++) {
+        success(doc.edit({ kind: 'text', id: valueId, text: text.slice(0, offset + 1), caret: offset + 1 }, { id: valueId, offset }));
+        await instance.flush();
+        expect(project()).toEqual(initial);
+        expect((await api.block(valueId)).text).toBe(text.slice(0, offset + 1));
+      }
+      doc.undo(); await instance.flush();
+      expect((await api.block(valueId)).text).toBe('');
+      expect(project()).toEqual(initial);
+      doc.redo(); await instance.flush();
+      expect((await api.block(valueId)).text).toBe(text);
+    }
+    const reopened = (await client()).open(id);
+    await eventually(() => reopened.status() === 'ready', reopened.statusMessage());
+    expect(reopened.block(value)?.text).toBe('Rq auto-entry gist');
+    expect(reopened.block(proseValue)?.text).toBe('Authored prose');
+    expect(reopened.block(factValue)?.text).toBe('A fact');
+    reopened.release(); definitions.release(); doc.release();
+  });
+
   test('Read groups only criterion questions and keeps unscoped questions in their authored place', async () => {
     const instance = await client();
     const fields = await api.fields();
