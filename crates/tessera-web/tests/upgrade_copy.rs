@@ -10,6 +10,9 @@ use tessera_web::{
 };
 use wasm_bindgen_test::{wasm_bindgen_test, wasm_bindgen_test_configure};
 
+#[path = "../../tessera-core/tests/common/mod.rs"]
+mod common;
+
 wasm_bindgen_test_configure!(run_in_dedicated_worker);
 
 async fn request(method: &str, path: &str, body: Value) -> (u16, Value) {
@@ -51,6 +54,7 @@ async fn upgrade_copy_precedes_migration_and_can_be_exported_restored_and_erased
         .unwrap();
     drop(notebook);
     let conn = Connection::open("/demo/notebook.db").unwrap();
+    common::restore_authored_search(&conn);
     conn.execute_batch(
         "DROP TABLE quotes; ALTER TABLE fields DROP COLUMN hide; PRAGMA user_version = 35;",
     )
