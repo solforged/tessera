@@ -156,6 +156,7 @@
 .question-branch-count { color: var(--faint); font: var(--apparatus); }
 .question-branch-reading { flex: 1 0 100%; color: var(--muted); font-family: var(--font-display); overflow-wrap: anywhere; }
 .assessment-journal-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-8); }
+.assessment-journal .assessment-journal-head > h3 { flex: none; float: none; width: auto; white-space: nowrap; }
 .assessment-journal-entry { padding: var(--space-8) 0; border-top: var(--rule-width) solid var(--line); }
 .assessment-journal-entry p { margin: 0 0 var(--space-4); }
 .assessment-journal .assessment-journal-title { display: block; width: 100%; padding: 0; white-space: normal; text-align: left; font-family: var(--font-display); font-size: var(--text-body); overflow-wrap: anywhere; }

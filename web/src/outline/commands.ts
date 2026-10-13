@@ -17,7 +17,7 @@ import { createFieldMenu } from '../fields/FieldMenu';
 import type { RelationKind } from '../api/types';
 import { addRelationReason, relationKinds, relationLabels, relationReason } from './relations';
 import { currentReading } from '../document/types';
-import { questionVerbs } from './question-verbs';
+import { questionDescriptions, questionVerbs } from './question-verbs';
 
 export function createOutlineCommands(context: Pick<OutlineContext,
   | 'doc' | 'editing' | 'commitFieldEntry' | 'props' | 'selected'
@@ -108,18 +108,18 @@ export function createOutlineCommands(context: Pick<OutlineContext,
         { label: 'Write assessment', secondary: questionVerbs['Write assessment'], disabledReason: question.parked ? 'Resume the question before writing an assessment.' : undefined, action: () => apply({ kind: 'writeAssessment', parentId: id, assessedOn: props.notebook.todayDate() }, true) },
         { label: 'Add branch question', secondary: questionVerbs['Add branch question'], action: () => apply({ kind: 'addBranchQuestion', parentId: id }, true) },
         { label: 'Withdraw current reading', secondary: questionVerbs['Withdraw current reading'], disabledReason: !question.accepted ? 'There is no current reading.' : undefined, action: () => edit({ kind: 'question', id, value: currentReading(question, null, props.notebook.todayDate()) }) },
-        { label: 'Set revisit date…', secondary: 'Sets the date this question comes back.', action: () => capabilities.open(id, 'review-date') },
-        { label: 'Set parent question…', action: () => capabilities.open(id, 'question-parent') },
-        ...(question.parent ? [{ label: 'Remove parent', action: () => { const { parent: _, ...value } = question; edit({ kind: 'question', id, value }); } }] : []),
-        { label: 'Remove question', secondary: 'Removes question state and its decision journal, not its text.', danger: true, action: () => edit({ kind: 'question', id, value: null }) },
-      ] : [{ label: 'Make question', disabledReason: block.relation ? 'Remove the relation first.' : assessment ? 'Remove the assessment first.' : block.kind === 'journal' ? 'Make an ordinary block or page a question.' : undefined,
+        { label: 'Set revisit date…', secondary: questionDescriptions['Set revisit date…'], action: () => capabilities.open(id, 'review-date') },
+        { label: 'Set parent question…', secondary: questionDescriptions['Set parent question…'], action: () => capabilities.open(id, 'question-parent') },
+        ...(question.parent ? [{ label: 'Remove parent', secondary: questionDescriptions['Remove parent'], action: () => { const { parent: _, ...value } = question; edit({ kind: 'question', id, value }); } }] : []),
+        { label: 'Remove question', secondary: questionDescriptions['Remove question'], danger: true, action: () => edit({ kind: 'question', id, value: null }) },
+      ] : [{ label: 'Make question', secondary: questionDescriptions['Make question'], disabledReason: block.relation ? 'Remove the relation first.' : assessment ? 'Remove the assessment first.' : block.kind === 'journal' ? 'Make an ordinary block or page a question.' : undefined,
         action: () => edit({ kind: 'question', id, value: { unsettled: false, parked: false, accepted: null, review_on: null } }) }]),
       ...(assessment ? [
         { label: 'Accept current reading', secondary: questionVerbs['Accept current reading'], disabledReason: !owner ? 'Put the assessment under a question first.' : owner.state.parked ? 'Resume the question before accepting a reading.' : assessment.accepted ? 'This is already the current reading.' : undefined,
           action: () => { if (ownerId && owner) edit({ kind: 'question', id: ownerId, value: currentReading(owner.state, id, props.notebook.todayDate()) }); } },
         { label: assessment.state.aporia ? 'Clear aporia' : 'Record aporia', action: () => edit({ kind: 'assessment', id, value: { ...assessment.state, aporia: !assessment.state.aporia } }) },
-        { label: 'Remove assessment', secondary: 'Removes its date and assessment state, not its text; clears its acceptance.', danger: true, action: () => edit({ kind: 'assessment', id, value: null }) },
-      ] : !question ? [{ label: 'Make assessment', secondary: 'Dates this block as an assessment without accepting it.', disabledReason: block.relation ? 'Remove the relation first.' : !owner ? 'Put the assessment under a question first.' : owner.state.parked ? 'Resume the question before writing an assessment.' : undefined,
+        { label: 'Remove assessment', secondary: questionDescriptions['Remove assessment'], danger: true, action: () => edit({ kind: 'assessment', id, value: null }) },
+      ] : !question ? [{ label: 'Make assessment', secondary: questionDescriptions['Make assessment'], disabledReason: block.relation ? 'Remove the relation first.' : !owner ? 'Put the assessment under a question first.' : owner.state.parked ? 'Resume the question before writing an assessment.' : undefined,
         action: () => edit({ kind: 'assessment', id, value: { assessed_on: props.notebook.todayDate(), aporia: false } }) }] : []),
       ...(block.kind === 'page' && question ? [{ label: 'Add relation…', action: () => relationMenu(id, true) }] : []),
     ];
@@ -157,7 +157,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
       else if (context.heading) setMenu({ anchor: context.heading, label: 'Question', items: investigationItems(props.pageId) });
     } },
     { id: 'add-relation-root', title: 'Add relation…', section: 'Page', disabledReason: () => addRelationReason(doc.root()), run: () => relationMenu(props.pageId, true) },
-    { id: 'question-parent', title: 'Set parent question…', section: 'Page', disabledReason: () => doc.block(selected() ?? '')?.question || doc.root()?.question ? undefined : 'Select a question.', run: () => {
+    { id: 'question-parent', title: 'Set parent question…', description: questionDescriptions['Set parent question…'], section: 'Page', disabledReason: () => doc.block(selected() ?? '')?.question || doc.root()?.question ? undefined : 'Select a question.', run: () => {
       const id = selected() && doc.block(selected()!)?.question ? selected()! : props.pageId;
       capabilities.open(id, 'question-parent', id === props.pageId ? context.heading : undefined);
     } },
@@ -214,8 +214,8 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     { id: 'relation-kind', title: 'Change kind', section: 'Block', disabledReason: () => doc.block(selected() ?? '')?.relation ? undefined : 'Select a relation.', run: () => { const id = selected(); if (id) relationMenu(id); } },
     { id: 'remove-relation', title: 'Remove relation', section: 'Block', disabledReason: () => doc.block(selected() ?? '')?.relation ? undefined : 'Select a relation.', run: () => { const id = selected(); if (id) markRelation(id, null); } },
     { id: 'add-relation', title: 'Add relation…', section: 'Block', disabledReason: () => addRelationReason(doc.block(selected() ?? '')), run: () => { const id = selected(); if (id) relationMenu(id, true); } },
-    ...['Make question', 'Make assessment', ...Object.keys(questionVerbs), 'Record aporia', 'Clear aporia', 'Set revisit date…', 'Remove question', 'Remove assessment'].map((title): Command => ({
-      id: title.toLowerCase().replaceAll(' ', '-'), title, description: questionVerbs[title], section: selected() ? 'Outline' : 'Page', keys: title === 'Make question' || title === 'Make assessment' ? ['Space q'] : undefined,
+    ...['Make question', 'Make assessment', ...Object.keys(questionVerbs), 'Record aporia', 'Clear aporia', 'Set revisit date…', 'Remove parent', 'Remove question', 'Remove assessment'].map((title): Command => ({
+      id: title.toLowerCase().replaceAll(' ', '-'), title, description: questionDescriptions[title], section: selected() ? 'Outline' : 'Page', keys: title === 'Make question' || title === 'Make assessment' ? ['Space q'] : undefined,
       disabledReason: () => {
         const item = investigationItems(selected() ?? props.pageId).find(item => item.label === title);
         return item ? item.disabledReason : 'Select a matching question or answer.';

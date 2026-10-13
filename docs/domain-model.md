@@ -277,6 +277,8 @@ An agenda takes the displayed civil date, never an implicit device date. It merg
 
 A question capability makes a block an enduring question with an optional revisit date. Criteria are blocks beneath it. An assessment capability turns any block into a dated reading of a question. At most one assessment per question is current. Write assessment adds a dated child block without accepting it. Assessments cite positions and passages through ordinary links and citations.
 
+The decision journal appears once the question has an assessment. An empty question keeps Write assessment in its menu, Commands and slash completion.
+
 A question is in one of four states:
 
 | State | Meaning |

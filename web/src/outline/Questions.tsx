@@ -94,15 +94,13 @@ export function AssessmentJournal(props: { questionId: string; doc: PageDocument
     visit(id);
     return links;
   };
-  return <section class="assessment-journal question-branches" aria-label="Decision journal" onMouseDown={event => event.stopPropagation()}>
+  return <Show when={rows().length}><section class="assessment-journal question-branches" aria-label="Decision journal" onMouseDown={event => event.stopPropagation()}>
     <div class="assessment-journal-head"><h3>Decision journal</h3><Button disabled={props.doc.block(props.questionId)?.question?.state.parked} onClick={props.onWrite}>Write assessment</Button></div>
     <Show when={props.doc.block(props.questionId)?.question?.state.parked}><p class="question-branch-count">Resume the question before writing an assessment.</p></Show>
-    <Show when={rows().length} fallback={<p class="question-branch-count">No assessments yet.</p>}>
       <For each={rows()}>{block => <article class="assessment-journal-entry" data-assessment-id={block.id}>
         <p class="question-branch-count">{block.assessment!.state.assessed_on} · {status(block.id, block.assessment!.accepted)}<Show when={block.assessment!.state.aporia}> · Aporia</Show></p>
         <Button class="assessment-journal-title" onClick={event => props.onOpen({ kind: 'page', pageId: props.doc.pageId, blockId: block.id }, event.shiftKey)}><BlockText text={block.text.split('\n')[0] ?? ''} notebook={props.notebook} interactive={false} /></Button>
         <div class="assessment-journal-citations"><For each={citations(block.id)}>{link => <Button onClick={event => { const target = props.notebook.lookup(link.id)(); if (target) props.onOpen({ kind: 'page', pageId: target.page_id, blockId: target.kind === 'block' ? target.id : undefined }, event.shiftKey); }}><BlockText text={link.text} notebook={props.notebook} interactive={false} /></Button>}</For></div>
       </article>}</For>
-    </Show>
-  </section>;
+  </section></Show>;
 }

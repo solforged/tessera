@@ -27,7 +27,7 @@ import type { OutlineContext } from './context';
 import { createPageIcon } from './source';
 import { emptyExtraValuePrevious } from './keyboard';
 import { addRelationReason, relationKinds, relationLabels, relationReason } from './relations';
-import { questionVerbs } from './question-verbs';
+import { questionDescriptions, questionVerbs } from './question-verbs';
 
 /** An open page/block reference, a type query, `::` field name, or the manual Add type picker. */
 export interface Completion { from: number; to: number; query: string; types?: boolean; blocks?: boolean; quote?: boolean; fields?: boolean; manual?: { blockId: string; anchor: HTMLElement }; relationTarget?: { parentId: string; kind: RelationKind; anchor: HTMLElement; sourceText?: string } }
@@ -529,13 +529,15 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
       { id: 'add-relation', title: 'Add relation…', section: 'Relation', icon: 'plus', when: block => !addRelationReason(block), relationAction: 'add' },
       ...(['question', 'assessment'] as const).map((kind): SlashItem => ({
         id: kind, title: `Make ${kind}`, aliases: [kind], section: 'Question', icon: kind === 'question' ? 'question-open' : 'question-settled', keys: 'Space q',
-        disabledReason: id => investigationItems(id).find(item => item.label === `Make ${kind}`)?.disabledReason ?? (doc.block(id)?.[kind] ? `Already a ${kind}.` : undefined),
+        secondary: questionDescriptions[`Make ${kind}`],
+        disabledReason: id => investigationItems(id).find(item => item.label === `Make ${kind}`)?.disabledReason ?? (kind === 'assessment' && doc.block(id)?.question ? 'Remove the question first.' : doc.block(id)?.[kind] ? `Already a ${kind}.` : undefined),
         run: id => {
           const item = investigationItems(id).find(item => item.label === `Make ${kind}`);
           if (item && !item.disabledReason) item.action();
         },
       })),
-      { id: 'question-parent', title: 'Set parent question…', aliases: ['parent', 'part of', 'branch'], section: 'Question', icon: 'question-open', when: block => !!block?.question, run: id => capabilities.open(id, 'question-parent') },
+      { id: 'question-parent', title: 'Set parent question…', secondary: questionDescriptions['Set parent question…'], aliases: ['parent', 'part of', 'branch'], section: 'Question', icon: 'question-open', when: block => !!block?.question, run: id => capabilities.open(id, 'question-parent') },
+      { id: 'remove-parent', title: 'Remove parent', secondary: questionDescriptions['Remove parent'], aliases: [], section: 'Question', icon: 'question-open', when: block => !!block?.question?.state.parent, run: id => investigationItems(id).find(item => item.label === 'Remove parent')?.action() },
       ...Object.keys(questionVerbs).map((title): SlashItem => ({
         id: title.toLowerCase().replaceAll(' ', '-'), title, aliases: [], section: 'Question', icon: 'question-open', secondary: questionVerbs[title],
         when: block => !!block?.question || !!block?.assessment,
@@ -615,7 +617,7 @@ function CompletionPopups(){ return <>
         <For each={slashRows()}>{(row, index) => <>
           <Show when={index() === 0 || slashRows()[index() - 1]!.section !== row.section}><div class="picker-section">{row.section}</div></Show>
           <div role="option" aria-selected={slashIndex() === index()} aria-disabled={!!row.disabledReason?.(slashCompletion()!.id)} title={row.disabledReason?.(slashCompletion()!.id)} class="picker-row" classList={{ selected: slashIndex() === index() }} onClick={() => chooseSlash(index())}>
-            <Icon name={row.icon} /><span class="picker-text">{row.title}<Show when={row.disabledReason?.(slashCompletion()!.id) || row.secondary}>{text => <small>{text()}</small>}</Show></span><Show when={row.keys}><span class="picker-meta"><kbd>{row.keys}</kbd></span></Show>
+            <Icon name={row.icon} /><span class="picker-text">{row.title}<Show when={row.disabledReason?.(slashCompletion()!.id) || row.secondary}>{text => <small class="picker-disabled-reason">{text()}</small>}</Show></span><Show when={row.keys}><span class="picker-meta"><kbd>{row.keys}</kbd></span></Show>
           </div>
         </>}</For>
         <Show when={!slashRows().length}><p class="empty-state">No matching command. Escape keeps the text.</p></Show>

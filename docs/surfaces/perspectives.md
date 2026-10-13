@@ -162,11 +162,13 @@ The state control sits in the capability metadata with the question glyph and it
 | Answered | `--status-done` | Settled glyph |
 | Parked | `--faint` | Question glyph |
 
-The question menu uses Park or Resume, Make recurrent or Allow resolution, Write assessment, Withdraw current reading and Add branch question. Menu, palette and slash show the resulting state beneath each verb. Disabled actions show their reason without hover. The revisit-date picker remains alongside them.
+The question menu uses Park or Resume, Make recurrent or Allow resolution, Write assessment, Withdraw current reading and Add branch question. Menu, palette and slash show the resulting state beneath each verb. Descriptions wrap on their own line. Parent changes describe the resulting relation, and removal explains what stays. Disabled actions show their reason without hover. The revisit-date picker remains alongside them.
 
 ### Decision journal
 
 The question's Decision journal lists its assessments newest first. Each shows its assessment date, status, first line, linked positions and cited passages. Current reading is explicit; earlier entries say Superseded on or Withdrawn on with the decision date. An unaccepted assessment reads Not accepted alongside its date. Aporia stays a separate mark.
+
+The journal appears only when the question has an assessment, including inline criterion questions. Empty questions keep Write assessment in their menu, Commands and slash completion. The journal's label stays on one line; its writing action wraps below it when space is short.
 
 Accept current reading chooses one assessment. Accepting another keeps both and records the supersession date. Withdraw current reading keeps the assessment, text and citations. Each transition is one undoable change and survives a reload. Two assessments a month apart show what each cites, without an automatic diff.
 
