@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { addFilter, chooseSort, copyQuery, fieldEntryId, fieldEntryText, filterLabel, filterOperatorLabel, filterOperators, matchFieldEntry, queriesEqual, removeFilter, removeSort, typeQuery } from './query';
+import { addFilter, chooseSort, copyQuery, fieldEntryId, fieldEntryText, filterLabel, filterOperatorLabel, filterOperators, matchFieldEntry, missingQueryFields, queriesEqual, queryFieldIds, remapQueryField, removeFilter, removeQueryField, removeSort, sortLabel, typeQuery } from './query';
 import { attributeDefinitions } from './attributes';
 import type { FieldDefinition } from '../api/types';
 import type { NotebookClient } from '../document/contract';
@@ -85,6 +85,35 @@ describe('query edits', () => {
     expect(query.columns[1]!.width).toBe(320);
     expect(query.group.collapsed).toEqual(['anacyclosis']);
     expect(query.card).toEqual(['gist']);
+  });
+  test('field remapping keeps recipe detail and missing-field removal clears every reference', () => {
+    const query = { ...typeQuery(null), filters: [{ field: 'old', op: 'present' as const, value: null }],
+      sort: [{ by: 'field' as const, field: 'old', direction: 'desc' as const }],
+      columns: [{ key: '@title', width: 240 }, { key: 'old', width: 317 }],
+      group: { key: 'old', collapsed: ['old', 'Other heading'] }, card: ['old'],
+      note_view: { layout: 'table' as const, grouping: 'field:old' }, purpose: 'Keep me.',
+    };
+    const remapped = remapQueryField(query, 'old', 'survivor');
+    expect(queryFieldIds(remapped)).toEqual(['survivor']);
+    expect(remapped.columns).toEqual([{ key: '@title', width: 240 }, { key: 'survivor', width: 317 }]);
+    expect(remapped.group).toEqual({ key: 'survivor', collapsed: ['survivor', 'Other heading'] });
+    expect(remapped.note_view?.grouping).toBe('field:survivor');
+    expect(query.filters[0]!.field).toBe('old');
+    const missing = { ...query, field_names: { old: 'Publisher' } };
+    expect(missingQueryFields(missing, [])).toEqual([{ id: 'old', name: 'Publisher' }]);
+    expect(filterLabel(missing.filters[0]!, [], {} as NotebookClient, missing.field_names)).toBe('Publisher has the field');
+    expect(sortLabel(missing.sort[0]!, [], missing.field_names)).toBe('Publisher ↓');
+    const copy = copyQuery(missing); copy.field_names!.old = 'Other';
+    expect(missing.field_names.old).toBe('Publisher');
+    expect(queriesEqual(missing, copy)).toBe(false);
+    const removed = removeQueryField(missing, 'old');
+    expect(queryFieldIds(removed)).toEqual([]);
+    expect(removed.field_names).toBeUndefined();
+    expect(removed.columns).toEqual([{ key: '@title', width: 240 }]);
+    expect(removed.group).toBeUndefined();
+    expect(removed.note_view?.grouping).toBe('letter');
+    expect(removed.source).toBe('notes');
+    expect(removed.purpose).toBe('Keep me.');
   });
 });
 describe('field entry input rule', () => {

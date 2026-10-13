@@ -12,6 +12,18 @@ use crate::{
 };
 
 pub(crate) fn validate_query(conn: &Connection, query: &Query) -> Result<Vec<FieldDefinition>> {
+    validate_query_fields(conn, query, false)
+}
+
+pub(crate) fn validate_saved_query(conn: &Connection, query: &Query) -> Result<()> {
+    validate_query_fields(conn, query, true).map(|_| ())
+}
+
+fn validate_query_fields(
+    conn: &Connection,
+    query: &Query,
+    saving: bool,
+) -> Result<Vec<FieldDefinition>> {
     if query.r#type.is_none()
         && query.text.is_none()
         && query.filters.is_empty()
@@ -29,21 +41,34 @@ pub(crate) fn validate_query(conn: &Connection, query: &Query) -> Result<Vec<Fie
     let definitions = definitions(conn)?;
     let defs = definition_map(&definitions);
     let attributes = crate::entity_query::attributes(query.source.unwrap_or_default());
-    let require = |id: &str| -> Result<FieldKind> {
+    let require = |id: &str| -> Result<Option<FieldKind>> {
         if id.starts_with('@') {
             return attributes
                 .iter()
                 .find(|attribute| attribute.key == id)
-                .map(|attribute| attribute.kind)
+                .map(|attribute| Some(attribute.kind))
                 .ok_or_else(|| {
                     validation(format!(
                         "The attribute {id} does not belong to this source."
                     ))
                 });
         }
-        defs.get(id)
-            .map(|definition| definition.kind)
-            .ok_or_else(|| validation(format!("not a live field definition: {id}")))
+        if let Some(definition) = defs.get(id) {
+            return Ok(Some(definition.kind));
+        }
+        if let Some(name) = query
+            .field_names
+            .get(id)
+            .filter(|name| !name.trim().is_empty())
+        {
+            if saving {
+                return Ok(None);
+            }
+            return Err(validation(format!(
+                "Field “{name}” is missing. Remove it from the view."
+            )));
+        }
+        Err(validation(format!("not a live field definition: {id}")))
     };
     for filter in &query.filters {
         let kind = require(&filter.field)?;
@@ -54,15 +79,15 @@ pub(crate) fn validate_query(conn: &Connection, query: &Query) -> Result<Vec<Fie
         {
             return Err(validation("filter value is required"));
         }
-        if kind == FieldKind::Number && ordered(filter.op) {
+        if kind == Some(FieldKind::Number) && ordered(filter.op) {
             filter_number(filter.value.as_deref().expect("validated filter value"))?;
         }
-        if kind == FieldKind::Date
+        if kind == Some(FieldKind::Date)
             && let Some(value) = &filter.value
         {
             crate::entity_query::relative_date(conn, value)?;
         }
-        if kind == FieldKind::Span
+        if kind == Some(FieldKind::Span)
             && !matches!(
                 filter.op,
                 FilterOp::Present | FilterOp::Set | FilterOp::Empty

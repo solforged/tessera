@@ -98,18 +98,49 @@ test('field conversion, repair and option creation each have a single exact undo
       expect((await api.fields()).fields.every(field => field.name.trim())).toBe(true);
       const survivor = (await createFieldEntry(notebook, doc, notes[0]!, 'Survivor', 'text')).field;
       await notebook.commit([{ op: 'edit_text', id: values[0]!, base_revision: (await api.block(values[0]!)).revision, text: 'First meaning' }]);
+      const typeId = ulid(); const viewId = ulid(); const secondViewId = ulid();
+      await notebook.commit([
+        { op: 'create_page', id: typeId, title: 'Schema proof type' },
+        { op: 'set_type_fields', type_id: typeId, base_revision: 1, fields: [field] },
+        { op: 'save_view', id: viewId, base_revision: null, name: 'Field recipe', query: {
+          source: 'notes', type: null, text: null, filters: [{ field, op: 'present', value: null }],
+          sort: [{ by: 'field', field, direction: 'asc' }], limit: 50,
+          columns: [{ key: '@title', width: 240 }, { key: field, width: 317 }],
+          group: { key: field, collapsed: ['First meaning', field] }, card: [field],
+          note_view: { layout: 'table', grouping: `field:${field}` }, purpose: 'Keep this recipe.',
+        } },
+        { op: 'save_view', id: secondViewId, base_revision: null, name: 'Another field view', query: {
+          source: 'notes', type: null, text: null, filters: [{ field, op: 'set', value: null }], sort: [], limit: null,
+        } },
+      ]);
+      const beforeView = await api.view(viewId); const beforeSecondView = await api.view(secondViewId);
       const beforeMerge = await api.page(notes[0]!);
       const previewMerge = await fieldImpact(notebook, field, survivor.id);
       expect(previewMerge.conflicts).toHaveLength(1);
+      expect(previewMerge.views.map(view => view.name).sort()).toEqual(['Another field view', 'Field recipe']);
       const merged = await applyFieldImpact(notebook, previewMerge, 'merge');
       expect((await api.fieldDetail(survivor.id)).entries).toHaveLength(4);
       expect((await api.block(values[0]!)).text).toBe('First meaning');
+      const mergedView = await api.view(viewId);
+      expect(mergedView.query).toEqual({
+        ...beforeView.query,
+        filters: [{ field: survivor.id, op: 'present', value: null }],
+        sort: [{ by: 'field', field: survivor.id, direction: 'asc' }],
+        columns: [{ key: '@title', width: 240 }, { key: survivor.id, width: 317 }],
+        group: { key: survivor.id, collapsed: ['First meaning', survivor.id] }, card: [survivor.id],
+        note_view: { layout: 'table', grouping: `field:${survivor.id}` },
+      });
+      expect((await api.view(secondViewId)).query.filters[0]!.field).toBe(survivor.id);
+      expect((await api.query(mergedView.query)).total).toBe(3);
       await merged.undo();
       expect((await api.fieldDetail(field)).entries).toHaveLength(3);
       expect((await api.page(notes[0]!)).rows.map(row => [row.block.id, row.block.text, row.block.parent_id])).toEqual(beforeMerge.rows.map(row => [row.block.id, row.block.text, row.block.parent_id]));
+      expect((await api.view(viewId)).query).toEqual(beforeView.query);
+      expect((await api.view(secondViewId)).query).toEqual(beforeSecondView.query);
       const archived = await applyFieldImpact(notebook, await fieldImpact(notebook, field), 'archive');
       expect((await api.fieldDetail(field)).field.archived).toBe(true);
       expect((await api.fieldDetail(field)).values_total).toBe(3);
+      expect((await api.query((await api.view(viewId)).query)).total).toBe(3);
       await archived.undo();
       const detached = await applyFieldImpact(notebook, await fieldImpact(notebook, field), 'detach');
       expect((await api.block(values[0]!)).text).toBe('Strand: First meaning');
@@ -117,6 +148,22 @@ test('field conversion, repair and option creation each have a single exact undo
       await detached.undo();
       expect((await api.block(values[0]!)).text).toBe('First meaning');
       expect((await api.fieldDetail(field)).entries).toHaveLength(3);
+      await applyFieldImpact(notebook, await fieldImpact(notebook, field), 'archive');
+      for (const action of ['detach', 'delete'] as const) {
+        const before = await api.page(notes[0]!);
+        const impact = await fieldImpact(notebook, field);
+        expect(impact.templates.map(template => template.page.id)).toEqual([typeId]);
+        expect(impact.views).toHaveLength(2);
+        const removed = await applyFieldImpact(notebook, impact, action);
+        expect((await api.view(viewId)).query.field_names).toEqual({ [field]: 'Strand' });
+        await expect(api.query((await api.view(viewId)).query)).rejects.toThrow('Field “Strand” is missing');
+        await removed.undo();
+        expect((await api.fieldDetail(field)).field.archived).toBe(true);
+        expect((await api.type(typeId)).fields).toEqual([field]);
+        expect((await api.view(viewId)).query).toEqual(beforeView.query);
+        expect((await api.page(notes[0]!)).rows.map(row => [row.block.id, row.block.text, row.block.parent_id])).toEqual(before.rows.map(row => [row.block.id, row.block.text, row.block.parent_id]));
+        expect((await api.query((await api.view(viewId)).query)).total).toBe(3);
+      }
     } finally { doc.release(); definitions.release(); }
   } finally { await notebook?.dispose(); process.kill(); await process.exited; await rm(directory, { recursive: true, force: true }); }
 }, 30000);

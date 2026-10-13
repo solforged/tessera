@@ -283,7 +283,7 @@ export interface NoteGroup { key: string; title: string; target: string | null; 
 export type QuerySource = 'notes' | 'questions' | 'positions' | 'sources' | 'tasks' | 'highlights';
 export interface QueryColumn { key: string; width?: number }
 export interface QueryGrouping { key: string; collapsed?: string[] }
-export interface Query { source?: QuerySource; type: string | null; text: string | null; filters: Filter[]; sort: SortKey[]; limit: number | null; offset?: number; note_kind?: string; links?: string[]; from?: string[]; cites?: string[]; note_view?: NoteView; columns?: QueryColumn[]; group?: QueryGrouping; card?: string[]; purpose?: string }
+export interface Query { source?: QuerySource; type: string | null; text: string | null; filters: Filter[]; sort: SortKey[]; limit: number | null; offset?: number; note_kind?: string; links?: string[]; from?: string[]; cites?: string[]; note_view?: NoteView; columns?: QueryColumn[]; group?: QueryGrouping; card?: string[]; purpose?: string; field_names?: Record<string, string> }
 export interface YearSpan { from: number | null; through: number | null }
 export type Reading = { ok: true; value: string | number | boolean | YearSpan; target: string | null } | { ok: false; problem: string };
 export interface FieldValue { id: string; text: string; reading: Reading }

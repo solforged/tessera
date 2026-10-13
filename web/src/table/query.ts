@@ -19,7 +19,61 @@ export function typeQuery(type: string | null): Query {
   return { type, text: null, filters: [], sort: [], limit: null };
 }
 export function copyQuery(query: Query): Query {
-  return { ...query, filters: query.filters.map(filter => ({ ...filter })), sort: query.sort.map(key => ({ ...key })), ...(query.columns ? { columns: query.columns.map(column => ({ ...column })) } : {}), ...(query.group ? { group: { ...query.group, collapsed: [...query.group.collapsed ?? []] } } : {}), ...(query.card ? { card: [...query.card] } : {}), ...(query.note_view ? { note_view: { ...query.note_view } } : {}), ...Object.fromEntries((['links', 'from', 'cites'] as const).filter(key => query[key]).map(key => [key, [...query[key]!]])) };
+  return { ...query, filters: query.filters.map(filter => ({ ...filter })), sort: query.sort.map(key => ({ ...key })), ...(query.columns ? { columns: query.columns.map(column => ({ ...column })) } : {}), ...(query.group ? { group: { ...query.group, ...(query.group.collapsed ? { collapsed: [...query.group.collapsed] } : {}) } } : {}), ...(query.card ? { card: [...query.card] } : {}), ...(query.field_names ? { field_names: { ...query.field_names } } : {}), ...(query.note_view ? { note_view: { ...query.note_view } } : {}), ...Object.fromEntries((['links', 'from', 'cites'] as const).filter(key => query[key]).map(key => [key, [...query[key]!]])) };
+}
+
+/** Definition identities used by a recipe, excluding built-in attributes and group values. */
+export function queryFieldIds(query: Query): string[] {
+  return [...new Set([
+    ...query.filters.map(filter => filter.field),
+    ...query.sort.flatMap(sort => sort.by === 'field' && sort.field ? [sort.field] : []),
+    ...(query.columns ?? []).map(column => column.key),
+    ...(query.group ? [query.group.key] : []),
+    ...(query.card ?? []),
+    ...(query.note_view?.grouping.startsWith('field:') ? [query.note_view.grouping.slice(6)] : []),
+  ])].filter(id => !id.startsWith('@'));
+}
+
+export function retainFieldNames(query: Query): Query {
+  if (!query.field_names) return query;
+  const used = new Set(queryFieldIds(query));
+  const field_names = Object.fromEntries(Object.entries(query.field_names).filter(([id]) => used.has(id)));
+  const next = { ...query };
+  if (Object.keys(field_names).length) next.field_names = field_names;
+  else delete next.field_names;
+  return next;
+}
+
+export function remapQueryField(query: Query, from: string, to: string): Query {
+  const key = (id: string) => id === from ? to : id;
+  return retainFieldNames({
+    ...copyQuery(query),
+    filters: query.filters.map(filter => ({ ...filter, field: key(filter.field) })),
+    sort: query.sort.map(sort => ({ ...sort, field: sort.field ? key(sort.field) : null })),
+    ...(query.columns ? { columns: query.columns.map(column => ({ ...column, key: key(column.key) })) } : {}),
+    ...(query.group ? { group: { ...query.group, key: key(query.group.key), ...(query.group.collapsed ? { collapsed: query.group.collapsed.map(key) } : {}) } } : {}),
+    ...(query.card ? { card: query.card.map(key) } : {}),
+    ...(query.note_view ? { note_view: { ...query.note_view, grouping: query.note_view.grouping === `field:${from}` ? `field:${to}` : query.note_view.grouping } } : {}),
+  });
+}
+
+export function removeQueryField(query: Query, id: string): Query {
+  const next = retainFieldNames({
+    ...copyQuery(query),
+    filters: query.filters.filter(filter => filter.field !== id),
+    sort: query.sort.filter(sort => sort.by !== 'field' || sort.field !== id),
+    ...(query.columns ? { columns: query.columns.filter(column => column.key !== id) } : {}),
+    ...(query.group?.key === id ? { group: undefined } : {}),
+    ...(query.card ? { card: query.card.filter(key => key !== id) } : {}),
+    ...(query.note_view?.grouping === `field:${id}` ? { note_view: { ...query.note_view, grouping: 'letter' } } : {}),
+  });
+  if (!next.type && !next.text && !next.filters.length && !next.note_kind && !next.source) next.source = 'notes';
+  return next;
+}
+
+export function missingQueryFields(query: Query, fields: readonly FieldDefinition[]) {
+  const present = new Set(fields.map(field => field.id));
+  return queryFieldIds(query).filter(id => !present.has(id)).map(id => ({ id, name: query.field_names?.[id] ?? 'Missing field' }));
 }
 export function queriesEqual(left: Query, right: Query): boolean {
   return left.type === right.type && left.text === right.text && left.limit === right.limit
@@ -30,6 +84,7 @@ export function queriesEqual(left: Query, right: Query): boolean {
     && JSON.stringify(left.columns ?? null) === JSON.stringify(right.columns ?? null)
     && left.group?.key === right.group?.key && JSON.stringify(left.group?.collapsed ?? []) === JSON.stringify(right.group?.collapsed ?? [])
     && JSON.stringify(left.card ?? null) === JSON.stringify(right.card ?? null)
+    && JSON.stringify(left.field_names ?? {}) === JSON.stringify(right.field_names ?? {})
     && left.note_view?.layout === right.note_view?.layout && left.note_view?.grouping === right.note_view?.grouping
     && (['links', 'from', 'cites'] as const).every(key => (left[key] ?? []).length === (right[key] ?? []).length && (left[key] ?? []).every((value, index) => value === right[key]?.[index]))
     && left.filters.length === right.filters.length && left.filters.every((filter, index) => {
@@ -41,14 +96,14 @@ export function queriesEqual(left: Query, right: Query): boolean {
 function sameSort(left: Pick<SortKey, 'by' | 'field'>, right: Pick<SortKey, 'by' | 'field'>): boolean {
   return left.by === right.by && left.field === right.field;
 }
-export function sortLabel(key: SortKey, fields: readonly FieldDefinition[]): string {
-  const name = key.by === 'field' ? fields.find(field => field.id === key.field)?.name ?? key.field ?? ''
+export function sortLabel(key: SortKey, fields: readonly FieldDefinition[], names?: Record<string, string>): string {
+  const name = key.by === 'field' ? fields.find(field => field.id === key.field)?.name ?? names?.[key.field ?? ''] ?? 'Missing field'
     : { title: 'Title', created: 'Created', updated: 'Updated' }[key.by];
   return `${name} ${key.direction === 'asc' ? '↑' : '↓'}`;
 }
-export function filterLabel(filter: Filter, fields: readonly FieldDefinition[], notebook: NotebookClient): string {
+export function filterLabel(filter: Filter, fields: readonly FieldDefinition[], notebook: NotebookClient, names?: Record<string, string>): string {
   const definition = fields.find(field => field.id === filter.field);
-  const name = definition?.name ?? filter.field;
+  const name = definition?.name ?? names?.[filter.field] ?? 'Missing field';
   const value = definition?.kind === 'instance' && (filter.op === 'is' || filter.op === 'is_not') && filter.value
     ? notebook.lookup(filter.value)()?.text ?? filter.value
     : definition?.kind === 'choice' && definition.id.startsWith('@') ? definition.options.find(option => option.id === filter.value)?.text ?? filter.value : filter.value;

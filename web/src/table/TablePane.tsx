@@ -22,7 +22,8 @@ import { noteKindIcon } from '../notes/kinds';
 import { NoteFind } from '../notes/NoteFind';
 import { autoPlural } from '../fields/presentation';
 import { FilterPopup } from './FilterPopup';
-import { addFilter, chooseSort, copyQuery, fieldEntryId, fieldEntryText, filterLabel, queriesEqual, removeFilter, removeSort, sortLabel, typeQuery } from './query';
+import { addFilter, chooseSort, copyQuery, fieldEntryId, fieldEntryText, filterLabel, missingQueryFields, queriesEqual, removeFilter, removeQueryField, removeSort, retainFieldNames, sortLabel, typeQuery } from './query';
+import { MissingFields } from './MissingFields';
 import { sourceText } from './sources';
 import type { TableSource } from './sources';
 import { cardFields, registerMembers, retainCell, rowSources, sourceDefinition } from './register';
@@ -137,6 +138,9 @@ export function TablePane(props: TablePaneProps) {
   const attributes = createMemo(() => attributeDefinitions(query().source).map(field => field.id === '@kind' ? { ...field, options: (noteIndex()?.kinds ?? []).map(kind => ({ id: kind.key, text: kind.name })) } : field));
   const pickerFields = createMemo(() => [...attributes(), ...fields()]);
   const fieldById = (id: string) => pickerFields().find(field => field.id === id);
+  const fieldName = (id: string) => fieldById(id)?.name ?? query().field_names?.[id] ?? 'Missing field';
+  const missingFields = createMemo(() => definitions() ? missingQueryFields(query(), definitions()!.fields) : []);
+  const labelSort = (key: SortKey) => sortLabel(key, pickerFields(), query().field_names);
   const visibleColumns = createMemo(() => query().columns ? query().columns!.map(column => column.key).filter(id => id !== '@title') : (result()?.columns ?? []).filter(id => id !== '@title' && !hiddenFields().includes(id)));
   const members = createMemo(() => registerMembers(result()?.rows ?? []));
   const groupedRows = createMemo(() => {
@@ -214,24 +218,42 @@ export function TablePane(props: TablePaneProps) {
   };
   const changed = () => !!saved() && !queriesEqual(query(), saved()!.query);
   const title = () => typeKind()?.plural ?? type()?.plural ?? (query().type ? autoPlural(props.notebook.lookup(query().type!)()?.text ?? '') : query().source ? sourceName(query().source) : '');
-  const updateQuery = (next: Query) => {
+  const updateQuery = (value: Query) => {
+    const next = retainFieldNames(value);
     setQuery(copyQuery(next));
     reportView(next);
   };
+  let observedSaved: View | undefined;
+  createEffect(() => {
+    const next = saved(); if (!next) return;
+    untrack(() => {
+      const previous = observedSaved?.query ?? props.target.query;
+      if (!previous || queriesEqual(query(), previous)) {
+        updateQuery(next.query); setSearch(next.query.text ?? '');
+      }
+      observedSaved = next;
+    });
+  });
   createEffect(() => {
     const value = copyQuery(query()); props.notebook.changeSequence();
     const controller = new AbortController();
     appendController?.abort(); setAppending(false); setLoading(true);
     const timer = setTimeout(() => {
-      void Promise.all([api.query({ ...value, offset: 0 }, controller.signal), api.fields(controller.signal), value.type ? api.type(value.type, controller.signal) : Promise.resolve(undefined), api.noteIndex(controller.signal)])
-        .then(([rows, allFields, pageType, index]) => {
-          if (controller.signal.aborted) return;
-          showResult(rows); setDefinitions(allFields); setType(pageType); setNoteIndex(index); setError(''); setLoading(false);
-          if (!restoredScroll) {
-            restoredScroll = true;
-            requestAnimationFrame(() => { if (scroll) { scroll.scrollTop = props.view.scroll; scroll.scrollLeft = props.view.horizontalScroll ?? 0; } });
-          }
-        }).catch(reason => { if (!controller.signal.aborted) { message(reason); setLoading(false); } });
+      void (async () => {
+        const allFields = await api.fields(controller.signal);
+        if (controller.signal.aborted) return;
+        setDefinitions(allFields);
+        if (missingQueryFields(value, allFields.fields).length) {
+          setResult(undefined); setError(''); setLoading(false); return;
+        }
+        const [rows, pageType, index] = await Promise.all([api.query({ ...value, offset: 0 }, controller.signal), value.type ? api.type(value.type, controller.signal) : Promise.resolve(undefined), api.noteIndex(controller.signal)]);
+        if (controller.signal.aborted) return;
+        showResult(rows); setType(pageType); setNoteIndex(index); setError(''); setLoading(false);
+        if (!restoredScroll) {
+          restoredScroll = true;
+          requestAnimationFrame(() => { if (scroll) { scroll.scrollTop = props.view.scroll; scroll.scrollLeft = props.view.horizontalScroll ?? 0; } });
+        }
+      })().catch(reason => { if (!controller.signal.aborted) { message(reason); setLoading(false); } });
     }, 150);
     onCleanup(() => { clearTimeout(timer); controller.abort(); appendController?.abort(); });
   });
@@ -312,6 +334,10 @@ export function TablePane(props: TablePaneProps) {
       setViewUndo(true); setSaved(next);
       await refetchViews();
     } finally { setSavingView(false); }
+  };
+  const removeMissingField = async (id: string) => {
+    updateQuery(removeQueryField(query(), id));
+    if (saved()) await saveChanges();
   };
   const deleteView = async (value: View) => {
     if (deleting()) return;
@@ -556,12 +582,12 @@ export function TablePane(props: TablePaneProps) {
           <span>{changed() ? 'Modified' : 'Saved view'}</span><Show when={changed()}><Button disabled={savingView()} onClick={() => { void saveChanges().catch(message); }}>Save changes</Button><Button onClick={() => { const value = saved(); if (value) switchView(value); }}>Revert changes</Button></Show>
         </Show></div>
       </header>
-      <Show when={query().type}>{typeId => <TypeModeTabs active="table" indexCount={result()?.total ?? 0} tableCount={result()?.total ?? 0} fieldsCount={type()?.fields.length ?? 0}
+      <Show when={query().type}>{typeId => <TypeModeTabs active="table" indexCount={missingFields().length ? undefined : result()?.total ?? 0} tableCount={missingFields().length ? undefined : result()?.total ?? 0} fieldsCount={type()?.fields.length ?? 0}
         cardsCount={type()?.card_templates ?? 0} onCards={event => props.onOpen({ kind: 'cards', typeId: typeId() }, event.shiftKey)}
         onIndex={event => props.onOpen({ kind: 'index', key: typeKind()?.key ?? `type:${typeId()}`, viewId: props.target.viewId, query: { ...copyQuery(query()), note_kind: typeKind()?.key ?? `type:${typeId()}`, note_view: { layout: 'index', grouping: query().note_view?.grouping ?? 'letter' } } }, event.shiftKey)}
         onTable={event => props.onOpen({ kind: 'table', typeId: typeId(), viewId: props.target.viewId, query: copyQuery(query()) }, event.shiftKey)}
         onFields={event => props.onOpen({ kind: 'fields', typeId: typeId() }, event.shiftKey)} />}</Show>
-      <Show when={query().note_kind && !query().type}><div class="type-mode-tabs mode-tabs tab-strip" role="group" aria-label="Note view"><Button onClick={event => props.onOpen({ kind: 'index', key: query().note_kind!, viewId: props.target.viewId, query: { ...copyQuery(query()), note_view: { layout: 'index', grouping: query().note_view?.grouping ?? 'letter' } } }, event.shiftKey)}>Index <span class="faint">{result()?.total ?? 0}</span></Button><Button aria-pressed="true">Table <span class="faint">{result()?.total ?? 0}</span></Button></div></Show>
+      <Show when={query().note_kind && !query().type}><div class="type-mode-tabs mode-tabs tab-strip" role="group" aria-label="Note view"><Button onClick={event => props.onOpen({ kind: 'index', key: query().note_kind!, viewId: props.target.viewId, query: { ...copyQuery(query()), note_view: { layout: 'index', grouping: query().note_view?.grouping ?? 'letter' } } }, event.shiftKey)}>Index <span class="faint">{missingFields().length ? undefined : result()?.total ?? 0}</span></Button><Button aria-pressed="true">Table <span class="faint">{missingFields().length ? undefined : result()?.total ?? 0}</span></Button></div></Show>
       <Show when={query().note_kind}><NoteFind query={query()} plural={title()} notebook={props.notebook} onChange={updateQuery} /></Show>
       <div class="table-toolbar">
         <Button class="table-chip" aria-haspopup="menu" onClick={event => sourceMenu(event.currentTarget)}>From {sourceName(query().source)} <Icon name="down" /></Button>
@@ -572,19 +598,20 @@ export function TablePane(props: TablePaneProps) {
         <div class="table-query-controls">
           <Button class="bordered table-filter-button" aria-haspopup="dialog" onClick={event => showFilter(event.currentTarget)}>Filters<Show when={query().filters.length}><span class="table-control-count">{query().filters.length}</span></Show></Button>
           <Button class="bordered" aria-haspopup="menu" onClick={event => sortMenu(event.currentTarget)}>Sort <Icon name="down" /></Button>
-          <Button class="bordered" aria-haspopup="menu" onClick={event => groupMenu(event.currentTarget)}>Group<Show when={query().group}>: {fieldById(query().group!.key)?.name}</Show> <Icon name="down" /></Button>
+          <Button class="bordered" aria-haspopup="menu" onClick={event => groupMenu(event.currentTarget)}>Group<Show when={query().group}>: {fieldName(query().group!.key)}</Show> <Icon name="down" /></Button>
           <Button class="bordered table-columns-button" aria-haspopup="dialog" aria-expanded={popup()?.kind === 'columns'} onClick={event => setPopup(popup()?.kind === 'columns' ? null : { kind: 'columns', anchor: event.currentTarget })}>Columns <Icon name="down" /></Button>
         </div>
       </div>
       <Show when={query().sort.length || query().filters.length}><div class="table-query-chips">
-        <For each={query().sort}>{(key, index) => <span class="table-chip"><span class="table-sort-priority">{index() + 1}</span>{sortLabel(key, pickerFields())}<Show when={index() > 0}><Button label={`Make ${sortLabel(key, pickerFields())} higher priority`} onClick={() => { const sort = [...query().sort]; [sort[index() - 1], sort[index()]] = [sort[index()]!, sort[index() - 1]!]; updateQuery({ ...query(), sort }); }}>←</Button></Show><Button label={`Remove ${sortLabel(key, pickerFields())}`} onClick={() => updateQuery(removeSort(query(), index()))}>×</Button></span>}</For>
-        <For each={query().filters}>{(filter, index) => <span class="table-chip">{filterLabel(filter, pickerFields(), props.notebook)}<Button label={`Remove ${filterLabel(filter, pickerFields(), props.notebook)}`} onClick={() => updateQuery(removeFilter(query(), index()))}>×</Button></span>}</For>
+        <For each={query().sort}>{(key, index) => <span class="table-chip"><span class="table-sort-priority">{index() + 1}</span>{labelSort(key)}<Show when={index() > 0}><Button label={`Make ${labelSort(key)} higher priority`} onClick={() => { const sort = [...query().sort]; [sort[index() - 1], sort[index()]] = [sort[index()]!, sort[index() - 1]!]; updateQuery({ ...query(), sort }); }}>←</Button></Show><Button label={`Remove ${labelSort(key)}`} onClick={() => updateQuery(removeSort(query(), index()))}>×</Button></span>}</For>
+        <For each={query().filters}>{(filter, index) => <span class="table-chip">{filterLabel(filter, pickerFields(), props.notebook, query().field_names)}<Button label={`Remove ${filterLabel(filter, pickerFields(), props.notebook, query().field_names)}`} onClick={() => updateQuery(removeFilter(query(), index()))}>×</Button></span>}</For>
       </div></Show>
+      <Show when={missingFields().length}><MissingFields fields={missingFields()} busy={savingView()} onRemove={id => { void removeMissingField(id).catch(message); }} /></Show>
       <div class="table-scroll-frame">
       <div ref={scroll} class="table-scroll" onScroll={() => { cancelAnimationFrame(scrollReport); scrollReport = requestAnimationFrame(() => { reportView(); measureEdge(); }); }}>
         <table ref={grid} class="type-table table-grid" role="grid"><colgroup><col style={{ width: 'var(--table-title-width)' }} /><For each={visibleColumns()}>{id => <col style={{ width: columnWidth(id) }} />}</For><Show when={showRefs()}><col style={{ width: 'var(--table-refs-width)' }} /></Show></colgroup>
           <thead><tr><th scope="col" class="table-title-column"><Button aria-haspopup="menu" onClick={event => columnMenu(event.currentTarget, undefined)}>Title</Button><span class="table-resize" role="separator" aria-label="Resize Title" aria-orientation="vertical" onPointerDown={event => resizeColumn(event, '@title')} /></th>
-          <For each={visibleColumns()}>{id => <th scope="col" draggable="true" onDragStart={event => { draggedColumn = id; event.dataTransfer?.setData('text/plain', id); }} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); if (draggedColumn) moveColumn(draggedColumn, 1, id); draggedColumn = undefined; }}><Button aria-haspopup="menu" onClick={event => columnMenu(event.currentTarget, fieldById(id))}>{fieldById(id)?.name ?? id}</Button><span class="table-resize" role="separator" aria-label={`Resize ${fieldById(id)?.name ?? id}`} aria-orientation="vertical" onPointerDown={event => resizeColumn(event, id)} /></th>}</For>
+          <For each={visibleColumns()}>{id => <th scope="col" draggable="true" onDragStart={event => { draggedColumn = id; event.dataTransfer?.setData('text/plain', id); }} onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); if (draggedColumn) moveColumn(draggedColumn, 1, id); draggedColumn = undefined; }}><Button aria-haspopup="menu" onClick={event => columnMenu(event.currentTarget, fieldById(id))}>{fieldName(id)}</Button><span class="table-resize" role="separator" aria-label={`Resize ${fieldName(id)}`} aria-orientation="vertical" onPointerDown={event => resizeColumn(event, id)} /></th>}</For>
           <Show when={showRefs()}><th scope="col" class="table-refs" title={`Derived from ${sourceField()?.name ?? 'Source'}`}>Refs</th></Show>
         </tr></thead><tbody><For each={groupedRows()}>{entry => { const row = entry.row; return <>
         <Show when={entry.group}>{group => <tr class="table-member-group"><th colSpan={1 + visibleColumns().length + (showRefs() ? 1 : 0)}><Button aria-expanded={!entry.hidden} onClick={() => toggleGroup(group().key)}><Icon name={entry.hidden ? 'right' : 'down'} />{group().title}<span class="table-popup-count">{group().count}</span></Button></th></tr>}</Show>
@@ -622,12 +649,12 @@ export function TablePane(props: TablePaneProps) {
             <span class="table-card-field-name">{field.name}</span><Show when={field.id.startsWith('@')} fallback={<TableFieldValue field={field} values={row.values[field.id] ?? []} notebook={props.notebook} hideCount onPill={(value, anchor, beside) => { void openPill(row, field, value, anchor, beside).catch(message); }} onSources={(anchor, sources) => setPopup({ kind: 'sources', anchor, label: field.name, sources })} />}><TableAttributeValue values={row.attributes?.[field.id] ?? []} notebook={props.notebook} onOpen={(target, beside) => props.onOpen(target, beside)} /></Show>
           </div>}</For><Show when={showRefs() && (sourcesByRow().get(row.block.block.id) ?? []).length}>{count => <Button class="table-source-count table-card-refs" label={`${count()} references`} aria-haspopup="dialog" onClick={event => { event.stopPropagation(); setPopup({ kind: 'sources', anchor: event.currentTarget, label: sourceField()?.name ?? 'Source', sources: sourcesByRow().get(row.block.block.id) ?? [] }); }}>{count()} {count() === 1 ? 'ref' : 'refs'}</Button>}</Show></div>
         </article></>; }}</For></div>
-        <Show when={!loading() && !error() && !members().rows.length}><div class="table-empty"><p>{query().filters.length || query().text || query().links?.length || query().from?.length || query().cites?.length ? `No ${sourceName(query().source).toLocaleLowerCase()} match ${[...query().filters.map(filter => filterLabel(filter, pickerFields(), props.notebook)), ...(query().text ? [`“${query().text}”`] : []), ...(['links', 'from', 'cites'] as const).flatMap(key => query()[key]?.length ? [key] : [])].join(', ')}.` : `No ${sourceName(query().source).toLocaleLowerCase()} yet.`}</p><Show when={query().filters.length || query().text || query().links?.length || query().from?.length || query().cites?.length}><Button class="bordered" onClick={() => { setSearch(''); updateQuery({ ...query(), filters: [], text: null, links: [], from: [], cites: [] }); }}>Clear filters</Button></Show></div></Show>
+        <Show when={!loading() && !error() && !missingFields().length && !members().rows.length}><div class="table-empty"><p>{query().filters.length || query().text || query().links?.length || query().from?.length || query().cites?.length ? `No ${sourceName(query().source).toLocaleLowerCase()} match ${[...query().filters.map(filter => filterLabel(filter, pickerFields(), props.notebook, query().field_names)), ...(query().text ? [`“${query().text}”`] : []), ...(['links', 'from', 'cites'] as const).flatMap(key => query()[key]?.length ? [key] : [])].join(', ')}.` : `No ${sourceName(query().source).toLocaleLowerCase()} yet.`}</p><Show when={query().filters.length || query().text || query().links?.length || query().from?.length || query().cites?.length}><Button class="bordered" onClick={() => { setSearch(''); updateQuery({ ...query(), filters: [], text: null, links: [], from: [], cites: [] }); }}>Clear filters</Button></Show></div></Show>
       </div>
       <Show when={edge().hidden}><div class="table-more-right" style={{ height: `${edge().height}px` }}><Button class="table-more-columns" label={`Scroll to ${edge().hidden} more ${edge().hidden === 1 ? 'column' : 'columns'}`} onClick={showMoreColumns}>+{edge().hidden} <Icon name="right" /></Button></div></Show>
       </div>
       <footer class="table-footer" role="status"><Show when={deleted()} fallback={<>
-        <span>{loading() ? 'Loading…' : error() || `${(result()?.rows.length ?? 0).toLocaleString()} of ${membersLabel(result()?.total ?? 0)}`}</span>
+        <span>{loading() ? 'Loading…' : error() || (missingFields().length ? 'Results paused; remove the missing field or undo its deletion.' : `${(result()?.rows.length ?? 0).toLocaleString()} of ${membersLabel(result()?.total ?? 0)}`)}</span>
         <Show when={!loading() && canAppend()}><span aria-hidden="true">·</span><Button class="table-show-more" disabled={appending()} aria-busy={appending()} onClick={() => { void appendRows(); }}>Show {pageSize().toLocaleString()} more</Button></Show>
         <Show when={viewUndo()}><span>View saved ·</span><Button disabled={replaying()} onClick={() => { void replayCell(false).catch(message); }}>Undo</Button></Show>
       </>}>View deleted · <Button onClick={() => { void undoDelete().catch(message); }}>Undo</Button></Show></footer>

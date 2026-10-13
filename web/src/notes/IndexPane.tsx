@@ -1,12 +1,13 @@
-import { createEffect, createMemo, createResource, createSignal, For, onMount, Show, Switch, Match } from 'solid-js';
+import { createEffect, createMemo, createResource, createSignal, For, onMount, Show, Switch, Match, untrack } from 'solid-js';
 import { ulid } from 'ulid';
-import type { KindIndex, NoteEntry, NoteIndex, NoteKind, NoteSummary, Operation, Query } from '../api/types';
+import type { KindIndex, NoteEntry, NoteIndex, NoteKind, NoteSummary, Operation, Query, View } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import type { IndexViewState, OpenTarget } from '../shell/contract';
 import { plainText } from '../outline/names';
 import { PageMergePicker } from '../outline/PageMerge';
 import { documentReady } from '../outline/source-fields';
-import { addFilter, copyQuery, filterLabel, removeFilter, typeQuery } from '../table/query';
+import { addFilter, copyQuery, filterLabel, missingQueryFields, queriesEqual, removeFilter, removeQueryField, retainFieldNames, typeQuery } from '../table/query';
+import { MissingFields } from '../table/MissingFields';
 import { FilterPopup } from '../table/FilterPopup';
 import { NoteFind } from './NoteFind';
 import { Button } from '../ui/Button';
@@ -132,8 +133,10 @@ function KindIndexPane(props: IndexPaneProps) {
   const noteMode = () => props.kindKey !== 'unfiled';
   const grouping = () => query().note_view?.grouping ?? 'letter';
   const report = (next = query()) => props.onViewChange({ scroll: scroll?.scrollTop ?? 0, noteQuery: copyQuery(next), viewId: props.view.viewId });
-  const updateQuery = (next: Query) => { setQuery(copyQuery(next)); setPicked([]); report(next); };
-  const [matches] = createResource(() => noteMode() ? [query(), changes(), version()] as const : false, async ([value]) => {
+  const updateQuery = (next: Query) => { const value = copyQuery(retainFieldNames(next)); setQuery(value); setPicked([]); report(value); };
+  const [definitions] = createResource(() => noteMode() ? [changes()] : false, () => props.notebook.api.fields());
+  const missingFields = createMemo(() => definitions() ? missingQueryFields(query(), definitions()!.fields) : []);
+  const [matches] = createResource(() => noteMode() && definitions() && !definitions.loading && !missingFields().length ? [query(), changes(), version()] as const : false, async ([value]) => {
     const result = await props.notebook.api.query({ ...value, offset: 0, limit: 2000 });
     while (result.rows.length < result.total) {
       const next = await props.notebook.api.query({ ...value, offset: result.rows.length, limit: 2000 });
@@ -143,7 +146,30 @@ function KindIndexPane(props: IndexPaneProps) {
     return result;
   });
   const [kindFields] = createResource(() => noteMode() ? [props.kindKey, changes()] as const : false, async ([key]) => (await props.notebook.api.query({ ...typeQuery(typeId() ?? null), note_kind: key, limit: 0 })).fields);
-  const [saved] = createResource(() => props.view.viewId, id => props.notebook.api.view(id));
+  const savedViewId = createMemo(() => props.view.viewId);
+  const [saved, { mutate: setSaved }] = createResource(() => savedViewId() ? [savedViewId()!, changes()] as const : false, ([id]) => props.notebook.api.view(id));
+  let observedSaved: View | undefined;
+  createEffect(() => {
+    const next = saved(); if (!next) return;
+    untrack(() => {
+      const previous = observedSaved?.query ?? props.view.noteQuery;
+      if ((!previous || queriesEqual(query(), previous)) && !queriesEqual(query(), next.query)) updateQuery(next.query);
+      observedSaved = next;
+    });
+  });
+  const removeMissingField = async (id: string) => {
+    if (busy()) return;
+    setBusy(true); setError('');
+    try {
+      const next = removeQueryField(query(), id); const current = saved();
+      if (current) {
+        await props.notebook.commit([{ op: 'save_view', id: current.id, base_revision: current.revision, name: current.name, query: next }], 'Remove missing field from view');
+        setSaved({ ...current, query: next, revision: current.revision + 1 });
+      }
+      updateQuery(next);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
+    finally { setBusy(false); }
+  };
   const shown = createMemo(() => {
     if (!noteMode()) return index.latest;
     const ids = new Set(matches()?.rows.map(row => row.block.block.id) ?? []);
@@ -250,27 +276,29 @@ function KindIndexPane(props: IndexPaneProps) {
     <div class="index-sheet">
       <p class="index-eyebrow">{props.kindKey === 'unfiled' ? 'Filing queue' : props.kindKey === 'source' ? 'Index · Bibliography' : 'Index'}</p>
       <div class="index-head"><h1><Icon name={noteKindIcon(props.kind ?? props.kindKey)} />{saved()?.name ?? title()}</h1>
-        <Show when={index.latest}><span class="index-tally">{tally(count(), props.kindKey === 'source' ? 'source' : 'note')}</span></Show>
+        <Show when={index.latest && !missingFields().length}><span class="index-tally">{tally(count(), props.kindKey === 'source' ? 'source' : 'note')}</span></Show>
         <Show when={groups().length}><NewKindAction kindKey={props.kindKey} kind={props.kind} notebook={props.notebook} onOpen={props.onOpen} members={index.latest?.notes} /></Show>
       </div>
-      <Show when={typeId()}>{id => <TypeModeTabs active="index" indexCount={count()} tableCount={count()} fieldsCount={type()?.fields.length ?? 0}
+      <Show when={typeId()}>{id => <TypeModeTabs active="index" indexCount={missingFields().length ? undefined : count()} tableCount={missingFields().length ? undefined : count()} fieldsCount={type()?.fields.length ?? 0}
         cardsCount={type()?.card_templates ?? 0} onCards={event => props.onOpen({ kind: 'cards', typeId: id() }, event.shiftKey)}
         onIndex={() => { scroll.scrollTop = 0; }} onTable={openTable}
         onFields={event => props.onOpen({ kind: 'fields', typeId: id() }, event.shiftKey)} />}</Show>
       <Show when={noteMode()}>
-        <Show when={!typeId()}><div class="type-mode-tabs mode-tabs tab-strip" role="group" aria-label="Note view"><Button aria-pressed="true">Index <span class="faint">{count()}</span></Button><Button onClick={openTable}>Table <span class="faint">{count()}</span></Button></div></Show>
+        <Show when={!typeId()}><div class="type-mode-tabs mode-tabs tab-strip" role="group" aria-label="Note view"><Button aria-pressed="true">Index <span class="faint">{missingFields().length ? undefined : count()}</span></Button><Button onClick={openTable}>Table <span class="faint">{missingFields().length ? undefined : count()}</span></Button></div></Show>
         <NoteFind query={query()} plural={title()} notebook={props.notebook} onChange={updateQuery}>
           <Button class="bordered" aria-haspopup="menu" onClick={event => setGroupMenu(event.currentTarget)}>Group <Icon name="down" /></Button>
           <Button class="bordered" onClick={event => setFilterMenu(event.currentTarget)}>Filters</Button>
           <Button onClick={event => { setViewName(''); setSaveAnchor(event.currentTarget); }}>Save as view…</Button>
         </NoteFind>
-        <Show when={query().filters.length}><div class="table-query-chips"><For each={query().filters}>{(filter, at) => <span class="table-chip">{filterLabel(filter, matches()?.fields ?? [], props.notebook)}<Button label="Remove filter" onClick={() => updateQuery(removeFilter(query(), at()))}>×</Button></span>}</For></div></Show>
+        <Show when={query().filters.length}><div class="table-query-chips"><For each={query().filters}>{(filter, at) => <span class="table-chip">{filterLabel(filter, definitions()?.fields ?? [], props.notebook, query().field_names)}<Button label="Remove filter" onClick={() => updateQuery(removeFilter(query(), at()))}>×</Button></span>}</For></div></Show>
+        <Show when={missingFields().length}><MissingFields fields={missingFields()} busy={busy()} onRemove={id => { void removeMissingField(id); }} /><p class="faint">Results paused; remove the missing field or undo its deletion.</p></Show>
+        <Show when={error() || definitions.error}><p class="error" role="alert">{error() || String(definitions.error)}</p></Show>
         <Show when={picked().length}><div class="index-selection" role="status"><span>{picked().length} selected</span><Show when={props.onSpread}><Button disabled={picked().length < 2 || picked().length > 5} title={picked().length < 2 || picked().length > 5 ? 'Select two to five notes' : undefined} onClick={event => props.onSpread?.(picked(), event.shiftKey)}>Spread</Button></Show><Button onClick={() => setPicked([])}>Clear</Button></div></Show>
         <Show when={matches.error}><p class="error" role="alert">{String(matches.error)}</p></Show>
       </Show>
       <Show when={index.error}><p class="error" role="alert">Couldn’t load this index · {String(index.error)}</p></Show>
       <Show when={readableSources.error || collectionCounts.error}><p class="error" role="alert">Couldn’t load source details · {String(readableSources.error || collectionCounts.error)}</p></Show>
-      <Show when={index.latest} fallback={<Show when={slow()}><p class="empty-state" role="status">Loading notes…</p></Show>}>
+      <Show when={!missingFields().length}><Show when={index.latest} fallback={<Show when={slow()}><p class="empty-state" role="status">Loading notes…</p></Show>}>
         <Switch>
           <Match when={props.kindKey === 'unfiled'}>
             <div class="index-queue-tabs mode-tabs tab-strip" data-mode-panel=".index-queue-layout" role="group" aria-label="Filing queue">
@@ -340,7 +368,7 @@ function KindIndexPane(props: IndexPaneProps) {
             </Show>
           </Match>
         </Switch>
-      </Show>
+      </Show></Show>
     </div>
     <Show when={groupMenu()}>{anchor => <Menu anchor={anchor()} label="Group" onDismiss={() => setGroupMenu(undefined)} items={[
       ...Object.entries({ letter: 'Letter', source: 'Source cited', link: 'Note linked', created: 'Created month' }).map(([key, label]) => ({ label, checked: grouping() === key, action: () => updateQuery({ ...query(), note_view: { layout: 'index', grouping: key } }) })),

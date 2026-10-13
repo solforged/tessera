@@ -3,15 +3,17 @@ import type { FieldImpact } from './commands';
 import type { FieldDefinition } from '../api/types';
 import { Button } from '../ui/Button';
 import { FieldPicker } from './FieldPicker';
+import { plural } from '../sync/state';
 
 export function FieldImpactPreview(props: { impact: FieldImpact; fields: readonly FieldDefinition[]; busy: boolean; onTarget(id: string): void; onApply(action: 'archive' | 'merge' | 'detach' | 'delete'): void; onCancel(): void }) {
   const [picker, setPicker] = createSignal<HTMLElement>();
   const [confirmed, setConfirmed] = createSignal(false);
   return <section class="field-section" aria-label="Field impact">
     <h2 class="field-section-head">{props.impact.target ? `Merge into ${props.impact.target.field.name}` : `Delete ${props.impact.detail.field.name}`}</h2>
-    <p class="field-note">{props.impact.detail.owners_total} owners on {new Set(props.impact.entries.map(entry => entry.page_id)).size} pages; {props.impact.templates.length} templates.</p>
+    <p class="field-note">{plural(props.impact.detail.owners_total, 'owner')} on {plural(new Set(props.impact.entries.map(entry => entry.page_id)).size, 'page')}; {plural(props.impact.templates.length, 'template')}; {plural(props.impact.views.length, 'view')}.</p>
     <details><summary>Affected pages</summary><ul class="field-note"><For each={props.impact.pages.filter(page => page.root.id !== props.impact.definition.page_id)}>{page => <li>{page.root.text}</li>}</For></ul></details>
     <details><summary>Affected templates</summary><ul class="field-note"><For each={props.impact.templates} fallback={<li>No templates.</li>}>{type => <li>{type.page.text}</li>}</For></ul></details>
+    <details open><summary>Affected views</summary><ul class="field-note"><For each={props.impact.views} fallback={<li>No views.</li>}>{view => <li>{view.name}</li>}</For></ul></details>
     <Show when={props.impact.target} fallback={<>
       <p class="field-note">Archive hides this definition from pickers and keeps its values readable. Detach keeps values as ordinary text. Delete values removes their subtrees.</p>
       <Button disabled={props.busy || props.impact.definition.archived} onClick={() => props.onApply('archive')}>Archive</Button>
@@ -21,7 +23,7 @@ export function FieldImpactPreview(props: { impact: FieldImpact; fields: readonl
       <Button disabled={props.busy || !confirmed()} onClick={() => props.onApply('delete')}>Delete values</Button>
       <Show when={!confirmed()}><p class="field-note">Confirm above to delete values.</p></Show>
     </>}>
-      <p class="field-note">{new Set(props.impact.conflicts.map(entry => entry.parent_id)).size} owners have both fields. Their values stay side by side as separate entries.</p>
+      <p class="field-note">{plural(new Set(props.impact.conflicts.map(entry => entry.parent_id)).size, 'owner')} {new Set(props.impact.conflicts.map(entry => entry.parent_id)).size === 1 ? 'has' : 'have'} both fields. Their values stay side by side as separate entries.</p>
       <Show when={props.impact.conflicts.length}><details open><summary>Conflicting values</summary><ul class="field-note"><For each={props.impact.conflicts}>{entry => {
         const page = props.impact.pages.find(page => page.root.id === entry.page_id)!;
         const owner = page.root.id === entry.parent_id ? page.root : page.rows.find(row => row.block.id === entry.parent_id)?.block;

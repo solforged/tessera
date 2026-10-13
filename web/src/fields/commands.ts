@@ -1,10 +1,10 @@
 import { ulid } from 'ulid';
-import type { Block, Committed, FieldChoiceCandidate, FieldDefinition, FieldDetail, FieldKind, Operation, PageView, Type } from '../api/types';
+import type { Block, Committed, FieldChoiceCandidate, FieldDefinition, FieldDetail, FieldKind, Operation, PageView, Type, View } from '../api/types';
 import type { DocumentChange, NotebookClient, PageDocument } from '../document/contract';
-import { fieldEntryId } from '../table/query';
+import { fieldEntryId, queryFieldIds, remapQueryField } from '../table/query';
 import { documentReady } from '../outline/source-fields';
 
-type Write = Extract<Operation, { op: 'insert' | 'create_page' | 'edit_text' | 'set_field_kind' | 'set_type_fields' | 'set_archived' | 'move' | 'delete' | 'restore' }>;
+type Write = Extract<Operation, { op: 'insert' | 'create_page' | 'edit_text' | 'set_field_kind' | 'set_type_fields' | 'set_archived' | 'move' | 'delete' | 'restore' }> | (Extract<Operation, { op: 'save_view' }> & { base_revision: number });
 interface Step { forward: Write; backward: Write }
 const revision = (receipt: Committed, id: string) => {
   const value = receipt.revisions.find(value => value.id === id);
@@ -162,6 +162,7 @@ export interface FieldImpact {
   entries: Block[];
   pages: PageView[];
   templates: Type[];
+  views: View[];
   target?: FieldDetail;
   conflicts: Block[];
 }
@@ -169,22 +170,30 @@ export interface FieldImpact {
 /** Capture revisions at preview time, so a later edit rejects rather than being overwritten. */
 export async function fieldImpact(notebook: NotebookClient, id: string, target?: string): Promise<FieldImpact> {
   const detail = await notebook.api.fieldDetail(id);
-  const [definition, entries, templates, survivor] = await Promise.all([
+  const [definition, entries, templates, survivor, views] = await Promise.all([
     notebook.api.block(id), Promise.all(detail.entries.map(id => notebook.api.block(id))),
     Promise.all(detail.templates.map(type => notebook.api.type(type.type_id))),
     target ? notebook.api.fieldDetail(target) : undefined,
+    notebook.api.views(),
   ]);
   const pageIds = [...new Set([definition.page_id, ...entries.map(entry => entry.page_id)])];
   const pages = await Promise.all(pageIds.map(id => notebook.api.page(id)));
   const targetEntries = survivor ? await Promise.all(survivor.entries.map(id => notebook.api.block(id))) : [];
   const targetOwners = new Set(targetEntries.map(entry => entry.parent_id));
-  return { detail, definition, entries, pages, templates, target: survivor, conflicts: entries.filter(entry => targetOwners.has(entry.parent_id)) };
+  return { detail, definition, entries, pages, templates, views: views.filter(view => queryFieldIds(view.query).includes(id)), target: survivor, conflicts: entries.filter(entry => targetOwners.has(entry.parent_id)) };
 }
 
 export async function applyFieldImpact(notebook: NotebookClient, impact: FieldImpact, action: 'archive' | 'merge' | 'detach' | 'delete'): Promise<DocumentChange> {
   const { definition, entries, templates, target } = impact;
   const steps: Step[] = [];
   const pages = new Set(impact.pages.map(page => page.root.id));
+  // Save before deleting the definition; inverse order restores it before restoring recipes.
+  if (action !== 'archive') for (const view of impact.views) {
+    steps.push({
+      forward: { op: 'save_view', id: view.id, base_revision: view.revision, name: view.name, query: action === 'merge' && target ? remapQueryField(view.query, definition.id, target.field.id) : { ...view.query, field_names: { ...view.query.field_names, [definition.id]: definition.text } } },
+      backward: { op: 'save_view', id: view.id, base_revision: 0, name: view.name, query: view.query },
+    });
+  }
   if (action === 'archive') {
     steps.push({ forward: { op: 'set_archived', id: definition.id, base_revision: definition.revision, archived: true }, backward: { op: 'set_archived', id: definition.id, base_revision: 0, archived: definition.archived } });
   } else {

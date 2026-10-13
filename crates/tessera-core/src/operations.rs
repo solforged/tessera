@@ -1827,7 +1827,11 @@ impl Engine<'_, '_> {
                 }
                 let mut unique = HashSet::new();
                 for field in fields {
-                    crate::fields::require_definition(self.tx, field)?;
+                    if !crate::fields::is_definition(self.tx, field)? {
+                        return Err(validation(format!(
+                            "not a readable field definition: {field}"
+                        )));
+                    }
                     if !unique.insert(field) {
                         return Err(validation("duplicate field in type template"));
                     }
@@ -1927,7 +1931,7 @@ impl Engine<'_, '_> {
                 if name.is_empty() || name.chars().count() > 120 {
                     return Err(validation("view name must contain 1 to 120 characters"));
                 }
-                crate::query::validate_query(self.tx, query)?;
+                crate::query::validate_saved_query(self.tx, query)?;
                 let revision = found.unwrap_or(0) + 1;
                 self.tx.execute(
                     "INSERT INTO views(id, name, query, revision, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?5)

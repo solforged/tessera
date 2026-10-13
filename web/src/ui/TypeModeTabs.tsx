@@ -2,8 +2,8 @@ import { Button } from './Button';
 
 export interface TypeModeTabsProps {
   active: 'index' | 'table' | 'fields' | 'cards';
-  indexCount: number;
-  tableCount: number;
+  indexCount: number | undefined;
+  tableCount: number | undefined;
   fieldsCount: number;
   cardsCount: number;
   onIndex(event: MouseEvent): void;

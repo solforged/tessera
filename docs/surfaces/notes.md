@@ -48,6 +48,8 @@ Group offers Letter, Source cited, Note linked, Created month, then the kind's p
 
 Save as view… keeps the query, layout and grouping in the existing view store. Saved views sit under their kind, including capability kinds, and reopening restores chips and grouping. Older table views remain Table with Letter grouping when opened as an index. Index and Table retain the same query on switching.
 
+If a saved finding aid names a detached or deleted field, it shows the remembered name and offers Remove from view. Results pause until that reference is removed or the field change is undone. The action saves the repaired query, without discarding other filters or presentation choices.
+
 Index rows reveal a checkbox on hover or focus. Cmd/Ctrl-click toggles a note; Shift-click extends from the selection anchor. The bar shows `N selected` and Clear, plus Spread when the shell provides it. Spread accepts two to five notes and Shift opens it beside. Selection counts distinct notes even when a note occurs under several headings.
 
 `is:resolved` filters `@resolved` to true. `revisit:due` filters `@revisit` through today in the notebook's time zone; `revisit:set` and `revisit:none` select set and empty dates. Question notes use their question's revisit date. These predicates share the query's field filters and remain live when saved. State grouping in the finding aid's Group menu is not implemented.
