@@ -114,6 +114,8 @@ Columns past the right edge fade under the rows. `+N ›` at the header's end co
 
 Enter or double-click edits a single plain text, number, URL or identifier value inline. A cell with one value or none of kind choice, instance or date opens that kind's [value editor](../design.md#field-entries) on the cell, and a checkbox cell toggles on click or Space, keeping focus. Pills follow the outline: a choice pill opens its options, an instance pill opens its page, and Shift opens either beside. Cells with several values open the field's source outline beside the table.
 
+Inline text editors keep authored line breaks. Shift-Enter adds a newline; Enter commits the value.
+
 ⌘Z and ⌘⇧Z in the table undo and redo its value edits. Clearing a value preserves its block and child notes; refilling reuses a blank value block. Inline editors do not replace structured text with a rendered label.
 
 ### Columns

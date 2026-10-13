@@ -45,7 +45,7 @@
 .table-page-title { color: var(--faint); font: var(--apparatus); margin-top: var(--space-8); }
 .table-value-pill.button { display: inline-block; min-height: 0; padding: 0 var(--space-8); margin: var(--rule-width) var(--space-2) var(--rule-width) 0; border: var(--rule-width) solid var(--line); border-radius: var(--radius-pill); background: transparent; font-size: var(--text-meta); font-weight: var(--weight-body); line-height: var(--line-meta); white-space: normal; }
 .table-reading-problem { text-decoration: underline dotted var(--warning); text-underline-offset: var(--space-4); }
-.table-cell-input { min-width: 0; padding: var(--space-4); min-height: var(--row-height); }
+.table-cell-input { display: block; width: 100%; min-width: 0; padding: var(--space-4); min-height: var(--row-height); resize: vertical; font: inherit; line-height: inherit; }
 .table-source-cell { display: flex; align-items: center; gap: var(--space-8); white-space: normal; }
 .table-source-summary { flex: 1; min-width: 0; }
 .table-source-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); line-height: var(--line-meta); }
