@@ -9,6 +9,7 @@ import { documentReady } from '../outline/source-fields';
 import { addFilter, copyQuery, filterLabel, missingQueryFields, queriesEqual, removeFilter, removeQueryField, retainFieldNames, typeQuery } from '../table/query';
 import { MissingFields } from '../table/MissingFields';
 import { FilterPopup } from '../table/FilterPopup';
+import { attributeDefinitions } from '../table/attributes';
 import { NoteFind } from './NoteFind';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
@@ -44,6 +45,7 @@ const apparatus = (summary: NoteSummary | undefined) => summary ? `${tally(summa
 // The last read of each index shows at once when the pane opens again, while a fresh read replaces it.
 const directoryReads = new WeakMap<NotebookClient, NoteIndex>();
 const kindReads = new WeakMap<NotebookClient, Map<string, KindIndex>>();
+const noteAttributes = attributeDefinitions('notes');
 
 export function IndexPane(props: IndexPaneProps) {
   return <Switch>
@@ -290,7 +292,7 @@ function KindIndexPane(props: IndexPaneProps) {
           <Button class="bordered" onClick={event => setFilterMenu(event.currentTarget)}>Filters</Button>
           <Button onClick={event => { setViewName(''); setSaveAnchor(event.currentTarget); }}>Save as view…</Button>
         </NoteFind>
-        <Show when={query().filters.length}><div class="table-query-chips"><For each={query().filters}>{(filter, at) => <span class="table-chip">{filterLabel(filter, definitions()?.fields ?? [], props.notebook, query().field_names)}<Button label="Remove filter" onClick={() => updateQuery(removeFilter(query(), at()))}>×</Button></span>}</For></div></Show>
+        <Show when={query().filters.length}><div class="table-query-chips"><For each={query().filters}>{(filter, at) => <span class="table-chip">{filterLabel(filter, [...noteAttributes, ...definitions()?.fields ?? []], props.notebook, query().field_names)}<Button label="Remove filter" onClick={() => updateQuery(removeFilter(query(), at()))}>×</Button></span>}</For></div></Show>
         <Show when={missingFields().length}><MissingFields fields={missingFields()} busy={busy()} onRemove={id => { void removeMissingField(id); }} /><p class="faint">Results paused; remove the missing field or undo its deletion.</p></Show>
         <Show when={error() || definitions.error}><p class="error" role="alert">{error() || String(definitions.error)}</p></Show>
         <Show when={picked().length}><div class="index-selection" role="status"><span>{picked().length} selected</span><Show when={props.onSpread}><Button disabled={picked().length < 2 || picked().length > 5} title={picked().length < 2 || picked().length > 5 ? 'Select two to five notes' : undefined} onClick={event => props.onSpread?.(picked(), event.shiftKey)}>Spread</Button></Show><Button onClick={() => setPicked([])}>Clear</Button></div></Show>

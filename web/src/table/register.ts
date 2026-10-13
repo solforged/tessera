@@ -1,4 +1,4 @@
-import type { FieldDefinition, QueryRow } from '../api/types';
+import type { FieldDefinition, QueryResult, QueryRow, QuerySource } from '../api/types';
 import { textTokens } from '../document/text-tokens';
 import { sourceText } from './sources';
 import type { TableSource } from './sources';
@@ -17,6 +17,41 @@ export function registerMembers(rows: readonly QueryRow[]): { rows: QueryRow[]; 
   const notes: QueryRow[] = []; const blocks: QueryRow[] = [];
   for (const row of rows) (row.block.block.kind === 'block' ? blocks : notes).push(row);
   return { rows: [...notes, ...blocks], taggedGroup: notes.length && blocks.length ? { rowId: blocks[0]!.block.block.id, count: blocks.length } : null };
+}
+
+const sourceColumns: Record<QuerySource, readonly string[]> = {
+  notes: ['@kind'], questions: ['@state', '@readings', '@last_assessed', '@revisit'],
+  positions: ['@holder', '@subject'], sources: ['@creator'], tasks: ['@status', '@due', '@scheduled', '@project'], highlights: ['@source'],
+};
+/** New views start with at most six columns, including Title and a derived Refs column. */
+export function defaultEntityColumns(source: QuerySource, result: QueryResult): string[] {
+  const columns = [...sourceColumns[source]];
+  const chosen = new Set(columns);
+  for (const field of result.fields) {
+    if (field.role === 'standfirst' && result.columns.includes(field.id) && !chosen.has(field.id)) {
+      columns.push(field.id); chosen.add(field.id);
+    }
+  }
+  if (result.rows.length) {
+    const filled = new Map<string, number>();
+    for (const row of result.rows) for (const [id, values] of Object.entries(row.values)) {
+      if (values.some(value => value.text.trim())) filled.set(id, (filled.get(id) ?? 0) + 1);
+    }
+    const threshold = Math.ceil(result.rows.length / 4);
+    for (const id of result.columns) if (!chosen.has(id) && (filled.get(id) ?? 0) >= threshold) {
+      columns.push(id); chosen.add(id);
+    }
+  }
+  const selected = columns.slice(0, 5);
+  return sourceDefinition(selected, result.fields) ? selected.slice(0, 4) : selected;
+}
+
+/** Reveal a focused cell within the horizontal space not occupied by the sticky title. */
+export function cellScrollLeft(current: number, left: number, right: number, frameLeft: number, frameRight: number, titleWidth: number): number {
+  const start = frameLeft + titleWidth;
+  if (left < start) return Math.max(0, current + left - start);
+  if (right > frameRight) return current + Math.min(right - frameRight, left - start);
+  return current;
 }
 
 /** Refs is a derived view of the authored Source field, not a stored field. */

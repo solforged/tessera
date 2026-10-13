@@ -146,13 +146,19 @@ Inline text editors keep authored line breaks. Shift-Enter adds a newline; Enter
 
 Cell focus follows the member and field, whether a note or a tagged block, so an edit that re-sorts the table keeps the keyboard on that member's value.
 
+Changing the column selection returns the grid to its left edge. Entering an inline editor preserves that scroll position; keyboard focus reveals its cell in the space beside the sticky title.
+
 ⌘Z and ⌘⇧Z in the table undo and redo its value edits. Clearing a value preserves its block and child notes; refilling reuses a blank value block. Inline editors do not replace structured text with a rendered label.
 
 ### Columns
 
 Columns start with the type template's fields, then fields present on all members of the type or the view's base membership, including blank entries. Search rows, filter predicates and pagination never remove or reorder these columns. Field-only views use owners of any named filter field as their base membership. Fields used by filters remain available even when every value is empty.
 
+New entity views start with the source's key attributes, its standfirst fields, then fields filled on at least a quarter of the first result's rows. There are at most six starting columns, including Title and derived Refs. Positions start with Holder and Subject; Questions with State, Readings, Last assessed and Revisit; Sources with Creator; Highlights with Source. Saved recipes keep their chosen columns.
+
 Columns hides or restores attributes, fields and derived Refs. Title only starts a compact selection. Find columns narrows the choices without changing the recipe. Column headers drag into order; their menus also offer Move left and Move right. Dragging a header's edge resizes it. The sticky title stays first and is 170 to 340 px wide, 240 by default. Chosen columns and widths belong to the query recipe and never change the type template. Search and filtering retain them. Older views without a recipe start with their existing pane-local visibility.
+
+With text in Find columns, Only these selects the matching columns together, keeping widths and order for columns already selected.
 
 Derived Refs sit beside their visible backing field. Hiding the field also hides its Refs. The separate Refs toggle stays pane-local and is never a saved column key.
 

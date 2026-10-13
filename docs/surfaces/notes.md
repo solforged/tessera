@@ -54,6 +54,8 @@ Index rows reveal a checkbox on hover or focus. Cmd/Ctrl-click toggles a note; S
 
 `is:resolved` filters `@resolved` to true. `revisit:due` filters `@revisit` through today in the notebook's time zone; `revisit:set` and `revisit:none` select set and empty dates. Question notes use their question's revisit date. These predicates share the query's field filters and remain live when saved. State grouping in the finding aid's Group menu is not implemented.
 
+Their chips use the same attribute labels as entity views: Resolved and Revisit on or before today. Raw query keys stay out of the finding aid.
+
 ### Questions ledger
 
 Questions opens a ledger rather than the alphabetical finding aid. Its ruled tabs are Active, Recurrent, Due, Answered, Parked and All. Active includes questions that are active or recurrent; Due selects non-parked questions whose revisit date has arrived. Each tab reads the same state filter from `/api/questions`.

@@ -254,6 +254,8 @@ A view is a saved query with a name and a revision. Views are not blocks; saving
 
 The query also carries its view recipe: ordered columns with widths, sort keys in priority order, grouping with collapsed heading keys, phone card fields and a one-line purpose. Saving, reopening and undoing a saved view keep the recipe with the query. Attributes are read-only cells; ordinary fields on entity blocks use the same value blocks and document history as the outline.
 
+An unsaved entity view starts with its key attributes, applicable standfirst fields and fields filled on at least a quarter of its first result's rows. The register uses at most six starting columns, including Title and derived Refs. It records that choice in pane history, so later searches keep it. Existing saved recipes remain unchanged.
+
 ## Tasks
 
 A task capability adds status (todo, doing, waiting, done, canceled), scheduled and deadline dates with optional times, warning lead, repeater and priority. Dates are local civil dates; times are `HH:MM` labels, not timestamps. Scheduling after a deadline is valid. Removing the capability deactivates it without erasing its history.

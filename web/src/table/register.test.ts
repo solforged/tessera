@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import type { BlockKind, FieldDefinition, QueryRow } from '../api/types';
-import { cardFields, registerMembers, retainCell, rowSources, sourceDefinition } from './register';
+import type { BlockKind, FieldDefinition, QueryResult, QueryRow } from '../api/types';
+import { cardFields, cellScrollLeft, defaultEntityColumns, registerMembers, retainCell, rowSources, sourceDefinition } from './register';
 
 function row(id: string, kind: BlockKind, values: Record<string, string[]> = {}): QueryRow {
   const block = { id, kind, parent_id: kind === 'block' ? 'page' : null, page_id: kind === 'block' ? 'page' : id, text: id, heading: null, archived: false, revision: 0, created_at: 0, updated_at: 0 } as const;
@@ -46,6 +46,28 @@ describe('table register presentation', () => {
     expect(cardFields(row('empty', 'page', { area: [' '] }), ['area'], fields, source)).toEqual([]);
     expect(cardFields(row('choice-only', 'page', { area: ['[[topic]]'], title: ['Subtitle'] }), ['area', 'title'], fields, undefined).map(field => field.id)).toEqual(['area', 'title']);
   });
+  test('new entity columns prioritise attributes and roles, then quarter-filled fields', () => {
+    const definitions: FieldDefinition[] = [
+      { ...fields[0]!, id: 'summary', name: 'Summary', role: 'standfirst' },
+      { ...fields[0]!, id: 'gist', name: 'Gist', role: 'attribute' },
+      { ...fields[0]!, id: 'common', name: 'Common' },
+      { ...fields[0]!, id: 'empty', name: 'Empty' },
+    ];
+    const rows = Array.from({ length: 8 }, (_, index) => row(`position-${index}`, 'block', { summary: index === 0 ? ['Summary'] : [], gist: index === 0 ? ['Rare gist'] : [], common: index < 2 ? ['Filled', 'Another value'] : [' '], empty: [] }));
+    const result: QueryResult = { fields: definitions, columns: ['gist', 'common', 'summary', 'empty'], rows, total: rows.length };
+    expect(defaultEntityColumns('positions', result)).toEqual(['@holder', '@subject', 'summary', 'common']);
+    expect(result.columns).toEqual(['gist', 'common', 'summary', 'empty']);
+    expect(defaultEntityColumns('questions', { fields: [], columns: [], rows: [], total: 0 })).toEqual(['@state', '@readings', '@last_assessed', '@revisit']);
+  });
+  test('six-column defaults reserve room for Title and derived Refs', () => {
+    const rows = [row('source', 'page', Object.fromEntries(fields.map(field => [field.id, ['Filled']])) )];
+    const result: QueryResult = { fields, columns: fields.map(field => field.id), rows, total: 1 };
+    const selected = defaultEntityColumns('sources', result);
+    expect(selected[0]).toBe('@creator');
+    expect(selected.length + 1 + (sourceDefinition(selected, fields) ? 1 : 0)).toBeLessThanOrEqual(6);
+    const summaries = Array.from({ length: 8 }, (_, index): FieldDefinition => ({ ...fields[0]!, id: `summary-${index}`, role: 'standfirst' }));
+    expect(defaultEntityColumns('positions', { fields: summaries, columns: summaries.map(field => field.id), rows: [], total: 0 })).toHaveLength(5);
+  });
 });
 
 describe('table cell ownership', () => {
@@ -67,5 +89,11 @@ describe('table cell ownership', () => {
     expect(retainCell(cell, [row('Polybius', 'page')], ['gloss'])).toEqual({ rowId: 'Polybius', fieldId: null });
     expect(retainCell(cell, [row('Ibn', 'page')], ['lived'])).toEqual({ rowId: 'Ibn', fieldId: 'lived' });
     expect(retainCell(cell, [], ['lived'])).toEqual({ rowId: null, fieldId: 'lived' });
+  });
+  test('focused cells stay clear of the sticky title without shifting visible cells', () => {
+    expect(cellScrollLeft(35, 205, 493, 0, 984, 240)).toBe(0);
+    expect(cellScrollLeft(35, 493, 781, 0, 984, 240)).toBe(35);
+    expect(cellScrollLeft(0, 800, 1088, 0, 984, 240)).toBe(104);
+    expect(cellScrollLeft(0, 240, 1200, 0, 984, 240)).toBe(0);
   });
 });

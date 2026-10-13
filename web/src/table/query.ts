@@ -6,6 +6,7 @@ export const filterLabels: Record<FilterOp, string> = {
   is: 'is', is_not: 'is not', contains: 'contains', gt: '>', gte: '≥', lt: '<', lte: '≤', present: 'has the field', set: 'has a value', empty: 'is empty',
   overlaps: 'overlaps', before: 'before', after: 'after',
 };
+const dateFilterLabels: Partial<Record<FilterOp, string>> = { gt: 'after', gte: 'on or after', lt: 'before', lte: 'on or before' };
 export function filterOperators(kind: FieldKind = 'text'): FilterOp[] {
   if (kind === 'checkbox') return ['is', 'is_not'];
   if (kind === 'choice' || kind === 'instance') return ['is', 'is_not', 'set', 'empty'];
@@ -13,7 +14,7 @@ export function filterOperators(kind: FieldKind = 'text'): FilterOp[] {
   return ['is', 'is_not', 'contains', ...(kind === 'number' || kind === 'date' ? ['gt', 'gte', 'lt', 'lte'] as const : []), 'present', 'set', 'empty'];
 }
 export function filterOperatorLabel(op: FilterOp, kind?: FieldKind): string {
-  return kind === 'date' && (op === 'lt' || op === 'gt') ? op === 'lt' ? 'before' : 'after' : kind === 'checkbox' && (op === 'is' || op === 'is_not') ? op === 'is' ? 'is checked' : 'is not checked' : filterLabels[op];
+  return kind === 'date' && dateFilterLabels[op] ? dateFilterLabels[op]! : kind === 'checkbox' && (op === 'is' || op === 'is_not') ? op === 'is' ? 'is checked' : 'is not checked' : filterLabels[op];
 }
 export function typeQuery(type: string | null): Query {
   return { type, text: null, filters: [], sort: [], limit: null };
@@ -107,6 +108,9 @@ export function filterLabel(filter: Filter, fields: readonly FieldDefinition[], 
   const value = definition?.kind === 'instance' && (filter.op === 'is' || filter.op === 'is_not') && filter.value
     ? notebook.lookup(filter.value)()?.text ?? filter.value
     : definition?.kind === 'choice' && definition.id.startsWith('@') ? definition.options.find(option => option.id === filter.value)?.text ?? filter.value : filter.value;
+  if (filter.field === '@resolved' && (filter.op === 'is' || filter.op === 'is_not') && (value === 'true' || value === 'false')) {
+    return (value === 'true') === (filter.op === 'is') ? 'Resolved' : 'Not resolved';
+  }
   if (definition?.kind === 'checkbox' && (filter.op === 'is' || filter.op === 'is_not') && filter.value?.toLowerCase() === 'true') {
     return `${name} ${filterOperatorLabel(filter.op, definition.kind)}`;
   }

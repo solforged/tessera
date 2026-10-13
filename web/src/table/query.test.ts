@@ -39,6 +39,13 @@ describe('query edits', () => {
     expect(filterLabel({ field: '@kind', op: 'is', value: 'type:books' }, fields, {} as NotebookClient)).toBe('Kind is Book');
     expect(attributeDefinitions('tasks').find(field => field.id === '@status')?.options.map(option => option.id)).toEqual(['todo', 'doing', 'waiting', 'done', 'cancelled']);
   });
+  test('note predicates use semantic attributes and civil-date comparisons', () => {
+    const fields = attributeDefinitions('notes'); const notebook = {} as NotebookClient;
+    expect(filterLabel({ field: '@resolved', op: 'is', value: 'true' }, fields, notebook)).toBe('Resolved');
+    expect(filterLabel({ field: '@resolved', op: 'is_not', value: 'true' }, fields, notebook)).toBe('Not resolved');
+    expect(filterLabel({ field: '@revisit', op: 'lte', value: 'today' }, fields, notebook)).toBe('Revisit on or before today');
+    expect(filterLabel({ field: '@revisit', op: 'gte', value: '+7d' }, fields, notebook)).toBe('Revisit on or after a week from now');
+  });
   test('filter operators follow field kinds and distinguish presence from values', () => {
     for (const kind of ['choice', 'instance'] as const) {
       expect(filterOperators(kind)).toEqual(['is', 'is_not', 'set', 'empty']);

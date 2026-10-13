@@ -26,7 +26,7 @@ import { addFilter, chooseSort, copyQuery, fieldEntryId, fieldEntryText, filterL
 import { MissingFields } from './MissingFields';
 import { sourceText } from './sources';
 import type { TableSource } from './sources';
-import { cardFields, registerMembers, retainCell, rowSources, sourceDefinition } from './register';
+import { cardFields, cellScrollLeft, defaultEntityColumns, registerMembers, retainCell, rowSources, sourceDefinition } from './register';
 import type { TableCell } from './register';
 import { attributeDefinitions, querySources, sourceName } from './attributes';
 import './table.css';
@@ -69,6 +69,7 @@ export function TablePane(props: TablePaneProps) {
   let appendController: AbortController | undefined;
   const [error, setError] = createSignal('');
   const [columnSearch, setColumnSearch] = createSignal('');
+  const [initialColumns, setInitialColumns] = createSignal<string[]>();
   const [resizingWidths, setResizingWidths] = createSignal<Record<string, number>>({});
   const [popup, setPopup] = createSignal<PopupState>(null);
   const [focused, setFocused] = createSignal<TableCell>({ rowId: null, fieldId: null });
@@ -86,7 +87,13 @@ export function TablePane(props: TablePaneProps) {
   const undone: typeof history = [];
   onCleanup(() => { for (const doc of documents.values()) doc.release(); });
   const focusCell = (rowId: string, fieldId: string | null) => {
-    region?.querySelector<HTMLElement>(`tr[data-block-id="${rowId}"]:not([hidden]) ${fieldId ? `[data-field-id="${fieldId}"]` : '.table-title-column.table-cell'}`)?.focus({ preventScroll: true });
+    const cell = region?.querySelector<HTMLElement>(`tr[data-block-id="${rowId}"]:not([hidden]) ${fieldId ? `[data-field-id="${fieldId}"]` : '.table-title-column.table-cell'}`);
+    cell?.focus({ preventScroll: true });
+    if (cell && fieldId && grid.offsetWidth) {
+      const bounds = cell.getBoundingClientRect(); const frame = scroll.getBoundingClientRect();
+      const stickyWidth = grid.tHead!.rows[0]!.cells[0]!.getBoundingClientRect().width;
+      scroll.scrollLeft = cellScrollLeft(scroll.scrollLeft, bounds.left, bounds.right, frame.left, frame.right, stickyWidth);
+    }
   };
   const showResult = (next: QueryResult) => {
     const cell = document.activeElement?.closest<HTMLElement>('.table-cell');
@@ -109,6 +116,8 @@ export function TablePane(props: TablePaneProps) {
   // Scroll position reaches pane history once per frame, not once per scroll event.
   let scrollReport = 0;
   onCleanup(() => cancelAnimationFrame(scrollReport));
+  let columnFrame = 0;
+  onCleanup(() => cancelAnimationFrame(columnFrame));
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
   let deletedTimer: ReturnType<typeof setTimeout> | undefined;
   let restoredScroll = false;
@@ -137,11 +146,12 @@ export function TablePane(props: TablePaneProps) {
   });
   const attributes = createMemo(() => attributeDefinitions(query().source).map(field => field.id === '@kind' ? { ...field, options: (noteIndex()?.kinds ?? []).map(kind => ({ id: kind.key, text: kind.name })) } : field));
   const pickerFields = createMemo(() => [...attributes(), ...fields()]);
+  const columnChoices = createMemo(() => pickerFields().filter(field => field.id !== '@title' && field.name.toLocaleLowerCase().includes(columnSearch().toLocaleLowerCase())));
   const fieldById = (id: string) => pickerFields().find(field => field.id === id);
   const fieldName = (id: string) => fieldById(id)?.name ?? query().field_names?.[id] ?? 'Missing field';
   const missingFields = createMemo(() => definitions() ? missingQueryFields(query(), definitions()!.fields) : []);
   const labelSort = (key: SortKey) => sortLabel(key, pickerFields(), query().field_names);
-  const visibleColumns = createMemo(() => query().columns ? query().columns!.map(column => column.key).filter(id => id !== '@title') : (result()?.columns ?? []).filter(id => id !== '@title' && !hiddenFields().includes(id)));
+  const visibleColumns = createMemo(() => query().columns ? query().columns!.map(column => column.key).filter(id => id !== '@title') : initialColumns() ?? (result()?.columns ?? []).filter(id => id !== '@title' && !hiddenFields().includes(id)));
   const members = createMemo(() => registerMembers(result()?.rows ?? []));
   const groupedRows = createMemo(() => {
     const rows = members().rows;
@@ -168,7 +178,7 @@ export function TablePane(props: TablePaneProps) {
     setFocused(retainCell(untrack(focused), navigableRows(), visibleColumns()));
   });
   const reportView = (value = query()) => props.onViewChange({
-    query: copyQuery(value), scroll: scroll?.scrollTop ?? props.view.scroll,
+    query: copyQuery(value.columns || !initialColumns() ? value : { ...value, columns: recipeColumns() }), scroll: scroll?.scrollTop ?? props.view.scroll,
     hiddenFields: [...hiddenFields()], titleWidth: titleWidth(), horizontalScroll: scroll?.scrollLeft ?? props.view.horizontalScroll ?? 0,
   });
   const recipeColumns = () => query().columns?.map(column => ({ ...column })) ?? [{ key: '@title', width: titleWidth() }, ...visibleColumns().map(key => ({ key, width: undefined as number | undefined }))];
@@ -218,10 +228,17 @@ export function TablePane(props: TablePaneProps) {
   };
   const changed = () => !!saved() && !queriesEqual(query(), saved()!.query);
   const title = () => typeKind()?.plural ?? type()?.plural ?? (query().type ? autoPlural(props.notebook.lookup(query().type!)()?.text ?? '') : query().source ? sourceName(query().source) : '');
-  const updateQuery = (value: Query) => {
-    const next = retainFieldNames(value);
-    setQuery(copyQuery(next));
-    reportView(next);
+  const updateQuery = (next: Query) => {
+    const value = retainFieldNames(next.columns || !initialColumns() ? next : { ...next, columns: recipeColumns() });
+    const columns = value.columns?.filter(column => column.key !== '@title').map(column => column.key);
+    const previous = visibleColumns();
+    const resetScroll = value.source !== query().source || !!columns && (columns.length !== previous.length || columns.some((id, index) => id !== previous[index]));
+    setQuery(copyQuery(value));
+    reportView(value);
+    if (resetScroll && scroll) {
+      scroll.scrollLeft = 0; cancelAnimationFrame(columnFrame);
+      columnFrame = requestAnimationFrame(() => { scroll.scrollLeft = 0; measureEdge(); reportView(); });
+    }
   };
   let observedSaved: View | undefined;
   createEffect(() => {
@@ -248,7 +265,12 @@ export function TablePane(props: TablePaneProps) {
         }
         const [rows, pageType, index] = await Promise.all([api.query({ ...value, offset: 0 }, controller.signal), value.type ? api.type(value.type, controller.signal) : Promise.resolve(undefined), api.noteIndex(controller.signal)]);
         if (controller.signal.aborted) return;
-        showResult(rows); setType(pageType); setNoteIndex(index); setError(''); setLoading(false);
+        setType(pageType); setNoteIndex(index);
+        if (value.source && !value.columns && !value.type && !value.note_kind && !props.target.viewId && !initialColumns()) {
+          setInitialColumns(defaultEntityColumns(value.source, rows));
+          reportView(value);
+        }
+        showResult(rows); setError(''); setLoading(false);
         if (!restoredScroll) {
           restoredScroll = true;
           requestAnimationFrame(() => { if (scroll) { scroll.scrollTop = props.view.scroll; scroll.scrollLeft = props.view.horizontalScroll ?? 0; } });
@@ -382,6 +404,7 @@ export function TablePane(props: TablePaneProps) {
   const switchView = (view: View | null) => {
     const next = view?.query ?? { ...typeQuery(query().type), ...(query().source ? { source: query().source } : {}), ...(query().note_kind ? { note_kind: query().note_kind, note_view: { layout: 'table' as const, grouping: 'letter' } } : {}) };
     if (next.note_kind && next.note_view?.layout === 'index') { props.onOpen({ kind: 'index', key: next.note_kind, viewId: view?.id, query: copyQuery(next) }, false); setPopup(null); return; }
+    setInitialColumns(undefined);
     clearTimeout(searchTimer); setSearch(next.text ?? ''); updateQuery(next); setSaved(view ?? undefined);
     setTitleWidth(clampTitleWidth(next.columns?.find(column => column.key === '@title')?.width));
     setSelectedRow(null); setFocused({ rowId: null, fieldId: null }); setPopup(null);
@@ -441,7 +464,7 @@ export function TablePane(props: TablePaneProps) {
   const sourceMenu = (anchor: HTMLElement) => setPopup({ kind: 'menu', anchor, label: 'Source', items: querySources.map(source => ({
     label: source.name, checked: (query().source ?? 'notes') === source.key, action: () => {
       const next = { ...typeQuery(null), source: source.key };
-      setSearch(''); setHiddenFields([]); updateQuery(next); setPopup(null);
+      setSearch(''); setHiddenFields([]); setInitialColumns(undefined); updateQuery(next); setPopup(null);
       props.onTargetChange({ kind: 'table', typeId: null, viewId: null, query: next }); setSaved(undefined);
     },
   })) });
@@ -628,7 +651,7 @@ export function TablePane(props: TablePaneProps) {
             const field = () => fieldById(id); const current = () => editing();
             return <td class={`table-cell table-kind-${field()?.kind ?? 'text'}`} data-field-id={id} tabIndex={focused().rowId === row.block.block.id && focused().fieldId === id ? 0 : -1} onFocus={() => { setFocused({ rowId: row.block.block.id, fieldId: id }); setSelectedRow(row.block.block.id); }} onClick={event => { event.stopPropagation(); if ((event.target as HTMLElement).closest('input, textarea, button, a')) return; event.currentTarget.focus({ preventScroll: true }); if (field()?.kind === 'checkbox') startEdit(row, field()!, event.currentTarget); }} onDblClick={event => { event.stopPropagation(); if (!(event.target as HTMLElement).closest('input, textarea') && field() && field()!.kind !== 'checkbox') startEdit(row, field()!, event.currentTarget); }}>
               <Show when={current()?.row.block.block.id === row.block.block.id && current()?.field.id === id} fallback={<Show when={id.startsWith('@')} fallback={<TableFieldValue field={field()} values={row.values[id] ?? []} notebook={props.notebook} hideCount={id === sourceField()?.id} onPill={(value, anchor, beside) => { if (field()) void openPill(row, field()!, value, anchor, beside).catch(message); }} onSources={(anchor, sources) => setPopup({ kind: 'sources', anchor, label: field()?.name ?? 'Sources', sources })} />}><TableAttributeValue values={row.attributes?.[id] ?? []} notebook={props.notebook} onOpen={(target, beside) => props.onOpen(target, beside)} /></Show>}>
-                <textarea class="input table-cell-input" aria-label={`Edit ${field()?.name ?? 'field'} value`} placeholder={field() ? valuePlaceholders[field()!.kind] : undefined} inputmode={field()?.kind === 'number' ? 'decimal' : field()?.kind === 'url' ? 'url' : undefined} rows={Math.min(8, Math.max(1, (current()?.text.match(/\n/g)?.length ?? 0) + 1))} value={current()?.text ?? ''} ref={input => queueMicrotask(() => { input.focus(); input.select(); })} onInput={event => { const text = event.currentTarget.value; setEditing(value => value ? { ...value, text } : null); }} onKeyDown={event => {
+                <textarea class="input table-cell-input" aria-label={`Edit ${field()?.name ?? 'field'} value`} placeholder={field() ? valuePlaceholders[field()!.kind] : undefined} inputmode={field()?.kind === 'number' ? 'decimal' : field()?.kind === 'url' ? 'url' : undefined} rows={Math.min(8, Math.max(1, (current()?.text.match(/\n/g)?.length ?? 0) + 1))} value={current()?.text ?? ''} ref={input => queueMicrotask(() => { input.focus({ preventScroll: true }); input.select(); })} onInput={event => { const text = event.currentTarget.value; setEditing(value => value ? { ...value, text } : null); }} onKeyDown={event => {
                   if (event.isComposing) return;
                   if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); event.stopPropagation(); void commitEdit(); }
                   else if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setEditing(null); region.focus(); }
@@ -676,11 +699,16 @@ export function TablePane(props: TablePaneProps) {
         <div class="table-column-choice table-column-fixed"><Icon name="check" />Title<span class="table-column-fixed-note">Always visible</span></div>
         <input class="input" aria-label="Find columns" placeholder="Find columns…" value={columnSearch()} onInput={event => setColumnSearch(event.currentTarget.value)} />
         <Button onClick={() => updateQuery({ ...query(), columns: [{ key: '@title', width: titleWidth() }] })}>Title only</Button>
-        <For each={pickerFields().filter(field => field.id !== '@title' && field.name.toLocaleLowerCase().includes(columnSearch().toLocaleLowerCase()))}>{field => <label class="table-column-choice"><input type="checkbox" checked={visibleColumns().includes(field.id)} onChange={event => showField(field.id, event.currentTarget.checked)} />{field.name}</label>}</For>
+        <Show when={columnSearch().trim() && columnChoices().length}><Button onClick={() => {
+          const ids = new Set(columnChoices().map(field => field.id)); const columns = recipeColumns().filter(column => column.key === '@title' || ids.has(column.key));
+          for (const field of columnChoices()) if (!columns.some(column => column.key === field.id)) columns.push({ key: field.id, width: undefined });
+          updateQuery({ ...query(), columns });
+        }}>Only these</Button></Show>
+        <For each={columnChoices()}>{field => <label class="table-column-choice"><input type="checkbox" checked={visibleColumns().includes(field.id)} onChange={event => showField(field.id, event.currentTarget.checked)} />{field.name}</label>}</For>
         <Show when={sourceField()}>{field => <label class="table-column-choice"><input type="checkbox" checked={showRefs()} onChange={event => showField(refsColumn, event.currentTarget.checked)} />Refs<span class="table-column-fixed-note">From {field().name}</span></label>}</Show>
         <label class="table-width-control" for={`table-title-width-${props.pane}`}><span>Title width <output>{titleWidth()} px</output></span><input id={`table-title-width-${props.pane}`} type="range" min={titleWidthLimits.min} max={titleWidthLimits.max} value={titleWidth()} onInput={event => { const width = clampTitleWidth(event.currentTarget.valueAsNumber); setTitleWidth(width); const columns = recipeColumns(); columns.find(column => column.key === '@title')!.width = width; updateQuery({ ...query(), columns }); }} /></label>
         <div class="table-popup-heading">Phone card fields</div><p class="table-popup-note">Sort fields are always shown.</p>
-        <For each={pickerFields().filter(field => field.id !== '@title' && field.name.toLocaleLowerCase().includes(columnSearch().toLocaleLowerCase()))}>{field => <label class="table-column-choice"><input type="checkbox" checked={query().card?.includes(field.id) ?? false} onChange={event => updateQuery({ ...query(), card: event.currentTarget.checked ? [...query().card ?? [], field.id] : (query().card ?? []).filter(id => id !== field.id) })} />{field.name}</label>}</For>
+        <For each={columnChoices()}>{field => <label class="table-column-choice"><input type="checkbox" checked={query().card?.includes(field.id) ?? false} onChange={event => updateQuery({ ...query(), card: event.currentTarget.checked ? [...query().card ?? [], field.id] : (query().card ?? []).filter(id => id !== field.id) })} />{field.name}</label>}</For>
         <Show when={query().type}><div class="table-template-actions"><Button onClick={() => addColumnMenu(state.anchor)}>Add field to type template…</Button><Button onClick={event => props.onOpen({ kind: 'page', pageId: query().type! }, event.shiftKey)}>Open type template</Button></div></Show>
       </Popup>}
       {state.kind === 'sources' && <SourcesPopup anchor={state.anchor} label={state.label} sources={state.sources} notebook={props.notebook} onDismiss={() => setPopup(null)} />}
