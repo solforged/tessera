@@ -47,6 +47,8 @@ The latest navigation request wins in its pane. Previous and next step from a pe
 
 Quiet dotted underlines make the segments clickable, brightening to gilt on hover; the open segment has a 2 px gilt rule instead. Each segment toggles one inline ledger beneath the heading. Tapping it again or Escape closes it.
 
+The trail names the period being inspected. Opening a week from a month, or a month from a year or quarter, moves the trail's labels to that period, and closing the ledger returns them to the displayed day. The week ledger is headed like a month, `Week 41 5–11 October`. Opening a finer period from inside a ledger scrolls just enough to bring that ledger into view.
+
 The period trail keeps even visible gaps around its separators. Touch hit areas extend to at least 40 px without widening the labels.
 
 ### Period ledgers
